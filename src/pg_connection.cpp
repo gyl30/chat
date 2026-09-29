@@ -276,7 +276,8 @@ boost::capy::io_task<PGresult*> pg_connection::next_result()
     };
 }
 
-boost::capy::io_task<std::string> pg_connection::execute_scalar(std::string query, std::vector<std::string> parameters)
+boost::capy::io_task<std::optional<std::vector<std::string>>> pg_connection::execute_row(
+    std::string query, std::vector<std::string> parameters)
 {
     error_message_.clear();
 
@@ -284,7 +285,7 @@ boost::capy::io_task<std::string> pg_connection::execute_scalar(std::string quer
     {
         error_message_ = "PostgreSQL connection is not open";
 
-        co_return boost::capy::io_result<std::string>{
+        co_return boost::capy::io_result<std::optional<std::vector<std::string>>>{
             std::make_error_code(std::errc::not_connected),
             {},
         };
@@ -300,7 +301,7 @@ boost::capy::io_task<std::string> pg_connection::execute_scalar(std::string quer
     auto const* values = parameter_values.empty() ? nullptr : parameter_values.data();
     if (PQsendQueryParams(connection_.get(), query.c_str(), static_cast<int>(parameter_values.size()), nullptr, values, nullptr, nullptr, 0) == 0)
     {
-        co_return boost::capy::io_result<std::string>{
+        co_return boost::capy::io_result<std::optional<std::vector<std::string>>>{
             set_libpq_error(),
             {},
         };
@@ -311,7 +312,7 @@ boost::capy::io_task<std::string> pg_connection::execute_scalar(std::string quer
 
         if (ec)
         {
-            co_return boost::capy::io_result<std::string>{
+            co_return boost::capy::io_result<std::optional<std::vector<std::string>>>{
                 ec,
                 {},
             };
@@ -321,7 +322,7 @@ boost::capy::io_task<std::string> pg_connection::execute_scalar(std::string quer
     auto [ec, raw_result] = co_await next_result();
     if (ec)
     {
-        co_return boost::capy::io_result<std::string>{
+        co_return boost::capy::io_result<std::optional<std::vector<std::string>>>{
             ec,
             {},
         };
@@ -331,7 +332,7 @@ boost::capy::io_task<std::string> pg_connection::execute_scalar(std::string quer
     {
         error_message_ = "PostgreSQL command returned no result";
 
-        co_return boost::capy::io_result<std::string>{
+        co_return boost::capy::io_result<std::optional<std::vector<std::string>>>{
             std::make_error_code(std::errc::protocol_error),
             {},
         };
@@ -341,21 +342,39 @@ boost::capy::io_task<std::string> pg_connection::execute_scalar(std::string quer
 
     std::error_code result_ec;
     std::string result_error_message;
-    std::string value;
+    std::optional<std::vector<std::string>> row;
 
     if (PQresultStatus(result.get()) != PGRES_TUPLES_OK)
     {
         result_ec = make_libpq_error();
         result_error_message = PQresultErrorMessage(result.get());
     }
-    else if (PQntuples(result.get()) != 1 || PQnfields(result.get()) != 1 || PQgetisnull(result.get(), 0, 0))
+    else if (PQntuples(result.get()) > 1)
     {
         result_ec = std::make_error_code(std::errc::protocol_error);
-        result_error_message = "query did not return exactly one non-null value";
+        result_error_message = "query returned more than one row";
     }
-    else
+    else if (PQntuples(result.get()) == 1)
     {
-        value = PQgetvalue(result.get(), 0, 0);
+        std::vector<std::string> values;
+        values.reserve(static_cast<std::size_t>(PQnfields(result.get())));
+
+        for (int column = 0; column < PQnfields(result.get()); ++column)
+        {
+            if (PQgetisnull(result.get(), 0, column))
+            {
+                result_ec = std::make_error_code(std::errc::protocol_error);
+                result_error_message = "query returned a null value";
+                break;
+            }
+
+            values.emplace_back(PQgetvalue(result.get(), 0, column));
+        }
+
+        if (!result_ec)
+        {
+            row = std::move(values);
+        }
     }
 
     result.reset();
@@ -366,7 +385,7 @@ boost::capy::io_task<std::string> pg_connection::execute_scalar(std::string quer
         auto [next_ec, extra_result] = co_await next_result();
         if (next_ec)
         {
-            co_return boost::capy::io_result<std::string>{
+            co_return boost::capy::io_result<std::optional<std::vector<std::string>>>{
                 next_ec,
                 {},
             };
@@ -384,7 +403,7 @@ boost::capy::io_task<std::string> pg_connection::execute_scalar(std::string quer
     if (result_ec)
     {
         error_message_ = std::move(result_error_message);
-        co_return boost::capy::io_result<std::string>{
+        co_return boost::capy::io_result<std::optional<std::vector<std::string>>>{
             result_ec,
             {},
         };
@@ -393,6 +412,33 @@ boost::capy::io_task<std::string> pg_connection::execute_scalar(std::string quer
     if (unexpected_result)
     {
         error_message_ = "PostgreSQL command returned unexpected extra results";
+        co_return boost::capy::io_result<std::optional<std::vector<std::string>>>{
+            std::make_error_code(std::errc::protocol_error),
+            {},
+        };
+    }
+
+    co_return boost::capy::io_result<std::optional<std::vector<std::string>>>{
+        std::error_code{},
+        std::move(row),
+    };
+}
+
+boost::capy::io_task<std::string> pg_connection::execute_scalar(std::string query, std::vector<std::string> parameters)
+{
+    auto [ec, row] = co_await execute_row(std::move(query), std::move(parameters));
+    if (ec)
+    {
+        co_return boost::capy::io_result<std::string>{
+            ec,
+            {},
+        };
+    }
+
+    if (!row || row->size() != 1)
+    {
+        error_message_ = "query did not return exactly one non-null value";
+
         co_return boost::capy::io_result<std::string>{
             std::make_error_code(std::errc::protocol_error),
             {},
@@ -401,6 +447,6 @@ boost::capy::io_task<std::string> pg_connection::execute_scalar(std::string quer
 
     co_return boost::capy::io_result<std::string>{
         std::error_code{},
-        std::move(value),
+        std::move(row->front()),
     };
 }

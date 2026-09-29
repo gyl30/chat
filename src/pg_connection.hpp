@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <optional>
 #include <string_view>
 #include <system_error>
 
@@ -24,6 +25,9 @@ class pg_connection
     boost::capy::io_task<> connect(std::string conninfo);
 
     boost::capy::io_task<std::string> execute_scalar(std::string query, std::vector<std::string> parameters = {});
+
+    boost::capy::io_task<std::optional<std::vector<std::string>>> execute_row(
+        std::string query, std::vector<std::string> parameters = {});
 
     void close() noexcept;
 

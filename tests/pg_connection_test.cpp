@@ -1,5 +1,6 @@
 #include <tuple>
 #include <string>
+#include <vector>
 #include <cstdlib>
 #include <iostream>
 
@@ -91,6 +92,52 @@ boost::capy::task<int> run_tests(boost::corosio::io_context& io_context)
     else
     {
         std::cout << "PASS empty query parameter\n";
+    }
+
+    auto row_result = co_await connection.execute_row("SELECT $1::text, $2::text", {"left", "right"});
+    auto& [row_ec, row] = row_result;
+    if (row_ec || !row || *row != std::vector<std::string>{"left", "right"})
+    {
+        std::cerr << "FAIL row query: " << connection.error_message() << '\n';
+        ++failures;
+    }
+    else
+    {
+        std::cout << "PASS row query\n";
+    }
+
+    auto missing_row_result = co_await connection.execute_row("SELECT 1::text, 2::text WHERE false");
+    auto& [missing_row_ec, missing_row] = missing_row_result;
+    if (missing_row_ec || missing_row)
+    {
+        std::cerr << "FAIL missing row query: " << connection.error_message() << '\n';
+        ++failures;
+    }
+    else
+    {
+        std::cout << "PASS missing row query\n";
+    }
+
+    auto multiple_rows_result = co_await connection.execute_row("SELECT generate_series(1, 2)::text");
+    if (!std::get<0>(multiple_rows_result))
+    {
+        std::cerr << "FAIL multiple rows were accepted\n";
+        ++failures;
+    }
+    else
+    {
+        std::cout << "PASS multiple rows rejected\n";
+    }
+
+    auto null_row_result = co_await connection.execute_row("SELECT NULL::text");
+    if (!std::get<0>(null_row_result))
+    {
+        std::cerr << "FAIL null row value was accepted\n";
+        ++failures;
+    }
+    else
+    {
+        std::cout << "PASS null row value rejected\n";
     }
 
     auto sql_result = co_await connection.execute_scalar("SELECT * FROM __chat_poc_missing_table__");
