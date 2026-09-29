@@ -80,3 +80,23 @@ target_compile_options(chat_db_test
 
 add_test(NAME pg_connection COMMAND chat_db_test)
 set_tests_properties(pg_connection PROPERTIES TIMEOUT 15)
+
+add_executable(chat_corosio_timeout_test
+    tests/corosio_timeout_test.cpp
+)
+
+target_link_libraries(chat_corosio_timeout_test
+    PRIVATE
+        Boost::capy
+        Boost::corosio
+)
+
+target_compile_options(chat_corosio_timeout_test
+    PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+)
+
+add_test(NAME corosio_timeout COMMAND chat_corosio_timeout_test)
+set_tests_properties(corosio_timeout PROPERTIES TIMEOUT 5)
