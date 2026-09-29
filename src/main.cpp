@@ -4,7 +4,6 @@
 #include <boost/capy/task.hpp>
 #include <boost/corosio/io_context.hpp>
 
-#include <exception>
 #include <iostream>
 #include <string>
 
@@ -52,31 +51,9 @@ int main()
     corosio::io_context io_context;
 
     int exit_code = 1;
-    std::exception_ptr exception;
 
-    capy::run_async(
-        io_context.get_executor(), [&exit_code](int result) { exit_code = result; }, [&exception](std::exception_ptr error) { exception = error; })(
-        run_poc(io_context));
+    capy::run_async(io_context.get_executor(), [&exit_code](int result) { exit_code = result; })(run_poc(io_context));
 
     io_context.run();
-
-    if (exception)
-    {
-        try
-        {
-            std::rethrow_exception(exception);
-        }
-        catch (std::exception const& error)
-        {
-            std::cerr << "unexpected exception: " << error.what() << '\n';
-        }
-        catch (...)
-        {
-            std::cerr << "unexpected non-standard exception\n";
-        }
-
-        return 1;
-    }
-
     return exit_code;
 }

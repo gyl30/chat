@@ -252,8 +252,40 @@ capy::io_task<> pg_connection::flush_output()
     }
 }
 
+capy::io_task<PGresult*> pg_connection::next_result()
+{
+    while (PQisBusy(connection_.get()) != 0)
+    {
+        auto [ec] = co_await wait_socket_.wait(corosio::wait_type::read);
+
+        if (ec)
+        {
+            error_message_ = ec.message();
+            co_return capy::io_result<PGresult*>{
+                ec,
+                nullptr,
+            };
+        }
+
+        if (PQconsumeInput(connection_.get()) == 0)
+        {
+            co_return capy::io_result<PGresult*>{
+                set_libpq_error(),
+                nullptr,
+            };
+        }
+    }
+
+    co_return capy::io_result<PGresult*>{
+        std::error_code{},
+        PQgetResult(connection_.get()),
+    };
+}
+
 capy::io_task<std::string> pg_connection::execute_scalar(std::string query)
 {
+    error_message_.clear();
+
     if (!is_open())
     {
         error_message_ = "PostgreSQL connection is not open";
@@ -284,37 +316,18 @@ capy::io_task<std::string> pg_connection::execute_scalar(std::string query)
         }
     }
 
-    // PQisBusy never reads from the socket itself. Each time the
-    // connection is readable, let libpq consume the bytes and then
-    // ask again whether PQgetResult would block.
-    while (PQisBusy(connection_.get()) != 0)
+    auto [ec, raw_result] = co_await next_result();
+    if (ec)
     {
-        auto [ec] = co_await wait_socket_.wait(corosio::wait_type::read);
-
-        if (ec)
-        {
-            error_message_ = ec.message();
-
-            co_return capy::io_result<std::string>{
-                ec,
-                {},
-            };
-        }
-
-        if (PQconsumeInput(connection_.get()) == 0)
-        {
-            co_return capy::io_result<std::string>{
-                set_libpq_error(),
-                {},
-            };
-        }
+        co_return capy::io_result<std::string>{
+            ec,
+            {},
+        };
     }
-
-    PGresult* raw_result = PQgetResult(connection_.get());
 
     if (!raw_result)
     {
-        error_message_ = "PQgetResult returned no result";
+        error_message_ = "PostgreSQL command returned no result";
 
         co_return capy::io_result<std::string>{
             std::make_error_code(std::errc::protocol_error),
@@ -324,44 +337,60 @@ capy::io_task<std::string> pg_connection::execute_scalar(std::string query)
 
     auto result = std::unique_ptr<PGresult, decltype(&PQclear)>(raw_result, &PQclear);
 
+    std::error_code result_ec;
+    std::string result_error_message;
+    std::string value;
+
     if (PQresultStatus(result.get()) != PGRES_TUPLES_OK)
     {
-        error_message_ = PQresultErrorMessage(result.get());
-
-        co_return capy::io_result<std::string>{
-            make_libpq_error(),
-            {},
-        };
+        result_ec = make_libpq_error();
+        result_error_message = PQresultErrorMessage(result.get());
     }
-
-    if (PQntuples(result.get()) != 1 || PQnfields(result.get()) != 1 || PQgetisnull(result.get(), 0, 0))
+    else if (PQntuples(result.get()) != 1 || PQnfields(result.get()) != 1 || PQgetisnull(result.get(), 0, 0))
     {
-        error_message_ = "query did not return exactly one non-null value";
-
-        co_return capy::io_result<std::string>{
-            std::make_error_code(std::errc::protocol_error),
-            {},
-        };
+        result_ec = std::make_error_code(std::errc::protocol_error);
+        result_error_message = "query did not return exactly one non-null value";
     }
-
-    std::string value = PQgetvalue(result.get(), 0, 0);
+    else
+    {
+        value = PQgetvalue(result.get(), 0, 0);
+    }
 
     result.reset();
 
-    // PQsendQueryParams submits exactly one command. Drain the terminating
-    // result marker so the connection is ready for its next operation.
-    PGresult* extra = PQgetResult(connection_.get());
-
-    if (extra)
+    bool unexpected_result = false;
+    for (;;)
     {
-        do
+        auto [next_ec, extra_result] = co_await next_result();
+        if (next_ec)
         {
-            PQclear(extra);
-            extra = PQgetResult(connection_.get());
-        } while (extra);
+            co_return capy::io_result<std::string>{
+                next_ec,
+                {},
+            };
+        }
 
-        error_message_ = "unexpected additional PostgreSQL result";
+        if (!extra_result)
+        {
+            break;
+        }
 
+        unexpected_result = true;
+        PQclear(extra_result);
+    }
+
+    if (result_ec)
+    {
+        error_message_ = std::move(result_error_message);
+        co_return capy::io_result<std::string>{
+            result_ec,
+            {},
+        };
+    }
+
+    if (unexpected_result)
+    {
+        error_message_ = "PostgreSQL command returned unexpected extra results";
         co_return capy::io_result<std::string>{
             std::make_error_code(std::errc::protocol_error),
             {},

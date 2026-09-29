@@ -1,4 +1,5 @@
-#pragma once
+#ifndef CHAT_SRC_PG_CONNECTION_HPP
+#define CHAT_SRC_PG_CONNECTION_HPP
 
 #include <boost/capy/io_task.hpp>
 #include <boost/corosio/io_context.hpp>
@@ -46,6 +47,8 @@ class pg_connection
 
     boost::capy::io_task<> flush_output();
 
+    boost::capy::io_task<PGresult*> next_result();
+
     std::error_code set_libpq_error();
 
    private:
@@ -53,3 +56,5 @@ class pg_connection
     boost::corosio::tcp_socket wait_socket_;
     std::string error_message_;
 };
+
+#endif

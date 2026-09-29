@@ -5,6 +5,7 @@ project(chat LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 set(BOOST_CAPY_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -53,3 +54,28 @@ target_compile_options(chat_db_poc
         -Wextra
         -Wpedantic
 )
+
+enable_testing()
+
+add_executable(chat_db_test
+    tests/pg_connection_test.cpp
+    src/pg_connection.cpp
+)
+
+target_include_directories(chat_db_test PRIVATE src)
+
+target_link_libraries(chat_db_test
+    PRIVATE
+        Boost::capy
+        Boost::corosio
+        PostgreSQL::PostgreSQL
+)
+
+target_compile_options(chat_db_test
+    PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+)
+
+add_test(NAME pg_connection COMMAND chat_db_test)
