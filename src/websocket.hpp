@@ -6,7 +6,6 @@
 #include <deque>
 #include <memory>
 #include <string>
-#include <cstdint>
 #include <string_view>
 
 #include <wslay/wslay.h>
@@ -19,13 +18,11 @@ struct websocket_message
     enum class type
     {
         text,
-        binary,
         close,
     };
 
     type message_type = type::text;
     std::string payload;
-    std::uint16_t close_code = 0;
 };
 
 bool websocket_upgrade_accept(boost::http::request_base const& request, std::string& accept);

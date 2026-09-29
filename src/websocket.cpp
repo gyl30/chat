@@ -293,22 +293,9 @@ void websocket_connection::message_callback(wslay_event_context_ptr, wslay_event
             result.payload.assign(reinterpret_cast<char const*>(message->msg), message->msg_length);
         }
     }
-    else if (message->opcode == WSLAY_BINARY_FRAME)
-    {
-        result.message_type = websocket_message::type::binary;
-        if (message->msg_length != 0)
-        {
-            result.payload.assign(reinterpret_cast<char const*>(message->msg), message->msg_length);
-        }
-    }
     else if (message->opcode == WSLAY_CONNECTION_CLOSE)
     {
         result.message_type = websocket_message::type::close;
-        result.close_code = message->status_code;
-        if (message->msg_length > 2)
-        {
-            result.payload.assign(reinterpret_cast<char const*>(message->msg + 2), message->msg_length - 2);
-        }
     }
     else
     {
