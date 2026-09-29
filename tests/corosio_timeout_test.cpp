@@ -1,3 +1,6 @@
+#include <chrono>
+#include <iostream>
+
 #include <boost/capy/buffers.hpp>
 #include <boost/capy/cond.hpp>
 #include <boost/capy/ex/run_async.hpp>
@@ -8,9 +11,6 @@
 #include <boost/corosio/local_stream_socket.hpp>
 #include <boost/corosio/timeout.hpp>
 #include <boost/corosio/wait_type.hpp>
-
-#include <chrono>
-#include <iostream>
 
 namespace capy = boost::capy;
 namespace corosio = boost::corosio;

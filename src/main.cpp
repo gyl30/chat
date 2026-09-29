@@ -1,11 +1,11 @@
-#include "pg_connection.hpp"
+#include <iostream>
+#include <string>
 
 #include <boost/capy/ex/run_async.hpp>
 #include <boost/capy/task.hpp>
 #include <boost/corosio/io_context.hpp>
 
-#include <iostream>
-#include <string>
+#include "pg_connection.hpp"
 
 namespace capy = boost::capy;
 namespace corosio = boost::corosio;

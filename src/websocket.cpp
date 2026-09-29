@@ -1,4 +1,7 @@
-#include "websocket.hpp"
+#include <algorithm>
+#include <cstring>
+#include <system_error>
+#include <utility>
 
 #include <boost/capy/buffers.hpp>
 #include <boost/capy/error.hpp>
@@ -7,13 +10,9 @@
 #include <boost/http/field.hpp>
 #include <boost/http/method.hpp>
 #include <boost/http/version.hpp>
-
 #include <openssl/evp.h>
 
-#include <algorithm>
-#include <cstring>
-#include <system_error>
-#include <utility>
+#include "websocket.hpp"
 
 namespace capy = boost::capy;
 namespace corosio = boost::corosio;

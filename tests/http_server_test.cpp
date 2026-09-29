@@ -1,3 +1,9 @@
+#include <iostream>
+#include <memory>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include <boost/capy/buffers.hpp>
 #include <boost/capy/cond.hpp>
 #include <boost/capy/ex/run_async.hpp>
@@ -17,12 +23,6 @@
 #include <boost/http/server/router.hpp>
 #include <boost/http/status.hpp>
 #include <boost/url/parse.hpp>
-
-#include <iostream>
-#include <memory>
-#include <string_view>
-#include <utility>
-#include <vector>
 
 namespace capy = boost::capy;
 namespace corosio = boost::corosio;

@@ -1,4 +1,10 @@
-#include "server.hpp"
+#include <array>
+#include <cstdint>
+#include <iostream>
+#include <string>
+#include <string_view>
+#include <system_error>
+#include <utility>
 
 #include <boost/capy/buffers.hpp>
 #include <boost/capy/ex/run_async.hpp>
@@ -16,13 +22,7 @@
 #include <boost/http/server/router.hpp>
 #include <boost/http/status.hpp>
 
-#include <array>
-#include <cstdint>
-#include <iostream>
-#include <string>
-#include <string_view>
-#include <system_error>
-#include <utility>
+#include "server.hpp"
 
 namespace capy = boost::capy;
 namespace corosio = boost::corosio;

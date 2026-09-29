@@ -1,17 +1,16 @@
 #ifndef CHAT_SRC_PG_CONNECTION_HPP
 #define CHAT_SRC_PG_CONNECTION_HPP
 
-#include <boost/capy/io_task.hpp>
-#include <boost/corosio/io_context.hpp>
-#include <boost/corosio/tcp_socket.hpp>
-#include <boost/corosio/wait_type.hpp>
-
-#include <libpq-fe.h>
-
 #include <memory>
 #include <string>
 #include <string_view>
 #include <system_error>
+
+#include <boost/capy/io_task.hpp>
+#include <boost/corosio/io_context.hpp>
+#include <boost/corosio/tcp_socket.hpp>
+#include <boost/corosio/wait_type.hpp>
+#include <libpq-fe.h>
 
 class pg_connection
 {

@@ -1,14 +1,13 @@
-#include "pg_connection.hpp"
+#include <cerrno>
+#include <fcntl.h>
+#include <unistd.h>
+#include <utility>
+#include <variant>
 
 #include <boost/capy/io_result.hpp>
 #include <boost/capy/when_any.hpp>
 
-#include <cerrno>
-#include <fcntl.h>
-#include <unistd.h>
-
-#include <utility>
-#include <variant>
+#include "pg_connection.hpp"
 
 namespace capy = boost::capy;
 namespace corosio = boost::corosio;

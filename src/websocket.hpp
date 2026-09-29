@@ -1,12 +1,6 @@
 #ifndef CHAT_SRC_WEBSOCKET_HPP
 #define CHAT_SRC_WEBSOCKET_HPP
 
-#include <boost/capy/io_task.hpp>
-#include <boost/corosio/tcp_socket.hpp>
-#include <boost/http/request_base.hpp>
-
-#include <wslay/wslay.h>
-
 #include <array>
 #include <cstdint>
 #include <deque>
@@ -14,6 +8,11 @@
 #include <span>
 #include <string>
 #include <string_view>
+
+#include <boost/capy/io_task.hpp>
+#include <boost/corosio/tcp_socket.hpp>
+#include <boost/http/request_base.hpp>
+#include <wslay/wslay.h>
 
 struct websocket_message
 {

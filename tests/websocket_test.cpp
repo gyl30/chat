@@ -1,4 +1,14 @@
-#include "websocket.hpp"
+#include <algorithm>
+#include <array>
+#include <cstdint>
+#include <cstring>
+#include <iostream>
+#include <memory>
+#include <span>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include <boost/capy/buffers.hpp>
 #include <boost/capy/ex/run_async.hpp>
@@ -18,20 +28,9 @@
 #include <boost/http/response_parser.hpp>
 #include <boost/http/serializer.hpp>
 #include <boost/http/status.hpp>
-
 #include <wslay/wslay.h>
 
-#include <algorithm>
-#include <array>
-#include <cstdint>
-#include <cstring>
-#include <iostream>
-#include <memory>
-#include <span>
-#include <string>
-#include <string_view>
-#include <utility>
-#include <vector>
+#include "websocket.hpp"
 
 namespace capy = boost::capy;
 namespace corosio = boost::corosio;

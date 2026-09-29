@@ -1,6 +1,8 @@
-#include "server.hpp"
-
-#include "websocket.hpp"
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include <boost/capy/buffers.hpp>
 #include <boost/capy/io/any_read_stream.hpp>
@@ -17,11 +19,8 @@
 #include <boost/http/version.hpp>
 #include <boost/url/parse.hpp>
 
-#include <memory>
-#include <string>
-#include <string_view>
-#include <utility>
-#include <vector>
+#include "server.hpp"
+#include "websocket.hpp"
 
 namespace capy = boost::capy;
 namespace corosio = boost::corosio;

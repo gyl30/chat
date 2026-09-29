@@ -1,13 +1,13 @@
 #ifndef CHAT_SRC_SERVER_HPP
 #define CHAT_SRC_SERVER_HPP
 
+#include <cstddef>
+#include <system_error>
+
 #include <boost/corosio/endpoint.hpp>
 #include <boost/corosio/io_context.hpp>
 #include <boost/corosio/tcp_server.hpp>
 #include <boost/http/server/router.hpp>
-
-#include <cstddef>
-#include <system_error>
 
 class chat_server
 {
