@@ -2,54 +2,12 @@
 #include <utility>
 #include <string_view>
 
-#include <simdjson.h>
-
-#include "json_rpc.hpp"
 #include "chat_session.hpp"
 
 namespace
 {
 
 constexpr std::string_view kEchoMethod = "echo";
-
-struct [[= simdjson::deny_unknown_fields]] echo_params
-{
-    std::string text;
-};
-
-struct echo_result
-{
-    std::string text;
-};
-
-simdjson::error_code parse_echo_params(json_rpc_params& params, echo_params& value)
-{
-    if (!params.present)
-    {
-        return simdjson::NO_SUCH_FIELD;
-    }
-
-    simdjson::ondemand::parser parser;
-    simdjson::ondemand::document document;
-    auto error = parser.iterate(params.json).get(document);
-    if (error)
-    {
-        return error;
-    }
-
-    error = document.get(value);
-    if (error)
-    {
-        return error;
-    }
-
-    if (!document.at_end())
-    {
-        return simdjson::TRAILING_CONTENT;
-    }
-
-    return simdjson::SUCCESS;
-}
 
 }    // namespace
 
@@ -77,36 +35,13 @@ boost::capy::task<void> chat_session::run()
 
         if (response.empty())
         {
-            if (request.method != kEchoMethod)
+            if (request.method == kEchoMethod)
             {
-                if (request.id.present)
-                {
-                    rpc_error = serialize_json_rpc_method_not_found(std::move(request.id), response);
-                }
+                rpc_error = co_await handle_echo(request, response);
             }
-            else
+            else if (request.id.present)
             {
-                echo_params params{};
-                auto params_error = parse_echo_params(request.params, params);
-                if (params_error)
-                {
-                    if (request.id.present)
-                    {
-                        rpc_error = serialize_json_rpc_invalid_params(std::move(request.id), response);
-                    }
-                }
-                else if (request.id.present)
-                {
-                    echo_result result{};
-                    result.text = std::move(params.text);
-
-                    std::string result_json;
-                    rpc_error = simdjson::builder::to_json_string(result).get(result_json);
-                    if (!rpc_error)
-                    {
-                        rpc_error = serialize_json_rpc_success(result_json, std::move(request.id), response);
-                    }
-                }
+                rpc_error = serialize_json_rpc_method_not_found(std::move(request.id), response);
             }
         }
 

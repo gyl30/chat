@@ -3,6 +3,7 @@
 
 #include <boost/capy/task.hpp>
 
+#include "json_rpc.hpp"
 #include "websocket.hpp"
 
 class chat_session
@@ -13,6 +14,8 @@ class chat_session
     boost::capy::task<void> run();
 
    private:
+    boost::capy::task<simdjson::error_code> handle_echo(json_rpc_request& request, std::string& response);
+
     websocket_connection& connection_;
 };
 

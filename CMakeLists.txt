@@ -72,6 +72,7 @@ add_compile_options(
 add_executable(chat_server
     src/main.cpp
     src/chat_session.cpp
+    src/echo_request.cpp
     src/json_rpc.cpp
     src/server.cpp
     src/websocket.cpp
@@ -158,6 +159,7 @@ set_tests_properties(websocket PROPERTIES TIMEOUT 5)
 add_executable(chat_server_test
     tests/server_test.cpp
     src/chat_session.cpp
+    src/echo_request.cpp
     src/json_rpc.cpp
     src/server.cpp
     src/websocket.cpp
