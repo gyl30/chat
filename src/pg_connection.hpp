@@ -1,0 +1,55 @@
+#pragma once
+
+#include <boost/capy/io_task.hpp>
+#include <boost/corosio/io_context.hpp>
+#include <boost/corosio/tcp_socket.hpp>
+#include <boost/corosio/wait_type.hpp>
+
+#include <libpq-fe.h>
+
+#include <memory>
+#include <string>
+#include <string_view>
+#include <system_error>
+
+class pg_connection
+{
+   public:
+    explicit pg_connection(boost::corosio::io_context& io_context);
+
+    pg_connection(pg_connection const&) = delete;
+    pg_connection& operator=(pg_connection const&) = delete;
+
+    ~pg_connection();
+
+    boost::capy::io_task<> connect(std::string conninfo);
+
+    boost::capy::io_task<std::string> execute_scalar(std::string query);
+
+    void close() noexcept;
+
+    bool is_open() const noexcept;
+
+    std::string_view error_message() const noexcept;
+
+   private:
+    struct pg_conn_deleter
+    {
+        void operator()(PGconn* connection) const noexcept;
+    };
+
+    using pg_conn_ptr = std::unique_ptr<PGconn, pg_conn_deleter>;
+
+    std::error_code refresh_wait_socket();
+
+    boost::capy::io_task<std::error_code> wait_event(boost::corosio::wait_type type);
+
+    boost::capy::io_task<> flush_output();
+
+    std::error_code set_libpq_error();
+
+   private:
+    pg_conn_ptr connection_;
+    boost::corosio::tcp_socket wait_socket_;
+    std::string error_message_;
+};
