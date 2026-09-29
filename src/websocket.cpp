@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <cstring>
 #include <utility>
 #include <algorithm>
@@ -18,6 +19,7 @@ namespace
 {
 
 constexpr std::string_view kWebSocketGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+constexpr std::uint64_t kMaxWebSocketMessageSize = 64 * 1024;
 
 std::string_view as_string_view(boost::core::string_view value) { return {value.data(), value.size()}; }
 
@@ -166,6 +168,7 @@ websocket_connection::websocket_connection(boost::corosio::tcp_socket& socket) :
     wslay_event_context_ptr context = nullptr;
     if (wslay_event_context_server_init(&context, &callbacks, this) == 0)
     {
+        wslay_event_config_set_max_recv_msg_length(context, kMaxWebSocketMessageSize);
         context_.reset(context);
     }
 }
@@ -202,10 +205,11 @@ boost::capy::io_task<websocket_message> websocket_connection::receive()
         }
 
         input_ = std::span<std::uint8_t const>(input_buffer_.data(), size);
-        if (wslay_event_recv(context_.get()) != 0 || !input_.empty())
+        if (wslay_event_recv(context_.get()) != 0 || (!input_.empty() && wslay_event_want_read(context_.get()) != 0))
         {
             co_return boost::capy::io_result<websocket_message>{websocket_protocol_error(), {}};
         }
+        input_ = {};
 
         auto [flush_ec] = co_await flush();
         if (flush_ec)

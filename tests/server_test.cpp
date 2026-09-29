@@ -90,31 +90,62 @@ boost::capy::io_task<> send_request(boost::corosio::tcp_socket& socket, std::str
     co_return {};
 }
 
-std::vector<std::uint8_t> make_masked_text_frame(std::string_view payload)
+std::vector<std::uint8_t> make_masked_frame(std::uint8_t opcode, bool final, std::string_view payload)
 {
-    if (payload.size() > 125)
+    constexpr std::array<std::uint8_t, 4> mask = {1, 2, 3, 4};
+
+    std::size_t mask_offset = 2;
+    if (payload.size() <= 125)
     {
-        return {};
+        mask_offset = 2;
+    }
+    else if (payload.size() <= 0xffff)
+    {
+        mask_offset = 4;
+    }
+    else
+    {
+        mask_offset = 10;
     }
 
-    constexpr std::array<std::uint8_t, 4> mask = {1, 2, 3, 4};
-    std::vector<std::uint8_t> frame(6 + payload.size());
-    frame[0] = 0x81;
-    frame[1] = static_cast<std::uint8_t>(0x80U | payload.size());
+    std::vector<std::uint8_t> frame(mask_offset + mask.size() + payload.size());
+    frame[0] = static_cast<std::uint8_t>((final ? 0x80U : 0U) | opcode);
+    if (payload.size() <= 125)
+    {
+        frame[1] = static_cast<std::uint8_t>(0x80U | payload.size());
+    }
+    else if (payload.size() <= 0xffff)
+    {
+        frame[1] = 0xfe;
+        frame[2] = static_cast<std::uint8_t>(payload.size() >> 8);
+        frame[3] = static_cast<std::uint8_t>(payload.size());
+    }
+    else
+    {
+        frame[1] = 0xff;
+        auto const size = static_cast<std::uint64_t>(payload.size());
+        for (std::size_t i = 0; i < 8; ++i)
+        {
+            frame[2 + i] = static_cast<std::uint8_t>(size >> ((7 - i) * 8));
+        }
+    }
+
     for (std::size_t i = 0; i < mask.size(); ++i)
     {
-        frame[2 + i] = mask[i];
+        frame[mask_offset + i] = mask[i];
     }
+
+    auto const payload_offset = mask_offset + mask.size();
     for (std::size_t i = 0; i < payload.size(); ++i)
     {
-        frame[6 + i] = static_cast<std::uint8_t>(payload[i]) ^ mask[i % mask.size()];
+        frame[payload_offset + i] = static_cast<std::uint8_t>(payload[i]) ^ mask[i % mask.size()];
     }
     return frame;
 }
 
 boost::capy::io_task<> send_websocket_text(boost::corosio::tcp_socket& socket, std::string_view payload)
 {
-    auto frame = make_masked_text_frame(payload);
+    auto frame = make_masked_frame(0x01, true, payload);
     if (frame.empty())
     {
         co_return std::make_error_code(std::errc::message_size);
@@ -448,6 +479,56 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
 
         socket.close();
         std::cout << "PASS server WebSocket close\n";
+    }
+
+    {
+        boost::corosio::tcp_socket socket(io_context);
+        auto [connect_ec] = co_await connect(socket, port);
+        if (connect_ec)
+        {
+            std::cerr << "FAIL oversized WebSocket connect: " << connect_ec.message() << '\n';
+            co_return 1;
+        }
+
+        auto parser_config = boost::http::make_parser_config(boost::http::parser_config{true});
+        boost::http::response_parser parser(parser_config);
+        auto [upgrade_ec] = co_await upgrade_websocket(socket, parser);
+        if (upgrade_ec)
+        {
+            std::cerr << "FAIL oversized WebSocket upgrade: " << upgrade_ec.message() << '\n';
+            co_return 1;
+        }
+
+        std::string max_size_fragment(64 * 1024, 'x');
+        auto first_fragment = make_masked_frame(0x01, false, max_size_fragment);
+        auto [first_ec, first_written] =
+            co_await boost::capy::write(socket, boost::capy::const_buffer(first_fragment.data(), first_fragment.size()));
+        if (first_ec || first_written != first_fragment.size())
+        {
+            std::cerr << "FAIL oversized WebSocket first fragment write\n";
+            co_return 1;
+        }
+
+        auto final_fragment = make_masked_frame(0x00, true, "x");
+        auto [final_ec, final_written] =
+            co_await boost::capy::write(socket, boost::capy::const_buffer(final_fragment.data(), final_fragment.size()));
+        if (final_ec || final_written != final_fragment.size())
+        {
+            std::cerr << "FAIL oversized WebSocket final fragment write\n";
+            co_return 1;
+        }
+
+        std::array<std::uint8_t, 4> close_reply{};
+        auto [close_ec, close_read] = co_await boost::capy::read(socket, boost::capy::mutable_buffer(close_reply.data(), close_reply.size()));
+        constexpr std::array<std::uint8_t, 4> expected_close = {0x88, 0x02, 0x03, 0xf1};
+        if (close_ec || close_read != close_reply.size() || close_reply != expected_close)
+        {
+            std::cerr << "FAIL oversized WebSocket close response\n";
+            co_return 1;
+        }
+
+        socket.close();
+        std::cout << "PASS oversized WebSocket rejected\n";
     }
 
     {
