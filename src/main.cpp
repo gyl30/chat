@@ -66,14 +66,13 @@ boost::capy::task<int> wait_for_shutdown(boost::corosio::signal_set& signals, ch
     if (ec)
     {
         spdlog::error("signal wait failed: {}", ec.message());
-    }
-    else
-    {
-        spdlog::info("received signal {}, stopping", signal_number);
+        server.stop();
+        co_return EXIT_FAILURE;
     }
 
+    spdlog::info("received signal {}, stopping", signal_number);
     server.stop();
-    co_return 0;
+    co_return EXIT_SUCCESS;
 }
 
 }
@@ -127,9 +126,10 @@ int main(int argc, char* argv[])
     spdlog::info("chat server listening on port {} with {} workers", port, max_workers);
     server.start();
 
-    boost::capy::run_async(io_context.get_executor(), [](int) {})(wait_for_shutdown(signals, server));
+    int exit_code = EXIT_FAILURE;
+    boost::capy::run_async(io_context.get_executor(), [&exit_code](int result) { exit_code = result; })(wait_for_shutdown(signals, server));
     io_context.run();
     server.join();
 
-    return EXIT_SUCCESS;
+    return exit_code;
 }
