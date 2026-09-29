@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(chat LANGUAGES CXX)
+project(chat LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -19,6 +19,12 @@ set(BOOST_COROSIO_BUILD_BENCH OFF CACHE BOOL "" FORCE)
 set(BOOST_HTTP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(BOOST_HTTP_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 
+set(WSLAY_CONFIGURE_INSTALL OFF CACHE BOOL "" FORCE)
+set(WSLAY_STATIC ON CACHE BOOL "" FORCE)
+set(WSLAY_SHARED OFF CACHE BOOL "" FORCE)
+set(WSLAY_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(WSLAY_TESTS OFF CACHE BOOL "" FORCE)
+
 find_package(Boost 1.92.0 EXACT REQUIRED CONFIG COMPONENTS
     assert
     config
@@ -32,27 +38,10 @@ find_package(Boost 1.92.0 EXACT REQUIRED CONFIG COMPONENTS
     winapi
 )
 
-include(FetchContent)
-
-FetchContent_Declare(
-    capy
-    GIT_REPOSITORY https://github.com/cppalliance/capy.git
-    GIT_TAG b2dd252cbcac816658c89fd87b5fa02390202d43
-)
-
-FetchContent_Declare(
-    corosio
-    GIT_REPOSITORY https://github.com/cppalliance/corosio.git
-    GIT_TAG 54e28fd40cf7ee6cc18365dd81ad5615c38908cc
-)
-
-FetchContent_Declare(
-    http
-    GIT_REPOSITORY https://github.com/cppalliance/http.git
-    GIT_TAG 0c854fc2790968cdf3f117a47b4b90d6a3a1300e
-)
-
-FetchContent_MakeAvailable(capy corosio http)
+add_subdirectory(third/capy EXCLUDE_FROM_ALL)
+add_subdirectory(third/corosio EXCLUDE_FROM_ALL)
+add_subdirectory(third/http EXCLUDE_FROM_ALL)
+add_subdirectory(third/wslay EXCLUDE_FROM_ALL)
 
 find_package(PostgreSQL REQUIRED)
 

@@ -1,0 +1,12 @@
+[submodule "third/capy"]
+	path = third/capy
+	url = https://github.com/cppalliance/capy.git
+[submodule "third/corosio"]
+	path = third/corosio
+	url = https://github.com/cppalliance/corosio.git
+[submodule "third/http"]
+	path = third/http
+	url = https://github.com/cppalliance/http.git
+[submodule "third/wslay"]
+	path = third/wslay
+	url = https://github.com/tatsuhiro-t/wslay.git
