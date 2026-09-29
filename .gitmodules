@@ -13,3 +13,6 @@
 [submodule "third/simdjson"]
 	path = third/simdjson
 	url = https://github.com/simdjson/simdjson.git
+[submodule "third/spdlog"]
+	path = third/spdlog
+	url = https://github.com/gabime/spdlog.git

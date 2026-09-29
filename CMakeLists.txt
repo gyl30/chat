@@ -28,6 +28,13 @@ set(WSLAY_TESTS OFF CACHE BOOL "" FORCE)
 set(SIMDJSON_EXCEPTIONS OFF CACHE BOOL "" FORCE)
 set(SIMDJSON_STATIC_REFLECTION_MODE "ON" CACHE STRING "" FORCE)
 
+set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
+set(SPDLOG_BUILD_EXAMPLE_HO OFF CACHE BOOL "" FORCE)
+set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(SPDLOG_BUILD_TESTS_HO OFF CACHE BOOL "" FORCE)
+set(SPDLOG_BUILD_BENCH OFF CACHE BOOL "" FORCE)
+set(SPDLOG_INSTALL OFF CACHE BOOL "" FORCE)
+
 find_package(Boost 1.92.0 EXACT REQUIRED CONFIG COMPONENTS
     assert
     config
@@ -51,6 +58,7 @@ set(CMAKE_WARN_DEPRECATED ON CACHE BOOL "" FORCE)
 unset(CMAKE_WARN_DEPRECATED CACHE)
 
 add_subdirectory(third/simdjson EXCLUDE_FROM_ALL)
+add_subdirectory(third/spdlog EXCLUDE_FROM_ALL)
 
 find_package(PostgreSQL REQUIRED)
 find_package(OpenSSL REQUIRED)
@@ -59,6 +67,27 @@ add_compile_options(
     -Wall
     -Wextra
     -Wpedantic
+)
+
+add_executable(chat_server
+    src/main.cpp
+    src/chat_session.cpp
+    src/json_rpc.cpp
+    src/server.cpp
+    src/websocket.cpp
+)
+
+target_include_directories(chat_server PRIVATE src)
+
+target_link_libraries(chat_server
+    PRIVATE
+        Boost::capy
+        Boost::corosio
+        Boost::http
+        OpenSSL::Crypto
+        simdjson::simdjson
+        spdlog::spdlog_header_only
+        wslay
 )
 
 enable_testing()
