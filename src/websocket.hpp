@@ -37,8 +37,6 @@ class websocket_connection
     websocket_connection(websocket_connection&&) = delete;
     websocket_connection& operator=(websocket_connection&&) = delete;
 
-    ~websocket_connection();
-
     boost::capy::io_task<websocket_message> receive();
 
     boost::capy::io_task<> send_text(std::string_view payload);

@@ -170,8 +170,6 @@ websocket_connection::websocket_connection(boost::corosio::tcp_socket& socket) :
     }
 }
 
-websocket_connection::~websocket_connection() = default;
-
 boost::capy::io_task<websocket_message> websocket_connection::receive()
 {
     for (;;)

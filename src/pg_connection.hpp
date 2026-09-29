@@ -21,8 +21,6 @@ class pg_connection
     pg_connection(pg_connection const&) = delete;
     pg_connection& operator=(pg_connection const&) = delete;
 
-    ~pg_connection();
-
     boost::capy::io_task<> connect(std::string conninfo);
 
     boost::capy::io_task<std::string> execute_scalar(std::string query, std::vector<std::string> parameters = {});

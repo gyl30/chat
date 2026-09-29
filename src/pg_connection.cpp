@@ -26,8 +26,6 @@ void pg_connection::pg_conn_deleter::operator()(PGconn* connection) const noexce
 
 pg_connection::pg_connection(boost::corosio::io_context& io_context) : wait_socket_(io_context) {}
 
-pg_connection::~pg_connection() { close(); }
-
 void pg_connection::close() noexcept
 {
     wait_socket_.close();
