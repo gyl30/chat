@@ -159,3 +159,30 @@ target_compile_options(chat_websocket_test
 
 add_test(NAME websocket COMMAND chat_websocket_test)
 set_tests_properties(websocket PROPERTIES TIMEOUT 5)
+
+add_executable(chat_server_test
+    tests/server_test.cpp
+    src/server.cpp
+    src/websocket.cpp
+)
+
+target_include_directories(chat_server_test PRIVATE src)
+
+target_link_libraries(chat_server_test
+    PRIVATE
+        Boost::capy
+        Boost::corosio
+        Boost::http
+        OpenSSL::Crypto
+        wslay
+)
+
+target_compile_options(chat_server_test
+    PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+)
+
+add_test(NAME server COMMAND chat_server_test)
+set_tests_properties(server PROPERTIES TIMEOUT 5)

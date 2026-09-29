@@ -3,7 +3,7 @@
 
 #include <boost/capy/io_task.hpp>
 #include <boost/corosio/tcp_socket.hpp>
-#include <boost/http/static_request.hpp>
+#include <boost/http/request_base.hpp>
 
 #include <wslay/wslay.h>
 
@@ -29,7 +29,7 @@ struct websocket_message
     std::uint16_t close_code = 0;
 };
 
-bool websocket_upgrade_accept(boost::http::static_request const& request, std::string& accept);
+bool websocket_upgrade_accept(boost::http::request_base const& request, std::string& accept);
 
 class websocket_connection
 {

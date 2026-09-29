@@ -143,7 +143,7 @@ std::error_code websocket_protocol_error() { return std::make_error_code(std::er
 
 }    // namespace
 
-bool websocket_upgrade_accept(http::static_request const& request, std::string& accept)
+bool websocket_upgrade_accept(http::request_base const& request, std::string& accept)
 {
     if (request.method() != http::method::get || request.version() != http::version::http_1_1 || !request.exists(http::field::host))
     {
