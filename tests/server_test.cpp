@@ -1,7 +1,9 @@
 #include <array>
 #include <string>
+#include <vector>
 #include <cstdint>
 #include <utility>
+#include <cstddef>
 #include <iostream>
 #include <string_view>
 #include <system_error>
@@ -13,7 +15,9 @@
 #include <boost/http/config.hpp>
 #include <boost/http/method.hpp>
 #include <boost/http/status.hpp>
+#include <boost/capy/io_task.hpp>
 #include <boost/capy/buffers.hpp>
+#include <boost/capy/io_result.hpp>
 #include <boost/corosio/endpoint.hpp>
 #include <boost/capy/ex/run_async.hpp>
 #include <boost/corosio/io_context.hpp>
@@ -84,6 +88,78 @@ boost::capy::io_task<> send_request(boost::corosio::tcp_socket& socket, std::str
         co_return std::make_error_code(std::errc::io_error);
     }
     co_return {};
+}
+
+std::vector<std::uint8_t> make_masked_text_frame(std::string_view payload)
+{
+    if (payload.size() > 125)
+    {
+        return {};
+    }
+
+    constexpr std::array<std::uint8_t, 4> mask = {1, 2, 3, 4};
+    std::vector<std::uint8_t> frame(6 + payload.size());
+    frame[0] = 0x81;
+    frame[1] = static_cast<std::uint8_t>(0x80U | payload.size());
+    for (std::size_t i = 0; i < mask.size(); ++i)
+    {
+        frame[2 + i] = mask[i];
+    }
+    for (std::size_t i = 0; i < payload.size(); ++i)
+    {
+        frame[6 + i] = static_cast<std::uint8_t>(payload[i]) ^ mask[i % mask.size()];
+    }
+    return frame;
+}
+
+boost::capy::io_task<> send_websocket_text(boost::corosio::tcp_socket& socket, std::string_view payload)
+{
+    auto frame = make_masked_text_frame(payload);
+    if (frame.empty())
+    {
+        co_return std::make_error_code(std::errc::message_size);
+    }
+
+    auto [ec, written] = co_await boost::capy::write(socket, boost::capy::const_buffer(frame.data(), frame.size()));
+    if (ec)
+    {
+        co_return ec;
+    }
+    if (written != frame.size())
+    {
+        co_return std::make_error_code(std::errc::io_error);
+    }
+    co_return {};
+}
+
+boost::capy::io_task<std::string> receive_websocket_text(boost::corosio::tcp_socket& socket)
+{
+    std::array<std::uint8_t, 2> header{};
+    auto [header_ec, header_read] = co_await boost::capy::read(socket, boost::capy::mutable_buffer(header.data(), header.size()));
+    if (header_ec)
+    {
+        co_return boost::capy::io_result<std::string>{header_ec, {}};
+    }
+    if (header_read != header.size() || header[0] != 0x81 || (header[1] & 0x80U) != 0 || (header[1] & 0x7fU) > 125)
+    {
+        co_return boost::capy::io_result<std::string>{std::make_error_code(std::errc::protocol_error), {}};
+    }
+
+    std::string payload(header[1] & 0x7fU, '\0');
+    if (!payload.empty())
+    {
+        auto [payload_ec, payload_read] = co_await boost::capy::read(socket, boost::capy::mutable_buffer(payload.data(), payload.size()));
+        if (payload_ec)
+        {
+            co_return boost::capy::io_result<std::string>{payload_ec, {}};
+        }
+        if (payload_read != payload.size())
+        {
+            co_return boost::capy::io_result<std::string>{std::make_error_code(std::errc::io_error), {}};
+        }
+    }
+
+    co_return boost::capy::io_result<std::string>{std::error_code{}, std::move(payload)};
 }
 
 bool valid_health_response(boost::http::response_parser const& parser)
@@ -205,26 +281,135 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         }
         std::cout << "PASS server WebSocket upgrade\n";
 
-        constexpr std::array<std::uint8_t, 24> messages = {
-            0x82, 0x82, 0x05, 0x06, 0x07, 0x08, 0x04, 0x04,
-            0x81, 0x8a, 0x01, 0x02, 0x03, 0x04, 0x69, 0x67, 0x6f, 0x68, 0x6e, 0x22, 0x60, 0x6c, 0x60, 0x76};
-        auto [messages_ec, messages_written] = co_await boost::capy::write(socket, boost::capy::const_buffer(messages.data(), messages.size()));
-        if (messages_ec || messages_written != messages.size())
+        constexpr std::array<std::uint8_t, 8> binary = {0x82, 0x82, 0x05, 0x06, 0x07, 0x08, 0x04, 0x04};
+        auto [binary_ec, binary_written] = co_await boost::capy::write(socket, boost::capy::const_buffer(binary.data(), binary.size()));
+        if (binary_ec || binary_written != binary.size())
         {
-            std::cerr << "FAIL server application message write\n";
+            std::cerr << "FAIL server binary message write\n";
+            co_return 1;
+        }
+        std::cout << "PASS server binary message ignored\n";
+
+        constexpr std::string_view notification = R"({"jsonrpc":"2.0","method":"echo","params":{"text":"ignored"}})";
+        auto [notification_ec] = co_await send_websocket_text(socket, notification);
+        if (notification_ec)
+        {
+            std::cerr << "FAIL server JSON-RPC notification write\n";
             co_return 1;
         }
 
-        std::array<std::uint8_t, 12> text_reply{};
-        auto [text_ec, text_read] = co_await boost::capy::read(socket, boost::capy::mutable_buffer(text_reply.data(), text_reply.size()));
-        constexpr std::array<std::uint8_t, 12> expected_text = {0x81, 0x0a, 'h', 'e', 'l', 'l', 'o', ' ', 'c', 'h', 'a', 't'};
-        if (text_ec || text_read != text_reply.size() || text_reply != expected_text)
+        constexpr std::string_view echo_request = R"({"jsonrpc":"2.0","method":"echo","params":{"text":"hello chat"},"id":"1"})";
+        auto [echo_write_ec] = co_await send_websocket_text(socket, echo_request);
+        if (echo_write_ec)
         {
-            std::cerr << "FAIL server application text message\n";
+            std::cerr << "FAIL server JSON-RPC echo write\n";
             co_return 1;
         }
-        std::cout << "PASS server application text message\n";
-        std::cout << "PASS server binary message ignored\n";
+
+        auto echo_reply_result = co_await receive_websocket_text(socket);
+        auto& [echo_read_ec, echo_reply] = echo_reply_result;
+        constexpr std::string_view expected_echo_reply = R"({"jsonrpc":"2.0","result":{"text":"hello chat"},"id":"1"})";
+        if (echo_read_ec || echo_reply != expected_echo_reply)
+        {
+            std::cerr << "FAIL server JSON-RPC result\n";
+            co_return 1;
+        }
+        std::cout << "PASS server JSON-RPC notification\n";
+        std::cout << "PASS server JSON-RPC result\n";
+
+        constexpr std::string_view null_id_request = R"({"jsonrpc":"2.0","method":"echo","params":{"text":"null id"},"id":null})";
+        auto [null_id_write_ec] = co_await send_websocket_text(socket, null_id_request);
+        if (null_id_write_ec)
+        {
+            std::cerr << "FAIL server JSON-RPC null id write\n";
+            co_return 1;
+        }
+
+        auto null_id_reply_result = co_await receive_websocket_text(socket);
+        auto& [null_id_read_ec, null_id_reply] = null_id_reply_result;
+        constexpr std::string_view expected_null_id_reply = R"({"jsonrpc":"2.0","result":{"text":"null id"},"id":null})";
+        if (null_id_read_ec || null_id_reply != expected_null_id_reply)
+        {
+            std::cerr << "FAIL server JSON-RPC null id\n";
+            co_return 1;
+        }
+        std::cout << "PASS server JSON-RPC null id\n";
+
+        constexpr std::string_view missing_method_request = R"({"jsonrpc":"2.0","method":"missing","id":2})";
+        auto [missing_method_write_ec] = co_await send_websocket_text(socket, missing_method_request);
+        if (missing_method_write_ec)
+        {
+            std::cerr << "FAIL server JSON-RPC method-not-found write\n";
+            co_return 1;
+        }
+
+        auto missing_method_reply_result = co_await receive_websocket_text(socket);
+        auto& [missing_method_read_ec, missing_method_reply] = missing_method_reply_result;
+        constexpr std::string_view expected_missing_method_reply =
+            R"({"jsonrpc":"2.0","error":{"code":-32601,"message":"Method not found"},"id":2})";
+        if (missing_method_read_ec || missing_method_reply != expected_missing_method_reply)
+        {
+            std::cerr << "FAIL server JSON-RPC method not found\n";
+            co_return 1;
+        }
+        std::cout << "PASS server JSON-RPC method not found\n";
+
+        constexpr std::string_view invalid_params_request = R"({"jsonrpc":"2.0","method":"echo","params":{},"id":"3"})";
+        auto [invalid_params_write_ec] = co_await send_websocket_text(socket, invalid_params_request);
+        if (invalid_params_write_ec)
+        {
+            std::cerr << "FAIL server JSON-RPC invalid-params write\n";
+            co_return 1;
+        }
+
+        auto invalid_params_reply_result = co_await receive_websocket_text(socket);
+        auto& [invalid_params_read_ec, invalid_params_reply] = invalid_params_reply_result;
+        constexpr std::string_view expected_invalid_params_reply =
+            R"({"jsonrpc":"2.0","error":{"code":-32602,"message":"Invalid params"},"id":"3"})";
+        if (invalid_params_read_ec || invalid_params_reply != expected_invalid_params_reply)
+        {
+            std::cerr << "FAIL server JSON-RPC invalid params\n";
+            co_return 1;
+        }
+        std::cout << "PASS server JSON-RPC invalid params\n";
+
+        constexpr std::string_view malformed_request = R"({"jsonrpc":"2.0","method":"echo","params":)";
+        auto [malformed_write_ec] = co_await send_websocket_text(socket, malformed_request);
+        if (malformed_write_ec)
+        {
+            std::cerr << "FAIL server JSON-RPC malformed write\n";
+            co_return 1;
+        }
+
+        auto malformed_reply_result = co_await receive_websocket_text(socket);
+        auto& [malformed_read_ec, malformed_reply] = malformed_reply_result;
+        constexpr std::string_view expected_malformed_reply =
+            R"({"jsonrpc":"2.0","error":{"code":-32700,"message":"Parse error"},"id":null})";
+        if (malformed_read_ec || malformed_reply != expected_malformed_reply)
+        {
+            std::cerr << "FAIL server JSON-RPC parse error\n";
+            co_return 1;
+        }
+        std::cout << "PASS server JSON-RPC parse error\n";
+
+        constexpr std::string_view invalid_request = R"({"jsonrpc":"2.0","method":"echo","params":"bad","id":"4"})";
+        auto [invalid_request_write_ec] = co_await send_websocket_text(socket, invalid_request);
+        if (invalid_request_write_ec)
+        {
+            std::cerr << "FAIL server JSON-RPC invalid-request write\n";
+            co_return 1;
+        }
+
+        auto invalid_request_reply_result = co_await receive_websocket_text(socket);
+        auto& [invalid_request_read_ec, invalid_request_reply] = invalid_request_reply_result;
+        constexpr std::string_view expected_invalid_request_reply =
+            R"({"jsonrpc":"2.0","error":{"code":-32600,"message":"Invalid Request"},"id":null})";
+        if (invalid_request_read_ec || invalid_request_reply != expected_invalid_request_reply)
+        {
+            std::cerr << "FAIL server JSON-RPC invalid request\n";
+            co_return 1;
+        }
+        std::cout << "PASS server JSON-RPC invalid request\n";
 
         constexpr std::array<std::uint8_t, 10> ping = {0x89, 0x84, 0x01, 0x02, 0x03, 0x04, 0x71, 0x6b, 0x6d, 0x63};
         auto [ping_ec, ping_written] = co_await boost::capy::write(socket, boost::capy::const_buffer(ping.data(), ping.size()));
