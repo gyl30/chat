@@ -39,8 +39,6 @@ class websocket_connection
 
     ~websocket_connection();
 
-    bool valid() const noexcept;
-
     boost::capy::io_task<websocket_message> receive();
 
     boost::capy::io_task<> send_text(std::string_view payload);

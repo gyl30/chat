@@ -120,11 +120,8 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
                 if (!upgrade_ec)
                 {
                     websocket_connection connection(socket_);
-                    if (connection.valid())
-                    {
-                        chat_session session(connection);
-                        co_await session.run();
-                    }
+                    chat_session session(connection);
+                    co_await session.run();
                 }
                 break;
             }

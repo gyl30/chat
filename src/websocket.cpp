@@ -172,8 +172,6 @@ websocket_connection::websocket_connection(boost::corosio::tcp_socket& socket) :
 
 websocket_connection::~websocket_connection() = default;
 
-bool websocket_connection::valid() const noexcept { return context_ != nullptr; }
-
 boost::capy::io_task<websocket_message> websocket_connection::receive()
 {
     for (;;)

@@ -357,11 +357,6 @@ class websocket_test_worker final : public boost::corosio::tcp_server::worker_ba
         }
 
         websocket_connection connection(socket_);
-        if (!connection.valid())
-        {
-            socket_.close();
-            co_return;
-        }
 
         for (;;)
         {
