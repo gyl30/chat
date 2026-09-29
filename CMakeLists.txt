@@ -162,6 +162,7 @@ set_tests_properties(websocket PROPERTIES TIMEOUT 5)
 
 add_executable(chat_server_test
     tests/server_test.cpp
+    src/chat_session.cpp
     src/server.cpp
     src/websocket.cpp
 )

@@ -21,6 +21,7 @@
 
 #include "server.hpp"
 #include "websocket.hpp"
+#include "chat_session.hpp"
 
 namespace
 {
@@ -91,14 +92,8 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
             co_return;
         }
 
-        for (;;)
-        {
-            auto [ec, message] = co_await connection.receive();
-            if (ec || message.message_type == websocket_message::type::close)
-            {
-                break;
-            }
-        }
+        chat_session session(connection);
+        co_await session.run();
     }
 
     boost::capy::task<void> run_session()

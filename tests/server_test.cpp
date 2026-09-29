@@ -205,6 +205,27 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         }
         std::cout << "PASS server WebSocket upgrade\n";
 
+        constexpr std::array<std::uint8_t, 24> messages = {
+            0x82, 0x82, 0x05, 0x06, 0x07, 0x08, 0x04, 0x04,
+            0x81, 0x8a, 0x01, 0x02, 0x03, 0x04, 0x69, 0x67, 0x6f, 0x68, 0x6e, 0x22, 0x60, 0x6c, 0x60, 0x76};
+        auto [messages_ec, messages_written] = co_await boost::capy::write(socket, boost::capy::const_buffer(messages.data(), messages.size()));
+        if (messages_ec || messages_written != messages.size())
+        {
+            std::cerr << "FAIL server application message write\n";
+            co_return 1;
+        }
+
+        std::array<std::uint8_t, 12> text_reply{};
+        auto [text_ec, text_read] = co_await boost::capy::read(socket, boost::capy::mutable_buffer(text_reply.data(), text_reply.size()));
+        constexpr std::array<std::uint8_t, 12> expected_text = {0x81, 0x0a, 'h', 'e', 'l', 'l', 'o', ' ', 'c', 'h', 'a', 't'};
+        if (text_ec || text_read != text_reply.size() || text_reply != expected_text)
+        {
+            std::cerr << "FAIL server application text message\n";
+            co_return 1;
+        }
+        std::cout << "PASS server application text message\n";
+        std::cout << "PASS server binary message ignored\n";
+
         constexpr std::array<std::uint8_t, 10> ping = {0x89, 0x84, 0x01, 0x02, 0x03, 0x04, 0x71, 0x6b, 0x6d, 0x63};
         auto [ping_ec, ping_written] = co_await boost::capy::write(socket, boost::capy::const_buffer(ping.data(), ping.size()));
         if (ping_ec || ping_written != ping.size())
