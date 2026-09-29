@@ -55,27 +55,6 @@ add_subdirectory(third/simdjson EXCLUDE_FROM_ALL)
 find_package(PostgreSQL REQUIRED)
 find_package(OpenSSL REQUIRED)
 
-add_executable(chat_db_poc
-    src/main.cpp
-    src/pg_connection.cpp
-)
-
-target_include_directories(chat_db_poc PRIVATE src)
-
-target_link_libraries(chat_db_poc
-    PRIVATE
-        Boost::capy
-        Boost::corosio
-        PostgreSQL::PostgreSQL
-)
-
-target_compile_options(chat_db_poc
-    PRIVATE
-        -Wall
-        -Wextra
-        -Wpedantic
-)
-
 enable_testing()
 
 add_executable(chat_db_test
