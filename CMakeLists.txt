@@ -136,7 +136,10 @@ set_tests_properties(http_server PROPERTIES TIMEOUT 5)
 
 add_executable(chat_websocket_test
     tests/websocket_test.cpp
+    src/websocket.cpp
 )
+
+target_include_directories(chat_websocket_test PRIVATE src)
 
 target_link_libraries(chat_websocket_test
     PRIVATE

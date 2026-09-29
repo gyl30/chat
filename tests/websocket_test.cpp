@@ -1,3 +1,5 @@
+#include "websocket.hpp"
+
 #include <boost/capy/buffers.hpp>
 #include <boost/capy/ex/run_async.hpp>
 #include <boost/capy/io_task.hpp>
@@ -17,7 +19,6 @@
 #include <boost/http/serializer.hpp>
 #include <boost/http/status.hpp>
 
-#include <openssl/evp.h>
 #include <wslay/wslay.h>
 
 #include <algorithm>
@@ -41,7 +42,6 @@ namespace
 
 constexpr std::string_view kWebSocketKey = "dGhlIHNhbXBsZSBub25jZQ==";
 constexpr std::string_view kWebSocketAccept = "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=";
-constexpr std::string_view kWebSocketGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 constexpr std::string_view kTextMessage = "hello websocket";
 constexpr std::string_view kPingPayload = "ping";
 
@@ -103,77 +103,6 @@ bool contains_token(std::string_view value, std::string_view token)
         value.remove_prefix(comma + 1);
     }
     return false;
-}
-
-bool valid_websocket_key(std::string_view key)
-{
-    if (key.size() != 24)
-    {
-        return false;
-    }
-
-    std::array<unsigned char, 32> decoded{};
-    auto const size = EVP_DecodeBlock(decoded.data(), reinterpret_cast<unsigned char const*>(key.data()), static_cast<int>(key.size()));
-    if (size < 0)
-    {
-        return false;
-    }
-
-    int decoded_size = size;
-    for (auto it = key.rbegin(); it != key.rend() && *it == '='; ++it)
-    {
-        --decoded_size;
-    }
-    return decoded_size == 16;
-}
-
-bool make_websocket_accept(std::string_view key, std::string& accept)
-{
-    struct evp_md_ctx_deleter
-    {
-        void operator()(EVP_MD_CTX* context) const noexcept { EVP_MD_CTX_free(context); }
-    };
-
-    std::unique_ptr<EVP_MD_CTX, evp_md_ctx_deleter> digest_context(EVP_MD_CTX_new());
-    if (!digest_context)
-    {
-        return false;
-    }
-
-    std::array<unsigned char, EVP_MAX_MD_SIZE> digest{};
-    unsigned int digest_size = 0;
-    if (EVP_DigestInit_ex(digest_context.get(), EVP_sha1(), nullptr) != 1 || EVP_DigestUpdate(digest_context.get(), key.data(), key.size()) != 1 ||
-        EVP_DigestUpdate(digest_context.get(), kWebSocketGuid.data(), kWebSocketGuid.size()) != 1 ||
-        EVP_DigestFinal_ex(digest_context.get(), digest.data(), &digest_size) != 1)
-    {
-        return false;
-    }
-
-    std::array<unsigned char, 64> encoded{};
-    auto const encoded_size = EVP_EncodeBlock(encoded.data(), digest.data(), static_cast<int>(digest_size));
-    if (encoded_size <= 0)
-    {
-        return false;
-    }
-
-    accept.assign(reinterpret_cast<char const*>(encoded.data()), static_cast<std::size_t>(encoded_size));
-    return true;
-}
-
-bool is_websocket_upgrade(http::static_request const& request, std::string& accept)
-{
-    if (request.method() != http::method::get || request.version() != http::version::http_1_1 || !request.exists(http::field::host))
-    {
-        return false;
-    }
-
-    auto const connection = as_string_view(request.value_or(http::field::connection, ""));
-    auto const upgrade = as_string_view(request.value_or(http::field::upgrade, ""));
-    auto const version = trim(as_string_view(request.value_or(http::field::sec_websocket_version, "")));
-    auto const key = trim(as_string_view(request.value_or(http::field::sec_websocket_key, "")));
-
-    return contains_token(connection, "upgrade") && contains_token(upgrade, "websocket") && version == "13" && valid_websocket_key(key) &&
-           make_websocket_accept(key, accept);
 }
 
 class websocket_peer
@@ -417,7 +346,7 @@ class websocket_test_worker final : public corosio::tcp_server::worker_base
         }
 
         std::string accept;
-        if (as_string_view(parser_.get().target()) != "/ws" || !is_websocket_upgrade(parser_.get(), accept))
+        if (as_string_view(parser_.get().target()) != "/ws" || !websocket_upgrade_accept(parser_.get(), accept))
         {
             socket_.close();
             co_return;
@@ -430,28 +359,25 @@ class websocket_test_worker final : public corosio::tcp_server::worker_base
             co_return;
         }
 
-        websocket_peer peer(true, true);
-        if (!peer.valid())
+        websocket_connection connection(socket_);
+        if (!connection.valid())
         {
             socket_.close();
             co_return;
         }
 
-        while (peer.want_read() || peer.want_write())
+        for (;;)
         {
-            if (peer.want_write())
+            auto [ec, message] = co_await connection.receive();
+            if (ec || message.message_type == websocket_message::type::close)
             {
-                auto [ec] = co_await peer.send_pending(socket_);
-                if (ec)
-                {
-                    break;
-                }
+                break;
             }
 
-            if (peer.want_read())
+            if (message.message_type == websocket_message::type::text)
             {
-                auto [ec] = co_await peer.receive(socket_);
-                if (ec)
+                auto [send_ec] = co_await connection.send_text(message.payload);
+                if (send_ec)
                 {
                     break;
                 }
