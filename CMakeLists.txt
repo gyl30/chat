@@ -55,6 +55,12 @@ add_subdirectory(third/simdjson EXCLUDE_FROM_ALL)
 find_package(PostgreSQL REQUIRED)
 find_package(OpenSSL REQUIRED)
 
+add_compile_options(
+    -Wall
+    -Wextra
+    -Wpedantic
+)
+
 enable_testing()
 
 add_executable(chat_db_test
@@ -71,13 +77,6 @@ target_link_libraries(chat_db_test
         PostgreSQL::PostgreSQL
 )
 
-target_compile_options(chat_db_test
-    PRIVATE
-        -Wall
-        -Wextra
-        -Wpedantic
-)
-
 add_test(NAME pg_connection COMMAND chat_db_test)
 set_tests_properties(pg_connection PROPERTIES TIMEOUT 15)
 
@@ -89,13 +88,6 @@ target_link_libraries(chat_corosio_timeout_test
     PRIVATE
         Boost::capy
         Boost::corosio
-)
-
-target_compile_options(chat_corosio_timeout_test
-    PRIVATE
-        -Wall
-        -Wextra
-        -Wpedantic
 )
 
 add_test(NAME corosio_timeout COMMAND chat_corosio_timeout_test)
@@ -110,13 +102,6 @@ target_link_libraries(chat_http_test
         Boost::capy
         Boost::corosio
         Boost::http
-)
-
-target_compile_options(chat_http_test
-    PRIVATE
-        -Wall
-        -Wextra
-        -Wpedantic
 )
 
 add_test(NAME http_server COMMAND chat_http_test)
@@ -136,13 +121,6 @@ target_link_libraries(chat_websocket_test
         Boost::http
         OpenSSL::Crypto
         wslay
-)
-
-target_compile_options(chat_websocket_test
-    PRIVATE
-        -Wall
-        -Wextra
-        -Wpedantic
 )
 
 add_test(NAME websocket COMMAND chat_websocket_test)
@@ -168,13 +146,6 @@ target_link_libraries(chat_server_test
         wslay
 )
 
-target_compile_options(chat_server_test
-    PRIVATE
-        -Wall
-        -Wextra
-        -Wpedantic
-)
-
 add_test(NAME server COMMAND chat_server_test)
 set_tests_properties(server PROPERTIES TIMEOUT 5)
 
@@ -185,13 +156,6 @@ add_executable(chat_simdjson_reflection_test
 target_link_libraries(chat_simdjson_reflection_test
     PRIVATE
         simdjson::simdjson
-)
-
-target_compile_options(chat_simdjson_reflection_test
-    PRIVATE
-        -Wall
-        -Wextra
-        -Wpedantic
 )
 
 add_test(NAME simdjson_reflection COMMAND chat_simdjson_reflection_test)
