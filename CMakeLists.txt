@@ -16,6 +16,22 @@ set(BOOST_COROSIO_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(BOOST_COROSIO_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(BOOST_COROSIO_BUILD_BENCH OFF CACHE BOOL "" FORCE)
 
+set(BOOST_HTTP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(BOOST_HTTP_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+
+find_package(Boost 1.92.0 EXACT REQUIRED CONFIG COMPONENTS
+    assert
+    config
+    core
+    json
+    mp11
+    system
+    throw_exception
+    type_traits
+    url
+    winapi
+)
+
 include(FetchContent)
 
 FetchContent_Declare(
@@ -30,7 +46,13 @@ FetchContent_Declare(
     GIT_TAG 54e28fd40cf7ee6cc18365dd81ad5615c38908cc
 )
 
-FetchContent_MakeAvailable(capy corosio)
+FetchContent_Declare(
+    http
+    GIT_REPOSITORY https://github.com/cppalliance/http.git
+    GIT_TAG 0c854fc2790968cdf3f117a47b4b90d6a3a1300e
+)
+
+FetchContent_MakeAvailable(capy corosio http)
 
 find_package(PostgreSQL REQUIRED)
 
@@ -100,3 +122,24 @@ target_compile_options(chat_corosio_timeout_test
 
 add_test(NAME corosio_timeout COMMAND chat_corosio_timeout_test)
 set_tests_properties(corosio_timeout PROPERTIES TIMEOUT 5)
+
+add_executable(chat_http_test
+    tests/http_server_test.cpp
+)
+
+target_link_libraries(chat_http_test
+    PRIVATE
+        Boost::capy
+        Boost::corosio
+        Boost::http
+)
+
+target_compile_options(chat_http_test
+    PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+)
+
+add_test(NAME http_server COMMAND chat_http_test)
+set_tests_properties(http_server PROPERTIES TIMEOUT 5)
