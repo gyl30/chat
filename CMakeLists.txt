@@ -25,6 +25,9 @@ set(WSLAY_SHARED OFF CACHE BOOL "" FORCE)
 set(WSLAY_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(WSLAY_TESTS OFF CACHE BOOL "" FORCE)
 
+set(SIMDJSON_EXCEPTIONS OFF CACHE BOOL "" FORCE)
+set(SIMDJSON_STATIC_REFLECTION_MODE "ON" CACHE STRING "" FORCE)
+
 find_package(Boost 1.92.0 EXACT REQUIRED CONFIG COMPONENTS
     assert
     config
@@ -42,6 +45,7 @@ add_subdirectory(third/capy EXCLUDE_FROM_ALL)
 add_subdirectory(third/corosio EXCLUDE_FROM_ALL)
 add_subdirectory(third/http EXCLUDE_FROM_ALL)
 add_subdirectory(third/wslay EXCLUDE_FROM_ALL)
+add_subdirectory(third/simdjson EXCLUDE_FROM_ALL)
 
 find_package(PostgreSQL REQUIRED)
 find_package(OpenSSL REQUIRED)
@@ -187,3 +191,22 @@ target_compile_options(chat_server_test
 
 add_test(NAME server COMMAND chat_server_test)
 set_tests_properties(server PROPERTIES TIMEOUT 5)
+
+add_executable(chat_simdjson_reflection_test
+    tests/simdjson_reflection_test.cpp
+)
+
+target_link_libraries(chat_simdjson_reflection_test
+    PRIVATE
+        simdjson::simdjson
+)
+
+target_compile_options(chat_simdjson_reflection_test
+    PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+)
+
+add_test(NAME simdjson_reflection COMMAND chat_simdjson_reflection_test)
+set_tests_properties(simdjson_reflection PROPERTIES TIMEOUT 5)

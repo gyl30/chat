@@ -10,3 +10,6 @@
 [submodule "third/wslay"]
 	path = third/wslay
 	url = https://github.com/tatsuhiro-t/wslay.git
+[submodule "third/simdjson"]
+	path = third/simdjson
+	url = https://github.com/simdjson/simdjson.git
