@@ -6,6 +6,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <string>
 #include <tuple>
 
 namespace capy = boost::capy;
@@ -111,6 +112,79 @@ capy::task<int> run_tests(corosio::io_context& io_context)
     else
     {
         std::cout << "PASS missing database\n";
+    }
+
+    pg_connection terminated_connection(io_context);
+    auto [terminated_connect_ec] = co_await terminated_connection.connect(connection_string);
+    if (terminated_connect_ec)
+    {
+        std::cerr << "FAIL disconnect test connect: " << terminated_connection.error_message() << '\n';
+        ++failures;
+    }
+    else
+    {
+        auto [pid_ec, pid] = co_await terminated_connection.execute_scalar("SELECT pg_backend_pid()");
+        if (pid_ec)
+        {
+            std::cerr << "FAIL backend pid query: " << terminated_connection.error_message() << '\n';
+            ++failures;
+        }
+        else
+        {
+            pg_connection terminator_connection(io_context);
+            auto [terminator_connect_ec] = co_await terminator_connection.connect(connection_string);
+            if (terminator_connect_ec)
+            {
+                std::cerr << "FAIL terminator connect: " << terminator_connection.error_message() << '\n';
+                ++failures;
+            }
+            else
+            {
+                std::string terminate_query = "SELECT pg_terminate_backend(" + pid + ", 5000)";
+                auto [terminate_ec, terminate_value] = co_await terminator_connection.execute_scalar(std::move(terminate_query));
+                if (terminate_ec || terminate_value != "t")
+                {
+                    std::cerr << "FAIL terminate backend: " << terminator_connection.error_message() << '\n';
+                    ++failures;
+                }
+                else
+                {
+                    std::cout << "PASS terminate backend\n";
+
+                    auto disconnected_result = co_await terminated_connection.execute_scalar("SELECT 4");
+                    if (!std::get<0>(disconnected_result))
+                    {
+                        std::cerr << "FAIL query after server disconnect succeeded\n";
+                        ++failures;
+                    }
+                    else
+                    {
+                        std::cout << "PASS server disconnect\n";
+                    }
+
+                    if (terminated_connection.is_open())
+                    {
+                        std::cerr << "FAIL disconnected connection remains open\n";
+                        ++failures;
+                    }
+                    else
+                    {
+                        std::cout << "PASS disconnected connection state\n";
+                    }
+
+                    auto retry_result = co_await terminated_connection.execute_scalar("SELECT 5");
+                    if (!std::get<0>(retry_result))
+                    {
+                        std::cerr << "FAIL second query after server disconnect succeeded\n";
+                        ++failures;
+                    }
+                    else
+                    {
+                        std::cout << "PASS query after disconnected state\n";
+                    }
+                }
+            }
+        }
     }
 
     connection.close();

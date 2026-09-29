@@ -79,3 +79,4 @@ target_compile_options(chat_db_test
 )
 
 add_test(NAME pg_connection COMMAND chat_db_test)
+set_tests_properties(pg_connection PROPERTIES TIMEOUT 15)
