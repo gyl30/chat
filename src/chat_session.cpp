@@ -18,11 +18,6 @@ boost::capy::task<void> chat_session::run()
             break;
         }
 
-        if (message.message_type != websocket_message::type::text)
-        {
-            continue;
-        }
-
         auto rpc_error = dispatch_json_rpc(message.payload, response);
         if (rpc_error)
         {
