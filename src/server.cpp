@@ -1,26 +1,25 @@
-#include "server.hpp"
-
 #include <memory>
 #include <string>
-#include <string_view>
-#include <utility>
 #include <vector>
+#include <utility>
+#include <string_view>
 
-#include <boost/capy/buffers.hpp>
-#include <boost/capy/io/any_read_stream.hpp>
-#include <boost/capy/io_task.hpp>
+#include <boost/url/parse.hpp>
 #include <boost/capy/write.hpp>
-#include <boost/corosio/tcp_socket.hpp>
-#include <boost/http/config.hpp>
 #include <boost/http/field.hpp>
+#include <boost/http/config.hpp>
+#include <boost/http/status.hpp>
+#include <boost/capy/buffers.hpp>
+#include <boost/capy/io_task.hpp>
+#include <boost/http/version.hpp>
+#include <boost/http/serializer.hpp>
+#include <boost/corosio/tcp_socket.hpp>
+#include <boost/http/request_parser.hpp>
+#include <boost/capy/io/any_read_stream.hpp>
 #include <boost/http/io/any_buffer_sink.hpp>
 #include <boost/http/io/any_buffer_source.hpp>
-#include <boost/http/request_parser.hpp>
-#include <boost/http/serializer.hpp>
-#include <boost/http/status.hpp>
-#include <boost/http/version.hpp>
-#include <boost/url/parse.hpp>
 
+#include "server.hpp"
 #include "websocket.hpp"
 
 namespace capy = boost::capy;

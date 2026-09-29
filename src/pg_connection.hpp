@@ -3,15 +3,15 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 #include <string_view>
 #include <system_error>
-#include <vector>
 
+#include <libpq-fe.h>
 #include <boost/capy/io_task.hpp>
+#include <boost/corosio/wait_type.hpp>
 #include <boost/corosio/io_context.hpp>
 #include <boost/corosio/tcp_socket.hpp>
-#include <boost/corosio/wait_type.hpp>
-#include <libpq-fe.h>
 
 class pg_connection
 {
