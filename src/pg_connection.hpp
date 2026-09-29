@@ -5,6 +5,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <vector>
 
 #include <boost/capy/io_task.hpp>
 #include <boost/corosio/io_context.hpp>
@@ -24,7 +25,7 @@ class pg_connection
 
     boost::capy::io_task<> connect(std::string conninfo);
 
-    boost::capy::io_task<std::string> execute_scalar(std::string query);
+    boost::capy::io_task<std::string> execute_scalar(std::string query, std::vector<std::string> parameters = {});
 
     void close() noexcept;
 

@@ -281,7 +281,7 @@ capy::io_task<PGresult*> pg_connection::next_result()
     };
 }
 
-capy::io_task<std::string> pg_connection::execute_scalar(std::string query)
+capy::io_task<std::string> pg_connection::execute_scalar(std::string query, std::vector<std::string> parameters)
 {
     error_message_.clear();
 
@@ -295,7 +295,15 @@ capy::io_task<std::string> pg_connection::execute_scalar(std::string query)
         };
     }
 
-    if (PQsendQueryParams(connection_.get(), query.c_str(), 0, nullptr, nullptr, nullptr, nullptr, 0) == 0)
+    std::vector<char const*> parameter_values;
+    parameter_values.reserve(parameters.size());
+    for (auto const& parameter : parameters)
+    {
+        parameter_values.push_back(parameter.c_str());
+    }
+
+    auto const* values = parameter_values.empty() ? nullptr : parameter_values.data();
+    if (PQsendQueryParams(connection_.get(), query.c_str(), static_cast<int>(parameter_values.size()), nullptr, values, nullptr, nullptr, 0) == 0)
     {
         co_return capy::io_result<std::string>{
             set_libpq_error(),

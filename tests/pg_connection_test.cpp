@@ -57,6 +57,41 @@ capy::task<int> run_tests(corosio::io_context& io_context)
         std::cout << "PASS sequential query\n";
     }
 
+    std::string const parameter_value = "Robert'); SELECT pg_sleep(10); --";
+    auto [parameter_ec, parameter_result] = co_await connection.execute_scalar("SELECT $1::text", {parameter_value});
+    if (parameter_ec || parameter_result != parameter_value)
+    {
+        std::cerr << "FAIL parameterized query: " << connection.error_message() << '\n';
+        ++failures;
+    }
+    else
+    {
+        std::cout << "PASS parameterized query\n";
+    }
+
+    auto [multiple_parameters_ec, multiple_parameters_result] =
+        co_await connection.execute_scalar("SELECT $1::text || ':' || $2::text", {"left", "right"});
+    if (multiple_parameters_ec || multiple_parameters_result != "left:right")
+    {
+        std::cerr << "FAIL multiple query parameters: " << connection.error_message() << '\n';
+        ++failures;
+    }
+    else
+    {
+        std::cout << "PASS multiple query parameters\n";
+    }
+
+    auto [empty_parameter_ec, empty_parameter_result] = co_await connection.execute_scalar("SELECT length($1::text)::text", {""});
+    if (empty_parameter_ec || empty_parameter_result != "0")
+    {
+        std::cerr << "FAIL empty query parameter: " << connection.error_message() << '\n';
+        ++failures;
+    }
+    else
+    {
+        std::cout << "PASS empty query parameter\n";
+    }
+
     auto sql_result = co_await connection.execute_scalar("SELECT * FROM __chat_poc_missing_table__");
     if (!std::get<0>(sql_result))
     {
