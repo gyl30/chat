@@ -84,18 +84,6 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
         co_return {};
     }
 
-    boost::capy::task<void> run_websocket()
-    {
-        websocket_connection connection(socket_);
-        if (!connection.valid())
-        {
-            co_return;
-        }
-
-        chat_session session(connection);
-        co_await session.run();
-    }
-
     boost::capy::task<void> run_session()
     {
         parser_.reset();
@@ -131,7 +119,12 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
                 auto [upgrade_ec] = co_await send_websocket_upgrade(accept);
                 if (!upgrade_ec)
                 {
-                    co_await run_websocket();
+                    websocket_connection connection(socket_);
+                    if (connection.valid())
+                    {
+                        chat_session session(connection);
+                        co_await session.run();
+                    }
                 }
                 break;
             }
