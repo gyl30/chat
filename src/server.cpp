@@ -1,3 +1,5 @@
+#include "server.hpp"
+
 #include <memory>
 #include <string>
 #include <string_view>
@@ -19,7 +21,6 @@
 #include <boost/http/version.hpp>
 #include <boost/url/parse.hpp>
 
-#include "server.hpp"
 #include "websocket.hpp"
 
 namespace capy = boost::capy;
