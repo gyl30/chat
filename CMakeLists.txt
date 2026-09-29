@@ -44,7 +44,12 @@ find_package(Boost 1.92.0 EXACT REQUIRED CONFIG COMPONENTS
 add_subdirectory(third/capy EXCLUDE_FROM_ALL)
 add_subdirectory(third/corosio EXCLUDE_FROM_ALL)
 add_subdirectory(third/http EXCLUDE_FROM_ALL)
+
+set(CMAKE_WARN_DEPRECATED OFF CACHE BOOL "" FORCE)
 add_subdirectory(third/wslay EXCLUDE_FROM_ALL)
+set(CMAKE_WARN_DEPRECATED ON CACHE BOOL "" FORCE)
+unset(CMAKE_WARN_DEPRECATED CACHE)
+
 add_subdirectory(third/simdjson EXCLUDE_FROM_ALL)
 
 find_package(PostgreSQL REQUIRED)

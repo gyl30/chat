@@ -62,7 +62,12 @@ int run_tests()
 {
     int failures = 0;
 
-    profile original{7, "alice", {"Los Angeles", 90001}, "ally"};
+    profile original{};
+    original.user_id = 7;
+    original.name = "alice";
+    original.home.city = "Los Angeles";
+    original.home.zip_code = 90001;
+    original.nickname = "ally";
     std::string json;
     auto error = serialize_json(original, json);
     if (error)

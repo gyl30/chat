@@ -365,7 +365,8 @@ class websocket_test_worker final : public boost::corosio::tcp_server::worker_ba
 
         for (;;)
         {
-            auto [ec, message] = co_await connection.receive();
+            auto receive_result = co_await connection.receive();
+            auto& [ec, message] = receive_result;
             if (ec || message.message_type == websocket_message::type::close)
             {
                 break;

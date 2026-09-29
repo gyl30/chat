@@ -6,7 +6,8 @@ boost::capy::task<void> chat_session::run()
 {
     for (;;)
     {
-        auto [ec, message] = co_await connection_.receive();
+        auto receive_result = co_await connection_.receive();
+        auto& [ec, message] = receive_result;
         if (ec || message.message_type == websocket_message::type::close)
         {
             break;

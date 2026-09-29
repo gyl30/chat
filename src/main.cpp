@@ -28,7 +28,8 @@ boost::capy::task<int> run_poc(boost::corosio::io_context& io_context)
 
     std::cout << "connected to 172.20.54.83:5432/chat\n";
 
-    auto [query_ec, value] = co_await connection.execute_scalar("SELECT 1");
+    auto query_result = co_await connection.execute_scalar("SELECT 1");
+    auto& [query_ec, value] = query_result;
 
     if (query_ec)
     {

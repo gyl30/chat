@@ -32,7 +32,8 @@ boost::capy::task<int> run_tests(boost::corosio::io_context& io_context)
     }
     std::cout << "PASS connect\n";
 
-    auto [first_ec, first_value] = co_await connection.execute_scalar("SELECT 1");
+    auto first_result = co_await connection.execute_scalar("SELECT 1");
+    auto& [first_ec, first_value] = first_result;
     if (first_ec || first_value != "1")
     {
         std::cerr << "FAIL first query: " << connection.error_message() << '\n';
@@ -43,7 +44,8 @@ boost::capy::task<int> run_tests(boost::corosio::io_context& io_context)
         std::cout << "PASS first query\n";
     }
 
-    auto [second_ec, second_value] = co_await connection.execute_scalar("SELECT 2");
+    auto second_result = co_await connection.execute_scalar("SELECT 2");
+    auto& [second_ec, second_value] = second_result;
     if (second_ec || second_value != "2")
     {
         std::cerr << "FAIL sequential query: " << connection.error_message() << '\n';
@@ -55,7 +57,8 @@ boost::capy::task<int> run_tests(boost::corosio::io_context& io_context)
     }
 
     std::string const parameter_value = "Robert'); SELECT pg_sleep(10); --";
-    auto [parameter_ec, parameter_result] = co_await connection.execute_scalar("SELECT $1::text", {parameter_value});
+    auto parameter_query_result = co_await connection.execute_scalar("SELECT $1::text", {parameter_value});
+    auto& [parameter_ec, parameter_result] = parameter_query_result;
     if (parameter_ec || parameter_result != parameter_value)
     {
         std::cerr << "FAIL parameterized query: " << connection.error_message() << '\n';
@@ -66,8 +69,8 @@ boost::capy::task<int> run_tests(boost::corosio::io_context& io_context)
         std::cout << "PASS parameterized query\n";
     }
 
-    auto [multiple_parameters_ec, multiple_parameters_result] =
-        co_await connection.execute_scalar("SELECT $1::text || ':' || $2::text", {"left", "right"});
+    auto multiple_parameters_query_result = co_await connection.execute_scalar("SELECT $1::text || ':' || $2::text", {"left", "right"});
+    auto& [multiple_parameters_ec, multiple_parameters_result] = multiple_parameters_query_result;
     if (multiple_parameters_ec || multiple_parameters_result != "left:right")
     {
         std::cerr << "FAIL multiple query parameters: " << connection.error_message() << '\n';
@@ -78,7 +81,8 @@ boost::capy::task<int> run_tests(boost::corosio::io_context& io_context)
         std::cout << "PASS multiple query parameters\n";
     }
 
-    auto [empty_parameter_ec, empty_parameter_result] = co_await connection.execute_scalar("SELECT length($1::text)::text", {""});
+    auto empty_parameter_query_result = co_await connection.execute_scalar("SELECT length($1::text)::text", {""});
+    auto& [empty_parameter_ec, empty_parameter_result] = empty_parameter_query_result;
     if (empty_parameter_ec || empty_parameter_result != "0")
     {
         std::cerr << "FAIL empty query parameter: " << connection.error_message() << '\n';
@@ -100,7 +104,8 @@ boost::capy::task<int> run_tests(boost::corosio::io_context& io_context)
         std::cout << "PASS SQL error\n";
     }
 
-    auto [recovery_ec, recovery_value] = co_await connection.execute_scalar("SELECT 3");
+    auto recovery_result = co_await connection.execute_scalar("SELECT 3");
+    auto& [recovery_ec, recovery_value] = recovery_result;
     if (recovery_ec || recovery_value != "3")
     {
         std::cerr << "FAIL query after SQL error: " << connection.error_message() << '\n';
@@ -155,7 +160,8 @@ boost::capy::task<int> run_tests(boost::corosio::io_context& io_context)
     }
     else
     {
-        auto [pid_ec, pid] = co_await terminated_connection.execute_scalar("SELECT pg_backend_pid()");
+        auto pid_result = co_await terminated_connection.execute_scalar("SELECT pg_backend_pid()");
+        auto& [pid_ec, pid] = pid_result;
         if (pid_ec)
         {
             std::cerr << "FAIL backend pid query: " << terminated_connection.error_message() << '\n';
@@ -173,7 +179,8 @@ boost::capy::task<int> run_tests(boost::corosio::io_context& io_context)
             else
             {
                 std::string terminate_query = "SELECT pg_terminate_backend(" + pid + ", 5000)";
-                auto [terminate_ec, terminate_value] = co_await terminator_connection.execute_scalar(std::move(terminate_query));
+                auto terminate_result = co_await terminator_connection.execute_scalar(std::move(terminate_query));
+                auto& [terminate_ec, terminate_value] = terminate_result;
                 if (terminate_ec || terminate_value != "t")
                 {
                     std::cerr << "FAIL terminate backend: " << terminator_connection.error_message() << '\n';
