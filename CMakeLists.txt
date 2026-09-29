@@ -189,3 +189,17 @@ target_link_libraries(chat_simdjson_reflection_test
 
 add_test(NAME simdjson_reflection COMMAND chat_simdjson_reflection_test)
 set_tests_properties(simdjson_reflection PROPERTIES TIMEOUT 5)
+
+add_executable(chat_bcrypt_test
+    tests/bcrypt_test.cpp
+)
+
+target_link_libraries(chat_bcrypt_test
+    PRIVATE
+        Boost::capy
+        Boost::corosio
+        Boost::http
+)
+
+add_test(NAME bcrypt COMMAND chat_bcrypt_test)
+set_tests_properties(bcrypt PROPERTIES TIMEOUT 5)
