@@ -22,20 +22,16 @@
 #include "server.hpp"
 #include "websocket.hpp"
 
-namespace capy = boost::capy;
-namespace corosio = boost::corosio;
-namespace http = boost::http;
-
 namespace
 {
 
-class connection_worker final : public corosio::tcp_server::worker_base
+class connection_worker final : public boost::corosio::tcp_server::worker_base
 {
    public:
-    connection_worker(corosio::io_context& io_context,
-                      http::router<http::route_params> router,
-                      http::shared_parser_config parser_config,
-                      http::shared_serializer_config serializer_config)
+    connection_worker(boost::corosio::io_context& io_context,
+                      boost::http::router<boost::http::route_params> router,
+                      boost::http::shared_parser_config parser_config,
+                      boost::http::shared_serializer_config serializer_config)
         : io_context_(io_context),
           socket_(io_context),
           router_(std::move(router)),
@@ -43,22 +39,22 @@ class connection_worker final : public corosio::tcp_server::worker_base
           serializer_(std::move(serializer_config))
     {
         serializer_.set_message(params_.res);
-        params_.req_body = http::any_buffer_source(parser_.source_for(socket_));
-        params_.res_body = http::any_buffer_sink(serializer_.sink_for(socket_));
+        params_.req_body = boost::http::any_buffer_source(parser_.source_for(socket_));
+        params_.res_body = boost::http::any_buffer_sink(serializer_.sink_for(socket_));
     }
 
-    corosio::tcp_socket& socket() override { return socket_; }
+    boost::corosio::tcp_socket& socket() override { return socket_; }
 
-    void run(corosio::tcp_server::launcher launch) override { launch(io_context_.get_executor(), run_session()); }
+    void run(boost::corosio::tcp_server::launcher launch) override { launch(io_context_.get_executor(), run_session()); }
 
    private:
-    capy::io_task<> send_websocket_upgrade(std::string_view accept)
+    boost::capy::io_task<> send_websocket_upgrade(std::string_view accept)
     {
         params_.res.clear();
-        params_.res.set_start_line(http::status::switching_protocols, http::version::http_1_1);
-        params_.res.set(http::field::upgrade, "websocket");
-        params_.res.set(http::field::connection, "Upgrade");
-        params_.res.set(http::field::sec_websocket_accept, accept);
+        params_.res.set_start_line(boost::http::status::switching_protocols, boost::http::version::http_1_1);
+        params_.res.set(boost::http::field::upgrade, "websocket");
+        params_.res.set(boost::http::field::connection, "Upgrade");
+        params_.res.set(boost::http::field::sec_websocket_accept, accept);
 
         serializer_.reset();
         serializer_.start();
@@ -70,13 +66,13 @@ class connection_worker final : public corosio::tcp_server::worker_base
                 co_return std::error_code(prepared.error());
             }
 
-            if (capy::buffer_empty(*prepared))
+            if (boost::capy::buffer_empty(*prepared))
             {
                 serializer_.consume(0);
                 continue;
             }
 
-            auto [ec, written] = co_await capy::write(socket_, *prepared);
+            auto [ec, written] = co_await boost::capy::write(socket_, *prepared);
             serializer_.consume(written);
             if (ec)
             {
@@ -87,7 +83,7 @@ class connection_worker final : public corosio::tcp_server::worker_base
         co_return {};
     }
 
-    capy::task<void> run_websocket()
+    boost::capy::task<void> run_websocket()
     {
         websocket_connection connection(socket_);
         if (!connection.valid())
@@ -105,7 +101,7 @@ class connection_worker final : public corosio::tcp_server::worker_base
         }
     }
 
-    capy::task<void> run_session()
+    boost::capy::task<void> run_session()
     {
         parser_.reset();
         parser_.start();
@@ -122,7 +118,7 @@ class connection_worker final : public corosio::tcp_server::worker_base
             params_.req = parser_.get();
             params_.route_data.clear();
             params_.res.clear();
-            params_.res.set_start_line(http::status::ok, params_.req.version());
+            params_.res.set_start_line(boost::http::status::ok, params_.req.version());
             params_.res.set_keep_alive(params_.req.keep_alive());
             serializer_.reset();
 
@@ -146,7 +142,7 @@ class connection_worker final : public corosio::tcp_server::worker_base
             }
 
             auto route_result = co_await router_.dispatch(params_.req.method(), params_.url, params_);
-            if (route_result.failed() || route_result.what() != http::route_what::done)
+            if (route_result.failed() || route_result.what() != boost::http::route_what::done)
             {
                 break;
             }
@@ -164,23 +160,23 @@ class connection_worker final : public corosio::tcp_server::worker_base
         socket_.close();
     }
 
-    corosio::io_context& io_context_;
-    corosio::tcp_socket socket_;
-    http::router<http::route_params> router_;
-    http::route_params params_;
-    http::request_parser parser_;
-    http::serializer serializer_;
+    boost::corosio::io_context& io_context_;
+    boost::corosio::tcp_socket socket_;
+    boost::http::router<boost::http::route_params> router_;
+    boost::http::route_params params_;
+    boost::http::request_parser parser_;
+    boost::http::serializer serializer_;
 };
 
 
 }    // namespace
 
-chat_server::chat_server(corosio::io_context& io_context, std::size_t worker_count, http::router<http::route_params> router)
+chat_server::chat_server(boost::corosio::io_context& io_context, std::size_t worker_count, boost::http::router<boost::http::route_params> router)
     : server_(io_context, io_context.get_executor())
 {
-    auto parser_config = http::make_parser_config(http::parser_config{true});
-    auto serializer_config = http::make_serializer_config(http::serializer_config{});
-    std::vector<std::unique_ptr<corosio::tcp_server::worker_base>> workers;
+    auto parser_config = boost::http::make_parser_config(boost::http::parser_config{true});
+    auto serializer_config = boost::http::make_serializer_config(boost::http::serializer_config{});
+    std::vector<std::unique_ptr<boost::corosio::tcp_server::worker_base>> workers;
     workers.reserve(worker_count);
     for (std::size_t i = 0; i < worker_count; ++i)
     {
@@ -189,9 +185,9 @@ chat_server::chat_server(corosio::io_context& io_context, std::size_t worker_cou
     server_.set_workers(std::move(workers));
 }
 
-std::error_code chat_server::bind(corosio::endpoint endpoint) { return server_.bind(endpoint); }
+std::error_code chat_server::bind(boost::corosio::endpoint endpoint) { return server_.bind(endpoint); }
 
-corosio::endpoint chat_server::local_endpoint(std::size_t index) const noexcept { return server_.local_endpoint(index); }
+boost::corosio::endpoint chat_server::local_endpoint(std::size_t index) const noexcept { return server_.local_endpoint(index); }
 
 void chat_server::start() { server_.start(); }
 

@@ -24,10 +24,6 @@
 
 #include "server.hpp"
 
-namespace capy = boost::capy;
-namespace corosio = boost::corosio;
-namespace http = boost::http;
-
 namespace
 {
 
@@ -36,31 +32,31 @@ constexpr std::string_view kNotFoundBody = "not found";
 constexpr std::string_view kWebSocketKey = "dGhlIHNhbXBsZSBub25jZQ==";
 constexpr std::string_view kWebSocketAccept = "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=";
 
-http::route_task health_handler(http::route_params& params)
+boost::http::route_task health_handler(boost::http::route_params& params)
 {
-    params.status(http::status::ok);
-    params.res.set(http::field::content_type, "application/json");
+    params.status(boost::http::status::ok);
+    params.res.set(boost::http::field::content_type, "application/json");
 
     auto [ec] = co_await params.send(kHealthBody);
     if (ec)
     {
-        co_return http::route_error(ec);
+        co_return boost::http::route_error(ec);
     }
 
-    co_return http::route_done;
+    co_return boost::http::route_done;
 }
 
-http::route_task not_found_handler(http::route_params& params)
+boost::http::route_task not_found_handler(boost::http::route_params& params)
 {
-    params.status(http::status::not_found);
+    params.status(boost::http::status::not_found);
 
     auto [ec] = co_await params.send(kNotFoundBody);
     if (ec)
     {
-        co_return http::route_error(ec);
+        co_return boost::http::route_error(ec);
     }
 
-    co_return http::route_done;
+    co_return boost::http::route_done;
 }
 
 struct server_stop_guard
@@ -70,15 +66,15 @@ struct server_stop_guard
     ~server_stop_guard() { server.stop(); }
 };
 
-capy::io_task<> connect(corosio::tcp_socket& socket, unsigned short port)
+boost::capy::io_task<> connect(boost::corosio::tcp_socket& socket, unsigned short port)
 {
-    auto [ec] = co_await socket.connect(corosio::endpoint(corosio::ipv4_address::loopback(), port));
+    auto [ec] = co_await socket.connect(boost::corosio::endpoint(boost::corosio::ipv4_address::loopback(), port));
     co_return ec;
 }
 
-capy::io_task<> send_request(corosio::tcp_socket& socket, std::string_view request)
+boost::capy::io_task<> send_request(boost::corosio::tcp_socket& socket, std::string_view request)
 {
-    auto [ec, written] = co_await capy::write(socket, capy::const_buffer(request.data(), request.size()));
+    auto [ec, written] = co_await boost::capy::write(socket, boost::capy::const_buffer(request.data(), request.size()));
     if (ec)
     {
         co_return ec;
@@ -90,12 +86,12 @@ capy::io_task<> send_request(corosio::tcp_socket& socket, std::string_view reque
     co_return {};
 }
 
-bool valid_health_response(http::response_parser const& parser)
+bool valid_health_response(boost::http::response_parser const& parser)
 {
-    return parser.get().status() == http::status::ok && parser.body() == kHealthBody;
+    return parser.get().status() == boost::http::status::ok && parser.body() == kHealthBody;
 }
 
-capy::io_task<> upgrade_websocket(corosio::tcp_socket& socket, http::response_parser& parser)
+boost::capy::io_task<> upgrade_websocket(boost::corosio::tcp_socket& socket, boost::http::response_parser& parser)
 {
     std::string request =
         "GET /ws HTTP/1.1\r\n"
@@ -120,8 +116,8 @@ capy::io_task<> upgrade_websocket(corosio::tcp_socket& socket, http::response_pa
         co_return read_ec;
     }
 
-    auto const accept = parser.get().value_or(http::field::sec_websocket_accept, "");
-    if (parser.get().status() != http::status::switching_protocols || std::string_view(accept.data(), accept.size()) != kWebSocketAccept ||
+    auto const accept = parser.get().value_or(boost::http::field::sec_websocket_accept, "");
+    if (parser.get().status() != boost::http::status::switching_protocols || std::string_view(accept.data(), accept.size()) != kWebSocketAccept ||
         parser.has_buffered_data())
     {
         co_return std::make_error_code(std::errc::protocol_error);
@@ -130,12 +126,12 @@ capy::io_task<> upgrade_websocket(corosio::tcp_socket& socket, http::response_pa
     co_return {};
 }
 
-capy::task<int> run_client(corosio::io_context& io_context, chat_server& server, unsigned short port)
+boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_server& server, unsigned short port)
 {
     server_stop_guard stop_guard{server};
 
     {
-        corosio::tcp_socket socket(io_context);
+        boost::corosio::tcp_socket socket(io_context);
         auto [connect_ec] = co_await connect(socket, port);
         if (connect_ec)
         {
@@ -143,8 +139,8 @@ capy::task<int> run_client(corosio::io_context& io_context, chat_server& server,
             co_return 1;
         }
 
-        auto parser_config = http::make_parser_config(http::parser_config{true});
-        http::response_parser parser(parser_config);
+        auto parser_config = boost::http::make_parser_config(boost::http::parser_config{true});
+        boost::http::response_parser parser(parser_config);
 
         constexpr std::string_view health_request =
             "GET /health HTTP/1.1\r\n"
@@ -180,7 +176,7 @@ capy::task<int> run_client(corosio::io_context& io_context, chat_server& server,
 
         parser.start();
         auto [second_read_ec] = co_await parser.read(socket);
-        if (second_read_ec || parser.get().status() != http::status::not_found || parser.body() != kNotFoundBody)
+        if (second_read_ec || parser.get().status() != boost::http::status::not_found || parser.body() != kNotFoundBody)
         {
             std::cerr << "FAIL second HTTP response\n";
             co_return 1;
@@ -191,7 +187,7 @@ capy::task<int> run_client(corosio::io_context& io_context, chat_server& server,
     }
 
     {
-        corosio::tcp_socket socket(io_context);
+        boost::corosio::tcp_socket socket(io_context);
         auto [connect_ec] = co_await connect(socket, port);
         if (connect_ec)
         {
@@ -199,8 +195,8 @@ capy::task<int> run_client(corosio::io_context& io_context, chat_server& server,
             co_return 1;
         }
 
-        auto parser_config = http::make_parser_config(http::parser_config{true});
-        http::response_parser parser(parser_config);
+        auto parser_config = boost::http::make_parser_config(boost::http::parser_config{true});
+        boost::http::response_parser parser(parser_config);
         auto [upgrade_ec] = co_await upgrade_websocket(socket, parser);
         if (upgrade_ec)
         {
@@ -210,7 +206,7 @@ capy::task<int> run_client(corosio::io_context& io_context, chat_server& server,
         std::cout << "PASS server WebSocket upgrade\n";
 
         constexpr std::array<std::uint8_t, 10> ping = {0x89, 0x84, 0x01, 0x02, 0x03, 0x04, 0x71, 0x6b, 0x6d, 0x63};
-        auto [ping_ec, ping_written] = co_await capy::write(socket, capy::const_buffer(ping.data(), ping.size()));
+        auto [ping_ec, ping_written] = co_await boost::capy::write(socket, boost::capy::const_buffer(ping.data(), ping.size()));
         if (ping_ec || ping_written != ping.size())
         {
             std::cerr << "FAIL server WebSocket ping write\n";
@@ -218,7 +214,7 @@ capy::task<int> run_client(corosio::io_context& io_context, chat_server& server,
         }
 
         std::array<std::uint8_t, 6> pong{};
-        auto [pong_ec, pong_read] = co_await capy::read(socket, capy::mutable_buffer(pong.data(), pong.size()));
+        auto [pong_ec, pong_read] = co_await boost::capy::read(socket, boost::capy::mutable_buffer(pong.data(), pong.size()));
         constexpr std::array<std::uint8_t, 6> expected_pong = {0x8a, 0x04, 'p', 'i', 'n', 'g'};
         if (pong_ec || pong_read != pong.size() || pong != expected_pong)
         {
@@ -228,7 +224,7 @@ capy::task<int> run_client(corosio::io_context& io_context, chat_server& server,
         std::cout << "PASS server WebSocket ping/pong\n";
 
         constexpr std::array<std::uint8_t, 8> close = {0x88, 0x82, 0x12, 0x34, 0x56, 0x78, 0x11, 0xdc};
-        auto [close_ec, close_written] = co_await capy::write(socket, capy::const_buffer(close.data(), close.size()));
+        auto [close_ec, close_written] = co_await boost::capy::write(socket, boost::capy::const_buffer(close.data(), close.size()));
         if (close_ec || close_written != close.size())
         {
             std::cerr << "FAIL server WebSocket close write\n";
@@ -236,7 +232,7 @@ capy::task<int> run_client(corosio::io_context& io_context, chat_server& server,
         }
 
         std::array<std::uint8_t, 4> close_reply{};
-        auto [reply_ec, reply_read] = co_await capy::read(socket, capy::mutable_buffer(close_reply.data(), close_reply.size()));
+        auto [reply_ec, reply_read] = co_await boost::capy::read(socket, boost::capy::mutable_buffer(close_reply.data(), close_reply.size()));
         constexpr std::array<std::uint8_t, 4> expected_close = {0x88, 0x02, 0x03, 0xe8};
         if (reply_ec || reply_read != close_reply.size() || close_reply != expected_close)
         {
@@ -249,7 +245,7 @@ capy::task<int> run_client(corosio::io_context& io_context, chat_server& server,
     }
 
     {
-        corosio::tcp_socket socket(io_context);
+        boost::corosio::tcp_socket socket(io_context);
         auto [connect_ec] = co_await connect(socket, port);
         if (connect_ec)
         {
@@ -269,8 +265,8 @@ capy::task<int> run_client(corosio::io_context& io_context, chat_server& server,
             co_return 1;
         }
 
-        auto parser_config = http::make_parser_config(http::parser_config{true});
-        http::response_parser parser(parser_config);
+        auto parser_config = boost::http::make_parser_config(boost::http::parser_config{true});
+        boost::http::response_parser parser(parser_config);
         parser.reset();
         parser.start();
         auto [read_ec] = co_await parser.read(socket);
@@ -285,7 +281,7 @@ capy::task<int> run_client(corosio::io_context& io_context, chat_server& server,
     }
 
     {
-        corosio::tcp_socket socket(io_context);
+        boost::corosio::tcp_socket socket(io_context);
         auto [connect_ec] = co_await connect(socket, port);
         if (connect_ec)
         {
@@ -293,8 +289,8 @@ capy::task<int> run_client(corosio::io_context& io_context, chat_server& server,
             co_return 1;
         }
 
-        auto parser_config = http::make_parser_config(http::parser_config{true});
-        http::response_parser parser(parser_config);
+        auto parser_config = boost::http::make_parser_config(boost::http::parser_config{true});
+        boost::http::response_parser parser(parser_config);
         auto [upgrade_ec] = co_await upgrade_websocket(socket, parser);
         if (upgrade_ec)
         {
@@ -305,7 +301,7 @@ capy::task<int> run_client(corosio::io_context& io_context, chat_server& server,
         server.stop();
 
         std::array<std::uint8_t, 1> input{};
-        auto [read_ec, size] = co_await socket.read_some(capy::mutable_buffer(input.data(), input.size()));
+        auto [read_ec, size] = co_await socket.read_some(boost::capy::mutable_buffer(input.data(), input.size()));
         if (!read_ec && size != 0)
         {
             std::cerr << "FAIL active WebSocket remained open\n";
@@ -324,14 +320,14 @@ capy::task<int> run_client(corosio::io_context& io_context, chat_server& server,
 
 int main()
 {
-    corosio::io_context io_context;
+    boost::corosio::io_context io_context;
 
-    http::router<http::route_params> router;
-    router.add(http::method::get, "/health", health_handler);
+    boost::http::router<boost::http::route_params> router;
+    router.add(boost::http::method::get, "/health", health_handler);
     router.use(not_found_handler);
 
     chat_server server(io_context, 1, std::move(router));
-    if (auto ec = server.bind(corosio::endpoint(corosio::ipv4_address::loopback(), 0)))
+    if (auto ec = server.bind(boost::corosio::endpoint(boost::corosio::ipv4_address::loopback(), 0)))
     {
         std::cerr << "FAIL server bind: " << ec.message() << '\n';
         return 1;
@@ -341,7 +337,7 @@ int main()
     server.start();
 
     int exit_code = 1;
-    capy::run_async(io_context.get_executor(), [&exit_code](int result) { exit_code = result; })(run_client(io_context, server, port));
+    boost::capy::run_async(io_context.get_executor(), [&exit_code](int result) { exit_code = result; })(run_client(io_context, server, port));
 
     io_context.run();
     server.join();

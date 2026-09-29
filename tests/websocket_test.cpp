@@ -32,10 +32,6 @@
 
 #include "websocket.hpp"
 
-namespace capy = boost::capy;
-namespace corosio = boost::corosio;
-namespace http = boost::http;
-
 namespace
 {
 
@@ -148,7 +144,7 @@ class websocket_peer
         return {};
     }
 
-    capy::io_task<> send_pending(corosio::tcp_socket& socket)
+    boost::capy::io_task<> send_pending(boost::corosio::tcp_socket& socket)
     {
         std::array<std::uint8_t, 4096> output{};
 
@@ -161,7 +157,7 @@ class websocket_peer
             }
 
             auto const size = static_cast<std::size_t>(result);
-            auto [ec, written] = co_await capy::write(socket, capy::const_buffer(output.data(), size));
+            auto [ec, written] = co_await boost::capy::write(socket, boost::capy::const_buffer(output.data(), size));
             if (ec)
             {
                 co_return ec;
@@ -175,9 +171,9 @@ class websocket_peer
         co_return {};
     }
 
-    capy::io_task<> receive(corosio::tcp_socket& socket)
+    boost::capy::io_task<> receive(boost::corosio::tcp_socket& socket)
     {
-        auto [ec, size] = co_await socket.read_some(capy::mutable_buffer(input_buffer_.data(), input_buffer_.size()));
+        auto [ec, size] = co_await socket.read_some(boost::capy::mutable_buffer(input_buffer_.data(), input_buffer_.size()));
         if (ec)
         {
             co_return ec;
@@ -283,27 +279,29 @@ class websocket_peer
     bool callback_error_ = false;
 };
 
-class websocket_test_worker final : public corosio::tcp_server::worker_base
+class websocket_test_worker final : public boost::corosio::tcp_server::worker_base
 {
    public:
-    websocket_test_worker(corosio::io_context& io_context, http::shared_parser_config parser_config, http::shared_serializer_config serializer_config)
+    websocket_test_worker(boost::corosio::io_context& io_context,
+                          boost::http::shared_parser_config parser_config,
+                          boost::http::shared_serializer_config serializer_config)
         : io_context_(io_context), socket_(io_context), parser_(std::move(parser_config)), serializer_(std::move(serializer_config))
     {
         serializer_.set_message(response_);
     }
 
-    corosio::tcp_socket& socket() override { return socket_; }
+    boost::corosio::tcp_socket& socket() override { return socket_; }
 
-    void run(corosio::tcp_server::launcher launch) override { launch(io_context_.get_executor(), run_session()); }
+    void run(boost::corosio::tcp_server::launcher launch) override { launch(io_context_.get_executor(), run_session()); }
 
    private:
-    capy::io_task<> send_upgrade_response(std::string_view accept)
+    boost::capy::io_task<> send_upgrade_response(std::string_view accept)
     {
         response_.clear();
-        response_.set_start_line(http::status::switching_protocols, http::version::http_1_1);
-        response_.set(http::field::upgrade, "websocket");
-        response_.set(http::field::connection, "Upgrade");
-        response_.set(http::field::sec_websocket_accept, accept);
+        response_.set_start_line(boost::http::status::switching_protocols, boost::http::version::http_1_1);
+        response_.set(boost::http::field::upgrade, "websocket");
+        response_.set(boost::http::field::connection, "Upgrade");
+        response_.set(boost::http::field::sec_websocket_accept, accept);
 
         serializer_.reset();
         serializer_.start();
@@ -315,13 +313,13 @@ class websocket_test_worker final : public corosio::tcp_server::worker_base
                 co_return std::error_code(prepared.error());
             }
 
-            if (capy::buffer_empty(*prepared))
+            if (boost::capy::buffer_empty(*prepared))
             {
                 serializer_.consume(0);
                 continue;
             }
 
-            auto [ec, written] = co_await capy::write(socket_, *prepared);
+            auto [ec, written] = co_await boost::capy::write(socket_, *prepared);
             serializer_.consume(written);
             if (ec)
             {
@@ -332,7 +330,7 @@ class websocket_test_worker final : public corosio::tcp_server::worker_base
         co_return {};
     }
 
-    capy::task<void> run_session()
+    boost::capy::task<void> run_session()
     {
         parser_.reset();
         parser_.start();
@@ -386,35 +384,35 @@ class websocket_test_worker final : public corosio::tcp_server::worker_base
         socket_.close();
     }
 
-    corosio::io_context& io_context_;
-    corosio::tcp_socket socket_;
-    http::request_parser parser_;
-    http::response response_;
-    http::serializer serializer_;
+    boost::corosio::io_context& io_context_;
+    boost::corosio::tcp_socket socket_;
+    boost::http::request_parser parser_;
+    boost::http::response response_;
+    boost::http::serializer serializer_;
 };
 
-std::vector<std::unique_ptr<corosio::tcp_server::worker_base>> make_workers(corosio::io_context& io_context,
-                                                                            http::shared_parser_config const& parser_config,
-                                                                            http::shared_serializer_config const& serializer_config)
+std::vector<std::unique_ptr<boost::corosio::tcp_server::worker_base>> make_workers(boost::corosio::io_context& io_context,
+                                                                            boost::http::shared_parser_config const& parser_config,
+                                                                            boost::http::shared_serializer_config const& serializer_config)
 {
-    std::vector<std::unique_ptr<corosio::tcp_server::worker_base>> workers;
+    std::vector<std::unique_ptr<boost::corosio::tcp_server::worker_base>> workers;
     workers.push_back(std::make_unique<websocket_test_worker>(io_context, parser_config, serializer_config));
     return workers;
 }
 
 struct server_stop_guard
 {
-    corosio::tcp_server& server;
+    boost::corosio::tcp_server& server;
 
     ~server_stop_guard() { server.stop(); }
 };
 
-capy::task<int> run_client(corosio::io_context& io_context, corosio::tcp_server& server, unsigned short port)
+boost::capy::task<int> run_client(boost::corosio::io_context& io_context, boost::corosio::tcp_server& server, unsigned short port)
 {
     server_stop_guard stop_guard{server};
-    corosio::tcp_socket socket(io_context);
+    boost::corosio::tcp_socket socket(io_context);
 
-    auto [connect_ec] = co_await socket.connect(corosio::endpoint(corosio::ipv4_address::loopback(), port));
+    auto [connect_ec] = co_await socket.connect(boost::corosio::endpoint(boost::corosio::ipv4_address::loopback(), port));
     if (connect_ec)
     {
         std::cerr << "FAIL WebSocket connect: " << connect_ec.message() << '\n';
@@ -431,15 +429,15 @@ capy::task<int> run_client(corosio::io_context& io_context, corosio::tcp_server&
     request.append(kWebSocketKey);
     request.append("\r\nSec-WebSocket-Version: 13\r\n\r\n");
 
-    auto [request_ec, request_size] = co_await capy::write(socket, capy::const_buffer(request.data(), request.size()));
+    auto [request_ec, request_size] = co_await boost::capy::write(socket, boost::capy::const_buffer(request.data(), request.size()));
     if (request_ec || request_size != request.size())
     {
         std::cerr << "FAIL WebSocket upgrade request\n";
         co_return 1;
     }
 
-    auto parser_config = http::make_parser_config(http::parser_config{true});
-    http::response_parser response_parser(parser_config);
+    auto parser_config = boost::http::make_parser_config(boost::http::parser_config{true});
+    boost::http::response_parser response_parser(parser_config);
     response_parser.reset();
     response_parser.start();
     auto [response_ec] = co_await response_parser.read(socket);
@@ -450,10 +448,11 @@ capy::task<int> run_client(corosio::io_context& io_context, corosio::tcp_server&
     }
 
     auto const& response = response_parser.get();
-    auto const connection = as_string_view(response.value_or(http::field::connection, ""));
-    auto const upgrade = as_string_view(response.value_or(http::field::upgrade, ""));
-    auto const accept = as_string_view(response.value_or(http::field::sec_websocket_accept, ""));
-    if (response.status() != http::status::switching_protocols || !contains_token(connection, "upgrade") || !contains_token(upgrade, "websocket") ||
+    auto const connection = as_string_view(response.value_or(boost::http::field::connection, ""));
+    auto const upgrade = as_string_view(response.value_or(boost::http::field::upgrade, ""));
+    auto const accept = as_string_view(response.value_or(boost::http::field::sec_websocket_accept, ""));
+    if (response.status() != boost::http::status::switching_protocols || !contains_token(connection, "upgrade") ||
+        !contains_token(upgrade, "websocket") ||
         accept != kWebSocketAccept || response_parser.has_buffered_data())
     {
         std::cerr << "FAIL WebSocket upgrade validation\n";
@@ -539,15 +538,15 @@ capy::task<int> run_client(corosio::io_context& io_context, corosio::tcp_server&
 
 int main()
 {
-    corosio::io_context io_context;
+    boost::corosio::io_context io_context;
 
-    auto parser_config = http::make_parser_config(http::parser_config{true});
-    auto serializer_config = http::make_serializer_config(http::serializer_config{});
+    auto parser_config = boost::http::make_parser_config(boost::http::parser_config{true});
+    auto serializer_config = boost::http::make_serializer_config(boost::http::serializer_config{});
 
-    corosio::tcp_server server(io_context, io_context.get_executor());
+    boost::corosio::tcp_server server(io_context, io_context.get_executor());
     server.set_workers(make_workers(io_context, parser_config, serializer_config));
 
-    if (auto ec = server.bind(corosio::endpoint(corosio::ipv4_address::loopback(), 0)))
+    if (auto ec = server.bind(boost::corosio::endpoint(boost::corosio::ipv4_address::loopback(), 0)))
     {
         std::cerr << "FAIL WebSocket bind: " << ec.message() << '\n';
         return 1;
@@ -557,7 +556,7 @@ int main()
     server.start();
 
     int exit_code = 1;
-    capy::run_async(io_context.get_executor(), [&exit_code](int result) { exit_code = result; })(run_client(io_context, server, port));
+    boost::capy::run_async(io_context.get_executor(), [&exit_code](int result) { exit_code = result; })(run_client(io_context, server, port));
 
     io_context.run();
     server.join();

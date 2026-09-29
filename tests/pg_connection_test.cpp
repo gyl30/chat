@@ -9,9 +9,6 @@
 
 #include "pg_connection.hpp"
 
-namespace capy = boost::capy;
-namespace corosio = boost::corosio;
-
 namespace
 {
 
@@ -22,7 +19,7 @@ constexpr auto connection_string =
     "user=chat "
     "sslmode=disable";
 
-capy::task<int> run_tests(corosio::io_context& io_context)
+boost::capy::task<int> run_tests(boost::corosio::io_context& io_context)
 {
     int failures = 0;
 
@@ -244,10 +241,10 @@ int main()
         return 1;
     }
 
-    corosio::io_context io_context;
+    boost::corosio::io_context io_context;
     int exit_code = 1;
 
-    capy::run_async(io_context.get_executor(), [&exit_code](int result) { exit_code = result; })(run_tests(io_context));
+    boost::capy::run_async(io_context.get_executor(), [&exit_code](int result) { exit_code = result; })(run_tests(io_context));
 
     io_context.run();
     return exit_code;

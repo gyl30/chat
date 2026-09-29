@@ -7,10 +7,8 @@
 
 #include "pg_connection.hpp"
 
-namespace capy = boost::capy;
-namespace corosio = boost::corosio;
 
-capy::task<int> run_poc(corosio::io_context& io_context)
+boost::capy::task<int> run_poc(boost::corosio::io_context& io_context)
 {
     pg_connection connection(io_context);
 
@@ -48,11 +46,11 @@ capy::task<int> run_poc(corosio::io_context& io_context)
 
 int main()
 {
-    corosio::io_context io_context;
+    boost::corosio::io_context io_context;
 
     int exit_code = 1;
 
-    capy::run_async(io_context.get_executor(), [&exit_code](int result) { exit_code = result; })(run_poc(io_context));
+    boost::capy::run_async(io_context.get_executor(), [&exit_code](int result) { exit_code = result; })(run_poc(io_context));
 
     io_context.run();
     return exit_code;

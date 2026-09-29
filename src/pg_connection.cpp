@@ -9,9 +9,6 @@
 
 #include "pg_connection.hpp"
 
-namespace capy = boost::capy;
-namespace corosio = boost::corosio;
-
 namespace
 {
 
@@ -27,7 +24,7 @@ void pg_connection::pg_conn_deleter::operator()(PGconn* connection) const noexce
     }
 }
 
-pg_connection::pg_connection(corosio::io_context& io_context) : wait_socket_(io_context) {}
+pg_connection::pg_connection(boost::corosio::io_context& io_context) : wait_socket_(io_context) {}
 
 pg_connection::~pg_connection() { close(); }
 
@@ -90,20 +87,20 @@ std::error_code pg_connection::refresh_wait_socket()
     return {};
 }
 
-capy::io_task<std::error_code> pg_connection::wait_event(corosio::wait_type type)
+boost::capy::io_task<std::error_code> pg_connection::wait_event(boost::corosio::wait_type type)
 {
     auto [ec] = co_await wait_socket_.wait(type);
 
     // The outer io_result intentionally reports success. The actual wait
     // error is the payload. This makes when_any return on the first
     // completion even when that completion itself reports an I/O error.
-    co_return capy::io_result<std::error_code>{
+    co_return boost::capy::io_result<std::error_code>{
         std::error_code{},
         ec,
     };
 }
 
-capy::io_task<> pg_connection::connect(std::string conninfo)
+boost::capy::io_task<> pg_connection::connect(std::string conninfo)
 {
     close();
     error_message_.clear();
@@ -136,7 +133,7 @@ capy::io_task<> pg_connection::connect(std::string conninfo)
                     co_return ec;
                 }
 
-                auto [ec] = co_await wait_socket_.wait(corosio::wait_type::read);
+                auto [ec] = co_await wait_socket_.wait(boost::corosio::wait_type::read);
 
                 if (ec)
                 {
@@ -154,7 +151,7 @@ capy::io_task<> pg_connection::connect(std::string conninfo)
                     co_return ec;
                 }
 
-                auto [ec] = co_await wait_socket_.wait(corosio::wait_type::write);
+                auto [ec] = co_await wait_socket_.wait(boost::corosio::wait_type::write);
 
                 if (ec)
                 {
@@ -195,7 +192,7 @@ capy::io_task<> pg_connection::connect(std::string conninfo)
     }
 }
 
-capy::io_task<> pg_connection::flush_output()
+boost::capy::io_task<> pg_connection::flush_output()
 {
     for (;;)
     {
@@ -217,7 +214,7 @@ capy::io_task<> pg_connection::flush_output()
         // writability here. Reading matters because the server can be
         // blocked sending NOTICE or other data while we are waiting to
         // finish sending.
-        auto ready = co_await capy::when_any(wait_event(corosio::wait_type::read), wait_event(corosio::wait_type::write));
+        auto ready = co_await boost::capy::when_any(wait_event(boost::corosio::wait_type::read), wait_event(boost::corosio::wait_type::write));
 
         if (ready.index() == 0)
         {
@@ -251,16 +248,16 @@ capy::io_task<> pg_connection::flush_output()
     }
 }
 
-capy::io_task<PGresult*> pg_connection::next_result()
+boost::capy::io_task<PGresult*> pg_connection::next_result()
 {
     while (PQisBusy(connection_.get()) != 0)
     {
-        auto [ec] = co_await wait_socket_.wait(corosio::wait_type::read);
+        auto [ec] = co_await wait_socket_.wait(boost::corosio::wait_type::read);
 
         if (ec)
         {
             error_message_ = ec.message();
-            co_return capy::io_result<PGresult*>{
+            co_return boost::capy::io_result<PGresult*>{
                 ec,
                 nullptr,
             };
@@ -268,20 +265,20 @@ capy::io_task<PGresult*> pg_connection::next_result()
 
         if (PQconsumeInput(connection_.get()) == 0)
         {
-            co_return capy::io_result<PGresult*>{
+            co_return boost::capy::io_result<PGresult*>{
                 set_libpq_error(),
                 nullptr,
             };
         }
     }
 
-    co_return capy::io_result<PGresult*>{
+    co_return boost::capy::io_result<PGresult*>{
         std::error_code{},
         PQgetResult(connection_.get()),
     };
 }
 
-capy::io_task<std::string> pg_connection::execute_scalar(std::string query, std::vector<std::string> parameters)
+boost::capy::io_task<std::string> pg_connection::execute_scalar(std::string query, std::vector<std::string> parameters)
 {
     error_message_.clear();
 
@@ -289,7 +286,7 @@ capy::io_task<std::string> pg_connection::execute_scalar(std::string query, std:
     {
         error_message_ = "PostgreSQL connection is not open";
 
-        co_return capy::io_result<std::string>{
+        co_return boost::capy::io_result<std::string>{
             std::make_error_code(std::errc::not_connected),
             {},
         };
@@ -305,7 +302,7 @@ capy::io_task<std::string> pg_connection::execute_scalar(std::string query, std:
     auto const* values = parameter_values.empty() ? nullptr : parameter_values.data();
     if (PQsendQueryParams(connection_.get(), query.c_str(), static_cast<int>(parameter_values.size()), nullptr, values, nullptr, nullptr, 0) == 0)
     {
-        co_return capy::io_result<std::string>{
+        co_return boost::capy::io_result<std::string>{
             set_libpq_error(),
             {},
         };
@@ -316,7 +313,7 @@ capy::io_task<std::string> pg_connection::execute_scalar(std::string query, std:
 
         if (ec)
         {
-            co_return capy::io_result<std::string>{
+            co_return boost::capy::io_result<std::string>{
                 ec,
                 {},
             };
@@ -326,7 +323,7 @@ capy::io_task<std::string> pg_connection::execute_scalar(std::string query, std:
     auto [ec, raw_result] = co_await next_result();
     if (ec)
     {
-        co_return capy::io_result<std::string>{
+        co_return boost::capy::io_result<std::string>{
             ec,
             {},
         };
@@ -336,7 +333,7 @@ capy::io_task<std::string> pg_connection::execute_scalar(std::string query, std:
     {
         error_message_ = "PostgreSQL command returned no result";
 
-        co_return capy::io_result<std::string>{
+        co_return boost::capy::io_result<std::string>{
             std::make_error_code(std::errc::protocol_error),
             {},
         };
@@ -371,7 +368,7 @@ capy::io_task<std::string> pg_connection::execute_scalar(std::string query, std:
         auto [next_ec, extra_result] = co_await next_result();
         if (next_ec)
         {
-            co_return capy::io_result<std::string>{
+            co_return boost::capy::io_result<std::string>{
                 next_ec,
                 {},
             };
@@ -389,7 +386,7 @@ capy::io_task<std::string> pg_connection::execute_scalar(std::string query, std:
     if (result_ec)
     {
         error_message_ = std::move(result_error_message);
-        co_return capy::io_result<std::string>{
+        co_return boost::capy::io_result<std::string>{
             result_ec,
             {},
         };
@@ -398,13 +395,13 @@ capy::io_task<std::string> pg_connection::execute_scalar(std::string query, std:
     if (unexpected_result)
     {
         error_message_ = "PostgreSQL command returned unexpected extra results";
-        co_return capy::io_result<std::string>{
+        co_return boost::capy::io_result<std::string>{
             std::make_error_code(std::errc::protocol_error),
             {},
         };
     }
 
-    co_return capy::io_result<std::string>{
+    co_return boost::capy::io_result<std::string>{
         std::error_code{},
         std::move(value),
     };

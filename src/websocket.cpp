@@ -14,10 +14,6 @@
 
 #include "websocket.hpp"
 
-namespace capy = boost::capy;
-namespace corosio = boost::corosio;
-namespace http = boost::http;
-
 namespace
 {
 
@@ -142,17 +138,18 @@ std::error_code websocket_protocol_error() { return std::make_error_code(std::er
 
 }    // namespace
 
-bool websocket_upgrade_accept(http::request_base const& request, std::string& accept)
+bool websocket_upgrade_accept(boost::http::request_base const& request, std::string& accept)
 {
-    if (request.method() != http::method::get || request.version() != http::version::http_1_1 || !request.exists(http::field::host))
+    if (request.method() != boost::http::method::get || request.version() != boost::http::version::http_1_1 ||
+        !request.exists(boost::http::field::host))
     {
         return false;
     }
 
-    auto const connection = as_string_view(request.value_or(http::field::connection, ""));
-    auto const upgrade = as_string_view(request.value_or(http::field::upgrade, ""));
-    auto const version = trim(as_string_view(request.value_or(http::field::sec_websocket_version, "")));
-    auto const key = trim(as_string_view(request.value_or(http::field::sec_websocket_key, "")));
+    auto const connection = as_string_view(request.value_or(boost::http::field::connection, ""));
+    auto const upgrade = as_string_view(request.value_or(boost::http::field::upgrade, ""));
+    auto const version = trim(as_string_view(request.value_or(boost::http::field::sec_websocket_version, "")));
+    auto const key = trim(as_string_view(request.value_or(boost::http::field::sec_websocket_key, "")));
 
     return contains_token(connection, "upgrade") && contains_token(upgrade, "websocket") && version == "13" && valid_websocket_key(key) &&
            make_websocket_accept(key, accept);
@@ -160,7 +157,7 @@ bool websocket_upgrade_accept(http::request_base const& request, std::string& ac
 
 void websocket_connection::context_deleter::operator()(wslay_event_context* context) const noexcept { wslay_event_context_free(context); }
 
-websocket_connection::websocket_connection(corosio::tcp_socket& socket) : socket_(socket)
+websocket_connection::websocket_connection(boost::corosio::tcp_socket& socket) : socket_(socket)
 {
     wslay_event_callbacks callbacks{};
     callbacks.recv_callback = &receive_callback;
@@ -177,7 +174,7 @@ websocket_connection::~websocket_connection() = default;
 
 bool websocket_connection::valid() const noexcept { return context_ != nullptr; }
 
-capy::io_task<websocket_message> websocket_connection::receive()
+boost::capy::io_task<websocket_message> websocket_connection::receive()
 {
     for (;;)
     {
@@ -185,44 +182,44 @@ capy::io_task<websocket_message> websocket_connection::receive()
         {
             auto message = std::move(messages_.front());
             messages_.pop_front();
-            co_return capy::io_result<websocket_message>{std::error_code{}, std::move(message)};
+            co_return boost::capy::io_result<websocket_message>{std::error_code{}, std::move(message)};
         }
 
         if (!context_)
         {
-            co_return capy::io_result<websocket_message>{std::make_error_code(std::errc::not_connected), {}};
+            co_return boost::capy::io_result<websocket_message>{std::make_error_code(std::errc::not_connected), {}};
         }
 
         if (wslay_event_want_read(context_.get()) == 0)
         {
-            co_return capy::io_result<websocket_message>{capy::make_error_code(capy::error::eof), {}};
+            co_return boost::capy::io_result<websocket_message>{boost::capy::make_error_code(boost::capy::error::eof), {}};
         }
 
-        auto [ec, size] = co_await socket_.read_some(capy::mutable_buffer(input_buffer_.data(), input_buffer_.size()));
+        auto [ec, size] = co_await socket_.read_some(boost::capy::mutable_buffer(input_buffer_.data(), input_buffer_.size()));
         if (ec)
         {
-            co_return capy::io_result<websocket_message>{ec, {}};
+            co_return boost::capy::io_result<websocket_message>{ec, {}};
         }
         if (size == 0)
         {
-            co_return capy::io_result<websocket_message>{std::make_error_code(std::errc::connection_reset), {}};
+            co_return boost::capy::io_result<websocket_message>{std::make_error_code(std::errc::connection_reset), {}};
         }
 
         input_ = std::span<std::uint8_t const>(input_buffer_.data(), size);
         if (wslay_event_recv(context_.get()) != 0 || !input_.empty())
         {
-            co_return capy::io_result<websocket_message>{websocket_protocol_error(), {}};
+            co_return boost::capy::io_result<websocket_message>{websocket_protocol_error(), {}};
         }
 
         auto [flush_ec] = co_await flush();
         if (flush_ec)
         {
-            co_return capy::io_result<websocket_message>{flush_ec, {}};
+            co_return boost::capy::io_result<websocket_message>{flush_ec, {}};
         }
     }
 }
 
-capy::io_task<> websocket_connection::send_text(std::string_view payload)
+boost::capy::io_task<> websocket_connection::send_text(std::string_view payload)
 {
     if (!context_)
     {
@@ -241,7 +238,7 @@ capy::io_task<> websocket_connection::send_text(std::string_view payload)
     co_return co_await flush();
 }
 
-capy::io_task<> websocket_connection::flush()
+boost::capy::io_task<> websocket_connection::flush()
 {
     std::array<std::uint8_t, 4096> output{};
 
@@ -254,7 +251,7 @@ capy::io_task<> websocket_connection::flush()
         }
 
         auto const size = static_cast<std::size_t>(result);
-        auto [ec, written] = co_await capy::write(socket_, capy::const_buffer(output.data(), size));
+        auto [ec, written] = co_await boost::capy::write(socket_, boost::capy::const_buffer(output.data(), size));
         if (ec)
         {
             co_return ec;
