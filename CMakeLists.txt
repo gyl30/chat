@@ -44,6 +44,7 @@ add_subdirectory(third/http EXCLUDE_FROM_ALL)
 add_subdirectory(third/wslay EXCLUDE_FROM_ALL)
 
 find_package(PostgreSQL REQUIRED)
+find_package(OpenSSL REQUIRED)
 
 add_executable(chat_db_poc
     src/main.cpp
@@ -132,3 +133,26 @@ target_compile_options(chat_http_test
 
 add_test(NAME http_server COMMAND chat_http_test)
 set_tests_properties(http_server PROPERTIES TIMEOUT 5)
+
+add_executable(chat_websocket_test
+    tests/websocket_test.cpp
+)
+
+target_link_libraries(chat_websocket_test
+    PRIVATE
+        Boost::capy
+        Boost::corosio
+        Boost::http
+        OpenSSL::Crypto
+        wslay
+)
+
+target_compile_options(chat_websocket_test
+    PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+)
+
+add_test(NAME websocket COMMAND chat_websocket_test)
+set_tests_properties(websocket PROPERTIES TIMEOUT 5)
