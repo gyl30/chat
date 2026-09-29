@@ -6,25 +6,13 @@
 
 #include "json_rpc.hpp"
 
-struct json_rpc_id
-{
-    bool present = false;
-    std::string json;
-};
-
 struct json_rpc_id_adapter
 {
     static simdjson::error_code deserialize(simdjson::ondemand::value& value, json_rpc_id& id);
     static void serialize(simdjson::builder::string_builder& builder, json_rpc_id const& id);
 };
 
-struct json_rpc_params
-{
-    bool present = false;
-    std::string json;
-};
-
-struct json_rpc_request
+struct json_rpc_request_message
 {
     std::string jsonrpc;
     std::string method;
@@ -32,14 +20,14 @@ struct json_rpc_request
     [[= simdjson::default_value, = simdjson::with<json_rpc_id_adapter>]] json_rpc_id id;
 };
 
-struct [[= simdjson::deny_unknown_fields]] echo_params
+struct json_rpc_result
 {
-    std::string text;
+    std::string_view json;
 };
 
-struct echo_result
+struct json_rpc_result_adapter
 {
-    std::string text;
+    static void serialize(simdjson::builder::string_builder& builder, json_rpc_result const& result);
 };
 
 struct json_rpc_error
@@ -51,7 +39,7 @@ struct json_rpc_error
 struct json_rpc_success_response
 {
     std::string jsonrpc = "2.0";
-    echo_result result;
+    [[= simdjson::with<json_rpc_result_adapter>]] json_rpc_result result;
     [[= simdjson::with<json_rpc_id_adapter>]] json_rpc_id id;
 };
 
@@ -129,6 +117,11 @@ void json_rpc_id_adapter::serialize(simdjson::builder::string_builder& builder, 
     builder.append_raw(id.json);
 }
 
+void json_rpc_result_adapter::serialize(simdjson::builder::string_builder& builder, json_rpc_result const& result)
+{
+    builder.append_raw(result.json);
+}
+
 namespace simdjson
 {
 
@@ -164,7 +157,6 @@ namespace
 {
 
 constexpr std::string_view kJsonRpcVersion = "2.0";
-constexpr std::string_view kEchoMethod = "echo";
 
 constexpr int kParseError = -32700;
 constexpr int kInvalidRequest = -32600;
@@ -215,52 +207,16 @@ simdjson::error_code serialize_error(int code, std::string_view message, json_rp
     return simdjson::builder::to_json_string(error_response).get(response);
 }
 
-simdjson::error_code serialize_success(echo_result result, json_rpc_id id, std::string& response)
-{
-    json_rpc_success_response success_response{};
-    success_response.result = std::move(result);
-    success_response.id = std::move(id);
-    return simdjson::builder::to_json_string(success_response).get(response);
-}
-
-simdjson::error_code parse_echo_params(json_rpc_params& params, echo_params& value)
-{
-    if (!params.present)
-    {
-        return simdjson::NO_SUCH_FIELD;
-    }
-
-    simdjson::ondemand::parser parser;
-    simdjson::ondemand::document document;
-    auto error = parser.iterate(params.json).get(document);
-    if (error)
-    {
-        return error;
-    }
-
-    error = document.get(value);
-    if (error)
-    {
-        return error;
-    }
-
-    if (!document.at_end())
-    {
-        return simdjson::TRAILING_CONTENT;
-    }
-
-    return simdjson::SUCCESS;
-}
-
 }    // namespace
 
-simdjson::error_code dispatch_json_rpc(std::string& request, std::string& response)
+simdjson::error_code parse_json_rpc_request(std::string& input, json_rpc_request& request, std::string& response)
 {
+    request = {};
     response.clear();
 
     simdjson::ondemand::parser parser;
     simdjson::ondemand::document document;
-    auto error = parser.iterate(request).get(document);
+    auto error = parser.iterate(input).get(document);
     if (error)
     {
         if (is_json_syntax_error(error))
@@ -270,8 +226,8 @@ simdjson::error_code dispatch_json_rpc(std::string& request, std::string& respon
         return error;
     }
 
-    json_rpc_request rpc_request{};
-    error = document.get(rpc_request);
+    json_rpc_request_message message{};
+    error = document.get(message);
     if (error)
     {
         if (is_json_syntax_error(error))
@@ -305,37 +261,31 @@ simdjson::error_code dispatch_json_rpc(std::string& request, std::string& respon
         }
     }
 
-    if (rpc_request.jsonrpc != kJsonRpcVersion)
+    if (message.jsonrpc != kJsonRpcVersion)
     {
         return serialize_error(kInvalidRequest, kInvalidRequestMessage, null_id(), response);
     }
 
-    if (rpc_request.method != kEchoMethod)
-    {
-        if (!rpc_request.id.present)
-        {
-            return simdjson::SUCCESS;
-        }
-        return serialize_error(kMethodNotFound, kMethodNotFoundMessage, std::move(rpc_request.id), response);
-    }
+    request.method = std::move(message.method);
+    request.params = std::move(message.params);
+    request.id = std::move(message.id);
+    return simdjson::SUCCESS;
+}
 
-    echo_params params{};
-    error = parse_echo_params(rpc_request.params, params);
-    if (error)
-    {
-        if (!rpc_request.id.present)
-        {
-            return simdjson::SUCCESS;
-        }
-        return serialize_error(kInvalidParams, kInvalidParamsMessage, std::move(rpc_request.id), response);
-    }
+simdjson::error_code serialize_json_rpc_success(std::string_view result_json, json_rpc_id id, std::string& response)
+{
+    json_rpc_success_response success_response{};
+    success_response.result.json = result_json;
+    success_response.id = std::move(id);
+    return simdjson::builder::to_json_string(success_response).get(response);
+}
 
-    if (!rpc_request.id.present)
-    {
-        return simdjson::SUCCESS;
-    }
+simdjson::error_code serialize_json_rpc_method_not_found(json_rpc_id id, std::string& response)
+{
+    return serialize_error(kMethodNotFound, kMethodNotFoundMessage, std::move(id), response);
+}
 
-    echo_result result{};
-    result.text = std::move(params.text);
-    return serialize_success(std::move(result), std::move(rpc_request.id), response);
+simdjson::error_code serialize_json_rpc_invalid_params(json_rpc_id id, std::string& response)
+{
+    return serialize_error(kInvalidParams, kInvalidParamsMessage, std::move(id), response);
 }
