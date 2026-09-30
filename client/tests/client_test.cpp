@@ -163,6 +163,98 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             co_return boost::capy::io_result<bool>{send_ec, !send_ec};
         }
 
+        if (method->as_string() == "get_messages")
+        {
+            auto const* user = params->as_object().if_contains("user");
+            auto const* before = params->as_object().if_contains("before");
+            if (!user || !user->is_int64() || user->as_int64() != 2)
+            {
+                co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false};
+            }
+
+            boost::json::array messages;
+            if (!before)
+            {
+                boost::json::object first;
+                first.emplace("id", 10);
+                first.emplace("from", 2);
+                first.emplace("text", "first");
+                messages.push_back(std::move(first));
+
+                boost::json::object second;
+                second.emplace("id", 12);
+                second.emplace("from", 1);
+                second.emplace("text", "second");
+                messages.push_back(std::move(second));
+            }
+            else if (before->is_int64() && before->as_int64() == 10)
+            {
+                boost::json::object older;
+                older.emplace("id", 4);
+                older.emplace("from", 2);
+                older.emplace("text", "older");
+                messages.push_back(std::move(older));
+            }
+            else
+            {
+                co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false};
+            }
+
+            boost::json::object result;
+            result.emplace("messages", std::move(messages));
+            response.emplace("result", std::move(result));
+
+            auto [send_ec] = co_await send_text(connection, std::move(response));
+            co_return boost::capy::io_result<bool>{send_ec, !send_ec};
+        }
+
+        if (method->as_string() == "send_message")
+        {
+            auto const* user = params->as_object().if_contains("user");
+            auto const* text = params->as_object().if_contains("text");
+            if (!user || !user->is_int64() || user->as_int64() != 2 || !text || !text->is_string() || text->as_string() != "outgoing")
+            {
+                co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false};
+            }
+
+            boost::json::object result;
+            result.emplace("message", 20);
+            result.emplace("realtime", true);
+            response.emplace("result", std::move(result));
+            auto [response_ec] = co_await send_text(connection, std::move(response));
+            if (response_ec)
+            {
+                co_return boost::capy::io_result<bool>{response_ec, false};
+            }
+
+            boost::json::object notification_params;
+            notification_params.emplace("id", 21);
+            notification_params.emplace("from", 2);
+            notification_params.emplace("text", "incoming");
+            boost::json::object notification;
+            notification.emplace("jsonrpc", "2.0");
+            notification.emplace("method", "message");
+            notification.emplace("params", std::move(notification_params));
+            auto [notification_ec] = co_await send_text(connection, std::move(notification));
+            co_return boost::capy::io_result<bool>{notification_ec, !notification_ec};
+        }
+
+        if (method->as_string() == "mark_read")
+        {
+            auto const* user = params->as_object().if_contains("user");
+            auto const* message = params->as_object().if_contains("message");
+            if (!user || !user->is_int64() || user->as_int64() != 2 || !message || !message->is_int64() || message->as_int64() != 21)
+            {
+                co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false};
+            }
+
+            boost::json::object result;
+            result.emplace("message", 21);
+            response.emplace("result", std::move(result));
+            auto [send_ec] = co_await send_text(connection, std::move(response));
+            co_return boost::capy::io_result<bool>{send_ec, !send_ec};
+        }
+
         if (method->as_string() != "authenticate")
         {
             co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false};
@@ -287,6 +379,7 @@ struct test_state
     int connected = 0;
     int disconnected = 0;
     std::vector<chat::error> errors;
+    std::vector<chat::message> messages;
 };
 
 boost::capy::task<> stop_server(boost::corosio::tcp_server& server)
@@ -345,6 +438,11 @@ int main()
     client.set_error_handler([&state](chat::error const& error) {
         std::lock_guard lock(state.mutex);
         state.errors.push_back(error);
+        state.condition.notify_all();
+    });
+    client.set_message_handler([&state](chat::message message) {
+        std::lock_guard lock(state.mutex);
+        state.messages.push_back(std::move(message));
         state.condition.notify_all();
     });
 
@@ -410,6 +508,81 @@ int main()
         return 1;
     }
     std::cout << "PASS client conversation cursor\n";
+
+    bool messages_called = false;
+    std::vector<chat::message> messages;
+    client.get_messages(2, {}, [&](std::expected<std::vector<chat::message>, chat::error> result) {
+        std::lock_guard lock(state.mutex);
+        messages_called = true;
+        if (result)
+        {
+            messages = std::move(*result);
+        }
+        state.condition.notify_all();
+    });
+    if (!state.wait([&] { return messages_called; }) || messages.size() != 2 || messages[0].id != 10 || messages[0].from != 2 ||
+        messages[0].text != "first" || messages[1].id != 12 || messages[1].from != 1 || messages[1].text != "second")
+    {
+        std::cerr << "FAIL client messages\n";
+        return 1;
+    }
+    std::cout << "PASS client messages\n";
+
+    bool older_messages_called = false;
+    std::vector<chat::message> older_messages;
+    client.get_messages(2, 10, [&](std::expected<std::vector<chat::message>, chat::error> result) {
+        std::lock_guard lock(state.mutex);
+        older_messages_called = true;
+        if (result)
+        {
+            older_messages = std::move(*result);
+        }
+        state.condition.notify_all();
+    });
+    if (!state.wait([&] { return older_messages_called; }) || older_messages.size() != 1 || older_messages[0].id != 4 ||
+        older_messages[0].from != 2 || older_messages[0].text != "older")
+    {
+        std::cerr << "FAIL client message cursor\n";
+        return 1;
+    }
+    std::cout << "PASS client message cursor\n";
+
+    bool send_called = false;
+    chat::send_message_result send_result;
+    client.send_message(2, "outgoing", [&](std::expected<chat::send_message_result, chat::error> result) {
+        std::lock_guard lock(state.mutex);
+        send_called = true;
+        if (result)
+        {
+            send_result = *result;
+        }
+        state.condition.notify_all();
+    });
+    if (!state.wait([&] { return send_called && !state.messages.empty(); }) || send_result.message_id != 20 || !send_result.realtime ||
+        state.messages.back().id != 21 || state.messages.back().from != 2 || state.messages.back().text != "incoming")
+    {
+        std::cerr << "FAIL client send and notification\n";
+        return 1;
+    }
+    std::cout << "PASS client send and notification\n";
+
+    bool mark_read_called = false;
+    std::int64_t read_message = 0;
+    client.mark_read(2, 21, [&](std::expected<std::int64_t, chat::error> result) {
+        std::lock_guard lock(state.mutex);
+        mark_read_called = true;
+        if (result)
+        {
+            read_message = *result;
+        }
+        state.condition.notify_all();
+    });
+    if (!state.wait([&] { return mark_read_called; }) || read_message != 21)
+    {
+        std::cerr << "FAIL client mark read\n";
+        return 1;
+    }
+    std::cout << "PASS client mark read\n";
 
     bool rejected_called = false;
     bool rejected = false;

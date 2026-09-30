@@ -14,6 +14,12 @@ struct message
     std::string text;
 };
 
+struct send_message_result
+{
+    std::int64_t message_id = 0;
+    bool realtime = false;
+};
+
 }    // namespace chat
 
 #endif

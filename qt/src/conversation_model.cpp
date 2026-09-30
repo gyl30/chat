@@ -48,3 +48,15 @@ conversation_data const* conversation_model::conversation_at(QModelIndex const& 
     }
     return &conversations_[index.row()];
 }
+
+QModelIndex conversation_model::index_for_user(qint64 user) const
+{
+    for (int row = 0; row < conversations_.size(); ++row)
+    {
+        if (conversations_[row].user == user)
+        {
+            return index(row, 0);
+        }
+    }
+    return {};
+}

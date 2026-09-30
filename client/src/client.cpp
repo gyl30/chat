@@ -79,6 +79,29 @@ std::optional<std::uint64_t> parse_uint64(boost::json::value const& value)
     return std::nullopt;
 }
 
+bool parse_message(boost::json::object const& object, message& value)
+{
+    auto const* id_value = object.if_contains("id");
+    auto const* from_value = object.if_contains("from");
+    auto const* text_value = object.if_contains("text");
+    if (!id_value || !from_value || !text_value || !text_value->is_string())
+    {
+        return false;
+    }
+
+    auto id = parse_int64(*id_value);
+    auto from = parse_int64(*from_value);
+    if (!id || *id <= 0 || !from || *from <= 0)
+    {
+        return false;
+    }
+
+    value.id = *id;
+    value.from = *from;
+    value.text = std::string(text_value->as_string());
+    return true;
+}
+
 }    // namespace
 
 struct client::impl
@@ -164,6 +187,24 @@ struct client::impl
         }
     }
 
+    void notify_message(message value)
+    {
+        if (suppress_callbacks_.load())
+        {
+            return;
+        }
+
+        message_handler handler;
+        {
+            std::lock_guard lock(handler_mutex_);
+            handler = message_handler_;
+        }
+        if (handler)
+        {
+            handler(std::move(value));
+        }
+    }
+
     void fail_pending(error value)
     {
         auto pending = std::move(pending_);
@@ -195,10 +236,10 @@ struct client::impl
         websocket_.interrupt_receive();
     }
 
-    void receive(std::string const& message)
+    void receive(std::string const& payload)
     {
         boost::system::error_code ec;
-        auto value = boost::json::parse(message, ec);
+        auto value = boost::json::parse(payload, ec);
         if (ec || !value.is_object())
         {
             report_error(make_error(error_kind::protocol, "Invalid JSON-RPC message"));
@@ -207,10 +248,30 @@ struct client::impl
 
         auto const& object = value.as_object();
         auto const* version = object.if_contains("jsonrpc");
-        auto const* id_value = object.if_contains("id");
-        if (!version || !version->is_string() || version->as_string() != "2.0" || !id_value)
+        if (!version || !version->is_string() || version->as_string() != "2.0")
         {
-            report_error(make_error(error_kind::protocol, "Invalid JSON-RPC response"));
+            report_error(make_error(error_kind::protocol, "Invalid JSON-RPC message"));
+            return;
+        }
+
+        auto const* id_value = object.if_contains("id");
+        if (!id_value)
+        {
+            auto const* method = object.if_contains("method");
+            auto const* params = object.if_contains("params");
+            if (!method || !method->is_string() || method->as_string() != "message" || !params || !params->is_object())
+            {
+                report_error(make_error(error_kind::protocol, "Invalid JSON-RPC notification"));
+                return;
+            }
+
+            message notification;
+            if (!parse_message(params->as_object(), notification))
+            {
+                report_error(make_error(error_kind::protocol, "Invalid message notification"));
+                return;
+            }
+            notify_message(std::move(notification));
             return;
         }
 
@@ -481,6 +542,139 @@ struct client::impl
         co_return;
     }
 
+    boost::capy::task<> get_messages(std::int64_t user, std::optional<std::int64_t> before, messages_handler handler)
+    {
+        boost::json::object params;
+        params.emplace("user", user);
+        if (before)
+        {
+            params.emplace("before", *before);
+        }
+
+        send_request("get_messages", std::move(params), [handler = std::move(handler)](auto response) mutable {
+            if (!response)
+            {
+                handler(std::unexpected(std::move(response.error())));
+                return;
+            }
+            if (!response->is_object())
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid get_messages result")));
+                return;
+            }
+
+            auto const* messages_value = response->as_object().if_contains("messages");
+            if (!messages_value || !messages_value->is_array())
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid get_messages result")));
+                return;
+            }
+
+            std::vector<message> messages;
+            messages.reserve(messages_value->as_array().size());
+            for (auto const& value : messages_value->as_array())
+            {
+                if (!value.is_object())
+                {
+                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid message")));
+                    return;
+                }
+
+                message item;
+                if (!parse_message(value.as_object(), item))
+                {
+                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid message")));
+                    return;
+                }
+                messages.push_back(std::move(item));
+            }
+
+            handler(std::move(messages));
+        });
+
+        co_return;
+    }
+
+    boost::capy::task<> send_message(std::int64_t user, std::string text, send_message_handler handler)
+    {
+        boost::json::object params;
+        params.emplace("user", user);
+        params.emplace("text", std::move(text));
+
+        send_request("send_message", std::move(params), [handler = std::move(handler)](auto response) mutable {
+            if (!response)
+            {
+                handler(std::unexpected(std::move(response.error())));
+                return;
+            }
+            if (!response->is_object())
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid send_message result")));
+                return;
+            }
+
+            auto const& object = response->as_object();
+            auto const* message_value = object.if_contains("message");
+            auto const* realtime_value = object.if_contains("realtime");
+            if (!message_value || !realtime_value || !realtime_value->is_bool())
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid send_message result")));
+                return;
+            }
+
+            auto message_id = parse_int64(*message_value);
+            if (!message_id || *message_id <= 0)
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid send_message result")));
+                return;
+            }
+
+            send_message_result result;
+            result.message_id = *message_id;
+            result.realtime = realtime_value->as_bool();
+            handler(result);
+        });
+
+        co_return;
+    }
+
+    boost::capy::task<> mark_read(std::int64_t user, std::int64_t message_id, mark_read_handler handler)
+    {
+        boost::json::object params;
+        params.emplace("user", user);
+        params.emplace("message", message_id);
+
+        send_request("mark_read", std::move(params), [handler = std::move(handler)](auto response) mutable {
+            if (!response)
+            {
+                handler(std::unexpected(std::move(response.error())));
+                return;
+            }
+            if (!response->is_object())
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid mark_read result")));
+                return;
+            }
+
+            auto const* message_value = response->as_object().if_contains("message");
+            if (!message_value)
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid mark_read result")));
+                return;
+            }
+
+            auto read_message = parse_int64(*message_value);
+            if (!read_message || *read_message <= 0)
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid mark_read result")));
+                return;
+            }
+            handler(*read_message);
+        });
+
+        co_return;
+    }
+
     boost::corosio::io_context io_context_{1};
     detail::websocket_client websocket_;
     boost::capy::work_guard<boost::corosio::io_context::executor_type> work_;
@@ -496,6 +690,7 @@ struct client::impl
     connection_handler connected_handler_;
     connection_handler disconnected_handler_;
     error_handler error_handler_;
+    message_handler message_handler_;
     std::atomic_bool suppress_callbacks_ = false;
 };
 
@@ -521,6 +716,12 @@ void client::set_error_handler(error_handler handler)
     impl_->error_handler_ = std::move(handler);
 }
 
+void client::set_message_handler(message_handler handler)
+{
+    std::lock_guard lock(impl_->handler_mutex_);
+    impl_->message_handler_ = std::move(handler);
+}
+
 void client::connect(std::string url)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->open(std::move(url)));
@@ -539,6 +740,21 @@ void client::authenticate(std::string username, std::string password, authentica
 void client::get_conversations(std::optional<std::int64_t> before, conversations_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_conversations(before, std::move(handler)));
+}
+
+void client::get_messages(std::int64_t user, std::optional<std::int64_t> before, messages_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_messages(user, before, std::move(handler)));
+}
+
+void client::send_message(std::int64_t user, std::string text, send_message_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->send_message(user, std::move(text), std::move(handler)));
+}
+
+void client::mark_read(std::int64_t user, std::int64_t message, mark_read_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->mark_read(user, message, std::move(handler)));
 }
 
 }    // namespace chat

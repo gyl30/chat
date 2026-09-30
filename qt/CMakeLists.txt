@@ -13,6 +13,11 @@ add_executable(chat_qt
     src/main.cpp
     src/main_window.cpp
     src/main_window.hpp
+    src/message_data.hpp
+    src/message_delegate.cpp
+    src/message_delegate.hpp
+    src/message_model.cpp
+    src/message_model.hpp
 )
 
 set_target_properties(chat_qt PROPERTIES AUTOMOC ON)

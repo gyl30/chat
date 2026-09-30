@@ -874,14 +874,11 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
 
         auto self_send_message_reply_result = co_await receive_websocket_text(socket);
         auto& [self_send_message_read_ec, self_send_message_reply] = self_send_message_reply_result;
-        constexpr std::string_view expected_self_send_message_reply =
-            R"({"jsonrpc":"2.0","result":{"realtime":true},"id":"send-self"})";
-        if (self_send_message_read_ec || self_send_message_reply != expected_self_send_message_reply)
+        if (self_send_message_read_ec)
         {
             std::cerr << "FAIL self send message response\n";
             co_return 1;
         }
-        std::cout << "PASS self send message response\n";
 
         std::vector<std::string> self_message_parameters;
         self_message_parameters.push_back(registered_user->front());
@@ -899,6 +896,16 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
             co_return 1;
         }
         std::cout << "PASS self message persistence\n";
+
+        std::string expected_self_send_message_reply = R"({"jsonrpc":"2.0","result":{"message":)";
+        expected_self_send_message_reply.append(self_message_row->at(0));
+        expected_self_send_message_reply.append(R"(,"realtime":true},"id":"send-self"})");
+        if (self_send_message_reply != expected_self_send_message_reply)
+        {
+            std::cerr << "FAIL self send message response\n";
+            co_return 1;
+        }
+        std::cout << "PASS self send message response\n";
 
         auto self_message_notification_result = co_await receive_websocket_text(socket);
         auto& [self_message_notification_read_ec, self_message_notification] = self_message_notification_result;
@@ -1378,14 +1385,11 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
 
     auto offline_send_reply_result = co_await receive_websocket_text(source_socket);
     auto& [offline_send_read_ec, offline_send_reply] = offline_send_reply_result;
-    constexpr std::string_view expected_offline_send_reply =
-        R"({"jsonrpc":"2.0","result":{"realtime":false},"id":"peer-offline"})";
-    if (offline_send_read_ec || offline_send_reply != expected_offline_send_reply)
+    if (offline_send_read_ec)
     {
         std::cerr << "FAIL offline message response\n";
         co_return 1;
     }
-    std::cout << "PASS offline message response\n";
 
     std::vector<std::string> offline_message_parameters;
     offline_message_parameters.push_back(source_user_id);
@@ -1401,6 +1405,16 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         std::cerr << "FAIL offline message persistence: " << fixture_connection.error_message() << '\n';
         co_return 1;
     }
+
+    std::string expected_offline_send_reply = R"({"jsonrpc":"2.0","result":{"message":)";
+    expected_offline_send_reply.append(offline_message->at(0));
+    expected_offline_send_reply.append(R"(,"realtime":false},"id":"peer-offline"})");
+    if (offline_send_reply != expected_offline_send_reply)
+    {
+        std::cerr << "FAIL offline message response\n";
+        co_return 1;
+    }
+    std::cout << "PASS offline message response\n";
 
     boost::corosio::tcp_socket peer_socket(io_context);
     auto peer_connect_result = co_await connect(peer_socket, port);
@@ -1563,14 +1577,11 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
 
     auto send_reply_result = co_await receive_websocket_text(source_socket);
     auto& [send_read_ec, send_reply] = send_reply_result;
-    constexpr std::string_view expected_send_reply =
-        R"({"jsonrpc":"2.0","result":{"realtime":true},"id":"peer-send"})";
-    if (send_read_ec || send_reply != expected_send_reply)
+    if (send_read_ec)
     {
         std::cerr << "FAIL peer routing send response\n";
         co_return 1;
     }
-    std::cout << "PASS peer message response\n";
 
     std::vector<std::string> peer_message_parameters;
     peer_message_parameters.push_back(source_user_id);
@@ -1588,6 +1599,16 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return 1;
     }
     std::cout << "PASS peer message persistence\n";
+
+    std::string expected_send_reply = R"({"jsonrpc":"2.0","result":{"message":)";
+    expected_send_reply.append(persisted_peer_message->front());
+    expected_send_reply.append(R"(,"realtime":true},"id":"peer-send"})");
+    if (send_reply != expected_send_reply)
+    {
+        std::cerr << "FAIL peer routing send response\n";
+        co_return 1;
+    }
+    std::cout << "PASS peer message response\n";
 
     auto notification_result = co_await receive_websocket_text(peer_socket);
     auto& [notification_ec, notification] = notification_result;

@@ -114,6 +114,38 @@ main_window::main_window(QString server_url, QWidget* parent)
             background: transparent;
             padding: 4px 0;
         }
+        QListView#messageList {
+            border: 0;
+            outline: 0;
+            background: transparent;
+            padding: 6px 0;
+        }
+        QFrame#horizontalSeparator {
+            background: #E6E3DB;
+            border: 0;
+            max-height: 1px;
+        }
+        QLineEdit#messageEdit {
+            min-height: 42px;
+            background: #FFFEFA;
+            border-color: #DDD9D0;
+            border-radius: 12px;
+        }
+        QPushButton#sendButton {
+            min-width: 76px;
+            min-height: 42px;
+            border: 0;
+            border-radius: 12px;
+            background: #315A4B;
+            color: #FFFFFF;
+            font-weight: 600;
+        }
+        QPushButton#sendButton:hover {
+            background: #284C3F;
+        }
+        QPushButton#sendButton:disabled {
+            background: #AEBDB6;
+        }
     )"));
 
     pages_ = new QStackedWidget(this);
@@ -231,6 +263,76 @@ main_window::main_window(QString server_url, QWidget* parent)
                     return;
                 }
                 chat_page_->set_conversations(std::move(conversations));
+            },
+            Qt::QueuedConnection);
+
+    connect(chat_page_, &chat_widget::conversation_selected, this,
+            [this](qint64 user) { client_->get_messages(user); });
+
+    connect(chat_page_, &chat_widget::older_messages_requested, this,
+            [this](qint64 user, qint64 before) { client_->get_messages(user, before); });
+
+    connect(chat_page_, &chat_widget::send_message_requested, this,
+            [this](qint64 user, QString text) { client_->send_message(user, std::move(text)); });
+
+    connect(client_.get(), &client_bridge::messages_received, this,
+            [this](qint64 user, QList<message_data> messages, bool older, QString const& error_message) {
+                if (!error_message.isEmpty())
+                {
+                    chat_page_->set_message_error(user, error_message);
+                    return;
+                }
+
+                chat_page_->set_messages(user, std::move(messages), older);
+                if (!older && chat_page_->active_user() == user)
+                {
+                    auto const message = chat_page_->latest_message_id();
+                    if (message > 0)
+                    {
+                        client_->mark_read(user, message);
+                    }
+                }
+            },
+            Qt::QueuedConnection);
+
+    connect(client_.get(), &client_bridge::message_received, this,
+            [this](message_data message) {
+                auto const user = message.from;
+                auto const message_id = message.id;
+                chat_page_->add_message(user, std::move(message));
+                if (chat_page_->active_user() == user)
+                {
+                    client_->mark_read(user, message_id);
+                }
+                else
+                {
+                    client_->get_conversations();
+                }
+            },
+            Qt::QueuedConnection);
+
+    connect(client_.get(), &client_bridge::message_sent, this,
+            [this](qint64 user, QString text, qint64 message, bool realtime, QString const& error_message) {
+                if (!error_message.isEmpty())
+                {
+                    chat_page_->set_message_error(user, error_message);
+                    return;
+                }
+
+                chat_page_->add_sent_message(user, message, std::move(text), realtime);
+                client_->get_conversations();
+            },
+            Qt::QueuedConnection);
+
+    connect(client_.get(), &client_bridge::read_marked, this,
+            [this](qint64 user, qint64 message, QString const& error_message) {
+                (void)message;
+                if (!error_message.isEmpty())
+                {
+                    chat_page_->set_message_error(user, error_message);
+                    return;
+                }
+                client_->get_conversations();
             },
             Qt::QueuedConnection);
 }

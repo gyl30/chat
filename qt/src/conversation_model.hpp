@@ -24,6 +24,7 @@ class conversation_model final : public QAbstractListModel
 
     void set_conversations(QList<conversation_data> conversations);
     conversation_data const* conversation_at(QModelIndex const& index) const;
+    QModelIndex index_for_user(qint64 user) const;
 
    private:
     QList<conversation_data> conversations_;

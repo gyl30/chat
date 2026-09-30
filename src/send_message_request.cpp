@@ -24,6 +24,7 @@ struct [[= simdjson::deny_unknown_fields]] send_message_params
 
 struct send_message_result
 {
+    std::int64_t message = 0;
     bool realtime = false;
 };
 
@@ -75,9 +76,10 @@ simdjson::error_code parse_send_message_params(json_rpc_params& params, send_mes
     return simdjson::SUCCESS;
 }
 
-simdjson::error_code serialize_send_message_result(bool realtime, json_rpc_id id, std::string& response)
+simdjson::error_code serialize_send_message_result(std::int64_t message, bool realtime, json_rpc_id id, std::string& response)
 {
     send_message_result result{};
+    result.message = message;
     result.realtime = realtime;
 
     std::string result_json;
@@ -210,5 +212,5 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         co_return simdjson::SUCCESS;
     }
 
-    co_return serialize_send_message_result(realtime, std::move(request.id), response);
+    co_return serialize_send_message_result(notification.params.id, realtime, std::move(request.id), response);
 }
