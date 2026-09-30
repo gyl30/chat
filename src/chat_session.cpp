@@ -13,9 +13,11 @@ constexpr std::string_view kRegisterMethod = "register";
 
 }    // namespace
 
-chat_session::chat_session(
-    boost::corosio::io_context& io_context, websocket_connection& connection, std::string const& database_connection_string)
-    : io_context_(io_context), connection_(connection), database_connection_string_(database_connection_string)
+chat_session::chat_session(boost::corosio::io_context& io_context,
+                           websocket_connection& connection,
+                           online_users& users,
+                           std::string const& database_connection_string)
+    : io_context_(io_context), connection_(connection), users_(users), database_connection_string_(database_connection_string)
 {
 }
 
@@ -73,5 +75,10 @@ boost::capy::task<void> chat_session::run()
         {
             break;
         }
+    }
+
+    if (user_id_)
+    {
+        users_.remove(*user_id_, *this);
     }
 }

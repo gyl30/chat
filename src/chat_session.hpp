@@ -9,12 +9,16 @@
 #include <boost/corosio/io_context.hpp>
 
 #include "json_rpc.hpp"
+#include "online_users.hpp"
 #include "websocket.hpp"
 
 class chat_session
 {
    public:
-    chat_session(boost::corosio::io_context& io_context, websocket_connection& connection, std::string const& database_connection_string);
+    chat_session(boost::corosio::io_context& io_context,
+                 websocket_connection& connection,
+                 online_users& users,
+                 std::string const& database_connection_string);
 
     boost::capy::task<void> run();
 
@@ -27,6 +31,7 @@ class chat_session
 
     boost::corosio::io_context& io_context_;
     websocket_connection& connection_;
+    online_users& users_;
     std::string const& database_connection_string_;
     std::optional<std::int64_t> user_id_;
 };

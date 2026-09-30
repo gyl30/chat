@@ -76,6 +76,7 @@ add_executable(chat_server
     src/echo_request.cpp
     src/register_request.cpp
     src/json_rpc.cpp
+    src/online_users.cpp
     src/pg_connection.cpp
     src/server.cpp
     src/websocket.cpp
@@ -167,6 +168,7 @@ add_executable(chat_server_test
     src/echo_request.cpp
     src/register_request.cpp
     src/json_rpc.cpp
+    src/online_users.cpp
     src/pg_connection.cpp
     src/server.cpp
     src/websocket.cpp
@@ -199,6 +201,16 @@ target_link_libraries(chat_simdjson_reflection_test
 
 add_test(NAME simdjson_reflection COMMAND chat_simdjson_reflection_test)
 set_tests_properties(simdjson_reflection PROPERTIES TIMEOUT 5)
+
+add_executable(chat_online_users_test
+    tests/online_users_test.cpp
+    src/online_users.cpp
+)
+
+target_include_directories(chat_online_users_test PRIVATE src)
+
+add_test(NAME online_users COMMAND chat_online_users_test)
+set_tests_properties(online_users PROPERTIES TIMEOUT 5)
 
 add_executable(chat_bcrypt_test
     tests/bcrypt_test.cpp

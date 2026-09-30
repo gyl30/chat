@@ -560,6 +560,26 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         }
         std::cout << "PASS authentication success\n";
 
+        constexpr std::string_view repeated_authentication =
+            R"({"jsonrpc":"2.0","method":"authenticate","params":{"username":"chat_server_test","password":"test password"},"id":"auth-repeat"})";
+        auto [repeated_authentication_write_ec] = co_await send_websocket_text(socket, repeated_authentication);
+        if (repeated_authentication_write_ec)
+        {
+            std::cerr << "FAIL repeated authentication write\n";
+            co_return 1;
+        }
+
+        auto repeated_authentication_reply_result = co_await receive_websocket_text(socket);
+        auto& [repeated_authentication_read_ec, repeated_authentication_reply] = repeated_authentication_reply_result;
+        constexpr std::string_view expected_repeated_authentication_reply =
+            R"({"jsonrpc":"2.0","error":{"code":-32003,"message":"Already authenticated"},"id":"auth-repeat"})";
+        if (repeated_authentication_read_ec || repeated_authentication_reply != expected_repeated_authentication_reply)
+        {
+            std::cerr << "FAIL repeated authentication rejected\n";
+            co_return 1;
+        }
+        std::cout << "PASS repeated authentication rejected\n";
+
         constexpr std::string_view echo_request = R"({"jsonrpc":"2.0","method":"echo","params":{"text":"hello chat"},"id":"1"})";
         auto [echo_write_ec] = co_await send_websocket_text(socket, echo_request);
         if (echo_write_ec)
@@ -710,6 +730,47 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
 
         socket.close();
         std::cout << "PASS server WebSocket close\n";
+    }
+
+    {
+        boost::corosio::tcp_socket socket(io_context);
+        auto [connect_ec] = co_await connect(socket, port);
+        if (connect_ec)
+        {
+            std::cerr << "FAIL released authentication connect: " << connect_ec.message() << '\n';
+            co_return 1;
+        }
+
+        auto parser_config = boost::http::make_parser_config(boost::http::parser_config{true});
+        boost::http::response_parser parser(parser_config);
+        auto [upgrade_ec] = co_await upgrade_websocket(socket, parser);
+        if (upgrade_ec)
+        {
+            std::cerr << "FAIL released authentication upgrade: " << upgrade_ec.message() << '\n';
+            co_return 1;
+        }
+
+        constexpr std::string_view authentication_request =
+            R"({"jsonrpc":"2.0","method":"authenticate","params":{"username":"chat_server_test","password":"test password"},"id":"auth-released"})";
+        auto [authentication_write_ec] = co_await send_websocket_text(socket, authentication_request);
+        if (authentication_write_ec)
+        {
+            std::cerr << "FAIL released authentication write\n";
+            co_return 1;
+        }
+
+        auto authentication_reply_result = co_await receive_websocket_text(socket);
+        auto& [authentication_read_ec, authentication_reply] = authentication_reply_result;
+        constexpr std::string_view expected_authentication_reply =
+            R"({"jsonrpc":"2.0","result":{"authenticated":true},"id":"auth-released"})";
+        if (authentication_read_ec || authentication_reply != expected_authentication_reply)
+        {
+            std::cerr << "FAIL authentication session release\n";
+            co_return 1;
+        }
+
+        socket.close();
+        std::cout << "PASS authentication session release\n";
     }
 
     {

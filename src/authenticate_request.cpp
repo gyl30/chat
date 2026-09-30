@@ -81,6 +81,15 @@ simdjson::error_code serialize_authenticate_result(bool authenticated, json_rpc_
 
 boost::capy::task<simdjson::error_code> chat_session::handle_authenticate(json_rpc_request& request, std::string& response)
 {
+    if (user_id_)
+    {
+        if (request.id.present)
+        {
+            co_return serialize_json_rpc_error(-32003, "Already authenticated", std::move(request.id), response);
+        }
+        co_return simdjson::SUCCESS;
+    }
+
     authenticate_params params{};
     auto params_error = parse_authenticate_params(request.params, params);
     if (params_error)
@@ -154,6 +163,15 @@ boost::capy::task<simdjson::error_code> chat_session::handle_authenticate(json_r
             if (request.id.present)
             {
                 co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            co_return simdjson::SUCCESS;
+        }
+
+        if (!users_.add(user_id, *this))
+        {
+            if (request.id.present)
+            {
+                co_return serialize_json_rpc_error(-32004, "User already online", std::move(request.id), response);
             }
             co_return simdjson::SUCCESS;
         }

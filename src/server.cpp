@@ -33,10 +33,12 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
                       boost::http::router<boost::http::route_params> router,
                       boost::http::shared_parser_config parser_config,
                       boost::http::shared_serializer_config serializer_config,
+                      online_users& users,
                       std::string database_connection_string)
         : io_context_(io_context),
           socket_(io_context),
           router_(std::move(router)),
+          users_(users),
           database_connection_string_(std::move(database_connection_string)),
           parser_(std::move(parser_config)),
           serializer_(std::move(serializer_config))
@@ -122,7 +124,7 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
                 if (!upgrade_ec)
                 {
                     websocket_connection connection(socket_);
-                    chat_session session(io_context_, connection, database_connection_string_);
+                    chat_session session(io_context_, connection, users_, database_connection_string_);
                     co_await session.run();
                 }
                 break;
@@ -150,6 +152,7 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
     boost::corosio::io_context& io_context_;
     boost::corosio::tcp_socket socket_;
     boost::http::router<boost::http::route_params> router_;
+    online_users& users_;
     std::string database_connection_string_;
     boost::http::route_params params_;
     boost::http::request_parser parser_;
@@ -171,8 +174,8 @@ chat_server::chat_server(boost::corosio::io_context& io_context,
     workers.reserve(worker_count);
     for (std::size_t i = 0; i < worker_count; ++i)
     {
-        workers.push_back(
-            std::make_unique<connection_worker>(io_context, router, parser_config, serializer_config, database_connection_string));
+        workers.push_back(std::make_unique<connection_worker>(
+            io_context, router, parser_config, serializer_config, users_, database_connection_string));
     }
     server_.set_workers(std::move(workers));
 }

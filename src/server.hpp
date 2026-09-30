@@ -10,6 +10,8 @@
 #include <boost/corosio/tcp_server.hpp>
 #include <boost/http/server/router.hpp>
 
+#include "online_users.hpp"
+
 class chat_server
 {
    public:
@@ -29,6 +31,7 @@ class chat_server
     void join();
 
    private:
+    online_users users_;
     boost::corosio::tcp_server server_;
 };
 
