@@ -11,6 +11,7 @@ class QLineEdit;
 class QPushButton;
 class QStackedWidget;
 class QWidget;
+class chat_widget;
 class client_bridge;
 
 class main_window final : public QMainWindow
@@ -24,16 +25,16 @@ class main_window final : public QMainWindow
     void authenticate();
     void set_login_busy(bool busy);
     void show_login_error(QString message);
+    void show_authenticated_page();
 
     QStackedWidget* pages_ = nullptr;
     QWidget* login_page_ = nullptr;
-    QWidget* authenticated_page_ = nullptr;
+    chat_widget* chat_page_ = nullptr;
     QLineEdit* server_edit_ = nullptr;
     QLineEdit* username_edit_ = nullptr;
     QLineEdit* password_edit_ = nullptr;
     QPushButton* login_button_ = nullptr;
     QLabel* status_label_ = nullptr;
-    QLabel* authenticated_label_ = nullptr;
 
     bool connected_ = false;
     bool login_pending_ = false;

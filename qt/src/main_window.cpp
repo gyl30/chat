@@ -4,6 +4,7 @@
 #include <utility>
 
 #include <QFormLayout>
+#include <QFrame>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
@@ -11,57 +12,161 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include "chat_widget.hpp"
 #include "client_bridge.hpp"
 
 main_window::main_window(QString server_url, QWidget* parent)
     : QMainWindow(parent), client_(std::make_unique<client_bridge>())
 {
     setWindowTitle(QStringLiteral("Chat"));
-    resize(420, 300);
+    resize(1180, 760);
+    setMinimumSize(980, 640);
+    setStyleSheet(QStringLiteral(R"(
+        QMainWindow, QWidget {
+            background: #F7F5EF;
+            color: #2B3832;
+            font-size: 14px;
+        }
+        QFrame#loginCard {
+            background: #FFFEFA;
+            border: 1px solid #E7E3D9;
+            border-radius: 18px;
+        }
+        QLabel#loginTitle {
+            font-size: 26px;
+            font-weight: 700;
+            color: #294B3E;
+        }
+        QLineEdit {
+            min-height: 38px;
+            padding: 0 12px;
+            background: #FFFFFF;
+            border: 1px solid #DCD9D0;
+            border-radius: 10px;
+            selection-background-color: #315A4B;
+        }
+        QLineEdit:focus {
+            border-color: #6F8D80;
+        }
+        QPushButton#loginButton {
+            min-height: 40px;
+            background: #315A4B;
+            color: #FFFFFF;
+            border: 0;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+        QPushButton#loginButton:hover {
+            background: #284C3F;
+        }
+        QPushButton#loginButton:disabled {
+            background: #AEBDB6;
+        }
+        QFrame#navigationPanel {
+            background: #315A4B;
+        }
+        QLabel#profileAvatar {
+            background: #E5EEE8;
+            color: #315A4B;
+            border-radius: 22px;
+            font-size: 18px;
+            font-weight: 700;
+        }
+        QLabel#profileName {
+            color: #DCE8E1;
+            font-size: 12px;
+        }
+        QPushButton#navigationSelected, QPushButton#navigationButton {
+            border: 0;
+            border-radius: 10px;
+            color: #DCE8E1;
+            background: transparent;
+            font-weight: 600;
+        }
+        QPushButton#navigationSelected {
+            background: rgba(255, 255, 255, 0.15);
+            color: #FFFFFF;
+        }
+        QPushButton#navigationButton:disabled {
+            color: rgba(220, 232, 225, 0.42);
+        }
+        QFrame#conversationPanel, QFrame#detailPanel {
+            background: #FBFAF6;
+        }
+        QFrame#chatPanel {
+            background: #F7F5EF;
+        }
+        QLabel#sectionTitle {
+            font-size: 20px;
+            font-weight: 700;
+            color: #27362F;
+        }
+        QLabel#subtleText {
+            color: #8B918D;
+        }
+        QFrame#separator {
+            background: #E6E3DB;
+            border: 0;
+        }
+        QListView#conversationList {
+            border: 0;
+            outline: 0;
+            background: transparent;
+            padding: 4px 0;
+        }
+    )"));
 
     pages_ = new QStackedWidget(this);
     setCentralWidget(pages_);
 
     login_page_ = new QWidget(pages_);
-    auto* login_layout = new QVBoxLayout(login_page_);
-    login_layout->setContentsMargins(48, 36, 48, 36);
-    login_layout->setSpacing(16);
+    auto* login_outer = new QVBoxLayout(login_page_);
+    login_outer->setContentsMargins(32, 32, 32, 32);
+    login_outer->addStretch();
 
-    auto* title = new QLabel(QStringLiteral("登录"), login_page_);
-    auto title_font = title->font();
-    title_font.setPointSize(title_font.pointSize() + 6);
-    title_font.setBold(true);
-    title->setFont(title_font);
+    auto* login_card = new QFrame(login_page_);
+    login_card->setObjectName(QStringLiteral("loginCard"));
+    login_card->setFixedWidth(420);
+    auto* login_layout = new QVBoxLayout(login_card);
+    login_layout->setContentsMargins(34, 30, 34, 30);
+    login_layout->setSpacing(18);
+
+    auto* title = new QLabel(QStringLiteral("登录 Chat"), login_card);
+    title->setObjectName(QStringLiteral("loginTitle"));
     login_layout->addWidget(title);
 
     auto* form = new QFormLayout;
-    server_edit_ = new QLineEdit(std::move(server_url), login_page_);
-    username_edit_ = new QLineEdit(login_page_);
-    password_edit_ = new QLineEdit(login_page_);
+    form->setHorizontalSpacing(16);
+    form->setVerticalSpacing(14);
+    server_edit_ = new QLineEdit(std::move(server_url), login_card);
+    username_edit_ = new QLineEdit(login_card);
+    password_edit_ = new QLineEdit(login_card);
     password_edit_->setEchoMode(QLineEdit::Password);
+    username_edit_->setPlaceholderText(QStringLiteral("用户名"));
+    password_edit_->setPlaceholderText(QStringLiteral("密码"));
 
     form->addRow(QStringLiteral("服务器"), server_edit_);
     form->addRow(QStringLiteral("用户名"), username_edit_);
     form->addRow(QStringLiteral("密码"), password_edit_);
     login_layout->addLayout(form);
 
-    login_button_ = new QPushButton(QStringLiteral("登录"), login_page_);
+    login_button_ = new QPushButton(QStringLiteral("登录"), login_card);
+    login_button_->setObjectName(QStringLiteral("loginButton"));
     login_button_->setDefault(true);
     login_layout->addWidget(login_button_);
 
-    status_label_ = new QLabel(login_page_);
+    status_label_ = new QLabel(login_card);
+    status_label_->setObjectName(QStringLiteral("subtleText"));
     status_label_->setWordWrap(true);
     login_layout->addWidget(status_label_);
-    login_layout->addStretch();
 
-    authenticated_page_ = new QWidget(pages_);
-    auto* authenticated_layout = new QVBoxLayout(authenticated_page_);
-    authenticated_label_ = new QLabel(QStringLiteral("登录成功"), authenticated_page_);
-    authenticated_label_->setAlignment(Qt::AlignCenter);
-    authenticated_layout->addWidget(authenticated_label_);
+    login_outer->addWidget(login_card, 0, Qt::AlignHCenter);
+    login_outer->addStretch();
+
+    chat_page_ = new chat_widget(pages_);
 
     pages_->addWidget(login_page_);
-    pages_->addWidget(authenticated_page_);
+    pages_->addWidget(chat_page_);
 
     connect(login_button_, &QPushButton::clicked, this, [this] { start_login(); });
     connect(password_edit_, &QLineEdit::returnPressed, this, [this] { start_login(); });
@@ -80,7 +185,7 @@ main_window::main_window(QString server_url, QWidget* parent)
         login_pending_ = false;
         set_login_busy(false);
         server_edit_->setEnabled(true);
-        if (pages_->currentWidget() == authenticated_page_)
+        if (pages_->currentWidget() == chat_page_)
         {
             pages_->setCurrentWidget(login_page_);
             status_label_->setText(QStringLiteral("连接已断开"));
@@ -88,7 +193,14 @@ main_window::main_window(QString server_url, QWidget* parent)
     }, Qt::QueuedConnection);
 
     connect(client_.get(), &client_bridge::error, this, [this](QString const& message) {
-        show_login_error(message);
+        if (pages_->currentWidget() == login_page_)
+        {
+            show_login_error(message);
+        }
+        else
+        {
+            chat_page_->set_error(message);
+        }
     }, Qt::QueuedConnection);
 
     connect(client_.get(), &client_bridge::authentication_finished, this,
@@ -107,8 +219,18 @@ main_window::main_window(QString server_url, QWidget* parent)
 
                 pending_password_.clear();
                 status_label_->clear();
-                authenticated_label_->setText(QStringLiteral("%1 已登录").arg(pending_username_));
-                pages_->setCurrentWidget(authenticated_page_);
+                show_authenticated_page();
+            },
+            Qt::QueuedConnection);
+
+    connect(client_.get(), &client_bridge::conversations_received, this,
+            [this](QList<conversation_data> conversations, QString const& error_message) {
+                if (!error_message.isEmpty())
+                {
+                    chat_page_->set_error(error_message);
+                    return;
+                }
+                chat_page_->set_conversations(std::move(conversations));
             },
             Qt::QueuedConnection);
 }
@@ -162,4 +284,12 @@ void main_window::show_login_error(QString message)
     pending_password_.clear();
     status_label_->setText(std::move(message));
     set_login_busy(false);
+}
+
+void main_window::show_authenticated_page()
+{
+    chat_page_->set_user(pending_username_);
+    chat_page_->set_loading();
+    pages_->setCurrentWidget(chat_page_);
+    client_->get_conversations();
 }

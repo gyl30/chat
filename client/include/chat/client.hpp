@@ -5,8 +5,11 @@
 #include <expected>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
+#include <vector>
 
+#include "conversation.hpp"
 #include "error.hpp"
 
 namespace chat
@@ -18,6 +21,7 @@ class client
     using connection_handler = std::function<void()>;
     using error_handler = std::function<void(error const&)>;
     using authenticate_handler = std::function<void(std::expected<bool, error>)>;
+    using conversations_handler = std::function<void(std::expected<std::vector<conversation>, error>)>;
 
     client();
     ~client();
@@ -35,6 +39,7 @@ class client
     void close();
 
     void authenticate(std::string username, std::string password, authenticate_handler handler);
+    void get_conversations(std::optional<std::int64_t> before, conversations_handler handler);
 
    private:
     struct impl;

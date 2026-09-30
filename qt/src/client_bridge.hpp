@@ -6,6 +6,8 @@
 #include <QObject>
 #include <QString>
 
+#include "conversation_data.hpp"
+
 namespace chat
 {
 class client;
@@ -22,12 +24,14 @@ class client_bridge final : public QObject
     void connect_to_server(QString const& url);
     void close();
     void authenticate(QString const& username, QString const& password);
+    void get_conversations();
 
    signals:
     void connected();
     void disconnected();
     void error(QString message);
     void authentication_finished(bool authenticated, QString error_message);
+    void conversations_received(QList<conversation_data> conversations, QString error_message);
 
    private:
     std::unique_ptr<chat::client> client_;

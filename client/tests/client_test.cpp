@@ -109,7 +109,61 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
         auto const* id = request.if_contains("id");
         auto const* method = request.if_contains("method");
         auto const* params = request.if_contains("params");
-        if (!id || !method || !method->is_string() || method->as_string() != "authenticate" || !params || !params->is_object())
+        if (!id || !method || !method->is_string() || !params || !params->is_object())
+        {
+            co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false};
+        }
+
+        boost::json::object response;
+        response.emplace("jsonrpc", "2.0");
+        response.emplace("id", *id);
+
+        if (method->as_string() == "get_conversations")
+        {
+            boost::json::array conversations;
+            auto const* before = params->as_object().if_contains("before");
+            if (!before)
+            {
+                boost::json::object last;
+                last.emplace("id", 12);
+                last.emplace("from", 2);
+                last.emplace("text", "hello");
+
+                boost::json::object conversation;
+                conversation.emplace("user", 2);
+                conversation.emplace("username", "bob");
+                conversation.emplace("last", std::move(last));
+                conversation.emplace("unread", 3);
+                conversations.push_back(std::move(conversation));
+            }
+            else if (before->is_int64() && before->as_int64() == 12)
+            {
+                boost::json::object last;
+                last.emplace("id", 6);
+                last.emplace("from", 1);
+                last.emplace("text", "older");
+
+                boost::json::object conversation;
+                conversation.emplace("user", 3);
+                conversation.emplace("username", "carol");
+                conversation.emplace("last", std::move(last));
+                conversation.emplace("unread", 0);
+                conversations.push_back(std::move(conversation));
+            }
+            else
+            {
+                co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false};
+            }
+
+            boost::json::object result;
+            result.emplace("conversations", std::move(conversations));
+            response.emplace("result", std::move(result));
+
+            auto [send_ec] = co_await send_text(connection, std::move(response));
+            co_return boost::capy::io_result<bool>{send_ec, !send_ec};
+        }
+
+        if (method->as_string() != "authenticate")
         {
             co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false};
         }
@@ -137,10 +191,6 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 co_return boost::capy::io_result<bool>{invalid_ec, false};
             }
         }
-
-        boost::json::object response;
-        response.emplace("jsonrpc", "2.0");
-        response.emplace("id", *id);
 
         if (name == "rpc")
         {
@@ -321,6 +371,45 @@ int main()
         return 1;
     }
     std::cout << "PASS client authenticate response\n";
+
+    bool conversations_called = false;
+    std::vector<chat::conversation> conversations;
+    client.get_conversations({}, [&](std::expected<std::vector<chat::conversation>, chat::error> result) {
+        std::lock_guard lock(state.mutex);
+        conversations_called = true;
+        if (result)
+        {
+            conversations = std::move(*result);
+        }
+        state.condition.notify_all();
+    });
+    if (!state.wait([&] { return conversations_called; }) || conversations.size() != 1 || conversations[0].user != 2 ||
+        conversations[0].username != "bob" || conversations[0].last.id != 12 || conversations[0].last.from != 2 ||
+        conversations[0].last.text != "hello" || conversations[0].unread != 3)
+    {
+        std::cerr << "FAIL client conversations\n";
+        return 1;
+    }
+    std::cout << "PASS client conversations\n";
+
+    bool conversation_cursor_called = false;
+    std::vector<chat::conversation> older_conversations;
+    client.get_conversations(12, [&](std::expected<std::vector<chat::conversation>, chat::error> result) {
+        std::lock_guard lock(state.mutex);
+        conversation_cursor_called = true;
+        if (result)
+        {
+            older_conversations = std::move(*result);
+        }
+        state.condition.notify_all();
+    });
+    if (!state.wait([&] { return conversation_cursor_called; }) || older_conversations.size() != 1 ||
+        older_conversations[0].user != 3 || older_conversations[0].last.id != 6)
+    {
+        std::cerr << "FAIL client conversation cursor\n";
+        return 1;
+    }
+    std::cout << "PASS client conversation cursor\n";
 
     bool rejected_called = false;
     bool rejected = false;
