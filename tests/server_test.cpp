@@ -19,6 +19,7 @@
 #include <boost/capy/buffers.hpp>
 #include <boost/capy/io_result.hpp>
 #include <boost/corosio/endpoint.hpp>
+#include <boost/capy/ex/async_event.hpp>
 #include <boost/capy/ex/run_async.hpp>
 #include <boost/corosio/io_context.hpp>
 #include <boost/corosio/tcp_socket.hpp>
@@ -44,6 +45,7 @@ constexpr std::string_view kDatabaseConnectionString =
     "sslmode=disable";
 constexpr char kTestUsername[] = "chat_server_test";
 constexpr char kTestPassword[] = "test password";
+constexpr char kPeerUsername[] = "chat_server_peer";
 
 boost::http::route_task health_handler(boost::http::route_params& params)
 {
@@ -200,6 +202,43 @@ boost::capy::io_task<std::string> receive_websocket_text(boost::corosio::tcp_soc
     }
 
     co_return boost::capy::io_result<std::string>{std::error_code{}, std::move(payload)};
+}
+
+boost::capy::io_task<> authenticate_websocket(boost::corosio::tcp_socket& socket,
+                                                    std::string_view username,
+                                                    std::string_view request_id)
+{
+    std::string request = R"({"jsonrpc":"2.0","method":"authenticate","params":{"username":")";
+    request.append(username);
+    request.append(R"(","password":")");
+    request.append(kTestPassword);
+    request.append(R"("},"id":")");
+    request.append(request_id);
+    request.append(R"("})");
+
+    auto write_result = co_await send_websocket_text(socket, request);
+    auto& [write_ec] = write_result;
+    if (write_ec)
+    {
+        co_return write_ec;
+    }
+
+    auto reply_result = co_await receive_websocket_text(socket);
+    auto& [read_ec, reply] = reply_result;
+    if (read_ec)
+    {
+        co_return read_ec;
+    }
+
+    std::string expected = R"({"jsonrpc":"2.0","result":{"authenticated":true},"id":")";
+    expected.append(request_id);
+    expected.append(R"("})");
+    if (reply != expected)
+    {
+        co_return std::make_error_code(std::errc::protocol_error);
+    }
+
+    co_return {};
 }
 
 bool valid_health_response(boost::http::response_parser const& parser)
@@ -989,6 +1028,168 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
 }
 
 
+boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
+                                        chat_server& server,
+                                        unsigned short port,
+                                        boost::capy::async_event& primary_done,
+                                        int const& primary_exit_code)
+{
+    server_stop_guard stop_guard{server};
+
+    auto primary_wait_result = co_await primary_done.wait();
+    auto& [primary_wait_ec] = primary_wait_result;
+    if (primary_wait_ec || primary_exit_code != 0)
+    {
+        co_return primary_wait_ec ? 1 : 0;
+    }
+
+    pg_connection fixture_connection(io_context);
+    auto fixture_connect_result = co_await fixture_connection.connect(std::string(kDatabaseConnectionString));
+    auto& [fixture_connect_ec] = fixture_connect_result;
+    if (fixture_connect_ec)
+    {
+        std::cerr << "FAIL peer routing fixture connect: " << fixture_connection.error_message() << '\n';
+        co_return 1;
+    }
+
+    std::vector<std::string> cleanup_parameters;
+    cleanup_parameters.emplace_back(kPeerUsername);
+    auto cleanup_result = co_await fixture_connection.execute_row(
+        "DELETE FROM users WHERE username = $1 RETURNING id::text", std::move(cleanup_parameters));
+    auto& [cleanup_ec, cleanup_row] = cleanup_result;
+    (void)cleanup_row;
+    if (cleanup_ec)
+    {
+        std::cerr << "FAIL peer routing fixture cleanup: " << fixture_connection.error_message() << '\n';
+        co_return 1;
+    }
+
+    std::vector<std::string> source_parameters;
+    source_parameters.emplace_back(kTestUsername);
+    auto source_result = co_await fixture_connection.execute_row(
+        "SELECT id::text, password_hash FROM users WHERE username = $1", std::move(source_parameters));
+    auto& [source_ec, source_user] = source_result;
+    if (source_ec || !source_user || source_user->size() != 2)
+    {
+        std::cerr << "FAIL peer routing source user: " << fixture_connection.error_message() << '\n';
+        co_return 1;
+    }
+
+    std::vector<std::string> peer_parameters;
+    peer_parameters.emplace_back(kPeerUsername);
+    peer_parameters.push_back(source_user->at(1));
+    auto peer_result = co_await fixture_connection.execute_row(
+        "INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id::text", std::move(peer_parameters));
+    auto& [peer_ec, peer_user] = peer_result;
+    if (peer_ec || !peer_user || peer_user->size() != 1)
+    {
+        std::cerr << "FAIL peer routing target user: " << fixture_connection.error_message() << '\n';
+        co_return 1;
+    }
+
+    auto const& source_user_id = source_user->front();
+    auto const& peer_user_id = peer_user->front();
+    fixture_connection.close();
+
+    boost::corosio::tcp_socket source_socket(io_context);
+    auto source_connect_result = co_await connect(source_socket, port);
+    auto& [source_connect_ec] = source_connect_result;
+    if (source_connect_ec)
+    {
+        std::cerr << "FAIL peer routing source connect: " << source_connect_ec.message() << '\n';
+        co_return 1;
+    }
+
+    boost::corosio::tcp_socket peer_socket(io_context);
+    auto peer_connect_result = co_await connect(peer_socket, port);
+    auto& [peer_connect_ec] = peer_connect_result;
+    if (peer_connect_ec)
+    {
+        std::cerr << "FAIL peer routing target connect: " << peer_connect_ec.message() << '\n';
+        co_return 1;
+    }
+
+    auto parser_config = boost::http::make_parser_config(boost::http::parser_config{true});
+    boost::http::response_parser source_parser(parser_config);
+    auto source_upgrade_result = co_await upgrade_websocket(source_socket, source_parser);
+    auto& [source_upgrade_ec] = source_upgrade_result;
+    if (source_upgrade_ec)
+    {
+        std::cerr << "FAIL peer routing source upgrade: " << source_upgrade_ec.message() << '\n';
+        co_return 1;
+    }
+
+    boost::http::response_parser peer_parser(parser_config);
+    auto peer_upgrade_result = co_await upgrade_websocket(peer_socket, peer_parser);
+    auto& [peer_upgrade_ec] = peer_upgrade_result;
+    if (peer_upgrade_ec)
+    {
+        std::cerr << "FAIL peer routing target upgrade: " << peer_upgrade_ec.message() << '\n';
+        co_return 1;
+    }
+
+    auto source_auth_result = co_await authenticate_websocket(source_socket, kTestUsername, "peer-auth-source");
+    auto& [source_auth_ec] = source_auth_result;
+    if (source_auth_ec)
+    {
+        std::cerr << "FAIL peer routing source authentication\n";
+        co_return 1;
+    }
+
+    auto peer_auth_result = co_await authenticate_websocket(peer_socket, kPeerUsername, "peer-auth-target");
+    auto& [peer_auth_ec] = peer_auth_result;
+    if (peer_auth_ec)
+    {
+        std::cerr << "FAIL peer routing target authentication\n";
+        co_return 1;
+    }
+
+    std::string send_request_json = R"({"jsonrpc":"2.0","method":"send_message","params":{"user_id":)";
+    send_request_json.append(peer_user_id);
+    send_request_json.append(R"(,"text":"peer hello"},"id":"peer-send"})");
+    auto send_write_result = co_await send_websocket_text(source_socket, send_request_json);
+    auto& [send_write_ec] = send_write_result;
+    if (send_write_ec)
+    {
+        std::cerr << "FAIL peer routing send write\n";
+        co_return 1;
+    }
+
+    auto send_reply_result = co_await receive_websocket_text(source_socket);
+    auto& [send_read_ec, send_reply] = send_reply_result;
+    constexpr std::string_view expected_send_reply =
+        R"({"jsonrpc":"2.0","result":{"delivered":true},"id":"peer-send"})";
+    if (send_read_ec || send_reply != expected_send_reply)
+    {
+        std::cerr << "FAIL peer routing send response\n";
+        co_return 1;
+    }
+    std::cout << "PASS peer message response\n";
+
+    auto notification_result = co_await receive_websocket_text(peer_socket);
+    auto& [notification_ec, notification] = notification_result;
+    if (notification_ec)
+    {
+        std::cerr << "FAIL peer routing notification read\n";
+        co_return 1;
+    }
+
+    std::string expected_notification = R"({"jsonrpc":"2.0","method":"message","params":{"from_user_id":)";
+    expected_notification.append(source_user_id);
+    expected_notification.append(R"(,"text":"peer hello"}})");
+    if (notification != expected_notification)
+    {
+        std::cerr << "FAIL peer message notification\n";
+        co_return 1;
+    }
+    std::cout << "PASS peer message notification\n";
+
+    source_socket.close();
+    peer_socket.close();
+    co_return 0;
+}
+
+
 }    // namespace
 
 int main()
@@ -1006,18 +1207,42 @@ int main()
         return 1;
     }
 
+    boost::http::router<boost::http::route_params> peer_router;
+    peer_router.add(boost::http::method::get, "/health", health_handler);
+    peer_router.use(not_found_handler);
+    chat_server peer_server(io_context, 2, std::move(peer_router), std::string(kDatabaseConnectionString));
+    if (auto ec = peer_server.bind(boost::corosio::endpoint(boost::corosio::ipv4_address::loopback(), 0)))
+    {
+        std::cerr << "FAIL peer server bind: " << ec.message() << '\n';
+        return 1;
+    }
+
     auto const port = server.local_endpoint().port();
+    auto const peer_port = peer_server.local_endpoint().port();
     server.start();
+    peer_server.start();
 
     int exit_code = 1;
-    boost::capy::run_async(io_context.get_executor(), [&exit_code](int result) { exit_code = result; })(run_client(io_context, server, port));
+    int peer_exit_code = 1;
+    boost::capy::async_event primary_done;
+    boost::capy::run_async(io_context.get_executor(), [&exit_code, &primary_done](int result) {
+        exit_code = result;
+        primary_done.set();
+    })(run_client(io_context, server, port));
+    boost::capy::run_async(io_context.get_executor(), [&peer_exit_code](int result) { peer_exit_code = result; })(
+        run_peer_routing(io_context, peer_server, peer_port, primary_done, exit_code));
 
     io_context.run();
     server.join();
+    peer_server.join();
 
     if (exit_code != 0)
     {
         return exit_code;
+    }
+    if (peer_exit_code != 0)
+    {
+        return peer_exit_code;
     }
 
     std::cout << "PASS chat server shutdown\n";
