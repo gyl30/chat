@@ -90,6 +90,11 @@ add_compile_options(
     -Wpedantic
 )
 
+option(CHAT_BUILD_QT_CLIENT "Build Qt Widgets client" OFF)
+if(CHAT_BUILD_QT_CLIENT)
+    add_subdirectory(qt)
+endif()
+
 add_executable(chat_server
     src/main.cpp
     src/chat_session.cpp
