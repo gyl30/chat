@@ -74,6 +74,7 @@ add_executable(chat_server
     src/chat_session.cpp
     src/authenticate_request.cpp
     src/echo_request.cpp
+    src/get_conversations_request.cpp
     src/get_messages_request.cpp
     src/get_unread_count_request.cpp
     src/mark_read_request.cpp
@@ -172,6 +173,7 @@ add_executable(chat_server_test
     src/chat_session.cpp
     src/authenticate_request.cpp
     src/echo_request.cpp
+    src/get_conversations_request.cpp
     src/get_messages_request.cpp
     src/get_unread_count_request.cpp
     src/mark_read_request.cpp

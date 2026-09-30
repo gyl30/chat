@@ -597,6 +597,29 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         }
         std::cout << "PASS unauthenticated get messages rejected\n";
 
+        constexpr std::string_view unauthenticated_get_conversations =
+            R"({"jsonrpc":"2.0","method":"get_conversations","id":"conversations-auth-required"})";
+        auto [unauthenticated_get_conversations_write_ec] =
+            co_await send_websocket_text(socket, unauthenticated_get_conversations);
+        if (unauthenticated_get_conversations_write_ec)
+        {
+            std::cerr << "FAIL unauthenticated get conversations write\n";
+            co_return 1;
+        }
+
+        auto unauthenticated_get_conversations_reply_result = co_await receive_websocket_text(socket);
+        auto& [unauthenticated_get_conversations_read_ec, unauthenticated_get_conversations_reply] =
+            unauthenticated_get_conversations_reply_result;
+        constexpr std::string_view expected_unauthenticated_get_conversations_reply =
+            R"({"jsonrpc":"2.0","error":{"code":-32001,"message":"Authentication required"},"id":"conversations-auth-required"})";
+        if (unauthenticated_get_conversations_read_ec ||
+            unauthenticated_get_conversations_reply != expected_unauthenticated_get_conversations_reply)
+        {
+            std::cerr << "FAIL unauthenticated get conversations rejected\n";
+            co_return 1;
+        }
+        std::cout << "PASS unauthenticated get conversations rejected\n";
+
         constexpr std::string_view unauthenticated_get_unread_count =
             R"({"jsonrpc":"2.0","method":"get_unread_count","params":{"user":1},"id":"unread-auth-required"})";
         auto [unauthenticated_get_unread_count_write_ec] = co_await send_websocket_text(socket, unauthenticated_get_unread_count);
@@ -1405,6 +1428,34 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return 1;
     }
 
+    constexpr std::string_view conversations_unread_request =
+        R"({"jsonrpc":"2.0","method":"get_conversations","id":"peer-conversations-unread"})";
+    auto conversations_unread_write_result = co_await send_websocket_text(peer_socket, conversations_unread_request);
+    auto& [conversations_unread_write_ec] = conversations_unread_write_result;
+    if (conversations_unread_write_ec)
+    {
+        std::cerr << "FAIL conversation unread summary write\n";
+        co_return 1;
+    }
+
+    auto conversations_unread_reply_result = co_await receive_websocket_text(peer_socket);
+    auto& [conversations_unread_read_ec, conversations_unread_reply] = conversations_unread_reply_result;
+    std::string expected_conversations_unread_reply =
+        R"({"jsonrpc":"2.0","result":{"conversations":[{"user":)";
+    expected_conversations_unread_reply.append(source_user_id);
+    expected_conversations_unread_reply.append(R"(,"username":"chat_server_test","last":{"id":)");
+    expected_conversations_unread_reply.append(offline_message->at(0));
+    expected_conversations_unread_reply.append(R"(,"from":)");
+    expected_conversations_unread_reply.append(source_user_id);
+    expected_conversations_unread_reply.append(
+        R"(,"text":"offline hello"},"unread":1}]},"id":"peer-conversations-unread"})");
+    if (conversations_unread_read_ec || conversations_unread_reply != expected_conversations_unread_reply)
+    {
+        std::cerr << "FAIL conversation unread summary\n";
+        co_return 1;
+    }
+    std::cout << "PASS conversation unread summary\n";
+
     std::string offline_history_request = R"({"jsonrpc":"2.0","method":"get_messages","params":{"user":)";
     offline_history_request.append(source_user_id);
     offline_history_request.append(R"(},"id":"peer-history"})");
@@ -1626,6 +1677,57 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return 1;
     }
     std::cout << "PASS unread after live read\n";
+
+    constexpr std::string_view conversations_live_request =
+        R"({"jsonrpc":"2.0","method":"get_conversations","id":"peer-conversations-live"})";
+    auto conversations_live_write_result = co_await send_websocket_text(peer_socket, conversations_live_request);
+    auto& [conversations_live_write_ec] = conversations_live_write_result;
+    if (conversations_live_write_ec)
+    {
+        std::cerr << "FAIL conversation live summary write\n";
+        co_return 1;
+    }
+
+    auto conversations_live_reply_result = co_await receive_websocket_text(peer_socket);
+    auto& [conversations_live_read_ec, conversations_live_reply] = conversations_live_reply_result;
+    std::string expected_conversations_live_reply =
+        R"({"jsonrpc":"2.0","result":{"conversations":[{"user":)";
+    expected_conversations_live_reply.append(source_user_id);
+    expected_conversations_live_reply.append(R"(,"username":"chat_server_test","last":{"id":)");
+    expected_conversations_live_reply.append(persisted_peer_message->at(0));
+    expected_conversations_live_reply.append(R"(,"from":)");
+    expected_conversations_live_reply.append(source_user_id);
+    expected_conversations_live_reply.append(
+        R"(,"text":"peer hello"},"unread":0}]},"id":"peer-conversations-live"})");
+    if (conversations_live_read_ec || conversations_live_reply != expected_conversations_live_reply)
+    {
+        std::cerr << "FAIL conversation live summary\n";
+        co_return 1;
+    }
+    std::cout << "PASS conversation live summary\n";
+
+    std::string conversations_cursor_request =
+        R"({"jsonrpc":"2.0","method":"get_conversations","params":{"before":)";
+    conversations_cursor_request.append(persisted_peer_message->at(0));
+    conversations_cursor_request.append(R"(},"id":"peer-conversations-cursor"})");
+    auto conversations_cursor_write_result = co_await send_websocket_text(peer_socket, conversations_cursor_request);
+    auto& [conversations_cursor_write_ec] = conversations_cursor_write_result;
+    if (conversations_cursor_write_ec)
+    {
+        std::cerr << "FAIL conversation cursor write\n";
+        co_return 1;
+    }
+
+    auto conversations_cursor_reply_result = co_await receive_websocket_text(peer_socket);
+    auto& [conversations_cursor_read_ec, conversations_cursor_reply] = conversations_cursor_reply_result;
+    constexpr std::string_view expected_conversations_cursor_reply =
+        R"({"jsonrpc":"2.0","result":{"conversations":[]},"id":"peer-conversations-cursor"})";
+    if (conversations_cursor_read_ec || conversations_cursor_reply != expected_conversations_cursor_reply)
+    {
+        std::cerr << "FAIL conversation cursor\n";
+        co_return 1;
+    }
+    std::cout << "PASS conversation cursor\n";
 
     std::string mark_older_read_request = R"({"jsonrpc":"2.0","method":"mark_read","params":{"user":)";
     mark_older_read_request.append(source_user_id);

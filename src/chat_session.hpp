@@ -27,6 +27,8 @@ class chat_session
 
     boost::capy::task<simdjson::error_code> handle_echo(json_rpc_request& request, std::string& response);
 
+    boost::capy::task<simdjson::error_code> handle_get_conversations(json_rpc_request& request, std::string& response);
+
     boost::capy::task<simdjson::error_code> handle_get_messages(json_rpc_request& request, std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_get_unread_count(json_rpc_request& request, std::string& response);
