@@ -262,6 +262,12 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     chat_title_->setIconSize(QSize(38, 38));
     header_layout->addWidget(chat_title_);
     header_layout->addStretch();
+    connection_status_ = new QToolButton(header);
+    connection_status_->setObjectName(QStringLiteral("connectionStatusButton"));
+    connection_status_->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    connection_status_->setCursor(Qt::PointingHandCursor);
+    connection_status_->hide();
+    header_layout->addWidget(connection_status_);
     chat_layout->addWidget(header);
 
     auto* chat_line = new QFrame(chat_panel);
@@ -349,6 +355,12 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
             show_user_details(active_user_, active_username_);
         }
     });
+    connect(connection_status_, &QToolButton::clicked, this, [this] {
+        if (connection_status_->isEnabled())
+        {
+            emit reconnect_requested();
+        }
+    });
     connect(send_button_, &QToolButton::clicked, this, [this] { send_current_message(); });
     connect(message_edit_, &QLineEdit::returnPressed, this, [this] { send_current_message(); });
     connect(messages_view_->verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int value) {
@@ -391,6 +403,29 @@ void chat_widget::set_user(QString const& username)
 void chat_widget::set_loading() { conversations_status_->setText(QStringLiteral("正在加载…")); }
 
 void chat_widget::set_error(QString message) { conversations_status_->setText(std::move(message)); }
+
+void chat_widget::set_connection_available(bool available)
+{
+    connection_available_ = available;
+    message_edit_->setEnabled(available && active_user_ > 0);
+    send_button_->setEnabled(available && active_user_ > 0);
+    add_contact_button_->setEnabled(available);
+    add_user_search_->setEnabled(available);
+}
+
+void chat_widget::set_connection_status(QString text, bool retry_enabled)
+{
+    if (text.isEmpty())
+    {
+        connection_status_->hide();
+        return;
+    }
+
+    connection_status_->setText(std::move(text));
+    connection_status_->setEnabled(retry_enabled);
+    connection_status_->setCursor(retry_enabled ? Qt::PointingHandCursor : Qt::ArrowCursor);
+    connection_status_->show();
+}
 
 void chat_widget::set_conversations(QList<conversation_data> conversations)
 {
@@ -594,6 +629,11 @@ void chat_widget::filter_contacts(QString const& query)
 
 void chat_widget::search_users()
 {
+    if (!connection_available_)
+    {
+        return;
+    }
+
     auto const query = add_user_search_->text().trimmed();
     if (query.isEmpty())
     {
@@ -618,6 +658,11 @@ void chat_widget::select_contact(QModelIndex const& index)
 
 void chat_widget::select_add_user(QModelIndex const& index)
 {
+    if (!connection_available_)
+    {
+        return;
+    }
+
     auto const* item = add_users_->user_at(index);
     if (!item)
     {
@@ -676,7 +721,10 @@ void chat_widget::open_chat(qint64 user, QString username)
         {
             messages_loading_ = true;
             set_message_status(QStringLiteral("正在加载消息…"));
-            emit conversation_selected(active_user_);
+            if (connection_available_)
+            {
+                emit conversation_selected(active_user_);
+            }
         }
         return;
     }
@@ -687,14 +735,17 @@ void chat_widget::open_chat(qint64 user, QString username)
     messages_loading_ = true;
     history_exhausted_ = false;
     set_message_status(QStringLiteral("正在加载消息…"));
-    message_edit_->setEnabled(true);
-    send_button_->setEnabled(true);
-    emit conversation_selected(active_user_);
+    message_edit_->setEnabled(connection_available_);
+    send_button_->setEnabled(connection_available_);
+    if (connection_available_)
+    {
+        emit conversation_selected(active_user_);
+    }
 }
 
 void chat_widget::request_older_messages()
 {
-    if (active_user_ <= 0 || !messages_loaded_ || messages_loading_ || history_exhausted_)
+    if (!connection_available_ || active_user_ <= 0 || !messages_loaded_ || messages_loading_ || history_exhausted_)
     {
         return;
     }
@@ -712,7 +763,7 @@ void chat_widget::request_older_messages()
 
 void chat_widget::send_current_message()
 {
-    if (active_user_ <= 0 || message_edit_->text().isEmpty())
+    if (!connection_available_ || active_user_ <= 0 || message_edit_->text().isEmpty())
     {
         return;
     }

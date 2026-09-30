@@ -32,6 +32,8 @@ class chat_widget final : public QWidget
     void set_user(QString const& username);
     void set_loading();
     void set_error(QString message);
+    void set_connection_available(bool available);
+    void set_connection_status(QString text, bool retry_enabled);
     void set_conversations(QList<conversation_data> conversations);
     void set_contacts(QList<user_data> contacts);
     void set_contacts_error(QString message);
@@ -53,6 +55,7 @@ class chat_widget final : public QWidget
     void add_contact_search_requested(QString query);
     void contact_add_requested(qint64 user);
     void logout_requested();
+    void reconnect_requested();
 
    private:
     void show_conversations_section();
@@ -87,6 +90,7 @@ class chat_widget final : public QWidget
     QListView* add_users_view_ = nullptr;
     QLabel* add_users_status_ = nullptr;
     QPushButton* chat_title_ = nullptr;
+    QToolButton* connection_status_ = nullptr;
     QLabel* message_status_ = nullptr;
     QListView* messages_view_ = nullptr;
     QLineEdit* message_edit_ = nullptr;
@@ -101,6 +105,7 @@ class chat_widget final : public QWidget
     bool messages_loaded_ = false;
     bool messages_loading_ = false;
     bool history_exhausted_ = false;
+    bool connection_available_ = true;
 };
 
 #endif

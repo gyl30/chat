@@ -41,7 +41,7 @@ class client_bridge final : public QObject
     void connected();
     void disconnected();
     void error(QString message);
-    void authentication_finished(bool authenticated, QString error_message);
+    void authentication_finished(bool authenticated, QString error_message, bool retryable_error);
     void registration_finished(qint64 user, QString error_message);
     void conversations_received(QList<conversation_data> conversations, QString error_message);
     void contacts_received(QList<user_data> contacts, QString error_message);

@@ -1,5 +1,7 @@
 #include "main_window.hpp"
 
+#include <algorithm>
+#include <array>
 #include <memory>
 #include <utility>
 
@@ -12,6 +14,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QStackedWidget>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -128,6 +131,15 @@ main_window::main_window(QString server_url, QWidget* parent)
 
     chat_page_ = new chat_widget(pages_);
 
+    reconnect_timer_ = new QTimer(this);
+    reconnect_timer_->setSingleShot(true);
+    reconnect_countdown_timer_ = new QTimer(this);
+    reconnect_countdown_timer_->setInterval(1000);
+    reconnect_notice_timer_ = new QTimer(this);
+    reconnect_notice_timer_->setSingleShot(true);
+    reconnect_recovered_timer_ = new QTimer(this);
+    reconnect_recovered_timer_->setSingleShot(true);
+
     pages_->addWidget(login_page_);
     pages_->addWidget(chat_page_);
 
@@ -137,6 +149,44 @@ main_window::main_window(QString server_url, QWidget* parent)
     connect(registration_submit_button_, &QPushButton::clicked, this, [this] { start_registration(); });
     connect(registration_password_confirm_edit_, &QLineEdit::returnPressed, this, [this] { start_registration(); });
     connect(registration_cancel_button_, &QPushButton::clicked, registration_dialog_, &QDialog::reject);
+    connect(reconnect_timer_, &QTimer::timeout, this, [this] { reconnect_now(); });
+    connect(reconnect_countdown_timer_, &QTimer::timeout, this, [this] {
+        if (reconnect_seconds_left_ > 1)
+        {
+            --reconnect_seconds_left_;
+            update_reconnect_status();
+        }
+    });
+    connect(reconnect_notice_timer_, &QTimer::timeout, this, [this] {
+        if (!reconnecting_)
+        {
+            return;
+        }
+        reconnect_notice_visible_ = true;
+        if (reconnect_timer_->isActive())
+        {
+            update_reconnect_status();
+        }
+        else
+        {
+            chat_page_->set_connection_status(QStringLiteral("正在连接…"), false);
+        }
+    });
+    connect(reconnect_recovered_timer_, &QTimer::timeout, this, [this] {
+        if (!reconnecting_ && connected_)
+        {
+            chat_page_->set_connection_status({}, false);
+        }
+    });
+    connect(chat_page_, &chat_widget::reconnect_requested, this, [this] {
+        if (!reconnecting_ || connected_)
+        {
+            return;
+        }
+        reconnect_timer_->stop();
+        reconnect_countdown_timer_->stop();
+        reconnect_now();
+    });
 
     connect(client_.get(), &client_bridge::connected, this, [this] {
         connected_ = true;
@@ -149,26 +199,57 @@ main_window::main_window(QString server_url, QWidget* parent)
         {
             register_user();
         }
+        else if (pending_action_ == pending_action::reconnect)
+        {
+            if (reconnect_notice_visible_)
+            {
+                chat_page_->set_connection_status(QStringLiteral("正在恢复会话…"), false);
+            }
+            client_->authenticate(session_username_, session_password_);
+        }
+        else if (session_username_.isEmpty() && pages_->currentWidget() == login_page_)
+        {
+            client_->close();
+        }
     }, Qt::QueuedConnection);
 
     connect(client_.get(), &client_bridge::disconnected, this, [this] {
         auto const action = pending_action_;
         connected_ = false;
-        pending_action_ = pending_action::none;
-        set_login_busy(false);
-        server_edit_->setEnabled(true);
         if (logout_pending_)
         {
             logout_pending_ = false;
+            pending_action_ = pending_action::none;
             status_label_->clear();
+            set_login_busy(false);
+            server_edit_->setEnabled(true);
             return;
         }
         if (action == pending_action::registration && registration_dialog_->isVisible())
         {
+            pending_action_ = pending_action::none;
+            set_login_busy(false);
             set_registration_busy(false);
+            server_edit_->setEnabled(true);
             registration_status_label_->setText(QStringLiteral("连接已断开"));
             return;
         }
+        if (!session_username_.isEmpty() && pages_->currentWidget() == chat_page_)
+        {
+            if (reconnecting_)
+            {
+                schedule_reconnect();
+            }
+            else
+            {
+                begin_reconnect();
+            }
+            return;
+        }
+
+        pending_action_ = pending_action::none;
+        set_login_busy(false);
+        server_edit_->setEnabled(true);
         if (pages_->currentWidget() == chat_page_)
         {
             chat_page_->set_user({});
@@ -179,6 +260,14 @@ main_window::main_window(QString server_url, QWidget* parent)
     }, Qt::QueuedConnection);
 
     connect(client_.get(), &client_bridge::error, this, [this](QString const& message) {
+        if (reconnecting_)
+        {
+            if (!connected_)
+            {
+                schedule_reconnect();
+            }
+            return;
+        }
         if (pending_action_ == pending_action::registration && registration_dialog_->isVisible())
         {
             show_registration_error(message);
@@ -194,7 +283,36 @@ main_window::main_window(QString server_url, QWidget* parent)
     }, Qt::QueuedConnection);
 
     connect(client_.get(), &client_bridge::authentication_finished, this,
-            [this](bool authenticated, QString const& error_message) {
+            [this](bool authenticated, QString const& error_message, bool retryable_error) {
+                auto const action = pending_action_;
+                if (action == pending_action::reconnect)
+                {
+                    if (!error_message.isEmpty())
+                    {
+                        if (retryable_error)
+                        {
+                            if (connected_)
+                            {
+                                client_->close();
+                            }
+                            else
+                            {
+                                schedule_reconnect();
+                            }
+                            return;
+                        }
+                        return_to_login(QStringLiteral("重新登录失败：%1").arg(error_message));
+                        return;
+                    }
+                    if (!authenticated)
+                    {
+                        return_to_login(QStringLiteral("登录状态已失效，请重新登录"));
+                        return;
+                    }
+                    finish_reconnect();
+                    return;
+                }
+
                 pending_action_ = pending_action::none;
                 if (!error_message.isEmpty())
                 {
@@ -207,6 +325,9 @@ main_window::main_window(QString server_url, QWidget* parent)
                     return;
                 }
 
+                session_server_ = server_edit_->text().trimmed();
+                session_username_ = pending_username_;
+                session_password_ = pending_password_;
                 pending_password_.clear();
                 status_label_->clear();
                 show_authenticated_page();
@@ -458,14 +579,20 @@ void main_window::register_user()
 
 void main_window::logout()
 {
+    auto const should_close = connected_ || reconnecting_ || pending_action_ == pending_action::reconnect;
+    stop_reconnect();
     pending_action_ = pending_action::none;
     pending_username_.clear();
     pending_password_.clear();
+    session_server_.clear();
+    session_username_.clear();
+    session_password_.clear();
     password_edit_->clear();
+    chat_page_->set_connection_available(false);
     chat_page_->set_user({});
     pages_->setCurrentWidget(login_page_);
 
-    if (!connected_)
+    if (!should_close)
     {
         status_label_->clear();
         set_login_busy(false);
@@ -473,10 +600,16 @@ void main_window::logout()
         return;
     }
 
-    logout_pending_ = true;
+    logout_pending_ = connected_;
     status_label_->setText(QStringLiteral("正在退出…"));
     set_login_busy(true);
     client_->close();
+    if (!connected_)
+    {
+        status_label_->clear();
+        set_login_busy(false);
+        server_edit_->setEnabled(true);
+    }
 }
 
 void main_window::set_login_busy(bool busy)
@@ -517,8 +650,147 @@ void main_window::show_registration_error(QString message)
 void main_window::show_authenticated_page()
 {
     chat_page_->set_user(pending_username_);
+    chat_page_->set_connection_available(true);
+    chat_page_->set_connection_status({}, false);
     chat_page_->set_loading();
     pages_->setCurrentWidget(chat_page_);
     client_->get_conversations();
     client_->get_contacts();
+}
+
+void main_window::begin_reconnect()
+{
+    if (reconnecting_ || session_server_.isEmpty() || session_username_.isEmpty())
+    {
+        return;
+    }
+
+    reconnecting_ = true;
+    reconnect_notice_visible_ = false;
+    reconnect_attempt_ = 0;
+    reconnect_seconds_left_ = 0;
+    reconnect_timer_->stop();
+    reconnect_countdown_timer_->stop();
+    reconnect_recovered_timer_->stop();
+    reconnect_notice_timer_->start(1000);
+    chat_page_->set_connection_available(false);
+    reconnect_now();
+}
+
+void main_window::reconnect_now()
+{
+    if (!reconnecting_ || connected_)
+    {
+        return;
+    }
+
+    reconnect_timer_->stop();
+    reconnect_countdown_timer_->stop();
+    reconnect_seconds_left_ = 0;
+    pending_action_ = pending_action::reconnect;
+    if (reconnect_notice_visible_)
+    {
+        chat_page_->set_connection_status(QStringLiteral("正在连接…"), false);
+    }
+    client_->connect_to_server(session_server_);
+}
+
+void main_window::schedule_reconnect()
+{
+    if (!reconnecting_ || reconnect_timer_->isActive())
+    {
+        return;
+    }
+
+    constexpr std::array delays = {1, 2, 4, 8, 15};
+    auto const index = std::min(reconnect_attempt_, static_cast<int>(delays.size()) - 1);
+    reconnect_seconds_left_ = delays[static_cast<std::size_t>(index)];
+    ++reconnect_attempt_;
+    pending_action_ = pending_action::none;
+    reconnect_notice_timer_->stop();
+    reconnect_notice_visible_ = true;
+    update_reconnect_status();
+    reconnect_countdown_timer_->start();
+    reconnect_timer_->start(reconnect_seconds_left_ * 1000);
+}
+
+void main_window::update_reconnect_status()
+{
+    if (!reconnecting_ || !reconnect_notice_visible_)
+    {
+        return;
+    }
+
+    chat_page_->set_connection_status(
+        QStringLiteral("连接中断，%1 秒后重连 · 立即重试").arg(reconnect_seconds_left_), true);
+}
+
+void main_window::finish_reconnect()
+{
+    reconnect_timer_->stop();
+    reconnect_countdown_timer_->stop();
+    reconnect_notice_timer_->stop();
+    pending_action_ = pending_action::none;
+    reconnecting_ = false;
+    reconnect_attempt_ = 0;
+    reconnect_seconds_left_ = 0;
+    chat_page_->set_connection_available(true);
+
+    if (reconnect_notice_visible_)
+    {
+        chat_page_->set_connection_status(QStringLiteral("已重新连接"), false);
+        reconnect_recovered_timer_->start(1200);
+    }
+    else
+    {
+        chat_page_->set_connection_status({}, false);
+    }
+    reconnect_notice_visible_ = false;
+
+    client_->get_conversations();
+    client_->get_contacts();
+    auto const user = chat_page_->active_user();
+    if (user > 0)
+    {
+        client_->get_messages(user);
+    }
+}
+
+void main_window::stop_reconnect()
+{
+    reconnect_timer_->stop();
+    reconnect_countdown_timer_->stop();
+    reconnect_notice_timer_->stop();
+    reconnect_recovered_timer_->stop();
+    reconnecting_ = false;
+    reconnect_notice_visible_ = false;
+    reconnect_attempt_ = 0;
+    reconnect_seconds_left_ = 0;
+    chat_page_->set_connection_status({}, false);
+}
+
+void main_window::return_to_login(QString message)
+{
+    auto const username = session_username_;
+    auto const should_close = connected_;
+    stop_reconnect();
+    pending_action_ = pending_action::none;
+    pending_username_.clear();
+    pending_password_.clear();
+    session_server_.clear();
+    session_username_.clear();
+    session_password_.clear();
+    chat_page_->set_connection_available(false);
+    chat_page_->set_user({});
+    pages_->setCurrentWidget(login_page_);
+    username_edit_->setText(username);
+    password_edit_->clear();
+    status_label_->setText(std::move(message));
+    set_login_busy(false);
+    server_edit_->setEnabled(true);
+
+    if (should_close)
+    {
+        client_->close();
+    }
 }

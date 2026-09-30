@@ -11,6 +11,7 @@ class QLabel;
 class QLineEdit;
 class QPushButton;
 class QStackedWidget;
+class QTimer;
 class QWidget;
 class chat_widget;
 class client_bridge;
@@ -27,6 +28,7 @@ class main_window final : public QMainWindow
         none,
         login,
         registration,
+        reconnect,
     };
 
     void start_login();
@@ -40,6 +42,13 @@ class main_window final : public QMainWindow
     void show_login_error(QString message);
     void show_registration_error(QString message);
     void show_authenticated_page();
+    void begin_reconnect();
+    void reconnect_now();
+    void schedule_reconnect();
+    void update_reconnect_status();
+    void finish_reconnect();
+    void stop_reconnect();
+    void return_to_login(QString message);
 
     QStackedWidget* pages_ = nullptr;
     QWidget* login_page_ = nullptr;
@@ -57,12 +66,23 @@ class main_window final : public QMainWindow
     QPushButton* registration_submit_button_ = nullptr;
     QPushButton* registration_cancel_button_ = nullptr;
     QLabel* registration_status_label_ = nullptr;
+    QTimer* reconnect_timer_ = nullptr;
+    QTimer* reconnect_countdown_timer_ = nullptr;
+    QTimer* reconnect_notice_timer_ = nullptr;
+    QTimer* reconnect_recovered_timer_ = nullptr;
 
     bool connected_ = false;
     bool logout_pending_ = false;
+    bool reconnecting_ = false;
+    bool reconnect_notice_visible_ = false;
+    int reconnect_attempt_ = 0;
+    int reconnect_seconds_left_ = 0;
     pending_action pending_action_ = pending_action::none;
     QString pending_username_;
     QString pending_password_;
+    QString session_server_;
+    QString session_username_;
+    QString session_password_;
 
     std::unique_ptr<client_bridge> client_;
 };

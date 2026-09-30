@@ -186,6 +186,23 @@ QString chat_style_sheet()
         QPushButton#chatHeaderButton:disabled {
             color: #27362F;
         }
+        QToolButton#connectionStatusButton {
+            min-height: 26px;
+            padding: 0 10px;
+            border: 0;
+            border-radius: 13px;
+            background: #ECEBE6;
+            color: #747C78;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        QToolButton#connectionStatusButton:hover:enabled {
+            background: #E2E8E3;
+            color: #315A4B;
+        }
+        QToolButton#connectionStatusButton:disabled {
+            color: #747C78;
+        }
         QToolButton#headerActionButton {
             border: 0;
             border-radius: 18px;

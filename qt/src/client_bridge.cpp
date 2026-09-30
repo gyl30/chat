@@ -62,10 +62,10 @@ void client_bridge::authenticate(QString const& username, QString const& passwor
     client_->authenticate(to_utf8(username), to_utf8(password), [this](std::expected<bool, chat::error> result) {
         if (!result)
         {
-            emit authentication_finished(false, from_utf8(result.error().message));
+            emit authentication_finished(false, from_utf8(result.error().message), result.error().kind == chat::error_kind::transport);
             return;
         }
-        emit authentication_finished(*result, {});
+        emit authentication_finished(*result, {}, false);
     });
 }
 
