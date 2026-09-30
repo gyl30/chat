@@ -213,6 +213,61 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             co_return boost::capy::io_result<bool>{send_ec, !send_ec};
         }
 
+        if (method->as_string() == "get_contacts")
+        {
+            boost::json::object user;
+            user.emplace("id", 3);
+            user.emplace("username", "carol");
+            boost::json::array users;
+            users.push_back(std::move(user));
+            boost::json::object result;
+            result.emplace("users", std::move(users));
+            response.emplace("result", std::move(result));
+
+            auto [send_ec] = co_await send_text(connection, std::move(response));
+            co_return boost::capy::io_result<bool>{send_ec, !send_ec};
+        }
+
+        if (method->as_string() == "search_users")
+        {
+            auto const* query = params->as_object().if_contains("query");
+            if (!query || !query->is_string() || query->as_string() != "bo")
+            {
+                co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false};
+            }
+
+            boost::json::object user;
+            user.emplace("id", 2);
+            user.emplace("username", "bob");
+            boost::json::array users;
+            users.push_back(std::move(user));
+            boost::json::object result;
+            result.emplace("users", std::move(users));
+            response.emplace("result", std::move(result));
+
+            auto [send_ec] = co_await send_text(connection, std::move(response));
+            co_return boost::capy::io_result<bool>{send_ec, !send_ec};
+        }
+
+        if (method->as_string() == "add_contact")
+        {
+            auto const* user_id = params->as_object().if_contains("user");
+            if (!user_id || !user_id->is_int64() || user_id->as_int64() != 2)
+            {
+                co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false};
+            }
+
+            boost::json::object user;
+            user.emplace("id", 2);
+            user.emplace("username", "bob");
+            boost::json::object result;
+            result.emplace("user", std::move(user));
+            response.emplace("result", std::move(result));
+
+            auto [send_ec] = co_await send_text(connection, std::move(response));
+            co_return boost::capy::io_result<bool>{send_ec, !send_ec};
+        }
+
         if (method->as_string() == "send_message")
         {
             auto const* user = params->as_object().if_contains("user");
@@ -257,6 +312,23 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
 
             boost::json::object result;
             result.emplace("message", 21);
+            response.emplace("result", std::move(result));
+            auto [send_ec] = co_await send_text(connection, std::move(response));
+            co_return boost::capy::io_result<bool>{send_ec, !send_ec};
+        }
+
+        if (method->as_string() == "register")
+        {
+            auto const* username = params->as_object().if_contains("username");
+            auto const* password = params->as_object().if_contains("password");
+            if (!username || !username->is_string() || username->as_string() != "new_user" || !password ||
+                !password->is_string() || password->as_string() != "new_secret")
+            {
+                co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false};
+            }
+
+            boost::json::object result;
+            result.emplace("user", 4);
             response.emplace("result", std::move(result));
             auto [send_ec] = co_await send_text(connection, std::move(response));
             co_return boost::capy::io_result<bool>{send_ec, !send_ec};
@@ -462,6 +534,24 @@ int main()
     }
     std::cout << "PASS client connection\n";
 
+    bool registered_called = false;
+    std::int64_t registered_user = 0;
+    client.register_user("new_user", "new_secret", [&](std::expected<std::int64_t, chat::error> result) {
+        std::lock_guard lock(state.mutex);
+        registered_called = true;
+        if (result)
+        {
+            registered_user = *result;
+        }
+        state.condition.notify_all();
+    });
+    if (!state.wait([&] { return registered_called; }) || registered_user != 4)
+    {
+        std::cerr << "FAIL client register response\n";
+        return 1;
+    }
+    std::cout << "PASS client register response\n";
+
     bool authenticated_called = false;
     bool authenticated = false;
     client.authenticate("alice", "secret", [&](std::expected<bool, chat::error> result) {
@@ -476,6 +566,60 @@ int main()
         return 1;
     }
     std::cout << "PASS client authenticate response\n";
+
+    bool contacts_called = false;
+    std::vector<chat::user> contacts;
+    client.get_contacts([&](std::expected<std::vector<chat::user>, chat::error> result) {
+        std::lock_guard lock(state.mutex);
+        contacts_called = true;
+        if (result)
+        {
+            contacts = std::move(*result);
+        }
+        state.condition.notify_all();
+    });
+    if (!state.wait([&] { return contacts_called; }) || contacts.size() != 1 || contacts[0].id != 3 || contacts[0].username != "carol")
+    {
+        std::cerr << "FAIL client contacts\n";
+        return 1;
+    }
+    std::cout << "PASS client contacts\n";
+
+    bool users_called = false;
+    std::vector<chat::user> users;
+    client.search_users("bo", [&](std::expected<std::vector<chat::user>, chat::error> result) {
+        std::lock_guard lock(state.mutex);
+        users_called = true;
+        if (result)
+        {
+            users = std::move(*result);
+        }
+        state.condition.notify_all();
+    });
+    if (!state.wait([&] { return users_called; }) || users.size() != 1 || users[0].id != 2 || users[0].username != "bob")
+    {
+        std::cerr << "FAIL client user search\n";
+        return 1;
+    }
+    std::cout << "PASS client user search\n";
+
+    bool contact_added_called = false;
+    chat::user added_contact;
+    client.add_contact(2, [&](std::expected<chat::user, chat::error> result) {
+        std::lock_guard lock(state.mutex);
+        contact_added_called = true;
+        if (result)
+        {
+            added_contact = std::move(*result);
+        }
+        state.condition.notify_all();
+    });
+    if (!state.wait([&] { return contact_added_called; }) || added_contact.id != 2 || added_contact.username != "bob")
+    {
+        std::cerr << "FAIL client add contact\n";
+        return 1;
+    }
+    std::cout << "PASS client add contact\n";
 
     bool conversations_called = false;
     std::vector<chat::conversation> conversations;

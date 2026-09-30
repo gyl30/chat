@@ -6,6 +6,7 @@
 #include <QMainWindow>
 #include <QString>
 
+class QDialog;
 class QLabel;
 class QLineEdit;
 class QPushButton;
@@ -21,10 +22,23 @@ class main_window final : public QMainWindow
     ~main_window() override;
 
    private:
+    enum class pending_action
+    {
+        none,
+        login,
+        registration,
+    };
+
     void start_login();
+    void show_registration_dialog();
+    void start_registration();
     void authenticate();
+    void register_user();
+    void logout();
     void set_login_busy(bool busy);
+    void set_registration_busy(bool busy);
     void show_login_error(QString message);
+    void show_registration_error(QString message);
     void show_authenticated_page();
 
     QStackedWidget* pages_ = nullptr;
@@ -34,10 +48,19 @@ class main_window final : public QMainWindow
     QLineEdit* username_edit_ = nullptr;
     QLineEdit* password_edit_ = nullptr;
     QPushButton* login_button_ = nullptr;
+    QPushButton* register_button_ = nullptr;
     QLabel* status_label_ = nullptr;
+    QDialog* registration_dialog_ = nullptr;
+    QLineEdit* registration_username_edit_ = nullptr;
+    QLineEdit* registration_password_edit_ = nullptr;
+    QLineEdit* registration_password_confirm_edit_ = nullptr;
+    QPushButton* registration_submit_button_ = nullptr;
+    QPushButton* registration_cancel_button_ = nullptr;
+    QLabel* registration_status_label_ = nullptr;
 
     bool connected_ = false;
-    bool login_pending_ = false;
+    bool logout_pending_ = false;
+    pending_action pending_action_ = pending_action::none;
     QString pending_username_;
     QString pending_password_;
 

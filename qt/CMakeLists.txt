@@ -24,6 +24,11 @@ add_executable(chat_qt
     src/message_model.hpp
     src/theme.cpp
     src/theme.hpp
+    src/user_data.hpp
+    src/user_delegate.cpp
+    src/user_delegate.hpp
+    src/user_model.cpp
+    src/user_model.hpp
 )
 
 qt_add_resources(chat_qt chat_icons

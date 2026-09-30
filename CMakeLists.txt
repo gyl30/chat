@@ -97,15 +97,18 @@ endif()
 
 add_executable(chat_server
     src/main.cpp
+    src/add_contact_request.cpp
     src/chat_session.cpp
     src/authenticate_request.cpp
     src/echo_request.cpp
+    src/get_contacts_request.cpp
     src/get_conversations_request.cpp
     src/get_messages_request.cpp
     src/get_unread_count_request.cpp
     src/mark_read_request.cpp
     src/register_request.cpp
     src/send_message_request.cpp
+    src/search_users_request.cpp
     src/json_rpc.cpp
     src/online_users.cpp
     src/pg_connection.cpp
@@ -217,15 +220,18 @@ set_tests_properties(websocket PROPERTIES TIMEOUT 5)
 
 add_executable(chat_server_test
     tests/server_test.cpp
+    src/add_contact_request.cpp
     src/chat_session.cpp
     src/authenticate_request.cpp
     src/echo_request.cpp
+    src/get_contacts_request.cpp
     src/get_conversations_request.cpp
     src/get_messages_request.cpp
     src/get_unread_count_request.cpp
     src/mark_read_request.cpp
     src/register_request.cpp
     src/send_message_request.cpp
+    src/search_users_request.cpp
     src/json_rpc.cpp
     src/online_users.cpp
     src/pg_connection.cpp

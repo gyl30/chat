@@ -13,11 +13,16 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
+#include <QMessageBox>
 #include <QModelIndex>
 #include <QPushButton>
+#include <QRegularExpression>
+#include <QSortFilterProxyModel>
 #include <QScrollBar>
 #include <QSize>
 #include <QSizePolicy>
+#include <QStackedWidget>
+#include <QStyle>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -29,6 +34,8 @@
 #include "message_delegate.hpp"
 #include "message_model.hpp"
 #include "theme.hpp"
+#include "user_delegate.hpp"
+#include "user_model.hpp"
 
 namespace
 {
@@ -49,6 +56,15 @@ QToolButton* make_navigation_button(
     button->setFixedSize(64, 64);
     button->setCursor(enabled ? Qt::PointingHandCursor : Qt::ArrowCursor);
     return button;
+}
+
+void set_navigation_button(QToolButton* button, QStringView icon, bool selected)
+{
+    button->setObjectName(selected ? QStringLiteral("navigationSelected") : QStringLiteral("navigationButton"));
+    button->setIcon(svg_icon(
+        icon, selected ? QColor(QStringLiteral("#FFFFFF")) : QColor(QStringLiteral("#C4D2CB")), QSize(23, 23)));
+    button->style()->unpolish(button);
+    button->style()->polish(button);
 }
 
 QFrame* make_separator(QWidget* parent)
@@ -81,12 +97,12 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     brand->setFixedWidth(64);
     navigation_layout->addWidget(brand, 0, Qt::AlignHCenter);
     navigation_layout->addSpacing(14);
-    navigation_layout->addWidget(
-        make_navigation_button(QStringLiteral("聊天"), QStringLiteral("chat"), navigation_panel, true, true),
-        0, Qt::AlignHCenter);
-    navigation_layout->addWidget(
-        make_navigation_button(QStringLiteral("联系人"), QStringLiteral("contacts"), navigation_panel, false, false),
-        0, Qt::AlignHCenter);
+    chats_navigation_ =
+        make_navigation_button(QStringLiteral("聊天"), QStringLiteral("chat"), navigation_panel, true, true);
+    navigation_layout->addWidget(chats_navigation_, 0, Qt::AlignHCenter);
+    contacts_navigation_ =
+        make_navigation_button(QStringLiteral("联系人"), QStringLiteral("contacts"), navigation_panel, false, true);
+    navigation_layout->addWidget(contacts_navigation_, 0, Qt::AlignHCenter);
     navigation_layout->addWidget(
         make_navigation_button(QStringLiteral("群组"), QStringLiteral("groups"), navigation_panel, false, false),
         0, Qt::AlignHCenter);
@@ -97,6 +113,10 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
         make_navigation_button(QStringLiteral("收藏"), QStringLiteral("bookmark"), navigation_panel, false, false),
         0, Qt::AlignHCenter);
     navigation_layout->addStretch();
+
+    logout_navigation_ =
+        make_navigation_button(QStringLiteral("退出"), QStringLiteral("close"), navigation_panel, false, true);
+    navigation_layout->addWidget(logout_navigation_, 0, Qt::AlignHCenter);
 
     profile_avatar_ = new QLabel(QStringLiteral("?"), navigation_panel);
     profile_avatar_->setObjectName(QStringLiteral("profileAvatar"));
@@ -112,19 +132,41 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     conversation_layout->setSpacing(0);
 
     auto* conversation_header = new QFrame(conversation_panel);
-    auto* conversation_header_layout = new QVBoxLayout(conversation_header);
-    conversation_header_layout->setContentsMargins(18, 20, 14, 10);
-    conversation_header_layout->setSpacing(5);
-    auto* conversations_title = new QLabel(QStringLiteral("消息"), conversation_header);
-    conversations_title->setObjectName(QStringLiteral("sectionTitle"));
-    conversation_header_layout->addWidget(conversations_title);
-    conversations_status_ = new QLabel(conversation_header);
-    conversations_status_->setObjectName(QStringLiteral("subtleText"));
-    conversation_header_layout->addWidget(conversations_status_);
+    auto* conversation_header_layout = new QHBoxLayout(conversation_header);
+    conversation_header_layout->setContentsMargins(12, 16, 12, 8);
+    conversation_header_layout->setSpacing(6);
+    sidebar_back_button_ = new QToolButton(conversation_header);
+    sidebar_back_button_->setObjectName(QStringLiteral("sidebarHeaderButton"));
+    sidebar_back_button_->setText(QStringLiteral("‹"));
+    sidebar_back_button_->setFixedSize(32, 32);
+    sidebar_back_button_->setCursor(Qt::PointingHandCursor);
+    sidebar_back_button_->hide();
+    conversation_header_layout->addWidget(sidebar_back_button_);
+    section_title_ = new QLabel(QStringLiteral("消息"), conversation_header);
+    section_title_->setObjectName(QStringLiteral("sectionTitle"));
+    conversation_header_layout->addWidget(section_title_);
+    conversation_header_layout->addStretch();
+    add_contact_button_ = new QToolButton(conversation_header);
+    add_contact_button_->setObjectName(QStringLiteral("sidebarTextButton"));
+    add_contact_button_->setText(QStringLiteral("添加联系人"));
+    add_contact_button_->setCursor(Qt::PointingHandCursor);
+    add_contact_button_->hide();
+    conversation_header_layout->addWidget(add_contact_button_);
     conversation_layout->addWidget(conversation_header);
 
+    sidebar_pages_ = new QStackedWidget(conversation_panel);
+
+    auto* conversations_page = new QWidget(sidebar_pages_);
+    auto* conversations_layout = new QVBoxLayout(conversations_page);
+    conversations_layout->setContentsMargins(0, 0, 0, 0);
+    conversations_layout->setSpacing(0);
+    conversations_status_ = new QLabel(conversations_page);
+    conversations_status_->setObjectName(QStringLiteral("subtleText"));
+    conversations_status_->setContentsMargins(18, 0, 14, 6);
+    conversations_layout->addWidget(conversations_status_);
+
     conversations_ = new conversation_model(this);
-    conversations_view_ = new QListView(conversation_panel);
+    conversations_view_ = new QListView(conversations_page);
     conversations_view_->setObjectName(QStringLiteral("conversationList"));
     conversations_view_->setModel(conversations_);
     auto* conversations_delegate = new conversation_delegate(conversations_view_);
@@ -135,7 +177,70 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     conversations_view_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     conversations_view_->setMouseTracking(true);
     conversations_view_->verticalScrollBar()->setSingleStep(24);
-    conversation_layout->addWidget(conversations_view_, 1);
+    conversations_layout->addWidget(conversations_view_, 1);
+    sidebar_pages_->addWidget(conversations_page);
+
+    auto* contacts_page = new QWidget(sidebar_pages_);
+    auto* contacts_layout = new QVBoxLayout(contacts_page);
+    contacts_layout->setContentsMargins(0, 0, 0, 0);
+    contacts_layout->setSpacing(0);
+    contact_search_ = new QLineEdit(contacts_page);
+    contact_search_->setObjectName(QStringLiteral("userSearchEdit"));
+    contact_search_->setPlaceholderText(QStringLiteral("搜索联系人"));
+    contact_search_->setClearButtonEnabled(false);
+    contacts_layout->addWidget(contact_search_);
+    contacts_status_ = new QLabel(QStringLiteral("暂无联系人"), contacts_page);
+    contacts_status_->setObjectName(QStringLiteral("subtleText"));
+    contacts_status_->setContentsMargins(18, 8, 14, 8);
+    contacts_layout->addWidget(contacts_status_);
+
+    contacts_ = new user_model(this);
+    contacts_filter_ = new QSortFilterProxyModel(this);
+    contacts_filter_->setSourceModel(contacts_);
+    contacts_filter_->setFilterRole(user_model::username_role);
+    contacts_filter_->setFilterCaseSensitivity(Qt::CaseInsensitive);
+    contacts_view_ = new QListView(contacts_page);
+    contacts_view_->setObjectName(QStringLiteral("userList"));
+    contacts_view_->setModel(contacts_filter_);
+    contacts_view_->setItemDelegate(new user_delegate(contacts_view_));
+    contacts_view_->setSelectionMode(QAbstractItemView::SingleSelection);
+    contacts_view_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    contacts_view_->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    contacts_view_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    contacts_view_->setMouseTracking(true);
+    contacts_view_->verticalScrollBar()->setSingleStep(24);
+    contacts_layout->addWidget(contacts_view_, 1);
+    sidebar_pages_->addWidget(contacts_page);
+
+    auto* add_contacts_page = new QWidget(sidebar_pages_);
+    auto* add_contacts_layout = new QVBoxLayout(add_contacts_page);
+    add_contacts_layout->setContentsMargins(0, 0, 0, 0);
+    add_contacts_layout->setSpacing(0);
+    add_user_search_ = new QLineEdit(add_contacts_page);
+    add_user_search_->setObjectName(QStringLiteral("userSearchEdit"));
+    add_user_search_->setPlaceholderText(QStringLiteral("搜索用户"));
+    add_user_search_->setClearButtonEnabled(false);
+    add_contacts_layout->addWidget(add_user_search_);
+    add_users_status_ = new QLabel(QStringLiteral("输入用户名搜索"), add_contacts_page);
+    add_users_status_->setObjectName(QStringLiteral("subtleText"));
+    add_users_status_->setContentsMargins(18, 8, 14, 8);
+    add_contacts_layout->addWidget(add_users_status_);
+
+    add_users_ = new user_model(this);
+    add_users_view_ = new QListView(add_contacts_page);
+    add_users_view_->setObjectName(QStringLiteral("userList"));
+    add_users_view_->setModel(add_users_);
+    add_users_view_->setItemDelegate(new user_delegate(add_users_view_));
+    add_users_view_->setSelectionMode(QAbstractItemView::SingleSelection);
+    add_users_view_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    add_users_view_->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    add_users_view_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    add_users_view_->setMouseTracking(true);
+    add_users_view_->verticalScrollBar()->setSingleStep(24);
+    add_contacts_layout->addWidget(add_users_view_, 1);
+    sidebar_pages_->addWidget(add_contacts_page);
+
+    conversation_layout->addWidget(sidebar_pages_, 1);
 
     auto* chat_panel = new QFrame(this);
     chat_panel->setObjectName(QStringLiteral("chatPanel"));
@@ -216,17 +321,34 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     layout->addWidget(make_separator(this));
     layout->addWidget(chat_panel, 1);
 
+    connect(chats_navigation_, &QToolButton::clicked, this, [this] { show_conversations_section(); });
+    connect(contacts_navigation_, &QToolButton::clicked, this, [this] { show_contacts_section(); });
+    connect(logout_navigation_, &QToolButton::clicked, this, [this] { emit logout_requested(); });
+    connect(sidebar_back_button_, &QToolButton::clicked, this, [this] { show_contacts_section(); });
+    connect(add_contact_button_, &QToolButton::clicked, this, [this] { show_add_contact_section(); });
+    connect(contact_search_, &QLineEdit::textChanged, this, [this](QString const& query) { filter_contacts(query); });
+    connect(contacts_view_, &QListView::clicked, this, [this](QModelIndex const& index) { select_contact(index); });
+    connect(add_user_search_, &QLineEdit::returnPressed, this, [this] { search_users(); });
+    connect(add_users_view_, &QListView::clicked, this, [this](QModelIndex const& index) { select_add_user(index); });
     connect(conversations_view_, &QListView::clicked, this, [this](QModelIndex const& index) { select_conversation(index); });
     connect(conversations_delegate, &conversation_delegate::avatar_clicked, this, [this](QModelIndex const& index) {
         if (auto const* item = conversations_->conversation_at(index))
         {
-            show_conversation_details(*item);
+            show_user_details(item->user, item->username);
         }
     });
     connect(messages_delegate, &message_delegate::avatar_clicked, this, [this](QModelIndex const&) {
-        show_conversation_details();
+        if (active_user_ > 0)
+        {
+            show_user_details(active_user_, active_username_);
+        }
     });
-    connect(chat_title_, &QPushButton::clicked, this, [this] { show_conversation_details(); });
+    connect(chat_title_, &QPushButton::clicked, this, [this] {
+        if (active_user_ > 0)
+        {
+            show_user_details(active_user_, active_username_);
+        }
+    });
     connect(send_button_, &QToolButton::clicked, this, [this] { send_current_message(); });
     connect(message_edit_, &QLineEdit::returnPressed, this, [this] { send_current_message(); });
     connect(messages_view_->verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int value) {
@@ -243,8 +365,20 @@ void chat_widget::set_user(QString const& username)
     profile_avatar_->setToolTip(username);
     profile_avatar_->setStyleSheet(QStringLiteral("background: %1;").arg(avatar_background(username).name()));
     active_user_ = 0;
+    active_username_.clear();
+    conversations_->set_conversations({});
+    conversations_view_->setCurrentIndex({});
+    conversations_status_->setText(QStringLiteral("暂无会话"));
     messages_->set_self_username(username);
     messages_->reset(0);
+    contacts_->set_users({});
+    contacts_filter_->setFilterRegularExpression(QRegularExpression{});
+    contact_search_->clear();
+    contacts_status_->setText(QStringLiteral("暂无联系人"));
+    add_users_->set_users({});
+    add_user_search_->clear();
+    add_users_status_->setText(QStringLiteral("输入用户名搜索"));
+    show_conversations_section();
     chat_title_->setText(QStringLiteral("聊天"));
     chat_title_->setIcon(QIcon{});
     chat_title_->setEnabled(false);
@@ -265,25 +399,66 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
     if (conversations_->rowCount() == 0)
     {
         conversations_status_->setText(QStringLiteral("暂无会话"));
+        conversations_view_->setCurrentIndex({});
         return;
     }
 
     conversations_status_->clear();
-    auto index = previous_user > 0 ? conversations_->index_for_user(previous_user) : QModelIndex{};
-    if (!index.isValid())
+    if (previous_user > 0)
     {
-        index = conversations_->index(0, 0);
+        auto const index = conversations_->index_for_user(previous_user);
+        if (!index.isValid())
+        {
+            conversations_view_->setCurrentIndex({});
+            conversations_view_->clearSelection();
+            return;
+        }
+
         conversations_view_->setCurrentIndex(index);
-        select_conversation(index);
+        if (auto const* item = conversations_->conversation_at(index))
+        {
+            active_username_ = item->username;
+            update_chat_header(item->username);
+        }
         return;
     }
 
+    auto const index = conversations_->index(0, 0);
     conversations_view_->setCurrentIndex(index);
-    auto const* item = conversations_->conversation_at(index);
-    if (item)
-    {
-        update_conversation_details(*item);
-    }
+    select_conversation(index);
+}
+
+void chat_widget::set_contacts(QList<user_data> contacts)
+{
+    contacts_->set_users(std::move(contacts));
+    filter_contacts(contact_search_->text());
+}
+
+void chat_widget::set_contacts_error(QString message)
+{
+    contacts_->set_users({});
+    contacts_status_->setText(std::move(message));
+}
+
+void chat_widget::set_add_contact_search_results(QList<user_data> users)
+{
+    add_users_->set_users(std::move(users));
+    add_users_status_->setText(add_users_->rowCount() == 0 ? QStringLiteral("没有找到可添加的用户") : QString{});
+}
+
+void chat_widget::set_add_contact_search_error(QString message)
+{
+    add_users_->set_users({});
+    add_users_status_->setText(std::move(message));
+}
+
+void chat_widget::finish_add_contact()
+{
+    add_user_search_->clear();
+    add_users_->set_users({});
+    add_users_status_->setText(QStringLiteral("输入用户名搜索"));
+    show_contacts_section();
+    contacts_status_->setText(QStringLiteral("正在加载…"));
 }
 
 void chat_widget::set_messages(qint64 user, QList<message_data> messages, bool older)
@@ -329,7 +504,7 @@ void chat_widget::add_message(qint64 user, message_data message)
     }
 }
 
-void chat_widget::add_sent_message(qint64 user, qint64 message, qint64 timestamp, QString text, bool realtime)
+void chat_widget::add_sent_message(qint64 user, qint64 message, qint64 timestamp, QString text)
 {
     if (user != active_user_)
     {
@@ -342,10 +517,6 @@ void chat_widget::add_sent_message(qint64 user, qint64 message, qint64 timestamp
     value.timestamp = timestamp;
     value.text = std::move(text);
     add_message(user, std::move(value));
-    if (!realtime)
-    {
-        set_message_status(QStringLiteral("消息已保存，对方当前未实时接收"));
-    }
 }
 
 void chat_widget::set_message_error(qint64 user, QString message)
@@ -361,16 +532,145 @@ qint64 chat_widget::active_user() const noexcept { return active_user_; }
 
 qint64 chat_widget::latest_message_id() const { return messages_->last_message_id(); }
 
-void chat_widget::select_conversation(QModelIndex const& index)
+void chat_widget::show_conversations_section()
 {
-    auto const* item = conversations_->conversation_at(index);
+    section_title_->setText(QStringLiteral("消息"));
+    sidebar_pages_->setCurrentIndex(0);
+    sidebar_back_button_->hide();
+    add_contact_button_->hide();
+    set_navigation_button(chats_navigation_, QStringLiteral("chat"), true);
+    set_navigation_button(contacts_navigation_, QStringLiteral("contacts"), false);
+}
+
+void chat_widget::show_contacts_section()
+{
+    section_title_->setText(QStringLiteral("联系人"));
+    sidebar_pages_->setCurrentIndex(1);
+    sidebar_back_button_->hide();
+    add_contact_button_->show();
+    set_navigation_button(chats_navigation_, QStringLiteral("chat"), false);
+    set_navigation_button(contacts_navigation_, QStringLiteral("contacts"), true);
+    contact_search_->setFocus();
+}
+
+void chat_widget::show_add_contact_section()
+{
+    section_title_->setText(QStringLiteral("添加联系人"));
+    sidebar_pages_->setCurrentIndex(2);
+    sidebar_back_button_->show();
+    add_contact_button_->hide();
+    set_navigation_button(chats_navigation_, QStringLiteral("chat"), false);
+    set_navigation_button(contacts_navigation_, QStringLiteral("contacts"), true);
+    add_user_search_->setFocus();
+}
+
+void chat_widget::filter_contacts(QString const& query)
+{
+    auto const trimmed = query.trimmed();
+    if (trimmed.isEmpty())
+    {
+        contacts_filter_->setFilterRegularExpression(QRegularExpression{});
+    }
+    else
+    {
+        auto const pattern = QStringLiteral("^") + QRegularExpression::escape(trimmed);
+        QRegularExpression expression(pattern, QRegularExpression::CaseInsensitiveOption);
+        contacts_filter_->setFilterRegularExpression(expression);
+    }
+
+    if (contacts_->rowCount() == 0)
+    {
+        contacts_status_->setText(QStringLiteral("暂无联系人"));
+    }
+    else if (contacts_filter_->rowCount() == 0)
+    {
+        contacts_status_->setText(QStringLiteral("没有匹配的联系人"));
+    }
+    else
+    {
+        contacts_status_->clear();
+    }
+}
+
+void chat_widget::search_users()
+{
+    auto const query = add_user_search_->text().trimmed();
+    if (query.isEmpty())
+    {
+        add_users_->set_users({});
+        add_users_status_->setText(QStringLiteral("输入用户名搜索"));
+        return;
+    }
+
+    add_users_status_->setText(QStringLiteral("正在搜索…"));
+    emit add_contact_search_requested(query);
+}
+
+void chat_widget::select_contact(QModelIndex const& index)
+{
+    auto const source_index = contacts_filter_->mapToSource(index);
+    auto const* item = contacts_->user_at(source_index);
+    if (item)
+    {
+        open_chat(item->id, item->username);
+    }
+}
+
+void chat_widget::select_add_user(QModelIndex const& index)
+{
+    auto const* item = add_users_->user_at(index);
     if (!item)
     {
         return;
     }
 
-    update_conversation_details(*item);
-    if (active_user_ == item->user)
+    auto const user = item->id;
+    auto const username = item->username;
+    QMessageBox confirm(QMessageBox::Question, QStringLiteral("添加联系人"),
+                        QStringLiteral("确定添加 %1 为联系人吗？").arg(username), QMessageBox::NoButton, this);
+    auto* add_button = confirm.addButton(QStringLiteral("添加"), QMessageBox::AcceptRole);
+    confirm.addButton(QStringLiteral("取消"), QMessageBox::RejectRole);
+    confirm.exec();
+    if (confirm.clickedButton() != add_button)
+    {
+        return;
+    }
+
+    add_users_status_->setText(QStringLiteral("正在添加…"));
+    emit contact_add_requested(user);
+}
+
+void chat_widget::select_conversation(QModelIndex const& index)
+{
+    auto const* item = conversations_->conversation_at(index);
+    if (item)
+    {
+        open_chat(item->user, item->username);
+    }
+}
+
+void chat_widget::open_chat(qint64 user, QString username)
+{
+    if (user <= 0)
+    {
+        return;
+    }
+
+    active_username_ = std::move(username);
+    update_chat_header(active_username_);
+
+    auto const conversation_index = conversations_->index_for_user(user);
+    if (conversation_index.isValid())
+    {
+        conversations_view_->setCurrentIndex(conversation_index);
+    }
+    else
+    {
+        conversations_view_->setCurrentIndex({});
+        conversations_view_->clearSelection();
+    }
+
+    if (active_user_ == user)
     {
         if (!messages_loaded_ && !messages_loading_)
         {
@@ -381,8 +681,8 @@ void chat_widget::select_conversation(QModelIndex const& index)
         return;
     }
 
-    active_user_ = item->user;
-    messages_->reset(active_user_, item->username);
+    active_user_ = user;
+    messages_->reset(active_user_, active_username_);
     messages_loaded_ = false;
     messages_loading_ = true;
     history_exhausted_ = false;
@@ -423,21 +723,16 @@ void chat_widget::send_current_message()
     emit send_message_requested(active_user_, std::move(text));
 }
 
-void chat_widget::show_conversation_details()
+void chat_widget::show_user_details(qint64 user, QString const& username)
 {
-    auto const index = conversations_->index_for_user(active_user_);
-    auto const* item = conversations_->conversation_at(index);
-    if (item)
+    if (user <= 0 || username.isEmpty())
     {
-        show_conversation_details(*item);
+        return;
     }
-}
 
-void chat_widget::show_conversation_details(conversation_data const& item)
-{
     QDialog dialog(this);
     dialog.setObjectName(QStringLiteral("profileDialog"));
-    dialog.setWindowTitle(item.username);
+    dialog.setWindowTitle(username);
     dialog.setWindowFlag(Qt::FramelessWindowHint);
     dialog.setModal(true);
     dialog.setFixedWidth(590);
@@ -464,16 +759,16 @@ void chat_widget::show_conversation_details(conversation_data const& item)
     top->addWidget(close_button);
     header_layout->addLayout(top);
 
-    auto* avatar = new QLabel(avatar_initial(item.username), header);
+    auto* avatar = new QLabel(avatar_initial(username), header);
     avatar->setObjectName(QStringLiteral("profileDialogAvatar"));
     avatar->setAlignment(Qt::AlignCenter);
     avatar->setFixedSize(104, 104);
     avatar->setStyleSheet(QStringLiteral(
         "background: %1; color: #315A4B; border-radius: 52px; font-size: 34px; font-weight: 700;")
-                              .arg(avatar_background(item.username).name()));
+                              .arg(avatar_background(username).name()));
     header_layout->addWidget(avatar, 0, Qt::AlignHCenter);
 
-    auto* name = new QLabel(item.username, header);
+    auto* name = new QLabel(username, header);
     name->setObjectName(QStringLiteral("profileDialogName"));
     name->setAlignment(Qt::AlignCenter);
     name->setWordWrap(true);
@@ -514,7 +809,7 @@ void chat_widget::show_conversation_details(conversation_data const& item)
     info_layout->setContentsMargins(34, 20, 34, 22);
     info_layout->setSpacing(5);
 
-    auto* username_value = new QLabel(item.username, info);
+    auto* username_value = new QLabel(username, info);
     username_value->setObjectName(QStringLiteral("profileInfoValue"));
     username_value->setTextInteractionFlags(Qt::TextSelectableByMouse);
     info_layout->addWidget(username_value);
@@ -524,8 +819,11 @@ void chat_widget::show_conversation_details(conversation_data const& item)
     layout->addWidget(info);
 
     connect(close_button, &QToolButton::clicked, &dialog, &QDialog::reject);
-    connect(message_button, &QToolButton::clicked, &dialog, &QDialog::accept);
-    connect(copy_username_button, &QToolButton::clicked, &dialog, [username = item.username] {
+    connect(message_button, &QToolButton::clicked, &dialog, [this, &dialog, user, username] {
+        dialog.accept();
+        open_chat(user, username);
+    });
+    connect(copy_username_button, &QToolButton::clicked, &dialog, [username] {
         QGuiApplication::clipboard()->setText(username);
     });
     dialog.exec();
@@ -537,9 +835,9 @@ void chat_widget::set_message_status(QString message)
     message_status_->setVisible(!message_status_->text().isEmpty());
 }
 
-void chat_widget::update_conversation_details(conversation_data const& item)
+void chat_widget::update_chat_header(QString const& username)
 {
-    chat_title_->setText(item.username);
-    chat_title_->setIcon(avatar_icon(item.username, 38));
+    chat_title_->setText(username);
+    chat_title_->setIcon(avatar_icon(username, 38));
     chat_title_->setEnabled(true);
 }

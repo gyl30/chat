@@ -49,6 +49,60 @@ QString chat_style_sheet()
         QPushButton#loginButton:disabled {
             background: #AEBDB6;
         }
+        QPushButton#registerButton {
+            min-height: 40px;
+            background: #FFFFFF;
+            color: #315A4B;
+            border: 1px solid #AFC0B8;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+        QPushButton#registerButton:hover {
+            background: #F0F4F1;
+            border-color: #789487;
+        }
+        QPushButton#registerButton:disabled {
+            color: #96A29C;
+            border-color: #D7DDD9;
+        }
+        QDialog#registrationDialog {
+            background: #FFFEFA;
+        }
+        QLabel#registrationTitle {
+            font-size: 22px;
+            font-weight: 700;
+            color: #294B3E;
+        }
+        QPushButton#registrationSubmitButton {
+            min-height: 40px;
+            background: #315A4B;
+            color: #FFFFFF;
+            border: 0;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+        QPushButton#registrationSubmitButton:hover {
+            background: #294D40;
+        }
+        QPushButton#registrationSubmitButton:disabled {
+            background: #AEBDB6;
+        }
+        QPushButton#registrationCancelButton {
+            min-height: 40px;
+            background: #FFFFFF;
+            color: #315A4B;
+            border: 1px solid #AFC0B8;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+        QPushButton#registrationCancelButton:hover {
+            background: #F0F4F1;
+            border-color: #789487;
+        }
+        QPushButton#registrationCancelButton:disabled {
+            color: #96A29C;
+            border-color: #D7DDD9;
+        }
         QFrame#navigationPanel {
             background: #294F40;
         }
@@ -91,6 +145,23 @@ QString chat_style_sheet()
             font-size: 20px;
             font-weight: 700;
             color: #27362F;
+        }
+        QToolButton#sidebarHeaderButton, QToolButton#sidebarTextButton {
+            border: 0;
+            background: transparent;
+            color: #315A4B;
+            font-weight: 600;
+        }
+        QToolButton#sidebarHeaderButton {
+            font-size: 26px;
+        }
+        QToolButton#sidebarTextButton {
+            padding: 6px 4px;
+            font-size: 13px;
+        }
+        QToolButton#sidebarHeaderButton:hover, QToolButton#sidebarTextButton:hover {
+            background: #EEF1ED;
+            border-radius: 8px;
         }
         QLabel#subtleText {
             color: #8B918D;
@@ -182,13 +253,24 @@ QString chat_style_sheet()
             background: #E8E4DB;
             border: 0;
         }
-        QListView#conversationList, QListView#messageList {
+        QListView#conversationList, QListView#userList, QListView#messageList {
             border: 0;
             outline: 0;
             background: transparent;
         }
-        QListView#conversationList {
+        QListView#conversationList, QListView#userList {
             padding: 0;
+        }
+        QLineEdit#userSearchEdit {
+            margin: 0 12px 0 12px;
+            min-height: 36px;
+            background: #F1F2EF;
+            border: 0;
+            border-radius: 18px;
+            padding: 0 14px;
+        }
+        QLineEdit#userSearchEdit:focus {
+            border: 1px solid #A9B8B1;
         }
         QListView#messageList {
             padding: 0 2px 6px 2px;

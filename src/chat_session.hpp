@@ -25,9 +25,13 @@ class chat_session
    private:
     boost::capy::task<simdjson::error_code> handle_authenticate(json_rpc_request& request, std::string& response);
 
+    boost::capy::task<simdjson::error_code> handle_add_contact(json_rpc_request& request, std::string& response);
+
     boost::capy::task<simdjson::error_code> handle_echo(json_rpc_request& request, std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_get_conversations(json_rpc_request& request, std::string& response);
+
+    boost::capy::task<simdjson::error_code> handle_get_contacts(json_rpc_request& request, std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_get_messages(json_rpc_request& request, std::string& response);
 
@@ -38,6 +42,8 @@ class chat_session
     boost::capy::task<simdjson::error_code> handle_register(json_rpc_request& request, std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_send_message(json_rpc_request& request, std::string& response);
+
+    boost::capy::task<simdjson::error_code> handle_search_users(json_rpc_request& request, std::string& response);
 
     bool enqueue_message(std::string message);
 

@@ -620,6 +620,74 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         }
         std::cout << "PASS unauthenticated get conversations rejected\n";
 
+        constexpr std::string_view unauthenticated_get_contacts =
+            R"({"jsonrpc":"2.0","method":"get_contacts","id":"contacts-auth-required"})";
+        auto [unauthenticated_get_contacts_write_ec] =
+            co_await send_websocket_text(socket, unauthenticated_get_contacts);
+        if (unauthenticated_get_contacts_write_ec)
+        {
+            std::cerr << "FAIL unauthenticated get contacts write\n";
+            co_return 1;
+        }
+
+        auto unauthenticated_get_contacts_reply_result = co_await receive_websocket_text(socket);
+        auto& [unauthenticated_get_contacts_read_ec, unauthenticated_get_contacts_reply] =
+            unauthenticated_get_contacts_reply_result;
+        constexpr std::string_view expected_unauthenticated_get_contacts_reply =
+            R"({"jsonrpc":"2.0","error":{"code":-32001,"message":"Authentication required"},"id":"contacts-auth-required"})";
+        if (unauthenticated_get_contacts_read_ec ||
+            unauthenticated_get_contacts_reply != expected_unauthenticated_get_contacts_reply)
+        {
+            std::cerr << "FAIL unauthenticated get contacts rejected\n";
+            co_return 1;
+        }
+        std::cout << "PASS unauthenticated get contacts rejected\n";
+
+        constexpr std::string_view unauthenticated_add_contact =
+            R"({"jsonrpc":"2.0","method":"add_contact","params":{"user":1},"id":"add-contact-auth-required"})";
+        auto [unauthenticated_add_contact_write_ec] =
+            co_await send_websocket_text(socket, unauthenticated_add_contact);
+        if (unauthenticated_add_contact_write_ec)
+        {
+            std::cerr << "FAIL unauthenticated add contact write\n";
+            co_return 1;
+        }
+
+        auto unauthenticated_add_contact_reply_result = co_await receive_websocket_text(socket);
+        auto& [unauthenticated_add_contact_read_ec, unauthenticated_add_contact_reply] =
+            unauthenticated_add_contact_reply_result;
+        constexpr std::string_view expected_unauthenticated_add_contact_reply =
+            R"({"jsonrpc":"2.0","error":{"code":-32001,"message":"Authentication required"},"id":"add-contact-auth-required"})";
+        if (unauthenticated_add_contact_read_ec ||
+            unauthenticated_add_contact_reply != expected_unauthenticated_add_contact_reply)
+        {
+            std::cerr << "FAIL unauthenticated add contact rejected\n";
+            co_return 1;
+        }
+        std::cout << "PASS unauthenticated add contact rejected\n";
+
+        constexpr std::string_view unauthenticated_search_users =
+            R"({"jsonrpc":"2.0","method":"search_users","params":{"query":"chat"},"id":"search-auth-required"})";
+        auto [unauthenticated_search_users_write_ec] = co_await send_websocket_text(socket, unauthenticated_search_users);
+        if (unauthenticated_search_users_write_ec)
+        {
+            std::cerr << "FAIL unauthenticated search users write\n";
+            co_return 1;
+        }
+
+        auto unauthenticated_search_users_reply_result = co_await receive_websocket_text(socket);
+        auto& [unauthenticated_search_users_read_ec, unauthenticated_search_users_reply] =
+            unauthenticated_search_users_reply_result;
+        constexpr std::string_view expected_unauthenticated_search_users_reply =
+            R"({"jsonrpc":"2.0","error":{"code":-32001,"message":"Authentication required"},"id":"search-auth-required"})";
+        if (unauthenticated_search_users_read_ec ||
+            unauthenticated_search_users_reply != expected_unauthenticated_search_users_reply)
+        {
+            std::cerr << "FAIL unauthenticated search users rejected\n";
+            co_return 1;
+        }
+        std::cout << "PASS unauthenticated search users rejected\n";
+
         constexpr std::string_view unauthenticated_get_unread_count =
             R"({"jsonrpc":"2.0","method":"get_unread_count","params":{"user":1},"id":"unread-auth-required"})";
         auto [unauthenticated_get_unread_count_write_ec] = co_await send_websocket_text(socket, unauthenticated_get_unread_count);
@@ -761,6 +829,26 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
             co_return 1;
         }
         std::cout << "PASS repeated authentication rejected\n";
+
+        constexpr std::string_view invalid_search_users =
+            R"({"jsonrpc":"2.0","method":"search_users","params":{"query":""},"id":"search-invalid"})";
+        auto [invalid_search_users_write_ec] = co_await send_websocket_text(socket, invalid_search_users);
+        if (invalid_search_users_write_ec)
+        {
+            std::cerr << "FAIL invalid search users write\n";
+            co_return 1;
+        }
+
+        auto invalid_search_users_reply_result = co_await receive_websocket_text(socket);
+        auto& [invalid_search_users_read_ec, invalid_search_users_reply] = invalid_search_users_reply_result;
+        constexpr std::string_view expected_invalid_search_users_reply =
+            R"({"jsonrpc":"2.0","error":{"code":-32602,"message":"Invalid params"},"id":"search-invalid"})";
+        if (invalid_search_users_read_ec || invalid_search_users_reply != expected_invalid_search_users_reply)
+        {
+            std::cerr << "FAIL invalid search users rejected\n";
+            co_return 1;
+        }
+        std::cout << "PASS invalid search users rejected\n";
 
         constexpr std::string_view invalid_get_messages =
             R"({"jsonrpc":"2.0","method":"get_messages","params":{"user":0},"id":"messages-invalid"})";
@@ -1352,6 +1440,21 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
 
     auto const& source_user_id = source_user->front();
     auto const& peer_user_id = peer_user->front();
+
+    std::vector<std::string> contact_cleanup_parameters;
+    contact_cleanup_parameters.push_back(source_user_id);
+    auto contact_cleanup_result = co_await fixture_connection.execute_scalar(
+        "WITH deleted AS (DELETE FROM contacts WHERE owner_id = $1::bigint RETURNING 1) "
+        "SELECT count(*)::text FROM deleted",
+        std::move(contact_cleanup_parameters));
+    auto& [contact_cleanup_ec, contact_cleanup_count] = contact_cleanup_result;
+    (void)contact_cleanup_count;
+    if (contact_cleanup_ec)
+    {
+        std::cerr << "FAIL contacts fixture cleanup: " << fixture_connection.error_message() << '\n';
+        co_return 1;
+    }
+
     boost::corosio::tcp_socket source_socket(io_context);
     auto source_connect_result = co_await connect(source_socket, port);
     auto& [source_connect_ec] = source_connect_result;
@@ -1378,6 +1481,136 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         std::cerr << "FAIL peer routing source authentication\n";
         co_return 1;
     }
+
+    constexpr std::string_view empty_contacts_request =
+        R"({"jsonrpc":"2.0","method":"get_contacts","id":"contacts-empty"})";
+    auto empty_contacts_write_result = co_await send_websocket_text(source_socket, empty_contacts_request);
+    auto& [empty_contacts_write_ec] = empty_contacts_write_result;
+    if (empty_contacts_write_ec)
+    {
+        std::cerr << "FAIL empty contacts write\n";
+        co_return 1;
+    }
+
+    auto empty_contacts_reply_result = co_await receive_websocket_text(source_socket);
+    auto& [empty_contacts_read_ec, empty_contacts_reply] = empty_contacts_reply_result;
+    constexpr std::string_view expected_empty_contacts_reply =
+        R"({"jsonrpc":"2.0","result":{"users":[]},"id":"contacts-empty"})";
+    if (empty_contacts_read_ec || empty_contacts_reply != expected_empty_contacts_reply)
+    {
+        std::cerr << "FAIL empty contacts\n";
+        co_return 1;
+    }
+    std::cout << "PASS empty contacts\n";
+
+    constexpr std::string_view search_users_request =
+        R"({"jsonrpc":"2.0","method":"search_users","params":{"query":"chat_server_p"},"id":"peer-search"})";
+    auto search_users_write_result = co_await send_websocket_text(source_socket, search_users_request);
+    auto& [search_users_write_ec] = search_users_write_result;
+    if (search_users_write_ec)
+    {
+        std::cerr << "FAIL user search write\n";
+        co_return 1;
+    }
+
+    auto search_users_reply_result = co_await receive_websocket_text(source_socket);
+    auto& [search_users_read_ec, search_users_reply] = search_users_reply_result;
+    std::string expected_search_users_reply = R"({"jsonrpc":"2.0","result":{"users":[{"id":)";
+    expected_search_users_reply.append(peer_user_id);
+    expected_search_users_reply.append(R"(,"username":"chat_server_peer"}]},"id":"peer-search"})");
+    if (search_users_read_ec || search_users_reply != expected_search_users_reply)
+    {
+        std::cerr << "FAIL user search\n";
+        co_return 1;
+    }
+    std::cout << "PASS user search\n";
+
+    constexpr std::string_view self_search_request =
+        R"({"jsonrpc":"2.0","method":"search_users","params":{"query":"chat_server_test"},"id":"self-search"})";
+    auto self_search_write_result = co_await send_websocket_text(source_socket, self_search_request);
+    auto& [self_search_write_ec] = self_search_write_result;
+    if (self_search_write_ec)
+    {
+        std::cerr << "FAIL self user search write\n";
+        co_return 1;
+    }
+
+    auto self_search_reply_result = co_await receive_websocket_text(source_socket);
+    auto& [self_search_read_ec, self_search_reply] = self_search_reply_result;
+    constexpr std::string_view expected_self_search_reply =
+        R"({"jsonrpc":"2.0","result":{"users":[]},"id":"self-search"})";
+    if (self_search_read_ec || self_search_reply != expected_self_search_reply)
+    {
+        std::cerr << "FAIL self user search exclusion\n";
+        co_return 1;
+    }
+    std::cout << "PASS self user search exclusion\n";
+
+    std::string add_contact_request = R"({"jsonrpc":"2.0","method":"add_contact","params":{"user":)";
+    add_contact_request.append(peer_user_id);
+    add_contact_request.append(R"(},"id":"contact-add"})");
+    auto add_contact_write_result = co_await send_websocket_text(source_socket, add_contact_request);
+    auto& [add_contact_write_ec] = add_contact_write_result;
+    if (add_contact_write_ec)
+    {
+        std::cerr << "FAIL add contact write\n";
+        co_return 1;
+    }
+
+    auto add_contact_reply_result = co_await receive_websocket_text(source_socket);
+    auto& [add_contact_read_ec, add_contact_reply] = add_contact_reply_result;
+    std::string expected_add_contact_reply = R"({"jsonrpc":"2.0","result":{"user":{"id":)";
+    expected_add_contact_reply.append(peer_user_id);
+    expected_add_contact_reply.append(R"(,"username":"chat_server_peer"}},"id":"contact-add"})");
+    if (add_contact_read_ec || add_contact_reply != expected_add_contact_reply)
+    {
+        std::cerr << "FAIL add contact\n";
+        co_return 1;
+    }
+    std::cout << "PASS add contact\n";
+
+    constexpr std::string_view contacts_request =
+        R"({"jsonrpc":"2.0","method":"get_contacts","id":"contacts-list"})";
+    auto contacts_write_result = co_await send_websocket_text(source_socket, contacts_request);
+    auto& [contacts_write_ec] = contacts_write_result;
+    if (contacts_write_ec)
+    {
+        std::cerr << "FAIL contacts list write\n";
+        co_return 1;
+    }
+
+    auto contacts_reply_result = co_await receive_websocket_text(source_socket);
+    auto& [contacts_read_ec, contacts_reply] = contacts_reply_result;
+    std::string expected_contacts_reply = R"({"jsonrpc":"2.0","result":{"users":[{"id":)";
+    expected_contacts_reply.append(peer_user_id);
+    expected_contacts_reply.append(R"(,"username":"chat_server_peer"}]},"id":"contacts-list"})");
+    if (contacts_read_ec || contacts_reply != expected_contacts_reply)
+    {
+        std::cerr << "FAIL contacts list\n";
+        co_return 1;
+    }
+    std::cout << "PASS contacts list\n";
+
+    constexpr std::string_view existing_contact_search =
+        R"({"jsonrpc":"2.0","method":"search_users","params":{"query":"chat_server_p"},"id":"contact-search-existing"})";
+    auto existing_contact_search_write_result = co_await send_websocket_text(source_socket, existing_contact_search);
+    auto& [existing_contact_search_write_ec] = existing_contact_search_write_result;
+    if (existing_contact_search_write_ec)
+    {
+        std::cerr << "FAIL existing contact search write\n";
+        co_return 1;
+    }
+
+    auto existing_contact_search_reply_result = co_await receive_websocket_text(source_socket);
+    auto& [existing_contact_search_read_ec, existing_contact_search_reply] = existing_contact_search_reply_result;
+    constexpr std::string_view expected_existing_contact_search_reply =
+        R"({"jsonrpc":"2.0","result":{"users":[]},"id":"contact-search-existing"})";
+    if (existing_contact_search_read_ec || existing_contact_search_reply != expected_existing_contact_search_reply)
+    {
+        std::cerr << "FAIL existing contact search exclusion\n";
+        co_return 1;
+    }
+    std::cout << "PASS existing contact search exclusion\n";
 
     std::string offline_send_request = R"({"jsonrpc":"2.0","method":"send_message","params":{"user":)";
     offline_send_request.append(peer_user_id);

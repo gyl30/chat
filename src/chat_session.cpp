@@ -8,14 +8,17 @@
 namespace
 {
 
+constexpr std::string_view kAddContactMethod = "add_contact";
 constexpr std::string_view kAuthenticateMethod = "authenticate";
 constexpr std::string_view kEchoMethod = "echo";
+constexpr std::string_view kGetContactsMethod = "get_contacts";
 constexpr std::string_view kGetConversationsMethod = "get_conversations";
 constexpr std::string_view kGetMessagesMethod = "get_messages";
 constexpr std::string_view kGetUnreadCountMethod = "get_unread_count";
 constexpr std::string_view kMarkReadMethod = "mark_read";
 constexpr std::string_view kRegisterMethod = "register";
 constexpr std::string_view kSendMessageMethod = "send_message";
+constexpr std::string_view kSearchUsersMethod = "search_users";
 constexpr std::size_t kMaxQueuedMessages = 64;
 
 }    // namespace
@@ -81,13 +84,21 @@ boost::capy::task<void> chat_session::run()
 
         if (response.empty())
         {
-            if (request.method == kAuthenticateMethod)
+            if (request.method == kAddContactMethod)
+            {
+                rpc_error = co_await handle_add_contact(request, response);
+            }
+            else if (request.method == kAuthenticateMethod)
             {
                 rpc_error = co_await handle_authenticate(request, response);
             }
             else if (request.method == kEchoMethod)
             {
                 rpc_error = co_await handle_echo(request, response);
+            }
+            else if (request.method == kGetContactsMethod)
+            {
+                rpc_error = co_await handle_get_contacts(request, response);
             }
             else if (request.method == kGetConversationsMethod)
             {
@@ -112,6 +123,10 @@ boost::capy::task<void> chat_session::run()
             else if (request.method == kSendMessageMethod)
             {
                 rpc_error = co_await handle_send_message(request, response);
+            }
+            else if (request.method == kSearchUsersMethod)
+            {
+                rpc_error = co_await handle_search_users(request, response);
             }
             else if (request.id.present)
             {

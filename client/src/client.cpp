@@ -79,6 +79,26 @@ std::optional<std::uint64_t> parse_uint64(boost::json::value const& value)
     return std::nullopt;
 }
 
+bool parse_user(boost::json::object const& object, user& value)
+{
+    auto const* id_value = object.if_contains("id");
+    auto const* username_value = object.if_contains("username");
+    if (!id_value || !username_value || !username_value->is_string())
+    {
+        return false;
+    }
+
+    auto id = parse_int64(*id_value);
+    if (!id || *id <= 0)
+    {
+        return false;
+    }
+
+    value.id = *id;
+    value.username = std::string(username_value->as_string());
+    return true;
+}
+
 bool parse_message(boost::json::object const& object, message& value)
 {
     auto const* id_value = object.if_contains("id");
@@ -461,6 +481,43 @@ struct client::impl
         co_return;
     }
 
+    boost::capy::task<> register_user(std::string username, std::string password, register_handler handler)
+    {
+        boost::json::object params;
+        params.emplace("username", std::move(username));
+        params.emplace("password", std::move(password));
+
+        send_request("register", std::move(params), [handler = std::move(handler)](auto response) mutable {
+            if (!response)
+            {
+                handler(std::unexpected(std::move(response.error())));
+                return;
+            }
+            if (!response->is_object())
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid register result")));
+                return;
+            }
+
+            auto const* user_value = response->as_object().if_contains("user");
+            if (!user_value)
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid register result")));
+                return;
+            }
+
+            auto user = parse_int64(*user_value);
+            if (!user || *user <= 0)
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid register result")));
+                return;
+            }
+            handler(*user);
+        });
+
+        co_return;
+    }
+
     boost::capy::task<> get_conversations(std::optional<std::int64_t> before, conversations_handler handler)
     {
         boost::json::object params;
@@ -544,6 +601,52 @@ struct client::impl
             }
 
             handler(std::move(conversations));
+        });
+
+        co_return;
+    }
+
+    boost::capy::task<> get_contacts(users_handler handler)
+    {
+        send_request("get_contacts", {}, [handler = std::move(handler)](auto response) mutable {
+            if (!response)
+            {
+                handler(std::unexpected(std::move(response.error())));
+                return;
+            }
+            if (!response->is_object())
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid get_contacts result")));
+                return;
+            }
+
+            auto const* users_value = response->as_object().if_contains("users");
+            if (!users_value || !users_value->is_array())
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid get_contacts result")));
+                return;
+            }
+
+            std::vector<user> users;
+            users.reserve(users_value->as_array().size());
+            for (auto const& value : users_value->as_array())
+            {
+                if (!value.is_object())
+                {
+                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid user")));
+                    return;
+                }
+
+                user item;
+                if (!parse_user(value.as_object(), item))
+                {
+                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid user")));
+                    return;
+                }
+                users.push_back(std::move(item));
+            }
+
+            handler(std::move(users));
         });
 
         co_return;
@@ -648,6 +751,92 @@ struct client::impl
         co_return;
     }
 
+    boost::capy::task<> search_users(std::string query, users_handler handler)
+    {
+        boost::json::object params;
+        params.emplace("query", std::move(query));
+
+        send_request("search_users", std::move(params), [handler = std::move(handler)](auto response) mutable {
+            if (!response)
+            {
+                handler(std::unexpected(std::move(response.error())));
+                return;
+            }
+            if (!response->is_object())
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid search_users result")));
+                return;
+            }
+
+            auto const* users_value = response->as_object().if_contains("users");
+            if (!users_value || !users_value->is_array())
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid search_users result")));
+                return;
+            }
+
+            std::vector<user> users;
+            users.reserve(users_value->as_array().size());
+            for (auto const& value : users_value->as_array())
+            {
+                if (!value.is_object())
+                {
+                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid user")));
+                    return;
+                }
+
+                user item;
+                if (!parse_user(value.as_object(), item))
+                {
+                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid user")));
+                    return;
+                }
+                users.push_back(std::move(item));
+            }
+
+            handler(std::move(users));
+        });
+
+        co_return;
+    }
+
+    boost::capy::task<> add_contact(std::int64_t contact, user_handler handler)
+    {
+        boost::json::object params;
+        params.emplace("user", contact);
+
+        send_request("add_contact", std::move(params), [handler = std::move(handler)](auto response) mutable {
+            if (!response)
+            {
+                handler(std::unexpected(std::move(response.error())));
+                return;
+            }
+            if (!response->is_object())
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid add_contact result")));
+                return;
+            }
+
+            auto const* user_value = response->as_object().if_contains("user");
+            if (!user_value || !user_value->is_object())
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid add_contact result")));
+                return;
+            }
+
+            user value;
+            if (!parse_user(user_value->as_object(), value))
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid user")));
+                return;
+            }
+
+            handler(std::move(value));
+        });
+
+        co_return;
+    }
+
     boost::capy::task<> mark_read(std::int64_t user, std::int64_t message_id, mark_read_handler handler)
     {
         boost::json::object params;
@@ -747,9 +936,19 @@ void client::authenticate(std::string username, std::string password, authentica
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->authenticate(std::move(username), std::move(password), std::move(handler)));
 }
 
+void client::register_user(std::string username, std::string password, register_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->register_user(std::move(username), std::move(password), std::move(handler)));
+}
+
 void client::get_conversations(std::optional<std::int64_t> before, conversations_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_conversations(before, std::move(handler)));
+}
+
+void client::get_contacts(users_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_contacts(std::move(handler)));
 }
 
 void client::get_messages(std::int64_t user, std::optional<std::int64_t> before, messages_handler handler)
@@ -760,6 +959,16 @@ void client::get_messages(std::int64_t user, std::optional<std::int64_t> before,
 void client::send_message(std::int64_t user, std::string text, send_message_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->send_message(user, std::move(text), std::move(handler)));
+}
+
+void client::search_users(std::string query, users_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->search_users(std::move(query), std::move(handler)));
+}
+
+void client::add_contact(std::int64_t user, user_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->add_contact(user, std::move(handler)));
 }
 
 void client::mark_read(std::int64_t user, std::int64_t message, mark_read_handler handler)

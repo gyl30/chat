@@ -12,6 +12,7 @@
 #include "conversation.hpp"
 #include "error.hpp"
 #include "message.hpp"
+#include "user.hpp"
 
 namespace chat
 {
@@ -22,9 +23,12 @@ class client
     using connection_handler = std::function<void()>;
     using error_handler = std::function<void(error const&)>;
     using authenticate_handler = std::function<void(std::expected<bool, error>)>;
+    using register_handler = std::function<void(std::expected<std::int64_t, error>)>;
     using conversations_handler = std::function<void(std::expected<std::vector<conversation>, error>)>;
     using messages_handler = std::function<void(std::expected<std::vector<message>, error>)>;
     using send_message_handler = std::function<void(std::expected<send_message_result, error>)>;
+    using users_handler = std::function<void(std::expected<std::vector<user>, error>)>;
+    using user_handler = std::function<void(std::expected<user, error>)>;
     using mark_read_handler = std::function<void(std::expected<std::int64_t, error>)>;
     using message_handler = std::function<void(message)>;
 
@@ -45,9 +49,13 @@ class client
     void close();
 
     void authenticate(std::string username, std::string password, authenticate_handler handler);
+    void register_user(std::string username, std::string password, register_handler handler);
     void get_conversations(std::optional<std::int64_t> before, conversations_handler handler);
+    void get_contacts(users_handler handler);
     void get_messages(std::int64_t user, std::optional<std::int64_t> before, messages_handler handler);
     void send_message(std::int64_t user, std::string text, send_message_handler handler);
+    void search_users(std::string query, users_handler handler);
+    void add_contact(std::int64_t user, user_handler handler);
     void mark_read(std::int64_t user, std::int64_t message, mark_read_handler handler);
 
    private:

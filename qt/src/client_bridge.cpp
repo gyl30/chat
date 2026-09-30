@@ -43,6 +43,8 @@ client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::ma
     qRegisterMetaType<QList<conversation_data>>();
     qRegisterMetaType<message_data>();
     qRegisterMetaType<QList<message_data>>();
+    qRegisterMetaType<user_data>();
+    qRegisterMetaType<QList<user_data>>();
     client_->set_connected_handler([this] { emit connected(); });
     client_->set_disconnected_handler([this] { emit disconnected(); });
     client_->set_error_handler([this](chat::error const& value) { emit error(from_utf8(value.message)); });
@@ -64,6 +66,18 @@ void client_bridge::authenticate(QString const& username, QString const& passwor
             return;
         }
         emit authentication_finished(*result, {});
+    });
+}
+
+void client_bridge::register_user(QString const& username, QString const& password)
+{
+    client_->register_user(to_utf8(username), to_utf8(password), [this](std::expected<std::int64_t, chat::error> result) {
+        if (!result)
+        {
+            emit registration_finished(0, from_utf8(result.error().message));
+            return;
+        }
+        emit registration_finished(*result, {});
     });
 }
 
@@ -91,6 +105,28 @@ void client_bridge::get_conversations()
             conversations.push_back(std::move(value));
         }
         emit conversations_received(std::move(conversations), {});
+    });
+}
+
+void client_bridge::get_contacts()
+{
+    client_->get_contacts([this](std::expected<std::vector<chat::user>, chat::error> result) {
+        if (!result)
+        {
+            emit contacts_received({}, from_utf8(result.error().message));
+            return;
+        }
+
+        QList<user_data> contacts;
+        contacts.reserve(static_cast<qsizetype>(result->size()));
+        for (auto const& item : *result)
+        {
+            user_data value;
+            value.id = item.id;
+            value.username = from_utf8(item.username);
+            contacts.push_back(std::move(value));
+        }
+        emit contacts_received(std::move(contacts), {});
     });
 }
 
@@ -124,6 +160,44 @@ void client_bridge::send_message(qint64 user, QString text)
             return;
         }
         emit message_sent(user, std::move(text), result->message_id, result->timestamp, result->realtime, {});
+    });
+}
+
+void client_bridge::search_users(QString query)
+{
+    client_->search_users(to_utf8(query), [this](std::expected<std::vector<chat::user>, chat::error> result) {
+        if (!result)
+        {
+            emit users_received({}, from_utf8(result.error().message));
+            return;
+        }
+
+        QList<user_data> users;
+        users.reserve(static_cast<qsizetype>(result->size()));
+        for (auto const& item : *result)
+        {
+            user_data value;
+            value.id = item.id;
+            value.username = from_utf8(item.username);
+            users.push_back(std::move(value));
+        }
+        emit users_received(std::move(users), {});
+    });
+}
+
+void client_bridge::add_contact(qint64 user)
+{
+    client_->add_contact(user, [this](std::expected<chat::user, chat::error> result) {
+        if (!result)
+        {
+            emit contact_added({}, from_utf8(result.error().message));
+            return;
+        }
+
+        user_data value;
+        value.id = result->id;
+        value.username = from_utf8(result->username);
+        emit contact_added(std::move(value), {});
     });
 }
 
