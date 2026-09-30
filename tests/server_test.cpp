@@ -1033,7 +1033,7 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         expected_get_messages_reply.append(registered_user->front());
         expected_get_messages_reply.append(R"(,"timestamp":)");
         expected_get_messages_reply.append(self_message_row->at(4));
-        expected_get_messages_reply.append(R"(,"text":"hello self"}]},"id":"messages-latest"})");
+        expected_get_messages_reply.append(R"(,"text":"hello self"}],"read":0},"id":"messages-latest"})");
         if (get_messages_read_ec || get_messages_reply != expected_get_messages_reply)
         {
             std::cerr << "FAIL get messages latest\n";
@@ -1056,7 +1056,7 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         auto get_messages_before_reply_result = co_await receive_websocket_text(socket);
         auto& [get_messages_before_read_ec, get_messages_before_reply] = get_messages_before_reply_result;
         constexpr std::string_view expected_get_messages_before_reply =
-            R"({"jsonrpc":"2.0","result":{"messages":[]},"id":"messages-before"})";
+            R"({"jsonrpc":"2.0","result":{"messages":[],"read":0},"id":"messages-before"})";
         if (get_messages_before_read_ec || get_messages_before_reply != expected_get_messages_before_reply)
         {
             std::cerr << "FAIL get messages before cursor\n";
@@ -1733,7 +1733,7 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     expected_offline_history_reply.append(source_user_id);
     expected_offline_history_reply.append(R"(,"timestamp":)");
     expected_offline_history_reply.append(offline_message->at(2));
-    expected_offline_history_reply.append(R"(,"text":"offline hello"}]},"id":"peer-history"})");
+    expected_offline_history_reply.append(R"(,"text":"offline hello"}],"read":0},"id":"peer-history"})");
     if (offline_history_read_ec || offline_history_reply != expected_offline_history_reply)
     {
         std::cerr << "FAIL offline message history\n";
@@ -1787,6 +1787,20 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return 1;
     }
     std::cout << "PASS mark offline read\n";
+
+    auto offline_read_notification_result = co_await receive_websocket_text(source_socket);
+    auto& [offline_read_notification_ec, offline_read_notification] = offline_read_notification_result;
+    std::string expected_offline_read_notification = R"({"jsonrpc":"2.0","method":"read","params":{"user":)";
+    expected_offline_read_notification.append(peer_user_id);
+    expected_offline_read_notification.append(R"(,"message":)");
+    expected_offline_read_notification.append(offline_message->at(0));
+    expected_offline_read_notification.append("}}");
+    if (offline_read_notification_ec || offline_read_notification != expected_offline_read_notification)
+    {
+        std::cerr << "FAIL offline read notification\n";
+        co_return 1;
+    }
+    std::cout << "PASS offline read notification\n";
 
     std::string unread_after_read_request = R"({"jsonrpc":"2.0","method":"get_unread_count","params":{"user":)";
     unread_after_read_request.append(source_user_id);
@@ -1927,6 +1941,55 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     }
     std::cout << "PASS mark live read\n";
 
+    auto live_read_notification_result = co_await receive_websocket_text(source_socket);
+    auto& [live_read_notification_ec, live_read_notification] = live_read_notification_result;
+    std::string expected_live_read_notification = R"({"jsonrpc":"2.0","method":"read","params":{"user":)";
+    expected_live_read_notification.append(peer_user_id);
+    expected_live_read_notification.append(R"(,"message":)");
+    expected_live_read_notification.append(persisted_peer_message->at(0));
+    expected_live_read_notification.append("}}");
+    if (live_read_notification_ec || live_read_notification != expected_live_read_notification)
+    {
+        std::cerr << "FAIL live read notification\n";
+        co_return 1;
+    }
+    std::cout << "PASS live read notification\n";
+
+    std::string source_history_request = R"({"jsonrpc":"2.0","method":"get_messages","params":{"user":)";
+    source_history_request.append(peer_user_id);
+    source_history_request.append(R"(},"id":"source-history-read"})");
+    auto source_history_write_result = co_await send_websocket_text(source_socket, source_history_request);
+    auto& [source_history_write_ec] = source_history_write_result;
+    if (source_history_write_ec)
+    {
+        std::cerr << "FAIL source read history write\n";
+        co_return 1;
+    }
+
+    auto source_history_reply_result = co_await receive_websocket_text(source_socket);
+    auto& [source_history_read_ec, source_history_reply] = source_history_reply_result;
+    std::string expected_source_history_reply = R"({"jsonrpc":"2.0","result":{"messages":[{"id":)";
+    expected_source_history_reply.append(offline_message->at(0));
+    expected_source_history_reply.append(R"(,"from":)");
+    expected_source_history_reply.append(source_user_id);
+    expected_source_history_reply.append(R"(,"timestamp":)");
+    expected_source_history_reply.append(offline_message->at(2));
+    expected_source_history_reply.append(R"(,"text":"offline hello"},{"id":)");
+    expected_source_history_reply.append(persisted_peer_message->at(0));
+    expected_source_history_reply.append(R"(,"from":)");
+    expected_source_history_reply.append(source_user_id);
+    expected_source_history_reply.append(R"(,"timestamp":)");
+    expected_source_history_reply.append(persisted_peer_message->at(1));
+    expected_source_history_reply.append(R"(,"text":"peer hello"}],"read":)");
+    expected_source_history_reply.append(persisted_peer_message->at(0));
+    expected_source_history_reply.append(R"(},"id":"source-history-read"})");
+    if (source_history_read_ec || source_history_reply != expected_source_history_reply)
+    {
+        std::cerr << "FAIL source persisted read position\n";
+        co_return 1;
+    }
+    std::cout << "PASS source persisted read position\n";
+
     std::string unread_after_live_read_request = R"({"jsonrpc":"2.0","method":"get_unread_count","params":{"user":)";
     unread_after_live_read_request.append(source_user_id);
     unread_after_live_read_request.append(R"(},"id":"peer-unread-after-live-read"})");
@@ -2027,6 +2090,20 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     }
     std::cout << "PASS mark read monotonic\n";
 
+    auto monotonic_read_notification_result = co_await receive_websocket_text(source_socket);
+    auto& [monotonic_read_notification_ec, monotonic_read_notification] = monotonic_read_notification_result;
+    std::string expected_monotonic_read_notification = R"({"jsonrpc":"2.0","method":"read","params":{"user":)";
+    expected_monotonic_read_notification.append(peer_user_id);
+    expected_monotonic_read_notification.append(R"(,"message":)");
+    expected_monotonic_read_notification.append(persisted_peer_message->at(0));
+    expected_monotonic_read_notification.append("}}");
+    if (monotonic_read_notification_ec || monotonic_read_notification != expected_monotonic_read_notification)
+    {
+        std::cerr << "FAIL monotonic read notification\n";
+        co_return 1;
+    }
+    std::cout << "PASS monotonic read notification\n";
+
     std::string peer_history_request = R"({"jsonrpc":"2.0","method":"get_messages","params":{"user":)";
     peer_history_request.append(source_user_id);
     peer_history_request.append(R"(},"id":"peer-history-order"})");
@@ -2052,7 +2129,7 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     expected_peer_history_reply.append(source_user_id);
     expected_peer_history_reply.append(R"(,"timestamp":)");
     expected_peer_history_reply.append(persisted_peer_message->at(1));
-    expected_peer_history_reply.append(R"(,"text":"peer hello"}]},"id":"peer-history-order"})");
+    expected_peer_history_reply.append(R"(,"text":"peer hello"}],"read":0},"id":"peer-history-order"})");
     if (peer_history_read_ec || peer_history_reply != expected_peer_history_reply)
     {
         std::cerr << "FAIL peer message history order\n";

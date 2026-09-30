@@ -228,6 +228,24 @@ struct client::impl
         }
     }
 
+    void notify_read(std::int64_t user, std::int64_t message)
+    {
+        if (suppress_callbacks_.load())
+        {
+            return;
+        }
+
+        read_handler handler;
+        {
+            std::lock_guard lock(handler_mutex_);
+            handler = read_handler_;
+        }
+        if (handler)
+        {
+            handler(user, message);
+        }
+    }
+
     void fail_pending(error value)
     {
         auto pending = std::move(pending_);
@@ -282,19 +300,45 @@ struct client::impl
         {
             auto const* method = object.if_contains("method");
             auto const* params = object.if_contains("params");
-            if (!method || !method->is_string() || method->as_string() != "message" || !params || !params->is_object())
+            if (!method || !method->is_string() || !params || !params->is_object())
             {
                 report_error(make_error(error_kind::protocol, "Invalid JSON-RPC notification"));
                 return;
             }
 
-            message notification;
-            if (!parse_message(params->as_object(), notification))
+            if (method->as_string() == "message")
             {
-                report_error(make_error(error_kind::protocol, "Invalid message notification"));
+                message notification;
+                if (!parse_message(params->as_object(), notification))
+                {
+                    report_error(make_error(error_kind::protocol, "Invalid message notification"));
+                    return;
+                }
+                notify_message(std::move(notification));
                 return;
             }
-            notify_message(std::move(notification));
+
+            if (method->as_string() == "read")
+            {
+                auto const* user_value = params->as_object().if_contains("user");
+                auto const* message_value = params->as_object().if_contains("message");
+                if (!user_value || !message_value)
+                {
+                    report_error(make_error(error_kind::protocol, "Invalid read notification"));
+                    return;
+                }
+                auto user = parse_int64(*user_value);
+                auto read_message = parse_int64(*message_value);
+                if (!user || *user <= 0 || !read_message || *read_message <= 0)
+                {
+                    report_error(make_error(error_kind::protocol, "Invalid read notification"));
+                    return;
+                }
+                notify_read(*user, *read_message);
+                return;
+            }
+
+            report_error(make_error(error_kind::protocol, "Invalid JSON-RPC notification"));
             return;
         }
 
@@ -674,14 +718,22 @@ struct client::impl
             }
 
             auto const* messages_value = response->as_object().if_contains("messages");
-            if (!messages_value || !messages_value->is_array())
+            auto const* read_value = response->as_object().if_contains("read");
+            if (!messages_value || !messages_value->is_array() || !read_value)
             {
                 handler(std::unexpected(make_error(error_kind::protocol, "Invalid get_messages result")));
                 return;
             }
 
-            std::vector<message> messages;
-            messages.reserve(messages_value->as_array().size());
+            auto read_message = parse_int64(*read_value);
+            if (!read_message || *read_message < 0)
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid get_messages result")));
+                return;
+            }
+
+            messages_result result;
+            result.messages.reserve(messages_value->as_array().size());
             for (auto const& value : messages_value->as_array())
             {
                 if (!value.is_object())
@@ -696,10 +748,10 @@ struct client::impl
                     handler(std::unexpected(make_error(error_kind::protocol, "Invalid message")));
                     return;
                 }
-                messages.push_back(std::move(item));
+                result.messages.push_back(std::move(item));
             }
-
-            handler(std::move(messages));
+            result.read_message = *read_message;
+            handler(std::move(result));
         });
 
         co_return;
@@ -890,6 +942,7 @@ struct client::impl
     connection_handler disconnected_handler_;
     error_handler error_handler_;
     message_handler message_handler_;
+    read_handler read_handler_;
     std::atomic_bool suppress_callbacks_ = false;
 };
 
@@ -919,6 +972,12 @@ void client::set_message_handler(message_handler handler)
 {
     std::lock_guard lock(impl_->handler_mutex_);
     impl_->message_handler_ = std::move(handler);
+}
+
+void client::set_read_handler(read_handler handler)
+{
+    std::lock_guard lock(impl_->handler_mutex_);
+    impl_->read_handler_ = std::move(handler);
 }
 
 void client::connect(std::string url)

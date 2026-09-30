@@ -23,6 +23,11 @@ bool outgoing_at(QModelIndex const& index)
     return index.data(message_model::outgoing_role).toBool();
 }
 
+bool read_at(QModelIndex const& index)
+{
+    return index.data(message_model::read_role).toBool();
+}
+
 qint64 timestamp_at(QModelIndex const& index)
 {
     return index.data(message_model::timestamp_role).toLongLong();
@@ -142,6 +147,7 @@ struct message_layout
     QString sender;
     QString time;
     bool outgoing = false;
+    bool read = false;
     bool day_start = false;
     bool group_start = false;
     bool group_end = false;
@@ -151,6 +157,7 @@ struct message_layout
     int text_height = 0;
     int time_width = 0;
     int time_height = 0;
+    int receipt_width = 0;
     int bubble_width = 0;
     int bubble_height = 0;
     int day_height = 0;
@@ -164,6 +171,7 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     result.sender = index.data(message_model::sender_name_role).toString();
     result.time = time_text(index);
     result.outgoing = outgoing_at(index);
+    result.read = result.outgoing && read_at(index);
     result.day_start = starts_day(index);
     result.group_start = starts_group(index);
     result.group_end = ends_group(index);
@@ -180,14 +188,18 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     auto const time_metrics = QFontMetrics(time_font(option));
     result.time_width = result.time.isEmpty() ? 0 : time_metrics.horizontalAdvance(result.time);
     result.time_height = result.time.isEmpty() ? 0 : time_metrics.height();
+    result.receipt_width = result.outgoing ? 17 : 0;
+    auto const metadata_width = result.time_width
+        + ((result.time_width > 0 && result.receipt_width > 0) ? 3 : 0)
+        + result.receipt_width;
 
     auto const single_line = !result.text.contains(QLatin1Char('\n')) && one_line_width <= inner_max;
     if (single_line)
     {
         result.text_width = one_line_width;
         result.text_height = body_line_height;
-        result.time_on_text_line = result.time_width == 0
-            || result.text_width + chat_theme::message_time_gap + result.time_width <= inner_max;
+        result.time_on_text_line = metadata_width == 0
+            || result.text_width + chat_theme::message_time_gap + metadata_width <= inner_max;
     }
     else
     {
@@ -199,16 +211,16 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
 
     auto content_width = result.text_width;
     auto content_height = result.text_height;
-    if (result.time_width > 0)
+    if (metadata_width > 0)
     {
         if (result.time_on_text_line)
         {
-            content_width += chat_theme::message_time_gap + result.time_width;
+            content_width += chat_theme::message_time_gap + metadata_width;
             content_height = std::max(content_height, result.time_height);
         }
         else
         {
-            content_width = std::max(content_width, result.time_width);
+            content_width = std::max(content_width, metadata_width);
             content_height += 2 + result.time_height;
         }
     }
@@ -248,6 +260,34 @@ QPainterPath rounded_path(QRectF const& rect, qreal top_left, qreal top_right, q
     path.quadTo(rect.left(), rect.top(), rect.left() + top_left, rect.top());
     path.closeSubpath();
     return path;
+}
+
+void paint_receipt(QPainter& painter, QRect const& rect, bool read)
+{
+    auto pen = QPen(read ? QColor(QStringLiteral("#4C876C")) : QColor(QStringLiteral("#6E8877")));
+    pen.setWidthF(1.4);
+    pen.setCapStyle(Qt::RoundCap);
+    pen.setJoinStyle(Qt::RoundJoin);
+    painter.setPen(pen);
+    painter.setBrush(Qt::NoBrush);
+
+    auto draw_check = [&](int x) {
+        QPainterPath path;
+        path.moveTo(x, rect.center().y());
+        path.lineTo(x + 3, rect.center().y() + 3);
+        path.lineTo(x + 8, rect.center().y() - 3);
+        painter.drawPath(path);
+    };
+
+    if (read)
+    {
+        draw_check(rect.left());
+        draw_check(rect.left() + 5);
+    }
+    else
+    {
+        draw_check(rect.left() + 5);
+    }
 }
 
 QPainterPath bubble_path(QRect const& bubble, bool outgoing, bool group_start, bool group_end)
@@ -371,26 +411,43 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
 
     painter->setFont(option.font);
     painter->setPen(QColor(QStringLiteral("#26342E")));
-    auto const time_reserved = layout.time_on_text_line && layout.time_width > 0
-        ? chat_theme::message_time_gap + layout.time_width
+    auto const metadata_width = layout.time_width
+        + ((layout.time_width > 0 && layout.receipt_width > 0) ? 3 : 0)
+        + layout.receipt_width;
+    auto const time_reserved = layout.time_on_text_line && metadata_width > 0
+        ? chat_theme::message_time_gap + metadata_width
         : 0;
     QRect text_rect(content_left, content_top,
                     std::max(1, content_right - content_left - time_reserved),
                     layout.text_height);
     painter->drawText(text_rect, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, layout.text);
 
-    if (layout.time_width > 0)
+    if (metadata_width > 0)
     {
-        auto const font = time_font(option);
-        painter->setFont(font);
-        painter->setPen(layout.outgoing
-                            ? QColor(QStringLiteral("#6E8877"))
-                            : QColor(QStringLiteral("#89918D")));
-        auto const time_y = layout.time_on_text_line
+        auto const metadata_y = layout.time_on_text_line
             ? content_top + std::max(0, (layout.text_height - layout.time_height) / 2)
             : content_top + layout.text_height + 2;
-        QRect time_rect(content_right - layout.time_width, time_y, layout.time_width, layout.time_height);
-        painter->drawText(time_rect, Qt::AlignRight | Qt::AlignVCenter, layout.time);
+        auto metadata_x = content_right - metadata_width;
+        if (layout.time_width > 0)
+        {
+            auto const font = time_font(option);
+            painter->setFont(font);
+            painter->setPen(layout.outgoing
+                                ? QColor(QStringLiteral("#6E8877"))
+                                : QColor(QStringLiteral("#89918D")));
+            QRect time_rect(metadata_x, metadata_y, layout.time_width, layout.time_height);
+            painter->drawText(time_rect, Qt::AlignRight | Qt::AlignVCenter, layout.time);
+            metadata_x += layout.time_width;
+            if (layout.receipt_width > 0)
+            {
+                metadata_x += 3;
+            }
+        }
+        if (layout.receipt_width > 0)
+        {
+            QRect receipt_rect(metadata_x, metadata_y, layout.receipt_width, layout.time_height);
+            paint_receipt(*painter, receipt_rect, layout.read);
+        }
     }
 
     painter->restore();

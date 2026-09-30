@@ -18,6 +18,7 @@ class message_model final : public QAbstractListModel
         text_role,
         outgoing_role,
         sender_name_role,
+        read_role,
     };
 
     explicit message_model(QObject* parent = nullptr);
@@ -29,6 +30,7 @@ class message_model final : public QAbstractListModel
     void reset(qint64 peer_user, QString peer_username = {});
     int merge_messages(QList<message_data> messages);
     bool add_message(message_data message);
+    void set_read_message(qint64 message);
     qint64 first_message_id() const;
     qint64 last_message_id() const;
 
@@ -37,6 +39,7 @@ class message_model final : public QAbstractListModel
     QString self_username_;
     QString peer_username_;
     qint64 peer_user_ = 0;
+    qint64 read_message_ = 0;
 };
 
 #endif

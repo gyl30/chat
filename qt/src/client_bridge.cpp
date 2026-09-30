@@ -49,6 +49,7 @@ client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::ma
     client_->set_disconnected_handler([this] { emit disconnected(); });
     client_->set_error_handler([this](chat::error const& value) { emit error(from_utf8(value.message)); });
     client_->set_message_handler([this](chat::message message) { emit message_received(to_message_data(message)); });
+    client_->set_read_handler([this](std::int64_t user, std::int64_t message) { emit messages_read(user, message); });
 }
 
 client_bridge::~client_bridge() { client_.reset(); }
@@ -133,20 +134,20 @@ void client_bridge::get_contacts()
 void client_bridge::get_messages(qint64 user, std::optional<qint64> before)
 {
     auto request_before = before ? std::optional<std::int64_t>(*before) : std::nullopt;
-    client_->get_messages(user, request_before, [this, user, older = before.has_value()](std::expected<std::vector<chat::message>, chat::error> result) {
+    client_->get_messages(user, request_before, [this, user, older = before.has_value()](std::expected<chat::messages_result, chat::error> result) {
         if (!result)
         {
-            emit messages_received(user, {}, older, from_utf8(result.error().message));
+            emit messages_received(user, {}, 0, older, from_utf8(result.error().message));
             return;
         }
 
         QList<message_data> messages;
-        messages.reserve(static_cast<qsizetype>(result->size()));
-        for (auto const& item : *result)
+        messages.reserve(static_cast<qsizetype>(result->messages.size()));
+        for (auto const& item : result->messages)
         {
             messages.push_back(to_message_data(item));
         }
-        emit messages_received(user, std::move(messages), older, {});
+        emit messages_received(user, std::move(messages), result->read_message, older, {});
     });
 }
 

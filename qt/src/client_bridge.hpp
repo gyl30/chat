@@ -45,8 +45,9 @@ class client_bridge final : public QObject
     void registration_finished(qint64 user, QString error_message);
     void conversations_received(QList<conversation_data> conversations, QString error_message);
     void contacts_received(QList<user_data> contacts, QString error_message);
-    void messages_received(qint64 user, QList<message_data> messages, bool older, QString error_message);
+    void messages_received(qint64 user, QList<message_data> messages, qint64 read_message, bool older, QString error_message);
     void message_received(message_data message);
+    void messages_read(qint64 user, qint64 message);
     void message_sent(qint64 user, QString text, qint64 message, qint64 timestamp, bool realtime, QString error_message);
     void users_received(QList<user_data> users, QString error_message);
     void contact_added(user_data user, QString error_message);

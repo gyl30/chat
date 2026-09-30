@@ -130,6 +130,16 @@ boost::capy::task<simdjson::error_code> chat_session::handle_mark_read(json_rpc_
         read_message = std::move(row->front());
     }
 
+    if (auto* peer = users_.find(params.user))
+    {
+        std::string notification = R"({"jsonrpc":"2.0","method":"read","params":{"user":)";
+        notification.append(std::to_string(*user_id_));
+        notification.append(R"(,"message":)");
+        notification.append(read_message);
+        notification.append("}}");
+        peer->enqueue_message(std::move(notification));
+    }
+
     if (!request.id.present)
     {
         co_return simdjson::SUCCESS;

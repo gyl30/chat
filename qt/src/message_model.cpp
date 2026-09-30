@@ -35,6 +35,8 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             return outgoing;
         case sender_name_role:
             return outgoing ? self_username_ : peer_username_;
+        case read_role:
+            return outgoing && message.id <= read_message_;
         default:
             return {};
     }
@@ -47,6 +49,7 @@ void message_model::reset(qint64 peer_user, QString peer_username)
     beginResetModel();
     peer_user_ = peer_user;
     peer_username_ = std::move(peer_username);
+    read_message_ = 0;
     messages_.clear();
     endResetModel();
 }
@@ -96,6 +99,20 @@ bool message_model::add_message(message_data message)
     messages_.insert(row, std::move(message));
     endInsertRows();
     return true;
+}
+
+void message_model::set_read_message(qint64 message)
+{
+    if (message <= read_message_)
+    {
+        return;
+    }
+
+    read_message_ = message;
+    if (!messages_.isEmpty())
+    {
+        emit dataChanged(index(0, 0), index(messages_.size() - 1, 0), {read_role});
+    }
 }
 
 qint64 message_model::first_message_id() const

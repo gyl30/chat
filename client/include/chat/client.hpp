@@ -25,12 +25,13 @@ class client
     using authenticate_handler = std::function<void(std::expected<bool, error>)>;
     using register_handler = std::function<void(std::expected<std::int64_t, error>)>;
     using conversations_handler = std::function<void(std::expected<std::vector<conversation>, error>)>;
-    using messages_handler = std::function<void(std::expected<std::vector<message>, error>)>;
+    using messages_handler = std::function<void(std::expected<messages_result, error>)>;
     using send_message_handler = std::function<void(std::expected<send_message_result, error>)>;
     using users_handler = std::function<void(std::expected<std::vector<user>, error>)>;
     using user_handler = std::function<void(std::expected<user, error>)>;
     using mark_read_handler = std::function<void(std::expected<std::int64_t, error>)>;
     using message_handler = std::function<void(message)>;
+    using read_handler = std::function<void(std::int64_t user, std::int64_t message)>;
 
     client();
     ~client();
@@ -44,6 +45,7 @@ class client
     void set_disconnected_handler(connection_handler handler);
     void set_error_handler(error_handler handler);
     void set_message_handler(message_handler handler);
+    void set_read_handler(read_handler handler);
 
     void connect(std::string url);
     void close();

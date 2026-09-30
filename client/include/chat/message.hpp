@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace chat
 {
@@ -13,6 +14,12 @@ struct message
     std::int64_t from = 0;
     std::int64_t timestamp = 0;
     std::string text;
+};
+
+struct messages_result
+{
+    std::vector<message> messages;
+    std::int64_t read_message = 0;
 };
 
 struct send_message_result

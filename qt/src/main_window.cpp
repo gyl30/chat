@@ -423,14 +423,14 @@ main_window::main_window(QString server_url, QWidget* parent)
             [this](qint64 user, QString text) { client_->send_message(user, std::move(text)); });
 
     connect(client_.get(), &client_bridge::messages_received, this,
-            [this](qint64 user, QList<message_data> messages, bool older, QString const& error_message) {
+            [this](qint64 user, QList<message_data> messages, qint64 read_message, bool older, QString const& error_message) {
                 if (!error_message.isEmpty())
                 {
                     chat_page_->set_message_error(user, error_message);
                     return;
                 }
 
-                chat_page_->set_messages(user, std::move(messages), older);
+                chat_page_->set_messages(user, std::move(messages), read_message, older);
                 if (!older && chat_page_->active_user() == user)
                 {
                     auto const message = chat_page_->latest_message_id();
@@ -456,6 +456,10 @@ main_window::main_window(QString server_url, QWidget* parent)
                     client_->get_conversations();
                 }
             },
+            Qt::QueuedConnection);
+
+    connect(client_.get(), &client_bridge::messages_read, this,
+            [this](qint64 user, qint64 message) { chat_page_->set_read_message(user, message); },
             Qt::QueuedConnection);
 
     connect(client_.get(), &client_bridge::message_sent, this,

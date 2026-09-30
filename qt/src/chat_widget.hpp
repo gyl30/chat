@@ -40,7 +40,8 @@ class chat_widget final : public QWidget
     void set_add_contact_search_results(QList<user_data> users);
     void set_add_contact_search_error(QString message);
     void finish_add_contact();
-    void set_messages(qint64 user, QList<message_data> messages, bool older);
+    void set_messages(qint64 user, QList<message_data> messages, qint64 read_message, bool older);
+    void set_read_message(qint64 user, qint64 message);
     void add_message(qint64 user, message_data message);
     void add_sent_message(qint64 user, qint64 message, qint64 timestamp, QString text);
     void set_message_error(qint64 user, QString message);

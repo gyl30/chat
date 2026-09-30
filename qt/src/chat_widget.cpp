@@ -496,7 +496,7 @@ void chat_widget::finish_add_contact()
     contacts_status_->setText(QStringLiteral("正在加载…"));
 }
 
-void chat_widget::set_messages(qint64 user, QList<message_data> messages, bool older)
+void chat_widget::set_messages(qint64 user, QList<message_data> messages, qint64 read_message, bool older)
 {
     if (user != active_user_)
     {
@@ -508,6 +508,7 @@ void chat_widget::set_messages(qint64 user, QList<message_data> messages, bool o
     auto const old_maximum = scroll->maximum();
     auto const old_value = scroll->value();
     messages_->merge_messages(std::move(messages));
+    messages_->set_read_message(read_message);
     messages_loading_ = false;
     history_exhausted_ = history_exhausted_ || batch_size < 50;
 
@@ -523,6 +524,14 @@ void chat_widget::set_messages(qint64 user, QList<message_data> messages, bool o
     QTimer::singleShot(0, messages_view_, [scroll, old_maximum, old_value] {
         scroll->setValue(old_value + scroll->maximum() - old_maximum);
     });
+}
+
+void chat_widget::set_read_message(qint64 user, qint64 message)
+{
+    if (user == active_user_)
+    {
+        messages_->set_read_message(message);
+    }
 }
 
 void chat_widget::add_message(qint64 user, message_data message)

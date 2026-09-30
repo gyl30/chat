@@ -207,6 +207,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
 
             boost::json::object result;
             result.emplace("messages", std::move(messages));
+            result.emplace("read", 12);
             response.emplace("result", std::move(result));
 
             auto [send_ec] = co_await send_text(connection, std::move(response));
@@ -314,7 +315,20 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             result.emplace("message", 21);
             response.emplace("result", std::move(result));
             auto [send_ec] = co_await send_text(connection, std::move(response));
-            co_return boost::capy::io_result<bool>{send_ec, !send_ec};
+            if (send_ec)
+            {
+                co_return boost::capy::io_result<bool>{send_ec, false};
+            }
+
+            boost::json::object notification_params;
+            notification_params.emplace("user", 2);
+            notification_params.emplace("message", 20);
+            boost::json::object notification;
+            notification.emplace("jsonrpc", "2.0");
+            notification.emplace("method", "read");
+            notification.emplace("params", std::move(notification_params));
+            auto [notification_ec] = co_await send_text(connection, std::move(notification));
+            co_return boost::capy::io_result<bool>{notification_ec, !notification_ec};
         }
 
         if (method->as_string() == "register")
@@ -459,6 +473,7 @@ struct test_state
     int disconnected = 0;
     std::vector<chat::error> errors;
     std::vector<chat::message> messages;
+    std::vector<std::pair<std::int64_t, std::int64_t>> reads;
 };
 
 boost::capy::task<> stop_server(boost::corosio::tcp_server& server)
@@ -522,6 +537,11 @@ int main()
     client.set_message_handler([&state](chat::message message) {
         std::lock_guard lock(state.mutex);
         state.messages.push_back(std::move(message));
+        state.condition.notify_all();
+    });
+    client.set_read_handler([&state](std::int64_t user, std::int64_t message) {
+        std::lock_guard lock(state.mutex);
+        state.reads.emplace_back(user, message);
         state.condition.notify_all();
     });
 
@@ -662,19 +682,21 @@ int main()
     std::cout << "PASS client conversation cursor\n";
 
     bool messages_called = false;
-    std::vector<chat::message> messages;
-    client.get_messages(2, {}, [&](std::expected<std::vector<chat::message>, chat::error> result) {
+    chat::messages_result messages_result;
+    client.get_messages(2, {}, [&](std::expected<chat::messages_result, chat::error> result) {
         std::lock_guard lock(state.mutex);
         messages_called = true;
         if (result)
         {
-            messages = std::move(*result);
+            messages_result = std::move(*result);
         }
         state.condition.notify_all();
     });
-    if (!state.wait([&] { return messages_called; }) || messages.size() != 2 || messages[0].id != 10 || messages[0].from != 2 ||
-        messages[0].timestamp != 1700000000000 || messages[0].text != "first" || messages[1].id != 12 ||
-        messages[1].from != 1 || messages[1].timestamp != 1700000060000 || messages[1].text != "second")
+    auto const& messages = messages_result.messages;
+    if (!state.wait([&] { return messages_called; }) || messages_result.read_message != 12 || messages.size() != 2 ||
+        messages[0].id != 10 || messages[0].from != 2 || messages[0].timestamp != 1700000000000 ||
+        messages[0].text != "first" || messages[1].id != 12 || messages[1].from != 1 ||
+        messages[1].timestamp != 1700000060000 || messages[1].text != "second")
     {
         std::cerr << "FAIL client messages\n";
         return 1;
@@ -682,18 +704,20 @@ int main()
     std::cout << "PASS client messages\n";
 
     bool older_messages_called = false;
-    std::vector<chat::message> older_messages;
-    client.get_messages(2, 10, [&](std::expected<std::vector<chat::message>, chat::error> result) {
+    chat::messages_result older_messages_result;
+    client.get_messages(2, 10, [&](std::expected<chat::messages_result, chat::error> result) {
         std::lock_guard lock(state.mutex);
         older_messages_called = true;
         if (result)
         {
-            older_messages = std::move(*result);
+            older_messages_result = std::move(*result);
         }
         state.condition.notify_all();
     });
-    if (!state.wait([&] { return older_messages_called; }) || older_messages.size() != 1 || older_messages[0].id != 4 ||
-        older_messages[0].from != 2 || older_messages[0].timestamp != 1699999940000 || older_messages[0].text != "older")
+    auto const& older_messages = older_messages_result.messages;
+    if (!state.wait([&] { return older_messages_called; }) || older_messages_result.read_message != 12 ||
+        older_messages.size() != 1 || older_messages[0].id != 4 || older_messages[0].from != 2 ||
+        older_messages[0].timestamp != 1699999940000 || older_messages[0].text != "older")
     {
         std::cerr << "FAIL client message cursor\n";
         return 1;
@@ -732,12 +756,13 @@ int main()
         }
         state.condition.notify_all();
     });
-    if (!state.wait([&] { return mark_read_called; }) || read_message != 21)
+    if (!state.wait([&] { return mark_read_called && !state.reads.empty(); }) || read_message != 21 ||
+        state.reads.back().first != 2 || state.reads.back().second != 20)
     {
-        std::cerr << "FAIL client mark read\n";
+        std::cerr << "FAIL client mark read and read notification\n";
         return 1;
     }
-    std::cout << "PASS client mark read\n";
+    std::cout << "PASS client mark read and read notification\n";
 
     bool rejected_called = false;
     bool rejected = false;
