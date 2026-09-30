@@ -280,12 +280,17 @@ simdjson::error_code serialize_json_rpc_success(std::string_view result_json, js
     return simdjson::builder::to_json_string(success_response).get(response);
 }
 
+simdjson::error_code serialize_json_rpc_error(int code, std::string_view message, json_rpc_id id, std::string& response)
+{
+    return serialize_error(code, message, std::move(id), response);
+}
+
 simdjson::error_code serialize_json_rpc_method_not_found(json_rpc_id id, std::string& response)
 {
-    return serialize_error(kMethodNotFound, kMethodNotFoundMessage, std::move(id), response);
+    return serialize_json_rpc_error(kMethodNotFound, kMethodNotFoundMessage, std::move(id), response);
 }
 
 simdjson::error_code serialize_json_rpc_invalid_params(json_rpc_id id, std::string& response)
 {
-    return serialize_error(kInvalidParams, kInvalidParamsMessage, std::move(id), response);
+    return serialize_json_rpc_error(kInvalidParams, kInvalidParamsMessage, std::move(id), response);
 }

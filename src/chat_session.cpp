@@ -7,11 +7,16 @@
 namespace
 {
 
+constexpr std::string_view kAuthenticateMethod = "authenticate";
 constexpr std::string_view kEchoMethod = "echo";
 
 }    // namespace
 
-chat_session::chat_session(websocket_connection& connection) : connection_(connection) {}
+chat_session::chat_session(
+    boost::corosio::io_context& io_context, websocket_connection& connection, std::string const& database_connection_string)
+    : io_context_(io_context), connection_(connection), database_connection_string_(database_connection_string)
+{
+}
 
 boost::capy::task<void> chat_session::run()
 {
@@ -35,7 +40,11 @@ boost::capy::task<void> chat_session::run()
 
         if (response.empty())
         {
-            if (request.method == kEchoMethod)
+            if (request.method == kAuthenticateMethod)
+            {
+                rpc_error = co_await handle_authenticate(request, response);
+            }
+            else if (request.method == kEchoMethod)
             {
                 rpc_error = co_await handle_echo(request, response);
             }

@@ -51,6 +51,15 @@ simdjson::error_code parse_echo_params(json_rpc_params& params, echo_params& val
 
 boost::capy::task<simdjson::error_code> chat_session::handle_echo(json_rpc_request& request, std::string& response)
 {
+    if (!user_id_)
+    {
+        if (request.id.present)
+        {
+            co_return serialize_json_rpc_error(-32001, "Authentication required", std::move(request.id), response);
+        }
+        co_return simdjson::SUCCESS;
+    }
+
     echo_params params{};
     auto params_error = parse_echo_params(request.params, params);
     if (params_error)

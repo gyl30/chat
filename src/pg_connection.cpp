@@ -426,7 +426,8 @@ boost::capy::io_task<std::optional<std::vector<std::string>>> pg_connection::exe
 
 boost::capy::io_task<std::string> pg_connection::execute_scalar(std::string query, std::vector<std::string> parameters)
 {
-    auto [ec, row] = co_await execute_row(std::move(query), std::move(parameters));
+    auto row_result = co_await execute_row(std::move(query), std::move(parameters));
+    auto& [ec, row] = row_result;
     if (ec)
     {
         co_return boost::capy::io_result<std::string>{

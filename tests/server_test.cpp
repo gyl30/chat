@@ -12,6 +12,7 @@
 #include <boost/capy/task.hpp>
 #include <boost/capy/write.hpp>
 #include <boost/http/field.hpp>
+#include <boost/http/bcrypt.hpp>
 #include <boost/http/config.hpp>
 #include <boost/http/method.hpp>
 #include <boost/http/status.hpp>
@@ -26,6 +27,7 @@
 #include <boost/corosio/ipv4_address.hpp>
 #include <boost/http/response_parser.hpp>
 
+#include "pg_connection.hpp"
 #include "server.hpp"
 
 namespace
@@ -35,6 +37,14 @@ constexpr std::string_view kHealthBody = R"({"status":"ok"})";
 constexpr std::string_view kNotFoundBody = "not found";
 constexpr std::string_view kWebSocketKey = "dGhlIHNhbXBsZSBub25jZQ==";
 constexpr std::string_view kWebSocketAccept = "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=";
+constexpr std::string_view kDatabaseConnectionString =
+    "hostaddr=172.20.54.83 "
+    "port=5432 "
+    "dbname=chat "
+    "user=chat "
+    "sslmode=disable";
+constexpr char kTestUsername[] = "chat_server_test";
+constexpr char kTestPassword[] = "test password";
 
 boost::http::route_task health_handler(boost::http::route_params& params)
 {
@@ -237,6 +247,32 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
 {
     server_stop_guard stop_guard{server};
 
+    pg_connection fixture_connection(io_context);
+    auto [fixture_connect_ec] = co_await fixture_connection.connect(std::string(kDatabaseConnectionString));
+    if (fixture_connect_ec)
+    {
+        std::cerr << "FAIL authentication fixture connect: " << fixture_connection.error_message() << '\n';
+        co_return 1;
+    }
+
+    auto fixture_hash = co_await boost::http::bcrypt::hash_async(kTestPassword, 4, boost::http::bcrypt::version::v2b);
+    std::vector<std::string> fixture_parameters;
+    fixture_parameters.emplace_back(kTestUsername);
+    fixture_parameters.emplace_back(fixture_hash.data(), fixture_hash.size());
+    auto fixture_result = co_await fixture_connection.execute_scalar(
+        "INSERT INTO users (username, password_hash) VALUES ($1, $2) "
+        "ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash "
+        "RETURNING id::text",
+        std::move(fixture_parameters));
+    auto& [fixture_ec, fixture_user_id] = fixture_result;
+    (void)fixture_user_id;
+    if (fixture_ec)
+    {
+        std::cerr << "FAIL authentication fixture: " << fixture_connection.error_message() << '\n';
+        co_return 1;
+    }
+    fixture_connection.close();
+
     {
         boost::corosio::tcp_socket socket(io_context);
         auto [connect_ec] = co_await connect(socket, port);
@@ -328,6 +364,106 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
             std::cerr << "FAIL server JSON-RPC notification write\n";
             co_return 1;
         }
+
+        constexpr std::string_view unauthenticated_echo_request =
+            R"({"jsonrpc":"2.0","method":"echo","params":{"text":"hello chat"},"id":"auth-required"})";
+        auto [unauthenticated_echo_write_ec] = co_await send_websocket_text(socket, unauthenticated_echo_request);
+        if (unauthenticated_echo_write_ec)
+        {
+            std::cerr << "FAIL unauthenticated echo write\n";
+            co_return 1;
+        }
+
+        auto unauthenticated_echo_reply_result = co_await receive_websocket_text(socket);
+        auto& [unauthenticated_echo_read_ec, unauthenticated_echo_reply] = unauthenticated_echo_reply_result;
+        constexpr std::string_view expected_unauthenticated_echo_reply =
+            R"({"jsonrpc":"2.0","error":{"code":-32001,"message":"Authentication required"},"id":"auth-required"})";
+        if (unauthenticated_echo_read_ec || unauthenticated_echo_reply != expected_unauthenticated_echo_reply)
+        {
+            std::cerr << "FAIL unauthenticated echo rejected\n";
+            co_return 1;
+        }
+        std::cout << "PASS unauthenticated echo rejected\n";
+
+        constexpr std::string_view invalid_authentication =
+            R"({"jsonrpc":"2.0","method":"authenticate","params":{"username":"chat_server_test","password":""},"id":"auth-invalid"})";
+        auto [invalid_authentication_write_ec] = co_await send_websocket_text(socket, invalid_authentication);
+        if (invalid_authentication_write_ec)
+        {
+            std::cerr << "FAIL authentication invalid params write\n";
+            co_return 1;
+        }
+
+        auto invalid_authentication_reply_result = co_await receive_websocket_text(socket);
+        auto& [invalid_authentication_read_ec, invalid_authentication_reply] = invalid_authentication_reply_result;
+        constexpr std::string_view expected_invalid_authentication_reply =
+            R"({"jsonrpc":"2.0","error":{"code":-32602,"message":"Invalid params"},"id":"auth-invalid"})";
+        if (invalid_authentication_read_ec || invalid_authentication_reply != expected_invalid_authentication_reply)
+        {
+            std::cerr << "FAIL authentication invalid params\n";
+            co_return 1;
+        }
+        std::cout << "PASS authentication invalid params\n";
+
+        constexpr std::string_view missing_user_authentication =
+            R"({"jsonrpc":"2.0","method":"authenticate","params":{"username":"__chat_missing_user__","password":"test password"},"id":"auth-missing"})";
+        auto [missing_user_authentication_write_ec] = co_await send_websocket_text(socket, missing_user_authentication);
+        if (missing_user_authentication_write_ec)
+        {
+            std::cerr << "FAIL authentication missing user write\n";
+            co_return 1;
+        }
+
+        auto missing_user_authentication_reply_result = co_await receive_websocket_text(socket);
+        auto& [missing_user_authentication_read_ec, missing_user_authentication_reply] = missing_user_authentication_reply_result;
+        constexpr std::string_view expected_failed_authentication_reply =
+            R"({"jsonrpc":"2.0","result":{"authenticated":false},"id":"auth-missing"})";
+        if (missing_user_authentication_read_ec || missing_user_authentication_reply != expected_failed_authentication_reply)
+        {
+            std::cerr << "FAIL authentication missing user\n";
+            co_return 1;
+        }
+        std::cout << "PASS authentication missing user\n";
+
+        constexpr std::string_view wrong_password_authentication =
+            R"({"jsonrpc":"2.0","method":"authenticate","params":{"username":"chat_server_test","password":"wrong password"},"id":"auth-wrong"})";
+        auto [wrong_password_authentication_write_ec] = co_await send_websocket_text(socket, wrong_password_authentication);
+        if (wrong_password_authentication_write_ec)
+        {
+            std::cerr << "FAIL authentication wrong password write\n";
+            co_return 1;
+        }
+
+        auto wrong_password_authentication_reply_result = co_await receive_websocket_text(socket);
+        auto& [wrong_password_authentication_read_ec, wrong_password_authentication_reply] = wrong_password_authentication_reply_result;
+        constexpr std::string_view expected_wrong_password_authentication_reply =
+            R"({"jsonrpc":"2.0","result":{"authenticated":false},"id":"auth-wrong"})";
+        if (wrong_password_authentication_read_ec || wrong_password_authentication_reply != expected_wrong_password_authentication_reply)
+        {
+            std::cerr << "FAIL authentication wrong password\n";
+            co_return 1;
+        }
+        std::cout << "PASS authentication wrong password\n";
+
+        constexpr std::string_view authentication_request =
+            R"({"jsonrpc":"2.0","method":"authenticate","params":{"username":"chat_server_test","password":"test password"},"id":"auth-ok"})";
+        auto [authentication_write_ec] = co_await send_websocket_text(socket, authentication_request);
+        if (authentication_write_ec)
+        {
+            std::cerr << "FAIL authentication success write\n";
+            co_return 1;
+        }
+
+        auto authentication_reply_result = co_await receive_websocket_text(socket);
+        auto& [authentication_read_ec, authentication_reply] = authentication_reply_result;
+        constexpr std::string_view expected_authentication_reply =
+            R"({"jsonrpc":"2.0","result":{"authenticated":true},"id":"auth-ok"})";
+        if (authentication_read_ec || authentication_reply != expected_authentication_reply)
+        {
+            std::cerr << "FAIL authentication success\n";
+            co_return 1;
+        }
+        std::cout << "PASS authentication success\n";
 
         constexpr std::string_view echo_request = R"({"jsonrpc":"2.0","method":"echo","params":{"text":"hello chat"},"id":"1"})";
         auto [echo_write_ec] = co_await send_websocket_text(socket, echo_request);
@@ -613,7 +749,7 @@ int main()
     router.add(boost::http::method::get, "/health", health_handler);
     router.use(not_found_handler);
 
-    chat_server server(io_context, 1, std::move(router));
+    chat_server server(io_context, 1, std::move(router), std::string(kDatabaseConnectionString));
     if (auto ec = server.bind(boost::corosio::endpoint(boost::corosio::ipv4_address::loopback(), 0)))
     {
         std::cerr << "FAIL server bind: " << ec.message() << '\n';

@@ -2,6 +2,7 @@
 #define CHAT_SRC_SERVER_HPP
 
 #include <cstddef>
+#include <string>
 #include <system_error>
 
 #include <boost/corosio/endpoint.hpp>
@@ -12,7 +13,10 @@
 class chat_server
 {
    public:
-    chat_server(boost::corosio::io_context& io_context, std::size_t worker_count, boost::http::router<boost::http::route_params> router);
+    chat_server(boost::corosio::io_context& io_context,
+                std::size_t worker_count,
+                boost::http::router<boost::http::route_params> router,
+                std::string database_connection_string);
 
     std::error_code bind(boost::corosio::endpoint endpoint);
 

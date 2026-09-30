@@ -104,7 +104,7 @@ int main(int argc, char* argv[])
     router.add(boost::http::method::get, "/health", health_handler);
     router.use(not_found_handler);
 
-    chat_server server(io_context, max_workers, std::move(router));
+    chat_server server(io_context, max_workers, std::move(router), {});
     if (auto ec = server.bind(boost::corosio::endpoint(port)))
     {
         spdlog::error("bind failed: {}", ec.message());

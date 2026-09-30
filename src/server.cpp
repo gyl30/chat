@@ -32,10 +32,12 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
     connection_worker(boost::corosio::io_context& io_context,
                       boost::http::router<boost::http::route_params> router,
                       boost::http::shared_parser_config parser_config,
-                      boost::http::shared_serializer_config serializer_config)
+                      boost::http::shared_serializer_config serializer_config,
+                      std::string database_connection_string)
         : io_context_(io_context),
           socket_(io_context),
           router_(std::move(router)),
+          database_connection_string_(std::move(database_connection_string)),
           parser_(std::move(parser_config)),
           serializer_(std::move(serializer_config))
     {
@@ -120,7 +122,7 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
                 if (!upgrade_ec)
                 {
                     websocket_connection connection(socket_);
-                    chat_session session(connection);
+                    chat_session session(io_context_, connection, database_connection_string_);
                     co_await session.run();
                 }
                 break;
@@ -148,6 +150,7 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
     boost::corosio::io_context& io_context_;
     boost::corosio::tcp_socket socket_;
     boost::http::router<boost::http::route_params> router_;
+    std::string database_connection_string_;
     boost::http::route_params params_;
     boost::http::request_parser parser_;
     boost::http::serializer serializer_;
@@ -156,7 +159,10 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
 
 }    // namespace
 
-chat_server::chat_server(boost::corosio::io_context& io_context, std::size_t worker_count, boost::http::router<boost::http::route_params> router)
+chat_server::chat_server(boost::corosio::io_context& io_context,
+                         std::size_t worker_count,
+                         boost::http::router<boost::http::route_params> router,
+                         std::string database_connection_string)
     : server_(io_context, io_context.get_executor())
 {
     auto parser_config = boost::http::make_parser_config(boost::http::parser_config{true});
@@ -165,7 +171,8 @@ chat_server::chat_server(boost::corosio::io_context& io_context, std::size_t wor
     workers.reserve(worker_count);
     for (std::size_t i = 0; i < worker_count; ++i)
     {
-        workers.push_back(std::make_unique<connection_worker>(io_context, router, parser_config, serializer_config));
+        workers.push_back(
+            std::make_unique<connection_worker>(io_context, router, parser_config, serializer_config, database_connection_string));
     }
     server_.set_workers(std::move(workers));
 }

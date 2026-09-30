@@ -72,8 +72,10 @@ add_compile_options(
 add_executable(chat_server
     src/main.cpp
     src/chat_session.cpp
+    src/authenticate_request.cpp
     src/echo_request.cpp
     src/json_rpc.cpp
+    src/pg_connection.cpp
     src/server.cpp
     src/websocket.cpp
 )
@@ -86,6 +88,7 @@ target_link_libraries(chat_server
         Boost::corosio
         Boost::http
         OpenSSL::Crypto
+        PostgreSQL::PostgreSQL
         simdjson::simdjson
         spdlog::spdlog_header_only
         wslay
@@ -159,8 +162,10 @@ set_tests_properties(websocket PROPERTIES TIMEOUT 5)
 add_executable(chat_server_test
     tests/server_test.cpp
     src/chat_session.cpp
+    src/authenticate_request.cpp
     src/echo_request.cpp
     src/json_rpc.cpp
+    src/pg_connection.cpp
     src/server.cpp
     src/websocket.cpp
 )
@@ -173,6 +178,7 @@ target_link_libraries(chat_server_test
         Boost::corosio
         Boost::http
         OpenSSL::Crypto
+        PostgreSQL::PostgreSQL
         simdjson::simdjson
         wslay
 )
