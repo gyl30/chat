@@ -60,6 +60,17 @@ unset(CMAKE_WARN_DEPRECATED CACHE)
 add_subdirectory(third/simdjson EXCLUDE_FROM_ALL)
 add_subdirectory(third/spdlog EXCLUDE_FROM_ALL)
 
+add_library(chat_client STATIC
+    client/src/client.cpp
+)
+
+target_include_directories(chat_client PUBLIC client/include)
+
+target_link_libraries(chat_client
+    PUBLIC
+        Boost::json
+)
+
 find_package(PostgreSQL REQUIRED)
 find_package(OpenSSL REQUIRED)
 
@@ -103,6 +114,18 @@ target_link_libraries(chat_server
 )
 
 enable_testing()
+
+add_executable(chat_client_test
+    client/tests/client_test.cpp
+)
+
+target_link_libraries(chat_client_test
+    PRIVATE
+        chat_client
+)
+
+add_test(NAME client COMMAND chat_client_test)
+set_tests_properties(client PROPERTIES TIMEOUT 5)
 
 add_executable(chat_db_test
     tests/pg_connection_test.cpp
