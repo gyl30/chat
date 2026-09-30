@@ -56,7 +56,11 @@ class chat_widget final : public QWidget
     QListView* messages_view_ = nullptr;
     QLineEdit* message_edit_ = nullptr;
     QPushButton* send_button_ = nullptr;
+    QLabel* detail_avatar_ = nullptr;
     QLabel* detail_name_ = nullptr;
+    QLabel* detail_id_ = nullptr;
+    QLabel* detail_username_ = nullptr;
+    QLabel* detail_user_id_ = nullptr;
     conversation_model* conversations_ = nullptr;
     message_model* messages_ = nullptr;
     qint64 active_user_ = 0;

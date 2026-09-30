@@ -104,6 +104,31 @@ main_window::main_window(QString server_url, QWidget* parent)
         QLabel#subtleText {
             color: #8B918D;
         }
+        QLabel#detailAvatar {
+            background: #E5EEE8;
+            color: #315A4B;
+            border-radius: 38px;
+            font-size: 26px;
+            font-weight: 700;
+        }
+        QLabel#detailName {
+            color: #27362F;
+            font-size: 18px;
+            font-weight: 700;
+        }
+        QFrame#detailCard {
+            background: #FFFEFA;
+            border: 1px solid #E7E3D9;
+            border-radius: 14px;
+        }
+        QLabel#detailFieldLabel {
+            color: #8B918D;
+            font-size: 12px;
+        }
+        QLabel#detailFieldValue {
+            color: #2B3832;
+            font-weight: 600;
+        }
         QFrame#separator {
             background: #E6E3DB;
             border: 0;
@@ -119,6 +144,36 @@ main_window::main_window(QString server_url, QWidget* parent)
             outline: 0;
             background: transparent;
             padding: 6px 0;
+        }
+        QListView#conversationList QScrollBar:vertical,
+        QListView#messageList QScrollBar:vertical {
+            width: 7px;
+            margin: 2px 0;
+            background: transparent;
+        }
+        QListView#conversationList QScrollBar::handle:vertical,
+        QListView#messageList QScrollBar::handle:vertical {
+            min-height: 36px;
+            background: #C4CAC6;
+            border-radius: 3px;
+        }
+        QListView#conversationList QScrollBar::handle:vertical:hover,
+        QListView#messageList QScrollBar::handle:vertical:hover {
+            background: #AAB4AF;
+        }
+        QListView#conversationList QScrollBar::add-line:vertical,
+        QListView#conversationList QScrollBar::sub-line:vertical,
+        QListView#messageList QScrollBar::add-line:vertical,
+        QListView#messageList QScrollBar::sub-line:vertical {
+            width: 0;
+            height: 0;
+            background: transparent;
+        }
+        QListView#conversationList QScrollBar::add-page:vertical,
+        QListView#conversationList QScrollBar::sub-page:vertical,
+        QListView#messageList QScrollBar::add-page:vertical,
+        QListView#messageList QScrollBar::sub-page:vertical {
+            background: transparent;
         }
         QFrame#horizontalSeparator {
             background: #E6E3DB;

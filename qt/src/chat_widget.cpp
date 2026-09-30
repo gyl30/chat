@@ -5,6 +5,7 @@
 #include <QAbstractItemView>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QGridLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
@@ -97,6 +98,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     conversations_view_->setSelectionMode(QAbstractItemView::SingleSelection);
     conversations_view_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     conversations_view_->setMouseTracking(true);
+    conversations_view_->verticalScrollBar()->setSingleStep(24);
     conversation_layout->addWidget(conversations_view_, 1);
 
     auto* chat_panel = new QFrame(this);
@@ -126,7 +128,8 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     messages_view_->setSelectionMode(QAbstractItemView::NoSelection);
     messages_view_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     messages_view_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    messages_view_->setSpacing(2);
+    messages_view_->setSpacing(1);
+    messages_view_->verticalScrollBar()->setSingleStep(24);
     chat_layout->addWidget(messages_view_, 1);
 
     auto* input_layout = new QHBoxLayout;
@@ -144,17 +147,55 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
 
     auto* detail_panel = new QFrame(this);
     detail_panel->setObjectName(QStringLiteral("detailPanel"));
-    detail_panel->setFixedWidth(240);
+    detail_panel->setFixedWidth(286);
     auto* detail_layout = new QVBoxLayout(detail_panel);
-    detail_layout->setContentsMargins(22, 22, 22, 22);
-    detail_layout->setSpacing(12);
+    detail_layout->setContentsMargins(20, 22, 20, 22);
+    detail_layout->setSpacing(16);
     auto* detail_title = new QLabel(QStringLiteral("详情"), detail_panel);
     detail_title->setObjectName(QStringLiteral("sectionTitle"));
     detail_layout->addWidget(detail_title);
-    detail_name_ = new QLabel(QStringLiteral("选择会话后显示对端信息"), detail_panel);
-    detail_name_->setObjectName(QStringLiteral("subtleText"));
+
+    detail_avatar_ = new QLabel(QStringLiteral("?"), detail_panel);
+    detail_avatar_->setObjectName(QStringLiteral("detailAvatar"));
+    detail_avatar_->setAlignment(Qt::AlignCenter);
+    detail_avatar_->setFixedSize(76, 76);
+    detail_layout->addWidget(detail_avatar_, 0, Qt::AlignHCenter);
+
+    detail_name_ = new QLabel(QStringLiteral("选择会话"), detail_panel);
+    detail_name_->setObjectName(QStringLiteral("detailName"));
+    detail_name_->setAlignment(Qt::AlignCenter);
     detail_name_->setWordWrap(true);
     detail_layout->addWidget(detail_name_);
+
+    detail_id_ = new QLabel(QStringLiteral("选择会话后显示对端信息"), detail_panel);
+    detail_id_->setObjectName(QStringLiteral("subtleText"));
+    detail_id_->setAlignment(Qt::AlignCenter);
+    detail_layout->addWidget(detail_id_);
+
+    auto* detail_card = new QFrame(detail_panel);
+    detail_card->setObjectName(QStringLiteral("detailCard"));
+    auto* detail_card_layout = new QGridLayout(detail_card);
+    detail_card_layout->setContentsMargins(16, 14, 16, 14);
+    detail_card_layout->setHorizontalSpacing(12);
+    detail_card_layout->setVerticalSpacing(12);
+
+    auto* username_label = new QLabel(QStringLiteral("用户名"), detail_card);
+    username_label->setObjectName(QStringLiteral("detailFieldLabel"));
+    detail_username_ = new QLabel(QStringLiteral("—"), detail_card);
+    detail_username_->setObjectName(QStringLiteral("detailFieldValue"));
+    detail_username_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    auto* id_label = new QLabel(QStringLiteral("用户 ID"), detail_card);
+    id_label->setObjectName(QStringLiteral("detailFieldLabel"));
+    detail_user_id_ = new QLabel(QStringLiteral("—"), detail_card);
+    detail_user_id_->setObjectName(QStringLiteral("detailFieldValue"));
+    detail_user_id_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+    detail_card_layout->addWidget(username_label, 0, 0);
+    detail_card_layout->addWidget(detail_username_, 0, 1);
+    detail_card_layout->addWidget(id_label, 1, 0);
+    detail_card_layout->addWidget(detail_user_id_, 1, 1);
+    detail_card_layout->setColumnStretch(1, 1);
+    detail_layout->addWidget(detail_card);
     detail_layout->addStretch();
 
     layout->addWidget(navigation_panel);
@@ -183,7 +224,11 @@ void chat_widget::set_user(QString const& username)
     messages_->reset(0);
     chat_title_->setText(QStringLiteral("聊天"));
     message_status_->setText(QStringLiteral("选择一个会话开始聊天"));
-    detail_name_->setText(QStringLiteral("选择会话后显示对端信息"));
+    detail_avatar_->setText(QStringLiteral("?"));
+    detail_name_->setText(QStringLiteral("选择会话"));
+    detail_id_->setText(QStringLiteral("选择会话后显示对端信息"));
+    detail_username_->setText(QStringLiteral("—"));
+    detail_user_id_->setText(QStringLiteral("—"));
     message_edit_->clear();
     message_edit_->setEnabled(false);
     send_button_->setEnabled(false);
@@ -360,5 +405,9 @@ void chat_widget::send_current_message()
 void chat_widget::update_conversation_details(conversation_data const& item)
 {
     chat_title_->setText(item.username);
-    detail_name_->setText(QStringLiteral("%1\n用户 ID：%2").arg(item.username).arg(item.user));
+    detail_avatar_->setText(item.username.isEmpty() ? QStringLiteral("?") : item.username.left(1).toUpper());
+    detail_name_->setText(item.username);
+    detail_id_->setText(QStringLiteral("用户 ID %1").arg(item.user));
+    detail_username_->setText(item.username);
+    detail_user_id_->setText(QString::number(item.user));
 }
