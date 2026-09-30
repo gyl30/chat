@@ -1,14 +1,18 @@
 #include <tuple>
+#include <utility>
 #include <string>
 #include <vector>
 #include <cstdlib>
 #include <iostream>
 
 #include <boost/capy/task.hpp>
+#include <boost/capy/when_all.hpp>
+#include <boost/capy/ex/async_event.hpp>
 #include <boost/capy/ex/run_async.hpp>
 #include <boost/corosio/io_context.hpp>
 
 #include "pg_connection.hpp"
+#include "pg_connection_pool.hpp"
 
 namespace
 {
@@ -274,6 +278,117 @@ boost::capy::task<int> run_tests(boost::corosio::io_context& io_context)
     }
 
     connection.close();
+
+    pg_connection_pool pool(io_context, connection_string, 1);
+    std::string pooled_backend_pid;
+    {
+        auto lease = co_await pool.acquire();
+        if (lease.error())
+        {
+            std::cerr << "FAIL pooled connection acquire\n";
+            ++failures;
+        }
+        else
+        {
+            auto pid_result = co_await lease.connection().execute_scalar("SELECT pg_backend_pid()::text");
+            auto& [pid_ec, pid] = pid_result;
+            if (pid_ec)
+            {
+                std::cerr << "FAIL pooled connection query: " << lease.connection().error_message() << '\n';
+                ++failures;
+            }
+            else
+            {
+                pooled_backend_pid = std::move(pid);
+                std::cout << "PASS pooled connection acquire\n";
+            }
+        }
+    }
+
+    {
+        auto lease = co_await pool.acquire();
+        if (lease.error())
+        {
+            std::cerr << "FAIL pooled connection reacquire\n";
+            ++failures;
+        }
+        else
+        {
+            auto pid_result = co_await lease.connection().execute_scalar("SELECT pg_backend_pid()::text");
+            auto& [pid_ec, pid] = pid_result;
+            if (pid_ec || pid != pooled_backend_pid)
+            {
+                std::cerr << "FAIL pooled connection reuse: " << lease.connection().error_message() << '\n';
+                ++failures;
+            }
+            else
+            {
+                std::cout << "PASS pooled connection reuse\n";
+            }
+        }
+    }
+
+    boost::capy::async_event holder_ready;
+    boost::capy::async_event waiter_ready;
+    boost::capy::async_event release_holder;
+    bool waiter_acquired = false;
+
+    auto holder = [&]() -> boost::capy::io_task<> {
+        {
+            auto lease = co_await pool.acquire();
+            if (lease.error())
+            {
+                co_return lease.error();
+            }
+            holder_ready.set();
+            auto release_result = co_await release_holder.wait();
+            auto& [release_ec] = release_result;
+            if (release_ec)
+            {
+                co_return release_ec;
+            }
+        }
+        co_return std::error_code{};
+    };
+
+    auto waiter = [&]() -> boost::capy::io_task<> {
+        auto ready_result = co_await holder_ready.wait();
+        auto& [ready_ec] = ready_result;
+        if (ready_ec)
+        {
+            co_return ready_ec;
+        }
+        waiter_ready.set();
+        auto lease = co_await pool.acquire();
+        if (lease.error())
+        {
+            co_return lease.error();
+        }
+        waiter_acquired = true;
+        co_return std::error_code{};
+    };
+
+    auto releaser = [&]() -> boost::capy::io_task<> {
+        auto ready_result = co_await waiter_ready.wait();
+        auto& [ready_ec] = ready_result;
+        if (ready_ec)
+        {
+            co_return ready_ec;
+        }
+        release_holder.set();
+        co_return std::error_code{};
+    };
+
+    auto wait_result = co_await boost::capy::when_all(holder(), waiter(), releaser());
+    if (std::get<0>(wait_result) || !waiter_acquired)
+    {
+        std::cerr << "FAIL pooled connection wait\n";
+        ++failures;
+    }
+    else
+    {
+        std::cout << "PASS pooled connection wait\n";
+    }
 
     if (failures != 0)
     {

@@ -1200,7 +1200,7 @@ int main()
     router.add(boost::http::method::get, "/health", health_handler);
     router.use(not_found_handler);
 
-    chat_server server(io_context, 1, std::move(router), std::string(kDatabaseConnectionString));
+    chat_server server(io_context, 1, std::move(router), std::string(kDatabaseConnectionString), 1);
     if (auto ec = server.bind(boost::corosio::endpoint(boost::corosio::ipv4_address::loopback(), 0)))
     {
         std::cerr << "FAIL server bind: " << ec.message() << '\n';
@@ -1210,7 +1210,7 @@ int main()
     boost::http::router<boost::http::route_params> peer_router;
     peer_router.add(boost::http::method::get, "/health", health_handler);
     peer_router.use(not_found_handler);
-    chat_server peer_server(io_context, 2, std::move(peer_router), std::string(kDatabaseConnectionString));
+    chat_server peer_server(io_context, 2, std::move(peer_router), std::string(kDatabaseConnectionString), 2);
     if (auto ec = peer_server.bind(boost::corosio::endpoint(boost::corosio::ipv4_address::loopback(), 0)))
     {
         std::cerr << "FAIL peer server bind: " << ec.message() << '\n';

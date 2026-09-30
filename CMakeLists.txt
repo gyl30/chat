@@ -79,6 +79,7 @@ add_executable(chat_server
     src/json_rpc.cpp
     src/online_users.cpp
     src/pg_connection.cpp
+    src/pg_connection_pool.cpp
     src/server.cpp
     src/websocket.cpp
 )
@@ -102,6 +103,7 @@ enable_testing()
 add_executable(chat_db_test
     tests/pg_connection_test.cpp
     src/pg_connection.cpp
+    src/pg_connection_pool.cpp
 )
 
 target_include_directories(chat_db_test PRIVATE src)
@@ -172,6 +174,7 @@ add_executable(chat_server_test
     src/json_rpc.cpp
     src/online_users.cpp
     src/pg_connection.cpp
+    src/pg_connection_pool.cpp
     src/server.cpp
     src/websocket.cpp
 )

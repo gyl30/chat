@@ -10,7 +10,7 @@
 #include <boost/http/bcrypt.hpp>
 
 #include "chat_session.hpp"
-#include "pg_connection.hpp"
+#include "pg_connection_pool.hpp"
 
 namespace
 {
@@ -106,9 +106,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_register(json_rpc_r
         co_return simdjson::SUCCESS;
     }
 
-    pg_connection connection(io_context_);
-    auto [connect_ec] = co_await connection.connect(database_connection_string_);
-    if (connect_ec)
+    auto lease = co_await database_.acquire();
+    if (lease.error())
     {
         if (request.id.present)
         {
@@ -120,7 +119,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_register(json_rpc_r
     std::vector<std::string> parameters;
     parameters.emplace_back(std::move(params.username));
     parameters.emplace_back(password_hash.data(), password_hash.size());
-    auto query_result = co_await connection.execute_row(
+    auto query_result = co_await lease.connection().execute_row(
         "INSERT INTO users (username, password_hash) VALUES ($1, $2) "
         "ON CONFLICT (username) DO NOTHING RETURNING id::text",
         std::move(parameters));

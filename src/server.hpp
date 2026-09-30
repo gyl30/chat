@@ -11,6 +11,7 @@
 #include <boost/http/server/router.hpp>
 
 #include "online_users.hpp"
+#include "pg_connection_pool.hpp"
 
 class chat_server
 {
@@ -18,7 +19,8 @@ class chat_server
     chat_server(boost::corosio::io_context& io_context,
                 std::size_t worker_count,
                 boost::http::router<boost::http::route_params> router,
-                std::string database_connection_string);
+                std::string database_connection_string,
+                std::size_t database_connection_count);
 
     std::error_code bind(boost::corosio::endpoint endpoint);
 
@@ -32,6 +34,7 @@ class chat_server
 
    private:
     online_users users_;
+    pg_connection_pool database_;
     boost::corosio::tcp_server server_;
 };
 

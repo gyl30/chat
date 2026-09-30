@@ -16,11 +16,8 @@ constexpr std::size_t kMaxQueuedMessages = 64;
 
 }    // namespace
 
-chat_session::chat_session(boost::corosio::io_context& io_context,
-                           websocket_connection& connection,
-                           online_users& users,
-                           std::string const& database_connection_string)
-    : io_context_(io_context), connection_(connection), users_(users), database_connection_string_(database_connection_string)
+chat_session::chat_session(websocket_connection& connection, online_users& users, pg_connection_pool& database)
+    : connection_(connection), users_(users), database_(database)
 {
 }
 

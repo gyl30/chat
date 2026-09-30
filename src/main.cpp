@@ -79,14 +79,15 @@ boost::capy::task<int> wait_for_shutdown(boost::corosio::signal_set& signals, ch
 
 int main(int argc, char* argv[])
 {
-    if (argc != 3)
+    if (argc != 4)
     {
-        spdlog::error("usage: {} <port> <max-workers>", argv[0]);
+        spdlog::error("usage: {} <port> <max-workers> <database-connections>", argv[0]);
         return EXIT_FAILURE;
     }
 
     std::uint16_t port = 0;
     std::size_t max_workers = 0;
+    std::size_t database_connections = 0;
     if (!parse_positive(argv[1], port))
     {
         spdlog::error("invalid port: {}", argv[1]);
@@ -97,6 +98,11 @@ int main(int argc, char* argv[])
         spdlog::error("invalid max-workers: {}", argv[2]);
         return EXIT_FAILURE;
     }
+    if (!parse_positive(argv[3], database_connections))
+    {
+        spdlog::error("invalid database-connections: {}", argv[3]);
+        return EXIT_FAILURE;
+    }
 
     boost::corosio::io_context io_context;
 
@@ -104,7 +110,7 @@ int main(int argc, char* argv[])
     router.add(boost::http::method::get, "/health", health_handler);
     router.use(not_found_handler);
 
-    chat_server server(io_context, max_workers, std::move(router), {});
+    chat_server server(io_context, max_workers, std::move(router), {}, database_connections);
     if (auto ec = server.bind(boost::corosio::endpoint(port)))
     {
         spdlog::error("bind failed: {}", ec.message());
@@ -123,7 +129,7 @@ int main(int argc, char* argv[])
         return EXIT_FAILURE;
     }
 
-    spdlog::info("chat server listening on port {} with {} workers", port, max_workers);
+    spdlog::info("chat server listening on port {} with {} workers and {} database connections", port, max_workers, database_connections);
     server.start();
 
     int exit_code = EXIT_FAILURE;

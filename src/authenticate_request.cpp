@@ -1,8 +1,10 @@
 #include <charconv>
 #include <cstdint>
 #include <exception>
+#include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 #include <string_view>
 #include <system_error>
 
@@ -10,7 +12,7 @@
 #include <boost/http/bcrypt.hpp>
 
 #include "chat_session.hpp"
-#include "pg_connection.hpp"
+#include "pg_connection_pool.hpp"
 
 namespace
 {
@@ -101,27 +103,30 @@ boost::capy::task<simdjson::error_code> chat_session::handle_authenticate(json_r
         co_return simdjson::SUCCESS;
     }
 
-    pg_connection connection(io_context_);
-    auto [connect_ec] = co_await connection.connect(database_connection_string_);
-    if (connect_ec)
+    std::optional<std::vector<std::string>> row;
     {
-        if (request.id.present)
+        auto lease = co_await database_.acquire();
+        if (lease.error())
         {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            if (request.id.present)
+            {
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            co_return simdjson::SUCCESS;
         }
-        co_return simdjson::SUCCESS;
-    }
 
-    auto query_result = co_await connection.execute_row(
-        "SELECT id::text, password_hash FROM users WHERE username = $1", {params.username});
-    auto& [query_ec, row] = query_result;
-    if (query_ec)
-    {
-        if (request.id.present)
+        auto query_result = co_await lease.connection().execute_row(
+            "SELECT id::text, password_hash FROM users WHERE username = $1", {params.username});
+        auto& [query_ec, query_row] = query_result;
+        if (query_ec)
         {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            if (request.id.present)
+            {
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            co_return simdjson::SUCCESS;
         }
-        co_return simdjson::SUCCESS;
+        row = std::move(query_row);
     }
 
     std::string_view password_hash = kDummyPasswordHash;
