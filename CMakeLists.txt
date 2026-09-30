@@ -60,19 +60,29 @@ unset(CMAKE_WARN_DEPRECATED CACHE)
 add_subdirectory(third/simdjson EXCLUDE_FROM_ALL)
 add_subdirectory(third/spdlog EXCLUDE_FROM_ALL)
 
+find_package(OpenSSL REQUIRED)
+find_package(Threads REQUIRED)
+
 add_library(chat_client STATIC
     client/src/client.cpp
+    client/src/websocket.cpp
 )
 
 target_include_directories(chat_client PUBLIC client/include)
 
 target_link_libraries(chat_client
-    PUBLIC
+    PRIVATE
         Boost::json
+        Boost::capy
+        Boost::corosio
+        Boost::http
+        Boost::url
+        OpenSSL::Crypto
+        Threads::Threads
+        wslay
 )
 
 find_package(PostgreSQL REQUIRED)
-find_package(OpenSSL REQUIRED)
 
 add_compile_options(
     -Wall
@@ -117,11 +127,20 @@ enable_testing()
 
 add_executable(chat_client_test
     client/tests/client_test.cpp
+    src/websocket.cpp
 )
+
+target_include_directories(chat_client_test PRIVATE src)
 
 target_link_libraries(chat_client_test
     PRIVATE
         chat_client
+        Boost::capy
+        Boost::json
+        Boost::corosio
+        Boost::http
+        OpenSSL::Crypto
+        wslay
 )
 
 add_test(NAME client COMMAND chat_client_test)

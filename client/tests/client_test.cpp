@@ -1,104 +1,321 @@
+#include <chrono>
+#include <condition_variable>
+#include <cstdint>
+#include <expected>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <string_view>
+#include <system_error>
+#include <thread>
 #include <utility>
 #include <vector>
 
+#include <boost/capy/buffers.hpp>
+#include <boost/capy/ex/run_async.hpp>
+#include <boost/capy/task.hpp>
+#include <boost/capy/write.hpp>
+#include <boost/http/config.hpp>
+#include <boost/http/field.hpp>
+#include <boost/http/request_parser.hpp>
+#include <boost/http/response.hpp>
+#include <boost/http/serializer.hpp>
+#include <boost/http/status.hpp>
+#include <boost/http/version.hpp>
+#include <boost/corosio/endpoint.hpp>
+#include <boost/corosio/io_context.hpp>
+#include <boost/corosio/ipv4_address.hpp>
+#include <boost/corosio/tcp_server.hpp>
+#include <boost/corosio/tcp_socket.hpp>
+#include <boost/json.hpp>
+
 #include <chat/client.hpp>
+
+#include "websocket.hpp"
 
 namespace
 {
 
-class fake_transport : public chat::transport
+using namespace std::chrono_literals;
+
+std::string_view as_string_view(boost::core::string_view value) { return {value.data(), value.size()}; }
+
+class client_test_worker final : public boost::corosio::tcp_server::worker_base
 {
    public:
-    void set_listener(chat::transport_listener* listener) override
+    client_test_worker(boost::corosio::io_context& io_context,
+                       boost::http::shared_parser_config parser_config,
+                       boost::http::shared_serializer_config serializer_config)
+        : io_context_(io_context), socket_(io_context), parser_(std::move(parser_config)), serializer_(std::move(serializer_config))
     {
-        listener_ = listener;
+        serializer_.set_message(response_);
     }
 
-    void open(std::string url) override
-    {
-        url_ = std::move(url);
-    }
+    boost::corosio::tcp_socket& socket() override { return socket_; }
 
-    void send(std::string message) override
-    {
-        sent_.push_back(std::move(message));
-    }
-
-    void close() override
-    {
-        closed_ = true;
-    }
-
-    void emit_open()
-    {
-        listener_->on_transport_open();
-    }
-
-    void emit_text(std::string message)
-    {
-        listener_->on_transport_text(std::move(message));
-    }
-
-    void emit_close()
-    {
-        listener_->on_transport_close();
-    }
-
-    std::string url_;
-    std::vector<std::string> sent_;
-    bool closed_ = false;
+    void run(boost::corosio::tcp_server::launcher launch) override { launch(io_context_.get_executor(), run_session()); }
 
    private:
-    chat::transport_listener* listener_ = nullptr;
+    boost::capy::io_task<> send_upgrade_response(std::string_view accept)
+    {
+        response_.clear();
+        response_.set_start_line(boost::http::status::switching_protocols, boost::http::version::http_1_1);
+        response_.set(boost::http::field::upgrade, "websocket");
+        response_.set(boost::http::field::connection, "Upgrade");
+        response_.set(boost::http::field::sec_websocket_accept, accept);
+
+        serializer_.reset();
+        serializer_.start();
+        while (!serializer_.is_done())
+        {
+            auto prepared = serializer_.prepare();
+            if (prepared.has_error())
+            {
+                co_return std::error_code(prepared.error());
+            }
+            if (boost::capy::buffer_empty(*prepared))
+            {
+                serializer_.consume(0);
+                continue;
+            }
+
+            auto [ec, written] = co_await boost::capy::write(socket_, *prepared);
+            serializer_.consume(written);
+            if (ec)
+            {
+                co_return ec;
+            }
+        }
+        co_return {};
+    }
+
+    boost::capy::io_task<> send_text(websocket_connection& connection, boost::json::object object)
+    {
+        auto text = boost::json::serialize(object);
+        co_return co_await connection.send_text(text);
+    }
+
+    boost::capy::io_task<bool> handle_request(websocket_connection& connection, std::string_view payload)
+    {
+        boost::system::error_code ec;
+        auto value = boost::json::parse(payload, ec);
+        if (ec || !value.is_object())
+        {
+            co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false};
+        }
+
+        auto const& request = value.as_object();
+        auto const* id = request.if_contains("id");
+        auto const* method = request.if_contains("method");
+        auto const* params = request.if_contains("params");
+        if (!id || !method || !method->is_string() || method->as_string() != "authenticate" || !params || !params->is_object())
+        {
+            co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false};
+        }
+
+        auto const* username = params->as_object().if_contains("username");
+        auto const* password = params->as_object().if_contains("password");
+        if (!username || !username->is_string() || !password || !password->is_string())
+        {
+            co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false};
+        }
+
+        auto const name = std::string_view(username->as_string().data(), username->as_string().size());
+        auto const secret = std::string_view(password->as_string().data(), password->as_string().size());
+        if (name == "close")
+        {
+            socket_.close();
+            co_return boost::capy::io_result<bool>{std::error_code{}, false};
+        }
+
+        if (name == "protocol")
+        {
+            auto [invalid_ec] = co_await connection.send_text("invalid");
+            if (invalid_ec)
+            {
+                co_return boost::capy::io_result<bool>{invalid_ec, false};
+            }
+        }
+
+        boost::json::object response;
+        response.emplace("jsonrpc", "2.0");
+        response.emplace("id", *id);
+
+        if (name == "rpc")
+        {
+            boost::json::object error;
+            error.emplace("code", -32003);
+            error.emplace("message", "Already authenticated");
+            response.emplace("error", std::move(error));
+        }
+        else
+        {
+            boost::json::object result;
+            result.emplace("authenticated", name == "alice" && secret == "secret");
+            response.emplace("result", std::move(result));
+        }
+
+        auto [send_ec] = co_await send_text(connection, std::move(response));
+        co_return boost::capy::io_result<bool>{send_ec, !send_ec};
+    }
+
+    boost::capy::task<> run_session()
+    {
+        parser_.reset();
+        parser_.start();
+
+        auto [read_ec] = co_await parser_.read_header(socket_);
+        if (read_ec || !parser_.is_complete() || parser_.has_buffered_data())
+        {
+            socket_.close();
+            co_return;
+        }
+
+        std::string accept;
+        if (as_string_view(parser_.get().target()) != "/ws" || !websocket_upgrade_accept(parser_.get(), accept))
+        {
+            socket_.close();
+            co_return;
+        }
+
+        auto [write_ec] = co_await send_upgrade_response(accept);
+        if (write_ec)
+        {
+            socket_.close();
+            co_return;
+        }
+
+        websocket_connection connection(socket_);
+        for (;;)
+        {
+            auto receive_result = co_await connection.receive();
+            auto& [ec, message] = receive_result;
+            if (ec || message.message_type == websocket_message::type::close)
+            {
+                break;
+            }
+
+            auto [handle_ec, keep_open] = co_await handle_request(connection, message.payload);
+            if (handle_ec || !keep_open)
+            {
+                break;
+            }
+        }
+
+        socket_.close();
+    }
+
+    boost::corosio::io_context& io_context_;
+    boost::corosio::tcp_socket socket_;
+    boost::http::request_parser parser_;
+    boost::http::response response_;
+    boost::http::serializer serializer_;
+};
+
+std::vector<std::unique_ptr<boost::corosio::tcp_server::worker_base>> make_workers(
+    boost::corosio::io_context& io_context,
+    boost::http::shared_parser_config const& parser_config,
+    boost::http::shared_serializer_config const& serializer_config)
+{
+    std::vector<std::unique_ptr<boost::corosio::tcp_server::worker_base>> workers;
+    workers.push_back(std::make_unique<client_test_worker>(io_context, parser_config, serializer_config));
+    return workers;
+}
+
+struct test_state
+{
+    template<class Predicate>
+    bool wait(Predicate predicate)
+    {
+        std::unique_lock lock(mutex);
+        return condition.wait_for(lock, 5s, predicate);
+    }
+
+    std::mutex mutex;
+    std::condition_variable condition;
+    int connected = 0;
+    int disconnected = 0;
+    std::vector<chat::error> errors;
+};
+
+boost::capy::task<> stop_server(boost::corosio::tcp_server& server)
+{
+    server.stop();
+    co_return;
+}
+
+struct server_guard
+{
+    boost::corosio::io_context& io_context;
+    boost::corosio::tcp_server& server;
+    std::thread& thread;
+
+    ~server_guard()
+    {
+        boost::capy::run_async(io_context.get_executor())(stop_server(server));
+        thread.join();
+        server.join();
+    }
 };
 
 }    // namespace
 
 int main()
 {
-    auto transport = std::make_unique<fake_transport>();
-    auto* transport_ptr = transport.get();
-    chat::client client(std::move(transport));
+    boost::corosio::io_context server_io_context;
+    auto parser_config = boost::http::make_parser_config(boost::http::parser_config{true});
+    auto serializer_config = boost::http::make_serializer_config(boost::http::serializer_config{});
 
-    bool connected = false;
-    bool disconnected = false;
-    std::vector<chat::error> errors;
-    client.set_connected_handler([&connected] { connected = true; });
-    client.set_disconnected_handler([&disconnected] { disconnected = true; });
-    client.set_error_handler([&errors](chat::error const& error) { errors.push_back(error); });
-
-    client.open("ws://127.0.0.1:18080/ws");
-    transport_ptr->emit_open();
-    if (transport_ptr->url_ != "ws://127.0.0.1:18080/ws" || !connected)
+    boost::corosio::tcp_server server(server_io_context, server_io_context.get_executor());
+    server.set_workers(make_workers(server_io_context, parser_config, serializer_config));
+    if (auto ec = server.bind(boost::corosio::endpoint(boost::corosio::ipv4_address::loopback(), 0)))
     {
-        std::cerr << "FAIL client connection events\n";
+        std::cerr << "FAIL client test server bind: " << ec.message() << '\n';
         return 1;
     }
-    std::cout << "PASS client connection events\n";
+    auto const port = server.local_endpoint().port();
+    server.start();
+
+    std::thread server_thread([&server_io_context] { server_io_context.run(); });
+    server_guard guard{server_io_context, server, server_thread};
+
+    test_state state;
+    chat::client client;
+    client.set_connected_handler([&state] {
+        std::lock_guard lock(state.mutex);
+        ++state.connected;
+        state.condition.notify_all();
+    });
+    client.set_disconnected_handler([&state] {
+        std::lock_guard lock(state.mutex);
+        ++state.disconnected;
+        state.condition.notify_all();
+    });
+    client.set_error_handler([&state](chat::error const& error) {
+        std::lock_guard lock(state.mutex);
+        state.errors.push_back(error);
+        state.condition.notify_all();
+    });
+
+    auto url = std::string("ws://127.0.0.1:") + std::to_string(port) + "/ws";
+    client.connect(url);
+    if (!state.wait([&state] { return state.connected == 1; }))
+    {
+        std::cerr << "FAIL client connection\n";
+        return 1;
+    }
+    std::cout << "PASS client connection\n";
 
     bool authenticated_called = false;
     bool authenticated = false;
     client.authenticate("alice", "secret", [&](std::expected<bool, chat::error> result) {
+        std::lock_guard lock(state.mutex);
         authenticated_called = true;
-        if (result)
-        {
-            authenticated = *result;
-        }
+        authenticated = result && *result;
+        state.condition.notify_all();
     });
-    if (transport_ptr->sent_.size() != 1 ||
-        transport_ptr->sent_[0] !=
-            R"({"jsonrpc":"2.0","method":"authenticate","params":{"username":"alice","password":"secret"},"id":1})")
-    {
-        std::cerr << "FAIL client authenticate request\n";
-        return 1;
-    }
-    std::cout << "PASS client authenticate request\n";
-
-    transport_ptr->emit_text(R"({"jsonrpc":"2.0","result":{"authenticated":true},"id":1})");
-    if (!authenticated_called || !authenticated)
+    if (!state.wait([&] { return authenticated_called; }) || !authenticated)
     {
         std::cerr << "FAIL client authenticate response\n";
         return 1;
@@ -108,11 +325,12 @@ int main()
     bool rejected_called = false;
     bool rejected = false;
     client.authenticate("alice", "wrong", [&](std::expected<bool, chat::error> result) {
+        std::lock_guard lock(state.mutex);
         rejected_called = true;
         rejected = result && !*result;
+        state.condition.notify_all();
     });
-    transport_ptr->emit_text(R"({"jsonrpc":"2.0","result":{"authenticated":false},"id":2})");
-    if (!rejected_called || !rejected)
+    if (!state.wait([&] { return rejected_called; }) || !rejected)
     {
         std::cerr << "FAIL client authenticate rejection\n";
         return 1;
@@ -121,16 +339,16 @@ int main()
 
     bool rpc_error_called = false;
     chat::error rpc_error;
-    client.authenticate("alice", "secret", [&](std::expected<bool, chat::error> result) {
+    client.authenticate("rpc", "secret", [&](std::expected<bool, chat::error> result) {
+        std::lock_guard lock(state.mutex);
         if (!result)
         {
             rpc_error_called = true;
-            rpc_error = std::move(result.error());
+            rpc_error = result.error();
         }
+        state.condition.notify_all();
     });
-    transport_ptr->emit_text(
-        R"({"jsonrpc":"2.0","error":{"code":-32003,"message":"Already authenticated"},"id":3})");
-    if (!rpc_error_called || rpc_error.kind != chat::error_kind::rpc || rpc_error.code != -32003 ||
+    if (!state.wait([&] { return rpc_error_called; }) || rpc_error.kind != chat::error_kind::rpc || rpc_error.code != -32003 ||
         rpc_error.message != "Already authenticated")
     {
         std::cerr << "FAIL client rpc error\n";
@@ -138,33 +356,47 @@ int main()
     }
     std::cout << "PASS client rpc error\n";
 
-    transport_ptr->emit_text("invalid");
-    if (errors.size() != 1 || errors.back().kind != chat::error_kind::protocol)
+    bool protocol_response_called = false;
+    client.authenticate("protocol", "secret", [&](std::expected<bool, chat::error> result) {
+        std::lock_guard lock(state.mutex);
+        protocol_response_called = result && !*result;
+        state.condition.notify_all();
+    });
+    if (!state.wait([&] { return !state.errors.empty() && protocol_response_called; }) || state.errors.back().kind != chat::error_kind::protocol)
     {
         std::cerr << "FAIL client protocol error\n";
         return 1;
     }
     std::cout << "PASS client protocol error\n";
 
-    bool close_error_called = false;
-    client.authenticate("alice", "secret", [&](std::expected<bool, chat::error> result) {
-        close_error_called = !result && result.error().kind == chat::error_kind::transport;
-    });
-    transport_ptr->emit_close();
-    if (!close_error_called || !disconnected)
-    {
-        std::cerr << "FAIL client pending request close\n";
-        return 1;
-    }
-    std::cout << "PASS client pending request close\n";
-
     client.close();
-    if (!transport_ptr->closed_)
+    if (!state.wait([&state] { return state.disconnected == 1; }))
     {
         std::cerr << "FAIL client close\n";
         return 1;
     }
     std::cout << "PASS client close\n";
+
+    client.connect(url);
+    if (!state.wait([&state] { return state.connected == 2; }))
+    {
+        std::cerr << "FAIL client reconnect\n";
+        return 1;
+    }
+    std::cout << "PASS client reconnect\n";
+
+    bool close_error_called = false;
+    client.authenticate("close", "secret", [&](std::expected<bool, chat::error> result) {
+        std::lock_guard lock(state.mutex);
+        close_error_called = !result && result.error().kind == chat::error_kind::transport;
+        state.condition.notify_all();
+    });
+    if (!state.wait([&] { return close_error_called && state.disconnected == 2; }))
+    {
+        std::cerr << "FAIL client pending request close\n";
+        return 1;
+    }
+    std::cout << "PASS client pending request close\n";
 
     return 0;
 }
