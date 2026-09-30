@@ -17,7 +17,13 @@ int main()
         std::cerr << "FAIL online user registration\n";
         return 1;
     }
+    if (users.find(1) != &first || users.find(2) != nullptr)
+    {
+        std::cerr << "FAIL online user lookup\n";
+        return 1;
+    }
     std::cout << "PASS online user registration\n";
+    std::cout << "PASS online user lookup\n";
 
     if (users.add(1, second))
     {
@@ -35,7 +41,7 @@ int main()
     std::cout << "PASS online user release ownership\n";
 
     users.remove(1, first);
-    if (!users.add(1, second))
+    if (users.find(1) != nullptr || !users.add(1, second))
     {
         std::cerr << "FAIL online user reuse\n";
         return 1;

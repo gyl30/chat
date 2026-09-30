@@ -2,6 +2,7 @@
 #define CHAT_SRC_CHAT_SESSION_HPP
 
 #include <cstdint>
+#include <deque>
 #include <optional>
 #include <string>
 
@@ -29,11 +30,16 @@ class chat_session
 
     boost::capy::task<simdjson::error_code> handle_register(json_rpc_request& request, std::string& response);
 
+    boost::capy::task<simdjson::error_code> handle_send_message(json_rpc_request& request, std::string& response);
+
+    bool enqueue_message(std::string message);
+
     boost::corosio::io_context& io_context_;
     websocket_connection& connection_;
     online_users& users_;
     std::string const& database_connection_string_;
     std::optional<std::int64_t> user_id_;
+    std::deque<std::string> outgoing_messages_;
 };
 
 #endif

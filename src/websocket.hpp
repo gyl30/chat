@@ -39,6 +39,8 @@ class websocket_connection
 
     boost::capy::io_task<websocket_message> receive();
 
+    void interrupt_receive() noexcept;
+
     boost::capy::io_task<> send_text(std::string_view payload);
 
    private:
@@ -61,6 +63,8 @@ class websocket_connection
     std::array<std::uint8_t, 4096> input_buffer_{};
     std::span<std::uint8_t const> input_;
     std::deque<websocket_message> messages_;
+    bool reading_ = false;
+    bool interrupt_requested_ = false;
 };
 
 #endif

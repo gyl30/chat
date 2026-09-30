@@ -480,6 +480,26 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         }
         std::cout << "PASS unauthenticated echo rejected\n";
 
+        constexpr std::string_view unauthenticated_send_message =
+            R"({"jsonrpc":"2.0","method":"send_message","params":{"user_id":1,"text":"hello"},"id":"send-auth-required"})";
+        auto [unauthenticated_send_message_write_ec] = co_await send_websocket_text(socket, unauthenticated_send_message);
+        if (unauthenticated_send_message_write_ec)
+        {
+            std::cerr << "FAIL unauthenticated send message write\n";
+            co_return 1;
+        }
+
+        auto unauthenticated_send_message_reply_result = co_await receive_websocket_text(socket);
+        auto& [unauthenticated_send_message_read_ec, unauthenticated_send_message_reply] = unauthenticated_send_message_reply_result;
+        constexpr std::string_view expected_unauthenticated_send_message_reply =
+            R"({"jsonrpc":"2.0","error":{"code":-32001,"message":"Authentication required"},"id":"send-auth-required"})";
+        if (unauthenticated_send_message_read_ec || unauthenticated_send_message_reply != expected_unauthenticated_send_message_reply)
+        {
+            std::cerr << "FAIL unauthenticated send message rejected\n";
+            co_return 1;
+        }
+        std::cout << "PASS unauthenticated send message rejected\n";
+
         constexpr std::string_view invalid_authentication =
             R"({"jsonrpc":"2.0","method":"authenticate","params":{"username":"chat_server_test","password":""},"id":"auth-invalid"})";
         auto [invalid_authentication_write_ec] = co_await send_websocket_text(socket, invalid_authentication);
@@ -579,6 +599,80 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
             co_return 1;
         }
         std::cout << "PASS repeated authentication rejected\n";
+
+        constexpr std::string_view invalid_send_message =
+            R"({"jsonrpc":"2.0","method":"send_message","params":{"user_id":0,"text":"hello"},"id":"send-invalid"})";
+        auto [invalid_send_message_write_ec] = co_await send_websocket_text(socket, invalid_send_message);
+        if (invalid_send_message_write_ec)
+        {
+            std::cerr << "FAIL invalid send message write\n";
+            co_return 1;
+        }
+
+        auto invalid_send_message_reply_result = co_await receive_websocket_text(socket);
+        auto& [invalid_send_message_read_ec, invalid_send_message_reply] = invalid_send_message_reply_result;
+        constexpr std::string_view expected_invalid_send_message_reply =
+            R"({"jsonrpc":"2.0","error":{"code":-32602,"message":"Invalid params"},"id":"send-invalid"})";
+        if (invalid_send_message_read_ec || invalid_send_message_reply != expected_invalid_send_message_reply)
+        {
+            std::cerr << "FAIL invalid send message rejected\n";
+            co_return 1;
+        }
+        std::cout << "PASS invalid send message rejected\n";
+
+        constexpr std::string_view unavailable_send_message =
+            R"({"jsonrpc":"2.0","method":"send_message","params":{"user_id":9223372036854775807,"text":"hello"},"id":"send-unavailable"})";
+        auto [unavailable_send_message_write_ec] = co_await send_websocket_text(socket, unavailable_send_message);
+        if (unavailable_send_message_write_ec)
+        {
+            std::cerr << "FAIL unavailable send message write\n";
+            co_return 1;
+        }
+
+        auto unavailable_send_message_reply_result = co_await receive_websocket_text(socket);
+        auto& [unavailable_send_message_read_ec, unavailable_send_message_reply] = unavailable_send_message_reply_result;
+        constexpr std::string_view expected_unavailable_send_message_reply =
+            R"({"jsonrpc":"2.0","error":{"code":-32005,"message":"User unavailable"},"id":"send-unavailable"})";
+        if (unavailable_send_message_read_ec || unavailable_send_message_reply != expected_unavailable_send_message_reply)
+        {
+            std::cerr << "FAIL unavailable send message rejected\n";
+            co_return 1;
+        }
+        std::cout << "PASS unavailable send message rejected\n";
+
+        std::string self_send_message = R"({"jsonrpc":"2.0","method":"send_message","params":{"user_id":)";
+        self_send_message.append(registered_user->front());
+        self_send_message.append(R"(,"text":"hello self"},"id":"send-self"})");
+        auto [self_send_message_write_ec] = co_await send_websocket_text(socket, self_send_message);
+        if (self_send_message_write_ec)
+        {
+            std::cerr << "FAIL self send message write\n";
+            co_return 1;
+        }
+
+        auto self_send_message_reply_result = co_await receive_websocket_text(socket);
+        auto& [self_send_message_read_ec, self_send_message_reply] = self_send_message_reply_result;
+        constexpr std::string_view expected_self_send_message_reply =
+            R"({"jsonrpc":"2.0","result":{"delivered":true},"id":"send-self"})";
+        if (self_send_message_read_ec || self_send_message_reply != expected_self_send_message_reply)
+        {
+            std::cerr << "FAIL self send message response\n";
+            co_return 1;
+        }
+        std::cout << "PASS self send message response\n";
+
+        auto self_message_notification_result = co_await receive_websocket_text(socket);
+        auto& [self_message_notification_read_ec, self_message_notification] = self_message_notification_result;
+        std::string expected_self_message_notification =
+            R"({"jsonrpc":"2.0","method":"message","params":{"from_user_id":)";
+        expected_self_message_notification.append(registered_user->front());
+        expected_self_message_notification.append(R"(,"text":"hello self"}})");
+        if (self_message_notification_read_ec || self_message_notification != expected_self_message_notification)
+        {
+            std::cerr << "FAIL self message notification\n";
+            co_return 1;
+        }
+        std::cout << "PASS self message notification\n";
 
         constexpr std::string_view echo_request = R"({"jsonrpc":"2.0","method":"echo","params":{"text":"hello chat"},"id":"1"})";
         auto [echo_write_ec] = co_await send_websocket_text(socket, echo_request);

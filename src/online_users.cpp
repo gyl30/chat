@@ -14,3 +14,13 @@ void online_users::remove(std::int64_t user_id, chat_session& session) noexcept
         sessions_.erase(it);
     }
 }
+
+chat_session* online_users::find(std::int64_t user_id) const noexcept
+{
+    auto const it = sessions_.find(user_id);
+    if (it == sessions_.end())
+    {
+        return nullptr;
+    }
+    return it->second;
+}

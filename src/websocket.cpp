@@ -5,6 +5,7 @@
 #include <system_error>
 
 #include <openssl/evp.h>
+#include <boost/capy/cond.hpp>
 #include <boost/capy/error.hpp>
 #include <boost/capy/write.hpp>
 #include <boost/http/field.hpp>
@@ -184,6 +185,12 @@ boost::capy::io_task<websocket_message> websocket_connection::receive()
             co_return boost::capy::io_result<websocket_message>{std::error_code{}, std::move(message)};
         }
 
+        if (interrupt_requested_)
+        {
+            interrupt_requested_ = false;
+            co_return boost::capy::io_result<websocket_message>{std::make_error_code(std::errc::interrupted), {}};
+        }
+
         if (!context_)
         {
             co_return boost::capy::io_result<websocket_message>{std::make_error_code(std::errc::not_connected), {}};
@@ -194,9 +201,16 @@ boost::capy::io_task<websocket_message> websocket_connection::receive()
             co_return boost::capy::io_result<websocket_message>{boost::capy::make_error_code(boost::capy::error::eof), {}};
         }
 
+        reading_ = true;
         auto [ec, size] = co_await socket_.read_some(boost::capy::mutable_buffer(input_buffer_.data(), input_buffer_.size()));
+        reading_ = false;
         if (ec)
         {
+            if (interrupt_requested_ && ec == boost::capy::cond::canceled)
+            {
+                interrupt_requested_ = false;
+                co_return boost::capy::io_result<websocket_message>{std::make_error_code(std::errc::interrupted), {}};
+            }
             co_return boost::capy::io_result<websocket_message>{ec, {}};
         }
         if (size == 0)
@@ -216,6 +230,15 @@ boost::capy::io_task<websocket_message> websocket_connection::receive()
         {
             co_return boost::capy::io_result<websocket_message>{flush_ec, {}};
         }
+    }
+}
+
+void websocket_connection::interrupt_receive() noexcept
+{
+    interrupt_requested_ = true;
+    if (reading_)
+    {
+        socket_.cancel();
     }
 }
 
