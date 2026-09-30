@@ -12,7 +12,6 @@
 #include <boost/capy/task.hpp>
 #include <boost/capy/write.hpp>
 #include <boost/http/field.hpp>
-#include <boost/http/bcrypt.hpp>
 #include <boost/http/config.hpp>
 #include <boost/http/method.hpp>
 #include <boost/http/status.hpp>
@@ -255,23 +254,17 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         co_return 1;
     }
 
-    auto fixture_hash = co_await boost::http::bcrypt::hash_async(kTestPassword, 4, boost::http::bcrypt::version::v2b);
-    std::vector<std::string> fixture_parameters;
-    fixture_parameters.emplace_back(kTestUsername);
-    fixture_parameters.emplace_back(fixture_hash.data(), fixture_hash.size());
-    auto fixture_result = co_await fixture_connection.execute_scalar(
-        "INSERT INTO users (username, password_hash) VALUES ($1, $2) "
-        "ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash "
-        "RETURNING id::text",
-        std::move(fixture_parameters));
-    auto& [fixture_ec, fixture_user_id] = fixture_result;
-    (void)fixture_user_id;
-    if (fixture_ec)
+    std::vector<std::string> cleanup_parameters;
+    cleanup_parameters.emplace_back(kTestUsername);
+    auto cleanup_result = co_await fixture_connection.execute_row(
+        "DELETE FROM users WHERE username = $1 RETURNING id::text", std::move(cleanup_parameters));
+    auto& [cleanup_ec, cleanup_row] = cleanup_result;
+    (void)cleanup_row;
+    if (cleanup_ec)
     {
-        std::cerr << "FAIL authentication fixture: " << fixture_connection.error_message() << '\n';
+        std::cerr << "FAIL registration fixture cleanup: " << fixture_connection.error_message() << '\n';
         co_return 1;
     }
-    fixture_connection.close();
 
     {
         boost::corosio::tcp_socket socket(io_context);
@@ -356,6 +349,108 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
             co_return 1;
         }
         std::cout << "PASS server binary message ignored\n";
+
+        constexpr std::string_view invalid_registration =
+            R"({"jsonrpc":"2.0","method":"register","params":{"username":"chat_server_test","password":""},"id":"register-invalid"})";
+        auto [invalid_registration_write_ec] = co_await send_websocket_text(socket, invalid_registration);
+        if (invalid_registration_write_ec)
+        {
+            std::cerr << "FAIL registration invalid params write\n";
+            co_return 1;
+        }
+
+        auto invalid_registration_reply_result = co_await receive_websocket_text(socket);
+        auto& [invalid_registration_read_ec, invalid_registration_reply] = invalid_registration_reply_result;
+        constexpr std::string_view expected_invalid_registration_reply =
+            R"({"jsonrpc":"2.0","error":{"code":-32602,"message":"Invalid params"},"id":"register-invalid"})";
+        if (invalid_registration_read_ec || invalid_registration_reply != expected_invalid_registration_reply)
+        {
+            std::cerr << "FAIL registration invalid params\n";
+            co_return 1;
+        }
+        std::cout << "PASS registration invalid params\n";
+
+        std::string long_password_registration =
+            R"({"jsonrpc":"2.0","method":"register","params":{"username":"chat_server_test","password":")";
+        long_password_registration.append(73, 'x');
+        long_password_registration.append(R"("},"id":"register-long"})");
+        auto [long_password_registration_write_ec] = co_await send_websocket_text(socket, long_password_registration);
+        if (long_password_registration_write_ec)
+        {
+            std::cerr << "FAIL registration password limit write\n";
+            co_return 1;
+        }
+
+        auto long_password_registration_reply_result = co_await receive_websocket_text(socket);
+        auto& [long_password_registration_read_ec, long_password_registration_reply] = long_password_registration_reply_result;
+        constexpr std::string_view expected_long_password_registration_reply =
+            R"({"jsonrpc":"2.0","error":{"code":-32602,"message":"Invalid params"},"id":"register-long"})";
+        if (long_password_registration_read_ec || long_password_registration_reply != expected_long_password_registration_reply)
+        {
+            std::cerr << "FAIL registration password limit\n";
+            co_return 1;
+        }
+        std::cout << "PASS registration password limit\n";
+
+        constexpr std::string_view registration_request =
+            R"({"jsonrpc":"2.0","method":"register","params":{"username":"chat_server_test","password":"test password"},"id":"register-ok"})";
+        auto [registration_write_ec] = co_await send_websocket_text(socket, registration_request);
+        if (registration_write_ec)
+        {
+            std::cerr << "FAIL registration success write\n";
+            co_return 1;
+        }
+
+        auto registration_reply_result = co_await receive_websocket_text(socket);
+        auto& [registration_read_ec, registration_reply] = registration_reply_result;
+        if (registration_read_ec)
+        {
+            std::cerr << "FAIL registration success read\n";
+            co_return 1;
+        }
+
+        std::vector<std::string> registered_user_parameters;
+        registered_user_parameters.emplace_back(kTestUsername);
+        auto registered_user_result = co_await fixture_connection.execute_row(
+            "SELECT id::text, password_hash FROM users WHERE username = $1", std::move(registered_user_parameters));
+        auto& [registered_user_ec, registered_user] = registered_user_result;
+        if (registered_user_ec || !registered_user || registered_user->size() != 2 || registered_user->at(1).size() != 60 ||
+            !registered_user->at(1).starts_with("$2b$12$"))
+        {
+            std::cerr << "FAIL registration verification: " << fixture_connection.error_message() << '\n';
+            co_return 1;
+        }
+
+        std::string expected_registration_reply = R"({"jsonrpc":"2.0","result":{"user_id":)";
+        expected_registration_reply.append(registered_user->front());
+        expected_registration_reply.append(R"(},"id":"register-ok"})");
+        if (registration_reply != expected_registration_reply)
+        {
+            std::cerr << "FAIL registration success\n";
+            co_return 1;
+        }
+        std::cout << "PASS registration success\n";
+
+        constexpr std::string_view duplicate_registration =
+            R"({"jsonrpc":"2.0","method":"register","params":{"username":"chat_server_test","password":"test password"},"id":"register-duplicate"})";
+        auto [duplicate_registration_write_ec] = co_await send_websocket_text(socket, duplicate_registration);
+        if (duplicate_registration_write_ec)
+        {
+            std::cerr << "FAIL registration duplicate write\n";
+            co_return 1;
+        }
+
+        auto duplicate_registration_reply_result = co_await receive_websocket_text(socket);
+        auto& [duplicate_registration_read_ec, duplicate_registration_reply] = duplicate_registration_reply_result;
+        constexpr std::string_view expected_duplicate_registration_reply =
+            R"({"jsonrpc":"2.0","error":{"code":-32002,"message":"Username already exists"},"id":"register-duplicate"})";
+        if (duplicate_registration_read_ec || duplicate_registration_reply != expected_duplicate_registration_reply)
+        {
+            std::cerr << "FAIL registration duplicate\n";
+            co_return 1;
+        }
+        std::cout << "PASS registration duplicate\n";
+        fixture_connection.close();
 
         constexpr std::string_view notification = R"({"jsonrpc":"2.0","method":"echo","params":{"text":"ignored"}})";
         auto [notification_ec] = co_await send_websocket_text(socket, notification);

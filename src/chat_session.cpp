@@ -9,6 +9,7 @@ namespace
 
 constexpr std::string_view kAuthenticateMethod = "authenticate";
 constexpr std::string_view kEchoMethod = "echo";
+constexpr std::string_view kRegisterMethod = "register";
 
 }    // namespace
 
@@ -47,6 +48,10 @@ boost::capy::task<void> chat_session::run()
             else if (request.method == kEchoMethod)
             {
                 rpc_error = co_await handle_echo(request, response);
+            }
+            else if (request.method == kRegisterMethod)
+            {
+                rpc_error = co_await handle_register(request, response);
             }
             else if (request.id.present)
             {

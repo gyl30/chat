@@ -23,6 +23,8 @@ class chat_session
 
     boost::capy::task<simdjson::error_code> handle_echo(json_rpc_request& request, std::string& response);
 
+    boost::capy::task<simdjson::error_code> handle_register(json_rpc_request& request, std::string& response);
+
     boost::corosio::io_context& io_context_;
     websocket_connection& connection_;
     std::string const& database_connection_string_;
