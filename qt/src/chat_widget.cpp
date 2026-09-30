@@ -3,34 +3,49 @@
 #include <utility>
 
 #include <QAbstractItemView>
+#include <QClipboard>
+#include <QColor>
+#include <QDialog>
 #include <QFrame>
 #include <QHBoxLayout>
-#include <QGridLayout>
+#include <QGuiApplication>
+#include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
 #include <QModelIndex>
 #include <QPushButton>
 #include <QScrollBar>
+#include <QSize>
 #include <QSizePolicy>
 #include <QTimer>
+#include <QToolButton>
 #include <QVBoxLayout>
 
+#include "avatar.hpp"
 #include "conversation_delegate.hpp"
 #include "conversation_model.hpp"
+#include "icons.hpp"
 #include "message_delegate.hpp"
 #include "message_model.hpp"
 
 namespace
 {
 
-QPushButton* make_navigation_button(QString text, QWidget* parent, bool selected, bool enabled)
+QToolButton* make_navigation_button(
+    QString text, QStringView icon, QWidget* parent, bool selected, bool enabled)
 {
-    auto* button = new QPushButton(std::move(text), parent);
+    auto* button = new QToolButton(parent);
     button->setObjectName(selected ? QStringLiteral("navigationSelected") : QStringLiteral("navigationButton"));
+    button->setText(std::move(text));
+    button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+    button->setIcon(svg_icon(
+        icon,
+        selected ? QColor(QStringLiteral("#FFFFFF")) : QColor(QStringLiteral("#C4D2CB")),
+        QSize(23, 23)));
+    button->setIconSize(QSize(23, 23));
     button->setEnabled(enabled);
-    button->setFlat(true);
-    button->setFixedHeight(54);
+    button->setFixedHeight(66);
     button->setCursor(enabled ? Qt::PointingHandCursor : Qt::ArrowCursor);
     return button;
 }
@@ -54,35 +69,45 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
 
     auto* navigation_panel = new QFrame(this);
     navigation_panel->setObjectName(QStringLiteral("navigationPanel"));
-    navigation_panel->setFixedWidth(88);
+    navigation_panel->setFixedWidth(84);
     auto* navigation_layout = new QVBoxLayout(navigation_panel);
-    navigation_layout->setContentsMargins(12, 20, 12, 16);
-    navigation_layout->setSpacing(7);
+    navigation_layout->setContentsMargins(10, 18, 10, 14);
+    navigation_layout->setSpacing(5);
+
+    auto* brand = new QLabel(QStringLiteral("Chat"), navigation_panel);
+    brand->setObjectName(QStringLiteral("brandLabel"));
+    brand->setAlignment(Qt::AlignCenter);
+    navigation_layout->addWidget(brand);
+    navigation_layout->addSpacing(14);
+    navigation_layout->addWidget(
+        make_navigation_button(QStringLiteral("聊天"), QStringLiteral("chat"), navigation_panel, true, true));
+    navigation_layout->addWidget(
+        make_navigation_button(QStringLiteral("联系人"), QStringLiteral("contacts"), navigation_panel, false, false));
+    navigation_layout->addWidget(
+        make_navigation_button(QStringLiteral("群组"), QStringLiteral("groups"), navigation_panel, false, false));
+    navigation_layout->addWidget(
+        make_navigation_button(QStringLiteral("动态"), QStringLiteral("activity"), navigation_panel, false, false));
+    navigation_layout->addWidget(
+        make_navigation_button(QStringLiteral("收藏"), QStringLiteral("bookmark"), navigation_panel, false, false));
+    navigation_layout->addStretch();
 
     profile_avatar_ = new QLabel(QStringLiteral("?"), navigation_panel);
     profile_avatar_->setObjectName(QStringLiteral("profileAvatar"));
     profile_avatar_->setAlignment(Qt::AlignCenter);
     profile_avatar_->setFixedSize(44, 44);
     navigation_layout->addWidget(profile_avatar_, 0, Qt::AlignHCenter);
-    navigation_layout->addSpacing(16);
-    navigation_layout->addWidget(make_navigation_button(QStringLiteral("聊天"), navigation_panel, true, true));
-    navigation_layout->addWidget(make_navigation_button(QStringLiteral("联系人"), navigation_panel, false, false));
-    navigation_layout->addWidget(make_navigation_button(QStringLiteral("群组"), navigation_panel, false, false));
-    navigation_layout->addWidget(make_navigation_button(QStringLiteral("动态"), navigation_panel, false, false));
-    navigation_layout->addWidget(make_navigation_button(QStringLiteral("收藏"), navigation_panel, false, false));
-    navigation_layout->addStretch();
     profile_name_ = new QLabel(navigation_panel);
     profile_name_->setObjectName(QStringLiteral("profileName"));
     profile_name_->setAlignment(Qt::AlignCenter);
-    profile_name_->setWordWrap(true);
+    profile_name_->setWordWrap(false);
     navigation_layout->addWidget(profile_name_);
 
     auto* conversation_panel = new QFrame(this);
     conversation_panel->setObjectName(QStringLiteral("conversationPanel"));
-    conversation_panel->setFixedWidth(320);
+    conversation_panel->setFixedWidth(332);
     auto* conversation_layout = new QVBoxLayout(conversation_panel);
-    conversation_layout->setContentsMargins(20, 22, 12, 12);
-    conversation_layout->setSpacing(10);
+    conversation_layout->setContentsMargins(18, 20, 10, 10);
+    conversation_layout->setSpacing(8);
     auto* conversations_title = new QLabel(QStringLiteral("消息"), conversation_panel);
     conversations_title->setObjectName(QStringLiteral("sectionTitle"));
     conversation_layout->addWidget(conversations_title);
@@ -97,6 +122,8 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     conversations_view_->setItemDelegate(new conversation_delegate(conversations_view_));
     conversations_view_->setSelectionMode(QAbstractItemView::SingleSelection);
     conversations_view_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    conversations_view_->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    conversations_view_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     conversations_view_->setMouseTracking(true);
     conversations_view_->verticalScrollBar()->setSingleStep(24);
     conversation_layout->addWidget(conversations_view_, 1);
@@ -105,11 +132,32 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     chat_panel->setObjectName(QStringLiteral("chatPanel"));
     chat_panel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     auto* chat_layout = new QVBoxLayout(chat_panel);
-    chat_layout->setContentsMargins(26, 22, 26, 24);
-    chat_layout->setSpacing(10);
-    chat_title_ = new QLabel(QStringLiteral("聊天"), chat_panel);
-    chat_title_->setObjectName(QStringLiteral("sectionTitle"));
-    chat_layout->addWidget(chat_title_);
+    chat_layout->setContentsMargins(20, 14, 20, 18);
+    chat_layout->setSpacing(8);
+
+    auto* header = new QFrame(chat_panel);
+    header->setObjectName(QStringLiteral("chatHeader"));
+    auto* header_layout = new QHBoxLayout(header);
+    header_layout->setContentsMargins(0, 0, 0, 0);
+    header_layout->setSpacing(8);
+    chat_title_ = new QPushButton(QStringLiteral("聊天"), header);
+    chat_title_->setObjectName(QStringLiteral("chatHeaderButton"));
+    chat_title_->setFlat(true);
+    chat_title_->setEnabled(false);
+    chat_title_->setCursor(Qt::PointingHandCursor);
+    chat_title_->setIconSize(QSize(38, 38));
+    header_layout->addWidget(chat_title_);
+    header_layout->addStretch();
+    profile_button_ = new QToolButton(header);
+    profile_button_->setObjectName(QStringLiteral("headerActionButton"));
+    profile_button_->setIcon(svg_icon(QStringLiteral("info"), QColor(QStringLiteral("#53635C")), QSize(20, 20)));
+    profile_button_->setIconSize(QSize(20, 20));
+    profile_button_->setFixedSize(36, 36);
+    profile_button_->setEnabled(false);
+    profile_button_->setCursor(Qt::PointingHandCursor);
+    header_layout->addWidget(profile_button_);
+    chat_layout->addWidget(header);
+
     auto* chat_line = new QFrame(chat_panel);
     chat_line->setFrameShape(QFrame::HLine);
     chat_line->setObjectName(QStringLiteral("horizontalSeparator"));
@@ -127,86 +175,41 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     messages_view_->setItemDelegate(new message_delegate(messages_view_));
     messages_view_->setSelectionMode(QAbstractItemView::NoSelection);
     messages_view_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    messages_view_->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     messages_view_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    messages_view_->setSpacing(1);
+    messages_view_->setSpacing(0);
     messages_view_->verticalScrollBar()->setSingleStep(24);
     chat_layout->addWidget(messages_view_, 1);
 
-    auto* input_layout = new QHBoxLayout;
-    input_layout->setSpacing(10);
-    message_edit_ = new QLineEdit(chat_panel);
+    auto* input_bar = new QFrame(chat_panel);
+    input_bar->setObjectName(QStringLiteral("inputBar"));
+    auto* input_layout = new QHBoxLayout(input_bar);
+    input_layout->setContentsMargins(10, 4, 5, 4);
+    input_layout->setSpacing(6);
+    message_edit_ = new QLineEdit(input_bar);
     message_edit_->setObjectName(QStringLiteral("messageEdit"));
     message_edit_->setPlaceholderText(QStringLiteral("输入消息…"));
     message_edit_->setEnabled(false);
     input_layout->addWidget(message_edit_, 1);
-    send_button_ = new QPushButton(QStringLiteral("发送"), chat_panel);
+    send_button_ = new QToolButton(input_bar);
     send_button_->setObjectName(QStringLiteral("sendButton"));
+    send_button_->setIcon(svg_icon(QStringLiteral("send"), QColor(QStringLiteral("#FFFFFF")), QSize(20, 20)));
+    send_button_->setIconSize(QSize(20, 20));
+    send_button_->setFixedSize(36, 36);
     send_button_->setEnabled(false);
+    send_button_->setCursor(Qt::PointingHandCursor);
     input_layout->addWidget(send_button_);
-    chat_layout->addLayout(input_layout);
-
-    auto* detail_panel = new QFrame(this);
-    detail_panel->setObjectName(QStringLiteral("detailPanel"));
-    detail_panel->setFixedWidth(286);
-    auto* detail_layout = new QVBoxLayout(detail_panel);
-    detail_layout->setContentsMargins(20, 22, 20, 22);
-    detail_layout->setSpacing(16);
-    auto* detail_title = new QLabel(QStringLiteral("详情"), detail_panel);
-    detail_title->setObjectName(QStringLiteral("sectionTitle"));
-    detail_layout->addWidget(detail_title);
-
-    detail_avatar_ = new QLabel(QStringLiteral("?"), detail_panel);
-    detail_avatar_->setObjectName(QStringLiteral("detailAvatar"));
-    detail_avatar_->setAlignment(Qt::AlignCenter);
-    detail_avatar_->setFixedSize(76, 76);
-    detail_layout->addWidget(detail_avatar_, 0, Qt::AlignHCenter);
-
-    detail_name_ = new QLabel(QStringLiteral("选择会话"), detail_panel);
-    detail_name_->setObjectName(QStringLiteral("detailName"));
-    detail_name_->setAlignment(Qt::AlignCenter);
-    detail_name_->setWordWrap(true);
-    detail_layout->addWidget(detail_name_);
-
-    detail_id_ = new QLabel(QStringLiteral("选择会话后显示对端信息"), detail_panel);
-    detail_id_->setObjectName(QStringLiteral("subtleText"));
-    detail_id_->setAlignment(Qt::AlignCenter);
-    detail_layout->addWidget(detail_id_);
-
-    auto* detail_card = new QFrame(detail_panel);
-    detail_card->setObjectName(QStringLiteral("detailCard"));
-    auto* detail_card_layout = new QGridLayout(detail_card);
-    detail_card_layout->setContentsMargins(16, 14, 16, 14);
-    detail_card_layout->setHorizontalSpacing(12);
-    detail_card_layout->setVerticalSpacing(12);
-
-    auto* username_label = new QLabel(QStringLiteral("用户名"), detail_card);
-    username_label->setObjectName(QStringLiteral("detailFieldLabel"));
-    detail_username_ = new QLabel(QStringLiteral("—"), detail_card);
-    detail_username_->setObjectName(QStringLiteral("detailFieldValue"));
-    detail_username_->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    auto* id_label = new QLabel(QStringLiteral("用户 ID"), detail_card);
-    id_label->setObjectName(QStringLiteral("detailFieldLabel"));
-    detail_user_id_ = new QLabel(QStringLiteral("—"), detail_card);
-    detail_user_id_->setObjectName(QStringLiteral("detailFieldValue"));
-    detail_user_id_->setTextInteractionFlags(Qt::TextSelectableByMouse);
-
-    detail_card_layout->addWidget(username_label, 0, 0);
-    detail_card_layout->addWidget(detail_username_, 0, 1);
-    detail_card_layout->addWidget(id_label, 1, 0);
-    detail_card_layout->addWidget(detail_user_id_, 1, 1);
-    detail_card_layout->setColumnStretch(1, 1);
-    detail_layout->addWidget(detail_card);
-    detail_layout->addStretch();
+    chat_layout->addWidget(input_bar);
 
     layout->addWidget(navigation_panel);
     layout->addWidget(conversation_panel);
     layout->addWidget(make_separator(this));
     layout->addWidget(chat_panel, 1);
-    layout->addWidget(make_separator(this));
-    layout->addWidget(detail_panel);
 
     connect(conversations_view_, &QListView::clicked, this, [this](QModelIndex const& index) { select_conversation(index); });
-    connect(send_button_, &QPushButton::clicked, this, [this] { send_current_message(); });
+    connect(chat_title_, &QPushButton::clicked, this, [this] { show_conversation_details(); });
+    connect(profile_button_, &QToolButton::clicked, this, [this] { show_conversation_details(); });
+    connect(send_button_, &QToolButton::clicked, this, [this] { send_current_message(); });
     connect(message_edit_, &QLineEdit::returnPressed, this, [this] { send_current_message(); });
     connect(messages_view_->verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int value) {
         if (value == messages_view_->verticalScrollBar()->minimum())
@@ -218,17 +221,16 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
 
 void chat_widget::set_user(QString const& username)
 {
-    profile_avatar_->setText(username.isEmpty() ? QStringLiteral("?") : username.left(1).toUpper());
+    profile_avatar_->setText(avatar_initial(username));
+    profile_avatar_->setStyleSheet(QStringLiteral("background: %1;").arg(avatar_background(username).name()));
     profile_name_->setText(username);
     active_user_ = 0;
     messages_->reset(0);
     chat_title_->setText(QStringLiteral("聊天"));
+    chat_title_->setIcon(QIcon{});
+    chat_title_->setEnabled(false);
+    profile_button_->setEnabled(false);
     message_status_->setText(QStringLiteral("选择一个会话开始聊天"));
-    detail_avatar_->setText(QStringLiteral("?"));
-    detail_name_->setText(QStringLiteral("选择会话"));
-    detail_id_->setText(QStringLiteral("选择会话后显示对端信息"));
-    detail_username_->setText(QStringLiteral("—"));
-    detail_user_id_->setText(QStringLiteral("—"));
     message_edit_->clear();
     message_edit_->setEnabled(false);
     send_button_->setEnabled(false);
@@ -402,12 +404,122 @@ void chat_widget::send_current_message()
     emit send_message_requested(active_user_, std::move(text));
 }
 
+void chat_widget::show_conversation_details()
+{
+    auto const index = conversations_->index_for_user(active_user_);
+    auto const* item = conversations_->conversation_at(index);
+    if (!item)
+    {
+        return;
+    }
+
+    QDialog dialog(this);
+    dialog.setObjectName(QStringLiteral("profileDialog"));
+    dialog.setWindowTitle(item->username);
+    dialog.setWindowFlag(Qt::FramelessWindowHint);
+    dialog.setModal(true);
+    dialog.setFixedWidth(460);
+
+    auto* layout = new QVBoxLayout(&dialog);
+    layout->setContentsMargins(24, 18, 24, 24);
+    layout->setSpacing(13);
+
+    auto* top = new QHBoxLayout;
+    top->addStretch();
+    auto* close_button = new QToolButton(&dialog);
+    close_button->setObjectName(QStringLiteral("profileCloseButton"));
+    close_button->setIcon(svg_icon(QStringLiteral("close"), QColor(QStringLiteral("#4B5651")), QSize(20, 20)));
+    close_button->setIconSize(QSize(20, 20));
+    close_button->setFixedSize(36, 36);
+    close_button->setCursor(Qt::PointingHandCursor);
+    top->addWidget(close_button);
+    layout->addLayout(top);
+
+    auto* avatar = new QLabel(avatar_initial(item->username), &dialog);
+    avatar->setObjectName(QStringLiteral("profileDialogAvatar"));
+    avatar->setAlignment(Qt::AlignCenter);
+    avatar->setFixedSize(88, 88);
+    avatar->setStyleSheet(QStringLiteral(
+        "background: %1; color: #315A4B; border-radius: 44px; font-size: 30px; font-weight: 700;")
+                              .arg(avatar_background(item->username).name()));
+    layout->addWidget(avatar, 0, Qt::AlignHCenter);
+
+    auto* name = new QLabel(item->username, &dialog);
+    name->setObjectName(QStringLiteral("profileDialogName"));
+    name->setAlignment(Qt::AlignCenter);
+    name->setWordWrap(true);
+    layout->addWidget(name);
+
+    auto* secondary = new QLabel(QStringLiteral("用户 ID %1").arg(item->user), &dialog);
+    secondary->setObjectName(QStringLiteral("profileDialogSecondary"));
+    secondary->setAlignment(Qt::AlignCenter);
+    layout->addWidget(secondary);
+
+    auto* actions = new QHBoxLayout;
+    actions->setSpacing(10);
+    auto make_action = [&dialog](QString text, QStringView icon) {
+        auto* button = new QToolButton(&dialog);
+        button->setObjectName(QStringLiteral("profileActionButton"));
+        button->setText(std::move(text));
+        button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+        button->setIcon(svg_icon(icon, QColor(QStringLiteral("#315A4B")), QSize(22, 22)));
+        button->setIconSize(QSize(22, 22));
+        button->setCursor(Qt::PointingHandCursor);
+        return button;
+    };
+    auto* message_button = make_action(QStringLiteral("消息"), QStringLiteral("chat"));
+    auto* copy_username_button = make_action(QStringLiteral("复制用户名"), QStringLiteral("copy"));
+    auto* copy_id_button = make_action(QStringLiteral("复制 ID"), QStringLiteral("id-card"));
+    actions->addWidget(message_button, 1);
+    actions->addWidget(copy_username_button, 1);
+    actions->addWidget(copy_id_button, 1);
+    layout->addLayout(actions);
+
+    auto* card = new QFrame(&dialog);
+    card->setObjectName(QStringLiteral("profileInfoCard"));
+    auto* card_layout = new QVBoxLayout(card);
+    card_layout->setContentsMargins(18, 14, 18, 14);
+    card_layout->setSpacing(11);
+
+    auto* username_value = new QLabel(item->username, card);
+    username_value->setObjectName(QStringLiteral("profileInfoValue"));
+    username_value->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    card_layout->addWidget(username_value);
+    auto* username_label = new QLabel(QStringLiteral("用户名"), card);
+    username_label->setObjectName(QStringLiteral("profileInfoLabel"));
+    card_layout->addWidget(username_label);
+
+    auto* separator = new QFrame(card);
+    separator->setObjectName(QStringLiteral("profileInfoSeparator"));
+    separator->setFrameShape(QFrame::HLine);
+    card_layout->addWidget(separator);
+
+    auto* id_value = new QLabel(QString::number(item->user), card);
+    id_value->setObjectName(QStringLiteral("profileInfoValue"));
+    id_value->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    card_layout->addWidget(id_value);
+    auto* id_label = new QLabel(QStringLiteral("用户 ID"), card);
+    id_label->setObjectName(QStringLiteral("profileInfoLabel"));
+    card_layout->addWidget(id_label);
+
+    layout->addWidget(card);
+
+    connect(close_button, &QToolButton::clicked, &dialog, &QDialog::reject);
+    connect(message_button, &QToolButton::clicked, &dialog, &QDialog::accept);
+    connect(copy_username_button, &QToolButton::clicked, &dialog, [username = item->username] {
+        QGuiApplication::clipboard()->setText(username);
+    });
+    connect(copy_id_button, &QToolButton::clicked, &dialog, [user = item->user] {
+        QGuiApplication::clipboard()->setText(QString::number(user));
+    });
+
+    dialog.exec();
+}
+
 void chat_widget::update_conversation_details(conversation_data const& item)
 {
     chat_title_->setText(item.username);
-    detail_avatar_->setText(item.username.isEmpty() ? QStringLiteral("?") : item.username.left(1).toUpper());
-    detail_name_->setText(item.username);
-    detail_id_->setText(QStringLiteral("用户 ID %1").arg(item.user));
-    detail_username_->setText(item.username);
-    detail_user_id_->setText(QString::number(item.user));
+    chat_title_->setIcon(avatar_icon(item.username, 38));
+    chat_title_->setEnabled(true);
+    profile_button_->setEnabled(true);
 }

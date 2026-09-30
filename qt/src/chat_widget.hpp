@@ -14,6 +14,7 @@ class QLineEdit;
 class QListView;
 class QModelIndex;
 class QPushButton;
+class QToolButton;
 class conversation_model;
 class message_model;
 
@@ -45,22 +46,19 @@ class chat_widget final : public QWidget
     void select_conversation(QModelIndex const& index);
     void request_older_messages();
     void send_current_message();
+    void show_conversation_details();
     void update_conversation_details(conversation_data const& item);
 
     QLabel* profile_avatar_ = nullptr;
     QLabel* profile_name_ = nullptr;
     QListView* conversations_view_ = nullptr;
     QLabel* conversations_status_ = nullptr;
-    QLabel* chat_title_ = nullptr;
+    QPushButton* chat_title_ = nullptr;
+    QToolButton* profile_button_ = nullptr;
     QLabel* message_status_ = nullptr;
     QListView* messages_view_ = nullptr;
     QLineEdit* message_edit_ = nullptr;
-    QPushButton* send_button_ = nullptr;
-    QLabel* detail_avatar_ = nullptr;
-    QLabel* detail_name_ = nullptr;
-    QLabel* detail_id_ = nullptr;
-    QLabel* detail_username_ = nullptr;
-    QLabel* detail_user_id_ = nullptr;
+    QToolButton* send_button_ = nullptr;
     conversation_model* conversations_ = nullptr;
     message_model* messages_ = nullptr;
     qint64 active_user_ = 0;
