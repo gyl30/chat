@@ -194,10 +194,10 @@ QString chat_style_sheet()
             background: transparent;
         }
         QListView#conversationList {
-            padding: 3px 0;
+            padding: 0;
         }
         QListView#messageList {
-            padding: 2px 2px 6px 2px;
+            padding: 0 2px 6px 2px;
         }
         QScrollBar:vertical {
             width: 6px;
@@ -230,26 +230,29 @@ QString chat_style_sheet()
         }
         QFrame#inputBar {
             background: #FFFEFA;
-            border: 1px solid #E3DFD6;
-            border-radius: 16px;
+            border: 0;
+            border-radius: 0;
         }
         QLineEdit#messageEdit {
-            min-height: 38px;
-            padding: 0 6px;
+            min-height: 36px;
+            padding: 0 4px;
             background: transparent;
             border: 0;
             border-radius: 0;
         }
+        QLineEdit#messageEdit:focus {
+            border: 0;
+        }
         QToolButton#sendButton {
             border: 0;
-            border-radius: 18px;
-            background: #315A4B;
+            border-radius: 20px;
+            background: transparent;
         }
-        QToolButton#sendButton:hover {
-            background: #294D40;
+        QToolButton#sendButton:hover:enabled {
+            background: #E9EEE9;
         }
         QToolButton#sendButton:disabled {
-            background: #B7C3BD;
+            background: transparent;
         }
     )");
 }

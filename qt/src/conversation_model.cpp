@@ -26,6 +26,8 @@ QVariant conversation_model::data(QModelIndex const& index, int role) const
             return item->user;
         case last_text_role:
             return item->last_text;
+        case last_timestamp_role:
+            return item->last_timestamp;
         case unread_role:
             return QVariant::fromValue(item->unread);
         default:

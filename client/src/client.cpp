@@ -514,8 +514,10 @@ struct client::impl
                 auto const& last_object = last_value->as_object();
                 auto const* id_value = last_object.if_contains("id");
                 auto const* from_value = last_object.if_contains("from");
+                auto const* timestamp_value = last_object.if_contains("timestamp");
                 auto const* text_value = last_object.if_contains("text");
-                if (!user || *user <= 0 || !unread || !id_value || !from_value || !text_value || !text_value->is_string())
+                if (!user || *user <= 0 || !unread || !id_value || !from_value || !timestamp_value || !text_value ||
+                    !text_value->is_string())
                 {
                     handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation")));
                     return;
@@ -523,7 +525,8 @@ struct client::impl
 
                 auto id = parse_int64(*id_value);
                 auto from = parse_int64(*from_value);
-                if (!id || *id <= 0 || !from || *from <= 0)
+                auto timestamp = parse_int64(*timestamp_value);
+                if (!id || *id <= 0 || !from || *from <= 0 || !timestamp || *timestamp <= 0)
                 {
                     handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation")));
                     return;
@@ -534,6 +537,7 @@ struct client::impl
                 item.username = std::string(username_value->as_string());
                 item.last.id = *id;
                 item.last.from = *from;
+                item.last.timestamp = *timestamp;
                 item.last.text = std::string(text_value->as_string());
                 item.unread = *unread;
                 conversations.push_back(std::move(item));

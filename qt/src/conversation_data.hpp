@@ -12,6 +12,7 @@ struct conversation_data
     QString username;
     qint64 last_id = 0;
     qint64 last_from = 0;
+    qint64 last_timestamp = 0;
     QString last_text;
     quint64 unread = 0;
 };

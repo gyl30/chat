@@ -106,8 +106,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
 
         auto query_result = co_await lease.connection().execute_scalar(
             "WITH latest AS ("
-            "SELECT DISTINCT ON (peer) peer, id, sender_id, body FROM ("
-            "SELECT id, sender_id, recipient_id, body, "
+            "SELECT DISTINCT ON (peer) peer, id, sender_id, body, created_at FROM ("
+            "SELECT id, sender_id, recipient_id, body, created_at, "
             "CASE WHEN sender_id = $1::bigint THEN recipient_id ELSE sender_id END AS peer "
             "FROM messages WHERE sender_id = $1::bigint OR recipient_id = $1::bigint"
             ") AS conversation_messages "
@@ -126,7 +126,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
             "'[]'::json"
             ")::text "
             "FROM ("
-            "SELECT latest.peer, users.username, latest.id, latest.sender_id, latest.body, "
+            "SELECT latest.peer, users.username, latest.id, latest.sender_id, latest.body, latest.created_at, "
             "COALESCE(unread.count, 0) AS unread "
             "FROM latest JOIN users ON users.id = latest.peer "
             "LEFT JOIN unread ON unread.peer = latest.peer "
@@ -136,7 +136,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
             "CROSS JOIN LATERAL ("
             "SELECT page.peer AS \"user\", page.username, row_to_json(last_message) AS last, page.unread "
             "FROM LATERAL ("
-            "SELECT page.id, page.sender_id AS \"from\", page.body AS text"
+            "SELECT page.id, page.sender_id AS \"from\", "
+            "((extract(epoch from page.created_at) * 1000)::bigint) AS timestamp, page.body AS text"
             ") AS last_message"
             ") AS conversation",
             std::move(parameters));

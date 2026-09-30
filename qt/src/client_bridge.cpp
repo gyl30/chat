@@ -85,6 +85,7 @@ void client_bridge::get_conversations()
             value.username = from_utf8(item.username);
             value.last_id = item.last.id;
             value.last_from = item.last.from;
+            value.last_timestamp = item.last.timestamp;
             value.last_text = from_utf8(item.last.text);
             value.unread = item.unread;
             conversations.push_back(std::move(value));

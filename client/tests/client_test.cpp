@@ -127,6 +127,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 boost::json::object last;
                 last.emplace("id", 12);
                 last.emplace("from", 2);
+                last.emplace("timestamp", 1700000000000LL);
                 last.emplace("text", "hello");
 
                 boost::json::object conversation;
@@ -141,6 +142,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 boost::json::object last;
                 last.emplace("id", 6);
                 last.emplace("from", 1);
+                last.emplace("timestamp", 1699990000000LL);
                 last.emplace("text", "older");
 
                 boost::json::object conversation;
@@ -488,7 +490,8 @@ int main()
     });
     if (!state.wait([&] { return conversations_called; }) || conversations.size() != 1 || conversations[0].user != 2 ||
         conversations[0].username != "bob" || conversations[0].last.id != 12 || conversations[0].last.from != 2 ||
-        conversations[0].last.text != "hello" || conversations[0].unread != 3)
+        conversations[0].last.timestamp != 1700000000000LL || conversations[0].last.text != "hello" ||
+        conversations[0].unread != 3)
     {
         std::cerr << "FAIL client conversations\n";
         return 1;

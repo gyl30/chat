@@ -28,6 +28,7 @@
 #include "icons.hpp"
 #include "message_delegate.hpp"
 #include "message_model.hpp"
+#include "theme.hpp"
 
 namespace
 {
@@ -107,14 +108,20 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     conversation_panel->setObjectName(QStringLiteral("conversationPanel"));
     conversation_panel->setFixedWidth(332);
     auto* conversation_layout = new QVBoxLayout(conversation_panel);
-    conversation_layout->setContentsMargins(18, 20, 10, 10);
-    conversation_layout->setSpacing(8);
-    auto* conversations_title = new QLabel(QStringLiteral("消息"), conversation_panel);
+    conversation_layout->setContentsMargins(0, 0, 0, 0);
+    conversation_layout->setSpacing(0);
+
+    auto* conversation_header = new QFrame(conversation_panel);
+    auto* conversation_header_layout = new QVBoxLayout(conversation_header);
+    conversation_header_layout->setContentsMargins(18, 20, 14, 10);
+    conversation_header_layout->setSpacing(5);
+    auto* conversations_title = new QLabel(QStringLiteral("消息"), conversation_header);
     conversations_title->setObjectName(QStringLiteral("sectionTitle"));
-    conversation_layout->addWidget(conversations_title);
-    conversations_status_ = new QLabel(conversation_panel);
+    conversation_header_layout->addWidget(conversations_title);
+    conversations_status_ = new QLabel(conversation_header);
     conversations_status_->setObjectName(QStringLiteral("subtleText"));
-    conversation_layout->addWidget(conversations_status_);
+    conversation_header_layout->addWidget(conversations_status_);
+    conversation_layout->addWidget(conversation_header);
 
     conversations_ = new conversation_model(this);
     conversations_view_ = new QListView(conversation_panel);
@@ -133,13 +140,13 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     chat_panel->setObjectName(QStringLiteral("chatPanel"));
     chat_panel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     auto* chat_layout = new QVBoxLayout(chat_panel);
-    chat_layout->setContentsMargins(20, 14, 20, 18);
-    chat_layout->setSpacing(8);
+    chat_layout->setContentsMargins(0, 0, 0, 0);
+    chat_layout->setSpacing(0);
 
     auto* header = new QFrame(chat_panel);
     header->setObjectName(QStringLiteral("chatHeader"));
     auto* header_layout = new QHBoxLayout(header);
-    header_layout->setContentsMargins(0, 0, 0, 0);
+    header_layout->setContentsMargins(16, 7, 12, 7);
     header_layout->setSpacing(8);
     chat_title_ = new QPushButton(QStringLiteral("聊天"), header);
     chat_title_->setObjectName(QStringLiteral("chatHeaderButton"));
@@ -167,6 +174,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     message_status_ = new QLabel(QStringLiteral("选择一个会话开始聊天"), chat_panel);
     message_status_->setObjectName(QStringLiteral("subtleText"));
     message_status_->setAlignment(Qt::AlignCenter);
+    message_status_->setContentsMargins(0, 6, 0, 6);
     chat_layout->addWidget(message_status_);
 
     messages_ = new message_model(this);
@@ -182,21 +190,28 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     messages_view_->verticalScrollBar()->setSingleStep(24);
     chat_layout->addWidget(messages_view_, 1);
 
+    auto* input_separator = new QFrame(chat_panel);
+    input_separator->setFrameShape(QFrame::HLine);
+    input_separator->setObjectName(QStringLiteral("horizontalSeparator"));
+    chat_layout->addWidget(input_separator);
+
     auto* input_bar = new QFrame(chat_panel);
     input_bar->setObjectName(QStringLiteral("inputBar"));
+    input_bar->setMinimumHeight(chat_theme::compose_height);
     auto* input_layout = new QHBoxLayout(input_bar);
-    input_layout->setContentsMargins(10, 4, 5, 4);
-    input_layout->setSpacing(6);
+    input_layout->setContentsMargins(12, 5, 8, 5);
+    input_layout->setSpacing(4);
     message_edit_ = new QLineEdit(input_bar);
     message_edit_->setObjectName(QStringLiteral("messageEdit"));
     message_edit_->setPlaceholderText(QStringLiteral("输入消息…"));
+    message_edit_->setMinimumHeight(chat_theme::compose_field_min_height);
     message_edit_->setEnabled(false);
     input_layout->addWidget(message_edit_, 1);
     send_button_ = new QToolButton(input_bar);
     send_button_->setObjectName(QStringLiteral("sendButton"));
-    send_button_->setIcon(svg_icon(QStringLiteral("send"), QColor(QStringLiteral("#FFFFFF")), QSize(20, 20)));
-    send_button_->setIconSize(QSize(20, 20));
-    send_button_->setFixedSize(36, 36);
+    send_button_->setIcon(svg_icon(QStringLiteral("send"), QColor(QStringLiteral("#315A4B")), QSize(22, 22)));
+    send_button_->setIconSize(QSize(22, 22));
+    send_button_->setFixedSize(chat_theme::compose_button_width, chat_theme::compose_button_height);
     send_button_->setEnabled(false);
     send_button_->setCursor(Qt::PointingHandCursor);
     input_layout->addWidget(send_button_);

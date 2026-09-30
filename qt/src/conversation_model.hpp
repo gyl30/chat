@@ -14,6 +14,7 @@ class conversation_model final : public QAbstractListModel
         user_role = Qt::UserRole + 1,
         username_role,
         last_text_role,
+        last_timestamp_role,
         unread_role,
     };
 

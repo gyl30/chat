@@ -1470,6 +1470,8 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     expected_conversations_unread_reply.append(offline_message->at(0));
     expected_conversations_unread_reply.append(R"(,"from":)");
     expected_conversations_unread_reply.append(source_user_id);
+    expected_conversations_unread_reply.append(R"(,"timestamp":)");
+    expected_conversations_unread_reply.append(offline_message->at(2));
     expected_conversations_unread_reply.append(
         R"(,"text":"offline hello"},"unread":1}]},"id":"peer-conversations-unread"})");
     if (conversations_unread_read_ec || conversations_unread_reply != expected_conversations_unread_reply)
@@ -1733,6 +1735,8 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     expected_conversations_live_reply.append(persisted_peer_message->at(0));
     expected_conversations_live_reply.append(R"(,"from":)");
     expected_conversations_live_reply.append(source_user_id);
+    expected_conversations_live_reply.append(R"(,"timestamp":)");
+    expected_conversations_live_reply.append(persisted_peer_message->at(1));
     expected_conversations_live_reply.append(
         R"(,"text":"peer hello"},"unread":0}]},"id":"peer-conversations-live"})");
     if (conversations_live_read_ec || conversations_live_reply != expected_conversations_live_reply)
