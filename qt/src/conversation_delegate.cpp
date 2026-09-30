@@ -5,6 +5,7 @@
 #include <QDateTime>
 #include <QFont>
 #include <QFontMetrics>
+#include <QMouseEvent>
 #include <QLocale>
 #include <QPainter>
 
@@ -144,4 +145,31 @@ QSize conversation_delegate::sizeHint(QStyleOptionViewItem const& option, QModel
     (void)option;
     (void)index;
     return {314, chat_theme::dialog_row_height};
+}
+
+bool conversation_delegate::editorEvent(QEvent* event, QAbstractItemModel* model,
+                                         QStyleOptionViewItem const& option, QModelIndex const& index)
+{
+    (void)model;
+    if (event->type() != QEvent::MouseButtonRelease)
+    {
+        return false;
+    }
+
+    auto const* mouse = static_cast<QMouseEvent*>(event);
+    if (mouse->button() != Qt::LeftButton)
+    {
+        return false;
+    }
+
+    QRect avatar_rect(option.rect.left() + chat_theme::dialog_left,
+                      option.rect.top() + chat_theme::dialog_avatar_top,
+                      chat_theme::dialog_avatar_size, chat_theme::dialog_avatar_size);
+    if (!avatar_rect.contains(mouse->position().toPoint()))
+    {
+        return false;
+    }
+
+    emit avatar_clicked(index);
+    return true;
 }

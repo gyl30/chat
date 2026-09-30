@@ -5,6 +5,7 @@
 #include <QDateTime>
 #include <QFont>
 #include <QFontMetrics>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 
@@ -402,4 +403,39 @@ QSize message_delegate::sizeHint(QStyleOptionViewItem const& option, QModelIndex
         option.rect.width(),
         layout.day_height + layout.top_margin + layout.bubble_height + chat_theme::message_margin_bottom,
     };
+}
+
+bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model,
+                                    QStyleOptionViewItem const& option, QModelIndex const& index)
+{
+    (void)model;
+    if (event->type() != QEvent::MouseButtonRelease)
+    {
+        return false;
+    }
+
+    auto const* mouse = static_cast<QMouseEvent*>(event);
+    if (mouse->button() != Qt::LeftButton)
+    {
+        return false;
+    }
+
+    auto const layout = calculate_layout(option, index);
+    if (layout.outgoing || !layout.group_end)
+    {
+        return false;
+    }
+
+    auto y = option.rect.top() + layout.day_height + layout.top_margin;
+    auto const bubble_bottom = y + layout.bubble_height - 1;
+    QRect avatar_rect(option.rect.left() + chat_theme::message_side_margin,
+                      bubble_bottom - chat_theme::message_avatar_size + 1,
+                      chat_theme::message_avatar_size, chat_theme::message_avatar_size);
+    if (!avatar_rect.contains(mouse->position().toPoint()))
+    {
+        return false;
+    }
+
+    emit avatar_clicked(index);
+    return true;
 }

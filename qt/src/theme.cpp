@@ -124,9 +124,17 @@ QString chat_style_sheet()
             background: #ECEBE5;
         }
         QDialog#profileDialog {
-            background: #FBFAF6;
-            border: 1px solid #E1DED5;
-            border-radius: 18px;
+            background: #FFFEFA;
+            border: 1px solid #D8D6D0;
+            border-radius: 12px;
+        }
+        QFrame#profileHeaderSection, QFrame#profileInfoSection {
+            background: #FFFEFA;
+            border: 0;
+        }
+        QFrame#profileSectionSeparator {
+            background: #F1F0ED;
+            border: 0;
         }
         QToolButton#profileCloseButton {
             border: 0;
@@ -134,55 +142,41 @@ QString chat_style_sheet()
             background: transparent;
         }
         QToolButton#profileCloseButton:hover {
-            background: #ECEAE3;
+            background: #F0EFEC;
         }
         QLabel#profileDialogAvatar {
             background: #E7EFEA;
             color: #315A4B;
-            border-radius: 44px;
-            font-size: 30px;
+            border-radius: 52px;
+            font-size: 34px;
             font-weight: 700;
         }
         QLabel#profileDialogName {
-            color: #27362F;
-            font-size: 21px;
-            font-weight: 700;
-        }
-        QLabel#profileDialogSecondary {
-            color: #8B918D;
-        }
-        QToolButton#profileActionButton {
-            min-height: 68px;
-            padding: 8px 8px 6px 8px;
-            background: #FFFEFA;
-            color: #315A4B;
-            border: 1px solid #E5E1D8;
-            border-radius: 14px;
-            font-size: 12px;
+            color: #1F2623;
+            font-size: 22px;
             font-weight: 600;
         }
-        QToolButton#profileActionButton:hover {
-            background: #F0F3EE;
-            border-color: #D6DFD9;
-        }
-        QFrame#profileInfoCard {
+        QToolButton#profileActionButton {
+            padding: 9px 8px 7px 8px;
             background: #FFFEFA;
-            border: 1px solid #E8E4DA;
-            border-radius: 14px;
+            color: #315A4B;
+            border: 1px solid #DFDDD7;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        QToolButton#profileActionButton:hover {
+            background: #F4F5F2;
+            border-color: #D5D9D4;
         }
         QLabel#profileInfoValue {
             color: #315A4B;
-            font-size: 15px;
-            font-weight: 600;
+            font-size: 16px;
+            font-weight: 500;
         }
         QLabel#profileInfoLabel {
             color: #8B918D;
-            font-size: 12px;
-        }
-        QFrame#profileInfoSeparator {
-            background: #E9E5DC;
-            border: 0;
-            max-height: 1px;
+            font-size: 13px;
         }
         QFrame#separator {
             background: #E8E4DB;

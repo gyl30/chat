@@ -37,8 +37,6 @@ qt_add_resources(chat_qt chat_icons
         resources/icons/contacts.svg
         resources/icons/copy.svg
         resources/icons/groups.svg
-        resources/icons/id-card.svg
-        resources/icons/info.svg
         resources/icons/send.svg
 )
 

@@ -47,6 +47,7 @@ class chat_widget final : public QWidget
     void request_older_messages();
     void send_current_message();
     void show_conversation_details();
+    void show_conversation_details(conversation_data const& item);
     void update_conversation_details(conversation_data const& item);
     void set_message_status(QString message);
 
@@ -54,7 +55,6 @@ class chat_widget final : public QWidget
     QListView* conversations_view_ = nullptr;
     QLabel* conversations_status_ = nullptr;
     QPushButton* chat_title_ = nullptr;
-    QToolButton* profile_button_ = nullptr;
     QLabel* message_status_ = nullptr;
     QListView* messages_view_ = nullptr;
     QLineEdit* message_edit_ = nullptr;
