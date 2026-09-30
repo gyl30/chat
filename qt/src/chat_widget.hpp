@@ -31,7 +31,7 @@ class chat_widget final : public QWidget
     void set_conversations(QList<conversation_data> conversations);
     void set_messages(qint64 user, QList<message_data> messages, bool older);
     void add_message(qint64 user, message_data message);
-    void add_sent_message(qint64 user, qint64 message, QString text, bool realtime);
+    void add_sent_message(qint64 user, qint64 message, qint64 timestamp, QString text, bool realtime);
     void set_message_error(qint64 user, QString message);
 
     qint64 active_user() const noexcept;
@@ -48,9 +48,9 @@ class chat_widget final : public QWidget
     void send_current_message();
     void show_conversation_details();
     void update_conversation_details(conversation_data const& item);
+    void set_message_status(QString message);
 
     QLabel* profile_avatar_ = nullptr;
-    QLabel* profile_name_ = nullptr;
     QListView* conversations_view_ = nullptr;
     QLabel* conversations_status_ = nullptr;
     QPushButton* chat_title_ = nullptr;

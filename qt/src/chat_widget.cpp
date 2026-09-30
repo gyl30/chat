@@ -45,7 +45,7 @@ QToolButton* make_navigation_button(
         QSize(23, 23)));
     button->setIconSize(QSize(23, 23));
     button->setEnabled(enabled);
-    button->setFixedHeight(66);
+    button->setFixedSize(64, 64);
     button->setCursor(enabled ? Qt::PointingHandCursor : Qt::ArrowCursor);
     return button;
 }
@@ -69,26 +69,32 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
 
     auto* navigation_panel = new QFrame(this);
     navigation_panel->setObjectName(QStringLiteral("navigationPanel"));
-    navigation_panel->setFixedWidth(84);
+    navigation_panel->setFixedWidth(82);
     auto* navigation_layout = new QVBoxLayout(navigation_panel);
-    navigation_layout->setContentsMargins(10, 18, 10, 14);
-    navigation_layout->setSpacing(5);
+    navigation_layout->setContentsMargins(9, 18, 9, 14);
+    navigation_layout->setSpacing(6);
 
-    auto* brand = new QLabel(QStringLiteral("Chat"), navigation_panel);
+    auto* brand = new QLabel(QStringLiteral("轻聊"), navigation_panel);
     brand->setObjectName(QStringLiteral("brandLabel"));
     brand->setAlignment(Qt::AlignCenter);
-    navigation_layout->addWidget(brand);
+    brand->setFixedWidth(64);
+    navigation_layout->addWidget(brand, 0, Qt::AlignHCenter);
     navigation_layout->addSpacing(14);
     navigation_layout->addWidget(
-        make_navigation_button(QStringLiteral("聊天"), QStringLiteral("chat"), navigation_panel, true, true));
+        make_navigation_button(QStringLiteral("聊天"), QStringLiteral("chat"), navigation_panel, true, true),
+        0, Qt::AlignHCenter);
     navigation_layout->addWidget(
-        make_navigation_button(QStringLiteral("联系人"), QStringLiteral("contacts"), navigation_panel, false, false));
+        make_navigation_button(QStringLiteral("联系人"), QStringLiteral("contacts"), navigation_panel, false, false),
+        0, Qt::AlignHCenter);
     navigation_layout->addWidget(
-        make_navigation_button(QStringLiteral("群组"), QStringLiteral("groups"), navigation_panel, false, false));
+        make_navigation_button(QStringLiteral("群组"), QStringLiteral("groups"), navigation_panel, false, false),
+        0, Qt::AlignHCenter);
     navigation_layout->addWidget(
-        make_navigation_button(QStringLiteral("动态"), QStringLiteral("activity"), navigation_panel, false, false));
+        make_navigation_button(QStringLiteral("动态"), QStringLiteral("activity"), navigation_panel, false, false),
+        0, Qt::AlignHCenter);
     navigation_layout->addWidget(
-        make_navigation_button(QStringLiteral("收藏"), QStringLiteral("bookmark"), navigation_panel, false, false));
+        make_navigation_button(QStringLiteral("收藏"), QStringLiteral("bookmark"), navigation_panel, false, false),
+        0, Qt::AlignHCenter);
     navigation_layout->addStretch();
 
     profile_avatar_ = new QLabel(QStringLiteral("?"), navigation_panel);
@@ -96,11 +102,6 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     profile_avatar_->setAlignment(Qt::AlignCenter);
     profile_avatar_->setFixedSize(44, 44);
     navigation_layout->addWidget(profile_avatar_, 0, Qt::AlignHCenter);
-    profile_name_ = new QLabel(navigation_panel);
-    profile_name_->setObjectName(QStringLiteral("profileName"));
-    profile_name_->setAlignment(Qt::AlignCenter);
-    profile_name_->setWordWrap(false);
-    navigation_layout->addWidget(profile_name_);
 
     auto* conversation_panel = new QFrame(this);
     conversation_panel->setObjectName(QStringLiteral("conversationPanel"));
@@ -222,15 +223,16 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
 void chat_widget::set_user(QString const& username)
 {
     profile_avatar_->setText(avatar_initial(username));
+    profile_avatar_->setToolTip(username);
     profile_avatar_->setStyleSheet(QStringLiteral("background: %1;").arg(avatar_background(username).name()));
-    profile_name_->setText(username);
     active_user_ = 0;
+    messages_->set_self_username(username);
     messages_->reset(0);
     chat_title_->setText(QStringLiteral("聊天"));
     chat_title_->setIcon(QIcon{});
     chat_title_->setEnabled(false);
     profile_button_->setEnabled(false);
-    message_status_->setText(QStringLiteral("选择一个会话开始聊天"));
+    set_message_status(QStringLiteral("选择一个会话开始聊天"));
     message_edit_->clear();
     message_edit_->setEnabled(false);
     send_button_->setEnabled(false);
@@ -286,12 +288,12 @@ void chat_widget::set_messages(qint64 user, QList<message_data> messages, bool o
     if (!older)
     {
         messages_loaded_ = true;
-        message_status_->setText(messages_->rowCount() == 0 ? QStringLiteral("暂无消息") : QString{});
+        set_message_status(messages_->rowCount() == 0 ? QStringLiteral("暂无消息") : QString{});
         QTimer::singleShot(0, messages_view_, [view = messages_view_] { view->scrollToBottom(); });
         return;
     }
 
-    message_status_->clear();
+    set_message_status({});
     QTimer::singleShot(0, messages_view_, [scroll, old_maximum, old_value] {
         scroll->setValue(old_value + scroll->maximum() - old_maximum);
     });
@@ -306,12 +308,12 @@ void chat_widget::add_message(qint64 user, message_data message)
 
     if (messages_->add_message(std::move(message)))
     {
-        message_status_->clear();
+        set_message_status({});
         QTimer::singleShot(0, messages_view_, [view = messages_view_] { view->scrollToBottom(); });
     }
 }
 
-void chat_widget::add_sent_message(qint64 user, qint64 message, QString text, bool realtime)
+void chat_widget::add_sent_message(qint64 user, qint64 message, qint64 timestamp, QString text, bool realtime)
 {
     if (user != active_user_)
     {
@@ -321,11 +323,12 @@ void chat_widget::add_sent_message(qint64 user, qint64 message, QString text, bo
     message_data value;
     value.id = message;
     value.from = 0;
+    value.timestamp = timestamp;
     value.text = std::move(text);
     add_message(user, std::move(value));
     if (!realtime)
     {
-        message_status_->setText(QStringLiteral("消息已保存，对方当前未实时接收"));
+        set_message_status(QStringLiteral("消息已保存，对方当前未实时接收"));
     }
 }
 
@@ -334,7 +337,7 @@ void chat_widget::set_message_error(qint64 user, QString message)
     if (user == active_user_)
     {
         messages_loading_ = false;
-        message_status_->setText(std::move(message));
+        set_message_status(std::move(message));
     }
 }
 
@@ -356,18 +359,18 @@ void chat_widget::select_conversation(QModelIndex const& index)
         if (!messages_loaded_ && !messages_loading_)
         {
             messages_loading_ = true;
-            message_status_->setText(QStringLiteral("正在加载消息…"));
+            set_message_status(QStringLiteral("正在加载消息…"));
             emit conversation_selected(active_user_);
         }
         return;
     }
 
     active_user_ = item->user;
-    messages_->reset(active_user_);
+    messages_->reset(active_user_, item->username);
     messages_loaded_ = false;
     messages_loading_ = true;
     history_exhausted_ = false;
-    message_status_->setText(QStringLiteral("正在加载消息…"));
+    set_message_status(QStringLiteral("正在加载消息…"));
     message_edit_->setEnabled(true);
     send_button_->setEnabled(true);
     emit conversation_selected(active_user_);
@@ -400,7 +403,7 @@ void chat_widget::send_current_message()
 
     auto text = message_edit_->text();
     message_edit_->clear();
-    message_status_->clear();
+    set_message_status({});
     emit send_message_requested(active_user_, std::move(text));
 }
 
@@ -514,6 +517,12 @@ void chat_widget::show_conversation_details()
     });
 
     dialog.exec();
+}
+
+void chat_widget::set_message_status(QString message)
+{
+    message_status_->setText(std::move(message));
+    message_status_->setVisible(!message_status_->text().isEmpty());
 }
 
 void chat_widget::update_conversation_details(conversation_data const& item)

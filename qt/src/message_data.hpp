@@ -10,6 +10,7 @@ struct message_data
 {
     qint64 id = 0;
     qint64 from = 0;
+    qint64 timestamp = 0;
     QString text;
 };
 

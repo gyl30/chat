@@ -19,26 +19,34 @@ QVariant message_model::data(QModelIndex const& index, int role) const
     }
 
     auto const& message = messages_[index.row()];
+    auto const outgoing = message.from != peer_user_;
     switch (role)
     {
         case id_role:
             return message.id;
         case from_role:
             return message.from;
+        case timestamp_role:
+            return message.timestamp;
         case Qt::DisplayRole:
         case text_role:
             return message.text;
         case outgoing_role:
-            return message.from != peer_user_;
+            return outgoing;
+        case sender_name_role:
+            return outgoing ? self_username_ : peer_username_;
         default:
             return {};
     }
 }
 
-void message_model::reset(qint64 peer_user)
+void message_model::set_self_username(QString username) { self_username_ = std::move(username); }
+
+void message_model::reset(qint64 peer_user, QString peer_username)
 {
     beginResetModel();
     peer_user_ = peer_user;
+    peer_username_ = std::move(peer_username);
     messages_.clear();
     endResetModel();
 }

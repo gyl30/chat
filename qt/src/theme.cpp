@@ -3,10 +3,16 @@
 QString chat_style_sheet()
 {
     return QStringLiteral(R"(
-        QMainWindow, QWidget {
+        QMainWindow {
             background: #F7F5EF;
+        }
+        QWidget {
+            background: transparent;
             color: #27332E;
             font-size: 14px;
+        }
+        QWidget#loginPage {
+            background: #F7F5EF;
         }
         QFrame#loginCard {
             background: #FFFEFA;
@@ -47,8 +53,9 @@ QString chat_style_sheet()
             background: #294F40;
         }
         QLabel#brandLabel {
+            background: transparent;
             color: #F4F7F5;
-            font-size: 18px;
+            font-size: 19px;
             font-weight: 700;
         }
         QLabel#profileAvatar {
@@ -58,14 +65,10 @@ QString chat_style_sheet()
             font-size: 18px;
             font-weight: 700;
         }
-        QLabel#profileName {
-            color: #D8E4DE;
-            font-size: 11px;
-        }
         QToolButton#navigationSelected, QToolButton#navigationButton {
             border: 0;
             border-radius: 12px;
-            padding: 7px 4px 5px 4px;
+            padding: 6px 4px 5px 4px;
             color: #D8E4DE;
             background: transparent;
             font-size: 12px;
@@ -194,7 +197,7 @@ QString chat_style_sheet()
             padding: 3px 0;
         }
         QListView#messageList {
-            padding: 5px 2px;
+            padding: 2px 2px 6px 2px;
         }
         QScrollBar:vertical {
             width: 6px;
@@ -202,12 +205,12 @@ QString chat_style_sheet()
             background: transparent;
         }
         QScrollBar::handle:vertical {
-            min-height: 36px;
-            background: rgba(70, 91, 82, 0.24);
+            min-height: 32px;
+            background: rgba(70, 91, 82, 0.14);
             border-radius: 3px;
         }
         QScrollBar::handle:vertical:hover {
-            background: rgba(70, 91, 82, 0.42);
+            background: rgba(70, 91, 82, 0.34);
         }
         QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
             width: 0;

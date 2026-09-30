@@ -178,12 +178,14 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 boost::json::object first;
                 first.emplace("id", 10);
                 first.emplace("from", 2);
+                first.emplace("timestamp", 1700000000000);
                 first.emplace("text", "first");
                 messages.push_back(std::move(first));
 
                 boost::json::object second;
                 second.emplace("id", 12);
                 second.emplace("from", 1);
+                second.emplace("timestamp", 1700000060000);
                 second.emplace("text", "second");
                 messages.push_back(std::move(second));
             }
@@ -192,6 +194,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 boost::json::object older;
                 older.emplace("id", 4);
                 older.emplace("from", 2);
+                older.emplace("timestamp", 1699999940000);
                 older.emplace("text", "older");
                 messages.push_back(std::move(older));
             }
@@ -219,6 +222,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
 
             boost::json::object result;
             result.emplace("message", 20);
+            result.emplace("timestamp", 1700000120000);
             result.emplace("realtime", true);
             response.emplace("result", std::move(result));
             auto [response_ec] = co_await send_text(connection, std::move(response));
@@ -230,6 +234,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             boost::json::object notification_params;
             notification_params.emplace("id", 21);
             notification_params.emplace("from", 2);
+            notification_params.emplace("timestamp", 1700000180000);
             notification_params.emplace("text", "incoming");
             boost::json::object notification;
             notification.emplace("jsonrpc", "2.0");
@@ -521,7 +526,8 @@ int main()
         state.condition.notify_all();
     });
     if (!state.wait([&] { return messages_called; }) || messages.size() != 2 || messages[0].id != 10 || messages[0].from != 2 ||
-        messages[0].text != "first" || messages[1].id != 12 || messages[1].from != 1 || messages[1].text != "second")
+        messages[0].timestamp != 1700000000000 || messages[0].text != "first" || messages[1].id != 12 ||
+        messages[1].from != 1 || messages[1].timestamp != 1700000060000 || messages[1].text != "second")
     {
         std::cerr << "FAIL client messages\n";
         return 1;
@@ -540,7 +546,7 @@ int main()
         state.condition.notify_all();
     });
     if (!state.wait([&] { return older_messages_called; }) || older_messages.size() != 1 || older_messages[0].id != 4 ||
-        older_messages[0].from != 2 || older_messages[0].text != "older")
+        older_messages[0].from != 2 || older_messages[0].timestamp != 1699999940000 || older_messages[0].text != "older")
     {
         std::cerr << "FAIL client message cursor\n";
         return 1;
@@ -558,8 +564,10 @@ int main()
         }
         state.condition.notify_all();
     });
-    if (!state.wait([&] { return send_called && !state.messages.empty(); }) || send_result.message_id != 20 || !send_result.realtime ||
-        state.messages.back().id != 21 || state.messages.back().from != 2 || state.messages.back().text != "incoming")
+    if (!state.wait([&] { return send_called && !state.messages.empty(); }) || send_result.message_id != 20 ||
+        send_result.timestamp != 1700000120000 || !send_result.realtime || state.messages.back().id != 21 ||
+        state.messages.back().from != 2 || state.messages.back().timestamp != 1700000180000 ||
+        state.messages.back().text != "incoming")
     {
         std::cerr << "FAIL client send and notification\n";
         return 1;

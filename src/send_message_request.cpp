@@ -25,6 +25,7 @@ struct [[= simdjson::deny_unknown_fields]] send_message_params
 struct send_message_result
 {
     std::int64_t message = 0;
+    std::int64_t timestamp = 0;
     bool realtime = false;
 };
 
@@ -32,6 +33,7 @@ struct message_params
 {
     std::int64_t id = 0;
     std::int64_t from = 0;
+    std::int64_t timestamp = 0;
     std::string text;
 };
 
@@ -76,10 +78,12 @@ simdjson::error_code parse_send_message_params(json_rpc_params& params, send_mes
     return simdjson::SUCCESS;
 }
 
-simdjson::error_code serialize_send_message_result(std::int64_t message, bool realtime, json_rpc_id id, std::string& response)
+simdjson::error_code serialize_send_message_result(
+    std::int64_t message, std::int64_t timestamp, bool realtime, json_rpc_id id, std::string& response)
 {
     send_message_result result{};
     result.message = message;
+    result.timestamp = timestamp;
     result.realtime = realtime;
 
     std::string result_json;
@@ -119,6 +123,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
     message_notification notification{};
     notification.params.id = std::numeric_limits<std::int64_t>::max();
     notification.params.from = *user_id_;
+    notification.params.timestamp = std::numeric_limits<std::int64_t>::max();
     notification.params.text = std::move(params.text);
 
     std::string notification_json;
@@ -137,6 +142,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
     }
 
     std::string id_text;
+    std::string timestamp_text;
     {
         auto lease = co_await database_.acquire();
         if (lease.error())
@@ -155,7 +161,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         auto query_result = co_await lease.connection().execute_row(
             "INSERT INTO messages (sender_id, recipient_id, body) "
             "SELECT $1::bigint, id, $3 FROM users WHERE id = $2::bigint "
-            "RETURNING id::text",
+            "RETURNING id::text, ((extract(epoch from created_at) * 1000)::bigint)::text",
             std::move(parameters));
         auto& [query_ec, row] = query_result;
         if (query_ec)
@@ -174,7 +180,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
             }
             co_return simdjson::SUCCESS;
         }
-        if (row->size() != 1)
+        if (row->size() != 2)
         {
             if (request.id.present)
             {
@@ -182,13 +188,26 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
             }
             co_return simdjson::SUCCESS;
         }
-        id_text = std::move(row->front());
+        id_text = std::move(row->at(0));
+        timestamp_text = std::move(row->at(1));
     }
 
     auto const* first = id_text.data();
     auto const* last = first + id_text.size();
     auto [end, parse_error] = std::from_chars(first, last, notification.params.id);
     if (parse_error != std::errc{} || end != last)
+    {
+        if (request.id.present)
+        {
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        co_return simdjson::SUCCESS;
+    }
+
+    first = timestamp_text.data();
+    last = first + timestamp_text.size();
+    auto [timestamp_end, timestamp_error] = std::from_chars(first, last, notification.params.timestamp);
+    if (timestamp_error != std::errc{} || timestamp_end != last)
     {
         if (request.id.present)
         {
@@ -212,5 +231,6 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         co_return simdjson::SUCCESS;
     }
 
-    co_return serialize_send_message_result(notification.params.id, realtime, std::move(request.id), response);
+    co_return serialize_send_message_result(
+        notification.params.id, notification.params.timestamp, realtime, std::move(request.id), response);
 }

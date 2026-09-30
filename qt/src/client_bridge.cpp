@@ -31,6 +31,7 @@ message_data to_message_data(chat::message const& value)
     message_data message;
     message.id = value.id;
     message.from = value.from;
+    message.timestamp = value.timestamp;
     message.text = from_utf8(value.text);
     return message;
 }
@@ -118,10 +119,10 @@ void client_bridge::send_message(qint64 user, QString text)
     client_->send_message(user, std::move(request_text), [this, user, text = std::move(text)](std::expected<chat::send_message_result, chat::error> result) mutable {
         if (!result)
         {
-            emit message_sent(user, std::move(text), 0, false, from_utf8(result.error().message));
+            emit message_sent(user, std::move(text), 0, 0, false, from_utf8(result.error().message));
             return;
         }
-        emit message_sent(user, std::move(text), result->message_id, result->realtime, {});
+        emit message_sent(user, std::move(text), result->message_id, result->timestamp, result->realtime, {});
     });
 }
 

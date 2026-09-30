@@ -83,21 +83,24 @@ bool parse_message(boost::json::object const& object, message& value)
 {
     auto const* id_value = object.if_contains("id");
     auto const* from_value = object.if_contains("from");
+    auto const* timestamp_value = object.if_contains("timestamp");
     auto const* text_value = object.if_contains("text");
-    if (!id_value || !from_value || !text_value || !text_value->is_string())
+    if (!id_value || !from_value || !timestamp_value || !text_value || !text_value->is_string())
     {
         return false;
     }
 
     auto id = parse_int64(*id_value);
     auto from = parse_int64(*from_value);
-    if (!id || *id <= 0 || !from || *from <= 0)
+    auto timestamp = parse_int64(*timestamp_value);
+    if (!id || *id <= 0 || !from || *from <= 0 || !timestamp || *timestamp <= 0)
     {
         return false;
     }
 
     value.id = *id;
     value.from = *from;
+    value.timestamp = *timestamp;
     value.text = std::string(text_value->as_string());
     return true;
 }
@@ -615,15 +618,17 @@ struct client::impl
 
             auto const& object = response->as_object();
             auto const* message_value = object.if_contains("message");
+            auto const* timestamp_value = object.if_contains("timestamp");
             auto const* realtime_value = object.if_contains("realtime");
-            if (!message_value || !realtime_value || !realtime_value->is_bool())
+            if (!message_value || !timestamp_value || !realtime_value || !realtime_value->is_bool())
             {
                 handler(std::unexpected(make_error(error_kind::protocol, "Invalid send_message result")));
                 return;
             }
 
             auto message_id = parse_int64(*message_value);
-            if (!message_id || *message_id <= 0)
+            auto timestamp = parse_int64(*timestamp_value);
+            if (!message_id || *message_id <= 0 || !timestamp || *timestamp <= 0)
             {
                 handler(std::unexpected(make_error(error_kind::protocol, "Invalid send_message result")));
                 return;
@@ -631,6 +636,7 @@ struct client::impl
 
             send_message_result result;
             result.message_id = *message_id;
+            result.timestamp = *timestamp;
             result.realtime = realtime_value->as_bool();
             handler(result);
         });

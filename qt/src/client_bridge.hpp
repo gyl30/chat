@@ -40,7 +40,7 @@ class client_bridge final : public QObject
     void conversations_received(QList<conversation_data> conversations, QString error_message);
     void messages_received(qint64 user, QList<message_data> messages, bool older, QString error_message);
     void message_received(message_data message);
-    void message_sent(qint64 user, QString text, qint64 message, bool realtime, QString error_message);
+    void message_sent(qint64 user, QString text, qint64 message, qint64 timestamp, bool realtime, QString error_message);
     void read_marked(qint64 user, qint64 message, QString error_message);
 
    private:

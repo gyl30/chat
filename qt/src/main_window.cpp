@@ -28,6 +28,7 @@ main_window::main_window(QString server_url, QWidget* parent)
     setCentralWidget(pages_);
 
     login_page_ = new QWidget(pages_);
+    login_page_->setObjectName(QStringLiteral("loginPage"));
     auto* login_outer = new QVBoxLayout(login_page_);
     login_outer->setContentsMargins(32, 32, 32, 32);
     login_outer->addStretch();
@@ -188,14 +189,14 @@ main_window::main_window(QString server_url, QWidget* parent)
             Qt::QueuedConnection);
 
     connect(client_.get(), &client_bridge::message_sent, this,
-            [this](qint64 user, QString text, qint64 message, bool realtime, QString const& error_message) {
+            [this](qint64 user, QString text, qint64 message, qint64 timestamp, bool realtime, QString const& error_message) {
                 if (!error_message.isEmpty())
                 {
                     chat_page_->set_message_error(user, error_message);
                     return;
                 }
 
-                chat_page_->add_sent_message(user, message, std::move(text), realtime);
+                chat_page_->add_sent_message(user, message, timestamp, std::move(text), realtime);
                 client_->get_conversations();
             },
             Qt::QueuedConnection);

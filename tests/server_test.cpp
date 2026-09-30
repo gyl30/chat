@@ -883,12 +883,13 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         std::vector<std::string> self_message_parameters;
         self_message_parameters.push_back(registered_user->front());
         auto self_message_result = co_await fixture_connection.execute_row(
-            "SELECT id::text, sender_id::text, recipient_id::text, body FROM messages "
+            "SELECT id::text, sender_id::text, recipient_id::text, body, "
+            "((extract(epoch from created_at) * 1000)::bigint)::text FROM messages "
             "WHERE sender_id = $1::bigint AND recipient_id = $1::bigint "
             "ORDER BY id DESC LIMIT 1",
             std::move(self_message_parameters));
         auto& [self_message_ec, self_message_row] = self_message_result;
-        if (self_message_ec || !self_message_row || self_message_row->size() != 4 ||
+        if (self_message_ec || !self_message_row || self_message_row->size() != 5 ||
             self_message_row->at(1) != registered_user->front() || self_message_row->at(2) != registered_user->front() ||
             self_message_row->at(3) != "hello self")
         {
@@ -899,6 +900,8 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
 
         std::string expected_self_send_message_reply = R"({"jsonrpc":"2.0","result":{"message":)";
         expected_self_send_message_reply.append(self_message_row->at(0));
+        expected_self_send_message_reply.append(R"(,"timestamp":)");
+        expected_self_send_message_reply.append(self_message_row->at(4));
         expected_self_send_message_reply.append(R"(,"realtime":true},"id":"send-self"})");
         if (self_send_message_reply != expected_self_send_message_reply)
         {
@@ -914,6 +917,8 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         expected_self_message_notification.append(self_message_row->at(0));
         expected_self_message_notification.append(R"(,"from":)");
         expected_self_message_notification.append(registered_user->front());
+        expected_self_message_notification.append(R"(,"timestamp":)");
+        expected_self_message_notification.append(self_message_row->at(4));
         expected_self_message_notification.append(R"(,"text":"hello self"}})");
         if (self_message_notification_read_ec || self_message_notification != expected_self_message_notification)
         {
@@ -938,6 +943,8 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         expected_get_messages_reply.append(self_message_row->at(0));
         expected_get_messages_reply.append(R"(,"from":)");
         expected_get_messages_reply.append(registered_user->front());
+        expected_get_messages_reply.append(R"(,"timestamp":)");
+        expected_get_messages_reply.append(self_message_row->at(4));
         expected_get_messages_reply.append(R"(,"text":"hello self"}]},"id":"messages-latest"})");
         if (get_messages_read_ec || get_messages_reply != expected_get_messages_reply)
         {
@@ -1395,12 +1402,12 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     offline_message_parameters.push_back(source_user_id);
     offline_message_parameters.push_back(peer_user_id);
     auto offline_message_result = co_await fixture_connection.execute_row(
-        "SELECT id::text, body FROM messages "
+        "SELECT id::text, body, ((extract(epoch from created_at) * 1000)::bigint)::text FROM messages "
         "WHERE sender_id = $1::bigint AND recipient_id = $2::bigint "
         "ORDER BY id DESC LIMIT 1",
         std::move(offline_message_parameters));
     auto& [offline_message_ec, offline_message] = offline_message_result;
-    if (offline_message_ec || !offline_message || offline_message->size() != 2 || offline_message->at(1) != "offline hello")
+    if (offline_message_ec || !offline_message || offline_message->size() != 3 || offline_message->at(1) != "offline hello")
     {
         std::cerr << "FAIL offline message persistence: " << fixture_connection.error_message() << '\n';
         co_return 1;
@@ -1408,6 +1415,8 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
 
     std::string expected_offline_send_reply = R"({"jsonrpc":"2.0","result":{"message":)";
     expected_offline_send_reply.append(offline_message->at(0));
+    expected_offline_send_reply.append(R"(,"timestamp":)");
+    expected_offline_send_reply.append(offline_message->at(2));
     expected_offline_send_reply.append(R"(,"realtime":false},"id":"peer-offline"})");
     if (offline_send_reply != expected_offline_send_reply)
     {
@@ -1487,6 +1496,8 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     expected_offline_history_reply.append(offline_message->at(0));
     expected_offline_history_reply.append(R"(,"from":)");
     expected_offline_history_reply.append(source_user_id);
+    expected_offline_history_reply.append(R"(,"timestamp":)");
+    expected_offline_history_reply.append(offline_message->at(2));
     expected_offline_history_reply.append(R"(,"text":"offline hello"}]},"id":"peer-history"})");
     if (offline_history_read_ec || offline_history_reply != expected_offline_history_reply)
     {
@@ -1588,12 +1599,12 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     peer_message_parameters.push_back(peer_user_id);
     peer_message_parameters.emplace_back("peer hello");
     auto persisted_peer_message_result = co_await fixture_connection.execute_row(
-        "SELECT id::text FROM messages "
+        "SELECT id::text, ((extract(epoch from created_at) * 1000)::bigint)::text FROM messages "
         "WHERE sender_id = $1::bigint AND recipient_id = $2::bigint AND body = $3 "
         "ORDER BY id DESC LIMIT 1",
         std::move(peer_message_parameters));
     auto& [persisted_peer_message_ec, persisted_peer_message] = persisted_peer_message_result;
-    if (persisted_peer_message_ec || !persisted_peer_message || persisted_peer_message->size() != 1)
+    if (persisted_peer_message_ec || !persisted_peer_message || persisted_peer_message->size() != 2)
     {
         std::cerr << "FAIL peer message persistence: " << fixture_connection.error_message() << '\n';
         co_return 1;
@@ -1602,6 +1613,8 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
 
     std::string expected_send_reply = R"({"jsonrpc":"2.0","result":{"message":)";
     expected_send_reply.append(persisted_peer_message->front());
+    expected_send_reply.append(R"(,"timestamp":)");
+    expected_send_reply.append(persisted_peer_message->at(1));
     expected_send_reply.append(R"(,"realtime":true},"id":"peer-send"})");
     if (send_reply != expected_send_reply)
     {
@@ -1622,6 +1635,8 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     expected_notification.append(persisted_peer_message->at(0));
     expected_notification.append(R"(,"from":)");
     expected_notification.append(source_user_id);
+    expected_notification.append(R"(,"timestamp":)");
+    expected_notification.append(persisted_peer_message->at(1));
     expected_notification.append(R"(,"text":"peer hello"}})");
     if (notification != expected_notification)
     {
@@ -1792,10 +1807,14 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     expected_peer_history_reply.append(offline_message->at(0));
     expected_peer_history_reply.append(R"(,"from":)");
     expected_peer_history_reply.append(source_user_id);
+    expected_peer_history_reply.append(R"(,"timestamp":)");
+    expected_peer_history_reply.append(offline_message->at(2));
     expected_peer_history_reply.append(R"(,"text":"offline hello"},{"id":)");
     expected_peer_history_reply.append(persisted_peer_message->at(0));
     expected_peer_history_reply.append(R"(,"from":)");
     expected_peer_history_reply.append(source_user_id);
+    expected_peer_history_reply.append(R"(,"timestamp":)");
+    expected_peer_history_reply.append(persisted_peer_message->at(1));
     expected_peer_history_reply.append(R"(,"text":"peer hello"}]},"id":"peer-history-order"})");
     if (peer_history_read_ec || peer_history_reply != expected_peer_history_reply)
     {
