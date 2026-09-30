@@ -1,6 +1,4 @@
 #include <cstdint>
-#include <limits>
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -13,13 +11,12 @@
 namespace
 {
 
-struct [[= simdjson::deny_unknown_fields]] get_messages_params
+struct [[= simdjson::deny_unknown_fields]] get_unread_count_params
 {
     std::int64_t user = 0;
-    std::optional<std::int64_t> before;
 };
 
-simdjson::error_code parse_get_messages_params(json_rpc_params& params, get_messages_params& value)
+simdjson::error_code parse_get_unread_count_params(json_rpc_params& params, get_unread_count_params& value)
 {
     if (!params.present)
     {
@@ -45,7 +42,7 @@ simdjson::error_code parse_get_messages_params(json_rpc_params& params, get_mess
         return simdjson::TRAILING_CONTENT;
     }
 
-    if (value.user <= 0 || (value.before && *value.before <= 0))
+    if (value.user <= 0)
     {
         return simdjson::INCORRECT_TYPE;
     }
@@ -53,17 +50,17 @@ simdjson::error_code parse_get_messages_params(json_rpc_params& params, get_mess
     return simdjson::SUCCESS;
 }
 
-simdjson::error_code serialize_get_messages_result(std::string_view messages, json_rpc_id id, std::string& response)
+simdjson::error_code serialize_get_unread_count_result(std::string_view count, json_rpc_id id, std::string& response)
 {
-    std::string result = R"({"messages":)";
-    result.append(messages);
+    std::string result = R"({"count":)";
+    result.append(count);
     result.push_back('}');
     return serialize_json_rpc_success(result, std::move(id), response);
 }
 
 }    // namespace
 
-boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_rpc_request& request, std::string& response)
+boost::capy::task<simdjson::error_code> chat_session::handle_get_unread_count(json_rpc_request& request, std::string& response)
 {
     if (!user_id_)
     {
@@ -74,8 +71,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
         co_return simdjson::SUCCESS;
     }
 
-    get_messages_params params{};
-    auto params_error = parse_get_messages_params(request.params, params);
+    get_unread_count_params params{};
+    auto params_error = parse_get_unread_count_params(request.params, params);
     if (params_error)
     {
         if (request.id.present)
@@ -85,7 +82,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
         co_return simdjson::SUCCESS;
     }
 
-    std::string messages_json;
+    std::string count;
     {
         auto lease = co_await database_.acquire();
         if (lease.error())
@@ -100,22 +97,16 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
         std::vector<std::string> parameters;
         parameters.emplace_back(std::to_string(*user_id_));
         parameters.emplace_back(std::to_string(params.user));
-        parameters.emplace_back(std::to_string(params.before.value_or(std::numeric_limits<std::int64_t>::max())));
 
         auto query_result = co_await lease.connection().execute_scalar(
-            "SELECT COALESCE("
-            "array_to_json(array_agg(row_to_json(page) ORDER BY id ASC)), "
-            "'[]'::json"
-            ")::text "
-            "FROM ("
-            "SELECT id, sender_id AS \"from\", body AS text FROM messages "
-            "WHERE ((sender_id = $1::bigint AND recipient_id = $2::bigint) "
-            "OR (sender_id = $2::bigint AND recipient_id = $1::bigint)) "
-            "AND id < $3::bigint "
-            "ORDER BY id DESC LIMIT 50"
-            ") AS page",
+            "SELECT count(*)::text FROM messages "
+            "WHERE sender_id = $2::bigint AND recipient_id = $1::bigint "
+            "AND id > COALESCE(("
+            "SELECT last_read_message_id FROM message_read_positions "
+            "WHERE user_id = $1::bigint AND peer_user_id = $2::bigint"
+            "), 0)",
             std::move(parameters));
-        auto& [query_ec, query_json] = query_result;
+        auto& [query_ec, query_count] = query_result;
         if (query_ec)
         {
             if (request.id.present)
@@ -124,7 +115,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
             }
             co_return simdjson::SUCCESS;
         }
-        messages_json = std::move(query_json);
+        count = std::move(query_count);
     }
 
     if (!request.id.present)
@@ -132,5 +123,5 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
         co_return simdjson::SUCCESS;
     }
 
-    co_return serialize_get_messages_result(messages_json, std::move(request.id), response);
+    co_return serialize_get_unread_count_result(count, std::move(request.id), response);
 }

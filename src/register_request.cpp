@@ -25,7 +25,7 @@ struct [[= simdjson::deny_unknown_fields]] register_params
 
 struct register_result
 {
-    std::int64_t user_id = 0;
+    std::int64_t user = 0;
 };
 
 simdjson::error_code parse_register_params(json_rpc_params& params, register_params& value)
@@ -65,7 +65,7 @@ simdjson::error_code parse_register_params(json_rpc_params& params, register_par
 simdjson::error_code serialize_register_result(std::int64_t user_id, json_rpc_id id, std::string& response)
 {
     register_result result{};
-    result.user_id = user_id;
+    result.user = user_id;
 
     std::string result_json;
     auto error = simdjson::builder::to_json_string(result).get(result_json);

@@ -1,5 +1,8 @@
+#include <charconv>
 #include <cstdint>
+#include <limits>
 #include <string>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -15,18 +18,19 @@ constexpr std::size_t kMaxMessageSize = 64 * 1024;
 
 struct [[= simdjson::deny_unknown_fields]] send_message_params
 {
-    std::int64_t user_id = 0;
+    std::int64_t user = 0;
     std::string text;
 };
 
 struct send_message_result
 {
-    bool delivered = false;
+    bool realtime = false;
 };
 
 struct message_params
 {
-    std::int64_t from_user_id = 0;
+    std::int64_t id = 0;
+    std::int64_t from = 0;
     std::string text;
 };
 
@@ -63,7 +67,7 @@ simdjson::error_code parse_send_message_params(json_rpc_params& params, send_mes
         return simdjson::TRAILING_CONTENT;
     }
 
-    if (value.user_id <= 0 || value.text.empty())
+    if (value.user <= 0 || value.text.empty())
     {
         return simdjson::INCORRECT_TYPE;
     }
@@ -71,10 +75,10 @@ simdjson::error_code parse_send_message_params(json_rpc_params& params, send_mes
     return simdjson::SUCCESS;
 }
 
-simdjson::error_code serialize_send_message_result(bool delivered, json_rpc_id id, std::string& response)
+simdjson::error_code serialize_send_message_result(bool realtime, json_rpc_id id, std::string& response)
 {
     send_message_result result{};
-    result.delivered = delivered;
+    result.realtime = realtime;
 
     std::string result_json;
     auto error = simdjson::builder::to_json_string(result).get(result_json);
@@ -111,7 +115,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
     }
 
     message_notification notification{};
-    notification.params.from_user_id = *user_id_;
+    notification.params.id = std::numeric_limits<std::int64_t>::max();
+    notification.params.from = *user_id_;
     notification.params.text = std::move(params.text);
 
     std::string notification_json;
@@ -129,6 +134,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         co_return simdjson::SUCCESS;
     }
 
+    std::string id_text;
     {
         auto lease = co_await database_.acquire();
         if (lease.error())
@@ -142,7 +148,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
 
         std::vector<std::string> parameters;
         parameters.emplace_back(std::to_string(*user_id_));
-        parameters.emplace_back(std::to_string(params.user_id));
+        parameters.emplace_back(std::to_string(params.user));
         parameters.emplace_back(notification.params.text);
         auto query_result = co_await lease.connection().execute_row(
             "INSERT INTO messages (sender_id, recipient_id, body) "
@@ -174,15 +180,35 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
             }
             co_return simdjson::SUCCESS;
         }
+        id_text = std::move(row->front());
     }
 
-    auto* target = users_.find(params.user_id);
-    auto const delivered = target && target->enqueue_message(std::move(notification_json));
+    auto const* first = id_text.data();
+    auto const* last = first + id_text.size();
+    auto [end, parse_error] = std::from_chars(first, last, notification.params.id);
+    if (parse_error != std::errc{} || end != last)
+    {
+        if (request.id.present)
+        {
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        co_return simdjson::SUCCESS;
+    }
+
+    notification_json.clear();
+    error = simdjson::builder::to_json_string(notification).get(notification_json);
+    if (error)
+    {
+        co_return error;
+    }
+
+    auto* recipient = users_.find(params.user);
+    auto const realtime = recipient && recipient->enqueue_message(std::move(notification_json));
 
     if (!request.id.present)
     {
         co_return simdjson::SUCCESS;
     }
 
-    co_return serialize_send_message_result(delivered, std::move(request.id), response);
+    co_return serialize_send_message_result(realtime, std::move(request.id), response);
 }
