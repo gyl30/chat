@@ -489,7 +489,6 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
             co_return 1;
         }
         std::cout << "PASS registration duplicate\n";
-        fixture_connection.close();
 
         constexpr std::string_view notification = R"({"jsonrpc":"2.0","method":"echo","params":{"text":"ignored"}})";
         auto [notification_ec] = co_await send_websocket_text(socket, notification);
@@ -712,6 +711,23 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
             co_return 1;
         }
         std::cout << "PASS self message notification\n";
+
+        std::vector<std::string> self_message_parameters;
+        self_message_parameters.push_back(registered_user->front());
+        auto self_message_result = co_await fixture_connection.execute_row(
+            "SELECT sender_id::text, recipient_id::text, body FROM messages "
+            "WHERE sender_id = $1::bigint AND recipient_id = $1::bigint "
+            "ORDER BY id DESC LIMIT 1",
+            std::move(self_message_parameters));
+        auto& [self_message_ec, self_message_row] = self_message_result;
+        if (self_message_ec || !self_message_row || self_message_row->size() != 3 ||
+            self_message_row->at(0) != registered_user->front() || self_message_row->at(1) != registered_user->front() ||
+            self_message_row->at(2) != "hello self")
+        {
+            std::cerr << "FAIL self message persistence: " << fixture_connection.error_message() << '\n';
+            co_return 1;
+        }
+        std::cout << "PASS self message persistence\n";
 
         constexpr std::string_view echo_request = R"({"jsonrpc":"2.0","method":"echo","params":{"text":"hello chat"},"id":"1"})";
         auto [echo_write_ec] = co_await send_websocket_text(socket, echo_request);
@@ -1089,8 +1105,6 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
 
     auto const& source_user_id = source_user->front();
     auto const& peer_user_id = peer_user->front();
-    fixture_connection.close();
-
     boost::corosio::tcp_socket source_socket(io_context);
     auto source_connect_result = co_await connect(source_socket, port);
     auto& [source_connect_ec] = source_connect_result;
@@ -1183,6 +1197,24 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return 1;
     }
     std::cout << "PASS peer message notification\n";
+
+    std::vector<std::string> peer_message_parameters;
+    peer_message_parameters.push_back(source_user_id);
+    peer_message_parameters.push_back(peer_user_id);
+    auto persisted_peer_message_result = co_await fixture_connection.execute_row(
+        "SELECT sender_id::text, recipient_id::text, body FROM messages "
+        "WHERE sender_id = $1::bigint AND recipient_id = $2::bigint "
+        "ORDER BY id DESC LIMIT 1",
+        std::move(peer_message_parameters));
+    auto& [persisted_peer_message_ec, persisted_peer_message] = persisted_peer_message_result;
+    if (persisted_peer_message_ec || !persisted_peer_message || persisted_peer_message->size() != 3 ||
+        persisted_peer_message->at(0) != source_user_id || persisted_peer_message->at(1) != peer_user_id ||
+        persisted_peer_message->at(2) != "peer hello")
+    {
+        std::cerr << "FAIL peer message persistence: " << fixture_connection.error_message() << '\n';
+        co_return 1;
+    }
+    std::cout << "PASS peer message persistence\n";
 
     source_socket.close();
     peer_socket.close();

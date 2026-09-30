@@ -1,10 +1,12 @@
 #include <cstdint>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <simdjson.h>
 
 #include "chat_session.hpp"
+#include "pg_connection_pool.hpp"
 
 namespace
 {
@@ -19,7 +21,7 @@ struct [[= simdjson::deny_unknown_fields]] send_message_params
 
 struct send_message_result
 {
-    bool delivered = true;
+    bool delivered = false;
 };
 
 struct message_params
@@ -69,9 +71,10 @@ simdjson::error_code parse_send_message_params(json_rpc_params& params, send_mes
     return simdjson::SUCCESS;
 }
 
-simdjson::error_code serialize_send_message_result(json_rpc_id id, std::string& response)
+simdjson::error_code serialize_send_message_result(bool delivered, json_rpc_id id, std::string& response)
 {
     send_message_result result{};
+    result.delivered = delivered;
 
     std::string result_json;
     auto error = simdjson::builder::to_json_string(result).get(result_json);
@@ -126,20 +129,60 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         co_return simdjson::SUCCESS;
     }
 
-    auto* target = users_.find(params.user_id);
-    if (!target || !target->enqueue_message(std::move(notification_json)))
     {
-        if (request.id.present)
+        auto lease = co_await database_.acquire();
+        if (lease.error())
         {
-            co_return serialize_json_rpc_error(-32005, "User unavailable", std::move(request.id), response);
+            if (request.id.present)
+            {
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            co_return simdjson::SUCCESS;
         }
-        co_return simdjson::SUCCESS;
+
+        std::vector<std::string> parameters;
+        parameters.emplace_back(std::to_string(*user_id_));
+        parameters.emplace_back(std::to_string(params.user_id));
+        parameters.emplace_back(notification.params.text);
+        auto query_result = co_await lease.connection().execute_row(
+            "INSERT INTO messages (sender_id, recipient_id, body) "
+            "SELECT $1::bigint, id, $3 FROM users WHERE id = $2::bigint "
+            "RETURNING id::text",
+            std::move(parameters));
+        auto& [query_ec, row] = query_result;
+        if (query_ec)
+        {
+            if (request.id.present)
+            {
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            co_return simdjson::SUCCESS;
+        }
+        if (!row)
+        {
+            if (request.id.present)
+            {
+                co_return serialize_json_rpc_error(-32005, "User unavailable", std::move(request.id), response);
+            }
+            co_return simdjson::SUCCESS;
+        }
+        if (row->size() != 1)
+        {
+            if (request.id.present)
+            {
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            co_return simdjson::SUCCESS;
+        }
     }
+
+    auto* target = users_.find(params.user_id);
+    auto const delivered = target && target->enqueue_message(std::move(notification_json));
 
     if (!request.id.present)
     {
         co_return simdjson::SUCCESS;
     }
 
-    co_return serialize_send_message_result(std::move(request.id), response);
+    co_return serialize_send_message_result(delivered, std::move(request.id), response);
 }
