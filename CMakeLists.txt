@@ -74,6 +74,7 @@ add_executable(chat_server
     src/chat_session.cpp
     src/authenticate_request.cpp
     src/echo_request.cpp
+    src/get_messages_request.cpp
     src/register_request.cpp
     src/send_message_request.cpp
     src/json_rpc.cpp
@@ -169,6 +170,7 @@ add_executable(chat_server_test
     src/chat_session.cpp
     src/authenticate_request.cpp
     src/echo_request.cpp
+    src/get_messages_request.cpp
     src/register_request.cpp
     src/send_message_request.cpp
     src/json_rpc.cpp

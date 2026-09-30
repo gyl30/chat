@@ -10,6 +10,7 @@ namespace
 
 constexpr std::string_view kAuthenticateMethod = "authenticate";
 constexpr std::string_view kEchoMethod = "echo";
+constexpr std::string_view kGetMessagesMethod = "get_messages";
 constexpr std::string_view kRegisterMethod = "register";
 constexpr std::string_view kSendMessageMethod = "send_message";
 constexpr std::size_t kMaxQueuedMessages = 64;
@@ -84,6 +85,10 @@ boost::capy::task<void> chat_session::run()
             else if (request.method == kEchoMethod)
             {
                 rpc_error = co_await handle_echo(request, response);
+            }
+            else if (request.method == kGetMessagesMethod)
+            {
+                rpc_error = co_await handle_get_messages(request, response);
             }
             else if (request.method == kRegisterMethod)
             {

@@ -182,12 +182,51 @@ boost::capy::io_task<std::string> receive_websocket_text(boost::corosio::tcp_soc
     {
         co_return boost::capy::io_result<std::string>{header_ec, {}};
     }
-    if (header_read != header.size() || header[0] != 0x81 || (header[1] & 0x80U) != 0 || (header[1] & 0x7fU) > 125)
+    if (header_read != header.size() || header[0] != 0x81 || (header[1] & 0x80U) != 0)
     {
         co_return boost::capy::io_result<std::string>{std::make_error_code(std::errc::protocol_error), {}};
     }
 
-    std::string payload(header[1] & 0x7fU, '\0');
+    std::uint64_t payload_size = header[1] & 0x7fU;
+    if (payload_size == 126)
+    {
+        std::array<std::uint8_t, 2> length{};
+        auto [length_ec, length_read] = co_await boost::capy::read(socket, boost::capy::mutable_buffer(length.data(), length.size()));
+        if (length_ec)
+        {
+            co_return boost::capy::io_result<std::string>{length_ec, {}};
+        }
+        if (length_read != length.size())
+        {
+            co_return boost::capy::io_result<std::string>{std::make_error_code(std::errc::io_error), {}};
+        }
+        payload_size = (static_cast<std::uint64_t>(length[0]) << 8) | length[1];
+    }
+    else if (payload_size == 127)
+    {
+        std::array<std::uint8_t, 8> length{};
+        auto [length_ec, length_read] = co_await boost::capy::read(socket, boost::capy::mutable_buffer(length.data(), length.size()));
+        if (length_ec)
+        {
+            co_return boost::capy::io_result<std::string>{length_ec, {}};
+        }
+        if (length_read != length.size() || (length[0] & 0x80U) != 0)
+        {
+            co_return boost::capy::io_result<std::string>{std::make_error_code(std::errc::protocol_error), {}};
+        }
+        payload_size = 0;
+        for (auto byte : length)
+        {
+            payload_size = (payload_size << 8) | byte;
+        }
+    }
+
+    if (payload_size > std::string{}.max_size())
+    {
+        co_return boost::capy::io_result<std::string>{std::make_error_code(std::errc::message_size), {}};
+    }
+
+    std::string payload(static_cast<std::size_t>(payload_size), '\0');
     if (!payload.empty())
     {
         auto [payload_ec, payload_read] = co_await boost::capy::read(socket, boost::capy::mutable_buffer(payload.data(), payload.size()));
@@ -538,6 +577,26 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         }
         std::cout << "PASS unauthenticated send message rejected\n";
 
+        constexpr std::string_view unauthenticated_get_messages =
+            R"({"jsonrpc":"2.0","method":"get_messages","params":{"user_id":1},"id":"messages-auth-required"})";
+        auto [unauthenticated_get_messages_write_ec] = co_await send_websocket_text(socket, unauthenticated_get_messages);
+        if (unauthenticated_get_messages_write_ec)
+        {
+            std::cerr << "FAIL unauthenticated get messages write\n";
+            co_return 1;
+        }
+
+        auto unauthenticated_get_messages_reply_result = co_await receive_websocket_text(socket);
+        auto& [unauthenticated_get_messages_read_ec, unauthenticated_get_messages_reply] = unauthenticated_get_messages_reply_result;
+        constexpr std::string_view expected_unauthenticated_get_messages_reply =
+            R"({"jsonrpc":"2.0","error":{"code":-32001,"message":"Authentication required"},"id":"messages-auth-required"})";
+        if (unauthenticated_get_messages_read_ec || unauthenticated_get_messages_reply != expected_unauthenticated_get_messages_reply)
+        {
+            std::cerr << "FAIL unauthenticated get messages rejected\n";
+            co_return 1;
+        }
+        std::cout << "PASS unauthenticated get messages rejected\n";
+
         constexpr std::string_view invalid_authentication =
             R"({"jsonrpc":"2.0","method":"authenticate","params":{"username":"chat_server_test","password":""},"id":"auth-invalid"})";
         auto [invalid_authentication_write_ec] = co_await send_websocket_text(socket, invalid_authentication);
@@ -638,6 +697,26 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         }
         std::cout << "PASS repeated authentication rejected\n";
 
+        constexpr std::string_view invalid_get_messages =
+            R"({"jsonrpc":"2.0","method":"get_messages","params":{"user_id":0},"id":"messages-invalid"})";
+        auto [invalid_get_messages_write_ec] = co_await send_websocket_text(socket, invalid_get_messages);
+        if (invalid_get_messages_write_ec)
+        {
+            std::cerr << "FAIL invalid get messages write\n";
+            co_return 1;
+        }
+
+        auto invalid_get_messages_reply_result = co_await receive_websocket_text(socket);
+        auto& [invalid_get_messages_read_ec, invalid_get_messages_reply] = invalid_get_messages_reply_result;
+        constexpr std::string_view expected_invalid_get_messages_reply =
+            R"({"jsonrpc":"2.0","error":{"code":-32602,"message":"Invalid params"},"id":"messages-invalid"})";
+        if (invalid_get_messages_read_ec || invalid_get_messages_reply != expected_invalid_get_messages_reply)
+        {
+            std::cerr << "FAIL invalid get messages rejected\n";
+            co_return 1;
+        }
+        std::cout << "PASS invalid get messages rejected\n";
+
         constexpr std::string_view invalid_send_message =
             R"({"jsonrpc":"2.0","method":"send_message","params":{"user_id":0,"text":"hello"},"id":"send-invalid"})";
         auto [invalid_send_message_write_ec] = co_await send_websocket_text(socket, invalid_send_message);
@@ -715,19 +794,66 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         std::vector<std::string> self_message_parameters;
         self_message_parameters.push_back(registered_user->front());
         auto self_message_result = co_await fixture_connection.execute_row(
-            "SELECT sender_id::text, recipient_id::text, body FROM messages "
+            "SELECT id::text, sender_id::text, recipient_id::text, body FROM messages "
             "WHERE sender_id = $1::bigint AND recipient_id = $1::bigint "
             "ORDER BY id DESC LIMIT 1",
             std::move(self_message_parameters));
         auto& [self_message_ec, self_message_row] = self_message_result;
-        if (self_message_ec || !self_message_row || self_message_row->size() != 3 ||
-            self_message_row->at(0) != registered_user->front() || self_message_row->at(1) != registered_user->front() ||
-            self_message_row->at(2) != "hello self")
+        if (self_message_ec || !self_message_row || self_message_row->size() != 4 ||
+            self_message_row->at(1) != registered_user->front() || self_message_row->at(2) != registered_user->front() ||
+            self_message_row->at(3) != "hello self")
         {
             std::cerr << "FAIL self message persistence: " << fixture_connection.error_message() << '\n';
             co_return 1;
         }
         std::cout << "PASS self message persistence\n";
+
+        std::string get_messages_request = R"({"jsonrpc":"2.0","method":"get_messages","params":{"user_id":)";
+        get_messages_request.append(registered_user->front());
+        get_messages_request.append(R"(},"id":"messages-latest"})");
+        auto [get_messages_write_ec] = co_await send_websocket_text(socket, get_messages_request);
+        if (get_messages_write_ec)
+        {
+            std::cerr << "FAIL get messages write\n";
+            co_return 1;
+        }
+
+        auto get_messages_reply_result = co_await receive_websocket_text(socket);
+        auto& [get_messages_read_ec, get_messages_reply] = get_messages_reply_result;
+        std::string expected_get_messages_reply = R"({"jsonrpc":"2.0","result":{"messages":[{"id":)";
+        expected_get_messages_reply.append(self_message_row->at(0));
+        expected_get_messages_reply.append(R"(,"from_user_id":)");
+        expected_get_messages_reply.append(registered_user->front());
+        expected_get_messages_reply.append(R"(,"text":"hello self"}]},"id":"messages-latest"})");
+        if (get_messages_read_ec || get_messages_reply != expected_get_messages_reply)
+        {
+            std::cerr << "FAIL get messages latest\n";
+            co_return 1;
+        }
+        std::cout << "PASS get messages latest\n";
+
+        std::string get_messages_before_request = R"({"jsonrpc":"2.0","method":"get_messages","params":{"user_id":)";
+        get_messages_before_request.append(registered_user->front());
+        get_messages_before_request.append(R"(,"before_id":)");
+        get_messages_before_request.append(self_message_row->at(0));
+        get_messages_before_request.append(R"(},"id":"messages-before"})");
+        auto [get_messages_before_write_ec] = co_await send_websocket_text(socket, get_messages_before_request);
+        if (get_messages_before_write_ec)
+        {
+            std::cerr << "FAIL get messages before write\n";
+            co_return 1;
+        }
+
+        auto get_messages_before_reply_result = co_await receive_websocket_text(socket);
+        auto& [get_messages_before_read_ec, get_messages_before_reply] = get_messages_before_reply_result;
+        constexpr std::string_view expected_get_messages_before_reply =
+            R"({"jsonrpc":"2.0","result":{"messages":[]},"id":"messages-before"})";
+        if (get_messages_before_read_ec || get_messages_before_reply != expected_get_messages_before_reply)
+        {
+            std::cerr << "FAIL get messages before cursor\n";
+            co_return 1;
+        }
+        std::cout << "PASS get messages before cursor\n";
 
         constexpr std::string_view echo_request = R"({"jsonrpc":"2.0","method":"echo","params":{"text":"hello chat"},"id":"1"})";
         auto [echo_write_ec] = co_await send_websocket_text(socket, echo_request);
@@ -1114,15 +1240,6 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return 1;
     }
 
-    boost::corosio::tcp_socket peer_socket(io_context);
-    auto peer_connect_result = co_await connect(peer_socket, port);
-    auto& [peer_connect_ec] = peer_connect_result;
-    if (peer_connect_ec)
-    {
-        std::cerr << "FAIL peer routing target connect: " << peer_connect_ec.message() << '\n';
-        co_return 1;
-    }
-
     auto parser_config = boost::http::make_parser_config(boost::http::parser_config{true});
     boost::http::response_parser source_parser(parser_config);
     auto source_upgrade_result = co_await upgrade_websocket(source_socket, source_parser);
@@ -1130,6 +1247,60 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     if (source_upgrade_ec)
     {
         std::cerr << "FAIL peer routing source upgrade: " << source_upgrade_ec.message() << '\n';
+        co_return 1;
+    }
+
+    auto source_auth_result = co_await authenticate_websocket(source_socket, kTestUsername, "peer-auth-source");
+    auto& [source_auth_ec] = source_auth_result;
+    if (source_auth_ec)
+    {
+        std::cerr << "FAIL peer routing source authentication\n";
+        co_return 1;
+    }
+
+    std::string offline_send_request = R"({"jsonrpc":"2.0","method":"send_message","params":{"user_id":)";
+    offline_send_request.append(peer_user_id);
+    offline_send_request.append(R"(,"text":"offline hello"},"id":"peer-offline"})");
+    auto offline_send_write_result = co_await send_websocket_text(source_socket, offline_send_request);
+    auto& [offline_send_write_ec] = offline_send_write_result;
+    if (offline_send_write_ec)
+    {
+        std::cerr << "FAIL offline message write\n";
+        co_return 1;
+    }
+
+    auto offline_send_reply_result = co_await receive_websocket_text(source_socket);
+    auto& [offline_send_read_ec, offline_send_reply] = offline_send_reply_result;
+    constexpr std::string_view expected_offline_send_reply =
+        R"({"jsonrpc":"2.0","result":{"delivered":false},"id":"peer-offline"})";
+    if (offline_send_read_ec || offline_send_reply != expected_offline_send_reply)
+    {
+        std::cerr << "FAIL offline message response\n";
+        co_return 1;
+    }
+    std::cout << "PASS offline message response\n";
+
+    std::vector<std::string> offline_message_parameters;
+    offline_message_parameters.push_back(source_user_id);
+    offline_message_parameters.push_back(peer_user_id);
+    auto offline_message_result = co_await fixture_connection.execute_row(
+        "SELECT id::text, body FROM messages "
+        "WHERE sender_id = $1::bigint AND recipient_id = $2::bigint "
+        "ORDER BY id DESC LIMIT 1",
+        std::move(offline_message_parameters));
+    auto& [offline_message_ec, offline_message] = offline_message_result;
+    if (offline_message_ec || !offline_message || offline_message->size() != 2 || offline_message->at(1) != "offline hello")
+    {
+        std::cerr << "FAIL offline message persistence: " << fixture_connection.error_message() << '\n';
+        co_return 1;
+    }
+
+    boost::corosio::tcp_socket peer_socket(io_context);
+    auto peer_connect_result = co_await connect(peer_socket, port);
+    auto& [peer_connect_ec] = peer_connect_result;
+    if (peer_connect_ec)
+    {
+        std::cerr << "FAIL peer routing target connect: " << peer_connect_ec.message() << '\n';
         co_return 1;
     }
 
@@ -1142,14 +1313,6 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return 1;
     }
 
-    auto source_auth_result = co_await authenticate_websocket(source_socket, kTestUsername, "peer-auth-source");
-    auto& [source_auth_ec] = source_auth_result;
-    if (source_auth_ec)
-    {
-        std::cerr << "FAIL peer routing source authentication\n";
-        co_return 1;
-    }
-
     auto peer_auth_result = co_await authenticate_websocket(peer_socket, kPeerUsername, "peer-auth-target");
     auto& [peer_auth_ec] = peer_auth_result;
     if (peer_auth_ec)
@@ -1157,6 +1320,31 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         std::cerr << "FAIL peer routing target authentication\n";
         co_return 1;
     }
+
+    std::string offline_history_request = R"({"jsonrpc":"2.0","method":"get_messages","params":{"user_id":)";
+    offline_history_request.append(source_user_id);
+    offline_history_request.append(R"(},"id":"peer-history"})");
+    auto offline_history_write_result = co_await send_websocket_text(peer_socket, offline_history_request);
+    auto& [offline_history_write_ec] = offline_history_write_result;
+    if (offline_history_write_ec)
+    {
+        std::cerr << "FAIL offline message history write\n";
+        co_return 1;
+    }
+
+    auto offline_history_reply_result = co_await receive_websocket_text(peer_socket);
+    auto& [offline_history_read_ec, offline_history_reply] = offline_history_reply_result;
+    std::string expected_offline_history_reply = R"({"jsonrpc":"2.0","result":{"messages":[{"id":)";
+    expected_offline_history_reply.append(offline_message->at(0));
+    expected_offline_history_reply.append(R"(,"from_user_id":)");
+    expected_offline_history_reply.append(source_user_id);
+    expected_offline_history_reply.append(R"(,"text":"offline hello"}]},"id":"peer-history"})");
+    if (offline_history_read_ec || offline_history_reply != expected_offline_history_reply)
+    {
+        std::cerr << "FAIL offline message history\n";
+        co_return 1;
+    }
+    std::cout << "PASS offline message history\n";
 
     std::string send_request_json = R"({"jsonrpc":"2.0","method":"send_message","params":{"user_id":)";
     send_request_json.append(peer_user_id);
@@ -1201,20 +1389,48 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     std::vector<std::string> peer_message_parameters;
     peer_message_parameters.push_back(source_user_id);
     peer_message_parameters.push_back(peer_user_id);
+    peer_message_parameters.emplace_back("peer hello");
     auto persisted_peer_message_result = co_await fixture_connection.execute_row(
-        "SELECT sender_id::text, recipient_id::text, body FROM messages "
-        "WHERE sender_id = $1::bigint AND recipient_id = $2::bigint "
+        "SELECT id::text FROM messages "
+        "WHERE sender_id = $1::bigint AND recipient_id = $2::bigint AND body = $3 "
         "ORDER BY id DESC LIMIT 1",
         std::move(peer_message_parameters));
     auto& [persisted_peer_message_ec, persisted_peer_message] = persisted_peer_message_result;
-    if (persisted_peer_message_ec || !persisted_peer_message || persisted_peer_message->size() != 3 ||
-        persisted_peer_message->at(0) != source_user_id || persisted_peer_message->at(1) != peer_user_id ||
-        persisted_peer_message->at(2) != "peer hello")
+    if (persisted_peer_message_ec || !persisted_peer_message || persisted_peer_message->size() != 1)
     {
         std::cerr << "FAIL peer message persistence: " << fixture_connection.error_message() << '\n';
         co_return 1;
     }
     std::cout << "PASS peer message persistence\n";
+
+    std::string peer_history_request = R"({"jsonrpc":"2.0","method":"get_messages","params":{"user_id":)";
+    peer_history_request.append(source_user_id);
+    peer_history_request.append(R"(},"id":"peer-history-order"})");
+    auto peer_history_write_result = co_await send_websocket_text(peer_socket, peer_history_request);
+    auto& [peer_history_write_ec] = peer_history_write_result;
+    if (peer_history_write_ec)
+    {
+        std::cerr << "FAIL peer message history write\n";
+        co_return 1;
+    }
+
+    auto peer_history_reply_result = co_await receive_websocket_text(peer_socket);
+    auto& [peer_history_read_ec, peer_history_reply] = peer_history_reply_result;
+    std::string expected_peer_history_reply = R"({"jsonrpc":"2.0","result":{"messages":[{"id":)";
+    expected_peer_history_reply.append(offline_message->at(0));
+    expected_peer_history_reply.append(R"(,"from_user_id":)");
+    expected_peer_history_reply.append(source_user_id);
+    expected_peer_history_reply.append(R"(,"text":"offline hello"},{"id":)");
+    expected_peer_history_reply.append(persisted_peer_message->at(0));
+    expected_peer_history_reply.append(R"(,"from_user_id":)");
+    expected_peer_history_reply.append(source_user_id);
+    expected_peer_history_reply.append(R"(,"text":"peer hello"}]},"id":"peer-history-order"})");
+    if (peer_history_read_ec || peer_history_reply != expected_peer_history_reply)
+    {
+        std::cerr << "FAIL peer message history order\n";
+        co_return 1;
+    }
+    std::cout << "PASS peer message history order\n";
 
     source_socket.close();
     peer_socket.close();
