@@ -152,6 +152,7 @@ struct message_layout
     bool day_start = false;
     bool group_start = false;
     bool group_end = false;
+    bool single_line = false;
     bool time_on_text_line = false;
     int name_height = 0;
     int text_width = 0;
@@ -203,8 +204,8 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
         + ((result.time_width > 0 && result.receipt_width > 0) ? 3 : 0)
         + result.receipt_width;
 
-    auto const single_line = !result.text.contains(QLatin1Char('\n')) && one_line_width <= inner_max;
-    if (single_line)
+    result.single_line = !result.text.contains(QLatin1Char('\n')) && one_line_width <= inner_max;
+    if (result.single_line)
     {
         result.text_width = one_line_width;
         result.text_height = body_line_height;
@@ -430,7 +431,8 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     QRect text_rect(content_left, content_top,
                     std::max(1, content_right - content_left - time_reserved),
                     layout.text_height);
-    painter->drawText(text_rect, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, layout.text);
+    painter->drawText(text_rect, Qt::AlignLeft | Qt::AlignTop
+        | (layout.single_line ? Qt::TextSingleLine : Qt::TextWordWrap), layout.text);
 
     if (metadata_width > 0)
     {

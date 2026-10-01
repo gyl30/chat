@@ -60,6 +60,12 @@ target_include_directories(chat_qt_models_test PRIVATE src)
 target_link_libraries(chat_qt_models_test PRIVATE Qt6::Widgets)
 add_test(NAME qt_models COMMAND chat_qt_models_test)
 
+add_executable(chat_qt_delegate_test tests/delegate_test.cpp)
+target_include_directories(chat_qt_delegate_test PRIVATE src)
+target_link_libraries(chat_qt_delegate_test PRIVATE chat_qt_widgets)
+add_test(NAME qt_delegate COMMAND chat_qt_delegate_test)
+set_tests_properties(qt_delegate PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 add_executable(chat_qt src/main.cpp)
 target_link_libraries(chat_qt PRIVATE chat_qt_widgets)
 
