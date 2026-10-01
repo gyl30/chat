@@ -87,7 +87,9 @@ client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::ma
     client_->set_typing_handler([this](chat::typing_event value) {
         emit typing_changed(value.conversation, value.user, from_utf8(value.username), value.typing);
     });
-    client_->set_conversation_handler([this](std::int64_t id) { emit conversation_changed(id); });
+    client_->set_conversation_handler([this](std::int64_t id, bool removed) {
+        emit conversation_changed(id, removed);
+    });
     client_->set_presence_handler([this](chat::presence value) { emit presence_changed(to_presence_data(value)); });
 }
 
@@ -270,6 +272,20 @@ void client_bridge::set_group_admin(qint64 conversation, qint64 user, bool admin
 void client_bridge::rename_group(qint64 conversation, QString title)
 {
     client_->rename_group(conversation, to_utf8(title), [this, conversation](auto result) {
+        emit group_action_finished(conversation, false, result ? QString{} : from_utf8(result.error().message));
+    });
+}
+
+void client_bridge::transfer_group_owner(qint64 conversation, qint64 user)
+{
+    client_->transfer_group_owner(conversation, user, [this, conversation](auto result) {
+        emit group_action_finished(conversation, false, result ? QString{} : from_utf8(result.error().message));
+    });
+}
+
+void client_bridge::remove_group_member(qint64 conversation, qint64 user)
+{
+    client_->remove_group_member(conversation, user, [this, conversation](auto result) {
         emit group_action_finished(conversation, false, result ? QString{} : from_utf8(result.error().message));
     });
 }

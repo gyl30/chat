@@ -308,9 +308,9 @@ int main(int argc, char** argv)
                 }
             }
             wait([&] { return ordinary_member; });
-            auto choose_reply = [&]
+            auto choose_reply = [&](int actor = 1, int row = 0)
             {
-                auto* view = windows[1]->findChild<QListView*>("messageList");
+                auto* view = windows[actor]->findChild<QListView*>("messageList");
                 QTimer::singleShot(20,
                                    []
                                    {
@@ -320,7 +320,7 @@ int main(int argc, char** argv)
                                        QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
                                        QApplication::sendEvent(menu, &enter);
                                    });
-                view->customContextMenuRequested(view->visualRect(view->model()->index(0, 0)).center());
+                view->customContextMenuRequested(view->visualRect(view->model()->index(row, 0)).center());
             };
             choose_reply();
             check(windows[1]->findChild<QLabel*>("replyPreview")->isVisible(), "Reply preview");
@@ -788,6 +788,10 @@ int main(int argc, char** argv)
                     check(list->item(1)->text().contains(QStringLiteral("管理员")), "Realtime role visible to administrator");
                     list->setCurrentRow(2);
                     check(!dialog->findChild<QPushButton*>("groupAdminButton")->isEnabled(), "Admin cannot appoint another admin");
+                    check(dialog->findChild<QPushButton*>("groupRemoveButton")->isEnabled(), "Admin may remove ordinary member");
+                    check(!dialog->findChild<QPushButton*>("groupTransferButton")->isEnabled(), "Admin cannot transfer ownership");
+                    list->setCurrentRow(0);
+                    check(!dialog->findChild<QPushButton*>("groupRemoveButton")->isEnabled(), "Admin cannot remove owner");
                     dialog->findChild<QLineEdit*>("groupTitleEdit")->setText(QStringLiteral("Qt 管理员改名群"));
                     ++admin_step;
                     dialog->findChild<QPushButton*>("groupRenameButton")->click();
@@ -871,6 +875,159 @@ int main(int argc, char** argv)
             wait([&] { return reinvited && pages[2]->active_conversation() == group && pages[2]->messages_ready(); });
             check(windows[2]->findChild<QListView*>("messageList")->model()->rowCount() ==
                       windows[0]->findChild<QListView*>("messageList")->model()->rowCount(), "Reinvited Qt member recovers full history");
+            auto member_action = [&](int actor, qint64 target, QString const& button_name) {
+                bool finished = false;
+                int step = 0;
+                QTimer action_poll;
+                QObject::connect(&action_poll, &QTimer::timeout, [&] {
+                    auto* dialog = qobject_cast<group_dialog*>(QApplication::activeModalWidget());
+                    if (!dialog) { return; }
+                    auto* list = dialog->findChild<QListWidget*>("groupMembersList");
+                    int row = -1;
+                    for (int i = 0; i < list->count(); ++i)
+                    {
+                        if (list->item(i)->data(Qt::UserRole).toLongLong() == target) { row = i; }
+                    }
+                    auto* button = dialog->findChild<QPushButton*>(button_name);
+                    if (step == 0 && row >= 0)
+                    {
+                        list->setCurrentRow(row);
+                        if (!button->isEnabled()) { return; }
+                        ++step;
+                        QTimer::singleShot(20, [] {
+                            auto* confirmation = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+                            check(confirmation, "Member action confirmation");
+                            confirmation->button(QMessageBox::Yes)->click();
+                        });
+                        button->click();
+                    }
+                    else if (step == 1 && (button_name == "groupRemoveButton" ? row == -1 :
+                        row >= 0 && list->item(row)->text().contains(QStringLiteral("群主"))))
+                    {
+                        if (button_name == "groupTransferButton")
+                        {
+                            check(list->item(0)->text().contains(QStringLiteral("管理员")), "Former Qt owner becomes admin");
+                            check(dialog->findChild<QPushButton*>("groupLeaveButton")->isEnabled(), "Former Qt owner may leave");
+                            dialog->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_transfer.png");
+                        }
+                        finished = true;
+                        action_poll.stop();
+                        dialog->accept();
+                    }
+                });
+                action_poll.start(20);
+                windows[actor]->findChild<QPushButton*>("chatHeaderButton")->click();
+                check(finished, "Member action completed in Qt");
+            };
+            auto invite_again = [&] {
+                bool finished = false;
+                int step = 0;
+                QTimer invite_again_poll;
+                QObject::connect(&invite_again_poll, &QTimer::timeout, [&] {
+                    auto* dialog = qobject_cast<group_dialog*>(QApplication::activeModalWidget());
+                    if (!dialog) { return; }
+                    auto* list = dialog->findChild<QListWidget*>("groupMembersList");
+                    auto* button = dialog->findChild<QPushButton*>("groupInviteButton");
+                    if (step == 0 && list->count() == 2 && button->isEnabled())
+                    {
+                        ++step;
+                        QTimer::singleShot(20, [] {
+                            auto* picker = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                            check(picker && picker->objectName() == "groupInviteDialog", "Reinvite removed Qt member");
+                            picker->findChild<QListWidget*>()->item(0)->setCheckState(Qt::Checked);
+                            picker->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->click();
+                        });
+                        button->click();
+                    }
+                    else if (step == 1 && list->count() == 3)
+                    {
+                        finished = true;
+                        invite_again_poll.stop();
+                        dialog->accept();
+                    }
+                });
+                invite_again_poll.start(20);
+                windows[0]->findChild<QPushButton*>("chatHeaderButton")->click();
+                check(finished, "Reinvite action completed");
+                wait([&] { return pages[2]->active_conversation() == group && pages[2]->messages_ready(); });
+            };
+            for (auto const& modal : {QStringLiteral("groupDialog"), QStringLiteral("messageSearchDialog"), QStringLiteral("attachmentDialog")})
+            {
+                select_group(2);
+                if (modal == "groupDialog")
+                {
+                    choose_reply(2, windows[2]->findChild<QListView*>("messageList")->model()->rowCount() - 1);
+                    check(windows[2]->findChild<QLabel*>("replyPreview")->isVisible(), "Reply pending before removal");
+                    windows[2]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("移除后清理的草稿"));
+                    pages[0]->typing_requested(group, true);
+                    wait([&] { return group_typing->isVisible(); });
+                }
+                qint64 file_message = 0;
+                if (modal == "attachmentDialog")
+                {
+                    auto const before_file = pages[0]->latest_message_id();
+                    pages[0]->attachment_send_requested(group, "removal.bin", QByteArray("group file"), 0);
+                    wait([&] { return pages[0]->latest_message_id() > before_file && pages[2]->latest_message_id() > before_file; });
+                    file_message = pages[2]->latest_message_id();
+                }
+                QTimer::singleShot(50, [&] {
+                    auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                    check(dialog && dialog->objectName() == modal, "Removed member has a conversation modal open");
+                    if (modal == "attachmentDialog")
+                    {
+                        auto* save = dialog->findChild<QPushButton*>("saveAttachmentButton");
+                        wait([&] { return save->isEnabled(); });
+                        QTimer::singleShot(50, [&] {
+                            check(qobject_cast<QFileDialog*>(QApplication::activeModalWidget()), "Removed member has save picker open");
+                            member_action(0, ids[2], "groupRemoveButton");
+                        });
+                        save->click();
+                    }
+                    else
+                    {
+                        member_action(0, ids[2], "groupRemoveButton");
+                    }
+                });
+                if (modal == "groupDialog") { windows[2]->findChild<QPushButton*>("chatHeaderButton")->click(); }
+                else if (modal == "messageSearchDialog") { windows[2]->findChild<QToolButton*>("messageSearchButton")->click(); }
+                else { pages[2]->attachment_open_requested(group, file_message, "removal.bin", false); }
+                wait([&] { return pages[2]->active_conversation() == 0; });
+                check(!QApplication::activeModalWidget() && windows[2]->findChild<QListView*>("messageList")->model()->rowCount() == 0 &&
+                    windows[2]->findChild<QLineEdit*>("messageEdit")->text().isEmpty() &&
+                    !windows[2]->findChild<QLabel*>("replyPreview")->isVisible() && !group_typing->isVisible() &&
+                    !windows[2]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled(),
+                    "Removal closes nested modals and clears history, reply, draft, typing and attachment UI");
+                invite_again();
+            }
+            member_action(0, ids[1], "groupTransferButton");
+            server.terminate();
+            check(server.waitForFinished(3000), "Restart after Qt ownership transfer");
+            wait([&] { return !windows[0]->findChild<QToolButton*>("sendButton")->isEnabled(); });
+            start();
+            for (int i = 0; i < 3; ++i)
+            {
+                wait([&, i] { return pages[i]->messages_ready() && windows[i]->findChild<QToolButton*>("sendButton")->isEnabled(); });
+            }
+            bool recovered_owner = false;
+            QTimer owner_poll;
+            QObject::connect(&owner_poll, &QTimer::timeout, [&] {
+                auto* dialog = qobject_cast<group_dialog*>(QApplication::activeModalWidget());
+                if (!dialog) { return; }
+                auto* list = dialog->findChild<QListWidget*>("groupMembersList");
+                if (list->count() != 3) { return; }
+                check(list->item(0)->text().contains(QStringLiteral("管理员")) &&
+                    list->item(1)->text().contains(QStringLiteral("群主")), "Ownership roles recover in Qt after reconnect");
+                list->setCurrentRow(0);
+                check(dialog->findChild<QPushButton*>("groupRemoveButton")->isEnabled(), "New Qt owner can remove administrator");
+                list->setCurrentRow(2);
+                check(!dialog->findChild<QPushButton*>("groupTransferButton")->isEnabled(), "New Qt owner cannot transfer to ordinary member");
+                recovered_owner = true;
+                owner_poll.stop();
+                dialog->accept();
+            });
+            owner_poll.start(20);
+            windows[1]->findChild<QPushButton*>("chatHeaderButton")->click();
+            check(recovered_owner, "Reconnect member snapshot");
         }
         std::cout << "PASS three real Qt windows: login, contacts group creation, member list, message author, "
                      "realtime, server restart and automatic recovery\n";

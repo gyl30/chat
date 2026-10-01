@@ -462,6 +462,20 @@ main_window::main_window(QString server_url, QWidget* parent)
                 connect(&dialog, &group_dialog::admin_requested, this, [this, conversation](qint64 user, bool admin) {
                     client_->set_group_admin(conversation, user, admin);
                 });
+                connect(&dialog, &group_dialog::transfer_requested, this, [this, conversation](qint64 user) {
+                    client_->transfer_group_owner(conversation, user);
+                });
+                connect(&dialog, &group_dialog::remove_requested, this, [this, conversation](qint64 user) {
+                    client_->remove_group_member(conversation, user);
+                });
+                connect(client_.get(), &client_bridge::conversation_changed, &dialog,
+                        [&dialog, conversation](qint64 id, bool removed) {
+                    if (removed && id == conversation)
+                    {
+                        for (auto* child : dialog.findChildren<QDialog*>()) { child->reject(); }
+                        dialog.reject();
+                    }
+                });
                 connect(client_.get(), &client_bridge::contacts_received, &dialog, &group_dialog::set_contacts,
                         Qt::QueuedConnection);
                 connect(client_.get(), &client_bridge::conversations_received, &dialog, &group_dialog::set_conversations,
@@ -488,6 +502,10 @@ main_window::main_window(QString server_url, QWidget* parent)
                 });
         connect(client_.get(), &client_bridge::message_search_received, &dialog,
                 &message_search_dialog::set_results, Qt::QueuedConnection);
+        connect(client_.get(), &client_bridge::conversation_changed, &dialog,
+                [&dialog, conversation](qint64 id, bool removed) {
+            if (removed && id == conversation) { dialog.reject(); }
+        });
         dialog.exec();
     });
     connect(
@@ -520,9 +538,13 @@ main_window::main_window(QString server_url, QWidget* parent)
             }, Qt::QueuedConnection);
 
     connect(
-        client_.get(), &client_bridge::conversation_changed, this, [this](qint64 conversation) {
+        client_.get(), &client_bridge::conversation_changed, this, [this](qint64 conversation, bool removed) {
+            if (removed)
+            {
+                chat_page_->close_conversation(conversation);
+            }
             client_->get_conversations();
-            client_->get_members(conversation);
+            if (!removed) { client_->get_members(conversation); }
             if (conversation == chat_page_->active_conversation())
             {
                 client_->get_messages(conversation, {}, chat_page_->recovery_cursor());
@@ -564,6 +586,14 @@ main_window::main_window(QString server_url, QWidget* parent)
         attachment_dialog dialog(conversation, message, std::move(filename), preview, this);
         connect(client_.get(), &client_bridge::attachment_received, &dialog, &attachment_dialog::set_data,
                 Qt::QueuedConnection);
+        connect(client_.get(), &client_bridge::conversation_changed, &dialog,
+                [&dialog, conversation](qint64 id, bool removed) {
+            if (removed && id == conversation)
+            {
+                for (auto* child : dialog.findChildren<QDialog*>()) { child->reject(); }
+                dialog.reject();
+            }
+        });
         connect(client_.get(), &client_bridge::disconnected, &dialog, [&dialog, conversation, message] {
             dialog.set_data(conversation, message, {}, QStringLiteral("连接已断开，请关闭后重新下载。"));
         }, Qt::QueuedConnection);

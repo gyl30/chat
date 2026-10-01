@@ -48,7 +48,7 @@ class client
     using presences_handler = std::function<void(std::expected<std::vector<presence>, error>)>;
     using message_handler = std::function<void(message)>;
     using read_handler = std::function<void(std::int64_t conversation, std::int64_t user, std::int64_t message)>;
-    using conversation_changed_handler = std::function<void(std::int64_t conversation)>;
+    using conversation_changed_handler = std::function<void(std::int64_t conversation, bool removed)>;
     using presence_handler = std::function<void(presence)>;
     using typing_handler = std::function<void(typing_event)>;
     using typing_result_handler = std::function<void(std::expected<bool, error>)>;
@@ -81,6 +81,8 @@ class client
     void create_group(std::string title, std::vector<std::int64_t> members, conversation_handler handler);
     void get_members(std::int64_t conversation, members_handler handler);
     void set_group_admin(std::int64_t conversation, std::int64_t user, bool admin, group_action_handler handler);
+    void transfer_group_owner(std::int64_t conversation, std::int64_t user, group_action_handler handler);
+    void remove_group_member(std::int64_t conversation, std::int64_t user, group_action_handler handler);
     void rename_group(std::int64_t conversation, std::string title, group_action_handler handler);
     void invite_group_members(std::int64_t conversation, std::vector<std::int64_t> members, group_action_handler handler);
     void leave_group(std::int64_t conversation, group_action_handler handler);

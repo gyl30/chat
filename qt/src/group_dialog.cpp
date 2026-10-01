@@ -40,6 +40,14 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     admin_button_->setObjectName(QStringLiteral("groupAdminButton"));
     admin_button_->setAutoDefault(false);
     layout->addWidget(admin_button_);
+    transfer_button_ = new QPushButton(QStringLiteral("转让群主"), this);
+    transfer_button_->setObjectName(QStringLiteral("groupTransferButton"));
+    transfer_button_->setAutoDefault(false);
+    layout->addWidget(transfer_button_);
+    remove_button_ = new QPushButton(QStringLiteral("移除成员"), this);
+    remove_button_->setObjectName(QStringLiteral("groupRemoveButton"));
+    remove_button_->setAutoDefault(false);
+    layout->addWidget(remove_button_);
     invite_button_ = new QPushButton(QStringLiteral("从联系人邀请"), this);
     invite_button_->setObjectName(QStringLiteral("groupInviteButton"));
     invite_button_->setAutoDefault(false);
@@ -64,6 +72,30 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
         emit admin_requested(members_[row].id, members_[row].role != chat::member_role::admin);
     });
     connect(title_edit_, &QLineEdit::textChanged, this, [this] { update_actions(); });
+    connect(transfer_button_, &QPushButton::clicked, this, [this] {
+        auto const row = list_->currentRow();
+        auto const target = members_[row];
+        if (QMessageBox::question(this, QStringLiteral("转让群主"),
+            QStringLiteral("将群主转让给 %1？你将成为管理员，之后可以退出群聊。").arg(target.username),
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes)
+        {
+            pending_ = true;
+            update_actions();
+            emit transfer_requested(target.id);
+        }
+    });
+    connect(remove_button_, &QPushButton::clicked, this, [this] {
+        auto const row = list_->currentRow();
+        auto const target = members_[row];
+        if (QMessageBox::question(this, QStringLiteral("移除成员"),
+            QStringLiteral("将 %1 移出群聊？对方将无法继续访问群，重新加入需要邀请。").arg(target.username),
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes)
+        {
+            pending_ = true;
+            update_actions();
+            emit remove_requested(target.id);
+        }
+    });
     connect(rename_button_, &QPushButton::clicked, this, [this] {
         pending_ = true;
         update_actions();
@@ -233,7 +265,7 @@ void group_dialog::update_actions()
         title_edit_->text().trimmed() != title_);
     invite_button_->setEnabled(enabled && manager && contacts_ready_);
     leave_button_->setEnabled(enabled && self != members_.end() && !owner);
-    leave_button_->setToolTip(owner ? QStringLiteral("群主不能直接退出，当前不支持群主转让。") : QString{});
+    leave_button_->setToolTip(owner ? QStringLiteral("请先将群主转让给一位管理员，再退出群聊。") : QString{});
     auto const admins = std::count_if(members_.begin(), members_.end(), [](auto const& member) {
         return member.role == chat::member_role::admin;
     });
@@ -243,4 +275,7 @@ void group_dialog::update_actions()
     admin_button_->setText(admin ? QStringLiteral("取消管理员") : QStringLiteral("设为管理员"));
     admin_button_->setEnabled(available_ && !pending_ && owner && selected &&
         members_[row].role != chat::member_role::owner && (admin || admins < 3));
+    transfer_button_->setEnabled(enabled && owner && selected && admin);
+    remove_button_->setEnabled(enabled && manager && selected && members_[row].id != self_user_ &&
+        members_[row].role != chat::member_role::owner && (owner || !admin));
 }

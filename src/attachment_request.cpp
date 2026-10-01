@@ -52,20 +52,41 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
         {
             co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
         }
-        auto result = co_await lease.connection().execute_row(
+        auto& connection = lease.connection();
+        auto begun = co_await connection.execute_row("BEGIN");
+        auto locked = co_await connection.execute_row(
+            "SELECT id::text FROM conversations WHERE id=$1::bigint FOR UPDATE", {std::to_string(params.conversation)});
+        if (std::get<0>(begun) || std::get<0>(locked))
+        {
+            connection.close();
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        auto result = co_await connection.execute_row(
             "SELECT user_id::text FROM conversation_members WHERE conversation_id=$2::bigint AND user_id=$1::bigint",
             {std::to_string(*user_id_), std::to_string(params.conversation)});
         auto& [ec, member] = result;
         if (ec)
         {
+            connection.close();
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        auto const upload = next_upload_id_;
+        if (member)
+        {
+            upload_.emplace(next_upload_id_++, params.conversation, std::move(params.filename), params.size, std::string{});
+        }
+        auto ended = co_await connection.execute_row(member ? "COMMIT" : "ROLLBACK");
+        if (std::get<0>(ended))
+        {
+            upload_.reset();
+            connection.close();
             co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
         }
         if (!member)
         {
             co_return serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response);
         }
-        upload_.emplace(next_upload_id_++, params.conversation, std::move(params.filename), params.size, std::string{});
-        co_return serialize_json_rpc_success("{\"upload\":" + std::to_string(upload_->id) + "}",
+        co_return serialize_json_rpc_success("{\"upload\":" + std::to_string(upload) + "}",
                                             std::move(request.id), response);
     }
     if (request.method == "get_attachment")

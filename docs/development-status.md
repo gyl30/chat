@@ -16,6 +16,7 @@
 | `78a28c3` | 单聊/群聊正在输入；节流、结束、过期、切换及断线清理 | 无 |
 | `dc4481c` | 创建者群主；群主任免最多三名管理员；角色持久化及 Qt 管理 | SQL 013 |
 | `27b2a88` | 管理员/群主邀请联系人、改名；非群主退出；重新加入；快照恢复及群已读语义 | SQL 014 |
+| `6b6a193` | 稳态审计、libpq 测试环境、过期回调及生命周期/并发验证 | 无 |
 
 另外完成历史大响应接收、编辑消息布局和消息操作按钮对比度修复，分别见 `32f3f3b`、`a545c9a`、`f73b8f4`。
 
@@ -40,15 +41,17 @@
 | `mark_read` | 会话和真实消息 ID；阅读位置只增不减 |
 | `get_members` | `members: [{id, username, role}]`，角色为 `owner/admin/member` |
 | `set_group_admin` | `conversation, user, admin`；仅群主；返回 `changed` |
+| `transfer_group_owner` | `conversation, user`；仅群主转给当前管理员；返回 `changed` |
+| `remove_group_member` | `conversation, user`；群主移除 admin/member，管理员仅移除 member；返回 `changed` |
 | `rename_group` | `conversation, title`；群主/管理员；返回 `changed` |
 | `invite_group_members` | `conversation, members`；群主/管理员邀请自己的联系人；重复邀请不重置成员状态 |
-| `leave_group` | `conversation`；普通成员/管理员自退，群主拒绝退出；返回 `changed` |
+| `leave_group` | `conversation`；普通成员/管理员自退，群主先转让再退出；返回 `changed` |
 | `send_message` / `edit_message` / `delete_message` | 会话、真实消息或回复 ID；编辑/删除仅作者且仍为当前成员 |
 | `search_messages` | 会话、字面查询和 `before` cursor |
 | 附件 RPC | begin/upload/finish/cancel/get；32 KiB 分块，单文件最多 10 MiB |
 | `set_typing` | 会话、开始/结束；不写消息或阅读位置 |
 
-消息、编辑删除、已读和输入提示分别使用 `message/message_updated/read/typing` notification。群变化使用 `conversation` notification，包含真实会话 ID；事务提交后通知当前成员，退出者额外收到一次会话变化通知。之后的群访问被成员权限检查拒绝，后续群消息不再发送给退出者。
+消息、编辑删除、已读和输入提示分别使用 `message/message_updated/read/typing` notification。群变化使用 `conversation` notification，包含真实会话 ID；事务提交后通知当前成员，退出者或被移除者额外收到一次 `removed: true` 的会话变化通知。之后的群访问被成员权限检查拒绝，后续群消息不再发送给该用户。client library 的 conversation handler 接收 `(conversation, removed)`，不保留旧签名兼容层。
 
 Qt 收到群变化后刷新会话、成员及实际阅读位置；关闭已退出的活动群，清除历史、回复、草稿、输入提示并禁用发送。重连刷新权威快照，并从已加载历史的起点向前分页，恢复新增消息以及已加载消息的编辑/删除。群消息在至少一位其他成员实际阅读到该消息时显示已读，入群水位不产生已读回执。
 
@@ -71,9 +74,9 @@ git diff --check
 
 ## 保持的边界与后续可选路线
 
-当前不做群主转让、踢人、入群审批、邀请链接、@mention、公告、mute、pin 或 reaction。群主不能直接退出；群主/管理员没有编辑、删除他人消息的权限。退出者本地活动历史清空；服务端仍保留群消息，重新加入可重新获取。
+当前不做入群审批、邀请链接、@mention、公告、mute、pin 或 reaction。群主必须先手动转让再退出；群主/管理员没有编辑、删除他人消息的权限。退出或被移除者本地活动历史清空；服务端仍保留群消息，重新加入可重新获取。移除不等于永久封禁，重新邀请恢复普通成员，旧管理员身份和真实读位不继承。
 
-后续可以按真实使用需求独立评估群主转让/踢人、已读成员列表、附件存储规模和图片缩略图。它们不是本轮未完成项，不自动扩大到多设备、微服务、Redis、Kafka、event sourcing 或 CQRS。
+后续可以按真实使用需求独立评估已读成员列表、附件存储规模、图片缩略图及移除提示。这些候选不自动开工，不扩大到多设备、微服务、Redis、Kafka、event sourcing 或 CQRS。
 
 ## 稳态与工程收口
 
@@ -98,4 +101,30 @@ ASan/UBSan 的 C、C++ 编译器及 executable linker 均启用对应 sanitizer�
 | 50 | 2.01 ms | 2.19 ms | 7.05 ms |
 | 200 | 43.95 ms | 43.56 ms | 10.24 ms |
 
-已验证 3–200 人范围的完整成员、读位和发布路径；这是测量范围，不是人数上限或在线吞吐承诺。未引入大群基础设施。群主转让和成员移除属于下一独立阶段，此处不记作完成。
+阶段 1 已验证 3–200 人范围的完整成员、读位和发布路径；这是测量范围，不是人数上限或在线吞吐承诺。未引入大群基础设施。群主转让和成员移除的实现与验证单独记录。
+
+## 群管理生命周期
+
+以重新 fetch 后的 `6b6a193` 为基线实现 `transfer_group_owner` 和 `remove_group_member`，server、client library、Qt 界面及测试形成闭环。转让只允许当前 owner 选择当前 admin；同一事务中目标成为 owner、`is_admin=false`，原 owner 降为 admin，管理员数量保持不增加。原 owner 随后可正常退出。
+
+owner 可以移除 admin 或 member，不能移除自己；admin 只能移除普通 member，不能移除 owner、其他 admin 或自己。移除删除当前 membership，不引入封禁列表。重新邀请使用默认普通成员身份和实际读位 0，加入水位为取得会话锁后的最新消息 ID；旧历史可见但不计未读。
+
+所有群管理与发送继续使用同一 conversation 行锁；实时发布也在取得该锁后的新查询中读取收件人，并在锁释放前同步入队，避免成员移除期间使用旧快照。typing 发布另外复核发送者仍为成员，抑制检查后被移除者的提示。没有增加 event log、event bus 或 version framework。
+
+被移除的在线 session 清理该群上传并收到一次 `conversation {conversation, removed: true}`；后续消息、编辑、删除、阅读和输入通知不再路由给它，历史/搜索/成员/附件/发送/修改/阅读/输入请求被现有成员校验拒绝。离线用户通过重连权威快照发现已无该群权限，不保存待回放事件。开始上传也在会话锁内建立 session 状态；finish 在任何 await 前接管内容，避免其他 session 清理上传时破坏挂起请求。
+
+Qt 立即复用 `close_conversation` 清历史、回复、草稿、typing 和附件发送状态，同时关闭该群的成员、搜索、附件及嵌套保存窗口；迟到结果按会话 ID 过滤，已关闭 QObject 不再接收回调，不新增跨会话 shadow state。群成员窗口按实时角色启用转让/移除按钮，确认窗口使用稳定目标 ID，重连重新获取成员与角色。
+
+数据库没有新增字段、表、索引或 migration：SQL 013/014 已足够表达本次规则，SQL 001–014 保持原样；下一次真实 schema 变更从 015 编号。旧单聊、消息占位、每成员实际读位与三名管理员上限保持。
+
+测试新增完整权限矩阵、原群主退出、移除后的所有访问拒绝及通知隔离、被移除管理员重新邀请后的角色重置、非零真实读位重置、加入水位/未读和重连快照。并发测试实际等待同一会话锁，覆盖 transfer/leave、remove/send、remove/invite、remove/typing，以及被移除的半途上传和已挂起 finish。Qt 三个真实窗口验证转让、重连角色、移除时成员/搜索/附件/保存窗口关闭及聊天状态清理；转让截图已检查。
+
+本阶段最终验证如下，三个构建均启用 Qt、使用 Debug 和 `-j12`，数据库参数继承 libpq 环境：
+
+| 构建 | 完整 build | 完整 CTest | 总耗时 |
+|---|---|---|---|
+| 正常 `build` | PASS | 13/13 PASS | 43.24 s |
+| ASan `build/asan` | PASS | 13/13 PASS | 55.54 s |
+| UBSan `build/ubsan` | PASS | 13/13 PASS | 51.94 s |
+
+Sanitizer 编译与链接选项同阶段 1，未使用 suppression 或测试排除。ASan 发现 raw WebSocket 协程测试接收字符串的生命周期泄漏；接收结果改为具名对象并复用循环结果后，原测试与完整 CTest 均通过。扩展后的服务器集成测试在 ASan 下单次实测 31.23 s，因此 CTest 时限由 30 s 调整为 60 s；所有行为断言和泄漏检查保持开启。`git diff --check` PASS，没有新增临时 migration、调试打印或 TODO。

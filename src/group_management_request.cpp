@@ -23,6 +23,9 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
     auto const setting_admin = request.method == "set_group_admin";
     auto const renaming = request.method == "rename_group";
     auto const inviting = request.method == "invite_group_members";
+    auto const transferring = request.method == "transfer_group_owner";
+    auto const removing = request.method == "remove_group_member";
+    auto const leaving = request.method == "leave_group";
     std::int64_t conversation = 0;
     std::int64_t user = 0;
     bool admin = false;
@@ -48,6 +51,18 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
         conversation = params.conversation;
         user = params.user;
         admin = params.admin;
+    }
+    else if (transferring || removing)
+    {
+        struct [[= simdjson::deny_unknown_fields]] member_action_params
+        {
+            std::int64_t conversation = 0;
+            std::int64_t user = 0;
+        };
+        member_action_params params;
+        parse_error = document.get(params);
+        conversation = params.conversation;
+        user = params.user;
     }
     else if (renaming)
     {
@@ -84,7 +99,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
         parse_error = document.get(params);
         conversation = params.conversation;
     }
-    if (parse_error || !document.at_end() || conversation <= 0 || (setting_admin && user <= 0) ||
+    if (parse_error || !document.at_end() || conversation <= 0 || ((setting_admin || transferring || removing) && user <= 0) ||
         (renaming && (title.empty() || title.size() > 256 || title.find('\0') != std::string::npos)) ||
         (inviting && (members.empty() || members.front() <= 0 ||
             std::adjacent_find(members.begin(), members.end()) != members.end() ||
@@ -132,11 +147,67 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
         error = -32006;
         message = "Group unavailable";
     }
-    else if ((setting_admin && !owner) || ((renaming || inviting) && !owner && (*actor)[0] != "true") ||
-             (!setting_admin && !renaming && !inviting && owner))
+    else if (((setting_admin || transferring) && !owner) ||
+             ((renaming || inviting || removing) && !owner && (*actor)[0] != "true") || (leaving && owner))
     {
         error = -32009;
-        message = owner ? "The owner cannot leave without transferring ownership" : "Group permission denied";
+        message = leaving && owner ? "The owner cannot leave without transferring ownership" : "Group permission denied";
+    }
+    else if (transferring || removing)
+    {
+        auto target_result = co_await connection.execute_row(
+            "SELECT is_admin::text FROM conversation_members WHERE conversation_id=$1::bigint AND user_id=$2::bigint",
+            {std::to_string(conversation), std::to_string(user)});
+        auto& [target_ec, target] = target_result;
+        if (target_ec)
+        {
+            connection.close();
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        if (user == *user_id_)
+        {
+            error = -32602;
+            message = "Use leave_group to leave; ownership must be transferred to another administrator";
+        }
+        else if (!target)
+        {
+            error = -32005;
+            message = "Member unavailable";
+        }
+        else if ((transferring && (*target)[0] != "true") ||
+                 (removing && ((*group)[1] == std::to_string(user) || (!owner && (*target)[0] == "true"))))
+        {
+            error = -32009;
+            message = "Group permission denied";
+        }
+        else if (transferring)
+        {
+            auto roles = co_await connection.execute_row(
+                "UPDATE conversation_members SET is_admin=(user_id=$2::bigint) "
+                "WHERE conversation_id=$1::bigint AND user_id IN ($2::bigint,$3::bigint)",
+                {std::to_string(conversation), std::to_string(*user_id_), std::to_string(user)});
+            auto transferred = co_await connection.execute_row(
+                "UPDATE conversations SET owner_id=$2::bigint WHERE id=$1::bigint",
+                {std::to_string(conversation), std::to_string(user)});
+            if (std::get<0>(roles) || std::get<0>(transferred))
+            {
+                connection.close();
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            changed = true;
+        }
+        else
+        {
+            auto removed = co_await connection.execute_row(
+                "DELETE FROM conversation_members WHERE conversation_id=$1::bigint AND user_id=$2::bigint",
+                {std::to_string(conversation), std::to_string(user)});
+            if (std::get<0>(removed))
+            {
+                connection.close();
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            changed = true;
+        }
     }
     else if (setting_admin)
     {
@@ -263,13 +334,18 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
     {
         std::string notification = "{\"jsonrpc\":\"2.0\",\"method\":\"conversation\",\"params\":{\"conversation\":" +
             std::to_string(conversation) + "}}";
-        if (request.method == "leave_group")
+        if (leaving || removing)
         {
-            if (upload_ && upload_->conversation == conversation)
+            auto* departed = leaving ? this : users_.find(user);
+            if (departed)
             {
-                upload_.reset();
+                if (departed->upload_ && departed->upload_->conversation == conversation)
+                {
+                    departed->upload_.reset();
+                }
+                departed->enqueue_message("{\"jsonrpc\":\"2.0\",\"method\":\"conversation\",\"params\":{\"conversation\":" +
+                    std::to_string(conversation) + ",\"removed\":true}}");
             }
-            enqueue_message(notification);
         }
         co_await publish_conversation(conversation, std::move(notification));
     }

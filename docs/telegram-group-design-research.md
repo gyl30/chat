@@ -15,18 +15,22 @@ Telegram 超级群可以向管理员授予邀请、修改资料、任命权限�
 | 任免管理员 | 可以，最多三名，群主不计入 | 不可以 | 不可以 |
 | 邀请自己的联系人 | 可以 | 可以 | 不可以 |
 | 修改群名 | 可以 | 可以 | 不可以 |
-| 自行退出 | 本阶段不允许 | 可以 | 可以 |
+| 自行退出 | 先转让群主，再退出 | 可以 | 可以 |
+| 转让群主 | 仅转给当前管理员 | 不可以 | 不可以 |
+| 移除成员 | 可以移除管理员/成员，不能移除自己 | 仅普通成员，不能移除自己 | 不可以 |
 | 收发消息、读取可见历史 | 可以 | 可以 | 可以 |
 
 三名上限、仅群主任免和联系人邀请是本项目规则，不能标为 Telegram 的统一限制。权限仍由服务端当前成员关系判断，Qt 控件禁用仅用于交互。[Telegram 管理员权限字段](https://core.telegram.org/constructor/chatAdminRights)
 
-保持现有 `conversations` 和 `conversation_members`。建议群会话增加 `owner_id`，成员增加 `is_admin`；对外返回明确的 `owner/admin/member`。不增加单独群表，不通过用户 ID 或用户名模拟群，不将群主同时计为管理员。
+保持现有 `conversations` 和 `conversation_members`。SQL 013 已增加 `owner_id` 和 `is_admin`；对外返回明确的 `owner/admin/member`。不增加单独群表，不通过用户 ID 或用户名模拟群，不将群主同时计为管理员。
 
 ## 群主退出的时间差异
 
 不能简单说“Telegram 群主永远不能退出”。2026-02-09 官方更新支持退出时选择新群主，也描述了退出后一周自动转交管理员。旧 RPC 文档仍列有创建者退出错误；实际能力应结合群类型和新版本区分。[2026 年更新](https://telegram.org/blog/crafting-android-design-and-more#leaving-groups-to-a-new-admin)；[RPC 错误说明](https://core.telegram.org/method/channels.leaveChannel)
 
-本轮明确不做群主转让，因此禁止群主直接退出是本项目的范围选择；界面应明确原因，避免出现无群主的群。以后若实现转让，应单独定义继任者及管理员名额的处理，不加入自动选举或计时任务。
+SQL 013/014 所在阶段未做转让，因此当时禁止群主直接退出。2026-10-01 后续 Goal 明确采用手动转让：仅当前群主转给当前管理员，目标成为 owner 且 `is_admin=false`，原 owner 成为 admin，管理员总数不增加；原 owner 随后使用既有 `leave_group` 退出。不引入自动选举、计时任务或 ownership history。
+
+本轮重新核查官方文档：Telegram 有专门的所有权转让 RPC，并且要求 2FA；移除普通群成员与超级群 ban/restrict 也有不同接口。本项目只借鉴“转让职责”和“移除成员”的区分，继续使用上述固定角色和一次移除语义，不照搬密码时效、细分权限、封禁或历史撤回模式。[转让 RPC](https://core.telegram.org/method/channels.editCreator)；[普通群移除 RPC](https://core.telegram.org/method/messages.deleteChatUser)；[超级群成员权限 RPC](https://core.telegram.org/method/channels.editBanned)
 
 ## 历史可见性、未读和已读回执
 
@@ -81,3 +85,5 @@ OpenIM 的群主退出会被拒绝，群成员持有角色，并另有消息序�
 - 群角色阶段：SQL 013 增加群主与管理员；服务端、client library 和 Qt 实现成员角色与管理员任免。完整 Qt 构建及 CTest 13/13 通过，包含角色权限、三名上限、重连和群主成员约束验证。
 
 - 群成员阶段：SQL 014 独立保存加入水位；服务端、client library 和 Qt 实现邀请联系人、改群名、自行退出，以及成员/角色/阅读位置快照恢复。群已读按至少一位其他成员的真实阅读水位判断。完整 Qt 构建及 CTest 13/13 通过，包含等待会话锁的邀请、退出后权限与通知隔离、重新加入的历史/未读/角色、真实 Qt 管理操作验证。
+
+- 群管理生命周期：实现群主向当前管理员手动转让、群主移除管理员或成员、管理员仅移除普通成员。复用 SQL 013/014，不增加 schema；被移除者收到明确通知，Qt 关闭该群与相关窗口，重新邀请恢复普通成员和新的加入/阅读状态。实际验证结果见 [开发状态记录](development-status.md)。

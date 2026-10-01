@@ -120,22 +120,36 @@ boost::capy::task<void> chat_session::publish_presence(bool online)
     }
 }
 
-boost::capy::task<bool> chat_session::publish_conversation(std::int64_t conversation, std::string notification)
+boost::capy::task<bool> chat_session::publish_conversation(std::int64_t conversation, std::string notification,
+                                                        bool require_sender_membership)
 {
     auto lease = co_await database_.acquire();
     if (lease.error())
     {
         co_return false;
     }
+    auto& connection = lease.connection();
+    // 取得锁后查询当前成员，并在释放锁前入队，避免移除后仍使用旧收件人快照。
+    auto begun = co_await connection.execute_row("BEGIN");
+    auto locked = co_await connection.execute_row(
+        "SELECT id::text FROM conversations WHERE id=$1::bigint FOR UPDATE", {std::to_string(conversation)});
+    if (std::get<0>(begun) || std::get<0>(locked))
+    {
+        connection.close();
+        co_return false;
+    }
     auto query_result = co_await lease.connection().execute_scalar(
         "SELECT COALESCE(string_agg(m.user_id::text, ',' ORDER BY m.user_id),'') "
         "FROM conversation_members m JOIN conversations c ON c.id=m.conversation_id "
         "WHERE m.conversation_id=$1::bigint AND (m.user_id<>$2::bigint OR "
-        "(c.kind='direct' AND c.direct_user_low=c.direct_user_high))",
-        {std::to_string(conversation), std::to_string(*user_id_)});
+        "(c.kind='direct' AND c.direct_user_low=c.direct_user_high)) "
+        "AND (NOT $3::boolean OR EXISTS(SELECT 1 FROM conversation_members "
+        "WHERE conversation_id=$1::bigint AND user_id=$2::bigint))",
+        {std::to_string(conversation), std::to_string(*user_id_), require_sender_membership ? "true" : "false"});
     auto& [ec, recipients] = query_result;
     if (ec)
     {
+        connection.close();
         co_return false;
     }
     bool realtime = false;
@@ -158,6 +172,11 @@ boost::capy::task<bool> chat_session::publish_conversation(std::int64_t conversa
             break;
         }
         remaining.remove_prefix(separator + 1);
+    }
+    auto committed = co_await connection.execute_row("COMMIT");
+    if (std::get<0>(committed))
+    {
+        connection.close();
     }
     co_return realtime;
 }
@@ -235,7 +254,8 @@ boost::capy::task<void> chat_session::run()
                 rpc_error = co_await handle_get_members(request, response);
             }
             else if (request.method == "set_group_admin" || request.method == "rename_group" ||
-                     request.method == "invite_group_members" || request.method == "leave_group")
+                     request.method == "invite_group_members" || request.method == "leave_group" ||
+                     request.method == "transfer_group_owner" || request.method == "remove_group_member")
             {
                 rpc_error = co_await handle_group_management(request, response);
             }

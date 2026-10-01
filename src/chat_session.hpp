@@ -59,7 +59,8 @@ class chat_session
 
     boost::capy::task<void> publish_presence(bool online);
 
-    boost::capy::task<bool> publish_conversation(std::int64_t conversation, std::string notification);
+    boost::capy::task<bool> publish_conversation(std::int64_t conversation, std::string notification,
+                                              bool require_sender_membership = false);
 
     bool enqueue_message(std::string message);
 

@@ -515,8 +515,9 @@ struct client::impl
             if (method->as_string() == "conversation")
             {
                 auto const* value = params->as_object().if_contains("conversation");
+                auto const* removed = params->as_object().if_contains("removed");
                 auto id = value ? parse_int64(*value) : std::nullopt;
-                if (!id || *id <= 0)
+                if (!id || *id <= 0 || (removed && !removed->is_bool()))
                 {
                     report_error(make_error(error_kind::protocol, "Invalid conversation notification"));
                     return;
@@ -528,7 +529,7 @@ struct client::impl
                 }
                 if (handler && !suppress_callbacks_.load())
                 {
-                    handler(*id);
+                    handler(*id, removed && removed->as_bool());
                 }
                 return;
             }
@@ -1672,6 +1673,18 @@ void client::set_group_admin(std::int64_t conversation, std::int64_t user, bool 
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_action(
         "set_group_admin", {{"conversation", conversation}, {"user", user}, {"admin", admin}}, std::move(handler)));
+}
+
+void client::transfer_group_owner(std::int64_t conversation, std::int64_t user, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_action(
+        "transfer_group_owner", {{"conversation", conversation}, {"user", user}}, std::move(handler)));
+}
+
+void client::remove_group_member(std::int64_t conversation, std::int64_t user, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_action(
+        "remove_group_member", {{"conversation", conversation}, {"user", user}}, std::move(handler)));
 }
 
 void client::set_conversation_handler(conversation_changed_handler handler)

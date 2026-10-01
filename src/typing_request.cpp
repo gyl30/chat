@@ -62,7 +62,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_set_typing(json_rpc
     {
         co_return error;
     }
-    auto const realtime = co_await publish_conversation(params.conversation, std::move(json));
+    auto const realtime = co_await publish_conversation(params.conversation, std::move(json), true);
     co_return serialize_json_rpc_success(realtime ? "{\"realtime\":true}" : "{\"realtime\":false}",
                                         std::move(request.id), response);
 }

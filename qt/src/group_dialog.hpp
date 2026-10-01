@@ -28,6 +28,8 @@ class group_dialog final : public QDialog
     void rename_requested(QString title);
     void invite_requested(QList<qint64> members);
     void leave_requested();
+    void transfer_requested(qint64 user);
+    void remove_requested(qint64 user);
 
    private:
     void update_actions();
@@ -45,6 +47,8 @@ class group_dialog final : public QDialog
     QPushButton* rename_button_;
     QPushButton* invite_button_;
     QPushButton* leave_button_;
+    QPushButton* transfer_button_;
+    QPushButton* remove_button_;
     QLineEdit* title_edit_;
     QLabel* status_;
 };

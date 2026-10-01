@@ -137,6 +137,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         }
         co_return simdjson::SUCCESS;
     }
+    std::optional<attachment_upload> attachment;
     if (attaching)
     {
         if (!request.id.present)
@@ -150,6 +151,9 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         }
         params.conversation = upload_->conversation;
         params.text = upload_->filename;
+        // 请求持有内容，成员移除可以清理 session 而不破坏挂起的 finish。
+        attachment = std::move(upload_);
+        upload_.reset();
     }
 
     message_notification notification{};
@@ -162,7 +166,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
     if (attaching)
     {
         std::string media_type = "application/octet-stream";
-        std::string_view bytes(upload_->content);
+        std::string_view bytes(attachment->content);
         if (bytes.starts_with(std::string_view("\x89PNG\r\n\x1a\n", 8)))
         {
             media_type = "image/png";
@@ -171,7 +175,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         {
             media_type = "image/jpeg";
         }
-        notification.params.attachment = chat::attachment_info{upload_->filename, std::move(media_type), upload_->size};
+        notification.params.attachment = chat::attachment_info{attachment->filename, std::move(media_type), attachment->size};
     }
 
     if (params.reply_to)
@@ -252,10 +256,10 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         parameters.emplace_back(std::to_string(params.conversation));
         parameters.emplace_back(notification.params.text);
         parameters.emplace_back(params.reply_to ? std::to_string(*params.reply_to) : "");
-        parameters.emplace_back(attaching ? upload_->filename : "");
+        parameters.emplace_back(attaching ? attachment->filename : "");
         parameters.emplace_back(attaching ? notification.params.attachment->media_type : "");
-        parameters.emplace_back(attaching ? std::to_string(upload_->size) : "0");
-        parameters.emplace_back(attaching ? chat::detail::encode_base64(upload_->content) : "");
+        parameters.emplace_back(attaching ? std::to_string(attachment->size) : "0");
+        parameters.emplace_back(attaching ? chat::detail::encode_base64(attachment->content) : "");
         auto query_result = co_await lease.connection().execute_row(
             "WITH locked AS (UPDATE conversations SET activity=(extract(epoch FROM clock_timestamp())*1000)::bigint "
             "WHERE id=$2::bigint AND EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=$2::bigint AND "
@@ -311,11 +315,6 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         timestamp_text = std::move(row->at(1));
         notification.params.username = std::move(row->at(2));
     }
-    if (attaching)
-    {
-        upload_.reset();
-    }
-
     auto const* first = id_text.data();
     auto const* last = first + id_text.size();
     auto [end, parse_error] = std::from_chars(first, last, notification.params.id);

@@ -1682,7 +1682,8 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     co_await peer_rpc("upload_attachment", "{\"upload\":" + std::to_string(group_upload) +
         ",\"offset\":0,\"data\":\"AAEC\"}");
     auto left_group = co_await peer_rpc("leave_group", "{\"conversation\":" + lifecycle_group + "}");
-    auto [leave_notification_ec, leave_notification] = co_await receive_websocket_text(source_socket);
+    auto leave_notification_result = co_await receive_websocket_text(source_socket);
+    auto& [leave_notification_ec, leave_notification] = leave_notification_result;
     auto left_finish = co_await peer_rpc("finish_attachment", "{\"upload\":" + std::to_string(group_upload) + "}");
     auto after_leave_upload = co_await peer_rpc("begin_attachment", attachment_begin);
     if (!json_matches(left_group, R"({"result":{"changed":true}})") || leave_notification_ec ||
@@ -1701,6 +1702,115 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return 1;
     }
     std::cout << "PASS attachment interruption, reconnect and group leave cleanup\n";
+    {
+        auto [create_ec, removal_group] = co_await fixture_connection.execute_scalar(
+            "WITH c AS (INSERT INTO conversations(kind,title,owner_id) VALUES('group','removal upload',$1::bigint) RETURNING id), "
+            "members AS (INSERT INTO conversation_members(conversation_id,user_id) SELECT id,$1::bigint FROM c "
+            "UNION ALL SELECT id,$2::bigint FROM c) SELECT id::text FROM c", {peer_user_id, source_user_id});
+        boost::corosio::tcp_socket owner_socket(io_context);
+        boost::http::response_parser owner_parser(parser_config);
+        auto [owner_connect_ec] = co_await connect(owner_socket, port);
+        auto [owner_upgrade_ec] = co_await upgrade_websocket(owner_socket, owner_parser);
+        auto [owner_auth_ec] = co_await authenticate_websocket(owner_socket, kPeerUsername, "remove-owner-auth");
+        if (create_ec || owner_connect_ec || owner_upgrade_ec || owner_auth_ec)
+        {
+            co_return 1;
+        }
+        boost::capy::io_result<std::string> removed_result;
+        boost::capy::io_result<std::string> notice_result;
+        for (bool finishing : {false, true})
+        {
+            auto begin = co_await peer_rpc("begin_attachment", "{\"conversation\":" + removal_group +
+                ",\"filename\":\"race.bin\",\"size\":3}");
+            auto upload = boost::json::parse(begin).at("result").at("upload").as_int64();
+            co_await peer_rpc("upload_attachment", "{\"upload\":" + std::to_string(upload) +
+                ",\"offset\":0,\"data\":\"AAEC\"}");
+            if (finishing)
+            {
+                co_await fixture_connection.execute_row("BEGIN");
+                co_await fixture_connection.execute_row("SELECT id FROM conversations WHERE id=$1::bigint FOR UPDATE", {removal_group});
+            }
+            auto [remove_write_ec] = co_await send_websocket_text(owner_socket,
+                "{\"jsonrpc\":\"2.0\",\"method\":\"remove_group_member\",\"params\":{\"conversation\":" + removal_group +
+                ",\"user\":" + source_user_id + "},\"id\":\"remove-upload\"}");
+            if (remove_write_ec) { co_return 1; }
+            if (finishing)
+            {
+                for (int contenders : {1, 2})
+                {
+                    bool waiting = false;
+                    for (int i = 0; i < 100 && !waiting; ++i)
+                    {
+                        auto [wait_ec, count] = co_await fixture_connection.execute_scalar(
+                            "SELECT (count(*)>=$1::int)::text FROM pg_stat_activity WHERE datname=current_database() "
+                            "AND wait_event_type='Lock' AND cardinality(pg_blocking_pids(pid))>0", {std::to_string(contenders)});
+                        waiting = !wait_ec && count == "true";
+                    }
+                    if (!waiting)
+                    {
+                        co_await fixture_connection.execute_row("ROLLBACK");
+                        std::cerr << "FAIL removal/finish lock contenders\n";
+                        co_return 1;
+                    }
+                    if (contenders == 1)
+                    {
+                        auto [finish_write_ec] = co_await send_websocket_text(source_socket,
+                            "{\"jsonrpc\":\"2.0\",\"method\":\"finish_attachment\",\"params\":{\"upload\":" +
+                            std::to_string(upload) + "},\"id\":\"finish-race\"}");
+                        if (finish_write_ec) { co_return 1; }
+                    }
+                }
+                co_await fixture_connection.execute_row("COMMIT");
+            }
+            removed_result = co_await receive_websocket_text(owner_socket);
+            auto& [removed_ec, removed_reply] = removed_result;
+            if (removed_ec || !json_matches(removed_reply, R"({"result":{"changed":true}})")) { co_return 1; }
+            if (finishing)
+            {
+                auto finish_result = co_await receive_websocket_text(source_socket);
+                auto& [finish_ec, finish_reply] = finish_result;
+                if (finish_ec || !json_matches(finish_reply, R"({"id":"finish-race","error":{"code":-32006}})"))
+                {
+                    std::cerr << "FAIL removed suspended attachment finish: " << finish_reply << '\n';
+                    co_return 1;
+                }
+            }
+            notice_result = co_await receive_websocket_text(source_socket);
+            auto& [notice_ec, notice] = notice_result;
+            auto chunk = co_await peer_rpc("upload_attachment", "{\"upload\":" + std::to_string(upload) +
+                ",\"offset\":0,\"data\":\"AAEC\"}");
+            auto unread = co_await peer_rpc("get_unread_count", "{\"conversation\":" + removal_group + "}");
+            if (notice_ec || !json_matches(notice, R"({"method":"conversation","params":{"removed":true}})") ||
+                !json_matches(chunk, R"({"error":{"code":-32008}})") ||
+                !json_matches(unread, R"({"error":{"code":-32006}})"))
+            {
+                std::cerr << "FAIL removed upload cleanup\n";
+                co_return 1;
+            }
+            if (!finishing)
+            {
+                co_await fixture_connection.execute_row(
+                    "INSERT INTO conversation_members(conversation_id,user_id) VALUES($1::bigint,$2::bigint)",
+                    {removal_group, source_user_id});
+            }
+        }
+        auto [files_ec, files] = co_await fixture_connection.execute_scalar(
+            "SELECT count(*)::text FROM messages WHERE conversation_id=$1::bigint", {removal_group});
+        if (files_ec || files != "0") { co_return 1; }
+        co_await fixture_connection.execute_row("DELETE FROM conversations WHERE id=$1::bigint", {removal_group});
+        owner_socket.close();
+        bool owner_closed = false;
+        for (int i = 0; i < 100 && !owner_closed; ++i)
+        {
+            auto [seen_ec, seen] = co_await fixture_connection.execute_scalar(
+                "SELECT ((extract(epoch FROM last_seen_at)*1000)::bigint)::text FROM users WHERE id=$1::bigint",
+                {peer_user_id});
+            owner_closed = !seen_ec && seen != peer_last_seen;
+            if (owner_closed) { peer_last_seen = std::move(seen); }
+        }
+        if (!owner_closed) { co_return 1; }
+        std::cout << "PASS removed partial upload and suspended finish race\n";
+    }
     for (auto const& params : std::vector<std::string>{
              "{\"conversation\":" + direct_conversation + "}",
              "{\"conversation\":" + direct_conversation + ",\"typing\":1}",

@@ -274,7 +274,7 @@ target_link_libraries(chat_server_test
 )
 
 add_test(NAME server COMMAND chat_server_test)
-set_tests_properties(server PROPERTIES TIMEOUT 30)
+set_tests_properties(server PROPERTIES TIMEOUT 60)
 
 add_executable(chat_simdjson_reflection_test
     tests/simdjson_reflection_test.cpp

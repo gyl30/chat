@@ -49,6 +49,7 @@ struct events
     std::vector<chat::message> messages;
     std::vector<chat::message> updates;
     std::vector<std::int64_t> conversations;
+    std::vector<std::int64_t> removals;
     std::vector<chat::read_position> reads;
     std::vector<chat::typing_event> typing;
 
@@ -94,10 +95,11 @@ struct events
                 condition.notify_all();
             });
         client.set_conversation_handler(
-            [this](std::int64_t conversation)
+            [this](std::int64_t conversation, bool removed)
             {
                 std::lock_guard lock(mutex);
                 conversations.push_back(conversation);
+                if (removed) { removals.push_back(conversation); }
                 condition.notify_all();
             });
         client.set_read_handler(
@@ -962,6 +964,253 @@ int run_group_tests()
             auto snapshot = call<chat::messages_result>([&](auto handler) { managed[4].get_messages(managed_group, {}, handler); });
             require(reauth && reauth->authenticated && snapshot && position(*snapshot, managed_ids[4]) == next_message->message_id &&
                         conversation(managed[4], managed_group).username == "管理员改名", "Rejoin state and title survive reconnect");
+            auto lifecycle = call<std::int64_t>([&](auto handler) {
+                managed[0].create_group("管理生命周期", {managed_ids[1], managed_ids[2], managed_ids[3], managed_ids[4]}, handler);
+            });
+            require(lifecycle.has_value(), "Lifecycle group");
+            auto const lifecycle_group = *lifecycle;
+            data.groups.push_back(lifecycle_group);
+            for (int i : {1, 2})
+            {
+                require(call<bool>([&](auto handler) {
+                    managed[0].set_group_admin(lifecycle_group, managed_ids[i], true, handler);
+                }).has_value(), "Lifecycle administrator");
+            }
+            auto nonowner_transfer = call<bool>([&](auto handler) {
+                managed[2].transfer_group_owner(lifecycle_group, managed_ids[1], handler);
+            });
+            auto ordinary_target = call<bool>([&](auto handler) {
+                managed[0].transfer_group_owner(lifecycle_group, managed_ids[3], handler);
+            });
+            auto ordinary_remove = call<bool>([&](auto handler) {
+                managed[3].remove_group_member(lifecycle_group, managed_ids[4], handler);
+            });
+            require(!nonowner_transfer && nonowner_transfer.error().code == -32009 && !ordinary_target &&
+                ordinary_target.error().code == -32009 && !ordinary_remove && ordinary_remove.error().code == -32009,
+                "Only owner transfers to a current administrator; ordinary members cannot remove");
+            auto transferred = call<bool>([&](auto handler) {
+                managed[0].transfer_group_owner(lifecycle_group, managed_ids[1], handler);
+            });
+            auto transferred_roles = call<std::vector<chat::conversation_member>>([&](auto handler) {
+                managed[0].get_members(lifecycle_group, handler);
+            });
+            require(transferred && *transferred && transferred_roles && conversation(managed[0], lifecycle_group).member_count == 5 &&
+                (*transferred_roles)[0].role == chat::member_role::admin &&
+                (*transferred_roles)[1].role == chat::member_role::owner &&
+                std::count_if(transferred_roles->begin(), transferred_roles->end(), [](auto const& member) {
+                    return member.role == chat::member_role::admin;
+                }) == 2, "Transfer swaps roles without consuming an administrator slot");
+            require(call<bool>([&](auto handler) { managed[0].leave_group(lifecycle_group, handler); }).has_value(),
+                "Former owner can leave after transfer");
+            require(call<chat::user>([&](auto handler) { managed[1].add_contact(managed_ids[0], handler); }).has_value(),
+                "New owner contact");
+            require(call<bool>([&](auto handler) {
+                managed[1].invite_group_members(lifecycle_group, {managed_ids[0]}, handler);
+            }).has_value(), "Former owner rejoins as member");
+            auto admin_remove_admin = call<bool>([&](auto handler) {
+                managed[2].remove_group_member(lifecycle_group, managed_ids[1], handler);
+            });
+            require(!admin_remove_admin && admin_remove_admin.error().code == -32009, "Administrator cannot remove owner");
+            require(call<bool>([&](auto handler) {
+                managed[1].set_group_admin(lifecycle_group, managed_ids[0], true, handler);
+            }).has_value(), "Promote former owner again");
+            admin_remove_admin = call<bool>([&](auto handler) {
+                managed[2].remove_group_member(lifecycle_group, managed_ids[0], handler);
+            });
+            auto self_remove = call<bool>([&](auto handler) {
+                managed[1].remove_group_member(lifecycle_group, managed_ids[1], handler);
+            });
+            require(!admin_remove_admin && admin_remove_admin.error().code == -32009 && !self_remove &&
+                self_remove.error().code == -32602, "Administrator cannot remove administrator; owner cannot remove self");
+            require(call<bool>([&](auto handler) {
+                managed[1].remove_group_member(lifecycle_group, managed_ids[0], handler);
+            }).has_value(), "Owner removes administrator");
+            require(call<bool>([&](auto handler) {
+                managed[1].invite_group_members(lifecycle_group, {managed_ids[0]}, handler);
+            }).has_value(), "Owner reinvites removed administrator");
+            auto removed_admin_roles = call<std::vector<chat::conversation_member>>([&](auto handler) {
+                managed[0].get_members(lifecycle_group, handler);
+            });
+            require(removed_admin_roles && removed_admin_roles->front().role == chat::member_role::member,
+                "Removed administrator returns as ordinary member");
+            auto removed_own = call<chat::send_message_result>([&](auto handler) {
+                managed[4].send_message(lifecycle_group, "将被移除者自己的消息", handler);
+            });
+            auto removed_file = call<chat::message>([&](auto handler) {
+                managed[1].send_attachment(lifecycle_group, "removed.bin", "file", handler);
+            });
+            require(removed_own && removed_file, "Removed member fixtures");
+            auto before_removal_read = call<std::int64_t>([&](auto handler) {
+                managed[4].mark_read(lifecycle_group, removed_file->id, handler);
+            });
+            require(before_removal_read && *before_removal_read == removed_file->id,
+                "Removed member has a real reading watermark to discard");
+            require(call<bool>([&](auto handler) {
+                managed[2].remove_group_member(lifecycle_group, managed_ids[4], handler);
+            }).has_value(), "Administrator removes ordinary member");
+            managed_events[4].wait([&] {
+                return std::count(managed_events[4].removals.begin(), managed_events[4].removals.end(), lifecycle_group) == 1;
+            });
+            auto removed_history = call<chat::messages_result>([&](auto handler) { managed[4].get_messages(lifecycle_group, {}, handler); });
+            auto removed_members = call<std::vector<chat::conversation_member>>([&](auto handler) { managed[4].get_members(lifecycle_group, handler); });
+            auto removed_send = call<chat::send_message_result>([&](auto handler) { managed[4].send_message(lifecycle_group, "denied", handler); });
+            auto removed_search = call<chat::messages_result>([&](auto handler) { managed[4].search_messages(lifecycle_group, "消息", {}, handler); });
+            auto removed_read = call<std::int64_t>([&](auto handler) { managed[4].mark_read(lifecycle_group, removed_own->message_id, handler); });
+            auto removed_typing = call<bool>([&](auto handler) { managed[4].set_typing(lifecycle_group, true, handler); });
+            auto removed_edit = call<chat::message>([&](auto handler) { managed[4].edit_message(lifecycle_group, removed_own->message_id, "denied", handler); });
+            auto removed_delete = call<chat::message>([&](auto handler) { managed[4].delete_message(lifecycle_group, removed_own->message_id, handler); });
+            auto removed_download = call<std::string>([&](auto handler) { managed[4].get_attachment(lifecycle_group, removed_file->id, handler); });
+            auto removed_upload = call<chat::message>([&](auto handler) { managed[4].send_attachment(lifecycle_group, "denied.bin", "file", handler); });
+            auto removed_conversations = call<chat::conversations_result>([&](auto handler) {
+                managed[4].get_conversations({}, handler);
+            });
+            require(!removed_history && !removed_members && !removed_send && !removed_search && !removed_read &&
+                !removed_typing && !removed_edit && !removed_delete && !removed_download && !removed_upload,
+                "Removed member loses every group access path");
+            require(removed_conversations && std::none_of(removed_conversations->conversations.begin(),
+                removed_conversations->conversations.end(), [&](auto const& value) { return value.id == lifecycle_group; }) &&
+                conversation(managed[1], lifecycle_group).member_count == 4,
+                "Removed conversation disappears and current member count decreases");
+            std::array<std::size_t, 4> before_removed_publish;
+            {
+                std::lock_guard lock(managed_events[4].mutex);
+                before_removed_publish = {managed_events[4].messages.size(), managed_events[4].reads.size(),
+                    managed_events[4].typing.size(), managed_events[4].updates.size()};
+            }
+            auto while_removed = call<chat::send_message_result>([&](auto handler) {
+                managed[1].send_message(lifecycle_group, "移除期间的消息", handler);
+            });
+            require(while_removed && call<std::int64_t>([&](auto handler) {
+                managed[2].mark_read(lifecycle_group, while_removed->message_id, handler);
+            }).has_value() && call<bool>([&](auto handler) {
+                managed[1].set_typing(lifecycle_group, true, handler);
+            }).has_value() && call<chat::message>([&](auto handler) {
+                managed[1].edit_message(lifecycle_group, while_removed->message_id, "移除期间的编辑", handler);
+            }).has_value(), "Publish after removal");
+            require(!call<std::vector<chat::conversation_member>>([&](auto handler) {
+                managed[4].get_members(lifecycle_group, handler);
+            }), "Removed notification barrier");
+            {
+                std::lock_guard lock(managed_events[4].mutex);
+                require(before_removed_publish == std::array<std::size_t, 4>{managed_events[4].messages.size(),
+                    managed_events[4].reads.size(), managed_events[4].typing.size(), managed_events[4].updates.size()} &&
+                    std::count(managed_events[4].removals.begin(), managed_events[4].removals.end(), lifecycle_group) == 1,
+                    "Removed member receives exactly one removal and no later realtime events");
+            }
+            require(call<chat::user>([&](auto handler) { managed[1].add_contact(managed_ids[4], handler); }).has_value() &&
+                call<bool>([&](auto handler) {
+                    managed[1].invite_group_members(lifecycle_group, {managed_ids[4]}, handler);
+                }).has_value(), "Reinvite removed member");
+            auto restored = call<chat::messages_result>([&](auto handler) { managed[4].get_messages(lifecycle_group, {}, handler); });
+            auto restored_members = call<std::vector<chat::conversation_member>>([&](auto handler) { managed[4].get_members(lifecycle_group, handler); });
+            require(restored && restored->messages.size() == 3 && position(*restored, managed_ids[4]) == 0 &&
+                conversation(managed[4], lifecycle_group).unread == 0 &&
+                conversation(managed[1], lifecycle_group).member_count == 5 && restored_members &&
+                restored_members->back().role == chat::member_role::member,
+                "Reinvite resets role and actual read position while exposing history without old unread");
+            auto after_reinvite = call<chat::send_message_result>([&](auto handler) {
+                managed[1].send_message(lifecycle_group, "重新邀请后的消息", handler);
+            });
+            require(after_reinvite && conversation(managed[4], lifecycle_group).unread == 1,
+                "New messages after reinvite count unread");
+            auto locked_race = [&](auto first_operation, auto second_operation) {
+                data.execute("BEGIN");
+                data.execute("UPDATE conversations SET title=title WHERE id=" + std::to_string(lifecycle_group));
+                auto first = std::async(std::launch::async, first_operation);
+                auto second = std::async(std::launch::async, second_operation);
+                bool waiting = false;
+                for (int i = 0; i < 100 && !waiting; ++i)
+                {
+                    std::unique_ptr<PGresult, decltype(&PQclear)> result(PQexec(data.database.get(),
+                        "SELECT count(*)>=2 FROM pg_stat_activity WHERE datname=current_database() "
+                        "AND wait_event_type='Lock' AND cardinality(pg_blocking_pids(pid))>0"), &PQclear);
+                    waiting = result && PQresultStatus(result.get()) == PGRES_TUPLES_OK &&
+                        std::string_view(PQgetvalue(result.get(), 0, 0)) == "t";
+                    if (!waiting) { std::this_thread::sleep_for(std::chrono::milliseconds(10)); }
+                }
+                data.execute("COMMIT");
+                auto results = std::pair{first.get(), second.get()};
+                require(waiting, "Both management race requests wait for conversation lock");
+                return results;
+            };
+            auto [racing_remove, member_send] = locked_race([&] {
+                return call<bool>([&](auto handler) { managed[1].remove_group_member(lifecycle_group, managed_ids[4], handler); });
+            }, [&] {
+                return call<chat::send_message_result>([&](auto handler) { managed[4].send_message(lifecycle_group, "与移除竞争", handler); });
+            });
+            require(racing_remove && *racing_remove && (member_send || member_send.error().code == -32006),
+                "Remove/send race follows lock order without a post-removal write");
+            auto current_history = call<chat::messages_result>([&](auto handler) { managed[1].get_messages(lifecycle_group, {}, handler); });
+            require(current_history && current_history->messages.size() == static_cast<std::size_t>(member_send ? 5 : 4),
+                "Send before removal is persisted; send after removal is denied");
+            require(call<chat::user>([&](auto handler) { managed[2].add_contact(managed_ids[3], handler); }).has_value(),
+                "Racing invitation contact");
+            std::size_t typing_before;
+            {
+                std::lock_guard lock(managed_events[1].mutex);
+                typing_before = managed_events[1].typing.size();
+            }
+            auto [typing_remove, racing_typing] = locked_race([&] {
+                return call<bool>([&](auto handler) { managed[1].remove_group_member(lifecycle_group, managed_ids[3], handler); });
+            }, [&] {
+                return call<bool>([&](auto handler) { managed[3].set_typing(lifecycle_group, true, handler); });
+            });
+            require(typing_remove && racing_typing && call<std::vector<chat::conversation_member>>([&](auto handler) {
+                managed[1].get_members(lifecycle_group, handler);
+            }).has_value(), "Remove/typing race completes");
+            {
+                std::lock_guard lock(managed_events[1].mutex);
+                require(managed_events[1].typing.size() == typing_before + (*racing_typing ? 1 : 0),
+                    "Typing before removal is published; typing after removal is suppressed");
+            }
+            require(call<bool>([&](auto handler) {
+                managed[2].invite_group_members(lifecycle_group, {managed_ids[3]}, handler);
+            }).has_value(), "Restore member for remove/invite race");
+            auto [owner_remove, admin_invite] = locked_race([&] {
+                return call<bool>([&](auto handler) { managed[1].remove_group_member(lifecycle_group, managed_ids[3], handler); });
+            }, [&] {
+                return call<bool>([&](auto handler) { managed[2].invite_group_members(lifecycle_group, {managed_ids[3]}, handler); });
+            });
+            auto after_membership_race = call<std::vector<chat::conversation_member>>([&](auto handler) {
+                managed[1].get_members(lifecycle_group, handler);
+            });
+            require(owner_remove && *owner_remove && admin_invite && after_membership_race &&
+                std::any_of(after_membership_race->begin(), after_membership_race->end(), [&](auto const& member) {
+                    return member.id == managed_ids[3];
+                }) == *admin_invite, "Owner removes ordinary member; remove/invite race preserves serialized membership");
+            auto [transfer_race, leave_race] = locked_race([&] {
+                return call<bool>([&](auto handler) { managed[1].transfer_group_owner(lifecycle_group, managed_ids[2], handler); });
+            }, [&] {
+                return call<bool>([&](auto handler) { managed[2].leave_group(lifecycle_group, handler); });
+            });
+            require(transfer_race.has_value() != leave_race.has_value() &&
+                (transfer_race ? leave_race.error().code == -32009 : transfer_race.error().code == -32005),
+                "Transfer/leave race cannot leave an ownerless group");
+            auto const recovered_owner = transfer_race ? 2 : 1;
+            int old_connects, old_disconnects;
+            {
+                std::lock_guard lock(managed_events[1].mutex);
+                old_connects = managed_events[1].connected;
+                old_disconnects = managed_events[1].disconnected;
+            }
+            managed[1].close();
+            managed_events[1].wait([&] { return managed_events[1].disconnected == old_disconnects + 1; });
+            managed[1].connect(server.url);
+            managed_events[1].wait([&] { return managed_events[1].connected == old_connects + 1; });
+            auto lifecycle_auth = call<chat::authentication_result>([&](auto handler) {
+                managed[1].authenticate("chat_roles_test_" + std::to_string(getpid()) + "_1", "roles password", handler);
+            });
+            auto lifecycle_snapshot = call<std::vector<chat::conversation_member>>([&](auto handler) {
+                managed[1].get_members(lifecycle_group, handler);
+            });
+            require(lifecycle_auth && lifecycle_auth->authenticated && lifecycle_snapshot &&
+                std::count_if(lifecycle_snapshot->begin(), lifecycle_snapshot->end(), [](auto const& member) {
+                    return member.role == chat::member_role::owner;
+                }) == 1 && std::any_of(lifecycle_snapshot->begin(), lifecycle_snapshot->end(), [&](auto const& member) {
+                    return member.id == managed_ids[recovered_owner] && member.role == chat::member_role::owner;
+                }) && std::none_of(lifecycle_snapshot->begin(), lifecycle_snapshot->end(), [&](auto const& member) {
+                    return member.id == managed_ids[4];
+                }), "Reconnect restores transferred owner and removed membership");
             auto scale_query = "INSERT INTO users(username,password_hash) SELECT 'chat_scale_test_" + std::to_string(getpid()) +
                 "_'||n,repeat('x',60) FROM generate_series(1,199) n RETURNING id";
             std::unique_ptr<PGresult, decltype(&PQclear)> scale_users(PQexec(data.database.get(), scale_query.c_str()), &PQclear);
@@ -1013,7 +1262,7 @@ int run_group_tests()
             for (int i = 0; i < 5; ++i)
             {
                 managed[i].close();
-                managed_events[i].wait([&, i] { return managed_events[i].disconnected == (i == 2 || i == 4 ? 2 : 1); });
+                managed_events[i].wait([&, i] { return managed_events[i].disconnected == (i == 1 || i == 2 || i == 4 ? 2 : 1); });
             }
         }
         data.cleanup();
