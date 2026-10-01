@@ -43,6 +43,7 @@ class client_bridge final : public QObject
     void delete_message(qint64 conversation, qint64 message);
     void edit_message(qint64 conversation, qint64 message, QString text);
     void search_users(QString query);
+    void search_messages(qint64 conversation, QString query, qint64 before = 0);
     void add_contact(qint64 user);
     void remove_contact(qint64 user);
     void mark_read(qint64 user, qint64 message);
@@ -70,6 +71,8 @@ class client_bridge final : public QObject
     void users_received(QList<user_data> users, QString error_message);
     void contact_added(user_data user, QString error_message);
     void contact_removed(QString error_message);
+    void message_search_received(qint64 conversation, QString query, qint64 before, QList<message_data> messages,
+                                 read_positions positions, bool has_more, QString error_message);
     void read_marked(qint64 user, qint64 message, QString error_message);
 
    private:
@@ -77,6 +80,7 @@ class client_bridge final : public QObject
                                  QList<conversation_data> conversations, std::uint64_t generation);
      std::uint64_t conversations_generation_ = 0;
      std::uint64_t messages_generation_ = 0;
+     std::uint64_t search_generation_ = 0;
     std::unique_ptr<chat::client> client_;
 };
 

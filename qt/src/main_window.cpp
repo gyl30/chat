@@ -20,6 +20,7 @@
 
 #include "chat_widget.hpp"
 #include "client_bridge.hpp"
+#include "message_search_dialog.hpp"
 #include "theme.hpp"
 
 main_window::main_window(QString server_url, QWidget* parent)
@@ -448,6 +449,17 @@ main_window::main_window(QString server_url, QWidget* parent)
             { client_->create_group(std::move(title), std::move(members)); });
     connect(chat_page_, &chat_widget::members_requested, this,
             [this](qint64 conversation) { client_->get_members(conversation); });
+    connect(chat_page_, &chat_widget::message_search_requested, this,
+            [this](qint64 conversation, qint64 self_user, bool group, QString const& title) {
+        message_search_dialog dialog(conversation, self_user, group, title, this);
+        connect(&dialog, &message_search_dialog::search_requested, &dialog,
+                [this, conversation](QString query, qint64 before) {
+                    client_->search_messages(conversation, std::move(query), before);
+                });
+        connect(client_.get(), &client_bridge::message_search_received, &dialog,
+                &message_search_dialog::set_results, Qt::QueuedConnection);
+        dialog.exec();
+    });
     connect(
         client_.get(), &client_bridge::conversation_opened, this,
         [this](conversation_data conversation, QString error)

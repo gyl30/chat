@@ -18,6 +18,7 @@ struct [[= simdjson::deny_unknown_fields]] get_messages_params
     std::int64_t conversation = 0;
     std::optional<std::int64_t> before;
     std::optional<std::int64_t> after;
+    std::optional<std::string> query;
 };
 
 simdjson::error_code parse_get_messages_params(json_rpc_params& params, get_messages_params& value)
@@ -71,7 +72,10 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
 
     get_messages_params params{};
     auto params_error = parse_get_messages_params(request.params, params);
-    if (params_error)
+    bool const searching = request.method == "search_messages";
+    if (params_error || (searching && (!params.query || params.query->empty() || params.query->size() > 1024
+        || params.query->find('\0') != std::string::npos || params.after))
+        || (!searching && params.query))
     {
         if (request.id.present)
         {
@@ -91,6 +95,10 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
                    (extract(epoch FROM m.created_at)*1000)::bigint AS timestamp,m.body AS text, m.deleted, (extract(epoch FROM m.edited_at)*1000)::bigint AS edited_at, CASE WHEN r.id IS NULL THEN NULL ELSE json_build_object('id',r.id,'from',r.sender_id,'username',ra.username,'text',left(r.body,160),'edited_at',(extract(epoch FROM r.edited_at)*1000)::bigint,'deleted',r.deleted) END AS reply
             FROM messages m JOIN users u ON u.id=m.sender_id LEFT JOIN messages r ON r.id=m.reply_to_id LEFT JOIN users ra ON ra.id=r.sender_id
             WHERE m.conversation_id=$2::bigint AND )SQL";
+    if (searching)
+    {
+        query += "NOT m.deleted AND strpos(lower(m.body),lower($4))>0 AND ";
+    }
     query += params.after ? "m.id>$3::bigint ORDER BY m.id ASC" : "m.id<$3::bigint ORDER BY m.id DESC";
     query += " LIMIT 51), visible AS (SELECT * FROM page ORDER BY id ";
     query += params.after ? "ASC" : "DESC";
@@ -101,10 +109,14 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
             'has_more',(SELECT count(*) FROM page)>50)::text
         FROM conversation_members WHERE conversation_id=$2::bigint AND user_id=$1::bigint
     )SQL";
-    auto query_result = co_await lease.connection().execute_row(
-        std::move(query),
-        {std::to_string(*user_id_), std::to_string(params.conversation),
-         std::to_string(params.after.value_or(params.before.value_or(std::numeric_limits<std::int64_t>::max())))});
+    std::vector<std::string> parameters{
+        std::to_string(*user_id_), std::to_string(params.conversation),
+        std::to_string(params.after.value_or(params.before.value_or(std::numeric_limits<std::int64_t>::max())))};
+    if (searching)
+    {
+        parameters.push_back(std::move(*params.query));
+    }
+    auto query_result = co_await lease.connection().execute_row(std::move(query), std::move(parameters));
     auto& [ec, row] = query_result;
     if (ec)
     {

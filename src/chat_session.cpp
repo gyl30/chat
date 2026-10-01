@@ -238,7 +238,7 @@ boost::capy::task<void> chat_session::run()
             {
                 rpc_error = co_await handle_get_conversations(request, response);
             }
-            else if (request.method == kGetMessagesMethod)
+            else if (request.method == kGetMessagesMethod || request.method == "search_messages")
             {
                 rpc_error = co_await handle_get_messages(request, response);
             }

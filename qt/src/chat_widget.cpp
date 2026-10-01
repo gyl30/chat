@@ -278,6 +278,14 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     chat_identity_layout->addWidget(chat_presence_);
     header_layout->addWidget(chat_identity);
     header_layout->addStretch();
+    message_search_button_ = new QToolButton(header);
+    message_search_button_->setObjectName(QStringLiteral("messageSearchButton"));
+    message_search_button_->setText(QStringLiteral("搜索消息"));
+    message_search_button_->setEnabled(false);
+    header_layout->addWidget(message_search_button_);
+    connect(message_search_button_, &QToolButton::clicked, this, [this] {
+        emit message_search_requested(active_conversation_, self_user_, active_group_, active_username_);
+    });
     connection_status_ = new QToolButton(header);
     connection_status_->setObjectName(QStringLiteral("connectionStatusButton"));
     connection_status_->setToolButtonStyle(Qt::ToolButtonTextOnly);
@@ -510,6 +518,7 @@ void chat_widget::set_user(QString const& username, qint64 user)
     message_edit_->clear();
     message_edit_->setEnabled(false);
     send_button_->setEnabled(false);
+    message_search_button_->setEnabled(false);
 }
 
 void chat_widget::set_loading() { conversations_status_->setText(QStringLiteral("正在加载…")); }
@@ -524,6 +533,7 @@ void chat_widget::set_connection_available(bool available)
     message_edit_->setEnabled(available && active_conversation_ > 0);
     send_button_->setEnabled(available && active_conversation_ > 0);
     add_contact_button_->setEnabled(available);
+    message_search_button_->setEnabled(available && active_conversation_ > 0);
     add_user_search_->setEnabled(available);
 }
 
@@ -931,6 +941,7 @@ void chat_widget::open_conversation(conversation_data conversation)
     reply_to_ = 0;
     reply_bar_->hide();
     active_conversation_ = user;
+    message_search_button_->setEnabled(connection_available_);
     messages_->reset(active_conversation_, active_group_);
     messages_loaded_ = false;
     messages_loading_ = true;

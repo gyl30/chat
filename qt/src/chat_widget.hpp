@@ -74,6 +74,7 @@ class chat_widget final : public QWidget
     void direct_conversation_requested(qint64 user, QString username);
     void group_create_requested(QString title, QList<qint64> members);
     void members_requested(qint64 conversation);
+    void message_search_requested(qint64 conversation, qint64 self_user, bool group, QString title);
 
    private:
     void show_conversations_section();
@@ -100,6 +101,7 @@ class chat_widget final : public QWidget
     QToolButton* logout_navigation_ = nullptr;
     QToolButton* sidebar_back_button_ = nullptr;
     QToolButton* add_contact_button_ = nullptr;
+    QToolButton* message_search_button_ = nullptr;
     QLabel* section_title_ = nullptr;
     QStackedWidget* sidebar_pages_ = nullptr;
     QListView* conversations_view_ = nullptr;

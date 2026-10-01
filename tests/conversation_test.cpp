@@ -230,6 +230,10 @@ int run_group_tests()
                 [&](auto handler) { client.remove_contact(data.users.front(), handler); });
             require(!unauthenticated_remove && unauthenticated_remove.error().code == -32001,
                     "Contact removal requires authentication");
+            auto unauthenticated_search = call<chat::messages_result>(
+                [&](auto handler) { client.search_messages(1, "test", {}, handler); });
+            require(!unauthenticated_search && unauthenticated_search.error().code == -32001,
+                    "Message search requires authentication");
             auto authenticated = call<chat::authentication_result>(
                 [&](auto handler) { client.authenticate(names.back(), "group password", handler); });
             require(authenticated && authenticated->authenticated && authenticated->user == *registered,
@@ -309,6 +313,32 @@ int run_group_tests()
         require(older && older->messages.size() == 8 && !older->has_more &&
                     older->messages.front().id == sent->message_id,
                 "Older cursor page");
+        auto const unread_before_search = conversation(c, group).unread;
+        auto search_page = call<chat::messages_result>(
+            [&](auto handler) { c.search_messages(group, "OFFLINE", {}, handler); });
+        require(search_page && search_page->messages.size() == 50 && search_page->has_more &&
+                    search_page->messages.back().id == latest, "Case-insensitive message search cursor page");
+        auto search_older = call<chat::messages_result>([&](auto handler) {
+            c.search_messages(group, "OFFLINE", search_page->messages.front().id, handler);
+        });
+        require(search_older && search_older->messages.size() == 7 && !search_older->has_more &&
+                    search_older->messages.back().id < search_page->messages.front().id,
+                "Search pages have no duplicate results");
+        require(position(*search_page, data.users[2]) == position(*first_page, data.users[2]) &&
+                    conversation(c, group).unread == unread_before_search, "Searching does not advance read position");
+        auto denied_search = call<chat::messages_result>(
+            [&](auto handler) { d.search_messages(group, "offline", {}, handler); });
+        auto empty_search = call<chat::messages_result>(
+            [&](auto handler) { a.search_messages(group, "", {}, handler); });
+        require(!denied_search && denied_search.error().code == -32006 && !empty_search &&
+                    empty_search.error().code == -32602, "Search membership and empty-query validation");
+        for (auto const& query : {std::string(1025, 'x'), std::string("a\0b", 3)})
+        {
+            auto invalid_search = call<chat::messages_result>(
+                [&](auto handler) { a.search_messages(group, query, {}, handler); });
+            require(!invalid_search && invalid_search.error().code == -32602,
+                    "Oversized and NUL-containing search queries rejected");
+        }
         std::int64_t cursor = sent->message_id;
         std::size_t restored = 0;
         bool more = true;
@@ -529,6 +559,20 @@ int run_group_tests()
         require(presence_after_remove && std::ranges::any_of(*presence_after_remove, [&](auto const& value)
                     { return value.user == data.users[1]; }),
                 "Direct history retains presence after contact removal");
+        auto removed_search = call<chat::messages_result>(
+            [&](auto handler) { a.search_messages(*direct, "direct reply", {}, handler); });
+        require(removed_search && removed_search->messages.empty(), "Deleted messages are excluded from search");
+        auto literal = call<chat::send_message_result>([&](auto handler) {
+            a.send_message(group, "100%_literal中文O'Reilly", handler);
+        });
+        require(literal.has_value(), "Literal search fixture");
+        auto literal_search = call<chat::messages_result>(
+            [&](auto handler) { b.search_messages(group, "%_literal中文O'Reilly", {}, handler); });
+        auto other_conversation_search = call<chat::messages_result>(
+            [&](auto handler) { a.search_messages(*direct, "中文", {}, handler); });
+        require(literal_search && literal_search->messages.size() == 1 &&
+                    literal_search->messages.front().id == literal->message_id && other_conversation_search &&
+                    other_conversation_search->messages.empty(), "Unicode and punctuation are literal and scoped");
         {
             std::lock_guard lock(d_events.mutex);
             require(d_events.messages.empty() && d_events.updates.empty() && d_events.reads.empty() &&

@@ -936,7 +936,8 @@ struct client::impl
     }
 
     boost::capy::task<> get_messages(std::int64_t conversation, std::optional<std::int64_t> before,
-                                     messages_handler handler, std::optional<std::int64_t> after)
+                                     messages_handler handler, std::optional<std::int64_t> after,
+                                     std::optional<std::string> query = {})
     {
         boost::json::object params;
         params.emplace("conversation", conversation);
@@ -949,7 +950,11 @@ struct client::impl
         {
             params.emplace("after", *after);
         }
-        send_request("get_messages", std::move(params),
+        if (query)
+        {
+            params.emplace("query", std::move(*query));
+        }
+        send_request(query ? "search_messages" : "get_messages", std::move(params),
                      [conversation, handler = std::move(handler)](auto response) mutable
                      {
             if (!response)
@@ -1379,6 +1384,13 @@ void client::get_messages(std::int64_t conversation, std::optional<std::int64_t>
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(
         impl_->get_messages(conversation, before, std::move(handler), after));
+}
+
+void client::search_messages(std::int64_t conversation, std::string query, std::optional<std::int64_t> before,
+                             messages_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->get_messages(conversation, before, std::move(handler), {}, std::move(query)));
 }
 
 void client::send_message(std::int64_t user, std::string text, send_message_handler handler,

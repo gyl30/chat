@@ -382,6 +382,25 @@ int main(int argc, char** argv)
                 wait([&, i] { return windows[i]->findChild<QListView*>("messageList")->model()->rowCount() == 4; });
             }
             windows[1]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_reconnected.png");
+            QTimer::singleShot(50, [&] {
+                auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                check(dialog && dialog->objectName() == "messageSearchDialog", "Message search dialog");
+                auto* input = dialog->findChild<QLineEdit*>("messageSearchEdit");
+                auto* search = dialog->findChild<QPushButton*>("searchMessagesButton");
+                auto* results = dialog->findChild<QListView*>("messageSearchResults");
+                input->setText(QStringLiteral("OFFLINE retained"));
+                search->click();
+                wait([&] { return results->model()->rowCount() == 1; });
+                check(results->model()->index(0, 0).data(message_model::text_role).toString() ==
+                          QStringLiteral("offline retained edit"), "Search returns edited current content");
+                input->setText(QStringLiteral("离线编辑验证"));
+                search->click();
+                wait([&] { return dialog->findChild<QLabel*>("messageSearchStatus")->text() ==
+                                     QStringLiteral("没有匹配的消息。"); });
+                check(results->model()->rowCount() == 0, "Search excludes previous message content");
+                dialog->reject();
+            });
+            windows[0]->findChild<QToolButton*>("messageSearchButton")->click();
             for (auto* button : windows[0]->findChildren<QToolButton*>())
             {
                 if (button->text() == QStringLiteral("联系人"))

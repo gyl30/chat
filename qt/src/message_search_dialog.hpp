@@ -1,0 +1,42 @@
+#ifndef CHAT_QT_SRC_MESSAGE_SEARCH_DIALOG_HPP
+#define CHAT_QT_SRC_MESSAGE_SEARCH_DIALOG_HPP
+
+#include <QDialog>
+
+#include "message_data.hpp"
+
+class QLabel;
+class QLineEdit;
+class QListView;
+class QPushButton;
+class message_model;
+
+class message_search_dialog final : public QDialog
+{
+    Q_OBJECT
+
+   public:
+    message_search_dialog(qint64 conversation, qint64 self_user, bool group, QString const& title, QWidget* parent);
+    void set_results(qint64 conversation, QString const& query, qint64 before, QList<message_data> messages,
+                     read_positions positions, bool has_more, QString const& error_message);
+
+   signals:
+    void search_requested(QString query, qint64 before);
+
+   private:
+    void request_search(bool older);
+
+    qint64 conversation_;
+    bool group_;
+    QString query_;
+    qint64 before_ = 0;
+    qint64 next_before_ = 0;
+    QLineEdit* input_;
+    QPushButton* search_button_;
+    QPushButton* more_button_;
+    QLabel* status_;
+    QListView* results_;
+    message_model* messages_;
+};
+
+#endif

@@ -95,6 +95,7 @@ void client_bridge::close()
 {
     ++messages_generation_;
     ++conversations_generation_;
+    ++search_generation_;
     client_->close();
 }
 
@@ -389,6 +390,41 @@ void client_bridge::search_users(QString query)
         }
         emit users_received(std::move(users), {});
     });
+}
+
+void client_bridge::search_messages(qint64 conversation, QString query, qint64 before)
+{
+    auto request_query = to_utf8(query);
+    auto const generation = ++search_generation_;
+    client_->search_messages(conversation, std::move(request_query),
+        before > 0 ? std::optional<std::int64_t>{before} : std::nullopt,
+        [this, conversation, query = std::move(query), before, generation](auto result) mutable {
+            QMetaObject::invokeMethod(this, [this, conversation, query = std::move(query), before, generation,
+                                            result = std::move(result)]() mutable {
+                if (generation != search_generation_)
+                {
+                    return;
+                }
+                if (!result)
+                {
+                    emit message_search_received(conversation, std::move(query), before, {}, {}, false,
+                                                 from_utf8(result.error().message));
+                    return;
+                }
+                QList<message_data> messages;
+                for (auto const& value : result->messages)
+                {
+                    messages.push_back(to_message_data(value));
+                }
+                read_positions positions;
+                for (auto const& value : result->read_positions)
+                {
+                    positions.insert(value.user, value.message);
+                }
+                emit message_search_received(conversation, std::move(query), before, std::move(messages),
+                                             std::move(positions), result->has_more, {});
+            }, Qt::QueuedConnection);
+        });
 }
 
 void client_bridge::add_contact(qint64 user)
