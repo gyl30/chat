@@ -19,6 +19,7 @@
 | `6b6a193` | 稳态审计、libpq 测试环境、过期回调及生命周期/并发验证 | 无 |
 | `6ff2ac6` | 群主转让、成员移除、权限与实时隔离、再邀请及 Qt 生命周期 | 无 |
 | `bac6066` | 真实用户头像上传、获取、更换、清除、实时更新与 Qt 缓存展示 | SQL 015 |
+| `09e9e25` | 可重复 normal/ASan/UBSan 验证入口与工具链、测试库前提说明 | 无 |
 
 另外完成历史大响应接收、编辑消息布局和消息操作按钮对比度修复，分别见 `32f3f3b`、`a545c9a`、`f73b8f4`。
 
@@ -177,3 +178,23 @@ GitHub Actions 尚未接入：当前完整验证的是特定 GCC 16 trunk、Boos
 | UBSan `build/ubsan` | PASS | 14/14 PASS | 57.98 s |
 
 `bash -n tests/verify.sh` 与 `git diff --check` PASS。下一阶段为群聊已读详情；其余长期路线仍属规划。
+
+## 长期路线：群聊已读详情
+
+以重新 fetch 后的 `09e9e25` 为基线，复用 `get_messages.read_positions`、`get_members` 和现有 `read/conversation` 通知，没有新增 RPC、receipt 表或 migration。
+
+群消息显示“已读 N 人”，点击文字或右键“已读详情”打开当前成员的姓名和头像列表。人数、列表与群双勾使用同一条件：当前其他成员的真实 `last_read_message_id >= message.id`；排除当前查看用户，不把 `joined_message_id` 或发送行为当作阅读。退出成员不计入，入群前历史可见但加入水位不产生已读。单聊保持原单/双勾。
+
+选择群时获取成员身份快照；阅读、成员、头像变化实时刷新详情。会话关闭、退出、移除、logout 或目标消息删除时关闭窗口，QObject context 管理回调。群变化和断线先清活动群的旧读位，再由权威历史恢复；沿用已有 history generation 丢弃过期请求，防止离线或快速重入时把旧高读位 `max` 合并进新 membership。没有新增 generation、成员版本或通用状态框架。
+
+新增模型断言覆盖零/一/多读、自己排除、成员快照已退出但旧读位仍高、重入读位 0、分页和快照与较新阅读事件合并；delegate 验证可点击文字及单聊无该入口。服务器集成测试确认分页与重连携带真实读位。三个真实 Qt 窗口验证详情姓名/ID、实时读人数、重连、退出后人数以及移除时关闭详情；截图已检查。
+
+实际执行 `tests/verify.sh`，完整验证如下：
+
+| 构建 | 完整 build | 完整 CTest | 总耗时 |
+|---|---|---|---|
+| 正常 `build` | PASS | 14/14 PASS | 45.54 s |
+| ASan `build/asan` | PASS | 14/14 PASS | 58.90 s |
+| UBSan `build/ubsan` | PASS | 14/14 PASS | 58.50 s |
+
+无 sanitizer suppression、测试排除、新临时状态或调试代码，`git diff --check` PASS。下一阶段为有限 emoji reaction，尚未实现。

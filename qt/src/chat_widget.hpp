@@ -59,6 +59,7 @@ class chat_widget final : public QWidget
     void set_messages(qint64 conversation, QList<message_data> messages, read_positions positions, bool older,
                       bool recovering, bool has_more);
     void set_read_message(qint64 conversation, qint64 user, qint64 message);
+    void reset_read_positions(qint64 conversation);
     void set_typing(qint64 conversation, qint64 user, QString username, bool typing);
     void add_message(qint64 user, message_data message);
     void update_message(message_data message);
@@ -75,7 +76,7 @@ class chat_widget final : public QWidget
     void avatar_set_requested(QByteArray data);
     void avatar_clear_requested();
     void avatar_update_finished(QString error);
-    void conversation_selected(qint64 user);
+    void conversation_selected(qint64 user, bool group);
     void older_messages_requested(qint64 user, qint64 before);
     void send_message_requested(qint64 user, QString text, qint64 reply_to);
     void delete_message_requested(qint64 conversation, qint64 message);
@@ -107,6 +108,7 @@ class chat_widget final : public QWidget
     void request_older_messages();
     void send_current_message();
     void show_user_details(qint64 user, QString const& username);
+    void show_read_details(QModelIndex const& index);
     void update_chat_header(QString const& username);
     void update_chat_presence();
     void set_message_status(QString message);

@@ -85,6 +85,10 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             {
                 return false;
             }
+            if (group_)
+            {
+                return !read_members(message.id).isEmpty();
+            }
             for (auto it = read_positions_.cbegin(); it != read_positions_.cend(); ++it)
             {
                 if (it.key() != self_user_ && it.value() >= message.id)
@@ -93,6 +97,12 @@ QVariant message_model::data(QModelIndex const& index, int role) const
                 }
             }
             return !group_ && read_positions_.size() == 1 && read_positions_.value(self_user_) >= message.id;
+        case read_count_role:
+            if (!group_ || message.deleted)
+            {
+                return {};
+            }
+            return static_cast<int>(read_members(message.id).size());
         case Qt::DecorationRole:
             return avatars_ ? QVariant::fromValue(avatars_->image(message.from)) : QVariant{};
         default:
@@ -106,6 +116,7 @@ void message_model::reset(qint64 conversation, bool group)
     conversation_ = conversation;
     group_ = group;
     read_positions_.clear();
+    members_.clear();
     messages_.clear();
     endResetModel();
 }
@@ -223,7 +234,7 @@ void message_model::set_read_message(qint64 user, qint64 message)
     read_positions_.insert(user, message);
     if (!messages_.isEmpty())
     {
-        emit dataChanged(index(0, 0), index(messages_.size() - 1, 0), {read_role});
+        emit dataChanged(index(0, 0), index(messages_.size() - 1, 0), {read_role, read_count_role});
     }
 }
 
@@ -241,8 +252,33 @@ void message_model::set_read_positions(read_positions positions)
     read_positions_ = std::move(positions);
     if (!messages_.isEmpty())
     {
-        emit dataChanged(index(0, 0), index(messages_.size() - 1, 0), {read_role});
+        emit dataChanged(index(0, 0), index(messages_.size() - 1, 0), {read_role, read_count_role});
     }
+}
+
+void message_model::set_members(QList<member_data> members)
+{
+    members_ = std::move(members);
+    if (!messages_.isEmpty())
+    {
+        emit dataChanged(index(0, 0), index(messages_.size() - 1, 0), {read_role, read_count_role});
+    }
+}
+
+QList<member_data> message_model::read_members(qint64 message) const
+{
+    QList<member_data> result;
+    if (group_)
+    {
+        for (auto const& member : members_)
+        {
+            if (member.id != self_user_ && read_positions_.value(member.id) >= message)
+            {
+                result.push_back(member);
+            }
+        }
+    }
+    return result;
 }
 
 qint64 message_model::first_message_id() const

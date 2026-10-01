@@ -359,6 +359,8 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                 }
                 QMenu menu(this);
                 auto* reply = menu.addAction(QStringLiteral("回复"));
+                auto* readers = index.data(message_model::read_count_role).isValid()
+                    ? menu.addAction(QStringLiteral("已读详情")) : nullptr;
                 auto const filename = index.data(message_model::attachment_name_role).toString();
                 auto* download = !filename.isEmpty() ? menu.addAction(QStringLiteral("下载文件")) : nullptr;
                 auto* preview = index.data(message_model::attachment_type_role).toString().startsWith(QStringLiteral("image/"))
@@ -369,6 +371,11 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                                    ? menu.addAction(QStringLiteral("删除"))
                                    : nullptr;
                 auto* selected = menu.exec(messages_view_->viewport()->mapToGlobal(position));
+                if (readers && selected == readers)
+                {
+                    show_read_details(index);
+                    return;
+                }
                 if ((download && selected == download) || (preview && selected == preview))
                 {
                     emit attachment_open_requested(active_conversation_, index.data(message_model::id_role).toLongLong(),
@@ -526,6 +533,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                 show_user_details(index.data(message_model::from_role).toLongLong(),
                                   index.data(message_model::sender_name_role).toString());
             });
+    connect(messages_delegate, &message_delegate::read_details_clicked, this, &chat_widget::show_read_details);
     connect(chat_title_, &QPushButton::clicked, this,
             [this]
             {
@@ -658,6 +666,10 @@ void chat_widget::set_connection_available(bool available)
     {
         attachment_sending_ = false;
         set_message_status(QStringLiteral("连接已断开，请重新发送文件。"));
+    }
+    if (!available && active_group_)
+    {
+        messages_->set_read_positions({});
     }
     groups_navigation_->setEnabled(available);
     messages_loading_ = available && active_conversation_ > 0;
@@ -836,6 +848,14 @@ void chat_widget::set_read_message(qint64 conversation, qint64 user, qint64 mess
     if (conversation == active_conversation_)
     {
         messages_->set_read_message(user, message);
+    }
+}
+
+void chat_widget::reset_read_positions(qint64 conversation)
+{
+    if (conversation == active_conversation_ && active_group_)
+    {
+        messages_->set_read_positions({});
     }
 }
 
@@ -1083,7 +1103,7 @@ void chat_widget::open_conversation(conversation_data conversation)
             set_message_status(QStringLiteral("正在加载消息…"));
             if (connection_available_)
             {
-                emit conversation_selected(active_conversation_);
+                emit conversation_selected(active_conversation_, active_group_);
             }
         }
         return;
@@ -1106,7 +1126,7 @@ void chat_widget::open_conversation(conversation_data conversation)
     send_button_->setEnabled(connection_available_);
     if (connection_available_)
     {
-        emit conversation_selected(active_conversation_);
+        emit conversation_selected(active_conversation_, active_group_);
     }
 }
 
@@ -1153,6 +1173,7 @@ void chat_widget::set_members(qint64 conversation, QList<member_data> members, Q
         return;
     }
     for (auto const& member : members) { avatars_.observe(member.id, member.avatar); }
+    messages_->set_members(members);
     for (auto it = typing_users_.begin(); it != typing_users_.end();)
     {
         auto const present = std::any_of(members.begin(), members.end(), [id = it.key()](auto const& member) {
@@ -1161,6 +1182,62 @@ void chat_widget::set_members(qint64 conversation, QList<member_data> members, Q
         it = present ? std::next(it) : typing_users_.erase(it);
     }
     update_typing_label();
+}
+
+void chat_widget::show_read_details(QModelIndex const& index)
+{
+    if (!index.data(message_model::read_count_role).isValid())
+    {
+        return;
+    }
+    auto const conversation = active_conversation_;
+    auto const message = index.data(message_model::id_role).toLongLong();
+    QDialog dialog(this);
+    dialog.setObjectName(QStringLiteral("readDetailsDialog"));
+    dialog.setWindowTitle(QStringLiteral("已读详情"));
+    dialog.resize(320, 360);
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* count = new QLabel(&dialog);
+    count->setObjectName(QStringLiteral("readDetailsCount"));
+    auto* list = new QListWidget(&dialog);
+    list->setObjectName(QStringLiteral("readMembersList"));
+    list->setIconSize(QSize(36, 36));
+    layout->addWidget(count);
+    layout->addWidget(list);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    auto refresh = [this, &dialog, conversation, message, count, list] {
+        bool visible = false;
+        for (int row = 0; row < messages_->rowCount(); ++row)
+        {
+            auto const item = messages_->index(row, 0);
+            if (item.data(message_model::id_role).toLongLong() == message)
+            {
+                visible = item.data(message_model::read_count_role).isValid();
+                break;
+            }
+        }
+        if (active_conversation_ != conversation || !visible)
+        {
+            dialog.reject();
+            return;
+        }
+        auto const members = messages_->read_members(message);
+        count->setText(QStringLiteral("已读 %1 人").arg(members.size()));
+        list->clear();
+        for (auto const& member : members)
+        {
+            auto* item = new QListWidgetItem(avatar_icon(member.username, 36, avatars_.image(member.id)),
+                                            member.username, list);
+            item->setData(Qt::UserRole, member.id);
+        }
+    };
+    connect(messages_, &QAbstractItemModel::dataChanged, &dialog, refresh);
+    connect(messages_, &QAbstractItemModel::modelReset, &dialog, refresh);
+    connect(&avatars_, &avatar_cache::changed, &dialog, refresh);
+    refresh();
+    dialog.exec();
 }
 
 std::optional<qint64> chat_widget::recovery_cursor() const

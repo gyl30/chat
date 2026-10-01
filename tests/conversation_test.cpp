@@ -433,6 +433,10 @@ int run_group_tests()
         require(older && older->messages.size() == 8 && !older->has_more &&
                     older->messages.front().id == sent->message_id,
                 "Older cursor page");
+        require(position(*first_page, data.users[1]) == sent->message_id &&
+                    position(*older, data.users[1]) == sent->message_id &&
+                    position(*first_page, data.users[2]) == 0 && position(*older, data.users[2]) == 0,
+                "Pagination and reconnect preserve real read positions without marking old messages read");
         auto const unread_before_search = conversation(c, group).unread;
         auto search_page = call<chat::messages_result>(
             [&](auto handler) { c.search_messages(group, "OFFLINE", {}, handler); });

@@ -556,6 +556,7 @@ main_window::main_window(QString server_url, QWidget* parent)
             if (!removed) { client_->get_members(conversation); }
             if (conversation == chat_page_->active_conversation())
             {
+                chat_page_->reset_read_positions(conversation);
                 client_->get_messages(conversation, {}, chat_page_->recovery_cursor());
             }
         }, Qt::QueuedConnection);
@@ -563,7 +564,10 @@ main_window::main_window(QString server_url, QWidget* parent)
             Qt::QueuedConnection);
 
     connect(chat_page_, &chat_widget::conversation_selected, this,
-            [this](qint64 user) { client_->get_messages(user); });
+            [this](qint64 user, bool group) {
+                client_->get_messages(user);
+                if (group) { client_->get_members(user); }
+            });
 
     connect(chat_page_, &chat_widget::older_messages_requested, this,
             [this](qint64 user, qint64 before) { client_->get_messages(user, before); });

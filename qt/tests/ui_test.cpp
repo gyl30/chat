@@ -229,6 +229,46 @@ int main(int argc, char** argv)
                 check(view->model()->index(0, 0).data(message_model::outgoing_role).toBool() == (i == 0),
                       "Real author identity");
             }
+            auto* receipt_view = windows[0]->findChild<QListView*>("messageList");
+            wait([&] { return receipt_view->model()->index(0, 0).data(message_model::read_count_role).toInt() == 2; });
+            auto open_read_details = [&](int actor, int row) {
+                auto* view = windows[actor]->findChild<QListView*>("messageList");
+                QTimer::singleShot(20, [] {
+                    auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+                    check(menu, "Read detail menu");
+                    QAction* readers = nullptr;
+                    for (auto* action : menu->actions())
+                    {
+                        if (action->text() == QStringLiteral("已读详情")) { readers = action; }
+                    }
+                    check(readers, "Group read detail action");
+                    menu->setActiveAction(readers);
+                    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+                    QApplication::sendEvent(menu, &enter);
+                });
+                view->customContextMenuRequested(view->visualRect(view->model()->index(row, 0)).center());
+            };
+            QTimer read_poll;
+            bool read_details = false;
+            QObject::connect(&read_poll, &QTimer::timeout, [&] {
+                auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                if (!dialog || dialog->objectName() != "readDetailsDialog") { return; }
+                auto* list = dialog->findChild<QListWidget*>("readMembersList");
+                if (list->count() != 2) { return; }
+                check(list->item(0)->data(Qt::UserRole).toLongLong() == ids[1] &&
+                      list->item(1)->data(Qt::UserRole).toLongLong() == ids[2] &&
+                      list->item(0)->text() == names[1] && list->item(1)->text() == names[2],
+                      "Read detail lists actual current readers and excludes self");
+                check(dialog->findChild<QLabel*>("readDetailsCount")->text() == QStringLiteral("已读 2 人"),
+                      "Read detail count matches members");
+                dialog->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_read_details.png");
+                read_details = true;
+                read_poll.stop();
+                dialog->accept();
+            });
+            read_poll.start(20);
+            open_read_details(0, 0);
+            check(read_details, "Read detail dialog completed");
             bool members = false;
             int role_step = 0;
             QTimer poll;
@@ -604,6 +644,11 @@ int main(int argc, char** argv)
             {
                 wait([&, i] { return windows[i]->findChild<QListView*>("messageList")->model()->rowCount() == 4; });
             }
+            for (int i = 0; i < 3; ++i)
+            {
+                auto* view = windows[i]->findChild<QListView*>("messageList");
+                wait([&] { return view->model()->index(3, 0).data(message_model::read_count_role).toInt() == (i == 1 ? 2 : 1); });
+            }
             windows[1]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_reconnected.png");
             QTimer::singleShot(50, [&] {
                 auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
@@ -975,6 +1020,11 @@ int main(int argc, char** argv)
             windows[0]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("退出期间的群消息"));
             windows[0]->findChild<QToolButton*>("sendButton")->click();
             wait([&] { return pages[0]->latest_message_id() > before_leave_message; });
+            wait([&] {
+                auto* view = windows[0]->findChild<QListView*>("messageList");
+                return view->model()->index(view->model()->rowCount() - 1, 0)
+                    .data(message_model::read_count_role).toInt() == 1;
+            });
             check(windows[2]->findChild<QListView*>("conversationList")->model()->rowCount() == 0,
                   "Former member receives no new conversation");
             bool reinvited = false;
@@ -1089,7 +1139,8 @@ int main(int argc, char** argv)
                 check(finished, "Reinvite action completed");
                 wait([&] { return pages[2]->active_conversation() == group && pages[2]->messages_ready(); });
             };
-            for (auto const& modal : {QStringLiteral("groupDialog"), QStringLiteral("messageSearchDialog"), QStringLiteral("attachmentDialog")})
+            for (auto const& modal : {QStringLiteral("groupDialog"), QStringLiteral("messageSearchDialog"),
+                                     QStringLiteral("attachmentDialog"), QStringLiteral("readDetailsDialog")})
             {
                 select_group(2);
                 if (modal == "groupDialog")
@@ -1128,6 +1179,10 @@ int main(int argc, char** argv)
                 });
                 if (modal == "groupDialog") { windows[2]->findChild<QPushButton*>("chatHeaderButton")->click(); }
                 else if (modal == "messageSearchDialog") { windows[2]->findChild<QToolButton*>("messageSearchButton")->click(); }
+                else if (modal == "readDetailsDialog")
+                {
+                    open_read_details(2, windows[2]->findChild<QListView*>("messageList")->model()->rowCount() - 1);
+                }
                 else { pages[2]->attachment_open_requested(group, file_message, "removal.bin", false); }
                 wait([&] { return pages[2]->active_conversation() == 0; });
                 check(!QApplication::activeModalWidget() && windows[2]->findChild<QListView*>("messageList")->model()->rowCount() == 0 &&

@@ -181,6 +181,11 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     {
         result.time = QStringLiteral("已编辑 · ") + result.time;
     }
+    auto const read_count = index.data(message_model::read_count_role);
+    if (read_count.isValid())
+    {
+        result.time = QStringLiteral("已读 %1 人 · ").arg(read_count.toInt()) + result.time;
+    }
     result.outgoing = outgoing_at(index);
     result.read = result.outgoing && read_at(index);
     result.day_start = starts_day(index);
@@ -490,12 +495,31 @@ bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model,
     }
 
     auto const layout = calculate_layout(option, index);
+    auto y = option.rect.top() + layout.day_height + layout.top_margin;
+    auto const bubble_x = layout.outgoing
+        ? option.rect.right() - chat_theme::message_side_margin - layout.bubble_width + 1
+        : option.rect.left() + chat_theme::message_side_margin + chat_theme::message_avatar_skip;
+    auto const content_right = bubble_x + layout.bubble_width - chat_theme::message_padding_horizontal;
+    auto const metadata_width = layout.time_width + layout.receipt_width
+        + ((layout.time_width > 0 && layout.receipt_width > 0) ? 3 : 0);
+    auto const content_top = y + chat_theme::message_padding_vertical + layout.name_height;
+    auto const metadata_y = layout.time_on_text_line
+        ? content_top + std::max(0, (layout.text_height - layout.time_height) / 2)
+        : content_top + layout.text_height + 2;
+    QRect read_rect(content_right - metadata_width, metadata_y,
+                    QFontMetrics(time_font(option)).horizontalAdvance(
+                        QStringLiteral("已读 %1 人").arg(index.data(message_model::read_count_role).toInt())),
+                    layout.time_height);
+    if (index.data(message_model::read_count_role).isValid() && read_rect.contains(mouse->position().toPoint()))
+    {
+        emit read_details_clicked(index);
+        return true;
+    }
     if (layout.outgoing || !layout.group_end)
     {
         return false;
     }
 
-    auto y = option.rect.top() + layout.day_height + layout.top_margin;
     auto const bubble_bottom = y + layout.bubble_height - 1;
     QRect avatar_rect(option.rect.left() + chat_theme::message_side_margin,
                       bubble_bottom - chat_theme::message_avatar_size + 1,

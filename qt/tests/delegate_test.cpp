@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QFontMetrics>
 #include <QImage>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QStyleOptionViewItem>
 
@@ -85,6 +86,33 @@ int main(int argc, char** argv)
     message_delegate delegate;
     delegate.paint(&painter, option, messages.index(0, 0));
     painter.end();
+
+    int read_clicks = 0;
+    QObject::connect(&delegate, &message_delegate::read_details_clicked, &delegate,
+                     [&](QModelIndex const& index) {
+        if (index.data(message_model::id_role).toLongLong() != message.id) { std::abort(); }
+        ++read_clicks;
+    });
+    QPoint read_point;
+    for (int y = 0; y < delegate.sizeHint(option, messages.index(0, 0)).height() && read_clicks == 0; y += 4)
+    {
+        for (int x = 0; x < option.rect.width() && read_clicks == 0; x += 4)
+        {
+            QMouseEvent click(QEvent::MouseButtonRelease, QPointF(x, y), QPointF(x, y),
+                              Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+            delegate.editorEvent(&click, &messages, option, messages.index(0, 0));
+            read_point = {x, y};
+        }
+    }
+    if (read_clicks != 1) { std::cerr << "FAIL group read count click target\n"; return 1; }
+    message_model direct_messages;
+    direct_messages.set_self_user(1);
+    direct_messages.reset(1);
+    direct_messages.add_message(message);
+    QMouseEvent direct_click(QEvent::MouseButtonRelease, QPointF(read_point), QPointF(read_point),
+                            Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    delegate.editorEvent(&direct_click, &direct_messages, option, direct_messages.index(0, 0));
+    if (read_clicks != 1) { std::cerr << "FAIL direct chat exposes group read detail\n"; return 1; }
 
     int green_pixels = 0;
     for (int y = 0; y < rendered.height(); ++y)

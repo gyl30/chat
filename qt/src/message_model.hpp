@@ -6,6 +6,7 @@
 #include <QString>
 
 #include "message_data.hpp"
+#include "member_data.hpp"
 
 class avatar_cache;
 
@@ -21,6 +22,7 @@ class message_model final : public QAbstractListModel
         outgoing_role,
         sender_name_role,
         read_role,
+        read_count_role,
         reply_id_role,
         reply_text_role,
         edited_at_role,
@@ -42,6 +44,8 @@ class message_model final : public QAbstractListModel
     void update_message(message_data const& message);
     void set_read_message(qint64 user, qint64 message);
     void set_read_positions(read_positions positions);
+    void set_members(QList<member_data> members);
+    QList<member_data> read_members(qint64 message) const;
     qint64 first_message_id() const;
     qint64 last_message_id() const;
 
@@ -52,6 +56,7 @@ class message_model final : public QAbstractListModel
     qint64 conversation_ = 0;
     bool group_ = false;
     read_positions read_positions_;
+    QList<member_data> members_;
 };
 
 #endif

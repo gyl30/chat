@@ -36,12 +36,15 @@ int main(int argc, char** argv)
         return 1;
     }
     messages.set_read_positions({{1, 0}, {2, outgoing.id}, {3, 0}});
-    if (!second.data(message_model::read_role).toBool())
+    messages.set_members({{1, "self", {}, {}}, {2, "second", {}, {}}, {3, "third", {}, {}}});
+    if (!second.data(message_model::read_role).toBool() || second.data(message_model::read_count_role).toInt() != 1 ||
+        messages.read_members(outgoing.id).size() != 1 || messages.read_members(outgoing.id).front().id != 2)
     {
         return 1;
     }
     messages.set_read_message(3, outgoing.id);
-    if (!second.data(message_model::read_role).toBool())
+    if (!second.data(message_model::read_role).toBool() || second.data(message_model::read_count_role).toInt() != 2 ||
+        messages.read_members(outgoing.id).size() != 2)
     {
         return 1;
     }
@@ -50,8 +53,16 @@ int main(int argc, char** argv)
     {
         return 1;
     }
+    messages.set_members({{1, "self", {}, {}}, {3, "third", {}, {}}});
+    if (second.data(message_model::read_count_role).toInt() != 1 || messages.read_members(outgoing.id).size() != 1 ||
+        messages.read_members(outgoing.id).front().id != 3)
+    {
+        return 1;
+    }
     messages.set_read_positions({{1, outgoing.id}, {4, 0}});
-    if (second.data(message_model::read_role).toBool())
+    messages.set_members({{1, "self", {}, {}}, {4, "new member", {}, {}}});
+    if (second.data(message_model::read_role).toBool() || second.data(message_model::read_count_role).toInt() != 0 ||
+        !messages.read_members(outgoing.id).isEmpty())
     {
         return 1;
     }
@@ -94,12 +105,51 @@ int main(int argc, char** argv)
     messages.reset(1);
     messages.merge_messages({outgoing});
     messages.set_read_positions({{1, outgoing.id}, {2, 0}});
-    if (messages.index(0, 0).data(message_model::read_role).toBool())
+    if (messages.index(0, 0).data(message_model::read_role).toBool() ||
+        messages.index(0, 0).data(message_model::read_count_role).isValid() || !messages.read_members(outgoing.id).isEmpty())
     {
         return 1;
     }
     messages.set_read_message(2, outgoing.id);
     if (!messages.index(0, 0).data(message_model::read_role).toBool())
+    {
+        return 1;
+    }
+    messages.reset(1, true);
+    messages.merge_messages({outgoing});
+    messages.set_members({{1, "self", {}, {}}, {2, "second", {}, {}}, {3, "third", {}, {}}});
+    messages.set_read_positions({{1, outgoing.id}, {2, 0}, {3, 0}});
+    if (messages.index(0, 0).data(message_model::read_count_role).toInt() != 0)
+    {
+        return 1;
+    }
+    messages.set_read_message(2, outgoing.id);
+    messages.merge_messages({incoming});
+    messages.set_read_positions({{1, outgoing.id}, {2, 0}, {3, 0}});
+    if (messages.index(0, 0).data(message_model::read_count_role).toInt() != 1 ||
+        messages.index(1, 0).data(message_model::read_count_role).toInt() != 1 ||
+        messages.read_members(incoming.id).front().id != 2)
+    {
+        return 1;
+    }
+    messages.set_read_positions({{1, outgoing.id}, {3, 0}});
+    messages.set_members({{1, "self", {}, {}}, {3, "third", {}, {}}});
+    messages.set_read_positions({{1, outgoing.id}, {2, 0}, {3, 0}});
+    messages.set_members({{1, "self", {}, {}}, {2, "rejoined", {}, {}}, {3, "third", {}, {}}});
+    if (messages.index(1, 0).data(message_model::read_count_role).toInt() != 0 ||
+        !messages.read_members(outgoing.id).isEmpty())
+    {
+        return 1;
+    }
+    messages.set_read_message(2, outgoing.id);
+    if (messages.read_members(outgoing.id).front().username != "rejoined")
+    {
+        return 1;
+    }
+    messages.set_read_positions({});
+    messages.set_read_positions({{1, outgoing.id}, {2, 0}, {3, 0}});
+    if (messages.index(1, 0).data(message_model::read_count_role).toInt() != 0 ||
+        !messages.read_members(outgoing.id).isEmpty())
     {
         return 1;
     }
@@ -125,6 +175,6 @@ int main(int argc, char** argv)
     {
         return 1;
     }
-    std::cout << "PASS Qt direct/group identity, author, deduplication, read positions and presence\n";
+    std::cout << "PASS Qt identity, group read count/members, leave/rejoin, pagination, read positions and presence\n";
     return 0;
 }
