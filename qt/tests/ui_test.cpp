@@ -13,7 +13,6 @@
 #include <QInputDialog>
 #include <QPlainTextEdit>
 #include <QProcess>
-#include <QProcessEnvironment>
 #include <QPushButton>
 #include <QThread>
 #include <QTemporaryDir>
@@ -27,6 +26,7 @@
 #include "main_window.hpp"
 #include "chat_widget.hpp"
 #include "group_dialog.hpp"
+#include "client_bridge.hpp"
 #include "message_model.hpp"
 #include "conversation_model.hpp"
 
@@ -64,15 +64,10 @@ int main(int argc, char** argv)
     }
     QApplication app(argc, argv);
     QProcess server;
-    auto environment = QProcessEnvironment::systemEnvironment();
-    environment.insert("PGHOST", "172.20.54.83");
-    environment.insert("PGUSER", "chat");
-    environment.insert("PGDATABASE", "chat");
-    server.setProcessEnvironment(environment);
     std::vector<long> ids;
     long group = 0;
     int result = 1;
-    auto db = PQconnectdb("hostaddr=172.20.54.83 dbname=chat user=chat sslmode=disable");
+    auto db = PQconnectdb("");
     auto start = [&]
     {
         server.start(QString::fromLocal8Bit(argv[1]), {"18769", "8", "4"});
@@ -82,6 +77,22 @@ int main(int argc, char** argv)
     try
     {
         start();
+        {
+            std::promise<void> failed_connect;
+            client_bridge bridge;
+            int stale_results = 0;
+            QObject::connect(&bridge, &client_bridge::attachment_sent, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::attachment_received, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::message_search_received, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::error, &bridge, [&](auto) { failed_connect.set_value(); }, Qt::DirectConnection);
+            bridge.send_attachment(1, "stale.bin", "old upload");
+            bridge.get_attachment(1, 1);
+            bridge.search_messages(1, "old search");
+            bridge.connect_to_server(QStringLiteral("http://127.0.0.1"));
+            check(failed_connect.get_future().wait_for(std::chrono::seconds(5)) == std::future_status::ready, "Invalid URL callback");
+            QCoreApplication::sendPostedEvents(&bridge, QEvent::MetaCall);
+            check(stale_results == 0, "New connection discards old upload/download/search callbacks");
+        }
         std::string url = "ws://127.0.0.1:18769/ws";
         std::vector<QString> names;
         {

@@ -15,7 +15,7 @@
 | `4789af6` | 文件、PNG/JPEG 图片；分块传输、持久化、历史、引用、实时、Qt 下载/预览 | SQL 012 |
 | `78a28c3` | 单聊/群聊正在输入；节流、结束、过期、切换及断线清理 | 无 |
 | `dc4481c` | 创建者群主；群主任免最多三名管理员；角色持久化及 Qt 管理 | SQL 013 |
-| 本记录所在阶段提交 | 管理员/群主邀请联系人、改名；非群主退出；重新加入；快照恢复及群已读语义 | SQL 014 |
+| `27b2a88` | 管理员/群主邀请联系人、改名；非群主退出；重新加入；快照恢复及群已读语义 | SQL 014 |
 
 另外完成历史大响应接收、编辑消息布局和消息操作按钮对比度修复，分别见 `32f3f3b`、`a545c9a`、`f73b8f4`。
 
@@ -56,7 +56,7 @@ Qt 收到群变化后刷新会话、成员及实际阅读位置；关闭已退�
 
 ## 验证
 
-本阶段运行：
+SQL 014 所在阶段运行：
 
 ```sh
 cmake -S . -B build -DCHAT_BUILD_QT_CLIENT=ON
@@ -74,3 +74,28 @@ git diff --check
 当前不做群主转让、踢人、入群审批、邀请链接、@mention、公告、mute、pin 或 reaction。群主不能直接退出；群主/管理员没有编辑、删除他人消息的权限。退出者本地活动历史清空；服务端仍保留群消息，重新加入可重新获取。
 
 后续可以按真实使用需求独立评估群主转让/踢人、已读成员列表、附件存储规模和图片缩略图。它们不是本轮未完成项，不自动扩大到多设备、微服务、Redis、Kafka、event sourcing 或 CQRS。
+
+## 稳态与工程收口
+
+以重新 fetch 后的 `27b2a88` 为基线完成 `16fd4be..HEAD` 审计，详见 [稳态审计记录](steady-state-audit.md)。本阶段无 migration，无新产品功能。测试去掉 PostgreSQL 主机、数据库、用户硬编码，统一继承 libpq 环境；修复新连接未失效旧搜索/附件回调，以及 GCC 静态反射在 sanitizer/Debug 构建中的同名局部类型冲突。
+
+新增或增强事务失败后连接池恢复、真实 send/invite 锁竞争、上传中断/重连/退出清理、过期 Qt 回调和小群规模测试；现有生命周期回归继续覆盖 leave/rejoin、typing/disconnect、edit/delete/reconnect。没有删除仍有职责的状态字段，也没有拆分巨型文件或增加配置框架。
+
+验证使用调用进程提供的 `PGHOSTADDR/PGPORT/PGDATABASE/PGUSER/PGPASSWORD`，所有构建启用 Qt：
+
+| 构建 | 完整 build | 完整 CTest |
+|---|---|---|
+| `build`，Debug，默认 `-g` | PASS，`-j12` | 13/13 PASS |
+| `build/asan`，Debug，`-g1 -fsanitize=address -fno-omit-frame-pointer` | PASS，`-j12` | 13/13 PASS，无 suppression 或测试排除 |
+| `build/ubsan`，Debug，`-g1 -fsanitize=undefined -fno-sanitize-recover=all -fno-omit-frame-pointer` | PASS，`-j12` | 13/13 PASS，无 suppression 或测试排除 |
+
+ASan/UBSan 的 C、C++ 编译器及 executable linker 均启用对应 sanitizer。`git diff --check` PASS。测量每种群规模各三个样本，Debug 的平均端到端延迟如下；除了发送者，测量成员均离线：
+
+| 成员数 | get_members | history（含全部读位） | send（含发布查询/遍历） |
+|---|---|---|---|
+| 3 | 1.67 ms | 2.26 ms | 7.83 ms |
+| 10 | 1.35 ms | 2.42 ms | 7.23 ms |
+| 50 | 2.01 ms | 2.19 ms | 7.05 ms |
+| 200 | 43.95 ms | 43.56 ms | 10.24 ms |
+
+已验证 3–200 人范围的完整成员、读位和发布路径；这是测量范围，不是人数上限或在线吞吐承诺。未引入大群基础设施。群主转让和成员移除属于下一独立阶段，此处不记作完成。

@@ -82,12 +82,7 @@ constexpr std::string_view kHealthBody = R"({"status":"ok"})";
 constexpr std::string_view kNotFoundBody = "not found";
 constexpr std::string_view kWebSocketKey = "dGhlIHNhbXBsZSBub25jZQ==";
 constexpr std::string_view kWebSocketAccept = "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=";
-constexpr std::string_view kDatabaseConnectionString =
-    "hostaddr=172.20.54.83 "
-    "port=5432 "
-    "dbname=chat "
-    "user=chat "
-    "sslmode=disable";
+constexpr std::string_view kDatabaseConnectionString = "";
 constexpr char kTestUsername[] = "chat_server_test";
 constexpr char kTestPassword[] = "test password";
 constexpr char kPeerUsername[] = "chat_server_peer";
@@ -1645,6 +1640,67 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         }
     }
     std::cout << "PASS attachment upload validation and cancellation\n";
+    auto interrupted_reply = co_await peer_rpc("begin_attachment", attachment_begin);
+    auto interrupted_upload = boost::json::parse(interrupted_reply).at("result").at("upload").as_int64();
+    auto interrupted_chunk = co_await peer_rpc("upload_attachment", "{\"upload\":" + std::to_string(interrupted_upload) +
+        ",\"offset\":0,\"data\":\"AAEC\"}");
+    if (!json_matches(interrupted_chunk, R"({"result":{"offset":3}})"))
+    {
+        std::cerr << "FAIL interrupted upload fixture\n";
+        co_return 1;
+    }
+    source_socket.close();
+    auto [reconnect_ec] = co_await connect(source_socket, port);
+    auto [reupgrade_ec] = co_await upgrade_websocket(source_socket, source_parser);
+    auto [reauth_ec] = co_await authenticate_websocket(source_socket, kTestUsername, "upload-reconnect");
+    if (reconnect_ec || reupgrade_ec || reauth_ec)
+    {
+        std::cerr << "FAIL upload reconnect\n";
+        co_return 1;
+    }
+    auto interrupted_finish = co_await peer_rpc("finish_attachment", "{\"upload\":" + std::to_string(interrupted_upload) + "}");
+    auto fresh_upload = co_await peer_rpc("begin_attachment", attachment_begin);
+    if (!json_matches(interrupted_finish, R"({"error":{"code":-32008}})") ||
+        !json_matches(fresh_upload, R"({"result":{"upload":1}})"))
+    {
+        std::cerr << "FAIL disconnected upload retained state\n";
+        co_return 1;
+    }
+    co_await peer_rpc("cancel_attachment", "{\"upload\":1}");
+    auto [group_ec, lifecycle_group] = co_await fixture_connection.execute_scalar(
+        "WITH c AS (INSERT INTO conversations(kind,title,owner_id) VALUES('group','upload lifecycle',$1::bigint) RETURNING id), "
+        "members AS (INSERT INTO conversation_members(conversation_id,user_id) SELECT id,$1::bigint FROM c "
+        "UNION ALL SELECT id,$2::bigint FROM c) SELECT id::text FROM c", {peer_user_id, source_user_id});
+    if (group_ec || lifecycle_group.empty())
+    {
+        std::cerr << "FAIL attachment leave fixture\n";
+        co_return 1;
+    }
+    auto group_upload_reply = co_await peer_rpc("begin_attachment", "{\"conversation\":" + lifecycle_group +
+        ",\"filename\":\"leave.bin\",\"size\":3}");
+    auto group_upload = boost::json::parse(group_upload_reply).at("result").at("upload").as_int64();
+    co_await peer_rpc("upload_attachment", "{\"upload\":" + std::to_string(group_upload) +
+        ",\"offset\":0,\"data\":\"AAEC\"}");
+    auto left_group = co_await peer_rpc("leave_group", "{\"conversation\":" + lifecycle_group + "}");
+    auto [leave_notification_ec, leave_notification] = co_await receive_websocket_text(source_socket);
+    auto left_finish = co_await peer_rpc("finish_attachment", "{\"upload\":" + std::to_string(group_upload) + "}");
+    auto after_leave_upload = co_await peer_rpc("begin_attachment", attachment_begin);
+    if (!json_matches(left_group, R"({"result":{"changed":true}})") || leave_notification_ec ||
+        !json_matches(leave_notification, R"({"method":"conversation"})") ||
+        !json_matches(left_finish, R"({"error":{"code":-32008}})") ||
+        !json_matches(after_leave_upload, R"({"result":{"upload":3}})"))
+    {
+        std::cerr << "FAIL leaving group retained upload state\n";
+        co_return 1;
+    }
+    co_await peer_rpc("cancel_attachment", "{\"upload\":3}");
+    auto [cleanup_group_ec, cleanup_group_row] = co_await fixture_connection.execute_row(
+        "DELETE FROM conversations WHERE id=$1::bigint", {lifecycle_group});
+    if (cleanup_group_ec)
+    {
+        co_return 1;
+    }
+    std::cout << "PASS attachment interruption, reconnect and group leave cleanup\n";
     for (auto const& params : std::vector<std::string>{
              "{\"conversation\":" + direct_conversation + "}",
              "{\"conversation\":" + direct_conversation + ",\"typing\":1}",

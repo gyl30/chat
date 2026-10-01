@@ -2,7 +2,6 @@
 #include <utility>
 #include <string>
 #include <vector>
-#include <cstdlib>
 #include <iostream>
 
 #include <boost/capy/task.hpp>
@@ -17,12 +16,7 @@
 namespace
 {
 
-constexpr auto connection_string =
-    "hostaddr=172.20.54.83 "
-    "port=5432 "
-    "dbname=chat "
-    "user=chat "
-    "sslmode=disable";
+constexpr auto connection_string = "";
 
 boost::capy::task<int> run_tests(boost::corosio::io_context& io_context)
 {
@@ -185,13 +179,7 @@ boost::capy::task<int> run_tests(boost::corosio::io_context& io_context)
     }
 
     pg_connection bad_password_connection(io_context);
-    auto [bad_password_ec] = co_await bad_password_connection.connect(
-        "hostaddr=172.20.54.83 "
-        "port=5432 "
-        "dbname=chat "
-        "user=chat "
-        "password=__chat_invalid_password__ "
-        "sslmode=disable");
+    auto [bad_password_ec] = co_await bad_password_connection.connect("password=__chat_invalid_password__");
     if (!bad_password_ec)
     {
         std::cerr << "FAIL invalid password was accepted\n";
@@ -203,12 +191,7 @@ boost::capy::task<int> run_tests(boost::corosio::io_context& io_context)
     }
 
     pg_connection missing_database_connection(io_context);
-    auto [missing_database_ec] = co_await missing_database_connection.connect(
-        "hostaddr=172.20.54.83 "
-        "port=5432 "
-        "dbname=__chat_poc_missing_database__ "
-        "user=chat "
-        "sslmode=disable");
+    auto [missing_database_ec] = co_await missing_database_connection.connect("dbname=__chat_poc_missing_database__");
     if (!missing_database_ec)
     {
         std::cerr << "FAIL missing database was accepted\n";
@@ -345,6 +328,47 @@ boost::capy::task<int> run_tests(boost::corosio::io_context& io_context)
         }
     }
 
+    {
+        auto lease = co_await pool.acquire();
+        if (lease.error())
+        {
+            co_return 1;
+        }
+        auto [begin_ec, ignored] = co_await lease.connection().execute_row("BEGIN");
+        auto [error_ec, row] = co_await lease.connection().execute_row("SELECT 1/0");
+        if (begin_ec || !error_ec)
+        {
+            std::cerr << "FAIL pooled transaction error fixture\n";
+            ++failures;
+        }
+        lease.connection().close();
+    }
+    {
+        auto lease = co_await pool.acquire();
+        if (lease.error())
+        {
+            co_return 1;
+        }
+        auto [query_ec, pid] = co_await lease.connection().execute_scalar("SELECT pg_backend_pid()::text");
+        if (query_ec || pid == pooled_backend_pid)
+        {
+            std::cerr << "FAIL pool reconnect after aborted transaction\n";
+            ++failures;
+        }
+        else
+        {
+            std::cout << "PASS pool reconnect after aborted transaction\n";
+        }
+        auto [begin_ec, begin_row] = co_await lease.connection().execute_row("BEGIN");
+        auto [rollback_ec, rollback_row] = co_await lease.connection().execute_row("ROLLBACK");
+        auto [reuse_ec, value] = co_await lease.connection().execute_scalar("SELECT 1");
+        if (begin_ec || rollback_ec || reuse_ec || value != "1")
+        {
+            std::cerr << "FAIL explicit rollback connection reuse\n";
+            ++failures;
+        }
+    }
+
     boost::capy::async_event holder_ready;
     boost::capy::async_event waiter_ready;
     boost::capy::async_event release_holder;
@@ -421,12 +445,6 @@ boost::capy::task<int> run_tests(boost::corosio::io_context& io_context)
 
 int main()
 {
-    if (std::getenv("PGPASSWORD") == nullptr)
-    {
-        std::cerr << "PGPASSWORD is required\n";
-        return 1;
-    }
-
     boost::corosio::io_context io_context;
     int exit_code = 1;
 

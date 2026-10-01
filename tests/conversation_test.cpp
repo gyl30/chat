@@ -113,7 +113,7 @@ struct events
 struct fixture
 {
     std::unique_ptr<PGconn, decltype(&PQfinish)> database{
-        PQconnectdb("hostaddr=172.20.54.83 port=5432 dbname=chat user=chat sslmode=disable"), &PQfinish};
+        PQconnectdb(""), &PQfinish};
     std::vector<std::int64_t> users;
     std::vector<std::int64_t> groups;
 
@@ -160,7 +160,7 @@ struct runtime
     boost::capy::work_guard<boost::corosio::io_context::executor_type> work{
         boost::capy::make_work_guard(io.get_executor())};
     chat_server server{io, 8, boost::http::router<boost::http::route_params>{},
-                       "hostaddr=172.20.54.83 port=5432 dbname=chat user=chat sslmode=disable", 4};
+                       "", 4};
     std::thread thread;
     std::string url;
 
@@ -900,16 +900,19 @@ int run_group_tests()
                     "Administrator contact");
             data.execute("BEGIN");
             data.execute("UPDATE conversations SET title=title WHERE id=" + std::to_string(managed_group));
-            data.execute("INSERT INTO messages(sender_id,conversation_id,body) VALUES(" + std::to_string(managed_ids[0]) +
-                         "," + std::to_string(managed_group) + ",'锁等待期间的消息')");
+            auto racing_send = std::async(std::launch::async, [&] {
+                return call<chat::send_message_result>([&](auto handler) {
+                    managed[0].send_message(managed_group, "与邀请并发的消息", handler);
+                });
+            });
             auto invite = std::async(std::launch::async, [&] {
                 return call<bool>([&](auto handler) { managed[2].invite_group_members(managed_group, {managed_ids[4]}, handler); });
             });
             bool blocked = false;
             for (int i = 0; i < 100 && !blocked; ++i)
             {
-                std::string query = "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE " + std::to_string(PQbackendPID(data.database.get())) +
-                                    "=ANY(pg_blocking_pids(pid)))";
+                std::string query = "SELECT count(*)>=2 FROM pg_stat_activity WHERE datname=current_database() "
+                                    "AND wait_event_type='Lock' AND cardinality(pg_blocking_pids(pid))>0";
                 std::unique_ptr<PGresult, decltype(&PQclear)> result(PQexec(data.database.get(), query.c_str()), &PQclear);
                 blocked = result && PQresultStatus(result.get()) == PGRES_TUPLES_OK && std::string_view(PQgetvalue(result.get(), 0, 0)) == "t";
                 if (!blocked)
@@ -919,18 +922,28 @@ int run_group_tests()
             }
             data.execute("COMMIT");
             auto invited = invite.get();
-            require(blocked && invited && *invited, "Invitation waits for conversation lock");
+            auto raced_message = racing_send.get();
+            require(blocked && invited && *invited && raced_message, "Concurrent send and invitation wait for conversation lock");
+            std::unique_ptr<PGresult, decltype(&PQclear)> joined(PQexec(data.database.get(),
+                ("SELECT joined_message_id::text FROM conversation_members WHERE conversation_id=" + std::to_string(managed_group) +
+                 " AND user_id=" + std::to_string(managed_ids[4])).c_str()), &PQclear);
+            require(joined && PQresultStatus(joined.get()) == PGRES_TUPLES_OK && PQntuples(joined.get()) == 1,
+                    "Joined watermark query");
+            auto joined_watermark = std::stoll(PQgetvalue(joined.get(), 0, 0));
+            std::uint64_t racing_unread = raced_message->message_id > joined_watermark ? 1 : 0;
+            require(joined_watermark == after_leave->message_id || joined_watermark == raced_message->message_id,
+                    "Joined watermark follows serialized send/invite order");
             auto rejoined = call<chat::messages_result>([&](auto handler) { managed[4].get_messages(managed_group, {}, handler); });
             auto rejoined_roles = call<std::vector<chat::conversation_member>>([&](auto handler) { managed[4].get_members(managed_group, handler); });
             auto rejoined_file = call<std::string>([&](auto handler) { managed[4].get_attachment(managed_group, old_file->id, handler); });
             require(rejoined && rejoined->messages.size() == 4 && position(*rejoined, managed_ids[4]) == 0 &&
-                        conversation(managed[4], managed_group).unread == 0 && rejoined_roles &&
+                        conversation(managed[4], managed_group).unread == racing_unread && rejoined_roles &&
                         rejoined_roles->back().role == chat::member_role::member && rejoined_file && *rejoined_file == "old file",
                     "Rejoin exposes full history, resets admin role, excludes prejoin unread and does not fake reading");
             auto again = call<bool>([&](auto handler) { managed[0].invite_group_members(managed_group, {managed_ids[4]}, handler); });
             require(again && !*again, "Repeated invitation preserves existing membership");
             auto next_message = call<chat::send_message_result>([&](auto handler) { managed[0].send_message(managed_group, "入群之后", handler); });
-            require(next_message && conversation(managed[4], managed_group).unread == 1,
+            require(next_message && conversation(managed[4], managed_group).unread == racing_unread + 1,
                     "Messages after joining count as unread");
             managed_events[4].wait([&] { return std::any_of(managed_events[4].messages.begin(), managed_events[4].messages.end(),
                 [&](auto const& value) { return value.id == next_message->message_id; }); });
@@ -949,6 +962,54 @@ int run_group_tests()
             auto snapshot = call<chat::messages_result>([&](auto handler) { managed[4].get_messages(managed_group, {}, handler); });
             require(reauth && reauth->authenticated && snapshot && position(*snapshot, managed_ids[4]) == next_message->message_id &&
                         conversation(managed[4], managed_group).username == "管理员改名", "Rejoin state and title survive reconnect");
+            auto scale_query = "INSERT INTO users(username,password_hash) SELECT 'chat_scale_test_" + std::to_string(getpid()) +
+                "_'||n,repeat('x',60) FROM generate_series(1,199) n RETURNING id";
+            std::unique_ptr<PGresult, decltype(&PQclear)> scale_users(PQexec(data.database.get(), scale_query.c_str()), &PQclear);
+            require(scale_users && PQresultStatus(scale_users.get()) == PGRES_TUPLES_OK && PQntuples(scale_users.get()) == 199,
+                    "Small group measurement users");
+            std::vector<std::int64_t> scale_ids;
+            for (int i = 0; i < 199; ++i)
+            {
+                auto id = std::stoll(PQgetvalue(scale_users.get(), i, 0));
+                scale_ids.push_back(id);
+                data.users.push_back(id);
+            }
+            data.execute("INSERT INTO contacts(owner_id,contact_id) SELECT " + std::to_string(managed_ids[0]) +
+                ",id FROM users WHERE username LIKE 'chat_scale_test_" + std::to_string(getpid()) + "_%'");
+            for (int size : {3, 10, 50, 200})
+            {
+                std::vector<std::int64_t> members(scale_ids.begin(), scale_ids.begin() + size - 1);
+                auto scale_group = call<std::int64_t>([&](auto handler) {
+                    managed[0].create_group("规模测量", members, handler);
+                });
+                require(scale_group.has_value(), "Create measured small group");
+                data.groups.push_back(*scale_group);
+                std::array<double, 3> milliseconds{};
+                for (int sample = 0; sample < 3; ++sample)
+                {
+                    auto start = std::chrono::steady_clock::now();
+                    auto listed = call<std::vector<chat::conversation_member>>([&](auto handler) {
+                        managed[0].get_members(*scale_group, handler);
+                    });
+                    auto members_done = std::chrono::steady_clock::now();
+                    auto history = call<chat::messages_result>([&](auto handler) {
+                        managed[0].get_messages(*scale_group, {}, handler);
+                    });
+                    auto history_done = std::chrono::steady_clock::now();
+                    auto sent = call<chat::send_message_result>([&](auto handler) {
+                        managed[0].send_message(*scale_group, "规模样本", handler);
+                    });
+                    auto send_done = std::chrono::steady_clock::now();
+                    require(listed && listed->size() == static_cast<std::size_t>(size) && history &&
+                        history->read_positions.size() == static_cast<std::size_t>(size) && sent,
+                        "Member/read/publish paths remain complete at measured size");
+                    milliseconds[0] += std::chrono::duration<double, std::milli>(members_done - start).count() / 3;
+                    milliseconds[1] += std::chrono::duration<double, std::milli>(history_done - members_done).count() / 3;
+                    milliseconds[2] += std::chrono::duration<double, std::milli>(send_done - history_done).count() / 3;
+                }
+                std::cout << "GROUP_SCALE members=" << size << " samples=3 get_members_ms=" << milliseconds[0]
+                    << " history_ms=" << milliseconds[1] << " send_ms=" << milliseconds[2] << '\n';
+            }
             for (int i = 0; i < 5; ++i)
             {
                 managed[i].close();

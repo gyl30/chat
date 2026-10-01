@@ -46,7 +46,7 @@ TDLib 的会话对象分别提供未读数量、最后已读的收件消息和�
 
 加入水位必须与消息写入串行化。现有发送路径锁定会话，邀请事务也锁定会话，并在取得锁后用新的查询读取最新消息 ID，避免等待锁期间新增消息被遗漏。
 
-Telegram 官方说明群消息至少被一位其他成员看到就显示双勾；小群还能查询谁读过。仓库 `qt/src/message_model.cpp` 当前逻辑要求所有其他成员都达到该消息水位，二者不同。用户已确认采用 Telegram 的“至少一位其他成员读过”语义；成员自己的阅读水位保持独立。[群已读产品说明](https://telegram.org/blog/chat-themes-interactive-emoji-read-receipts#read-receipts-in-small-groups)
+Telegram 官方说明群消息至少被一位其他成员看到就显示双勾；小群还能查询谁读过。调研基线中的 `qt/src/message_model.cpp` 当时要求所有其他成员都达到该消息水位；SQL 014 所在阶段已改为用户确认的“至少一位当前其他成员真实读过”语义，成员自己的阅读水位保持独立。[群已读产品说明](https://telegram.org/blog/chat-themes-interactive-emoji-read-receipts#read-receipts-in-small-groups)
 
 ## realtime 和断线恢复
 

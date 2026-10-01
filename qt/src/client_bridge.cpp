@@ -97,6 +97,9 @@ void client_bridge::connect_to_server(QString const& url)
 {
     ++messages_generation_;
     ++conversations_generation_;
+    ++search_generation_;
+    ++upload_generation_;
+    ++download_generation_;
     client_->connect(to_utf8(url));
 }
 

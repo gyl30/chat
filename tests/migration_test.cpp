@@ -14,7 +14,7 @@ int main(int argc, char** argv)
         return 1;
     }
     std::unique_ptr<PGconn, decltype(&PQfinish)> connection(
-        PQconnectdb("hostaddr=172.20.54.83 port=5432 dbname=chat user=chat sslmode=disable"), &PQfinish);
+        PQconnectdb(""), &PQfinish);
     auto schema = "chat_migration_test_" + std::to_string(getpid());
     auto execute = [&](std::string const& sql)
     {

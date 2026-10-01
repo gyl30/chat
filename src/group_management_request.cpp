@@ -37,13 +37,13 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
     simdjson::error_code parse_error;
     if (setting_admin)
     {
-        struct [[= simdjson::deny_unknown_fields]] params_type
+        struct [[= simdjson::deny_unknown_fields]] set_admin_params
         {
             std::int64_t conversation = 0;
             std::int64_t user = 0;
             bool admin = false;
         };
-        params_type params;
+        set_admin_params params;
         parse_error = document.get(params);
         conversation = params.conversation;
         user = params.user;
@@ -51,24 +51,24 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
     }
     else if (renaming)
     {
-        struct [[= simdjson::deny_unknown_fields]] params_type
+        struct [[= simdjson::deny_unknown_fields]] rename_group_params
         {
             std::int64_t conversation = 0;
             std::string title;
         };
-        params_type params;
+        rename_group_params params;
         parse_error = document.get(params);
         conversation = params.conversation;
         title = std::move(params.title);
     }
     else if (inviting)
     {
-        struct [[= simdjson::deny_unknown_fields]] params_type
+        struct [[= simdjson::deny_unknown_fields]] invite_members_params
         {
             std::int64_t conversation = 0;
             std::vector<std::int64_t> members;
         };
-        params_type params;
+        invite_members_params params;
         parse_error = document.get(params);
         conversation = params.conversation;
         members = std::move(params.members);
@@ -76,11 +76,11 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
     }
     else
     {
-        struct [[= simdjson::deny_unknown_fields]] params_type
+        struct [[= simdjson::deny_unknown_fields]] leave_group_params
         {
             std::int64_t conversation = 0;
         };
-        params_type params;
+        leave_group_params params;
         parse_error = document.get(params);
         conversation = params.conversation;
     }
