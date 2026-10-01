@@ -65,6 +65,7 @@ int main(int argc, char** argv)
     message_model messages(nullptr, &avatars);
     messages.set_self_user(1);
     messages.reset(1, true);
+    messages.set_members({{1, "self", {}, {}}, {2, QStringLiteral("成员"), {}, {}}});
     message_data message;
     message.id = 1;
     message.conversation = 1;

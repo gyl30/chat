@@ -36,6 +36,10 @@ int main(int argc, char** argv)
         return 1;
     }
     messages.set_read_positions({{1, 0}, {2, outgoing.id}, {3, 0}});
+    if (!second.data(message_model::read_role).toBool() || second.data(message_model::read_count_role).isValid())
+    {
+        return 1;
+    }
     messages.set_members({{1, "self", {}, {}}, {2, "second", {}, {}}, {3, "third", {}, {}}});
     if (!second.data(message_model::read_role).toBool() || second.data(message_model::read_count_role).toInt() != 1 ||
         messages.read_members(outgoing.id).size() != 1 || messages.read_members(outgoing.id).front().id != 2)

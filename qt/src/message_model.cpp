@@ -85,7 +85,7 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             {
                 return false;
             }
-            if (group_)
+            if (group_ && !members_.isEmpty())
             {
                 return !read_members(message.id).isEmpty();
             }
@@ -98,7 +98,7 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             }
             return !group_ && read_positions_.size() == 1 && read_positions_.value(self_user_) >= message.id;
         case read_count_role:
-            if (!group_ || message.deleted)
+            if (!group_ || members_.isEmpty() || message.deleted)
             {
                 return {};
             }

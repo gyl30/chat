@@ -198,3 +198,5 @@ GitHub Actions 尚未接入：当前完整验证的是特定 GCC 16 trunk、Boos
 | UBSan `build/ubsan` | PASS | 14/14 PASS | 58.50 s |
 
 无 sanitizer suppression、测试排除、新临时状态或调试代码，`git diff --check` PASS。下一阶段为有限 emoji reaction，尚未实现。
+
+后续准备时核查到搜索窗口复用 message delegate，但没有成员姓名快照。独立修复未加载成员身份时误显示“已读 0 人”和原双勾失效：此时按权威 read positions 保持原双勾，只在成员快照已存在时显示人数和详情入口。没有新增 RPC 或兼容协议；新增模型回归覆盖这个窗口边界。重新执行完整入口：normal 14/14（45.10 s）、ASan 14/14（58.74 s）、UBSan 14/14（55.86 s），所有 build、diff 检查通过，无测试排除或 suppression。
