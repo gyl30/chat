@@ -100,6 +100,20 @@ void message_search_dialog::request_search(bool older)
     emit search_requested(query_, before_);
 }
 
+void message_search_dialog::set_reactions(qint64 conversation, qint64 message, qint64 revision,
+                                         QList<reaction_data> reactions, QString const& error)
+{
+    if (conversation == conversation_ && error.isEmpty())
+    {
+        messages_->set_reactions(message, revision, std::move(reactions));
+    }
+}
+
+void message_search_dialog::update_message(qint64 conversation, message_data message, QString const& error)
+{
+    if (conversation == conversation_ && error.isEmpty()) { messages_->update_message(message); }
+}
+
 void message_search_dialog::set_results(qint64 conversation, QString const& query, qint64 before,
                                        QList<message_data> messages, read_positions positions, bool has_more,
                                        QString const& error_message)

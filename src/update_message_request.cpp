@@ -41,9 +41,21 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
+    auto& connection = lease.connection();
+    auto begun = co_await connection.execute_row("BEGIN");
+    auto locked = co_await connection.execute_row("SELECT id::text FROM conversations WHERE id=$1::bigint FOR UPDATE",
+                                                 {std::to_string(params.conversation)});
+    if (std::get<0>(begun) || std::get<0>(locked))
+    {
+        connection.close();
+        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+    }
     auto original = co_await lease.connection().execute_row(
         "SELECT json_build_object('id',m.id,'conversation',m.conversation_id,'from',m.sender_id,'username',u.username,"
         "'avatar_revision',u.avatar_revision,'has_avatar',EXISTS(SELECT 1 FROM user_avatars WHERE user_id=u.id),"
+        "'reaction_revision',m.reaction_revision,'reactions',(SELECT coalesce(json_agg(json_build_object("
+        "'emoji',emoji,'users',users) ORDER BY emoji),'[]'::json) FROM (SELECT emoji,json_agg(user_id ORDER BY user_id) "
+        "AS users FROM message_reactions WHERE message_id=m.id GROUP BY emoji) reactions),"
         "'timestamp',(extract(epoch FROM "
         "m.created_at)*1000)::bigint,'text',m.body,'deleted',m.deleted,'edited_at',(extract(epoch FROM "
         "m.edited_at)*1000)::bigint,'attachment',(SELECT json_build_object('filename',filename,'media_type',media_type,"
@@ -62,10 +74,12 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
     auto& [read_ec, row] = original;
     if (read_ec)
     {
+        connection.close();
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
     if (!row)
     {
+        connection.close();
         co_return serialize_json_rpc_error(-32007, "Message unavailable", std::move(request.id), response);
     }
     message_payload value;
@@ -74,6 +88,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
     simdjson::ondemand::document message_document;
     if (message_parser.iterate(json).get(message_document) || message_document.get(value))
     {
+        connection.close();
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
     value.text = deleting ? std::string{} : std::move(*params.text);
@@ -81,6 +96,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
     if (deleting)
     {
         value.attachment.reset();
+        value.reactions.clear();
     }
     if (!deleting)
     {
@@ -90,39 +106,54 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
     auto error = simdjson::builder::to_json_string(value).get(payload);
     if (error)
     {
+        connection.close();
         co_return error;
     }
     constexpr std::string_view notification_prefix = R"({"jsonrpc":"2.0","method":"message_updated","params":)";
     if (notification_prefix.size() + payload.size() + 1 > 64 * 1024)
     {
+        connection.close();
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
     auto updated = co_await lease.connection().execute_row(
         "WITH updated AS (UPDATE messages SET body=$4,deleted=$5::boolean,"
+        "reaction_revision=reaction_revision+CASE WHEN $5::boolean AND NOT deleted THEN 1 ELSE 0 END,"
         "edited_at=CASE WHEN $5::boolean THEN edited_at ELSE "
         "greatest(clock_timestamp(),coalesce(edited_at,'epoch'::timestamptz)+interval '1 millisecond') END "
         "WHERE id=$3::bigint AND conversation_id=$2::bigint AND sender_id=$1::bigint AND (NOT deleted OR $5::boolean) "
         "AND EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=$2::bigint AND user_id=$1::bigint) "
-        "RETURNING edited_at), cleared AS (DELETE FROM message_attachments WHERE message_id=$3::bigint "
+        "RETURNING edited_at,reaction_revision), cleared AS (DELETE FROM message_attachments WHERE message_id=$3::bigint "
         "AND $5::boolean AND EXISTS(SELECT 1 FROM updated) RETURNING message_id) "
-        "SELECT COALESCE(((extract(epoch FROM edited_at)*1000)::bigint)::text,'') FROM updated",
+        ",cleared_reactions AS (DELETE FROM message_reactions WHERE message_id=$3::bigint AND $5::boolean "
+        "AND EXISTS(SELECT 1 FROM updated) RETURNING message_id) "
+        "SELECT COALESCE(((extract(epoch FROM edited_at)*1000)::bigint)::text,''),reaction_revision::text FROM updated",
         {std::to_string(*user_id_), std::to_string(params.conversation), std::to_string(params.message), value.text,
          deleting ? "true" : "false"});
     auto& [write_ec, result] = updated;
     if (write_ec)
     {
+        connection.close();
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
     if (!result)
     {
+        connection.close();
         co_return serialize_json_rpc_error(-32007, "Message unavailable", std::move(request.id), response);
     }
     value.edited_at = result->front().empty() ? std::nullopt : std::optional<std::int64_t>(std::stoll(result->front()));
+    value.reaction_revision = std::stoll(result->at(1));
     payload.clear();
     error = simdjson::builder::to_json_string(value).get(payload);
     if (error)
     {
+        connection.close();
         co_return error;
+    }
+    auto committed = co_await connection.execute_row("COMMIT");
+    if (std::get<0>(committed))
+    {
+        connection.close();
+        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
     lease = {};
     co_await publish_conversation(params.conversation, std::string(notification_prefix) + payload + "}");

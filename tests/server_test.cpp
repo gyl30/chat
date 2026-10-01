@@ -598,7 +598,7 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         std::cout << "PASS registration duplicate\n";
 
         for (auto const* method : {"begin_avatar_upload", "upload_avatar_chunk", "finish_avatar_upload",
-                                    "cancel_avatar_upload", "get_avatar", "clear_avatar"})
+                                    "cancel_avatar_upload", "get_avatar", "clear_avatar", "set_message_reaction"})
         {
             auto [write_ec] = co_await send_websocket_text(socket,
                 std::string("{\"jsonrpc\":\"2.0\",\"method\":\"") + method + "\",\"params\":{},\"id\":\"avatar-auth\"}");
@@ -1620,6 +1620,20 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return std::move(reply);
     };
     auto attachment_begin = "{\"conversation\":" + direct_conversation + ",\"filename\":\"probe.bin\",\"size\":3}";
+    for (auto const& params : {
+        std::string("{\"conversation\":") + direct_conversation + ",\"message\":1}",
+        std::string("{\"conversation\":") + direct_conversation + ",\"message\":1,\"emoji\":null}",
+        std::string("{\"conversation\":") + direct_conversation + ",\"message\":1,\"emoji\":\"x\"}",
+        std::string("{\"conversation\":") + direct_conversation + ",\"message\":1,\"emoji\":\"👍\",\"user\":1}",
+        std::string("{\"conversation\":0,\"message\":1,\"emoji\":\"👍\"}")})
+    {
+        auto reply = co_await peer_rpc("set_message_reaction", params);
+        if (boost::json::parse(reply).at("error").at("code").as_int64() != -32602)
+        {
+            std::cerr << "FAIL reaction params: " << reply << '\n';
+            co_return 1;
+        }
+    }
     auto avatar_begin_reply = co_await peer_rpc("begin_avatar_upload", "{\"size\":3}");
     auto avatar_begin_value = boost::json::parse(avatar_begin_reply);
     if (!avatar_begin_value.as_object().contains("result"))

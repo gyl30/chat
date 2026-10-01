@@ -511,6 +511,10 @@ main_window::main_window(QString server_url, QWidget* parent)
                 });
         connect(client_.get(), &client_bridge::message_search_received, &dialog,
                 &message_search_dialog::set_results, Qt::QueuedConnection);
+        connect(client_.get(), &client_bridge::reaction_changed, &dialog,
+                &message_search_dialog::set_reactions, Qt::QueuedConnection);
+        connect(client_.get(), &client_bridge::message_updated, &dialog,
+                &message_search_dialog::update_message, Qt::QueuedConnection);
         connect(client_.get(), &client_bridge::conversation_changed, &dialog,
                 [&dialog, conversation](qint64 id, bool removed) {
             if (removed && id == conversation) { dialog.reject(); }
@@ -658,6 +662,20 @@ main_window::main_window(QString server_url, QWidget* parent)
 
     connect(chat_page_, &chat_widget::delete_message_requested, this,
             [this](qint64 conversation, qint64 message) { client_->delete_message(conversation, message); });
+    connect(chat_page_, &chat_widget::reaction_requested, client_.get(), &client_bridge::set_message_reaction);
+    connect(client_.get(), &client_bridge::reaction_changed, this,
+            [this](qint64 conversation, qint64 message, qint64 revision, QList<reaction_data> reactions, QString error) {
+        if (!error.isEmpty())
+        {
+            chat_page_->set_message_error(conversation, std::move(error));
+            return;
+        }
+        if (!chat_page_->set_reactions(conversation, message, revision, std::move(reactions)) &&
+            message > chat_page_->latest_message_id())
+        {
+            client_->get_messages(conversation, {}, chat_page_->recovery_cursor());
+        }
+    }, Qt::QueuedConnection);
     connect(chat_page_, &chat_widget::edit_message_requested, this,
             [this](qint64 conversation, qint64 message, QString text)
             { client_->edit_message(conversation, message, std::move(text)); });

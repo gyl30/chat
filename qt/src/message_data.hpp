@@ -26,6 +26,13 @@ struct quoted_message_data
 };
 Q_DECLARE_METATYPE(quoted_message_data)
 
+struct reaction_data
+{
+    QString emoji;
+    QList<qint64> users;
+};
+Q_DECLARE_METATYPE(QList<reaction_data>)
+
 struct message_data
 {
     qint64 id = 0;
@@ -39,6 +46,8 @@ struct message_data
     quoted_message_data reply;
     std::optional<attachment_data> attachment;
     chat::avatar_state avatar;
+    qint64 reaction_revision = 0;
+    QList<reaction_data> reactions;
 };
 
 Q_DECLARE_METATYPE(message_data)

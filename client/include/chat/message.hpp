@@ -7,6 +7,7 @@
 #include <vector>
 #include "attachment.hpp"
 #include "avatar.hpp"
+#include "reaction.hpp"
 
 namespace chat
 {
@@ -34,6 +35,8 @@ struct message
     std::optional<quoted_message> reply;
     std::optional<attachment_info> attachment;
     avatar_state avatar;
+    std::int64_t reaction_revision = 0;
+    std::vector<reaction> reactions;
 };
 
 struct read_position

@@ -56,6 +56,8 @@ class client
     using avatar_state_handler = std::function<void(std::expected<avatar_state, error>)>;
     using avatar_handler = std::function<void(std::expected<avatar, error>)>;
     using avatar_changed_handler = std::function<void(std::int64_t user, avatar_state)>;
+    using reaction_handler = std::function<void(reaction_update)>;
+    using reaction_result_handler = std::function<void(std::expected<reaction_update, error>)>;
 
     client();
     ~client();
@@ -75,6 +77,7 @@ class client
     void set_typing_handler(typing_handler handler);
     void set_conversation_handler(conversation_changed_handler handler);
     void set_avatar_handler(avatar_changed_handler handler);
+    void set_reaction_handler(reaction_handler handler);
 
     void connect(std::string url);
     void close();
@@ -100,6 +103,8 @@ class client
     void send_message(std::int64_t conversation, std::string text, send_message_handler handler,
                       std::optional<std::int64_t> reply_to = {});
     void delete_message(std::int64_t conversation, std::int64_t message, message_result_handler handler);
+    void set_message_reaction(std::int64_t conversation, std::int64_t message, std::string emoji,
+                              reaction_result_handler handler);
     void send_attachment(std::int64_t conversation, std::string filename, std::string data,
                          message_result_handler handler, std::optional<std::int64_t> reply_to = {});
     void get_attachment(std::int64_t conversation, std::int64_t message, attachment_handler handler);

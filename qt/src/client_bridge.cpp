@@ -33,6 +33,18 @@ quoted_message_data to_reply_data(std::optional<chat::quoted_message> const& rep
                  : quoted_message_data{};
 }
 
+QList<reaction_data> to_reactions(std::vector<chat::reaction> const& values)
+{
+    QList<reaction_data> result;
+    for (auto const& value : values)
+    {
+        reaction_data item{from_utf8(value.emoji), {}};
+        for (auto user : value.users) { item.users.push_back(user); }
+        result.push_back(std::move(item));
+    }
+    return result;
+}
+
 message_data to_message_data(chat::message const& value)
 {
     message_data message;
@@ -41,6 +53,8 @@ message_data to_message_data(chat::message const& value)
     message.from = value.from;
     message.username = from_utf8(value.username);
     message.avatar = value.avatar;
+    message.reaction_revision = value.reaction_revision;
+    message.reactions = to_reactions(value.reactions);
     message.timestamp = value.timestamp;
     message.text = from_utf8(value.text);
     message.edited_at = value.edited_at.value_or(0);
@@ -73,23 +87,33 @@ client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::ma
     qRegisterMetaType<read_positions>();
     qRegisterMetaType<message_data>();
     qRegisterMetaType<QList<message_data>>();
+    qRegisterMetaType<QList<reaction_data>>();
     qRegisterMetaType<QList<member_data>>();
     qRegisterMetaType<user_data>();
     qRegisterMetaType<QList<user_data>>();
     qRegisterMetaType<presence_data>();
     qRegisterMetaType<QList<presence_data>>();
     client_->set_avatar_handler([this](std::int64_t user, chat::avatar_state state) {
-        auto const generation = avatar_generation_.load();
+        auto const generation = connection_generation_.load();
         QMetaObject::invokeMethod(this, [this, generation, user, state] {
-            if (generation == avatar_generation_) { emit avatar_changed(user, state); }
+            if (generation == connection_generation_) { emit avatar_changed(user, state); }
         }, Qt::QueuedConnection);
     });
     client_->set_connected_handler([this] { emit connected(); });
-    client_->set_disconnected_handler([this] { ++avatar_generation_; emit disconnected(); });
+    client_->set_disconnected_handler([this] { ++connection_generation_; emit disconnected(); });
     client_->set_error_handler([this](chat::error const& value) { emit error(from_utf8(value.message)); });
     client_->set_message_handler([this](chat::message message) { emit message_received(to_message_data(message)); });
     client_->set_message_updated_handler([this](chat::message value)
                                          { emit message_updated(value.conversation, to_message_data(value), {}); });
+    client_->set_reaction_handler([this](chat::reaction_update value) {
+        auto const generation = connection_generation_.load();
+        QMetaObject::invokeMethod(this, [this, generation, value = std::move(value)] {
+            if (generation == connection_generation_)
+            {
+                emit reaction_changed(value.conversation, value.message, value.revision, to_reactions(value.reactions), {});
+            }
+        }, Qt::QueuedConnection);
+    });
     client_->set_read_handler([this](std::int64_t conversation, std::int64_t user, std::int64_t message)
                               { emit messages_read(conversation, user, message); });
     client_->set_typing_handler([this](chat::typing_event value) {
@@ -110,7 +134,7 @@ void client_bridge::connect_to_server(QString const& url)
     ++search_generation_;
     ++upload_generation_;
     ++download_generation_;
-    ++avatar_generation_;
+    ++connection_generation_;
     client_->connect(to_utf8(url));
 }
 
@@ -121,7 +145,7 @@ void client_bridge::close()
     ++search_generation_;
     ++upload_generation_;
     ++download_generation_;
-    ++avatar_generation_;
+    ++connection_generation_;
     client_->close();
 }
 
@@ -478,6 +502,20 @@ void client_bridge::edit_message(qint64 conversation, qint64 message, QString te
                           });
 }
 
+void client_bridge::set_message_reaction(qint64 conversation, qint64 message, QString emoji)
+{
+    auto const generation = connection_generation_.load();
+    client_->set_message_reaction(conversation, message, to_utf8(emoji),
+        [this, conversation, message, generation](auto result) mutable {
+            QMetaObject::invokeMethod(this, [this, conversation, message, generation, result = std::move(result)]() mutable {
+                if (generation != connection_generation_) { return; }
+                emit reaction_changed(conversation, message, result ? result->revision : 0,
+                    result ? to_reactions(result->reactions) : QList<reaction_data>{},
+                    result ? QString{} : from_utf8(result.error().message));
+            }, Qt::QueuedConnection);
+        });
+}
+
 void client_bridge::search_users(QString query)
 {
     client_->search_users(to_utf8(query), [this](std::expected<std::vector<chat::user>, chat::error> result) {
@@ -574,7 +612,7 @@ void client_bridge::mark_read(qint64 user, qint64 message)
 
 void client_bridge::get_avatar(qint64 user, qint64 revision)
 {
-    auto const generation = avatar_generation_.load();
+    auto const generation = connection_generation_.load();
     client_->get_avatar(user,
                         revision,
                         [this, generation, user, revision](auto result)
@@ -583,7 +621,7 @@ void client_bridge::get_avatar(qint64 user, qint64 revision)
                                 this,
                                 [this, generation, user, revision, result = std::move(result)]
                                 {
-                                    if (generation != avatar_generation_)
+                                    if (generation != connection_generation_)
                                     {
                                         return;
                                     }
@@ -600,7 +638,7 @@ void client_bridge::get_avatar(qint64 user, qint64 revision)
 
 void client_bridge::set_avatar(QByteArray data)
 {
-    auto const generation = avatar_generation_.load();
+    auto const generation = connection_generation_.load();
     client_->set_avatar(std::string(data.constData(), data.size()),
                         [this, generation](auto result)
                         {
@@ -608,7 +646,7 @@ void client_bridge::set_avatar(QByteArray data)
                                 this,
                                 [this, generation, result = std::move(result)]
                                 {
-                                    if (generation != avatar_generation_)
+                                    if (generation != connection_generation_)
                                     {
                                         return;
                                     }
@@ -620,7 +658,7 @@ void client_bridge::set_avatar(QByteArray data)
 
 void client_bridge::clear_avatar()
 {
-    auto const generation = avatar_generation_.load();
+    auto const generation = connection_generation_.load();
     client_->clear_avatar(
         [this, generation](auto result)
         {
@@ -628,7 +666,7 @@ void client_bridge::clear_avatar()
                 this,
                 [this, generation, result = std::move(result)]
                 {
-                    if (generation != avatar_generation_)
+                    if (generation != connection_generation_)
                     {
                         return;
                     }

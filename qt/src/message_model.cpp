@@ -64,6 +64,17 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             return !message.deleted && message.attachment ? message.attachment->media_type : QString{};
         case attachment_size_role:
             return !message.deleted && message.attachment ? message.attachment->size : qint64{0};
+        case reactions_role:
+            return QVariant::fromValue(message.deleted ? QList<reaction_data>{} : message.reactions);
+        case own_reaction_role:
+            if (!message.deleted)
+            {
+                for (auto const& reaction : message.reactions)
+                {
+                    if (reaction.users.contains(self_user_)) { return reaction.emoji; }
+                }
+            }
+            return QString{};
         case outgoing_role:
             return outgoing;
         case sender_name_role:
@@ -197,11 +208,24 @@ void message_model::update_message(message_data const& message)
             if (!current.deleted && (message.deleted || message.edited_at > current.edited_at))
             {
                 auto reply = current.reply;
+                auto revision = current.reaction_revision;
+                auto reactions = current.reactions;
                 current = message;
+                if (!current.deleted && revision > current.reaction_revision)
+                {
+                    current.reaction_revision = revision;
+                    current.reactions = std::move(reactions);
+                }
                 if ((reply.deleted && !current.reply.deleted) || reply.edited_at > current.reply.edited_at)
                 {
                     current.reply = std::move(reply);
                 }
+                changed = true;
+            }
+            if (!current.deleted && message.reaction_revision > current.reaction_revision)
+            {
+                current.reaction_revision = message.reaction_revision;
+                current.reactions = message.reactions;
                 changed = true;
             }
             if (message.reply.id == current.reply.id && !current.reply.deleted &&
@@ -222,6 +246,25 @@ void message_model::update_message(message_data const& message)
             emit dataChanged(index(row, 0), index(row, 0));
         }
     }
+}
+
+bool message_model::set_reactions(qint64 message, qint64 revision, QList<reaction_data> reactions)
+{
+    for (int row = 0; row < messages_.size(); ++row)
+    {
+        auto& current = messages_[row];
+        if (current.id == message)
+        {
+            if (!current.deleted && revision > current.reaction_revision)
+            {
+                current.reaction_revision = revision;
+                current.reactions = std::move(reactions);
+                emit dataChanged(index(row, 0), index(row, 0), {reactions_role, own_reaction_role});
+            }
+            return true;
+        }
+    }
+    return false;
 }
 
 void message_model::set_read_message(qint64 user, qint64 message)

@@ -110,6 +110,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
                 'activity',c.activity,'member_count',(SELECT count(*) FROM conversation_members WHERE conversation_id=c.id),
                 'last',(SELECT json_build_object('id',m.id,'conversation',m.conversation_id,'from',m.sender_id,
                       'avatar_revision',author.avatar_revision,'has_avatar',EXISTS(SELECT 1 FROM user_avatars WHERE user_id=author.id),
+                      'reaction_revision',m.reaction_revision,'reactions',(SELECT coalesce(json_agg(json_build_object('emoji',emoji,'users',users) ORDER BY emoji),'[]'::json)
+                          FROM (SELECT emoji,json_agg(user_id ORDER BY user_id) AS users FROM message_reactions WHERE message_id=m.id GROUP BY emoji) reactions),
                       'username',author.username,'timestamp',(extract(epoch FROM m.created_at)*1000)::bigint,'text',m.body,'deleted',m.deleted,'edited_at',(extract(epoch FROM m.edited_at)*1000)::bigint,'reply',CASE WHEN r.id IS NULL THEN NULL ELSE json_build_object('id',r.id,'from',r.sender_id,'username',ra.username,'text',left(r.body,160),'edited_at',(extract(epoch FROM r.edited_at)*1000)::bigint,'deleted',r.deleted) END,
                       'attachment',(SELECT json_build_object('filename',filename,'media_type',media_type,'size',size)
                                     FROM message_attachments WHERE message_id=m.id AND NOT m.deleted))

@@ -93,6 +93,9 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
         WITH page AS (
             SELECT m.id,m.conversation_id AS conversation,m.sender_id AS "from",u.username,
                    u.avatar_revision,EXISTS(SELECT 1 FROM user_avatars WHERE user_id=u.id) AS has_avatar,
+                   m.reaction_revision,(SELECT coalesce(json_agg(json_build_object('emoji',emoji,'users',users) ORDER BY emoji),'[]'::json)
+                     FROM (SELECT emoji,json_agg(user_id ORDER BY user_id) AS users FROM message_reactions
+                           WHERE message_id=m.id GROUP BY emoji) reactions) AS reactions,
                    (extract(epoch FROM m.created_at)*1000)::bigint AS timestamp,m.body AS text, m.deleted, (extract(epoch FROM m.edited_at)*1000)::bigint AS edited_at, CASE WHEN r.id IS NULL THEN NULL ELSE json_build_object('id',r.id,'from',r.sender_id,'username',ra.username,'text',left(r.body,160),'edited_at',(extract(epoch FROM r.edited_at)*1000)::bigint,'deleted',r.deleted) END AS reply,
                    (SELECT json_build_object('filename',filename,'media_type',media_type,'size',size)
                     FROM message_attachments WHERE message_id=m.id AND NOT m.deleted) AS attachment

@@ -53,6 +53,7 @@ class chat_session
     boost::capy::task<simdjson::error_code> handle_register(json_rpc_request& request, std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_update_message(json_rpc_request& request, std::string& response);
+    boost::capy::task<simdjson::error_code> handle_message_reaction(json_rpc_request& request, std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_send_message(json_rpc_request& request, std::string& response);
 

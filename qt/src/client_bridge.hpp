@@ -52,6 +52,7 @@ class client_bridge final : public QObject
     void send_message(qint64 user, QString text, qint64 reply_to = 0);
     void delete_message(qint64 conversation, qint64 message);
     void edit_message(qint64 conversation, qint64 message, QString text);
+    void set_message_reaction(qint64 conversation, qint64 message, QString emoji);
     void search_users(QString query);
     void search_messages(qint64 conversation, QString query, qint64 before = 0);
     void add_contact(qint64 user);
@@ -81,6 +82,8 @@ class client_bridge final : public QObject
                            bool recovering, bool has_more, QString error_message);
     void message_received(message_data message);
     void message_updated(qint64 conversation, message_data message, QString error_message);
+    void reaction_changed(qint64 conversation, qint64 message, qint64 revision, QList<reaction_data> reactions,
+                          QString error_message);
     void messages_read(qint64 conversation, qint64 user, qint64 message);
     void typing_changed(qint64 conversation, qint64 user, QString username, bool typing);
     void conversation_opened(conversation_data conversation, QString error_message);
@@ -106,7 +109,7 @@ class client_bridge final : public QObject
      std::uint64_t search_generation_ = 0;
      std::uint64_t upload_generation_ = 0;
      std::uint64_t download_generation_ = 0;
-    std::atomic_uint64_t avatar_generation_ = 0;
+    std::atomic_uint64_t connection_generation_ = 0;
     std::unique_ptr<chat::client> client_;
 };
 

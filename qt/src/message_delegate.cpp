@@ -164,6 +164,9 @@ struct message_layout
     int bubble_height = 0;
     int day_height = 0;
     int top_margin = 0;
+    QList<reaction_data> reactions;
+    QList<QRect> reaction_rects;
+    int reactions_height = 0;
 };
 
 message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex const& index)
@@ -247,6 +250,26 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
         result.name_height = metrics.height() + chat_theme::message_name_gap;
         content_width = std::max(content_width, metrics.horizontalAdvance(result.sender));
     }
+
+    result.reactions = index.data(message_model::reactions_role).value<QList<reaction_data>>();
+    int chip_x = 0;
+    int chip_y = 6;
+    auto const chip_height = time_metrics.height() + 8;
+    for (auto const& reaction : result.reactions)
+    {
+        auto const width = time_metrics.horizontalAdvance(
+            reaction.emoji + QStringLiteral(" %1").arg(reaction.users.size())) + 16;
+        if (chip_x > 0 && chip_x + width > inner_max)
+        {
+            chip_x = 0;
+            chip_y += chip_height + 4;
+        }
+        result.reaction_rects.push_back(QRect(chip_x, chip_y, width, chip_height));
+        content_width = std::max(content_width, chip_x + width);
+        chip_x += width + 4;
+        result.reactions_height = chip_y + chip_height;
+    }
+    content_height += result.reactions_height;
 
     result.bubble_width = std::min(
         bubble_max,
@@ -467,6 +490,21 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
         }
     }
 
+    auto const own_reaction = index.data(message_model::own_reaction_role).toString();
+    painter->setFont(time_font(option));
+    for (int i = 0; i < layout.reactions.size(); ++i)
+    {
+        auto const& reaction = layout.reactions[i];
+        auto const rect = layout.reaction_rects[i].translated(content_left,
+            bubble.bottom() + 1 - chat_theme::message_padding_vertical - layout.reactions_height);
+        auto const mine = reaction.emoji == own_reaction;
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(QColor(mine ? QStringLiteral("#A8D6BD") : QStringLiteral("#E8F0EB")));
+        painter->drawRoundedRect(rect, 10, 10);
+        painter->setPen(QColor(QStringLiteral("#315A4B")));
+        painter->drawText(rect, Qt::AlignCenter, reaction.emoji + QStringLiteral(" %1").arg(reaction.users.size()));
+    }
+
     painter->restore();
 }
 
@@ -503,6 +541,16 @@ bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model,
     auto const metadata_width = layout.time_width + layout.receipt_width
         + ((layout.time_width > 0 && layout.receipt_width > 0) ? 3 : 0);
     auto const content_top = y + chat_theme::message_padding_vertical + layout.name_height;
+    for (int i = 0; i < layout.reactions.size(); ++i)
+    {
+        auto const rect = layout.reaction_rects[i].translated(bubble_x + chat_theme::message_padding_horizontal,
+            y + layout.bubble_height - chat_theme::message_padding_vertical - layout.reactions_height);
+        if (rect.contains(mouse->position().toPoint()))
+        {
+            emit reaction_clicked(index, layout.reactions[i].emoji);
+            return true;
+        }
+    }
     auto const metadata_y = layout.time_on_text_line
         ? content_top + std::max(0, (layout.text_height - layout.time_height) / 2)
         : content_top + layout.text_height + 2;

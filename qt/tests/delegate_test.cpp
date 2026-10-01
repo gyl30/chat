@@ -116,6 +116,28 @@ int main(int argc, char** argv)
     if (read_clicks != 1) { std::cerr << "FAIL direct chat exposes group read detail\n"; return 1; }
 
     int green_pixels = 0;
+    auto const original_height = delegate.sizeHint(option, messages.index(0, 0)).height();
+    messages.set_reactions(message.id, 1, {{QStringLiteral("👍"), {1, 2}}, {QStringLiteral("❤️"), {3}}});
+    if (delegate.sizeHint(option, messages.index(0, 0)).height() <= original_height) { return 1; }
+    int reaction_clicks = 0;
+    QObject::connect(&delegate, &message_delegate::reaction_clicked, &delegate,
+                     [&](QModelIndex const& index, QString emoji) {
+        if (index.data(message_model::id_role).toLongLong() != message.id || emoji != QStringLiteral("👍")) { std::abort(); }
+        ++reaction_clicks;
+    });
+    for (int y = original_height - 20; y < delegate.sizeHint(option, messages.index(0, 0)).height() && !reaction_clicks; y += 2)
+    {
+        for (int x = 0; x < option.rect.width() && !reaction_clicks; x += 2)
+        {
+            QMouseEvent click(QEvent::MouseButtonRelease, QPointF(x, y), QPointF(x, y),
+                              Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+            delegate.editorEvent(&click, &messages, option, messages.index(0, 0));
+        }
+    }
+    if (reaction_clicks != 1) { std::cerr << "FAIL reaction chip click\n"; return 1; }
+    messages.set_reactions(message.id, 2, {});
+    if (delegate.sizeHint(option, messages.index(0, 0)).height() != original_height) { return 1; }
+    std::cout << "PASS Qt reaction chip layout, hit target and clear\n";
     for (int y = 0; y < rendered.height(); ++y)
     {
         for (int x = 0; x < chat_theme::message_side_margin + chat_theme::message_avatar_size; ++x)

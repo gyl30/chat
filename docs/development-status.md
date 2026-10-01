@@ -20,6 +20,8 @@
 | `6ff2ac6` | 群主转让、成员移除、权限与实时隔离、再邀请及 Qt 生命周期 | 无 |
 | `bac6066` | 真实用户头像上传、获取、更换、清除、实时更新与 Qt 缓存展示 | SQL 015 |
 | `09e9e25` | 可重复 normal/ASan/UBSan 验证入口与工具链、测试库前提说明 | 无 |
+| `c4ae62f` | 群消息已读人数与当前成员详情，复用真实阅读位置 | 无 |
+| `aa8a459` | 搜索消息未加载成员身份时保持双勾，避免误显示已读人数 | 无 |
 
 另外完成历史大响应接收、编辑消息布局和消息操作按钮对比度修复，分别见 `32f3f3b`、`a545c9a`、`f73b8f4`。
 
@@ -28,7 +30,7 @@
 - `users` 保存账号、最后在线时间和单调递增的 `avatar_revision`；`contacts` 是单向关系。`user_avatars` 保存一个当前头像，是否存在由数据行决定；不与消息附件共表。
 - `conversations.kind` 显式区分 `direct/group`；单聊使用真实的两端 user ID，群使用会话 ID、群名和 `owner_id`。
 - `conversation_members` 表示当前成员，持有 `is_admin`、`last_read_message_id` 和 `joined_message_id`。群主必须是群成员，由延迟外键保证；管理员上限在同一会话锁事务内检查。
-- `messages` 指向会话和真实作者，包含回复 ID、编辑时间、删除占位；`message_attachments` 保存附件元数据和内容。删除附件消息会清除文件内容。
+- `messages` 指向会话和真实作者，包含回复 ID、编辑时间、删除占位；`message_attachments` 保存附件元数据和内容。删除附件消息会清除文件内容。SQL 016 增加独立 `message_reactions` 和消息的单调 `reaction_revision`，每用户每消息一条回应，删除消息时清除回应。
 - SQL 008 保留旧单聊、自聊、消息、联系人和阅读位置；SQL 009–014 渐进增加上述能力。SQL 013 应用前已确认本次数据库没有既存群，不猜测旧群创建者，也不删除旧消息。
 - 新建或重新加入的成员能读取完整历史。邀请取得会话锁后读取最新消息 ID 作为加入水位；实际阅读仍从 0 开始，仅由 `mark_read` 推进。未读统计使用 `id > greatest(last_read_message_id, joined_message_id)`，排除删除消息及群成员自己的消息。
 
@@ -51,6 +53,7 @@
 | `leave_group` | `conversation`；普通成员/管理员自退，群主先转让再退出；返回 `changed` |
 | `send_message` / `edit_message` / `delete_message` | 会话、真实消息或回复 ID；编辑/删除仅作者且仍为当前成员 |
 | `search_messages` | 会话、字面查询和 `before` cursor |
+| `set_message_reaction` | `conversation, message, emoji`；六种表情之一，显式空字符串清除；返回 reaction snapshot |
 | 附件 RPC | begin/upload/finish/cancel/get；32 KiB 分块，单文件最多 10 MiB |
 | `set_typing` | 会话、开始/结束；不写消息或阅读位置 |
 
@@ -77,7 +80,7 @@ git diff --check
 
 ## 保持的边界与后续可选路线
 
-当前不做入群审批、邀请链接、@mention、公告、mute、pin 或 reaction。群主必须先手动转让再退出；群主/管理员没有编辑、删除他人消息的权限。退出或被移除者本地活动历史清空；服务端仍保留群消息，重新加入可重新获取。移除不等于永久封禁，重新邀请恢复普通成员，旧管理员身份和真实读位不继承。
+当前尚未实现入群审批、邀请链接、@mention、公告、mute 或 pin。群主必须先手动转让再退出；群主/管理员没有编辑、删除他人消息的权限。退出或被移除者本地活动历史清空；服务端仍保留群消息，重新加入可重新获取。移除不等于永久封禁，重新邀请恢复普通成员，旧管理员身份和真实读位不继承。
 
 2026-10-02 启动新的长期路线：验证基线、群已读详情、reaction、图片气泡预览、桌面通知、会话 mute/pin、群 mention、群置顶消息、公告、邀请链接和审批，依序独立实施。此列表表示规划，尚未实现的阶段不计入已完成能力。范围仍不扩大到多设备、微服务、Redis、Kafka、event sourcing 或 CQRS。
 
@@ -200,3 +203,27 @@ GitHub Actions 尚未接入：当前完整验证的是特定 GCC 16 trunk、Boos
 无 sanitizer suppression、测试排除、新临时状态或调试代码，`git diff --check` PASS。下一阶段为有限 emoji reaction，尚未实现。
 
 后续准备时核查到搜索窗口复用 message delegate，但没有成员姓名快照。独立修复未加载成员身份时误显示“已读 0 人”和原双勾失效：此时按权威 read positions 保持原双勾，只在成员快照已存在时显示人数和详情入口。没有新增 RPC 或兼容协议；新增模型回归覆盖这个窗口边界。重新执行完整入口：normal 14/14（45.10 s）、ASan 14/14（58.74 s）、UBSan 14/14（55.86 s），所有 build、diff 检查通过，无测试排除或 suppression。
+
+## 长期路线：消息表情回应
+
+从重新 fetch 后的 `aa8a459` 开始，单聊和群聊使用同一回应模型。固定支持 👍、❤️、😂、😮、😢、🎉；每用户每消息最多一个，选择不同表情替换，选择自己当前表情取消。回应不推进会话活动时间、未读或真实阅读位置。
+
+SQL 016 无损增加 `messages.reaction_revision`（已有消息默认 0）和独立 `message_reactions(message_id,user_id,emoji)`，主键保证每用户一条，数据库约束限定表情。实际修改与 revision 递增在同一事务；幂等设置和重复清除不递增。清空后仍保留 revision，避免迟到的非空快照覆盖空状态。编辑、删除、回应和成员管理使用同一 conversation 行锁，锁后检查当前成员与消息归属。
+
+`set_message_reaction {conversation,message,emoji}` 使用明确设置语义，空字符串表示清除，缺失、null、未知字段或非法表情拒绝。返回及 `reaction` 通知均为 `{conversation,message,reaction_revision,reactions:[{emoji,users:[id]}]}`；数量和当前用户选择从用户列表计算。通知仅给当前会话成员，普通发送者由 RPC 获得确认；历史、搜索、会话最新消息、编辑及新消息统一携带轻量回应快照。离群者的既有回应作为历史内容保留，但不能继续修改。删除消息显式清空回应并递增 revision，保留原消息占位。
+
+SDK 验证 revision、会话/消息 ID、表情白名单、非空且不重复的用户和表情；Qt 使用相同模型展示数量和自己的选择，右键选择及点击已有标签均可操作。paint 不做网络 IO。模型独立合并 reaction revision 与 edited_at，旧历史、编辑或通知不能覆盖新回应；deleted 不恢复交互。活动会话遇到尚未加载的新消息回应时复用历史恢复，未加载的旧消息等待正常分页。搜索窗口也接收回应与删除变化。
+
+Qt 将原头像连接计数器按实际共同职责改名为 connection generation，回应 notification 和 RPC 回调在 QObject 线程复核后发信号；没有新增生命周期计数器。菜单使用 persistent index，触发时再次检查连接、会话和删除状态，避免菜单打开后模型重置或删除时发送到错误消息。
+
+新增回归覆盖 migration 默认值、唯一约束及级联；未认证、非法参数、跨会话、非成员及删除消息拒绝；设置、幂等、替换、聚合、清除及重新添加；历史/搜索/会话摘要和分页重连；回应与移除/删除真实锁竞争；SDK 异常协议；Qt stale revision、编辑与回应交错、删除、菜单、气泡命中和旧连接回调。三个真实 Qt 窗口验证实时聚合、更换、取消、离线变化与重连，截图已检查。竞争测试发现统计视图事务快照会停留在第一次查询，轮询前使用 `pg_stat_clear_snapshot()`，仍要求两个请求实际等待会话锁，未放宽断言。
+
+最终代码实际执行 `tests/verify.sh`，所有构建启用 Qt、Debug、`-j12`，继承 libpq 环境：
+
+| 构建 | 完整 build | 完整 CTest | 总耗时 |
+|---|---|---|---|
+| 正常 `build` | PASS | 14/14 PASS | 49.96 s |
+| ASan `build/asan` | PASS | 14/14 PASS | 60.43 s |
+| UBSan `build/ubsan` | PASS | 14/14 PASS | 60.61 s |
+
+未使用 suppression 或测试排除，`git diff --check` PASS。没有新增通用事件框架、回应历史或自定义 emoji。下一阶段为图片气泡预览和缓存。

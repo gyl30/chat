@@ -5,6 +5,7 @@
 #include <optional>
 #include <string>
 #include <chat/attachment.hpp>
+#include <chat/reaction.hpp>
 
 struct quoted_message_payload
 {
@@ -30,6 +31,8 @@ struct message_payload
     std::optional<chat::attachment_info> attachment;
     std::int64_t avatar_revision = 0;
     bool has_avatar = false;
+    std::int64_t reaction_revision = 0;
+    std::vector<chat::reaction> reactions;
 };
 
 #endif

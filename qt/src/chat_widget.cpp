@@ -35,6 +35,7 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <chat/attachment.hpp>
+#include <chat/reaction.hpp>
 
 #include "avatar.hpp"
 #include "conversation_delegate.hpp"
@@ -359,6 +360,25 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                 }
                 QMenu menu(this);
                 auto* reply = menu.addAction(QStringLiteral("回复"));
+                auto* picker = menu.addMenu(QStringLiteral("表情回应"));
+                auto const own_reaction = index.data(message_model::own_reaction_role).toString();
+                auto const reaction_index = QPersistentModelIndex(index);
+                auto const conversation = active_conversation_;
+                for (auto emoji : chat::reaction_choices)
+                {
+                    auto const text = QString::fromUtf8(emoji.data(), static_cast<qsizetype>(emoji.size()));
+                    auto* action = picker->addAction(text);
+                    action->setCheckable(true);
+                    action->setChecked(text == own_reaction);
+                    connect(action, &QAction::triggered, &menu, [this, reaction_index, text, conversation] {
+                        if (connection_available_ && conversation == active_conversation_ && reaction_index.isValid() &&
+                            !reaction_index.data(message_model::deleted_role).toBool())
+                        {
+                            emit reaction_requested(conversation, reaction_index.data(message_model::id_role).toLongLong(),
+                                text == reaction_index.data(message_model::own_reaction_role).toString() ? QString{} : text);
+                        }
+                    });
+                }
                 auto* readers = index.data(message_model::read_count_role).isValid()
                     ? menu.addAction(QStringLiteral("已读详情")) : nullptr;
                 auto const filename = index.data(message_model::attachment_name_role).toString();
@@ -534,6 +554,14 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                                   index.data(message_model::sender_name_role).toString());
             });
     connect(messages_delegate, &message_delegate::read_details_clicked, this, &chat_widget::show_read_details);
+    connect(messages_delegate, &message_delegate::reaction_clicked, this,
+            [this](QModelIndex const& index, QString emoji) {
+        if (connection_available_ && !index.data(message_model::deleted_role).toBool())
+        {
+            emit reaction_requested(active_conversation_, index.data(message_model::id_role).toLongLong(),
+                emoji == index.data(message_model::own_reaction_role).toString() ? QString{} : emoji);
+        }
+    });
     connect(chat_title_, &QPushButton::clicked, this,
             [this]
             {
@@ -886,6 +914,11 @@ void chat_widget::update_message(message_data message)
             QStringLiteral("回复 %1：%2")
                 .arg(message.username, message.deleted ? QStringLiteral("消息已删除") : message.text.left(80)));
     }
+}
+
+bool chat_widget::set_reactions(qint64 conversation, qint64 message, qint64 revision, QList<reaction_data> reactions)
+{
+    return conversation != active_conversation_ || messages_->set_reactions(message, revision, std::move(reactions));
 }
 
 void chat_widget::add_sent_message(qint64 user, qint64 message, qint64 timestamp, QString text,

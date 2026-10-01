@@ -1,4 +1,5 @@
 #include <iostream>
+#include <utility>
 
 #include <QCoreApplication>
 
@@ -165,6 +166,37 @@ int main(int argc, char** argv)
         return 1;
     }
     conversation_model conversations;
+    messages.reset(1);
+    messages.merge_messages({incoming});
+    first = messages.index(0, 0);
+    QList<reaction_data> initial_reactions{{QStringLiteral("👍"), {1, 2}}};
+    if (!messages.set_reactions(incoming.id, 2, std::move(initial_reactions)) ||
+        first.data(message_model::own_reaction_role).toString() != QStringLiteral("👍") ||
+        first.data(message_model::reactions_role).value<QList<reaction_data>>().front().users.size() != 2) { return 1; }
+    messages.set_reactions(incoming.id, 1, {{QStringLiteral("❤️"), {1}}});
+    auto stale_edit = incoming;
+    stale_edit.edited_at = 100;
+    stale_edit.text = QStringLiteral("edited alongside reaction");
+    messages.update_message(stale_edit);
+    if (first.data(message_model::own_reaction_role).toString() != QStringLiteral("👍") ||
+        first.data(message_model::text_role).toString() != stale_edit.text) { return 1; }
+    auto newer_history = incoming;
+    newer_history.reaction_revision = 3;
+    newer_history.reactions = {{QStringLiteral("😂"), {2}}};
+    messages.merge_messages({newer_history});
+    if (!first.data(message_model::own_reaction_role).toString().isEmpty() ||
+        first.data(message_model::reactions_role).value<QList<reaction_data>>().front().emoji != QStringLiteral("😂")) { return 1; }
+    messages.set_reactions(incoming.id, 4, {});
+    messages.set_reactions(incoming.id, 3, newer_history.reactions);
+    if (!first.data(message_model::reactions_role).value<QList<reaction_data>>().isEmpty()) { return 1; }
+    newer_history.deleted = true;
+    newer_history.reaction_revision = 5;
+    newer_history.reactions.clear();
+    messages.update_message(newer_history);
+    messages.set_reactions(incoming.id, 6, {{QStringLiteral("👍"), {1}}});
+    if (!first.data(message_model::reactions_role).value<QList<reaction_data>>().isEmpty() ||
+        messages.set_reactions(incoming.id + 100, 1, {})) { return 1; }
+    std::cout << "PASS Qt reaction snapshots, clear, edited/deleted messages and stale revision protection\n";
     conversation_data direct;
     direct.id = 1;
     direct.user = 2;

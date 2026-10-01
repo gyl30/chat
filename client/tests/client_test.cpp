@@ -189,6 +189,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 last.emplace("conversation", 2);
                 last.emplace("username", "bob");
                 last.emplace("avatar_revision", 0);
+                last.emplace("reaction_revision", 0);
+                last.emplace("reactions", boost::json::array{});
                 last.emplace("has_avatar", false);
                 last.emplace("id", 12);
                 last.emplace("from", 2);
@@ -213,6 +215,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 last.emplace("conversation", 3);
                 last.emplace("username", "alice");
                 last.emplace("avatar_revision", 0);
+                last.emplace("reaction_revision", 0);
+                last.emplace("reactions", boost::json::array{});
                 last.emplace("has_avatar", false);
                 last.emplace("id", 6);
                 last.emplace("from", 1);
@@ -275,6 +279,29 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             co_return boost::capy::io_result<bool>{notification_ec, !notification_ec};
         }
 
+        if (method->as_string() == "set_message_reaction")
+        {
+            auto const message = params->as_object().at("message").as_int64();
+            auto const emoji = params->as_object().at("emoji").as_string();
+            boost::json::array reactions;
+            if (!emoji.empty())
+            {
+                reactions.push_back(boost::json::object{{"emoji", emoji}, {"users", boost::json::array{1}}});
+            }
+            if (message == 99 && !reactions.empty())
+            {
+                reactions[0].as_object().at("users").as_array().push_back(1);
+            }
+            boost::json::object result{{"conversation", 2}, {"message", message}, {"reaction_revision", 2},
+                                       {"reactions", std::move(reactions)}};
+            response.emplace("result", result);
+            auto [send_ec] = co_await send_text(connection, std::move(response));
+            if (send_ec) { co_return boost::capy::io_result<bool>{send_ec, false}; }
+            auto [notice_ec] = co_await send_text(connection, boost::json::object{
+                {"jsonrpc", "2.0"}, {"method", "reaction"}, {"params", std::move(result)}});
+            co_return boost::capy::io_result<bool>{notice_ec, !notice_ec};
+        }
+
         if (method->as_string() == "get_messages")
         {
             auto const* user = params->as_object().if_contains("conversation");
@@ -291,6 +318,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 first.emplace("conversation", 2);
                 first.emplace("username", "bob");
                 first.emplace("avatar_revision", 0);
+                first.emplace("reaction_revision", 1);
+                first.emplace("reactions", boost::json::array{boost::json::object{{"emoji", "👍"}, {"users", boost::json::array{1, 2}}}});
                 first.emplace("has_avatar", false);
                 first.emplace("id", 10);
                 first.emplace("from", 2);
@@ -302,6 +331,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 second.emplace("conversation", 2);
                 second.emplace("username", "alice");
                 second.emplace("avatar_revision", 0);
+                second.emplace("reaction_revision", 0);
+                second.emplace("reactions", boost::json::array{});
                 second.emplace("has_avatar", false);
                 second.emplace("id", 12);
                 second.emplace("from", 1);
@@ -315,6 +346,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 older.emplace("conversation", 2);
                 older.emplace("username", "bob");
                 older.emplace("avatar_revision", 0);
+                older.emplace("reaction_revision", 0);
+                older.emplace("reactions", boost::json::array{});
                 older.emplace("has_avatar", false);
                 older.emplace("id", 4);
                 older.emplace("from", 2);
@@ -422,6 +455,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             notification_params.emplace("conversation", 2);
             notification_params.emplace("username", "bob");
             notification_params.emplace("avatar_revision", 0);
+                notification_params.emplace("reaction_revision", 0);
+                notification_params.emplace("reactions", boost::json::array{});
             notification_params.emplace("has_avatar", false);
             notification_params.emplace("id", 21);
             notification_params.emplace("from", 2);
@@ -611,6 +646,7 @@ struct test_state
     int disconnected = 0;
     std::vector<chat::error> errors;
     std::vector<chat::message> messages;
+    std::vector<chat::reaction_update> reactions;
     std::vector<std::pair<std::int64_t, std::int64_t>> reads;
     std::vector<chat::presence> presences;
     std::vector<std::pair<std::int64_t, chat::avatar_state>> avatars;
@@ -677,6 +713,11 @@ int main()
     client.set_message_handler([&state](chat::message message) {
         std::lock_guard lock(state.mutex);
         state.messages.push_back(std::move(message));
+        state.condition.notify_all();
+    });
+    client.set_reaction_handler([&state](chat::reaction_update update) {
+        std::lock_guard lock(state.mutex);
+        state.reactions.push_back(std::move(update));
         state.condition.notify_all();
     });
     client.set_read_handler(
@@ -879,7 +920,9 @@ int main()
     if (!state.wait([&] { return messages_called; }) ||
         (messages_result.read_positions.size() != 1 || messages_result.read_positions[0].message != 12) ||
         messages.size() != 2 || messages[0].id != 10 || messages[0].from != 2 ||
-        messages[0].timestamp != 1700000000000 || messages[0].text != "first" || messages[1].id != 12 ||
+        messages[0].timestamp != 1700000000000 || messages[0].text != "first" ||
+        messages[0].reaction_revision != 1 || messages[0].reactions.size() != 1 ||
+        messages[0].reactions[0].emoji != "👍" || messages[0].reactions[0].users != std::vector<std::int64_t>{1, 2} || messages[1].id != 12 ||
         messages[1].from != 1 || messages[1].timestamp != 1700000060000 || messages[1].text != "second")
     {
         std::cerr << "FAIL client messages\n";
@@ -941,6 +984,27 @@ int main()
     if (!cleared_avatar || cleared_avatar->present || cleared_avatar->revision != 2)
     { std::cerr << "FAIL client invalid avatar upload or clear\n"; return 1; }
     std::cout << "PASS client multi-chunk avatar transport and malformed protocol validation\n";
+
+    auto reaction_result = avatar_call.operator()<chat::reaction_update>([&](auto handler) {
+        client.set_message_reaction(2, 10, "👍", handler);
+    });
+    if (!reaction_result || reaction_result->revision != 2 || reaction_result->reactions.size() != 1 ||
+        reaction_result->reactions.front().users != std::vector<std::int64_t>{1} ||
+        !state.wait([&] { return state.reactions.size() == 1; })) { return 1; }
+    auto cleared_reaction = avatar_call.operator()<chat::reaction_update>([&](auto handler) {
+        client.set_message_reaction(2, 10, "", handler);
+    });
+    if (!cleared_reaction || !cleared_reaction->reactions.empty() ||
+        !state.wait([&] { return state.reactions.size() == 2 && state.reactions.back().reactions.empty(); })) { return 1; }
+    std::size_t protocol_errors;
+    { std::lock_guard lock(state.mutex); protocol_errors = state.errors.size(); }
+    auto invalid_reaction = avatar_call.operator()<chat::reaction_update>([&](auto handler) {
+        client.set_message_reaction(2, 99, "👍", handler);
+    });
+    if (invalid_reaction || invalid_reaction.error().kind != chat::error_kind::protocol ||
+        !state.wait([&] { return state.errors.size() > protocol_errors; })) { return 1; }
+    { std::lock_guard lock(state.mutex); if (state.reactions.size() != 2) { return 1; } }
+    std::cout << "PASS client reaction metadata, RPC, clear, notification and duplicate-user rejection\n";
 
     bool send_called = false;
     chat::send_message_result send_result;

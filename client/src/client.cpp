@@ -13,6 +13,7 @@
 #include <string_view>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 #include <boost/capy/ex/run_async.hpp>
@@ -172,6 +173,61 @@ bool parse_reply(boost::json::object const& object, std::optional<quoted_message
     return parse_edited_at(fields, reply->edited_at) && parse_deleted(fields, reply->deleted);
 }
 
+bool parse_reactions(boost::json::object const& object, std::int64_t& revision, std::vector<reaction>& reactions)
+{
+    auto const* revision_value = object.if_contains("reaction_revision");
+    auto const* list = object.if_contains("reactions");
+    auto parsed_revision = revision_value ? parse_int64(*revision_value) : std::nullopt;
+    if (!parsed_revision || *parsed_revision < 0 || !list || !list->is_array() ||
+        (*parsed_revision == 0 && !list->as_array().empty()))
+    {
+        return false;
+    }
+    revision = *parsed_revision;
+    std::unordered_set<std::int64_t> seen_users;
+    for (auto const& item : list->as_array())
+    {
+        if (!item.is_object()) { return false; }
+        auto const* emoji_value = item.as_object().if_contains("emoji");
+        auto const* users = item.as_object().if_contains("users");
+        if (!emoji_value || !emoji_value->is_string() || !users || !users->is_array() || users->as_array().empty())
+        {
+            return false;
+        }
+        auto const emoji = std::string_view(emoji_value->as_string());
+        if (std::ranges::find(reaction_choices, emoji) == reaction_choices.end() ||
+            std::ranges::any_of(reactions, [&](reaction const& value) { return value.emoji == emoji; }))
+        {
+            return false;
+        }
+        reaction value{std::string(emoji), {}};
+        for (auto const& user_value : users->as_array())
+        {
+            auto user = parse_int64(user_value);
+            if (!user || *user <= 0 || !seen_users.insert(*user).second) { return false; }
+            value.users.push_back(*user);
+        }
+        reactions.push_back(std::move(value));
+    }
+    return true;
+}
+
+bool parse_reaction_update(boost::json::object const& object, reaction_update& value)
+{
+    auto const* conversation_value = object.if_contains("conversation");
+    auto const* message_value = object.if_contains("message");
+    auto conversation = conversation_value ? parse_int64(*conversation_value) : std::nullopt;
+    auto message = message_value ? parse_int64(*message_value) : std::nullopt;
+    if (!conversation || *conversation <= 0 || !message || *message <= 0 ||
+        !parse_reactions(object, value.revision, value.reactions))
+    {
+        return false;
+    }
+    value.conversation = *conversation;
+    value.message = *message;
+    return true;
+}
+
 bool parse_message(boost::json::object const& object, message& value)
 {
     auto const* id_value = object.if_contains("id");
@@ -227,7 +283,8 @@ bool parse_message(boost::json::object const& object, message& value)
         value.attachment = attachment_info{std::string(filename->as_string()), std::string(type), *size};
     }
     return parse_avatar_state(object, value.avatar) && parse_reply(object, value.reply) && parse_edited_at(object, value.edited_at) &&
-           parse_deleted(object, value.deleted);
+           parse_deleted(object, value.deleted) && parse_reactions(object, value.reaction_revision, value.reactions) &&
+           (!value.deleted || value.reactions.empty());
 }
 
 bool parse_presence(boost::json::object const& object, presence& value)
@@ -463,6 +520,23 @@ struct client::impl
                     return;
                 }
                 notify_message(std::move(notification), method->as_string() == "message_updated");
+                return;
+            }
+
+            if (method->as_string() == "reaction")
+            {
+                reaction_update notification;
+                if (!parse_reaction_update(params->as_object(), notification))
+                {
+                    report_error(make_error(error_kind::protocol, "Invalid reaction notification"));
+                    return;
+                }
+                reaction_handler handler;
+                {
+                    std::lock_guard lock(handler_mutex_);
+                    handler = reaction_handler_;
+                }
+                if (handler && !suppress_callbacks_.load()) { handler(std::move(notification)); }
                 return;
             }
 
@@ -1398,6 +1472,28 @@ struct client::impl
         co_return;
     }
 
+    boost::capy::task<> set_message_reaction(std::int64_t conversation, std::int64_t id, std::string emoji,
+                                           reaction_result_handler handler)
+    {
+        send_request("set_message_reaction", {{"conversation", conversation}, {"message", id}, {"emoji", std::move(emoji)}},
+                     [conversation, id, handler = std::move(handler)](auto result) mutable {
+            if (!result)
+            {
+                handler(std::unexpected(std::move(result.error())));
+                return;
+            }
+            reaction_update value;
+            if (!result->is_object() || !parse_reaction_update(result->as_object(), value) ||
+                value.conversation != conversation || value.message != id)
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid reaction result")));
+                return;
+            }
+            handler(std::move(value));
+        });
+        co_return;
+    }
+
     boost::capy::task<> update_message(std::string method, std::int64_t conversation, std::int64_t id,
                                        std::optional<std::string> text, message_result_handler handler)
     {
@@ -1817,6 +1913,7 @@ struct client::impl
     presence_handler presence_handler_;
     typing_handler typing_handler_;
     avatar_changed_handler avatar_handler_;
+    reaction_handler reaction_handler_;
     std::atomic_bool suppress_callbacks_ = false;
 };
 
@@ -1873,6 +1970,12 @@ void client::set_message_updated_handler(message_handler handler)
 {
     std::lock_guard lock(impl_->handler_mutex_);
     impl_->message_updated_handler_ = std::move(handler);
+}
+
+void client::set_reaction_handler(reaction_handler handler)
+{
+    std::lock_guard lock(impl_->handler_mutex_);
+    impl_->reaction_handler_ = std::move(handler);
 }
 
 void client::set_read_handler(read_handler handler)
@@ -2036,6 +2139,13 @@ void client::delete_message(std::int64_t conversation, std::int64_t message, mes
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(
         impl_->update_message("delete_message", conversation, message, std::nullopt, std::move(handler)));
+}
+
+void client::set_message_reaction(std::int64_t conversation, std::int64_t message, std::string emoji,
+                                 reaction_result_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->set_message_reaction(conversation, message, std::move(emoji), std::move(handler)));
 }
 
 void client::edit_message(std::int64_t conversation, std::int64_t message, std::string text,

@@ -20,6 +20,9 @@ class message_search_dialog final : public QDialog
     message_search_dialog(qint64 conversation, qint64 self_user, bool group, QString const& title, QWidget* parent, avatar_cache* avatars = nullptr);
     void set_results(qint64 conversation, QString const& query, qint64 before, QList<message_data> messages,
                      read_positions positions, bool has_more, QString const& error_message);
+    void set_reactions(qint64 conversation, qint64 message, qint64 revision, QList<reaction_data> reactions,
+                       QString const& error);
+    void update_message(qint64 conversation, message_data message, QString const& error);
 
    signals:
     void search_requested(QString query, qint64 before);

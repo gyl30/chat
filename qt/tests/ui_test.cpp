@@ -86,10 +86,12 @@ int main(int argc, char** argv)
             QObject::connect(&bridge, &client_bridge::attachment_sent, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::attachment_received, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::message_search_received, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::reaction_changed, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::error, &bridge, [&](auto) { failed_connect.set_value(); }, Qt::DirectConnection);
             bridge.send_attachment(1, "stale.bin", "old upload");
             bridge.get_attachment(1, 1);
             bridge.search_messages(1, "old search");
+            bridge.set_message_reaction(1, 1, QStringLiteral("👍"));
             QObject::connect(&bridge, &client_bridge::avatar_received, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::avatar_update_finished, &bridge, [&](auto...) { ++stale_results; });
             bridge.get_avatar(1, 1);
@@ -230,6 +232,47 @@ int main(int argc, char** argv)
                       "Real author identity");
             }
             auto* receipt_view = windows[0]->findChild<QListView*>("messageList");
+            auto const reaction_message = receipt_view->model()->index(0, 0).data(message_model::id_role).toLongLong();
+            auto choose_reaction = [&](int actor, QString emoji) {
+                auto* view = windows[actor]->findChild<QListView*>("messageList");
+                QTimer::singleShot(20, [emoji] {
+                    auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+                    check(menu, "Reaction context menu");
+                    QMenu* picker = nullptr;
+                    for (auto* action : menu->actions())
+                    {
+                        if (action->text() == QStringLiteral("表情回应")) { picker = action->menu(); }
+                    }
+                    check(picker && picker->actions().size() == 6, "Finite reaction picker");
+                    for (auto* action : picker->actions())
+                    {
+                        if (action->text() == emoji) { action->trigger(); picker->close(); menu->close(); return; }
+                    }
+                    check(false, "Reaction picker emoji");
+                });
+                view->customContextMenuRequested(view->visualRect(view->model()->index(0, 0)).center());
+            };
+            choose_reaction(1, QStringLiteral("👍"));
+            wait([&] {
+                auto const reactions = receipt_view->model()->index(0, 0).data(message_model::reactions_role).value<QList<reaction_data>>();
+                return reactions.size() == 1 && reactions.front().users == QList<qint64>{ids[1]};
+            });
+            choose_reaction(2, QStringLiteral("👍"));
+            wait([&] {
+                auto const reactions = receipt_view->model()->index(0, 0).data(message_model::reactions_role).value<QList<reaction_data>>();
+                return reactions.size() == 1 && reactions.front().users.size() == 2;
+            });
+            windows[0]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_reactions.png");
+            choose_reaction(1, QStringLiteral("❤️"));
+            wait([&] {
+                return receipt_view->model()->index(0, 0).data(message_model::reactions_role).value<QList<reaction_data>>().size() == 2 &&
+                    windows[1]->findChild<QListView*>("messageList")->model()->index(0, 0)
+                        .data(message_model::own_reaction_role).toString() == QStringLiteral("❤️");
+            });
+            choose_reaction(1, QStringLiteral("❤️"));
+            wait([&] { return receipt_view->model()->index(0, 0).data(message_model::reactions_role).value<QList<reaction_data>>().size() == 1; });
+            pages[0]->reaction_requested(group, reaction_message, QStringLiteral("🎉"));
+            wait([&] { return receipt_view->model()->index(0, 0).data(message_model::own_reaction_role).toString() == QStringLiteral("🎉"); });
             wait([&] { return receipt_view->model()->index(0, 0).data(message_model::read_count_role).toInt() == 2; });
             auto open_read_details = [&](int actor, int row) {
                 auto* view = windows[actor]->findChild<QListView*>("messageList");
@@ -583,6 +626,9 @@ int main(int argc, char** argv)
             {
                 wait([&, i] { return windows[i]->findChild<QListView*>("messageList")->model()->rowCount() == 3; });
             }
+            auto const retained_message = receipt_view->model()->index(2, 0).data(message_model::id_role).toLongLong();
+            pages[0]->reaction_requested(group, retained_message, QStringLiteral("😂"));
+            wait([&] { return receipt_view->model()->index(2, 0).data(message_model::own_reaction_role).toString() == QStringLiteral("😂"); });
             windows[0]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_smoke.png");
             type_character(1);
             wait([&] { return group_typing->isVisible(); });
@@ -597,8 +643,9 @@ int main(int argc, char** argv)
             check(PQresultStatus(offline_result) == PGRES_COMMAND_OK, "Offline edit fixture");
             PQclear(offline_result);
             auto offline_delete_sql =
-                "UPDATE messages SET body='',deleted=true WHERE conversation_id=" + std::to_string(group) +
-                " AND sender_id=" + std::to_string(ids[0]);
+                "WITH deleted AS (UPDATE messages SET body='',deleted=true,reaction_revision=reaction_revision+1 "
+                "WHERE conversation_id=" + std::to_string(group) + " AND sender_id=" + std::to_string(ids[0]) +
+                " RETURNING id) DELETE FROM message_reactions WHERE message_id IN (SELECT id FROM deleted)";
             auto* deleted_result = PQexec(db, offline_delete_sql.c_str());
             check(PQresultStatus(deleted_result) == PGRES_COMMAND_OK, "Offline deletion fixture");
             PQclear(deleted_result);
@@ -609,6 +656,12 @@ int main(int argc, char** argv)
             auto* retained_result = PQexec(db, retained_edit_sql.c_str());
             check(PQresultStatus(retained_result) == PGRES_COMMAND_OK, "Retained offline edit fixture");
             PQclear(retained_result);
+            auto offline_reaction_sql = "BEGIN; UPDATE message_reactions SET emoji='❤️' WHERE message_id=" +
+                std::to_string(retained_message) + " AND user_id=" + std::to_string(ids[0]) +
+                "; UPDATE messages SET reaction_revision=reaction_revision+1 WHERE id=" + std::to_string(retained_message) + "; COMMIT";
+            auto* reaction_result = PQexec(db, offline_reaction_sql.c_str());
+            check(PQresultStatus(reaction_result) == PGRES_COMMAND_OK, "Offline reaction fixture");
+            PQclear(reaction_result);
             start();
             for (int i = 0; i < 3; ++i)
             {
@@ -631,11 +684,15 @@ int main(int argc, char** argv)
                               QStringLiteral("消息已删除") &&
                           view->model()->index(1, 0).data(message_model::deleted_role).toBool(),
                       "Recovered deletion markers");
+                check(view->model()->index(0, 0).data(message_model::reactions_role).value<QList<reaction_data>>().isEmpty(),
+                      "Deleted message no longer displays reactions");
                 wait(
                     [&]
                     {
                         return view->model()->index(2, 0).data(message_model::text_role).toString() ==
-                               QStringLiteral("offline retained edit");
+                               QStringLiteral("offline retained edit") &&
+                               view->model()->index(2, 0).data(message_model::reactions_role).value<QList<reaction_data>>().size() == 1 &&
+                               view->model()->index(2, 0).data(message_model::reactions_role).value<QList<reaction_data>>().front().emoji == QStringLiteral("❤️");
                     });
             }
             windows[1]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("重连后的群消息"));
@@ -702,6 +759,9 @@ int main(int argc, char** argv)
             windows[0]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("保留单聊历史"));
             windows[0]->findChild<QToolButton*>("sendButton")->click();
             wait([&] { return windows[0]->findChild<QListView*>("messageList")->model()->rowCount() == 1; });
+            choose_reaction(0, QStringLiteral("😮"));
+            wait([&] { return windows[0]->findChild<QListView*>("messageList")->model()->index(0, 0)
+                                  .data(message_model::own_reaction_role).toString() == QStringLiteral("😮"); });
             QTimer::singleShot(50, [&] {
                 auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
                 check(dialog && dialog->objectName() == "profileDialog", "Contact profile");
@@ -770,6 +830,14 @@ int main(int argc, char** argv)
             auto* peer_attachment_view = windows[1]->findChild<QListView*>("messageList");
             wait([&] { return pages[1]->active_conversation() == direct && pages[1]->messages_ready() &&
                                   peer_attachment_view->model()->rowCount() == 2; });
+            check(peer_attachment_view->model()->index(0, 0).data(message_model::reactions_role)
+                      .value<QList<reaction_data>>().size() == 1, "Direct history restores reaction");
+            choose_reaction(1, QStringLiteral("😮"));
+            wait([&] {
+                auto const reactions = windows[0]->findChild<QListView*>("messageList")->model()->index(0, 0)
+                    .data(message_model::reactions_role).value<QList<reaction_data>>();
+                return reactions.size() == 1 && reactions.front().users.size() == 2;
+            });
             check(!peer_attachment_view->model()->index(0, 0).data(Qt::DecorationRole).value<QPixmap>().isNull(), "Direct message real avatar");
             check(!direct_index.data(Qt::DecorationRole).value<QPixmap>().isNull(), "Direct conversation real avatar");
             bool saw_avatar_profile = false;

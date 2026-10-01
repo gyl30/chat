@@ -50,6 +50,7 @@ struct events
     int disconnected = 0;
     std::vector<chat::message> messages;
     std::vector<chat::message> updates;
+    std::vector<chat::reaction_update> reactions;
     std::vector<std::int64_t> conversations;
     std::vector<std::int64_t> removals;
     std::vector<chat::read_position> reads;
@@ -64,6 +65,11 @@ struct events
 
     void attach(chat::client& client)
     {
+        client.set_reaction_handler([this](chat::reaction_update value) {
+            std::lock_guard lock(mutex);
+            reactions.push_back(std::move(value));
+            condition.notify_all();
+        });
         client.set_avatar_handler([this](std::int64_t user, chat::avatar_state state) {
             std::lock_guard lock(mutex);
             avatars.push_back({user, state, {}, {}});
@@ -259,6 +265,11 @@ int run_group_tests()
                 [&](auto handler) { client.set_typing(1, true, handler); });
             require(!unauthenticated_typing && unauthenticated_typing.error().code == -32001,
                     "Typing requires authentication");
+            auto unauthenticated_reaction = call<chat::reaction_update>([&](auto handler) {
+                client.set_message_reaction(1, 1, "👍", handler);
+            });
+            require(!unauthenticated_reaction && unauthenticated_reaction.error().code == -32001,
+                    "Reaction requires authentication");
             auto unauthenticated_avatar = call<chat::avatar>([&](auto handler) {
                 client.get_avatar(data.users.front(), 0, handler);
             });
@@ -312,6 +323,55 @@ int run_group_tests()
         require(conversation(b, group).unread == 1 && conversation(c, group).unread == 1 &&
                     conversation(a, group).unread == 0,
                 "Independent unread");
+        {
+            auto denied = call<chat::reaction_update>([&](auto handler) {
+                d.set_message_reaction(group, sent->message_id, "👍", handler);
+            });
+            auto invalid = call<chat::reaction_update>([&](auto handler) {
+                a.set_message_reaction(group, sent->message_id, "not emoji", handler);
+            });
+            require(!denied && denied.error().code == -32007 && !invalid && invalid.error().code == -32602,
+                    "Reaction membership and finite emoji validation");
+            auto first = call<chat::reaction_update>([&](auto handler) {
+                b.set_message_reaction(group, sent->message_id, "👍", handler);
+            });
+            auto repeated = call<chat::reaction_update>([&](auto handler) {
+                b.set_message_reaction(group, sent->message_id, "👍", handler);
+            });
+            require(first && repeated && first->revision == 1 && repeated->revision == 1 &&
+                    first->reactions.front().users == std::vector<std::int64_t>{data.users[1]},
+                    "Explicit reaction setting is idempotent");
+            a_events.wait([&] { return a_events.reactions.size() == 1; });
+            c_events.wait([&] { return c_events.reactions.size() == 1; });
+            auto aggregated = call<chat::reaction_update>([&](auto handler) {
+                c.set_message_reaction(group, sent->message_id, "👍", handler);
+            });
+            require(aggregated && aggregated->revision == 2 && aggregated->reactions.size() == 1 &&
+                    aggregated->reactions.front().users == std::vector<std::int64_t>{data.users[1], data.users[2]},
+                    "Multiple users aggregate into one emoji count");
+            auto replaced = call<chat::reaction_update>([&](auto handler) {
+                b.set_message_reaction(group, sent->message_id, "😂", handler);
+            });
+            require(replaced && replaced->revision == 3 && replaced->reactions.size() == 2,
+                    "Changing emoji replaces only the current user's reaction");
+            require(conversation(b, group).last.reaction_revision == 3 && conversation(b, group).unread == 1,
+                    "Conversation summary carries reaction without changing unread");
+            auto searched = call<chat::messages_result>([&](auto handler) {
+                a.search_messages(group, "第一条", {}, handler);
+            });
+            require(searched && searched->messages.size() == 1 && searched->messages.front().reaction_revision == 3 &&
+                    searched->messages.front().reactions.size() == 2, "Search includes persisted reactions");
+            auto clear = call<chat::reaction_update>([&](auto handler) { b.set_message_reaction(group, sent->message_id, "", handler); });
+            auto clear_again = call<chat::reaction_update>([&](auto handler) { b.set_message_reaction(group, sent->message_id, "", handler); });
+            require(clear && clear_again && clear->revision == 4 && clear_again->revision == 4 && clear->reactions.size() == 1,
+                    "Clear retains other users and does not advance revision twice");
+            require(call<chat::reaction_update>([&](auto handler) { c.set_message_reaction(group, sent->message_id, "", handler); })->revision == 5,
+                    "Last clear advances the persistent empty snapshot revision");
+            auto restored = call<chat::reaction_update>([&](auto handler) { b.set_message_reaction(group, sent->message_id, "❤️", handler); });
+            require(restored && restored->revision == 6, "Re-add cannot reuse an old revision");
+            require(call<std::vector<chat::user>>([&](auto handler) { d.get_contacts(handler); }).has_value(), "Reaction routing barrier");
+            { std::lock_guard lock(d_events.mutex); require(d_events.reactions.empty(), "Nonmember receives no reaction notification"); }
+        }
         {
             auto png = *chat::detail::decode_base64(avatar_png_base64);
             auto jpeg = *chat::detail::decode_base64(avatar_jpeg_base64);
@@ -431,7 +491,8 @@ int run_group_tests()
         auto before = first_page->messages.front().id;
         auto older = call<chat::messages_result>([&](auto handler) { c.get_messages(group, before, handler); });
         require(older && older->messages.size() == 8 && !older->has_more &&
-                    older->messages.front().id == sent->message_id,
+                    older->messages.front().id == sent->message_id && older->messages.front().reaction_revision == 6 &&
+                    older->messages.front().reactions.size() == 1 && older->messages.front().reactions.front().emoji == "❤️",
                 "Older cursor page");
         require(position(*first_page, data.users[1]) == sent->message_id &&
                     position(*older, data.users[1]) == sent->message_id &&
@@ -491,6 +552,14 @@ int run_group_tests()
         auto direct_sent = call<chat::send_message_result>([&](auto handler)
                                                            { a.send_message(*direct, "direct after group", handler); });
         require(direct_sent.has_value(), "Direct send after group");
+        auto direct_reaction = call<chat::reaction_update>([&](auto handler) {
+            b.set_message_reaction(*direct, direct_sent->message_id, "🎉", handler);
+        });
+        auto cross_reaction = call<chat::reaction_update>([&](auto handler) {
+            b.set_message_reaction(group, direct_sent->message_id, "🎉", handler);
+        });
+        require(direct_reaction && direct_reaction->revision == 1 && !cross_reaction && cross_reaction.error().code == -32007,
+                "Direct reaction and cross-conversation rejection");
         auto wrong = call<std::int64_t>([&](auto handler) { b.mark_read(group, direct_sent->message_id, handler); });
         require(!wrong && wrong.error().code == -32602, "Reject cross-conversation read");
         require(conversation(b, *direct).kind == chat::conversation_kind::direct &&
@@ -590,6 +659,11 @@ int run_group_tests()
         auto deleted = call<chat::message>([&](auto handler) { a.delete_message(group, sent->message_id, handler); });
         require(deleted && deleted->deleted && deleted->text.empty() && deleted->id == sent->message_id,
                 "Author deletes body and preserves ID");
+        auto deleted_reaction = call<chat::reaction_update>([&](auto handler) {
+            b.set_message_reaction(group, sent->message_id, "👍", handler);
+        });
+        require(deleted->reaction_revision == 7 && deleted->reactions.empty() && !deleted_reaction &&
+                deleted_reaction.error().code == -32007, "Deletion clears reactions and prevents further interaction");
         b_events.wait(
             [&]
             {
@@ -597,7 +671,8 @@ int run_group_tests()
                                            { return value.id == sent->message_id && value.deleted; });
             });
         auto repeated = call<chat::message>([&](auto handler) { a.delete_message(group, sent->message_id, handler); });
-        require(repeated && repeated->deleted, "Repeated deletion remains deleted");
+        require(repeated && repeated->deleted && repeated->reaction_revision == deleted->reaction_revision,
+                "Repeated deletion remains deleted without advancing reaction revision");
         auto edit_deleted =
             call<chat::message>([&](auto handler) { a.edit_message(group, sent->message_id, "resurrect", handler); });
         require(!edit_deleted && edit_deleted.error().code == -32007, "Deleted message cannot be edited");
@@ -1201,6 +1276,7 @@ int run_group_tests()
                 for (int i = 0; i < 100 && !waiting; ++i)
                 {
                     std::unique_ptr<PGresult, decltype(&PQclear)> result(PQexec(data.database.get(),
+                        "SELECT pg_stat_clear_snapshot(); "
                         "SELECT count(*)>=2 FROM pg_stat_activity WHERE datname=current_database() "
                         "AND wait_event_type='Lock' AND cardinality(pg_blocking_pids(pid))>0"), &PQclear);
                     waiting = result && PQresultStatus(result.get()) == PGRES_TUPLES_OK &&
@@ -1222,6 +1298,40 @@ int run_group_tests()
             auto current_history = call<chat::messages_result>([&](auto handler) { managed[1].get_messages(lifecycle_group, {}, handler); });
             require(current_history && current_history->messages.size() == static_cast<std::size_t>(member_send ? 5 : 4),
                 "Send before removal is persisted; send after removal is denied");
+            require(call<bool>([&](auto handler) {
+                managed[1].invite_group_members(lifecycle_group, {managed_ids[4]}, handler);
+            }).has_value(), "Restore member for reaction/remove race");
+            auto [reaction_remove, racing_reaction] = locked_race([&] {
+                return call<bool>([&](auto handler) { managed[1].remove_group_member(lifecycle_group, managed_ids[4], handler); });
+            }, [&] {
+                return call<chat::reaction_update>([&](auto handler) {
+                    managed[4].set_message_reaction(lifecycle_group, after_reinvite->message_id, "👍", handler);
+                });
+            });
+            require(reaction_remove && *reaction_remove && (racing_reaction || racing_reaction.error().code == -32007),
+                    "Reaction/remove race checks membership after conversation lock");
+            auto denied_after_remove = call<chat::reaction_update>([&](auto handler) {
+                managed[4].set_message_reaction(lifecycle_group, after_reinvite->message_id, "❤️", handler);
+            });
+            require(!denied_after_remove && denied_after_remove.error().code == -32007,
+                    "Removed member cannot replace a reaction");
+            auto [racing_delete, reaction_during_delete] = locked_race([&] {
+                return call<chat::message>([&](auto handler) {
+                    managed[1].delete_message(lifecycle_group, after_reinvite->message_id, handler);
+                });
+            }, [&] {
+                return call<chat::reaction_update>([&](auto handler) {
+                    managed[2].set_message_reaction(lifecycle_group, after_reinvite->message_id, "🎉", handler);
+                });
+            });
+            auto after_delete_race = call<chat::messages_result>([&](auto handler) {
+                managed[1].get_messages(lifecycle_group, {}, handler);
+            });
+            require(racing_delete && racing_delete->deleted && racing_delete->reactions.empty() &&
+                (reaction_during_delete || reaction_during_delete.error().code == -32007) && after_delete_race &&
+                std::ranges::any_of(after_delete_race->messages, [&](auto const& message) {
+                    return message.id == after_reinvite->message_id && message.deleted && message.reactions.empty();
+                }), "Reaction/delete race always leaves an empty deleted snapshot");
             require(call<chat::user>([&](auto handler) { managed[2].add_contact(managed_ids[3], handler); }).has_value(),
                 "Racing invitation contact");
             std::size_t typing_before;

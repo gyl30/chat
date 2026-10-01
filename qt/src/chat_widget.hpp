@@ -63,6 +63,7 @@ class chat_widget final : public QWidget
     void set_typing(qint64 conversation, qint64 user, QString username, bool typing);
     void add_message(qint64 user, message_data message);
     void update_message(message_data message);
+    bool set_reactions(qint64 conversation, qint64 message, qint64 revision, QList<reaction_data> reactions);
     void add_sent_message(qint64 user, qint64 message, qint64 timestamp, QString text, quoted_message_data reply);
     void set_message_error(qint64 user, QString message);
     void finish_attachment_send(qint64 conversation, QString error_message);
@@ -81,6 +82,7 @@ class chat_widget final : public QWidget
     void send_message_requested(qint64 user, QString text, qint64 reply_to);
     void delete_message_requested(qint64 conversation, qint64 message);
     void edit_message_requested(qint64 conversation, qint64 message, QString text);
+    void reaction_requested(qint64 conversation, qint64 message, QString emoji);
     void add_contact_search_requested(QString query);
     void contact_add_requested(qint64 user);
     void contact_remove_requested(qint64 user);
