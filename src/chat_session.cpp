@@ -254,6 +254,10 @@ boost::capy::task<void> chat_session::run()
             {
                 rpc_error = co_await handle_mark_read(request, response);
             }
+            else if (request.method == "set_typing")
+            {
+                rpc_error = co_await handle_set_typing(request, response);
+            }
             else if (request.method == kRegisterMethod)
             {
                 rpc_error = co_await handle_register(request, response);

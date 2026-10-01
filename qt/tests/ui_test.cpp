@@ -36,9 +36,9 @@ void check(bool v, char const* text)
         throw std::runtime_error(text);
     }
 }
-template <class F> void wait(F f)
+template <class F> void wait(F f, int attempts = 500)
 {
-    for (int i = 0; i < 500 && !f(); ++i)
+    for (int i = 0; i < attempts && !f(); ++i)
     {
         QApplication::processEvents();
         QThread::msleep(10);
@@ -163,8 +163,46 @@ int main(int argc, char** argv)
                 wait([&] { return pages[i]->active_conversation() == group && pages[i]->messages_ready(); });
             }
             auto* edit = windows[0]->findChild<QLineEdit*>("messageEdit");
+            auto type_character = [&](int actor) {
+                auto* input = windows[actor]->findChild<QLineEdit*>("messageEdit");
+                QKeyEvent key(QEvent::KeyPress, Qt::Key_X, Qt::NoModifier, "x");
+                QApplication::sendEvent(input, &key);
+            };
+            auto* peer_typing = windows[1]->findChild<QLabel*>("typingStatusLabel");
+            auto* group_typing = windows[2]->findChild<QLabel*>("typingStatusLabel");
+            int starts = 0;
+            auto typing_capture = QObject::connect(pages[0], &chat_widget::typing_requested, windows[0].get(),
+                [&](qint64 conversation, bool typing) { if (conversation == group && typing) { ++starts; } });
+            for (int i = 0; i < 3; ++i)
+            {
+                type_character(0);
+            }
+            check(starts == 1, "Typing refresh is throttled");
+            wait([&] { return peer_typing->isVisible() && peer_typing->text().contains(names[0]) &&
+                                  group_typing->isVisible(); });
+            windows[2]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_typing.png");
+            QTimer::singleShot(2100, [&] { type_character(0); });
+            wait([&] { return starts == 2; });
+            for (int i = 0; i < 4; ++i)
+            {
+                QKeyEvent backspace(QEvent::KeyPress, Qt::Key_Backspace, Qt::NoModifier);
+                QApplication::sendEvent(edit, &backspace);
+            }
+            wait([&] { return !peer_typing->isVisible() && !group_typing->isVisible(); });
+            QObject::disconnect(typing_capture);
+            pages[0]->typing_requested(group, true);
+            pages[1]->typing_requested(group, true);
+            wait([&] { return group_typing->text().contains(names[0]) && group_typing->text().contains(names[1]); });
+            wait([&] { return !group_typing->isVisible(); }, 700);
+            type_character(0);
+            wait([&] { return peer_typing->isVisible(); });
+            wait([&] { return !peer_typing->isVisible(); });
+            check(edit->text() == "x", "Typing ends after idle without discarding the draft");
+            type_character(0);
+            wait([&] { return peer_typing->isVisible(); });
             edit->setText(QStringLiteral("Qt 群消息验证"));
             windows[0]->findChild<QToolButton*>("sendButton")->click();
+            wait([&] { return !peer_typing->isVisible() && !group_typing->isVisible(); });
             for (int i = 0; i < 3; ++i)
             {
                 auto* view = windows[i]->findChild<QListView*>("messageList");
@@ -332,6 +370,8 @@ int main(int argc, char** argv)
                 wait([&, i] { return windows[i]->findChild<QListView*>("messageList")->model()->rowCount() == 3; });
             }
             windows[0]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_smoke.png");
+            type_character(1);
+            wait([&] { return group_typing->isVisible(); });
             server.terminate();
             check(server.waitForFinished(3000), "Stop server");
             wait([&] { return !windows[0]->findChild<QToolButton*>("sendButton")->isEnabled(); });
@@ -364,6 +404,8 @@ int main(int argc, char** argv)
                         return windows[i]->findChild<QToolButton*>("sendButton")->isEnabled() &&
                                pages[i]->messages_ready();
                     });
+                check(!windows[i]->findChild<QLabel*>("typingStatusLabel")->isVisible(),
+                      "Reconnect does not restore stale typing");
             }
             for (int i = 0; i < 3; ++i)
             {
@@ -425,8 +467,11 @@ int main(int argc, char** argv)
             }
             check(contact_view, "Visible contact list");
             wait([&] { return contact_view->model()->rowCount() == 2; });
+            type_character(0);
+            wait([&] { return group_typing->isVisible(); });
             contact_view->clicked(contact_view->model()->index(0, 0));
             wait([&] { return pages[0]->active_conversation() != group && pages[0]->messages_ready(); });
+            wait([&] { return !group_typing->isVisible(); });
             auto const direct = pages[0]->active_conversation();
             windows[0]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("保留单聊历史"));
             windows[0]->findChild<QToolButton*>("sendButton")->click();

@@ -2,6 +2,8 @@
 #define CHAT_QT_SRC_CHAT_WIDGET_HPP
 
 #include <QHash>
+#include <QDeadlineTimer>
+#include <QElapsedTimer>
 #include <QList>
 #include <QString>
 #include <QWidget>
@@ -22,6 +24,7 @@ class QPushButton;
 class QSortFilterProxyModel;
 class QStackedWidget;
 class QToolButton;
+class QTimer;
 class conversation_model;
 class message_model;
 class user_model;
@@ -51,6 +54,7 @@ class chat_widget final : public QWidget
     void set_messages(qint64 conversation, QList<message_data> messages, read_positions positions, bool older,
                       bool recovering, bool has_more);
     void set_read_message(qint64 conversation, qint64 user, qint64 message);
+    void set_typing(qint64 conversation, qint64 user, QString username, bool typing);
     void add_message(qint64 user, message_data message);
     void update_message(message_data message);
     void add_sent_message(qint64 user, qint64 message, qint64 timestamp, QString text, quoted_message_data reply);
@@ -79,6 +83,7 @@ class chat_widget final : public QWidget
     void message_search_requested(qint64 conversation, qint64 self_user, bool group, QString title);
     void attachment_send_requested(qint64 conversation, QString filename, QByteArray data, qint64 reply_to);
     void attachment_open_requested(qint64 conversation, qint64 message, QString filename, bool preview);
+    void typing_requested(qint64 conversation, bool typing);
 
    private:
     void show_conversations_section();
@@ -97,6 +102,8 @@ class chat_widget final : public QWidget
     void update_chat_header(QString const& username);
     void update_chat_presence();
     void set_message_status(QString message);
+    void stop_typing();
+    void update_typing_label();
 
     QLabel* profile_avatar_ = nullptr;
     QToolButton* chats_navigation_ = nullptr;
@@ -119,6 +126,16 @@ class chat_widget final : public QWidget
     QLabel* add_users_status_ = nullptr;
     QPushButton* chat_title_ = nullptr;
     QLabel* chat_presence_ = nullptr;
+    QLabel* typing_label_ = nullptr;
+    QTimer* typing_idle_timer_ = nullptr;
+    QElapsedTimer typing_clock_;
+    qint64 last_typing_sent_ = 0;
+    struct peer_typing
+    {
+        QString username;
+        QDeadlineTimer expiry;
+    };
+    QHash<qint64, peer_typing> typing_users_;
     QToolButton* connection_status_ = nullptr;
     QLabel* message_status_ = nullptr;
     QListView* messages_view_ = nullptr;

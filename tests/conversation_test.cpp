@@ -49,6 +49,7 @@ struct events
     std::vector<chat::message> updates;
     std::vector<std::int64_t> conversations;
     std::vector<chat::read_position> reads;
+    std::vector<chat::typing_event> typing;
 
     template <class F> void wait(F predicate)
     {
@@ -58,6 +59,11 @@ struct events
 
     void attach(chat::client& client)
     {
+        client.set_typing_handler([this](chat::typing_event value) {
+            std::lock_guard lock(mutex);
+            typing.push_back(std::move(value));
+            condition.notify_all();
+        });
         client.set_connected_handler(
             [this]
             {
@@ -234,6 +240,10 @@ int run_group_tests()
                 [&](auto handler) { client.search_messages(1, "test", {}, handler); });
             require(!unauthenticated_search && unauthenticated_search.error().code == -32001,
                     "Message search requires authentication");
+            auto unauthenticated_typing = call<bool>(
+                [&](auto handler) { client.set_typing(1, true, handler); });
+            require(!unauthenticated_typing && unauthenticated_typing.error().code == -32001,
+                    "Typing requires authentication");
             auto authenticated = call<chat::authentication_result>(
                 [&](auto handler) { client.authenticate(names.back(), "group password", handler); });
             require(authenticated && authenticated->authenticated && authenticated->user == *registered,
@@ -280,6 +290,32 @@ int run_group_tests()
         require(conversation(b, group).unread == 1 && conversation(c, group).unread == 1 &&
                     conversation(a, group).unread == 0,
                 "Independent unread");
+        auto typing_start = call<bool>([&](auto handler) { a.set_typing(group, true, handler); });
+        require(typing_start && *typing_start, "Typing realtime response");
+        b_events.wait([&] { return b_events.typing.size() == 1; });
+        c_events.wait([&] { return c_events.typing.size() == 1; });
+        {
+            std::lock_guard lock(b_events.mutex);
+            auto const& value = b_events.typing.front();
+            require(value.conversation == group && value.user == data.users[0] && value.username == names[0] &&
+                        value.typing, "Typing carries authenticated author and conversation");
+        }
+        require(call<bool>([&](auto handler) { a.set_typing(group, false, handler); }).has_value(), "Typing stop");
+        b_events.wait([&] { return b_events.typing.size() == 2 && !b_events.typing.back().typing; });
+        c_events.wait([&] { return c_events.typing.size() == 2 && !c_events.typing.back().typing; });
+        {
+            std::lock_guard lock(a_events.mutex);
+            require(a_events.typing.empty(), "Typing is not echoed to the sender");
+        }
+        auto denied_typing = call<bool>([&](auto handler) { d.set_typing(group, true, handler); });
+        auto invalid_typing = call<bool>([&](auto handler) { a.set_typing(0, true, handler); });
+        require(!denied_typing && denied_typing.error().code == -32006 && !invalid_typing &&
+                    invalid_typing.error().code == -32602, "Typing membership and parameter validation");
+        auto typing_history = call<chat::messages_result>([&](auto handler) { a.get_messages(group, {}, handler); });
+        require(typing_history && typing_history->messages.size() == 1 &&
+                    std::ranges::all_of(typing_history->read_positions, [](auto const& position) { return position.message == 0; }) &&
+                    conversation(b, group).unread == 1 && conversation(c, group).unread == 1,
+                "Typing does not persist a message or change unread and read position");
         auto read = call<std::int64_t>([&](auto handler) { b.mark_read(group, sent->message_id, handler); });
         require(read && *read == sent->message_id, "Group read");
         a_events.wait([&] { return !a_events.reads.empty(); });
@@ -573,6 +609,15 @@ int run_group_tests()
         require(literal_search && literal_search->messages.size() == 1 &&
                     literal_search->messages.front().id == literal->message_id && other_conversation_search &&
                     other_conversation_search->messages.empty(), "Unicode and punctuation are literal and scoped");
+        auto direct_typing = call<bool>([&](auto handler) { a.set_typing(*direct, true, handler); });
+        require(direct_typing && *direct_typing, "Direct conversation typing");
+        b_events.wait([&] { return b_events.typing.size() == 3 && b_events.typing.back().conversation == *direct; });
+        require(call<bool>([&](auto handler) { a.set_typing(*direct, false, handler); }).has_value(), "Direct typing stop");
+        b_events.wait([&] { return b_events.typing.size() == 4 && !b_events.typing.back().typing; });
+        {
+            std::lock_guard lock(c_events.mutex);
+            require(c_events.typing.size() == 2, "Typing is scoped to its conversation");
+        }
         std::string file_bytes(3 * chat::attachment_chunk_size + 17, '\0');
         for (std::size_t i = 0; i < file_bytes.size(); ++i)
         {
@@ -663,7 +708,7 @@ int run_group_tests()
         {
             std::lock_guard lock(d_events.mutex);
             require(d_events.messages.empty() && d_events.updates.empty() && d_events.reads.empty() &&
-                        d_events.conversations.empty(),
+                        d_events.conversations.empty() && d_events.typing.empty(),
                     "Nonmember receives no notifications");
         }
         a.close();

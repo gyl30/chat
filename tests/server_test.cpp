@@ -1594,7 +1594,7 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return 1;
     }
 
-    auto attachment_rpc = [&](std::string method, std::string params) -> boost::capy::task<std::string> {
+    auto peer_rpc = [&](std::string method, std::string params) -> boost::capy::task<std::string> {
         auto [write_ec] = co_await send_websocket_text(source_socket,
             "{\"jsonrpc\":\"2.0\",\"method\":\"" + method + "\",\"params\":" + params +
             ",\"id\":\"attachment-validation\"}");
@@ -1611,7 +1611,7 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return std::move(reply);
     };
     auto attachment_begin = "{\"conversation\":" + direct_conversation + ",\"filename\":\"probe.bin\",\"size\":3}";
-    auto attachment_begin_reply = co_await attachment_rpc("begin_attachment", attachment_begin);
+    auto attachment_begin_reply = co_await peer_rpc("begin_attachment", attachment_begin);
     boost::system::error_code attachment_parse_ec;
     auto attachment_value = boost::json::parse(attachment_begin_reply, attachment_parse_ec);
     if (attachment_parse_ec || !attachment_value.is_object() || !attachment_value.as_object().contains("result"))
@@ -1637,7 +1637,7 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     };
     for (auto const& test : attachment_cases)
     {
-        auto reply = co_await attachment_rpc(test.method, test.params);
+        auto reply = co_await peer_rpc(test.method, test.params);
         if (!json_matches(reply, test.expected))
         {
             std::cerr << "FAIL attachment validation " << test.method << ": " << reply << '\n';
@@ -1645,6 +1645,27 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         }
     }
     std::cout << "PASS attachment upload validation and cancellation\n";
+    for (auto const& params : std::vector<std::string>{
+             "{\"conversation\":" + direct_conversation + "}",
+             "{\"conversation\":" + direct_conversation + ",\"typing\":1}",
+             "{\"conversation\":" + direct_conversation + ",\"typing\":true,\"user\":1}",
+             "{\"conversation\":0,\"typing\":true}"})
+    {
+        auto reply = co_await peer_rpc("set_typing", params);
+        if (!json_matches(reply, R"({"error":{"code":-32602}})"))
+        {
+            std::cerr << "FAIL invalid typing params: " << reply << '\n';
+            co_return 1;
+        }
+    }
+    auto offline_typing_reply = co_await peer_rpc("set_typing",
+        "{\"conversation\":" + direct_conversation + ",\"typing\":true}");
+    if (!json_matches(offline_typing_reply, R"({"result":{"realtime":false}})"))
+    {
+        std::cerr << "FAIL offline typing response: " << offline_typing_reply << '\n';
+        co_return 1;
+    }
+    std::cout << "PASS typing strict params and offline response\n";
 
     constexpr std::string_view empty_contacts_request =
         R"({"jsonrpc":"2.0","method":"get_contacts","id":"contacts-empty"})";

@@ -83,6 +83,9 @@ client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::ma
                                          { emit message_updated(value.conversation, to_message_data(value), {}); });
     client_->set_read_handler([this](std::int64_t conversation, std::int64_t user, std::int64_t message)
                               { emit messages_read(conversation, user, message); });
+    client_->set_typing_handler([this](chat::typing_event value) {
+        emit typing_changed(value.conversation, value.user, from_utf8(value.username), value.typing);
+    });
     client_->set_conversation_handler([this](std::int64_t) { emit conversation_changed(); });
     client_->set_presence_handler([this](chat::presence value) { emit presence_changed(to_presence_data(value)); });
 }
@@ -337,6 +340,11 @@ void client_bridge::get_messages(qint64 conversation, std::optional<qint64> befo
                 Qt::QueuedConnection);
         },
         after);
+}
+
+void client_bridge::set_typing(qint64 conversation, bool typing)
+{
+    client_->set_typing(conversation, typing, [](auto) {});
 }
 
 void client_bridge::send_message(qint64 user, QString text, qint64 reply_to)

@@ -490,6 +490,8 @@ main_window::main_window(QString server_url, QWidget* parent)
 
     connect(chat_page_, &chat_widget::send_message_requested, this,
             [this](qint64 user, QString text, qint64 reply) { client_->send_message(user, std::move(text), reply); });
+    connect(chat_page_, &chat_widget::typing_requested, client_.get(), &client_bridge::set_typing);
+    connect(client_.get(), &client_bridge::typing_changed, chat_page_, &chat_widget::set_typing, Qt::QueuedConnection);
     connect(chat_page_, &chat_widget::attachment_send_requested, this,
             [this](qint64 conversation, QString filename, QByteArray data, qint64 reply) {
                 client_->send_attachment(conversation, std::move(filename), std::move(data), reply);

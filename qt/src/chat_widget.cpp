@@ -1,6 +1,7 @@
 #include "chat_widget.hpp"
 
 #include <utility>
+#include <iterator>
 
 #include <QAbstractItemView>
 #include <QClipboard>
@@ -280,6 +281,12 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     chat_presence_->setContentsMargins(50, 0, 0, 0);
     chat_presence_->hide();
     chat_identity_layout->addWidget(chat_presence_);
+    typing_label_ = new QLabel(chat_identity);
+    typing_label_->setObjectName(QStringLiteral("typingStatusLabel"));
+    typing_label_->setTextFormat(Qt::PlainText);
+    typing_label_->setContentsMargins(50, 0, 0, 0);
+    typing_label_->hide();
+    chat_identity_layout->addWidget(typing_label_);
     header_layout->addWidget(chat_identity);
     header_layout->addStretch();
     message_search_button_ = new QToolButton(header);
@@ -457,6 +464,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
         reply_to_ = 0;
         reply_bar_->hide();
         attachment_sending_ = true;
+        stop_typing();
         attachment_button_->setEnabled(false);
         set_message_status(QStringLiteral("正在发送 %1…").arg(QFileInfo(path).fileName()));
         emit attachment_send_requested(active_conversation_, QFileInfo(path).fileName(), std::move(data), reply);
@@ -530,6 +538,41 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     });
     connect(send_button_, &QToolButton::clicked, this, [this] { send_current_message(); });
     connect(message_edit_, &QLineEdit::returnPressed, this, [this] { send_current_message(); });
+    typing_clock_.start();
+    typing_idle_timer_ = new QTimer(this);
+    typing_idle_timer_->setSingleShot(true);
+    typing_idle_timer_->setInterval(3000);
+    connect(typing_idle_timer_, &QTimer::timeout, this, [this] {
+        emit typing_requested(active_conversation_, false);
+    });
+    connect(message_edit_, &QLineEdit::textEdited, this, [this](QString const& text) {
+        if (!connection_available_ || active_conversation_ <= 0)
+        {
+            return;
+        }
+        if (text.isEmpty())
+        {
+            stop_typing();
+            return;
+        }
+        auto const now = typing_clock_.elapsed();
+        if (!typing_idle_timer_->isActive() || now - last_typing_sent_ >= 2000)
+        {
+            last_typing_sent_ = now;
+            emit typing_requested(active_conversation_, true);
+        }
+        typing_idle_timer_->start();
+    });
+    auto* typing_expiry = new QTimer(this);
+    typing_expiry->setInterval(500);
+    connect(typing_expiry, &QTimer::timeout, this, [this] {
+        for (auto it = typing_users_.begin(); it != typing_users_.end();)
+        {
+            it = it->expiry.hasExpired() ? typing_users_.erase(it) : std::next(it);
+        }
+        update_typing_label();
+    });
+    typing_expiry->start();
     connect(messages_view_->verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int value) {
         if (value == messages_view_->verticalScrollBar()->minimum())
         {
@@ -540,6 +583,9 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
 
 void chat_widget::set_user(QString const& username, qint64 user)
 {
+    stop_typing();
+    typing_users_.clear();
+    update_typing_label();
     profile_avatar_->setText(avatar_initial(username));
     profile_avatar_->setToolTip(username);
     profile_avatar_->setStyleSheet(QStringLiteral("background: %1;").arg(avatar_background(username).name()));
@@ -584,6 +630,12 @@ void chat_widget::set_error(QString message) { conversations_status_->setText(st
 
 void chat_widget::set_connection_available(bool available)
 {
+    if (!available)
+    {
+        stop_typing();
+        typing_users_.clear();
+        update_typing_label();
+    }
     connection_available_ = available;
     if (!available && attachment_sending_)
     {
@@ -680,6 +732,10 @@ void chat_widget::set_presence(presence_data user)
     }
 
     presence_.insert(user.user, user);
+    if (!user.online && typing_users_.remove(user.user))
+    {
+        update_typing_label();
+    }
     conversations_->set_online(user.user, user.online);
     contacts_->set_presence(user.user, user.online, user.last_seen);
     add_users_->set_presence(user.user, user.online, user.last_seen);
@@ -1011,6 +1067,9 @@ void chat_widget::open_conversation(conversation_data conversation)
         return;
     }
 
+    stop_typing();
+    typing_users_.clear();
+    update_typing_label();
     reply_to_ = 0;
     reply_bar_->hide();
     active_conversation_ = user;
@@ -1143,12 +1202,52 @@ void chat_widget::send_current_message()
     }
 
     auto text = message_edit_->text();
+    stop_typing();
     message_edit_->clear();
     set_message_status({});
     auto const reply = reply_to_;
     reply_to_ = 0;
     reply_bar_->hide();
     emit send_message_requested(active_conversation_, std::move(text), reply);
+}
+
+void chat_widget::stop_typing()
+{
+    if (typing_idle_timer_->isActive())
+    {
+        typing_idle_timer_->stop();
+        emit typing_requested(active_conversation_, false);
+    }
+}
+
+void chat_widget::set_typing(qint64 conversation, qint64 user, QString username, bool typing)
+{
+    if (!connection_available_ || conversation != active_conversation_ || user == self_user_)
+    {
+        return;
+    }
+    if (typing)
+    {
+        typing_users_.insert(user, {std::move(username), QDeadlineTimer(5000)});
+    }
+    else
+    {
+        typing_users_.remove(user);
+    }
+    update_typing_label();
+}
+
+void chat_widget::update_typing_label()
+{
+    QStringList names;
+    for (auto const& user : typing_users_)
+    {
+        names.push_back(user.username);
+    }
+    names.sort();
+    typing_label_->setText(names.isEmpty() ? QString{} : names.mid(0, 3).join(QStringLiteral("、")) +
+        (names.size() > 3 ? QStringLiteral("等人正在输入…") : QStringLiteral("正在输入…")));
+    typing_label_->setVisible(!names.isEmpty());
 }
 
 void chat_widget::show_user_details(qint64 user, QString const& username)

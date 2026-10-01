@@ -473,6 +473,33 @@ struct client::impl
                 return;
             }
 
+            if (method->as_string() == "typing")
+            {
+                auto const& fields = params->as_object();
+                auto const* conversation_field = fields.if_contains("conversation");
+                auto const* user_field = fields.if_contains("user");
+                auto const* username = fields.if_contains("username");
+                auto const* typing = fields.if_contains("typing");
+                auto conversation = conversation_field ? parse_int64(*conversation_field) : std::nullopt;
+                auto user = user_field ? parse_int64(*user_field) : std::nullopt;
+                if (!conversation || *conversation <= 0 || !user || *user <= 0 || !username ||
+                    !username->is_string() || username->as_string().empty() || !typing || !typing->is_bool())
+                {
+                    report_error(make_error(error_kind::protocol, "Invalid typing notification"));
+                    return;
+                }
+                typing_handler handler;
+                {
+                    std::lock_guard lock(handler_mutex_);
+                    handler = typing_handler_;
+                }
+                if (handler && !suppress_callbacks_.load())
+                {
+                    handler({*conversation, *user, std::string(username->as_string()), typing->as_bool()});
+                }
+                return;
+            }
+
             if (method->as_string() == "presence")
             {
                 presence notification;
@@ -1445,6 +1472,26 @@ struct client::impl
         co_return;
     }
 
+    boost::capy::task<> set_typing(std::int64_t conversation, bool typing, typing_result_handler handler)
+    {
+        send_request("set_typing", {{"conversation", conversation}, {"typing", typing}},
+            [handler = std::move(handler)](auto response) mutable {
+                if (!response)
+                {
+                    handler(std::unexpected(std::move(response.error())));
+                    return;
+                }
+                auto const* realtime = response->is_object() ? response->as_object().if_contains("realtime") : nullptr;
+                if (!realtime || !realtime->is_bool())
+                {
+                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid set_typing result")));
+                    return;
+                }
+                handler(realtime->as_bool());
+            });
+        co_return;
+    }
+
     boost::corosio::io_context io_context_{1};
     detail::websocket_client websocket_;
     boost::capy::work_guard<boost::corosio::io_context::executor_type> work_;
@@ -1465,6 +1512,7 @@ struct client::impl
     read_handler read_handler_;
     conversation_changed_handler conversation_handler_;
     presence_handler presence_handler_;
+    typing_handler typing_handler_;
     std::atomic_bool suppress_callbacks_ = false;
 };
 
@@ -1512,6 +1560,12 @@ void client::set_presence_handler(presence_handler handler)
 {
     std::lock_guard lock(impl_->handler_mutex_);
     impl_->presence_handler_ = std::move(handler);
+}
+
+void client::set_typing_handler(typing_handler handler)
+{
+    std::lock_guard lock(impl_->handler_mutex_);
+    impl_->typing_handler_ = std::move(handler);
 }
 
 void client::connect(std::string url)
@@ -1643,6 +1697,11 @@ void client::remove_contact(std::int64_t user, remove_contact_handler handler)
 void client::mark_read(std::int64_t user, std::int64_t message, mark_read_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->mark_read(user, message, std::move(handler)));
+}
+
+void client::set_typing(std::int64_t conversation, bool typing, typing_result_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->set_typing(conversation, typing, std::move(handler)));
 }
 
 }    // namespace chat

@@ -50,6 +50,7 @@ class client_bridge final : public QObject
     void send_attachment(qint64 conversation, QString filename, QByteArray data, qint64 reply_to = 0);
     void get_attachment(qint64 conversation, qint64 message);
     void mark_read(qint64 user, qint64 message);
+    void set_typing(qint64 conversation, bool typing);
 
    signals:
     void connected();
@@ -66,6 +67,7 @@ class client_bridge final : public QObject
     void message_received(message_data message);
     void message_updated(qint64 conversation, message_data message, QString error_message);
     void messages_read(qint64 conversation, qint64 user, qint64 message);
+    void typing_changed(qint64 conversation, qint64 user, QString username, bool typing);
     void conversation_opened(conversation_data conversation, QString error_message);
     void members_received(qint64 conversation, QList<user_data> users, QString error_message);
     void conversation_changed();
