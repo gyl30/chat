@@ -1183,6 +1183,27 @@ struct client::impl
         co_return;
     }
 
+    boost::capy::task<> remove_contact(std::int64_t contact, remove_contact_handler handler)
+    {
+        boost::json::object params;
+        params.emplace("user", contact);
+        send_request("remove_contact", std::move(params), [handler = std::move(handler)](auto response) mutable {
+            if (!response)
+            {
+                handler(std::unexpected(std::move(response.error())));
+                return;
+            }
+            auto const* removed = response->is_object() ? response->as_object().if_contains("removed") : nullptr;
+            if (!removed || !removed->is_bool())
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid remove_contact result")));
+                return;
+            }
+            handler(removed->as_bool());
+        });
+        co_return;
+    }
+
     boost::capy::task<> mark_read(std::int64_t conversation, std::int64_t message_id, mark_read_handler handler)
     {
         boost::json::object params;
@@ -1388,6 +1409,11 @@ void client::search_users(std::string query, users_handler handler)
 void client::add_contact(std::int64_t user, user_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->add_contact(user, std::move(handler)));
+}
+
+void client::remove_contact(std::int64_t user, remove_contact_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->remove_contact(user, std::move(handler)));
 }
 
 void client::mark_read(std::int64_t user, std::int64_t message, mark_read_handler handler)

@@ -68,6 +68,7 @@ class chat_widget final : public QWidget
     void edit_message_requested(qint64 conversation, qint64 message, QString text);
     void add_contact_search_requested(QString query);
     void contact_add_requested(qint64 user);
+    void contact_remove_requested(qint64 user);
     void logout_requested();
     void reconnect_requested();
     void direct_conversation_requested(qint64 user, QString username);

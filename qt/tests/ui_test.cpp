@@ -382,6 +382,55 @@ int main(int argc, char** argv)
                 wait([&, i] { return windows[i]->findChild<QListView*>("messageList")->model()->rowCount() == 4; });
             }
             windows[1]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_reconnected.png");
+            for (auto* button : windows[0]->findChildren<QToolButton*>())
+            {
+                if (button->text() == QStringLiteral("联系人"))
+                {
+                    button->click();
+                    break;
+                }
+            }
+            QListView* contact_view = nullptr;
+            for (auto* view : windows[0]->findChildren<QListView*>("userList"))
+            {
+                if (view->isVisible())
+                {
+                    contact_view = view;
+                    break;
+                }
+            }
+            check(contact_view, "Visible contact list");
+            wait([&] { return contact_view->model()->rowCount() == 2; });
+            contact_view->clicked(contact_view->model()->index(0, 0));
+            wait([&] { return pages[0]->active_conversation() != group && pages[0]->messages_ready(); });
+            auto const direct = pages[0]->active_conversation();
+            windows[0]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("保留单聊历史"));
+            windows[0]->findChild<QToolButton*>("sendButton")->click();
+            wait([&] { return windows[0]->findChild<QListView*>("messageList")->model()->rowCount() == 1; });
+            QTimer::singleShot(50, [&] {
+                auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                check(dialog && dialog->objectName() == "profileDialog", "Contact profile");
+                auto* remove = dialog->findChild<QPushButton*>("removeContactButton");
+                check(remove && remove->isEnabled(), "Contact removal action");
+                QTimer::singleShot(50, [] {
+                    auto* confirmation = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+                    check(confirmation && confirmation->text().contains(QStringLiteral("聊天记录")),
+                          "Contact removal confirmation");
+                    confirmation->button(QMessageBox::Yes)->click();
+                });
+                remove->click();
+            });
+            windows[0]->findChild<QPushButton*>("chatHeaderButton")->click();
+            wait([&] { return contact_view->model()->rowCount() == 1; });
+            check(pages[0]->active_conversation() == direct &&
+                      windows[0]->findChild<QListView*>("messageList")->model()->rowCount() == 1,
+                  "Contact removal retains active chat and history");
+            auto contacts_sql = "SELECT count(*) FROM contacts WHERE owner_id=" + std::to_string(ids[0]) +
+                                " AND contact_id=" + std::to_string(ids[1]);
+            auto* contacts_result = PQexec(db, contacts_sql.c_str());
+            check(PQresultStatus(contacts_result) == PGRES_TUPLES_OK &&
+                      std::string_view(PQgetvalue(contacts_result, 0, 0)) == "0", "Contact removal persisted");
+            PQclear(contacts_result);
         }
         std::cout << "PASS three real Qt windows: login, contacts group creation, member list, message author, "
                      "realtime, server restart and automatic recovery\n";

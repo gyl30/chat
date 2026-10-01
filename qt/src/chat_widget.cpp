@@ -1160,6 +1160,28 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
     auto* username_label = new QLabel(QStringLiteral("用户名"), info);
     username_label->setObjectName(QStringLiteral("profileInfoLabel"));
     info_layout->addWidget(username_label);
+    for (int row = 0; row < contacts_->rowCount(); ++row)
+    {
+        if (contacts_->user_at(contacts_->index(row, 0))->id != user)
+        {
+            continue;
+        }
+        auto* remove_button = new QPushButton(QStringLiteral("移除联系人"), info);
+        remove_button->setObjectName(QStringLiteral("removeContactButton"));
+        remove_button->setEnabled(connection_available_);
+        info_layout->addWidget(remove_button);
+        connect(remove_button, &QPushButton::clicked, &dialog, [this, &dialog, user, username] {
+            if (QMessageBox::question(&dialog, QStringLiteral("移除联系人"),
+                QStringLiteral("将 %1 从你的联系人中移除？聊天记录和群成员资格会保留。").arg(username),
+                QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes)
+            {
+                return;
+            }
+            dialog.accept();
+            emit contact_remove_requested(user);
+        });
+        break;
+    }
     layout->addWidget(info);
 
     connect(close_button, &QToolButton::clicked, &dialog, &QDialog::reject);

@@ -226,6 +226,10 @@ int run_group_tests()
                                                  { client.register_user(names.back(), "group password", handler); });
             require(registered.has_value(), "Register group fixture");
             data.users.push_back(*registered);
+            auto unauthenticated_remove = call<bool>(
+                [&](auto handler) { client.remove_contact(data.users.front(), handler); });
+            require(!unauthenticated_remove && unauthenticated_remove.error().code == -32001,
+                    "Contact removal requires authentication");
             auto authenticated = call<chat::authentication_result>(
                 [&](auto handler) { client.authenticate(names.back(), "group password", handler); });
             require(authenticated && authenticated->authenticated && authenticated->user == *registered,
@@ -495,6 +499,36 @@ int run_group_tests()
         require(conversation(c, group).last.text.size() == 40000 &&
                     conversation(c, *second_group).last.text.size() == 40000,
                 "Conversation summaries exceed a single message size");
+        require(call<chat::user>([&](auto handler) { b.add_contact(data.users[0], handler); }).has_value(),
+                "Create reverse contact");
+        auto before_remove = call<chat::messages_result>([&](auto handler) { a.get_messages(*direct, {}, handler); });
+        auto removed = call<bool>([&](auto handler) { a.remove_contact(data.users[1], handler); });
+        require(removed && *removed, "Remove owned contact");
+        auto removed_again = call<bool>([&](auto handler) { a.remove_contact(data.users[1], handler); });
+        require(removed_again && !*removed_again, "Contact removal is idempotent");
+        auto contacts_after_remove = call<std::vector<chat::user>>([&](auto handler) { a.get_contacts(handler); });
+        auto reverse_contacts = call<std::vector<chat::user>>([&](auto handler) { b.get_contacts(handler); });
+        require(contacts_after_remove && contacts_after_remove->size() == 1 &&
+                    contacts_after_remove->front().id == data.users[2] && reverse_contacts &&
+                    reverse_contacts->size() == 1 && reverse_contacts->front().id == data.users[0],
+                "Only the caller's contact relation is removed");
+        auto after_remove = call<chat::messages_result>([&](auto handler) { a.get_messages(*direct, {}, handler); });
+        require(before_remove && after_remove && before_remove->messages.size() == after_remove->messages.size() &&
+                    position(*before_remove, data.users[0]) == position(*after_remove, data.users[0]) &&
+                    conversation(a, group).member_count == 3,
+                "Removing contact preserves history, read position and group membership");
+        auto searchable_again = call<std::vector<chat::user>>(
+            [&](auto handler) { a.search_users(names[1], handler); });
+        require(searchable_again && searchable_again->size() == 1 && searchable_again->front().id == data.users[1],
+                "Removed contact can be added again");
+        auto invalid_remove = call<bool>([&](auto handler) { a.remove_contact(0, handler); });
+        auto self_remove = call<bool>([&](auto handler) { a.remove_contact(data.users[0], handler); });
+        require(!invalid_remove && invalid_remove.error().code == -32602 && !self_remove &&
+                    self_remove.error().code == -32602, "Invalid and self contact removal rejected");
+        auto presence_after_remove = call<std::vector<chat::presence>>([&](auto handler) { a.get_presence(handler); });
+        require(presence_after_remove && std::ranges::any_of(*presence_after_remove, [&](auto const& value)
+                    { return value.user == data.users[1]; }),
+                "Direct history retains presence after contact removal");
         {
             std::lock_guard lock(d_events.mutex);
             require(d_events.messages.empty() && d_events.updates.empty() && d_events.reads.empty() &&

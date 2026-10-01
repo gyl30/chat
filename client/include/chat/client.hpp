@@ -38,6 +38,7 @@ class client
     using send_message_handler = std::function<void(std::expected<send_message_result, error>)>;
     using users_handler = std::function<void(std::expected<std::vector<user>, error>)>;
     using user_handler = std::function<void(std::expected<user, error>)>;
+    using remove_contact_handler = std::function<void(std::expected<bool, error>)>;
     using mark_read_handler = std::function<void(std::expected<std::int64_t, error>)>;
     using presences_handler = std::function<void(std::expected<std::vector<presence>, error>)>;
     using message_handler = std::function<void(message)>;
@@ -82,6 +83,7 @@ class client
                       message_result_handler handler);
     void search_users(std::string query, users_handler handler);
     void add_contact(std::int64_t user, user_handler handler);
+    void remove_contact(std::int64_t user, remove_contact_handler handler);
     void mark_read(std::int64_t conversation, std::int64_t message, mark_read_handler handler);
 
    private:

@@ -206,9 +206,9 @@ boost::capy::task<void> chat_session::run()
 
         if (response.empty())
         {
-            if (request.method == kAddContactMethod)
+            if (request.method == kAddContactMethod || request.method == "remove_contact")
             {
-                rpc_error = co_await handle_add_contact(request, response);
+                rpc_error = co_await handle_contact_change(request, response);
             }
             else if (request.method == kAuthenticateMethod)
             {

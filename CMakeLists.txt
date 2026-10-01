@@ -99,7 +99,7 @@ endif()
 
 add_executable(chat_server
     src/main.cpp
-    src/add_contact_request.cpp
+    src/contact_request.cpp
     src/chat_session.cpp
     src/conversation_request.cpp
     src/authenticate_request.cpp
@@ -229,7 +229,7 @@ set_tests_properties(websocket PROPERTIES TIMEOUT 5)
 add_executable(chat_server_test
     tests/server_test.cpp
     tests/conversation_test.cpp
-    src/add_contact_request.cpp
+    src/contact_request.cpp
     src/chat_session.cpp
     src/conversation_request.cpp
     src/authenticate_request.cpp

@@ -407,6 +407,13 @@ void client_bridge::add_contact(qint64 user)
     });
 }
 
+void client_bridge::remove_contact(qint64 user)
+{
+    client_->remove_contact(user, [this](std::expected<bool, chat::error> result) {
+        emit contact_removed(result ? QString{} : from_utf8(result.error().message));
+    });
+}
+
 void client_bridge::mark_read(qint64 user, qint64 message)
 {
     client_->mark_read(user, message, [this, user](std::expected<std::int64_t, chat::error> result) {

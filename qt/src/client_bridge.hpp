@@ -44,6 +44,7 @@ class client_bridge final : public QObject
     void edit_message(qint64 conversation, qint64 message, QString text);
     void search_users(QString query);
     void add_contact(qint64 user);
+    void remove_contact(qint64 user);
     void mark_read(qint64 user, qint64 message);
 
    signals:
@@ -68,6 +69,7 @@ class client_bridge final : public QObject
                       quoted_message_data reply, QString error_message);
     void users_received(QList<user_data> users, QString error_message);
     void contact_added(user_data user, QString error_message);
+    void contact_removed(QString error_message);
     void read_marked(qint64 user, qint64 message, QString error_message);
 
    private:

@@ -431,6 +431,17 @@ main_window::main_window(QString server_url, QWidget* parent)
             },
             Qt::QueuedConnection);
 
+    connect(chat_page_, &chat_widget::contact_remove_requested, this,
+            [this](qint64 user) { client_->remove_contact(user); });
+    connect(client_.get(), &client_bridge::contact_removed, this, [this](QString const& error_message) {
+        if (!error_message.isEmpty())
+        {
+            QMessageBox::warning(this, QStringLiteral("移除联系人失败"), error_message);
+            return;
+        }
+        client_->get_contacts();
+        client_->get_presence();
+    }, Qt::QueuedConnection);
     connect(chat_page_, &chat_widget::direct_conversation_requested, this,
             [this](qint64 user, QString username) { client_->open_direct_conversation(user, std::move(username)); });
     connect(chat_page_, &chat_widget::group_create_requested, this, [this](QString title, QList<qint64> members)

@@ -25,7 +25,7 @@ class chat_session
    private:
     boost::capy::task<simdjson::error_code> handle_authenticate(json_rpc_request& request, std::string& response);
 
-    boost::capy::task<simdjson::error_code> handle_add_contact(json_rpc_request& request, std::string& response);
+    boost::capy::task<simdjson::error_code> handle_contact_change(json_rpc_request& request, std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_echo(json_rpc_request& request, std::string& response);
 
