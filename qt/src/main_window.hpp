@@ -41,7 +41,7 @@ class main_window final : public QMainWindow
     void set_registration_busy(bool busy);
     void show_login_error(QString message);
     void show_registration_error(QString message);
-    void show_authenticated_page();
+    void show_authenticated_page(qint64 user);
     void begin_reconnect();
     void reconnect_now();
     void schedule_reconnect();

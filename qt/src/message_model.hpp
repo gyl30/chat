@@ -26,20 +26,21 @@ class message_model final : public QAbstractListModel
     int rowCount(QModelIndex const& parent = {}) const override;
     QVariant data(QModelIndex const& index, int role) const override;
 
-    void set_self_username(QString username);
-    void reset(qint64 peer_user, QString peer_username = {});
+    void set_self_user(qint64 user);
+    void reset(qint64 conversation, bool group = false);
     int merge_messages(QList<message_data> messages);
     bool add_message(message_data message);
-    void set_read_message(qint64 message);
+    void set_read_message(qint64 user, qint64 message);
+    void set_read_positions(read_positions positions);
     qint64 first_message_id() const;
     qint64 last_message_id() const;
 
    private:
     QList<message_data> messages_;
-    QString self_username_;
-    QString peer_username_;
-    qint64 peer_user_ = 0;
-    qint64 read_message_ = 0;
+    qint64 self_user_ = 0;
+    qint64 conversation_ = 0;
+    bool group_ = false;
+    read_positions read_positions_;
 };
 
 #endif

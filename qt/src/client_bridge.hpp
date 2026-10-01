@@ -3,6 +3,8 @@
 
 #include <memory>
 #include <optional>
+#include <cstdint>
+#include <chat/conversation.hpp>
 
 #include <QObject>
 #include <QString>
@@ -31,9 +33,12 @@ class client_bridge final : public QObject
     void authenticate(QString const& username, QString const& password);
     void register_user(QString const& username, QString const& password);
     void get_conversations();
+    void open_direct_conversation(qint64 user, QString username);
+    void create_group(QString title, QList<qint64> members);
+    void get_members(qint64 conversation);
     void get_contacts();
     void get_presence();
-    void get_messages(qint64 user, std::optional<qint64> before = {});
+    void get_messages(qint64 conversation, std::optional<qint64> before = {}, std::optional<qint64> after = {});
     void send_message(qint64 user, QString text);
     void search_users(QString query);
     void add_contact(qint64 user);
@@ -43,21 +48,29 @@ class client_bridge final : public QObject
     void connected();
     void disconnected();
     void error(QString message);
-    void authentication_finished(bool authenticated, QString error_message, bool retryable_error);
+    void authentication_finished(bool authenticated, qint64 user, QString error_message, bool retryable_error);
     void registration_finished(qint64 user, QString error_message);
     void conversations_received(QList<conversation_data> conversations, QString error_message);
     void contacts_received(QList<user_data> contacts, QString error_message);
     void presences_received(QList<presence_data> users, QString error_message);
     void presence_changed(presence_data user);
-    void messages_received(qint64 user, QList<message_data> messages, qint64 read_message, bool older, QString error_message);
+    void messages_received(qint64 conversation, QList<message_data> messages, read_positions positions, bool older,
+                           bool recovering, bool has_more, QString error_message);
     void message_received(message_data message);
-    void messages_read(qint64 user, qint64 message);
+    void messages_read(qint64 conversation, qint64 user, qint64 message);
+    void conversation_opened(conversation_data conversation, QString error_message);
+    void members_received(qint64 conversation, QList<user_data> users, QString error_message);
+    void conversation_changed();
     void message_sent(qint64 user, QString text, qint64 message, qint64 timestamp, bool realtime, QString error_message);
     void users_received(QList<user_data> users, QString error_message);
     void contact_added(user_data user, QString error_message);
     void read_marked(qint64 user, qint64 message, QString error_message);
 
    private:
+     void get_conversations_page(std::optional<chat::conversation_cursor> before,
+                                 QList<conversation_data> conversations, std::uint64_t generation);
+     std::uint64_t conversations_generation_ = 0;
+     std::uint64_t messages_generation_ = 0;
     std::unique_ptr<chat::client> client_;
 };
 

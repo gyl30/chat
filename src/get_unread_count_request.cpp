@@ -13,7 +13,7 @@ namespace
 
 struct [[= simdjson::deny_unknown_fields]] get_unread_count_params
 {
-    std::int64_t user = 0;
+    std::int64_t conversation = 0;
 };
 
 simdjson::error_code parse_get_unread_count_params(json_rpc_params& params, get_unread_count_params& value)
@@ -42,7 +42,7 @@ simdjson::error_code parse_get_unread_count_params(json_rpc_params& params, get_
         return simdjson::TRAILING_CONTENT;
     }
 
-    if (value.user <= 0)
+    if (value.conversation <= 0)
     {
         return simdjson::INCORRECT_TYPE;
     }
@@ -96,15 +96,14 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_unread_count(js
 
         std::vector<std::string> parameters;
         parameters.emplace_back(std::to_string(*user_id_));
-        parameters.emplace_back(std::to_string(params.user));
+        parameters.emplace_back(std::to_string(params.conversation));
 
-        auto query_result = co_await lease.connection().execute_scalar(
-            "SELECT count(*)::text FROM messages "
-            "WHERE sender_id = $2::bigint AND recipient_id = $1::bigint "
-            "AND id > COALESCE(("
-            "SELECT last_read_message_id FROM message_read_positions "
-            "WHERE user_id = $1::bigint AND peer_user_id = $2::bigint"
-            "), 0)",
+        auto query_result = co_await lease.connection().execute_row(
+            "SELECT (SELECT count(*) FROM messages m WHERE m.conversation_id=c.id "
+            "AND m.id>own.last_read_message_id "
+            "AND (m.sender_id<>$1::bigint OR c.direct_user_low=c.direct_user_high))::text "
+            "FROM conversation_members own JOIN conversations c ON c.id=own.conversation_id "
+            "WHERE own.user_id=$1::bigint AND own.conversation_id=$2::bigint",
             std::move(parameters));
         auto& [query_ec, query_count] = query_result;
         if (query_ec)
@@ -115,7 +114,15 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_unread_count(js
             }
             co_return simdjson::SUCCESS;
         }
-        count = std::move(query_count);
+        if (!query_count)
+        {
+            if (request.id.present)
+            {
+                co_return serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response);
+            }
+            co_return simdjson::SUCCESS;
+        }
+        count = std::move(query_count->front());
     }
 
     if (!request.id.present)

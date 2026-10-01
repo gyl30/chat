@@ -327,3 +327,8 @@ void websocket_connection::message_callback(wslay_event_context_ptr, wslay_event
 
     self.messages_.push_back(std::move(result));
 }
+
+void websocket_connection::close() noexcept
+{
+    socket_.close();
+}

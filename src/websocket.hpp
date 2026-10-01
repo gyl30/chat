@@ -41,6 +41,8 @@ class websocket_connection
 
     void interrupt_receive() noexcept;
 
+    void close() noexcept;
+
     boost::capy::io_task<> send_text(std::string_view payload);
 
    private:

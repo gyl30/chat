@@ -18,7 +18,7 @@ constexpr std::size_t kMaxMessageSize = 64 * 1024;
 
 struct [[= simdjson::deny_unknown_fields]] send_message_params
 {
-    std::int64_t user = 0;
+    std::int64_t conversation = 0;
     std::string text;
 };
 
@@ -32,7 +32,9 @@ struct send_message_result
 struct message_params
 {
     std::int64_t id = 0;
+    std::int64_t conversation = 0;
     std::int64_t from = 0;
+    std::string username;
     std::int64_t timestamp = 0;
     std::string text;
 };
@@ -70,7 +72,7 @@ simdjson::error_code parse_send_message_params(json_rpc_params& params, send_mes
         return simdjson::TRAILING_CONTENT;
     }
 
-    if (value.user <= 0 || value.text.empty())
+    if (value.conversation <= 0 || value.text.empty())
     {
         return simdjson::INCORRECT_TYPE;
     }
@@ -122,7 +124,9 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
 
     message_notification notification{};
     notification.params.id = std::numeric_limits<std::int64_t>::max();
+    notification.params.conversation = params.conversation;
     notification.params.from = *user_id_;
+    notification.params.username = username_;
     notification.params.timestamp = std::numeric_limits<std::int64_t>::max();
     notification.params.text = std::move(params.text);
 
@@ -156,12 +160,16 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
 
         std::vector<std::string> parameters;
         parameters.emplace_back(std::to_string(*user_id_));
-        parameters.emplace_back(std::to_string(params.user));
+        parameters.emplace_back(std::to_string(params.conversation));
         parameters.emplace_back(notification.params.text);
         auto query_result = co_await lease.connection().execute_row(
-            "INSERT INTO messages (sender_id, recipient_id, body) "
-            "SELECT $1::bigint, id, $3 FROM users WHERE id = $2::bigint "
-            "RETURNING id::text, ((extract(epoch from created_at) * 1000)::bigint)::text",
+            "WITH locked AS (UPDATE conversations SET activity=(extract(epoch FROM clock_timestamp())*1000)::bigint "
+            "WHERE id=$2::bigint AND EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=$2::bigint AND "
+            "user_id=$1::bigint) RETURNING id), "
+            "inserted AS (INSERT INTO messages(sender_id,conversation_id,body) SELECT $1::bigint,id,$3 FROM locked "
+            "RETURNING id,created_at) SELECT inserted.id::text,((extract(epoch FROM "
+            "created_at)*1000)::bigint)::text,u.username "
+            "FROM inserted JOIN users u ON u.id=$1::bigint",
             std::move(parameters));
         auto& [query_ec, row] = query_result;
         if (query_ec)
@@ -176,11 +184,11 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         {
             if (request.id.present)
             {
-                co_return serialize_json_rpc_error(-32005, "User unavailable", std::move(request.id), response);
+                co_return serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response);
             }
             co_return simdjson::SUCCESS;
         }
-        if (row->size() != 2)
+        if (row->size() != 3)
         {
             if (request.id.present)
             {
@@ -190,6 +198,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         }
         id_text = std::move(row->at(0));
         timestamp_text = std::move(row->at(1));
+        notification.params.username = std::move(row->at(2));
     }
 
     auto const* first = id_text.data();
@@ -223,8 +232,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         co_return error;
     }
 
-    auto* recipient = users_.find(params.user);
-    auto const realtime = recipient && recipient->enqueue_message(std::move(notification_json));
+    auto const realtime = co_await publish_conversation(params.conversation, std::move(notification_json));
 
     if (!request.id.present)
     {

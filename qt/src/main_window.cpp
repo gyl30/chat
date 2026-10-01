@@ -282,8 +282,10 @@ main_window::main_window(QString server_url, QWidget* parent)
         }
     }, Qt::QueuedConnection);
 
-    connect(client_.get(), &client_bridge::authentication_finished, this,
-            [this](bool authenticated, QString const& error_message, bool retryable_error) {
+    connect(
+        client_.get(), &client_bridge::authentication_finished, this,
+        [this](bool authenticated, qint64 user, QString const& error_message, bool retryable_error)
+        {
                 auto const action = pending_action_;
                 if (action == pending_action::reconnect)
                 {
@@ -330,7 +332,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                 session_password_ = pending_password_;
                 pending_password_.clear();
                 status_label_->clear();
-                show_authenticated_page();
+            show_authenticated_page(user);
             },
             Qt::QueuedConnection);
 
@@ -429,6 +431,33 @@ main_window::main_window(QString server_url, QWidget* parent)
             },
             Qt::QueuedConnection);
 
+    connect(chat_page_, &chat_widget::direct_conversation_requested, this,
+            [this](qint64 user, QString username) { client_->open_direct_conversation(user, std::move(username)); });
+    connect(chat_page_, &chat_widget::group_create_requested, this, [this](QString title, QList<qint64> members)
+            { client_->create_group(std::move(title), std::move(members)); });
+    connect(chat_page_, &chat_widget::members_requested, this,
+            [this](qint64 conversation) { client_->get_members(conversation); });
+    connect(
+        client_.get(), &client_bridge::conversation_opened, this,
+        [this](conversation_data conversation, QString error)
+        {
+            if (!error.isEmpty())
+            {
+                chat_page_->set_error(std::move(error));
+                return;
+            }
+            chat_page_->open_conversation(std::move(conversation));
+            client_->get_conversations();
+        },
+        Qt::QueuedConnection);
+    connect(
+        client_.get(), &client_bridge::members_received, this,
+        [this](qint64 conversation, QList<user_data> users, QString error)
+        { chat_page_->set_members(conversation, std::move(users), std::move(error)); }, Qt::QueuedConnection);
+    connect(
+        client_.get(), &client_bridge::conversation_changed, this, [this] { client_->get_conversations(); },
+        Qt::QueuedConnection);
+
     connect(chat_page_, &chat_widget::conversation_selected, this,
             [this](qint64 user) { client_->get_messages(user); });
 
@@ -438,16 +467,19 @@ main_window::main_window(QString server_url, QWidget* parent)
     connect(chat_page_, &chat_widget::send_message_requested, this,
             [this](qint64 user, QString text) { client_->send_message(user, std::move(text)); });
 
-    connect(client_.get(), &client_bridge::messages_received, this,
-            [this](qint64 user, QList<message_data> messages, qint64 read_message, bool older, QString const& error_message) {
+    connect(
+        client_.get(), &client_bridge::messages_received, this,
+        [this](qint64 user, QList<message_data> messages, read_positions positions, bool older, bool recovering,
+               bool has_more, QString const& error_message)
+        {
                 if (!error_message.isEmpty())
                 {
                     chat_page_->set_message_error(user, error_message);
                     return;
                 }
 
-                chat_page_->set_messages(user, std::move(messages), read_message, older);
-                if (!older && chat_page_->active_user() == user)
+            chat_page_->set_messages(user, std::move(messages), std::move(positions), older, recovering, has_more);
+            if (!older && (!recovering || !has_more) && chat_page_->active_conversation() == user)
                 {
                     auto const message = chat_page_->latest_message_id();
                     if (message > 0)
@@ -458,12 +490,14 @@ main_window::main_window(QString server_url, QWidget* parent)
             },
             Qt::QueuedConnection);
 
-    connect(client_.get(), &client_bridge::message_received, this,
-            [this](message_data message) {
-                auto const user = message.from;
+    connect(
+        client_.get(), &client_bridge::message_received, this,
+        [this](message_data message)
+        {
+            auto const user = message.conversation;
                 auto const message_id = message.id;
                 chat_page_->add_message(user, std::move(message));
-                if (chat_page_->active_user() == user)
+            if (chat_page_->active_conversation() == user && chat_page_->messages_ready())
                 {
                     client_->mark_read(user, message_id);
                 }
@@ -475,9 +509,9 @@ main_window::main_window(QString server_url, QWidget* parent)
             },
             Qt::QueuedConnection);
 
-    connect(client_.get(), &client_bridge::messages_read, this,
-            [this](qint64 user, qint64 message) { chat_page_->set_read_message(user, message); },
-            Qt::QueuedConnection);
+    connect(
+        client_.get(), &client_bridge::messages_read, this, [this](qint64 conversation, qint64 user, qint64 message)
+        { chat_page_->set_read_message(conversation, user, message); }, Qt::QueuedConnection);
 
     connect(client_.get(), &client_bridge::message_sent, this,
             [this](qint64 user, QString text, qint64 message, qint64 timestamp, bool realtime, QString const& error_message) {
@@ -669,9 +703,9 @@ void main_window::show_registration_error(QString message)
     set_login_busy(false);
 }
 
-void main_window::show_authenticated_page()
+void main_window::show_authenticated_page(qint64 user)
 {
-    chat_page_->set_user(pending_username_);
+    chat_page_->set_user(pending_username_, user);
     chat_page_->set_connection_available(true);
     chat_page_->set_connection_status({}, false);
     chat_page_->set_loading();
@@ -773,10 +807,10 @@ void main_window::finish_reconnect()
     client_->get_conversations();
     client_->get_contacts();
     client_->get_presence();
-    auto const user = chat_page_->active_user();
+    auto const user = chat_page_->active_conversation();
     if (user > 0)
     {
-        client_->get_messages(user);
+        client_->get_messages(user, {}, chat_page_->recovery_cursor());
     }
 }
 

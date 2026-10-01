@@ -11,7 +11,9 @@ class conversation_model final : public QAbstractListModel
    public:
     enum role
     {
-        user_role = Qt::UserRole + 1,
+         id_role = Qt::UserRole + 1,
+         user_role,
+         group_role,
         username_role,
         last_text_role,
         last_timestamp_role,
@@ -27,7 +29,7 @@ class conversation_model final : public QAbstractListModel
     void set_conversations(QList<conversation_data> conversations);
     void set_online(qint64 user, bool online);
     conversation_data const* conversation_at(QModelIndex const& index) const;
-    QModelIndex index_for_user(qint64 user) const;
+     QModelIndex index_for_conversation(qint64 conversation) const;
 
    private:
     QList<conversation_data> conversations_;

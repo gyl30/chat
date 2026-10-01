@@ -22,6 +22,10 @@ QVariant conversation_model::data(QModelIndex const& index, int role) const
         case Qt::DisplayRole:
         case username_role:
             return item->username;
+        case id_role:
+            return item->id;
+        case group_role:
+            return item->group;
         case user_role:
             return item->user;
         case last_text_role:
@@ -49,7 +53,7 @@ void conversation_model::set_online(qint64 user, bool online)
     for (int row = 0; row < conversations_.size(); ++row)
     {
         auto& item = conversations_[row];
-        if (item.user != user)
+        if (item.group || item.user != user)
         {
             continue;
         }
@@ -75,11 +79,11 @@ conversation_data const* conversation_model::conversation_at(QModelIndex const& 
     return &conversations_[index.row()];
 }
 
-QModelIndex conversation_model::index_for_user(qint64 user) const
+QModelIndex conversation_model::index_for_conversation(qint64 conversation) const
 {
     for (int row = 0; row < conversations_.size(); ++row)
     {
-        if (conversations_[row].user == user)
+        if (conversations_[row].id == conversation)
         {
             return index(row, 0);
         }

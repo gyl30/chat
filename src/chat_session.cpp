@@ -36,6 +36,7 @@ bool chat_session::enqueue_message(std::string message)
 {
     if (outgoing_messages_.size() >= kMaxQueuedMessages)
     {
+        connection_.close();
         return false;
     }
 
@@ -77,8 +78,9 @@ boost::capy::task<void> chat_session::publish_presence(bool online)
         "SELECT COALESCE(string_agg(peer::text, ',' ORDER BY peer), '') FROM ("
         "SELECT owner_id AS peer FROM contacts WHERE contact_id = $1::bigint "
         "UNION "
-        "SELECT CASE WHEN sender_id = $1::bigint THEN recipient_id ELSE sender_id END AS peer "
-        "FROM messages WHERE sender_id = $1::bigint OR recipient_id = $1::bigint"
+        "SELECT CASE WHEN direct_user_low=$1::bigint THEN direct_user_high ELSE direct_user_low END AS peer "
+        "FROM conversations c WHERE kind='direct' AND (direct_user_low=$1::bigint OR direct_user_high=$1::bigint) "
+        "AND EXISTS(SELECT 1 FROM messages WHERE conversation_id=c.id)"
         ") AS peers WHERE peer <> $1::bigint",
         {user});
     auto& [watchers_ec, watchers] = watchers_result;
@@ -116,6 +118,48 @@ boost::capy::task<void> chat_session::publish_presence(bool online)
         }
         remaining.remove_prefix(separator + 1);
     }
+}
+
+boost::capy::task<bool> chat_session::publish_conversation(std::int64_t conversation, std::string notification)
+{
+    auto lease = co_await database_.acquire();
+    if (lease.error())
+    {
+        co_return false;
+    }
+    auto query_result = co_await lease.connection().execute_scalar(
+        "SELECT COALESCE(string_agg(m.user_id::text, ',' ORDER BY m.user_id),'') "
+        "FROM conversation_members m JOIN conversations c ON c.id=m.conversation_id "
+        "WHERE m.conversation_id=$1::bigint AND (m.user_id<>$2::bigint OR "
+        "(c.kind='direct' AND c.direct_user_low=c.direct_user_high))",
+        {std::to_string(conversation), std::to_string(*user_id_)});
+    auto& [ec, recipients] = query_result;
+    if (ec)
+    {
+        co_return false;
+    }
+    bool realtime = false;
+    std::string_view remaining = recipients;
+    while (!remaining.empty())
+    {
+        auto const separator = remaining.find(',');
+        auto const token = remaining.substr(0, separator);
+        std::int64_t recipient = 0;
+        auto const [end, parse_error] = std::from_chars(token.data(), token.data() + token.size(), recipient);
+        if (parse_error == std::errc{} && end == token.data() + token.size())
+        {
+            if (auto* session = users_.find(recipient))
+            {
+                realtime = session->enqueue_message(notification) || realtime;
+            }
+        }
+        if (separator == std::string_view::npos)
+        {
+            break;
+        }
+        remaining.remove_prefix(separator + 1);
+    }
+    co_return realtime;
 }
 
 boost::capy::task<void> chat_session::run()
@@ -177,6 +221,14 @@ boost::capy::task<void> chat_session::run()
             else if (request.method == kGetContactsMethod)
             {
                 rpc_error = co_await handle_get_contacts(request, response);
+            }
+            else if (request.method == "open_direct_conversation" || request.method == "create_group")
+            {
+                rpc_error = co_await handle_create_conversation(request, response);
+            }
+            else if (request.method == "get_members")
+            {
+                rpc_error = co_await handle_get_members(request, response);
             }
             else if (request.method == kGetConversationsMethod)
             {

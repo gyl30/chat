@@ -6,6 +6,8 @@
 #include <QClipboard>
 #include <QColor>
 #include <QDialog>
+#include <QDialogButtonBox>
+#include <QListWidget>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QGuiApplication>
@@ -104,9 +106,9 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     contacts_navigation_ =
         make_navigation_button(QStringLiteral("联系人"), QStringLiteral("contacts"), navigation_panel, false, true);
     navigation_layout->addWidget(contacts_navigation_, 0, Qt::AlignHCenter);
-    navigation_layout->addWidget(
-        make_navigation_button(QStringLiteral("群组"), QStringLiteral("groups"), navigation_panel, false, false),
-        0, Qt::AlignHCenter);
+    groups_navigation_ =
+        make_navigation_button(QStringLiteral("建群"), QStringLiteral("groups"), navigation_panel, false, true);
+    navigation_layout->addWidget(groups_navigation_, 0, Qt::AlignHCenter);
     navigation_layout->addWidget(
         make_navigation_button(QStringLiteral("动态"), QStringLiteral("activity"), navigation_panel, false, false),
         0, Qt::AlignHCenter);
@@ -341,6 +343,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
 
     connect(chats_navigation_, &QToolButton::clicked, this, [this] { show_conversations_section(); });
     connect(contacts_navigation_, &QToolButton::clicked, this, [this] { show_contacts_section(); });
+    connect(groups_navigation_, &QToolButton::clicked, this, [this] { create_group(); });
     connect(logout_navigation_, &QToolButton::clicked, this, [this] { emit logout_requested(); });
     connect(sidebar_back_button_, &QToolButton::clicked, this, [this] { show_contacts_section(); });
     connect(add_contact_button_, &QToolButton::clicked, this, [this] { show_add_contact_section(); });
@@ -352,19 +355,36 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     connect(conversations_delegate, &conversation_delegate::avatar_clicked, this, [this](QModelIndex const& index) {
         if (auto const* item = conversations_->conversation_at(index))
         {
+            if (item->group)
+            {
+                open_conversation(*item);
+                emit members_requested(item->id);
+            }
+            else
+            {
             show_user_details(item->user, item->username);
         }
-    });
-    connect(messages_delegate, &message_delegate::avatar_clicked, this, [this](QModelIndex const&) {
-        if (active_user_ > 0)
-        {
-            show_user_details(active_user_, active_username_);
         }
     });
-    connect(chat_title_, &QPushButton::clicked, this, [this] {
-        if (active_user_ > 0)
+    connect(messages_delegate, &message_delegate::avatar_clicked, this,
+            [this](QModelIndex const& index)
         {
-            show_user_details(active_user_, active_username_);
+                show_user_details(index.data(message_model::from_role).toLongLong(),
+                                  index.data(message_model::sender_name_role).toString());
+            });
+    connect(chat_title_, &QPushButton::clicked, this,
+            [this]
+            {
+                if (active_conversation_ > 0)
+                {
+                    if (active_group_)
+                    {
+                        emit members_requested(active_conversation_);
+                    }
+                    else
+                    {
+                        show_user_details(active_peer_, active_username_);
+                    }
         }
     });
     connect(connection_status_, &QToolButton::clicked, this, [this] {
@@ -383,18 +403,21 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     });
 }
 
-void chat_widget::set_user(QString const& username)
+void chat_widget::set_user(QString const& username, qint64 user)
 {
     profile_avatar_->setText(avatar_initial(username));
     profile_avatar_->setToolTip(username);
     profile_avatar_->setStyleSheet(QStringLiteral("background: %1;").arg(avatar_background(username).name()));
-    active_user_ = 0;
+    self_user_ = user;
+    active_peer_ = 0;
+    active_group_ = false;
+    active_conversation_ = 0;
     active_username_.clear();
     presence_.clear();
     conversations_->set_conversations({});
     conversations_view_->setCurrentIndex({});
     conversations_status_->setText(QStringLiteral("暂无会话"));
-    messages_->set_self_username(username);
+    messages_->set_self_user(user);
     messages_->reset(0);
     contacts_->set_users({});
     contacts_filter_->setFilterRegularExpression(QRegularExpression{});
@@ -422,8 +445,10 @@ void chat_widget::set_error(QString message) { conversations_status_->setText(st
 void chat_widget::set_connection_available(bool available)
 {
     connection_available_ = available;
-    message_edit_->setEnabled(available && active_user_ > 0);
-    send_button_->setEnabled(available && active_user_ > 0);
+    groups_navigation_->setEnabled(available);
+    messages_loading_ = available && active_conversation_ > 0;
+    message_edit_->setEnabled(available && active_conversation_ > 0);
+    send_button_->setEnabled(available && active_conversation_ > 0);
     add_contact_button_->setEnabled(available);
     add_user_search_->setEnabled(available);
 }
@@ -444,7 +469,7 @@ void chat_widget::set_connection_status(QString text, bool retry_enabled)
 
 void chat_widget::set_conversations(QList<conversation_data> conversations)
 {
-    auto const previous_user = active_user_;
+    auto const previous_user = active_conversation_;
     conversations_->set_conversations(std::move(conversations));
     for (auto const& item : presence_)
     {
@@ -460,7 +485,7 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
     conversations_status_->clear();
     if (previous_user > 0)
     {
-        auto const index = conversations_->index_for_user(previous_user);
+        auto const index = conversations_->index_for_conversation(previous_user);
         if (!index.isValid())
         {
             conversations_view_->setCurrentIndex({});
@@ -511,7 +536,7 @@ void chat_widget::set_presence(presence_data user)
     conversations_->set_online(user.user, user.online);
     contacts_->set_presence(user.user, user.online, user.last_seen);
     add_users_->set_presence(user.user, user.online, user.last_seen);
-    if (user.user == active_user_)
+    if (user.user == active_peer_)
     {
         update_chat_presence();
     }
@@ -548,21 +573,28 @@ void chat_widget::finish_add_contact()
     contacts_status_->setText(QStringLiteral("正在加载…"));
 }
 
-void chat_widget::set_messages(qint64 user, QList<message_data> messages, qint64 read_message, bool older)
+void chat_widget::set_messages(qint64 user, QList<message_data> messages, read_positions positions, bool older,
+                               bool recovering, bool has_more)
 {
-    if (user != active_user_)
+    if (user != active_conversation_)
     {
         return;
     }
 
-    auto const batch_size = messages.size();
+    if (!older && !messages.isEmpty())
+    {
+        synchronized_message_ = std::max(synchronized_message_, messages.back().id);
+    }
     auto* scroll = messages_view_->verticalScrollBar();
     auto const old_maximum = scroll->maximum();
     auto const old_value = scroll->value();
     messages_->merge_messages(std::move(messages));
-    messages_->set_read_message(read_message);
-    messages_loading_ = false;
-    history_exhausted_ = history_exhausted_ || batch_size < 50;
+    messages_->set_read_positions(std::move(positions));
+    messages_loading_ = recovering && has_more;
+    if (!recovering)
+    {
+        history_exhausted_ = history_exhausted_ || !has_more;
+    }
 
     if (!older)
     {
@@ -578,17 +610,17 @@ void chat_widget::set_messages(qint64 user, QList<message_data> messages, qint64
     });
 }
 
-void chat_widget::set_read_message(qint64 user, qint64 message)
+void chat_widget::set_read_message(qint64 conversation, qint64 user, qint64 message)
 {
-    if (user == active_user_)
+    if (conversation == active_conversation_)
     {
-        messages_->set_read_message(message);
+        messages_->set_read_message(user, message);
     }
 }
 
 void chat_widget::add_message(qint64 user, message_data message)
 {
-    if (user != active_user_)
+    if (user != active_conversation_)
     {
         return;
     }
@@ -602,14 +634,16 @@ void chat_widget::add_message(qint64 user, message_data message)
 
 void chat_widget::add_sent_message(qint64 user, qint64 message, qint64 timestamp, QString text)
 {
-    if (user != active_user_)
+    if (user != active_conversation_)
     {
         return;
     }
 
     message_data value;
     value.id = message;
-    value.from = 0;
+    value.conversation = user;
+    value.from = self_user_;
+    value.username = profile_avatar_->toolTip();
     value.timestamp = timestamp;
     value.text = std::move(text);
     add_message(user, std::move(value));
@@ -617,14 +651,17 @@ void chat_widget::add_sent_message(qint64 user, qint64 message, qint64 timestamp
 
 void chat_widget::set_message_error(qint64 user, QString message)
 {
-    if (user == active_user_)
+    if (user == active_conversation_)
     {
         messages_loading_ = false;
         set_message_status(std::move(message));
     }
 }
 
-qint64 chat_widget::active_user() const noexcept { return active_user_; }
+qint64 chat_widget::active_conversation() const noexcept
+{
+    return active_conversation_;
+}
 
 qint64 chat_widget::latest_message_id() const { return messages_->last_message_id(); }
 
@@ -751,12 +788,26 @@ void chat_widget::select_conversation(QModelIndex const& index)
     auto const* item = conversations_->conversation_at(index);
     if (item)
     {
-        open_chat(item->user, item->username);
+        open_conversation(*item);
     }
 }
 
 void chat_widget::open_chat(qint64 user, QString username)
 {
+    if (connection_available_)
+    {
+        emit direct_conversation_requested(user, std::move(username));
+    }
+}
+
+void chat_widget::open_conversation(conversation_data conversation)
+{
+    auto const user = conversation.id;
+    auto username = conversation.username;
+    active_peer_ = conversation.user;
+    active_group_ = conversation.group;
+    active_member_count_ = conversation.member_count;
+
     if (user <= 0)
     {
         return;
@@ -765,7 +816,7 @@ void chat_widget::open_chat(qint64 user, QString username)
     active_username_ = std::move(username);
     update_chat_header(active_username_);
 
-    auto const conversation_index = conversations_->index_for_user(user);
+    auto const conversation_index = conversations_->index_for_conversation(user);
     if (conversation_index.isValid())
     {
         conversations_view_->setCurrentIndex(conversation_index);
@@ -776,7 +827,7 @@ void chat_widget::open_chat(qint64 user, QString username)
         conversations_view_->clearSelection();
     }
 
-    if (active_user_ == user)
+    if (active_conversation_ == user)
     {
         if (!messages_loaded_ && !messages_loading_)
         {
@@ -784,14 +835,15 @@ void chat_widget::open_chat(qint64 user, QString username)
             set_message_status(QStringLiteral("正在加载消息…"));
             if (connection_available_)
             {
-                emit conversation_selected(active_user_);
+                emit conversation_selected(active_conversation_);
             }
         }
         return;
     }
 
-    active_user_ = user;
-    messages_->reset(active_user_, active_username_);
+    active_conversation_ = user;
+    messages_->reset(active_conversation_, active_group_);
+    synchronized_message_ = 0;
     messages_loaded_ = false;
     messages_loading_ = true;
     history_exhausted_ = false;
@@ -800,13 +852,100 @@ void chat_widget::open_chat(qint64 user, QString username)
     send_button_->setEnabled(connection_available_);
     if (connection_available_)
     {
-        emit conversation_selected(active_user_);
+        emit conversation_selected(active_conversation_);
     }
+}
+
+std::optional<qint64> chat_widget::recovery_cursor() const
+{
+    return messages_loaded_ ? std::optional<qint64>(synchronized_message_) : std::nullopt;
+}
+
+bool chat_widget::messages_ready() const
+{
+    return messages_loaded_ && !messages_loading_;
+}
+
+void chat_widget::create_group()
+{
+    if (!connection_available_)
+    {
+        return;
+    }
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("创建群聊"));
+    dialog.resize(380, 440);
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* title = new QLineEdit(&dialog);
+    title->setPlaceholderText(QStringLiteral("群名称"));
+    title->setMaxLength(64);
+    layout->addWidget(title);
+    auto* list = new QListWidget(&dialog);
+    for (int row = 0; row < contacts_->rowCount(); ++row)
+    {
+        auto const* user = contacts_->user_at(contacts_->index(row, 0));
+        auto* item = new QListWidgetItem(user->username, list);
+        item->setData(Qt::UserRole, user->id);
+        item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+        item->setCheckState(Qt::Unchecked);
+    }
+    layout->addWidget(list);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    buttons->button(QDialogButtonBox::Ok)->setText(QStringLiteral("创建"));
+    buttons->button(QDialogButtonBox::Cancel)->setText(QStringLiteral("取消"));
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog,
+            [&dialog, title, list]
+            {
+                bool selected = false;
+                for (int i = 0; i < list->count(); ++i)
+                {
+                    selected = selected || list->item(i)->checkState() == Qt::Checked;
+                }
+                if (!title->text().trimmed().isEmpty() && selected)
+                {
+                    dialog.accept();
+                }
+            });
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    if (dialog.exec() != QDialog::Accepted)
+    {
+        return;
+    }
+    QList<qint64> members;
+    for (int i = 0; i < list->count(); ++i)
+    {
+        if (list->item(i)->checkState() == Qt::Checked)
+        {
+            members.push_back(list->item(i)->data(Qt::UserRole).toLongLong());
+        }
+    }
+    emit group_create_requested(title->text().trimmed(), std::move(members));
+}
+
+void chat_widget::set_members(qint64 conversation, QList<user_data> users, QString error_message)
+{
+    if (conversation != active_conversation_)
+    {
+        return;
+    }
+    if (!error_message.isEmpty())
+    {
+        set_message_status(std::move(error_message));
+        return;
+    }
+    QStringList names;
+    for (auto const& user : users)
+    {
+        names.push_back(user.username);
+    }
+    QMessageBox::information(this, active_username_ + QStringLiteral(" · 群成员"), names.join(QStringLiteral("\n")));
 }
 
 void chat_widget::request_older_messages()
 {
-    if (!connection_available_ || active_user_ <= 0 || !messages_loaded_ || messages_loading_ || history_exhausted_)
+    if (!connection_available_ || active_conversation_ <= 0 || !messages_loaded_ || messages_loading_ ||
+        history_exhausted_)
     {
         return;
     }
@@ -819,12 +958,12 @@ void chat_widget::request_older_messages()
     }
 
     messages_loading_ = true;
-    emit older_messages_requested(active_user_, before);
+    emit older_messages_requested(active_conversation_, before);
 }
 
 void chat_widget::send_current_message()
 {
-    if (!connection_available_ || active_user_ <= 0 || message_edit_->text().isEmpty())
+    if (!connection_available_ || active_conversation_ <= 0 || message_edit_->text().isEmpty())
     {
         return;
     }
@@ -832,7 +971,7 @@ void chat_widget::send_current_message()
     auto text = message_edit_->text();
     message_edit_->clear();
     set_message_status({});
-    emit send_message_requested(active_user_, std::move(text));
+    emit send_message_requested(active_conversation_, std::move(text));
 }
 
 void chat_widget::show_user_details(qint64 user, QString const& username)
@@ -958,14 +1097,21 @@ void chat_widget::update_chat_header(QString const& username)
 
 void chat_widget::update_chat_presence()
 {
-    if (active_user_ <= 0)
+    if (active_conversation_ <= 0)
     {
         chat_presence_->clear();
         chat_presence_->hide();
         return;
     }
 
-    auto const presence = presence_.value(active_user_);
+    if (active_group_)
+    {
+        chat_presence_->setObjectName(QStringLiteral("chatPresence"));
+        chat_presence_->setText(QStringLiteral("%1 名成员 · 点击群名称查看").arg(active_member_count_));
+        chat_presence_->show();
+        return;
+    }
+    auto const presence = presence_.value(active_peer_);
     auto const text = presence_text(presence.online, presence.last_seen);
     if (text.isEmpty())
     {

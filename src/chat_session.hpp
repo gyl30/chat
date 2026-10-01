@@ -33,6 +33,11 @@ class chat_session
 
     boost::capy::task<simdjson::error_code> handle_get_contacts(json_rpc_request& request, std::string& response);
 
+    boost::capy::task<simdjson::error_code> handle_create_conversation(json_rpc_request& request,
+                                                                       std::string& response);
+
+    boost::capy::task<simdjson::error_code> handle_get_members(json_rpc_request& request, std::string& response);
+
     boost::capy::task<simdjson::error_code> handle_get_messages(json_rpc_request& request, std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_get_presence(json_rpc_request& request, std::string& response);
@@ -49,12 +54,15 @@ class chat_session
 
     boost::capy::task<void> publish_presence(bool online);
 
+    boost::capy::task<bool> publish_conversation(std::int64_t conversation, std::string notification);
+
     bool enqueue_message(std::string message);
 
     websocket_connection& connection_;
     online_users& users_;
     pg_connection_pool& database_;
     std::optional<std::int64_t> user_id_;
+    std::string username_;
     std::deque<std::string> outgoing_messages_;
 };
 

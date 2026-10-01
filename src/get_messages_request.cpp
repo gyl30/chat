@@ -15,8 +15,9 @@ namespace
 
 struct [[= simdjson::deny_unknown_fields]] get_messages_params
 {
-    std::int64_t user = 0;
+    std::int64_t conversation = 0;
     std::optional<std::int64_t> before;
+    std::optional<std::int64_t> after;
 };
 
 simdjson::error_code parse_get_messages_params(json_rpc_params& params, get_messages_params& value)
@@ -45,23 +46,13 @@ simdjson::error_code parse_get_messages_params(json_rpc_params& params, get_mess
         return simdjson::TRAILING_CONTENT;
     }
 
-    if (value.user <= 0 || (value.before && *value.before <= 0))
+    if (value.conversation <= 0 || (value.before && *value.before <= 0) || (value.after && *value.after < 0) ||
+        (value.before && value.after))
     {
         return simdjson::INCORRECT_TYPE;
     }
 
     return simdjson::SUCCESS;
-}
-
-simdjson::error_code serialize_get_messages_result(
-    std::string_view messages, std::string_view read_message, json_rpc_id id, std::string& response)
-{
-    std::string result = R"({"messages":)";
-    result.append(messages);
-    result.append(R"(,"read":)");
-    result.append(read_message);
-    result.push_back('}');
-    return serialize_json_rpc_success(result, std::move(id), response);
 }
 
 }    // namespace
@@ -88,57 +79,43 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
         co_return simdjson::SUCCESS;
     }
 
-    std::string messages_json;
-    std::string read_message;
-    {
         auto lease = co_await database_.acquire();
         if (lease.error())
         {
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            co_return simdjson::SUCCESS;
-        }
-
-        std::vector<std::string> parameters;
-        parameters.emplace_back(std::to_string(*user_id_));
-        parameters.emplace_back(std::to_string(params.user));
-        parameters.emplace_back(std::to_string(params.before.value_or(std::numeric_limits<std::int64_t>::max())));
-
-        auto query_result = co_await lease.connection().execute_row(
-            "SELECT COALESCE(("
-            "SELECT array_to_json(array_agg(row_to_json(page) ORDER BY id ASC)) FROM ("
-            "SELECT id, sender_id AS \"from\", "
-            "(extract(epoch from created_at) * 1000)::bigint AS timestamp, body AS text FROM messages "
-            "WHERE ((sender_id = $1::bigint AND recipient_id = $2::bigint) "
-            "OR (sender_id = $2::bigint AND recipient_id = $1::bigint)) "
-            "AND id < $3::bigint "
-            "ORDER BY id DESC LIMIT 50"
-            ") AS page"
-            "), '[]'::json)::text, "
-            "COALESCE(("
-            "SELECT last_read_message_id FROM message_read_positions "
-            "WHERE user_id = $2::bigint AND peer_user_id = $1::bigint"
-            "), 0)::text",
-            std::move(parameters));
-        auto& [query_ec, row] = query_result;
-        if (query_ec || !row || row->size() != 2)
-        {
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            co_return simdjson::SUCCESS;
-        }
-        messages_json = std::move(row->at(0));
-        read_message = std::move(row->at(1));
+        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
-
+    std::string query = R"SQL(
+        WITH page AS (
+            SELECT m.id,m.conversation_id AS conversation,m.sender_id AS "from",u.username,
+                   (extract(epoch FROM m.created_at)*1000)::bigint AS timestamp,m.body AS text
+            FROM messages m JOIN users u ON u.id=m.sender_id
+            WHERE m.conversation_id=$2::bigint AND )SQL";
+    query += params.after ? "m.id>$3::bigint ORDER BY m.id ASC" : "m.id<$3::bigint ORDER BY m.id DESC";
+    query += " LIMIT 51), visible AS (SELECT * FROM page ORDER BY id ";
+    query += params.after ? "ASC" : "DESC";
+    query += R"SQL( LIMIT 50)
+        SELECT json_build_object('messages',COALESCE((SELECT json_agg(row_to_json(v) ORDER BY id) FROM visible v),'[]'::json),
+            'read_positions',(SELECT json_agg(json_build_object('user',user_id,'message',last_read_message_id) ORDER BY user_id)
+                FROM conversation_members WHERE conversation_id=$2::bigint),
+            'has_more',(SELECT count(*) FROM page)>50)::text
+        FROM conversation_members WHERE conversation_id=$2::bigint AND user_id=$1::bigint
+    )SQL";
+    auto query_result = co_await lease.connection().execute_row(
+        std::move(query),
+        {std::to_string(*user_id_), std::to_string(params.conversation),
+         std::to_string(params.after.value_or(params.before.value_or(std::numeric_limits<std::int64_t>::max())))});
+    auto& [ec, row] = query_result;
+    if (ec)
+            {
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+    if (!row)
+    {
+        co_return serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response);
+        }
     if (!request.id.present)
     {
         co_return simdjson::SUCCESS;
     }
-
-    co_return serialize_get_messages_result(messages_json, read_message, std::move(request.id), response);
+    co_return serialize_json_rpc_success(row->front(), std::move(request.id), response);
 }

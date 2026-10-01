@@ -105,7 +105,10 @@ bool parse_message(boost::json::object const& object, message& value)
     auto const* from_value = object.if_contains("from");
     auto const* timestamp_value = object.if_contains("timestamp");
     auto const* text_value = object.if_contains("text");
-    if (!id_value || !from_value || !timestamp_value || !text_value || !text_value->is_string())
+    auto const* conversation_value = object.if_contains("conversation");
+    auto const* username_value = object.if_contains("username");
+    if (!conversation_value || !username_value || !username_value->is_string() || !id_value || !from_value ||
+        !timestamp_value || !text_value || !text_value->is_string())
     {
         return false;
     }
@@ -113,12 +116,15 @@ bool parse_message(boost::json::object const& object, message& value)
     auto id = parse_int64(*id_value);
     auto from = parse_int64(*from_value);
     auto timestamp = parse_int64(*timestamp_value);
-    if (!id || *id <= 0 || !from || *from <= 0 || !timestamp || *timestamp <= 0)
+    auto conversation = parse_int64(*conversation_value);
+    if (!conversation || *conversation <= 0 || !id || *id <= 0 || !from || *from <= 0 || !timestamp || *timestamp <= 0)
     {
         return false;
     }
 
     value.id = *id;
+    value.conversation = *conversation;
+    value.username = std::string(username_value->as_string());
     value.from = *from;
     value.timestamp = *timestamp;
     value.text = std::string(text_value->as_string());
@@ -251,7 +257,7 @@ struct client::impl
         }
     }
 
-    void notify_read(std::int64_t user, std::int64_t message)
+    void notify_read(std::int64_t conversation, std::int64_t user, std::int64_t message)
     {
         if (suppress_callbacks_.load())
         {
@@ -265,7 +271,7 @@ struct client::impl
         }
         if (handler)
         {
-            handler(user, message);
+            handler(conversation, user, message);
         }
     }
 
@@ -361,21 +367,23 @@ struct client::impl
 
             if (method->as_string() == "read")
             {
+                auto const* conversation_value = params->as_object().if_contains("conversation");
                 auto const* user_value = params->as_object().if_contains("user");
                 auto const* message_value = params->as_object().if_contains("message");
-                if (!user_value || !message_value)
+                if (!conversation_value || !user_value || !message_value)
                 {
                     report_error(make_error(error_kind::protocol, "Invalid read notification"));
                     return;
                 }
+                auto conversation = parse_int64(*conversation_value);
                 auto user = parse_int64(*user_value);
                 auto read_message = parse_int64(*message_value);
-                if (!user || *user <= 0 || !read_message || *read_message <= 0)
+                if (!conversation || *conversation <= 0 || !user || *user <= 0 || !read_message || *read_message <= 0)
                 {
                     report_error(make_error(error_kind::protocol, "Invalid read notification"));
                     return;
                 }
-                notify_read(*user, *read_message);
+                notify_read(*conversation, *user, *read_message);
                 return;
             }
 
@@ -388,6 +396,27 @@ struct client::impl
                     return;
                 }
                 notify_presence(std::move(notification));
+                return;
+            }
+
+            if (method->as_string() == "conversation")
+            {
+                auto const* value = params->as_object().if_contains("conversation");
+                auto id = value ? parse_int64(*value) : std::nullopt;
+                if (!id || *id <= 0)
+                {
+                    report_error(make_error(error_kind::protocol, "Invalid conversation notification"));
+                    return;
+                }
+                conversation_changed_handler handler;
+                {
+                    std::lock_guard lock(handler_mutex_);
+                    handler = conversation_handler_;
+                }
+                if (handler && !suppress_callbacks_.load())
+                {
+                    handler(*id);
+                }
                 return;
             }
 
@@ -572,7 +601,14 @@ struct client::impl
                 handler(std::unexpected(make_error(error_kind::protocol, "Invalid authenticate result")));
                 return;
             }
-            handler(authenticated->as_bool());
+            auto const* user_value = response->as_object().if_contains("user");
+            auto user = user_value ? parse_int64(*user_value) : std::nullopt;
+            if (!user || *user < 0 || (authenticated->as_bool() && *user == 0))
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid authenticate identity")));
+                return;
+            }
+            handler(authentication_result{authenticated->as_bool(), *user});
         });
 
         co_return;
@@ -615,15 +651,17 @@ struct client::impl
         co_return;
     }
 
-    boost::capy::task<> get_conversations(std::optional<std::int64_t> before, conversations_handler handler)
+    boost::capy::task<> get_conversations(std::optional<conversation_cursor> before, conversations_handler handler)
     {
         boost::json::object params;
         if (before)
         {
-            params.emplace("before", *before);
+            params.emplace("before", boost::json::object{{"activity", before->activity}, {"id", before->id}});
         }
-
-        send_request("get_conversations", std::move(params), [handler = std::move(handler)](auto response) mutable {
+        send_request(
+            "get_conversations", std::move(params),
+            [handler = std::move(handler)](auto response) mutable
+            {
             if (!response)
             {
                 handler(std::unexpected(std::move(response.error())));
@@ -631,81 +669,125 @@ struct client::impl
             }
             if (!response->is_object())
             {
-                handler(std::unexpected(make_error(error_kind::protocol, "Invalid get_conversations result")));
+                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversations")));
                 return;
             }
-
-            auto const* conversations_value = response->as_object().if_contains("conversations");
-            if (!conversations_value || !conversations_value->is_array())
+                auto const* list = response->as_object().if_contains("conversations");
+                auto const* next = response->as_object().if_contains("next");
+                if (!list || !list->is_array() || !next)
             {
-                handler(std::unexpected(make_error(error_kind::protocol, "Invalid get_conversations result")));
+                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversations")));
                 return;
             }
-
-            std::vector<conversation> conversations;
-            conversations.reserve(conversations_value->as_array().size());
-            for (auto const& value : conversations_value->as_array())
+                conversations_result result;
+                for (auto const& value : list->as_array())
             {
                 if (!value.is_object())
                 {
                     handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation")));
                     return;
                 }
-
                 auto const& object = value.as_object();
+                    auto const* id_value = object.if_contains("id");
+                    auto const* kind = object.if_contains("kind");
                 auto const* user_value = object.if_contains("user");
-                auto const* username_value = object.if_contains("username");
-                auto const* last_value = object.if_contains("last");
+                    auto const* name = object.if_contains("username");
+                    auto const* last = object.if_contains("last");
                 auto const* unread_value = object.if_contains("unread");
-                if (!user_value || !username_value || !username_value->is_string() || !last_value || !last_value->is_object() || !unread_value)
+                    auto const* count_value = object.if_contains("member_count");
+                    auto id = id_value ? parse_int64(*id_value) : std::nullopt;
+                    auto unread = unread_value ? parse_uint64(*unread_value) : std::nullopt;
+                    auto count = count_value ? parse_uint64(*count_value) : std::nullopt;
+                    if (!id || *id <= 0 || !kind || !kind->is_string() || !user_value || !name || !name->is_string() ||
+                        !last || !unread || !count || *count == 0)
                 {
                     handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation")));
                     return;
                 }
-
-                auto user = parse_int64(*user_value);
-                auto unread = parse_uint64(*unread_value);
-                auto const& last_object = last_value->as_object();
-                auto const* id_value = last_object.if_contains("id");
-                auto const* from_value = last_object.if_contains("from");
-                auto const* timestamp_value = last_object.if_contains("timestamp");
-                auto const* text_value = last_object.if_contains("text");
-                if (!user || *user <= 0 || !unread || !id_value || !from_value || !timestamp_value || !text_value ||
-                    !text_value->is_string())
+                    conversation item;
+                    item.id = *id;
+                    item.username = std::string(name->as_string());
+                    item.unread = *unread;
+                    item.member_count = *count;
+                    if (kind->as_string() == "direct")
                 {
-                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation")));
+                        auto peer = parse_int64(*user_value);
+                        if (!peer || *peer <= 0)
+                        {
+                            handler(std::unexpected(make_error(error_kind::protocol, "Invalid direct conversation")));
                     return;
                 }
-
-                auto id = parse_int64(*id_value);
-                auto from = parse_int64(*from_value);
-                auto timestamp = parse_int64(*timestamp_value);
-                if (!id || *id <= 0 || !from || *from <= 0 || !timestamp || *timestamp <= 0)
+                        item.user = *peer;
+                    }
+                    else if (kind->as_string() == "group" && user_value->is_null())
                 {
-                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation")));
+                        item.kind = conversation_kind::group;
+                    }
+                    else
+                    {
+                        handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation kind")));
                     return;
                 }
-
-                conversation item;
-                item.user = *user;
-                item.username = std::string(username_value->as_string());
-                item.last.id = *id;
-                item.last.from = *from;
-                item.last.timestamp = *timestamp;
-                item.last.text = std::string(text_value->as_string());
-                item.unread = *unread;
-                conversations.push_back(std::move(item));
+                    if (!last->is_null() && (!last->is_object() || !parse_message(last->as_object(), item.last) ||
+                                             item.last.conversation != item.id))
+                    {
+                        handler(std::unexpected(make_error(error_kind::protocol, "Invalid last message")));
+                        return;
             }
-
-            handler(std::move(conversations));
+                    result.conversations.push_back(std::move(item));
+                }
+                if (!next->is_null())
+                {
+                    if (!next->is_object())
+                    {
+                        handler(std::unexpected(make_error(error_kind::protocol, "Invalid cursor")));
+                        return;
+                    }
+                    auto const* activity = next->as_object().if_contains("activity");
+                    auto const* id = next->as_object().if_contains("id");
+                    auto a = activity ? parse_int64(*activity) : std::nullopt;
+                    auto i = id ? parse_int64(*id) : std::nullopt;
+                    if (!a || *a <= 0 || !i || *i <= 0)
+                    {
+                        handler(std::unexpected(make_error(error_kind::protocol, "Invalid cursor")));
+                        return;
+                    }
+                    result.next = conversation_cursor{*a, *i};
+                }
+                handler(std::move(result));
         });
-
         co_return;
     }
 
-    boost::capy::task<> get_contacts(users_handler handler)
+    boost::capy::task<> create_conversation(std::string method, boost::json::object params,
+                                            conversation_handler handler)
     {
-        send_request("get_contacts", {}, [handler = std::move(handler)](auto response) mutable {
+        send_request(std::move(method), std::move(params),
+                     [handler = std::move(handler)](auto response) mutable
+                     {
+                         if (!response)
+                         {
+                             handler(std::unexpected(std::move(response.error())));
+                             return;
+                         }
+                         auto const* value =
+                             response->is_object() ? response->as_object().if_contains("conversation") : nullptr;
+                         auto id = value ? parse_int64(*value) : std::nullopt;
+                         if (!id || *id <= 0)
+                         {
+                             handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation result")));
+                             return;
+                         }
+                         handler(*id);
+                     });
+        co_return;
+    }
+
+    boost::capy::task<> get_users(std::string method, boost::json::object params, users_handler handler)
+    {
+        send_request(std::move(method), std::move(params),
+                     [handler = std::move(handler)](auto response) mutable
+                     {
             if (!response)
             {
                 handler(std::unexpected(std::move(response.error())));
@@ -795,16 +877,23 @@ struct client::impl
         co_return;
     }
 
-    boost::capy::task<> get_messages(std::int64_t user, std::optional<std::int64_t> before, messages_handler handler)
+    boost::capy::task<> get_messages(std::int64_t conversation, std::optional<std::int64_t> before,
+                                     messages_handler handler, std::optional<std::int64_t> after)
     {
         boost::json::object params;
-        params.emplace("user", user);
+        params.emplace("conversation", conversation);
         if (before)
         {
             params.emplace("before", *before);
         }
 
-        send_request("get_messages", std::move(params), [handler = std::move(handler)](auto response) mutable {
+        if (after)
+        {
+            params.emplace("after", *after);
+        }
+        send_request("get_messages", std::move(params),
+                     [conversation, handler = std::move(handler)](auto response) mutable
+                     {
             if (!response)
             {
                 handler(std::unexpected(std::move(response.error())));
@@ -817,21 +906,32 @@ struct client::impl
             }
 
             auto const* messages_value = response->as_object().if_contains("messages");
-            auto const* read_value = response->as_object().if_contains("read");
-            if (!messages_value || !messages_value->is_array() || !read_value)
-            {
-                handler(std::unexpected(make_error(error_kind::protocol, "Invalid get_messages result")));
-                return;
-            }
-
-            auto read_message = parse_int64(*read_value);
-            if (!read_message || *read_message < 0)
+                         auto const* read_value = response->as_object().if_contains("read_positions");
+                         auto const* more_value = response->as_object().if_contains("has_more");
+                         if (!messages_value || !messages_value->is_array() || !read_value || !read_value->is_array() ||
+                             !more_value || !more_value->is_bool())
             {
                 handler(std::unexpected(make_error(error_kind::protocol, "Invalid get_messages result")));
                 return;
             }
 
             messages_result result;
+                         result.has_more = more_value->as_bool();
+                         for (auto const& position : read_value->as_array())
+                         {
+                             auto const* user_value =
+                                 position.is_object() ? position.as_object().if_contains("user") : nullptr;
+                             auto const* message_value =
+                                 position.is_object() ? position.as_object().if_contains("message") : nullptr;
+                             auto user = user_value ? parse_int64(*user_value) : std::nullopt;
+                             auto message = message_value ? parse_int64(*message_value) : std::nullopt;
+                             if (!user || *user <= 0 || !message || *message < 0)
+                             {
+                                 handler(std::unexpected(make_error(error_kind::protocol, "Invalid read position")));
+                                 return;
+                             }
+                             result.read_positions.push_back(read_position{*user, *message});
+                         }
             result.messages.reserve(messages_value->as_array().size());
             for (auto const& value : messages_value->as_array())
             {
@@ -842,24 +942,23 @@ struct client::impl
                 }
 
                 message item;
-                if (!parse_message(value.as_object(), item))
+                             if (!parse_message(value.as_object(), item) || item.conversation != conversation)
                 {
                     handler(std::unexpected(make_error(error_kind::protocol, "Invalid message")));
                     return;
                 }
                 result.messages.push_back(std::move(item));
             }
-            result.read_message = *read_message;
             handler(std::move(result));
         });
 
         co_return;
     }
 
-    boost::capy::task<> send_message(std::int64_t user, std::string text, send_message_handler handler)
+    boost::capy::task<> send_message(std::int64_t conversation, std::string text, send_message_handler handler)
     {
         boost::json::object params;
-        params.emplace("user", user);
+        params.emplace("conversation", conversation);
         params.emplace("text", std::move(text));
 
         send_request("send_message", std::move(params), [handler = std::move(handler)](auto response) mutable {
@@ -988,10 +1087,10 @@ struct client::impl
         co_return;
     }
 
-    boost::capy::task<> mark_read(std::int64_t user, std::int64_t message_id, mark_read_handler handler)
+    boost::capy::task<> mark_read(std::int64_t conversation, std::int64_t message_id, mark_read_handler handler)
     {
         boost::json::object params;
-        params.emplace("user", user);
+        params.emplace("conversation", conversation);
         params.emplace("message", message_id);
 
         send_request("mark_read", std::move(params), [handler = std::move(handler)](auto response) mutable {
@@ -1042,6 +1141,7 @@ struct client::impl
     error_handler error_handler_;
     message_handler message_handler_;
     read_handler read_handler_;
+    conversation_changed_handler conversation_handler_;
     presence_handler presence_handler_;
     std::atomic_bool suppress_callbacks_ = false;
 };
@@ -1106,14 +1206,43 @@ void client::register_user(std::string username, std::string password, register_
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->register_user(std::move(username), std::move(password), std::move(handler)));
 }
 
-void client::get_conversations(std::optional<std::int64_t> before, conversations_handler handler)
+void client::get_conversations(std::optional<conversation_cursor> before, conversations_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_conversations(before, std::move(handler)));
 }
 
+void client::open_direct_conversation(std::int64_t user, conversation_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->create_conversation("open_direct_conversation", {{"user", user}}, std::move(handler)));
+}
+
+void client::create_group(std::string title, std::vector<std::int64_t> members, conversation_handler handler)
+{
+    boost::json::array values;
+    for (auto id : members)
+    {
+        values.emplace_back(id);
+    }
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->create_conversation(
+        "create_group", {{"title", std::move(title)}, {"members", std::move(values)}}, std::move(handler)));
+}
+
+void client::get_members(std::int64_t conversation, users_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->get_users("get_members", {{"conversation", conversation}}, std::move(handler)));
+}
+
+void client::set_conversation_handler(conversation_changed_handler handler)
+{
+    std::lock_guard lock(impl_->handler_mutex_);
+    impl_->conversation_handler_ = std::move(handler);
+}
+
 void client::get_contacts(users_handler handler)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_contacts(std::move(handler)));
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_users("get_contacts", {}, std::move(handler)));
 }
 
 void client::get_presence(presences_handler handler)
@@ -1121,9 +1250,11 @@ void client::get_presence(presences_handler handler)
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_presence(std::move(handler)));
 }
 
-void client::get_messages(std::int64_t user, std::optional<std::int64_t> before, messages_handler handler)
+void client::get_messages(std::int64_t conversation, std::optional<std::int64_t> before, messages_handler handler,
+                          std::optional<std::int64_t> after)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_messages(user, before, std::move(handler)));
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->get_messages(conversation, before, std::move(handler), after));
 }
 
 void client::send_message(std::int64_t user, std::string text, send_message_handler handler)

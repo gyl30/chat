@@ -90,6 +90,8 @@ add_compile_options(
     -Wpedantic
 )
 
+enable_testing()
+
 option(CHAT_BUILD_QT_CLIENT "Build Qt Widgets client" OFF)
 if(CHAT_BUILD_QT_CLIENT)
     add_subdirectory(qt)
@@ -99,6 +101,7 @@ add_executable(chat_server
     src/main.cpp
     src/add_contact_request.cpp
     src/chat_session.cpp
+    src/conversation_request.cpp
     src/authenticate_request.cpp
     src/echo_request.cpp
     src/get_contacts_request.cpp
@@ -132,7 +135,10 @@ target_link_libraries(chat_server
         wslay
 )
 
-enable_testing()
+add_executable(chat_migration_test tests/migration_test.cpp)
+target_link_libraries(chat_migration_test PRIVATE PostgreSQL::PostgreSQL)
+add_test(NAME migration COMMAND chat_migration_test "${CMAKE_CURRENT_SOURCE_DIR}/sql")
+set_tests_properties(migration PROPERTIES TIMEOUT 15)
 
 add_executable(chat_client_test
     client/tests/client_test.cpp
@@ -221,8 +227,10 @@ set_tests_properties(websocket PROPERTIES TIMEOUT 5)
 
 add_executable(chat_server_test
     tests/server_test.cpp
+    tests/conversation_test.cpp
     src/add_contact_request.cpp
     src/chat_session.cpp
+    src/conversation_request.cpp
     src/authenticate_request.cpp
     src/echo_request.cpp
     src/get_contacts_request.cpp
@@ -246,6 +254,8 @@ target_include_directories(chat_server_test PRIVATE src)
 
 target_link_libraries(chat_server_test
     PRIVATE
+        chat_client
+        Boost::json
         Boost::capy
         Boost::corosio
         Boost::http
@@ -256,7 +266,7 @@ target_link_libraries(chat_server_test
 )
 
 add_test(NAME server COMMAND chat_server_test)
-set_tests_properties(server PROPERTIES TIMEOUT 5)
+set_tests_properties(server PROPERTIES TIMEOUT 30)
 
 add_executable(chat_simdjson_reflection_test
     tests/simdjson_reflection_test.cpp

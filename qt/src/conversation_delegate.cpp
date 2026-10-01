@@ -64,11 +64,12 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     auto const last_text = index.data(conversation_model::last_text_role).toString();
     auto const last_timestamp = index.data(conversation_model::last_timestamp_role).toLongLong();
     auto const unread = index.data(conversation_model::unread_role).toULongLong();
+    auto const group = index.data(conversation_model::group_role).toBool();
     auto const online = index.data(conversation_model::online_role).toBool();
 
     QRect avatar_rect(rect.left() + chat_theme::dialog_left, rect.top() + chat_theme::dialog_avatar_top,
                       chat_theme::dialog_avatar_size, chat_theme::dialog_avatar_size);
-    paint_avatar(*painter, avatar_rect, username, 17);
+    paint_avatar(*painter, avatar_rect, group ? QStringLiteral("群") : username, 17);
     if (online)
     {
         painter->setPen(QPen(QColor(QStringLiteral("#FCFBF7")), 2));

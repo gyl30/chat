@@ -125,27 +125,37 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             if (!before)
             {
                 boost::json::object last;
+                last.emplace("conversation", 2);
+                last.emplace("username", "bob");
                 last.emplace("id", 12);
                 last.emplace("from", 2);
                 last.emplace("timestamp", 1700000000000LL);
                 last.emplace("text", "hello");
 
                 boost::json::object conversation;
+                conversation.emplace("id", 2);
+                conversation.emplace("kind", "direct");
+                conversation.emplace("member_count", 2);
                 conversation.emplace("user", 2);
                 conversation.emplace("username", "bob");
                 conversation.emplace("last", std::move(last));
                 conversation.emplace("unread", 3);
                 conversations.push_back(std::move(conversation));
             }
-            else if (before->is_int64() && before->as_int64() == 12)
+            else if (before->is_object() && before->as_object().at("id").as_int64() == 2)
             {
                 boost::json::object last;
+                last.emplace("conversation", 3);
+                last.emplace("username", "alice");
                 last.emplace("id", 6);
                 last.emplace("from", 1);
                 last.emplace("timestamp", 1699990000000LL);
                 last.emplace("text", "older");
 
                 boost::json::object conversation;
+                conversation.emplace("id", 3);
+                conversation.emplace("kind", "direct");
+                conversation.emplace("member_count", 2);
                 conversation.emplace("user", 3);
                 conversation.emplace("username", "carol");
                 conversation.emplace("last", std::move(last));
@@ -158,6 +168,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             }
 
             boost::json::object result;
+            result.emplace("next", nullptr);
             result.emplace("conversations", std::move(conversations));
             response.emplace("result", std::move(result));
 
@@ -197,7 +208,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
 
         if (method->as_string() == "get_messages")
         {
-            auto const* user = params->as_object().if_contains("user");
+            auto const* user = params->as_object().if_contains("conversation");
             auto const* before = params->as_object().if_contains("before");
             if (!user || !user->is_int64() || user->as_int64() != 2)
             {
@@ -208,6 +219,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             if (!before)
             {
                 boost::json::object first;
+                first.emplace("conversation", 2);
+                first.emplace("username", "bob");
                 first.emplace("id", 10);
                 first.emplace("from", 2);
                 first.emplace("timestamp", 1700000000000);
@@ -215,6 +228,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 messages.push_back(std::move(first));
 
                 boost::json::object second;
+                second.emplace("conversation", 2);
+                second.emplace("username", "alice");
                 second.emplace("id", 12);
                 second.emplace("from", 1);
                 second.emplace("timestamp", 1700000060000);
@@ -224,6 +239,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             else if (before->is_int64() && before->as_int64() == 10)
             {
                 boost::json::object older;
+                older.emplace("conversation", 2);
+                older.emplace("username", "bob");
                 older.emplace("id", 4);
                 older.emplace("from", 2);
                 older.emplace("timestamp", 1699999940000);
@@ -237,7 +254,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
 
             boost::json::object result;
             result.emplace("messages", std::move(messages));
-            result.emplace("read", 12);
+            result.emplace("read_positions", boost::json::array{boost::json::object{{"user", 2}, {"message", 12}}});
+            result.emplace("has_more", false);
             response.emplace("result", std::move(result));
 
             auto [send_ec] = co_await send_text(connection, std::move(response));
@@ -301,7 +319,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
 
         if (method->as_string() == "send_message")
         {
-            auto const* user = params->as_object().if_contains("user");
+            auto const* user = params->as_object().if_contains("conversation");
             auto const* text = params->as_object().if_contains("text");
             if (!user || !user->is_int64() || user->as_int64() != 2 || !text || !text->is_string() || text->as_string() != "outgoing")
             {
@@ -320,6 +338,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             }
 
             boost::json::object notification_params;
+            notification_params.emplace("conversation", 2);
+            notification_params.emplace("username", "bob");
             notification_params.emplace("id", 21);
             notification_params.emplace("from", 2);
             notification_params.emplace("timestamp", 1700000180000);
@@ -334,7 +354,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
 
         if (method->as_string() == "mark_read")
         {
-            auto const* user = params->as_object().if_contains("user");
+            auto const* user = params->as_object().if_contains("conversation");
             auto const* message = params->as_object().if_contains("message");
             if (!user || !user->is_int64() || user->as_int64() != 2 || !message || !message->is_int64() || message->as_int64() != 21)
             {
@@ -352,6 +372,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
 
             boost::json::object notification_params;
             notification_params.emplace("user", 2);
+            notification_params.emplace("conversation", 2);
             notification_params.emplace("message", 20);
             boost::json::object notification;
             notification.emplace("jsonrpc", "2.0");
@@ -418,6 +439,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
         {
             boost::json::object result;
             result.emplace("authenticated", name == "alice" && secret == "secret");
+            result.emplace("user", name == "alice" && secret == "secret" ? 1 : 0);
             response.emplace("result", std::move(result));
         }
 
@@ -570,9 +592,14 @@ int main()
         state.messages.push_back(std::move(message));
         state.condition.notify_all();
     });
-    client.set_read_handler([&state](std::int64_t user, std::int64_t message) {
+    client.set_read_handler(
+        [&state](std::int64_t conversation, std::int64_t user, std::int64_t message)
+        {
         std::lock_guard lock(state.mutex);
+            if (conversation == 2)
+            {
         state.reads.emplace_back(user, message);
+            }
         state.condition.notify_all();
     });
     client.set_presence_handler([&state](chat::presence value) {
@@ -610,10 +637,12 @@ int main()
 
     bool authenticated_called = false;
     bool authenticated = false;
-    client.authenticate("alice", "secret", [&](std::expected<bool, chat::error> result) {
+    client.authenticate("alice", "secret",
+                        [&](std::expected<chat::authentication_result, chat::error> result)
+                        {
         std::lock_guard lock(state.mutex);
         authenticated_called = true;
-        authenticated = result && *result;
+                            authenticated = result && result->authenticated;
         state.condition.notify_all();
     });
     if (!state.wait([&] { return authenticated_called; }) || !authenticated)
@@ -700,12 +729,14 @@ int main()
 
     bool conversations_called = false;
     std::vector<chat::conversation> conversations;
-    client.get_conversations({}, [&](std::expected<std::vector<chat::conversation>, chat::error> result) {
+    client.get_conversations({},
+                             [&](std::expected<chat::conversations_result, chat::error> result)
+                             {
         std::lock_guard lock(state.mutex);
         conversations_called = true;
         if (result)
         {
-            conversations = std::move(*result);
+                                     conversations = std::move(result->conversations);
         }
         state.condition.notify_all();
     });
@@ -721,12 +752,14 @@ int main()
 
     bool conversation_cursor_called = false;
     std::vector<chat::conversation> older_conversations;
-    client.get_conversations(12, [&](std::expected<std::vector<chat::conversation>, chat::error> result) {
+    client.get_conversations(chat::conversation_cursor{1700000000000LL, 2},
+                             [&](std::expected<chat::conversations_result, chat::error> result)
+                             {
         std::lock_guard lock(state.mutex);
         conversation_cursor_called = true;
         if (result)
         {
-            older_conversations = std::move(*result);
+                                     older_conversations = std::move(result->conversations);
         }
         state.condition.notify_all();
     });
@@ -750,10 +783,11 @@ int main()
         state.condition.notify_all();
     });
     auto const& messages = messages_result.messages;
-    if (!state.wait([&] { return messages_called; }) || messages_result.read_message != 12 || messages.size() != 2 ||
-        messages[0].id != 10 || messages[0].from != 2 || messages[0].timestamp != 1700000000000 ||
-        messages[0].text != "first" || messages[1].id != 12 || messages[1].from != 1 ||
-        messages[1].timestamp != 1700000060000 || messages[1].text != "second")
+    if (!state.wait([&] { return messages_called; }) ||
+        (messages_result.read_positions.size() != 1 || messages_result.read_positions[0].message != 12) ||
+        messages.size() != 2 || messages[0].id != 10 || messages[0].from != 2 ||
+        messages[0].timestamp != 1700000000000 || messages[0].text != "first" || messages[1].id != 12 ||
+        messages[1].from != 1 || messages[1].timestamp != 1700000060000 || messages[1].text != "second")
     {
         std::cerr << "FAIL client messages\n";
         return 1;
@@ -772,7 +806,8 @@ int main()
         state.condition.notify_all();
     });
     auto const& older_messages = older_messages_result.messages;
-    if (!state.wait([&] { return older_messages_called; }) || older_messages_result.read_message != 12 ||
+    if (!state.wait([&] { return older_messages_called; }) ||
+        (older_messages_result.read_positions.size() != 1 || older_messages_result.read_positions[0].message != 12) ||
         older_messages.size() != 1 || older_messages[0].id != 4 || older_messages[0].from != 2 ||
         older_messages[0].timestamp != 1699999940000 || older_messages[0].text != "older")
     {
@@ -823,10 +858,12 @@ int main()
 
     bool rejected_called = false;
     bool rejected = false;
-    client.authenticate("alice", "wrong", [&](std::expected<bool, chat::error> result) {
+    client.authenticate("alice", "wrong",
+                        [&](std::expected<chat::authentication_result, chat::error> result)
+                        {
         std::lock_guard lock(state.mutex);
         rejected_called = true;
-        rejected = result && !*result;
+                            rejected = result && !result->authenticated;
         state.condition.notify_all();
     });
     if (!state.wait([&] { return rejected_called; }) || !rejected)
@@ -838,7 +875,9 @@ int main()
 
     bool rpc_error_called = false;
     chat::error rpc_error;
-    client.authenticate("rpc", "secret", [&](std::expected<bool, chat::error> result) {
+    client.authenticate("rpc", "secret",
+                        [&](std::expected<chat::authentication_result, chat::error> result)
+                        {
         std::lock_guard lock(state.mutex);
         if (!result)
         {
@@ -856,9 +895,11 @@ int main()
     std::cout << "PASS client rpc error\n";
 
     bool protocol_response_called = false;
-    client.authenticate("protocol", "secret", [&](std::expected<bool, chat::error> result) {
+    client.authenticate("protocol", "secret",
+                        [&](std::expected<chat::authentication_result, chat::error> result)
+                        {
         std::lock_guard lock(state.mutex);
-        protocol_response_called = result && !*result;
+                            protocol_response_called = result && !result->authenticated;
         state.condition.notify_all();
     });
     if (!state.wait([&] { return !state.errors.empty() && protocol_response_called; }) || state.errors.back().kind != chat::error_kind::protocol)
@@ -885,7 +926,9 @@ int main()
     std::cout << "PASS client reconnect\n";
 
     bool close_error_called = false;
-    client.authenticate("close", "secret", [&](std::expected<bool, chat::error> result) {
+    client.authenticate("close", "secret",
+                        [&](std::expected<chat::authentication_result, chat::error> result)
+                        {
         std::lock_guard lock(state.mutex);
         close_error_called = !result && result.error().kind == chat::error_kind::transport;
         state.condition.notify_all();

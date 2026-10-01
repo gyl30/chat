@@ -13,7 +13,7 @@ namespace
 
 struct [[= simdjson::deny_unknown_fields]] mark_read_params
 {
-    std::int64_t user = 0;
+    std::int64_t conversation = 0;
     std::int64_t message = 0;
 };
 
@@ -43,7 +43,7 @@ simdjson::error_code parse_mark_read_params(json_rpc_params& params, mark_read_p
         return simdjson::TRAILING_CONTENT;
     }
 
-    if (value.user <= 0 || value.message <= 0)
+    if (value.conversation <= 0 || value.message <= 0)
     {
         return simdjson::INCORRECT_TYPE;
     }
@@ -97,17 +97,13 @@ boost::capy::task<simdjson::error_code> chat_session::handle_mark_read(json_rpc_
 
         std::vector<std::string> parameters;
         parameters.emplace_back(std::to_string(*user_id_));
-        parameters.emplace_back(std::to_string(params.user));
+        parameters.emplace_back(std::to_string(params.conversation));
         parameters.emplace_back(std::to_string(params.message));
 
         auto query_result = co_await lease.connection().execute_row(
-            "INSERT INTO message_read_positions (user_id, peer_user_id, last_read_message_id) "
-            "SELECT $1::bigint, $2::bigint, id FROM messages "
-            "WHERE id = $3::bigint "
-            "AND ((sender_id = $1::bigint AND recipient_id = $2::bigint) "
-            "OR (sender_id = $2::bigint AND recipient_id = $1::bigint)) "
-            "ON CONFLICT (user_id, peer_user_id) DO UPDATE "
-            "SET last_read_message_id = GREATEST(message_read_positions.last_read_message_id, EXCLUDED.last_read_message_id) "
+            "UPDATE conversation_members SET last_read_message_id=GREATEST(last_read_message_id,$3::bigint) "
+            "WHERE user_id=$1::bigint AND conversation_id=$2::bigint "
+            "AND EXISTS(SELECT 1 FROM messages WHERE id=$3::bigint AND conversation_id=$2::bigint) "
             "RETURNING last_read_message_id::text",
             std::move(parameters));
         auto& [query_ec, row] = query_result;
@@ -130,15 +126,10 @@ boost::capy::task<simdjson::error_code> chat_session::handle_mark_read(json_rpc_
         read_message = std::move(row->front());
     }
 
-    if (auto* peer = users_.find(params.user))
-    {
-        std::string notification = R"({"jsonrpc":"2.0","method":"read","params":{"user":)";
-        notification.append(std::to_string(*user_id_));
-        notification.append(R"(,"message":)");
-        notification.append(read_message);
-        notification.append("}}");
-        peer->enqueue_message(std::move(notification));
-    }
+    std::string notification = "{\"jsonrpc\":\"2.0\",\"method\":\"read\",\"params\":{\"conversation\":";
+    notification.append(std::to_string(params.conversation));
+    notification.append(",\"user\":" + std::to_string(*user_id_) + ",\"message\":" + read_message + "}}");
+    co_await publish_conversation(params.conversation, std::move(notification));
 
     if (!request.id.present)
     {

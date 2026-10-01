@@ -28,6 +28,7 @@ struct [[= simdjson::deny_unknown_fields]] authenticate_params
 struct authenticate_result
 {
     bool authenticated = false;
+    std::int64_t user = 0;
 };
 
 simdjson::error_code parse_authenticate_params(json_rpc_params& params, authenticate_params& value)
@@ -64,10 +65,12 @@ simdjson::error_code parse_authenticate_params(json_rpc_params& params, authenti
     return simdjson::SUCCESS;
 }
 
-simdjson::error_code serialize_authenticate_result(bool authenticated, json_rpc_id id, std::string& response)
+simdjson::error_code serialize_authenticate_result(bool authenticated, std::int64_t user, json_rpc_id id,
+                                                   std::string& response)
 {
     authenticate_result result{};
     result.authenticated = authenticated;
+    result.user = user;
 
     std::string result_json;
     auto error = simdjson::builder::to_json_string(result).get(result_json);
@@ -182,6 +185,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_authenticate(json_r
         }
 
         user_id_ = user_id;
+        username_ = params.username;
         authenticated = true;
         co_await publish_presence(true);
     }
@@ -191,5 +195,5 @@ boost::capy::task<simdjson::error_code> chat_session::handle_authenticate(json_r
         co_return simdjson::SUCCESS;
     }
 
-    co_return serialize_authenticate_result(authenticated, std::move(request.id), response);
+    co_return serialize_authenticate_result(authenticated, user_id_.value_or(0), std::move(request.id), response);
 }

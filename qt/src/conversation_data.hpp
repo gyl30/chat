@@ -8,6 +8,8 @@
 
 struct conversation_data
 {
+    qint64 id = 0;
+    bool group = false;
     qint64 user = 0;
     QString username;
     qint64 last_id = 0;
@@ -16,6 +18,7 @@ struct conversation_data
     QString last_text;
     quint64 unread = 0;
     bool online = false;
+    quint64 member_count = 0;
 };
 
 Q_DECLARE_METATYPE(conversation_data)

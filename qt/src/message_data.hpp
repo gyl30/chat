@@ -5,16 +5,22 @@
 #include <QMetaType>
 #include <QString>
 #include <QtGlobal>
+#include <QHash>
 
 struct message_data
 {
     qint64 id = 0;
+    qint64 conversation = 0;
     qint64 from = 0;
+    QString username;
     qint64 timestamp = 0;
     QString text;
 };
 
 Q_DECLARE_METATYPE(message_data)
 Q_DECLARE_METATYPE(QList<message_data>)
+
+using read_positions = QHash<qint64, qint64>;
+Q_DECLARE_METATYPE(read_positions)
 
 #endif

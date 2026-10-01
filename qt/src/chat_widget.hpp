@@ -6,6 +6,7 @@
 #include <QString>
 #include <QWidget>
 #include <QtGlobal>
+#include <optional>
 
 #include "conversation_data.hpp"
 #include "message_data.hpp"
@@ -31,7 +32,9 @@ class chat_widget final : public QWidget
    public:
     explicit chat_widget(QWidget* parent = nullptr);
 
-    void set_user(QString const& username);
+    void set_user(QString const& username, qint64 user = 0);
+    void open_conversation(conversation_data conversation);
+    void set_members(qint64 conversation, QList<user_data> users, QString error_message);
     void set_loading();
     void set_error(QString message);
     void set_connection_available(bool available);
@@ -44,14 +47,17 @@ class chat_widget final : public QWidget
     void set_add_contact_search_results(QList<user_data> users);
     void set_add_contact_search_error(QString message);
     void finish_add_contact();
-    void set_messages(qint64 user, QList<message_data> messages, qint64 read_message, bool older);
-    void set_read_message(qint64 user, qint64 message);
+    void set_messages(qint64 conversation, QList<message_data> messages, read_positions positions, bool older,
+                      bool recovering, bool has_more);
+    void set_read_message(qint64 conversation, qint64 user, qint64 message);
     void add_message(qint64 user, message_data message);
     void add_sent_message(qint64 user, qint64 message, qint64 timestamp, QString text);
     void set_message_error(qint64 user, QString message);
 
-    qint64 active_user() const noexcept;
+    qint64 active_conversation() const noexcept;
     qint64 latest_message_id() const;
+    std::optional<qint64> recovery_cursor() const;
+    bool messages_ready() const;
 
    signals:
     void conversation_selected(qint64 user);
@@ -61,6 +67,9 @@ class chat_widget final : public QWidget
     void contact_add_requested(qint64 user);
     void logout_requested();
     void reconnect_requested();
+    void direct_conversation_requested(qint64 user, QString username);
+    void group_create_requested(QString title, QList<qint64> members);
+    void members_requested(qint64 conversation);
 
    private:
     void show_conversations_section();
@@ -72,6 +81,7 @@ class chat_widget final : public QWidget
     void select_add_user(QModelIndex const& index);
     void select_conversation(QModelIndex const& index);
     void open_chat(qint64 user, QString username);
+    void create_group();
     void request_older_messages();
     void send_current_message();
     void show_user_details(qint64 user, QString const& username);
@@ -82,6 +92,7 @@ class chat_widget final : public QWidget
     QLabel* profile_avatar_ = nullptr;
     QToolButton* chats_navigation_ = nullptr;
     QToolButton* contacts_navigation_ = nullptr;
+    QToolButton* groups_navigation_ = nullptr;
     QToolButton* logout_navigation_ = nullptr;
     QToolButton* sidebar_back_button_ = nullptr;
     QToolButton* add_contact_button_ = nullptr;
@@ -108,7 +119,12 @@ class chat_widget final : public QWidget
     user_model* add_users_ = nullptr;
     message_model* messages_ = nullptr;
     QHash<qint64, presence_data> presence_;
-    qint64 active_user_ = 0;
+    qint64 self_user_ = 0;
+    qint64 active_conversation_ = 0;
+    qint64 active_peer_ = 0;
+    bool active_group_ = false;
+    quint64 active_member_count_ = 0;
+    qint64 synchronized_message_ = 0;
     QString active_username_;
     bool messages_loaded_ = false;
     bool messages_loading_ = false;
