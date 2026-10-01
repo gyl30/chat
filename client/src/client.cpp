@@ -1,4 +1,5 @@
 #include <atomic>
+#include <algorithm>
 #include <cstdint>
 #include <deque>
 #include <expected>
@@ -9,6 +10,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <unordered_map>
 #include <utility>
@@ -20,6 +22,7 @@
 #include <boost/json.hpp>
 
 #include <chat/client.hpp>
+#include <chat/detail/base64.hpp>
 
 #include "websocket.hpp"
 
@@ -185,6 +188,31 @@ bool parse_message(boost::json::object const& object, message& value)
     value.from = *from;
     value.timestamp = *timestamp;
     value.text = std::string(text_value->as_string());
+    auto const* attachment = object.if_contains("attachment");
+    if (attachment && !attachment->is_null())
+    {
+        if (!attachment->is_object())
+        {
+            return false;
+        }
+        auto const& fields = attachment->as_object();
+        auto const* filename = fields.if_contains("filename");
+        auto const* media_type = fields.if_contains("media_type");
+        auto const* size_value = fields.if_contains("size");
+        auto size = size_value ? parse_int64(*size_value) : std::nullopt;
+        if (!filename || !filename->is_string() || filename->as_string().empty() || filename->as_string().size() > 255 ||
+            !media_type || !media_type->is_string() || !size || *size < 0 ||
+            *size > static_cast<std::int64_t>(max_attachment_size))
+        {
+            return false;
+        }
+        auto const type = std::string_view(media_type->as_string());
+        if (type != "application/octet-stream" && type != "image/png" && type != "image/jpeg")
+        {
+            return false;
+        }
+        value.attachment = attachment_info{std::string(filename->as_string()), std::string(type), *size};
+    }
     return parse_reply(object, value.reply) && parse_edited_at(object, value.edited_at) &&
            parse_deleted(object, value.deleted);
 }
@@ -1074,6 +1102,177 @@ struct client::impl
         co_return;
     }
 
+    struct upload_job
+    {
+        std::int64_t conversation = 0;
+        std::int64_t upload = 0;
+        std::string filename;
+        std::string data;
+        std::size_t offset = 0;
+        std::optional<std::int64_t> reply_to;
+        message_result_handler handler;
+    };
+
+    void fail_upload(std::shared_ptr<upload_job> const& job, error value)
+    {
+        if (job->upload > 0)
+        {
+            send_request("cancel_attachment", {{"upload", job->upload}}, [](auto) {});
+        }
+        job->handler(std::unexpected(std::move(value)));
+    }
+
+    void upload_next(std::shared_ptr<upload_job> job)
+    {
+        if (job->offset == job->data.size())
+        {
+            boost::json::object params{{"upload", job->upload}};
+            if (job->reply_to)
+            {
+                params.emplace("reply_to", *job->reply_to);
+            }
+            send_request("finish_attachment", std::move(params), [this, job](auto response) {
+                if (!response)
+                {
+                    fail_upload(job, std::move(response.error()));
+                    return;
+                }
+                message value;
+                if (!response->is_object() || !parse_message(response->as_object(), value) ||
+                    value.conversation != job->conversation || value.deleted || !value.attachment ||
+                    value.attachment->filename != job->filename ||
+                    value.attachment->size != static_cast<std::int64_t>(job->data.size()))
+                {
+                    fail_upload(job, make_error(error_kind::protocol, "Invalid attachment message"));
+                    return;
+                }
+                job->handler(std::move(value));
+            });
+            return;
+        }
+        auto const count = std::min(attachment_chunk_size, job->data.size() - job->offset);
+        auto chunk = detail::encode_base64(std::string_view(job->data).substr(job->offset, count));
+        send_request("upload_attachment", {{"upload", job->upload}, {"offset", job->offset}, {"data", std::move(chunk)}},
+            [this, job, count](auto response) {
+                if (!response)
+                {
+                    fail_upload(job, std::move(response.error()));
+                    return;
+                }
+                auto const* field = response->is_object() ? response->as_object().if_contains("offset") : nullptr;
+                auto offset = field ? parse_int64(*field) : std::nullopt;
+                if (!offset || *offset != static_cast<std::int64_t>(job->offset + count))
+                {
+                    fail_upload(job, make_error(error_kind::protocol, "Invalid attachment upload offset"));
+                    return;
+                }
+                job->offset += count;
+                upload_next(job);
+            });
+    }
+
+    boost::capy::task<> send_attachment(std::int64_t conversation, std::string filename, std::string data,
+                                       message_result_handler handler, std::optional<std::int64_t> reply_to)
+    {
+        if (data.size() > max_attachment_size)
+        {
+            handler(std::unexpected(make_error(error_kind::protocol, "Attachment exceeds 10 MiB")));
+            co_return;
+        }
+        auto job = std::make_shared<upload_job>();
+        job->conversation = conversation;
+        job->filename = std::move(filename);
+        job->data = std::move(data);
+        job->reply_to = reply_to;
+        job->handler = std::move(handler);
+        send_request("begin_attachment", {{"conversation", conversation}, {"filename", job->filename},
+                                           {"size", job->data.size()}}, [this, job](auto response) {
+            if (!response)
+            {
+                fail_upload(job, std::move(response.error()));
+                return;
+            }
+            auto const* field = response->is_object() ? response->as_object().if_contains("upload") : nullptr;
+            auto upload = field ? parse_int64(*field) : std::nullopt;
+            if (!upload || *upload <= 0)
+            {
+                fail_upload(job, make_error(error_kind::protocol, "Invalid attachment upload id"));
+                return;
+            }
+            job->upload = *upload;
+            upload_next(job);
+        });
+        co_return;
+    }
+
+    struct download_job
+    {
+        std::int64_t conversation = 0;
+        std::int64_t message = 0;
+        std::optional<std::int64_t> size;
+        std::string data;
+        attachment_handler handler;
+    };
+
+    void download_next(std::shared_ptr<download_job> job)
+    {
+        send_request("get_attachment", {{"conversation", job->conversation}, {"message", job->message},
+                                         {"offset", job->data.size()}}, [this, job](auto response) {
+            if (!response)
+            {
+                job->handler(std::unexpected(std::move(response.error())));
+                return;
+            }
+            auto const* fields = response->is_object() ? &response->as_object() : nullptr;
+            auto const* size_field = fields ? fields->if_contains("size") : nullptr;
+            auto const* offset_field = fields ? fields->if_contains("offset") : nullptr;
+            auto const* data_field = fields ? fields->if_contains("data") : nullptr;
+            auto const* more_field = fields ? fields->if_contains("has_more") : nullptr;
+            auto size = size_field ? parse_int64(*size_field) : std::nullopt;
+            auto offset = offset_field ? parse_int64(*offset_field) : std::nullopt;
+            if (!size || *size < 0 || *size > static_cast<std::int64_t>(max_attachment_size) ||
+                (job->size && *job->size != *size) || !offset || *offset != static_cast<std::int64_t>(job->data.size()) ||
+                *offset > *size || !data_field || !data_field->is_string() || !more_field || !more_field->is_bool() ||
+                data_field->as_string().size() > 4 * ((attachment_chunk_size + 2) / 3))
+            {
+                job->handler(std::unexpected(make_error(error_kind::protocol, "Invalid attachment chunk")));
+                return;
+            }
+            auto bytes = detail::decode_base64(std::string_view(data_field->as_string()));
+            auto const expected_size = std::min(attachment_chunk_size, static_cast<std::size_t>(*size - *offset));
+            if (!bytes || bytes->size() != expected_size ||
+                more_field->as_bool() != (*offset + static_cast<std::int64_t>(expected_size) < *size))
+            {
+                job->handler(std::unexpected(make_error(error_kind::protocol, "Invalid attachment chunk data")));
+                return;
+            }
+            if (!job->size)
+            {
+                job->size = size;
+                job->data.reserve(*size);
+            }
+            job->data.append(*bytes);
+            if (more_field->as_bool())
+            {
+                download_next(job);
+            }
+            else
+            {
+                job->handler(std::move(job->data));
+            }
+        });
+    }
+
+    boost::capy::task<> get_attachment(std::int64_t conversation, std::int64_t message, attachment_handler handler)
+    {
+        auto job = std::make_shared<download_job>();
+        job->conversation = conversation;
+        job->message = message;
+        job->handler = std::move(handler);
+        download_next(job);
+        co_return;
+    }
+
     boost::capy::task<> update_message(std::string method, std::int64_t conversation, std::int64_t id,
                                        std::optional<std::string> text, message_result_handler handler)
     {
@@ -1398,6 +1597,19 @@ void client::send_message(std::int64_t user, std::string text, send_message_hand
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(
         impl_->send_message(user, std::move(text), std::move(handler), reply_to));
+}
+
+void client::send_attachment(std::int64_t conversation, std::string filename, std::string data,
+                            message_result_handler handler, std::optional<std::int64_t> reply_to)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->send_attachment(conversation, std::move(filename), std::move(data), std::move(handler), reply_to));
+}
+
+void client::get_attachment(std::int64_t conversation, std::int64_t message, attachment_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->get_attachment(conversation, message, std::move(handler)));
 }
 
 void client::delete_message(std::int64_t conversation, std::int64_t message, message_result_handler handler)

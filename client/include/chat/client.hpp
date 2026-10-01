@@ -34,6 +34,7 @@ class client
     using conversations_handler = std::function<void(std::expected<conversations_result, error>)>;
     using conversation_handler = std::function<void(std::expected<std::int64_t, error>)>;
     using message_result_handler = std::function<void(std::expected<message, error>)>;
+    using attachment_handler = std::function<void(std::expected<std::string, error>)>;
     using messages_handler = std::function<void(std::expected<messages_result, error>)>;
     using send_message_handler = std::function<void(std::expected<send_message_result, error>)>;
     using users_handler = std::function<void(std::expected<std::vector<user>, error>)>;
@@ -81,6 +82,9 @@ class client
     void send_message(std::int64_t conversation, std::string text, send_message_handler handler,
                       std::optional<std::int64_t> reply_to = {});
     void delete_message(std::int64_t conversation, std::int64_t message, message_result_handler handler);
+    void send_attachment(std::int64_t conversation, std::string filename, std::string data,
+                         message_result_handler handler, std::optional<std::int64_t> reply_to = {});
+    void get_attachment(std::int64_t conversation, std::int64_t message, attachment_handler handler);
     void edit_message(std::int64_t conversation, std::int64_t message, std::string text,
                       message_result_handler handler);
     void search_users(std::string query, users_handler handler);

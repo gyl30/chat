@@ -6,6 +6,7 @@
 #include <QString>
 #include <QWidget>
 #include <QtGlobal>
+#include <QByteArray>
 #include <optional>
 
 #include "conversation_data.hpp"
@@ -54,6 +55,7 @@ class chat_widget final : public QWidget
     void update_message(message_data message);
     void add_sent_message(qint64 user, qint64 message, qint64 timestamp, QString text, quoted_message_data reply);
     void set_message_error(qint64 user, QString message);
+    void finish_attachment_send(qint64 conversation, QString error_message);
 
     qint64 active_conversation() const noexcept;
     qint64 latest_message_id() const;
@@ -75,6 +77,8 @@ class chat_widget final : public QWidget
     void group_create_requested(QString title, QList<qint64> members);
     void members_requested(qint64 conversation);
     void message_search_requested(qint64 conversation, qint64 self_user, bool group, QString title);
+    void attachment_send_requested(qint64 conversation, QString filename, QByteArray data, qint64 reply_to);
+    void attachment_open_requested(qint64 conversation, qint64 message, QString filename, bool preview);
 
    private:
     void show_conversations_section();
@@ -102,6 +106,7 @@ class chat_widget final : public QWidget
     QToolButton* sidebar_back_button_ = nullptr;
     QToolButton* add_contact_button_ = nullptr;
     QToolButton* message_search_button_ = nullptr;
+    QToolButton* attachment_button_ = nullptr;
     QLabel* section_title_ = nullptr;
     QStackedWidget* sidebar_pages_ = nullptr;
     QListView* conversations_view_ = nullptr;
@@ -138,6 +143,7 @@ class chat_widget final : public QWidget
     bool messages_loading_ = false;
     bool history_exhausted_ = false;
     bool connection_available_ = true;
+    bool attachment_sending_ = false;
 };
 
 #endif

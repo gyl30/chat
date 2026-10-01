@@ -11,6 +11,21 @@ QString chat_style_sheet()
             color: #27332E;
             font-size: 14px;
         }
+        QDialog {
+            background: #FFFEFA;
+        }
+        QDialog QPushButton {
+            min-height: 32px;
+            padding: 0 12px;
+            background: #FFFFFF;
+            color: #315A4B;
+            border: 1px solid #AFC0B8;
+            border-radius: 8px;
+        }
+        QDialog QPushButton:disabled {
+            color: #96A29C;
+            border-color: #D7DDD9;
+        }
         QWidget#loginPage {
             background: #F7F5EF;
         }
@@ -64,9 +79,6 @@ QString chat_style_sheet()
         QPushButton#registerButton:disabled {
             color: #96A29C;
             border-color: #D7DDD9;
-        }
-        QDialog#registrationDialog {
-            background: #FFFEFA;
         }
         QLabel#registrationTitle {
             font-size: 22px;
@@ -222,7 +234,6 @@ QString chat_style_sheet()
             background: #ECEBE5;
         }
         QDialog#profileDialog {
-            background: #FFFEFA;
             border: 1px solid #D8D6D0;
             border-radius: 12px;
         }

@@ -45,6 +45,11 @@ message_data to_message_data(chat::message const& value)
     message.edited_at = value.edited_at.value_or(0);
     message.deleted = value.deleted;
     message.reply = to_reply_data(value.reply);
+    if (value.attachment)
+    {
+        message.attachment = attachment_data{from_utf8(value.attachment->filename), from_utf8(value.attachment->media_type),
+                                             value.attachment->size};
+    }
     return message;
 }
 
@@ -96,6 +101,8 @@ void client_bridge::close()
     ++messages_generation_;
     ++conversations_generation_;
     ++search_generation_;
+    ++upload_generation_;
+    ++download_generation_;
     client_->close();
 }
 
@@ -348,6 +355,38 @@ void client_bridge::send_message(qint64 user, QString text, qint64 reply_to)
                               to_reply_data(result->reply), {});
         },
         reply_to > 0 ? std::optional<std::int64_t>(reply_to) : std::nullopt);
+}
+
+void client_bridge::send_attachment(qint64 conversation, QString filename, QByteArray data, qint64 reply_to)
+{
+    auto const generation = ++upload_generation_;
+    client_->send_attachment(conversation, to_utf8(filename), {data.constData(), static_cast<std::size_t>(data.size())},
+        [this, conversation, generation](auto result) mutable {
+            QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)]() mutable {
+                if (generation != upload_generation_)
+                {
+                    return;
+                }
+                emit attachment_sent(conversation, result ? to_message_data(*result) : message_data{},
+                                     result ? QString{} : from_utf8(result.error().message));
+            }, Qt::QueuedConnection);
+        }, reply_to > 0 ? std::optional<std::int64_t>{reply_to} : std::nullopt);
+}
+
+void client_bridge::get_attachment(qint64 conversation, qint64 message)
+{
+    auto const generation = ++download_generation_;
+    client_->get_attachment(conversation, message, [this, conversation, message, generation](auto result) mutable {
+        QMetaObject::invokeMethod(this, [this, conversation, message, generation, result = std::move(result)]() mutable {
+            if (generation != download_generation_)
+            {
+                return;
+            }
+            emit attachment_received(conversation, message,
+                result ? QByteArray(result->data(), static_cast<qsizetype>(result->size())) : QByteArray{},
+                result ? QString{} : from_utf8(result.error().message));
+        }, Qt::QueuedConnection);
+    });
 }
 
 void client_bridge::delete_message(qint64 conversation, qint64 message)

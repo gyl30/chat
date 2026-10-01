@@ -19,6 +19,7 @@
 #include <QWidget>
 
 #include "chat_widget.hpp"
+#include "attachment_dialog.hpp"
 #include "client_bridge.hpp"
 #include "message_search_dialog.hpp"
 #include "theme.hpp"
@@ -489,6 +490,35 @@ main_window::main_window(QString server_url, QWidget* parent)
 
     connect(chat_page_, &chat_widget::send_message_requested, this,
             [this](qint64 user, QString text, qint64 reply) { client_->send_message(user, std::move(text), reply); });
+    connect(chat_page_, &chat_widget::attachment_send_requested, this,
+            [this](qint64 conversation, QString filename, QByteArray data, qint64 reply) {
+                client_->send_attachment(conversation, std::move(filename), std::move(data), reply);
+            });
+    connect(client_.get(), &client_bridge::attachment_sent, this,
+            [this](qint64 conversation, message_data message, QString const& error) {
+        chat_page_->finish_attachment_send(conversation, error);
+        if (error.isEmpty())
+        {
+            auto const id = message.id;
+            chat_page_->add_message(conversation, std::move(message));
+            if (chat_page_->active_conversation() == conversation && chat_page_->messages_ready())
+            {
+                client_->mark_read(conversation, id);
+            }
+            client_->get_conversations();
+        }
+    }, Qt::QueuedConnection);
+    connect(chat_page_, &chat_widget::attachment_open_requested, this,
+            [this](qint64 conversation, qint64 message, QString filename, bool preview) {
+        attachment_dialog dialog(conversation, message, std::move(filename), preview, this);
+        connect(client_.get(), &client_bridge::attachment_received, &dialog, &attachment_dialog::set_data,
+                Qt::QueuedConnection);
+        connect(client_.get(), &client_bridge::disconnected, &dialog, [&dialog, conversation, message] {
+            dialog.set_data(conversation, message, {}, QStringLiteral("连接已断开，请关闭后重新下载。"));
+        }, Qt::QueuedConnection);
+        client_->get_attachment(conversation, message);
+        dialog.exec();
+    });
 
     connect(
         client_.get(), &client_bridge::messages_received, this,

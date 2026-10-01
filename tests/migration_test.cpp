@@ -40,7 +40,8 @@ int main(int argc, char** argv)
              {"001_create_users.sql", "002_create_messages.sql", "003_add_messages_conversation_index.sql",
               "004_create_message_read_positions.sql", "005_add_messages_recipient_index.sql",
               "006_create_contacts.sql", "007_add_user_last_seen.sql", "008_create_conversations.sql",
-              "009_add_message_replies.sql", "010_add_message_edits.sql", "011_add_message_deletion.sql"})
+              "009_add_message_replies.sql", "010_add_message_edits.sql", "011_add_message_deletion.sql",
+              "012_create_message_attachments.sql"})
         {
             if (std::string(name).starts_with("008"))
             {
@@ -70,6 +71,8 @@ int main(int argc, char** argv)
         }
         execute("INSERT INTO messages(sender_id,conversation_id,body,reply_to_id) "
                 "SELECT 2,conversation_id,'reply',id FROM messages WHERE id=1");
+        execute("INSERT INTO message_attachments(message_id,filename,media_type,size,data) "
+                "VALUES(4,'empty.bin','application/octet-stream',0,''::bytea)");
         execute("UPDATE messages SET deleted=true,body='' WHERE id=1");
         auto deleted = execute("SELECT deleted AND body='' AND id=1 FROM messages WHERE id=1");
         if (std::string(PQgetvalue(deleted.get(), 0, 0)) != "t")
@@ -77,7 +80,7 @@ int main(int argc, char** argv)
             throw std::runtime_error("Deleted message invariant");
         }
         execute("DELETE FROM users WHERE id=1");
-        auto cleaned = execute("SELECT count(*) FROM messages");
+        auto cleaned = execute("SELECT (SELECT count(*) FROM messages)+(SELECT count(*) FROM message_attachments)");
         if (std::string(PQgetvalue(cleaned.get(), 0, 0)) != "0")
         {
             throw std::runtime_error("Reply cascade cleanup");

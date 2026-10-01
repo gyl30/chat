@@ -5,6 +5,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include "attachment.hpp"
 
 namespace chat
 {
@@ -30,6 +31,7 @@ struct message
     std::optional<std::int64_t> edited_at;
     bool deleted = false;
     std::optional<quoted_message> reply;
+    std::optional<attachment_info> attachment;
 };
 
 struct read_position

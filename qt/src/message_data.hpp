@@ -6,6 +6,14 @@
 #include <QString>
 #include <QtGlobal>
 #include <QHash>
+#include <optional>
+
+struct attachment_data
+{
+    QString filename;
+    QString media_type;
+    qint64 size = 0;
+};
 
 struct quoted_message_data
 {
@@ -28,6 +36,7 @@ struct message_data
     qint64 edited_at = 0;
     bool deleted = false;
     quoted_message_data reply;
+    std::optional<attachment_data> attachment;
 };
 
 Q_DECLARE_METATYPE(message_data)

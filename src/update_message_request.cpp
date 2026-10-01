@@ -32,7 +32,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
     simdjson::ondemand::document document;
     if (!request.params.present || parser.iterate(request.params.json).get(document) || document.get(params) ||
         !document.at_end() || params.conversation <= 0 || params.message <= 0 ||
-        (deleting ? params.text.has_value() : (!params.text || params.text->empty())))
+        (deleting ? params.text.has_value() : (!params.text || params.text->empty() || params.text->find('\0') != std::string::npos)))
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
@@ -45,7 +45,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
         "SELECT json_build_object('id',m.id,'conversation',m.conversation_id,'from',m.sender_id,'username',u.username,"
         "'timestamp',(extract(epoch FROM "
         "m.created_at)*1000)::bigint,'text',m.body,'deleted',m.deleted,'edited_at',(extract(epoch FROM "
-        "m.edited_at)*1000)::bigint,"
+        "m.edited_at)*1000)::bigint,'attachment',(SELECT json_build_object('filename',filename,'media_type',media_type,"
+        "'size',size) FROM message_attachments WHERE message_id=m.id AND NOT m.deleted),"
         "'reply',CASE WHEN r.id IS NULL THEN NULL ELSE "
         "json_build_object('id',r.id,'from',r.sender_id,'username',ra.username,'text',left(r.body,160),'edited_at',("
         "extract(epoch FROM r.edited_at)*1000)::bigint,'deleted',r.deleted) END)::text "
@@ -53,7 +54,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
         "own.conversation_id=m.conversation_id "
         "LEFT JOIN messages r ON r.id=m.reply_to_id LEFT JOIN users ra ON ra.id=r.sender_id "
         "WHERE m.id=$3::bigint AND m.conversation_id=$2::bigint AND m.sender_id=$1::bigint AND own.user_id=$1::bigint "
-        "AND (NOT m.deleted OR $4::boolean)",
+        "AND (NOT m.deleted OR $4::boolean) AND ($4::boolean OR NOT EXISTS(SELECT 1 FROM message_attachments "
+        "WHERE message_id=m.id))",
         {std::to_string(*user_id_), std::to_string(params.conversation), std::to_string(params.message),
          deleting ? "true" : "false"});
     auto& [read_ec, row] = original;
@@ -75,6 +77,10 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
     }
     value.text = deleting ? std::string{} : std::move(*params.text);
     value.deleted = deleting;
+    if (deleting)
+    {
+        value.attachment.reset();
+    }
     if (!deleting)
     {
         value.edited_at = std::numeric_limits<std::int64_t>::max();
@@ -91,11 +97,13 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
     auto updated = co_await lease.connection().execute_row(
-        "UPDATE messages SET body=$4,deleted=$5::boolean,"
+        "WITH updated AS (UPDATE messages SET body=$4,deleted=$5::boolean,"
         "edited_at=CASE WHEN $5::boolean THEN edited_at ELSE "
         "greatest(clock_timestamp(),coalesce(edited_at,'epoch'::timestamptz)+interval '1 millisecond') END "
         "WHERE id=$3::bigint AND conversation_id=$2::bigint AND sender_id=$1::bigint AND (NOT deleted OR $5::boolean) "
-        "RETURNING COALESCE(((extract(epoch FROM edited_at)*1000)::bigint)::text,'')",
+        "RETURNING edited_at), cleared AS (DELETE FROM message_attachments WHERE message_id=$3::bigint "
+        "AND $5::boolean AND EXISTS(SELECT 1 FROM updated) RETURNING message_id) "
+        "SELECT COALESCE(((extract(epoch FROM edited_at)*1000)::bigint)::text,'') FROM updated",
         {std::to_string(*user_id_), std::to_string(params.conversation), std::to_string(params.message), value.text,
          deleting ? "true" : "false"});
     auto& [write_ec, result] = updated;

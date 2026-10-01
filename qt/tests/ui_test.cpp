@@ -1,5 +1,8 @@
 #include <QApplication>
 #include <QDialogButtonBox>
+#include <QFile>
+#include <QFileDialog>
+#include <QImage>
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
@@ -13,6 +16,7 @@
 #include <QProcessEnvironment>
 #include <QPushButton>
 #include <QThread>
+#include <QTemporaryDir>
 #include <QTimer>
 #include <QToolButton>
 #include <chat/client.hpp>
@@ -23,6 +27,7 @@
 #include "main_window.hpp"
 #include "chat_widget.hpp"
 #include "message_model.hpp"
+#include "conversation_model.hpp"
 
 void check(bool v, char const* text)
 {
@@ -450,6 +455,133 @@ int main(int argc, char** argv)
             check(PQresultStatus(contacts_result) == PGRES_TUPLES_OK &&
                       std::string_view(PQgetvalue(contacts_result, 0, 0)) == "0", "Contact removal persisted");
             PQclear(contacts_result);
+
+            QTemporaryDir attachments(QString::fromLocal8Bit(argv[2]) + "/attachments_XXXXXX");
+            check(attachments.isValid(), "Attachment fixture directory");
+            auto const image_path = attachments.filePath("photo.png");
+            QImage image(40, 24, QImage::Format_RGB32);
+            image.fill(Qt::green);
+            check(image.save(image_path), "PNG fixture");
+            QFile original(image_path);
+            check(original.open(QIODevice::ReadOnly), "Open image fixture");
+            auto const image_bytes = original.readAll();
+            QTimer::singleShot(50, [&] {
+                auto* picker = qobject_cast<QFileDialog*>(QApplication::activeModalWidget());
+                check(picker, "Attachment file picker");
+                picker->setDirectory(attachments.path());
+                QTimer::singleShot(100, picker, [picker, image_path] {
+                    picker->findChild<QLineEdit*>("fileNameEdit")->setText(image_path);
+                    check(QMetaObject::invokeMethod(picker, "accept", Qt::DirectConnection), "Accept selected file");
+                });
+                QTimer::singleShot(1500, picker, &QDialog::reject);
+            });
+            windows[0]->findChild<QToolButton*>("sendAttachmentButton")->click();
+            auto* attachment_view = windows[0]->findChild<QListView*>("messageList");
+            wait([&] { return attachment_view->model()->rowCount() == 2; });
+            check(attachment_view->model()->index(1, 0).data(message_model::attachment_name_role).toString() == "photo.png" &&
+                      attachment_view->model()->index(1, 0).data(message_model::attachment_type_role).toString() == "image/png",
+                  "Uploaded PNG metadata");
+            auto* peer_conversations = windows[1]->findChild<QListView*>("conversationList");
+            QModelIndex direct_index;
+            wait([&] {
+                for (int row = 0; row < peer_conversations->model()->rowCount(); ++row)
+                {
+                    auto const index = peer_conversations->model()->index(row, 0);
+                    if (index.data(conversation_model::id_role).toLongLong() == direct)
+                    {
+                        direct_index = index;
+                        return true;
+                    }
+                }
+                return false;
+            });
+            peer_conversations->clicked(direct_index);
+            auto* peer_attachment_view = windows[1]->findChild<QListView*>("messageList");
+            wait([&] { return pages[1]->active_conversation() == direct && pages[1]->messages_ready() &&
+                                  peer_attachment_view->model()->rowCount() == 2; });
+            check(peer_attachment_view->model()->index(1, 0).data(message_model::attachment_name_role).toString() == "photo.png",
+                  "Attachment restored from history");
+            auto attachment_action = [&](int actor, QString action_name) {
+                QTimer::singleShot(20, [action_name] {
+                    auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+                    check(menu, "Attachment context menu");
+                    QAction* selected = nullptr;
+                    for (auto* action : menu->actions())
+                    {
+                        check(action->text() != QStringLiteral("编辑"), "Attachment cannot be edited");
+                        if (action->text() == action_name)
+                        {
+                            selected = action;
+                        }
+                    }
+                    check(selected, "Attachment action available");
+                    menu->setActiveAction(selected);
+                    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+                    QApplication::sendEvent(menu, &enter);
+                });
+                auto* view = windows[actor]->findChild<QListView*>("messageList");
+                view->customContextMenuRequested(view->visualRect(view->model()->index(1, 0)).center());
+            };
+            QTimer::singleShot(50, [&] {
+                auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                check(dialog && dialog->objectName() == "attachmentDialog", "Image preview dialog");
+                auto* preview = dialog->findChild<QLabel*>("attachmentImage");
+                wait([&] { return !preview->pixmap().isNull(); });
+                check(preview->pixmap().size() == QSize(640, 384), "PNG preview decoded and scaled");
+                dialog->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_attachment_preview.png");
+                dialog->reject();
+            });
+            attachment_action(0, QStringLiteral("查看图片"));
+            auto const saved_path = attachments.filePath("saved.png");
+            QTimer::singleShot(50, [&] {
+                auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                check(dialog && dialog->objectName() == "attachmentDialog", "File download dialog");
+                auto* save = dialog->findChild<QPushButton*>("saveAttachmentButton");
+                wait([&] { return save->isEnabled(); });
+                QTimer::singleShot(50, [&] {
+                    auto* picker = qobject_cast<QFileDialog*>(QApplication::activeModalWidget());
+                    check(picker, "Save attachment picker");
+                    picker->setDirectory(attachments.path());
+                    QTimer::singleShot(100, picker, [picker, saved_path] {
+                        picker->findChild<QLineEdit*>("fileNameEdit")->setText(saved_path);
+                        check(QMetaObject::invokeMethod(picker, "accept", Qt::DirectConnection), "Accept save path");
+                    });
+                    QTimer::singleShot(1500, picker, &QDialog::reject);
+                });
+                save->click();
+                QFile saved(saved_path);
+                check(saved.open(QIODevice::ReadOnly) && saved.readAll() == image_bytes, "Downloaded image bytes saved exactly");
+                dialog->reject();
+            });
+            attachment_action(1, QStringLiteral("下载文件"));
+            QTimer::singleShot(50, [&] {
+                auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                check(dialog && dialog->objectName() == "attachmentDialog", "Download disconnect dialog");
+                server.terminate();
+                check(server.waitForFinished(3000), "Stop server during attachment dialog");
+                wait([&] { return dialog->findChild<QLabel*>("attachmentStatus")->text().contains(QStringLiteral("连接已断开")); });
+                dialog->reject();
+            });
+            attachment_action(1, QStringLiteral("下载文件"));
+            start();
+            for (int i = 0; i < 3; ++i)
+            {
+                wait([&, i] { return windows[i]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled() &&
+                                      pages[i]->messages_ready(); });
+            }
+            QTimer::singleShot(50, [] {
+                auto* confirmation = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+                check(confirmation, "Delete attachment confirmation");
+                confirmation->button(QMessageBox::Yes)->click();
+            });
+            attachment_action(0, QStringLiteral("删除"));
+            for (int i = 0; i < 2; ++i)
+            {
+                auto* view = windows[i]->findChild<QListView*>("messageList");
+                wait([&] { return view->model()->index(1, 0).data(message_model::deleted_role).toBool(); });
+                check(view->model()->index(1, 0).data(message_model::attachment_name_role).toString().isEmpty(),
+                      "Deleted attachment has no download metadata");
+            }
         }
         std::cout << "PASS three real Qt windows: login, contacts group creation, member list, message author, "
                      "realtime, server restart and automatic recovery\n";

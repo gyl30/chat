@@ -108,7 +108,9 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
                 'id',c.id,'kind',c.kind,'user',c.peer,'username',COALESCE(c.title,u.username),
                 'activity',c.activity,'member_count',(SELECT count(*) FROM conversation_members WHERE conversation_id=c.id),
                 'last',(SELECT json_build_object('id',m.id,'conversation',m.conversation_id,'from',m.sender_id,
-                      'username',author.username,'timestamp',(extract(epoch FROM m.created_at)*1000)::bigint,'text',m.body,'deleted',m.deleted,'edited_at',(extract(epoch FROM m.edited_at)*1000)::bigint,'reply',CASE WHEN r.id IS NULL THEN NULL ELSE json_build_object('id',r.id,'from',r.sender_id,'username',ra.username,'text',left(r.body,160),'edited_at',(extract(epoch FROM r.edited_at)*1000)::bigint,'deleted',r.deleted) END)
+                      'username',author.username,'timestamp',(extract(epoch FROM m.created_at)*1000)::bigint,'text',m.body,'deleted',m.deleted,'edited_at',(extract(epoch FROM m.edited_at)*1000)::bigint,'reply',CASE WHEN r.id IS NULL THEN NULL ELSE json_build_object('id',r.id,'from',r.sender_id,'username',ra.username,'text',left(r.body,160),'edited_at',(extract(epoch FROM r.edited_at)*1000)::bigint,'deleted',r.deleted) END,
+                      'attachment',(SELECT json_build_object('filename',filename,'media_type',media_type,'size',size)
+                                    FROM message_attachments WHERE message_id=m.id AND NOT m.deleted))
                       FROM messages m JOIN users author ON author.id=m.sender_id LEFT JOIN messages r ON r.id=m.reply_to_id LEFT JOIN users ra ON ra.id=r.sender_id
                       WHERE m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1),
                 'unread',(SELECT count(*) FROM messages m WHERE m.conversation_id=c.id

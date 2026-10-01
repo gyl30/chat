@@ -23,6 +23,9 @@ class message_model final : public QAbstractListModel
         reply_text_role,
         edited_at_role,
         deleted_role,
+        attachment_name_role,
+        attachment_type_role,
+        attachment_size_role,
     };
 
     explicit message_model(QObject* parent = nullptr);

@@ -1594,6 +1594,58 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return 1;
     }
 
+    auto attachment_rpc = [&](std::string method, std::string params) -> boost::capy::task<std::string> {
+        auto [write_ec] = co_await send_websocket_text(source_socket,
+            "{\"jsonrpc\":\"2.0\",\"method\":\"" + method + "\",\"params\":" + params +
+            ",\"id\":\"attachment-validation\"}");
+        if (write_ec)
+        {
+            co_return std::string{};
+        }
+        auto reply_result = co_await receive_websocket_text(source_socket);
+        auto& [read_ec, reply] = reply_result;
+        if (read_ec)
+        {
+            co_return std::string{};
+        }
+        co_return std::move(reply);
+    };
+    auto attachment_begin = "{\"conversation\":" + direct_conversation + ",\"filename\":\"probe.bin\",\"size\":3}";
+    auto attachment_begin_reply = co_await attachment_rpc("begin_attachment", attachment_begin);
+    boost::system::error_code attachment_parse_ec;
+    auto attachment_value = boost::json::parse(attachment_begin_reply, attachment_parse_ec);
+    if (attachment_parse_ec || !attachment_value.is_object() || !attachment_value.as_object().contains("result"))
+    {
+        std::cerr << "FAIL attachment begin: " << attachment_begin_reply << '\n';
+        co_return 1;
+    }
+    auto upload_id = std::to_string(attachment_value.at("result").at("upload").as_int64());
+    struct attachment_case { std::string method; std::string params; std::string expected; };
+    std::vector<attachment_case> attachment_cases{
+        {"begin_attachment", attachment_begin, R"({"error":{"code":-32008}})"},
+        {"finish_attachment", "{\"upload\":" + upload_id + "}", R"({"error":{"code":-32008}})"},
+        {"upload_attachment", "{\"upload\":" + upload_id + ",\"offset\":0,\"data\":\"AA=A\"}", R"({"error":{"code":-32602}})"},
+        {"upload_attachment", "{\"upload\":" + upload_id + ",\"offset\":1,\"data\":\"AAEC\"}", R"({"error":{"code":-32602}})"},
+        {"upload_attachment", "{\"upload\":" + upload_id + ",\"offset\":0,\"data\":\"AAECAw==\"}", R"({"error":{"code":-32602}})"},
+        {"cancel_attachment", "{\"upload\":" + std::to_string(std::stoll(upload_id) + 1) + "}", R"({"result":{"cancelled":false}})"},
+        {"upload_attachment", "{\"upload\":" + upload_id + ",\"offset\":0,\"data\":\"AAEC\"}", R"({"result":{"offset":3}})"},
+        {"upload_attachment", "{\"upload\":" + upload_id + ",\"offset\":0,\"data\":\"AAEC\"}", R"({"error":{"code":-32602}})"},
+        {"cancel_attachment", "{\"upload\":" + upload_id + "}", R"({"result":{"cancelled":true}})"},
+        {"cancel_attachment", "{\"upload\":" + upload_id + "}", R"({"result":{"cancelled":false}})"},
+        {"begin_attachment", "{\"conversation\":" + direct_conversation + ",\"filename\":\"../bad\",\"size\":3}", R"({"error":{"code":-32602}})"},
+        {"begin_attachment", "{\"conversation\":" + direct_conversation + ",\"filename\":\"big\",\"size\":10485761}", R"({"error":{"code":-32602}})"}
+    };
+    for (auto const& test : attachment_cases)
+    {
+        auto reply = co_await attachment_rpc(test.method, test.params);
+        if (!json_matches(reply, test.expected))
+        {
+            std::cerr << "FAIL attachment validation " << test.method << ": " << reply << '\n';
+            co_return 1;
+        }
+    }
+    std::cout << "PASS attachment upload validation and cancellation\n";
+
     constexpr std::string_view empty_contacts_request =
         R"({"jsonrpc":"2.0","method":"get_contacts","id":"contacts-empty"})";
     auto empty_contacts_write_result = co_await send_websocket_text(source_socket, empty_contacts_request);

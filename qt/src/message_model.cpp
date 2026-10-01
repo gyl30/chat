@@ -30,7 +30,24 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             return message.timestamp;
         case Qt::DisplayRole:
         case text_role:
-            return message.deleted ? QStringLiteral("消息已删除") : message.text;
+            if (message.deleted)
+            {
+                return QStringLiteral("消息已删除");
+            }
+            if (message.attachment)
+            {
+                auto const& file = *message.attachment;
+                return QStringLiteral("%1：%2\n%3 KiB")
+                    .arg(file.media_type.startsWith(QStringLiteral("image/")) ? QStringLiteral("图片") : QStringLiteral("文件"),
+                         file.filename, QString::number(file.size / 1024.0, 'f', 1));
+            }
+            return message.text;
+        case attachment_name_role:
+            return !message.deleted && message.attachment ? message.attachment->filename : QString{};
+        case attachment_type_role:
+            return !message.deleted && message.attachment ? message.attachment->media_type : QString{};
+        case attachment_size_role:
+            return !message.deleted && message.attachment ? message.attachment->size : qint64{0};
         case outgoing_role:
             return outgoing;
         case sender_name_role:

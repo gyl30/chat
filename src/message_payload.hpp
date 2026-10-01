@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <chat/attachment.hpp>
 
 struct quoted_message_payload
 {
@@ -26,6 +27,7 @@ struct message_payload
     std::optional<quoted_message_payload> reply;
     std::optional<std::int64_t> edited_at;
     bool deleted = false;
+    std::optional<chat::attachment_info> attachment;
 };
 
 #endif

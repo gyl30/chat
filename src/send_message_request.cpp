@@ -3,11 +3,13 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <utility>
 #include <vector>
 
 #include <simdjson.h>
+#include <chat/detail/base64.hpp>
 
 #include "chat_session.hpp"
 #include "message_payload.hpp"
@@ -23,6 +25,7 @@ struct [[= simdjson::deny_unknown_fields]] send_message_params
     std::int64_t conversation = 0;
     std::string text;
     std::optional<std::int64_t> reply_to;
+    std::optional<std::int64_t> upload;
 };
 
 struct send_message_result
@@ -40,7 +43,7 @@ struct message_notification
     message_payload params;
 };
 
-simdjson::error_code parse_send_message_params(json_rpc_params& params, send_message_params& value)
+simdjson::error_code parse_send_message_params(json_rpc_params& params, send_message_params& value, bool attaching)
 {
     if (!params.present)
     {
@@ -55,7 +58,22 @@ simdjson::error_code parse_send_message_params(json_rpc_params& params, send_mes
         return error;
     }
 
-    error = document.get(value);
+    if (attaching)
+    {
+        struct [[= simdjson::deny_unknown_fields]] finish_params
+        {
+            std::int64_t upload = 0;
+            std::optional<std::int64_t> reply_to;
+        };
+        finish_params finish;
+        error = document.get(finish);
+        value.upload = finish.upload;
+        value.reply_to = finish.reply_to;
+    }
+    else
+    {
+        error = document.get(value);
+    }
     if (error)
     {
         return error;
@@ -66,7 +84,7 @@ simdjson::error_code parse_send_message_params(json_rpc_params& params, send_mes
         return simdjson::TRAILING_CONTENT;
     }
 
-    if (value.conversation <= 0 || value.text.empty() || (value.reply_to && *value.reply_to <= 0))
+    if (value.reply_to && *value.reply_to <= 0)
     {
         return simdjson::INCORRECT_TYPE;
     }
@@ -108,14 +126,30 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
     }
 
     send_message_params params{};
-    auto params_error = parse_send_message_params(request.params, params);
-    if (params_error)
+    bool const attaching = request.method == "finish_attachment";
+    auto params_error = parse_send_message_params(request.params, params, attaching);
+    if (params_error || (attaching ? (!params.upload || *params.upload <= 0 || params.conversation != 0 || !params.text.empty())
+        : (params.upload || params.conversation <= 0 || params.text.empty() || params.text.find('\0') != std::string::npos)))
     {
         if (request.id.present)
         {
             co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
         }
         co_return simdjson::SUCCESS;
+    }
+    if (attaching)
+    {
+        if (!request.id.present)
+        {
+            co_return simdjson::SUCCESS;
+        }
+        if (!upload_ || upload_->id != *params.upload ||
+            upload_->content.size() != static_cast<std::size_t>(upload_->size))
+        {
+            co_return serialize_json_rpc_error(-32008, "Attachment upload incomplete", std::move(request.id), response);
+        }
+        params.conversation = upload_->conversation;
+        params.text = upload_->filename;
     }
 
     message_notification notification{};
@@ -125,6 +159,20 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
     notification.params.username = username_;
     notification.params.timestamp = std::numeric_limits<std::int64_t>::max();
     notification.params.text = std::move(params.text);
+    if (attaching)
+    {
+        std::string media_type = "application/octet-stream";
+        std::string_view bytes(upload_->content);
+        if (bytes.starts_with(std::string_view("\x89PNG\r\n\x1a\n", 8)))
+        {
+            media_type = "image/png";
+        }
+        else if (bytes.starts_with(std::string_view("\xff\xd8\xff", 3)))
+        {
+            media_type = "image/jpeg";
+        }
+        notification.params.attachment = chat::attachment_info{upload_->filename, std::move(media_type), upload_->size};
+    }
 
     if (params.reply_to)
     {
@@ -190,13 +238,20 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         parameters.emplace_back(std::to_string(params.conversation));
         parameters.emplace_back(notification.params.text);
         parameters.emplace_back(params.reply_to ? std::to_string(*params.reply_to) : "");
+        parameters.emplace_back(attaching ? upload_->filename : "");
+        parameters.emplace_back(attaching ? notification.params.attachment->media_type : "");
+        parameters.emplace_back(attaching ? std::to_string(upload_->size) : "0");
+        parameters.emplace_back(attaching ? chat::detail::encode_base64(upload_->content) : "");
         auto query_result = co_await lease.connection().execute_row(
             "WITH locked AS (UPDATE conversations SET activity=(extract(epoch FROM clock_timestamp())*1000)::bigint "
             "WHERE id=$2::bigint AND EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=$2::bigint AND "
             "user_id=$1::bigint) RETURNING id), "
             "inserted AS (INSERT INTO messages(sender_id,conversation_id,body,reply_to_id) SELECT "
             "$1::bigint,id,$3,NULLIF($4,'')::bigint FROM locked "
-            "RETURNING id,created_at) SELECT inserted.id::text,((extract(epoch FROM "
+            "RETURNING id,created_at), "
+            "attached AS (INSERT INTO message_attachments(message_id,filename,media_type,size,data) "
+            "SELECT id,$5,$6,$7::bigint,decode($8,'base64') FROM inserted WHERE $5<>'' RETURNING message_id) "
+            "SELECT inserted.id::text,((extract(epoch FROM "
             "created_at)*1000)::bigint)::text,u.username "
             "FROM inserted JOIN users u ON u.id=$1::bigint",
             std::move(parameters));
@@ -228,6 +283,10 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         id_text = std::move(row->at(0));
         timestamp_text = std::move(row->at(1));
         notification.params.username = std::move(row->at(2));
+    }
+    if (attaching)
+    {
+        upload_.reset();
     }
 
     auto const* first = id_text.data();
@@ -266,6 +325,16 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
     if (!request.id.present)
     {
         co_return simdjson::SUCCESS;
+    }
+    if (attaching)
+    {
+        std::string payload;
+        error = simdjson::builder::to_json_string(notification.params).get(payload);
+        if (error)
+        {
+            co_return error;
+        }
+        co_return serialize_json_rpc_success(payload, std::move(request.id), response);
     }
 
     co_return serialize_send_message_result(notification.params.id, notification.params.timestamp, realtime,

@@ -258,7 +258,12 @@ boost::capy::task<void> chat_session::run()
             {
                 rpc_error = co_await handle_register(request, response);
             }
-            else if (request.method == kSendMessageMethod)
+            else if (request.method == "begin_attachment" || request.method == "upload_attachment" ||
+                     request.method == "cancel_attachment" || request.method == "get_attachment")
+            {
+                rpc_error = co_await handle_attachment(request, response);
+            }
+            else if (request.method == kSendMessageMethod || request.method == "finish_attachment")
             {
                 rpc_error = co_await handle_send_message(request, response);
             }

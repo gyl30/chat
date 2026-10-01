@@ -99,6 +99,7 @@ endif()
 
 add_executable(chat_server
     src/main.cpp
+    src/attachment_request.cpp
     src/contact_request.cpp
     src/chat_session.cpp
     src/conversation_request.cpp
@@ -122,7 +123,7 @@ add_executable(chat_server
     src/websocket.cpp
 )
 
-target_include_directories(chat_server PRIVATE src)
+target_include_directories(chat_server PRIVATE src client/include)
 
 target_link_libraries(chat_server
     PRIVATE
@@ -229,6 +230,7 @@ set_tests_properties(websocket PROPERTIES TIMEOUT 5)
 add_executable(chat_server_test
     tests/server_test.cpp
     tests/conversation_test.cpp
+    src/attachment_request.cpp
     src/contact_request.cpp
     src/chat_session.cpp
     src/conversation_request.cpp

@@ -573,6 +573,93 @@ int run_group_tests()
         require(literal_search && literal_search->messages.size() == 1 &&
                     literal_search->messages.front().id == literal->message_id && other_conversation_search &&
                     other_conversation_search->messages.empty(), "Unicode and punctuation are literal and scoped");
+        std::string file_bytes(3 * chat::attachment_chunk_size + 17, '\0');
+        for (std::size_t i = 0; i < file_bytes.size(); ++i)
+        {
+            file_bytes[i] = static_cast<char>(i % 256);
+        }
+        auto file = call<chat::message>([&](auto handler) {
+            a.send_attachment(group, "资料.bin", file_bytes, handler, literal->message_id);
+        });
+        require(file.has_value(), file ? "" : "Attachment send: " + file.error().message +
+                    " (" + std::to_string(file.error().code) + ")");
+        require(file && file->attachment && file->attachment->filename == "资料.bin" &&
+                    file->attachment->size == static_cast<std::int64_t>(file_bytes.size()) &&
+                    file->attachment->media_type == "application/octet-stream" && file->reply &&
+                    file->reply->id == literal->message_id, "Atomic attachment message and reply");
+        c_events.wait([&] { return std::ranges::any_of(c_events.messages, [&](auto const& value) {
+            return value.id == file->id && value.attachment && value.attachment->filename == "资料.bin";
+        }); });
+        require(conversation(b, group).last.attachment && conversation(b, group).last.id == file->id,
+                "Attachment metadata in conversation summary");
+        auto const unread_before_download = conversation(c, group).unread;
+        auto downloaded = call<std::string>([&](auto handler) { c.get_attachment(group, file->id, handler); });
+        require(downloaded && *downloaded == file_bytes && conversation(c, group).unread == unread_before_download,
+                "Chunked binary download preserves every byte and read position");
+        auto file_history = call<chat::messages_result>(
+            [&](auto handler) { b.get_messages(group, {}, handler, literal->message_id); });
+        require(file_history && file_history->messages.size() == 1 && file_history->messages.front().attachment,
+                "Attachment restored through forward history");
+        auto file_search = call<chat::messages_result>(
+            [&](auto handler) { b.search_messages(group, "资料.bin", {}, handler); });
+        require(file_search && file_search->messages.size() == 1 && file_search->messages.front().attachment &&
+                    file_search->messages.front().id == file->id, "Attachment filename search");
+        auto forbidden_download = call<std::string>(
+            [&](auto handler) { d.get_attachment(group, file->id, handler); });
+        auto wrong_conversation_download = call<std::string>(
+            [&](auto handler) { a.get_attachment(*direct, file->id, handler); });
+        auto forbidden_upload = call<chat::message>(
+            [&](auto handler) { d.send_attachment(group, "forbidden.bin", "data", handler); });
+        auto edit_attachment = call<chat::message>(
+            [&](auto handler) { a.edit_message(group, file->id, "rename", handler); });
+        require(!forbidden_download && forbidden_download.error().code == -32007 && !wrong_conversation_download &&
+                    wrong_conversation_download.error().code == -32007 && !forbidden_upload &&
+                    forbidden_upload.error().code == -32006 && !edit_attachment && edit_attachment.error().code == -32007,
+                "Attachment membership, conversation and immutability checks");
+        auto failed_file_reply = call<chat::message>([&](auto handler) {
+            a.send_attachment(group, "aborted.bin", "abc", handler, direct_sent->message_id);
+        });
+        require(!failed_file_reply && failed_file_reply.error().code == -32602, "Attachment cross-conversation reply rejected");
+        auto empty_file = call<chat::message>(
+            [&](auto handler) { a.send_attachment(*direct, "empty.bin", "", handler); });
+        require(empty_file && empty_file->attachment && empty_file->attachment->size == 0,
+                "Empty file and next upload after cancelled failure");
+        auto downloaded_empty = call<std::string>(
+            [&](auto handler) { b.get_attachment(*direct, empty_file->id, handler); });
+        require(downloaded_empty && downloaded_empty->empty(), "Empty attachment download");
+        auto bad_filename = call<chat::message>(
+            [&](auto handler) { a.send_attachment(group, "../bad.bin", "data", handler); });
+        auto too_large = call<chat::message>([&](auto handler) {
+            a.send_attachment(group, "large.bin", std::string(chat::max_attachment_size + 1, 'x'), handler);
+        });
+        require(!bad_filename && bad_filename.error().code == -32602 && !too_large,
+                "Unsafe filename and oversized attachment rejected");
+        auto file_reply = call<chat::send_message_result>(
+            [&](auto handler) { b.send_message(group, "引用文件", handler, file->id); });
+        require(file_reply && file_reply->reply && file_reply->reply->text == "资料.bin", "Reply to attachment");
+        auto file_deleted = call<chat::message>(
+            [&](auto handler) { a.delete_message(group, file->id, handler); });
+        require(file_deleted && file_deleted->deleted && !file_deleted->attachment, "Attachment deletion placeholder");
+        auto unavailable_file = call<std::string>([&](auto handler) { b.get_attachment(group, file->id, handler); });
+        require(!unavailable_file && unavailable_file.error().code == -32007, "Deleted attachment cannot be downloaded");
+        auto cleared_query = "SELECT count(*) FROM message_attachments WHERE message_id=" + std::to_string(file->id);
+        std::unique_ptr<PGresult, decltype(&PQclear)> cleared(PQexec(data.database.get(), cleared_query.c_str()), &PQclear);
+        require(cleared && PQresultStatus(cleared.get()) == PGRES_TUPLES_OK &&
+                    std::string_view(PQgetvalue(cleared.get(), 0, 0)) == "0", "Deleted attachment bytes are removed");
+        auto file_reply_history = call<chat::messages_result>([&](auto handler) { c.get_messages(group, {}, handler); });
+        require(file_reply_history && file_reply_history->messages.back().reply &&
+                    file_reply_history->messages.back().reply->deleted, "Deleted attachment reply placeholder");
+        auto image_file = call<chat::message>([&](auto handler) {
+            a.send_attachment(*direct, "detected.bin", std::string("\x89PNG\r\n\x1a\n", 8), handler);
+        });
+        require(image_file && image_file->attachment && image_file->attachment->media_type == "image/png",
+                "Image type detected from bytes rather than filename");
+        auto nul_message = call<chat::send_message_result>(
+            [&](auto handler) { a.send_message(group, std::string("a\0b", 3), handler); });
+        auto nul_edit = call<chat::message>(
+            [&](auto handler) { a.edit_message(group, literal->message_id, std::string("a\0b", 3), handler); });
+        require(!nul_message && nul_message.error().code == -32602 && !nul_edit && nul_edit.error().code == -32602,
+                "Binary data cannot be silently truncated through text messages");
         {
             std::lock_guard lock(d_events.mutex);
             require(d_events.messages.empty() && d_events.updates.empty() && d_events.reads.empty() &&

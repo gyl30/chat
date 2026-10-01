@@ -7,6 +7,9 @@
 #include <QColor>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QListWidget>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -30,6 +33,7 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <chat/attachment.hpp>
 
 #include "avatar.hpp"
 #include "conversation_delegate.hpp"
@@ -347,12 +351,22 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
                 }
                 QMenu menu(this);
                 auto* reply = menu.addAction(QStringLiteral("回复"));
-                auto* edit = index.data(message_model::outgoing_role).toBool() ? menu.addAction(QStringLiteral("编辑"))
+                auto const filename = index.data(message_model::attachment_name_role).toString();
+                auto* download = !filename.isEmpty() ? menu.addAction(QStringLiteral("下载文件")) : nullptr;
+                auto* preview = index.data(message_model::attachment_type_role).toString().startsWith(QStringLiteral("image/"))
+                    ? menu.addAction(QStringLiteral("查看图片")) : nullptr;
+                auto* edit = filename.isEmpty() && index.data(message_model::outgoing_role).toBool() ? menu.addAction(QStringLiteral("编辑"))
                                                                                : nullptr;
                 auto* remove = index.data(message_model::outgoing_role).toBool()
                                    ? menu.addAction(QStringLiteral("删除"))
                                    : nullptr;
                 auto* selected = menu.exec(messages_view_->viewport()->mapToGlobal(position));
+                if ((download && selected == download) || (preview && selected == preview))
+                {
+                    emit attachment_open_requested(active_conversation_, index.data(message_model::id_role).toLongLong(),
+                                                   filename, preview && selected == preview);
+                    return;
+                }
                 if (remove && selected == remove)
                 {
                     if (QMessageBox::question(this, QStringLiteral("删除消息"),
@@ -406,6 +420,47 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     message_edit_->setMinimumHeight(chat_theme::compose_field_min_height);
     message_edit_->setEnabled(false);
     input_layout->addWidget(message_edit_, 1);
+    attachment_button_ = new QToolButton(input_bar);
+    attachment_button_->setObjectName(QStringLiteral("sendAttachmentButton"));
+    attachment_button_->setText(QStringLiteral("文件/图片"));
+    attachment_button_->setEnabled(false);
+    input_layout->addWidget(attachment_button_);
+    connect(attachment_button_, &QToolButton::clicked, this, [this] {
+        auto const path = QFileDialog::getOpenFileName(this, QStringLiteral("发送文件或图片"));
+        if (path.isEmpty())
+        {
+            return;
+        }
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly))
+        {
+            set_message_status(file.errorString());
+            return;
+        }
+        if (file.size() > static_cast<qint64>(chat::max_attachment_size))
+        {
+            set_message_status(QStringLiteral("文件不能超过 10 MiB。"));
+            return;
+        }
+        auto data = file.read(chat::max_attachment_size + 1);
+        if (file.error() != QFileDevice::NoError || data.size() > static_cast<qint64>(chat::max_attachment_size))
+        {
+            set_message_status(QStringLiteral("无法读取文件，或文件超过 10 MiB。"));
+            return;
+        }
+        if (!connection_available_)
+        {
+            set_message_status(QStringLiteral("连接已断开，请重新发送文件。"));
+            return;
+        }
+        auto const reply = reply_to_;
+        reply_to_ = 0;
+        reply_bar_->hide();
+        attachment_sending_ = true;
+        attachment_button_->setEnabled(false);
+        set_message_status(QStringLiteral("正在发送 %1…").arg(QFileInfo(path).fileName()));
+        emit attachment_send_requested(active_conversation_, QFileInfo(path).fileName(), std::move(data), reply);
+    });
     send_button_ = new QToolButton(input_bar);
     send_button_->setObjectName(QStringLiteral("sendButton"));
     send_button_->setIcon(svg_icon(QStringLiteral("send"), QColor(QStringLiteral("#315A4B")), QSize(22, 22)));
@@ -489,6 +544,7 @@ void chat_widget::set_user(QString const& username, qint64 user)
     profile_avatar_->setToolTip(username);
     profile_avatar_->setStyleSheet(QStringLiteral("background: %1;").arg(avatar_background(username).name()));
     self_user_ = user;
+    attachment_sending_ = false;
     active_peer_ = 0;
     active_group_ = false;
     reply_to_ = 0;
@@ -519,6 +575,7 @@ void chat_widget::set_user(QString const& username, qint64 user)
     message_edit_->setEnabled(false);
     send_button_->setEnabled(false);
     message_search_button_->setEnabled(false);
+    attachment_button_->setEnabled(false);
 }
 
 void chat_widget::set_loading() { conversations_status_->setText(QStringLiteral("正在加载…")); }
@@ -528,12 +585,18 @@ void chat_widget::set_error(QString message) { conversations_status_->setText(st
 void chat_widget::set_connection_available(bool available)
 {
     connection_available_ = available;
+    if (!available && attachment_sending_)
+    {
+        attachment_sending_ = false;
+        set_message_status(QStringLiteral("连接已断开，请重新发送文件。"));
+    }
     groups_navigation_->setEnabled(available);
     messages_loading_ = available && active_conversation_ > 0;
     message_edit_->setEnabled(available && active_conversation_ > 0);
     send_button_->setEnabled(available && active_conversation_ > 0);
     add_contact_button_->setEnabled(available);
     message_search_button_->setEnabled(available && active_conversation_ > 0);
+    attachment_button_->setEnabled(available && active_conversation_ > 0 && !attachment_sending_);
     add_user_search_->setEnabled(available);
 }
 
@@ -746,6 +809,16 @@ void chat_widget::add_sent_message(qint64 user, qint64 message, qint64 timestamp
     add_message(user, std::move(value));
 }
 
+void chat_widget::finish_attachment_send(qint64 conversation, QString error_message)
+{
+    attachment_sending_ = false;
+    attachment_button_->setEnabled(connection_available_ && active_conversation_ > 0);
+    if (conversation == active_conversation_)
+    {
+        set_message_status(std::move(error_message));
+    }
+}
+
 void chat_widget::set_message_error(qint64 user, QString message)
 {
     if (user == active_conversation_)
@@ -942,6 +1015,7 @@ void chat_widget::open_conversation(conversation_data conversation)
     reply_bar_->hide();
     active_conversation_ = user;
     message_search_button_->setEnabled(connection_available_);
+    attachment_button_->setEnabled(connection_available_ && !attachment_sending_);
     messages_->reset(active_conversation_, active_group_);
     messages_loaded_ = false;
     messages_loading_ = true;

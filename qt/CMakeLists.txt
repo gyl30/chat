@@ -2,6 +2,8 @@ find_package(Qt6 6.2 REQUIRED COMPONENTS Svg Widgets)
 
 add_library(chat_qt_widgets OBJECT
     src/avatar.cpp
+    src/attachment_dialog.cpp
+    src/attachment_dialog.hpp
     src/avatar.hpp
     src/chat_widget.cpp
     src/chat_widget.hpp
