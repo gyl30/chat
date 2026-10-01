@@ -43,6 +43,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
     }
     auto original = co_await lease.connection().execute_row(
         "SELECT json_build_object('id',m.id,'conversation',m.conversation_id,'from',m.sender_id,'username',u.username,"
+        "'avatar_revision',u.avatar_revision,'has_avatar',EXISTS(SELECT 1 FROM user_avatars WHERE user_id=u.id),"
         "'timestamp',(extract(epoch FROM "
         "m.created_at)*1000)::bigint,'text',m.body,'deleted',m.deleted,'edited_at',(extract(epoch FROM "
         "m.edited_at)*1000)::bigint,'attachment',(SELECT json_build_object('filename',filename,'media_type',media_type,"

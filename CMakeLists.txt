@@ -83,6 +83,8 @@ target_link_libraries(chat_client
 )
 
 find_package(PostgreSQL REQUIRED)
+find_package(PNG REQUIRED)
+find_package(JPEG REQUIRED)
 
 add_compile_options(
     -Wall
@@ -99,6 +101,8 @@ endif()
 
 add_executable(chat_server
     src/main.cpp
+    src/avatar_request.cpp
+    src/avatar_image.cpp
     src/attachment_request.cpp
     src/contact_request.cpp
     src/chat_session.cpp
@@ -134,6 +138,8 @@ target_link_libraries(chat_server
         Boost::http
         OpenSSL::Crypto
         PostgreSQL::PostgreSQL
+        PNG::PNG
+        JPEG::JPEG
         simdjson::simdjson
         spdlog::spdlog_header_only
         wslay
@@ -232,6 +238,8 @@ set_tests_properties(websocket PROPERTIES TIMEOUT 5)
 add_executable(chat_server_test
     tests/server_test.cpp
     tests/conversation_test.cpp
+    src/avatar_request.cpp
+    src/avatar_image.cpp
     src/attachment_request.cpp
     src/contact_request.cpp
     src/chat_session.cpp
@@ -269,12 +277,20 @@ target_link_libraries(chat_server_test
         Boost::http
         OpenSSL::Crypto
         PostgreSQL::PostgreSQL
+        PNG::PNG
+        JPEG::JPEG
         simdjson::simdjson
         wslay
 )
 
 add_test(NAME server COMMAND chat_server_test)
 set_tests_properties(server PROPERTIES TIMEOUT 60)
+
+add_executable(chat_avatar_image_test tests/avatar_image_test.cpp src/avatar_image.cpp)
+target_include_directories(chat_avatar_image_test PRIVATE src client/include)
+target_link_libraries(chat_avatar_image_test PRIVATE PNG::PNG JPEG::JPEG OpenSSL::Crypto)
+add_test(NAME avatar_image COMMAND chat_avatar_image_test)
+set_tests_properties(avatar_image PROPERTIES TIMEOUT 5)
 
 add_executable(chat_simdjson_reflection_test
     tests/simdjson_reflection_test.cpp

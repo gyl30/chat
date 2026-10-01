@@ -6,6 +6,8 @@
 
 #include "conversation_data.hpp"
 
+class avatar_cache;
+
 class conversation_model final : public QAbstractListModel
 {
    public:
@@ -21,7 +23,7 @@ class conversation_model final : public QAbstractListModel
         online_role,
     };
 
-    explicit conversation_model(QObject* parent = nullptr);
+    explicit conversation_model(QObject* parent = nullptr, avatar_cache* avatars = nullptr);
 
     int rowCount(QModelIndex const& parent = {}) const override;
     QVariant data(QModelIndex const& index, int role) const override;
@@ -32,6 +34,7 @@ class conversation_model final : public QAbstractListModel
      QModelIndex index_for_conversation(qint64 conversation) const;
 
    private:
+    avatar_cache* avatars_;
     QList<conversation_data> conversations_;
 };
 

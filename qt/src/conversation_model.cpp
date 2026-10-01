@@ -1,8 +1,24 @@
 #include "conversation_model.hpp"
+#include "avatar.hpp"
 
 #include <utility>
 
-conversation_model::conversation_model(QObject* parent) : QAbstractListModel(parent) {}
+conversation_model::conversation_model(QObject* parent, avatar_cache* avatars) : QAbstractListModel(parent), avatars_(avatars)
+{
+    if (avatars_)
+    {
+        connect(avatars_, &avatar_cache::changed, this, [this](qint64 user) {
+            for (int row = 0; row < conversations_.size(); ++row)
+            {
+                auto const& item = conversations_[row];
+                if (item.user == user && !item.group)
+                {
+                    emit dataChanged(index(row, 0), index(row, 0), {Qt::DecorationRole});
+                }
+            }
+        });
+    }
+}
 
 int conversation_model::rowCount(QModelIndex const& parent) const
 {
@@ -36,6 +52,8 @@ QVariant conversation_model::data(QModelIndex const& index, int role) const
             return QVariant::fromValue(item->unread);
         case online_role:
             return item->online;
+        case Qt::DecorationRole:
+            return avatars_ ? QVariant::fromValue(avatars_->image(item->user)) : QVariant{};
         default:
             return {};
     }
@@ -43,6 +61,13 @@ QVariant conversation_model::data(QModelIndex const& index, int role) const
 
 void conversation_model::set_conversations(QList<conversation_data> conversations)
 {
+    if (avatars_)
+    {
+        for (auto const& item : conversations)
+        {
+            if (!item.group) avatars_->observe(item.user, item.avatar);
+        }
+    }
     beginResetModel();
     conversations_ = std::move(conversations);
     endResetModel();

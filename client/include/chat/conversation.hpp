@@ -32,6 +32,7 @@ struct conversation
     std::uint64_t member_count = 0;
     message last;
     std::uint64_t unread = 0;
+    avatar_state avatar;
 };
 
 struct conversations_result

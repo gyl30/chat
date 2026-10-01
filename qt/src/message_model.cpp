@@ -1,10 +1,26 @@
 #include "message_model.hpp"
+#include "avatar.hpp"
 
 #include <algorithm>
 #include <iterator>
 #include <utility>
 
-message_model::message_model(QObject* parent) : QAbstractListModel(parent) {}
+message_model::message_model(QObject* parent, avatar_cache* avatars) : QAbstractListModel(parent), avatars_(avatars)
+{
+    if (avatars_)
+    {
+        connect(avatars_, &avatar_cache::changed, this, [this](qint64 user) {
+            for (int row = 0; row < messages_.size(); ++row)
+            {
+                auto const& item = messages_[row];
+                if (item.from == user)
+                {
+                    emit dataChanged(index(row, 0), index(row, 0), {Qt::DecorationRole});
+                }
+            }
+        });
+    }
+}
 
 int message_model::rowCount(QModelIndex const& parent) const
 {
@@ -77,6 +93,8 @@ QVariant message_model::data(QModelIndex const& index, int role) const
                 }
             }
             return !group_ && read_positions_.size() == 1 && read_positions_.value(self_user_) >= message.id;
+        case Qt::DecorationRole:
+            return avatars_ ? QVariant::fromValue(avatars_->image(message.from)) : QVariant{};
         default:
             return {};
     }
@@ -133,6 +151,7 @@ bool message_model::add_message(message_data message)
     {
         return false;
     }
+    if (avatars_) { avatars_->observe(message.from, message.avatar); }
     auto found = std::find_if(messages_.cbegin(), messages_.cend(), [id = message.id](message_data const& value) {
         return value.id == id;
     });
@@ -157,6 +176,7 @@ void message_model::update_message(message_data const& message)
     {
         return;
     }
+    if (avatars_) { avatars_->observe(message.from, message.avatar); }
     for (int row = 0; row < messages_.size(); ++row)
     {
         auto& current = messages_[row];

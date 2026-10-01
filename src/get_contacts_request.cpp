@@ -53,7 +53,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_contacts(json_r
             "'[]'::json"
             ")::text "
             "FROM ("
-            "SELECT u.id, u.username FROM contacts c "
+            "SELECT u.id, u.username,u.avatar_revision,EXISTS(SELECT 1 FROM user_avatars WHERE user_id=u.id) AS has_avatar FROM contacts c "
             "JOIN users u ON u.id = c.contact_id "
             "WHERE c.owner_id = $1::bigint "
             "ORDER BY u.username, u.id"

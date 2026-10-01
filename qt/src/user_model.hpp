@@ -6,6 +6,8 @@
 
 #include "user_data.hpp"
 
+class avatar_cache;
+
 class user_model final : public QAbstractListModel
 {
    public:
@@ -17,7 +19,7 @@ class user_model final : public QAbstractListModel
         last_seen_role,
     };
 
-    explicit user_model(QObject* parent = nullptr);
+    explicit user_model(QObject* parent = nullptr, avatar_cache* avatars = nullptr);
 
     int rowCount(QModelIndex const& parent = {}) const override;
     QVariant data(QModelIndex const& index, int role) const override;
@@ -27,6 +29,7 @@ class user_model final : public QAbstractListModel
     user_data const* user_at(QModelIndex const& index) const;
 
    private:
+    avatar_cache* avatars_;
     QList<user_data> users_;
 };
 

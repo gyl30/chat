@@ -396,7 +396,7 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
         paint_avatar(*painter,
                      QRect(avatar_x, avatar_y, chat_theme::message_avatar_size, chat_theme::message_avatar_size),
                      layout.sender,
-                     13);
+                     13, index.data(Qt::DecorationRole).value<QPixmap>());
     }
 
     painter->setPen(Qt::NoPen);

@@ -27,6 +27,7 @@ class chat_session
 
     boost::capy::task<simdjson::error_code> handle_contact_change(json_rpc_request& request, std::string& response);
     boost::capy::task<simdjson::error_code> handle_attachment(json_rpc_request& request, std::string& response);
+    boost::capy::task<simdjson::error_code> handle_avatar(json_rpc_request& request, std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_echo(json_rpc_request& request, std::string& response);
 
@@ -80,6 +81,13 @@ class chat_session
     };
     std::optional<attachment_upload> upload_;
     std::int64_t next_upload_id_ = 1;
+    struct avatar_upload
+    {
+        std::int64_t id;
+        std::int64_t size;
+        std::string content;
+    };
+    std::optional<avatar_upload> avatar_upload_;
 };
 
 #endif

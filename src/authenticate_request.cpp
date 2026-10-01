@@ -29,6 +29,8 @@ struct authenticate_result
 {
     bool authenticated = false;
     std::int64_t user = 0;
+    std::int64_t avatar_revision = 0;
+    bool has_avatar = false;
 };
 
 simdjson::error_code parse_authenticate_params(json_rpc_params& params, authenticate_params& value)
@@ -65,12 +67,15 @@ simdjson::error_code parse_authenticate_params(json_rpc_params& params, authenti
     return simdjson::SUCCESS;
 }
 
-simdjson::error_code serialize_authenticate_result(bool authenticated, std::int64_t user, json_rpc_id id,
+simdjson::error_code serialize_authenticate_result(bool authenticated, std::int64_t user,
+                                                   std::int64_t revision, bool present, json_rpc_id id,
                                                    std::string& response)
 {
     authenticate_result result{};
     result.authenticated = authenticated;
     result.user = user;
+    result.avatar_revision = revision;
+    result.has_avatar = present;
 
     std::string result_json;
     auto error = simdjson::builder::to_json_string(result).get(result_json);
@@ -119,7 +124,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_authenticate(json_r
         }
 
         auto query_result = co_await lease.connection().execute_row(
-            "SELECT id::text, password_hash FROM users WHERE username = $1", {params.username});
+            "SELECT id::text, password_hash,avatar_revision::text,"
+            "EXISTS(SELECT 1 FROM user_avatars WHERE user_id=users.id)::text FROM users WHERE username = $1", {params.username});
         auto& [query_ec, query_row] = query_result;
         if (query_ec)
         {
@@ -135,7 +141,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_authenticate(json_r
     std::string_view password_hash = kDummyPasswordHash;
     if (row)
     {
-        if (row->size() != 2)
+        if (row->size() != 4)
         {
             if (request.id.present)
             {
@@ -195,5 +201,6 @@ boost::capy::task<simdjson::error_code> chat_session::handle_authenticate(json_r
         co_return simdjson::SUCCESS;
     }
 
-    co_return serialize_authenticate_result(authenticated, user_id_.value_or(0), std::move(request.id), response);
+    co_return serialize_authenticate_result(authenticated, user_id_.value_or(0),
+        authenticated ? std::stoll((*row)[2]) : 0, authenticated && (*row)[3] == "true", std::move(request.id), response);
 }

@@ -1,4 +1,5 @@
 #include "message_search_dialog.hpp"
+#include "avatar.hpp"
 
 #include <QClipboard>
 #include <QDialogButtonBox>
@@ -15,7 +16,7 @@
 #include "message_model.hpp"
 
 message_search_dialog::message_search_dialog(qint64 conversation, qint64 self_user, bool group,
-                                             QString const& title, QWidget* parent)
+                                             QString const& title, QWidget* parent, avatar_cache* avatars)
     : QDialog(parent), conversation_(conversation), group_(group)
 {
     setObjectName(QStringLiteral("messageSearchDialog"));
@@ -36,7 +37,7 @@ message_search_dialog::message_search_dialog(qint64 conversation, qint64 self_us
     status_ = new QLabel(QStringLiteral("不区分大小写；已删除的消息不出现在结果中。"), this);
     status_->setObjectName(QStringLiteral("messageSearchStatus"));
     layout->addWidget(status_);
-    messages_ = new message_model(this);
+    messages_ = new message_model(this, avatars);
     messages_->set_self_user(self_user);
     messages_->reset(conversation_, group_);
     results_ = new QListView(this);

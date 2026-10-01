@@ -24,6 +24,7 @@ struct authentication_result
 {
     bool authenticated = false;
     std::int64_t user = 0;
+    avatar_state avatar;
 };
 
 class client
@@ -52,6 +53,9 @@ class client
     using presence_handler = std::function<void(presence)>;
     using typing_handler = std::function<void(typing_event)>;
     using typing_result_handler = std::function<void(std::expected<bool, error>)>;
+    using avatar_state_handler = std::function<void(std::expected<avatar_state, error>)>;
+    using avatar_handler = std::function<void(std::expected<avatar, error>)>;
+    using avatar_changed_handler = std::function<void(std::int64_t user, avatar_state)>;
 
     client();
     ~client();
@@ -70,6 +74,7 @@ class client
     void set_presence_handler(presence_handler handler);
     void set_typing_handler(typing_handler handler);
     void set_conversation_handler(conversation_changed_handler handler);
+    void set_avatar_handler(avatar_changed_handler handler);
 
     void connect(std::string url);
     void close();
@@ -105,6 +110,9 @@ class client
     void remove_contact(std::int64_t user, remove_contact_handler handler);
     void mark_read(std::int64_t conversation, std::int64_t message, mark_read_handler handler);
     void set_typing(std::int64_t conversation, bool typing, typing_result_handler handler);
+    void set_avatar(std::string data, avatar_state_handler handler);
+    void get_avatar(std::int64_t user, std::int64_t revision, avatar_handler handler);
+    void clear_avatar(avatar_state_handler handler);
 
    private:
     struct impl;

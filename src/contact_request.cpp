@@ -113,7 +113,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_contact_change(json
         }
         auto query_result = co_await lease.connection().execute_scalar(
             "WITH target AS ("
-            "SELECT id, username FROM users WHERE id = $2::bigint AND id <> $1::bigint"
+            "SELECT id, username,avatar_revision,EXISTS(SELECT 1 FROM user_avatars WHERE user_id=users.id) AS has_avatar "
+            "FROM users WHERE id = $2::bigint AND id <> $1::bigint"
             "), inserted AS ("
             "INSERT INTO contacts (owner_id, contact_id) "
             "SELECT $1::bigint, id FROM target "

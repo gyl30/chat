@@ -62,9 +62,9 @@ target_link_libraries(chat_qt_widgets
         Qt6::Widgets
 )
 
-add_executable(chat_qt_models_test tests/models_test.cpp src/message_model.cpp src/conversation_model.cpp)
+add_executable(chat_qt_models_test tests/models_test.cpp)
 target_include_directories(chat_qt_models_test PRIVATE src)
-target_link_libraries(chat_qt_models_test PRIVATE Qt6::Widgets)
+target_link_libraries(chat_qt_models_test PRIVATE chat_qt_widgets)
 add_test(NAME qt_models COMMAND chat_qt_models_test)
 
 add_executable(chat_qt_delegate_test tests/delegate_test.cpp)
@@ -80,4 +80,4 @@ add_executable(chat_qt_ui_test tests/ui_test.cpp)
 target_include_directories(chat_qt_ui_test PRIVATE src)
 target_link_libraries(chat_qt_ui_test PRIVATE chat_qt_widgets PostgreSQL::PostgreSQL)
 add_test(NAME qt_ui COMMAND chat_qt_ui_test $<TARGET_FILE:chat_server> "${CMAKE_CURRENT_BINARY_DIR}")
-set_tests_properties(qt_ui PROPERTIES TIMEOUT 30 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+set_tests_properties(qt_ui PROPERTIES TIMEOUT 60 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

@@ -5,6 +5,7 @@
 
 #include "message_data.hpp"
 
+class avatar_cache;
 class QLabel;
 class QLineEdit;
 class QListView;
@@ -16,7 +17,7 @@ class message_search_dialog final : public QDialog
     Q_OBJECT
 
    public:
-    message_search_dialog(qint64 conversation, qint64 self_user, bool group, QString const& title, QWidget* parent);
+    message_search_dialog(qint64 conversation, qint64 self_user, bool group, QString const& title, QWidget* parent, avatar_cache* avatars = nullptr);
     void set_results(qint64 conversation, QString const& query, qint64 before, QList<message_data> messages,
                      read_positions positions, bool has_more, QString const& error_message);
 

@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <string>
+#include "avatar.hpp"
 
 namespace chat
 {
@@ -14,6 +15,7 @@ struct conversation_member
     std::int64_t id = 0;
     std::string username;
     member_role role = member_role::member;
+    avatar_state avatar;
 };
 
 }

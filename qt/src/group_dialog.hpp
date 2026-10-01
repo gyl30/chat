@@ -6,6 +6,7 @@
 #include "conversation_data.hpp"
 #include "user_data.hpp"
 
+class avatar_cache;
 class QLabel;
 class QLineEdit;
 class QListWidget;
@@ -16,7 +17,7 @@ class group_dialog final : public QDialog
     Q_OBJECT
 
    public:
-    group_dialog(qint64 conversation, qint64 self_user, QString const& title, QWidget* parent);
+    group_dialog(qint64 conversation, qint64 self_user, QString const& title, QWidget* parent, avatar_cache* avatars = nullptr);
     void set_members(qint64 conversation, QList<member_data> members, QString const& error);
     void finish_action(qint64 conversation, bool left, QString const& error);
     void set_contacts(QList<user_data> contacts, QString const& error);
@@ -34,6 +35,7 @@ class group_dialog final : public QDialog
    private:
     void update_actions();
 
+    avatar_cache* avatars_;
     qint64 conversation_;
     qint64 self_user_;
     QList<member_data> members_;

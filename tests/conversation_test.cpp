@@ -17,8 +17,10 @@
 #include <boost/capy/ex/work_guard.hpp>
 #include <boost/http/server/router.hpp>
 #include <chat/client.hpp>
+#include <chat/detail/base64.hpp>
 
 #include "server.hpp"
+#include "avatar_fixture.hpp"
 
 namespace
 {
@@ -52,6 +54,7 @@ struct events
     std::vector<std::int64_t> removals;
     std::vector<chat::read_position> reads;
     std::vector<chat::typing_event> typing;
+    std::vector<chat::avatar> avatars;
 
     template <class F> void wait(F predicate)
     {
@@ -61,6 +64,11 @@ struct events
 
     void attach(chat::client& client)
     {
+        client.set_avatar_handler([this](std::int64_t user, chat::avatar_state state) {
+            std::lock_guard lock(mutex);
+            avatars.push_back({user, state, {}, {}});
+            condition.notify_all();
+        });
         client.set_typing_handler([this](chat::typing_event value) {
             std::lock_guard lock(mutex);
             typing.push_back(std::move(value));
@@ -251,6 +259,11 @@ int run_group_tests()
                 [&](auto handler) { client.set_typing(1, true, handler); });
             require(!unauthenticated_typing && unauthenticated_typing.error().code == -32001,
                     "Typing requires authentication");
+            auto unauthenticated_avatar = call<chat::avatar>([&](auto handler) {
+                client.get_avatar(data.users.front(), 0, handler);
+            });
+            require(!unauthenticated_avatar && unauthenticated_avatar.error().code == -32001,
+                    "Avatar requires authentication");
             auto authenticated = call<chat::authentication_result>(
                 [&](auto handler) { client.authenticate(names.back(), "group password", handler); });
             require(authenticated && authenticated->authenticated && authenticated->user == *registered,
@@ -299,6 +312,68 @@ int run_group_tests()
         require(conversation(b, group).unread == 1 && conversation(c, group).unread == 1 &&
                     conversation(a, group).unread == 0,
                 "Independent unread");
+        {
+            auto png = *chat::detail::decode_base64(avatar_png_base64);
+            auto jpeg = *chat::detail::decode_base64(avatar_jpeg_base64);
+            auto empty_avatar = call<chat::avatar>([&](auto handler) { b.get_avatar(data.users[0], 0, handler); });
+            require(empty_avatar && empty_avatar->state == chat::avatar_state{} && empty_avatar->data.empty(),
+                    "Existing user starts without an avatar");
+            auto first_avatar = call<chat::avatar_state>([&](auto handler) { a.set_avatar(png, handler); });
+            require(first_avatar && first_avatar->present && first_avatar->revision == 1, "Upload persistent PNG avatar");
+            a_events.wait([&] { return a_events.avatars.size() == 1; });
+            b_events.wait([&] { return b_events.avatars.size() == 1; });
+            c_events.wait([&] { return c_events.avatars.size() == 1; });
+            auto stale_avatar = call<chat::avatar>([&](auto handler) { b.get_avatar(data.users[0], 0, handler); });
+            auto downloaded = call<chat::avatar>([&](auto handler) { d.get_avatar(data.users[0], 1, handler); });
+            require(stale_avatar && stale_avatar->state == *first_avatar && stale_avatar->data.empty() &&
+                downloaded && downloaded->data == png && downloaded->media_type == "image/png",
+                "Stale revision returns current metadata; searchable users have readable avatars");
+            auto search = call<std::vector<chat::user>>([&](auto handler) { b.search_users(names[0], handler); });
+            auto avatar_members = call<std::vector<chat::conversation_member>>([&](auto handler) { c.get_members(group, handler); });
+            require(search && search->size() == 1 && search->front().avatar == *first_avatar &&
+                avatar_members && avatar_members->front().avatar == *first_avatar,
+                "User search and group members expose current avatar metadata");
+            auto replacement = call<chat::avatar_state>([&](auto handler) { a.set_avatar(jpeg, handler); });
+            auto current_history = call<chat::messages_result>([&](auto handler) { b.get_messages(group, {}, handler); });
+            auto current_file = call<chat::avatar>([&](auto handler) { b.get_avatar(data.users[0], 2, handler); });
+            require(replacement && replacement->revision == 2 && replacement->present && current_file &&
+                current_file->media_type == "image/jpeg" && current_file->data == jpeg && current_history &&
+                current_history->messages.front().avatar == *replacement &&
+                conversation(b, group).last.avatar == *replacement,
+                "Replacement changes revision and old history uses the author's current avatar");
+            auto cleared = call<chat::avatar_state>([&](auto handler) { a.clear_avatar(handler); });
+            require(cleared && cleared->revision == 3 && !cleared->present, "Clear retains a monotonic revision");
+            auto cleared_file = call<chat::avatar>([&](auto handler) { b.get_avatar(data.users[0], 2, handler); });
+            auto restored_avatar = call<chat::avatar_state>([&](auto handler) { a.set_avatar(png, handler); });
+            require(cleared_file && cleared_file->state == *cleared && cleared_file->data.empty() &&
+                restored_avatar && restored_avatar->revision == 4 && restored_avatar->present,
+                "Clear and re-upload cannot reuse an old cache key");
+            auto invalid_avatar = call<chat::avatar_state>([&](auto handler) { a.set_avatar("not an image", handler); });
+            auto retained_avatar = call<chat::avatar>([&](auto handler) { b.get_avatar(data.users[0], 4, handler); });
+            require(!invalid_avatar && invalid_avatar.error().code == -32602 && retained_avatar && retained_avatar->data == png,
+                "Invalid media does not replace the current avatar");
+            b_events.wait([&] { return b_events.avatars.size() == 4; });
+            c_events.wait([&] { return c_events.avatars.size() == 4; });
+            require(call<std::vector<chat::user>>([&](auto handler) { d.get_contacts(handler); }).has_value(),
+                "Unrelated notification barrier");
+            {
+                std::lock_guard lock(d_events.mutex);
+                require(d_events.avatars.empty(), "Avatar changes are not globally broadcast");
+            }
+            auto empty_direct = call<std::int64_t>([&](auto handler) { d.open_direct_conversation(data.users[0], handler); });
+            require(empty_direct.has_value(), "Empty direct conversation notification relationship");
+            auto updating = std::async(std::launch::async, [&] {
+                return call<chat::avatar_state>([&](auto handler) { a.set_avatar(jpeg, handler); });
+            });
+            auto concurrent_avatar = call<chat::avatar>([&](auto handler) { b.get_avatar(data.users[0], 4, handler); });
+            auto concurrent_state = updating.get();
+            require(concurrent_state && concurrent_state->revision == 5 && concurrent_avatar &&
+                ((concurrent_avatar->state.revision == 4 && concurrent_avatar->data == png) ||
+                 (concurrent_avatar->state == *concurrent_state && concurrent_avatar->data.empty())),
+                 "Concurrent update/get observes one atomic revision and matching bytes or stale metadata");
+            d_events.wait([&] { return d_events.avatars.size() == 1; });
+            require(call<chat::avatar_state>([&](auto handler) { a.clear_avatar(handler); }).has_value(), "Avatar cleanup");
+        }
         auto typing_start = call<bool>([&](auto handler) { a.set_typing(group, true, handler); });
         require(typing_start && *typing_start, "Typing realtime response");
         b_events.wait([&] { return b_events.typing.size() == 1; });

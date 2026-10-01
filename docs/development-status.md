@@ -17,12 +17,14 @@
 | `dc4481c` | 创建者群主；群主任免最多三名管理员；角色持久化及 Qt 管理 | SQL 013 |
 | `27b2a88` | 管理员/群主邀请联系人、改名；非群主退出；重新加入；快照恢复及群已读语义 | SQL 014 |
 | `6b6a193` | 稳态审计、libpq 测试环境、过期回调及生命周期/并发验证 | 无 |
+| `6ff2ac6` | 群主转让、成员移除、权限与实时隔离、再邀请及 Qt 生命周期 | 无 |
+| 本次头像提交 | 真实用户头像上传、获取、更换、清除、实时更新与 Qt 缓存展示 | SQL 015 |
 
 另外完成历史大响应接收、编辑消息布局和消息操作按钮对比度修复，分别见 `32f3f3b`、`a545c9a`、`f73b8f4`。
 
 ## 数据模型
 
-- `users` 保存账号与最后在线时间；`contacts` 是单向关系。
+- `users` 保存账号、最后在线时间和单调递增的 `avatar_revision`；`contacts` 是单向关系。`user_avatars` 保存一个当前头像，是否存在由数据行决定；不与消息附件共表。
 - `conversations.kind` 显式区分 `direct/group`；单聊使用真实的两端 user ID，群使用会话 ID、群名和 `owner_id`。
 - `conversation_members` 表示当前成员，持有 `is_admin`、`last_read_message_id` 和 `joined_message_id`。群主必须是群成员，由延迟外键保证；管理员上限在同一会话锁事务内检查。
 - `messages` 指向会话和真实作者，包含回复 ID、编辑时间、删除占位；`message_attachments` 保存附件元数据和内容。删除附件消息会清除文件内容。
@@ -115,7 +117,7 @@ owner 可以移除 admin 或 member，不能移除自己；admin 只能移除普
 
 Qt 立即复用 `close_conversation` 清历史、回复、草稿、typing 和附件发送状态，同时关闭该群的成员、搜索、附件及嵌套保存窗口；迟到结果按会话 ID 过滤，已关闭 QObject 不再接收回调，不新增跨会话 shadow state。群成员窗口按实时角色启用转让/移除按钮，确认窗口使用稳定目标 ID，重连重新获取成员与角色。
 
-数据库没有新增字段、表、索引或 migration：SQL 013/014 已足够表达本次规则，SQL 001–014 保持原样；下一次真实 schema 变更从 015 编号。旧单聊、消息占位、每成员实际读位与三名管理员上限保持。
+数据库没有新增字段、表、索引或 migration：SQL 013/014 已足够表达本次规则，SQL 001–014 保持原样；真实头像在后续独立阶段使用 SQL 015，见下文。旧单聊、消息占位、每成员实际读位与三名管理员上限保持。
 
 测试新增完整权限矩阵、原群主退出、移除后的所有访问拒绝及通知隔离、被移除管理员重新邀请后的角色重置、非零真实读位重置、加入水位/未读和重连快照。并发测试实际等待同一会话锁，覆盖 transfer/leave、remove/send、remove/invite、remove/typing，以及被移除的半途上传和已挂起 finish。Qt 三个真实窗口验证转让、重连角色、移除时成员/搜索/附件/保存窗口关闭及聊天状态清理；转让截图已检查。
 
@@ -128,3 +130,32 @@ Qt 立即复用 `close_conversation` 清历史、回复、草稿、typing 和附
 | UBSan `build/ubsan` | PASS | 13/13 PASS | 51.94 s |
 
 Sanitizer 编译与链接选项同阶段 1，未使用 suppression 或测试排除。ASan 发现 raw WebSocket 协程测试接收字符串的生命周期泄漏；接收结果改为具名对象并复用循环结果后，原测试与完整 CTest 均通过。扩展后的服务器集成测试在 ASan 下单次实测 31.23 s，因此 CTest 时限由 30 s 调整为 60 s；所有行为断言和泄漏检查保持开启。`git diff --check` PASS，没有新增临时 migration、调试打印或 TODO。
+
+
+## 真实用户头像
+
+从重新 fetch 后的 `origin/main = 6ff2ac6` 开始完成头像闭环，方案与协议详见 [头像设计](avatar-design.md)。开始时 HEAD 与远端一致、工作树 clean；未修改 SQL 001–014。新增 SQL 015 给既有用户无损增加 revision 默认值，并建立独立 `user_avatars`；测试数据库已应用该 migration。
+
+revision 在上传和清除时都递增，与当前数据一起事务提交；清除保留 revision，后续上传继续递增，避免 `1 → 0 → 1` 的 ABA。业务对象使用 `avatar_revision + has_avatar`，联系人、会话、历史、用户搜索、成员及认证不携带头像二进制。历史消息显示发送者当前头像。
+
+独立 RPC 为 `begin_avatar_upload/upload_avatar_chunk/finish_avatar_upload/cancel_avatar_upload/get_avatar/clear_avatar`；client library 提供上传、获取、清除及 avatar notification handler。任何认证用户可读取与用户搜索同样可见的头像，修改仅限自己。PNG/JPEG 按实际 magic 和完整解码验证；最多 1 MiB、32 KiB chunk、16 × 1024 × 1024 像素，满足现有服务器 64 KiB WebSocket 入站限制。上传随机 ID 和内容只属于 session；取消、断线、重新连接均不能继续旧上传，消息附件状态保持独立。
+
+`avatar` 通知包含 user、revision 和 has_avatar，发送给本人、双向联系人、已有单聊对端、当前共享群成员，去重且不全局广播。过期 get 请求返回权威 metadata 和空内容；客户端按新状态重取。真实用户资料是公开信息，移出群不使头像成为私有。
+
+Qt 在现有 avatar 绘制文件中保存最小当前头像缓存：一用户一当前版本，重复观察只下载一次，绘制使用已解码 QPixmap；版本变化只清该用户图，过期结果不能覆盖新状态。下载失败继续 fallback，重连保留匹配的成功缓存并重试失败/中断请求。新连接、close、实际断线使头像回调失效，logout 清理缓存；SDK 析构抑制 pending 回调，正常 close 仍报告传输错误。
+
+账号头像、联系人/用户搜索、单聊会话、单聊/群消息、资料窗口、单聊 header、群成员和消息搜索均接入同一圆形绘制。未设置时保留首字符与本地背景色；自己的资料窗口提供更换/移除和轻量状态，没有成功弹窗。关闭资料窗口后上传完成不会访问已销毁控件。没有头像裁剪、动画、历史、自定义群头像、多尺寸服务版本或存储基础设施扩展。
+
+回归覆盖 migration 默认值和级联；未认证/非法参数/超限/无效图片/偏移/base64/取消/断线旧 ID/附件隔离；替换、清除、再上传及原子并发读取；当前用户 metadata、相关通知去重、空单聊关系及无关用户隔离；SDK 多 chunk、异常响应/通知和析构；Qt 缓存去重、版本变化、失败 fallback、重试、单用户刷新与旧结果；三个真实 Qt 窗口完成多 chunk PNG、JPEG 更换、清除、联系人、单聊、群、成员、资料、重连、关闭窗口和重新登录。真实截图已检查。
+
+Qt 全链路测试在本阶段一次 ASan 下实测 29.27 s，接近原 30 s 总时限，因此总时限改为 60 s；单步 5 s 超时和行为断言保持。发现群退出测试在异步列表刷新前进行否定断言，现先等待退出快照到达，再验证后续群消息不会恢复该会话；没有去掉隔离检查。
+
+最终验证如下，所有构建启用 Qt、Debug、`-j12`，使用 libpq 环境变量提供数据库参数：
+
+| 构建 | 完整 build | 完整 CTest | 总耗时 |
+|---|---|---|---|
+| 正常 `build` | PASS | 14/14 PASS | 46.75 s |
+| ASan `build/asan` | PASS | 14/14 PASS | 60.59 s |
+| UBSan `build/ubsan` | PASS | 14/14 PASS | 54.48 s |
+
+ASan/UBSan 的 C、C++ 和 executable linker 选项沿用前一阶段；未使用 suppression 或排除失败测试。新增独立 `avatar_image` 测试，其余头像行为扩展既有 server/client/Qt 测试。最终 ASan Qt 全链路实测 29.99 s。`git diff --check` PASS，无临时 migration、调试打印、废弃 API 兼容层或明显 TODO；本阶段仅交付头像，完成后停止，不继续新产品路线。

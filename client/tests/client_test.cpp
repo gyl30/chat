@@ -1,8 +1,11 @@
 #include <chrono>
+#include <atomic>
 #include <condition_variable>
 #include <cstdint>
 #include <expected>
 #include <iostream>
+#include <future>
+#include <chat/detail/base64.hpp>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -118,6 +121,64 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
         response.emplace("jsonrpc", "2.0");
         response.emplace("id", *id);
 
+        auto const operation = std::string_view(method->as_string());
+        if (operation == "begin_avatar_upload" || operation == "upload_avatar_chunk" ||
+            operation == "finish_avatar_upload" || operation == "cancel_avatar_upload" ||
+            operation == "get_avatar" || operation == "clear_avatar")
+        {
+            if (operation == "get_avatar" && params->at("user").as_int64() == 92)
+            { co_return boost::capy::io_result<bool>{std::error_code{}, true}; }
+            boost::json::object result;
+            if (operation == "begin_avatar_upload")
+            {
+                avatar_data_.clear();
+                result = {{"upload", 7}};
+            }
+            else if (operation == "upload_avatar_chunk")
+            {
+                auto bytes = chat::detail::decode_base64(std::string_view(params->at("data").as_string()));
+                if (!bytes || params->at("offset").as_int64() != static_cast<std::int64_t>(avatar_data_.size()))
+                { co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false}; }
+                avatar_data_ += *bytes;
+                result = {{"offset", static_cast<std::int64_t>(avatar_data_.size() + (avatar_data_ == "bad-offset" ? 1 : 0))}};
+            }
+            else if (operation == "finish_avatar_upload") { result = {{"avatar_revision", avatar_data_ == "bad-finish" ? 0 : 1}, {"has_avatar", true}}; }
+            else if (operation == "cancel_avatar_upload") { result = {{"cancelled", true}}; }
+            else if (operation == "clear_avatar") { result = {{"avatar_revision", 2}, {"has_avatar", false}}; }
+            else
+            {
+                auto user = params->at("user").as_int64();
+                auto offset = params->at("offset").as_int64();
+                auto bytes = std::string_view(avatar_data_).substr(offset, chat::attachment_chunk_size);
+                result = {{"user", user}, {"avatar_revision", 1}, {"has_avatar", true}, {"offset", offset},
+                    {"size", static_cast<std::int64_t>(avatar_data_.size())}, {"media_type", "image/png"},
+                    {"data", chat::detail::encode_base64(bytes)},
+                    {"has_more", offset + static_cast<std::int64_t>(bytes.size()) < static_cast<std::int64_t>(avatar_data_.size())}};
+                if (user == 99) { result["data"] = "!invalid!"; }
+                if (user == 98) { result["offset"] = offset + 1; }
+                if (user == 97) { result["avatar_revision"] = 2; }
+                if (user == 96) { result["avatar_revision"] = 0; }
+                if (user == 95) { result["size"] = 1048577; }
+                if (user == 94) { result["media_type"] = "application/octet-stream"; }
+                if (user == 93) { result["has_more"] = !result.at("has_more").as_bool(); }
+            }
+            response.emplace("result", std::move(result));
+            auto [sent] = co_await send_text(connection, std::move(response));
+            if (sent) { co_return boost::capy::io_result<bool>{sent, false}; }
+            if (operation == "finish_avatar_upload")
+            {
+                boost::json::object notice{{"jsonrpc", "2.0"}, {"method", "avatar"},
+                    {"params", boost::json::object{{"user", 1}, {"avatar_revision", 1}, {"has_avatar", true}}}};
+                auto [notified] = co_await send_text(connection, std::move(notice));
+                if (notified) { co_return boost::capy::io_result<bool>{notified, false}; }
+                boost::json::object invalid{{"jsonrpc", "2.0"}, {"method", "avatar"},
+                    {"params", boost::json::object{{"user", 1}, {"avatar_revision", -1}, {"has_avatar", false}}}};
+                auto [invalid_ec] = co_await send_text(connection, std::move(invalid));
+                co_return boost::capy::io_result<bool>{invalid_ec, !invalid_ec};
+            }
+            co_return boost::capy::io_result<bool>{std::error_code{}, true};
+        }
+
         if (method->as_string() == "get_conversations")
         {
             boost::json::array conversations;
@@ -127,6 +188,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 boost::json::object last;
                 last.emplace("conversation", 2);
                 last.emplace("username", "bob");
+                last.emplace("avatar_revision", 0);
+                last.emplace("has_avatar", false);
                 last.emplace("id", 12);
                 last.emplace("from", 2);
                 last.emplace("timestamp", 1700000000000LL);
@@ -138,6 +201,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 conversation.emplace("member_count", 2);
                 conversation.emplace("user", 2);
                 conversation.emplace("username", "bob");
+                conversation.emplace("avatar_revision", 0);
+                conversation.emplace("has_avatar", false);
                 conversation.emplace("last", std::move(last));
                 conversation.emplace("unread", 3);
                 conversations.push_back(std::move(conversation));
@@ -147,6 +212,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 boost::json::object last;
                 last.emplace("conversation", 3);
                 last.emplace("username", "alice");
+                last.emplace("avatar_revision", 0);
+                last.emplace("has_avatar", false);
                 last.emplace("id", 6);
                 last.emplace("from", 1);
                 last.emplace("timestamp", 1699990000000LL);
@@ -158,6 +225,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 conversation.emplace("member_count", 2);
                 conversation.emplace("user", 3);
                 conversation.emplace("username", "carol");
+                conversation.emplace("avatar_revision", 0);
+                conversation.emplace("has_avatar", false);
                 conversation.emplace("last", std::move(last));
                 conversation.emplace("unread", 0);
                 conversations.push_back(std::move(conversation));
@@ -221,6 +290,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 boost::json::object first;
                 first.emplace("conversation", 2);
                 first.emplace("username", "bob");
+                first.emplace("avatar_revision", 0);
+                first.emplace("has_avatar", false);
                 first.emplace("id", 10);
                 first.emplace("from", 2);
                 first.emplace("timestamp", 1700000000000);
@@ -230,6 +301,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 boost::json::object second;
                 second.emplace("conversation", 2);
                 second.emplace("username", "alice");
+                second.emplace("avatar_revision", 0);
+                second.emplace("has_avatar", false);
                 second.emplace("id", 12);
                 second.emplace("from", 1);
                 second.emplace("timestamp", 1700000060000);
@@ -241,6 +314,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 boost::json::object older;
                 older.emplace("conversation", 2);
                 older.emplace("username", "bob");
+                older.emplace("avatar_revision", 0);
+                older.emplace("has_avatar", false);
                 older.emplace("id", 4);
                 older.emplace("from", 2);
                 older.emplace("timestamp", 1699999940000);
@@ -267,6 +342,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             boost::json::object user;
             user.emplace("id", 3);
             user.emplace("username", "carol");
+            user.emplace("avatar_revision", 0);
+            user.emplace("has_avatar", false);
             boost::json::array users;
             users.push_back(std::move(user));
             boost::json::object result;
@@ -288,6 +365,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             boost::json::object user;
             user.emplace("id", 2);
             user.emplace("username", "bob");
+            user.emplace("avatar_revision", 0);
+            user.emplace("has_avatar", false);
             boost::json::array users;
             users.push_back(std::move(user));
             boost::json::object result;
@@ -309,6 +388,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             boost::json::object user;
             user.emplace("id", 2);
             user.emplace("username", "bob");
+            user.emplace("avatar_revision", 0);
+            user.emplace("has_avatar", false);
             boost::json::object result;
             result.emplace("user", std::move(user));
             response.emplace("result", std::move(result));
@@ -340,6 +421,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             boost::json::object notification_params;
             notification_params.emplace("conversation", 2);
             notification_params.emplace("username", "bob");
+            notification_params.emplace("avatar_revision", 0);
+            notification_params.emplace("has_avatar", false);
             notification_params.emplace("id", 21);
             notification_params.emplace("from", 2);
             notification_params.emplace("timestamp", 1700000180000);
@@ -439,6 +522,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
         {
             boost::json::object result;
             result.emplace("authenticated", name == "alice" && secret == "secret");
+            result.emplace("avatar_revision", 0);
+            result.emplace("has_avatar", false);
             result.emplace("user", name == "alice" && secret == "secret" ? 1 : 0);
             response.emplace("result", std::move(result));
         }
@@ -493,6 +578,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
         socket_.close();
     }
 
+    std::string avatar_data_;
     boost::corosio::io_context& io_context_;
     boost::corosio::tcp_socket socket_;
     boost::http::request_parser parser_;
@@ -527,6 +613,7 @@ struct test_state
     std::vector<chat::message> messages;
     std::vector<std::pair<std::int64_t, std::int64_t>> reads;
     std::vector<chat::presence> presences;
+    std::vector<std::pair<std::int64_t, chat::avatar_state>> avatars;
 };
 
 boost::capy::task<> stop_server(boost::corosio::tcp_server& server)
@@ -605,6 +692,12 @@ int main()
     client.set_presence_handler([&state](chat::presence value) {
         std::lock_guard lock(state.mutex);
         state.presences.push_back(std::move(value));
+        state.condition.notify_all();
+    });
+
+    client.set_avatar_handler([&](std::int64_t user, chat::avatar_state avatar) {
+        std::lock_guard lock(state.mutex);
+        state.avatars.emplace_back(user, avatar);
         state.condition.notify_all();
     });
 
@@ -816,6 +909,39 @@ int main()
     }
     std::cout << "PASS client message cursor\n";
 
+    auto avatar_call = []<class T>(auto operation) -> std::expected<T, chat::error> {
+        std::promise<std::expected<T, chat::error>> promise;
+        auto future = promise.get_future();
+        operation([&](auto result) { promise.set_value(std::move(result)); });
+        if (future.wait_for(5s) != std::future_status::ready) { std::abort(); }
+        return future.get();
+    };
+    auto avatar_bytes = std::string(40000, 'x');
+    auto uploaded = avatar_call.operator()<chat::avatar_state>([&](auto h) { client.set_avatar(avatar_bytes, h); });
+    auto downloaded = avatar_call.operator()<chat::avatar>([&](auto h) { client.get_avatar(1, 1, h); });
+    if (!uploaded || !uploaded->present || uploaded->revision != 1 || !downloaded || downloaded->data != avatar_bytes ||
+        !state.wait([&] { return state.avatars.size() == 1; }) || state.avatars.front().first != 1)
+    { std::cerr << "FAIL client avatar upload/download/notification\n"; return 1; }
+    for (auto user : {99, 98, 97, 96, 95, 94, 93})
+    {
+        auto rejected_avatar = avatar_call.operator()<chat::avatar>([&](auto h) { client.get_avatar(user, 1, h); });
+        if (rejected_avatar || rejected_avatar.error().kind != chat::error_kind::protocol)
+        { std::cerr << "FAIL client malformed avatar response\n"; return 1; }
+    }
+    if (!state.wait([&] { return state.errors.size() == 1; }) || state.errors.front().kind != chat::error_kind::protocol)
+    { std::cerr << "FAIL client malformed avatar notification\n"; return 1; }
+    for (auto const* payload : {"bad-offset", "bad-finish"})
+    {
+        auto rejected_upload = avatar_call.operator()<chat::avatar_state>([&](auto h) { client.set_avatar(payload, h); });
+        if (rejected_upload || rejected_upload.error().kind != chat::error_kind::protocol) { return 1; }
+    }
+    auto oversized_avatar = avatar_call.operator()<chat::avatar_state>([&](auto h) { client.set_avatar(std::string(chat::max_avatar_size + 1, 'x'), h); });
+    if (oversized_avatar || oversized_avatar.error().kind != chat::error_kind::protocol) { return 1; }
+    auto cleared_avatar = avatar_call.operator()<chat::avatar_state>([&](auto h) { client.clear_avatar(h); });
+    if (!cleared_avatar || cleared_avatar->present || cleared_avatar->revision != 2)
+    { std::cerr << "FAIL client invalid avatar upload or clear\n"; return 1; }
+    std::cout << "PASS client multi-chunk avatar transport and malformed protocol validation\n";
+
     bool send_called = false;
     chat::send_message_result send_result;
     client.send_message(2, "outgoing", [&](std::expected<chat::send_message_result, chat::error> result) {
@@ -939,6 +1065,18 @@ int main()
         return 1;
     }
     std::cout << "PASS client pending request close\n";
-
+    std::atomic_int destructor_callbacks = 0;
+    {
+        chat::client shutting_down;
+        std::promise<void> ready;
+        shutting_down.set_connected_handler([&] { ready.set_value(); });
+        shutting_down.connect(url);
+        if (ready.get_future().wait_for(5s) != std::future_status::ready) { return 1; }
+        shutting_down.get_avatar(92, 1, [&](auto) { ++destructor_callbacks; });
+        auto barrier = avatar_call.operator()<chat::authentication_result>([&](auto h) { shutting_down.authenticate("alice", "secret", h); });
+        if (!barrier) { return 1; }
+    }
+    if (destructor_callbacks != 0) { std::cerr << "FAIL pending avatar callback during destruction\n"; return 1; }
+    std::cout << "PASS client destruction suppresses pending avatar callback\n";
     return 0;
 }

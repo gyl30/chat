@@ -16,6 +16,8 @@
 #include <QPushButton>
 #include <QThread>
 #include <QTemporaryDir>
+#include <QSortFilterProxyModel>
+#include <source_location>
 #include <QTimer>
 #include <QToolButton>
 #include <chat/client.hpp>
@@ -37,14 +39,14 @@ void check(bool v, char const* text)
         throw std::runtime_error(text);
     }
 }
-template <class F> void wait(F f, int attempts = 500)
+template <class F> void wait(F f, int attempts = 500, std::source_location location = std::source_location::current())
 {
     for (int i = 0; i < attempts && !f(); ++i)
     {
         QApplication::processEvents();
         QThread::msleep(10);
     }
-    check(f(), "UI timeout");
+    if (!f()) { throw std::runtime_error("UI timeout at line " + std::to_string(location.line())); }
 }
 template <class T, class F> T rpc(F f)
 {
@@ -88,6 +90,11 @@ int main(int argc, char** argv)
             bridge.send_attachment(1, "stale.bin", "old upload");
             bridge.get_attachment(1, 1);
             bridge.search_messages(1, "old search");
+            QObject::connect(&bridge, &client_bridge::avatar_received, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::avatar_update_finished, &bridge, [&](auto...) { ++stale_results; });
+            bridge.get_avatar(1, 1);
+            bridge.set_avatar("stale avatar");
+            bridge.clear_avatar();
             bridge.connect_to_server(QStringLiteral("http://127.0.0.1"));
             check(failed_connect.get_future().wait_for(std::chrono::seconds(5)) == std::future_status::ready, "Invalid URL callback");
             QCoreApplication::sendPostedEvents(&bridge, QEvent::MetaCall);
@@ -275,6 +282,100 @@ int main(int argc, char** argv)
                 }
             }
             wait([&] { return members; });
+            QTemporaryDir avatar_files;
+            QImage avatar_image(256, 256, QImage::Format_RGB32);
+            quint32 noise = 17;
+            for (int y = 0; y < avatar_image.height(); ++y)
+            {
+                for (int x = 0; x < avatar_image.width(); ++x)
+                {
+                    noise = noise * 1664525U + 1013904223U;
+                    avatar_image.setPixel(x, y, qRgb(noise >> 24, (noise >> 16) & 255, (noise >> 8) & 255));
+                }
+            }
+            auto avatar_path = avatar_files.filePath("avatar.png");
+            check(avatar_files.isValid() && avatar_image.save(avatar_path), "Avatar PNG fixture");
+            check(QFile(avatar_path).size() > static_cast<qint64>(chat::attachment_chunk_size), "Avatar uses multiple transport chunks");
+            auto const avatar_color = avatar_image.scaled(128, 128, Qt::KeepAspectRatio, Qt::SmoothTransformation).pixelColor(0, 0);
+            pages[1]->contact_add_requested(ids[0]);
+            auto avatar_update = [&](QString const& path, bool remove, bool close_early = false) {
+                bool finished = false;
+                QTimer update_poll;
+                int step = 0;
+                QObject::connect(&update_poll, &QTimer::timeout, [&] {
+                    auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                    if (!dialog || dialog->objectName() != "profileDialog") { return; }
+                    auto* button = dialog->findChild<QPushButton*>(remove ? "removeAvatarButton" : "changeAvatarButton");
+                    if (step == 0 && button->isEnabled())
+                    {
+                        step = 1;
+                        if (!remove)
+                        {
+                            QTimer::singleShot(30, [&] {
+                                auto* picker = qobject_cast<QFileDialog*>(QApplication::activeModalWidget());
+                                check(picker, "Avatar file picker");
+                                picker->setDirectory(avatar_files.path());
+                                QTimer::singleShot(100, picker, [picker, path] {
+                                    picker->findChild<QLineEdit*>("fileNameEdit")->setText(path);
+                                    QMetaObject::invokeMethod(picker, "accept", Qt::DirectConnection);
+                                });
+                                QTimer::singleShot(1500, picker, &QDialog::reject);
+                            });
+                        }
+                        button->click();
+                        if (close_early)
+                        {
+                            finished = true;
+                            update_poll.stop();
+                            dialog->reject();
+                        }
+                    }
+                    else if (step == 1 && dialog->findChild<QPushButton*>("changeAvatarButton")->isEnabled() &&
+                             dialog->findChild<QLabel*>("avatarUploadStatus")->text().isEmpty())
+                    {
+                        finished = true;
+                        update_poll.stop();
+                        dialog->accept();
+                    }
+                });
+                update_poll.start(20);
+                windows[0]->findChild<QToolButton*>("profileAvatar")->click();
+                check(finished, "Self profile avatar action");
+            };
+            avatar_update(avatar_path, false);
+            for (int i = 0; i < 3; ++i)
+            {
+                wait([&] { return !pages[i]->avatars().image(ids[0]).isNull(); });
+                check(pages[i]->avatars().state(ids[0]) == chat::avatar_state{1, true}, "Realtime group avatar metadata");
+                check(pages[i]->avatars().image(ids[0]).toImage().pixelColor(0, 0) == avatar_color, "Real group avatar bytes");
+            }
+            QListView* avatar_contacts = nullptr;
+            for (auto* view : windows[1]->findChildren<QListView*>("userList"))
+            {
+                if (qobject_cast<QSortFilterProxyModel*>(view->model())) { avatar_contacts = view; }
+            }
+            check(avatar_contacts, "Avatar contacts view");
+            wait([&] { return avatar_contacts->model()->rowCount() == 1; });
+            check(!avatar_contacts->model()->index(0, 0).data(Qt::DecorationRole).value<QPixmap>().isNull(), "Contact list realtime avatar");
+            auto* group_messages = windows[1]->findChild<QListView*>("messageList");
+            check(!group_messages->model()->index(0, 0).data(Qt::DecorationRole).value<QPixmap>().isNull(), "Group message avatar");
+            windows[1]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_avatar_group.png");
+            bool avatar_members = false;
+            QTimer avatar_members_poll;
+            QObject::connect(&avatar_members_poll, &QTimer::timeout, [&] {
+                auto* dialog = qobject_cast<group_dialog*>(QApplication::activeModalWidget());
+                if (!dialog) { return; }
+                auto* list = dialog->findChild<QListWidget*>("groupMembersList");
+                if (list->count() != 3) { return; }
+                check(list->item(0)->icon().pixmap(32, 32).toImage() == avatar_icon(names[0], 32, pages[1]->avatars().image(ids[0])).pixmap(32, 32).toImage(), "Group member avatar");
+                avatar_members = true;
+                avatar_members_poll.stop();
+                dialog->accept();
+            });
+            avatar_members_poll.start(20);
+            windows[1]->findChild<QPushButton*>("chatHeaderButton")->click();
+            check(avatar_members, "Group member real avatar UI");
+
             bool ordinary_member = false;
             QTimer member_poll;
             QObject::connect(&member_poll, &QTimer::timeout, [&] {
@@ -479,6 +580,8 @@ int main(int argc, char** argv)
                     });
                 check(!windows[i]->findChild<QLabel*>("typingStatusLabel")->isVisible(),
                       "Reconnect does not restore stale typing");
+                check(pages[i]->avatars().state(ids[0]) == chat::avatar_state{1, true} &&
+                    pages[i]->avatars().image(ids[0]).toImage().pixelColor(0, 0) == avatar_color, "Reconnect preserves matching avatar cache");
             }
             for (int i = 0; i < 3; ++i)
             {
@@ -622,6 +725,40 @@ int main(int argc, char** argv)
             auto* peer_attachment_view = windows[1]->findChild<QListView*>("messageList");
             wait([&] { return pages[1]->active_conversation() == direct && pages[1]->messages_ready() &&
                                   peer_attachment_view->model()->rowCount() == 2; });
+            check(!peer_attachment_view->model()->index(0, 0).data(Qt::DecorationRole).value<QPixmap>().isNull(), "Direct message real avatar");
+            check(!direct_index.data(Qt::DecorationRole).value<QPixmap>().isNull(), "Direct conversation real avatar");
+            bool saw_avatar_profile = false;
+            QTimer::singleShot(50, [&] {
+                auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                check(dialog && dialog->objectName() == "profileDialog", "Peer avatar profile");
+                auto const picture = dialog->findChild<QLabel*>("profileDialogAvatar")->pixmap();
+                check(picture.toImage() == avatar_icon(names[0], 104, pages[1]->avatars().image(ids[0])).pixmap(104, 104).toImage(), "Peer profile real image");
+                saw_avatar_profile = true;
+                dialog->accept();
+            });
+            windows[1]->findChild<QPushButton*>("chatHeaderButton")->click();
+            check(saw_avatar_profile, "Peer profile avatar UI");
+            windows[1]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_avatar_direct.png");
+            avatar_image.fill(QColor("#df6f22"));
+            check(avatar_image.save(avatar_path, "JPEG"), "Avatar JPEG replacement fixture");
+            avatar_update(avatar_path, false);
+            for (int i = 0; i < 3; ++i)
+            {
+                wait([&] { return pages[i]->avatars().state(ids[0]) == chat::avatar_state{2, true} &&
+                    !pages[i]->avatars().image(ids[0]).isNull(); });
+            }
+            check(pages[1]->avatars().image(ids[0]).toImage().pixelColor(0, 0).red() > 200, "JPEG replacement refresh");
+            auto* self_avatar = windows[0]->findChild<QToolButton*>("profileAvatar");
+            check(self_avatar->icon().pixmap(44, 44).toImage() == avatar_icon(names[0], 44, pages[0]->avatars().image(ids[0])).pixmap(44, 44).toImage(), "Current account real avatar");
+            avatar_update({}, true);
+            for (int i = 0; i < 3; ++i)
+            {
+                wait([&] { return pages[i]->avatars().state(ids[0]) == chat::avatar_state{3, false}; });
+                check(pages[i]->avatars().image(ids[0]).isNull(), "Clear realtime fallback");
+            }
+            check(direct_index.data(Qt::DecorationRole).value<QPixmap>().isNull() &&
+                peer_attachment_view->model()->index(0, 0).data(Qt::DecorationRole).value<QPixmap>().isNull(), "Direct list/message fallback after clear");
+            windows[1]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_avatar_cleared.png");
             check(peer_attachment_view->model()->index(1, 0).data(message_model::attachment_name_role).toString() == "photo.png",
                   "Attachment restored from history");
             auto attachment_action = [&](int actor, QString action_name) {
@@ -833,6 +970,7 @@ int main(int argc, char** argv)
                       !windows[2]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled(),
                   "Leaving clears active history, draft and sending controls");
             wait([&] { return windows[0]->findChild<QLabel*>("chatPresence")->text().contains(QStringLiteral("2 名成员")); });
+            wait([&] { return windows[2]->findChild<QListView*>("conversationList")->model()->rowCount() == 0; });
             auto const before_leave_message = pages[0]->latest_message_id();
             windows[0]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("退出期间的群消息"));
             windows[0]->findChild<QToolButton*>("sendButton")->click();
@@ -1028,6 +1166,26 @@ int main(int argc, char** argv)
             owner_poll.start(20);
             windows[1]->findChild<QPushButton*>("chatHeaderButton")->click();
             check(recovered_owner, "Reconnect member snapshot");
+            for (auto* page : pages)
+            {
+                check(page->avatars().state(ids[0]) == chat::avatar_state{3, false} && page->avatars().image(ids[0]).isNull(),
+                    "Cleared avatar remains fallback after reconnect");
+            }
+            avatar_update(avatar_path, false, true);
+            wait([&] { return pages[0]->avatars().state(ids[0]) == chat::avatar_state{4, true} && !pages[0]->avatars().image(ids[0]).isNull(); });
+            pages[0]->logout_requested();
+            wait([&] { return !pages[0]->isVisible() && windows[0]->findChild<QPushButton*>("loginButton")->isEnabled(); });
+            check(pages[0]->avatars().image(ids[0]).isNull(), "Logout clears current account cache");
+            for (auto* input : windows[0]->findChildren<QLineEdit*>())
+            {
+                if (input->parent()->objectName() == "loginCard" && input->placeholderText() == QStringLiteral("密码"))
+                { input->setText("ui password"); }
+            }
+            windows[0]->findChild<QPushButton*>("loginButton")->click();
+            wait([&] { return pages[0]->isVisible() && pages[0]->avatars().state(ids[0]) == chat::avatar_state{4, true} &&
+                !pages[0]->avatars().image(ids[0]).isNull(); });
+            check(windows[0]->findChild<QToolButton*>("profileAvatar")->icon().pixmap(44, 44).toImage() ==
+                avatar_icon(names[0], 44, pages[0]->avatars().image(ids[0])).pixmap(44, 44).toImage(), "Authentication restores own avatar after login");
         }
         std::cout << "PASS three real Qt windows: login, contacts group creation, member list, message author, "
                      "realtime, server restart and automatic recovery\n";

@@ -270,7 +270,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
             "attached AS (INSERT INTO message_attachments(message_id,filename,media_type,size,data) "
             "SELECT id,$5,$6,$7::bigint,decode($8,'base64') FROM inserted WHERE $5<>'' RETURNING message_id) "
             "SELECT inserted.id::text,((extract(epoch FROM "
-            "created_at)*1000)::bigint)::text,u.username "
+            "created_at)*1000)::bigint)::text,u.username,u.avatar_revision::text,"
+            "EXISTS(SELECT 1 FROM user_avatars WHERE user_id=u.id)::text "
             "FROM inserted JOIN users u ON u.id=$1::bigint",
             std::move(parameters));
         auto& [query_ec, row] = query_result;
@@ -303,7 +304,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
             }
             co_return simdjson::SUCCESS;
         }
-        if (row->size() != 3)
+        if (row->size() != 5)
         {
             if (request.id.present)
             {
@@ -314,6 +315,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         id_text = std::move(row->at(0));
         timestamp_text = std::move(row->at(1));
         notification.params.username = std::move(row->at(2));
+        notification.params.avatar_revision = std::stoll(row->at(3));
+        notification.params.has_avatar = row->at(4) == "true";
     }
     auto const* first = id_text.data();
     auto const* last = first + id_text.size();

@@ -88,7 +88,7 @@ QFrame* make_separator(QWidget* parent)
 
 }    // namespace
 
-chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
+chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
 {
     auto* layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -128,9 +128,10 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
         make_navigation_button(QStringLiteral("退出"), QStringLiteral("close"), navigation_panel, false, true);
     navigation_layout->addWidget(logout_navigation_, 0, Qt::AlignHCenter);
 
-    profile_avatar_ = new QLabel(QStringLiteral("?"), navigation_panel);
+    profile_avatar_ = new QToolButton(navigation_panel);
+    profile_avatar_->setCursor(Qt::PointingHandCursor);
+    profile_avatar_->setIconSize(QSize(44, 44));
     profile_avatar_->setObjectName(QStringLiteral("profileAvatar"));
-    profile_avatar_->setAlignment(Qt::AlignCenter);
     profile_avatar_->setFixedSize(44, 44);
     navigation_layout->addWidget(profile_avatar_, 0, Qt::AlignHCenter);
 
@@ -175,7 +176,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     conversations_status_->setContentsMargins(18, 0, 14, 6);
     conversations_layout->addWidget(conversations_status_);
 
-    conversations_ = new conversation_model(this);
+    conversations_ = new conversation_model(this, &avatars_);
     conversations_view_ = new QListView(conversations_page);
     conversations_view_->setObjectName(QStringLiteral("conversationList"));
     conversations_view_->setModel(conversations_);
@@ -204,7 +205,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     contacts_status_->setContentsMargins(18, 8, 14, 8);
     contacts_layout->addWidget(contacts_status_);
 
-    contacts_ = new user_model(this);
+    contacts_ = new user_model(this, &avatars_);
     contacts_filter_ = new QSortFilterProxyModel(this);
     contacts_filter_->setSourceModel(contacts_);
     contacts_filter_->setFilterRole(user_model::username_role);
@@ -236,7 +237,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     add_users_status_->setContentsMargins(18, 8, 14, 8);
     add_contacts_layout->addWidget(add_users_status_);
 
-    add_users_ = new user_model(this);
+    add_users_ = new user_model(this, &avatars_);
     add_users_view_ = new QListView(add_contacts_page);
     add_users_view_->setObjectName(QStringLiteral("userList"));
     add_users_view_->setModel(add_users_);
@@ -316,7 +317,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     message_status_->setContentsMargins(0, 6, 0, 6);
     chat_layout->addWidget(message_status_);
 
-    messages_ = new message_model(this);
+    messages_ = new message_model(this, &avatars_);
     messages_view_ = new QListView(chat_panel);
     messages_view_->setObjectName(QStringLiteral("messageList"));
     messages_view_->setModel(messages_);
@@ -484,6 +485,16 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     layout->addWidget(make_separator(this));
     layout->addWidget(chat_panel, 1);
 
+    connect(profile_avatar_, &QToolButton::clicked, this, [this] {
+        show_user_details(self_user_, profile_avatar_->toolTip());
+    });
+    connect(&avatars_, &avatar_cache::changed, this, [this](qint64 user) {
+        if (user == self_user_)
+        {
+            profile_avatar_->setIcon(avatar_icon(profile_avatar_->toolTip(), 44, avatars_.image(user)));
+        }
+        if (!active_group_ && user == active_peer_) { update_chat_header(active_username_); }
+    });
     connect(chats_navigation_, &QToolButton::clicked, this, [this] { show_conversations_section(); });
     connect(contacts_navigation_, &QToolButton::clicked, this, [this] { show_contacts_section(); });
     connect(groups_navigation_, &QToolButton::clicked, this, [this] { create_group(); });
@@ -586,9 +597,11 @@ void chat_widget::set_user(QString const& username, qint64 user)
     stop_typing();
     typing_users_.clear();
     update_typing_label();
-    profile_avatar_->setText(avatar_initial(username));
+    avatars_.clear();
+    avatar_updating_ = false;
+    profile_avatar_->setIcon(avatar_icon(username, 44));
     profile_avatar_->setToolTip(username);
-    profile_avatar_->setStyleSheet(QStringLiteral("background: %1;").arg(avatar_background(username).name()));
+    profile_avatar_->setStyleSheet(QStringLiteral("border: none; background: transparent;"));
     self_user_ = user;
     attachment_sending_ = false;
     active_peer_ = 0;
@@ -635,6 +648,10 @@ void chat_widget::set_connection_available(bool available)
         stop_typing();
         typing_users_.clear();
         update_typing_label();
+    }
+    if (!available && avatar_updating_)
+    {
+        finish_avatar_update(QStringLiteral("连接已断开，请重新上传头像。"));
     }
     connection_available_ = available;
     if (!available && attachment_sending_)
@@ -1135,6 +1152,7 @@ void chat_widget::set_members(qint64 conversation, QList<member_data> members, Q
     {
         return;
     }
+    for (auto const& member : members) { avatars_.observe(member.id, member.avatar); }
     for (auto it = typing_users_.begin(); it != typing_users_.end();)
     {
         auto const present = std::any_of(members.begin(), members.end(), [id = it.key()](auto const& member) {
@@ -1324,13 +1342,14 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
     top->addWidget(close_button);
     header_layout->addLayout(top);
 
-    auto* avatar = new QLabel(avatar_initial(username), header);
+    auto* avatar = new QLabel(header);
     avatar->setObjectName(QStringLiteral("profileDialogAvatar"));
     avatar->setAlignment(Qt::AlignCenter);
     avatar->setFixedSize(104, 104);
-    avatar->setStyleSheet(QStringLiteral(
-        "background: %1; color: #315A4B; border-radius: 52px; font-size: 34px; font-weight: 700;")
-                              .arg(avatar_background(username).name()));
+    avatar->setPixmap(avatar_icon(username, 104, avatars_.image(user)).pixmap(104, 104));
+    connect(&avatars_, &avatar_cache::changed, &dialog, [this, avatar, user, username](qint64 changed) {
+        if (changed == user) { avatar->setPixmap(avatar_icon(username, 104, avatars_.image(user)).pixmap(104, 104)); }
+    });
     header_layout->addWidget(avatar, 0, Qt::AlignHCenter);
 
     auto* name = new QLabel(username, header);
@@ -1404,6 +1423,56 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
         });
         break;
     }
+    if (user == self_user_)
+    {
+        message_button->hide();
+        auto* change = new QPushButton(QStringLiteral("更换头像"), info);
+        change->setObjectName(QStringLiteral("changeAvatarButton"));
+        auto* remove = new QPushButton(QStringLiteral("移除头像"), info);
+        remove->setObjectName(QStringLiteral("removeAvatarButton"));
+        auto* status = new QLabel(info);
+        status->setObjectName(QStringLiteral("avatarUploadStatus"));
+        status->setWordWrap(true);
+        info_layout->addWidget(change);
+        info_layout->addWidget(remove);
+        info_layout->addWidget(status);
+        auto update = [this, user, change, remove, status] {
+            change->setEnabled(connection_available_ && !avatar_updating_);
+            remove->setEnabled(connection_available_ && !avatar_updating_ && avatars_.state(user).present);
+            if (avatar_updating_) { status->setText(QStringLiteral("正在更新头像…")); }
+        };
+        update();
+        connect(&avatars_, &avatar_cache::changed, &dialog, [update](qint64) { update(); });
+        connect(this, &chat_widget::avatar_update_finished, &dialog, [status, update](QString error) {
+            update();
+            status->setText(error);
+        });
+        connect(change, &QPushButton::clicked, &dialog, [this, &dialog, status, update] {
+            auto const path = QFileDialog::getOpenFileName(&dialog, QStringLiteral("更换头像"), {},
+                                                        QStringLiteral("图片 (*.png *.jpg *.jpeg)"));
+            if (path.isEmpty()) { return; }
+            QFile file(path);
+            if (!file.open(QIODevice::ReadOnly) || file.size() > static_cast<qint64>(chat::max_avatar_size))
+            {
+                status->setText(QStringLiteral("无法读取图片，头像文件不得超过 1 MiB。"));
+                return;
+            }
+            auto bytes = file.readAll();
+            if (decode_avatar(bytes).isNull())
+            {
+                status->setText(QStringLiteral("请选择完整的 PNG 或 JPEG 图片，最多 1600 万像素。"));
+                return;
+            }
+            avatar_updating_ = true;
+            update();
+            emit avatar_set_requested(std::move(bytes));
+        });
+        connect(remove, &QPushButton::clicked, &dialog, [this, update] {
+            avatar_updating_ = true;
+            update();
+            emit avatar_clear_requested();
+        });
+    }
     layout->addWidget(info);
 
     connect(close_button, &QToolButton::clicked, &dialog, &QDialog::reject);
@@ -1426,7 +1495,7 @@ void chat_widget::set_message_status(QString message)
 void chat_widget::update_chat_header(QString const& username)
 {
     chat_title_->setText(username);
-    chat_title_->setIcon(avatar_icon(username, 38));
+    chat_title_->setIcon(avatar_icon(username, 38, active_group_ ? QPixmap{} : avatars_.image(active_peer_)));
     chat_title_->setEnabled(true);
     update_chat_presence();
 }
@@ -1462,4 +1531,10 @@ void chat_widget::update_chat_presence()
     chat_presence_->style()->unpolish(chat_presence_);
     chat_presence_->style()->polish(chat_presence_);
     chat_presence_->show();
+}
+
+void chat_widget::finish_avatar_update(QString error)
+{
+    avatar_updating_ = false;
+    emit avatar_update_finished(std::move(error));
 }

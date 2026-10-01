@@ -233,6 +233,12 @@ boost::capy::task<void> chat_session::run()
             {
                 rpc_error = co_await handle_authenticate(request, response);
             }
+            else if (request.method == "begin_avatar_upload" || request.method == "upload_avatar_chunk" ||
+                     request.method == "finish_avatar_upload" || request.method == "cancel_avatar_upload" ||
+                     request.method == "get_avatar" || request.method == "clear_avatar")
+            {
+                rpc_error = co_await handle_avatar(request, response);
+            }
             else if (request.method == "edit_message" || request.method == "delete_message")
             {
                 rpc_error = co_await handle_update_message(request, response);

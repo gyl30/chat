@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <string>
+#include "avatar.hpp"
 
 namespace chat
 {
@@ -11,6 +12,7 @@ struct user
 {
     std::int64_t id = 0;
     std::string username;
+    avatar_state avatar;
 };
 
 }    // namespace chat

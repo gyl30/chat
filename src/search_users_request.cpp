@@ -105,7 +105,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_search_users(json_r
             "'[]'::json"
             ")::text "
             "FROM ("
-            "SELECT u.id, u.username FROM users u "
+            "SELECT u.id, u.username,u.avatar_revision,EXISTS(SELECT 1 FROM user_avatars WHERE user_id=u.id) AS has_avatar FROM users u "
             "WHERE u.id <> $1::bigint "
             "AND starts_with(lower(u.username), lower($2)) "
             "AND NOT EXISTS ("

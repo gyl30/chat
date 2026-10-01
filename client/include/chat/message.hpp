@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include "attachment.hpp"
+#include "avatar.hpp"
 
 namespace chat
 {
@@ -32,6 +33,7 @@ struct message
     bool deleted = false;
     std::optional<quoted_message> reply;
     std::optional<attachment_info> attachment;
+    avatar_state avatar;
 };
 
 struct read_position

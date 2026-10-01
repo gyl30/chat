@@ -2,6 +2,7 @@
 #define CHAT_QT_SRC_MESSAGE_DATA_HPP
 
 #include <QList>
+#include <chat/avatar.hpp>
 #include <QMetaType>
 #include <QString>
 #include <QtGlobal>
@@ -37,6 +38,7 @@ struct message_data
     bool deleted = false;
     quoted_message_data reply;
     std::optional<attachment_data> attachment;
+    chat::avatar_state avatar;
 };
 
 Q_DECLARE_METATYPE(message_data)

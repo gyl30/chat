@@ -2,6 +2,7 @@
 #define CHAT_QT_SRC_CLIENT_BRIDGE_HPP
 
 #include <memory>
+#include <atomic>
 #include <optional>
 #include <cstdint>
 #include <chat/conversation.hpp>
@@ -12,6 +13,7 @@
 #include <QByteArray>
 
 #include "conversation_data.hpp"
+#include "avatar.hpp"
 #include "message_data.hpp"
 #include "presence_data.hpp"
 #include "user_data.hpp"
@@ -57,13 +59,19 @@ class client_bridge final : public QObject
     void send_attachment(qint64 conversation, QString filename, QByteArray data, qint64 reply_to = 0);
     void get_attachment(qint64 conversation, qint64 message);
     void mark_read(qint64 user, qint64 message);
+    void get_avatar(qint64 user, qint64 revision);
+    void set_avatar(QByteArray data);
+    void clear_avatar();
     void set_typing(qint64 conversation, bool typing);
 
    signals:
+    void avatar_changed(qint64 user, chat::avatar_state state);
+    void avatar_received(qint64 user, chat::avatar_state state, QByteArray data);
+    void avatar_update_finished(QString error_message);
     void connected();
     void disconnected();
     void error(QString message);
-    void authentication_finished(bool authenticated, qint64 user, QString error_message, bool retryable_error);
+    void authentication_finished(bool authenticated, qint64 user, QString error_message, bool retryable_error, chat::avatar_state avatar);
     void registration_finished(qint64 user, QString error_message);
     void conversations_received(QList<conversation_data> conversations, QString error_message);
     void contacts_received(QList<user_data> contacts, QString error_message);
@@ -98,6 +106,7 @@ class client_bridge final : public QObject
      std::uint64_t search_generation_ = 0;
      std::uint64_t upload_generation_ = 0;
      std::uint64_t download_generation_ = 0;
+    std::atomic_uint64_t avatar_generation_ = 0;
     std::unique_ptr<chat::client> client_;
 };
 

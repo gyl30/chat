@@ -1,4 +1,5 @@
 #include <array>
+#include <tuple>
 #include <string>
 #include <vector>
 #include <cstdint>
@@ -596,6 +597,19 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         }
         std::cout << "PASS registration duplicate\n";
 
+        for (auto const* method : {"begin_avatar_upload", "upload_avatar_chunk", "finish_avatar_upload",
+                                    "cancel_avatar_upload", "get_avatar", "clear_avatar"})
+        {
+            auto [write_ec] = co_await send_websocket_text(socket,
+                std::string("{\"jsonrpc\":\"2.0\",\"method\":\"") + method + "\",\"params\":{},\"id\":\"avatar-auth\"}");
+            auto reply_result = co_await receive_websocket_text(socket);
+            auto& [read_ec, reply] = reply_result;
+            if (write_ec || read_ec || !json_matches(reply, R"({"error":{"code":-32001}})"))
+            {
+                std::cerr << "FAIL unauthenticated avatar RPC\n";
+                co_return 1;
+            }
+        }
         constexpr std::string_view notification = R"({"jsonrpc":"2.0","method":"echo","params":{"text":"ignored"}})";
         auto [notification_ec] = co_await send_websocket_text(socket, notification);
         if (notification_ec)
@@ -1606,6 +1620,50 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return std::move(reply);
     };
     auto attachment_begin = "{\"conversation\":" + direct_conversation + ",\"filename\":\"probe.bin\",\"size\":3}";
+    auto avatar_begin_reply = co_await peer_rpc("begin_avatar_upload", "{\"size\":3}");
+    auto avatar_begin_value = boost::json::parse(avatar_begin_reply);
+    if (!avatar_begin_value.as_object().contains("result"))
+    {
+        std::cerr << "FAIL avatar upload begin: " << avatar_begin_reply << '\n';
+        co_return 1;
+    }
+    auto avatar_id = avatar_begin_value.as_object().at("result").as_object().at("upload").as_int64();
+    auto avatar_params = "{\"upload\":" + std::to_string(avatar_id);
+    auto avatar_cases = std::vector<std::tuple<std::string, std::string, int>>{
+        {"begin_avatar_upload", "{\"size\":1048577}", -32602},
+        {"begin_avatar_upload", "{\"size\":0}", -32602},
+        {"begin_avatar_upload", "{\"size\":1,\"user\":2}", -32602},
+        {"begin_avatar_upload", "{\"size\":1}", -32011},
+        {"finish_avatar_upload", avatar_params + "}", -32011},
+        {"upload_avatar_chunk", avatar_params + ",\"offset\":1,\"data\":\"eA==\"}", -32602},
+        {"upload_avatar_chunk", avatar_params + ",\"offset\":0,\"data\":\"!bad\"}", -32602},
+        {"upload_avatar_chunk", avatar_params + ",\"offset\":0,\"data\":\"YWJjZA==\"}", -32602},
+        {"upload_avatar_chunk", "{\"upload\":2,\"offset\":0,\"data\":\"eA==\"}", -32011},
+        {"clear_avatar", "{\"user\":2}", -32602},
+        {"get_avatar", "{\"user\":1,\"revision\":-1,\"offset\":0}", -32602}};
+    for (auto const& [method, params, code] : avatar_cases)
+    {
+        auto rejected = co_await peer_rpc(method, params);
+        auto value = boost::json::parse(rejected);
+        if (!value.as_object().contains("error") || value.at("error").at("code").as_int64() != code)
+        {
+            std::cerr << "FAIL avatar validation: " << rejected << '\n';
+            co_return 1;
+        }
+    }
+    auto avatar_chunk_reply = co_await peer_rpc("upload_avatar_chunk", avatar_params + ",\"offset\":0,\"data\":\"YWJj\"}");
+    if (!boost::json::parse(avatar_chunk_reply).as_object().contains("result")) { co_return 1; }
+    auto invalid_avatar = co_await peer_rpc("finish_avatar_upload", avatar_params + "}");
+    if (boost::json::parse(invalid_avatar).at("error").at("code").as_int64() != -32602) { co_return 1; }
+    auto cancelled_avatar = co_await peer_rpc("cancel_avatar_upload", avatar_params + "}");
+    if (boost::json::parse(cancelled_avatar).at("result").at("cancelled").as_bool()) { co_return 1; }
+    avatar_begin_reply = co_await peer_rpc("begin_avatar_upload", "{\"size\":3}");
+    avatar_id = boost::json::parse(avatar_begin_reply).at("result").at("upload").as_int64();
+    avatar_params = "{\"upload\":" + std::to_string(avatar_id);
+    cancelled_avatar = co_await peer_rpc("cancel_avatar_upload", avatar_params + "}");
+    if (!boost::json::parse(cancelled_avatar).at("result").at("cancelled").as_bool()) { co_return 1; }
+    avatar_begin_reply = co_await peer_rpc("begin_avatar_upload", "{\"size\":3}");
+    avatar_id = boost::json::parse(avatar_begin_reply).at("result").at("upload").as_int64();
     auto attachment_begin_reply = co_await peer_rpc("begin_attachment", attachment_begin);
     boost::system::error_code attachment_parse_ec;
     auto attachment_value = boost::json::parse(attachment_begin_reply, attachment_parse_ec);
@@ -1658,6 +1716,16 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         std::cerr << "FAIL upload reconnect\n";
         co_return 1;
     }
+    auto stale_avatar_finish = co_await peer_rpc("finish_avatar_upload", "{\"upload\":" + std::to_string(avatar_id) + "}");
+    auto stale_avatar_chunk = co_await peer_rpc("upload_avatar_chunk", "{\"upload\":" + std::to_string(avatar_id) +
+        ",\"offset\":0,\"data\":\"YWJj\"}");
+    if (!json_matches(stale_avatar_finish, R"({"error":{"code":-32011}})") ||
+        !json_matches(stale_avatar_chunk, R"({"error":{"code":-32011}})"))
+    {
+        std::cerr << "FAIL reconnect retained avatar upload state\n";
+        co_return 1;
+    }
+    std::cout << "PASS avatar invalid input, cancellation, attachment isolation and reconnect cleanup\n";
     auto interrupted_finish = co_await peer_rpc("finish_attachment", "{\"upload\":" + std::to_string(interrupted_upload) + "}");
     auto fresh_upload = co_await peer_rpc("begin_attachment", attachment_begin);
     if (!json_matches(interrupted_finish, R"({"error":{"code":-32008}})") ||

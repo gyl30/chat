@@ -134,6 +134,13 @@ main_window::main_window(QString server_url, QWidget* parent)
 
     chat_page_ = new chat_widget(pages_);
 
+    connect(&chat_page_->avatars(), &avatar_cache::requested, client_.get(), &client_bridge::get_avatar);
+    connect(client_.get(), &client_bridge::avatar_changed, &chat_page_->avatars(), &avatar_cache::observe);
+    connect(client_.get(), &client_bridge::avatar_received, &chat_page_->avatars(), &avatar_cache::receive);
+    connect(chat_page_, &chat_widget::avatar_set_requested, client_.get(), &client_bridge::set_avatar);
+    connect(chat_page_, &chat_widget::avatar_clear_requested, client_.get(), &client_bridge::clear_avatar);
+    connect(client_.get(), &client_bridge::avatar_update_finished, chat_page_, &chat_widget::finish_avatar_update);
+
     reconnect_timer_ = new QTimer(this);
     reconnect_timer_->setSingleShot(true);
     reconnect_countdown_timer_ = new QTimer(this);
@@ -287,7 +294,7 @@ main_window::main_window(QString server_url, QWidget* parent)
 
     connect(
         client_.get(), &client_bridge::authentication_finished, this,
-        [this](bool authenticated, qint64 user, QString const& error_message, bool retryable_error)
+        [this](bool authenticated, qint64 user, QString const& error_message, bool retryable_error, chat::avatar_state avatar)
         {
                 auto const action = pending_action_;
                 if (action == pending_action::reconnect)
@@ -314,6 +321,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                         return_to_login(QStringLiteral("登录状态已失效，请重新登录"));
                         return;
                     }
+                    chat_page_->avatars().observe(user, avatar);
                     finish_reconnect();
                     return;
                 }
@@ -336,6 +344,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                 pending_password_.clear();
                 status_label_->clear();
             show_authenticated_page(user);
+            chat_page_->avatars().observe(user, avatar);
             },
             Qt::QueuedConnection);
 
@@ -451,7 +460,7 @@ main_window::main_window(QString server_url, QWidget* parent)
             { client_->create_group(std::move(title), std::move(members)); });
     connect(chat_page_, &chat_widget::members_requested, this,
             [this](qint64 conversation, qint64 self_user, QString title) {
-                group_dialog dialog(conversation, self_user, title, this);
+                group_dialog dialog(conversation, self_user, title, this, &chat_page_->avatars());
                 connect(client_.get(), &client_bridge::members_received, &dialog, &group_dialog::set_members,
                         Qt::QueuedConnection);
                 connect(client_.get(), &client_bridge::group_action_finished, &dialog, &group_dialog::finish_action,
@@ -495,7 +504,7 @@ main_window::main_window(QString server_url, QWidget* parent)
             });
     connect(chat_page_, &chat_widget::message_search_requested, this,
             [this](qint64 conversation, qint64 self_user, bool group, QString const& title) {
-        message_search_dialog dialog(conversation, self_user, group, title, this);
+        message_search_dialog dialog(conversation, self_user, group, title, this, &chat_page_->avatars());
         connect(&dialog, &message_search_dialog::search_requested, &dialog,
                 [this, conversation](QString query, qint64 before) {
                     client_->search_messages(conversation, std::move(query), before);
@@ -948,6 +957,7 @@ void main_window::finish_reconnect()
     reconnect_attempt_ = 0;
     reconnect_seconds_left_ = 0;
     chat_page_->set_connection_available(true);
+    chat_page_->avatars().retry();
 
     if (reconnect_notice_visible_)
     {

@@ -28,6 +28,8 @@ struct message_payload
     std::optional<std::int64_t> edited_at;
     bool deleted = false;
     std::optional<chat::attachment_info> attachment;
+    std::int64_t avatar_revision = 0;
+    bool has_avatar = false;
 };
 
 #endif

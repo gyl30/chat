@@ -1,4 +1,5 @@
 #include "group_dialog.hpp"
+#include "avatar.hpp"
 
 #include <QDialogButtonBox>
 #include <QLabel>
@@ -11,8 +12,8 @@
 
 #include <algorithm>
 
-group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const& title, QWidget* parent)
-    : QDialog(parent), conversation_(conversation), self_user_(self_user), title_(title)
+group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const& title, QWidget* parent, avatar_cache* avatars)
+    : QDialog(parent), avatars_(avatars), conversation_(conversation), self_user_(self_user), title_(title)
 {
     setObjectName(QStringLiteral("groupDialog"));
     setWindowTitle(title + QStringLiteral(" · 群成员"));
@@ -30,6 +31,19 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     layout->addLayout(name_row);
     list_ = new QListWidget(this);
     list_->setObjectName(QStringLiteral("groupMembersList"));
+    list_->setIconSize(QSize(32, 32));
+    if (avatars_)
+    {
+        connect(avatars_, &avatar_cache::changed, this, [this](qint64 user) {
+            for (int row = 0; row < members_.size(); ++row)
+            {
+                if (members_[row].id == user && row < list_->count())
+                {
+                    list_->item(row)->setIcon(avatar_icon(members_[row].username, 32, avatars_->image(user)));
+                }
+            }
+        });
+    }
     layout->addWidget(list_, 1);
     status_ = new QLabel(QStringLiteral("正在加载成员…"), this);
     status_->setObjectName(QStringLiteral("groupStatus"));
@@ -179,8 +193,10 @@ void group_dialog::set_members(qint64 conversation, QList<member_data> members, 
     {
         auto const role = member.role == chat::member_role::owner ? QStringLiteral("群主") :
             member.role == chat::member_role::admin ? QStringLiteral("管理员") : QStringLiteral("成员");
+        if (avatars_) { avatars_->observe(member.id, member.avatar); }
         auto* item = new QListWidgetItem(member.username + QStringLiteral(" · ") + role, list_);
         item->setData(Qt::UserRole, member.id);
+        item->setIcon(avatar_icon(member.username, 32, avatars_ ? avatars_->image(member.id) : QPixmap{}));
         if (member.id == selected)
         {
             list_->setCurrentItem(item);

@@ -82,6 +82,19 @@ std::optional<std::uint64_t> parse_uint64(boost::json::value const& value)
     return std::nullopt;
 }
 
+bool parse_avatar_state(boost::json::object const& object, avatar_state& value)
+{
+    auto const* revision = object.if_contains("avatar_revision");
+    auto const* present = object.if_contains("has_avatar");
+    auto parsed = revision ? parse_int64(*revision) : std::nullopt;
+    if (!parsed || *parsed < 0 || !present || !present->is_bool() || (present->as_bool() && *parsed == 0))
+    {
+        return false;
+    }
+    value = {*parsed, present->as_bool()};
+    return true;
+}
+
 bool parse_user(boost::json::object const& object, user& value)
 {
     auto const* id_value = object.if_contains("id");
@@ -99,7 +112,7 @@ bool parse_user(boost::json::object const& object, user& value)
 
     value.id = *id;
     value.username = std::string(username_value->as_string());
-    return true;
+    return parse_avatar_state(object, value.avatar);
 }
 
 bool parse_deleted(boost::json::object const& object, bool& deleted)
@@ -213,7 +226,7 @@ bool parse_message(boost::json::object const& object, message& value)
         }
         value.attachment = attachment_info{std::string(filename->as_string()), std::string(type), *size};
     }
-    return parse_reply(object, value.reply) && parse_edited_at(object, value.edited_at) &&
+    return parse_avatar_state(object, value.avatar) && parse_reply(object, value.reply) && parse_edited_at(object, value.edited_at) &&
            parse_deleted(object, value.deleted);
 }
 
@@ -383,6 +396,7 @@ struct client::impl
     {
         auto pending = std::move(pending_);
         pending_.clear();
+        if (suppress_callbacks_.load()) { return; }
         for (auto& [id, handler] : pending)
         {
             (void)id;
@@ -392,6 +406,7 @@ struct client::impl
 
     void send_request(std::string method, boost::json::object params, response_handler handler)
     {
+        if (suppress_callbacks_.load()) { return; }
         if (state_ != connection_state::connected || closing_)
         {
             handler(std::unexpected(make_error(error_kind::transport, "Not connected")));
@@ -534,6 +549,24 @@ struct client::impl
                 return;
             }
 
+            if (method->as_string() == "avatar")
+            {
+                auto const* field = params->as_object().if_contains("user");
+                auto user = field ? parse_int64(*field) : std::nullopt;
+                avatar_state state;
+                if (!user || *user <= 0 || !parse_avatar_state(params->as_object(), state))
+                {
+                    report_error(make_error(error_kind::protocol, "Invalid avatar notification"));
+                    return;
+                }
+                avatar_changed_handler handler;
+                {
+                    std::lock_guard lock(handler_mutex_);
+                    handler = avatar_handler_;
+                }
+                if (handler && !suppress_callbacks_.load()) { handler(*user, state); }
+                return;
+            }
             report_error(make_error(error_kind::protocol, "Invalid JSON-RPC notification"));
             return;
         }
@@ -554,6 +587,7 @@ struct client::impl
 
         auto handler = std::move(pending->second);
         pending_.erase(pending);
+        if (suppress_callbacks_.load()) { return; }
 
         auto const* result = object.if_contains("result");
         auto const* error_value = object.if_contains("error");
@@ -722,7 +756,13 @@ struct client::impl
                 handler(std::unexpected(make_error(error_kind::protocol, "Invalid authenticate identity")));
                 return;
             }
-            handler(authentication_result{authenticated->as_bool(), *user});
+            authentication_result value{authenticated->as_bool(), *user, {}};
+            if (!parse_avatar_state(response->as_object(), value.avatar))
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid authenticate avatar")));
+                return;
+            }
+            handler(value);
         });
 
         co_return;
@@ -832,6 +872,11 @@ struct client::impl
                     return;
                 }
                         item.user = *peer;
+                        if (!parse_avatar_state(object, item.avatar))
+                        {
+                            handler(std::unexpected(make_error(error_kind::protocol, "Invalid peer avatar")));
+                            return;
+                        }
                     }
                     else if (kind->as_string() == "group" && user_value->is_null())
                 {
@@ -923,7 +968,7 @@ struct client::impl
                     return;
                 }
                 members.push_back({person.id, std::move(person.username), role->as_string() == "owner" ? member_role::owner :
-                    role->as_string() == "admin" ? member_role::admin : member_role::member});
+                    role->as_string() == "admin" ? member_role::admin : member_role::member, person.avatar});
             }
             handler(std::move(members));
         });
@@ -1545,6 +1590,211 @@ struct client::impl
         co_return;
     }
 
+    struct avatar_upload_job
+    {
+        std::int64_t upload = 0;
+        std::string data;
+        std::size_t offset = 0;
+        avatar_state_handler handler;
+    };
+
+    void fail_avatar_upload(std::shared_ptr<avatar_upload_job> const& job, error value)
+    {
+        if (job->upload > 0)
+        {
+            send_request("cancel_avatar_upload", {{"upload", job->upload}}, [](auto) {});
+        }
+        job->handler(std::unexpected(std::move(value)));
+    }
+
+    void upload_avatar_next(std::shared_ptr<avatar_upload_job> job)
+    {
+        if (job->offset == job->data.size())
+        {
+            send_request("finish_avatar_upload",
+                         {{"upload", job->upload}},
+                         [this, job](auto response)
+                         {
+                             avatar_state state;
+                             if (!response)
+                             {
+                                 fail_avatar_upload(job, std::move(response.error()));
+                             }
+                             else if (!response->is_object() || !parse_avatar_state(response->as_object(), state) || !state.present)
+                             {
+                                 fail_avatar_upload(job, make_error(error_kind::protocol, "Invalid avatar upload result"));
+                             }
+                             else
+                             {
+                                 job->handler(state);
+                             }
+                         });
+            return;
+        }
+        auto count = std::min(attachment_chunk_size, job->data.size() - job->offset);
+        send_request(
+            "upload_avatar_chunk",
+            {{"upload", job->upload}, {"offset", job->offset}, {"data", detail::encode_base64(std::string_view(job->data).substr(job->offset, count))}},
+            [this, job, count](auto response)
+            {
+                if (!response)
+                {
+                    fail_avatar_upload(job, std::move(response.error()));
+                    return;
+                }
+                auto const* field = response->is_object() ? response->as_object().if_contains("offset") : nullptr;
+                auto offset = field ? parse_int64(*field) : std::nullopt;
+                if (!offset || *offset != static_cast<std::int64_t>(job->offset + count))
+                {
+                    fail_avatar_upload(job, make_error(error_kind::protocol, "Invalid avatar upload offset"));
+                    return;
+                }
+                job->offset += count;
+                upload_avatar_next(job);
+            });
+    }
+
+    boost::capy::task<> set_avatar(std::string data, avatar_state_handler handler)
+    {
+        if (suppress_callbacks_.load())
+        {
+            co_return;
+        }
+        if (data.empty() || data.size() > max_avatar_size)
+        {
+            handler(std::unexpected(make_error(error_kind::protocol, "Avatar size must be between 1 byte and 1 MiB")));
+            co_return;
+        }
+        auto job = std::make_shared<avatar_upload_job>();
+        job->data = std::move(data);
+        job->handler = std::move(handler);
+        send_request("begin_avatar_upload",
+                     {{"size", job->data.size()}},
+                     [this, job](auto response)
+                     {
+                         if (!response)
+                         {
+                             fail_avatar_upload(job, std::move(response.error()));
+                             return;
+                         }
+                         auto const* field = response->is_object() ? response->as_object().if_contains("upload") : nullptr;
+                         auto upload = field ? parse_int64(*field) : std::nullopt;
+                         if (!upload || *upload <= 0)
+                         {
+                             fail_avatar_upload(job, make_error(error_kind::protocol, "Invalid avatar upload identity"));
+                             return;
+                         }
+                         job->upload = *upload;
+                         upload_avatar_next(job);
+                     });
+        co_return;
+    }
+
+    struct avatar_download_job
+    {
+        avatar value;
+        std::optional<std::int64_t> size;
+        avatar_handler handler;
+    };
+
+    void download_avatar_next(std::shared_ptr<avatar_download_job> job)
+    {
+        send_request(
+            "get_avatar",
+            {{"user", job->value.user}, {"revision", job->value.state.revision}, {"offset", job->value.data.size()}},
+            [this, job](auto response)
+            {
+                if (!response)
+                {
+                    job->handler(std::unexpected(std::move(response.error())));
+                    return;
+                }
+                auto const* fields = response->is_object() ? &response->as_object() : nullptr;
+                avatar_state state;
+                auto const* user_field = fields ? fields->if_contains("user") : nullptr;
+                auto const* size_field = fields ? fields->if_contains("size") : nullptr;
+                auto const* offset_field = fields ? fields->if_contains("offset") : nullptr;
+                auto const* data_field = fields ? fields->if_contains("data") : nullptr;
+                auto const* type_field = fields ? fields->if_contains("media_type") : nullptr;
+                auto const* more_field = fields ? fields->if_contains("has_more") : nullptr;
+                auto user = user_field ? parse_int64(*user_field) : std::nullopt;
+                auto size = size_field ? parse_int64(*size_field) : std::nullopt;
+                auto offset = offset_field ? parse_int64(*offset_field) : std::nullopt;
+                if (!fields || !parse_avatar_state(*fields, state) || !user || *user != job->value.user || !size || *size < 0 ||
+                    *size > static_cast<std::int64_t>(max_avatar_size) || !offset || *offset < 0 || !data_field || !data_field->is_string() ||
+                    !type_field || !type_field->is_string() || !more_field || !more_field->is_bool() ||
+                    data_field->as_string().size() > 4 * ((attachment_chunk_size + 2) / 3))
+                {
+                    job->handler(std::unexpected(make_error(error_kind::protocol, "Invalid avatar chunk")));
+                    return;
+                }
+                if (state.revision != job->value.state.revision || !state.present)
+                {
+                    if (*size != 0 || *offset != 0 || !data_field->as_string().empty() || !type_field->as_string().empty() || more_field->as_bool())
+                    {
+                        job->handler(std::unexpected(make_error(error_kind::protocol, "Invalid stale avatar metadata")));
+                        return;
+                    }
+                    job->handler(avatar{job->value.user, state, {}, {}});
+                    return;
+                }
+                auto const type = std::string_view(type_field->as_string());
+                auto bytes = detail::decode_base64(std::string_view(data_field->as_string()));
+                if (*size == 0 || *offset != static_cast<std::int64_t>(job->value.data.size()) || *offset > *size || (job->size && *job->size != *size) ||
+                    (type != "image/png" && type != "image/jpeg") || (!job->value.media_type.empty() && job->value.media_type != type) || !bytes ||
+                    bytes->size() != std::min(attachment_chunk_size, static_cast<std::size_t>(*size - *offset)) ||
+                    more_field->as_bool() != (*offset + static_cast<std::int64_t>(bytes->size()) < *size))
+                {
+                    job->handler(std::unexpected(make_error(error_kind::protocol, "Invalid avatar chunk data")));
+                    return;
+                }
+                job->value.state = state;
+                job->value.media_type = type;
+                job->size = *size;
+                job->value.data.append(*bytes);
+                if (more_field->as_bool())
+                {
+                    download_avatar_next(job);
+                }
+                else
+                {
+                    job->handler(std::move(job->value));
+                }
+            });
+    }
+
+    boost::capy::task<> get_avatar(std::int64_t user, std::int64_t revision, avatar_handler handler)
+    {
+        auto job = std::make_shared<avatar_download_job>();
+        job->value.user = user;
+        job->value.state.revision = revision;
+        job->handler = std::move(handler);
+        download_avatar_next(job);
+        co_return;
+    }
+
+    boost::capy::task<> clear_avatar(avatar_state_handler handler)
+    {
+        send_request("clear_avatar",
+                     {},
+                     [handler = std::move(handler)](auto response) mutable
+                     {
+                         if (!response)
+                         {
+                             handler(std::unexpected(std::move(response.error())));
+                             return;
+                         }
+                         avatar_state state;
+                         if (!response->is_object() || !parse_avatar_state(response->as_object(), state) || state.present)
+                         {
+                             handler(std::unexpected(make_error(error_kind::protocol, "Invalid clear avatar result")));
+                             return;
+                         }
+                         handler(state);
+                     });
+        co_return;
+    }
+
     boost::corosio::io_context io_context_{1};
     detail::websocket_client websocket_;
     boost::capy::work_guard<boost::corosio::io_context::executor_type> work_;
@@ -1566,12 +1816,34 @@ struct client::impl
     conversation_changed_handler conversation_handler_;
     presence_handler presence_handler_;
     typing_handler typing_handler_;
+    avatar_changed_handler avatar_handler_;
     std::atomic_bool suppress_callbacks_ = false;
 };
 
 client::client() : impl_(std::make_unique<impl>()) {}
 
 client::~client() = default;
+
+void client::set_avatar_handler(avatar_changed_handler handler)
+{
+    std::lock_guard lock(impl_->handler_mutex_);
+    impl_->avatar_handler_ = std::move(handler);
+}
+
+void client::set_avatar(std::string data, avatar_state_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->set_avatar(std::move(data), std::move(handler)));
+}
+
+void client::get_avatar(std::int64_t user, std::int64_t revision, avatar_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_avatar(user, revision, std::move(handler)));
+}
+
+void client::clear_avatar(avatar_state_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->clear_avatar(std::move(handler)));
+}
 
 void client::set_connected_handler(connection_handler handler)
 {

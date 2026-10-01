@@ -143,6 +143,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_members(json_rp
     }
     auto query_result = co_await lease.connection().execute_row(
         "SELECT json_build_object('members',(SELECT json_agg(json_build_object('id',u.id,'username',u.username,"
+        "'avatar_revision',u.avatar_revision,'has_avatar',EXISTS(SELECT 1 FROM user_avatars WHERE user_id=u.id),"
         "'role',CASE WHEN u.id=c.owner_id THEN 'owner' WHEN m.is_admin THEN 'admin' ELSE 'member' END) ORDER BY "
         "u.id) "
         "FROM conversation_members m JOIN users u ON u.id=m.user_id JOIN conversations c ON c.id=m.conversation_id "

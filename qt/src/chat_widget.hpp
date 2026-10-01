@@ -12,6 +12,7 @@
 #include <optional>
 
 #include "conversation_data.hpp"
+#include "avatar.hpp"
 #include "message_data.hpp"
 #include "presence_data.hpp"
 #include "user_data.hpp"
@@ -37,6 +38,8 @@ class chat_widget final : public QWidget
    public:
     explicit chat_widget(QWidget* parent = nullptr);
 
+    avatar_cache& avatars() { return avatars_; }
+    void finish_avatar_update(QString error);
     void set_user(QString const& username, qint64 user = 0);
     void open_conversation(conversation_data conversation);
     void close_conversation(qint64 conversation);
@@ -69,6 +72,9 @@ class chat_widget final : public QWidget
     bool messages_ready() const;
 
    signals:
+    void avatar_set_requested(QByteArray data);
+    void avatar_clear_requested();
+    void avatar_update_finished(QString error);
     void conversation_selected(qint64 user);
     void older_messages_requested(qint64 user, qint64 before);
     void send_message_requested(qint64 user, QString text, qint64 reply_to);
@@ -107,7 +113,9 @@ class chat_widget final : public QWidget
     void stop_typing();
     void update_typing_label();
 
-    QLabel* profile_avatar_ = nullptr;
+    avatar_cache avatars_;
+    bool avatar_updating_ = false;
+    QToolButton* profile_avatar_ = nullptr;
     QToolButton* chats_navigation_ = nullptr;
     QToolButton* contacts_navigation_ = nullptr;
     QToolButton* groups_navigation_ = nullptr;

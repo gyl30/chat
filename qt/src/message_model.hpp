@@ -7,6 +7,8 @@
 
 #include "message_data.hpp"
 
+class avatar_cache;
+
 class message_model final : public QAbstractListModel
 {
    public:
@@ -28,7 +30,7 @@ class message_model final : public QAbstractListModel
         attachment_size_role,
     };
 
-    explicit message_model(QObject* parent = nullptr);
+    explicit message_model(QObject* parent = nullptr, avatar_cache* avatars = nullptr);
 
     int rowCount(QModelIndex const& parent = {}) const override;
     QVariant data(QModelIndex const& index, int role) const override;
@@ -44,6 +46,7 @@ class message_model final : public QAbstractListModel
     qint64 last_message_id() const;
 
    private:
+    avatar_cache* avatars_;
     QList<message_data> messages_;
     qint64 self_user_ = 0;
     qint64 conversation_ = 0;

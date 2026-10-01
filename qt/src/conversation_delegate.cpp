@@ -69,7 +69,7 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
 
     QRect avatar_rect(rect.left() + chat_theme::dialog_left, rect.top() + chat_theme::dialog_avatar_top,
                       chat_theme::dialog_avatar_size, chat_theme::dialog_avatar_size);
-    paint_avatar(*painter, avatar_rect, group ? QStringLiteral("群") : username, 17);
+    paint_avatar(*painter, avatar_rect, group ? QStringLiteral("群") : username, 17, index.data(Qt::DecorationRole).value<QPixmap>());
     if (online)
     {
         painter->setPen(QPen(QColor(QStringLiteral("#FCFBF7")), 2));

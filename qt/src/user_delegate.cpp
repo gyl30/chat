@@ -31,7 +31,7 @@ void user_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option,
     auto const last_seen = index.data(user_model::last_seen_role).toLongLong();
     QRect avatar_rect(rect.left() + chat_theme::dialog_left, rect.top() + chat_theme::dialog_avatar_top,
                       chat_theme::dialog_avatar_size, chat_theme::dialog_avatar_size);
-    paint_avatar(*painter, avatar_rect, username, 17);
+    paint_avatar(*painter, avatar_rect, username, 17, index.data(Qt::DecorationRole).value<QPixmap>());
 
     auto const left = rect.left() + chat_theme::dialog_text_left;
     auto const right = rect.right() - chat_theme::dialog_right + 1;

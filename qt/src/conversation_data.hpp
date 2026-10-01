@@ -2,6 +2,7 @@
 #define CHAT_QT_SRC_CONVERSATION_DATA_HPP
 
 #include <QList>
+#include <chat/avatar.hpp>
 #include <QMetaType>
 #include <QString>
 #include <QtGlobal>
@@ -19,6 +20,7 @@ struct conversation_data
     quint64 unread = 0;
     bool online = false;
     quint64 member_count = 0;
+    chat::avatar_state avatar;
 };
 
 Q_DECLARE_METATYPE(conversation_data)
