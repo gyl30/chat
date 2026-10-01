@@ -38,6 +38,7 @@ class chat_session
                                                                        std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_get_members(json_rpc_request& request, std::string& response);
+    boost::capy::task<simdjson::error_code> handle_group_management(json_rpc_request& request, std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_get_messages(json_rpc_request& request, std::string& response);
 

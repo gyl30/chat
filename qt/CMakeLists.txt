@@ -14,6 +14,9 @@ add_library(chat_qt_widgets OBJECT
     src/conversation_delegate.hpp
     src/conversation_model.cpp
     src/conversation_model.hpp
+    src/group_dialog.cpp
+    src/group_dialog.hpp
+    src/member_data.hpp
     src/icons.cpp
     src/icons.hpp
     src/main_window.cpp

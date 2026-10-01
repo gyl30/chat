@@ -234,6 +234,10 @@ boost::capy::task<void> chat_session::run()
             {
                 rpc_error = co_await handle_get_members(request, response);
             }
+            else if (request.method == "set_group_admin")
+            {
+                rpc_error = co_await handle_group_management(request, response);
+            }
             else if (request.method == kGetConversationsMethod)
             {
                 rpc_error = co_await handle_get_conversations(request, response);

@@ -501,7 +501,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
             if (item->group)
             {
                 open_conversation(*item);
-                emit members_requested(item->id);
+                emit members_requested(item->id, self_user_, item->username);
             }
             else
             {
@@ -522,7 +522,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
                 {
                     if (active_group_)
                     {
-                        emit members_requested(active_conversation_);
+                        emit members_requested(active_conversation_, self_user_, active_username_);
                     }
                     else
                     {
@@ -1154,25 +1154,6 @@ void chat_widget::create_group()
         }
     }
     emit group_create_requested(title->text().trimmed(), std::move(members));
-}
-
-void chat_widget::set_members(qint64 conversation, QList<user_data> users, QString error_message)
-{
-    if (conversation != active_conversation_)
-    {
-        return;
-    }
-    if (!error_message.isEmpty())
-    {
-        set_message_status(std::move(error_message));
-        return;
-    }
-    QStringList names;
-    for (auto const& user : users)
-    {
-        names.push_back(user.username);
-    }
-    QMessageBox::information(this, active_username_ + QStringLiteral(" · 群成员"), names.join(QStringLiteral("\n")));
 }
 
 void chat_widget::request_older_messages()

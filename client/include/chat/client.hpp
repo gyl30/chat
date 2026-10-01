@@ -12,6 +12,7 @@
 #include "conversation.hpp"
 #include "error.hpp"
 #include "message.hpp"
+#include "member.hpp"
 #include "presence.hpp"
 #include "typing.hpp"
 #include "user.hpp"
@@ -39,6 +40,8 @@ class client
     using messages_handler = std::function<void(std::expected<messages_result, error>)>;
     using send_message_handler = std::function<void(std::expected<send_message_result, error>)>;
     using users_handler = std::function<void(std::expected<std::vector<user>, error>)>;
+    using members_handler = std::function<void(std::expected<std::vector<conversation_member>, error>)>;
+    using group_action_handler = std::function<void(std::expected<bool, error>)>;
     using user_handler = std::function<void(std::expected<user, error>)>;
     using remove_contact_handler = std::function<void(std::expected<bool, error>)>;
     using mark_read_handler = std::function<void(std::expected<std::int64_t, error>)>;
@@ -76,7 +79,8 @@ class client
     void get_conversations(std::optional<conversation_cursor> before, conversations_handler handler);
     void open_direct_conversation(std::int64_t user, conversation_handler handler);
     void create_group(std::string title, std::vector<std::int64_t> members, conversation_handler handler);
-    void get_members(std::int64_t conversation, users_handler handler);
+    void get_members(std::int64_t conversation, members_handler handler);
+    void set_group_admin(std::int64_t conversation, std::int64_t user, bool admin, group_action_handler handler);
     void get_contacts(users_handler handler);
     void get_presence(presences_handler handler);
     void get_messages(std::int64_t conversation, std::optional<std::int64_t> before, messages_handler handler,

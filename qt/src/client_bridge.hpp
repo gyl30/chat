@@ -15,6 +15,7 @@
 #include "message_data.hpp"
 #include "presence_data.hpp"
 #include "user_data.hpp"
+#include "member_data.hpp"
 
 namespace chat
 {
@@ -37,6 +38,7 @@ class client_bridge final : public QObject
     void open_direct_conversation(qint64 user, QString username);
     void create_group(QString title, QList<qint64> members);
     void get_members(qint64 conversation);
+    void set_group_admin(qint64 conversation, qint64 user, bool admin);
     void get_contacts();
     void get_presence();
     void get_messages(qint64 conversation, std::optional<qint64> before = {}, std::optional<qint64> after = {});
@@ -69,8 +71,9 @@ class client_bridge final : public QObject
     void messages_read(qint64 conversation, qint64 user, qint64 message);
     void typing_changed(qint64 conversation, qint64 user, QString username, bool typing);
     void conversation_opened(conversation_data conversation, QString error_message);
-    void members_received(qint64 conversation, QList<user_data> users, QString error_message);
-    void conversation_changed();
+    void members_received(qint64 conversation, QList<member_data> members, QString error_message);
+    void group_action_finished(qint64 conversation, QString error_message);
+    void conversation_changed(qint64 conversation);
     void message_sent(qint64 user, QString text, qint64 message, qint64 timestamp, bool realtime,
                       quoted_message_data reply, QString error_message);
     void users_received(QList<user_data> users, QString error_message);

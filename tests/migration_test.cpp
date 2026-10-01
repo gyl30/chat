@@ -41,7 +41,7 @@ int main(int argc, char** argv)
               "004_create_message_read_positions.sql", "005_add_messages_recipient_index.sql",
               "006_create_contacts.sql", "007_add_user_last_seen.sql", "008_create_conversations.sql",
               "009_add_message_replies.sql", "010_add_message_edits.sql", "011_add_message_deletion.sql",
-              "012_create_message_attachments.sql"})
+              "012_create_message_attachments.sql", "013_add_group_roles.sql"})
         {
             if (std::string(name).starts_with("008"))
             {
@@ -62,6 +62,8 @@ int main(int argc, char** argv)
                               "AND (SELECT count(*) FROM conversation_members)=3 "
                               "AND (SELECT count(*) FROM messages WHERE id IN (1,2,3))=3 "
                               "AND (SELECT count(*) FROM contacts)=1 "
+                              "AND NOT EXISTS(SELECT 1 FROM conversations WHERE owner_id IS NOT NULL) "
+                              "AND NOT EXISTS(SELECT 1 FROM conversation_members WHERE is_admin) "
                               "AND (SELECT count(*) FROM conversation_members WHERE last_read_message_id IN (1,2))=2 "
                               "AND NOT EXISTS(SELECT 1 FROM messages m JOIN conversations c ON c.id=m.conversation_id "
                               "WHERE c.kind<>'direct' OR (m.id=3 AND c.direct_user_low<>c.direct_user_high))");
@@ -79,8 +81,32 @@ int main(int argc, char** argv)
         {
             throw std::runtime_error("Deleted message invariant");
         }
+        execute("WITH created AS (INSERT INTO conversations(kind,title,owner_id) VALUES('group','owned',1) RETURNING id) "
+                "INSERT INTO conversation_members(conversation_id,user_id,is_admin) "
+                "SELECT id,1,false FROM created UNION ALL SELECT id,2,true FROM created");
+        auto owner = execute("SELECT count(*) FROM conversations c JOIN conversation_members m "
+                             "ON m.conversation_id=c.id AND m.user_id=c.owner_id WHERE c.kind='group'");
+        if (std::string(PQgetvalue(owner.get(), 0, 0)) != "1")
+        {
+            throw std::runtime_error("Group owner membership invariant");
+        }
+        bool rejected_owner = false;
+        try
+        {
+            execute("DELETE FROM conversation_members WHERE user_id=1 AND conversation_id IN "
+                    "(SELECT id FROM conversations WHERE kind='group')");
+        }
+        catch (std::runtime_error const&)
+        {
+            rejected_owner = true;
+        }
+        if (!rejected_owner)
+        {
+            throw std::runtime_error("Owner membership deletion accepted");
+        }
         execute("DELETE FROM users WHERE id=1");
-        auto cleaned = execute("SELECT (SELECT count(*) FROM messages)+(SELECT count(*) FROM message_attachments)");
+        auto cleaned = execute("SELECT (SELECT count(*) FROM messages)+(SELECT count(*) FROM message_attachments)"
+                               "+(SELECT count(*) FROM conversations WHERE kind='group')");
         if (std::string(PQgetvalue(cleaned.get(), 0, 0)) != "0")
         {
             throw std::runtime_error("Reply cascade cleanup");

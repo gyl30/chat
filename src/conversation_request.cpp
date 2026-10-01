@@ -43,7 +43,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_create_conversation
     auto const group = request.method == "create_group";
     std::sort(params.members.begin(), params.members.end());
     if ((!group && (params.user <= 0 || !params.title.empty() || !params.members.empty())) ||
-        (group && (params.user != 0 || params.title.empty() || params.title.size() > 256 || params.members.empty() ||
+        (group && (params.user != 0 || params.title.empty() || params.title.size() > 256 ||
+                   params.title.find('\0') != std::string::npos || params.members.empty() ||
                    params.members.front() <= 0 ||
                    std::adjacent_find(params.members.begin(), params.members.end()) != params.members.end() ||
                    std::binary_search(params.members.begin(), params.members.end(), *user_id_))))
@@ -73,7 +74,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_create_conversation
         values.push_back(params.title);
         query = "WITH targets AS (SELECT contact_id AS id FROM contacts WHERE owner_id=$1::bigint AND "
                 "contact_id=ANY($2::bigint[])), "
-                "created AS (INSERT INTO conversations(kind,title) SELECT 'group',$3 "
+                "created AS (INSERT INTO conversations(kind,title,owner_id) SELECT 'group',$3,$1::bigint "
                 "WHERE (SELECT count(*) FROM targets)=cardinality($2::bigint[]) RETURNING id), "
                 "members AS (INSERT INTO conversation_members(conversation_id,user_id) "
                 "SELECT id,$1::bigint FROM created UNION ALL SELECT created.id,targets.id FROM created CROSS JOIN "
@@ -141,9 +142,11 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_members(json_rp
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
     auto query_result = co_await lease.connection().execute_row(
-        "SELECT json_build_object('users',(SELECT json_agg(json_build_object('id',u.id,'username',u.username) ORDER BY "
+        "SELECT json_build_object('members',(SELECT json_agg(json_build_object('id',u.id,'username',u.username,"
+        "'role',CASE WHEN u.id=c.owner_id THEN 'owner' WHEN m.is_admin THEN 'admin' ELSE 'member' END) ORDER BY "
         "u.id) "
-        "FROM conversation_members m JOIN users u ON u.id=m.user_id WHERE m.conversation_id=$2::bigint))::text "
+        "FROM conversation_members m JOIN users u ON u.id=m.user_id JOIN conversations c ON c.id=m.conversation_id "
+        "WHERE m.conversation_id=$2::bigint))::text "
         "FROM conversation_members WHERE conversation_id=$2::bigint AND user_id=$1::bigint",
         {std::to_string(*user_id_), std::to_string(params.conversation)});
     auto& [ec, row] = query_result;

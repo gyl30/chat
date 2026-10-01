@@ -71,6 +71,7 @@ client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::ma
     qRegisterMetaType<read_positions>();
     qRegisterMetaType<message_data>();
     qRegisterMetaType<QList<message_data>>();
+    qRegisterMetaType<QList<member_data>>();
     qRegisterMetaType<user_data>();
     qRegisterMetaType<QList<user_data>>();
     qRegisterMetaType<presence_data>();
@@ -86,7 +87,7 @@ client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::ma
     client_->set_typing_handler([this](chat::typing_event value) {
         emit typing_changed(value.conversation, value.user, from_utf8(value.username), value.typing);
     });
-    client_->set_conversation_handler([this](std::int64_t) { emit conversation_changed(); });
+    client_->set_conversation_handler([this](std::int64_t id) { emit conversation_changed(id); });
     client_->set_presence_handler([this](chat::presence value) { emit presence_changed(to_presence_data(value)); });
 }
 
@@ -243,16 +244,23 @@ void client_bridge::get_members(qint64 conversation)
     client_->get_members(conversation,
                          [this, conversation](auto result)
                          {
-                             QList<user_data> values;
+                             QList<member_data> values;
                              if (result)
                              {
                                  for (auto const& user : *result)
                                  {
-                                     values.push_back(user_data{user.id, from_utf8(user.username)});
+                                     values.push_back(member_data{user.id, from_utf8(user.username), user.role});
                                  }
                              }
                              emit members_received(conversation, std::move(values),
                                                    result ? QString{} : from_utf8(result.error().message));
+    });
+}
+
+void client_bridge::set_group_admin(qint64 conversation, qint64 user, bool admin)
+{
+    client_->set_group_admin(conversation, user, admin, [this, conversation](auto result) {
+        emit group_action_finished(conversation, result ? QString{} : from_utf8(result.error().message));
     });
 }
 

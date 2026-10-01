@@ -20,6 +20,7 @@
 
 #include "chat_widget.hpp"
 #include "attachment_dialog.hpp"
+#include "group_dialog.hpp"
 #include "client_bridge.hpp"
 #include "message_search_dialog.hpp"
 #include "theme.hpp"
@@ -449,7 +450,21 @@ main_window::main_window(QString server_url, QWidget* parent)
     connect(chat_page_, &chat_widget::group_create_requested, this, [this](QString title, QList<qint64> members)
             { client_->create_group(std::move(title), std::move(members)); });
     connect(chat_page_, &chat_widget::members_requested, this,
-            [this](qint64 conversation) { client_->get_members(conversation); });
+            [this](qint64 conversation, qint64 self_user, QString title) {
+                group_dialog dialog(conversation, self_user, title, this);
+                connect(client_.get(), &client_bridge::members_received, &dialog, &group_dialog::set_members,
+                        Qt::QueuedConnection);
+                connect(client_.get(), &client_bridge::group_action_finished, &dialog, &group_dialog::finish_action,
+                        Qt::QueuedConnection);
+                connect(client_.get(), &client_bridge::disconnected, &dialog, [&dialog] {
+                    dialog.set_error(QStringLiteral("连接已断开，请重连后重新打开群成员。"));
+                }, Qt::QueuedConnection);
+                connect(&dialog, &group_dialog::admin_requested, this, [this, conversation](qint64 user, bool admin) {
+                    client_->set_group_admin(conversation, user, admin);
+                });
+                client_->get_members(conversation);
+                dialog.exec();
+            });
     connect(chat_page_, &chat_widget::message_search_requested, this,
             [this](qint64 conversation, qint64 self_user, bool group, QString const& title) {
         message_search_dialog dialog(conversation, self_user, group, title, this);
@@ -474,13 +489,20 @@ main_window::main_window(QString server_url, QWidget* parent)
             client_->get_conversations();
         },
         Qt::QueuedConnection);
+    connect(client_.get(), &client_bridge::group_action_finished, this,
+            [this](qint64 conversation, QString const& error) {
+                if (error.isEmpty())
+                {
+                    client_->get_members(conversation);
+                    client_->get_conversations();
+                }
+            }, Qt::QueuedConnection);
+
     connect(
-        client_.get(), &client_bridge::members_received, this,
-        [this](qint64 conversation, QList<user_data> users, QString error)
-        { chat_page_->set_members(conversation, std::move(users), std::move(error)); }, Qt::QueuedConnection);
-    connect(
-        client_.get(), &client_bridge::conversation_changed, this, [this] { client_->get_conversations(); },
-        Qt::QueuedConnection);
+        client_.get(), &client_bridge::conversation_changed, this, [this](qint64 conversation) {
+            client_->get_conversations();
+            client_->get_members(conversation);
+        }, Qt::QueuedConnection);
 
     connect(chat_page_, &chat_widget::conversation_selected, this,
             [this](qint64 user) { client_->get_messages(user); });

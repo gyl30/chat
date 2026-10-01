@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <condition_variable>
 #include <future>
@@ -270,11 +271,13 @@ int run_group_tests()
         require(empty.kind == chat::conversation_kind::group && empty.last.id == 0 && empty.member_count == 3 &&
                     empty.unread == 0,
                 "Empty group descriptor");
-        auto members = call<std::vector<chat::user>>([&](auto handler) { c.get_members(group, handler); });
-        require(members && members->size() == 3 && (*members)[0].id == data.users[0], "Group members");
+        auto members = call<std::vector<chat::conversation_member>>([&](auto handler) { c.get_members(group, handler); });
+        require(members && members->size() == 3 && (*members)[0].id == data.users[0] &&
+                    (*members)[0].role == chat::member_role::owner && (*members)[1].role == chat::member_role::member,
+                "Group member roles");
         auto forbidden = call<chat::messages_result>([&](auto handler) { d.get_messages(group, {}, handler); });
         require(!forbidden && forbidden.error().code == -32006, "Nonmember history denied");
-        auto forbidden_members = call<std::vector<chat::user>>([&](auto handler) { d.get_members(group, handler); });
+        auto forbidden_members = call<std::vector<chat::conversation_member>>([&](auto handler) { d.get_members(group, handler); });
         require(!forbidden_members && forbidden_members.error().code == -32006, "Nonmember member list denied");
         auto forbidden_send =
             call<chat::send_message_result>([&](auto handler) { d.send_message(group, "not allowed", handler); });
@@ -719,6 +722,110 @@ int run_group_tests()
         b_events.wait([&] { return b_events.disconnected == 1; });
         c_events.wait([&] { return c_events.disconnected == 4; });
         d_events.wait([&] { return d_events.disconnected == 1; });
+        {
+            std::array<events, 5> managed_events;
+            std::array<chat::client, 5> managed;
+            std::vector<std::int64_t> managed_ids;
+            for (int i = 0; i < 5; ++i)
+            {
+                auto& client = managed[i];
+                managed_events[i].attach(client);
+                client.connect(server.url);
+                managed_events[i].wait([&, i] { return managed_events[i].connected == 1; });
+                auto name = "chat_roles_test_" + std::to_string(getpid()) + "_" + std::to_string(i);
+                auto id = call<std::int64_t>([&](auto handler) { client.register_user(name, "roles password", handler); });
+                require(id.has_value(), "Register roles fixture");
+                data.users.push_back(*id);
+                managed_ids.push_back(*id);
+                auto unauthenticated = call<bool>([&](auto handler) { client.set_group_admin(1, *id, true, handler); });
+                require(!unauthenticated && unauthenticated.error().code == -32001, "Admin change requires authentication");
+                auto authenticated = call<chat::authentication_result>(
+                    [&](auto handler) { client.authenticate(name, "roles password", handler); });
+                require(authenticated && authenticated->authenticated, "Authenticate roles fixture");
+                if (i > 0)
+                {
+                    require(call<chat::user>([&](auto handler) { managed[0].add_contact(*id, handler); }).has_value(),
+                            "Owner role contacts");
+                }
+            }
+            auto created = call<std::int64_t>([&](auto handler) {
+                managed[0].create_group("管理员群", {managed_ids[1], managed_ids[2], managed_ids[3], managed_ids[4]}, handler);
+            });
+            require(created.has_value(), "Create role group");
+            auto const managed_group = *created;
+            data.groups.push_back(managed_group);
+            for (int i = 1; i <= 2; ++i)
+            {
+                auto promoted = call<bool>([&](auto handler) {
+                    managed[0].set_group_admin(managed_group, managed_ids[i], true, handler);
+                });
+                require(promoted && *promoted, "Promote administrator");
+            }
+            auto promote = [&](int i) {
+                return call<bool>([&](auto handler) { managed[0].set_group_admin(managed_group, managed_ids[i], true, handler); });
+            };
+            auto third = std::async(std::launch::async, promote, 3);
+            auto fourth = std::async(std::launch::async, promote, 4);
+            auto third_result = third.get();
+            auto fourth_result = fourth.get();
+            require(third_result.has_value() != fourth_result.has_value() &&
+                        (third_result ? fourth_result.error().code : third_result.error().code) == -32010,
+                    "Concurrent requests cannot create a fourth administrator");
+            auto roles = call<std::vector<chat::conversation_member>>(
+                [&](auto handler) { managed[1].get_members(managed_group, handler); });
+            require(roles && roles->size() == 5 && roles->front().role == chat::member_role::owner &&
+                        std::count_if(roles->begin(), roles->end(), [](auto const& member) {
+                            return member.role == chat::member_role::admin;
+                        }) == 3, "Three administrators plus one owner");
+            auto denied = call<bool>([&](auto handler) {
+                managed[1].set_group_admin(managed_group, managed_ids[2], false, handler);
+            });
+            auto owner_target = call<bool>([&](auto handler) {
+                managed[0].set_group_admin(managed_group, managed_ids[0], true, handler);
+            });
+            auto absent_target = call<bool>([&](auto handler) {
+                managed[0].set_group_admin(managed_group, data.users[0], true, handler);
+            });
+            require(!denied && denied.error().code == -32009 && !owner_target && owner_target.error().code == -32602 &&
+                        !absent_target && absent_target.error().code == -32005, "Only owner manages existing ordinary members");
+            auto unchanged = call<bool>([&](auto handler) {
+                managed[0].set_group_admin(managed_group, managed_ids[1], true, handler);
+            });
+            auto demoted = call<bool>([&](auto handler) {
+                managed[0].set_group_admin(managed_group, managed_ids[1], false, handler);
+            });
+            auto replacement = call<bool>([&](auto handler) {
+                managed[0].set_group_admin(managed_group, managed_ids[third_result ? 4 : 3], true, handler);
+            });
+            require(unchanged && !*unchanged && demoted && *demoted && replacement && *replacement,
+                    "Idempotent assignment and freed administrator slot");
+            managed[2].close();
+            managed_events[2].wait([&] { return managed_events[2].disconnected == 1; });
+            managed[2].connect(server.url);
+            managed_events[2].wait([&] { return managed_events[2].connected == 2; });
+            auto authenticated = call<chat::authentication_result>([&](auto handler) {
+                managed[2].authenticate("chat_roles_test_" + std::to_string(getpid()) + "_2", "roles password", handler);
+            });
+            auto recovered = call<std::vector<chat::conversation_member>>(
+                [&](auto handler) { managed[2].get_members(managed_group, handler); });
+            require(authenticated && authenticated->authenticated && recovered && (*recovered)[1].role == chat::member_role::member &&
+                        (*recovered)[2].role == chat::member_role::admin, "Roles persist across reconnect");
+            auto direct = call<std::int64_t>([&](auto handler) { managed[0].open_direct_conversation(managed_ids[1], handler); });
+            require(direct.has_value(), "Direct conversation remains available");
+            auto direct_admin = call<bool>([&](auto handler) {
+                managed[0].set_group_admin(*direct, managed_ids[1], true, handler);
+            });
+            auto invalid_group = call<std::int64_t>([&](auto handler) {
+                managed[0].create_group(std::string("a\0b", 3), {managed_ids[1]}, handler);
+            });
+            require(!direct_admin && direct_admin.error().code == -32006 && !invalid_group && invalid_group.error().code == -32602,
+                    "Group-only management and NUL title validation");
+            for (int i = 0; i < 5; ++i)
+            {
+                managed[i].close();
+                managed_events[i].wait([&, i] { return managed_events[i].disconnected == (i == 2 ? 2 : 1); });
+            }
+        }
         data.cleanup();
         std::cout
             << "PASS real four-client direct/group, membership, read, pagination, reconnect and concurrent sends\n";

@@ -167,6 +167,23 @@ boost::capy::task<int> run_tests(boost::corosio::io_context& io_context)
         std::cout << "PASS query after SQL error\n";
     }
 
+    for (auto const* command : {"BEGIN", "SELECT missing FROM __chat_poc_missing_table__", "ROLLBACK", "BEGIN", "COMMIT"})
+    {
+        auto result = co_await connection.execute_row(command);
+        bool const sql_error = std::string_view(command).starts_with("SELECT");
+        if (static_cast<bool>(std::get<0>(result)) != sql_error || std::get<1>(result))
+        {
+            std::cerr << "FAIL transaction command: " << command << '\n';
+            ++failures;
+        }
+    }
+    auto after_transaction = co_await connection.execute_scalar("SELECT 5");
+    if (std::get<0>(after_transaction) || std::get<1>(after_transaction) != "5")
+    {
+        std::cerr << "FAIL query after transaction rollback\n";
+        ++failures;
+    }
+
     pg_connection bad_password_connection(io_context);
     auto [bad_password_ec] = co_await bad_password_connection.connect(
         "hostaddr=172.20.54.83 "

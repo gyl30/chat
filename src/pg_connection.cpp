@@ -344,7 +344,7 @@ boost::capy::io_task<std::optional<std::vector<std::string>>> pg_connection::exe
     std::string result_error_message;
     std::optional<std::vector<std::string>> row;
 
-    if (PQresultStatus(result.get()) != PGRES_TUPLES_OK)
+    if (PQresultStatus(result.get()) != PGRES_TUPLES_OK && PQresultStatus(result.get()) != PGRES_COMMAND_OK)
     {
         result_ec = make_libpq_error();
         result_error_message = PQresultErrorMessage(result.get());

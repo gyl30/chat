@@ -896,6 +896,58 @@ struct client::impl
         co_return;
     }
 
+    boost::capy::task<> get_members(std::int64_t conversation, members_handler handler)
+    {
+        send_request("get_members", {{"conversation", conversation}}, [handler = std::move(handler)](auto response) mutable {
+            if (!response)
+            {
+                handler(std::unexpected(std::move(response.error())));
+                return;
+            }
+            auto const* values = response->is_object() ? response->as_object().if_contains("members") : nullptr;
+            if (!values || !values->is_array())
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid members result")));
+                return;
+            }
+            std::vector<conversation_member> members;
+            for (auto const& value : values->as_array())
+            {
+                user person;
+                auto const* role = value.is_object() ? value.as_object().if_contains("role") : nullptr;
+                if (!role || !role->is_string() || !parse_user(value.as_object(), person) ||
+                    (role->as_string() != "owner" && role->as_string() != "admin" && role->as_string() != "member"))
+                {
+                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid member")));
+                    return;
+                }
+                members.push_back({person.id, std::move(person.username), role->as_string() == "owner" ? member_role::owner :
+                    role->as_string() == "admin" ? member_role::admin : member_role::member});
+            }
+            handler(std::move(members));
+        });
+        co_return;
+    }
+
+    boost::capy::task<> group_action(std::string method, boost::json::object params, group_action_handler handler)
+    {
+        send_request(std::move(method), std::move(params), [handler = std::move(handler)](auto response) mutable {
+            if (!response)
+            {
+                handler(std::unexpected(std::move(response.error())));
+                return;
+            }
+            auto const* changed = response->is_object() ? response->as_object().if_contains("changed") : nullptr;
+            if (!changed || !changed->is_bool())
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid group action result")));
+                return;
+            }
+            handler(changed->as_bool());
+        });
+        co_return;
+    }
+
     boost::capy::task<> get_users(std::string method, boost::json::object params, users_handler handler)
     {
         send_request(std::move(method), std::move(params),
@@ -1610,10 +1662,16 @@ void client::create_group(std::string title, std::vector<std::int64_t> members, 
         "create_group", {{"title", std::move(title)}, {"members", std::move(values)}}, std::move(handler)));
 }
 
-void client::get_members(std::int64_t conversation, users_handler handler)
+void client::get_members(std::int64_t conversation, members_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(
-        impl_->get_users("get_members", {{"conversation", conversation}}, std::move(handler)));
+        impl_->get_members(conversation, std::move(handler)));
+}
+
+void client::set_group_admin(std::int64_t conversation, std::int64_t user, bool admin, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_action(
+        "set_group_admin", {{"conversation", conversation}, {"user", user}, {"admin", admin}}, std::move(handler)));
 }
 
 void client::set_conversation_handler(conversation_changed_handler handler)

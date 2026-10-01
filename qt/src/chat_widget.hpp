@@ -38,7 +38,6 @@ class chat_widget final : public QWidget
 
     void set_user(QString const& username, qint64 user = 0);
     void open_conversation(conversation_data conversation);
-    void set_members(qint64 conversation, QList<user_data> users, QString error_message);
     void set_loading();
     void set_error(QString message);
     void set_connection_available(bool available);
@@ -79,7 +78,7 @@ class chat_widget final : public QWidget
     void reconnect_requested();
     void direct_conversation_requested(qint64 user, QString username);
     void group_create_requested(QString title, QList<qint64> members);
-    void members_requested(qint64 conversation);
+    void members_requested(qint64 conversation, qint64 self_user, QString title);
     void message_search_requested(qint64 conversation, qint64 self_user, bool group, QString title);
     void attachment_send_requested(qint64 conversation, QString filename, QByteArray data, qint64 reply_to);
     void attachment_open_requested(qint64 conversation, qint64 message, QString filename, bool preview);

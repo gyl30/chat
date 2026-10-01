@@ -103,6 +103,7 @@ add_executable(chat_server
     src/contact_request.cpp
     src/chat_session.cpp
     src/conversation_request.cpp
+    src/group_management_request.cpp
     src/authenticate_request.cpp
     src/update_message_request.cpp
     src/typing_request.cpp
@@ -235,6 +236,7 @@ add_executable(chat_server_test
     src/contact_request.cpp
     src/chat_session.cpp
     src/conversation_request.cpp
+    src/group_management_request.cpp
     src/authenticate_request.cpp
     src/update_message_request.cpp
     src/typing_request.cpp

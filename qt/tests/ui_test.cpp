@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include "main_window.hpp"
 #include "chat_widget.hpp"
+#include "group_dialog.hpp"
 #include "message_model.hpp"
 #include "conversation_model.hpp"
 
@@ -211,20 +212,48 @@ int main(int argc, char** argv)
                       "Real author identity");
             }
             bool members = false;
+            int role_step = 0;
             QTimer poll;
-            QObject::connect(&poll, &QTimer::timeout,
-                             [&]
-                             {
-                                 auto* box = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
-                                 if (!box)
-                                 {
-                                     return;
-                                 }
-                                 members = box->text().contains(names[0]) && box->text().contains(names[1]) &&
-                                           box->text().contains(names[2]);
-                                 box->accept();
-                                 poll.stop();
-                             });
+            QObject::connect(&poll, &QTimer::timeout, [&] {
+                auto* dialog = qobject_cast<group_dialog*>(QApplication::activeModalWidget());
+                if (!dialog)
+                {
+                    return;
+                }
+                auto* list = dialog->findChild<QListWidget*>("groupMembersList");
+                auto* button = dialog->findChild<QPushButton*>("groupAdminButton");
+                if (list->count() != 3)
+                {
+                    return;
+                }
+                if (role_step == 0)
+                {
+                    check(list->item(0)->text().contains(names[0]) &&
+                              list->item(0)->text().contains(QStringLiteral("群主")) &&
+                              list->item(1)->text().contains(names[1]) &&
+                              list->item(2)->text().contains(names[2]), "Members and creator role");
+                    list->setCurrentRow(0);
+                    check(!button->isEnabled(), "Owner cannot be an administrator");
+                    list->setCurrentRow(1);
+                    check(button->isEnabled(), "Owner can promote a member");
+                    ++role_step;
+                    button->click();
+                }
+                else if (role_step == 1 && button->isEnabled() &&
+                         list->item(1)->text().contains(QStringLiteral("管理员")))
+                {
+                    dialog->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_roles.png");
+                    ++role_step;
+                    button->click();
+                }
+                else if (role_step == 2 && button->isEnabled() &&
+                         !list->item(1)->text().contains(QStringLiteral("管理员")))
+                {
+                    members = true;
+                    poll.stop();
+                    dialog->accept();
+                }
+            });
             poll.start(20);
             for (auto* b : windows[0]->findChildren<QPushButton*>())
             {
@@ -235,6 +264,36 @@ int main(int argc, char** argv)
                 }
             }
             wait([&] { return members; });
+            bool ordinary_member = false;
+            QTimer member_poll;
+            QObject::connect(&member_poll, &QTimer::timeout, [&] {
+                auto* dialog = qobject_cast<group_dialog*>(QApplication::activeModalWidget());
+                if (!dialog)
+                {
+                    return;
+                }
+                auto* list = dialog->findChild<QListWidget*>("groupMembersList");
+                if (list->count() != 3)
+                {
+                    return;
+                }
+                list->setCurrentRow(2);
+                check(!dialog->findChild<QPushButton*>("groupAdminButton")->isEnabled(),
+                      "Ordinary member cannot manage administrators");
+                ordinary_member = true;
+                member_poll.stop();
+                dialog->accept();
+            });
+            member_poll.start(20);
+            for (auto* b : windows[1]->findChildren<QPushButton*>())
+            {
+                if (b->text() == QStringLiteral("Qt 三人群"))
+                {
+                    b->click();
+                    break;
+                }
+            }
+            wait([&] { return ordinary_member; });
             auto choose_reply = [&]
             {
                 auto* view = windows[1]->findChild<QListView*>("messageList");
