@@ -14,7 +14,7 @@ QString chat_style_sheet()
         QDialog {
             background: #FFFEFA;
         }
-        QDialog QPushButton {
+        QDialog QPushButton, QToolButton#messageSearchButton, QToolButton#sendAttachmentButton {
             min-height: 32px;
             padding: 0 12px;
             background: #FFFFFF;
@@ -22,7 +22,7 @@ QString chat_style_sheet()
             border: 1px solid #AFC0B8;
             border-radius: 8px;
         }
-        QDialog QPushButton:disabled {
+        QDialog QPushButton:disabled, QToolButton#messageSearchButton:disabled, QToolButton#sendAttachmentButton:disabled {
             color: #96A29C;
             border-color: #D7DDD9;
         }
