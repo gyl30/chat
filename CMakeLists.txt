@@ -104,6 +104,7 @@ add_executable(chat_server
     src/get_contacts_request.cpp
     src/get_conversations_request.cpp
     src/get_messages_request.cpp
+    src/get_presence_request.cpp
     src/get_unread_count_request.cpp
     src/mark_read_request.cpp
     src/register_request.cpp
@@ -227,6 +228,7 @@ add_executable(chat_server_test
     src/get_contacts_request.cpp
     src/get_conversations_request.cpp
     src/get_messages_request.cpp
+    src/get_presence_request.cpp
     src/get_unread_count_request.cpp
     src/mark_read_request.cpp
     src/register_request.cpp

@@ -165,6 +165,36 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             co_return boost::capy::io_result<bool>{send_ec, !send_ec};
         }
 
+        if (method->as_string() == "get_presence")
+        {
+            boost::json::object user;
+            user.emplace("user", 2);
+            user.emplace("online", true);
+            user.emplace("last_seen", 1699999999000LL);
+            boost::json::array users;
+            users.push_back(std::move(user));
+            boost::json::object result;
+            result.emplace("users", std::move(users));
+            response.emplace("result", std::move(result));
+
+            auto [response_ec] = co_await send_text(connection, std::move(response));
+            if (response_ec)
+            {
+                co_return boost::capy::io_result<bool>{response_ec, false};
+            }
+
+            boost::json::object notification_params;
+            notification_params.emplace("user", 3);
+            notification_params.emplace("online", false);
+            notification_params.emplace("last_seen", 1700000001000LL);
+            boost::json::object notification;
+            notification.emplace("jsonrpc", "2.0");
+            notification.emplace("method", "presence");
+            notification.emplace("params", std::move(notification_params));
+            auto [notification_ec] = co_await send_text(connection, std::move(notification));
+            co_return boost::capy::io_result<bool>{notification_ec, !notification_ec};
+        }
+
         if (method->as_string() == "get_messages")
         {
             auto const* user = params->as_object().if_contains("user");
@@ -474,6 +504,7 @@ struct test_state
     std::vector<chat::error> errors;
     std::vector<chat::message> messages;
     std::vector<std::pair<std::int64_t, std::int64_t>> reads;
+    std::vector<chat::presence> presences;
 };
 
 boost::capy::task<> stop_server(boost::corosio::tcp_server& server)
@@ -544,6 +575,11 @@ int main()
         state.reads.emplace_back(user, message);
         state.condition.notify_all();
     });
+    client.set_presence_handler([&state](chat::presence value) {
+        std::lock_guard lock(state.mutex);
+        state.presences.push_back(std::move(value));
+        state.condition.notify_all();
+    });
 
     auto url = std::string("ws://127.0.0.1:") + std::to_string(port) + "/ws";
     client.connect(url);
@@ -586,6 +622,27 @@ int main()
         return 1;
     }
     std::cout << "PASS client authenticate response\n";
+
+    bool presence_called = false;
+    std::vector<chat::presence> presence;
+    client.get_presence([&](std::expected<std::vector<chat::presence>, chat::error> result) {
+        std::lock_guard lock(state.mutex);
+        presence_called = true;
+        if (result)
+        {
+            presence = std::move(*result);
+        }
+        state.condition.notify_all();
+    });
+    if (!state.wait([&] { return presence_called && !state.presences.empty(); }) || presence.size() != 1 ||
+        presence[0].user != 2 || !presence[0].online || presence[0].last_seen != 1699999999000LL ||
+        state.presences.back().user != 3 || state.presences.back().online ||
+        state.presences.back().last_seen != 1700000001000LL)
+    {
+        std::cerr << "FAIL client presence\n";
+        return 1;
+    }
+    std::cout << "PASS client presence\n";
 
     bool contacts_called = false;
     std::vector<chat::user> contacts;

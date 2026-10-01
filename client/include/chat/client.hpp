@@ -12,6 +12,7 @@
 #include "conversation.hpp"
 #include "error.hpp"
 #include "message.hpp"
+#include "presence.hpp"
 #include "user.hpp"
 
 namespace chat
@@ -30,8 +31,10 @@ class client
     using users_handler = std::function<void(std::expected<std::vector<user>, error>)>;
     using user_handler = std::function<void(std::expected<user, error>)>;
     using mark_read_handler = std::function<void(std::expected<std::int64_t, error>)>;
+    using presences_handler = std::function<void(std::expected<std::vector<presence>, error>)>;
     using message_handler = std::function<void(message)>;
     using read_handler = std::function<void(std::int64_t user, std::int64_t message)>;
+    using presence_handler = std::function<void(presence)>;
 
     client();
     ~client();
@@ -46,6 +49,7 @@ class client
     void set_error_handler(error_handler handler);
     void set_message_handler(message_handler handler);
     void set_read_handler(read_handler handler);
+    void set_presence_handler(presence_handler handler);
 
     void connect(std::string url);
     void close();
@@ -54,6 +58,7 @@ class client
     void register_user(std::string username, std::string password, register_handler handler);
     void get_conversations(std::optional<std::int64_t> before, conversations_handler handler);
     void get_contacts(users_handler handler);
+    void get_presence(presences_handler handler);
     void get_messages(std::int64_t user, std::optional<std::int64_t> before, messages_handler handler);
     void send_message(std::int64_t user, std::string text, send_message_handler handler);
     void search_users(std::string query, users_handler handler);

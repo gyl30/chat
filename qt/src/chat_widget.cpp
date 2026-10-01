@@ -33,6 +33,7 @@
 #include "icons.hpp"
 #include "message_delegate.hpp"
 #include "message_model.hpp"
+#include "presence.hpp"
 #include "theme.hpp"
 #include "user_delegate.hpp"
 #include "user_model.hpp"
@@ -252,15 +253,26 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     auto* header = new QFrame(chat_panel);
     header->setObjectName(QStringLiteral("chatHeader"));
     auto* header_layout = new QHBoxLayout(header);
-    header_layout->setContentsMargins(16, 7, 12, 7);
+    header_layout->setContentsMargins(16, 5, 12, 5);
     header_layout->setSpacing(8);
-    chat_title_ = new QPushButton(QStringLiteral("聊天"), header);
+
+    auto* chat_identity = new QWidget(header);
+    auto* chat_identity_layout = new QVBoxLayout(chat_identity);
+    chat_identity_layout->setContentsMargins(0, 0, 0, 0);
+    chat_identity_layout->setSpacing(0);
+    chat_title_ = new QPushButton(QStringLiteral("聊天"), chat_identity);
     chat_title_->setObjectName(QStringLiteral("chatHeaderButton"));
     chat_title_->setFlat(true);
     chat_title_->setEnabled(false);
     chat_title_->setCursor(Qt::PointingHandCursor);
     chat_title_->setIconSize(QSize(38, 38));
-    header_layout->addWidget(chat_title_);
+    chat_identity_layout->addWidget(chat_title_);
+    chat_presence_ = new QLabel(chat_identity);
+    chat_presence_->setObjectName(QStringLiteral("chatPresence"));
+    chat_presence_->setContentsMargins(50, 0, 0, 0);
+    chat_presence_->hide();
+    chat_identity_layout->addWidget(chat_presence_);
+    header_layout->addWidget(chat_identity);
     header_layout->addStretch();
     connection_status_ = new QToolButton(header);
     connection_status_->setObjectName(QStringLiteral("connectionStatusButton"));
@@ -378,6 +390,7 @@ void chat_widget::set_user(QString const& username)
     profile_avatar_->setStyleSheet(QStringLiteral("background: %1;").arg(avatar_background(username).name()));
     active_user_ = 0;
     active_username_.clear();
+    presence_.clear();
     conversations_->set_conversations({});
     conversations_view_->setCurrentIndex({});
     conversations_status_->setText(QStringLiteral("暂无会话"));
@@ -394,6 +407,8 @@ void chat_widget::set_user(QString const& username)
     chat_title_->setText(QStringLiteral("聊天"));
     chat_title_->setIcon(QIcon{});
     chat_title_->setEnabled(false);
+    chat_presence_->clear();
+    chat_presence_->hide();
     set_message_status(QStringLiteral("选择一个会话开始聊天"));
     message_edit_->clear();
     message_edit_->setEnabled(false);
@@ -431,6 +446,10 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
 {
     auto const previous_user = active_user_;
     conversations_->set_conversations(std::move(conversations));
+    for (auto const& item : presence_)
+    {
+        conversations_->set_online(item.user, item.online);
+    }
     if (conversations_->rowCount() == 0)
     {
         conversations_status_->setText(QStringLiteral("暂无会话"));
@@ -466,7 +485,36 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
 void chat_widget::set_contacts(QList<user_data> contacts)
 {
     contacts_->set_users(std::move(contacts));
+    for (auto const& item : presence_)
+    {
+        contacts_->set_presence(item.user, item.online, item.last_seen);
+    }
     filter_contacts(contact_search_->text());
+}
+
+void chat_widget::set_presences(QList<presence_data> users)
+{
+    for (auto& user : users)
+    {
+        set_presence(std::move(user));
+    }
+}
+
+void chat_widget::set_presence(presence_data user)
+{
+    if (user.user <= 0)
+    {
+        return;
+    }
+
+    presence_.insert(user.user, user);
+    conversations_->set_online(user.user, user.online);
+    contacts_->set_presence(user.user, user.online, user.last_seen);
+    add_users_->set_presence(user.user, user.online, user.last_seen);
+    if (user.user == active_user_)
+    {
+        update_chat_presence();
+    }
 }
 
 void chat_widget::set_contacts_error(QString message)
@@ -478,6 +526,10 @@ void chat_widget::set_contacts_error(QString message)
 void chat_widget::set_add_contact_search_results(QList<user_data> users)
 {
     add_users_->set_users(std::move(users));
+    for (auto const& item : presence_)
+    {
+        add_users_->set_presence(item.user, item.online, item.last_seen);
+    }
     add_users_status_->setText(add_users_->rowCount() == 0 ? QStringLiteral("没有找到可添加的用户") : QString{});
 }
 
@@ -833,6 +885,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
     name->setAlignment(Qt::AlignCenter);
     name->setWordWrap(true);
     header_layout->addWidget(name);
+
     header_layout->addSpacing(4);
 
     auto* actions = new QHBoxLayout;
@@ -900,4 +953,31 @@ void chat_widget::update_chat_header(QString const& username)
     chat_title_->setText(username);
     chat_title_->setIcon(avatar_icon(username, 38));
     chat_title_->setEnabled(true);
+    update_chat_presence();
+}
+
+void chat_widget::update_chat_presence()
+{
+    if (active_user_ <= 0)
+    {
+        chat_presence_->clear();
+        chat_presence_->hide();
+        return;
+    }
+
+    auto const presence = presence_.value(active_user_);
+    auto const text = presence_text(presence.online, presence.last_seen);
+    if (text.isEmpty())
+    {
+        chat_presence_->clear();
+        chat_presence_->hide();
+        return;
+    }
+
+    chat_presence_->setObjectName(
+        presence.online ? QStringLiteral("chatPresenceOnline") : QStringLiteral("chatPresence"));
+    chat_presence_->setText(text);
+    chat_presence_->style()->unpolish(chat_presence_);
+    chat_presence_->style()->polish(chat_presence_);
+    chat_presence_->show();
 }

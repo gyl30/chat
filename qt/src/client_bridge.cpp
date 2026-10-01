@@ -36,6 +36,15 @@ message_data to_message_data(chat::message const& value)
     return message;
 }
 
+presence_data to_presence_data(chat::presence const& value)
+{
+    presence_data presence;
+    presence.user = value.user;
+    presence.online = value.online;
+    presence.last_seen = value.last_seen;
+    return presence;
+}
+
 }    // namespace
 
 client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::make_unique<chat::client>())
@@ -45,11 +54,14 @@ client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::ma
     qRegisterMetaType<QList<message_data>>();
     qRegisterMetaType<user_data>();
     qRegisterMetaType<QList<user_data>>();
+    qRegisterMetaType<presence_data>();
+    qRegisterMetaType<QList<presence_data>>();
     client_->set_connected_handler([this] { emit connected(); });
     client_->set_disconnected_handler([this] { emit disconnected(); });
     client_->set_error_handler([this](chat::error const& value) { emit error(from_utf8(value.message)); });
     client_->set_message_handler([this](chat::message message) { emit message_received(to_message_data(message)); });
     client_->set_read_handler([this](std::int64_t user, std::int64_t message) { emit messages_read(user, message); });
+    client_->set_presence_handler([this](chat::presence value) { emit presence_changed(to_presence_data(value)); });
 }
 
 client_bridge::~client_bridge() { client_.reset(); }
@@ -128,6 +140,25 @@ void client_bridge::get_contacts()
             contacts.push_back(std::move(value));
         }
         emit contacts_received(std::move(contacts), {});
+    });
+}
+
+void client_bridge::get_presence()
+{
+    client_->get_presence([this](std::expected<std::vector<chat::presence>, chat::error> result) {
+        if (!result)
+        {
+            emit presences_received({}, from_utf8(result.error().message));
+            return;
+        }
+
+        QList<presence_data> users;
+        users.reserve(static_cast<qsizetype>(result->size()));
+        for (auto const& item : *result)
+        {
+            users.push_back(to_presence_data(item));
+        }
+        emit presences_received(std::move(users), {});
     });
 }
 

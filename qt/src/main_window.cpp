@@ -382,6 +382,21 @@ main_window::main_window(QString server_url, QWidget* parent)
             },
             Qt::QueuedConnection);
 
+    connect(client_.get(), &client_bridge::presences_received, this,
+            [this](QList<presence_data> users, QString const& error_message) {
+                if (!error_message.isEmpty())
+                {
+                    chat_page_->set_error(error_message);
+                    return;
+                }
+                chat_page_->set_presences(std::move(users));
+            },
+            Qt::QueuedConnection);
+
+    connect(client_.get(), &client_bridge::presence_changed, this,
+            [this](presence_data user) { chat_page_->set_presence(std::move(user)); },
+            Qt::QueuedConnection);
+
     connect(chat_page_, &chat_widget::logout_requested, this, [this] { logout(); });
 
     connect(chat_page_, &chat_widget::add_contact_search_requested, this,
@@ -410,6 +425,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                 }
                 chat_page_->finish_add_contact();
                 client_->get_contacts();
+                client_->get_presence();
             },
             Qt::QueuedConnection);
 
@@ -454,6 +470,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                 else
                 {
                     client_->get_conversations();
+                    client_->get_presence();
                 }
             },
             Qt::QueuedConnection);
@@ -473,6 +490,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                 (void)realtime;
                 chat_page_->add_sent_message(user, message, timestamp, std::move(text));
                 client_->get_conversations();
+                client_->get_presence();
             },
             Qt::QueuedConnection);
 
@@ -660,6 +678,7 @@ void main_window::show_authenticated_page()
     pages_->setCurrentWidget(chat_page_);
     client_->get_conversations();
     client_->get_contacts();
+    client_->get_presence();
 }
 
 void main_window::begin_reconnect()
@@ -753,6 +772,7 @@ void main_window::finish_reconnect()
 
     client_->get_conversations();
     client_->get_contacts();
+    client_->get_presence();
     auto const user = chat_page_->active_user();
     if (user > 0)
     {

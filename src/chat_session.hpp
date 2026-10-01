@@ -35,6 +35,8 @@ class chat_session
 
     boost::capy::task<simdjson::error_code> handle_get_messages(json_rpc_request& request, std::string& response);
 
+    boost::capy::task<simdjson::error_code> handle_get_presence(json_rpc_request& request, std::string& response);
+
     boost::capy::task<simdjson::error_code> handle_get_unread_count(json_rpc_request& request, std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_mark_read(json_rpc_request& request, std::string& response);
@@ -44,6 +46,8 @@ class chat_session
     boost::capy::task<simdjson::error_code> handle_send_message(json_rpc_request& request, std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_search_users(json_rpc_request& request, std::string& response);
+
+    boost::capy::task<void> publish_presence(bool online);
 
     bool enqueue_message(std::string message);
 

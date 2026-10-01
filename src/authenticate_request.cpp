@@ -183,6 +183,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_authenticate(json_r
 
         user_id_ = user_id;
         authenticated = true;
+        co_await publish_presence(true);
     }
 
     if (!request.id.present)

@@ -64,10 +64,17 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     auto const last_text = index.data(conversation_model::last_text_role).toString();
     auto const last_timestamp = index.data(conversation_model::last_timestamp_role).toLongLong();
     auto const unread = index.data(conversation_model::unread_role).toULongLong();
+    auto const online = index.data(conversation_model::online_role).toBool();
 
     QRect avatar_rect(rect.left() + chat_theme::dialog_left, rect.top() + chat_theme::dialog_avatar_top,
                       chat_theme::dialog_avatar_size, chat_theme::dialog_avatar_size);
     paint_avatar(*painter, avatar_rect, username, 17);
+    if (online)
+    {
+        painter->setPen(QPen(QColor(QStringLiteral("#FCFBF7")), 2));
+        painter->setBrush(QColor(QStringLiteral("#4F8A70")));
+        painter->drawEllipse(QPointF(avatar_rect.right() - 3, avatar_rect.bottom() - 3), 5, 5);
+    }
 
     auto const content_left = rect.left() + chat_theme::dialog_text_left;
     auto const content_right = rect.right() - chat_theme::dialog_right + 1;

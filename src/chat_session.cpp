@@ -1,9 +1,12 @@
+#include <charconv>
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <string_view>
 #include <system_error>
 
 #include "chat_session.hpp"
+#include "pg_connection_pool.hpp"
 
 namespace
 {
@@ -14,6 +17,7 @@ constexpr std::string_view kEchoMethod = "echo";
 constexpr std::string_view kGetContactsMethod = "get_contacts";
 constexpr std::string_view kGetConversationsMethod = "get_conversations";
 constexpr std::string_view kGetMessagesMethod = "get_messages";
+constexpr std::string_view kGetPresenceMethod = "get_presence";
 constexpr std::string_view kGetUnreadCountMethod = "get_unread_count";
 constexpr std::string_view kMarkReadMethod = "mark_read";
 constexpr std::string_view kRegisterMethod = "register";
@@ -38,6 +42,80 @@ bool chat_session::enqueue_message(std::string message)
     outgoing_messages_.push_back(std::move(message));
     connection_.interrupt_receive();
     return true;
+}
+
+boost::capy::task<void> chat_session::publish_presence(bool online)
+{
+    if (!user_id_)
+    {
+        co_return;
+    }
+
+    auto lease = co_await database_.acquire();
+    if (lease.error())
+    {
+        co_return;
+    }
+
+    auto const user = std::to_string(*user_id_);
+    std::string last_seen = "0";
+    if (!online)
+    {
+        auto update_result = co_await lease.connection().execute_scalar(
+            "UPDATE users SET last_seen_at = CURRENT_TIMESTAMP WHERE id = $1::bigint "
+            "RETURNING ((extract(epoch from last_seen_at) * 1000)::bigint)::text",
+            {user});
+        auto& [update_ec, value] = update_result;
+        if (update_ec)
+        {
+            co_return;
+        }
+        last_seen = std::move(value);
+    }
+
+    auto watchers_result = co_await lease.connection().execute_scalar(
+        "SELECT COALESCE(string_agg(peer::text, ',' ORDER BY peer), '') FROM ("
+        "SELECT owner_id AS peer FROM contacts WHERE contact_id = $1::bigint "
+        "UNION "
+        "SELECT CASE WHEN sender_id = $1::bigint THEN recipient_id ELSE sender_id END AS peer "
+        "FROM messages WHERE sender_id = $1::bigint OR recipient_id = $1::bigint"
+        ") AS peers WHERE peer <> $1::bigint",
+        {user});
+    auto& [watchers_ec, watchers] = watchers_result;
+    if (watchers_ec)
+    {
+        co_return;
+    }
+
+    std::string notification = R"({"jsonrpc":"2.0","method":"presence","params":{"user":)";
+    notification.append(user);
+    notification.append(R"(,"online":)");
+    notification.append(online ? "true" : "false");
+    notification.append(R"(,"last_seen":)");
+    notification.append(last_seen);
+    notification.append("}}");
+
+    std::string_view remaining = watchers;
+    while (!remaining.empty())
+    {
+        auto const separator = remaining.find(',');
+        auto const token = remaining.substr(0, separator);
+        std::int64_t watcher = 0;
+        auto const [end, parse_error] = std::from_chars(token.data(), token.data() + token.size(), watcher);
+        if (parse_error == std::errc{} && end == token.data() + token.size())
+        {
+            if (auto* session = users_.find(watcher))
+            {
+                session->enqueue_message(notification);
+            }
+        }
+
+        if (separator == std::string_view::npos)
+        {
+            break;
+        }
+        remaining.remove_prefix(separator + 1);
+    }
 }
 
 boost::capy::task<void> chat_session::run()
@@ -108,6 +186,10 @@ boost::capy::task<void> chat_session::run()
             {
                 rpc_error = co_await handle_get_messages(request, response);
             }
+            else if (request.method == kGetPresenceMethod)
+            {
+                rpc_error = co_await handle_get_presence(request, response);
+            }
             else if (request.method == kGetUnreadCountMethod)
             {
                 rpc_error = co_await handle_get_unread_count(request, response);
@@ -153,5 +235,6 @@ boost::capy::task<void> chat_session::run()
     if (user_id_)
     {
         users_.remove(*user_id_, *this);
+        co_await publish_presence(false);
     }
 }

@@ -10,6 +10,8 @@ struct user_data
 {
     qint64 id = 0;
     QString username;
+    bool online = false;
+    qint64 last_seen = 0;
 };
 
 Q_DECLARE_METATYPE(user_data)

@@ -170,8 +170,8 @@ QString chat_style_sheet()
             background: transparent;
         }
         QPushButton#chatHeaderButton {
-            min-height: 44px;
-            padding: 2px 10px 2px 2px;
+            min-height: 38px;
+            padding: 0 10px 0 2px;
             border: 0;
             border-radius: 12px;
             background: transparent;
@@ -185,6 +185,16 @@ QString chat_style_sheet()
         }
         QPushButton#chatHeaderButton:disabled {
             color: #27362F;
+        }
+        QLabel#chatPresence, QLabel#chatPresenceOnline {
+            background: transparent;
+            font-size: 12px;
+        }
+        QLabel#chatPresence {
+            color: #8B918D;
+        }
+        QLabel#chatPresenceOnline {
+            color: #4F8A70;
         }
         QToolButton#connectionStatusButton {
             min-height: 26px;

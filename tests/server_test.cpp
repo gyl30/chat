@@ -1441,6 +1441,16 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     auto const& source_user_id = source_user->front();
     auto const& peer_user_id = peer_user->front();
 
+    auto peer_last_seen_result = co_await fixture_connection.execute_scalar(
+        "SELECT ((extract(epoch from last_seen_at) * 1000)::bigint)::text FROM users WHERE id = $1::bigint",
+        {peer_user_id});
+    auto& [peer_last_seen_ec, peer_last_seen] = peer_last_seen_result;
+    if (peer_last_seen_ec || peer_last_seen.empty())
+    {
+        std::cerr << "FAIL peer presence fixture: " << fixture_connection.error_message() << '\n';
+        co_return 1;
+    }
+
     std::vector<std::string> contact_cleanup_parameters;
     contact_cleanup_parameters.push_back(source_user_id);
     auto contact_cleanup_result = co_await fixture_connection.execute_scalar(
@@ -1683,6 +1693,42 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         std::cerr << "FAIL peer routing target authentication\n";
         co_return 1;
     }
+
+    auto online_presence_result = co_await receive_websocket_text(source_socket);
+    auto& [online_presence_ec, online_presence] = online_presence_result;
+    std::string expected_online_presence = R"({"jsonrpc":"2.0","method":"presence","params":{"user":)";
+    expected_online_presence.append(peer_user_id);
+    expected_online_presence.append(R"(,"online":true,"last_seen":0}})");
+    if (online_presence_ec || online_presence != expected_online_presence)
+    {
+        std::cerr << "FAIL online presence notification\n";
+        co_return 1;
+    }
+    std::cout << "PASS online presence notification\n";
+
+    constexpr std::string_view online_presence_request =
+        R"({"jsonrpc":"2.0","method":"get_presence","id":"source-presence-online"})";
+    auto online_presence_write_result = co_await send_websocket_text(source_socket, online_presence_request);
+    auto& [online_presence_write_ec] = online_presence_write_result;
+    if (online_presence_write_ec)
+    {
+        std::cerr << "FAIL online presence query write\n";
+        co_return 1;
+    }
+
+    auto online_presence_reply_result = co_await receive_websocket_text(source_socket);
+    auto& [online_presence_reply_ec, online_presence_reply] = online_presence_reply_result;
+    std::string expected_online_presence_reply = R"({"jsonrpc":"2.0","result":{"users":[{"user":)";
+    expected_online_presence_reply.append(peer_user_id);
+    expected_online_presence_reply.append(R"(,"online":true,"last_seen":)");
+    expected_online_presence_reply.append(peer_last_seen);
+    expected_online_presence_reply.append(R"(}]},"id":"source-presence-online"})");
+    if (online_presence_reply_ec || online_presence_reply != expected_online_presence_reply)
+    {
+        std::cerr << "FAIL online presence query\n";
+        co_return 1;
+    }
+    std::cout << "PASS online presence query\n";
 
     constexpr std::string_view conversations_unread_request =
         R"({"jsonrpc":"2.0","method":"get_conversations","id":"peer-conversations-unread"})";
@@ -2137,8 +2183,39 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     }
     std::cout << "PASS peer message history order\n";
 
-    source_socket.close();
     peer_socket.close();
+
+    auto offline_presence_result = co_await receive_websocket_text(source_socket);
+    auto& [offline_presence_ec, offline_presence] = offline_presence_result;
+    if (offline_presence_ec)
+    {
+        std::cerr << "FAIL offline presence notification read\n";
+        co_return 1;
+    }
+
+    auto peer_offline_last_seen_result = co_await fixture_connection.execute_scalar(
+        "SELECT ((extract(epoch from last_seen_at) * 1000)::bigint)::text FROM users WHERE id = $1::bigint",
+        {peer_user_id});
+    auto& [peer_offline_last_seen_ec, peer_offline_last_seen] = peer_offline_last_seen_result;
+    if (peer_offline_last_seen_ec || peer_offline_last_seen.empty())
+    {
+        std::cerr << "FAIL offline presence persistence: " << fixture_connection.error_message() << '\n';
+        co_return 1;
+    }
+
+    std::string expected_offline_presence = R"({"jsonrpc":"2.0","method":"presence","params":{"user":)";
+    expected_offline_presence.append(peer_user_id);
+    expected_offline_presence.append(R"(,"online":false,"last_seen":)");
+    expected_offline_presence.append(peer_offline_last_seen);
+    expected_offline_presence.append("}}");
+    if (offline_presence != expected_offline_presence)
+    {
+        std::cerr << "FAIL offline presence notification\n";
+        co_return 1;
+    }
+    std::cout << "PASS offline presence notification\n";
+
+    source_socket.close();
     co_return 0;
 }
 

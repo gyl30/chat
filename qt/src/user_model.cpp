@@ -24,6 +24,10 @@ QVariant user_model::data(QModelIndex const& index, int role) const
             return item->username;
         case id_role:
             return item->id;
+        case online_role:
+            return item->online;
+        case last_seen_role:
+            return item->last_seen;
         default:
             return {};
     }
@@ -34,6 +38,29 @@ void user_model::set_users(QList<user_data> users)
     beginResetModel();
     users_ = std::move(users);
     endResetModel();
+}
+
+void user_model::set_presence(qint64 user, bool online, qint64 last_seen)
+{
+    for (int row = 0; row < users_.size(); ++row)
+    {
+        auto& item = users_[row];
+        if (item.id != user)
+        {
+            continue;
+        }
+
+        if (item.online == online && item.last_seen == last_seen)
+        {
+            return;
+        }
+
+        item.online = online;
+        item.last_seen = last_seen;
+        auto const item_index = index(row, 0);
+        emit dataChanged(item_index, item_index, {online_role, last_seen_role});
+        return;
+    }
 }
 
 user_data const* user_model::user_at(QModelIndex const& index) const

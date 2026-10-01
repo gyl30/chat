@@ -1,6 +1,7 @@
 #ifndef CHAT_QT_SRC_CHAT_WIDGET_HPP
 #define CHAT_QT_SRC_CHAT_WIDGET_HPP
 
+#include <QHash>
 #include <QList>
 #include <QString>
 #include <QWidget>
@@ -8,6 +9,7 @@
 
 #include "conversation_data.hpp"
 #include "message_data.hpp"
+#include "presence_data.hpp"
 #include "user_data.hpp"
 
 class QLabel;
@@ -36,6 +38,8 @@ class chat_widget final : public QWidget
     void set_connection_status(QString text, bool retry_enabled);
     void set_conversations(QList<conversation_data> conversations);
     void set_contacts(QList<user_data> contacts);
+    void set_presences(QList<presence_data> users);
+    void set_presence(presence_data user);
     void set_contacts_error(QString message);
     void set_add_contact_search_results(QList<user_data> users);
     void set_add_contact_search_error(QString message);
@@ -72,6 +76,7 @@ class chat_widget final : public QWidget
     void send_current_message();
     void show_user_details(qint64 user, QString const& username);
     void update_chat_header(QString const& username);
+    void update_chat_presence();
     void set_message_status(QString message);
 
     QLabel* profile_avatar_ = nullptr;
@@ -91,6 +96,7 @@ class chat_widget final : public QWidget
     QListView* add_users_view_ = nullptr;
     QLabel* add_users_status_ = nullptr;
     QPushButton* chat_title_ = nullptr;
+    QLabel* chat_presence_ = nullptr;
     QToolButton* connection_status_ = nullptr;
     QLabel* message_status_ = nullptr;
     QListView* messages_view_ = nullptr;
@@ -101,6 +107,7 @@ class chat_widget final : public QWidget
     QSortFilterProxyModel* contacts_filter_ = nullptr;
     user_model* add_users_ = nullptr;
     message_model* messages_ = nullptr;
+    QHash<qint64, presence_data> presence_;
     qint64 active_user_ = 0;
     QString active_username_;
     bool messages_loaded_ = false;

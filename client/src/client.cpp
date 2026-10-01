@@ -125,6 +125,29 @@ bool parse_message(boost::json::object const& object, message& value)
     return true;
 }
 
+bool parse_presence(boost::json::object const& object, presence& value)
+{
+    auto const* user_value = object.if_contains("user");
+    auto const* online_value = object.if_contains("online");
+    auto const* last_seen_value = object.if_contains("last_seen");
+    if (!user_value || !online_value || !online_value->is_bool() || !last_seen_value)
+    {
+        return false;
+    }
+
+    auto user = parse_int64(*user_value);
+    auto last_seen = parse_int64(*last_seen_value);
+    if (!user || *user <= 0 || !last_seen || *last_seen < 0)
+    {
+        return false;
+    }
+
+    value.user = *user;
+    value.online = online_value->as_bool();
+    value.last_seen = *last_seen;
+    return true;
+}
+
 }    // namespace
 
 struct client::impl
@@ -246,6 +269,24 @@ struct client::impl
         }
     }
 
+    void notify_presence(presence value)
+    {
+        if (suppress_callbacks_.load())
+        {
+            return;
+        }
+
+        presence_handler handler;
+        {
+            std::lock_guard lock(handler_mutex_);
+            handler = presence_handler_;
+        }
+        if (handler)
+        {
+            handler(std::move(value));
+        }
+    }
+
     void fail_pending(error value)
     {
         auto pending = std::move(pending_);
@@ -335,6 +376,18 @@ struct client::impl
                     return;
                 }
                 notify_read(*user, *read_message);
+                return;
+            }
+
+            if (method->as_string() == "presence")
+            {
+                presence notification;
+                if (!parse_presence(params->as_object(), notification))
+                {
+                    report_error(make_error(error_kind::protocol, "Invalid presence notification"));
+                    return;
+                }
+                notify_presence(std::move(notification));
                 return;
             }
 
@@ -696,6 +749,52 @@ struct client::impl
         co_return;
     }
 
+    boost::capy::task<> get_presence(presences_handler handler)
+    {
+        send_request("get_presence", {}, [handler = std::move(handler)](auto response) mutable {
+            if (!response)
+            {
+                handler(std::unexpected(std::move(response.error())));
+                return;
+            }
+            if (!response->is_object())
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid get_presence result")));
+                return;
+            }
+
+            auto const* users_value = response->as_object().if_contains("users");
+            if (!users_value || !users_value->is_array())
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid get_presence result")));
+                return;
+            }
+
+            std::vector<presence> users;
+            users.reserve(users_value->as_array().size());
+            for (auto const& value : users_value->as_array())
+            {
+                if (!value.is_object())
+                {
+                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid presence")));
+                    return;
+                }
+
+                presence item;
+                if (!parse_presence(value.as_object(), item))
+                {
+                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid presence")));
+                    return;
+                }
+                users.push_back(std::move(item));
+            }
+
+            handler(std::move(users));
+        });
+
+        co_return;
+    }
+
     boost::capy::task<> get_messages(std::int64_t user, std::optional<std::int64_t> before, messages_handler handler)
     {
         boost::json::object params;
@@ -943,6 +1042,7 @@ struct client::impl
     error_handler error_handler_;
     message_handler message_handler_;
     read_handler read_handler_;
+    presence_handler presence_handler_;
     std::atomic_bool suppress_callbacks_ = false;
 };
 
@@ -980,6 +1080,12 @@ void client::set_read_handler(read_handler handler)
     impl_->read_handler_ = std::move(handler);
 }
 
+void client::set_presence_handler(presence_handler handler)
+{
+    std::lock_guard lock(impl_->handler_mutex_);
+    impl_->presence_handler_ = std::move(handler);
+}
+
 void client::connect(std::string url)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->open(std::move(url)));
@@ -1008,6 +1114,11 @@ void client::get_conversations(std::optional<std::int64_t> before, conversations
 void client::get_contacts(users_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_contacts(std::move(handler)));
+}
+
+void client::get_presence(presences_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_presence(std::move(handler)));
 }
 
 void client::get_messages(std::int64_t user, std::optional<std::int64_t> before, messages_handler handler)

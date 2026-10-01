@@ -10,6 +10,7 @@
 
 #include "conversation_data.hpp"
 #include "message_data.hpp"
+#include "presence_data.hpp"
 #include "user_data.hpp"
 
 namespace chat
@@ -31,6 +32,7 @@ class client_bridge final : public QObject
     void register_user(QString const& username, QString const& password);
     void get_conversations();
     void get_contacts();
+    void get_presence();
     void get_messages(qint64 user, std::optional<qint64> before = {});
     void send_message(qint64 user, QString text);
     void search_users(QString query);
@@ -45,6 +47,8 @@ class client_bridge final : public QObject
     void registration_finished(qint64 user, QString error_message);
     void conversations_received(QList<conversation_data> conversations, QString error_message);
     void contacts_received(QList<user_data> contacts, QString error_message);
+    void presences_received(QList<presence_data> users, QString error_message);
+    void presence_changed(presence_data user);
     void messages_received(qint64 user, QList<message_data> messages, qint64 read_message, bool older, QString error_message);
     void message_received(message_data message);
     void messages_read(qint64 user, qint64 message);

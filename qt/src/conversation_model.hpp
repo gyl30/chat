@@ -16,6 +16,7 @@ class conversation_model final : public QAbstractListModel
         last_text_role,
         last_timestamp_role,
         unread_role,
+        online_role,
     };
 
     explicit conversation_model(QObject* parent = nullptr);
@@ -24,6 +25,7 @@ class conversation_model final : public QAbstractListModel
     QVariant data(QModelIndex const& index, int role) const override;
 
     void set_conversations(QList<conversation_data> conversations);
+    void set_online(qint64 user, bool online);
     conversation_data const* conversation_at(QModelIndex const& index) const;
     QModelIndex index_for_user(qint64 user) const;
 

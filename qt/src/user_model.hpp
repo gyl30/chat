@@ -13,6 +13,8 @@ class user_model final : public QAbstractListModel
     {
         id_role = Qt::UserRole + 1,
         username_role,
+        online_role,
+        last_seen_role,
     };
 
     explicit user_model(QObject* parent = nullptr);
@@ -21,6 +23,7 @@ class user_model final : public QAbstractListModel
     QVariant data(QModelIndex const& index, int role) const override;
 
     void set_users(QList<user_data> users);
+    void set_presence(qint64 user, bool online, qint64 last_seen);
     user_data const* user_at(QModelIndex const& index) const;
 
    private:

@@ -22,6 +22,8 @@ add_executable(chat_qt
     src/message_delegate.hpp
     src/message_model.cpp
     src/message_model.hpp
+    src/presence.hpp
+    src/presence_data.hpp
     src/theme.cpp
     src/theme.hpp
     src/user_data.hpp
