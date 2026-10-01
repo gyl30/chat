@@ -509,6 +509,23 @@ main_window::main_window(QString server_url, QWidget* parent)
             },
             Qt::QueuedConnection);
 
+    connect(chat_page_, &chat_widget::edit_message_requested, this,
+            [this](qint64 conversation, qint64 message, QString text)
+            { client_->edit_message(conversation, message, std::move(text)); });
+    connect(
+        client_.get(), &client_bridge::message_updated, this,
+        [this](qint64 conversation, message_data message, QString error)
+        {
+            if (!error.isEmpty())
+            {
+                chat_page_->set_message_error(conversation, std::move(error));
+                return;
+            }
+            chat_page_->update_message(std::move(message));
+            client_->get_conversations();
+        },
+        Qt::QueuedConnection);
+
     connect(
         client_.get(), &client_bridge::messages_read, this, [this](qint64 conversation, qint64 user, qint64 message)
         { chat_page_->set_read_message(conversation, user, message); }, Qt::QueuedConnection);

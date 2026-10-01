@@ -51,6 +51,7 @@ class chat_widget final : public QWidget
                       bool recovering, bool has_more);
     void set_read_message(qint64 conversation, qint64 user, qint64 message);
     void add_message(qint64 user, message_data message);
+    void update_message(message_data message);
     void add_sent_message(qint64 user, qint64 message, qint64 timestamp, QString text, quoted_message_data reply);
     void set_message_error(qint64 user, QString message);
 
@@ -63,6 +64,7 @@ class chat_widget final : public QWidget
     void conversation_selected(qint64 user);
     void older_messages_requested(qint64 user, qint64 before);
     void send_message_requested(qint64 user, QString text, qint64 reply_to);
+    void edit_message_requested(qint64 conversation, qint64 message, QString text);
     void add_contact_search_requested(QString query);
     void contact_add_requested(qint64 user);
     void logout_requested();
@@ -127,7 +129,6 @@ class chat_widget final : public QWidget
     qint64 active_peer_ = 0;
     bool active_group_ = false;
     quint64 active_member_count_ = 0;
-    qint64 synchronized_message_ = 0;
     QString active_username_;
     bool messages_loaded_ = false;
     bool messages_loading_ = false;

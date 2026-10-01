@@ -46,6 +46,7 @@ struct events
     int connected = 0;
     int disconnected = 0;
     std::vector<chat::message> messages;
+    std::vector<chat::message> updates;
     std::vector<std::int64_t> conversations;
     std::vector<chat::read_position> reads;
 
@@ -76,6 +77,13 @@ struct events
             {
                 std::lock_guard lock(mutex);
                 messages.push_back(std::move(message));
+                condition.notify_all();
+            });
+        client.set_message_updated_handler(
+            [this](chat::message value)
+            {
+                std::lock_guard lock(mutex);
+                updates.push_back(std::move(value));
                 condition.notify_all();
             });
         client.set_conversation_handler(
@@ -374,9 +382,45 @@ int run_group_tests()
             [&](auto handler) { b.send_message(*direct, "direct reply", handler, direct_sent->message_id); });
         require(direct_reply && direct_reply->reply && direct_reply->reply->id == direct_sent->message_id,
                 "Direct reply");
+        auto forbidden_edit = call<chat::message>(
+            [&](auto handler) { b.edit_message(group, sent->message_id, "other author", handler); });
+        require(!forbidden_edit && forbidden_edit.error().code == -32007, "Cannot edit another author");
+        auto cross_edit = call<chat::message>(
+            [&](auto handler) { a.edit_message(*direct, sent->message_id, "other conversation", handler); });
+        require(!cross_edit && cross_edit.error().code == -32007, "Cannot edit across conversations");
+        auto unread_before_edit = conversation(b, group).unread;
+        c.close();
+        c_events.wait([&] { return c_events.disconnected == 2; });
+        auto edited = call<chat::message>([&](auto handler)
+                                          { a.edit_message(group, sent->message_id, "编辑后的第一条", handler); });
+        require(edited && edited->edited_at && edited->text == "编辑后的第一条", "Author edit result");
+        b_events.wait([&] { return !b_events.updates.empty() && b_events.updates.back().id == sent->message_id; });
+        auto edited_again =
+            call<chat::message>([&](auto handler) { a.edit_message(group, sent->message_id, "再次编辑", handler); });
+        require(edited_again && edited_again->edited_at > edited->edited_at, "Monotonic edit timestamp");
+        require(conversation(b, group).unread == unread_before_edit, "Editing does not add unread");
+        auto quoted_history = call<chat::messages_result>([&](auto handler) { a.get_messages(group, {}, handler); });
+        require(quoted_history && quoted_history->messages.back().reply &&
+                    quoted_history->messages.back().reply->text == "再次编辑" &&
+                    quoted_history->messages.back().reply->edited_at == edited_again->edited_at,
+                "Edited quote history");
+        c.connect(server.url);
+        c_events.wait([&] { return c_events.connected == 3; });
+        auto authenticated_again = call<chat::authentication_result>(
+            [&](auto handler) { c.authenticate(names[2], "group password", handler); });
+        require(authenticated_again && authenticated_again->authenticated, "Reconnect after edit");
+        auto recovered_edit = call<chat::messages_result>([&](auto handler) { c.get_messages(group, {}, handler, 0); });
+        require(recovered_edit && recovered_edit->messages.front().text == "再次编辑" &&
+                    recovered_edit->messages.front().edited_at == edited_again->edited_at,
+                "Recover old edited message");
+        auto edited_direct = call<chat::message>(
+            [&](auto handler) { b.edit_message(*direct, direct_reply->message_id, "edited direct reply", handler); });
+        require(edited_direct && edited_direct->reply && conversation(a, *direct).last.text == "edited direct reply",
+                "Direct edit and summary");
         {
             std::lock_guard lock(d_events.mutex);
-            require(d_events.messages.empty() && d_events.reads.empty() && d_events.conversations.empty(),
+            require(d_events.messages.empty() && d_events.updates.empty() && d_events.reads.empty() &&
+                        d_events.conversations.empty(),
                     "Nonmember receives no notifications");
         }
         a.close();
@@ -385,7 +429,7 @@ int run_group_tests()
         d.close();
         a_events.wait([&] { return a_events.disconnected == 1; });
         b_events.wait([&] { return b_events.disconnected == 1; });
-        c_events.wait([&] { return c_events.disconnected == 2; });
+        c_events.wait([&] { return c_events.disconnected == 3; });
         d_events.wait([&] { return d_events.disconnected == 1; });
         data.cleanup();
         std::cout

@@ -55,9 +55,10 @@ simdjson::error_code parse_get_messages_params(json_rpc_params& params, get_mess
     return simdjson::SUCCESS;
 }
 
-}    // namespace
+} // namespace
 
-boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_rpc_request& request, std::string& response)
+boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_rpc_request& request,
+                                                                          std::string& response)
 {
     if (!user_id_)
     {
@@ -79,15 +80,15 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
         co_return simdjson::SUCCESS;
     }
 
-        auto lease = co_await database_.acquire();
-        if (lease.error())
-        {
+    auto lease = co_await database_.acquire();
+    if (lease.error())
+    {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
     std::string query = R"SQL(
         WITH page AS (
             SELECT m.id,m.conversation_id AS conversation,m.sender_id AS "from",u.username,
-                   (extract(epoch FROM m.created_at)*1000)::bigint AS timestamp,m.body AS text, CASE WHEN r.id IS NULL THEN NULL ELSE json_build_object('id',r.id,'from',r.sender_id,'username',ra.username,'text',left(r.body,160)) END AS reply
+                   (extract(epoch FROM m.created_at)*1000)::bigint AS timestamp,m.body AS text, (extract(epoch FROM m.edited_at)*1000)::bigint AS edited_at, CASE WHEN r.id IS NULL THEN NULL ELSE json_build_object('id',r.id,'from',r.sender_id,'username',ra.username,'text',left(r.body,160),'edited_at',(extract(epoch FROM r.edited_at)*1000)::bigint) END AS reply
             FROM messages m JOIN users u ON u.id=m.sender_id LEFT JOIN messages r ON r.id=m.reply_to_id LEFT JOIN users ra ON ra.id=r.sender_id
             WHERE m.conversation_id=$2::bigint AND )SQL";
     query += params.after ? "m.id>$3::bigint ORDER BY m.id ASC" : "m.id<$3::bigint ORDER BY m.id DESC";
@@ -106,13 +107,13 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
          std::to_string(params.after.value_or(params.before.value_or(std::numeric_limits<std::int64_t>::max())))});
     auto& [ec, row] = query_result;
     if (ec)
-            {
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
+    {
+        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+    }
     if (!row)
     {
         co_return serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response);
-        }
+    }
     if (!request.id.present)
     {
         co_return simdjson::SUCCESS;

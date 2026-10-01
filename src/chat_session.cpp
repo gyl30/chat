@@ -214,6 +214,10 @@ boost::capy::task<void> chat_session::run()
             {
                 rpc_error = co_await handle_authenticate(request, response);
             }
+            else if (request.method == "edit_message")
+            {
+                rpc_error = co_await handle_edit_message(request, response);
+            }
             else if (request.method == kEchoMethod)
             {
                 rpc_error = co_await handle_echo(request, response);

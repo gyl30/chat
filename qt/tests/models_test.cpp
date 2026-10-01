@@ -57,6 +57,17 @@ int main(int argc, char** argv)
     {
         return 1;
     }
+    auto edited = incoming;
+    edited.text = QStringLiteral("新内容");
+    edited.edited_at = 100;
+    messages.update_message(edited);
+    messages.merge_messages({incoming, outgoing});
+    if (first.data(message_model::text_role).toString() != edited.text ||
+        first.data(message_model::edited_at_role).toLongLong() != 100 ||
+        !second.data(message_model::reply_text_role).toString().contains(edited.text))
+    {
+        return 1;
+    }
     conversation_model conversations;
     conversation_data direct;
     direct.id = 1;

@@ -7,6 +7,8 @@
 #include <QMenu>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QInputDialog>
+#include <QPlainTextEdit>
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QPushButton>
@@ -225,10 +227,69 @@ int main(int argc, char** argv)
                           .contains(QStringLiteral("Qt 群消息验证")),
                       "Qt reply contents");
             }
+            auto* own_view = windows[0]->findChild<QListView*>("messageList");
+            QTimer edit_dialog;
+            QObject::connect(&edit_dialog, &QTimer::timeout,
+                             [&]
+                             {
+                                 auto* dialog = qobject_cast<QInputDialog*>(QApplication::activeModalWidget());
+                                 if (!dialog)
+                                 {
+                                     return;
+                                 }
+                                 dialog->findChild<QPlainTextEdit*>()->setPlainText(QStringLiteral("Qt 已编辑群消息"));
+                                 dialog->accept();
+                                 edit_dialog.stop();
+                             });
+            edit_dialog.start(20);
+            QTimer::singleShot(20,
+                               []
+                               {
+                                   auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+                                   check(menu, "Edit menu");
+                                   QAction* edit = nullptr;
+                                   for (auto* action : menu->actions())
+                                   {
+                                       if (action->text() == QStringLiteral("编辑"))
+                                       {
+                                           edit = action;
+                                       }
+                                   }
+                                   check(edit, "Author edit action");
+                                   menu->setActiveAction(edit);
+                                   QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+                                   QApplication::sendEvent(menu, &enter);
+                               });
+            own_view->customContextMenuRequested(own_view->visualRect(own_view->model()->index(0, 0)).center());
+            for (int i = 0; i < 3; ++i)
+            {
+                auto* view = windows[i]->findChild<QListView*>("messageList");
+                wait(
+                    [&]
+                    {
+                        return view->model()->index(0, 0).data(message_model::text_role).toString() ==
+                               QStringLiteral("Qt 已编辑群消息");
+                    });
+                check(view->model()->index(0, 0).data(message_model::edited_at_role).toLongLong() > 0,
+                      "Qt edited timestamp");
+                check(view->model()
+                          ->index(1, 0)
+                          .data(message_model::reply_text_role)
+                          .toString()
+                          .contains(QStringLiteral("Qt 已编辑群消息")),
+                      "Live edited quote");
+            }
             windows[0]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_smoke.png");
             server.terminate();
             check(server.waitForFinished(3000), "Stop server");
             wait([&] { return !windows[0]->findChild<QToolButton*>("sendButton")->isEnabled(); });
+            auto offline_sql =
+                "UPDATE messages SET body='offline edit',edited_at=greatest(clock_timestamp(),edited_at+interval '1 "
+                "millisecond') WHERE conversation_id=" +
+                std::to_string(group) + " AND sender_id=" + std::to_string(ids[0]);
+            auto* offline_result = PQexec(db, offline_sql.c_str());
+            check(PQresultStatus(offline_result) == PGRES_COMMAND_OK, "Offline edit fixture");
+            PQclear(offline_result);
             start();
             for (int i = 0; i < 3; ++i)
             {
@@ -238,6 +299,22 @@ int main(int argc, char** argv)
                         return windows[i]->findChild<QToolButton*>("sendButton")->isEnabled() &&
                                pages[i]->messages_ready();
                     });
+            }
+            for (int i = 0; i < 3; ++i)
+            {
+                auto* view = windows[i]->findChild<QListView*>("messageList");
+                wait(
+                    [&]
+                    {
+                        return view->model()->index(0, 0).data(message_model::text_role).toString() ==
+                               QStringLiteral("offline edit");
+                    });
+                check(view->model()
+                          ->index(1, 0)
+                          .data(message_model::reply_text_role)
+                          .toString()
+                          .contains(QStringLiteral("offline edit")),
+                      "Recovered edited quote");
             }
             windows[1]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("重连后的群消息"));
             windows[1]->findChild<QToolButton*>("sendButton")->click();

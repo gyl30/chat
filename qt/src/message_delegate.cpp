@@ -176,6 +176,10 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     }
     result.sender = index.data(message_model::sender_name_role).toString();
     result.time = time_text(index);
+    if (index.data(message_model::edited_at_role).toLongLong() > 0)
+    {
+        result.time = QStringLiteral("已编辑 · ") + result.time;
+    }
     result.outgoing = outgoing_at(index);
     result.read = result.outgoing && read_at(index);
     result.day_start = starts_day(index);

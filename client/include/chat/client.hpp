@@ -33,6 +33,7 @@ class client
     using register_handler = std::function<void(std::expected<std::int64_t, error>)>;
     using conversations_handler = std::function<void(std::expected<conversations_result, error>)>;
     using conversation_handler = std::function<void(std::expected<std::int64_t, error>)>;
+    using message_result_handler = std::function<void(std::expected<message, error>)>;
     using messages_handler = std::function<void(std::expected<messages_result, error>)>;
     using send_message_handler = std::function<void(std::expected<send_message_result, error>)>;
     using users_handler = std::function<void(std::expected<std::vector<user>, error>)>;
@@ -56,6 +57,7 @@ class client
     void set_disconnected_handler(connection_handler handler);
     void set_error_handler(error_handler handler);
     void set_message_handler(message_handler handler);
+    void set_message_updated_handler(message_handler handler);
     void set_read_handler(read_handler handler);
     void set_presence_handler(presence_handler handler);
     void set_conversation_handler(conversation_changed_handler handler);
@@ -75,6 +77,8 @@ class client
                       std::optional<std::int64_t> after = {});
     void send_message(std::int64_t conversation, std::string text, send_message_handler handler,
                       std::optional<std::int64_t> reply_to = {});
+    void edit_message(std::int64_t conversation, std::int64_t message, std::string text,
+                      message_result_handler handler);
     void search_users(std::string query, users_handler handler);
     void add_contact(std::int64_t user, user_handler handler);
     void mark_read(std::int64_t conversation, std::int64_t message, mark_read_handler handler);

@@ -35,6 +35,8 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             return outgoing;
         case sender_name_role:
             return message.username;
+        case edited_at_role:
+            return message.edited_at;
         case reply_id_role:
             return message.reply.id;
         case reply_text_role:
@@ -70,6 +72,10 @@ void message_model::reset(qint64 conversation, bool group)
 
 int message_model::merge_messages(QList<message_data> messages)
 {
+    for (auto const& message : messages)
+    {
+        update_message(message);
+    }
     auto merged = messages_;
     for (auto& message : messages)
     {
@@ -121,6 +127,46 @@ bool message_model::add_message(message_data message)
     messages_.insert(row, std::move(message));
     endInsertRows();
     return true;
+}
+
+void message_model::update_message(message_data const& message)
+{
+    if (message.conversation != conversation_)
+    {
+        return;
+    }
+    for (int row = 0; row < messages_.size(); ++row)
+    {
+        auto& current = messages_[row];
+        bool changed = false;
+        if (current.id == message.id)
+        {
+            if (message.edited_at > current.edited_at)
+            {
+                auto reply = current.reply;
+                current = message;
+                if (reply.edited_at > current.reply.edited_at)
+                {
+                    current.reply = std::move(reply);
+                }
+                changed = true;
+            }
+            if (message.reply.id == current.reply.id && message.reply.edited_at > current.reply.edited_at)
+            {
+                current.reply = message.reply;
+                changed = true;
+            }
+        }
+        if (current.reply.id == message.id && message.edited_at > current.reply.edited_at)
+        {
+            current.reply = {message.id, message.username, message.text.left(160), message.edited_at};
+            changed = true;
+        }
+        if (changed)
+        {
+            emit dataChanged(index(row, 0), index(row, 0));
+        }
+    }
 }
 
 void message_model::set_read_message(qint64 user, qint64 message)

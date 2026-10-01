@@ -99,6 +99,17 @@ bool parse_user(boost::json::object const& object, user& value)
     return true;
 }
 
+bool parse_edited_at(boost::json::object const& object, std::optional<std::int64_t>& edited_at)
+{
+    auto const* value = object.if_contains("edited_at");
+    if (!value || value->is_null())
+    {
+        return true;
+    }
+    edited_at = parse_int64(*value);
+    return edited_at && *edited_at > 0;
+}
+
 bool parse_reply(boost::json::object const& object, std::optional<quoted_message>& reply)
 {
     auto const* value = object.if_contains("reply");
@@ -125,9 +136,9 @@ bool parse_reply(boost::json::object const& object, std::optional<quoted_message
     {
         return false;
     }
-    reply =
-        quoted_message{*parsed_id, *parsed_from, std::string(username->as_string()), std::string(text->as_string())};
-    return true;
+    reply = quoted_message{
+        *parsed_id, *parsed_from, std::string(username->as_string()), std::string(text->as_string()), {}};
+    return parse_edited_at(fields, reply->edited_at);
 }
 
 bool parse_message(boost::json::object const& object, message& value)
@@ -159,7 +170,7 @@ bool parse_message(boost::json::object const& object, message& value)
     value.from = *from;
     value.timestamp = *timestamp;
     value.text = std::string(text_value->as_string());
-    return parse_reply(object, value.reply);
+    return parse_reply(object, value.reply) && parse_edited_at(object, value.edited_at);
 }
 
 bool parse_presence(boost::json::object const& object, presence& value)
@@ -270,7 +281,7 @@ struct client::impl
         }
     }
 
-    void notify_message(message value)
+    void notify_message(message value, bool updated)
     {
         if (suppress_callbacks_.load())
         {
@@ -280,7 +291,7 @@ struct client::impl
         message_handler handler;
         {
             std::lock_guard lock(handler_mutex_);
-            handler = message_handler_;
+            handler = updated ? message_updated_handler_ : message_handler_;
         }
         if (handler)
         {
@@ -384,7 +395,7 @@ struct client::impl
                 return;
             }
 
-            if (method->as_string() == "message")
+            if (method->as_string() == "message" || method->as_string() == "message_updated")
             {
                 message notification;
                 if (!parse_message(params->as_object(), notification))
@@ -392,7 +403,7 @@ struct client::impl
                     report_error(make_error(error_kind::protocol, "Invalid message notification"));
                     return;
                 }
-                notify_message(std::move(notification));
+                notify_message(std::move(notification), method->as_string() == "message_updated");
                 return;
             }
 
@@ -1042,6 +1053,29 @@ struct client::impl
         co_return;
     }
 
+    boost::capy::task<> edit_message(std::int64_t conversation, std::int64_t id, std::string text,
+                                     message_result_handler handler)
+    {
+        send_request("edit_message", {{"conversation", conversation}, {"message", id}, {"text", std::move(text)}},
+                     [conversation, id, handler = std::move(handler)](auto result) mutable
+                     {
+                         if (!result)
+                         {
+                             handler(std::unexpected(std::move(result.error())));
+                             return;
+                         }
+                         message value;
+                         if (!result->is_object() || !parse_message(result->as_object(), value) ||
+                             value.conversation != conversation || value.id != id)
+                         {
+                             handler(std::unexpected(make_error(error_kind::protocol, "Invalid message result")));
+                             return;
+                         }
+                         handler(std::move(value));
+                     });
+        co_return;
+    }
+
     boost::capy::task<> search_users(std::string query, users_handler handler)
     {
         boost::json::object params;
@@ -1181,6 +1215,7 @@ struct client::impl
     connection_handler disconnected_handler_;
     error_handler error_handler_;
     message_handler message_handler_;
+    message_handler message_updated_handler_;
     read_handler read_handler_;
     conversation_changed_handler conversation_handler_;
     presence_handler presence_handler_;
@@ -1213,6 +1248,12 @@ void client::set_message_handler(message_handler handler)
 {
     std::lock_guard lock(impl_->handler_mutex_);
     impl_->message_handler_ = std::move(handler);
+}
+
+void client::set_message_updated_handler(message_handler handler)
+{
+    std::lock_guard lock(impl_->handler_mutex_);
+    impl_->message_updated_handler_ = std::move(handler);
 }
 
 void client::set_read_handler(read_handler handler)
@@ -1303,6 +1344,13 @@ void client::send_message(std::int64_t user, std::string text, send_message_hand
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(
         impl_->send_message(user, std::move(text), std::move(handler), reply_to));
+}
+
+void client::edit_message(std::int64_t conversation, std::int64_t message, std::string text,
+                          message_result_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->edit_message(conversation, message, std::move(text), std::move(handler)));
 }
 
 void client::search_users(std::string query, users_handler handler)

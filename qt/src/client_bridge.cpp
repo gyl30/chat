@@ -28,7 +28,8 @@ QString from_utf8(std::string const& value)
 
 quoted_message_data to_reply_data(std::optional<chat::quoted_message> const& reply)
 {
-    return reply ? quoted_message_data{reply->id, from_utf8(reply->username), from_utf8(reply->text)}
+    return reply ? quoted_message_data{reply->id, from_utf8(reply->username), from_utf8(reply->text),
+                                       reply->edited_at.value_or(0)}
                  : quoted_message_data{};
 }
 
@@ -41,6 +42,7 @@ message_data to_message_data(chat::message const& value)
     message.username = from_utf8(value.username);
     message.timestamp = value.timestamp;
     message.text = from_utf8(value.text);
+    message.edited_at = value.edited_at.value_or(0);
     message.reply = to_reply_data(value.reply);
     return message;
 }
@@ -71,6 +73,8 @@ client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::ma
     client_->set_disconnected_handler([this] { emit disconnected(); });
     client_->set_error_handler([this](chat::error const& value) { emit error(from_utf8(value.message)); });
     client_->set_message_handler([this](chat::message message) { emit message_received(to_message_data(message)); });
+    client_->set_message_updated_handler([this](chat::message value)
+                                         { emit message_updated(value.conversation, to_message_data(value), {}); });
     client_->set_read_handler([this](std::int64_t conversation, std::int64_t user, std::int64_t message)
                               { emit messages_read(conversation, user, message); });
     client_->set_conversation_handler([this](std::int64_t) { emit conversation_changed(); });
@@ -342,6 +346,16 @@ void client_bridge::send_message(qint64 user, QString text, qint64 reply_to)
                               to_reply_data(result->reply), {});
         },
         reply_to > 0 ? std::optional<std::int64_t>(reply_to) : std::nullopt);
+}
+
+void client_bridge::edit_message(qint64 conversation, qint64 message, QString text)
+{
+    client_->edit_message(conversation, message, to_utf8(text),
+                          [this, conversation](auto result)
+                          {
+                              emit message_updated(conversation, result ? to_message_data(*result) : message_data{},
+                                                   result ? QString{} : from_utf8(result.error().message));
+                          });
 }
 
 void client_bridge::search_users(QString query)

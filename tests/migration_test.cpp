@@ -40,7 +40,7 @@ int main(int argc, char** argv)
              {"001_create_users.sql", "002_create_messages.sql", "003_add_messages_conversation_index.sql",
               "004_create_message_read_positions.sql", "005_add_messages_recipient_index.sql",
               "006_create_contacts.sql", "007_add_user_last_seen.sql", "008_create_conversations.sql",
-              "009_add_message_replies.sql"})
+              "009_add_message_replies.sql", "010_add_message_edits.sql"})
         {
             if (std::string(name).starts_with("008"))
             {

@@ -40,6 +40,7 @@ class client_bridge final : public QObject
     void get_presence();
     void get_messages(qint64 conversation, std::optional<qint64> before = {}, std::optional<qint64> after = {});
     void send_message(qint64 user, QString text, qint64 reply_to = 0);
+    void edit_message(qint64 conversation, qint64 message, QString text);
     void search_users(QString query);
     void add_contact(qint64 user);
     void mark_read(qint64 user, qint64 message);
@@ -57,6 +58,7 @@ class client_bridge final : public QObject
     void messages_received(qint64 conversation, QList<message_data> messages, read_positions positions, bool older,
                            bool recovering, bool has_more, QString error_message);
     void message_received(message_data message);
+    void message_updated(qint64 conversation, message_data message, QString error_message);
     void messages_read(qint64 conversation, qint64 user, qint64 message);
     void conversation_opened(conversation_data conversation, QString error_message);
     void members_received(qint64 conversation, QList<user_data> users, QString error_message);

@@ -17,6 +17,7 @@
 #include <QListView>
 #include <QMessageBox>
 #include <QMenu>
+#include <QInputDialog>
 #include <QModelIndex>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -338,7 +339,23 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
                 }
                 QMenu menu(this);
                 auto* reply = menu.addAction(QStringLiteral("回复"));
-                if (menu.exec(messages_view_->viewport()->mapToGlobal(position)) != reply)
+                auto* edit = index.data(message_model::outgoing_role).toBool() ? menu.addAction(QStringLiteral("编辑"))
+                                                                               : nullptr;
+                auto* selected = menu.exec(messages_view_->viewport()->mapToGlobal(position));
+                if (edit && selected == edit)
+                {
+                    bool accepted = false;
+                    auto text =
+                        QInputDialog::getMultiLineText(this, QStringLiteral("编辑消息"), QStringLiteral("内容"),
+                                                       index.data(message_model::text_role).toString(), &accepted);
+                    if (accepted && !text.isEmpty())
+                    {
+                        emit edit_message_requested(active_conversation_,
+                                                    index.data(message_model::id_role).toLongLong(), std::move(text));
+                    }
+                    return;
+                }
+                if (selected != reply)
                 {
                     return;
                 }
@@ -624,10 +641,6 @@ void chat_widget::set_messages(qint64 user, QList<message_data> messages, read_p
         return;
     }
 
-    if (!older && !messages.isEmpty())
-    {
-        synchronized_message_ = std::max(synchronized_message_, messages.back().id);
-    }
     auto* scroll = messages_view_->verticalScrollBar();
     auto const old_maximum = scroll->maximum();
     auto const old_value = scroll->value();
@@ -672,6 +685,19 @@ void chat_widget::add_message(qint64 user, message_data message)
     {
         set_message_status({});
         QTimer::singleShot(0, messages_view_, [view = messages_view_] { view->scrollToBottom(); });
+    }
+}
+
+void chat_widget::update_message(message_data message)
+{
+    if (message.conversation != active_conversation_)
+    {
+        return;
+    }
+    messages_->update_message(message);
+    if (reply_to_ == message.id)
+    {
+        reply_preview_->setText(QStringLiteral("回复 %1：%2").arg(message.username, message.text.left(80)));
     }
 }
 
@@ -890,7 +916,6 @@ void chat_widget::open_conversation(conversation_data conversation)
     reply_bar_->hide();
     active_conversation_ = user;
     messages_->reset(active_conversation_, active_group_);
-    synchronized_message_ = 0;
     messages_loaded_ = false;
     messages_loading_ = true;
     history_exhausted_ = false;
@@ -905,7 +930,8 @@ void chat_widget::open_conversation(conversation_data conversation)
 
 std::optional<qint64> chat_widget::recovery_cursor() const
 {
-    return messages_loaded_ ? std::optional<qint64>(synchronized_message_) : std::nullopt;
+    return messages_loaded_ ? std::optional<qint64>(std::max<qint64>(0, messages_->first_message_id() - 1))
+                            : std::nullopt;
 }
 
 bool chat_widget::messages_ready() const
