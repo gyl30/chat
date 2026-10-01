@@ -40,6 +40,7 @@ class client_bridge final : public QObject
     void get_presence();
     void get_messages(qint64 conversation, std::optional<qint64> before = {}, std::optional<qint64> after = {});
     void send_message(qint64 user, QString text, qint64 reply_to = 0);
+    void delete_message(qint64 conversation, qint64 message);
     void edit_message(qint64 conversation, qint64 message, QString text);
     void search_users(QString query);
     void add_contact(qint64 user);

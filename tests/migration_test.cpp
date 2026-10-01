@@ -40,7 +40,7 @@ int main(int argc, char** argv)
              {"001_create_users.sql", "002_create_messages.sql", "003_add_messages_conversation_index.sql",
               "004_create_message_read_positions.sql", "005_add_messages_recipient_index.sql",
               "006_create_contacts.sql", "007_add_user_last_seen.sql", "008_create_conversations.sql",
-              "009_add_message_replies.sql", "010_add_message_edits.sql"})
+              "009_add_message_replies.sql", "010_add_message_edits.sql", "011_add_message_deletion.sql"})
         {
             if (std::string(name).starts_with("008"))
             {
@@ -70,6 +70,12 @@ int main(int argc, char** argv)
         }
         execute("INSERT INTO messages(sender_id,conversation_id,body,reply_to_id) "
                 "SELECT 2,conversation_id,'reply',id FROM messages WHERE id=1");
+        execute("UPDATE messages SET deleted=true,body='' WHERE id=1");
+        auto deleted = execute("SELECT deleted AND body='' AND id=1 FROM messages WHERE id=1");
+        if (std::string(PQgetvalue(deleted.get(), 0, 0)) != "t")
+        {
+            throw std::runtime_error("Deleted message invariant");
+        }
         execute("DELETE FROM users WHERE id=1");
         auto cleaned = execute("SELECT count(*) FROM messages");
         if (std::string(PQgetvalue(cleaned.get(), 0, 0)) != "0")

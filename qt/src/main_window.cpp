@@ -509,6 +509,8 @@ main_window::main_window(QString server_url, QWidget* parent)
             },
             Qt::QueuedConnection);
 
+    connect(chat_page_, &chat_widget::delete_message_requested, this,
+            [this](qint64 conversation, qint64 message) { client_->delete_message(conversation, message); });
     connect(chat_page_, &chat_widget::edit_message_requested, this,
             [this](qint64 conversation, qint64 message, QString text)
             { client_->edit_message(conversation, message, std::move(text)); });

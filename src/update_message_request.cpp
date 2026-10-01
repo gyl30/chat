@@ -9,8 +9,8 @@
 #include "message_payload.hpp"
 #include "pg_connection_pool.hpp"
 
-boost::capy::task<simdjson::error_code> chat_session::handle_edit_message(json_rpc_request& request,
-                                                                          std::string& response)
+boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json_rpc_request& request,
+                                                                            std::string& response)
 {
     if (!request.id.present)
     {
@@ -20,17 +20,19 @@ boost::capy::task<simdjson::error_code> chat_session::handle_edit_message(json_r
     {
         co_return serialize_json_rpc_error(-32001, "Authentication required", std::move(request.id), response);
     }
-    struct [[= simdjson::deny_unknown_fields]] edit_params
+    struct [[= simdjson::deny_unknown_fields]] update_params
     {
         std::int64_t conversation = 0;
         std::int64_t message = 0;
-        std::string text;
+        std::optional<std::string> text;
     };
-    edit_params params;
+    update_params params;
+    auto const deleting = request.method == "delete_message";
     simdjson::ondemand::parser parser;
     simdjson::ondemand::document document;
     if (!request.params.present || parser.iterate(request.params.json).get(document) || document.get(params) ||
-        !document.at_end() || params.conversation <= 0 || params.message <= 0 || params.text.empty())
+        !document.at_end() || params.conversation <= 0 || params.message <= 0 ||
+        (deleting ? params.text.has_value() : (!params.text || params.text->empty())))
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
@@ -41,16 +43,19 @@ boost::capy::task<simdjson::error_code> chat_session::handle_edit_message(json_r
     }
     auto original = co_await lease.connection().execute_row(
         "SELECT json_build_object('id',m.id,'conversation',m.conversation_id,'from',m.sender_id,'username',u.username,"
-        "'timestamp',(extract(epoch FROM m.created_at)*1000)::bigint,'text',m.body,'edited_at',(extract(epoch FROM "
+        "'timestamp',(extract(epoch FROM "
+        "m.created_at)*1000)::bigint,'text',m.body,'deleted',m.deleted,'edited_at',(extract(epoch FROM "
         "m.edited_at)*1000)::bigint,"
         "'reply',CASE WHEN r.id IS NULL THEN NULL ELSE "
         "json_build_object('id',r.id,'from',r.sender_id,'username',ra.username,'text',left(r.body,160),'edited_at',("
-        "extract(epoch FROM r.edited_at)*1000)::bigint) END)::text "
+        "extract(epoch FROM r.edited_at)*1000)::bigint,'deleted',r.deleted) END)::text "
         "FROM messages m JOIN users u ON u.id=m.sender_id JOIN conversation_members own ON "
         "own.conversation_id=m.conversation_id "
         "LEFT JOIN messages r ON r.id=m.reply_to_id LEFT JOIN users ra ON ra.id=r.sender_id "
-        "WHERE m.id=$3::bigint AND m.conversation_id=$2::bigint AND m.sender_id=$1::bigint AND own.user_id=$1::bigint",
-        {std::to_string(*user_id_), std::to_string(params.conversation), std::to_string(params.message)});
+        "WHERE m.id=$3::bigint AND m.conversation_id=$2::bigint AND m.sender_id=$1::bigint AND own.user_id=$1::bigint "
+        "AND (NOT m.deleted OR $4::boolean)",
+        {std::to_string(*user_id_), std::to_string(params.conversation), std::to_string(params.message),
+         deleting ? "true" : "false"});
     auto& [read_ec, row] = original;
     if (read_ec)
     {
@@ -68,8 +73,12 @@ boost::capy::task<simdjson::error_code> chat_session::handle_edit_message(json_r
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
-    value.text = std::move(params.text);
-    value.edited_at = std::numeric_limits<std::int64_t>::max();
+    value.text = deleting ? std::string{} : std::move(*params.text);
+    value.deleted = deleting;
+    if (!deleting)
+    {
+        value.edited_at = std::numeric_limits<std::int64_t>::max();
+    }
     std::string payload;
     auto error = simdjson::builder::to_json_string(value).get(payload);
     if (error)
@@ -82,12 +91,13 @@ boost::capy::task<simdjson::error_code> chat_session::handle_edit_message(json_r
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
     auto updated = co_await lease.connection().execute_row(
-        "UPDATE messages SET "
-        "body=$4,edited_at=greatest(clock_timestamp(),coalesce(edited_at,'epoch'::timestamptz)+interval '1 "
-        "millisecond') "
-        "WHERE id=$3::bigint AND conversation_id=$2::bigint AND sender_id=$1::bigint "
-        "RETURNING ((extract(epoch FROM edited_at)*1000)::bigint)::text",
-        {std::to_string(*user_id_), std::to_string(params.conversation), std::to_string(params.message), value.text});
+        "UPDATE messages SET body=$4,deleted=$5::boolean,"
+        "edited_at=CASE WHEN $5::boolean THEN edited_at ELSE "
+        "greatest(clock_timestamp(),coalesce(edited_at,'epoch'::timestamptz)+interval '1 millisecond') END "
+        "WHERE id=$3::bigint AND conversation_id=$2::bigint AND sender_id=$1::bigint AND (NOT deleted OR $5::boolean) "
+        "RETURNING COALESCE(((extract(epoch FROM edited_at)*1000)::bigint)::text,'')",
+        {std::to_string(*user_id_), std::to_string(params.conversation), std::to_string(params.message), value.text,
+         deleting ? "true" : "false"});
     auto& [write_ec, result] = updated;
     if (write_ec)
     {
@@ -97,7 +107,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_edit_message(json_r
     {
         co_return serialize_json_rpc_error(-32007, "Message unavailable", std::move(request.id), response);
     }
-    value.edited_at = std::stoll(result->front());
+    value.edited_at = result->front().empty() ? std::nullopt : std::optional<std::int64_t>(std::stoll(result->front()));
     payload.clear();
     error = simdjson::builder::to_json_string(value).get(payload);
     if (error)

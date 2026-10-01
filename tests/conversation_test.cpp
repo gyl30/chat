@@ -417,6 +417,59 @@ int run_group_tests()
             [&](auto handler) { b.edit_message(*direct, direct_reply->message_id, "edited direct reply", handler); });
         require(edited_direct && edited_direct->reply && conversation(a, *direct).last.text == "edited direct reply",
                 "Direct edit and summary");
+        auto unauthorized_delete =
+            call<chat::message>([&](auto handler) { b.delete_message(group, sent->message_id, handler); });
+        require(!unauthorized_delete && unauthorized_delete.error().code == -32007, "Cannot delete another author");
+        auto outside_delete =
+            call<chat::message>([&](auto handler) { d.delete_message(group, sent->message_id, handler); });
+        require(!outside_delete && outside_delete.error().code == -32007, "Nonmember cannot delete");
+        auto quoted_again = call<chat::send_message_result>(
+            [&](auto handler) { c.send_message(group, "保留的引用", handler, sent->message_id); });
+        require(quoted_again.has_value(), "Reply before deletion");
+        auto unread_before_delete = conversation(c, group).unread;
+        c.close();
+        c_events.wait([&] { return c_events.disconnected == 3; });
+        auto deleted = call<chat::message>([&](auto handler) { a.delete_message(group, sent->message_id, handler); });
+        require(deleted && deleted->deleted && deleted->text.empty() && deleted->id == sent->message_id,
+                "Author deletes body and preserves ID");
+        b_events.wait(
+            [&]
+            {
+                return std::ranges::any_of(b_events.updates, [&](auto const& value)
+                                           { return value.id == sent->message_id && value.deleted; });
+            });
+        auto repeated = call<chat::message>([&](auto handler) { a.delete_message(group, sent->message_id, handler); });
+        require(repeated && repeated->deleted, "Repeated deletion remains deleted");
+        auto edit_deleted =
+            call<chat::message>([&](auto handler) { a.edit_message(group, sent->message_id, "resurrect", handler); });
+        require(!edit_deleted && edit_deleted.error().code == -32007, "Deleted message cannot be edited");
+        auto delete_unread =
+            call<chat::message>([&](auto handler) { b.delete_message(group, replied->message_id, handler); });
+        require(delete_unread && delete_unread->deleted, "Deleted messages do not count as unread");
+        auto deleted_quote_history =
+            call<chat::messages_result>([&](auto handler) { a.get_messages(group, {}, handler); });
+        require(deleted_quote_history && deleted_quote_history->messages.back().reply &&
+                    deleted_quote_history->messages.back().reply->deleted &&
+                    deleted_quote_history->messages.back().reply->text.empty(),
+                "Deleted quote history hides original body");
+        c.connect(server.url);
+        c_events.wait([&] { return c_events.connected == 4; });
+        auto auth_after_delete = call<chat::authentication_result>(
+            [&](auto handler) { c.authenticate(names[2], "group password", handler); });
+        require(auth_after_delete && auth_after_delete->authenticated, "Reconnect after deletion");
+        require(conversation(c, group).unread == unread_before_delete - 1, "Deleted unread restored count");
+        auto recovered_delete =
+            call<chat::messages_result>([&](auto handler) { c.get_messages(group, {}, handler, 0); });
+        require(recovered_delete && recovered_delete->messages.front().id == sent->message_id &&
+                    recovered_delete->messages.front().deleted && recovered_delete->messages.front().text.empty(),
+                "Recover old deleted message");
+        auto deleted_direct =
+            call<chat::message>([&](auto handler) { b.delete_message(*direct, direct_reply->message_id, handler); });
+        require(deleted_direct && deleted_direct->deleted && conversation(a, *direct).last.deleted,
+                "Direct deletion summary");
+        require(call<std::int64_t>([&](auto handler) { a.mark_read(*direct, direct_reply->message_id, handler); })
+                    .has_value(),
+                "Read position can retain a deleted ID");
         {
             std::lock_guard lock(d_events.mutex);
             require(d_events.messages.empty() && d_events.updates.empty() && d_events.reads.empty() &&
@@ -429,7 +482,7 @@ int run_group_tests()
         d.close();
         a_events.wait([&] { return a_events.disconnected == 1; });
         b_events.wait([&] { return b_events.disconnected == 1; });
-        c_events.wait([&] { return c_events.disconnected == 3; });
+        c_events.wait([&] { return c_events.disconnected == 4; });
         d_events.wait([&] { return d_events.disconnected == 1; });
         data.cleanup();
         std::cout

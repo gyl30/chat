@@ -214,9 +214,9 @@ boost::capy::task<void> chat_session::run()
             {
                 rpc_error = co_await handle_authenticate(request, response);
             }
-            else if (request.method == "edit_message")
+            else if (request.method == "edit_message" || request.method == "delete_message")
             {
-                rpc_error = co_await handle_edit_message(request, response);
+                rpc_error = co_await handle_update_message(request, response);
             }
             else if (request.method == kEchoMethod)
             {

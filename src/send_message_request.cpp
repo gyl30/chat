@@ -135,7 +135,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         }
         auto query_result = co_await lease.connection().execute_row(
             "SELECT r.id::text,r.sender_id::text,u.username,left(r.body,160),COALESCE(((extract(epoch FROM "
-            "r.edited_at)*1000)::bigint)::text,'') FROM messages r "
+            "r.edited_at)*1000)::bigint)::text,''),r.deleted::text FROM messages r "
             "JOIN users u ON u.id=r.sender_id JOIN conversation_members own ON own.conversation_id=r.conversation_id "
             "WHERE r.id=$3::bigint AND r.conversation_id=$2::bigint AND own.user_id=$1::bigint",
             {std::to_string(*user_id_), std::to_string(params.conversation), std::to_string(*params.reply_to)});
@@ -149,8 +149,12 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
             co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
         }
         notification.params.reply = quoted_message_payload{
-            std::stoll(row->at(0)), std::stoll(row->at(1)), row->at(2), row->at(3),
-            row->at(4).empty() ? std::nullopt : std::optional<std::int64_t>(std::stoll(row->at(4)))};
+            std::stoll(row->at(0)),
+            std::stoll(row->at(1)),
+            row->at(2),
+            row->at(3),
+            row->at(4).empty() ? std::nullopt : std::optional<std::int64_t>(std::stoll(row->at(4))),
+            row->at(5) == "true"};
     }
 
     std::string notification_json;

@@ -68,6 +68,19 @@ int main(int argc, char** argv)
     {
         return 1;
     }
+    auto deleted = edited;
+    deleted.deleted = true;
+    deleted.text.clear();
+    messages.update_message(deleted);
+    edited.edited_at = 200;
+    messages.update_message(edited);
+    messages.merge_messages({incoming, outgoing});
+    if (!first.data(message_model::deleted_role).toBool() ||
+        first.data(message_model::text_role).toString() != QStringLiteral("消息已删除") ||
+        !second.data(message_model::reply_text_role).toString().contains(QStringLiteral("消息已删除")))
+    {
+        return 1;
+    }
     conversation_model conversations;
     conversation_data direct;
     direct.id = 1;

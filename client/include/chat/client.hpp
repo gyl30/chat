@@ -77,6 +77,7 @@ class client
                       std::optional<std::int64_t> after = {});
     void send_message(std::int64_t conversation, std::string text, send_message_handler handler,
                       std::optional<std::int64_t> reply_to = {});
+    void delete_message(std::int64_t conversation, std::int64_t message, message_result_handler handler);
     void edit_message(std::int64_t conversation, std::int64_t message, std::string text,
                       message_result_handler handler);
     void search_users(std::string query, users_handler handler);

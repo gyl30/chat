@@ -13,6 +13,7 @@ struct quoted_message_data
     QString username;
     QString text;
     qint64 edited_at = 0;
+    bool deleted = false;
 };
 Q_DECLARE_METATYPE(quoted_message_data)
 
@@ -25,6 +26,7 @@ struct message_data
     qint64 timestamp = 0;
     QString text;
     qint64 edited_at = 0;
+    bool deleted = false;
     quoted_message_data reply;
 };
 

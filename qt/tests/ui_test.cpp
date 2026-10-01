@@ -279,6 +279,53 @@ int main(int argc, char** argv)
                           .contains(QStringLiteral("Qt 已编辑群消息")),
                       "Live edited quote");
             }
+            auto* reply_view = windows[1]->findChild<QListView*>("messageList");
+            QTimer delete_dialog;
+            QObject::connect(&delete_dialog, &QTimer::timeout,
+                             [&]
+                             {
+                                 auto* dialog = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+                                 if (!dialog)
+                                 {
+                                     return;
+                                 }
+                                 dialog->button(QMessageBox::Yes)->click();
+                                 delete_dialog.stop();
+                             });
+            delete_dialog.start(20);
+            QTimer::singleShot(20,
+                               []
+                               {
+                                   auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+                                   check(menu, "Delete menu");
+                                   QAction* remove = nullptr;
+                                   for (auto* action : menu->actions())
+                                   {
+                                       if (action->text() == QStringLiteral("删除"))
+                                       {
+                                           remove = action;
+                                       }
+                                   }
+                                   check(remove, "Author delete action");
+                                   menu->setActiveAction(remove);
+                                   QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+                                   QApplication::sendEvent(menu, &enter);
+                               });
+            reply_view->customContextMenuRequested(reply_view->visualRect(reply_view->model()->index(1, 0)).center());
+            for (int i = 0; i < 3; ++i)
+            {
+                auto* view = windows[i]->findChild<QListView*>("messageList");
+                wait([&] { return view->model()->index(1, 0).data(message_model::deleted_role).toBool(); });
+                check(view->model()->index(1, 0).data(message_model::text_role).toString() ==
+                          QStringLiteral("消息已删除"),
+                      "Live deletion marker");
+            }
+            windows[2]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("离线编辑验证"));
+            windows[2]->findChild<QToolButton*>("sendButton")->click();
+            for (int i = 0; i < 3; ++i)
+            {
+                wait([&, i] { return windows[i]->findChild<QListView*>("messageList")->model()->rowCount() == 3; });
+            }
             windows[0]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_smoke.png");
             server.terminate();
             check(server.waitForFinished(3000), "Stop server");
@@ -290,6 +337,19 @@ int main(int argc, char** argv)
             auto* offline_result = PQexec(db, offline_sql.c_str());
             check(PQresultStatus(offline_result) == PGRES_COMMAND_OK, "Offline edit fixture");
             PQclear(offline_result);
+            auto offline_delete_sql =
+                "UPDATE messages SET body='',deleted=true WHERE conversation_id=" + std::to_string(group) +
+                " AND sender_id=" + std::to_string(ids[0]);
+            auto* deleted_result = PQexec(db, offline_delete_sql.c_str());
+            check(PQresultStatus(deleted_result) == PGRES_COMMAND_OK, "Offline deletion fixture");
+            PQclear(deleted_result);
+            auto retained_edit_sql = "UPDATE messages SET body='offline retained "
+                                     "edit',edited_at=greatest(clock_timestamp(),coalesce(edited_at,'epoch'::"
+                                     "timestamptz)+interval '1 millisecond') WHERE conversation_id=" +
+                                     std::to_string(group) + " AND sender_id=" + std::to_string(ids[2]);
+            auto* retained_result = PQexec(db, retained_edit_sql.c_str());
+            check(PQresultStatus(retained_result) == PGRES_COMMAND_OK, "Retained offline edit fixture");
+            PQclear(retained_result);
             start();
             for (int i = 0; i < 3; ++i)
             {
@@ -303,24 +363,23 @@ int main(int argc, char** argv)
             for (int i = 0; i < 3; ++i)
             {
                 auto* view = windows[i]->findChild<QListView*>("messageList");
+                wait([&] { return view->model()->index(0, 0).data(message_model::deleted_role).toBool(); });
+                check(view->model()->index(0, 0).data(message_model::text_role).toString() ==
+                              QStringLiteral("消息已删除") &&
+                          view->model()->index(1, 0).data(message_model::deleted_role).toBool(),
+                      "Recovered deletion markers");
                 wait(
                     [&]
                     {
-                        return view->model()->index(0, 0).data(message_model::text_role).toString() ==
-                               QStringLiteral("offline edit");
+                        return view->model()->index(2, 0).data(message_model::text_role).toString() ==
+                               QStringLiteral("offline retained edit");
                     });
-                check(view->model()
-                          ->index(1, 0)
-                          .data(message_model::reply_text_role)
-                          .toString()
-                          .contains(QStringLiteral("offline edit")),
-                      "Recovered edited quote");
             }
             windows[1]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("重连后的群消息"));
             windows[1]->findChild<QToolButton*>("sendButton")->click();
             for (int i = 0; i < 3; ++i)
             {
-                wait([&, i] { return windows[i]->findChild<QListView*>("messageList")->model()->rowCount() == 3; });
+                wait([&, i] { return windows[i]->findChild<QListView*>("messageList")->model()->rowCount() == 4; });
             }
             windows[1]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_reconnected.png");
         }

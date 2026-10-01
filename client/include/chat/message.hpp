@@ -16,6 +16,7 @@ struct quoted_message
     std::string username;
     std::string text;
     std::optional<std::int64_t> edited_at;
+    bool deleted = false;
 };
 
 struct message
@@ -27,6 +28,7 @@ struct message
     std::int64_t timestamp = 0;
     std::string text;
     std::optional<std::int64_t> edited_at;
+    bool deleted = false;
     std::optional<quoted_message> reply;
 };
 

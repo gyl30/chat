@@ -29,7 +29,7 @@ QString from_utf8(std::string const& value)
 quoted_message_data to_reply_data(std::optional<chat::quoted_message> const& reply)
 {
     return reply ? quoted_message_data{reply->id, from_utf8(reply->username), from_utf8(reply->text),
-                                       reply->edited_at.value_or(0)}
+                                       reply->edited_at.value_or(0), reply->deleted}
                  : quoted_message_data{};
 }
 
@@ -43,6 +43,7 @@ message_data to_message_data(chat::message const& value)
     message.timestamp = value.timestamp;
     message.text = from_utf8(value.text);
     message.edited_at = value.edited_at.value_or(0);
+    message.deleted = value.deleted;
     message.reply = to_reply_data(value.reply);
     return message;
 }
@@ -161,7 +162,7 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
             value.last_id = item.last.id;
             value.last_from = item.last.from;
             value.last_timestamp = item.last.timestamp;
-            value.last_text = from_utf8(item.last.text);
+            value.last_text = item.last.deleted ? QStringLiteral("消息已删除") : from_utf8(item.last.text);
             value.unread = item.unread;
                         bool found = false;
                         for (auto const& existing : conversations)
@@ -346,6 +347,16 @@ void client_bridge::send_message(qint64 user, QString text, qint64 reply_to)
                               to_reply_data(result->reply), {});
         },
         reply_to > 0 ? std::optional<std::int64_t>(reply_to) : std::nullopt);
+}
+
+void client_bridge::delete_message(qint64 conversation, qint64 message)
+{
+    client_->delete_message(conversation, message,
+                            [this, conversation](auto result)
+                            {
+                                emit message_updated(conversation, result ? to_message_data(*result) : message_data{},
+                                                     result ? QString{} : from_utf8(result.error().message));
+                            });
 }
 
 void client_bridge::edit_message(qint64 conversation, qint64 message, QString text)

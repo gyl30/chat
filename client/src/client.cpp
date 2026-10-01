@@ -99,6 +99,21 @@ bool parse_user(boost::json::object const& object, user& value)
     return true;
 }
 
+bool parse_deleted(boost::json::object const& object, bool& deleted)
+{
+    auto const* value = object.if_contains("deleted");
+    if (!value)
+    {
+        return true;
+    }
+    if (!value->is_bool())
+    {
+        return false;
+    }
+    deleted = value->as_bool();
+    return true;
+}
+
 bool parse_edited_at(boost::json::object const& object, std::optional<std::int64_t>& edited_at)
 {
     auto const* value = object.if_contains("edited_at");
@@ -138,7 +153,7 @@ bool parse_reply(boost::json::object const& object, std::optional<quoted_message
     }
     reply = quoted_message{
         *parsed_id, *parsed_from, std::string(username->as_string()), std::string(text->as_string()), {}};
-    return parse_edited_at(fields, reply->edited_at);
+    return parse_edited_at(fields, reply->edited_at) && parse_deleted(fields, reply->deleted);
 }
 
 bool parse_message(boost::json::object const& object, message& value)
@@ -170,7 +185,8 @@ bool parse_message(boost::json::object const& object, message& value)
     value.from = *from;
     value.timestamp = *timestamp;
     value.text = std::string(text_value->as_string());
-    return parse_reply(object, value.reply) && parse_edited_at(object, value.edited_at);
+    return parse_reply(object, value.reply) && parse_edited_at(object, value.edited_at) &&
+           parse_deleted(object, value.deleted);
 }
 
 bool parse_presence(boost::json::object const& object, presence& value)
@@ -1053,10 +1069,15 @@ struct client::impl
         co_return;
     }
 
-    boost::capy::task<> edit_message(std::int64_t conversation, std::int64_t id, std::string text,
-                                     message_result_handler handler)
+    boost::capy::task<> update_message(std::string method, std::int64_t conversation, std::int64_t id,
+                                       std::optional<std::string> text, message_result_handler handler)
     {
-        send_request("edit_message", {{"conversation", conversation}, {"message", id}, {"text", std::move(text)}},
+        boost::json::object params{{"conversation", conversation}, {"message", id}};
+        if (text)
+        {
+            params.emplace("text", std::move(*text));
+        }
+        send_request(std::move(method), std::move(params),
                      [conversation, id, handler = std::move(handler)](auto result) mutable
                      {
                          if (!result)
@@ -1346,11 +1367,17 @@ void client::send_message(std::int64_t user, std::string text, send_message_hand
         impl_->send_message(user, std::move(text), std::move(handler), reply_to));
 }
 
+void client::delete_message(std::int64_t conversation, std::int64_t message, message_result_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->update_message("delete_message", conversation, message, std::nullopt, std::move(handler)));
+}
+
 void client::edit_message(std::int64_t conversation, std::int64_t message, std::string text,
                           message_result_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(
-        impl_->edit_message(conversation, message, std::move(text), std::move(handler)));
+        impl_->update_message("edit_message", conversation, message, std::move(text), std::move(handler)));
 }
 
 void client::search_users(std::string query, users_handler handler)

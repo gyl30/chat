@@ -30,18 +30,23 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             return message.timestamp;
         case Qt::DisplayRole:
         case text_role:
-            return message.text;
+            return message.deleted ? QStringLiteral("消息已删除") : message.text;
         case outgoing_role:
             return outgoing;
         case sender_name_role:
             return message.username;
+        case deleted_role:
+            return message.deleted;
         case edited_at_role:
             return message.edited_at;
         case reply_id_role:
             return message.reply.id;
         case reply_text_role:
-            return message.reply.id > 0 ? QStringLiteral("↪ %1\n%2").arg(message.reply.username, message.reply.text)
-                                        : QString{};
+            return !message.deleted && message.reply.id > 0
+                       ? QStringLiteral("↪ %1\n%2")
+                             .arg(message.reply.username,
+                                  message.reply.deleted ? QStringLiteral("消息已删除") : message.reply.text)
+                       : QString{};
         case read_role:
             if (!outgoing)
             {
@@ -141,25 +146,27 @@ void message_model::update_message(message_data const& message)
         bool changed = false;
         if (current.id == message.id)
         {
-            if (message.edited_at > current.edited_at)
+            if (!current.deleted && (message.deleted || message.edited_at > current.edited_at))
             {
                 auto reply = current.reply;
                 current = message;
-                if (reply.edited_at > current.reply.edited_at)
+                if ((reply.deleted && !current.reply.deleted) || reply.edited_at > current.reply.edited_at)
                 {
                     current.reply = std::move(reply);
                 }
                 changed = true;
             }
-            if (message.reply.id == current.reply.id && message.reply.edited_at > current.reply.edited_at)
+            if (message.reply.id == current.reply.id && !current.reply.deleted &&
+                (message.reply.deleted || message.reply.edited_at > current.reply.edited_at))
             {
                 current.reply = message.reply;
                 changed = true;
             }
         }
-        if (current.reply.id == message.id && message.edited_at > current.reply.edited_at)
+        if (current.reply.id == message.id && !current.reply.deleted &&
+            (message.deleted || message.edited_at > current.reply.edited_at))
         {
-            current.reply = {message.id, message.username, message.text.left(160), message.edited_at};
+            current.reply = {message.id, message.username, message.text.left(160), message.edited_at, message.deleted};
             changed = true;
         }
         if (changed)

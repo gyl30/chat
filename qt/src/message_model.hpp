@@ -22,6 +22,7 @@ class message_model final : public QAbstractListModel
         reply_id_role,
         reply_text_role,
         edited_at_role,
+        deleted_role,
     };
 
     explicit message_model(QObject* parent = nullptr);

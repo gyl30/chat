@@ -64,6 +64,7 @@ class chat_widget final : public QWidget
     void conversation_selected(qint64 user);
     void older_messages_requested(qint64 user, qint64 before);
     void send_message_requested(qint64 user, QString text, qint64 reply_to);
+    void delete_message_requested(qint64 conversation, qint64 message);
     void edit_message_requested(qint64 conversation, qint64 message, QString text);
     void add_contact_search_requested(QString query);
     void contact_add_requested(qint64 user);

@@ -12,6 +12,7 @@ struct quoted_message_payload
     std::string username;
     std::string text;
     std::optional<std::int64_t> edited_at;
+    bool deleted = false;
 };
 
 struct message_payload
@@ -24,6 +25,7 @@ struct message_payload
     std::string text;
     std::optional<quoted_message_payload> reply;
     std::optional<std::int64_t> edited_at;
+    bool deleted = false;
 };
 
 #endif

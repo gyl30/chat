@@ -333,7 +333,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
             [this](QPoint position)
             {
                 auto const index = messages_view_->indexAt(position);
-                if (!index.isValid() || !connection_available_)
+                if (!index.isValid() || !connection_available_ || index.data(message_model::deleted_role).toBool())
                 {
                     return;
                 }
@@ -341,7 +341,21 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
                 auto* reply = menu.addAction(QStringLiteral("回复"));
                 auto* edit = index.data(message_model::outgoing_role).toBool() ? menu.addAction(QStringLiteral("编辑"))
                                                                                : nullptr;
+                auto* remove = index.data(message_model::outgoing_role).toBool()
+                                   ? menu.addAction(QStringLiteral("删除"))
+                                   : nullptr;
                 auto* selected = menu.exec(messages_view_->viewport()->mapToGlobal(position));
+                if (remove && selected == remove)
+                {
+                    if (QMessageBox::question(this, QStringLiteral("删除消息"),
+                                              QStringLiteral("删除后所有成员均显示“消息已删除”。确认删除？"),
+                                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes)
+                    {
+                        emit delete_message_requested(active_conversation_,
+                                                      index.data(message_model::id_role).toLongLong());
+                    }
+                    return;
+                }
                 if (edit && selected == edit)
                 {
                     bool accepted = false;
@@ -697,7 +711,9 @@ void chat_widget::update_message(message_data message)
     messages_->update_message(message);
     if (reply_to_ == message.id)
     {
-        reply_preview_->setText(QStringLiteral("回复 %1：%2").arg(message.username, message.text.left(80)));
+        reply_preview_->setText(
+            QStringLiteral("回复 %1：%2")
+                .arg(message.username, message.deleted ? QStringLiteral("消息已删除") : message.text.left(80)));
     }
 }
 
