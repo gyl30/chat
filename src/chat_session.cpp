@@ -234,7 +234,8 @@ boost::capy::task<void> chat_session::run()
             {
                 rpc_error = co_await handle_get_members(request, response);
             }
-            else if (request.method == "set_group_admin")
+            else if (request.method == "set_group_admin" || request.method == "rename_group" ||
+                     request.method == "invite_group_members" || request.method == "leave_group")
             {
                 rpc_error = co_await handle_group_management(request, response);
             }

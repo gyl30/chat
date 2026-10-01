@@ -233,6 +233,20 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
             co_return simdjson::SUCCESS;
         }
 
+        auto& connection = lease.connection();
+        auto begun = co_await connection.execute_row("BEGIN");
+        auto locked = co_await connection.execute_row("SELECT id::text FROM conversations WHERE id=$1::bigint FOR UPDATE",
+            {std::to_string(params.conversation)});
+        if (std::get<0>(begun) || std::get<0>(locked))
+        {
+            connection.close();
+            if (request.id.present)
+            {
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            co_return simdjson::SUCCESS;
+        }
+
         std::vector<std::string> parameters;
         parameters.emplace_back(std::to_string(*user_id_));
         parameters.emplace_back(std::to_string(params.conversation));
@@ -256,6 +270,19 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
             "FROM inserted JOIN users u ON u.id=$1::bigint",
             std::move(parameters));
         auto& [query_ec, row] = query_result;
+        if (query_ec)
+        {
+            connection.close();
+        }
+        else
+        {
+            auto ended = co_await connection.execute_row("COMMIT");
+            if (std::get<0>(ended))
+            {
+                connection.close();
+                query_ec = std::get<0>(ended);
+            }
+        }
         if (query_ec)
         {
             if (request.id.present)

@@ -674,6 +674,10 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
     {
         conversations_->set_online(item.user, item.online);
     }
+    if (previous_user > 0 && active_group_ && !conversations_->index_for_conversation(previous_user).isValid())
+    {
+        close_conversation(previous_user);
+    }
     if (conversations_->rowCount() == 0)
     {
         conversations_status_->setText(QStringLiteral("暂无会话"));
@@ -696,6 +700,7 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
         if (auto const* item = conversations_->conversation_at(index))
         {
             active_username_ = item->username;
+            active_member_count_ = item->member_count;
             update_chat_header(item->username);
         }
         return;
@@ -1086,6 +1091,58 @@ void chat_widget::open_conversation(conversation_data conversation)
     {
         emit conversation_selected(active_conversation_);
     }
+}
+
+void chat_widget::close_conversation(qint64 conversation)
+{
+    if (conversation != active_conversation_)
+    {
+        return;
+    }
+    stop_typing();
+    typing_users_.clear();
+    update_typing_label();
+    active_conversation_ = 0;
+    active_peer_ = 0;
+    active_group_ = false;
+    active_member_count_ = 0;
+    active_username_.clear();
+    attachment_sending_ = false;
+    messages_loaded_ = false;
+    messages_loading_ = false;
+    history_exhausted_ = false;
+    reply_to_ = 0;
+    reply_bar_->hide();
+    messages_->reset(0);
+    conversations_view_->setCurrentIndex({});
+    conversations_view_->clearSelection();
+    chat_title_->setText(QStringLiteral("聊天"));
+    chat_title_->setIcon({});
+    chat_title_->setEnabled(false);
+    chat_presence_->clear();
+    chat_presence_->hide();
+    message_edit_->clear();
+    message_edit_->setEnabled(false);
+    send_button_->setEnabled(false);
+    message_search_button_->setEnabled(false);
+    attachment_button_->setEnabled(false);
+    set_message_status(QStringLiteral("选择一个会话开始聊天"));
+}
+
+void chat_widget::set_members(qint64 conversation, QList<member_data> members, QString const& error)
+{
+    if (conversation != active_conversation_ || !error.isEmpty())
+    {
+        return;
+    }
+    for (auto it = typing_users_.begin(); it != typing_users_.end();)
+    {
+        auto const present = std::any_of(members.begin(), members.end(), [id = it.key()](auto const& member) {
+            return member.id == id;
+        });
+        it = present ? std::next(it) : typing_users_.erase(it);
+    }
+    update_typing_label();
 }
 
 std::optional<qint64> chat_widget::recovery_cursor() const

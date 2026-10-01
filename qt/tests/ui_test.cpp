@@ -280,6 +280,9 @@ int main(int argc, char** argv)
                 list->setCurrentRow(2);
                 check(!dialog->findChild<QPushButton*>("groupAdminButton")->isEnabled(),
                       "Ordinary member cannot manage administrators");
+                check(!dialog->findChild<QPushButton*>("groupRenameButton")->isEnabled() &&
+                          !dialog->findChild<QPushButton*>("groupInviteButton")->isEnabled() &&
+                          dialog->findChild<QPushButton*>("groupLeaveButton")->isEnabled(), "Ordinary member permissions");
                 ordinary_member = true;
                 member_poll.stop();
                 dialog->accept();
@@ -532,6 +535,11 @@ int main(int argc, char** argv)
             wait([&] { return pages[0]->active_conversation() != group && pages[0]->messages_ready(); });
             wait([&] { return !group_typing->isVisible(); });
             auto const direct = pages[0]->active_conversation();
+            pages[0]->set_conversations({});
+            check(pages[0]->active_conversation() == direct &&
+                      windows[0]->findChild<QLineEdit*>("messageEdit")->isEnabled() &&
+                      windows[0]->findChild<QListView*>("messageList")->model()->rowCount() == 0,
+                  "Refreshing conversations preserves a newly opened empty direct chat");
             windows[0]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("保留单聊历史"));
             windows[0]->findChild<QToolButton*>("sendButton")->click();
             wait([&] { return windows[0]->findChild<QListView*>("messageList")->model()->rowCount() == 1; });
@@ -686,6 +694,172 @@ int main(int argc, char** argv)
                 check(view->model()->index(1, 0).data(message_model::attachment_name_role).toString().isEmpty(),
                       "Deleted attachment has no download metadata");
             }
+
+            auto select_group = [&](int actor) {
+                auto* list = windows[actor]->findChild<QListView*>("conversationList");
+                QModelIndex selected;
+                wait([&] {
+                    for (int row = 0; row < list->model()->rowCount(); ++row)
+                    {
+                        auto index = list->model()->index(row, 0);
+                        if (index.data(conversation_model::id_role).toLongLong() == group)
+                        {
+                            selected = index;
+                            return true;
+                        }
+                    }
+                    return false;
+                });
+                list->clicked(selected);
+                wait([&] { return pages[actor]->active_conversation() == group && pages[actor]->messages_ready(); });
+            };
+            select_group(0);
+            bool managed = false;
+            int manage_step = 0;
+            QTimer manage_poll;
+            QObject::connect(&manage_poll, &QTimer::timeout, [&] {
+                auto* dialog = qobject_cast<group_dialog*>(QApplication::activeModalWidget());
+                if (!dialog)
+                {
+                    return;
+                }
+                auto* list = dialog->findChild<QListWidget*>("groupMembersList");
+                if (list->count() != 3)
+                {
+                    return;
+                }
+                auto* title = dialog->findChild<QLineEdit*>("groupTitleEdit");
+                auto* promote = dialog->findChild<QPushButton*>("groupAdminButton");
+                if (manage_step == 0)
+                {
+                    check(!dialog->findChild<QPushButton*>("groupLeaveButton")->isEnabled(), "Owner cannot leave in Qt");
+                    title->setText(QStringLiteral("Qt 管理群"));
+                    ++manage_step;
+                    dialog->findChild<QPushButton*>("groupRenameButton")->click();
+                }
+                else if (manage_step == 1 && dialog->windowTitle().startsWith(QStringLiteral("Qt 管理群")))
+                {
+                    list->setCurrentRow(1);
+                    if (promote->isEnabled())
+                    {
+                        ++manage_step;
+                        promote->click();
+                    }
+                }
+                else if (manage_step == 2 && promote->isEnabled() &&
+                         list->item(1)->text().contains(QStringLiteral("管理员")))
+                {
+                    managed = true;
+                    manage_poll.stop();
+                    dialog->accept();
+                }
+            });
+            manage_poll.start(20);
+            windows[0]->findChild<QPushButton*>("chatHeaderButton")->click();
+            wait([&] { return managed; });
+            select_group(1);
+            bool administrator = false;
+            QTimer admin_poll;
+            int admin_step = 0;
+            QObject::connect(&admin_poll, &QTimer::timeout, [&] {
+                auto* dialog = qobject_cast<group_dialog*>(QApplication::activeModalWidget());
+                if (!dialog)
+                {
+                    return;
+                }
+                auto* list = dialog->findChild<QListWidget*>("groupMembersList");
+                if (list->count() != 3 || !dialog->findChild<QLineEdit*>("groupTitleEdit")->isEnabled())
+                {
+                    return;
+                }
+                if (admin_step == 0)
+                {
+                    check(list->item(1)->text().contains(QStringLiteral("管理员")), "Realtime role visible to administrator");
+                    list->setCurrentRow(2);
+                    check(!dialog->findChild<QPushButton*>("groupAdminButton")->isEnabled(), "Admin cannot appoint another admin");
+                    dialog->findChild<QLineEdit*>("groupTitleEdit")->setText(QStringLiteral("Qt 管理员改名群"));
+                    ++admin_step;
+                    dialog->findChild<QPushButton*>("groupRenameButton")->click();
+                }
+                else if (dialog->windowTitle().startsWith(QStringLiteral("Qt 管理员改名群")))
+                {
+                    dialog->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_management.png");
+                    administrator = true;
+                    admin_poll.stop();
+                    dialog->accept();
+                }
+            });
+            admin_poll.start(20);
+            windows[1]->findChild<QPushButton*>("chatHeaderButton")->click();
+            wait([&] { return administrator; });
+            select_group(2);
+            windows[2]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("退出后清除的草稿"));
+            QTimer leave_poll;
+            QObject::connect(&leave_poll, &QTimer::timeout, [&] {
+                auto* dialog = qobject_cast<group_dialog*>(QApplication::activeModalWidget());
+                if (!dialog || !dialog->findChild<QPushButton*>("groupLeaveButton")->isEnabled())
+                {
+                    return;
+                }
+                leave_poll.stop();
+                QTimer::singleShot(20, [] {
+                    auto* confirmation = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+                    check(confirmation, "Group leave confirmation");
+                    confirmation->button(QMessageBox::Yes)->click();
+                });
+                dialog->findChild<QPushButton*>("groupLeaveButton")->click();
+            });
+            leave_poll.start(20);
+            windows[2]->findChild<QPushButton*>("chatHeaderButton")->click();
+            wait([&] { return pages[2]->active_conversation() == 0; });
+            check(windows[2]->findChild<QListView*>("messageList")->model()->rowCount() == 0 &&
+                      windows[2]->findChild<QLineEdit*>("messageEdit")->text().isEmpty() &&
+                      !windows[2]->findChild<QToolButton*>("sendButton")->isEnabled() &&
+                      !windows[2]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled(),
+                  "Leaving clears active history, draft and sending controls");
+            wait([&] { return windows[0]->findChild<QLabel*>("chatPresence")->text().contains(QStringLiteral("2 名成员")); });
+            auto const before_leave_message = pages[0]->latest_message_id();
+            windows[0]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("退出期间的群消息"));
+            windows[0]->findChild<QToolButton*>("sendButton")->click();
+            wait([&] { return pages[0]->latest_message_id() > before_leave_message; });
+            check(windows[2]->findChild<QListView*>("conversationList")->model()->rowCount() == 0,
+                  "Former member receives no new conversation");
+            bool reinvited = false;
+            int invite_step = 0;
+            QTimer invite_poll;
+            QObject::connect(&invite_poll, &QTimer::timeout, [&] {
+                auto* dialog = qobject_cast<group_dialog*>(QApplication::activeModalWidget());
+                if (!dialog)
+                {
+                    return;
+                }
+                auto* list = dialog->findChild<QListWidget*>("groupMembersList");
+                auto* invite = dialog->findChild<QPushButton*>("groupInviteButton");
+                if (invite_step == 0 && list->count() == 2 && invite->isEnabled())
+                {
+                    ++invite_step;
+                    QTimer::singleShot(20, [&] {
+                        auto* picker = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                        check(picker && picker->objectName() == "groupInviteDialog", "Invite contact dialog");
+                        auto* contacts = picker->findChild<QListWidget*>();
+                        check(contacts->count() == 1 && contacts->item(0)->text() == names[2], "Invite only own nonmember contacts");
+                        contacts->item(0)->setCheckState(Qt::Checked);
+                        picker->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->click();
+                    });
+                    invite->click();
+                }
+                else if (invite_step == 1 && list->count() == 3)
+                {
+                    reinvited = true;
+                    invite_poll.stop();
+                    dialog->accept();
+                }
+            });
+            invite_poll.start(20);
+            windows[0]->findChild<QPushButton*>("chatHeaderButton")->click();
+            wait([&] { return reinvited && pages[2]->active_conversation() == group && pages[2]->messages_ready(); });
+            check(windows[2]->findChild<QListView*>("messageList")->model()->rowCount() ==
+                      windows[0]->findChild<QListView*>("messageList")->model()->rowCount(), "Reinvited Qt member recovers full history");
         }
         std::cout << "PASS three real Qt windows: login, contacts group creation, member list, message author, "
                      "realtime, server restart and automatic recovery\n";

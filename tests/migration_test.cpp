@@ -41,7 +41,7 @@ int main(int argc, char** argv)
               "004_create_message_read_positions.sql", "005_add_messages_recipient_index.sql",
               "006_create_contacts.sql", "007_add_user_last_seen.sql", "008_create_conversations.sql",
               "009_add_message_replies.sql", "010_add_message_edits.sql", "011_add_message_deletion.sql",
-              "012_create_message_attachments.sql", "013_add_group_roles.sql"})
+              "012_create_message_attachments.sql", "013_add_group_roles.sql", "014_add_member_join_position.sql"})
         {
             if (std::string(name).starts_with("008"))
             {
@@ -63,7 +63,7 @@ int main(int argc, char** argv)
                               "AND (SELECT count(*) FROM messages WHERE id IN (1,2,3))=3 "
                               "AND (SELECT count(*) FROM contacts)=1 "
                               "AND NOT EXISTS(SELECT 1 FROM conversations WHERE owner_id IS NOT NULL) "
-                              "AND NOT EXISTS(SELECT 1 FROM conversation_members WHERE is_admin) "
+                              "AND NOT EXISTS(SELECT 1 FROM conversation_members WHERE is_admin OR joined_message_id<>0) "
                               "AND (SELECT count(*) FROM conversation_members WHERE last_read_message_id IN (1,2))=2 "
                               "AND NOT EXISTS(SELECT 1 FROM messages m JOIN conversations c ON c.id=m.conversation_id "
                               "WHERE c.kind<>'direct' OR (m.id=3 AND c.direct_user_low<>c.direct_user_high))");

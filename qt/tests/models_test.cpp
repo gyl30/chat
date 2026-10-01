@@ -36,7 +36,7 @@ int main(int argc, char** argv)
         return 1;
     }
     messages.set_read_positions({{1, 0}, {2, outgoing.id}, {3, 0}});
-    if (second.data(message_model::read_role).toBool())
+    if (!second.data(message_model::read_role).toBool())
     {
         return 1;
     }
@@ -47,6 +47,16 @@ int main(int argc, char** argv)
     }
     messages.set_read_message(3, incoming.id);
     if (!second.data(message_model::read_role).toBool())
+    {
+        return 1;
+    }
+    messages.set_read_positions({{1, outgoing.id}, {4, 0}});
+    if (second.data(message_model::read_role).toBool())
+    {
+        return 1;
+    }
+    messages.set_read_positions({{1, outgoing.id}});
+    if (second.data(message_model::read_role).toBool())
     {
         return 1;
     }
@@ -78,6 +88,25 @@ int main(int argc, char** argv)
     if (!first.data(message_model::deleted_role).toBool() ||
         first.data(message_model::text_role).toString() != QStringLiteral("消息已删除") ||
         !second.data(message_model::reply_text_role).toString().contains(QStringLiteral("消息已删除")))
+    {
+        return 1;
+    }
+    messages.reset(1);
+    messages.merge_messages({outgoing});
+    messages.set_read_positions({{1, outgoing.id}, {2, 0}});
+    if (messages.index(0, 0).data(message_model::read_role).toBool())
+    {
+        return 1;
+    }
+    messages.set_read_message(2, outgoing.id);
+    if (!messages.index(0, 0).data(message_model::read_role).toBool())
+    {
+        return 1;
+    }
+    messages.reset(1);
+    messages.merge_messages({outgoing});
+    messages.set_read_positions({{1, outgoing.id}});
+    if (!messages.index(0, 0).data(message_model::read_role).toBool())
     {
         return 1;
     }

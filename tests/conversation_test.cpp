@@ -125,6 +125,10 @@ struct fixture
 
     void cleanup()
     {
+        if (PQtransactionStatus(database.get()) != PQTRANS_IDLE)
+        {
+            execute("ROLLBACK");
+        }
         for (auto id : groups)
         {
             execute("DELETE FROM conversations WHERE id=" + std::to_string(id));
@@ -820,10 +824,135 @@ int run_group_tests()
             });
             require(!direct_admin && direct_admin.error().code == -32006 && !invalid_group && invalid_group.error().code == -32602,
                     "Group-only management and NUL title validation");
+            auto owner_leave = call<bool>([&](auto handler) { managed[0].leave_group(managed_group, handler); });
+            auto ordinary_rename = call<bool>([&](auto handler) { managed[1].rename_group(managed_group, "拒绝", handler); });
+            auto ordinary_invite = call<bool>([&](auto handler) {
+                managed[1].invite_group_members(managed_group, {managed_ids[4]}, handler);
+            });
+            require(!owner_leave && owner_leave.error().code == -32009 && !ordinary_rename &&
+                        ordinary_rename.error().code == -32009 && !ordinary_invite && ordinary_invite.error().code == -32009,
+                    "Owner stays and ordinary members cannot manage group");
+            auto renamed = call<bool>([&](auto handler) { managed[2].rename_group(managed_group, "管理员改名", handler); });
+            auto same_name = call<bool>([&](auto handler) { managed[0].rename_group(managed_group, "管理员改名", handler); });
+            auto nul_name = call<bool>([&](auto handler) { managed[0].rename_group(managed_group, std::string("a\0b", 3), handler); });
+            auto duplicate_invite = call<bool>([&](auto handler) {
+                managed[0].invite_group_members(managed_group, {managed_ids[4], managed_ids[4]}, handler);
+            });
+            require(renamed && *renamed && same_name && !*same_name && !nul_name && nul_name.error().code == -32602 &&
+                        !duplicate_invite && duplicate_invite.error().code == -32602 &&
+                        conversation(managed[1], managed_group).username == "管理员改名", "Rename persistence and parameter checks");
+            auto own_message = call<chat::send_message_result>([&](auto handler) {
+                managed[4].send_message(managed_group, "退出前自己的消息", handler);
+            });
+            auto old_file = call<chat::message>([&](auto handler) {
+                managed[0].send_attachment(managed_group, "history.bin", "old file", handler);
+            });
+            require(own_message && old_file, "Former member message and attachment fixtures");
+            std::size_t changes_before_leave;
+            {
+                std::lock_guard lock(managed_events[4].mutex);
+                changes_before_leave = managed_events[4].conversations.size();
+            }
+            auto left = call<bool>([&](auto handler) { managed[4].leave_group(managed_group, handler); });
+            require(left && *left, "Administrator can leave");
+            managed_events[4].wait([&] { return managed_events[4].conversations.size() > changes_before_leave; });
+            auto left_conversations = call<chat::conversations_result>([&](auto handler) { managed[4].get_conversations({}, handler); });
+            require(left_conversations && std::none_of(left_conversations->conversations.begin(), left_conversations->conversations.end(),
+                        [&](auto const& value) { return value.id == managed_group; }), "Left group disappears from conversations");
+            auto lost_history = call<chat::messages_result>([&](auto handler) { managed[4].get_messages(managed_group, {}, handler); });
+            auto lost_members = call<std::vector<chat::conversation_member>>([&](auto handler) { managed[4].get_members(managed_group, handler); });
+            auto lost_send = call<chat::send_message_result>([&](auto handler) { managed[4].send_message(managed_group, "denied", handler); });
+            auto lost_search = call<chat::messages_result>([&](auto handler) { managed[4].search_messages(managed_group, "退出", {}, handler); });
+            auto lost_read = call<std::int64_t>([&](auto handler) { managed[4].mark_read(managed_group, own_message->message_id, handler); });
+            auto lost_typing = call<bool>([&](auto handler) { managed[4].set_typing(managed_group, true, handler); });
+            auto lost_edit = call<chat::message>([&](auto handler) { managed[4].edit_message(managed_group, own_message->message_id, "denied", handler); });
+            auto lost_delete = call<chat::message>([&](auto handler) { managed[4].delete_message(managed_group, own_message->message_id, handler); });
+            auto lost_file = call<std::string>([&](auto handler) { managed[4].get_attachment(managed_group, old_file->id, handler); });
+            require(!lost_history && !lost_members && !lost_send && !lost_search && !lost_read && !lost_typing &&
+                        !lost_edit && !lost_delete && !lost_file, "Left member loses all group access, including own messages");
+            std::size_t old_message_count, old_read_count, old_typing_count;
+            {
+                std::lock_guard lock(managed_events[4].mutex);
+                old_message_count = managed_events[4].messages.size();
+                old_read_count = managed_events[4].reads.size();
+                old_typing_count = managed_events[4].typing.size();
+            }
+            auto after_leave = call<chat::send_message_result>([&](auto handler) {
+                managed[0].send_message(managed_group, "退出之后的消息", handler);
+            });
+            require(after_leave.has_value(), "Send after another member leaves");
+            require(call<std::int64_t>([&](auto handler) { managed[1].mark_read(managed_group, after_leave->message_id, handler); }).has_value(),
+                    "Read after another member leaves");
+            require(call<bool>([&](auto handler) { managed[0].set_typing(managed_group, true, handler); }).has_value(),
+                    "Typing after another member leaves");
+            auto barrier = call<std::vector<chat::conversation_member>>([&](auto handler) { managed[4].get_members(managed_group, handler); });
+            require(!barrier && barrier.error().code == -32006, "Left member event barrier");
+            {
+                std::lock_guard lock(managed_events[4].mutex);
+                require(managed_events[4].messages.size() == old_message_count && managed_events[4].reads.size() == old_read_count &&
+                            managed_events[4].typing.size() == old_typing_count, "Left member receives no message/read/typing notifications");
+            }
+            auto missing_contact = call<bool>([&](auto handler) {
+                managed[2].invite_group_members(managed_group, {managed_ids[4]}, handler);
+            });
+            require(!missing_contact && missing_contact.error().code == -32005, "Administrators must invite their own contacts");
+            require(call<chat::user>([&](auto handler) { managed[2].add_contact(managed_ids[4], handler); }).has_value(),
+                    "Administrator contact");
+            data.execute("BEGIN");
+            data.execute("UPDATE conversations SET title=title WHERE id=" + std::to_string(managed_group));
+            data.execute("INSERT INTO messages(sender_id,conversation_id,body) VALUES(" + std::to_string(managed_ids[0]) +
+                         "," + std::to_string(managed_group) + ",'锁等待期间的消息')");
+            auto invite = std::async(std::launch::async, [&] {
+                return call<bool>([&](auto handler) { managed[2].invite_group_members(managed_group, {managed_ids[4]}, handler); });
+            });
+            bool blocked = false;
+            for (int i = 0; i < 100 && !blocked; ++i)
+            {
+                std::string query = "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE " + std::to_string(PQbackendPID(data.database.get())) +
+                                    "=ANY(pg_blocking_pids(pid)))";
+                std::unique_ptr<PGresult, decltype(&PQclear)> result(PQexec(data.database.get(), query.c_str()), &PQclear);
+                blocked = result && PQresultStatus(result.get()) == PGRES_TUPLES_OK && std::string_view(PQgetvalue(result.get(), 0, 0)) == "t";
+                if (!blocked)
+                {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                }
+            }
+            data.execute("COMMIT");
+            auto invited = invite.get();
+            require(blocked && invited && *invited, "Invitation waits for conversation lock");
+            auto rejoined = call<chat::messages_result>([&](auto handler) { managed[4].get_messages(managed_group, {}, handler); });
+            auto rejoined_roles = call<std::vector<chat::conversation_member>>([&](auto handler) { managed[4].get_members(managed_group, handler); });
+            auto rejoined_file = call<std::string>([&](auto handler) { managed[4].get_attachment(managed_group, old_file->id, handler); });
+            require(rejoined && rejoined->messages.size() == 4 && position(*rejoined, managed_ids[4]) == 0 &&
+                        conversation(managed[4], managed_group).unread == 0 && rejoined_roles &&
+                        rejoined_roles->back().role == chat::member_role::member && rejoined_file && *rejoined_file == "old file",
+                    "Rejoin exposes full history, resets admin role, excludes prejoin unread and does not fake reading");
+            auto again = call<bool>([&](auto handler) { managed[0].invite_group_members(managed_group, {managed_ids[4]}, handler); });
+            require(again && !*again, "Repeated invitation preserves existing membership");
+            auto next_message = call<chat::send_message_result>([&](auto handler) { managed[0].send_message(managed_group, "入群之后", handler); });
+            require(next_message && conversation(managed[4], managed_group).unread == 1,
+                    "Messages after joining count as unread");
+            managed_events[4].wait([&] { return std::any_of(managed_events[4].messages.begin(), managed_events[4].messages.end(),
+                [&](auto const& value) { return value.id == next_message->message_id; }); });
+            auto read_after_join = call<std::int64_t>([&](auto handler) { managed[4].mark_read(managed_group, next_message->message_id, handler); });
+            require(read_after_join && *read_after_join == next_message->message_id && conversation(managed[4], managed_group).unread == 0,
+                    "Only mark_read advances actual reading");
+            auto slot = call<bool>([&](auto handler) { managed[0].set_group_admin(managed_group, managed_ids[1], true, handler); });
+            require(slot && *slot, "Leaving administrator frees a slot");
+            managed[4].close();
+            managed_events[4].wait([&] { return managed_events[4].disconnected == 1; });
+            managed[4].connect(server.url);
+            managed_events[4].wait([&] { return managed_events[4].connected == 2; });
+            auto reauth = call<chat::authentication_result>([&](auto handler) {
+                managed[4].authenticate("chat_roles_test_" + std::to_string(getpid()) + "_4", "roles password", handler);
+            });
+            auto snapshot = call<chat::messages_result>([&](auto handler) { managed[4].get_messages(managed_group, {}, handler); });
+            require(reauth && reauth->authenticated && snapshot && position(*snapshot, managed_ids[4]) == next_message->message_id &&
+                        conversation(managed[4], managed_group).username == "管理员改名", "Rejoin state and title survive reconnect");
             for (int i = 0; i < 5; ++i)
             {
                 managed[i].close();
-                managed_events[i].wait([&, i] { return managed_events[i].disconnected == (i == 2 ? 2 : 1); });
+                managed_events[i].wait([&, i] { return managed_events[i].disconnected == (i == 2 || i == 4 ? 2 : 1); });
             }
         }
         data.cleanup();

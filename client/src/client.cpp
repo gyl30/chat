@@ -1680,6 +1680,29 @@ void client::set_conversation_handler(conversation_changed_handler handler)
     impl_->conversation_handler_ = std::move(handler);
 }
 
+void client::rename_group(std::int64_t conversation, std::string title, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_action(
+        "rename_group", {{"conversation", conversation}, {"title", std::move(title)}}, std::move(handler)));
+}
+
+void client::invite_group_members(std::int64_t conversation, std::vector<std::int64_t> members, group_action_handler handler)
+{
+    boost::json::array values;
+    for (auto id : members)
+    {
+        values.push_back(id);
+    }
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_action(
+        "invite_group_members", {{"conversation", conversation}, {"members", std::move(values)}}, std::move(handler)));
+}
+
+void client::leave_group(std::int64_t conversation, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_action(
+        "leave_group", {{"conversation", conversation}}, std::move(handler)));
+}
+
 void client::get_contacts(users_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_users("get_contacts", {}, std::move(handler)));

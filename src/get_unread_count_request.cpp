@@ -100,7 +100,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_unread_count(js
 
         auto query_result = co_await lease.connection().execute_row(
             "SELECT (SELECT count(*) FROM messages m WHERE m.conversation_id=c.id "
-            "AND m.id>own.last_read_message_id AND NOT m.deleted "
+            "AND m.id>GREATEST(own.last_read_message_id,own.joined_message_id) AND NOT m.deleted "
             "AND (m.sender_id<>$1::bigint OR c.direct_user_low=c.direct_user_high))::text "
             "FROM conversation_members own JOIN conversations c ON c.id=own.conversation_id "
             "WHERE own.user_id=$1::bigint AND own.conversation_id=$2::bigint",

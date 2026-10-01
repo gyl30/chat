@@ -81,6 +81,9 @@ class client
     void create_group(std::string title, std::vector<std::int64_t> members, conversation_handler handler);
     void get_members(std::int64_t conversation, members_handler handler);
     void set_group_admin(std::int64_t conversation, std::int64_t user, bool admin, group_action_handler handler);
+    void rename_group(std::int64_t conversation, std::string title, group_action_handler handler);
+    void invite_group_members(std::int64_t conversation, std::vector<std::int64_t> members, group_action_handler handler);
+    void leave_group(std::int64_t conversation, group_action_handler handler);
     void get_contacts(users_handler handler);
     void get_presence(presences_handler handler);
     void get_messages(std::int64_t conversation, std::optional<std::int64_t> before, messages_handler handler,

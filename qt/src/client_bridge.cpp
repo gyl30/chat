@@ -242,25 +242,47 @@ void client_bridge::create_group(QString title, QList<qint64> members)
 void client_bridge::get_members(qint64 conversation)
 {
     client_->get_members(conversation,
-                         [this, conversation](auto result)
-                         {
-                             QList<member_data> values;
-                             if (result)
-                             {
-                                 for (auto const& user : *result)
-                                 {
-                                     values.push_back(member_data{user.id, from_utf8(user.username), user.role});
-                                 }
-                             }
-                             emit members_received(conversation, std::move(values),
-                                                   result ? QString{} : from_utf8(result.error().message));
-    });
+        [this, conversation](std::expected<std::vector<chat::conversation_member>, chat::error> result) {
+            if (!result)
+            {
+                emit members_received(conversation, {}, from_utf8(result.error().message));
+                return;
+            }
+            QList<member_data> values;
+            for (auto const& user : *result)
+            {
+                values.push_back(member_data{user.id, from_utf8(user.username), user.role});
+            }
+            emit members_received(conversation, std::move(values), {});
+        });
 }
 
 void client_bridge::set_group_admin(qint64 conversation, qint64 user, bool admin)
 {
     client_->set_group_admin(conversation, user, admin, [this, conversation](auto result) {
-        emit group_action_finished(conversation, result ? QString{} : from_utf8(result.error().message));
+        emit group_action_finished(conversation, false, result ? QString{} : from_utf8(result.error().message));
+    });
+}
+
+void client_bridge::rename_group(qint64 conversation, QString title)
+{
+    client_->rename_group(conversation, to_utf8(title), [this, conversation](auto result) {
+        emit group_action_finished(conversation, false, result ? QString{} : from_utf8(result.error().message));
+    });
+}
+
+void client_bridge::invite_group_members(qint64 conversation, QList<qint64> members)
+{
+    client_->invite_group_members(conversation, std::vector<std::int64_t>(members.begin(), members.end()),
+        [this, conversation](auto result) {
+            emit group_action_finished(conversation, false, result ? QString{} : from_utf8(result.error().message));
+        });
+}
+
+void client_bridge::leave_group(qint64 conversation)
+{
+    client_->leave_group(conversation, [this, conversation](auto result) {
+        emit group_action_finished(conversation, result.has_value(), result ? QString{} : from_utf8(result.error().message));
     });
 }
 

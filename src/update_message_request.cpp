@@ -101,6 +101,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
         "edited_at=CASE WHEN $5::boolean THEN edited_at ELSE "
         "greatest(clock_timestamp(),coalesce(edited_at,'epoch'::timestamptz)+interval '1 millisecond') END "
         "WHERE id=$3::bigint AND conversation_id=$2::bigint AND sender_id=$1::bigint AND (NOT deleted OR $5::boolean) "
+        "AND EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=$2::bigint AND user_id=$1::bigint) "
         "RETURNING edited_at), cleared AS (DELETE FROM message_attachments WHERE message_id=$3::bigint "
         "AND $5::boolean AND EXISTS(SELECT 1 FROM updated) RETURNING message_id) "
         "SELECT COALESCE(((extract(epoch FROM edited_at)*1000)::bigint)::text,'') FROM updated",

@@ -71,12 +71,12 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             }
             for (auto it = read_positions_.cbegin(); it != read_positions_.cend(); ++it)
             {
-                if (it.key() != self_user_ && it.value() < message.id)
+                if (it.key() != self_user_ && it.value() >= message.id)
                 {
-                    return false;
+                    return true;
                 }
             }
-            return read_positions_.size() > 1 || (!group_ && read_positions_.value(self_user_) >= message.id);
+            return !group_ && read_positions_.size() == 1 && read_positions_.value(self_user_) >= message.id;
         default:
             return {};
     }
@@ -214,13 +214,14 @@ void message_model::set_self_user(qint64 user)
 
 void message_model::set_read_positions(read_positions positions)
 {
-    for (auto it = positions.cbegin(); it != positions.cend(); ++it)
+    for (auto it = positions.begin(); it != positions.end(); ++it)
     {
-        if (!read_positions_.contains(it.key()))
-        {
-            read_positions_.insert(it.key(), 0);
-        }
-        set_read_message(it.key(), it.value());
+        it.value() = std::max(it.value(), read_positions_.value(it.key()));
+    }
+    read_positions_ = std::move(positions);
+    if (!messages_.isEmpty())
+    {
+        emit dataChanged(index(0, 0), index(messages_.size() - 1, 0), {read_role});
     }
 }
 

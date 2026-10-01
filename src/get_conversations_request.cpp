@@ -96,7 +96,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
         auto query_result = co_await lease.connection().execute_scalar(
             R"SQL(
         WITH page AS (
-            SELECT c.*, own.last_read_message_id,
+            SELECT c.*, own.last_read_message_id, own.joined_message_id,
                    CASE WHEN c.direct_user_low=$1::bigint THEN c.direct_user_high ELSE c.direct_user_low END AS peer
             FROM conversations c JOIN conversation_members own ON own.conversation_id=c.id
             WHERE own.user_id=$1::bigint AND (c.activity,c.id)<($2::bigint,$3::bigint)
@@ -114,7 +114,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
                       FROM messages m JOIN users author ON author.id=m.sender_id LEFT JOIN messages r ON r.id=m.reply_to_id LEFT JOIN users ra ON ra.id=r.sender_id
                       WHERE m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1),
                 'unread',(SELECT count(*) FROM messages m WHERE m.conversation_id=c.id
-                          AND m.id>c.last_read_message_id AND NOT m.deleted
+                          AND m.id>GREATEST(c.last_read_message_id,c.joined_message_id) AND NOT m.deleted
                           AND (m.sender_id<>$1::bigint OR c.direct_user_low=c.direct_user_high))
             ) ORDER BY c.activity DESC,c.id DESC) FROM visible c LEFT JOIN users u ON u.id=c.peer),'[]'::json),
             'next',CASE WHEN (SELECT count(*) FROM page)>50 THEN

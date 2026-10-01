@@ -15,6 +15,7 @@
 #include "message_data.hpp"
 #include "presence_data.hpp"
 #include "user_data.hpp"
+#include "member_data.hpp"
 
 class QLabel;
 class QLineEdit;
@@ -38,6 +39,8 @@ class chat_widget final : public QWidget
 
     void set_user(QString const& username, qint64 user = 0);
     void open_conversation(conversation_data conversation);
+    void close_conversation(qint64 conversation);
+    void set_members(qint64 conversation, QList<member_data> members, QString const& error);
     void set_loading();
     void set_error(QString message);
     void set_connection_available(bool available);
