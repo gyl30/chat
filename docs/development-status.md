@@ -1,6 +1,6 @@
-# 当前核心 IM 路线完成记录
+# 开发状态
 
-本记录对应 2026-10-01 的仓库实际历史。阶段提交和 push 结果以 Git 历史为准，Telegram 调研与裁剪依据见 [调研记录](telegram-group-design-research.md)。
+本记录对应截至 2026-10-02 的仓库实际历史。阶段提交和 push 结果以 Git 历史为准，Telegram 调研与裁剪依据见 [调研记录](telegram-group-design-research.md)。
 
 ## 已完成路线
 
@@ -18,7 +18,7 @@
 | `27b2a88` | 管理员/群主邀请联系人、改名；非群主退出；重新加入；快照恢复及群已读语义 | SQL 014 |
 | `6b6a193` | 稳态审计、libpq 测试环境、过期回调及生命周期/并发验证 | 无 |
 | `6ff2ac6` | 群主转让、成员移除、权限与实时隔离、再邀请及 Qt 生命周期 | 无 |
-| 本次头像提交 | 真实用户头像上传、获取、更换、清除、实时更新与 Qt 缓存展示 | SQL 015 |
+| `bac6066` | 真实用户头像上传、获取、更换、清除、实时更新与 Qt 缓存展示 | SQL 015 |
 
 另外完成历史大响应接收、编辑消息布局和消息操作按钮对比度修复，分别见 `32f3f3b`、`a545c9a`、`f73b8f4`。
 
@@ -78,7 +78,7 @@ git diff --check
 
 当前不做入群审批、邀请链接、@mention、公告、mute、pin 或 reaction。群主必须先手动转让再退出；群主/管理员没有编辑、删除他人消息的权限。退出或被移除者本地活动历史清空；服务端仍保留群消息，重新加入可重新获取。移除不等于永久封禁，重新邀请恢复普通成员，旧管理员身份和真实读位不继承。
 
-后续可以按真实使用需求独立评估已读成员列表、附件存储规模、图片缩略图及移除提示。这些候选不自动开工，不扩大到多设备、微服务、Redis、Kafka、event sourcing 或 CQRS。
+2026-10-02 启动新的长期路线：验证基线、群已读详情、reaction、图片气泡预览、桌面通知、会话 mute/pin、群 mention、群置顶消息、公告、邀请链接和审批，依序独立实施。此列表表示规划，尚未实现的阶段不计入已完成能力。范围仍不扩大到多设备、微服务、Redis、Kafka、event sourcing 或 CQRS。
 
 ## 稳态与工程收口
 
@@ -159,3 +159,21 @@ Qt 全链路测试在本阶段一次 ASan 下实测 29.27 s，接近原 30 s 总
 | UBSan `build/ubsan` | PASS | 14/14 PASS | 54.48 s |
 
 ASan/UBSan 的 C、C++ 和 executable linker 选项沿用前一阶段；未使用 suppression 或排除失败测试。新增独立 `avatar_image` 测试，其余头像行为扩展既有 server/client/Qt 测试。最终 ASan Qt 全链路实测 29.99 s。`git diff --check` PASS，无临时 migration、调试打印、废弃 API 兼容层或明显 TODO；本阶段仅交付头像，完成后停止，不继续新产品路线。
+
+## 长期路线：可重复验证基线
+
+新的长期 Goal 从重新 fetch 后的 `HEAD = origin/main = bac6066`、干净工作树开始。代码、SQL 015、测试和前述验证记录确认头像阶段已经完成，没有重复实现。本阶段没有新增产品能力或 migration。
+
+新增 `tests/verify.sh`，从任意工作目录顺序运行 normal/ASan/UBSan 完整配置、`-j12` 构建、Qt ON、全部 CTest，最后检查 diff；CTest 显式单进程，避免共享测试 schema 和 Qt 固定端口竞争。继承 libpq 环境，不自动迁移或保存凭据。工具链、空测试库初始化、测试隔离前提及 CI 评估见 [验证说明](verification.md)。
+
+GitHub Actions 尚未接入：当前完整验证的是特定 GCC 16 trunk、Boost 1.92 和固定 third gitlink，标准 hosted runner 没有对应编译器，仓库尚无固定工具链获取方案。本阶段交付可靠本地入口，没有提交未验证的 workflow。PostgreSQL service 和 Qt offscreen 本身不构成接入障碍。
+
+实际执行新入口一次，全部构建通过，未排除服务器/Qt 测试或使用 sanitizer suppression：
+
+| 构建 | 完整 build | 完整 CTest | 总耗时 |
+|---|---|---|---|
+| 正常 `build` | PASS | 14/14 PASS | 42.72 s |
+| ASan `build/asan` | PASS | 14/14 PASS | 61.16 s |
+| UBSan `build/ubsan` | PASS | 14/14 PASS | 57.98 s |
+
+`bash -n tests/verify.sh` 与 `git diff --check` PASS。下一阶段为群聊已读详情；其余长期路线仍属规划。
