@@ -12,7 +12,8 @@
 #include <QStandardPaths>
 #include <QVBoxLayout>
 
-attachment_dialog::attachment_dialog(qint64 conversation, qint64 message, QString filename, bool preview, QWidget* parent)
+attachment_dialog::attachment_dialog(qint64 conversation, qint64 message, QString filename, bool preview, QWidget* parent,
+                                     QPixmap image)
     : QDialog(parent), conversation_(conversation), message_(message), filename_(std::move(filename)), preview_(preview)
 {
     setObjectName(QStringLiteral("attachmentDialog"));
@@ -27,6 +28,7 @@ attachment_dialog::attachment_dialog(qint64 conversation, qint64 message, QStrin
     image_ = new QLabel(this);
     image_->setObjectName(QStringLiteral("attachmentImage"));
     image_->setAlignment(Qt::AlignCenter);
+    image_->setPixmap(std::move(image));
     image_->hide();
     layout->addWidget(image_, 1);
     save_button_ = new QPushButton(QStringLiteral("保存文件"), this);
@@ -71,6 +73,7 @@ void attachment_dialog::set_data(qint64 conversation, qint64 message, QByteArray
     {
         return;
     }
+    if (!image_->pixmap().isNull()) { image_->show(); return; }
     QBuffer buffer(&data_);
     buffer.open(QIODevice::ReadOnly);
     QImageReader::setAllocationLimit(64);

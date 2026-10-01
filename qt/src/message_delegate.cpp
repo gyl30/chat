@@ -167,6 +167,10 @@ struct message_layout
     QList<reaction_data> reactions;
     QList<QRect> reaction_rects;
     int reactions_height = 0;
+    QPixmap image;
+    QString image_status;
+    int image_width = 0;
+    int image_height = 0;
 };
 
 message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex const& index)
@@ -230,6 +234,17 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
 
     auto content_width = result.text_width;
     auto content_height = result.text_height;
+    auto const image_status = index.data(message_model::image_status_role);
+    if (image_status.isValid() && index.data(message_model::attachment_type_role).toString().startsWith(QStringLiteral("image/")))
+    {
+        result.image = index.data(message_model::image_role).value<QPixmap>();
+        result.image_status = image_status.toString();
+        result.image_width = std::min(320, inner_max);
+        result.image_height = 248;
+        content_width = std::max(content_width, result.image_width);
+        content_height += result.image_height;
+        result.time_on_text_line = false;
+    }
     if (metadata_width > 0)
     {
         if (result.time_on_text_line)
@@ -449,6 +464,27 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     }
 
     painter->setFont(option.font);
+    if (layout.image_height > 0)
+    {
+        QRect frame(content_left, content_top, layout.image_width, layout.image_height - 8);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(QColor(QStringLiteral("#EDF1EE")));
+        painter->drawRoundedRect(frame, 8, 8);
+        if (!layout.image.isNull())
+        {
+            auto const size = layout.image.size().scaled(frame.size(), Qt::KeepAspectRatio);
+            QRect target(QPoint(0, 0), size);
+            target.moveCenter(frame.center());
+            painter->setRenderHint(QPainter::SmoothPixmapTransform);
+            painter->drawPixmap(target, layout.image);
+        }
+        else
+        {
+            painter->setPen(QColor(QStringLiteral("#6E7A74")));
+            painter->drawText(frame.adjusted(12, 8, -12, -8), Qt::AlignCenter | Qt::TextWordWrap, layout.image_status);
+        }
+        content_top += layout.image_height;
+    }
     painter->setPen(QColor(QStringLiteral("#26342E")));
     auto const metadata_width = layout.time_width
         + ((layout.time_width > 0 && layout.receipt_width > 0) ? 3 : 0)
@@ -540,7 +576,13 @@ bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model,
     auto const content_right = bubble_x + layout.bubble_width - chat_theme::message_padding_horizontal;
     auto const metadata_width = layout.time_width + layout.receipt_width
         + ((layout.time_width > 0 && layout.receipt_width > 0) ? 3 : 0);
-    auto const content_top = y + chat_theme::message_padding_vertical + layout.name_height;
+    auto const content_top = y + chat_theme::message_padding_vertical + layout.name_height + layout.image_height;
+    if (layout.image_height > 0 && QRect(bubble_x + chat_theme::message_padding_horizontal,
+        content_top - layout.image_height, layout.image_width, layout.image_height - 8).contains(mouse->position().toPoint()))
+    {
+        emit image_clicked(index);
+        return true;
+    }
     for (int i = 0; i < layout.reactions.size(); ++i)
     {
         auto const rect = layout.reaction_rects[i].translated(bubble_x + chat_theme::message_padding_horizontal,

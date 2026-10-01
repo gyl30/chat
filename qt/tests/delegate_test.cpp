@@ -6,6 +6,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QStyleOptionViewItem>
+#include <chat/attachment.hpp>
 
 #include "message_delegate.hpp"
 #include "avatar.hpp"
@@ -16,6 +17,7 @@
 #include "../../tests/avatar_fixture.hpp"
 #include "message_model.hpp"
 #include "theme.hpp"
+#include "message_images.hpp"
 
 int main(int argc, char** argv)
 {
@@ -24,6 +26,81 @@ int main(int argc, char** argv)
     int downloads = 0;
     QObject::connect(&avatars, &avatar_cache::requested, &avatars, [&](qint64, qint64) { ++downloads; });
     auto const png = QByteArray::fromBase64(QByteArray(avatar_png_base64.data(), avatar_png_base64.size()));
+    message_images pictures;
+    QList<qint64> image_requests;
+    QObject::connect(&pictures, &message_images::requested, &pictures, [&](qint64 conversation, qint64 message) {
+        if (conversation != 70) { std::abort(); }
+        image_requests.push_back(message);
+    });
+    for (qint64 id : {1, 2, 3, 4}) { pictures.observe(70, id); pictures.observe(70, id); }
+    if (image_requests != QList<qint64>{1, 2, 3}) { return 1; }
+    pictures.receive(71, 1, png, {});
+    if (!pictures.image(1).isNull()) { return 1; }
+    pictures.receive(70, 1, png, {});
+    if (pictures.image(1).isNull() || pictures.bytes(1) != png || image_requests != QList<qint64>{1, 2, 3, 4}) { return 1; }
+    pictures.observe(70, 1);
+    if (image_requests.size() != 4) { return 1; }
+    pictures.receive(70, 2, QByteArray::fromHex("89504e470d0a1a0a"), {});
+    pictures.receive(70, 3, {}, QStringLiteral("download failed"));
+    if (!pictures.image(2).isNull() || pictures.status(2).isEmpty() || pictures.status(3).isEmpty()) { return 1; }
+    pictures.retry();
+    pictures.receive(70, 4, png, {});
+    if (!pictures.image(4).isNull() || pictures.image(1).isNull()) { return 1; }
+    pictures.observe(70, 4);
+    pictures.receive(70, 4, png, {});
+    if (pictures.image(4).isNull()) { return 1; }
+    message_model image_messages(nullptr, nullptr, &pictures);
+    image_messages.reset(70);
+    message_data photo;
+    photo.id = 1;
+    photo.conversation = 70;
+    photo.from = 2;
+    photo.username = "image sender";
+    photo.attachment = attachment_data{"photo.png", "image/png", png.size()};
+    image_messages.add_message(photo);
+    QStyleOptionViewItem image_option;
+    image_option.rect = QRect(0, 0, 640, 450);
+    image_option.font = QApplication::font();
+    message_delegate image_delegate;
+    QImage photo_render(image_option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    auto const pixmap_key = pictures.image(1).cacheKey();
+    for (int i = 0; i < 10; ++i)
+    {
+        photo_render.fill(Qt::white);
+        QPainter photo_painter(&photo_render);
+        image_delegate.paint(&photo_painter, image_option, image_messages.index(0, 0));
+    }
+    if (pictures.image(1).cacheKey() != pixmap_key || image_requests.size() != 5 ||
+        image_delegate.sizeHint(image_option, image_messages.index(0, 0)).height() < 240) { return 1; }
+    int image_clicks = 0;
+    QObject::connect(&image_delegate, &message_delegate::image_clicked, &image_delegate, [&](QModelIndex const& index) {
+        if (index.data(message_model::id_role).toLongLong() != 1) { std::abort(); }
+        ++image_clicks;
+    });
+    QMouseEvent photo_click(QEvent::MouseButtonRelease, QPointF(150, 120), QPointF(150, 120),
+                            Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    image_delegate.editorEvent(&photo_click, &image_messages, image_option, image_messages.index(0, 0));
+    if (image_clicks != 1) { return 1; }
+    photo.deleted = true;
+    image_messages.update_message(photo);
+    if (!pictures.bytes(1).isEmpty() || !image_messages.index(0, 0).data(message_model::image_role).value<QPixmap>().isNull()) { return 1; }
+    pictures.remove(70);
+    if (!pictures.bytes(4).isEmpty()) { return 1; }
+    auto large_png = png + QByteArray(static_cast<qsizetype>(chat::max_attachment_size) - png.size(), '\0');
+    for (qint64 id = 10; id < 18; ++id) { pictures.observe(70, id); pictures.receive(70, id, large_png, {}); }
+    if (!pictures.bytes(10).isEmpty() || pictures.image(17).isNull()) { return 1; }
+    pictures.clear();
+    if (!pictures.bytes(17).isEmpty()) { return 1; }
+    image_requests.clear();
+    for (qint64 id = 20; id < 25; ++id) { pictures.observe(70, id); }
+    pictures.discard_queued();
+    pictures.observe(70, 30);
+    pictures.receive(70, 20, png, {});
+    pictures.receive(70, 21, png, {});
+    pictures.receive(70, 22, png, {});
+    if (image_requests != QList<qint64>{20, 21, 22, 30} || pictures.image(20).isNull()) { return 1; }
+    pictures.clear();
+    std::cout << "PASS image download deduplication, queue bound, immutable cache, paint, fallback, lifecycle and eviction\n";
     for (int i = 0; i < 100; ++i) { avatars.observe(2, {1, true}); }
     if (downloads != 1 || !avatars.image(2).isNull()) { return 1; }
     avatars.receive(2, {1, true}, png);

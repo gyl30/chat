@@ -26,6 +26,8 @@ add_library(chat_qt_widgets OBJECT
     src/message_delegate.hpp
     src/message_model.cpp
     src/message_model.hpp
+    src/message_images.cpp
+    src/message_images.hpp
     src/message_search_dialog.cpp
     src/message_search_dialog.hpp
     src/presence.hpp

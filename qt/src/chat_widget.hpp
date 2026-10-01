@@ -17,6 +17,7 @@
 #include "presence_data.hpp"
 #include "user_data.hpp"
 #include "member_data.hpp"
+#include "message_images.hpp"
 
 class QLabel;
 class QLineEdit;
@@ -39,6 +40,7 @@ class chat_widget final : public QWidget
     explicit chat_widget(QWidget* parent = nullptr);
 
     avatar_cache& avatars() { return avatars_; }
+    message_images& images() { return images_; }
     void finish_avatar_update(QString error);
     void set_user(QString const& username, qint64 user = 0);
     void open_conversation(conversation_data conversation);
@@ -96,6 +98,9 @@ class chat_widget final : public QWidget
     void attachment_open_requested(qint64 conversation, qint64 message, QString filename, bool preview);
     void typing_requested(qint64 conversation, bool typing);
 
+   protected:
+    bool eventFilter(QObject* object, QEvent* event) override;
+
    private:
     void show_conversations_section();
     void show_contacts_section();
@@ -116,8 +121,10 @@ class chat_widget final : public QWidget
     void set_message_status(QString message);
     void stop_typing();
     void update_typing_label();
+    void load_visible_images();
 
     avatar_cache avatars_;
+    message_images images_;
     bool avatar_updating_ = false;
     QToolButton* profile_avatar_ = nullptr;
     QToolButton* chats_navigation_ = nullptr;

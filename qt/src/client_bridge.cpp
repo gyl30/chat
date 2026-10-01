@@ -492,6 +492,19 @@ void client_bridge::delete_message(qint64 conversation, qint64 message)
                             });
 }
 
+void client_bridge::get_message_image(qint64 conversation, qint64 message)
+{
+    auto const generation = connection_generation_.load();
+    client_->get_attachment(conversation, message, [this, conversation, message, generation](auto result) mutable {
+        QMetaObject::invokeMethod(this, [this, conversation, message, generation, result = std::move(result)] {
+            if (generation != connection_generation_) { return; }
+            emit message_image_received(conversation, message,
+                result ? QByteArray(result->data(), static_cast<qsizetype>(result->size())) : QByteArray{},
+                result ? QString{} : from_utf8(result.error().message));
+        }, Qt::QueuedConnection);
+    });
+}
+
 void client_bridge::edit_message(qint64 conversation, qint64 message, QString text)
 {
     client_->edit_message(conversation, message, to_utf8(text),

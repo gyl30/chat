@@ -33,12 +33,12 @@ void require(bool condition, std::string const& message)
     }
 }
 
-template <class T, class F> std::expected<T, chat::error> call(F operation)
+template <class T, class F> std::expected<T, chat::error> call(F operation, std::chrono::seconds timeout = std::chrono::seconds(5))
 {
     auto promise = std::make_shared<std::promise<std::expected<T, chat::error>>>();
     auto future = promise->get_future();
     operation([promise](auto result) { promise->set_value(std::move(result)); });
-    require(future.wait_for(std::chrono::seconds(5)) == std::future_status::ready, "RPC timeout");
+    require(future.wait_for(timeout) == std::future_status::ready, "RPC timeout");
     return future.get();
 }
 
@@ -862,6 +862,26 @@ int run_group_tests()
         });
         require(image_file && image_file->attachment && image_file->attachment->media_type == "image/png",
                 "Image type detected from bytes rather than filename");
+        auto const boundary_start = std::chrono::steady_clock::now();
+        auto const png_bytes = *chat::detail::decode_base64(avatar_png_base64);
+        auto boundary_bytes = png_bytes + std::string(chat::max_attachment_size - png_bytes.size(), '\0');
+        auto boundary_image = call<chat::message>([&](auto handler) {
+            a.send_attachment(*direct, "boundary.png", boundary_bytes, handler);
+        }, std::chrono::seconds(30));
+        require(boundary_image && boundary_image->attachment &&
+                boundary_image->attachment->size == static_cast<std::int64_t>(chat::max_attachment_size),
+                "Exactly 10 MiB PNG attachment is accepted");
+        auto const download_start = std::chrono::steady_clock::now();
+        auto first_download = std::async(std::launch::async, [&] {
+            return call<std::string>([&](auto handler) { b.get_attachment(*direct, boundary_image->id, handler); }, std::chrono::seconds(30));
+        });
+        auto second_download = call<std::string>([&](auto handler) { b.get_attachment(*direct, boundary_image->id, handler); }, std::chrono::seconds(30));
+        auto completed_download = first_download.get();
+        require(completed_download && second_download && *completed_download == boundary_bytes && *second_download == boundary_bytes,
+                "Concurrent downloads from one client preserve both complete 10 MiB results");
+        std::cout << "ATTACHMENT_BOUNDARY bytes=" << boundary_bytes.size() << " upload_ms="
+            << std::chrono::duration<double, std::milli>(download_start - boundary_start).count() << " two_downloads_ms="
+            << std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - download_start).count() << '\n';
         auto nul_message = call<chat::send_message_result>(
             [&](auto handler) { a.send_message(group, std::string("a\0b", 3), handler); });
         auto nul_edit = call<chat::message>(

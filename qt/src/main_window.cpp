@@ -600,7 +600,8 @@ main_window::main_window(QString server_url, QWidget* parent)
     }, Qt::QueuedConnection);
     connect(chat_page_, &chat_widget::attachment_open_requested, this,
             [this](qint64 conversation, qint64 message, QString filename, bool preview) {
-        attachment_dialog dialog(conversation, message, std::move(filename), preview, this);
+        attachment_dialog dialog(conversation, message, std::move(filename), preview, this,
+                                  preview ? chat_page_->images().image(message) : QPixmap{});
         connect(client_.get(), &client_bridge::attachment_received, &dialog, &attachment_dialog::set_data,
                 Qt::QueuedConnection);
         connect(client_.get(), &client_bridge::conversation_changed, &dialog,
@@ -614,9 +615,18 @@ main_window::main_window(QString server_url, QWidget* parent)
         connect(client_.get(), &client_bridge::disconnected, &dialog, [&dialog, conversation, message] {
             dialog.set_data(conversation, message, {}, QStringLiteral("连接已断开，请关闭后重新下载。"));
         }, Qt::QueuedConnection);
-        client_->get_attachment(conversation, message);
+        connect(client_.get(), &client_bridge::message_updated, &dialog,
+                [&dialog, message](qint64, message_data value, QString const&) {
+            if (value.id == message && value.deleted) { dialog.reject(); }
+        }, Qt::QueuedConnection);
+        auto const bytes = chat_page_->images().bytes(message);
+        if (!bytes.isEmpty()) { dialog.set_data(conversation, message, bytes, {}); }
+        else { client_->get_attachment(conversation, message); }
         dialog.exec();
     });
+    connect(&chat_page_->images(), &message_images::requested, client_.get(), &client_bridge::get_message_image);
+    connect(client_.get(), &client_bridge::message_image_received, &chat_page_->images(), &message_images::receive,
+            Qt::QueuedConnection);
 
     connect(
         client_.get(), &client_bridge::messages_received, this,

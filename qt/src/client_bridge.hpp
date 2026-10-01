@@ -59,6 +59,7 @@ class client_bridge final : public QObject
     void remove_contact(qint64 user);
     void send_attachment(qint64 conversation, QString filename, QByteArray data, qint64 reply_to = 0);
     void get_attachment(qint64 conversation, qint64 message);
+    void get_message_image(qint64 conversation, qint64 message);
     void mark_read(qint64 user, qint64 message);
     void get_avatar(qint64 user, qint64 revision);
     void set_avatar(QByteArray data);
@@ -97,6 +98,7 @@ class client_bridge final : public QObject
     void contact_removed(QString error_message);
     void attachment_sent(qint64 conversation, message_data message, QString error_message);
     void attachment_received(qint64 conversation, qint64 message, QByteArray data, QString error_message);
+    void message_image_received(qint64 conversation, qint64 message, QByteArray data, QString error_message);
     void message_search_received(qint64 conversation, QString query, qint64 before, QList<message_data> messages,
                                  read_positions positions, bool has_more, QString error_message);
     void read_marked(qint64 user, qint64 message, QString error_message);

@@ -7,6 +7,7 @@
 #include <QListView>
 #include <QListWidget>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QMenu>
 #include <QKeyEvent>
 #include <QLabel>
@@ -87,9 +88,11 @@ int main(int argc, char** argv)
             QObject::connect(&bridge, &client_bridge::attachment_received, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::message_search_received, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::reaction_changed, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::message_image_received, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::error, &bridge, [&](auto) { failed_connect.set_value(); }, Qt::DirectConnection);
             bridge.send_attachment(1, "stale.bin", "old upload");
             bridge.get_attachment(1, 1);
+            bridge.get_message_image(1, 1);
             bridge.search_messages(1, "old search");
             bridge.set_message_reaction(1, 1, QStringLiteral("👍"));
             QObject::connect(&bridge, &client_bridge::avatar_received, &bridge, [&](auto...) { ++stale_results; });
@@ -809,6 +812,8 @@ int main(int argc, char** argv)
             windows[0]->findChild<QToolButton*>("sendAttachmentButton")->click();
             auto* attachment_view = windows[0]->findChild<QListView*>("messageList");
             wait([&] { return attachment_view->model()->rowCount() == 2; });
+            wait([&] { return !attachment_view->model()->index(1, 0).data(message_model::image_role).value<QPixmap>().isNull(); });
+            windows[0]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_image_bubble.png");
             check(attachment_view->model()->index(1, 0).data(message_model::attachment_name_role).toString() == "photo.png" &&
                       attachment_view->model()->index(1, 0).data(message_model::attachment_type_role).toString() == "image/png",
                   "Uploaded PNG metadata");
@@ -830,6 +835,7 @@ int main(int argc, char** argv)
             auto* peer_attachment_view = windows[1]->findChild<QListView*>("messageList");
             wait([&] { return pages[1]->active_conversation() == direct && pages[1]->messages_ready() &&
                                   peer_attachment_view->model()->rowCount() == 2; });
+            wait([&] { return !peer_attachment_view->model()->index(1, 0).data(message_model::image_role).value<QPixmap>().isNull(); });
             check(peer_attachment_view->model()->index(0, 0).data(message_model::reactions_role)
                       .value<QList<reaction_data>>().size() == 1, "Direct history restores reaction");
             choose_reaction(1, QStringLiteral("😮"));
@@ -901,6 +907,11 @@ int main(int argc, char** argv)
                 auto* preview = dialog->findChild<QLabel*>("attachmentImage");
                 wait([&] { return !preview->pixmap().isNull(); });
                 check(preview->pixmap().size() == QSize(640, 384), "PNG preview decoded and scaled");
+                auto const image_id = attachment_view->model()->index(1, 0).data(message_model::id_role).toLongLong();
+                check(preview->pixmap().cacheKey() == pages[0]->images().image(image_id).cacheKey(),
+                      "Full preview reuses decoded image cache");
+                check(dialog->findChild<QPushButton*>("saveAttachmentButton")->isEnabled(),
+                      "Cached preview can save original bytes");
                 dialog->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_attachment_preview.png");
                 dialog->reject();
             });
@@ -927,6 +938,8 @@ int main(int argc, char** argv)
                 dialog->reject();
             });
             attachment_action(1, QStringLiteral("下载文件"));
+            auto const cached_image_id = attachment_view->model()->index(1, 0).data(message_model::id_role).toLongLong();
+            auto const cached_image_key = pages[1]->images().image(cached_image_id).cacheKey();
             QTimer::singleShot(50, [&] {
                 auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
                 check(dialog && dialog->objectName() == "attachmentDialog", "Download disconnect dialog");
@@ -942,6 +955,8 @@ int main(int argc, char** argv)
                 wait([&, i] { return windows[i]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled() &&
                                       pages[i]->messages_ready(); });
             }
+            check(pages[1]->images().image(cached_image_id).cacheKey() == cached_image_key,
+                  "Reconnect preserves immutable downloaded image");
             QTimer::singleShot(50, [] {
                 auto* confirmation = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
                 check(confirmation, "Delete attachment confirmation");
@@ -954,6 +969,7 @@ int main(int argc, char** argv)
                 wait([&] { return view->model()->index(1, 0).data(message_model::deleted_role).toBool(); });
                 check(view->model()->index(1, 0).data(message_model::attachment_name_role).toString().isEmpty(),
                       "Deleted attachment has no download metadata");
+                check(pages[i]->images().bytes(cached_image_id).isEmpty(), "Deleted image leaves cache");
             }
 
             auto select_group = [&](int actor) {
@@ -1294,11 +1310,38 @@ int main(int argc, char** argv)
                 check(page->avatars().state(ids[0]) == chat::avatar_state{3, false} && page->avatars().image(ids[0]).isNull(),
                     "Cleared avatar remains fallback after reconnect");
             }
+            auto const before_group_image = pages[0]->latest_message_id();
+            pages[0]->attachment_send_requested(group, "group.png", image_bytes, 0);
+            auto* group_images = windows[2]->findChild<QListView*>("messageList");
+            wait([&] {
+                auto const index = group_images->model()->index(group_images->model()->rowCount() - 1, 0);
+                return pages[2]->latest_message_id() > before_group_image &&
+                    !index.data(message_model::image_role).value<QPixmap>().isNull();
+            });
+            windows[2]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_image_bubble.png");
+            bool opened_group_image = false;
+            QTimer::singleShot(50, [&] {
+                auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                check(dialog && dialog->objectName() == "attachmentDialog" &&
+                    !dialog->findChild<QLabel*>("attachmentImage")->pixmap().isNull(), "Group image bubble opens cached preview");
+                opened_group_image = true;
+                dialog->reject();
+            });
+            auto const image_row = group_images->model()->index(group_images->model()->rowCount() - 1, 0);
+            auto const image_point = group_images->visualRect(image_row).topLeft() + QPoint(120, 100);
+            QMouseEvent image_press(QEvent::MouseButtonPress, QPointF(image_point), QPointF(image_point),
+                Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+            QApplication::sendEvent(group_images->viewport(), &image_press);
+            QMouseEvent image_release(QEvent::MouseButtonRelease, QPointF(image_point), QPointF(image_point),
+                Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+            QApplication::sendEvent(group_images->viewport(), &image_release);
+            check(opened_group_image, "Real group image bubble click");
             avatar_update(avatar_path, false, true);
             wait([&] { return pages[0]->avatars().state(ids[0]) == chat::avatar_state{4, true} && !pages[0]->avatars().image(ids[0]).isNull(); });
             pages[0]->logout_requested();
             wait([&] { return !pages[0]->isVisible() && windows[0]->findChild<QPushButton*>("loginButton")->isEnabled(); });
             check(pages[0]->avatars().image(ids[0]).isNull(), "Logout clears current account cache");
+            check(pages[0]->images().bytes(pages[2]->latest_message_id()).isEmpty(), "Logout clears image cache");
             for (auto* input : windows[0]->findChildren<QLineEdit*>())
             {
                 if (input->parent()->objectName() == "loginCard" && input->placeholderText() == QStringLiteral("密码"))

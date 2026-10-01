@@ -1,12 +1,26 @@
 #include "message_model.hpp"
 #include "avatar.hpp"
+#include "message_images.hpp"
 
 #include <algorithm>
 #include <iterator>
 #include <utility>
 
-message_model::message_model(QObject* parent, avatar_cache* avatars) : QAbstractListModel(parent), avatars_(avatars)
+message_model::message_model(QObject* parent, avatar_cache* avatars, message_images* images)
+    : QAbstractListModel(parent), avatars_(avatars), images_(images)
 {
+    if (images_)
+    {
+        connect(images_, &message_images::changed, this, [this](qint64 message) {
+            for (int row = 0; row < messages_.size(); ++row)
+            {
+                if (messages_[row].id == message)
+                {
+                    emit dataChanged(index(row, 0), index(row, 0), {image_role, image_status_role});
+                }
+            }
+        });
+    }
     if (avatars_)
     {
         connect(avatars_, &avatar_cache::changed, this, [this](qint64 user) {
@@ -64,6 +78,10 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             return !message.deleted && message.attachment ? message.attachment->media_type : QString{};
         case attachment_size_role:
             return !message.deleted && message.attachment ? message.attachment->size : qint64{0};
+        case image_role:
+            return images_ && !message.deleted ? QVariant::fromValue(images_->image(message.id)) : QVariant{};
+        case image_status_role:
+            return images_ && !message.deleted ? QVariant(images_->status(message.id)) : QVariant{};
         case reactions_role:
             return QVariant::fromValue(message.deleted ? QList<reaction_data>{} : message.reactions);
         case own_reaction_role:
@@ -194,6 +212,7 @@ bool message_model::add_message(message_data message)
 
 void message_model::update_message(message_data const& message)
 {
+    if (message.deleted && images_) { images_->remove(message.conversation, message.id); }
     if (message.conversation != conversation_)
     {
         return;

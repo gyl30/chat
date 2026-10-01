@@ -22,6 +22,7 @@
 #include <boost/http/response_parser.hpp>
 #include <boost/http/status.hpp>
 #include <boost/url/parse.hpp>
+#include <boost/corosio/socket_option.hpp>
 
 namespace chat::detail
 {
@@ -203,6 +204,16 @@ boost::capy::io_task<> websocket_client::connect(std::string_view url)
     if (connect_ec)
     {
         co_return connect_ec;
+    }
+
+    try
+    {
+        socket_.set_option(boost::corosio::socket_option::no_delay(true));
+    }
+    catch (std::system_error const& error)
+    {
+        socket_.close();
+        co_return error.code();
     }
 
     auto [handshake_ec] = co_await handshake(target, host_header);

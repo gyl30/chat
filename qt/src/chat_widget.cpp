@@ -318,9 +318,16 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     message_status_->setContentsMargins(0, 6, 0, 6);
     chat_layout->addWidget(message_status_);
 
-    messages_ = new message_model(this, &avatars_);
+    messages_ = new message_model(this, &avatars_, &images_);
     messages_view_ = new QListView(chat_panel);
     messages_view_->setObjectName(QStringLiteral("messageList"));
+    connect(messages_, &QAbstractItemModel::modelReset, this, [this] {
+        QTimer::singleShot(0, messages_view_, [this] { load_visible_images(); });
+    });
+    connect(messages_, &QAbstractItemModel::rowsInserted, this, [this] {
+        QTimer::singleShot(0, messages_view_, [this] { load_visible_images(); });
+    });
+    messages_view_->viewport()->installEventFilter(this);
     messages_view_->setModel(messages_);
     auto* messages_delegate = new message_delegate(messages_view_);
     messages_view_->setItemDelegate(messages_delegate);
@@ -554,6 +561,13 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                                   index.data(message_model::sender_name_role).toString());
             });
     connect(messages_delegate, &message_delegate::read_details_clicked, this, &chat_widget::show_read_details);
+    connect(messages_delegate, &message_delegate::image_clicked, this, [this](QModelIndex const& index) {
+        if (connection_available_ && !index.data(message_model::deleted_role).toBool())
+        {
+            emit attachment_open_requested(active_conversation_, index.data(message_model::id_role).toLongLong(),
+                                           index.data(message_model::attachment_name_role).toString(), true);
+        }
+    });
     connect(messages_delegate, &message_delegate::reaction_clicked, this,
             [this](QModelIndex const& index, QString emoji) {
         if (connection_available_ && !index.data(message_model::deleted_role).toBool())
@@ -621,6 +635,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     });
     typing_expiry->start();
     connect(messages_view_->verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int value) {
+        load_visible_images();
         if (value == messages_view_->verticalScrollBar()->minimum())
         {
             request_older_messages();
@@ -634,6 +649,7 @@ void chat_widget::set_user(QString const& username, qint64 user)
     typing_users_.clear();
     update_typing_label();
     avatars_.clear();
+    images_.clear();
     avatar_updating_ = false;
     profile_avatar_->setIcon(avatar_icon(username, 44));
     profile_avatar_->setToolTip(username);
@@ -673,6 +689,32 @@ void chat_widget::set_user(QString const& username, qint64 user)
     attachment_button_->setEnabled(false);
 }
 
+bool chat_widget::eventFilter(QObject* object, QEvent* event)
+{
+    if (object == messages_view_->viewport() && (event->type() == QEvent::Resize || event->type() == QEvent::Show))
+    {
+        QTimer::singleShot(0, messages_view_, [this] { load_visible_images(); });
+    }
+    return QWidget::eventFilter(object, event);
+}
+
+void chat_widget::load_visible_images()
+{
+    if (!connection_available_ || active_conversation_ <= 0 || messages_->rowCount() == 0) { return; }
+    auto const first = messages_view_->indexAt(QPoint(0, 0));
+    auto const last = messages_view_->indexAt(QPoint(0, messages_view_->viewport()->height() - 1));
+    for (int row = first.isValid() ? first.row() : 0;
+         row <= (last.isValid() ? last.row() : messages_->rowCount() - 1); ++row)
+    {
+        auto const index = messages_->index(row, 0);
+        if (!messages_view_->visualRect(index).intersects(messages_view_->viewport()->rect())) { continue; }
+        if (index.data(message_model::attachment_type_role).toString().startsWith(QStringLiteral("image/")))
+        {
+            images_.observe(active_conversation_, index.data(message_model::id_role).toLongLong());
+        }
+    }
+}
+
 void chat_widget::set_loading() { conversations_status_->setText(QStringLiteral("正在加载…")); }
 
 void chat_widget::set_error(QString message) { conversations_status_->setText(std::move(message)); }
@@ -690,6 +732,8 @@ void chat_widget::set_connection_available(bool available)
         finish_avatar_update(QStringLiteral("连接已断开，请重新上传头像。"));
     }
     connection_available_ = available;
+    images_.retry();
+    if (available) { QTimer::singleShot(0, messages_view_, [this] { load_visible_images(); }); }
     if (!available && attachment_sending_)
     {
         attachment_sending_ = false;
@@ -1147,6 +1191,7 @@ void chat_widget::open_conversation(conversation_data conversation)
     update_typing_label();
     reply_to_ = 0;
     reply_bar_->hide();
+    images_.discard_queued();
     active_conversation_ = user;
     message_search_button_->setEnabled(connection_available_);
     attachment_button_->setEnabled(connection_available_ && !attachment_sending_);
@@ -1167,6 +1212,7 @@ void chat_widget::close_conversation(qint64 conversation)
 {
     if (conversation != active_conversation_)
     {
+        images_.remove(conversation);
         return;
     }
     stop_typing();
@@ -1184,6 +1230,7 @@ void chat_widget::close_conversation(qint64 conversation)
     reply_to_ = 0;
     reply_bar_->hide();
     messages_->reset(0);
+    images_.remove(conversation);
     conversations_view_->setCurrentIndex({});
     conversations_view_->clearSelection();
     chat_title_->setText(QStringLiteral("聊天"));

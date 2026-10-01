@@ -3,6 +3,7 @@
 
 #include <QByteArray>
 #include <QDialog>
+#include <QPixmap>
 
 class QLabel;
 class QPushButton;
@@ -12,7 +13,7 @@ class attachment_dialog final : public QDialog
     Q_OBJECT
 
    public:
-    attachment_dialog(qint64 conversation, qint64 message, QString filename, bool preview, QWidget* parent);
+    attachment_dialog(qint64 conversation, qint64 message, QString filename, bool preview, QWidget* parent, QPixmap image);
     void set_data(qint64 conversation, qint64 message, QByteArray data, QString const& error_message);
 
    private:
