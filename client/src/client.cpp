@@ -99,6 +99,37 @@ bool parse_user(boost::json::object const& object, user& value)
     return true;
 }
 
+bool parse_reply(boost::json::object const& object, std::optional<quoted_message>& reply)
+{
+    auto const* value = object.if_contains("reply");
+    if (!value || value->is_null())
+    {
+        return true;
+    }
+    if (!value->is_object())
+    {
+        return false;
+    }
+    auto const& fields = value->as_object();
+    auto const* id = fields.if_contains("id");
+    auto const* from = fields.if_contains("from");
+    auto const* username = fields.if_contains("username");
+    auto const* text = fields.if_contains("text");
+    if (!id || !from || !username || !username->is_string() || !text || !text->is_string())
+    {
+        return false;
+    }
+    auto parsed_id = parse_int64(*id);
+    auto parsed_from = parse_int64(*from);
+    if (!parsed_id || *parsed_id <= 0 || !parsed_from || *parsed_from <= 0)
+    {
+        return false;
+    }
+    reply =
+        quoted_message{*parsed_id, *parsed_from, std::string(username->as_string()), std::string(text->as_string())};
+    return true;
+}
+
 bool parse_message(boost::json::object const& object, message& value)
 {
     auto const* id_value = object.if_contains("id");
@@ -128,7 +159,7 @@ bool parse_message(boost::json::object const& object, message& value)
     value.from = *from;
     value.timestamp = *timestamp;
     value.text = std::string(text_value->as_string());
-    return true;
+    return parse_reply(object, value.reply);
 }
 
 bool parse_presence(boost::json::object const& object, presence& value)
@@ -955,11 +986,16 @@ struct client::impl
         co_return;
     }
 
-    boost::capy::task<> send_message(std::int64_t conversation, std::string text, send_message_handler handler)
+    boost::capy::task<> send_message(std::int64_t conversation, std::string text, send_message_handler handler,
+                                     std::optional<std::int64_t> reply_to)
     {
         boost::json::object params;
         params.emplace("conversation", conversation);
         params.emplace("text", std::move(text));
+        if (reply_to)
+        {
+            params.emplace("reply_to", *reply_to);
+        }
 
         send_request("send_message", std::move(params), [handler = std::move(handler)](auto response) mutable {
             if (!response)
@@ -995,6 +1031,11 @@ struct client::impl
             result.message_id = *message_id;
             result.timestamp = *timestamp;
             result.realtime = realtime_value->as_bool();
+            if (!parse_reply(object, result.reply))
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid reply")));
+                return;
+            }
             handler(result);
         });
 
@@ -1257,9 +1298,11 @@ void client::get_messages(std::int64_t conversation, std::optional<std::int64_t>
         impl_->get_messages(conversation, before, std::move(handler), after));
 }
 
-void client::send_message(std::int64_t user, std::string text, send_message_handler handler)
+void client::send_message(std::int64_t user, std::string text, send_message_handler handler,
+                          std::optional<std::int64_t> reply_to)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->send_message(user, std::move(text), std::move(handler)));
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->send_message(user, std::move(text), std::move(handler), reply_to));
 }
 
 void client::search_users(std::string query, users_handler handler)

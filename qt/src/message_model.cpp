@@ -35,6 +35,11 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             return outgoing;
         case sender_name_role:
             return message.username;
+        case reply_id_role:
+            return message.reply.id;
+        case reply_text_role:
+            return message.reply.id > 0 ? QStringLiteral("↪ %1\n%2").arg(message.reply.username, message.reply.text)
+                                        : QString{};
         case read_role:
             if (!outgoing)
             {

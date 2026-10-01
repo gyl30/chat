@@ -16,6 +16,7 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QMessageBox>
+#include <QMenu>
 #include <QModelIndex>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -301,6 +302,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     messages_view_->setModel(messages_);
     auto* messages_delegate = new message_delegate(messages_view_);
     messages_view_->setItemDelegate(messages_delegate);
+    messages_view_->setContextMenuPolicy(Qt::CustomContextMenu);
     messages_view_->setSelectionMode(QAbstractItemView::NoSelection);
     messages_view_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     messages_view_->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -308,6 +310,45 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent)
     messages_view_->setSpacing(0);
     messages_view_->verticalScrollBar()->setSingleStep(24);
     chat_layout->addWidget(messages_view_, 1);
+
+    reply_bar_ = new QWidget(chat_panel);
+    auto* reply_layout = new QHBoxLayout(reply_bar_);
+    reply_preview_ = new QLabel(reply_bar_);
+    reply_preview_->setObjectName(QStringLiteral("replyPreview"));
+    auto* cancel_reply = new QToolButton(reply_bar_);
+    cancel_reply->setObjectName(QStringLiteral("cancelReplyButton"));
+    cancel_reply->setText(QStringLiteral("×"));
+    reply_layout->addWidget(reply_preview_, 1);
+    reply_layout->addWidget(cancel_reply);
+    reply_bar_->hide();
+    chat_layout->addWidget(reply_bar_);
+    connect(cancel_reply, &QToolButton::clicked, this,
+            [this]
+            {
+                reply_to_ = 0;
+                reply_bar_->hide();
+            });
+    connect(messages_view_, &QListView::customContextMenuRequested, this,
+            [this](QPoint position)
+            {
+                auto const index = messages_view_->indexAt(position);
+                if (!index.isValid() || !connection_available_)
+                {
+                    return;
+                }
+                QMenu menu(this);
+                auto* reply = menu.addAction(QStringLiteral("回复"));
+                if (menu.exec(messages_view_->viewport()->mapToGlobal(position)) != reply)
+                {
+                    return;
+                }
+                reply_to_ = index.data(message_model::id_role).toLongLong();
+                reply_preview_->setText(QStringLiteral("回复 %1：%2")
+                                            .arg(index.data(message_model::sender_name_role).toString(),
+                                                 index.data(message_model::text_role).toString().left(80)));
+                reply_bar_->show();
+                message_edit_->setFocus();
+            });
 
     auto* input_separator = new QFrame(chat_panel);
     input_separator->setFrameShape(QFrame::HLine);
@@ -411,6 +452,8 @@ void chat_widget::set_user(QString const& username, qint64 user)
     self_user_ = user;
     active_peer_ = 0;
     active_group_ = false;
+    reply_to_ = 0;
+    reply_bar_->hide();
     active_conversation_ = 0;
     active_username_.clear();
     presence_.clear();
@@ -632,7 +675,8 @@ void chat_widget::add_message(qint64 user, message_data message)
     }
 }
 
-void chat_widget::add_sent_message(qint64 user, qint64 message, qint64 timestamp, QString text)
+void chat_widget::add_sent_message(qint64 user, qint64 message, qint64 timestamp, QString text,
+                                   quoted_message_data reply)
 {
     if (user != active_conversation_)
     {
@@ -646,6 +690,7 @@ void chat_widget::add_sent_message(qint64 user, qint64 message, qint64 timestamp
     value.username = profile_avatar_->toolTip();
     value.timestamp = timestamp;
     value.text = std::move(text);
+    value.reply = std::move(reply);
     add_message(user, std::move(value));
 }
 
@@ -841,6 +886,8 @@ void chat_widget::open_conversation(conversation_data conversation)
         return;
     }
 
+    reply_to_ = 0;
+    reply_bar_->hide();
     active_conversation_ = user;
     messages_->reset(active_conversation_, active_group_);
     synchronized_message_ = 0;
@@ -971,7 +1018,10 @@ void chat_widget::send_current_message()
     auto text = message_edit_->text();
     message_edit_->clear();
     set_message_status({});
-    emit send_message_requested(active_conversation_, std::move(text));
+    auto const reply = reply_to_;
+    reply_to_ = 0;
+    reply_bar_->hide();
+    emit send_message_requested(active_conversation_, std::move(text), reply);
 }
 
 void chat_widget::show_user_details(qint64 user, QString const& username)

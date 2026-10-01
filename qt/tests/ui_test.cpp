@@ -4,6 +4,9 @@
 #include <QListView>
 #include <QListWidget>
 #include <QMessageBox>
+#include <QMenu>
+#include <QKeyEvent>
+#include <QLabel>
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QPushButton>
@@ -187,6 +190,41 @@ int main(int argc, char** argv)
                 }
             }
             wait([&] { return members; });
+            auto choose_reply = [&]
+            {
+                auto* view = windows[1]->findChild<QListView*>("messageList");
+                QTimer::singleShot(20,
+                                   []
+                                   {
+                                       auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+                                       check(menu, "Reply menu");
+                                       menu->setActiveAction(menu->actions().front());
+                                       QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+                                       QApplication::sendEvent(menu, &enter);
+                                   });
+                view->customContextMenuRequested(view->visualRect(view->model()->index(0, 0)).center());
+            };
+            choose_reply();
+            check(windows[1]->findChild<QLabel*>("replyPreview")->isVisible(), "Reply preview");
+            windows[1]->findChild<QToolButton*>("cancelReplyButton")->click();
+            check(!windows[1]->findChild<QLabel*>("replyPreview")->isVisible(), "Cancel reply");
+            choose_reply();
+            windows[1]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("Qt 引用回复"));
+            windows[1]->findChild<QToolButton*>("sendButton")->click();
+            for (int i = 0; i < 3; ++i)
+            {
+                auto* view = windows[i]->findChild<QListView*>("messageList");
+                wait([&] { return view->model()->rowCount() == 2; });
+                check(view->model()->index(1, 0).data(message_model::reply_id_role).toLongLong() ==
+                          view->model()->index(0, 0).data(message_model::id_role).toLongLong(),
+                      "Qt reply target");
+                check(view->model()
+                          ->index(1, 0)
+                          .data(message_model::reply_text_role)
+                          .toString()
+                          .contains(QStringLiteral("Qt 群消息验证")),
+                      "Qt reply contents");
+            }
             windows[0]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_smoke.png");
             server.terminate();
             check(server.waitForFinished(3000), "Stop server");
@@ -205,7 +243,7 @@ int main(int argc, char** argv)
             windows[1]->findChild<QToolButton*>("sendButton")->click();
             for (int i = 0; i < 3; ++i)
             {
-                wait([&, i] { return windows[i]->findChild<QListView*>("messageList")->model()->rowCount() == 2; });
+                wait([&, i] { return windows[i]->findChild<QListView*>("messageList")->model()->rowCount() == 3; });
             }
             windows[1]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_reconnected.png");
         }

@@ -26,6 +26,12 @@ QString from_utf8(std::string const& value)
     return QString::fromUtf8(value.data(), static_cast<qsizetype>(value.size()));
 }
 
+quoted_message_data to_reply_data(std::optional<chat::quoted_message> const& reply)
+{
+    return reply ? quoted_message_data{reply->id, from_utf8(reply->username), from_utf8(reply->text)}
+                 : quoted_message_data{};
+}
+
 message_data to_message_data(chat::message const& value)
 {
     message_data message;
@@ -35,6 +41,7 @@ message_data to_message_data(chat::message const& value)
     message.username = from_utf8(value.username);
     message.timestamp = value.timestamp;
     message.text = from_utf8(value.text);
+    message.reply = to_reply_data(value.reply);
     return message;
 }
 
@@ -319,17 +326,22 @@ void client_bridge::get_messages(qint64 conversation, std::optional<qint64> befo
         after);
 }
 
-void client_bridge::send_message(qint64 user, QString text)
+void client_bridge::send_message(qint64 user, QString text, qint64 reply_to)
 {
     auto request_text = to_utf8(text);
-    client_->send_message(user, std::move(request_text), [this, user, text = std::move(text)](std::expected<chat::send_message_result, chat::error> result) mutable {
-        if (!result)
+    client_->send_message(
+        user, std::move(request_text),
+        [this, user, text = std::move(text)](std::expected<chat::send_message_result, chat::error> result) mutable
         {
-            emit message_sent(user, std::move(text), 0, 0, false, from_utf8(result.error().message));
-            return;
-        }
-        emit message_sent(user, std::move(text), result->message_id, result->timestamp, result->realtime, {});
-    });
+            if (!result)
+            {
+                emit message_sent(user, std::move(text), 0, 0, false, {}, from_utf8(result.error().message));
+                return;
+            }
+            emit message_sent(user, std::move(text), result->message_id, result->timestamp, result->realtime,
+                              to_reply_data(result->reply), {});
+        },
+        reply_to > 0 ? std::optional<std::int64_t>(reply_to) : std::nullopt);
 }
 
 void client_bridge::search_users(QString query)

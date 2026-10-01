@@ -2,11 +2,20 @@
 #define CHAT_CLIENT_INCLUDE_CHAT_MESSAGE_HPP
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
 namespace chat
 {
+
+struct quoted_message
+{
+    std::int64_t id = 0;
+    std::int64_t from = 0;
+    std::string username;
+    std::string text;
+};
 
 struct message
 {
@@ -16,6 +25,7 @@ struct message
     std::string username;
     std::int64_t timestamp = 0;
     std::string text;
+    std::optional<quoted_message> reply;
 };
 
 struct read_position
@@ -36,6 +46,7 @@ struct send_message_result
     std::int64_t message_id = 0;
     std::int64_t timestamp = 0;
     bool realtime = false;
+    std::optional<quoted_message> reply;
 };
 
 }    // namespace chat

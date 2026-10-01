@@ -39,7 +39,7 @@ class client_bridge final : public QObject
     void get_contacts();
     void get_presence();
     void get_messages(qint64 conversation, std::optional<qint64> before = {}, std::optional<qint64> after = {});
-    void send_message(qint64 user, QString text);
+    void send_message(qint64 user, QString text, qint64 reply_to = 0);
     void search_users(QString query);
     void add_contact(qint64 user);
     void mark_read(qint64 user, qint64 message);
@@ -61,7 +61,8 @@ class client_bridge final : public QObject
     void conversation_opened(conversation_data conversation, QString error_message);
     void members_received(qint64 conversation, QList<user_data> users, QString error_message);
     void conversation_changed();
-    void message_sent(qint64 user, QString text, qint64 message, qint64 timestamp, bool realtime, QString error_message);
+    void message_sent(qint64 user, QString text, qint64 message, qint64 timestamp, bool realtime,
+                      quoted_message_data reply, QString error_message);
     void users_received(QList<user_data> users, QString error_message);
     void contact_added(user_data user, QString error_message);
     void read_marked(qint64 user, qint64 message, QString error_message);

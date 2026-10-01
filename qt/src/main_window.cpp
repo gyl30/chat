@@ -465,7 +465,7 @@ main_window::main_window(QString server_url, QWidget* parent)
             [this](qint64 user, qint64 before) { client_->get_messages(user, before); });
 
     connect(chat_page_, &chat_widget::send_message_requested, this,
-            [this](qint64 user, QString text) { client_->send_message(user, std::move(text)); });
+            [this](qint64 user, QString text, qint64 reply) { client_->send_message(user, std::move(text), reply); });
 
     connect(
         client_.get(), &client_bridge::messages_received, this,
@@ -513,20 +513,23 @@ main_window::main_window(QString server_url, QWidget* parent)
         client_.get(), &client_bridge::messages_read, this, [this](qint64 conversation, qint64 user, qint64 message)
         { chat_page_->set_read_message(conversation, user, message); }, Qt::QueuedConnection);
 
-    connect(client_.get(), &client_bridge::message_sent, this,
-            [this](qint64 user, QString text, qint64 message, qint64 timestamp, bool realtime, QString const& error_message) {
-                if (!error_message.isEmpty())
-                {
-                    chat_page_->set_message_error(user, error_message);
-                    return;
-                }
+    connect(
+        client_.get(), &client_bridge::message_sent, this,
+        [this](qint64 user, QString text, qint64 message, qint64 timestamp, bool realtime, quoted_message_data reply,
+               QString const& error_message)
+        {
+            if (!error_message.isEmpty())
+            {
+                chat_page_->set_message_error(user, error_message);
+                return;
+            }
 
-                (void)realtime;
-                chat_page_->add_sent_message(user, message, timestamp, std::move(text));
-                client_->get_conversations();
-                client_->get_presence();
-            },
-            Qt::QueuedConnection);
+            (void)realtime;
+            chat_page_->add_sent_message(user, message, timestamp, std::move(text), std::move(reply));
+            client_->get_conversations();
+            client_->get_presence();
+        },
+        Qt::QueuedConnection);
 
     connect(client_.get(), &client_bridge::read_marked, this,
             [this](qint64 user, qint64 message, QString const& error_message) {

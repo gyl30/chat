@@ -1,6 +1,7 @@
 #include <charconv>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -20,6 +21,15 @@ struct [[= simdjson::deny_unknown_fields]] send_message_params
 {
     std::int64_t conversation = 0;
     std::string text;
+    std::optional<std::int64_t> reply_to;
+};
+
+struct quoted_message
+{
+    std::int64_t id = 0;
+    std::int64_t from = 0;
+    std::string username;
+    std::string text;
 };
 
 struct send_message_result
@@ -27,6 +37,7 @@ struct send_message_result
     std::int64_t message = 0;
     std::int64_t timestamp = 0;
     bool realtime = false;
+    std::optional<quoted_message> reply;
 };
 
 struct message_params
@@ -37,6 +48,7 @@ struct message_params
     std::string username;
     std::int64_t timestamp = 0;
     std::string text;
+    std::optional<quoted_message> reply;
 };
 
 struct message_notification
@@ -72,7 +84,7 @@ simdjson::error_code parse_send_message_params(json_rpc_params& params, send_mes
         return simdjson::TRAILING_CONTENT;
     }
 
-    if (value.conversation <= 0 || value.text.empty())
+    if (value.conversation <= 0 || value.text.empty() || (value.reply_to && *value.reply_to <= 0))
     {
         return simdjson::INCORRECT_TYPE;
     }
@@ -80,13 +92,15 @@ simdjson::error_code parse_send_message_params(json_rpc_params& params, send_mes
     return simdjson::SUCCESS;
 }
 
-simdjson::error_code serialize_send_message_result(
-    std::int64_t message, std::int64_t timestamp, bool realtime, json_rpc_id id, std::string& response)
+simdjson::error_code serialize_send_message_result(std::int64_t message, std::int64_t timestamp, bool realtime,
+                                                   std::optional<quoted_message> reply, json_rpc_id id,
+                                                   std::string& response)
 {
     send_message_result result{};
     result.message = message;
     result.timestamp = timestamp;
     result.realtime = realtime;
+    result.reply = std::move(reply);
 
     std::string result_json;
     auto error = simdjson::builder::to_json_string(result).get(result_json);
@@ -130,6 +144,31 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
     notification.params.timestamp = std::numeric_limits<std::int64_t>::max();
     notification.params.text = std::move(params.text);
 
+    if (params.reply_to)
+    {
+        auto lease = co_await database_.acquire();
+        if (lease.error())
+        {
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        auto query_result = co_await lease.connection().execute_row(
+            "SELECT r.id::text,r.sender_id::text,u.username,left(r.body,160) FROM messages r "
+            "JOIN users u ON u.id=r.sender_id JOIN conversation_members own ON own.conversation_id=r.conversation_id "
+            "WHERE r.id=$3::bigint AND r.conversation_id=$2::bigint AND own.user_id=$1::bigint",
+            {std::to_string(*user_id_), std::to_string(params.conversation), std::to_string(*params.reply_to)});
+        auto& [ec, row] = query_result;
+        if (ec)
+        {
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        if (!row)
+        {
+            co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+        }
+        notification.params.reply =
+            quoted_message{std::stoll(row->at(0)), std::stoll(row->at(1)), row->at(2), row->at(3)};
+    }
+
     std::string notification_json;
     auto error = simdjson::builder::to_json_string(notification).get(notification_json);
     if (error)
@@ -162,11 +201,13 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         parameters.emplace_back(std::to_string(*user_id_));
         parameters.emplace_back(std::to_string(params.conversation));
         parameters.emplace_back(notification.params.text);
+        parameters.emplace_back(params.reply_to ? std::to_string(*params.reply_to) : "");
         auto query_result = co_await lease.connection().execute_row(
             "WITH locked AS (UPDATE conversations SET activity=(extract(epoch FROM clock_timestamp())*1000)::bigint "
             "WHERE id=$2::bigint AND EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=$2::bigint AND "
             "user_id=$1::bigint) RETURNING id), "
-            "inserted AS (INSERT INTO messages(sender_id,conversation_id,body) SELECT $1::bigint,id,$3 FROM locked "
+            "inserted AS (INSERT INTO messages(sender_id,conversation_id,body,reply_to_id) SELECT "
+            "$1::bigint,id,$3,NULLIF($4,'')::bigint FROM locked "
             "RETURNING id,created_at) SELECT inserted.id::text,((extract(epoch FROM "
             "created_at)*1000)::bigint)::text,u.username "
             "FROM inserted JOIN users u ON u.id=$1::bigint",
@@ -239,6 +280,6 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         co_return simdjson::SUCCESS;
     }
 
-    co_return serialize_send_message_result(
-        notification.params.id, notification.params.timestamp, realtime, std::move(request.id), response);
+    co_return serialize_send_message_result(notification.params.id, notification.params.timestamp, realtime,
+                                            std::move(notification.params.reply), std::move(request.id), response);
 }

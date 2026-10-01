@@ -21,11 +21,17 @@ int main(int argc, char** argv)
     outgoing.id++;
     outgoing.from = 1;
     outgoing.username = QStringLiteral("自己");
+    outgoing.reply = {incoming.id, incoming.username, incoming.text};
     messages.merge_messages({outgoing, incoming});
     auto first = messages.index(0, 0);
     auto second = messages.index(1, 0);
     if (first.data(message_model::outgoing_role).toBool() || !second.data(message_model::outgoing_role).toBool() ||
         first.data(message_model::sender_name_role).toString() != incoming.username || messages.add_message(incoming))
+    {
+        return 1;
+    }
+    if (second.data(message_model::reply_id_role).toLongLong() != incoming.id ||
+        !second.data(message_model::reply_text_role).toString().contains(incoming.text))
     {
         return 1;
     }

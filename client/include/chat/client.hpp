@@ -73,7 +73,8 @@ class client
     void get_presence(presences_handler handler);
     void get_messages(std::int64_t conversation, std::optional<std::int64_t> before, messages_handler handler,
                       std::optional<std::int64_t> after = {});
-    void send_message(std::int64_t conversation, std::string text, send_message_handler handler);
+    void send_message(std::int64_t conversation, std::string text, send_message_handler handler,
+                      std::optional<std::int64_t> reply_to = {});
     void search_users(std::string query, users_handler handler);
     void add_contact(std::int64_t user, user_handler handler);
     void mark_read(std::int64_t conversation, std::int64_t message, mark_read_handler handler);

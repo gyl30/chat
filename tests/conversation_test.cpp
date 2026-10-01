@@ -348,6 +348,32 @@ int run_group_tests()
         require(concurrent && concurrent->messages.size() == 2 &&
                     concurrent->messages[0].id < concurrent->messages[1].id,
                 "Concurrent history ordering");
+        auto replied = call<chat::send_message_result>(
+            [&](auto handler) { b.send_message(group, "引用回复", handler, sent->message_id); });
+        require(replied && replied->reply && replied->reply->id == sent->message_id &&
+                    replied->reply->text == "群聊第一条",
+                "Reply send result");
+        c_events.wait(
+            [&]
+            {
+                return std::ranges::any_of(
+                    c_events.messages, [&](auto const& value)
+                    { return value.id == replied->message_id && value.reply && value.reply->id == sent->message_id; });
+            });
+        auto reply_history = call<chat::messages_result>([&](auto handler) { c.get_messages(group, {}, handler); });
+        require(reply_history && reply_history->messages.back().reply &&
+                    reply_history->messages.back().reply->from == data.users[0],
+                "Persisted reply history");
+        auto cross_reply = call<chat::send_message_result>(
+            [&](auto handler) { b.send_message(group, "wrong", handler, direct_sent->message_id); });
+        require(!cross_reply && cross_reply.error().code == -32602, "Reject cross-conversation reply");
+        auto missing_reply = call<chat::send_message_result>(
+            [&](auto handler) { b.send_message(group, "wrong", handler, 9223372036854775807LL); });
+        require(!missing_reply && missing_reply.error().code == -32602, "Reject nonexistent reply");
+        auto direct_reply = call<chat::send_message_result>(
+            [&](auto handler) { b.send_message(*direct, "direct reply", handler, direct_sent->message_id); });
+        require(direct_reply && direct_reply->reply && direct_reply->reply->id == direct_sent->message_id,
+                "Direct reply");
         {
             std::lock_guard lock(d_events.mutex);
             require(d_events.messages.empty() && d_events.reads.empty() && d_events.conversations.empty(),

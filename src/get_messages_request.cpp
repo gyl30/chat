@@ -87,8 +87,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
     std::string query = R"SQL(
         WITH page AS (
             SELECT m.id,m.conversation_id AS conversation,m.sender_id AS "from",u.username,
-                   (extract(epoch FROM m.created_at)*1000)::bigint AS timestamp,m.body AS text
-            FROM messages m JOIN users u ON u.id=m.sender_id
+                   (extract(epoch FROM m.created_at)*1000)::bigint AS timestamp,m.body AS text, CASE WHEN r.id IS NULL THEN NULL ELSE json_build_object('id',r.id,'from',r.sender_id,'username',ra.username,'text',left(r.body,160)) END AS reply
+            FROM messages m JOIN users u ON u.id=m.sender_id LEFT JOIN messages r ON r.id=m.reply_to_id LEFT JOIN users ra ON ra.id=r.sender_id
             WHERE m.conversation_id=$2::bigint AND )SQL";
     query += params.after ? "m.id>$3::bigint ORDER BY m.id ASC" : "m.id<$3::bigint ORDER BY m.id DESC";
     query += " LIMIT 51), visible AS (SELECT * FROM page ORDER BY id ";

@@ -94,7 +94,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
             co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
         }
         auto query_result = co_await lease.connection().execute_scalar(
-        R"SQL(
+            R"SQL(
         WITH page AS (
             SELECT c.*, own.last_read_message_id,
                    CASE WHEN c.direct_user_low=$1::bigint THEN c.direct_user_high ELSE c.direct_user_low END AS peer
@@ -108,8 +108,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
                 'id',c.id,'kind',c.kind,'user',c.peer,'username',COALESCE(c.title,u.username),
                 'activity',c.activity,'member_count',(SELECT count(*) FROM conversation_members WHERE conversation_id=c.id),
                 'last',(SELECT json_build_object('id',m.id,'conversation',m.conversation_id,'from',m.sender_id,
-                      'username',author.username,'timestamp',(extract(epoch FROM m.created_at)*1000)::bigint,'text',m.body)
-                      FROM messages m JOIN users author ON author.id=m.sender_id
+                      'username',author.username,'timestamp',(extract(epoch FROM m.created_at)*1000)::bigint,'text',m.body,'reply',CASE WHEN r.id IS NULL THEN NULL ELSE json_build_object('id',r.id,'from',r.sender_id,'username',ra.username,'text',left(r.body,160)) END)
+                      FROM messages m JOIN users author ON author.id=m.sender_id LEFT JOIN messages r ON r.id=m.reply_to_id LEFT JOIN users ra ON ra.id=r.sender_id
                       WHERE m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1),
                 'unread',(SELECT count(*) FROM messages m WHERE m.conversation_id=c.id
                           AND m.id>c.last_read_message_id
@@ -120,11 +120,11 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
                 ELSE NULL END
         )::text
     )SQL",
-        {std::to_string(*user_id_),
-         std::to_string(params.before ? params.before->activity : std::numeric_limits<std::int64_t>::max()),
-         std::to_string(params.before ? params.before->id : std::numeric_limits<std::int64_t>::max())});
-    auto& [ec, result] = query_result;
-    if (ec)
+            {std::to_string(*user_id_),
+             std::to_string(params.before ? params.before->activity : std::numeric_limits<std::int64_t>::max()),
+             std::to_string(params.before ? params.before->id : std::numeric_limits<std::int64_t>::max())});
+        auto& [ec, result] = query_result;
+        if (ec)
         {
             co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
         }

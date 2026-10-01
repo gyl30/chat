@@ -19,6 +19,8 @@ class message_model final : public QAbstractListModel
         outgoing_role,
         sender_name_role,
         read_role,
+        reply_id_role,
+        reply_text_role,
     };
 
     explicit message_model(QObject* parent = nullptr);

@@ -7,6 +7,14 @@
 #include <QtGlobal>
 #include <QHash>
 
+struct quoted_message_data
+{
+    qint64 id = 0;
+    QString username;
+    QString text;
+};
+Q_DECLARE_METATYPE(quoted_message_data)
+
 struct message_data
 {
     qint64 id = 0;
@@ -15,6 +23,7 @@ struct message_data
     QString username;
     qint64 timestamp = 0;
     QString text;
+    quoted_message_data reply;
 };
 
 Q_DECLARE_METATYPE(message_data)

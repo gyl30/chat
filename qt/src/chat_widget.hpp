@@ -51,7 +51,7 @@ class chat_widget final : public QWidget
                       bool recovering, bool has_more);
     void set_read_message(qint64 conversation, qint64 user, qint64 message);
     void add_message(qint64 user, message_data message);
-    void add_sent_message(qint64 user, qint64 message, qint64 timestamp, QString text);
+    void add_sent_message(qint64 user, qint64 message, qint64 timestamp, QString text, quoted_message_data reply);
     void set_message_error(qint64 user, QString message);
 
     qint64 active_conversation() const noexcept;
@@ -62,7 +62,7 @@ class chat_widget final : public QWidget
    signals:
     void conversation_selected(qint64 user);
     void older_messages_requested(qint64 user, qint64 before);
-    void send_message_requested(qint64 user, QString text);
+    void send_message_requested(qint64 user, QString text, qint64 reply_to);
     void add_contact_search_requested(QString query);
     void contact_add_requested(qint64 user);
     void logout_requested();
@@ -112,6 +112,9 @@ class chat_widget final : public QWidget
     QLabel* message_status_ = nullptr;
     QListView* messages_view_ = nullptr;
     QLineEdit* message_edit_ = nullptr;
+    QWidget* reply_bar_ = nullptr;
+    QLabel* reply_preview_ = nullptr;
+    qint64 reply_to_ = 0;
     QToolButton* send_button_ = nullptr;
     conversation_model* conversations_ = nullptr;
     user_model* contacts_ = nullptr;

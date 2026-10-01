@@ -45,7 +45,8 @@ QDate local_date(QModelIndex const& index)
 
 bool same_group(QModelIndex const& lhs, QModelIndex const& rhs)
 {
-    if (!lhs.isValid() || !rhs.isValid() || outgoing_at(lhs) != outgoing_at(rhs))
+    if (!lhs.isValid() || !rhs.isValid() || outgoing_at(lhs) != outgoing_at(rhs) ||
+        lhs.data(message_model::from_role) != rhs.data(message_model::from_role))
     {
         return false;
     }
@@ -168,6 +169,11 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
 {
     message_layout result;
     result.text = index.data(message_model::text_role).toString();
+    auto const reply = index.data(message_model::reply_text_role).toString();
+    if (!reply.isEmpty())
+    {
+        result.text = reply + QStringLiteral("\n\n") + result.text;
+    }
     result.sender = index.data(message_model::sender_name_role).toString();
     result.time = time_text(index);
     result.outgoing = outgoing_at(index);
