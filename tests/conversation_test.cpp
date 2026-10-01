@@ -470,6 +470,31 @@ int run_group_tests()
         require(call<std::int64_t>([&](auto handler) { a.mark_read(*direct, direct_reply->message_id, handler); })
                     .has_value(),
                 "Read position can retain a deleted ID");
+        for (int i = 0; i < 2; ++i)
+        {
+            auto large = call<chat::send_message_result>([&](auto handler)
+                                                         { a.send_message(group, std::string(40000, 'x'), handler); });
+            require(large.has_value(), "Legal long message send");
+        }
+        auto large_history = call<chat::messages_result>([&](auto handler) { c.get_messages(group, {}, handler); });
+        require(large_history && large_history->messages.back().text.size() == 40000,
+                "History response larger than a single message");
+        auto large_recovery = call<chat::messages_result>(
+            [&](auto handler) { c.get_messages(group, {}, handler, quoted_again->message_id); });
+        require(large_recovery && large_recovery->messages.size() == 2 &&
+                    large_recovery->messages.front().text.size() == 40000 && !large_recovery->has_more,
+                "Large forward recovery page");
+        auto second_group = call<std::int64_t>(
+            [&](auto handler) { a.create_group("大摘要群", {data.users[1], data.users[2]}, handler); });
+        require(second_group.has_value(), "Create another group for summaries");
+        data.groups.push_back(*second_group);
+        require(call<chat::send_message_result>([&](auto handler)
+                                                { a.send_message(*second_group, std::string(40000, 'y'), handler); })
+                    .has_value(),
+                "Another legal long message");
+        require(conversation(c, group).last.text.size() == 40000 &&
+                    conversation(c, *second_group).last.text.size() == 40000,
+                "Conversation summaries exceed a single message size");
         {
             std::lock_guard lock(d_events.mutex);
             require(d_events.messages.empty() && d_events.updates.empty() && d_events.reads.empty() &&

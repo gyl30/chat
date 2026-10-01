@@ -30,7 +30,8 @@ namespace
 {
 
 constexpr std::string_view kWebSocketGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-constexpr std::uint64_t kMaxWebSocketMessageSize = 64 * 1024;
+// History pages and conversation summaries combine many individually bounded messages.
+constexpr std::uint64_t kMaxWebSocketMessageSize = 8 * 1024 * 1024;
 
 std::string_view as_string_view(boost::core::string_view value) { return {value.data(), value.size()}; }
 
