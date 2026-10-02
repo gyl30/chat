@@ -1,7 +1,6 @@
 #include "message_images.hpp"
 
 #include <algorithm>
-#include <iterator>
 #include <utility>
 #include <QBuffer>
 #include <QImageReader>
@@ -9,7 +8,7 @@
 
 void message_images::observe(qint64 conversation, qint64 message)
 {
-    if (cache_.contains(message) || active_.contains(message) ||
+    if (cache_.contains(message) || active_.value(message).has_value() ||
         std::ranges::any_of(queued_, [message](auto const& item) { return item.second == message; })) { return; }
     queued_.push_back({conversation, message});
     pump();
@@ -19,7 +18,10 @@ void message_images::pump()
 {
     while (active_.size() < 3 && !queued_.isEmpty())
     {
-        auto const [conversation, message] = queued_.takeFirst();
+        auto const next = std::ranges::find_if(queued_, [this](auto const& item) { return !active_.contains(item.second); });
+        if (next == queued_.end()) { break; }
+        auto const [conversation, message] = *next;
+        queued_.erase(next);
         active_.insert(message, conversation);
         emit requested(conversation, message);
     }
@@ -27,8 +29,11 @@ void message_images::pump()
 
 void message_images::receive(qint64 conversation, qint64 message, QByteArray bytes, QString error)
 {
-    if (active_.value(message) != conversation || !active_.contains(message)) { return; }
+    auto const active = active_.constFind(message);
+    if (active == active_.cend() || (active.value() && *active.value() != conversation)) { return; }
+    auto const wanted = active.value().has_value();
     active_.remove(message);
+    if (!wanted) { pump(); return; }
     auto* value = new entry{conversation, std::move(bytes), {}, std::move(error)};
     if (value->error.isEmpty())
     {
@@ -73,7 +78,7 @@ QByteArray message_images::bytes(qint64 message) const
 QString message_images::status(qint64 message) const
 {
     if (auto const* value = cache_.object(message)) { return value->error; }
-    return active_.contains(message) ? QStringLiteral("正在加载图片…") : QStringLiteral("图片等待加载…");
+    return active_.value(message).has_value() ? QStringLiteral("正在加载图片…") : QStringLiteral("图片等待加载…");
 }
 
 void message_images::discard_queued()
@@ -90,9 +95,9 @@ void message_images::remove(qint64 conversation, qint64 message)
     {
         if (matches(cache_.object(id)->conversation, id)) { cache_.remove(id); emit changed(id); }
     }
-    for (auto it = active_.begin(); it != active_.end();)
+    for (auto it = active_.begin(); it != active_.end(); ++it)
     {
-        it = matches(it.value(), it.key()) ? active_.erase(it) : std::next(it);
+        if (it.value() && matches(*it.value(), it.key())) { it.value().reset(); }
     }
     queued_.removeIf([&](auto const& item) { return matches(item.first, item.second); });
     pump();

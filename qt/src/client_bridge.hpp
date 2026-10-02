@@ -5,6 +5,7 @@
 #include <atomic>
 #include <optional>
 #include <cstdint>
+#include <utility>
 #include <chat/conversation.hpp>
 
 #include <QObject>
@@ -120,6 +121,12 @@ class client_bridge final : public QObject
     void read_marked(qint64 user, qint64 message, QString error_message);
 
    private:
+    template <class F> void post_result(std::uint64_t generation, F result)
+    {
+        QMetaObject::invokeMethod(this, [this, generation, result = std::move(result)]() mutable {
+            if (generation == connection_generation_) { result(); }
+        }, Qt::QueuedConnection);
+    }
      void get_conversations_page(std::optional<chat::conversation_cursor> before,
                                  QList<conversation_data> conversations, std::uint64_t generation);
      std::uint64_t conversations_generation_ = 0;

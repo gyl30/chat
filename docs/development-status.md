@@ -2,6 +2,8 @@
 
 本记录对应截至 2026-10-03 的仓库实际历史。阶段提交和 push 结果以 Git 历史为准，Telegram 调研与裁剪依据见 [调研记录](telegram-group-design-research.md)。
 
+当前长期 Goal 从 `bac606681cac9acff3f75c9c0588831b77646214` 开始；头像在该基线已完成，未重复开发。阶段 0–12 的产品能力和最终综合审查均已完成，最终验证见文末。下文各阶段的“下一阶段”是当时的开发记录，当前状态以已完成路线和最终综合审查为准。
+
 ## 已完成路线
 
 | 提交 | 阶段 | 数据库演进 |
@@ -31,6 +33,7 @@
 | `31d6cc4` | 群内单条消息置顶、实时摘要、编辑与删除一致性、历史搜索 | SQL 020 |
 | `d6c0952` | 当前群公告、纯文本编辑、实时查看及草稿与权限生命周期 | SQL 021 |
 | `fbdb06b` | 单个高熵群邀请链接、撤销、非联系人加入及完整生命周期 | SQL 022 |
+| `93d8dc3` | 链接加入审批、私有申请通知、分页管理与原子成员创建 | SQL 023 |
 
 另外完成历史大响应接收、编辑消息布局和消息操作按钮对比度修复，分别见 `32f3f3b`、`a545c9a`、`f73b8f4`。
 
@@ -60,7 +63,7 @@
 | `set_conversation_pinned` | `conversation, pinned`；只修改本人列表排序偏好，返回当前 pinned |
 | `get_messages` | 会话及互斥的 `before/after` 消息 ID；消息、当前成员实际阅读位置、`has_more` |
 | `mark_read` | 会话和真实消息 ID；阅读位置只增不减 |
-| `get_members` | `members: [{id, username, role}]`，角色为 `owner/admin/member` |
+| `get_members` | `members: [{id, username, avatar_revision, has_avatar, role}]`，角色为 `owner/admin/member` |
 | `set_group_admin` | `conversation, user, admin`；仅群主；返回 `changed` |
 | `transfer_group_owner` | `conversation, user`；仅群主转给当前管理员；返回 `changed` |
 | `remove_group_member` | `conversation, user`；群主移除 admin/member，管理员仅移除 member；返回 `changed` |
@@ -107,7 +110,7 @@ git diff --check
 
 邀请链接默认直接加入，可由群主/管理员启用审批；显式联系人邀请继续直接加入。群公告、@mention、个人会话置顶和群内单条置顶消息已接入，个人会话置顶不等于群内置顶消息。群主必须先手动转让再退出；群主/管理员没有编辑、删除他人消息的权限。退出或被移除者本地活动历史清空；服务端仍保留群消息，重新加入可重新获取。移除不等于永久封禁，重新邀请或使用有效链接均可重新加入或提交审批，恢复普通成员，旧管理员身份和真实读位不继承。
 
-2026-10-02 启动新的长期路线：验证基线、群已读详情、reaction、图片气泡预览、桌面通知、会话 mute/pin、群 mention、群置顶消息、公告、邀请链接和审批，依序独立实施。此列表表示规划，尚未实现的阶段不计入已完成能力。范围仍不扩大到多设备、微服务、Redis、Kafka、event sourcing 或 CQRS。
+2026-10-02 启动的长期路线已按阶段独立完成：验证基线、群已读详情、reaction、图片气泡预览、桌面通知、会话 mute/pin、群 mention、群置顶消息、公告、邀请链接和审批。最终审查只修复实际生命周期问题，没有增加产品功能。范围仍不扩大到多设备、微服务、Redis、Kafka、event sourcing 或 CQRS。
 
 ## 稳态与工程收口
 
@@ -457,3 +460,46 @@ Qt 重启测试先确认申请已在服务器持久化，再重启，避免把�
 | UBSan | PASS | 14/14 PASS，77.46 s |
 
 首次完整入口受到 SIGTERM 中断，没有计作成功；重新完整运行后通过。未使用 suppression、测试排除或扩大现有测试超时，`git diff --check` PASS。
+
+## 最终综合审查
+
+产品阶段推送后重新 fetch，审查基线为 `HEAD = origin/main = 93d8dc3bad218fb8556e40448b95c828359159fa`，工作树干净。审查覆盖整个开发历史、SQL 001–023、数据库模型、server/client/Qt 生命周期、权限与事务锁、协议和通知、cursor、缓存及测试。SQL 编号连续；本 Goal 新增 SQL 016–023，原有 SQL 001–015 未修改，最终收口没有新 migration。
+
+修复了以下实际问题：
+
+- 部分旧 RPC 以及 read/typing/conversation/presence 通知原来直接发射 Qt 信号，排队结果可能进入新连接。现在复用既有 connection generation，在 Qt 线程交付前检查；主窗口使用 AutoConnection，已在 Qt 线程校验的结果不再次排队。跨线程生命周期信号仍按 Qt 规则排队，没有新增 generation 或业务状态。旧连接回归在修复前失败。
+- 群移除或消息删除原来立即移除图片 active 项，但 SDK 下载仍在途，既可能突破三个任务的限制，也可能把旧权限错误当成重新加入后的新下载结果。现在保留在途名额并标记结果不再需要，完成后丢弃内容再启动同消息的后续下载。三个在途任务和单个同 ID 重试两种回归均通过，没有下载版本框架。
+- SDK 在自己的 connected、RPC 或 message 回调中被析构时，原关闭流程会 join 当前网络线程并抛出 `Resource deadlock avoided`。这个失败已复现；现在立即抑制后续回调，将内部状态交给清理线程，在当前回调返回后执行原有 shutdown/join。通常由调用线程析构的同步行为保持，三个公共回调回归确认内部所有权最终释放。
+- PostgreSQL 连接池取得连接时，如异步连接失败，显式关闭该连接，避免保留 libpq 已连接但等待句柄未就绪的状态，下一次取得可以重新连接。现有连接、事务失败恢复和连接池复用测试完整通过；未对操作系统句柄分配失败做故障注入。
+- Qt UI 测试的 RPC helper 改为按值捕获共享 promise，超时返回后迟到 callback 不再引用已经销毁的栈对象。没有新增测试配置框架或扩大超时。
+
+其他审查结论：
+
+- PostgreSQL 仍是事实来源。群权限及 membership 关键变化在 conversation 行锁之后校验，发送、邀请、转让、移除、审批与对应读写串行化；发布阶段重新查询当前收件人。头像和附件分别存储，未持久化 incomplete upload。
+- `joined_message_id` 仅是未读基线，真实阅读只来自 `last_read_message_id`。群已读人数和详情计算当前其他成员的读位，退出者不计入；不维护永久逐消息 receipt 表。
+- 个人 pinned 的服务端 `(pinned,activity,id)` cursor 保持完整分页，群内 pinned message 与个人排序独立。reaction revision、头像 revision 和现有连接/查询 generation 各自有真实职责；没有发现需要机械删除的 shadow state，也未按文件行数拆分模块。
+- 新会话资料通过权威快照恢复；实时通知包括 `message/message_updated/read/typing/presence/conversation/avatar/reaction/join_request`。mute 只抑制桌面通知（包括 mention），不抑制消息、未读或实时快照。审批通知只到当前管理者和申请人；离线没有审批决定历史或事件回放。
+- Qt 图片和头像在异步数据到达时解码并缓存，delegate paint 不下载、不重复解码。图片缓存 64 MiB、最多三个在途下载；头像最多 1 MiB，附件最多 10 MiB，两者使用 32 KiB chunk。图片预览限制 16 × 1024 × 1024 像素，普通文件下载路径保持。
+
+最终实际运行 `tests/verify.sh`，三套均 Qt ON、Debug、`-j12`，继承 libpq 环境且完整 CTest 顺序执行：
+
+| 构建 | 完整 build | 完整 CTest | 总耗时 |
+|---|---|---|---|
+| normal | PASS | 14/14 PASS | 68.13 s |
+| ASan | PASS | 14/14 PASS | 92.74 s |
+| UBSan | PASS | 14/14 PASS | 80.87 s |
+
+没有 suppression、排除测试或放宽断言。最终 `git diff --check` PASS。14 个测试入口为 migration、client、pg_connection、corosio_timeout、http_server、websocket、server、avatar_image、simdjson_reflection、online_users、bcrypt、qt_models、qt_delegate 和 qt_ui；功能回归扩展这些既有入口，未为覆盖率制造重复测试。完整集成回归涵盖 connect/disconnect/reconnect、并发发送和成员变更、编辑删除、回应、阅读、输入、附件头像、移除与转让、邀请重入、通知与静音、提及、群置顶、公告、链接及审批；三个真实 Qt 窗口和截图验证继续执行。
+
+最终 normal 的小群测试每种规模各取三个样本，平均端到端耗时如下。只有发送者在线，其余成员离线，因此它验证成员资料、完整读位和收件人查询规模，不代表 200 个在线连接的吞吐或同时通知能力：
+
+| 成员数 | get_members | history（全部读位） | send（含发布查询/遍历） |
+|---|---|---|---|
+| 3 | 1.98 ms | 3.22 ms | 13.27 ms |
+| 10 | 2.02 ms | 2.82 ms | 13.83 ms |
+| 50 | 42.84 ms | 3.40 ms | 15.43 ms |
+| 200 | 44.68 ms | 44.34 ms | 25.31 ms |
+
+当前成员快照、读位返回和群通知 fanout 随成员数线性增长；已测范围 3–200 人，没有凭此新增人数上限或大群基础设施。GitHub Actions 仍未接入，当前 GCC 16 反射及 Boost 1.92 缺少固定、已验证的 hosted 工具链获取基线，可靠本地入口和限制见 [验证说明](verification.md)。桌面通知点击恢复窗口，Qt 公共接口未提供稳定的通知会话身份，未声称可精确跳到任意旧通知对应的会话。
+
+本 Goal 至此停止。未实现且不属于本轮范围的能力包括多设备同步、E2EE、音视频、超大群、channel/broadcast、bot、分布式 presence、对象存储/CDN、Redis/Kafka、微服务、event sourcing 和 CQRS；需要另行确定真实需求。没有自动启动这些路线。

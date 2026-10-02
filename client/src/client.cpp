@@ -2101,7 +2101,15 @@ struct client::impl
 
 client::client() : impl_(std::make_unique<impl>()) {}
 
-client::~client() = default;
+client::~client()
+{
+    if (impl_->network_thread_.get_id() == std::this_thread::get_id())
+    {
+        impl_->suppress_callbacks_.store(true);
+        // Shutdown joins the network thread after the current callback returns.
+        std::thread([state = std::move(impl_)]() mutable { state.reset(); }).detach();
+    }
+}
 
 void client::set_avatar_handler(avatar_changed_handler handler)
 {

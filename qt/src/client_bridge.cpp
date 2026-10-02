@@ -134,14 +134,22 @@ client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::ma
         }, Qt::QueuedConnection);
     });
     client_->set_read_handler([this](std::int64_t conversation, std::int64_t user, std::int64_t message)
-                              { emit messages_read(conversation, user, message); });
+    {
+        post_result(connection_generation_.load(), [this, conversation, user, message] {
+            emit messages_read(conversation, user, message);
+        });
+    });
     client_->set_typing_handler([this](chat::typing_event value) {
-        emit typing_changed(value.conversation, value.user, from_utf8(value.username), value.typing);
+        post_result(connection_generation_.load(), [this, value = std::move(value)] {
+            emit typing_changed(value.conversation, value.user, from_utf8(value.username), value.typing);
+        });
     });
     client_->set_conversation_handler([this](std::int64_t id, bool removed) {
-        emit conversation_changed(id, removed);
+        post_result(connection_generation_.load(), [this, id, removed] { emit conversation_changed(id, removed); });
     });
-    client_->set_presence_handler([this](chat::presence value) { emit presence_changed(to_presence_data(value)); });
+    client_->set_presence_handler([this](chat::presence value) {
+        post_result(connection_generation_.load(), [this, value] { emit presence_changed(to_presence_data(value)); });
+    });
     client_->set_group_join_request_handler([this](chat::group_join_request_event value) {
         auto const generation = connection_generation_.load();
         QMetaObject::invokeMethod(this, [this, generation, value] {
@@ -176,28 +184,28 @@ void client_bridge::close()
 
 void client_bridge::authenticate(QString const& username, QString const& password)
 {
+    auto const generation = connection_generation_.load();
     client_->authenticate(to_utf8(username), to_utf8(password),
-                          [this](std::expected<chat::authentication_result, chat::error> result)
-                          {
-        if (!result)
-        {
-                                  emit authentication_finished(false, 0, from_utf8(result.error().message),
-                                                               result.error().kind == chat::error_kind::transport, {});
-            return;
-        }
-                              emit authentication_finished(result->authenticated, result->user, {}, false, result->avatar);
+        [this, generation](auto result) {
+        post_result(generation, [this, result = std::move(result)] {
+            if (!result)
+            {
+                emit authentication_finished(false, 0, from_utf8(result.error().message),
+                    result.error().kind == chat::error_kind::transport, {});
+                return;
+            }
+            emit authentication_finished(result->authenticated, result->user, {}, false, result->avatar);
+        });
     });
 }
 
 void client_bridge::register_user(QString const& username, QString const& password)
 {
-    client_->register_user(to_utf8(username), to_utf8(password), [this](std::expected<std::int64_t, chat::error> result) {
-        if (!result)
-        {
-            emit registration_finished(0, from_utf8(result.error().message));
-            return;
-        }
-        emit registration_finished(*result, {});
+    auto const generation = connection_generation_.load();
+    client_->register_user(to_utf8(username), to_utf8(password), [this, generation](auto result) {
+        post_result(generation, [this, result = std::move(result)] {
+            emit registration_finished(result ? *result : 0, result ? QString{} : from_utf8(result.error().message));
+        });
     });
 }
 
@@ -313,38 +321,40 @@ void client_bridge::set_group_pinned_message(qint64 conversation, std::optional<
 
 void client_bridge::open_direct_conversation(qint64 user, QString username)
 {
-    client_->open_direct_conversation(user,
-                                      [this, user, username = std::move(username)](auto result)
-                                      {
-                                          conversation_data value;
-                                          if (result)
-                                          {
-                                              value.id = *result;
-                                              value.user = user;
-                                              value.username = username;
-                                          }
-                                          emit conversation_opened(value, result ? QString{}
-                                                                                 : from_utf8(result.error().message));
-                                      });
+    auto const generation = connection_generation_.load();
+    client_->open_direct_conversation(user, [this, user, username = std::move(username), generation](auto result) {
+        post_result(generation, [this, user, username, result = std::move(result)] {
+            conversation_data value;
+            if (result)
+            {
+                value.id = *result;
+                value.user = user;
+                value.username = username;
+            }
+            emit conversation_opened(value, result ? QString{} : from_utf8(result.error().message));
+        });
+    });
 }
 
 void client_bridge::create_group(QString title, QList<qint64> members)
 {
     std::vector<std::int64_t> values(members.begin(), members.end());
     auto request_title = to_utf8(title);
+    auto const generation = connection_generation_.load();
     client_->create_group(std::move(request_title), std::move(values),
-                          [this, title = std::move(title), count = members.size() + 1](auto result)
-                          {
-                              conversation_data value;
-                              if (result)
-                              {
-                                  value.id = *result;
-                                  value.group = true;
-                                  value.username = title;
-                                  value.member_count = count;
-                              }
-                              emit conversation_opened(value, result ? QString{} : from_utf8(result.error().message));
-                          });
+        [this, title = std::move(title), count = members.size() + 1, generation](auto result) {
+        post_result(generation, [this, title, count, result = std::move(result)] {
+            conversation_data value;
+            if (result)
+            {
+                value.id = *result;
+                value.group = true;
+                value.username = title;
+                value.member_count = count;
+            }
+            emit conversation_opened(value, result ? QString{} : from_utf8(result.error().message));
+        });
+    });
 }
 
 void client_bridge::join_group(QString token)
@@ -462,15 +472,23 @@ void client_bridge::get_members(qint64 conversation)
 
 void client_bridge::set_group_admin(qint64 conversation, qint64 user, bool admin)
 {
-    client_->set_group_admin(conversation, user, admin, [this, conversation](auto result) {
-        emit group_action_finished(conversation, false, result ? QString{} : from_utf8(result.error().message));
+    auto const generation = connection_generation_.load();
+    client_->set_group_admin(conversation, user, admin, [this, conversation, generation](auto result) {
+        post_result(generation, [this, conversation, result = std::move(result)] {
+            if (result) { ++conversations_generation_; }
+            emit group_action_finished(conversation, false, result ? QString{} : from_utf8(result.error().message));
+        });
     });
 }
 
 void client_bridge::rename_group(qint64 conversation, QString title)
 {
-    client_->rename_group(conversation, to_utf8(title), [this, conversation](auto result) {
-        emit group_action_finished(conversation, false, result ? QString{} : from_utf8(result.error().message));
+    auto const generation = connection_generation_.load();
+    client_->rename_group(conversation, to_utf8(title), [this, conversation, generation](auto result) {
+        post_result(generation, [this, conversation, result = std::move(result)] {
+            if (result) { ++conversations_generation_; }
+            emit group_action_finished(conversation, false, result ? QString{} : from_utf8(result.error().message));
+        });
     });
 }
 
@@ -488,72 +506,94 @@ void client_bridge::set_group_announcement(qint64 conversation, QString text)
 
 void client_bridge::transfer_group_owner(qint64 conversation, qint64 user)
 {
-    client_->transfer_group_owner(conversation, user, [this, conversation](auto result) {
-        emit group_action_finished(conversation, false, result ? QString{} : from_utf8(result.error().message));
+    auto const generation = connection_generation_.load();
+    client_->transfer_group_owner(conversation, user, [this, conversation, generation](auto result) {
+        post_result(generation, [this, conversation, result = std::move(result)] {
+            if (result) { ++conversations_generation_; }
+            emit group_action_finished(conversation, false, result ? QString{} : from_utf8(result.error().message));
+        });
     });
 }
 
 void client_bridge::remove_group_member(qint64 conversation, qint64 user)
 {
-    client_->remove_group_member(conversation, user, [this, conversation](auto result) {
-        emit group_action_finished(conversation, false, result ? QString{} : from_utf8(result.error().message));
+    auto const generation = connection_generation_.load();
+    client_->remove_group_member(conversation, user, [this, conversation, generation](auto result) {
+        post_result(generation, [this, conversation, result = std::move(result)] {
+            if (result) { ++conversations_generation_; }
+            emit group_action_finished(conversation, false, result ? QString{} : from_utf8(result.error().message));
+        });
     });
 }
 
 void client_bridge::invite_group_members(qint64 conversation, QList<qint64> members)
 {
+    auto const generation = connection_generation_.load();
     client_->invite_group_members(conversation, std::vector<std::int64_t>(members.begin(), members.end()),
-        [this, conversation](auto result) {
-            emit group_action_finished(conversation, false, result ? QString{} : from_utf8(result.error().message));
+        [this, conversation, generation](auto result) {
+            post_result(generation, [this, conversation, result = std::move(result)] {
+                if (result) { ++conversations_generation_; }
+                emit group_action_finished(conversation, false, result ? QString{} : from_utf8(result.error().message));
+            });
         });
 }
 
 void client_bridge::leave_group(qint64 conversation)
 {
-    client_->leave_group(conversation, [this, conversation](auto result) {
-        emit group_action_finished(conversation, result.has_value(), result ? QString{} : from_utf8(result.error().message));
+    auto const generation = connection_generation_.load();
+    client_->leave_group(conversation, [this, conversation, generation](auto result) {
+        post_result(generation, [this, conversation, result = std::move(result)] {
+            if (result) { ++conversations_generation_; }
+            emit group_action_finished(conversation, result.has_value(), result ? QString{} : from_utf8(result.error().message));
+        });
     });
 }
 
 void client_bridge::get_contacts()
 {
-    client_->get_contacts([this](std::expected<std::vector<chat::user>, chat::error> result) {
-        if (!result)
-        {
-            emit contacts_received({}, from_utf8(result.error().message));
-            return;
-        }
+    auto const generation = connection_generation_.load();
+    client_->get_contacts([this, generation](auto result) {
+        post_result(generation, [this, result = std::move(result)] {
+            if (!result)
+            {
+                emit contacts_received({}, from_utf8(result.error().message));
+                return;
+            }
 
-        QList<user_data> contacts;
-        contacts.reserve(static_cast<qsizetype>(result->size()));
-        for (auto const& item : *result)
-        {
-            user_data value;
-            value.id = item.id;
-            value.username = from_utf8(item.username);
-            value.avatar = item.avatar;
-            contacts.push_back(std::move(value));
-        }
-        emit contacts_received(std::move(contacts), {});
+            QList<user_data> contacts;
+            contacts.reserve(static_cast<qsizetype>(result->size()));
+            for (auto const& item : *result)
+            {
+                user_data value;
+                value.id = item.id;
+                value.username = from_utf8(item.username);
+                value.avatar = item.avatar;
+                contacts.push_back(std::move(value));
+            }
+            emit contacts_received(std::move(contacts), {});
+        });
     });
 }
 
 void client_bridge::get_presence()
 {
-    client_->get_presence([this](std::expected<std::vector<chat::presence>, chat::error> result) {
-        if (!result)
-        {
-            emit presences_received({}, from_utf8(result.error().message));
-            return;
-        }
+    auto const generation = connection_generation_.load();
+    client_->get_presence([this, generation](auto result) {
+        post_result(generation, [this, result = std::move(result)] {
+            if (!result)
+            {
+                emit presences_received({}, from_utf8(result.error().message));
+                return;
+            }
 
-        QList<presence_data> users;
-        users.reserve(static_cast<qsizetype>(result->size()));
-        for (auto const& item : *result)
-        {
-            users.push_back(to_presence_data(item));
-        }
-        emit presences_received(std::move(users), {});
+            QList<presence_data> users;
+            users.reserve(static_cast<qsizetype>(result->size()));
+            for (auto const& item : *result)
+            {
+                users.push_back(to_presence_data(item));
+            }
+            emit presences_received(std::move(users), {});
+        });
     });
 }
 
@@ -708,24 +748,27 @@ void client_bridge::set_message_reaction(qint64 conversation, qint64 message, QS
 
 void client_bridge::search_users(QString query)
 {
-    client_->search_users(to_utf8(query), [this](std::expected<std::vector<chat::user>, chat::error> result) {
-        if (!result)
-        {
-            emit users_received({}, from_utf8(result.error().message));
-            return;
-        }
+    auto const generation = connection_generation_.load();
+    client_->search_users(to_utf8(query), [this, generation](auto result) {
+        post_result(generation, [this, result = std::move(result)] {
+            if (!result)
+            {
+                emit users_received({}, from_utf8(result.error().message));
+                return;
+            }
 
-        QList<user_data> users;
-        users.reserve(static_cast<qsizetype>(result->size()));
-        for (auto const& item : *result)
-        {
-            user_data value;
-            value.id = item.id;
-            value.username = from_utf8(item.username);
-            value.avatar = item.avatar;
-            users.push_back(std::move(value));
-        }
-        emit users_received(std::move(users), {});
+            QList<user_data> users;
+            users.reserve(static_cast<qsizetype>(result->size()));
+            for (auto const& item : *result)
+            {
+                user_data value;
+                value.id = item.id;
+                value.username = from_utf8(item.username);
+                value.avatar = item.avatar;
+                users.push_back(std::move(value));
+            }
+            emit users_received(std::move(users), {});
+        });
     });
 }
 
@@ -766,25 +809,31 @@ void client_bridge::search_messages(qint64 conversation, QString query, qint64 b
 
 void client_bridge::add_contact(qint64 user)
 {
-    client_->add_contact(user, [this](std::expected<chat::user, chat::error> result) {
-        if (!result)
-        {
-            emit contact_added({}, from_utf8(result.error().message));
-            return;
-        }
+    auto const generation = connection_generation_.load();
+    client_->add_contact(user, [this, generation](auto result) {
+        post_result(generation, [this, result = std::move(result)] {
+            if (!result)
+            {
+                emit contact_added({}, from_utf8(result.error().message));
+                return;
+            }
 
-        user_data value;
-        value.id = result->id;
-        value.username = from_utf8(result->username);
-        value.avatar = result->avatar;
-        emit contact_added(std::move(value), {});
+            user_data value;
+            value.id = result->id;
+            value.username = from_utf8(result->username);
+            value.avatar = result->avatar;
+            emit contact_added(std::move(value), {});
+        });
     });
 }
 
 void client_bridge::remove_contact(qint64 user)
 {
-    client_->remove_contact(user, [this](std::expected<bool, chat::error> result) {
-        emit contact_removed(result ? QString{} : from_utf8(result.error().message));
+    auto const generation = connection_generation_.load();
+    client_->remove_contact(user, [this, generation](auto result) {
+        post_result(generation, [this, result = std::move(result)] {
+            emit contact_removed(result ? QString{} : from_utf8(result.error().message));
+        });
     });
 }
 

@@ -8,6 +8,7 @@
 #include <QObject>
 #include <QPixmap>
 #include <QString>
+#include <optional>
 
 class message_images final : public QObject
 {
@@ -36,7 +37,7 @@ class message_images final : public QObject
         QString error;
     };
     QCache<qint64, entry> cache_;
-    QHash<qint64, qint64> active_;
+    QHash<qint64, std::optional<qint64>> active_;
     QList<QPair<qint64, qint64>> queued_;
 };
 

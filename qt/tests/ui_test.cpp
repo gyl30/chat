@@ -29,6 +29,7 @@
 #include <chat/client.hpp>
 #include <libpq-fe.h>
 #include <future>
+#include <memory>
 #include <algorithm>
 #include <array>
 #include <iostream>
@@ -59,9 +60,9 @@ template <class F> void wait(F f, int attempts = 500, std::source_location locat
 }
 template <class T, class F> T rpc(F f)
 {
-    std::promise<std::expected<T, chat::error>> p;
-    auto future = p.get_future();
-    f([&](auto r) { p.set_value(std::move(r)); });
+    auto promise = std::make_shared<std::promise<std::expected<T, chat::error>>>();
+    auto future = promise->get_future();
+    f([promise](auto r) { promise->set_value(std::move(r)); });
     check(future.wait_for(std::chrono::seconds(5)) == std::future_status::ready, "RPC timeout");
     auto r = future.get();
     check(r.has_value(), "RPC failed");
@@ -154,6 +155,13 @@ int main(int argc, char** argv)
             QObject::connect(&bridge, &client_bridge::members_received, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::group_join_requests_received, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::group_join_pending, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::authentication_finished, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::registration_finished, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::contacts_received, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::presences_received, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::users_received, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::contact_added, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::contact_removed, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::error, &bridge, [&](auto) { failed_connect.set_value(); }, Qt::DirectConnection);
             bridge.send_attachment(1, "stale.bin", "old upload");
             bridge.get_attachment(1, 1);
@@ -182,6 +190,21 @@ int main(int argc, char** argv)
             bridge.get_avatar(1, 1);
             bridge.set_avatar("stale avatar");
             bridge.clear_avatar();
+            bridge.authenticate("stale user", "old password");
+            bridge.register_user("stale user", "old password");
+            bridge.open_direct_conversation(1, "stale peer");
+            bridge.create_group("stale group", {1, 2});
+            bridge.set_group_admin(1, 2, true);
+            bridge.rename_group(1, "stale title");
+            bridge.transfer_group_owner(1, 2);
+            bridge.remove_group_member(1, 2);
+            bridge.invite_group_members(1, {2});
+            bridge.leave_group(1);
+            bridge.get_contacts();
+            bridge.get_presence();
+            bridge.search_users("stale search");
+            bridge.add_contact(2);
+            bridge.remove_contact(2);
             bridge.connect_to_server(QStringLiteral("http://127.0.0.1"));
             check(failed_connect.get_future().wait_for(std::chrono::seconds(5)) == std::future_status::ready, "Invalid URL callback");
             QCoreApplication::sendPostedEvents(&bridge, QEvent::MetaCall);

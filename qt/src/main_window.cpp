@@ -261,7 +261,7 @@ main_window::main_window(QString server_url, QWidget* parent)
         {
             client_->close();
         }
-    }, Qt::QueuedConnection);
+    }, Qt::AutoConnection);
 
     connect(client_.get(), &client_bridge::disconnected, this, [this] {
         pending_notifications_.clear();
@@ -308,7 +308,7 @@ main_window::main_window(QString server_url, QWidget* parent)
             password_edit_->clear();
             status_label_->setText(QStringLiteral("连接已断开"));
         }
-    }, Qt::QueuedConnection);
+    }, Qt::AutoConnection);
 
     connect(client_.get(), &client_bridge::error, this, [this](QString const& message) {
         if (reconnecting_)
@@ -331,7 +331,7 @@ main_window::main_window(QString server_url, QWidget* parent)
         {
             chat_page_->set_error(message);
         }
-    }, Qt::QueuedConnection);
+    }, Qt::AutoConnection);
 
     connect(
         client_.get(), &client_bridge::authentication_finished, this,
@@ -387,7 +387,7 @@ main_window::main_window(QString server_url, QWidget* parent)
             show_authenticated_page(user);
             chat_page_->avatars().observe(user, avatar);
             },
-            Qt::QueuedConnection);
+            Qt::AutoConnection);
 
     connect(client_.get(), &client_bridge::registration_finished, this,
             [this](qint64 user, QString const& error_message) {
@@ -413,7 +413,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                 registration_password_edit_->clear();
                 registration_password_confirm_edit_->clear();
             },
-            Qt::QueuedConnection);
+            Qt::AutoConnection);
 
     connect(client_.get(), &client_bridge::conversations_received, this,
             [this](QList<conversation_data> conversations, QString const& error_message) {
@@ -442,7 +442,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                 }
                 chat_page_->set_contacts(std::move(contacts));
             },
-            Qt::QueuedConnection);
+            Qt::AutoConnection);
 
     connect(client_.get(), &client_bridge::presences_received, this,
             [this](QList<presence_data> users, QString const& error_message) {
@@ -453,11 +453,11 @@ main_window::main_window(QString server_url, QWidget* parent)
                 }
                 chat_page_->set_presences(std::move(users));
             },
-            Qt::QueuedConnection);
+            Qt::AutoConnection);
 
     connect(client_.get(), &client_bridge::presence_changed, this,
             [this](presence_data user) { chat_page_->set_presence(std::move(user)); },
-            Qt::QueuedConnection);
+            Qt::AutoConnection);
 
     connect(chat_page_, &chat_widget::logout_requested, this, [this] { logout(); });
 
@@ -473,7 +473,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                 }
                 chat_page_->set_add_contact_search_results(std::move(users));
             },
-            Qt::QueuedConnection);
+            Qt::AutoConnection);
 
     connect(chat_page_, &chat_widget::contact_add_requested, this,
             [this](qint64 user) { client_->add_contact(user); });
@@ -489,7 +489,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                 client_->get_contacts();
                 client_->get_presence();
             },
-            Qt::QueuedConnection);
+            Qt::AutoConnection);
 
     connect(chat_page_, &chat_widget::contact_remove_requested, this,
             [this](qint64 user) { client_->remove_contact(user); });
@@ -501,7 +501,7 @@ main_window::main_window(QString server_url, QWidget* parent)
         }
         client_->get_contacts();
         client_->get_presence();
-    }, Qt::QueuedConnection);
+    }, Qt::AutoConnection);
     connect(chat_page_, &chat_widget::direct_conversation_requested, this,
             [this](qint64 user, QString username) { client_->open_direct_conversation(user, std::move(username)); });
     connect(chat_page_, &chat_widget::group_create_requested, this, [this](QString title, QList<qint64> members)
@@ -534,7 +534,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                 });
                 connect(client_.get(), &client_bridge::disconnected, &dialog, [&dialog] {
                     dialog.set_error(QStringLiteral("连接已断开，请重连后重新打开群成员。"));
-                }, Qt::QueuedConnection);
+                }, Qt::AutoConnection);
                 connect(&dialog, &group_dialog::admin_requested, this, [this, conversation](qint64 user, bool admin) {
                     client_->set_group_admin(conversation, user, admin);
                 });
@@ -553,9 +553,9 @@ main_window::main_window(QString server_url, QWidget* parent)
                     }
                 });
                 connect(client_.get(), &client_bridge::contacts_received, &dialog, &group_dialog::set_contacts,
-                        Qt::QueuedConnection);
+                        Qt::AutoConnection);
                 connect(client_.get(), &client_bridge::conversations_received, &dialog, &group_dialog::set_conversations,
-                        Qt::QueuedConnection);
+                        Qt::AutoConnection);
                 connect(&dialog, &group_dialog::rename_requested, this, [this, conversation](QString title) {
                     client_->rename_group(conversation, std::move(title));
                 });
@@ -580,11 +580,11 @@ main_window::main_window(QString server_url, QWidget* parent)
                     client_->search_messages(conversation, std::move(query), before);
                 });
         connect(client_.get(), &client_bridge::message_search_received, &dialog,
-                &message_search_dialog::set_results, Qt::QueuedConnection);
+                &message_search_dialog::set_results, Qt::AutoConnection);
         connect(client_.get(), &client_bridge::reaction_changed, &dialog,
-                &message_search_dialog::set_reactions, Qt::QueuedConnection);
+                &message_search_dialog::set_reactions, Qt::AutoConnection);
         connect(client_.get(), &client_bridge::message_updated, &dialog,
-                &message_search_dialog::update_message, Qt::QueuedConnection);
+                &message_search_dialog::update_message, Qt::AutoConnection);
         connect(client_.get(), &client_bridge::conversation_changed, &dialog,
                 [&dialog, conversation](qint64 id, bool removed) {
             if (removed && id == conversation) { dialog.reject(); }
@@ -647,7 +647,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                 chat_page_->reset_read_positions(conversation);
                 client_->get_messages(conversation, {}, chat_page_->recovery_cursor());
             }
-        }, Qt::QueuedConnection);
+        }, Qt::AutoConnection);
     connect(client_.get(), &client_bridge::members_received, chat_page_, &chat_widget::set_members);
 
     connect(chat_page_, &chat_widget::conversation_selected, this,
@@ -662,7 +662,7 @@ main_window::main_window(QString server_url, QWidget* parent)
     connect(chat_page_, &chat_widget::send_message_requested, this,
             [this](qint64 user, QString text, qint64 reply) { client_->send_message(user, std::move(text), reply); });
     connect(chat_page_, &chat_widget::typing_requested, client_.get(), &client_bridge::set_typing);
-    connect(client_.get(), &client_bridge::typing_changed, chat_page_, &chat_widget::set_typing, Qt::QueuedConnection);
+    connect(client_.get(), &client_bridge::typing_changed, chat_page_, &chat_widget::set_typing, Qt::AutoConnection);
     connect(chat_page_, &chat_widget::attachment_send_requested, this,
             [this](qint64 conversation, QString filename, QByteArray data, qint64 reply) {
                 client_->send_attachment(conversation, std::move(filename), std::move(data), reply);
@@ -675,13 +675,13 @@ main_window::main_window(QString server_url, QWidget* parent)
             chat_page_->add_message(conversation, std::move(message));
             client_->get_conversations();
         }
-    }, Qt::QueuedConnection);
+    }, Qt::AutoConnection);
     connect(chat_page_, &chat_widget::attachment_open_requested, this,
             [this](qint64 conversation, qint64 message, QString filename, bool preview) {
         attachment_dialog dialog(conversation, message, std::move(filename), preview, this,
                                   preview ? chat_page_->images().image(message) : QPixmap{});
         connect(client_.get(), &client_bridge::attachment_received, &dialog, &attachment_dialog::set_data,
-                Qt::QueuedConnection);
+                Qt::AutoConnection);
         connect(client_.get(), &client_bridge::conversation_changed, &dialog,
                 [&dialog, conversation](qint64 id, bool removed) {
             if (removed && id == conversation)
@@ -692,11 +692,11 @@ main_window::main_window(QString server_url, QWidget* parent)
         });
         connect(client_.get(), &client_bridge::disconnected, &dialog, [&dialog, conversation, message] {
             dialog.set_data(conversation, message, {}, QStringLiteral("连接已断开，请关闭后重新下载。"));
-        }, Qt::QueuedConnection);
+        }, Qt::AutoConnection);
         connect(client_.get(), &client_bridge::message_updated, &dialog,
                 [&dialog, message](qint64, message_data value, QString const&) {
             if (value.id == message && value.deleted) { dialog.reject(); }
-        }, Qt::QueuedConnection);
+        }, Qt::AutoConnection);
         auto const bytes = chat_page_->images().bytes(message);
         if (!bytes.isEmpty()) { dialog.set_data(conversation, message, bytes, {}); }
         else { client_->get_attachment(conversation, message); }
@@ -704,7 +704,7 @@ main_window::main_window(QString server_url, QWidget* parent)
     });
     connect(&chat_page_->images(), &message_images::requested, client_.get(), &client_bridge::get_message_image);
     connect(client_.get(), &client_bridge::message_image_received, &chat_page_->images(), &message_images::receive,
-            Qt::QueuedConnection);
+            Qt::AutoConnection);
 
     connect(
         client_.get(), &client_bridge::messages_received, this,
@@ -719,7 +719,7 @@ main_window::main_window(QString server_url, QWidget* parent)
 
             chat_page_->set_messages(user, std::move(messages), std::move(positions), older, recovering, has_more);
             },
-            Qt::QueuedConnection);
+            Qt::AutoConnection);
 
     connect(
         client_.get(), &client_bridge::message_received, this,
@@ -751,7 +751,7 @@ main_window::main_window(QString server_url, QWidget* parent)
         {
             client_->get_messages(conversation, {}, chat_page_->recovery_cursor());
         }
-    }, Qt::QueuedConnection);
+    }, Qt::AutoConnection);
     connect(chat_page_, &chat_widget::edit_message_requested, this,
             [this](qint64 conversation, qint64 message, QString text)
             { client_->edit_message(conversation, message, std::move(text)); });
@@ -781,7 +781,7 @@ main_window::main_window(QString server_url, QWidget* parent)
 
     connect(
         client_.get(), &client_bridge::messages_read, this, [this](qint64 conversation, qint64 user, qint64 message)
-        { chat_page_->set_read_message(conversation, user, message); }, Qt::QueuedConnection);
+        { chat_page_->set_read_message(conversation, user, message); }, Qt::AutoConnection);
 
     connect(
         client_.get(), &client_bridge::message_sent, this,

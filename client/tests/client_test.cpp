@@ -1509,5 +1509,33 @@ int main()
     }
     if (destructor_callbacks != 0) { std::cerr << "FAIL pending avatar callback during destruction\n"; return 1; }
     std::cout << "PASS client destruction suppresses pending avatar callback\n";
+    for (int callback = 0; callback < 3; ++callback)
+    {
+        auto released = std::make_shared<std::promise<void>>();
+        auto release_future = released->get_future();
+        auto lifetime = std::shared_ptr<int>(new int(0), [released](int* value) {
+            delete value;
+            released->set_value();
+        });
+        auto owned = std::make_unique<chat::client>();
+        owned->set_error_handler([lifetime](auto const&) {});
+        lifetime.reset();
+        auto destroy = [&owned] { owned.reset(); };
+        auto ready = std::make_shared<std::promise<void>>();
+        auto ready_future = ready->get_future();
+        if (callback == 0) { owned->set_connected_handler(destroy); }
+        else { owned->set_connected_handler([ready] { ready->set_value(); }); }
+        if (callback == 2) { owned->set_message_handler([destroy](auto) { destroy(); }); }
+        owned->connect(url);
+        if (callback != 0)
+        {
+            if (ready_future.wait_for(5s) != std::future_status::ready) { return 1; }
+            if (callback == 1) { owned->authenticate("alice", "secret", [destroy](auto) { destroy(); }); }
+            else { owned->send_message(2, "outgoing", [](auto) {}); }
+        }
+        if (release_future.wait_for(5s) != std::future_status::ready)
+        { std::cerr << "FAIL client destroyed from callback cannot finish shutdown\n"; return 1; }
+    }
+    std::cout << "PASS client destruction from connected, request and message callbacks releases network ownership\n";
     return 0;
 }

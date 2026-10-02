@@ -100,7 +100,33 @@ int main(int argc, char** argv)
     pictures.receive(70, 22, png, {});
     if (image_requests != QList<qint64>{20, 21, 22, 30} || pictures.image(20).isNull()) { return 1; }
     pictures.clear();
+    image_requests.clear();
+    for (qint64 id : {100, 101, 102}) { pictures.observe(70, id); }
+    pictures.remove(70);
+    pictures.observe(70, 100);
+    pictures.observe(70, 103);
+    if (image_requests != QList<qint64>{100, 101, 102})
+    { std::cerr << "FAIL removed in-flight downloads still count toward the concurrency bound\n"; return 1; }
+    pictures.receive(70, 100, {}, "old membership denied");
+    if (image_requests != QList<qint64>{100, 101, 102, 100} || !pictures.bytes(100).isEmpty()) { return 1; }
+    pictures.receive(70, 100, png, {});
+    pictures.receive(70, 101, png, {});
+    pictures.receive(70, 102, png, {});
+    pictures.receive(70, 103, png, {});
+    if (pictures.image(100).isNull() || pictures.image(103).isNull() || !pictures.bytes(101).isEmpty() ||
+        !pictures.bytes(102).isEmpty() || image_requests != QList<qint64>{100, 101, 102, 100, 103}) { return 1; }
+    pictures.clear();
     std::cout << "PASS image download deduplication, queue bound, immutable cache, paint, fallback, lifecycle and eviction\n";
+    image_requests.clear();
+    pictures.observe(70, 200);
+    pictures.remove(70);
+    pictures.observe(70, 200);
+    if (image_requests != QList<qint64>{200}) { return 1; }
+    pictures.receive(70, 200, {}, "old membership denied");
+    if (image_requests != QList<qint64>{200, 200} || !pictures.bytes(200).isEmpty()) { return 1; }
+    pictures.receive(70, 200, png, {});
+    if (pictures.image(200).isNull()) { return 1; }
+    pictures.clear();
     for (int i = 0; i < 100; ++i) { avatars.observe(2, {1, true}); }
     if (downloads != 1 || !avatars.image(2).isNull()) { return 1; }
     avatars.receive(2, {1, true}, png);

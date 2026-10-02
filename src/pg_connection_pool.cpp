@@ -90,6 +90,7 @@ boost::capy::task<pg_connection_pool::lease> pg_connection_pool::acquire()
     {
         auto connect_result = co_await connection.connect(connection_string_);
         connect_ec = std::get<0>(connect_result);
+        if (connect_ec) { connection.close(); }
     }
 
     co_return lease(*this, index, connect_ec);
