@@ -22,6 +22,7 @@ struct conversation_data
     quint64 member_count = 0;
     chat::avatar_state avatar;
     bool muted = false;
+    bool pinned = false;
 };
 
 Q_DECLARE_METATYPE(conversation_data)

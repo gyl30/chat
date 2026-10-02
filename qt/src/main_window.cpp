@@ -165,6 +165,16 @@ main_window::main_window(QString server_url, QWidget* parent)
     });
 
     connect(&chat_page_->avatars(), &avatar_cache::requested, client_.get(), &client_bridge::get_avatar);
+    connect(chat_page_, &chat_widget::pin_requested, client_.get(), &client_bridge::set_conversation_pinned);
+    connect(client_.get(), &client_bridge::pin_finished, this, [this](qint64 conversation, bool pinned, QString error) {
+        if (!error.isEmpty())
+        {
+            chat_page_->set_error(std::move(error));
+            return;
+        }
+        chat_page_->set_conversation_pinned(conversation, pinned);
+        client_->get_conversations();
+    });
     connect(client_.get(), &client_bridge::avatar_changed, &chat_page_->avatars(), &avatar_cache::observe);
     connect(client_.get(), &client_bridge::avatar_received, &chat_page_->avatars(), &avatar_cache::receive);
     connect(chat_page_, &chat_widget::avatar_set_requested, client_.get(), &client_bridge::set_avatar);

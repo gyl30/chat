@@ -15,9 +15,14 @@ struct [[= simdjson::deny_unknown_fields]] mute_params
     std::int64_t conversation = 0;
     std::optional<bool> muted;
 };
+struct [[= simdjson::deny_unknown_fields]] pin_params
+{
+    std::int64_t conversation = 0;
+    std::optional<bool> pinned;
+};
 }
 
-boost::capy::task<simdjson::error_code> chat_session::handle_conversation_mute(json_rpc_request& request,
+boost::capy::task<simdjson::error_code> chat_session::handle_conversation_preference(json_rpc_request& request,
                                                                            std::string& response)
 {
     if (!request.id.present) { co_return simdjson::SUCCESS; }
@@ -25,11 +30,30 @@ boost::capy::task<simdjson::error_code> chat_session::handle_conversation_mute(j
     {
         co_return serialize_json_rpc_error(-32001, "Authentication required", std::move(request.id), response);
     }
-    mute_params params;
+    auto const pin = request.method == "set_conversation_pinned";
     simdjson::ondemand::parser parser;
     simdjson::ondemand::document document;
-    if (!request.params.present || parser.iterate(request.params.json).get(document) || document.get(params) ||
-        !document.at_end() || params.conversation <= 0 || !params.muted)
+    if (!request.params.present || parser.iterate(request.params.json).get(document))
+    {
+        co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+    }
+    std::int64_t conversation = 0;
+    std::optional<bool> value;
+    if (pin)
+    {
+        pin_params params;
+        if (document.get(params)) { co_return serialize_json_rpc_invalid_params(std::move(request.id), response); }
+        conversation = params.conversation;
+        value = params.pinned;
+    }
+    else
+    {
+        mute_params params;
+        if (document.get(params)) { co_return serialize_json_rpc_invalid_params(std::move(request.id), response); }
+        conversation = params.conversation;
+        value = params.muted;
+    }
+    if (!document.at_end() || conversation <= 0 || !value)
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
@@ -46,16 +70,19 @@ boost::capy::task<simdjson::error_code> chat_session::handle_conversation_mute(j
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
     auto locked = co_await connection.execute_row("SELECT id::text FROM conversations WHERE id=$1::bigint FOR UPDATE",
-                                                 {std::to_string(params.conversation)});
+                                                 {std::to_string(conversation)});
     if (std::get<0>(locked))
     {
         connection.close();
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
     auto updated = co_await connection.execute_row(
+        pin ?
+        "UPDATE conversation_members SET pinned=$3::boolean WHERE conversation_id=$1::bigint AND user_id=$2::bigint "
+        "RETURNING pinned::text" :
         "UPDATE conversation_members SET muted=$3::boolean WHERE conversation_id=$1::bigint AND user_id=$2::bigint "
         "RETURNING muted::text",
-        {std::to_string(params.conversation), std::to_string(*user_id_), *params.muted ? "true" : "false"});
+        {std::to_string(conversation), std::to_string(*user_id_), *value ? "true" : "false"});
     auto& [update_ec, row] = updated;
     if (update_ec)
     {
@@ -72,5 +99,6 @@ boost::capy::task<simdjson::error_code> chat_session::handle_conversation_mute(j
     {
         co_return serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response);
     }
-    co_return serialize_json_rpc_success("{\"muted\":" + row->front() + "}", std::move(request.id), response);
+    co_return serialize_json_rpc_success(std::string(pin ? "{\"pinned\":" : "{\"muted\":") + row->front() + "}",
+                                        std::move(request.id), response);
 }

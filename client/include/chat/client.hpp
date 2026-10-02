@@ -36,6 +36,7 @@ class client
     using register_handler = std::function<void(std::expected<std::int64_t, error>)>;
     using conversations_handler = std::function<void(std::expected<conversations_result, error>)>;
     using mute_handler = std::function<void(std::expected<bool, error>)>;
+    using pin_handler = std::function<void(std::expected<bool, error>)>;
     using conversation_handler = std::function<void(std::expected<std::int64_t, error>)>;
     using message_result_handler = std::function<void(std::expected<message, error>)>;
     using attachment_handler = std::function<void(std::expected<std::string, error>)>;
@@ -87,6 +88,7 @@ class client
     void register_user(std::string username, std::string password, register_handler handler);
     void get_conversations(std::optional<conversation_cursor> before, conversations_handler handler);
     void set_conversation_muted(std::int64_t conversation, bool muted, mute_handler handler);
+    void set_conversation_pinned(std::int64_t conversation, bool pinned, pin_handler handler);
     void open_direct_conversation(std::int64_t user, conversation_handler handler);
     void create_group(std::string title, std::vector<std::int64_t> members, conversation_handler handler);
     void get_members(std::int64_t conversation, members_handler handler);

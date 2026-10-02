@@ -67,6 +67,7 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     auto const group = index.data(conversation_model::group_role).toBool();
     auto const online = index.data(conversation_model::online_role).toBool();
     auto const muted = index.data(conversation_model::muted_role).toBool();
+    auto const pinned = index.data(conversation_model::pinned_role).toBool();
 
     QRect avatar_rect(rect.left() + chat_theme::dialog_left, rect.top() + chat_theme::dialog_avatar_top,
                       chat_theme::dialog_avatar_size, chat_theme::dialog_avatar_size);
@@ -100,9 +101,10 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     painter->setFont(username_font);
     painter->setPen(QColor(QStringLiteral("#25332D")));
     auto name_right = content_right - (date_width > 0 ? date_width + 8 : 0);
-    if (muted)
+    if (muted || pinned)
     {
-        auto const label = QStringLiteral("静音");
+        auto const label = muted && pinned ? QStringLiteral("置顶 静音") :
+                           pinned ? QStringLiteral("置顶") : QStringLiteral("静音");
         painter->setFont(date_font);
         painter->setPen(QColor(QStringLiteral("#8C948F")));
         auto const label_width = QFontMetrics(date_font).horizontalAdvance(label);

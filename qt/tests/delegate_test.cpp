@@ -243,6 +243,13 @@ int main(int argc, char** argv)
     muted_painter.end();
     if (rendered == unmuted_rendering) { std::cerr << "FAIL conversation mute indicator\n"; return 1; }
     conversations.set_muted(direct.id, false);
+    conversations.set_pinned(direct.id, true);
+    rendered.fill(Qt::white);
+    QPainter pinned_painter(&rendered);
+    conversation_painter.paint(&pinned_painter, option, conversations.index(0, 0));
+    pinned_painter.end();
+    if (rendered == unmuted_rendering) { std::cerr << "FAIL conversation pin indicator\n"; return 1; }
+    conversations.set_pinned(direct.id, false);
     // Keep the edited-message rendering assertion on its original image.
     rendered.fill(QColor(QStringLiteral("#F7F5EF")));
     QPainter message_painter(&rendered);

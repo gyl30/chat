@@ -268,6 +268,9 @@ int run_group_tests()
             auto unauthenticated_mute = call<bool>([&](auto handler) { client.set_conversation_muted(1, true, handler); });
             require(!unauthenticated_mute && unauthenticated_mute.error().code == -32001,
                     "Mute requires authentication");
+            auto unauthenticated_pin = call<bool>([&](auto handler) { client.set_conversation_pinned(1, true, handler); });
+            require(!unauthenticated_pin && unauthenticated_pin.error().code == -32001,
+                    "Pin requires authentication");
             auto unauthenticated_reaction = call<chat::reaction_update>([&](auto handler) {
                 client.set_message_reaction(1, 1, "👍", handler);
             });
@@ -302,7 +305,7 @@ int run_group_tests()
         c_events.wait([&] { return !c_events.conversations.empty(); });
         auto empty = conversation(b, group);
         require(empty.kind == chat::conversation_kind::group && empty.last.id == 0 && empty.member_count == 3 &&
-                    empty.unread == 0 && !empty.muted,
+                    empty.unread == 0 && !empty.muted && !empty.pinned,
                 "Empty group descriptor");
         auto members = call<std::vector<chat::conversation_member>>([&](auto handler) { c.get_members(group, handler); });
         require(members && members->size() == 3 && (*members)[0].id == data.users[0] &&
@@ -335,6 +338,15 @@ int run_group_tests()
             conversation(c, group).last.id == sent->message_id && !forbidden_mute && forbidden_mute.error().code == -32006 &&
             !invalid_mute && invalid_mute.error().code == -32602,
             "Mute is private, idempotent and changes neither unread nor message activity; membership is required");
+        auto pinned = call<bool>([&](auto handler) { c.set_conversation_pinned(group, true, handler); });
+        auto repeated_pin = call<bool>([&](auto handler) { c.set_conversation_pinned(group, true, handler); });
+        auto forbidden_pin = call<bool>([&](auto handler) { d.set_conversation_pinned(group, true, handler); });
+        auto invalid_pin = call<bool>([&](auto handler) { a.set_conversation_pinned(0, false, handler); });
+        require(pinned && *pinned && repeated_pin && *repeated_pin && conversation(c, group).pinned &&
+            !conversation(b, group).pinned && conversation(c, group).unread == 1 &&
+            conversation(c, group).last.id == sent->message_id && !forbidden_pin && forbidden_pin.error().code == -32006 &&
+            !invalid_pin && invalid_pin.error().code == -32602,
+            "Pin is private and idempotent without changing message activity or unread");
         {
             auto denied = call<chat::reaction_update>([&](auto handler) {
                 d.set_message_reaction(group, sent->message_id, "👍", handler);
@@ -496,7 +508,7 @@ int run_group_tests()
         auto reauthenticated = call<chat::authentication_result>(
             [&](auto handler) { c.authenticate(names[2], "group password", handler); });
         require(reauthenticated && reauthenticated->authenticated, "Reauthenticate group member");
-        require(conversation(c, group).muted, "Reconnect restores persisted group mute");
+        require(conversation(c, group).muted && conversation(c, group).pinned, "Reconnect restores persisted group preferences");
         auto first_page = call<chat::messages_result>([&](auto handler) { c.get_messages(group, {}, handler); });
         require(first_page && first_page->messages.size() == 50 && first_page->has_more &&
                     first_page->messages.back().id == latest,
@@ -570,6 +582,8 @@ int run_group_tests()
         require(direct_mute && *direct_mute && conversation(b, *direct).muted && !conversation(a, *direct).muted &&
             conversation(b, *direct).unread == direct_before_mute.unread &&
             conversation(b, *direct).last.id == direct_before_mute.last.id, "Direct mute is also a personal preference");
+        require(call<bool>([&](auto handler) { b.set_conversation_pinned(*direct, true, handler); }).value() &&
+            !conversation(a, *direct).pinned, "Direct pin is private");
         b.close();
         b_events.wait([&] { return b_events.disconnected == 1; });
         b.connect(server.url);
@@ -577,7 +591,7 @@ int run_group_tests()
         auto direct_relogin = call<chat::authentication_result>([&](auto handler) {
             b.authenticate(names[1], "group password", handler);
         });
-        require(direct_relogin && direct_relogin->authenticated && conversation(b, *direct).muted &&
+        require(direct_relogin && direct_relogin->authenticated && conversation(b, *direct).muted && conversation(b, *direct).pinned &&
             conversation(b, *direct).unread == direct_before_mute.unread,
             "Disconnect and login restore persisted direct mute and unread");
         auto direct_unmute = call<bool>([&](auto handler) { b.set_conversation_muted(*direct, false, handler); });
@@ -924,6 +938,62 @@ int run_group_tests()
                         d_events.conversations.empty() && d_events.typing.empty(),
                     "Nonmember receives no notifications");
         }
+        auto const page_owner = std::to_string(data.users[0]);
+        auto const page_peer = std::to_string(data.users[1]);
+        auto const page_sql =
+            "WITH created AS (INSERT INTO conversations(kind,title,owner_id,activity) "
+            "SELECT 'group','pagination'," + page_owner + ",1000+n/2 FROM generate_series(1,123) n RETURNING id,activity), "
+            "members AS (INSERT INTO conversation_members(conversation_id,user_id,pinned) "
+            "SELECT id," + page_owner + ",activity%2=0 FROM created UNION ALL SELECT id," + page_peer +
+            ",false FROM created RETURNING conversation_id) SELECT id FROM created";
+        std::unique_ptr<PGresult, decltype(&PQclear)> page_fixture(PQexec(data.database.get(), page_sql.c_str()), &PQclear);
+        require(page_fixture && PQresultStatus(page_fixture.get()) == PGRES_TUPLES_OK && PQntuples(page_fixture.get()) == 123,
+            "Create multi-page pin fixtures with tied activity across both tiers");
+        for (int row = 0; row < 123; ++row) { data.groups.push_back(std::stoll(PQgetvalue(page_fixture.get(), row, 0))); }
+        auto verify_pages = [&](chat::client& client, std::int64_t user) {
+            auto const sql = "SELECT c.id,own.pinned FROM conversations c JOIN conversation_members own ON own.conversation_id=c.id "
+                "WHERE own.user_id=" + std::to_string(user) +
+                " AND (c.kind='group' OR EXISTS(SELECT 1 FROM messages WHERE conversation_id=c.id)) "
+                "ORDER BY own.pinned DESC,c.activity DESC,c.id DESC";
+            std::unique_ptr<PGresult, decltype(&PQclear)> expected(PQexec(data.database.get(), sql.c_str()), &PQclear);
+            require(expected && PQresultStatus(expected.get()) == PGRES_TUPLES_OK, "Expected conversation order");
+            std::optional<chat::conversation_cursor> cursor;
+            int count = 0, pages = 0;
+            bool pinned_cursor = false, ordinary_cursor = false;
+            do
+            {
+                auto result = call<chat::conversations_result>([&](auto handler) { client.get_conversations(cursor, handler); });
+                require(result && result->conversations.size() <= 50, "Conversation cursor page limit");
+                for (auto const& item : result->conversations)
+                {
+                    require(count < PQntuples(expected.get()) && item.id == std::stoll(PQgetvalue(expected.get(), count, 0)) &&
+                        item.pinned == (std::string_view(PQgetvalue(expected.get(), count, 1)) == "t"),
+                        "All pages preserve pinned/activity/id order without omission or duplication");
+                    ++count;
+                }
+                cursor = result->next;
+                if (cursor)
+                {
+                    require(!result->conversations.empty() && cursor->id == result->conversations.back().id &&
+                        cursor->pinned == result->conversations.back().pinned, "Cursor carries the last visible tier");
+                    pinned_cursor |= cursor->pinned;
+                    ordinary_cursor |= !cursor->pinned;
+                }
+                require(++pages <= 4, "Cursor traversal terminates");
+            } while (cursor);
+            require(count == PQntuples(expected.get()) && pages >= 3 && ordinary_cursor &&
+                (user != data.users[0] || pinned_cursor), "Full traversal crosses both tiers and multiple pinned pages");
+        };
+        verify_pages(a, data.users[0]);
+        verify_pages(b, data.users[1]);
+        auto const changed_id = data.groups.back();
+        require(call<bool>([&](auto handler) { a.set_conversation_pinned(changed_id, true, handler); }).value(), "Pin paged conversation");
+        verify_pages(a, data.users[0]);
+        verify_pages(b, data.users[1]);
+        auto unpinned = call<bool>([&](auto handler) { a.set_conversation_pinned(changed_id, false, handler); });
+        require(unpinned && !*unpinned, "Unpin paged conversation");
+        verify_pages(a, data.users[0]);
+        std::cout << "PASS personal pin, tied activity, multi-page cursor and unpin ordering\n";
         a.close();
         b.close();
         c.close();
@@ -1249,8 +1319,9 @@ int run_group_tests()
             });
             require(before_removal_read && *before_removal_read == removed_file->id,
                 "Removed member has a real reading watermark to discard");
-            require(call<bool>([&](auto handler) { managed[4].set_conversation_muted(lifecycle_group, true, handler); }).value(),
-                "Member muted before removal");
+            require(call<bool>([&](auto handler) { managed[4].set_conversation_muted(lifecycle_group, true, handler); }).value() &&
+                call<bool>([&](auto handler) { managed[4].set_conversation_pinned(lifecycle_group, true, handler); }).value(),
+                "Member preferences before removal");
             require(call<bool>([&](auto handler) {
                 managed[2].remove_group_member(lifecycle_group, managed_ids[4], handler);
             }).has_value(), "Administrator removes ordinary member");
@@ -1271,9 +1342,10 @@ int run_group_tests()
                 managed[4].get_conversations({}, handler);
             });
             auto removed_mute = call<bool>([&](auto handler) { managed[4].set_conversation_muted(lifecycle_group, true, handler); });
+            auto removed_pin = call<bool>([&](auto handler) { managed[4].set_conversation_pinned(lifecycle_group, true, handler); });
             require(!removed_history && !removed_members && !removed_send && !removed_search && !removed_read &&
                 !removed_typing && !removed_edit && !removed_delete && !removed_download && !removed_upload &&
-                !removed_mute && removed_mute.error().code == -32006,
+                !removed_mute && removed_mute.error().code == -32006 && !removed_pin && removed_pin.error().code == -32006,
                 "Removed member loses every group access path");
             require(removed_conversations && std::none_of(removed_conversations->conversations.begin(),
                 removed_conversations->conversations.end(), [&](auto const& value) { return value.id == lifecycle_group; }) &&
@@ -1313,7 +1385,7 @@ int run_group_tests()
             auto restored_members = call<std::vector<chat::conversation_member>>([&](auto handler) { managed[4].get_members(lifecycle_group, handler); });
             require(restored && restored->messages.size() == 3 && position(*restored, managed_ids[4]) == 0 &&
                 conversation(managed[4], lifecycle_group).unread == 0 &&
-                !conversation(managed[4], lifecycle_group).muted &&
+                !conversation(managed[4], lifecycle_group).muted && !conversation(managed[4], lifecycle_group).pinned &&
                 conversation(managed[1], lifecycle_group).member_count == 5 && restored_members &&
                 restored_members->back().role == chat::member_role::member,
                 "Reinvite resets role and actual read position while exposing history without old unread");
@@ -1354,6 +1426,17 @@ int run_group_tests()
                 managed[1].invite_group_members(lifecycle_group, {managed_ids[4]}, handler);
             }).has_value() && !conversation(managed[4], lifecycle_group).muted,
                 "Reinvite after mute/remove race resets the personal preference");
+            auto [pin_remove, racing_pin] = locked_race([&] {
+                return call<bool>([&](auto handler) { managed[1].remove_group_member(lifecycle_group, managed_ids[4], handler); });
+            }, [&] {
+                return call<bool>([&](auto handler) { managed[4].set_conversation_pinned(lifecycle_group, true, handler); });
+            });
+            require(pin_remove && *pin_remove && (racing_pin || racing_pin.error().code == -32006),
+                "Pin/remove race rechecks membership after conversation lock");
+            require(call<bool>([&](auto handler) {
+                managed[1].invite_group_members(lifecycle_group, {managed_ids[4]}, handler);
+            }).has_value() && !conversation(managed[4], lifecycle_group).pinned,
+                "Reinvite after pin/remove race resets personal pin");
             auto [racing_remove, member_send] = locked_race([&] {
                 return call<bool>([&](auto handler) { managed[1].remove_group_member(lifecycle_group, managed_ids[4], handler); });
             }, [&] {

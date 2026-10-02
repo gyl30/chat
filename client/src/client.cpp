@@ -884,7 +884,8 @@ struct client::impl
         boost::json::object params;
         if (before)
         {
-            params.emplace("before", boost::json::object{{"activity", before->activity}, {"id", before->id}});
+            params.emplace("before", boost::json::object{{"activity", before->activity}, {"id", before->id},
+                                                         {"pinned", before->pinned}});
         }
         send_request(
             "get_conversations", std::move(params),
@@ -924,11 +925,13 @@ struct client::impl
                 auto const* unread_value = object.if_contains("unread");
                     auto const* count_value = object.if_contains("member_count");
                     auto const* muted = object.if_contains("muted");
+                    auto const* pinned = object.if_contains("pinned");
                     auto id = id_value ? parse_int64(*id_value) : std::nullopt;
                     auto unread = unread_value ? parse_uint64(*unread_value) : std::nullopt;
                     auto count = count_value ? parse_uint64(*count_value) : std::nullopt;
                     if (!id || *id <= 0 || !kind || !kind->is_string() || !user_value || !name || !name->is_string() ||
-                        !last || !unread || !count || *count == 0 || !muted || !muted->is_bool())
+                        !last || !unread || !count || *count == 0 || !muted || !muted->is_bool() ||
+                        !pinned || !pinned->is_bool())
                 {
                     handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation")));
                     return;
@@ -939,6 +942,7 @@ struct client::impl
                     item.unread = *unread;
                     item.member_count = *count;
                     item.muted = muted->as_bool();
+                    item.pinned = pinned->as_bool();
                     if (kind->as_string() == "direct")
                 {
                         auto peer = parse_int64(*user_value);
@@ -980,36 +984,38 @@ struct client::impl
                     }
                     auto const* activity = next->as_object().if_contains("activity");
                     auto const* id = next->as_object().if_contains("id");
+                    auto const* pinned = next->as_object().if_contains("pinned");
                     auto a = activity ? parse_int64(*activity) : std::nullopt;
                     auto i = id ? parse_int64(*id) : std::nullopt;
-                    if (!a || *a <= 0 || !i || *i <= 0)
+                    if (!a || *a <= 0 || !i || *i <= 0 || !pinned || !pinned->is_bool())
                     {
                         handler(std::unexpected(make_error(error_kind::protocol, "Invalid cursor")));
                         return;
                     }
-                    result.next = conversation_cursor{*a, *i};
+                    result.next = conversation_cursor{*a, *i, pinned->as_bool()};
                 }
                 handler(std::move(result));
         });
         co_return;
     }
 
-    boost::capy::task<> set_conversation_muted(std::int64_t conversation, bool muted, mute_handler handler)
+    boost::capy::task<> set_conversation_preference(std::int64_t conversation, bool value, bool pin, mute_handler handler)
     {
-        send_request("set_conversation_muted", {{"conversation", conversation}, {"muted", muted}},
-            [handler = std::move(handler), muted](auto response) mutable {
+        auto const key = pin ? "pinned" : "muted";
+        send_request(pin ? "set_conversation_pinned" : "set_conversation_muted", {{"conversation", conversation}, {key, value}},
+            [handler = std::move(handler), key, value](auto response) mutable {
                 if (!response)
                 {
                     handler(std::unexpected(std::move(response.error())));
                     return;
                 }
-                auto const* value = response->is_object() ? response->as_object().if_contains("muted") : nullptr;
-                if (!value || !value->is_bool() || value->as_bool() != muted)
+                auto const* result = response->is_object() ? response->as_object().if_contains(key) : nullptr;
+                if (!result || !result->is_bool() || result->as_bool() != value)
                 {
-                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid mute result")));
+                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation preference result")));
                     return;
                 }
-                handler(value->as_bool());
+                handler(result->as_bool());
             });
         co_return;
     }
@@ -2045,7 +2051,12 @@ void client::get_conversations(std::optional<conversation_cursor> before, conver
 
 void client::set_conversation_muted(std::int64_t conversation, bool muted, mute_handler handler)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->set_conversation_muted(conversation, muted, std::move(handler)));
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->set_conversation_preference(conversation, muted, false, std::move(handler)));
+}
+
+void client::set_conversation_pinned(std::int64_t conversation, bool pinned, pin_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->set_conversation_preference(conversation, pinned, true, std::move(handler)));
 }
 
 void client::open_direct_conversation(std::int64_t user, conversation_handler handler)

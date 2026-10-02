@@ -21,6 +21,7 @@ struct conversation_cursor
 {
     std::int64_t activity = 0;
     std::int64_t id = 0;
+    bool pinned = false;
 };
 
 struct conversation
@@ -34,6 +35,7 @@ struct conversation
     std::uint64_t unread = 0;
     avatar_state avatar;
     bool muted = false;
+    bool pinned = false;
 };
 
 struct conversations_result

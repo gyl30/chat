@@ -95,12 +95,14 @@ int main(int argc, char** argv)
             QObject::connect(&bridge, &client_bridge::message_image_received, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::read_marked, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::mute_finished, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::pin_finished, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::error, &bridge, [&](auto) { failed_connect.set_value(); }, Qt::DirectConnection);
             bridge.send_attachment(1, "stale.bin", "old upload");
             bridge.get_attachment(1, 1);
             bridge.get_message_image(1, 1);
             bridge.mark_read(1, 1);
             bridge.set_conversation_muted(1, true);
+            bridge.set_conversation_pinned(1, true);
             bridge.search_messages(1, "old search");
             bridge.set_message_reaction(1, 1, QStringLiteral("👍"));
             QObject::connect(&bridge, &client_bridge::avatar_received, &bridge, [&](auto...) { ++stale_results; });
@@ -174,7 +176,7 @@ int main(int argc, char** argv)
                 wait([&] { return windows[actor]->isActiveWindow(); });
                 QApplication::processEvents();
             };
-            auto set_mute = [&](int actor, qint64 conversation, bool muted, bool refresh = false) {
+            auto set_preference = [&](int actor, qint64 conversation, bool value, bool pin = false, bool refresh = false) {
                 for (auto* button : windows[actor]->findChildren<QToolButton*>())
                 {
                     if (button->text() == QStringLiteral("聊天")) { button->click(); }
@@ -190,20 +192,23 @@ int main(int argc, char** argv)
                     }
                     return false;
                 });
-                check(index.data(conversation_model::muted_role).toBool() != muted, "Mute menu starts from authoritative state");
-                QTimer::singleShot(20, [&, actor, conversation, muted, refresh] {
+                check(index.data(pin ? conversation_model::pinned_role : conversation_model::muted_role).toBool() != value,
+                    "Preference menu starts from authoritative state");
+                QTimer::singleShot(20, [&, actor, conversation, value, pin, refresh] {
                     auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
-                    check(menu, "Conversation mute menu");
-                    auto const label = muted ? QStringLiteral("静音") : QStringLiteral("取消静音");
+                    check(menu, "Conversation preference menu");
+                    auto const label = pin ? (value ? QStringLiteral("置顶") : QStringLiteral("取消置顶")) :
+                        (value ? QStringLiteral("静音") : QStringLiteral("取消静音"));
                     QAction* selected = nullptr;
                     for (auto* action : menu->actions()) { if (action->text() == label) { selected = action; } }
-                    check(selected, "Conversation mute action");
+                    check(selected, "Conversation preference action");
                     if (refresh)
                     {
                         int resets = 0;
                         auto const capture = QObject::connect(view->model(), &QAbstractItemModel::modelReset, menu, [&] { ++resets; });
-                        pages[0]->send_message_requested(conversation, QStringLiteral("静音菜单打开时的列表刷新"), 0);
-                        wait([&] { return resets > 0 && pages[actor]->conversation(conversation)->last_text == QStringLiteral("静音菜单打开时的列表刷新"); });
+                        auto const text = pin ? QStringLiteral("置顶菜单打开时的列表刷新") : QStringLiteral("静音菜单打开时的列表刷新");
+                        pages[0]->send_message_requested(conversation, text, 0);
+                        wait([&] { return resets > 0 && pages[actor]->conversation(conversation)->last_text == text; });
                         QObject::disconnect(capture);
                     }
                     menu->setActiveAction(selected);
@@ -211,7 +216,7 @@ int main(int argc, char** argv)
                     QApplication::sendEvent(menu, &enter);
                 });
                 view->customContextMenuRequested(view->visualRect(index).center());
-                wait([&] { auto const value = pages[actor]->conversation(conversation); return value && value->muted == muted; });
+                wait([&] { auto const item = pages[actor]->conversation(conversation); return item && (pin ? item->pinned : item->muted) == value; });
             };
             QToolButton* create = nullptr;
             for (auto* b : windows[0]->findChildren<QToolButton*>())
@@ -709,7 +714,8 @@ int main(int argc, char** argv)
             windows[0]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_smoke.png");
             type_character(1);
             wait([&] { return group_typing->isVisible(); });
-            set_mute(2, group, true);
+            set_preference(2, group, true);
+            set_preference(2, group, true, true);
             server.terminate();
             check(server.waitForFinished(3000), "Stop server");
             wait([&] { return !windows[0]->findChild<QToolButton*>("sendButton")->isEnabled(); });
@@ -758,6 +764,10 @@ int main(int argc, char** argv)
             wait([&] { return pages[2]->conversation(group) && pages[2]->conversation(group)->muted; });
             check(!pages[0]->conversation(group)->muted && !pages[1]->conversation(group)->muted,
                 "Reconnect restores private mute only for the selecting user");
+            wait([&] { return pages[2]->conversation(group)->pinned; });
+            check(!pages[0]->conversation(group)->pinned && !pages[1]->conversation(group)->pinned,
+                "Reconnect restores private conversation pin");
+
             for (int i = 0; i < 3; ++i)
             {
                 auto* view = windows[i]->findChild<QListView*>("messageList");
@@ -790,7 +800,7 @@ int main(int argc, char** argv)
             wait([&] { return pages[2]->conversation(group)->last_id == pages[2]->latest_message_id(); });
             check(notifications[2].size() == muted_group_notices && pages[2]->conversation(group)->unread > 0,
                 "Muted group still receives realtime messages and unread without desktop notification");
-            set_mute(2, group, false);
+            set_preference(2, group, false);
             activate(2);
             activate(0);
             for (int i = 0; i < 3; ++i)
@@ -1435,7 +1445,18 @@ int main(int argc, char** argv)
                 std::ranges::any_of(notifications[2], [](auto const& value) { return value.summary == QStringLiteral("文件：removal.bin"); }),
                 "Image and ordinary file notifications use compact summaries");
             activate(1);
-            set_mute(1, direct, true, true);
+            set_preference(1, direct, true, true, true);
+            auto* pinned_list = windows[1]->findChild<QListView*>("conversationList");
+            wait([&] { return pinned_list->model()->index(0, 0).data(conversation_model::id_role).toLongLong() == direct; });
+            check(!pages[0]->conversation(direct)->pinned, "Qt pin is private");
+            pages[0]->send_message_requested(group, QStringLiteral("新群消息不挤掉个人置顶"), 0);
+            wait([&] { return pages[1]->conversation(group)->last_text == QStringLiteral("新群消息不挤掉个人置顶"); });
+            check(pinned_list->model()->index(0, 0).data(conversation_model::id_role).toLongLong() == direct,
+                "New ordinary conversation activity stays below pinned tier");
+            windows[1]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_conversation_pin.png");
+            set_preference(1, direct, false, true);
+            wait([&] { return pinned_list->model()->index(0, 0).data(conversation_model::id_role).toLongLong() == group; });
+            set_preference(1, direct, true, false, true);
             auto const other_conversation_notices = notifications[1].size();
             activate(0);
             pages[0]->send_message_requested(direct, QStringLiteral("静音单聊仍实时到达"), 0);
@@ -1444,7 +1465,7 @@ int main(int argc, char** argv)
             check(notifications[1].size() == other_conversation_notices && !pages[0]->conversation(direct)->muted,
                 "Personal direct mute preserves realtime activity and unread");
             windows[1]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_conversation_mute.png");
-            set_mute(1, direct, false);
+            set_preference(1, direct, false);
             activate(1);
             pages[0]->send_message_requested(direct, QStringLiteral("前台查看其他会话"), 0);
             wait([&] { return notifications[1].size() == other_conversation_notices + 1; });

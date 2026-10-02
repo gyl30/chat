@@ -247,9 +247,9 @@ boost::capy::task<void> chat_session::run()
             {
                 rpc_error = co_await handle_message_reaction(request, response);
             }
-            else if (request.method == "set_conversation_muted")
+            else if (request.method == "set_conversation_muted" || request.method == "set_conversation_pinned")
             {
-                rpc_error = co_await handle_conversation_mute(request, response);
+                rpc_error = co_await handle_conversation_preference(request, response);
             }
             else if (request.method == kEchoMethod)
             {

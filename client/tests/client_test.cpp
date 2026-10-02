@@ -179,14 +179,15 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             co_return boost::capy::io_result<bool>{std::error_code{}, true};
         }
 
-        if (operation == "set_conversation_muted")
+        if (operation == "set_conversation_muted" || operation == "set_conversation_pinned")
         {
             auto const conversation = params->at("conversation").as_int64();
-            auto const muted = params->at("muted").as_bool();
-            boost::json::object result{{"muted", muted}};
-            if (conversation == 98) { result.erase("muted"); }
-            if (conversation == 99) { result["muted"] = "true"; }
-            if (conversation == 97) { result["muted"] = !muted; }
+            auto const key = operation == "set_conversation_pinned" ? "pinned" : "muted";
+            auto const value = params->at(key).as_bool();
+            boost::json::object result{{key, value}};
+            if (conversation == 98) { result.erase(key); }
+            if (conversation == 99) { result[key] = "true"; }
+            if (conversation == 97) { result[key] = !value; }
             response.emplace("result", std::move(result));
             auto [sent] = co_await send_text(connection, std::move(response));
             co_return boost::capy::io_result<bool>{sent, !sent};
@@ -196,7 +197,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
         {
             boost::json::array conversations;
             auto const* before = params->as_object().if_contains("before");
-            if (!before || before->at("id").as_int64() >= 98)
+            if (!before || before->at("id").as_int64() >= 94)
             {
                 boost::json::object last;
                 last.emplace("conversation", 2);
@@ -221,12 +222,19 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 conversation.emplace("last", std::move(last));
                 conversation.emplace("unread", 3);
                 conversation.emplace("muted", true);
+                conversation.emplace("pinned", true);
+                if (before && before->at("id").as_int64() == 94) { conversation.erase("pinned"); }
+                if (before && before->at("id").as_int64() == 95) { conversation["pinned"] = "false"; }
                 if (before && before->at("id").as_int64() == 98) { conversation.erase("muted"); }
                 if (before && before->at("id").as_int64() == 99) { conversation["muted"] = "false"; }
                 conversations.push_back(std::move(conversation));
             }
             else if (before->is_object() && before->as_object().at("id").as_int64() == 2)
             {
+                if (!before->at("pinned").as_bool())
+                {
+                    co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false};
+                }
                 boost::json::object last;
                 last.emplace("conversation", 3);
                 last.emplace("username", "alice");
@@ -250,6 +258,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 conversation.emplace("last", std::move(last));
                 conversation.emplace("unread", 0);
                 conversation.emplace("muted", false);
+                conversation.emplace("pinned", false);
                 conversations.push_back(std::move(conversation));
             }
             else
@@ -259,6 +268,13 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
 
             boost::json::object result;
             result.emplace("next", nullptr);
+            if (!before || before->at("id").as_int64() == 96 || before->at("id").as_int64() == 97)
+            {
+                boost::json::object next{{"activity", 1700000000000LL}, {"id", 2}, {"pinned", true}};
+                if (before && before->at("id").as_int64() == 96) { next.erase("pinned"); }
+                if (before && before->at("id").as_int64() == 97) { next["pinned"] = 1; }
+                result["next"] = std::move(next);
+            }
             result.emplace("conversations", std::move(conversations));
             response.emplace("result", std::move(result));
 
@@ -894,7 +910,7 @@ int main()
     if (!state.wait([&] { return conversations_called; }) || conversations.size() != 1 || conversations[0].user != 2 ||
         conversations[0].username != "bob" || conversations[0].last.id != 12 || conversations[0].last.from != 2 ||
         conversations[0].last.timestamp != 1700000000000LL || conversations[0].last.text != "hello" ||
-        conversations[0].unread != 3 || !conversations[0].muted)
+        conversations[0].unread != 3 || !conversations[0].muted || !conversations[0].pinned)
     {
         std::cerr << "FAIL client conversations\n";
         return 1;
@@ -903,7 +919,7 @@ int main()
 
     bool conversation_cursor_called = false;
     std::vector<chat::conversation> older_conversations;
-    client.get_conversations(chat::conversation_cursor{1700000000000LL, 2},
+    client.get_conversations(chat::conversation_cursor{1700000000000LL, 2, true},
                              [&](std::expected<chat::conversations_result, chat::error> result)
                              {
         std::lock_guard lock(state.mutex);
@@ -915,7 +931,8 @@ int main()
         state.condition.notify_all();
     });
     if (!state.wait([&] { return conversation_cursor_called; }) || older_conversations.size() != 1 ||
-        older_conversations[0].user != 3 || older_conversations[0].last.id != 6 || older_conversations[0].muted)
+        older_conversations[0].user != 3 || older_conversations[0].last.id != 6 || older_conversations[0].muted ||
+        older_conversations[0].pinned)
     {
         std::cerr << "FAIL client conversation cursor\n";
         return 1;
@@ -994,6 +1011,27 @@ int main()
         if (result || result.error().kind != chat::error_kind::protocol) { return 1; }
     }
     std::cout << "PASS client mute metadata, explicit setting and malformed protocol validation\n";
+    for (auto pinned : {true, false})
+    {
+        auto result = avatar_call.operator()<bool>([&](auto h) { client.set_conversation_pinned(2, pinned, h); });
+        if (!result || *result != pinned) { std::cerr << "FAIL client pin/unpin\n"; return 1; }
+    }
+    for (auto id : {97, 98, 99})
+    {
+        auto result = avatar_call.operator()<bool>([&](auto h) { client.set_conversation_pinned(id, true, h); });
+        if (result || result.error().kind != chat::error_kind::protocol) { return 1; }
+    }
+    for (auto id : {94, 95, 96, 97})
+    {
+        auto result = avatar_call.operator()<chat::conversations_result>([&](auto h) {
+            client.get_conversations(chat::conversation_cursor{1, id}, h);
+        });
+        if (result || result.error().kind != chat::error_kind::protocol) { return 1; }
+    }
+    auto pinned_page = avatar_call.operator()<chat::conversations_result>([&](auto h) { client.get_conversations({}, h); });
+    if (!pinned_page || !pinned_page->next || !pinned_page->next->pinned || pinned_page->next->id != 2 ||
+        pinned_page->next->activity != 1700000000000LL) { return 1; }
+    std::cout << "PASS client pin metadata, setting and three-field cursor validation\n";
     auto avatar_bytes = std::string(40000, 'x');
     auto uploaded = avatar_call.operator()<chat::avatar_state>([&](auto h) { client.set_avatar(avatar_bytes, h); });
     auto downloaded = avatar_call.operator()<chat::avatar>([&](auto h) { client.get_avatar(1, 1, h); });

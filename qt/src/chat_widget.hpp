@@ -79,6 +79,7 @@ class chat_widget final : public QWidget
     qint64 self_user() const { return self_user_; }
     std::optional<conversation_data> conversation(qint64 id) const;
     void set_conversation_muted(qint64 conversation, bool muted);
+    void set_conversation_pinned(qint64 conversation, bool pinned);
 
    signals:
     void avatar_set_requested(QByteArray data);
@@ -104,6 +105,7 @@ class chat_widget final : public QWidget
     void typing_requested(qint64 conversation, bool typing);
     void read_requested(qint64 conversation, qint64 message);
     void mute_requested(qint64 conversation, bool muted);
+    void pin_requested(qint64 conversation, bool pinned);
 
    protected:
     bool eventFilter(QObject* object, QEvent* event) override;

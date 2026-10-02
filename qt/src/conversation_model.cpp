@@ -54,6 +54,8 @@ QVariant conversation_model::data(QModelIndex const& index, int role) const
             return item->online;
         case muted_role:
             return item->muted;
+        case pinned_role:
+            return item->pinned;
         case Qt::DecorationRole:
             return avatars_ ? QVariant::fromValue(avatars_->image(item->user)) : QVariant{};
         default:
@@ -103,6 +105,14 @@ void conversation_model::set_muted(qint64 conversation, bool muted)
     if (!item_index.isValid() || conversations_[item_index.row()].muted == muted) { return; }
     conversations_[item_index.row()].muted = muted;
     emit dataChanged(item_index, item_index, {muted_role});
+}
+
+void conversation_model::set_pinned(qint64 conversation, bool pinned)
+{
+    auto const item_index = index_for_conversation(conversation);
+    if (!item_index.isValid() || conversations_[item_index.row()].pinned == pinned) { return; }
+    conversations_[item_index.row()].pinned = pinned;
+    emit dataChanged(item_index, item_index, {pinned_role});
 }
 
 conversation_data const* conversation_model::conversation_at(QModelIndex const& index) const

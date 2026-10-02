@@ -226,6 +226,7 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
             value.last_text = item.last.deleted ? QStringLiteral("消息已删除") : from_utf8(item.last.text);
             value.unread = item.unread;
             value.muted = item.muted;
+            value.pinned = item.pinned;
                         bool found = false;
                         for (auto const& existing : conversations)
                         {
@@ -261,6 +262,18 @@ void client_bridge::set_conversation_muted(qint64 conversation, bool muted)
             if (generation != connection_generation_) { return; }
             if (result) { ++conversations_generation_; }
             emit mute_finished(conversation, result ? *result : false, result ? QString{} : from_utf8(result.error().message));
+        }, Qt::QueuedConnection);
+    });
+}
+
+void client_bridge::set_conversation_pinned(qint64 conversation, bool pinned)
+{
+    auto const generation = connection_generation_.load();
+    client_->set_conversation_pinned(conversation, pinned, [this, conversation, generation](auto result) {
+        QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
+            if (generation != connection_generation_) { return; }
+            if (result) { ++conversations_generation_; }
+            emit pin_finished(conversation, result ? *result : false, result ? QString{} : from_utf8(result.error().message));
         }, Qt::QueuedConnection);
     });
 }

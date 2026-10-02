@@ -13,10 +13,11 @@
 namespace
 {
 
-struct conversation_cursor
+struct [[= simdjson::deny_unknown_fields]] conversation_cursor
 {
     std::int64_t activity = 0;
     std::int64_t id = 0;
+    std::optional<bool> pinned;
 };
 
 struct [[= simdjson::deny_unknown_fields]] get_conversations_params
@@ -50,7 +51,7 @@ simdjson::error_code parse_get_conversations_params(json_rpc_params& params, get
         return simdjson::TRAILING_CONTENT;
     }
 
-    if (value.before && (value.before->activity <= 0 || value.before->id <= 0))
+    if (value.before && (value.before->activity <= 0 || value.before->id <= 0 || !value.before->pinned))
     {
         return simdjson::INCORRECT_TYPE;
     }
@@ -96,18 +97,18 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
         auto query_result = co_await lease.connection().execute_scalar(
             R"SQL(
         WITH page AS (
-            SELECT c.*, own.last_read_message_id, own.joined_message_id, own.muted,
+            SELECT c.*, own.last_read_message_id, own.joined_message_id, own.muted, own.pinned,
                    CASE WHEN c.direct_user_low=$1::bigint THEN c.direct_user_high ELSE c.direct_user_low END AS peer
             FROM conversations c JOIN conversation_members own ON own.conversation_id=c.id
-            WHERE own.user_id=$1::bigint AND (c.activity,c.id)<($2::bigint,$3::bigint)
+            WHERE own.user_id=$1::bigint AND (own.pinned,c.activity,c.id)<($4::boolean,$2::bigint,$3::bigint)
               AND (c.kind='group' OR EXISTS(SELECT 1 FROM messages WHERE conversation_id=c.id))
-            ORDER BY c.activity DESC,c.id DESC LIMIT 51
-        ), visible AS (SELECT * FROM page ORDER BY activity DESC,id DESC LIMIT 50)
+            ORDER BY own.pinned DESC,c.activity DESC,c.id DESC LIMIT 51
+        ), visible AS (SELECT * FROM page ORDER BY pinned DESC,activity DESC,id DESC LIMIT 50)
         SELECT json_build_object(
             'conversations',COALESCE((SELECT json_agg(json_build_object(
                 'id',c.id,'kind',c.kind,'user',c.peer,'username',COALESCE(c.title,u.username),
                 'avatar_revision',COALESCE(u.avatar_revision,0),'has_avatar',EXISTS(SELECT 1 FROM user_avatars WHERE user_id=u.id),
-                'activity',c.activity,'muted',c.muted,'member_count',(SELECT count(*) FROM conversation_members WHERE conversation_id=c.id),
+                'activity',c.activity,'muted',c.muted,'pinned',c.pinned,'member_count',(SELECT count(*) FROM conversation_members WHERE conversation_id=c.id),
                 'last',(SELECT json_build_object('id',m.id,'conversation',m.conversation_id,'from',m.sender_id,
                       'avatar_revision',author.avatar_revision,'has_avatar',EXISTS(SELECT 1 FROM user_avatars WHERE user_id=author.id),
                       'reaction_revision',m.reaction_revision,'reactions',(SELECT coalesce(json_agg(json_build_object('emoji',emoji,'users',users) ORDER BY emoji),'[]'::json)
@@ -120,15 +121,16 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
                 'unread',(SELECT count(*) FROM messages m WHERE m.conversation_id=c.id
                           AND m.id>GREATEST(c.last_read_message_id,c.joined_message_id) AND NOT m.deleted
                           AND (m.sender_id<>$1::bigint OR c.direct_user_low=c.direct_user_high))
-            ) ORDER BY c.activity DESC,c.id DESC) FROM visible c LEFT JOIN users u ON u.id=c.peer),'[]'::json),
+            ) ORDER BY c.pinned DESC,c.activity DESC,c.id DESC) FROM visible c LEFT JOIN users u ON u.id=c.peer),'[]'::json),
             'next',CASE WHEN (SELECT count(*) FROM page)>50 THEN
-                (SELECT json_build_object('activity',activity,'id',id) FROM visible ORDER BY activity,id LIMIT 1)
+                (SELECT json_build_object('pinned',pinned,'activity',activity,'id',id) FROM visible ORDER BY pinned,activity,id LIMIT 1)
                 ELSE NULL END
         )::text
     )SQL",
             {std::to_string(*user_id_),
              std::to_string(params.before ? params.before->activity : std::numeric_limits<std::int64_t>::max()),
-             std::to_string(params.before ? params.before->id : std::numeric_limits<std::int64_t>::max())});
+             std::to_string(params.before ? params.before->id : std::numeric_limits<std::int64_t>::max()),
+             params.before && !*params.before->pinned ? "false" : "true"});
         auto& [ec, result] = query_result;
         if (ec)
         {

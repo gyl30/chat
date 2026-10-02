@@ -205,15 +205,24 @@ int main(int argc, char** argv)
     group.group = true;
     group.user = 0;
     group.muted = true;
+    group.pinned = true;
     conversations.set_conversations({direct, group});
     conversations.set_online(2, true);
     conversations.set_muted(1, true);
+    conversations.set_pinned(1, true);
+    if (!conversations.index_for_conversation(1).data(conversation_model::pinned_role).toBool() ||
+        !conversations.index_for_conversation(2).data(conversation_model::pinned_role).toBool() ||
+        conversations.index_for_conversation(1).row() != 0) { return 1; }
+    conversations.set_pinned(2, false);
+    if (conversations.index_for_conversation(2).data(conversation_model::pinned_role).toBool()) { return 1; }
     if (!conversations.index_for_conversation(1).data(conversation_model::muted_role).toBool() ||
         !conversations.index_for_conversation(2).data(conversation_model::muted_role).toBool() ||
         conversations.conversation_at(conversations.index_for_conversation(1))->unread != direct.unread) { return 1; }
     conversations.set_muted(2, false);
     if (conversations.index_for_conversation(2).data(conversation_model::muted_role).toBool()) { return 1; }
     conversations.set_conversations({direct, group});
+    if (conversations.index_for_conversation(1).data(conversation_model::pinned_role).toBool() ||
+        !conversations.index_for_conversation(2).data(conversation_model::pinned_role).toBool()) { return 1; }
     if (conversations.index_for_conversation(1).data(conversation_model::muted_role).toBool() ||
         !conversations.index_for_conversation(2).data(conversation_model::muted_role).toBool()) { return 1; }
     conversations.set_online(2, true);

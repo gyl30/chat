@@ -598,7 +598,7 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         std::cout << "PASS registration duplicate\n";
 
         for (auto const* method : {"begin_avatar_upload", "upload_avatar_chunk", "finish_avatar_upload",
-                                    "cancel_avatar_upload", "get_avatar", "clear_avatar", "set_message_reaction", "set_conversation_muted"})
+                                    "cancel_avatar_upload", "get_avatar", "clear_avatar", "set_message_reaction", "set_conversation_muted", "set_conversation_pinned"})
         {
             auto [write_ec] = co_await send_websocket_text(socket,
                 std::string("{\"jsonrpc\":\"2.0\",\"method\":\"") + method + "\",\"params\":{},\"id\":\"avatar-auth\"}");
@@ -1635,6 +1635,34 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         }
     }
     for (auto const& params : {
+        "{\"conversation\":" + direct_conversation + "}",
+        "{\"conversation\":" + direct_conversation + ",\"pinned\":null}",
+        "{\"conversation\":" + direct_conversation + ",\"pinned\":\"true\"}",
+        "{\"conversation\":" + direct_conversation + ",\"pinned\":true,\"user\":1}",
+        "{\"conversation\":" + direct_conversation + ",\"pinned\":true,\"muted\":null}",
+        std::string("{\"conversation\":0,\"pinned\":false}")})
+    {
+        auto reply = co_await peer_rpc("set_conversation_pinned", params);
+        if (!json_matches(reply, R"({"error":{"code":-32602}})"))
+        {
+            std::cerr << "FAIL pin params: " << reply << '\n';
+            co_return 1;
+        }
+    }
+    for (auto const* params : {
+        R"({"before":{"activity":1,"id":1}})",
+        R"({"before":{"activity":1,"id":1,"pinned":null}})",
+        R"({"before":{"activity":1,"id":1,"pinned":"true"}})",
+        R"({"before":{"activity":1,"id":1,"pinned":false,"extra":1}})"})
+    {
+        auto reply = co_await peer_rpc("get_conversations", params);
+        if (!json_matches(reply, R"({"error":{"code":-32602}})"))
+        {
+            std::cerr << "FAIL pinned cursor params: " << reply << '\n';
+            co_return 1;
+        }
+    }
+    for (auto const& params : {
         std::string("{\"conversation\":") + direct_conversation + ",\"message\":1}",
         std::string("{\"conversation\":") + direct_conversation + ",\"message\":1,\"emoji\":null}",
         std::string("{\"conversation\":") + direct_conversation + ",\"message\":1,\"emoji\":\"x\"}",
@@ -2540,7 +2568,7 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     std::string conversations_cursor_request =
         R"({"jsonrpc":"2.0","method":"get_conversations","params":{"before":)";
     auto cursor_result = co_await fixture_connection.execute_scalar(
-        "SELECT json_build_object('activity',activity,'id',id)::text FROM conversations WHERE id=$1::bigint",
+        "SELECT json_build_object('pinned',false,'activity',activity,'id',id)::text FROM conversations WHERE id=$1::bigint",
         {direct_conversation});
     auto& [cursor_ec, cursor] = cursor_result;
     if (cursor_ec)

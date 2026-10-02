@@ -547,7 +547,15 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
         if (!connection_available_ || !item) { return; }
         auto const conversation = item->id;
         auto const muted = !item->muted;
+        auto const pinned = !item->pinned;
         QMenu menu(this);
+        menu.addAction(pinned ? QStringLiteral("置顶") : QStringLiteral("取消置顶"),
+            [this, conversation, pinned] {
+                if (connection_available_ && conversations_->index_for_conversation(conversation).isValid())
+                {
+                    emit pin_requested(conversation, pinned);
+                }
+            });
         menu.addAction(muted ? QStringLiteral("静音") : QStringLiteral("取消静音"),
             [this, conversation, muted] {
                 if (connection_available_ && conversations_->index_for_conversation(conversation).isValid())
@@ -1385,6 +1393,11 @@ std::optional<conversation_data> chat_widget::conversation(qint64 id) const
 void chat_widget::set_conversation_muted(qint64 conversation, bool muted)
 {
     conversations_->set_muted(conversation, muted);
+}
+
+void chat_widget::set_conversation_pinned(qint64 conversation, bool pinned)
+{
+    conversations_->set_pinned(conversation, pinned);
 }
 
 void chat_widget::create_group()
