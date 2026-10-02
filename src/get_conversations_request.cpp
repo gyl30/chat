@@ -109,6 +109,10 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
                 'id',c.id,'kind',c.kind,'user',c.peer,'username',COALESCE(c.title,u.username),
                 'avatar_revision',COALESCE(u.avatar_revision,0),'has_avatar',EXISTS(SELECT 1 FROM user_avatars WHERE user_id=u.id),
                 'activity',c.activity,'muted',c.muted,'pinned',c.pinned,'member_count',(SELECT count(*) FROM conversation_members WHERE conversation_id=c.id),
+                'pinned_message',(SELECT json_build_object('id',pm.id,'from',pm.sender_id,'username',pu.username,
+                    'text',left(pm.body,160),'edited_at',(extract(epoch FROM pm.edited_at)*1000)::bigint,'deleted',false)
+                    FROM messages pm JOIN users pu ON pu.id=pm.sender_id
+                    WHERE pm.id=c.pinned_message_id AND pm.conversation_id=c.id AND NOT pm.deleted),
                 'last',(SELECT json_build_object('id',m.id,'conversation',m.conversation_id,'from',m.sender_id,
                       'avatar_revision',author.avatar_revision,'has_avatar',EXISTS(SELECT 1 FROM user_avatars WHERE user_id=author.id),
                       'mentions',(SELECT coalesce(json_agg(json_build_object('user',mentioned.id,'username',mentioned.username)

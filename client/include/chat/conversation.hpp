@@ -36,6 +36,7 @@ struct conversation
     avatar_state avatar;
     bool muted = false;
     bool pinned = false;
+    std::optional<quoted_message> pinned_message;
 };
 
 struct conversations_result

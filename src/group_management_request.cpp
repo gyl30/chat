@@ -26,8 +26,11 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
     auto const transferring = request.method == "transfer_group_owner";
     auto const removing = request.method == "remove_group_member";
     auto const leaving = request.method == "leave_group";
+    auto const pinning = request.method == "pin_group_message";
+    auto const unpinning = request.method == "unpin_group_message";
     std::int64_t conversation = 0;
     std::int64_t user = 0;
+    std::int64_t pinned_message = 0;
     bool admin = false;
     std::string title;
     std::vector<std::int64_t> members;
@@ -64,6 +67,18 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
         conversation = params.conversation;
         user = params.user;
     }
+    else if (pinning)
+    {
+        struct [[= simdjson::deny_unknown_fields]] pin_message_params
+        {
+            std::int64_t conversation = 0;
+            std::int64_t message = 0;
+        };
+        pin_message_params params;
+        parse_error = document.get(params);
+        conversation = params.conversation;
+        pinned_message = params.message;
+    }
     else if (renaming)
     {
         struct [[= simdjson::deny_unknown_fields]] rename_group_params
@@ -91,15 +106,16 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
     }
     else
     {
-        struct [[= simdjson::deny_unknown_fields]] leave_group_params
+        struct [[= simdjson::deny_unknown_fields]] conversation_action_params
         {
             std::int64_t conversation = 0;
         };
-        leave_group_params params;
+        conversation_action_params params;
         parse_error = document.get(params);
         conversation = params.conversation;
     }
     if (parse_error || !document.at_end() || conversation <= 0 || ((setting_admin || transferring || removing) && user <= 0) ||
+        (pinning && pinned_message <= 0) ||
         (renaming && (title.empty() || title.size() > 256 || title.find('\0') != std::string::npos)) ||
         (inviting && (members.empty() || members.front() <= 0 ||
             std::adjacent_find(members.begin(), members.end()) != members.end() ||
@@ -148,10 +164,42 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
         message = "Group unavailable";
     }
     else if (((setting_admin || transferring) && !owner) ||
-             ((renaming || inviting || removing) && !owner && (*actor)[0] != "true") || (leaving && owner))
+             ((renaming || inviting || removing || pinning || unpinning) && !owner && (*actor)[0] != "true") || (leaving && owner))
     {
         error = -32009;
         message = leaving && owner ? "The owner cannot leave without transferring ownership" : "Group permission denied";
+    }
+    else if (pinning || unpinning)
+    {
+        if (pinning)
+        {
+            auto target = co_await connection.execute_row(
+                "SELECT id::text FROM messages WHERE conversation_id=$1::bigint AND id=$2::bigint AND NOT deleted",
+                {std::to_string(conversation), std::to_string(pinned_message)});
+            if (std::get<0>(target))
+            {
+                connection.close();
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            if (!std::get<1>(target))
+            {
+                error = -32007;
+                message = "Message unavailable";
+            }
+        }
+        if (!error)
+        {
+            auto updated = co_await connection.execute_row(
+                "UPDATE conversations SET pinned_message_id=NULLIF($2::bigint,0) WHERE id=$1::bigint "
+                "AND pinned_message_id IS DISTINCT FROM NULLIF($2::bigint,0) RETURNING id::text",
+                {std::to_string(conversation), std::to_string(pinned_message)});
+            if (std::get<0>(updated))
+            {
+                connection.close();
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            changed = std::get<1>(updated).has_value();
+        }
     }
     else if (transferring || removing)
     {

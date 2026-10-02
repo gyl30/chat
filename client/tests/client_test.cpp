@@ -193,11 +193,24 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             co_return boost::capy::io_result<bool>{sent, !sent};
         }
 
+        if (operation == "pin_group_message" || operation == "unpin_group_message")
+        {
+            auto const conversation = params->at("conversation").as_int64();
+            boost::json::object result{{"changed", true}};
+            if (operation == "pin_group_message" && params->at("message").as_int64() != 10)
+            { co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false}; }
+            if (conversation == 98) { result.erase("changed"); }
+            if (conversation == 99) { result["changed"] = "true"; }
+            response.emplace("result", std::move(result));
+            auto [sent] = co_await send_text(connection, std::move(response));
+            co_return boost::capy::io_result<bool>{sent, !sent};
+        }
+
         if (method->as_string() == "get_conversations")
         {
             boost::json::array conversations;
             auto const* before = params->as_object().if_contains("before");
-            if (!before || before->at("id").as_int64() >= 94)
+            if (!before || before->at("id").as_int64() >= 80)
             {
                 boost::json::object last;
                 last.emplace("conversation", 2);
@@ -224,6 +237,20 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 conversation.emplace("unread", 3);
                 conversation.emplace("muted", true);
                 conversation.emplace("pinned", true);
+                conversation.emplace("pinned_message", nullptr);
+                if (before && before->at("id").as_int64() >= 80 && before->at("id").as_int64() <= 85)
+                {
+                    auto const probe = before->at("id").as_int64();
+                    conversation["kind"] = "group";
+                    conversation["user"] = nullptr;
+                    conversation["pinned_message"] = boost::json::object{{"id", 10}, {"from", 2}, {"username", "bob"},
+                        {"text", "pinned"}, {"deleted", false}, {"edited_at", nullptr}};
+                    if (probe == 81) { conversation.erase("pinned_message"); }
+                    if (probe == 82) { conversation["pinned_message"] = true; }
+                    if (probe == 83) { conversation["pinned_message"].as_object()["deleted"] = true; }
+                    if (probe == 84) { conversation["pinned_message"].as_object()["id"] = 0; }
+                    if (probe == 85) { conversation["kind"] = "direct"; conversation["user"] = 2; }
+                }
                 if (before && before->at("id").as_int64() == 94) { conversation.erase("pinned"); }
                 if (before && before->at("id").as_int64() == 95) { conversation["pinned"] = "false"; }
                 if (before && before->at("id").as_int64() == 98) { conversation.erase("muted"); }
@@ -261,6 +288,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 conversation.emplace("unread", 0);
                 conversation.emplace("muted", false);
                 conversation.emplace("pinned", false);
+                conversation.emplace("pinned_message", nullptr);
                 conversations.push_back(std::move(conversation));
             }
             else
@@ -1059,6 +1087,33 @@ int main()
     if (!pinned_page || !pinned_page->next || !pinned_page->next->pinned || pinned_page->next->id != 2 ||
         pinned_page->next->activity != 1700000000000LL) { return 1; }
     std::cout << "PASS client pin metadata, setting and three-field cursor validation\n";
+    auto group_pin = avatar_call.operator()<chat::conversations_result>([&](auto h) {
+        client.get_conversations(chat::conversation_cursor{1, 80, false}, h);
+    });
+    if (!group_pin || group_pin->conversations.size() != 1 || !group_pin->conversations.front().pinned_message ||
+        group_pin->conversations.front().pinned_message->id != 10 || group_pin->conversations.front().pinned_message->text != "pinned") { return 1; }
+    for (auto id : {81, 82, 83, 84, 85})
+    {
+        auto invalid = avatar_call.operator()<chat::conversations_result>([&](auto h) {
+            client.get_conversations(chat::conversation_cursor{1, id, false}, h);
+        });
+        if (invalid || invalid.error().kind != chat::error_kind::protocol) { return 1; }
+    }
+    for (auto clear : {false, true})
+    {
+        auto changed = avatar_call.operator()<bool>([&](auto h) {
+            if (clear) { client.unpin_group_message(2, h); } else { client.pin_group_message(2, 10, h); }
+        });
+        if (!changed || !*changed) { return 1; }
+        for (auto id : {98, 99})
+        {
+            auto invalid = avatar_call.operator()<bool>([&](auto h) {
+                if (clear) { client.unpin_group_message(id, h); } else { client.pin_group_message(id, 10, h); }
+            });
+            if (invalid || invalid.error().kind != chat::error_kind::protocol) { return 1; }
+        }
+    }
+    std::cout << "PASS client group pinned summary, explicit actions and protocol validation\n";
     auto avatar_bytes = std::string(40000, 'x');
     auto uploaded = avatar_call.operator()<chat::avatar_state>([&](auto h) { client.set_avatar(avatar_bytes, h); });
     auto downloaded = avatar_call.operator()<chat::avatar>([&](auto h) { client.get_avatar(1, 1, h); });

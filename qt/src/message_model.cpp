@@ -36,6 +36,13 @@ message_model::message_model(QObject* parent, avatar_cache* avatars, message_ima
     }
 }
 
+bool message_model::can_manage_group() const
+{
+    return group_ && std::ranges::any_of(members_, [this](auto const& member) {
+        return member.id == self_user_ && member.role != chat::member_role::member;
+    });
+}
+
 int message_model::rowCount(QModelIndex const& parent) const
 {
     return parent.isValid() ? 0 : messages_.size();

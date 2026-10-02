@@ -551,8 +551,8 @@ main_window::main_window(QString server_url, QWidget* parent)
                 dialog.exec();
             });
     connect(chat_page_, &chat_widget::message_search_requested, this,
-            [this](qint64 conversation, qint64 self_user, bool group, QString const& title) {
-        message_search_dialog dialog(conversation, self_user, group, title, this, &chat_page_->avatars());
+            [this](qint64 conversation, qint64 self_user, bool group, QString const& title, QString const& query) {
+        message_search_dialog dialog(conversation, self_user, group, title, query, this, &chat_page_->avatars());
         connect(&dialog, &message_search_dialog::search_requested, &dialog,
                 [this, conversation](QString query, qint64 before) {
                     client_->search_messages(conversation, std::move(query), before);
@@ -721,6 +721,11 @@ main_window::main_window(QString server_url, QWidget* parent)
     connect(chat_page_, &chat_widget::edit_message_requested, this,
             [this](qint64 conversation, qint64 message, QString text)
             { client_->edit_message(conversation, message, std::move(text)); });
+    connect(chat_page_, &chat_widget::group_message_pin_requested, client_.get(), &client_bridge::set_group_pinned_message);
+    connect(client_.get(), &client_bridge::group_pin_finished, this, [this](qint64 conversation, QString error) {
+        if (!error.isEmpty()) { chat_page_->set_message_error(conversation, std::move(error)); }
+        else { client_->get_conversations(); }
+    });
     connect(
         client_.get(), &client_bridge::message_updated, this,
         [this](qint64 conversation, message_data message, QString error)

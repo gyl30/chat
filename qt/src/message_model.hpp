@@ -55,6 +55,7 @@ class message_model final : public QAbstractListModel
     void set_read_positions(read_positions positions);
     void set_members(QList<member_data> members);
     QList<member_data> read_members(qint64 message) const;
+    bool can_manage_group() const;
     qint64 first_message_id() const;
     qint64 last_message_id() const;
 

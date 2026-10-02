@@ -236,6 +236,7 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
             value.unread = item.unread;
             value.muted = item.muted;
             value.pinned = item.pinned;
+            value.pinned_message = to_reply_data(item.pinned_message);
                         bool found = false;
                         for (auto const& existing : conversations)
                         {
@@ -285,6 +286,20 @@ void client_bridge::set_conversation_pinned(qint64 conversation, bool pinned)
             emit pin_finished(conversation, result ? *result : false, result ? QString{} : from_utf8(result.error().message));
         }, Qt::QueuedConnection);
     });
+}
+
+void client_bridge::set_group_pinned_message(qint64 conversation, std::optional<qint64> message)
+{
+    auto const generation = connection_generation_.load();
+    auto finished = [this, conversation, generation](auto result) {
+        QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
+            if (generation != connection_generation_) { return; }
+            if (result) { ++conversations_generation_; }
+            emit group_pin_finished(conversation, result ? QString{} : from_utf8(result.error().message));
+        }, Qt::QueuedConnection);
+    };
+    if (message) { client_->pin_group_message(conversation, *message, std::move(finished)); }
+    else { client_->unpin_group_message(conversation, std::move(finished)); }
 }
 
 void client_bridge::open_direct_conversation(qint64 user, QString username)

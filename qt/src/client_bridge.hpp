@@ -48,6 +48,7 @@ class client_bridge final : public QObject
     void rename_group(qint64 conversation, QString title);
     void invite_group_members(qint64 conversation, QList<qint64> members);
     void leave_group(qint64 conversation);
+    void set_group_pinned_message(qint64 conversation, std::optional<qint64> message);
     void get_contacts();
     void get_presence();
     void get_messages(qint64 conversation, std::optional<qint64> before = {}, std::optional<qint64> after = {});
@@ -94,6 +95,7 @@ class client_bridge final : public QObject
     void conversation_opened(conversation_data conversation, QString error_message);
     void members_received(qint64 conversation, QList<member_data> members, QString error_message);
     void group_action_finished(qint64 conversation, bool left, QString error_message);
+    void group_pin_finished(qint64 conversation, QString error_message);
     void conversation_changed(qint64 conversation, bool removed);
     void message_sent(qint64 user, QString text, qint64 message, qint64 timestamp, bool realtime,
                       quoted_message_data reply, QList<mention_data> mentions, QString error_message);

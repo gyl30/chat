@@ -1017,6 +1017,42 @@ int run_group_tests()
             auto rejoined_mention = call<chat::send_message_result>([&](auto handler) { a.send_message(mention_group, "rejoined @" + names[1], handler); });
             require(rejoined_mention && targets(rejoined_mention->mentions) == std::vector<std::int64_t>{data.users[1]} &&
                 conversation(b, mention_group).unread == 1, "Rejoined member is mentionable without counting old history as unread");
+            require(call<bool>([&](auto h) { a.set_group_admin(mention_group, data.users[1], true, h); }).has_value(),
+                "Promote group-pin administrator");
+            auto member_pin = call<bool>([&](auto h) { c.pin_group_message(mention_group, mentioned->message_id, h); });
+            auto member_unpin = call<bool>([&](auto h) { c.unpin_group_message(mention_group, h); });
+            auto outsider_pin = call<bool>([&](auto h) { d.pin_group_message(mention_group, mentioned->message_id, h); });
+            auto direct_pin_history = call<chat::messages_result>([&](auto h) { a.get_messages(*direct, {}, h); });
+            require(direct_pin_history && !direct_pin_history->messages.empty(), "Cross-conversation pin fixture");
+            auto cross_pin = call<bool>([&](auto h) { a.pin_group_message(mention_group, direct_pin_history->messages.front().id, h); });
+            auto deleted_pin = call<bool>([&](auto h) { a.pin_group_message(mention_group, literal_mentions->message_id, h); });
+            auto direct_pin = call<bool>([&](auto h) { a.pin_group_message(*direct, mentioned->message_id, h); });
+            require(!member_pin && member_pin.error().code == -32009 && !member_unpin && member_unpin.error().code == -32009 &&
+                !outsider_pin && outsider_pin.error().code == -32006 && !deleted_pin && deleted_pin.error().code == -32007 &&
+                !cross_pin && cross_pin.error().code == -32007 &&
+                !direct_pin && direct_pin.error().code == -32006, "Group pin requires current owner/admin and a live same-group message");
+            auto before_pin = conversation(c, mention_group);
+            std::size_t before_pin_events;
+            {
+                std::lock_guard lock(b_events.mutex);
+                before_pin_events = b_events.conversations.size();
+            }
+            auto pinned = call<bool>([&](auto h) { a.pin_group_message(mention_group, mentioned->message_id, h); });
+            require(pinned && *pinned, "Owner pins a group message");
+            b_events.wait([&] { return b_events.conversations.size() > before_pin_events; });
+            auto snapshot_pin = conversation(c, mention_group);
+            require(snapshot_pin.pinned_message && snapshot_pin.pinned_message->id == mentioned->message_id &&
+                snapshot_pin.last.id == before_pin.last.id && snapshot_pin.unread == before_pin.unread,
+                "Members see pinned summary independently of latest message and unread");
+            auto unchanged_pin = call<bool>([&](auto h) { b.pin_group_message(mention_group, mentioned->message_id, h); });
+            auto replaced_pin = call<bool>([&](auto h) { b.pin_group_message(mention_group, rejoined_mention->message_id, h); });
+            auto pin_edit = call<chat::message>([&](auto h) {
+                a.edit_message(mention_group, rejoined_mention->message_id, "rejoined edited @" + names[1], h);
+            });
+            auto edited_pin = conversation(c, mention_group);
+            require(unchanged_pin && !*unchanged_pin && replaced_pin && *replaced_pin && pin_edit && edited_pin.pinned_message &&
+                edited_pin.pinned_message->id == rejoined_mention->message_id && edited_pin.pinned_message->text == pin_edit->text,
+                "Admin replaces single pinned message; edits refresh its summary");
             b.close();
             b_events.wait([&] { return b_events.disconnected == 2; });
             b.connect(server.url);
@@ -1025,6 +1061,9 @@ int run_group_tests()
                 "Reconnect mention recipient");
             auto recovered_mentions = call<chat::messages_result>([&](auto handler) { b.get_messages(mention_group, {}, handler); });
             auto paged_mentions = call<chat::messages_result>([&](auto handler) { b.get_messages(mention_group, rejoined_mention->message_id, handler); });
+            require(conversation(b, mention_group).pinned_message &&
+                conversation(b, mention_group).pinned_message->id == rejoined_mention->message_id,
+                "Reconnect restores pinned message from authoritative conversation snapshot");
             require(recovered_mentions && targets(recovered_mentions->messages.back().mentions) == targets(rejoined_mention->mentions) &&
                 paged_mentions && targets(paged_mentions->messages.front().mentions) == targets(mentioned->mentions),
                 "Reconnect and cursor history retain persisted targets");
@@ -1032,6 +1071,13 @@ int run_group_tests()
             auto filename_mention = call<chat::message>([&](auto handler) { a.send_attachment(mention_group, "@" + names[1], "file", handler); });
             require(direct_mention && direct_mention->mentions.empty() && filename_mention && filename_mention->mentions.empty(),
                 "Direct text and attachment filenames do not create group mentions");
+            auto unpin = call<bool>([&](auto h) { b.unpin_group_message(mention_group, h); });
+            auto repeated_unpin = call<bool>([&](auto h) { a.unpin_group_message(mention_group, h); });
+            require(unpin && *unpin && repeated_unpin && !*repeated_unpin && !conversation(c, mention_group).pinned_message,
+                "Admin unpins; repeated unpin is idempotent");
+            require(call<bool>([&](auto h) { a.pin_group_message(mention_group, rejoined_mention->message_id, h); }).has_value() &&
+                call<chat::message>([&](auto h) { a.delete_message(mention_group, rejoined_mention->message_id, h); }).has_value() &&
+                !conversation(c, mention_group).pinned_message, "Deleting current pinned message atomically clears the reference");
             std::cout << "PASS persistent group mentions, literal names, boundaries, edits, leave/rejoin, reconnect and payload limit\n";
         }
         auto const page_owner = std::to_string(data.users[0]);
@@ -1581,6 +1627,14 @@ int run_group_tests()
                 std::ranges::any_of(after_delete_race->messages, [&](auto const& message) {
                     return message.id == after_reinvite->message_id && message.deleted && message.reactions.empty();
                 }), "Reaction/delete race always leaves an empty deleted snapshot");
+            auto [pin_delete, pin_during_delete] = locked_race([&] {
+                return call<chat::message>([&](auto h) { managed[1].delete_message(lifecycle_group, while_removed->message_id, h); });
+            }, [&] {
+                return call<bool>([&](auto h) { managed[2].pin_group_message(lifecycle_group, while_removed->message_id, h); });
+            });
+            require(pin_delete && pin_delete->deleted && (pin_during_delete || pin_during_delete.error().code == -32007) &&
+                !conversation(managed[2], lifecycle_group).pinned_message,
+                "Pin/delete race shares conversation lock and cannot retain a deleted pin");
             require(call<chat::user>([&](auto handler) { managed[2].add_contact(managed_ids[3], handler); }).has_value(),
                 "Racing invitation contact");
             std::size_t typing_before;

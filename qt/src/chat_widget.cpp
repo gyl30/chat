@@ -299,7 +299,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     message_search_button_->setEnabled(false);
     header_layout->addWidget(message_search_button_);
     connect(message_search_button_, &QToolButton::clicked, this, [this] {
-        emit message_search_requested(active_conversation_, self_user_, active_group_, active_username_);
+        emit message_search_requested(active_conversation_, self_user_, active_group_, active_username_, {});
     });
     connection_status_ = new QToolButton(header);
     connection_status_->setObjectName(QStringLiteral("connectionStatusButton"));
@@ -308,6 +308,47 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     connection_status_->hide();
     header_layout->addWidget(connection_status_);
     chat_layout->addWidget(header);
+
+    auto* pinned_row = new QWidget(chat_panel);
+    auto* pinned_layout = new QHBoxLayout(pinned_row);
+    pinned_layout->setContentsMargins(16, 0, 12, 0);
+    pinned_message_button_ = new QPushButton(pinned_row);
+    pinned_message_button_->setObjectName(QStringLiteral("pinnedMessageButton"));
+    pinned_message_button_->setFlat(true);
+    pinned_message_button_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    pinned_message_button_->setCursor(Qt::PointingHandCursor);
+    unpin_message_button_ = new QToolButton(pinned_row);
+    unpin_message_button_->setObjectName(QStringLiteral("unpinMessageButton"));
+    unpin_message_button_->setText(QStringLiteral("取消置顶消息"));
+    pinned_layout->addWidget(pinned_message_button_, 1);
+    pinned_layout->addWidget(unpin_message_button_);
+    pinned_message_button_->hide();
+    unpin_message_button_->hide();
+    chat_layout->addWidget(pinned_row);
+    connect(pinned_message_button_, &QPushButton::clicked, this, [this] {
+        auto const item = conversation(active_conversation_);
+        if (!item || item->pinned_message.id <= 0) { return; }
+        for (int row = 0; row < messages_->rowCount(); ++row)
+        {
+            auto const index = messages_->index(row, 0);
+            if (index.data(message_model::id_role).toLongLong() != item->pinned_message.id) { continue; }
+            messages_view_->scrollTo(index, QAbstractItemView::PositionAtCenter);
+            return;
+        }
+        QString query;
+        for (auto const& line : item->pinned_message.text.split(QLatin1Char('\n')))
+        {
+            query = line.trimmed().left(80);
+            if (!query.isEmpty()) { break; }
+        }
+        emit message_search_requested(active_conversation_, self_user_, true, active_username_, std::move(query));
+    });
+    connect(unpin_message_button_, &QToolButton::clicked, this, [this] {
+        if (connection_available_ && messages_->can_manage_group())
+        {
+            emit group_message_pin_requested(active_conversation_, std::nullopt);
+        }
+    });
 
     auto* chat_line = new QFrame(chat_panel);
     chat_line->setFrameShape(QFrame::HLine);
@@ -369,6 +410,11 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                 }
                 QMenu menu(this);
                 auto* reply = menu.addAction(QStringLiteral("回复"));
+                auto const message_id = index.data(message_model::id_role).toLongLong();
+                auto const current = conversation(active_conversation_);
+                auto const unpin = current && current->pinned_message.id == message_id;
+                auto* group_pin = messages_->can_manage_group()
+                    ? menu.addAction(unpin ? QStringLiteral("取消置顶消息") : QStringLiteral("置顶消息")) : nullptr;
                 auto* picker = menu.addMenu(QStringLiteral("表情回应"));
                 auto const own_reaction = index.data(message_model::own_reaction_role).toString();
                 auto const reaction_index = QPersistentModelIndex(index);
@@ -400,6 +446,15 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                                    ? menu.addAction(QStringLiteral("删除"))
                                    : nullptr;
                 auto* selected = menu.exec(messages_view_->viewport()->mapToGlobal(position));
+                if (group_pin && selected == group_pin)
+                {
+                    if (connection_available_ && conversation == active_conversation_ && messages_->can_manage_group())
+                    {
+                        emit group_message_pin_requested(conversation,
+                            unpin ? std::nullopt : std::optional<qint64>(message_id));
+                    }
+                    return;
+                }
                 if (readers && selected == readers)
                 {
                     show_read_details(index);
@@ -687,6 +742,7 @@ void chat_widget::set_user(QString const& username, qint64 user)
     reply_to_ = 0;
     reply_bar_->hide();
     active_conversation_ = 0;
+    update_pinned_message();
     active_username_.clear();
     presence_.clear();
     conversations_->set_conversations({});
@@ -776,6 +832,7 @@ void chat_widget::set_connection_available(bool available)
     add_contact_button_->setEnabled(available);
     message_search_button_->setEnabled(available && active_conversation_ > 0);
     attachment_button_->setEnabled(available && active_conversation_ > 0 && !attachment_sending_);
+    update_pinned_message();
     add_user_search_->setEnabled(available);
 }
 
@@ -797,6 +854,7 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
 {
     auto const previous_user = active_conversation_;
     conversations_->set_conversations(std::move(conversations));
+    update_pinned_message();
     for (auto const& item : presence_)
     {
         conversations_->set_online(item.user, item.online);
@@ -1233,6 +1291,7 @@ void chat_widget::open_conversation(conversation_data conversation)
     message_search_button_->setEnabled(connection_available_);
     attachment_button_->setEnabled(connection_available_ && !attachment_sending_);
     messages_->reset(active_conversation_, active_group_);
+    update_pinned_message();
     messages_loaded_ = false;
     messages_loading_ = true;
     history_exhausted_ = false;
@@ -1256,6 +1315,7 @@ void chat_widget::close_conversation(qint64 conversation)
     typing_users_.clear();
     update_typing_label();
     active_conversation_ = 0;
+    update_pinned_message();
     active_peer_ = 0;
     active_group_ = false;
     active_member_count_ = 0;
@@ -1283,6 +1343,23 @@ void chat_widget::close_conversation(qint64 conversation)
     set_message_status(QStringLiteral("选择一个会话开始聊天"));
 }
 
+void chat_widget::update_pinned_message()
+{
+    auto const item = conversation(active_conversation_);
+    auto const visible = active_group_ && item && item->pinned_message.id > 0;
+    pinned_message_button_->setVisible(visible);
+    unpin_message_button_->setVisible(visible && messages_->can_manage_group());
+    pinned_message_button_->setEnabled(connection_available_);
+    unpin_message_button_->setEnabled(connection_available_);
+    if (visible)
+    {
+        auto const summary = QStringLiteral("置顶消息 · %1：%2")
+            .arg(item->pinned_message.username, item->pinned_message.text.simplified().left(80));
+        pinned_message_button_->setText(QString(summary).replace(QLatin1Char('&'), QStringLiteral("&&")));
+        pinned_message_button_->setToolTip(summary + QStringLiteral("\n点击定位；较早的消息通过搜索查看。"));
+    }
+}
+
 void chat_widget::set_members(qint64 conversation, QList<member_data> members, QString const& error)
 {
     if (conversation != active_conversation_ || !error.isEmpty())
@@ -1291,6 +1368,7 @@ void chat_widget::set_members(qint64 conversation, QList<member_data> members, Q
     }
     for (auto const& member : members) { avatars_.observe(member.id, member.avatar); }
     messages_->set_members(members);
+    update_pinned_message();
     for (auto it = typing_users_.begin(); it != typing_users_.end();)
     {
         auto const present = std::any_of(members.begin(), members.end(), [id = it.key()](auto const& member) {

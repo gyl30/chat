@@ -6,6 +6,7 @@
 #include <QMetaType>
 #include <QString>
 #include <QtGlobal>
+#include "message_data.hpp"
 
 struct conversation_data
 {
@@ -23,6 +24,7 @@ struct conversation_data
     chat::avatar_state avatar;
     bool muted = false;
     bool pinned = false;
+    quoted_message_data pinned_message;
 };
 
 Q_DECLARE_METATYPE(conversation_data)

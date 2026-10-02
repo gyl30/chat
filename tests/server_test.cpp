@@ -598,7 +598,8 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         std::cout << "PASS registration duplicate\n";
 
         for (auto const* method : {"begin_avatar_upload", "upload_avatar_chunk", "finish_avatar_upload",
-                                    "cancel_avatar_upload", "get_avatar", "clear_avatar", "set_message_reaction", "set_conversation_muted", "set_conversation_pinned"})
+                                    "cancel_avatar_upload", "get_avatar", "clear_avatar", "set_message_reaction", "set_conversation_muted", "set_conversation_pinned",
+                                    "pin_group_message", "unpin_group_message"})
         {
             auto [write_ec] = co_await send_websocket_text(socket,
                 std::string("{\"jsonrpc\":\"2.0\",\"method\":\"") + method + "\",\"params\":{},\"id\":\"avatar-auth\"}");
@@ -1656,6 +1657,15 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
             co_return 1;
         }
     }
+    for (auto const* params : {
+        R"({"conversation":1})", R"({"conversation":1,"message":null})", R"({"conversation":1,"message":0})",
+        R"({"conversation":1,"message":"1"})", R"({"conversation":1,"message":1,"user":1})"})
+    {
+        auto reply = co_await peer_rpc("pin_group_message", params);
+        if (!json_matches(reply, R"({"error":{"code":-32602}})")) { std::cerr << "FAIL group pin params\n"; co_return 1; }
+    }
+    auto invalid_unpin = co_await peer_rpc("unpin_group_message", R"({"conversation":1,"message":null})");
+    if (!json_matches(invalid_unpin, R"({"error":{"code":-32602}})")) { std::cerr << "FAIL unpin params\n"; co_return 1; }
     for (auto const* params : {
         R"({"before":{"activity":1,"id":1}})",
         R"({"before":{"activity":1,"id":1,"pinned":null}})",

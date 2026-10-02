@@ -23,6 +23,7 @@ class conversation_model final : public QAbstractListModel
         online_role,
         muted_role,
         pinned_role,
+        pinned_message_role,
     };
 
     explicit conversation_model(QObject* parent = nullptr, avatar_cache* avatars = nullptr);

@@ -100,7 +100,8 @@ class chat_widget final : public QWidget
     void direct_conversation_requested(qint64 user, QString username);
     void group_create_requested(QString title, QList<qint64> members);
     void members_requested(qint64 conversation, qint64 self_user, QString title);
-    void message_search_requested(qint64 conversation, qint64 self_user, bool group, QString title);
+    void message_search_requested(qint64 conversation, qint64 self_user, bool group, QString title, QString query);
+    void group_message_pin_requested(qint64 conversation, std::optional<qint64> message);
     void attachment_send_requested(qint64 conversation, QString filename, QByteArray data, qint64 reply_to);
     void attachment_open_requested(qint64 conversation, qint64 message, QString filename, bool preview);
     void typing_requested(qint64 conversation, bool typing);
@@ -127,6 +128,7 @@ class chat_widget final : public QWidget
     void show_user_details(qint64 user, QString const& username);
     void show_read_details(QModelIndex const& index);
     void update_chat_header(QString const& username);
+    void update_pinned_message();
     void update_chat_presence();
     void set_message_status(QString message);
     void stop_typing();
@@ -144,6 +146,8 @@ class chat_widget final : public QWidget
     QToolButton* sidebar_back_button_ = nullptr;
     QToolButton* add_contact_button_ = nullptr;
     QToolButton* message_search_button_ = nullptr;
+    QPushButton* pinned_message_button_ = nullptr;
+    QToolButton* unpin_message_button_ = nullptr;
     QToolButton* attachment_button_ = nullptr;
     QLabel* section_title_ = nullptr;
     QStackedWidget* sidebar_pages_ = nullptr;

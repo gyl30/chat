@@ -98,6 +98,7 @@ int main(int argc, char** argv)
             QObject::connect(&bridge, &client_bridge::pin_finished, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::message_sent, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::message_updated, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::group_pin_finished, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::error, &bridge, [&](auto) { failed_connect.set_value(); }, Qt::DirectConnection);
             bridge.send_attachment(1, "stale.bin", "old upload");
             bridge.get_attachment(1, 1);
@@ -108,6 +109,8 @@ int main(int argc, char** argv)
             bridge.send_message(1, "stale @user", 0);
             bridge.edit_message(1, 1, "stale edit @user");
             bridge.delete_message(1, 1);
+            bridge.set_group_pinned_message(1, 1);
+            bridge.set_group_pinned_message(1, std::nullopt);
             bridge.search_messages(1, "old search");
             bridge.set_message_reaction(1, 1, QStringLiteral("👍"));
             QObject::connect(&bridge, &client_bridge::avatar_received, &bridge, [&](auto...) { ++stale_results; });
@@ -815,6 +818,50 @@ int main(int argc, char** argv)
                     "Persisted mention reaches sender and peers, with current-user visual only on target");
             }
             windows[2]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_mention.png");
+            auto group_pin_menu = [&](int actor, int row, bool clear, bool permitted) {
+                auto* view = windows[actor]->findChild<QListView*>("messageList");
+                QTimer::singleShot(20, [clear, permitted] {
+                    auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+                    check(menu, "Group message context menu");
+                    QAction* selected = nullptr;
+                    for (auto* action : menu->actions())
+                    {
+                        if (action->text() == (clear ? QStringLiteral("取消置顶消息") : QStringLiteral("置顶消息"))) { selected = action; }
+                    }
+                    check((selected != nullptr) == permitted, "Only current owner/admin has a group pin menu action");
+                    if (selected)
+                    {
+                        menu->setActiveAction(selected);
+                        QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+                        QApplication::sendEvent(menu, &enter);
+                    }
+                    else { menu->close(); }
+                });
+                view->customContextMenuRequested(view->visualRect(view->model()->index(row, 0)).center());
+            };
+            group_pin_menu(2, 3, false, false);
+            group_pin_menu(0, 3, false, true);
+            for (int i = 0; i < 3; ++i)
+            {
+                wait([&, i] { return pages[i]->conversation(group)->pinned_message.id == mention_message &&
+                    windows[i]->findChild<QPushButton*>("pinnedMessageButton")->isVisible(); });
+            }
+            check(!windows[2]->findChild<QToolButton*>("unpinMessageButton")->isVisible(), "Ordinary member only views pinned summary");
+            auto const edited_pin_text = QStringLiteral("重连后的群消息 @") + names[2] + QStringLiteral(" · 更新置顶");
+            pages[1]->edit_message_requested(group, mention_message, edited_pin_text);
+            for (int i = 0; i < 3; ++i)
+            {
+                wait([&, i] { return pages[i]->conversation(group)->pinned_message.text == edited_pin_text &&
+                    pages[i]->conversation(group)->pinned_message.edited_at > 0 &&
+                    windows[i]->findChild<QPushButton*>("pinnedMessageButton")->text().contains(QStringLiteral("更新置顶")); });
+            }
+            windows[2]->findChild<QPushButton*>("pinnedMessageButton")->click();
+            check(!QApplication::activeModalWidget(), "Loaded pinned message is located without a dialog");
+            group_pin_menu(0, 3, true, true);
+            for (int i = 0; i < 3; ++i) { wait([&, i] { return pages[i]->conversation(group)->pinned_message.id == 0; }); }
+            group_pin_menu(0, 3, false, true);
+            for (int i = 0; i < 3; ++i) { wait([&, i] { return pages[i]->conversation(group)->pinned_message.id == mention_message; }); }
+            windows[2]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_pinned_message.png");
 
             set_preference(2, group, false);
             activate(2);
@@ -1449,6 +1496,17 @@ int main(int argc, char** argv)
                         item.data(message_model::mentioned_role).toBool() == (i == 2);
                 }
                 check(restored, "Reconnect and rejoin restore historical mention facts");
+                wait([&, i] { return pages[i]->conversation(group)->pinned_message.id == mention_message; });
+            }
+            windows[0]->findChild<QToolButton*>("unpinMessageButton")->click();
+            for (int i = 0; i < 3; ++i) { wait([&, i] { return pages[i]->conversation(group)->pinned_message.id == 0; }); }
+            pages[1]->group_message_pin_requested(group, mention_message);
+            for (int i = 0; i < 3; ++i) { wait([&, i] { return pages[i]->conversation(group)->pinned_message.id == mention_message; }); }
+            pages[1]->delete_message_requested(group, mention_message);
+            for (int i = 0; i < 3; ++i)
+            {
+                wait([&, i] { return pages[i]->conversation(group)->pinned_message.id == 0 &&
+                    !windows[i]->findChild<QPushButton*>("pinnedMessageButton")->isVisible(); });
             }
             auto const before_group_image = pages[0]->latest_message_id();
             pages[0]->attachment_send_requested(group, "group.png", image_bytes, 0);
@@ -1597,6 +1655,34 @@ int main(int argc, char** argv)
                 !pages[0]->avatars().image(ids[0]).isNull(); });
             check(windows[0]->findChild<QToolButton*>("profileAvatar")->icon().pixmap(44, 44).toImage() ==
                 avatar_icon(names[0], 44, pages[0]->avatars().image(ids[0])).pixmap(44, 44).toImage(), "Authentication restores own avatar after login");
+            auto seed = "INSERT INTO messages(sender_id,conversation_id,body) VALUES(" + std::to_string(ids[1]) + "," +
+                std::to_string(group) + ",E'\\n  \\n较早的置顶消息') RETURNING id";
+            auto* early = PQexec(db, seed.c_str());
+            check(PQresultStatus(early) == PGRES_TUPLES_OK && PQntuples(early) == 1, "Persist older pinned-message fixture");
+            auto const early_id = std::stoll(PQgetvalue(early, 0, 0));
+            PQclear(early);
+            seed = "INSERT INTO messages(sender_id,conversation_id,body) SELECT " + std::to_string(ids[1]) + "," +
+                std::to_string(group) + ",'分页消息 '||n::text FROM generate_series(1,60) n";
+            auto* newer = PQexec(db, seed.c_str());
+            check(PQresultStatus(newer) == PGRES_COMMAND_OK, "Persist messages beyond current history page");
+            PQclear(newer);
+            pages[1]->group_message_pin_requested(group, early_id);
+            wait([&] { return pages[0]->conversation(group)->pinned_message.id == early_id; });
+            pages[0]->open_conversation(*pages[0]->conversation(group));
+            auto* recent = windows[0]->findChild<QListView*>("messageList");
+            wait([&] { return recent->model()->rowCount() == 50 && pages[0]->messages_ready(); });
+            check(recent->model()->index(0, 0).data(message_model::id_role).toLongLong() > early_id,
+                "Pinned target is older than the current history page");
+            QTimer::singleShot(20, [&] {
+                auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                check(dialog && dialog->objectName() == "messageSearchDialog", "Older pin opens existing search");
+                auto* results = dialog->findChild<QListView*>("messageSearchResults");
+                wait([&] { return results->model()->rowCount() == 1; });
+                check(results->model()->index(0, 0).data(message_model::id_role).toLongLong() == early_id,
+                    "Pinned summary searches the persisted message beyond cursor page");
+                dialog->reject();
+            });
+            windows[0]->findChild<QPushButton*>("pinnedMessageButton")->click();
         }
         std::cout << "PASS three real Qt windows: login, contacts group creation, member list, message author, "
                      "realtime, server restart and automatic recovery\n";

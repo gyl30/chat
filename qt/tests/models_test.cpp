@@ -200,6 +200,13 @@ int main(int argc, char** argv)
     message_model mention_model;
     mention_model.set_self_user(1);
     mention_model.reset(1, true);
+    if (mention_model.can_manage_group()) { return 1; }
+    mention_model.set_members({{1, "owner", chat::member_role::owner, {}}});
+    if (!mention_model.can_manage_group()) { return 1; }
+    mention_model.set_members({{1, "member", chat::member_role::member, {}}});
+    if (mention_model.can_manage_group()) { return 1; }
+    mention_model.set_members({{1, "admin", chat::member_role::admin, {}}});
+    if (!mention_model.can_manage_group()) { return 1; }
     auto mentioned = incoming;
     mentioned.text = QStringLiteral("@自己");
     mentioned.mentions = {{1, QStringLiteral("自己")}};
@@ -231,7 +238,10 @@ int main(int argc, char** argv)
     group.user = 0;
     group.muted = true;
     group.pinned = true;
+    group.pinned_message = {10, "author", "pinned"};
     conversations.set_conversations({direct, group});
+    if (conversations.index_for_conversation(2).data(conversation_model::pinned_message_role).value<quoted_message_data>().id != 10 ||
+        conversations.index_for_conversation(1).data(conversation_model::pinned_message_role).value<quoted_message_data>().id != 0) { return 1; }
     conversations.set_online(2, true);
     conversations.set_muted(1, true);
     conversations.set_pinned(1, true);

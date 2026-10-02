@@ -10,13 +10,14 @@
 #include <QListView>
 #include <QMenu>
 #include <QPushButton>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include "message_delegate.hpp"
 #include "message_model.hpp"
 
 message_search_dialog::message_search_dialog(qint64 conversation, qint64 self_user, bool group,
-                                             QString const& title, QWidget* parent, avatar_cache* avatars)
+                                             QString const& title, QString const& query, QWidget* parent, avatar_cache* avatars)
     : QDialog(parent), conversation_(conversation), group_(group)
 {
     setObjectName(QStringLiteral("messageSearchDialog"));
@@ -75,6 +76,11 @@ message_search_dialog::message_search_dialog(qint64 conversation, qint64 self_us
             QGuiApplication::clipboard()->setText(index.data(message_model::text_role).toString());
         }
     });
+    if (!query.isEmpty())
+    {
+        input_->setText(query);
+        QTimer::singleShot(0, this, [this] { request_search(false); });
+    }
 }
 
 void message_search_dialog::request_search(bool older)

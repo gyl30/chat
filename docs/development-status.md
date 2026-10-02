@@ -27,6 +27,7 @@
 | `3001ed5` | 桌面消息通知、实际阅读判定及窗口恢复 | 无 |
 | `323c9f9` | 个人会话免打扰、服务端持久化、通知抑制及重连 | SQL 017 |
 | `638b775` | 个人会话置顶及跨置顶/普通层的完整 cursor 分页 | SQL 018 |
+| `a653634` | 群成员提及、真实目标持久化、文字高亮与重连 | SQL 019 |
 
 另外完成历史大响应接收、编辑消息布局和消息操作按钮对比度修复，分别见 `32f3f3b`、`a545c9a`、`f73b8f4`。
 
@@ -37,6 +38,7 @@
 - `conversation_members` 表示当前成员，持有 `is_admin`、`last_read_message_id`、`joined_message_id` 和个人 `muted/pinned`。群主必须是群成员，由延迟外键保证；管理员上限在同一会话锁事务内检查。
 - `messages` 指向会话和真实作者，包含回复 ID、编辑时间、删除占位；`message_attachments` 保存附件元数据和内容。删除附件消息会清除文件内容。SQL 016 增加独立 `message_reactions` 和消息的单调 `reaction_revision`，每用户每消息一条回应，删除消息时清除回应。
 - SQL 019 的 `message_mentions(message_id,user_id)` 保存群文字提及的真实目标；编辑替换、删除清空，退出成员不删除历史目标。旧消息不回填。
+- SQL 020 的 `conversations.pinned_message_id` 保存每群一个当前置顶消息；与个人 membership 的 pinned 独立。初始为空，软删除同事务清空，物理删除通过外键 SET NULL 清空。
 - SQL 008 保留旧单聊、自聊、消息、联系人和阅读位置；SQL 009–014 渐进增加上述能力。SQL 013 应用前已确认本次数据库没有既存群，不猜测旧群创建者，也不删除旧消息。
 - 新建或重新加入的成员能读取完整历史。邀请取得会话锁后读取最新消息 ID 作为加入水位；实际阅读仍从 0 开始，仅由 `mark_read` 推进。未读统计使用 `id > greatest(last_read_message_id, joined_message_id)`，排除删除消息及群成员自己的消息。
 
@@ -59,6 +61,7 @@
 | `rename_group` | `conversation, title`；群主/管理员；返回 `changed` |
 | `invite_group_members` | `conversation, members`；群主/管理员邀请自己的联系人；重复邀请不重置成员状态 |
 | `leave_group` | `conversation`；普通成员/管理员自退，群主先转让再退出；返回 `changed` |
+| `pin_group_message` / `unpin_group_message` | 会话及真实消息 ID / 会话；仅群主、管理员；返回 `changed` |
 | `send_message` / `edit_message` / `delete_message` | 会话、真实消息或回复 ID；编辑/删除仅作者且仍为当前成员 |
 | `search_messages` | 会话、字面查询和 `before` cursor |
 | `set_message_reaction` | `conversation, message, emoji`；六种表情之一，显式空字符串清除；返回 reaction snapshot |
@@ -90,7 +93,7 @@ git diff --check
 
 ## 保持的边界与后续可选路线
 
-当前尚未实现入群审批、邀请链接、公告或群内置顶消息。群 @mention 和个人会话置顶已接入，个人会话置顶不等于群内置顶消息。群主必须先手动转让再退出；群主/管理员没有编辑、删除他人消息的权限。退出或被移除者本地活动历史清空；服务端仍保留群消息，重新加入可重新获取。移除不等于永久封禁，重新邀请恢复普通成员，旧管理员身份和真实读位不继承。
+当前尚未实现入群审批、邀请链接或公告。群 @mention、个人会话置顶和群内单条置顶消息已接入，个人会话置顶不等于群内置顶消息。群主必须先手动转让再退出；群主/管理员没有编辑、删除他人消息的权限。退出或被移除者本地活动历史清空；服务端仍保留群消息，重新加入可重新获取。移除不等于永久封禁，重新邀请恢复普通成员，旧管理员身份和真实读位不继承。
 
 2026-10-02 启动新的长期路线：验证基线、群已读详情、reaction、图片气泡预览、桌面通知、会话 mute/pin、群 mention、群置顶消息、公告、邀请链接和审批，依序独立实施。此列表表示规划，尚未实现的阶段不计入已完成能力。范围仍不扩大到多设备、微服务、Redis、Kafka、event sourcing 或 CQRS。
 
@@ -344,3 +347,27 @@ SDK 严格校验 metadata，Qt 共用消息模型和 delegate，正文高亮并�
 | UBSan | PASS | 14/14 PASS，71.18 s |
 
 无 suppression 或测试排除，`git diff --check` PASS。两项独立只读审查之后，以 PostgreSQL 17 的实际匹配结果及前缀姓名回归核实最长匹配语义，不依赖候选聚合顺序。没有新增通用事件框架、shadow state、临时 migration 或调试代码。下一阶段为群内单条置顶消息。
+
+## 群内置顶消息
+
+从重新 fetch 后的 `a653634`、干净工作树开始。SQL 020 增加可空消息引用，限定只有 group 可持有；旧会话默认没有置顶，不修改 SQL 001–019。每群只保留一个当前目标，不保存历史。群主和管理员可置顶任何属于该群的未删除消息，普通成员只能查看。目标替换和重复设置采用明确幂等语义，不改变活动时间、普通未读、实际阅读或个人会话排序。
+
+`pin_group_message {conversation,message}` 和 `unpin_group_message {conversation}` 返回 `{changed}`；参数、认证、当前成员、管理权限和目标归属均由服务器检查。复用群管理的 conversation 行锁和事务，锁后查询角色，与移除、转让、管理员变更、发送和删除串行化。成功变化通过现有 conversation notification 刷新，操作者由 RPC 确认后刷新。删除在原消息更新 SQL 的同一事务中清除置顶，提交后发送会话变化；数据库物理删除通过外键 SET NULL 清理。
+
+`get_conversations.pinned_message` 为可空引用摘要，包含真实消息 ID、作者、当前文字前 160 字及编辑状态；不混入 latest message 或 message 的持久化字段。历史和重连从同一会话快照恢复。现有 `message_updated` 也刷新会话快照，置顶摘要跟随编辑。SDK 拒绝缺失、错误类型、非法 ID、deleted 或 direct conversation 的非空置顶摘要。
+
+Qt 消息菜单按当前成员角色显示“置顶消息/取消置顶消息”，使用稳定消息、会话 ID，触发时重新检查当前角色和连接。header 显示摘要；点击已加载目标滚动定位，较早的目标复用现有搜索窗口。置顶栏直接读取已有 conversation model，没有另存 active pinned ID、pending 状态或新增 generation。RPC 回调在 Qt 线程复核现有连接 generation，重连和账号切换的旧结果不会写入新状态。
+
+回归覆盖 SQL 019→020 的空默认值、群类型约束和物理删除清理；未认证、非法参数、非成员、普通成员、跨群及删除消息拒绝；owner/admin 设置、替换、幂等和取消；摘要与 latest/unread 独立、编辑、登录重连，以及 pin/delete 真实锁竞争。SDK 验证摘要和动作的异常协议，Qt 模型验证当前角色和摘要数据，三个真实窗口验证菜单权限、实时置顶栏、取消、编辑刷新、转让后的管理角色、重连、删除自动解除和 stale callback；截图已检查。
+
+实际持久化超过一页的历史验证了未加载目标走搜索。补充的空白首行用例在修复前失败，预填现改用首个非空行（最多 80 个 Qt 字符，满足搜索参数字节边界）；如果正文全为空白，仍提供搜索窗口手动输入。没有新增随机访问 RPC、置顶历史或索引框架。
+
+最终代码运行 `tests/verify.sh`，三套启用 Qt、Debug、`-j12` 并继承 libpq 环境：
+
+| 构建 | 完整 build | 完整 CTest |
+|---|---|---|
+| normal | PASS | 14/14 PASS，59.24 s |
+| ASan | PASS | 14/14 PASS，82.69 s |
+| UBSan | PASS | 14/14 PASS，74.50 s |
+
+无 suppression 或测试排除，`git diff --check` PASS。独立审查建议已通过实际代码和回归复核，真实空白首行问题已修复。没有新缓存、事件框架、临时 schema 或调试代码。下一阶段为群公告。

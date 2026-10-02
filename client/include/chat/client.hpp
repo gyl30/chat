@@ -98,6 +98,8 @@ class client
     void rename_group(std::int64_t conversation, std::string title, group_action_handler handler);
     void invite_group_members(std::int64_t conversation, std::vector<std::int64_t> members, group_action_handler handler);
     void leave_group(std::int64_t conversation, group_action_handler handler);
+    void pin_group_message(std::int64_t conversation, std::int64_t message, group_action_handler handler);
+    void unpin_group_message(std::int64_t conversation, group_action_handler handler);
     void get_contacts(users_handler handler);
     void get_presence(presences_handler handler);
     void get_messages(std::int64_t conversation, std::optional<std::int64_t> before, messages_handler handler,

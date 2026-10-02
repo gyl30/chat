@@ -131,7 +131,10 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
         "AND $5::boolean AND EXISTS(SELECT 1 FROM updated) RETURNING message_id) "
         ",cleared_reactions AS (DELETE FROM message_reactions WHERE message_id=$3::bigint AND $5::boolean "
         "AND EXISTS(SELECT 1 FROM updated) RETURNING message_id) "
-        "SELECT COALESCE(((extract(epoch FROM edited_at)*1000)::bigint)::text,''),reaction_revision::text FROM updated",
+        ",cleared_pin AS (UPDATE conversations SET pinned_message_id=NULL WHERE id=$2::bigint "
+        "AND pinned_message_id=$3::bigint AND $5::boolean AND EXISTS(SELECT 1 FROM updated) RETURNING id) "
+        "SELECT COALESCE(((extract(epoch FROM edited_at)*1000)::bigint)::text,''),reaction_revision::text,"
+        "EXISTS(SELECT 1 FROM cleared_pin)::text FROM updated",
         {std::to_string(*user_id_), std::to_string(params.conversation), std::to_string(params.message), value.text,
          deleting ? "true" : "false"});
     auto& [write_ec, result] = updated;
@@ -147,6 +150,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
     }
     value.edited_at = result->front().empty() ? std::nullopt : std::optional<std::int64_t>(std::stoll(result->front()));
     value.reaction_revision = std::stoll(result->at(1));
+    auto const pin_cleared = result->at(2) == "true";
     auto mentioned = co_await refresh_message_mentions(connection, params.conversation, params.message, value.text);
     auto& [mention_ec, mentions] = mentioned;
     if (mention_ec)
@@ -176,5 +180,10 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
     }
     lease = {};
     co_await publish_conversation(params.conversation, std::string(notification_prefix) + payload + "}");
+    if (pin_cleared)
+    {
+        co_await publish_conversation(params.conversation, "{\"jsonrpc\":\"2.0\",\"method\":\"conversation\",\"params\":{\"conversation\":" +
+            std::to_string(params.conversation) + "}}");
+    }
     co_return serialize_json_rpc_success(payload, std::move(request.id), response);
 }

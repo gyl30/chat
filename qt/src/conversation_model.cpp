@@ -56,6 +56,8 @@ QVariant conversation_model::data(QModelIndex const& index, int role) const
             return item->muted;
         case pinned_role:
             return item->pinned;
+        case pinned_message_role:
+            return QVariant::fromValue(item->pinned_message);
         case Qt::DecorationRole:
             return avatars_ ? QVariant::fromValue(avatars_->image(item->user)) : QVariant{};
         default:

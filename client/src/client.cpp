@@ -142,9 +142,9 @@ bool parse_edited_at(boost::json::object const& object, std::optional<std::int64
     return edited_at && *edited_at > 0;
 }
 
-bool parse_reply(boost::json::object const& object, std::optional<quoted_message>& reply)
+bool parse_quote(boost::json::object const& object, std::string_view key, std::optional<quoted_message>& reply)
 {
-    auto const* value = object.if_contains("reply");
+    auto const* value = object.if_contains(key);
     if (!value || value->is_null())
     {
         return true;
@@ -300,7 +300,7 @@ bool parse_message(boost::json::object const& object, message& value)
         }
         value.attachment = attachment_info{std::string(filename->as_string()), std::string(type), *size};
     }
-    return parse_avatar_state(object, value.avatar) && parse_reply(object, value.reply) && parse_edited_at(object, value.edited_at) &&
+    return parse_avatar_state(object, value.avatar) && parse_quote(object, "reply", value.reply) && parse_edited_at(object, value.edited_at) &&
            parse_deleted(object, value.deleted) && parse_reactions(object, value.reaction_revision, value.reactions) &&
            parse_mentions(object, value.mentions) && (!value.deleted || (value.reactions.empty() && value.mentions.empty()));
 }
@@ -944,12 +944,13 @@ struct client::impl
                     auto const* count_value = object.if_contains("member_count");
                     auto const* muted = object.if_contains("muted");
                     auto const* pinned = object.if_contains("pinned");
+                    auto const* pinned_message = object.if_contains("pinned_message");
                     auto id = id_value ? parse_int64(*id_value) : std::nullopt;
                     auto unread = unread_value ? parse_uint64(*unread_value) : std::nullopt;
                     auto count = count_value ? parse_uint64(*count_value) : std::nullopt;
                     if (!id || *id <= 0 || !kind || !kind->is_string() || !user_value || !name || !name->is_string() ||
                         !last || !unread || !count || *count == 0 || !muted || !muted->is_bool() ||
-                        !pinned || !pinned->is_bool())
+                        !pinned || !pinned->is_bool() || !pinned_message)
                 {
                     handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation")));
                     return;
@@ -985,6 +986,12 @@ struct client::impl
                         handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation kind")));
                     return;
                 }
+                    if (!parse_quote(object, "pinned_message", item.pinned_message) ||
+                        (item.pinned_message && (item.kind != conversation_kind::group || item.pinned_message->deleted)))
+                    {
+                        handler(std::unexpected(make_error(error_kind::protocol, "Invalid pinned message")));
+                        return;
+                    }
                     if (!last->is_null() && (!last->is_object() || !parse_message(last->as_object(), item.last) ||
                                              item.last.conversation != item.id))
                     {
@@ -1336,7 +1343,7 @@ struct client::impl
             result.message_id = *message_id;
             result.timestamp = *timestamp;
             result.realtime = realtime_value->as_bool();
-            if (!parse_reply(object, result.reply) || !parse_mentions(object, result.mentions))
+            if (!parse_quote(object, "reply", result.reply) || !parse_mentions(object, result.mentions))
             {
                 handler(std::unexpected(make_error(error_kind::protocol, "Invalid send metadata")));
                 return;
@@ -2145,6 +2152,18 @@ void client::leave_group(std::int64_t conversation, group_action_handler handler
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_action(
         "leave_group", {{"conversation", conversation}}, std::move(handler)));
+}
+
+void client::pin_group_message(std::int64_t conversation, std::int64_t message, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_action(
+        "pin_group_message", {{"conversation", conversation}, {"message", message}}, std::move(handler)));
+}
+
+void client::unpin_group_message(std::int64_t conversation, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_action(
+        "unpin_group_message", {{"conversation", conversation}}, std::move(handler)));
 }
 
 void client::get_contacts(users_handler handler)
