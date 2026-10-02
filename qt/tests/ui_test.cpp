@@ -27,6 +27,7 @@
 #include <libpq-fe.h>
 #include <future>
 #include <algorithm>
+#include <array>
 #include <iostream>
 #include <unistd.h>
 #include "main_window.hpp"
@@ -40,6 +41,7 @@ void check(bool v, char const* text)
 {
     if (!v)
     {
+        std::cerr << "FAIL Qt assertion: " << text << '\n';
         throw std::runtime_error(text);
     }
 }
@@ -85,6 +87,30 @@ int main(int argc, char** argv)
     {
         start();
         {
+            group_dialog dialog(1, 1, QStringLiteral("公告草稿"), QStringLiteral("旧公告"), nullptr);
+            dialog.set_members(1, {{1, "owner", chat::member_role::owner, {}}, {2, "admin", chat::member_role::admin, {}}}, {});
+            auto* edit = dialog.findChild<QPlainTextEdit*>("groupAnnouncementEdit");
+            edit->setPlainText(QStringLiteral("未保存草稿"));
+            conversation_data snapshot;
+            snapshot.id = 1;
+            snapshot.group = true;
+            snapshot.username = QStringLiteral("公告草稿");
+            snapshot.announcement = QStringLiteral("其他管理员发布的公告");
+            dialog.set_conversations({snapshot}, {});
+            check(edit->toPlainText() == QStringLiteral("未保存草稿"), "Realtime snapshot preserves unsaved announcement draft");
+            dialog.set_members(1, {{1, "member", chat::member_role::member, {}}, {2, "owner", chat::member_role::owner, {}}}, {});
+            check(edit->isReadOnly() && edit->toPlainText() == snapshot.announcement &&
+                !dialog.findChild<QPushButton*>("groupAnnouncementButton")->isEnabled(), "Loss of management permission restores authoritative announcement");
+            dialog.set_members(1, {{1, "owner", chat::member_role::owner, {}}, {2, "admin", chat::member_role::admin, {}}}, {});
+            edit->setPlainText(QStringLiteral("清空前的草稿"));
+            dialog.findChild<QPushButton*>("groupClearAnnouncementButton")->click();
+            snapshot.announcement.clear();
+            dialog.set_conversations({snapshot}, {});
+            dialog.finish_action(1, false, {});
+            check(edit->toPlainText().isEmpty() && !edit->isReadOnly() &&
+                !dialog.findChild<QPushButton*>("groupClearAnnouncementButton")->isEnabled(), "Explicit clear also clears an unsaved draft");
+        }
+        {
             std::promise<void> failed_connect;
             client_bridge bridge;
             int stale_results = 0;
@@ -99,6 +125,7 @@ int main(int argc, char** argv)
             QObject::connect(&bridge, &client_bridge::message_sent, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::message_updated, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::group_pin_finished, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::group_action_finished, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::error, &bridge, [&](auto) { failed_connect.set_value(); }, Qt::DirectConnection);
             bridge.send_attachment(1, "stale.bin", "old upload");
             bridge.get_attachment(1, 1);
@@ -111,6 +138,7 @@ int main(int argc, char** argv)
             bridge.delete_message(1, 1);
             bridge.set_group_pinned_message(1, 1);
             bridge.set_group_pinned_message(1, std::nullopt);
+            bridge.set_group_announcement(1, QStringLiteral("旧连接的公告"));
             bridge.search_messages(1, "old search");
             bridge.set_message_reaction(1, 1, QStringLiteral("👍"));
             QObject::connect(&bridge, &client_bridge::avatar_received, &bridge, [&](auto...) { ++stale_results; });
@@ -290,7 +318,7 @@ int main(int argc, char** argv)
             pages[0]->typing_requested(group, true);
             pages[1]->typing_requested(group, true);
             wait([&] { return group_typing->text().contains(names[0]) && group_typing->text().contains(names[1]); });
-            wait([&] { return !group_typing->isVisible(); }, 700);
+            wait([&] { return !peer_typing->isVisible() && !group_typing->isVisible(); }, 700);
             type_character(0);
             wait([&] { return peer_typing->isVisible(); });
             wait([&] { return !peer_typing->isVisible(); });
@@ -455,6 +483,89 @@ int main(int argc, char** argv)
                 }
             }
             wait([&] { return members; });
+            auto announcement_action = [&](int actor, QString const& text, bool clear = false) {
+                bool finished = false;
+                int step = 0;
+                QTimer announcement_poll;
+                QObject::connect(&announcement_poll, &QTimer::timeout, [&] {
+                    auto* dialog = qobject_cast<group_dialog*>(QApplication::activeModalWidget());
+                    if (!dialog || dialog->parentWidget() != windows[actor].get() ||
+                        dialog->findChild<QListWidget*>("groupMembersList")->count() != 3) { return; }
+                    auto* edit = dialog->findChild<QPlainTextEdit*>("groupAnnouncementEdit");
+                    auto* save = dialog->findChild<QPushButton*>("groupAnnouncementButton");
+                    auto* clear_button = dialog->findChild<QPushButton*>("groupClearAnnouncementButton");
+                    if (step == 0)
+                    {
+                        if (edit->isReadOnly()) { return; }
+                        if (clear)
+                        {
+                            check(clear_button->isEnabled(), "Manager can clear current announcement");
+                        }
+                        else
+                        {
+                            edit->setPlainText(QString(1366, QChar(0x4E2D)));
+                            check(!save->isEnabled() && !save->toolTip().isEmpty(), "Announcement UI limit counts UTF-8 bytes");
+                            edit->setPlainText(text);
+                            check(save->isEnabled(), "Manager can save changed announcement");
+                        }
+                        ++step;
+                        (clear ? clear_button : save)->click();
+                        check(edit->isReadOnly(), "Existing pending action state prevents edits during upload");
+                    }
+                    else if (std::all_of(pages.begin(), pages.end(), [&](auto* page) {
+                        return page->conversation(group)->announcement == text;
+                    }) && !edit->isReadOnly() && edit->toPlainText() == text &&
+                        !save->isEnabled() && clear_button->isEnabled() == !text.isEmpty())
+                    {
+                        check(!save->isEnabled() && clear_button->isEnabled() == !text.isEmpty(), "Snapshot confirms saved/cleared announcement");
+                        if (!clear) { dialog->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_announcement.png"); }
+                        finished = true;
+                        announcement_poll.stop();
+                        dialog->accept();
+                    }
+                });
+                announcement_poll.start(20);
+                windows[actor]->findChild<QPushButton*>("chatHeaderButton")->click();
+                check(finished, "Announcement action completed through real Qt controls");
+            };
+            std::array<int, 3> before_announcement_notifications{int(notifications[0].size()), int(notifications[1].size()), int(notifications[2].size())};
+            std::array<int, 3> before_announcement_messages;
+            for (int i = 0; i < 3; ++i) { before_announcement_messages[i] = windows[i]->findChild<QListView*>("messageList")->model()->rowCount(); }
+            auto const announcement_text = QStringLiteral("当前群公告\n<纯文本，不是消息>");
+            announcement_action(0, QStringLiteral("第一版公告"));
+            bool live_announcement = false;
+            int announcement_view_step = 0;
+            QTimer announcement_view_poll;
+            QObject::connect(&announcement_view_poll, &QTimer::timeout, [&] {
+                auto* dialog = qobject_cast<group_dialog*>(QApplication::activeModalWidget());
+                if (!dialog || dialog->parentWidget() != windows[1].get() ||
+                    dialog->findChild<QListWidget*>("groupMembersList")->count() != 3) { return; }
+                auto* edit = dialog->findChild<QPlainTextEdit*>("groupAnnouncementEdit");
+                if (!edit->isReadOnly()) { return; }
+                if (announcement_view_step == 0)
+                {
+                    check(edit->toPlainText() == QStringLiteral("第一版公告") &&
+                        !dialog->findChild<QPushButton*>("groupAnnouncementButton")->isEnabled() &&
+                        !dialog->findChild<QPushButton*>("groupClearAnnouncementButton")->isEnabled(), "Member views plaintext without editing permission");
+                    ++announcement_view_step;
+                    announcement_action(0, announcement_text);
+                }
+                else if (edit->toPlainText() == announcement_text)
+                {
+                    live_announcement = true;
+                    announcement_view_poll.stop();
+                    dialog->accept();
+                }
+            });
+            announcement_view_poll.start(20);
+            windows[1]->findChild<QPushButton*>("chatHeaderButton")->click();
+            check(live_announcement, "An already-open member dialog receives realtime announcement refresh");
+            for (int i = 0; i < 3; ++i)
+            {
+                check(int(notifications[i].size()) == before_announcement_notifications[i] &&
+                    windows[i]->findChild<QListView*>("messageList")->model()->rowCount() == before_announcement_messages[i],
+                    "Announcement is neither a message nor a desktop notification");
+            }
             QTemporaryDir avatar_files;
             QImage avatar_image(256, 256, QImage::Format_RGB32);
             quint32 noise = 17;
@@ -568,6 +679,9 @@ int main(int argc, char** argv)
                 check(!dialog->findChild<QPushButton*>("groupRenameButton")->isEnabled() &&
                           !dialog->findChild<QPushButton*>("groupInviteButton")->isEnabled() &&
                           dialog->findChild<QPushButton*>("groupLeaveButton")->isEnabled(), "Ordinary member permissions");
+                check(dialog->findChild<QPlainTextEdit*>("groupAnnouncementEdit")->isReadOnly() &&
+                    dialog->findChild<QPlainTextEdit*>("groupAnnouncementEdit")->toPlainText() == announcement_text,
+                    "Member profile consistently shows current announcement");
                 ordinary_member = true;
                 member_poll.stop();
                 dialog->accept();
@@ -1478,6 +1592,9 @@ int main(int argc, char** argv)
             owner_poll.start(20);
             windows[1]->findChild<QPushButton*>("chatHeaderButton")->click();
             check(recovered_owner, "Reconnect member snapshot");
+            for (auto* page : pages) { check(page->conversation(group)->announcement == announcement_text, "Announcement survives reconnect and ownership transfer"); }
+            announcement_action(0, QStringLiteral("转让后管理员更新的公告"));
+            announcement_action(1, {}, true);
             for (auto* page : pages)
             {
                 check(page->avatars().state(ids[0]) == chat::avatar_state{3, false} && page->avatars().image(ids[0]).isNull(),

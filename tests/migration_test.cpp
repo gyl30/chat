@@ -43,7 +43,8 @@ int main(int argc, char** argv)
               "009_add_message_replies.sql", "010_add_message_edits.sql", "011_add_message_deletion.sql",
               "012_create_message_attachments.sql", "013_add_group_roles.sql", "014_add_member_join_position.sql",
               "015_create_user_avatars.sql", "016_create_message_reactions.sql", "017_add_conversation_mute.sql",
-              "018_add_conversation_pin.sql", "019_create_message_mentions.sql", "020_add_group_pinned_message.sql"})
+              "018_add_conversation_pin.sql", "019_create_message_mentions.sql", "020_add_group_pinned_message.sql",
+              "021_add_group_announcement.sql"})
         {
             if (std::string(name).starts_with("008"))
             {
@@ -53,12 +54,23 @@ int main(int argc, char** argv)
                         "INSERT INTO message_read_positions(user_id,peer_user_id,last_read_message_id) "
                         "VALUES(2,1,1),(1,2,2),(1,1,0)");
             }
+            if (std::string(name).starts_with("021"))
+            {
+                execute("WITH created AS (INSERT INTO conversations(kind,title,owner_id) VALUES('group','before announcement',1) RETURNING id) "
+                        "INSERT INTO conversation_members(conversation_id,user_id) SELECT id,1 FROM created");
+            }
             std::ifstream file(std::string(argv[1]) + "/" + name);
             if (!file)
             {
                 throw std::runtime_error("Migration file missing");
             }
             execute(std::string(std::istreambuf_iterator<char>(file), {}));
+            if (std::string(name).starts_with("021"))
+            {
+                auto defaults = execute("SELECT count(*) FROM conversations WHERE announcement=''");
+                if (std::string(PQgetvalue(defaults.get(), 0, 0)) != "3") { throw std::runtime_error("Existing announcement defaults"); }
+                execute("DELETE FROM conversations WHERE title='before announcement'");
+            }
         }
         auto result = execute("SELECT (SELECT count(*) FROM conversations)=2 "
                               "AND (SELECT count(*) FROM conversation_members)=3 "
@@ -71,6 +83,7 @@ int main(int argc, char** argv)
                               "AND NOT EXISTS(SELECT 1 FROM message_mentions) "
                               "AND NOT EXISTS(SELECT 1 FROM conversations WHERE owner_id IS NOT NULL) "
                               "AND NOT EXISTS(SELECT 1 FROM conversations WHERE pinned_message_id IS NOT NULL) "
+                              "AND NOT EXISTS(SELECT 1 FROM conversations WHERE announcement<>'') "
                               "AND NOT EXISTS(SELECT 1 FROM conversation_members WHERE is_admin OR joined_message_id<>0 OR muted OR pinned) "
                               "AND (SELECT count(*) FROM conversation_members WHERE last_read_message_id IN (1,2))=2 "
                               "AND NOT EXISTS(SELECT 1 FROM messages m JOIN conversations c ON c.id=m.conversation_id "
@@ -93,6 +106,10 @@ int main(int argc, char** argv)
         try { execute("UPDATE conversations SET pinned_message_id=4 WHERE kind='direct'"); }
         catch (std::runtime_error const&) { direct_pin_rejected = true; }
         if (!direct_pin_rejected) { throw std::runtime_error("Direct conversation accepts group pin"); }
+        bool direct_announcement_rejected = false;
+        try { execute("UPDATE conversations SET announcement='group only' WHERE kind='direct'"); }
+        catch (std::runtime_error const&) { direct_announcement_rejected = true; }
+        if (!direct_announcement_rejected) { throw std::runtime_error("Direct conversation accepts announcement"); }
         execute("UPDATE messages SET deleted=true,body='' WHERE id=1");
         auto deleted = execute("SELECT deleted AND body='' AND id=1 FROM messages WHERE id=1");
         if (std::string(PQgetvalue(deleted.get(), 0, 0)) != "t")
@@ -122,6 +139,11 @@ int main(int argc, char** argv)
         {
             throw std::runtime_error("Owner membership deletion accepted");
         }
+        execute("UPDATE conversations SET announcement=repeat('x',4096) WHERE kind='group'");
+        bool oversized_announcement_rejected = false;
+        try { execute("UPDATE conversations SET announcement=repeat('x',4097) WHERE kind='group'"); }
+        catch (std::runtime_error const&) { oversized_announcement_rejected = true; }
+        if (!oversized_announcement_rejected) { throw std::runtime_error("Oversized announcement accepted"); }
         execute("INSERT INTO messages(sender_id,conversation_id,body) SELECT 2,id,'pinned' FROM conversations WHERE kind='group'; "
                 "UPDATE conversations SET pinned_message_id=(SELECT max(id) FROM messages WHERE conversation_id=conversations.id) "
                 "WHERE kind='group'");

@@ -96,6 +96,7 @@ class client
     void transfer_group_owner(std::int64_t conversation, std::int64_t user, group_action_handler handler);
     void remove_group_member(std::int64_t conversation, std::int64_t user, group_action_handler handler);
     void rename_group(std::int64_t conversation, std::string title, group_action_handler handler);
+    void set_group_announcement(std::int64_t conversation, std::string text, group_action_handler handler);
     void invite_group_members(std::int64_t conversation, std::vector<std::int64_t> members, group_action_handler handler);
     void leave_group(std::int64_t conversation, group_action_handler handler);
     void pin_group_message(std::int64_t conversation, std::int64_t message, group_action_handler handler);

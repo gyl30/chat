@@ -1032,6 +1032,40 @@ int run_group_tests()
                 !cross_pin && cross_pin.error().code == -32007 &&
                 !direct_pin && direct_pin.error().code == -32006, "Group pin requires current owner/admin and a live same-group message");
             auto before_pin = conversation(c, mention_group);
+            require(before_pin.announcement.empty(), "Groups default to no announcement");
+            auto member_announcement = call<bool>([&](auto h) { c.set_group_announcement(mention_group, "denied", h); });
+            auto outsider_announcement = call<bool>([&](auto h) { d.set_group_announcement(mention_group, "denied", h); });
+            auto direct_announcement = call<bool>([&](auto h) { a.set_group_announcement(*direct, "denied", h); });
+            require(!member_announcement && member_announcement.error().code == -32009 &&
+                !outsider_announcement && outsider_announcement.error().code == -32006 &&
+                !direct_announcement && direct_announcement.error().code == -32006,
+                "Only current group owner/admin may change announcements");
+            std::array<std::size_t, 2> before_announcement_events;
+            {
+                std::lock_guard lock(c_events.mutex);
+                before_announcement_events = {c_events.conversations.size(), c_events.messages.size()};
+            }
+            auto announcement = call<bool>([&](auto h) { a.set_group_announcement(mention_group, "群公告\n<纯文本>", h); });
+            require(announcement && *announcement, "Owner saves a current plaintext announcement");
+            c_events.wait([&] { return c_events.conversations.size() > before_announcement_events[0]; });
+            auto with_announcement = conversation(c, mention_group);
+            require(with_announcement.announcement == "群公告\n<纯文本>" && with_announcement.last.id == before_pin.last.id &&
+                with_announcement.unread == before_pin.unread && with_announcement.member_count == before_pin.member_count,
+                "Announcement refresh does not change messages, unread or membership");
+            auto same_announcement = call<bool>([&](auto h) { b.set_group_announcement(mention_group, "群公告\n<纯文本>", h); });
+            require(same_announcement && !*same_announcement && conversation(c, mention_group).announcement == "群公告\n<纯文本>",
+                "Announcement no-op does not fall through to leave");
+            {
+                std::lock_guard lock(c_events.mutex);
+                require(c_events.conversations.size() == before_announcement_events[0] + 1 &&
+                    c_events.messages.size() == before_announcement_events[1], "Announcement no-op sends no event and updates never send a message");
+            }
+            auto max_announcement = call<bool>([&](auto h) { b.set_group_announcement(mention_group, std::string(4096, 'x'), h); });
+            auto oversized_announcement = call<bool>([&](auto h) { a.set_group_announcement(mention_group, std::string(4097, 'x'), h); });
+            auto nul_announcement = call<bool>([&](auto h) { a.set_group_announcement(mention_group, std::string("a\0b", 3), h); });
+            require(max_announcement && *max_announcement && !oversized_announcement && oversized_announcement.error().code == -32602 &&
+                !nul_announcement && nul_announcement.error().code == -32602 && conversation(c, mention_group).announcement.size() == 4096,
+                "UTF-8 byte limit and NUL validation preserve the last valid announcement");
             std::size_t before_pin_events;
             {
                 std::lock_guard lock(b_events.mutex);
@@ -1055,6 +1089,8 @@ int run_group_tests()
                 "Admin replaces single pinned message; edits refresh its summary");
             b.close();
             b_events.wait([&] { return b_events.disconnected == 2; });
+            require(call<bool>([&](auto h) { a.set_group_announcement(mention_group, "离线期间更新的公告", h); }).value(),
+                "Change announcement while administrator is offline");
             b.connect(server.url);
             b_events.wait([&] { return b_events.connected == 3; });
             require(call<chat::authentication_result>([&](auto handler) { b.authenticate(names[1], "group password", handler); })->authenticated,
@@ -1062,7 +1098,8 @@ int run_group_tests()
             auto recovered_mentions = call<chat::messages_result>([&](auto handler) { b.get_messages(mention_group, {}, handler); });
             auto paged_mentions = call<chat::messages_result>([&](auto handler) { b.get_messages(mention_group, rejoined_mention->message_id, handler); });
             require(conversation(b, mention_group).pinned_message &&
-                conversation(b, mention_group).pinned_message->id == rejoined_mention->message_id,
+                conversation(b, mention_group).pinned_message->id == rejoined_mention->message_id &&
+                conversation(b, mention_group).announcement == "离线期间更新的公告",
                 "Reconnect restores pinned message from authoritative conversation snapshot");
             require(recovered_mentions && targets(recovered_mentions->messages.back().mentions) == targets(rejoined_mention->mentions) &&
                 paged_mentions && targets(paged_mentions->messages.front().mentions) == targets(mentioned->mentions),
@@ -1078,6 +1115,12 @@ int run_group_tests()
             require(call<bool>([&](auto h) { a.pin_group_message(mention_group, rejoined_mention->message_id, h); }).has_value() &&
                 call<chat::message>([&](auto h) { a.delete_message(mention_group, rejoined_mention->message_id, h); }).has_value() &&
                 !conversation(c, mention_group).pinned_message, "Deleting current pinned message atomically clears the reference");
+            auto clear_announcement = call<bool>([&](auto h) { b.set_group_announcement(mention_group, "", h); });
+            auto repeated_clear = call<bool>([&](auto h) { a.set_group_announcement(mention_group, "", h); });
+            require(clear_announcement && *clear_announcement && repeated_clear && !*repeated_clear &&
+                conversation(c, mention_group).announcement.empty() && conversation(b, mention_group).member_count == before_pin.member_count,
+                "Admin clears announcement and repeat clear preserves current membership");
+            std::cout << "PASS group announcement permission, persistence, notification, limits, no-op and reconnect\n";
             std::cout << "PASS persistent group mentions, literal names, boundaries, edits, leave/rejoin, reconnect and payload limit\n";
         }
         auto const page_owner = std::to_string(data.users[0]);
@@ -1489,19 +1532,21 @@ int run_group_tests()
             });
             auto removed_mute = call<bool>([&](auto handler) { managed[4].set_conversation_muted(lifecycle_group, true, handler); });
             auto removed_pin = call<bool>([&](auto handler) { managed[4].set_conversation_pinned(lifecycle_group, true, handler); });
+            auto removed_announcement = call<bool>([&](auto h) { managed[4].set_group_announcement(lifecycle_group, "denied", h); });
             require(!removed_history && !removed_members && !removed_send && !removed_search && !removed_read &&
                 !removed_typing && !removed_edit && !removed_delete && !removed_download && !removed_upload &&
-                !removed_mute && removed_mute.error().code == -32006 && !removed_pin && removed_pin.error().code == -32006,
+                !removed_mute && removed_mute.error().code == -32006 && !removed_pin && removed_pin.error().code == -32006 &&
+                !removed_announcement && removed_announcement.error().code == -32006,
                 "Removed member loses every group access path");
             require(removed_conversations && std::none_of(removed_conversations->conversations.begin(),
                 removed_conversations->conversations.end(), [&](auto const& value) { return value.id == lifecycle_group; }) &&
                 conversation(managed[1], lifecycle_group).member_count == 4,
                 "Removed conversation disappears and current member count decreases");
-            std::array<std::size_t, 4> before_removed_publish;
+            std::array<std::size_t, 5> before_removed_publish;
             {
                 std::lock_guard lock(managed_events[4].mutex);
                 before_removed_publish = {managed_events[4].messages.size(), managed_events[4].reads.size(),
-                    managed_events[4].typing.size(), managed_events[4].updates.size()};
+                    managed_events[4].typing.size(), managed_events[4].updates.size(), managed_events[4].conversations.size()};
             }
             auto while_removed = call<chat::send_message_result>([&](auto handler) {
                 managed[1].send_message(lifecycle_group, "移除期间的消息", handler);
@@ -1513,13 +1558,16 @@ int run_group_tests()
             }).has_value() && call<chat::message>([&](auto handler) {
                 managed[1].edit_message(lifecycle_group, while_removed->message_id, "移除期间的编辑", handler);
             }).has_value(), "Publish after removal");
+            require(call<bool>([&](auto h) { managed[1].set_group_announcement(lifecycle_group, "移除后的公告", h); }).value(),
+                "Current owner changes announcement after removal");
             require(!call<std::vector<chat::conversation_member>>([&](auto handler) {
                 managed[4].get_members(lifecycle_group, handler);
             }), "Removed notification barrier");
             {
                 std::lock_guard lock(managed_events[4].mutex);
-                require(before_removed_publish == std::array<std::size_t, 4>{managed_events[4].messages.size(),
-                    managed_events[4].reads.size(), managed_events[4].typing.size(), managed_events[4].updates.size()} &&
+                require(before_removed_publish == std::array<std::size_t, 5>{managed_events[4].messages.size(),
+                    managed_events[4].reads.size(), managed_events[4].typing.size(), managed_events[4].updates.size(),
+                    managed_events[4].conversations.size()} &&
                     std::count(managed_events[4].removals.begin(), managed_events[4].removals.end(), lifecycle_group) == 1,
                     "Removed member receives exactly one removal and no later realtime events");
             }
@@ -1635,6 +1683,19 @@ int run_group_tests()
             require(pin_delete && pin_delete->deleted && (pin_during_delete || pin_during_delete.error().code == -32007) &&
                 !conversation(managed[2], lifecycle_group).pinned_message,
                 "Pin/delete race shares conversation lock and cannot retain a deleted pin");
+            auto [demoted_announcer, racing_announcement] = locked_race([&] {
+                return call<bool>([&](auto h) { managed[1].set_group_admin(lifecycle_group, managed_ids[2], false, h); });
+            }, [&] {
+                return call<bool>([&](auto h) { managed[2].set_group_announcement(lifecycle_group, "权限变化竞争的公告", h); });
+            });
+            require(demoted_announcer && *demoted_announcer &&
+                (racing_announcement || racing_announcement.error().code == -32009) &&
+                conversation(managed[1], lifecycle_group).announcement == (racing_announcement ? "权限变化竞争的公告" : "移除后的公告"),
+                "Announcement/demotion race rechecks current role after acquiring conversation lock");
+            auto denied_announcement = call<bool>([&](auto h) { managed[2].set_group_announcement(lifecycle_group, "denied", h); });
+            require(!denied_announcement && denied_announcement.error().code == -32009 &&
+                call<bool>([&](auto h) { managed[1].set_group_admin(lifecycle_group, managed_ids[2], true, h); }).value(),
+                "Demoted member cannot write; restore administrator for existing lifecycle tests");
             require(call<chat::user>([&](auto handler) { managed[2].add_contact(managed_ids[3], handler); }).has_value(),
                 "Racing invitation contact");
             std::size_t typing_before;

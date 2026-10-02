@@ -4,6 +4,7 @@
 #include <QDialogButtonBox>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPlainTextEdit>
 #include <QHBoxLayout>
 #include <QMessageBox>
 #include <QListWidget>
@@ -12,12 +13,14 @@
 
 #include <algorithm>
 
-group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const& title, QWidget* parent, avatar_cache* avatars)
-    : QDialog(parent), avatars_(avatars), conversation_(conversation), self_user_(self_user), title_(title)
+group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const& title, QString const& announcement,
+                           QWidget* parent, avatar_cache* avatars)
+    : QDialog(parent), avatars_(avatars), conversation_(conversation), self_user_(self_user), title_(title),
+      announcement_(announcement)
 {
     setObjectName(QStringLiteral("groupDialog"));
-    setWindowTitle(title + QStringLiteral(" · 群成员"));
-    resize(480, 420);
+    setWindowTitle(title + QStringLiteral(" · 群资料"));
+    resize(480, 600);
     auto* layout = new QVBoxLayout(this);
     auto* name_row = new QHBoxLayout;
     title_edit_ = new QLineEdit(title, this);
@@ -29,6 +32,22 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     rename_button_->setAutoDefault(false);
     name_row->addWidget(rename_button_);
     layout->addLayout(name_row);
+    layout->addWidget(new QLabel(QStringLiteral("群公告（纯文本，最多 4 KiB）"), this));
+    announcement_edit_ = new QPlainTextEdit(announcement, this);
+    announcement_edit_->setObjectName(QStringLiteral("groupAnnouncementEdit"));
+    announcement_edit_->setPlaceholderText(QStringLiteral("暂无公告"));
+    announcement_edit_->setMaximumHeight(112);
+    layout->addWidget(announcement_edit_);
+    auto* announcement_row = new QHBoxLayout;
+    announcement_button_ = new QPushButton(QStringLiteral("保存公告"), this);
+    announcement_button_->setObjectName(QStringLiteral("groupAnnouncementButton"));
+    announcement_button_->setAutoDefault(false);
+    announcement_row->addWidget(announcement_button_);
+    clear_announcement_button_ = new QPushButton(QStringLiteral("清空公告"), this);
+    clear_announcement_button_->setObjectName(QStringLiteral("groupClearAnnouncementButton"));
+    clear_announcement_button_->setAutoDefault(false);
+    announcement_row->addWidget(clear_announcement_button_);
+    layout->addLayout(announcement_row);
     list_ = new QListWidget(this);
     list_->setObjectName(QStringLiteral("groupMembersList"));
     list_->setIconSize(QSize(32, 32));
@@ -86,6 +105,18 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
         emit admin_requested(members_[row].id, members_[row].role != chat::member_role::admin);
     });
     connect(title_edit_, &QLineEdit::textChanged, this, [this] { update_actions(); });
+    connect(announcement_edit_, &QPlainTextEdit::textChanged, this, [this] { update_actions(); });
+    connect(announcement_button_, &QPushButton::clicked, this, [this] {
+        pending_ = true;
+        update_actions();
+        emit announcement_requested(announcement_edit_->toPlainText());
+    });
+    connect(clear_announcement_button_, &QPushButton::clicked, this, [this] {
+        announcement_edit_->clear();
+        pending_ = true;
+        update_actions();
+        emit announcement_requested({});
+    });
     connect(transfer_button_, &QPushButton::clicked, this, [this] {
         auto const row = list_->currentRow();
         auto const target = members_[row];
@@ -255,7 +286,13 @@ void group_dialog::set_conversations(QList<conversation_data> conversations, QSt
     {
         title_ = found->username;
         title_edit_->setText(title_);
-        setWindowTitle(title_ + QStringLiteral(" · 群成员"));
+        setWindowTitle(title_ + QStringLiteral(" · 群资料"));
+    }
+    if (announcement_ != found->announcement)
+    {
+        auto const modified = announcement_edit_->toPlainText() != announcement_;
+        announcement_ = found->announcement;
+        if (!modified) { announcement_edit_->setPlainText(announcement_); }
     }
     update_actions();
 }
@@ -277,6 +314,12 @@ void group_dialog::update_actions()
     auto const manager = self != members_.end() && self->role != chat::member_role::member;
     auto const enabled = available_ && !pending_;
     title_edit_->setEnabled(enabled && manager);
+    if (!manager && announcement_edit_->toPlainText() != announcement_) { announcement_edit_->setPlainText(announcement_); }
+    announcement_edit_->setReadOnly(!enabled || !manager);
+    auto const announcement = announcement_edit_->toPlainText();
+    announcement_button_->setEnabled(enabled && manager && announcement != announcement_ && announcement.toUtf8().size() <= 4096);
+    announcement_button_->setToolTip(announcement.toUtf8().size() > 4096 ? QStringLiteral("公告超过 4 KiB，请缩短后保存。") : QString{});
+    clear_announcement_button_->setEnabled(enabled && manager && !announcement_.isEmpty());
     rename_button_->setEnabled(enabled && manager && !title_edit_->text().trimmed().isEmpty() &&
         title_edit_->text().trimmed() != title_);
     invite_button_->setEnabled(enabled && manager && contacts_ready_);

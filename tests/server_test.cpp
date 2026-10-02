@@ -599,7 +599,7 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
 
         for (auto const* method : {"begin_avatar_upload", "upload_avatar_chunk", "finish_avatar_upload",
                                     "cancel_avatar_upload", "get_avatar", "clear_avatar", "set_message_reaction", "set_conversation_muted", "set_conversation_pinned",
-                                    "pin_group_message", "unpin_group_message"})
+                                    "pin_group_message", "unpin_group_message", "set_group_announcement"})
         {
             auto [write_ec] = co_await send_websocket_text(socket,
                 std::string("{\"jsonrpc\":\"2.0\",\"method\":\"") + method + "\",\"params\":{},\"id\":\"avatar-auth\"}");
@@ -1666,6 +1666,15 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     }
     auto invalid_unpin = co_await peer_rpc("unpin_group_message", R"({"conversation":1,"message":null})");
     if (!json_matches(invalid_unpin, R"({"error":{"code":-32602}})")) { std::cerr << "FAIL unpin params\n"; co_return 1; }
+    for (std::string const& params : {
+        std::string(R"({"conversation":1})"), std::string(R"({"conversation":1,"text":null})"),
+        std::string(R"({"conversation":1,"text":true})"), std::string(R"({"conversation":0,"text":""})"),
+        std::string(R"({"conversation":1,"text":"valid","user":1})"), std::string(R"({"conversation":1,"text":"a\u0000b"})"),
+        "{\"conversation\":1,\"text\":\"" + std::string(4097, 'x') + "\"}"})
+    {
+        auto reply = co_await peer_rpc("set_group_announcement", params);
+        if (!json_matches(reply, R"({"error":{"code":-32602}})")) { std::cerr << "FAIL announcement params\n"; co_return 1; }
+    }
     for (auto const* params : {
         R"({"before":{"activity":1,"id":1}})",
         R"({"before":{"activity":1,"id":1,"pinned":null}})",

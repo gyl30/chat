@@ -193,12 +193,18 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             co_return boost::capy::io_result<bool>{sent, !sent};
         }
 
-        if (operation == "pin_group_message" || operation == "unpin_group_message")
+        if (operation == "pin_group_message" || operation == "unpin_group_message" || operation == "set_group_announcement")
         {
             auto const conversation = params->at("conversation").as_int64();
             boost::json::object result{{"changed", true}};
             if (operation == "pin_group_message" && params->at("message").as_int64() != 10)
             { co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false}; }
+            if (operation == "set_group_announcement")
+            {
+                if (params->as_object().size() != 2 || !params->at("text").is_string())
+                { co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false}; }
+                result["changed"] = !params->at("text").as_string().empty();
+            }
             if (conversation == 98) { result.erase("changed"); }
             if (conversation == 99) { result["changed"] = "true"; }
             response.emplace("result", std::move(result));
@@ -238,6 +244,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 conversation.emplace("muted", true);
                 conversation.emplace("pinned", true);
                 conversation.emplace("pinned_message", nullptr);
+                conversation.emplace("announcement", "");
                 if (before && before->at("id").as_int64() >= 80 && before->at("id").as_int64() <= 85)
                 {
                     auto const probe = before->at("id").as_int64();
@@ -252,6 +259,19 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                     if (probe == 85) { conversation["kind"] = "direct"; conversation["user"] = 2; }
                 }
                 if (before && before->at("id").as_int64() == 94) { conversation.erase("pinned"); }
+                if (before && before->at("id").as_int64() >= 86 && before->at("id").as_int64() <= 92)
+                {
+                    auto const probe = before->at("id").as_int64();
+                    conversation["kind"] = "group";
+                    conversation["user"] = nullptr;
+                    conversation["announcement"] = "公告\n<plain>";
+                    if (probe == 87) { conversation.erase("announcement"); }
+                    if (probe == 88) { conversation["announcement"] = nullptr; }
+                    if (probe == 89) { conversation["announcement"] = true; }
+                    if (probe == 90) { conversation["announcement"] = std::string(4097, 'x'); }
+                    if (probe == 91) { conversation["kind"] = "direct"; conversation["user"] = 2; }
+                    if (probe == 92) { conversation["announcement"] = std::string("a\0b", 3); }
+                }
                 if (before && before->at("id").as_int64() == 95) { conversation["pinned"] = "false"; }
                 if (before && before->at("id").as_int64() == 98) { conversation.erase("muted"); }
                 if (before && before->at("id").as_int64() == 99) { conversation["muted"] = "false"; }
@@ -289,6 +309,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 conversation.emplace("muted", false);
                 conversation.emplace("pinned", false);
                 conversation.emplace("pinned_message", nullptr);
+                conversation.emplace("announcement", "");
                 conversations.push_back(std::move(conversation));
             }
             else
@@ -1114,6 +1135,29 @@ int main()
         }
     }
     std::cout << "PASS client group pinned summary, explicit actions and protocol validation\n";
+    auto announcement = avatar_call.operator()<chat::conversations_result>([&](auto h) {
+        client.get_conversations(chat::conversation_cursor{1, 86, false}, h);
+    });
+    if (!announcement || announcement->conversations.size() != 1 ||
+        announcement->conversations.front().announcement != "公告\n<plain>" || !conversations.front().announcement.empty()) { return 1; }
+    for (auto id : {87, 88, 89, 90, 91, 92})
+    {
+        auto invalid = avatar_call.operator()<chat::conversations_result>([&](auto h) {
+            client.get_conversations(chat::conversation_cursor{1, id, false}, h);
+        });
+        if (invalid || invalid.error().kind != chat::error_kind::protocol) { return 1; }
+    }
+    for (std::string text : {"公告\n<plain>", ""})
+    {
+        auto changed = avatar_call.operator()<bool>([&](auto h) { client.set_group_announcement(2, text, h); });
+        if (!changed || *changed != !text.empty()) { return 1; }
+        for (auto id : {98, 99})
+        {
+            auto invalid = avatar_call.operator()<bool>([&](auto h) { client.set_group_announcement(id, text, h); });
+            if (invalid || invalid.error().kind != chat::error_kind::protocol) { return 1; }
+        }
+    }
+    std::cout << "PASS client group announcement metadata, set/clear and malformed protocol\n";
     auto avatar_bytes = std::string(40000, 'x');
     auto uploaded = avatar_call.operator()<chat::avatar_state>([&](auto h) { client.set_avatar(avatar_bytes, h); });
     auto downloaded = avatar_call.operator()<chat::avatar>([&](auto h) { client.get_avatar(1, 1, h); });

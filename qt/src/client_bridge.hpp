@@ -46,6 +46,7 @@ class client_bridge final : public QObject
     void transfer_group_owner(qint64 conversation, qint64 user);
     void remove_group_member(qint64 conversation, qint64 user);
     void rename_group(qint64 conversation, QString title);
+    void set_group_announcement(qint64 conversation, QString text);
     void invite_group_members(qint64 conversation, QList<qint64> members);
     void leave_group(qint64 conversation);
     void set_group_pinned_message(qint64 conversation, std::optional<qint64> message);

@@ -25,6 +25,7 @@ struct conversation_data
     bool muted = false;
     bool pinned = false;
     quoted_message_data pinned_message;
+    QString announcement;
 };
 
 Q_DECLARE_METATYPE(conversation_data)

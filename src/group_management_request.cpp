@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -28,11 +29,13 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
     auto const leaving = request.method == "leave_group";
     auto const pinning = request.method == "pin_group_message";
     auto const unpinning = request.method == "unpin_group_message";
+    auto const announcing = request.method == "set_group_announcement";
     std::int64_t conversation = 0;
     std::int64_t user = 0;
     std::int64_t pinned_message = 0;
     bool admin = false;
     std::string title;
+    std::optional<std::string> announcement;
     std::vector<std::int64_t> members;
     simdjson::ondemand::parser parser;
     simdjson::ondemand::document document;
@@ -91,6 +94,18 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
         conversation = params.conversation;
         title = std::move(params.title);
     }
+    else if (announcing)
+    {
+        struct [[= simdjson::deny_unknown_fields]] announcement_params
+        {
+            std::int64_t conversation = 0;
+            std::optional<std::string> text;
+        };
+        announcement_params params;
+        parse_error = document.get(params);
+        conversation = params.conversation;
+        announcement = std::move(params.text);
+    }
     else if (inviting)
     {
         struct [[= simdjson::deny_unknown_fields]] invite_members_params
@@ -117,6 +132,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
     if (parse_error || !document.at_end() || conversation <= 0 || ((setting_admin || transferring || removing) && user <= 0) ||
         (pinning && pinned_message <= 0) ||
         (renaming && (title.empty() || title.size() > 256 || title.find('\0') != std::string::npos)) ||
+        (announcing && (!announcement || announcement->size() > 4096 || announcement->find('\0') != std::string::npos)) ||
         (inviting && (members.empty() || members.front() <= 0 ||
             std::adjacent_find(members.begin(), members.end()) != members.end() ||
             std::binary_search(members.begin(), members.end(), *user_id_))))
@@ -164,7 +180,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
         message = "Group unavailable";
     }
     else if (((setting_admin || transferring) && !owner) ||
-             ((renaming || inviting || removing || pinning || unpinning) && !owner && (*actor)[0] != "true") || (leaving && owner))
+             ((renaming || inviting || removing || pinning || unpinning || announcing) && !owner && (*actor)[0] != "true") || (leaving && owner))
     {
         error = -32009;
         message = leaving && owner ? "The owner cannot leave without transferring ownership" : "Group permission denied";
@@ -200,6 +216,19 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
             }
             changed = std::get<1>(updated).has_value();
         }
+    }
+    else if (announcing)
+    {
+        auto updated = co_await connection.execute_row(
+            "UPDATE conversations SET announcement=$2 WHERE id=$1::bigint "
+            "AND announcement IS DISTINCT FROM $2 RETURNING id::text",
+            {std::to_string(conversation), *announcement});
+        if (std::get<0>(updated))
+        {
+            connection.close();
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        changed = std::get<1>(updated).has_value();
     }
     else if (transferring || removing)
     {
@@ -355,7 +384,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
             changed = std::get<1>(inserted) != "0";
         }
     }
-    else if (!renaming)
+    else if (leaving)
     {
         auto removed = co_await connection.execute_row(
             "DELETE FROM conversation_members WHERE conversation_id=$1::bigint AND user_id=$2::bigint RETURNING user_id::text",

@@ -270,7 +270,8 @@ boost::capy::task<void> chat_session::run()
             else if (request.method == "set_group_admin" || request.method == "rename_group" ||
                      request.method == "invite_group_members" || request.method == "leave_group" ||
                      request.method == "transfer_group_owner" || request.method == "remove_group_member" ||
-                     request.method == "pin_group_message" || request.method == "unpin_group_message")
+                     request.method == "pin_group_message" || request.method == "unpin_group_message" ||
+                     request.method == "set_group_announcement")
             {
                 rpc_error = co_await handle_group_management(request, response);
             }

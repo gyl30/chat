@@ -28,6 +28,7 @@
 | `323c9f9` | 个人会话免打扰、服务端持久化、通知抑制及重连 | SQL 017 |
 | `638b775` | 个人会话置顶及跨置顶/普通层的完整 cursor 分页 | SQL 018 |
 | `a653634` | 群成员提及、真实目标持久化、文字高亮与重连 | SQL 019 |
+| `31d6cc4` | 群内单条消息置顶、实时摘要、编辑与删除一致性、历史搜索 | SQL 020 |
 
 另外完成历史大响应接收、编辑消息布局和消息操作按钮对比度修复，分别见 `32f3f3b`、`a545c9a`、`f73b8f4`。
 
@@ -39,6 +40,7 @@
 - `messages` 指向会话和真实作者，包含回复 ID、编辑时间、删除占位；`message_attachments` 保存附件元数据和内容。删除附件消息会清除文件内容。SQL 016 增加独立 `message_reactions` 和消息的单调 `reaction_revision`，每用户每消息一条回应，删除消息时清除回应。
 - SQL 019 的 `message_mentions(message_id,user_id)` 保存群文字提及的真实目标；编辑替换、删除清空，退出成员不删除历史目标。旧消息不回填。
 - SQL 020 的 `conversations.pinned_message_id` 保存每群一个当前置顶消息；与个人 membership 的 pinned 独立。初始为空，软删除同事务清空，物理删除通过外键 SET NULL 清空。
+- SQL 021 的 `conversations.announcement` 保存每群一个当前纯文本公告，默认空字符串，空字符串表示未设置；数据库约束限定 group 和最多 4096 个 UTF-8 字节。没有公告历史或消息伪装。
 - SQL 008 保留旧单聊、自聊、消息、联系人和阅读位置；SQL 009–014 渐进增加上述能力。SQL 013 应用前已确认本次数据库没有既存群，不猜测旧群创建者，也不删除旧消息。
 - 新建或重新加入的成员能读取完整历史。邀请取得会话锁后读取最新消息 ID 作为加入水位；实际阅读仍从 0 开始，仅由 `mark_read` 推进。未读统计使用 `id > greatest(last_read_message_id, joined_message_id)`，排除删除消息及群成员自己的消息。
 
@@ -62,6 +64,7 @@
 | `invite_group_members` | `conversation, members`；群主/管理员邀请自己的联系人；重复邀请不重置成员状态 |
 | `leave_group` | `conversation`；普通成员/管理员自退，群主先转让再退出；返回 `changed` |
 | `pin_group_message` / `unpin_group_message` | 会话及真实消息 ID / 会话；仅群主、管理员；返回 `changed` |
+| `set_group_announcement` | `conversation, text`；群主/管理员设置当前纯文本，空字符串清除；返回 `changed` |
 | `send_message` / `edit_message` / `delete_message` | 会话、真实消息或回复 ID；编辑/删除仅作者且仍为当前成员 |
 | `search_messages` | 会话、字面查询和 `before` cursor |
 | `set_message_reaction` | `conversation, message, emoji`；六种表情之一，显式空字符串清除；返回 reaction snapshot |
@@ -93,7 +96,7 @@ git diff --check
 
 ## 保持的边界与后续可选路线
 
-当前尚未实现入群审批、邀请链接或公告。群 @mention、个人会话置顶和群内单条置顶消息已接入，个人会话置顶不等于群内置顶消息。群主必须先手动转让再退出；群主/管理员没有编辑、删除他人消息的权限。退出或被移除者本地活动历史清空；服务端仍保留群消息，重新加入可重新获取。移除不等于永久封禁，重新邀请恢复普通成员，旧管理员身份和真实读位不继承。
+当前尚未实现入群审批或邀请链接。群公告、@mention、个人会话置顶和群内单条置顶消息已接入，个人会话置顶不等于群内置顶消息。群主必须先手动转让再退出；群主/管理员没有编辑、删除他人消息的权限。退出或被移除者本地活动历史清空；服务端仍保留群消息，重新加入可重新获取。移除不等于永久封禁，重新邀请恢复普通成员，旧管理员身份和真实读位不继承。
 
 2026-10-02 启动新的长期路线：验证基线、群已读详情、reaction、图片气泡预览、桌面通知、会话 mute/pin、群 mention、群置顶消息、公告、邀请链接和审批，依序独立实施。此列表表示规划，尚未实现的阶段不计入已完成能力。范围仍不扩大到多设备、微服务、Redis、Kafka、event sourcing 或 CQRS。
 
@@ -371,3 +374,27 @@ Qt 消息菜单按当前成员角色显示“置顶消息/取消置顶消息”�
 | UBSan | PASS | 14/14 PASS，74.50 s |
 
 无 suppression 或测试排除，`git diff --check` PASS。独立审查建议已通过实际代码和回归复核，真实空白首行问题已修复。没有新缓存、事件框架、临时 schema 或调试代码。下一阶段为群公告。
+
+## 群公告
+
+从重新 fetch 后的 `31d6cc4`、干净工作树开始。SQL 021 为会话无损增加一个当前 `announcement TEXT NOT NULL DEFAULT ''`；原有单聊、群、消息、成员和阅读位置保持。只允许 group 保存非空公告，数据库与服务端按 UTF-8 字节限制为 4096；Qt 保存按钮使用同一字节边界。纯文本保留换行和字面符号，空字符串清除，不保存历史、作者或修改时间，不生成消息、改变活动时间或累计未读。
+
+`set_group_announcement {conversation,text}` 返回 `{changed}`；群主和管理员可修改、清除，普通成员仅查看。缺失、null、错误类型、未知字段、NUL 和超限内容拒绝。事务取得现有 conversation 行锁后重新检查 membership 和角色，与任免、移除、转让及消息写入串行化。重复保存和重复清除幂等且不通知；退出分支改为显式 `leaving`，新增动作不会落入成员删除路径。提交后沿用现有 `conversation` notification，移除者不再收到群变化。
+
+`get_conversations.announcement` 是必需字符串，SDK 校验格式、大小和 direct 必须为空；没有新消息字段或公告 RPC 查询框架。Qt 会话模型保存同一权威资料，群资料窗口提供纯文本查看、保存和清空。复用已有 pending 状态和 connection/conversation generation，响应在 Qt 线程检查连接，旧连接结果不能刷新新账号。原有群资料窗口关闭及成员移除清理路径保持。
+
+公告编辑框是未保存草稿，`announcement_` 是当前权威比较基线，不新增 dirty 字段。另一位管理员更新公告时保留草稿并更新基线；失去管理权限后回到权威公告。主动清空同时清理未保存草稿。独立审查发现的草稿覆盖用例在修复前失败，修复后通过；真实窗口测试另外修正了主窗口与对话框排队快照的观察时序，等待对话框也确认保存，保留保存和清空断言。
+
+ASan 前置 UI 回归暴露 typing 段的观察时序：先前只等待一个查看窗口的旧提示过期。现等待两个查看窗口均完成上一段状态，再检查新开始、idle 停止及草稿保留，未扩大该段超时或移除断言。定向跟踪确认停止请求约在新输入后三秒发送，临时跟踪已删除。一次验证被 SIGTERM 中断，未记为通过，后续完整重跑。
+
+回归覆盖 SQL 020→021 的已有单聊/群默认值、direct 约束及大小限制；认证、参数、成员及管理权限；owner/admin 保存、替换、重复和清空；message/unread/membership 不变；在线变化、离线更新及重新登录恢复；被移除者权限和通知隔离；公告写入与管理员降权的真实锁竞争。SDK 覆盖 malformed metadata 和动作结果；Qt 覆盖模型资料、旧连接回调、草稿及权限转换，三个真实窗口验证成员只读、已经打开的窗口实时更新、UTF-8 边界、转让后管理员编辑、清空、重连和没有额外桌面通知。实际群资料截图已检查。
+
+最终代码沿用 `tests/verify.sh` 的配置和命令，三套均为 Qt ON、Debug、`-j12`，完整 CTest 顺序运行并继承 libpq 环境：
+
+| 构建 | 完整 build | 完整 CTest |
+|---|---|---|
+| normal | PASS | 14/14 PASS，60.31 s |
+| ASan | PASS | 14/14 PASS，74.44 s |
+| UBSan | PASS | 14/14 PASS，70.15 s |
+
+无 suppression 或测试排除，`git diff --check` PASS。没有修改 SQL 001–020，没有新增 shadow state、通用公告管理框架、调试输出或临时 migration。下一阶段为单个高熵、可撤销的群邀请链接。

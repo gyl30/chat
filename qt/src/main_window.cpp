@@ -508,11 +508,12 @@ main_window::main_window(QString server_url, QWidget* parent)
             { client_->create_group(std::move(title), std::move(members)); });
     connect(chat_page_, &chat_widget::members_requested, this,
             [this](qint64 conversation, qint64 self_user, QString title) {
-                group_dialog dialog(conversation, self_user, title, this, &chat_page_->avatars());
+                auto const snapshot = chat_page_->conversation(conversation);
+                if (!snapshot || !snapshot->group) { return; }
+                group_dialog dialog(conversation, self_user, title, snapshot->announcement, this, &chat_page_->avatars());
                 connect(client_.get(), &client_bridge::members_received, &dialog, &group_dialog::set_members,
                         Qt::QueuedConnection);
-                connect(client_.get(), &client_bridge::group_action_finished, &dialog, &group_dialog::finish_action,
-                        Qt::QueuedConnection);
+                connect(client_.get(), &client_bridge::group_action_finished, &dialog, &group_dialog::finish_action);
                 connect(client_.get(), &client_bridge::disconnected, &dialog, [&dialog] {
                     dialog.set_error(QStringLiteral("连接已断开，请重连后重新打开群成员。"));
                 }, Qt::QueuedConnection);
@@ -539,6 +540,9 @@ main_window::main_window(QString server_url, QWidget* parent)
                         Qt::QueuedConnection);
                 connect(&dialog, &group_dialog::rename_requested, this, [this, conversation](QString title) {
                     client_->rename_group(conversation, std::move(title));
+                });
+                connect(&dialog, &group_dialog::announcement_requested, this, [this, conversation](QString text) {
+                    client_->set_group_announcement(conversation, std::move(text));
                 });
                 connect(&dialog, &group_dialog::invite_requested, this, [this, conversation](QList<qint64> members) {
                     client_->invite_group_members(conversation, std::move(members));
@@ -596,7 +600,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                     }
                     client_->get_conversations();
                 }
-            }, Qt::QueuedConnection);
+            });
 
     connect(
         client_.get(), &client_bridge::conversation_changed, this, [this](qint64 conversation, bool removed) {

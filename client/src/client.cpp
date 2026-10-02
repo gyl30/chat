@@ -945,12 +945,13 @@ struct client::impl
                     auto const* muted = object.if_contains("muted");
                     auto const* pinned = object.if_contains("pinned");
                     auto const* pinned_message = object.if_contains("pinned_message");
+                    auto const* announcement = object.if_contains("announcement");
                     auto id = id_value ? parse_int64(*id_value) : std::nullopt;
                     auto unread = unread_value ? parse_uint64(*unread_value) : std::nullopt;
                     auto count = count_value ? parse_uint64(*count_value) : std::nullopt;
                     if (!id || *id <= 0 || !kind || !kind->is_string() || !user_value || !name || !name->is_string() ||
                         !last || !unread || !count || *count == 0 || !muted || !muted->is_bool() ||
-                        !pinned || !pinned->is_bool() || !pinned_message)
+                        !pinned || !pinned->is_bool() || !pinned_message || !announcement || !announcement->is_string())
                 {
                     handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation")));
                     return;
@@ -962,6 +963,13 @@ struct client::impl
                     item.member_count = *count;
                     item.muted = muted->as_bool();
                     item.pinned = pinned->as_bool();
+                    item.announcement = std::string(announcement->as_string());
+                    if (item.announcement.size() > 4096 || item.announcement.find('\0') != std::string::npos ||
+                        (kind->as_string() == "direct" && !item.announcement.empty()))
+                    {
+                        handler(std::unexpected(make_error(error_kind::protocol, "Invalid group announcement")));
+                        return;
+                    }
                     if (kind->as_string() == "direct")
                 {
                         auto peer = parse_int64(*user_value);
@@ -2146,6 +2154,12 @@ void client::invite_group_members(std::int64_t conversation, std::vector<std::in
     }
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_action(
         "invite_group_members", {{"conversation", conversation}, {"members", std::move(values)}}, std::move(handler)));
+}
+
+void client::set_group_announcement(std::int64_t conversation, std::string text, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_action(
+        "set_group_announcement", {{"conversation", conversation}, {"text", std::move(text)}}, std::move(handler)));
 }
 
 void client::leave_group(std::int64_t conversation, group_action_handler handler)

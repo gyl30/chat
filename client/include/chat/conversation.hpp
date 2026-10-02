@@ -37,6 +37,7 @@ struct conversation
     bool muted = false;
     bool pinned = false;
     std::optional<quoted_message> pinned_message;
+    std::string announcement;
 };
 
 struct conversations_result

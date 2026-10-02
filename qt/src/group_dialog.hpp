@@ -9,6 +9,7 @@
 class avatar_cache;
 class QLabel;
 class QLineEdit;
+class QPlainTextEdit;
 class QListWidget;
 class QPushButton;
 
@@ -17,7 +18,8 @@ class group_dialog final : public QDialog
     Q_OBJECT
 
    public:
-    group_dialog(qint64 conversation, qint64 self_user, QString const& title, QWidget* parent, avatar_cache* avatars = nullptr);
+    group_dialog(qint64 conversation, qint64 self_user, QString const& title, QString const& announcement,
+                 QWidget* parent, avatar_cache* avatars = nullptr);
     void set_members(qint64 conversation, QList<member_data> members, QString const& error);
     void finish_action(qint64 conversation, bool left, QString const& error);
     void set_contacts(QList<user_data> contacts, QString const& error);
@@ -27,6 +29,7 @@ class group_dialog final : public QDialog
    signals:
     void admin_requested(qint64 user, bool admin);
     void rename_requested(QString title);
+    void announcement_requested(QString text);
     void invite_requested(QList<qint64> members);
     void leave_requested();
     void transfer_requested(qint64 user);
@@ -41,6 +44,7 @@ class group_dialog final : public QDialog
     QList<member_data> members_;
     QList<user_data> contacts_;
     QString title_;
+    QString announcement_;
     bool contacts_ready_ = false;
     bool pending_ = false;
     bool available_ = false;
@@ -52,6 +56,9 @@ class group_dialog final : public QDialog
     QPushButton* transfer_button_;
     QPushButton* remove_button_;
     QLineEdit* title_edit_;
+    QPlainTextEdit* announcement_edit_;
+    QPushButton* announcement_button_;
+    QPushButton* clear_announcement_button_;
     QLabel* status_;
 };
 

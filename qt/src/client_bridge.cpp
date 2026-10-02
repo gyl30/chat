@@ -237,6 +237,7 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
             value.muted = item.muted;
             value.pinned = item.pinned;
             value.pinned_message = to_reply_data(item.pinned_message);
+            value.announcement = from_utf8(item.announcement);
                         bool found = false;
                         for (auto const& existing : conversations)
                         {
@@ -367,6 +368,18 @@ void client_bridge::rename_group(qint64 conversation, QString title)
 {
     client_->rename_group(conversation, to_utf8(title), [this, conversation](auto result) {
         emit group_action_finished(conversation, false, result ? QString{} : from_utf8(result.error().message));
+    });
+}
+
+void client_bridge::set_group_announcement(qint64 conversation, QString text)
+{
+    auto const generation = connection_generation_.load();
+    client_->set_group_announcement(conversation, to_utf8(text), [this, conversation, generation](auto result) {
+        QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
+            if (generation != connection_generation_) { return; }
+            if (result) { ++conversations_generation_; }
+            emit group_action_finished(conversation, false, result ? QString{} : from_utf8(result.error().message));
+        }, Qt::QueuedConnection);
     });
 }
 
