@@ -43,7 +43,7 @@ int main(int argc, char** argv)
               "009_add_message_replies.sql", "010_add_message_edits.sql", "011_add_message_deletion.sql",
               "012_create_message_attachments.sql", "013_add_group_roles.sql", "014_add_member_join_position.sql",
               "015_create_user_avatars.sql", "016_create_message_reactions.sql", "017_add_conversation_mute.sql",
-              "018_add_conversation_pin.sql"})
+              "018_add_conversation_pin.sql", "019_create_message_mentions.sql"})
         {
             if (std::string(name).starts_with("008"))
             {
@@ -68,6 +68,7 @@ int main(int argc, char** argv)
                               "AND NOT EXISTS(SELECT 1 FROM user_avatars) "
                               "AND NOT EXISTS(SELECT 1 FROM messages WHERE reaction_revision<>0) "
                               "AND NOT EXISTS(SELECT 1 FROM message_reactions) "
+                              "AND NOT EXISTS(SELECT 1 FROM message_mentions) "
                               "AND NOT EXISTS(SELECT 1 FROM conversations WHERE owner_id IS NOT NULL) "
                               "AND NOT EXISTS(SELECT 1 FROM conversation_members WHERE is_admin OR joined_message_id<>0 OR muted OR pinned) "
                               "AND (SELECT count(*) FROM conversation_members WHERE last_read_message_id IN (1,2))=2 "
@@ -82,6 +83,7 @@ int main(int argc, char** argv)
         execute("INSERT INTO message_attachments(message_id,filename,media_type,size,data) "
                 "VALUES(4,'empty.bin','application/octet-stream',0,''::bytea)");
         execute("INSERT INTO message_reactions(message_id,user_id,emoji) VALUES(4,2,'👍')");
+        execute("INSERT INTO message_mentions(message_id,user_id) VALUES(4,2)");
         bool duplicate_rejected = false;
         try { execute("INSERT INTO message_reactions(message_id,user_id,emoji) VALUES(4,2,'❤️')"); }
         catch (std::runtime_error const&) { duplicate_rejected = true; }
@@ -119,7 +121,7 @@ int main(int argc, char** argv)
         execute("DELETE FROM users WHERE id=1");
         auto cleaned = execute("SELECT (SELECT count(*) FROM messages)+(SELECT count(*) FROM message_attachments)"
                                "+(SELECT count(*) FROM conversations WHERE kind='group')+(SELECT count(*) FROM user_avatars)"
-                               "+(SELECT count(*) FROM message_reactions)");
+                               "+(SELECT count(*) FROM message_reactions)+(SELECT count(*) FROM message_mentions)");
         if (std::string(PQgetvalue(cleaned.get(), 0, 0)) != "0")
         {
             throw std::runtime_error("Reply cascade cleanup");

@@ -96,6 +96,8 @@ int main(int argc, char** argv)
             QObject::connect(&bridge, &client_bridge::read_marked, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::mute_finished, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::pin_finished, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::message_sent, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::message_updated, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::error, &bridge, [&](auto) { failed_connect.set_value(); }, Qt::DirectConnection);
             bridge.send_attachment(1, "stale.bin", "old upload");
             bridge.get_attachment(1, 1);
@@ -103,6 +105,9 @@ int main(int argc, char** argv)
             bridge.mark_read(1, 1);
             bridge.set_conversation_muted(1, true);
             bridge.set_conversation_pinned(1, true);
+            bridge.send_message(1, "stale @user", 0);
+            bridge.edit_message(1, 1, "stale edit @user");
+            bridge.delete_message(1, 1);
             bridge.search_messages(1, "old search");
             bridge.set_message_reaction(1, 1, QStringLiteral("👍"));
             QObject::connect(&bridge, &client_bridge::avatar_received, &bridge, [&](auto...) { ++stale_results; });
@@ -787,7 +792,7 @@ int main(int argc, char** argv)
                                view->model()->index(2, 0).data(message_model::reactions_role).value<QList<reaction_data>>().front().emoji == QStringLiteral("❤️");
                     });
             }
-            windows[1]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("重连后的群消息"));
+            windows[1]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("重连后的群消息 @") + names[2]);
             check(notifications[0].size() + notifications[1].size() + notifications[2].size() == notices_before_reconnect,
                 "History, edits, deletion and reaction recovery produce no ordinary notification");
             activate(0);
@@ -800,6 +805,17 @@ int main(int argc, char** argv)
             wait([&] { return pages[2]->conversation(group)->last_id == pages[2]->latest_message_id(); });
             check(notifications[2].size() == muted_group_notices && pages[2]->conversation(group)->unread > 0,
                 "Muted group still receives realtime messages and unread without desktop notification");
+            auto const mention_message = pages[2]->latest_message_id();
+            for (int i = 0; i < 3; ++i)
+            {
+                auto* view = windows[i]->findChild<QListView*>("messageList");
+                auto const mentions = view->model()->index(3, 0).data(message_model::mentions_role).value<QList<mention_data>>();
+                check(mentions.size() == 1 && mentions.front().user == ids[2] &&
+                    view->model()->index(3, 0).data(message_model::mentioned_role).toBool() == (i == 2),
+                    "Persisted mention reaches sender and peers, with current-user visual only on target");
+            }
+            windows[2]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_mention.png");
+
             set_preference(2, group, false);
             activate(2);
             activate(0);
@@ -815,6 +831,11 @@ int main(int argc, char** argv)
                 auto* input = dialog->findChild<QLineEdit*>("messageSearchEdit");
                 auto* search = dialog->findChild<QPushButton*>("searchMessagesButton");
                 auto* results = dialog->findChild<QListView*>("messageSearchResults");
+                input->setText(QStringLiteral("重连后的群消息"));
+                search->click();
+                wait([&] { return results->model()->rowCount() == 1; });
+                auto const mentions = results->model()->index(0, 0).data(message_model::mentions_role).value<QList<mention_data>>();
+                check(mentions.size() == 1 && mentions.front().user == ids[2], "Qt search uses persisted mention targets");
                 input->setText(QStringLiteral("OFFLINE retained"));
                 search->click();
                 wait([&] { return results->model()->rowCount() == 1; });
@@ -1414,6 +1435,20 @@ int main(int argc, char** argv)
             {
                 check(page->avatars().state(ids[0]) == chat::avatar_state{3, false} && page->avatars().image(ids[0]).isNull(),
                     "Cleared avatar remains fallback after reconnect");
+            }
+            for (int i = 0; i < 3; ++i)
+            {
+                auto* view = windows[i]->findChild<QListView*>("messageList");
+                bool restored = false;
+                for (int row = 0; row < view->model()->rowCount(); ++row)
+                {
+                    auto const item = view->model()->index(row, 0);
+                    if (item.data(message_model::id_role).toLongLong() != mention_message) { continue; }
+                    auto const mentions = item.data(message_model::mentions_role).value<QList<mention_data>>();
+                    restored = mentions.size() == 1 && mentions.front().user == ids[2] &&
+                        item.data(message_model::mentioned_role).toBool() == (i == 2);
+                }
+                check(restored, "Reconnect and rejoin restore historical mention facts");
             }
             auto const before_group_image = pages[0]->latest_message_id();
             pages[0]->attachment_send_requested(group, "group.png", image_bytes, 0);

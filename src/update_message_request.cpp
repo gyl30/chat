@@ -7,6 +7,7 @@
 
 #include "chat_session.hpp"
 #include "message_payload.hpp"
+#include "message_mentions.hpp"
 #include "pg_connection_pool.hpp"
 
 boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json_rpc_request& request,
@@ -53,6 +54,9 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
     auto original = co_await lease.connection().execute_row(
         "SELECT json_build_object('id',m.id,'conversation',m.conversation_id,'from',m.sender_id,'username',u.username,"
         "'avatar_revision',u.avatar_revision,'has_avatar',EXISTS(SELECT 1 FROM user_avatars WHERE user_id=u.id),"
+        "'mentions',(SELECT coalesce(json_agg(json_build_object('user',mentioned.id,'username',mentioned.username) "
+        "ORDER BY mentioned.id),'[]'::json) FROM message_mentions mm JOIN users mentioned ON mentioned.id=mm.user_id "
+        "WHERE mm.message_id=m.id),"
         "'reaction_revision',m.reaction_revision,'reactions',(SELECT coalesce(json_agg(json_build_object("
         "'emoji',emoji,'users',users) ORDER BY emoji),'[]'::json) FROM (SELECT emoji,json_agg(user_id ORDER BY user_id) "
         "AS users FROM message_reactions WHERE message_id=m.id GROUP BY emoji) reactions),"
@@ -92,6 +96,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
     value.text = deleting ? std::string{} : std::move(*params.text);
+    value.mentions.clear();
     value.deleted = deleting;
     if (deleting)
     {
@@ -142,12 +147,26 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
     }
     value.edited_at = result->front().empty() ? std::nullopt : std::optional<std::int64_t>(std::stoll(result->front()));
     value.reaction_revision = std::stoll(result->at(1));
+    auto mentioned = co_await refresh_message_mentions(connection, params.conversation, params.message, value.text);
+    auto& [mention_ec, mentions] = mentioned;
+    if (mention_ec)
+    {
+        connection.close();
+        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+    }
+    value.mentions = std::move(mentions);
+
     payload.clear();
     error = simdjson::builder::to_json_string(value).get(payload);
     if (error)
     {
         connection.close();
         co_return error;
+    }
+    if (notification_prefix.size() + payload.size() + 1 > 64 * 1024)
+    {
+        connection.close();
+        co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
     auto committed = co_await connection.execute_row("COMMIT");
     if (std::get<0>(committed))

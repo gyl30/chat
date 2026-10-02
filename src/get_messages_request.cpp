@@ -93,6 +93,9 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
         WITH page AS (
             SELECT m.id,m.conversation_id AS conversation,m.sender_id AS "from",u.username,
                    u.avatar_revision,EXISTS(SELECT 1 FROM user_avatars WHERE user_id=u.id) AS has_avatar,
+                   (SELECT coalesce(json_agg(json_build_object('user',mentioned.id,'username',mentioned.username)
+                       ORDER BY mentioned.id),'[]'::json) FROM message_mentions mm JOIN users mentioned ON mentioned.id=mm.user_id
+                       WHERE mm.message_id=m.id) AS mentions,
                    m.reaction_revision,(SELECT coalesce(json_agg(json_build_object('emoji',emoji,'users',users) ORDER BY emoji),'[]'::json)
                      FROM (SELECT emoji,json_agg(user_id ORDER BY user_id) AS users FROM message_reactions
                            WHERE message_id=m.id GROUP BY emoji) reactions) AS reactions,

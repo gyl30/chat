@@ -33,6 +33,8 @@ class message_model final : public QAbstractListModel
         attachment_size_role,
         reactions_role,
         own_reaction_role,
+        mentions_role,
+        mentioned_role,
         image_role,
         image_status_role,
     };

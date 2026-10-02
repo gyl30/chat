@@ -250,6 +250,30 @@ int main(int argc, char** argv)
     pinned_painter.end();
     if (rendered == unmuted_rendering) { std::cerr << "FAIL conversation pin indicator\n"; return 1; }
     conversations.set_pinned(direct.id, false);
+    auto mentioned = message;
+    mentioned.text = QStringLiteral("@自己\n多行 ") + QStringLiteral("正文 ").repeated(70);
+    mentioned.mentions = {{1, QStringLiteral("自己")}};
+    mentioned.edited_at = 200;
+    messages.update_message(mentioned);
+    rendered.fill(QColor(QStringLiteral("#F7F5EF")));
+    QPainter mention_painter(&rendered);
+    delegate.paint(&mention_painter, option, messages.index(0, 0));
+    mention_painter.end();
+    int blue_pixels = 0;
+    for (int y = 0; y < rendered.height(); ++y)
+    {
+        for (int x = 0; x < rendered.width(); ++x)
+        {
+            blue_pixels += rendered.pixelColor(x, y) == QColor(QStringLiteral("#277399"));
+        }
+    }
+    if (blue_pixels < 10 || delegate.sizeHint(option, messages.index(0, 0)).height() <= 100)
+    {
+        std::cerr << "FAIL persisted mention highlight and multiline layout\n";
+        return 1;
+    }
+    messages.reset(1, true);
+    messages.add_message(message);
     // Keep the edited-message rendering assertion on its original image.
     rendered.fill(QColor(QStringLiteral("#F7F5EF")));
     QPainter message_painter(&rendered);

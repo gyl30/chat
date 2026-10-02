@@ -4,8 +4,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <chat/attachment.hpp>
-#include <chat/reaction.hpp>
+#include <chat/message.hpp>
 
 struct quoted_message_payload
 {
@@ -33,6 +32,7 @@ struct message_payload
     bool has_avatar = false;
     std::int64_t reaction_revision = 0;
     std::vector<chat::reaction> reactions;
+    std::vector<chat::mention> mentions;
 };
 
 #endif

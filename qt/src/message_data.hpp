@@ -33,6 +33,13 @@ struct reaction_data
 };
 Q_DECLARE_METATYPE(QList<reaction_data>)
 
+struct mention_data
+{
+    qint64 user = 0;
+    QString username;
+};
+Q_DECLARE_METATYPE(QList<mention_data>)
+
 struct message_data
 {
     qint64 id = 0;
@@ -48,6 +55,7 @@ struct message_data
     chat::avatar_state avatar;
     qint64 reaction_revision = 0;
     QList<reaction_data> reactions;
+    QList<mention_data> mentions;
 };
 
 Q_DECLARE_METATYPE(message_data)

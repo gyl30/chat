@@ -1620,6 +1620,13 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return std::move(reply);
     };
     auto attachment_begin = "{\"conversation\":" + direct_conversation + ",\"filename\":\"probe.bin\",\"size\":3}";
+    auto forged_mentions = co_await peer_rpc("send_message", "{\"conversation\":" + direct_conversation +
+        ",\"text\":\"@user\",\"mentions\":[{\"user\":1,\"username\":\"user\"}]}");
+    if (!json_matches(forged_mentions, R"({"error":{"code":-32602}})"))
+    {
+        std::cerr << "FAIL client cannot supply authoritative mention targets\n";
+        co_return 1;
+    }
     for (auto const& params : {
         "{\"conversation\":" + direct_conversation + "}",
         "{\"conversation\":" + direct_conversation + ",\"muted\":null}",

@@ -203,6 +203,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 last.emplace("conversation", 2);
                 last.emplace("username", "bob");
                 last.emplace("avatar_revision", 0);
+                last.emplace("mentions", boost::json::array{});
                 last.emplace("reaction_revision", 0);
                 last.emplace("reactions", boost::json::array{});
                 last.emplace("has_avatar", false);
@@ -239,6 +240,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 last.emplace("conversation", 3);
                 last.emplace("username", "alice");
                 last.emplace("avatar_revision", 0);
+                last.emplace("mentions", boost::json::array{});
                 last.emplace("reaction_revision", 0);
                 last.emplace("reactions", boost::json::array{});
                 last.emplace("has_avatar", false);
@@ -345,25 +347,38 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             }
 
             boost::json::array messages;
-            if (!before)
+            if (!before || before->as_int64() >= 90)
             {
                 boost::json::object first;
                 first.emplace("conversation", 2);
                 first.emplace("username", "bob");
                 first.emplace("avatar_revision", 0);
+                first.emplace("mentions", boost::json::array{});
                 first.emplace("reaction_revision", 1);
                 first.emplace("reactions", boost::json::array{boost::json::object{{"emoji", "👍"}, {"users", boost::json::array{1, 2}}}});
                 first.emplace("has_avatar", false);
                 first.emplace("id", 10);
                 first.emplace("from", 2);
                 first.emplace("timestamp", 1700000000000);
-                first.emplace("text", "first");
+                first.emplace("text", "first @alice");
+                first["mentions"] = boost::json::array{boost::json::object{{"user", 1}, {"username", "alice"}}};
+                if (before)
+                {
+                    auto const probe = before->as_int64();
+                    if (probe == 90) { first.erase("mentions"); }
+                    if (probe == 91) { first["mentions"] = false; }
+                    if (probe == 92) { first["mentions"].as_array()[0].as_object()["user"] = 0; }
+                    if (probe == 93) { first["mentions"].as_array().push_back(first["mentions"].as_array().front()); }
+                    if (probe == 94) { first["mentions"].as_array()[0].as_object()["username"] = 1; }
+                    if (probe == 95) { first["deleted"] = true; first["reactions"] = boost::json::array{}; }
+                }
                 messages.push_back(std::move(first));
 
                 boost::json::object second;
                 second.emplace("conversation", 2);
                 second.emplace("username", "alice");
                 second.emplace("avatar_revision", 0);
+                second.emplace("mentions", boost::json::array{});
                 second.emplace("reaction_revision", 0);
                 second.emplace("reactions", boost::json::array{});
                 second.emplace("has_avatar", false);
@@ -379,6 +394,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 older.emplace("conversation", 2);
                 older.emplace("username", "bob");
                 older.emplace("avatar_revision", 0);
+                older.emplace("mentions", boost::json::array{});
                 older.emplace("reaction_revision", 0);
                 older.emplace("reactions", boost::json::array{});
                 older.emplace("has_avatar", false);
@@ -477,6 +493,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             result.emplace("message", 20);
             result.emplace("timestamp", 1700000120000);
             result.emplace("realtime", true);
+            result.emplace("mentions", boost::json::array{});
             response.emplace("result", std::move(result));
             auto [response_ec] = co_await send_text(connection, std::move(response));
             if (response_ec)
@@ -488,13 +505,15 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             notification_params.emplace("conversation", 2);
             notification_params.emplace("username", "bob");
             notification_params.emplace("avatar_revision", 0);
+                notification_params.emplace("mentions", boost::json::array{});
                 notification_params.emplace("reaction_revision", 0);
                 notification_params.emplace("reactions", boost::json::array{});
             notification_params.emplace("has_avatar", false);
             notification_params.emplace("id", 21);
             notification_params.emplace("from", 2);
             notification_params.emplace("timestamp", 1700000180000);
-            notification_params.emplace("text", "incoming");
+            notification_params.emplace("text", "incoming @alice");
+            notification_params["mentions"] = boost::json::array{boost::json::object{{"user", 1}, {"username", "alice"}}};
             boost::json::object notification;
             notification.emplace("jsonrpc", "2.0");
             notification.emplace("method", "message");
@@ -954,7 +973,9 @@ int main()
     if (!state.wait([&] { return messages_called; }) ||
         (messages_result.read_positions.size() != 1 || messages_result.read_positions[0].message != 12) ||
         messages.size() != 2 || messages[0].id != 10 || messages[0].from != 2 ||
-        messages[0].timestamp != 1700000000000 || messages[0].text != "first" ||
+        messages[0].timestamp != 1700000000000 || messages[0].text != "first @alice" ||
+        messages[0].mentions.size() != 1 || messages[0].mentions.front().user != 1 ||
+        messages[0].mentions.front().username != "alice" ||
         messages[0].reaction_revision != 1 || messages[0].reactions.size() != 1 ||
         messages[0].reactions[0].emoji != "👍" || messages[0].reactions[0].users != std::vector<std::int64_t>{1, 2} || messages[1].id != 12 ||
         messages[1].from != 1 || messages[1].timestamp != 1700000060000 || messages[1].text != "second")
@@ -993,6 +1014,12 @@ int main()
         if (future.wait_for(5s) != std::future_status::ready) { std::abort(); }
         return future.get();
     };
+    for (auto probe : {90, 91, 92, 93, 94, 95})
+    {
+        auto result = avatar_call.operator()<chat::messages_result>([&](auto h) { client.get_messages(2, probe, h); });
+        if (result || result.error().kind != chat::error_kind::protocol) { return 1; }
+    }
+    std::cout << "PASS client persistent mention metadata and malformed payload validation\n";
     for (auto muted : {true, false})
     {
         auto result = avatar_call.operator()<bool>([&](auto h) { client.set_conversation_muted(2, muted, h); });
@@ -1093,7 +1120,8 @@ int main()
     if (!state.wait([&] { return send_called && !state.messages.empty(); }) || send_result.message_id != 20 ||
         send_result.timestamp != 1700000120000 || !send_result.realtime || state.messages.back().id != 21 ||
         state.messages.back().from != 2 || state.messages.back().timestamp != 1700000180000 ||
-        state.messages.back().text != "incoming")
+        state.messages.back().text != "incoming @alice" || state.messages.back().mentions.size() != 1 ||
+        state.messages.back().mentions.front().user != 1)
     {
         std::cerr << "FAIL client send and notification\n";
         return 1;

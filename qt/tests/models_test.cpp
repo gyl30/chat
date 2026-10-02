@@ -197,6 +197,31 @@ int main(int argc, char** argv)
     if (!first.data(message_model::reactions_role).value<QList<reaction_data>>().isEmpty() ||
         messages.set_reactions(incoming.id + 100, 1, {})) { return 1; }
     std::cout << "PASS Qt reaction snapshots, clear, edited/deleted messages and stale revision protection\n";
+    message_model mention_model;
+    mention_model.set_self_user(1);
+    mention_model.reset(1, true);
+    auto mentioned = incoming;
+    mentioned.text = QStringLiteral("@自己");
+    mentioned.mentions = {{1, QStringLiteral("自己")}};
+    mention_model.add_message(mentioned);
+    auto const mention_index = mention_model.index(0, 0);
+    if (!mention_index.data(message_model::mentioned_role).toBool() ||
+        mention_index.data(message_model::mentions_role).value<QList<mention_data>>().size() != 1) { return 1; }
+    auto mention_edit = mentioned;
+    mention_edit.edited_at = 200;
+    mention_edit.mentions.clear();
+    mention_model.update_message(mention_edit);
+    mention_model.merge_messages({mentioned});
+    if (mention_index.data(message_model::mentioned_role).toBool() ||
+        !mention_index.data(message_model::mentions_role).value<QList<mention_data>>().isEmpty()) { return 1; }
+    mentioned.edited_at = 300;
+    mention_model.update_message(mentioned);
+    mentioned.deleted = true;
+    mentioned.mentions.clear();
+    mention_model.update_message(mentioned);
+    if (mention_index.data(message_model::mentioned_role).toBool() ||
+        !mention_index.data(message_model::mentions_role).value<QList<mention_data>>().isEmpty()) { return 1; }
+    std::cout << "PASS Qt mention identity, stale history, edit replacement and deletion\n";
     conversation_data direct;
     direct.id = 1;
     direct.user = 2;

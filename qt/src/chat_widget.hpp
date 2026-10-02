@@ -66,7 +66,8 @@ class chat_widget final : public QWidget
     void add_message(qint64 user, message_data message);
     void update_message(message_data message);
     bool set_reactions(qint64 conversation, qint64 message, qint64 revision, QList<reaction_data> reactions);
-    void add_sent_message(qint64 user, qint64 message, qint64 timestamp, QString text, quoted_message_data reply);
+    void add_sent_message(qint64 user, qint64 message, qint64 timestamp, QString text, quoted_message_data reply,
+                          QList<mention_data> mentions);
     void set_message_error(qint64 user, QString message);
     void finish_attachment_send(qint64 conversation, QString error_message);
 

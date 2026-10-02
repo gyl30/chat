@@ -13,6 +13,7 @@
 
 #include "chat_session.hpp"
 #include "message_payload.hpp"
+#include "message_mentions.hpp"
 #include "pg_connection_pool.hpp"
 
 namespace
@@ -34,6 +35,7 @@ struct send_message_result
     std::int64_t timestamp = 0;
     bool realtime = false;
     std::optional<quoted_message_payload> reply;
+    std::vector<chat::mention> mentions;
 };
 
 struct message_notification
@@ -93,7 +95,7 @@ simdjson::error_code parse_send_message_params(json_rpc_params& params, send_mes
 }
 
 simdjson::error_code serialize_send_message_result(std::int64_t message, std::int64_t timestamp, bool realtime,
-                                                   std::optional<quoted_message_payload> reply, json_rpc_id id,
+                                                   std::optional<quoted_message_payload> reply, std::vector<chat::mention> mentions, json_rpc_id id,
                                                    std::string& response)
 {
     send_message_result result{};
@@ -101,6 +103,7 @@ simdjson::error_code serialize_send_message_result(std::int64_t message, std::in
     result.timestamp = timestamp;
     result.realtime = realtime;
     result.reply = std::move(reply);
+    result.mentions = std::move(mentions);
 
     std::string result_json;
     auto error = simdjson::builder::to_json_string(result).get(result_json);
@@ -278,18 +281,6 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         if (query_ec)
         {
             connection.close();
-        }
-        else
-        {
-            auto ended = co_await connection.execute_row("COMMIT");
-            if (std::get<0>(ended))
-            {
-                connection.close();
-                query_ec = std::get<0>(ended);
-            }
-        }
-        if (query_ec)
-        {
             if (request.id.present)
             {
                 co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
@@ -298,6 +289,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         }
         if (!row)
         {
+            connection.close();
             if (request.id.present)
             {
                 co_return serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response);
@@ -306,6 +298,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         }
         if (row->size() != 5)
         {
+            connection.close();
             if (request.id.present)
             {
                 co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
@@ -317,6 +310,39 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         notification.params.username = std::move(row->at(2));
         notification.params.avatar_revision = std::stoll(row->at(3));
         notification.params.has_avatar = row->at(4) == "true";
+        auto mentioned = co_await refresh_message_mentions(connection, params.conversation,
+            std::stoll(id_text), attaching ? std::string{} : notification.params.text);
+        auto& [mention_ec, mentions] = mentioned;
+        if (mention_ec)
+        {
+            connection.close();
+            if (request.id.present)
+            {
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            co_return simdjson::SUCCESS;
+        }
+        notification.params.mentions = std::move(mentions);
+        notification_json.clear();
+        error = simdjson::builder::to_json_string(notification).get(notification_json);
+        if (error || notification_json.size() > kMaxMessageSize)
+        {
+            connection.close();
+            if (error) { co_return error; }
+            if (request.id.present) { co_return serialize_json_rpc_invalid_params(std::move(request.id), response); }
+            co_return simdjson::SUCCESS;
+        }
+        auto ended = co_await connection.execute_row("COMMIT");
+        if (std::get<0>(ended))
+        {
+            connection.close();
+            if (request.id.present)
+            {
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            co_return simdjson::SUCCESS;
+        }
+
     }
     auto const* first = id_text.data();
     auto const* last = first + id_text.size();
@@ -367,5 +393,5 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
     }
 
     co_return serialize_send_message_result(notification.params.id, notification.params.timestamp, realtime,
-                                            std::move(notification.params.reply), std::move(request.id), response);
+                                            std::move(notification.params.reply), std::move(notification.params.mentions), std::move(request.id), response);
 }

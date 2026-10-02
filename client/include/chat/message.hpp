@@ -22,6 +22,12 @@ struct quoted_message
     bool deleted = false;
 };
 
+struct mention
+{
+    std::int64_t user = 0;
+    std::string username;
+};
+
 struct message
 {
     std::int64_t id = 0;
@@ -37,6 +43,7 @@ struct message
     avatar_state avatar;
     std::int64_t reaction_revision = 0;
     std::vector<reaction> reactions;
+    std::vector<mention> mentions;
 };
 
 struct read_position
@@ -58,6 +65,7 @@ struct send_message_result
     std::int64_t timestamp = 0;
     bool realtime = false;
     std::optional<quoted_message> reply;
+    std::vector<mention> mentions;
 };
 
 }    // namespace chat

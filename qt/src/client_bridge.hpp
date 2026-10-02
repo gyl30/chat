@@ -96,7 +96,7 @@ class client_bridge final : public QObject
     void group_action_finished(qint64 conversation, bool left, QString error_message);
     void conversation_changed(qint64 conversation, bool removed);
     void message_sent(qint64 user, QString text, qint64 message, qint64 timestamp, bool realtime,
-                      quoted_message_data reply, QString error_message);
+                      quoted_message_data reply, QList<mention_data> mentions, QString error_message);
     void users_received(QList<user_data> users, QString error_message);
     void contact_added(user_data user, QString error_message);
     void contact_removed(QString error_message);

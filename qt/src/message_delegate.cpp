@@ -1,6 +1,7 @@
 #include "message_delegate.hpp"
 
 #include <algorithm>
+#include <memory>
 
 #include <QDateTime>
 #include <QFont>
@@ -8,6 +9,9 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QRegularExpression>
+#include <QTextLayout>
+#include <QtMath>
 
 #include "avatar.hpp"
 #include "message_model.hpp"
@@ -171,6 +175,7 @@ struct message_layout
     QString image_status;
     int image_width = 0;
     int image_height = 0;
+    std::unique_ptr<QTextLayout> formatted_text;
 };
 
 message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex const& index)
@@ -194,6 +199,10 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
         result.time = QStringLiteral("已读 %1 人 · ").arg(read_count.toInt()) + result.time;
     }
     result.outgoing = outgoing_at(index);
+    if (!result.outgoing && index.data(message_model::mentioned_role).toBool())
+    {
+        result.time = QStringLiteral("提及你 · ") + result.time;
+    }
     result.read = result.outgoing && read_at(index);
     result.day_start = starts_day(index);
     result.group_start = starts_group(index);
@@ -230,6 +239,48 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
             QRect(0, 0, inner_max, 10000), Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, result.text);
         result.text_width = std::min(inner_max, std::max(1, bounds.width()));
         result.text_height = std::max(body_line_height, bounds.height());
+    }
+
+    auto const mentions = index.data(message_model::mentions_role).value<QList<mention_data>>();
+    if (!mentions.isEmpty())
+    {
+        auto text = result.text;
+        text.replace(QLatin1Char('\n'), QChar::LineSeparator);
+        result.formatted_text = std::make_unique<QTextLayout>(text, option.font);
+        QTextOption text_option;
+        text_option.setWrapMode(QTextOption::WordWrap);
+        result.formatted_text->setTextOption(text_option);
+        QList<QTextLayout::FormatRange> formats;
+        auto const body_start = result.text.size() - index.data(message_model::text_role).toString().size();
+        for (auto const& mention : mentions)
+        {
+            QRegularExpression pattern(QStringLiteral("(?<![\\p{L}\\p{N}_@])@%1(?![\\p{L}\\p{N}_@])")
+                .arg(QRegularExpression::escape(mention.username)));
+            auto matches = pattern.globalMatch(result.text, body_start);
+            while (matches.hasNext())
+            {
+                auto const match = matches.next();
+                QTextCharFormat format;
+                format.setForeground(QColor(QStringLiteral("#277399")));
+                formats.push_back({static_cast<int>(match.capturedStart()), static_cast<int>(match.capturedLength()), format});
+            }
+        }
+        result.formatted_text->setFormats(formats);
+        result.formatted_text->beginLayout();
+        result.text_height = 0;
+        result.text_width = 1;
+        while (true)
+        {
+            auto line = result.formatted_text->createLine();
+            if (!line.isValid()) { break; }
+            line.setLineWidth(inner_max);
+            line.setPosition(QPointF(0, result.text_height));
+            result.text_height += qCeil(line.height());
+            result.text_width = std::max(result.text_width, qCeil(line.naturalTextWidth()));
+        }
+        result.formatted_text->endLayout();
+        result.time_on_text_line = result.single_line &&
+            (metadata_width == 0 || result.text_width + chat_theme::message_time_gap + metadata_width <= inner_max);
     }
 
     auto content_width = result.text_width;
@@ -495,8 +546,15 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     QRect text_rect(content_left, content_top,
                     std::max(1, content_right - content_left - time_reserved),
                     layout.text_height);
-    painter->drawText(text_rect, Qt::AlignLeft | Qt::AlignTop
-        | (layout.single_line ? Qt::TextSingleLine : Qt::TextWordWrap), layout.text);
+    if (layout.formatted_text)
+    {
+        layout.formatted_text->draw(painter, text_rect.topLeft());
+    }
+    else
+    {
+        painter->drawText(text_rect, Qt::AlignLeft | Qt::AlignTop
+            | (layout.single_line ? Qt::TextSingleLine : Qt::TextWordWrap), layout.text);
+    }
 
     if (metadata_width > 0)
     {

@@ -228,6 +228,24 @@ bool parse_reaction_update(boost::json::object const& object, reaction_update& v
     return true;
 }
 
+bool parse_mentions(boost::json::object const& object, std::vector<mention>& result)
+{
+    auto const* values = object.if_contains("mentions");
+    if (!values || !values->is_array()) { return false; }
+    std::unordered_set<std::int64_t> seen;
+    for (auto const& value : values->as_array())
+    {
+        if (!value.is_object()) { return false; }
+        auto const* user_value = value.as_object().if_contains("user");
+        auto const* username = value.as_object().if_contains("username");
+        auto user = user_value ? parse_int64(*user_value) : std::nullopt;
+        if (!user || *user <= 0 || !username || !username->is_string() || username->as_string().empty() ||
+            !seen.insert(*user).second) { return false; }
+        result.push_back({*user, std::string(username->as_string())});
+    }
+    return true;
+}
+
 bool parse_message(boost::json::object const& object, message& value)
 {
     auto const* id_value = object.if_contains("id");
@@ -284,7 +302,7 @@ bool parse_message(boost::json::object const& object, message& value)
     }
     return parse_avatar_state(object, value.avatar) && parse_reply(object, value.reply) && parse_edited_at(object, value.edited_at) &&
            parse_deleted(object, value.deleted) && parse_reactions(object, value.reaction_revision, value.reactions) &&
-           (!value.deleted || value.reactions.empty());
+           parse_mentions(object, value.mentions) && (!value.deleted || (value.reactions.empty() && value.mentions.empty()));
 }
 
 bool parse_presence(boost::json::object const& object, presence& value)
@@ -1318,9 +1336,9 @@ struct client::impl
             result.message_id = *message_id;
             result.timestamp = *timestamp;
             result.realtime = realtime_value->as_bool();
-            if (!parse_reply(object, result.reply))
+            if (!parse_reply(object, result.reply) || !parse_mentions(object, result.mentions))
             {
-                handler(std::unexpected(make_error(error_kind::protocol, "Invalid reply")));
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid send metadata")));
                 return;
             }
             handler(result);

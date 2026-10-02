@@ -938,6 +938,102 @@ int run_group_tests()
                         d_events.conversations.empty() && d_events.typing.empty(),
                     "Nonmember receives no notifications");
         }
+        {
+            auto const base = "chat_mention_" + std::to_string(getpid());
+            std::vector<std::string> special_names{base, base + ".plus", "名 字_" + base,
+                "r(.*)[z]\\_'" + base, base + std::string(2000, 'x')};
+            std::vector<std::int64_t> special_ids;
+            std::vector<std::int64_t> mention_members{data.users[1], data.users[2]};
+            require(call<chat::user>([&](auto handler) { a.add_contact(data.users[1], handler); }).has_value(),
+                "Restore contact removed by the earlier contact lifecycle test");
+            for (auto const& name : special_names)
+            {
+                auto const* value = name.c_str();
+                std::unique_ptr<PGresult, decltype(&PQclear)> inserted(PQexecParams(data.database.get(),
+                    "INSERT INTO users(username,password_hash) VALUES($1,repeat('x',60)) RETURNING id", 1,
+                    nullptr, &value, nullptr, nullptr, 0), &PQclear);
+                require(inserted && PQresultStatus(inserted.get()) == PGRES_TUPLES_OK && PQntuples(inserted.get()) == 1,
+                    "Create literal Unicode, whitespace and regex username fixtures");
+                auto const id = std::stoll(PQgetvalue(inserted.get(), 0, 0));
+                data.users.push_back(id);
+                special_ids.push_back(id);
+                mention_members.push_back(id);
+                require(call<chat::user>([&](auto handler) { a.add_contact(id, handler); }).has_value(), "Mention fixture contact");
+            }
+            auto created_mentions = call<std::int64_t>([&](auto handler) { a.create_group("mention", mention_members, handler); });
+            require(created_mentions.has_value(), "Create mention group");
+            auto const mention_group = *created_mentions;
+            data.groups.push_back(mention_group);
+            auto targets = [](std::vector<chat::mention> const& mentions) {
+                std::vector<std::int64_t> ids;
+                for (auto const& mention : mentions) { ids.push_back(mention.user); }
+                return ids;
+            };
+            auto const text = "@" + names[1] + " @" + names[2] + " @" + names[1] + " @" + names[3];
+            auto mentioned = call<chat::send_message_result>([&](auto handler) { a.send_message(mention_group, text, handler); });
+            require(mentioned && targets(mentioned->mentions) == std::vector<std::int64_t>{data.users[1], data.users[2]},
+                "Server persists exact unique current group targets and ignores outsiders");
+            b_events.wait([&] { return std::any_of(b_events.messages.begin(), b_events.messages.end(),
+                [&](auto const& message) { return message.id == mentioned->message_id; }); });
+            {
+                std::lock_guard lock(b_events.mutex);
+                auto value = std::find_if(b_events.messages.begin(), b_events.messages.end(),
+                    [&](auto const& message) { return message.id == mentioned->message_id; });
+                require(targets(value->mentions) == targets(mentioned->mentions), "Realtime message carries persisted targets");
+            }
+            auto searched = call<chat::messages_result>([&](auto handler) { a.search_messages(mention_group, names[1], {}, handler); });
+            require(searched && searched->messages.size() == 1 && targets(searched->messages.front().mentions) == targets(mentioned->mentions) &&
+                targets(conversation(a, mention_group).last.mentions) == targets(mentioned->mentions), "Search and latest message share persisted mention data");
+            auto literal_mentions = call<chat::send_message_result>([&](auto handler) {
+                a.send_message(mention_group, "@" + special_names[1] + " @" + special_names[2] + " @" + special_names[3], handler);
+            });
+            require(literal_mentions && targets(literal_mentions->mentions) ==
+                std::vector<std::int64_t>{special_ids[1], special_ids[2], special_ids[3]},
+                "Full longest usernames match literally, including Unicode, spaces and regex metacharacters");
+            auto boundaries = call<chat::send_message_result>([&](auto handler) {
+                a.send_message(mention_group, "mail@" + base + " @" + base + "_extra @@" + base + " @CHAT_MENTION_" + std::to_string(getpid()), handler);
+            });
+            require(boundaries && boundaries->mentions.empty(), "Email, word substring, double at-sign and case mismatch are not mentions");
+            auto edited_mention = call<chat::message>([&](auto handler) {
+                a.edit_message(mention_group, literal_mentions->message_id, "edited @" + base, handler);
+            });
+            require(edited_mention && targets(edited_mention->mentions) == std::vector<std::int64_t>{special_ids[0]},
+                "Editing atomically replaces original mention targets");
+            auto deleted_mention = call<chat::message>([&](auto handler) { a.delete_message(mention_group, literal_mentions->message_id, handler); });
+            require(deleted_mention && deleted_mention->mentions.empty(), "Deleted message loses interactive mention metadata");
+            auto before_large = conversation(a, mention_group);
+            auto oversized = call<chat::send_message_result>([&](auto handler) {
+                a.send_message(mention_group, std::string(63000, 'x') + " @" + special_names.back(), handler);
+            });
+            require(!oversized && oversized.error().code == -32602 && conversation(a, mention_group).last.id == before_large.last.id,
+                "Mention-expanded 64 KiB payload is rejected without committing message or targets");
+            require(call<bool>([&](auto handler) { b.leave_group(mention_group, handler); }).has_value(), "Mention target leaves group");
+            auto left_target = call<chat::send_message_result>([&](auto handler) { a.send_message(mention_group, "left @" + names[1], handler); });
+            auto old_history = call<chat::messages_result>([&](auto handler) { a.get_messages(mention_group, {}, handler); });
+            require(left_target && left_target->mentions.empty() && old_history &&
+                targets(old_history->messages.front().mentions) == targets(mentioned->mentions),
+                "New messages ignore exited members while prior persisted targets remain historical facts");
+            require(call<bool>([&](auto handler) { a.invite_group_members(mention_group, {data.users[1]}, handler); }).has_value(), "Reinvite mention target");
+            auto rejoined_mention = call<chat::send_message_result>([&](auto handler) { a.send_message(mention_group, "rejoined @" + names[1], handler); });
+            require(rejoined_mention && targets(rejoined_mention->mentions) == std::vector<std::int64_t>{data.users[1]} &&
+                conversation(b, mention_group).unread == 1, "Rejoined member is mentionable without counting old history as unread");
+            b.close();
+            b_events.wait([&] { return b_events.disconnected == 2; });
+            b.connect(server.url);
+            b_events.wait([&] { return b_events.connected == 3; });
+            require(call<chat::authentication_result>([&](auto handler) { b.authenticate(names[1], "group password", handler); })->authenticated,
+                "Reconnect mention recipient");
+            auto recovered_mentions = call<chat::messages_result>([&](auto handler) { b.get_messages(mention_group, {}, handler); });
+            auto paged_mentions = call<chat::messages_result>([&](auto handler) { b.get_messages(mention_group, rejoined_mention->message_id, handler); });
+            require(recovered_mentions && targets(recovered_mentions->messages.back().mentions) == targets(rejoined_mention->mentions) &&
+                paged_mentions && targets(paged_mentions->messages.front().mentions) == targets(mentioned->mentions),
+                "Reconnect and cursor history retain persisted targets");
+            auto direct_mention = call<chat::send_message_result>([&](auto handler) { a.send_message(*direct, "direct @" + names[1], handler); });
+            auto filename_mention = call<chat::message>([&](auto handler) { a.send_attachment(mention_group, "@" + names[1], "file", handler); });
+            require(direct_mention && direct_mention->mentions.empty() && filename_mention && filename_mention->mentions.empty(),
+                "Direct text and attachment filenames do not create group mentions");
+            std::cout << "PASS persistent group mentions, literal names, boundaries, edits, leave/rejoin, reconnect and payload limit\n";
+        }
         auto const page_owner = std::to_string(data.users[0]);
         auto const page_peer = std::to_string(data.users[1]);
         auto const page_sql =
@@ -999,7 +1095,7 @@ int run_group_tests()
         c.close();
         d.close();
         a_events.wait([&] { return a_events.disconnected == 1; });
-        b_events.wait([&] { return b_events.disconnected == 2; });
+        b_events.wait([&] { return b_events.disconnected == 3; });
         c_events.wait([&] { return c_events.disconnected == 4; });
         d_events.wait([&] { return d_events.disconnected == 1; });
         {
@@ -1178,7 +1274,7 @@ int run_group_tests()
             data.execute("UPDATE conversations SET title=title WHERE id=" + std::to_string(managed_group));
             auto racing_send = std::async(std::launch::async, [&] {
                 return call<chat::send_message_result>([&](auto handler) {
-                    managed[0].send_message(managed_group, "与邀请并发的消息", handler);
+                    managed[0].send_message(managed_group, "与邀请并发的消息 @chat_roles_test_" + std::to_string(getpid()) + "_4", handler);
                 });
             });
             auto invite = std::async(std::launch::async, [&] {
@@ -1207,6 +1303,10 @@ int run_group_tests()
                     "Joined watermark query");
             auto joined_watermark = std::stoll(PQgetvalue(joined.get(), 0, 0));
             std::uint64_t racing_unread = raced_message->message_id > joined_watermark ? 1 : 0;
+            require(raced_message->mentions.size() == racing_unread &&
+                (!racing_unread || raced_message->mentions.front().user == managed_ids[4]),
+                "Mention resolution shares the send/invite lock boundary with joined watermark");
+
             require(joined_watermark == after_leave->message_id || joined_watermark == raced_message->message_id,
                     "Joined watermark follows serialized send/invite order");
             auto rejoined = call<chat::messages_result>([&](auto handler) { managed[4].get_messages(managed_group, {}, handler); });

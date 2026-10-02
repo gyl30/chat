@@ -747,7 +747,7 @@ main_window::main_window(QString server_url, QWidget* parent)
     connect(
         client_.get(), &client_bridge::message_sent, this,
         [this](qint64 user, QString text, qint64 message, qint64 timestamp, bool realtime, quoted_message_data reply,
-               QString const& error_message)
+               QList<mention_data> mentions, QString const& error_message)
         {
             if (!error_message.isEmpty())
             {
@@ -756,11 +756,11 @@ main_window::main_window(QString server_url, QWidget* parent)
             }
 
             (void)realtime;
-            chat_page_->add_sent_message(user, message, timestamp, std::move(text), std::move(reply));
+            chat_page_->add_sent_message(user, message, timestamp, std::move(text), std::move(reply), std::move(mentions));
             client_->get_conversations();
             client_->get_presence();
         },
-        Qt::QueuedConnection);
+        Qt::AutoConnection);
 
     connect(client_.get(), &client_bridge::read_marked, this,
             [this](qint64 user, qint64 message, QString const& error_message) {

@@ -1002,7 +1002,7 @@ bool chat_widget::set_reactions(qint64 conversation, qint64 message, qint64 revi
 }
 
 void chat_widget::add_sent_message(qint64 user, qint64 message, qint64 timestamp, QString text,
-                                   quoted_message_data reply)
+                                   quoted_message_data reply, QList<mention_data> mentions)
 {
     if (user != active_conversation_)
     {
@@ -1017,6 +1017,7 @@ void chat_widget::add_sent_message(qint64 user, qint64 message, qint64 timestamp
     value.timestamp = timestamp;
     value.text = std::move(text);
     value.reply = std::move(reply);
+    value.mentions = std::move(mentions);
     add_message(user, std::move(value));
 }
 
