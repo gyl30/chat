@@ -33,6 +33,7 @@ struct conversation
     message last;
     std::uint64_t unread = 0;
     avatar_state avatar;
+    bool muted = false;
 };
 
 struct conversations_result

@@ -923,11 +923,12 @@ struct client::impl
                     auto const* last = object.if_contains("last");
                 auto const* unread_value = object.if_contains("unread");
                     auto const* count_value = object.if_contains("member_count");
+                    auto const* muted = object.if_contains("muted");
                     auto id = id_value ? parse_int64(*id_value) : std::nullopt;
                     auto unread = unread_value ? parse_uint64(*unread_value) : std::nullopt;
                     auto count = count_value ? parse_uint64(*count_value) : std::nullopt;
                     if (!id || *id <= 0 || !kind || !kind->is_string() || !user_value || !name || !name->is_string() ||
-                        !last || !unread || !count || *count == 0)
+                        !last || !unread || !count || *count == 0 || !muted || !muted->is_bool())
                 {
                     handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation")));
                     return;
@@ -937,6 +938,7 @@ struct client::impl
                     item.username = std::string(name->as_string());
                     item.unread = *unread;
                     item.member_count = *count;
+                    item.muted = muted->as_bool();
                     if (kind->as_string() == "direct")
                 {
                         auto peer = parse_int64(*user_value);
@@ -989,6 +991,26 @@ struct client::impl
                 }
                 handler(std::move(result));
         });
+        co_return;
+    }
+
+    boost::capy::task<> set_conversation_muted(std::int64_t conversation, bool muted, mute_handler handler)
+    {
+        send_request("set_conversation_muted", {{"conversation", conversation}, {"muted", muted}},
+            [handler = std::move(handler), muted](auto response) mutable {
+                if (!response)
+                {
+                    handler(std::unexpected(std::move(response.error())));
+                    return;
+                }
+                auto const* value = response->is_object() ? response->as_object().if_contains("muted") : nullptr;
+                if (!value || !value->is_bool() || value->as_bool() != muted)
+                {
+                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid mute result")));
+                    return;
+                }
+                handler(value->as_bool());
+            });
         co_return;
     }
 
@@ -2019,6 +2041,11 @@ void client::register_user(std::string username, std::string password, register_
 void client::get_conversations(std::optional<conversation_cursor> before, conversations_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_conversations(before, std::move(handler)));
+}
+
+void client::set_conversation_muted(std::int64_t conversation, bool muted, mute_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->set_conversation_muted(conversation, muted, std::move(handler)));
 }
 
 void client::open_direct_conversation(std::int64_t user, conversation_handler handler)

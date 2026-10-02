@@ -247,6 +247,10 @@ boost::capy::task<void> chat_session::run()
             {
                 rpc_error = co_await handle_message_reaction(request, response);
             }
+            else if (request.method == "set_conversation_muted")
+            {
+                rpc_error = co_await handle_conversation_mute(request, response);
+            }
             else if (request.method == kEchoMethod)
             {
                 rpc_error = co_await handle_echo(request, response);

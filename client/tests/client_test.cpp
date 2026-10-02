@@ -179,11 +179,24 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             co_return boost::capy::io_result<bool>{std::error_code{}, true};
         }
 
+        if (operation == "set_conversation_muted")
+        {
+            auto const conversation = params->at("conversation").as_int64();
+            auto const muted = params->at("muted").as_bool();
+            boost::json::object result{{"muted", muted}};
+            if (conversation == 98) { result.erase("muted"); }
+            if (conversation == 99) { result["muted"] = "true"; }
+            if (conversation == 97) { result["muted"] = !muted; }
+            response.emplace("result", std::move(result));
+            auto [sent] = co_await send_text(connection, std::move(response));
+            co_return boost::capy::io_result<bool>{sent, !sent};
+        }
+
         if (method->as_string() == "get_conversations")
         {
             boost::json::array conversations;
             auto const* before = params->as_object().if_contains("before");
-            if (!before)
+            if (!before || before->at("id").as_int64() >= 98)
             {
                 boost::json::object last;
                 last.emplace("conversation", 2);
@@ -207,6 +220,9 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 conversation.emplace("has_avatar", false);
                 conversation.emplace("last", std::move(last));
                 conversation.emplace("unread", 3);
+                conversation.emplace("muted", true);
+                if (before && before->at("id").as_int64() == 98) { conversation.erase("muted"); }
+                if (before && before->at("id").as_int64() == 99) { conversation["muted"] = "false"; }
                 conversations.push_back(std::move(conversation));
             }
             else if (before->is_object() && before->as_object().at("id").as_int64() == 2)
@@ -233,6 +249,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 conversation.emplace("has_avatar", false);
                 conversation.emplace("last", std::move(last));
                 conversation.emplace("unread", 0);
+                conversation.emplace("muted", false);
                 conversations.push_back(std::move(conversation));
             }
             else
@@ -877,7 +894,7 @@ int main()
     if (!state.wait([&] { return conversations_called; }) || conversations.size() != 1 || conversations[0].user != 2 ||
         conversations[0].username != "bob" || conversations[0].last.id != 12 || conversations[0].last.from != 2 ||
         conversations[0].last.timestamp != 1700000000000LL || conversations[0].last.text != "hello" ||
-        conversations[0].unread != 3)
+        conversations[0].unread != 3 || !conversations[0].muted)
     {
         std::cerr << "FAIL client conversations\n";
         return 1;
@@ -898,7 +915,7 @@ int main()
         state.condition.notify_all();
     });
     if (!state.wait([&] { return conversation_cursor_called; }) || older_conversations.size() != 1 ||
-        older_conversations[0].user != 3 || older_conversations[0].last.id != 6)
+        older_conversations[0].user != 3 || older_conversations[0].last.id != 6 || older_conversations[0].muted)
     {
         std::cerr << "FAIL client conversation cursor\n";
         return 1;
@@ -959,6 +976,24 @@ int main()
         if (future.wait_for(5s) != std::future_status::ready) { std::abort(); }
         return future.get();
     };
+    for (auto muted : {true, false})
+    {
+        auto result = avatar_call.operator()<bool>([&](auto h) { client.set_conversation_muted(2, muted, h); });
+        if (!result || *result != muted) { std::cerr << "FAIL client mute/unmute\n"; return 1; }
+    }
+    for (auto id : {97, 98, 99})
+    {
+        auto result = avatar_call.operator()<bool>([&](auto h) { client.set_conversation_muted(id, true, h); });
+        if (result || result.error().kind != chat::error_kind::protocol) { return 1; }
+    }
+    for (auto id : {98, 99})
+    {
+        auto result = avatar_call.operator()<chat::conversations_result>([&](auto h) {
+            client.get_conversations(chat::conversation_cursor{1, id}, h);
+        });
+        if (result || result.error().kind != chat::error_kind::protocol) { return 1; }
+    }
+    std::cout << "PASS client mute metadata, explicit setting and malformed protocol validation\n";
     auto avatar_bytes = std::string(40000, 'x');
     auto uploaded = avatar_call.operator()<chat::avatar_state>([&](auto h) { client.set_avatar(avatar_bytes, h); });
     auto downloaded = avatar_call.operator()<chat::avatar>([&](auto h) { client.get_avatar(1, 1, h); });

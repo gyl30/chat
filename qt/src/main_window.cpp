@@ -153,6 +153,16 @@ main_window::main_window(QString server_url, QWidget* parent)
         }
     });
     connect(chat_page_, &chat_widget::read_requested, client_.get(), &client_bridge::mark_read);
+    connect(chat_page_, &chat_widget::mute_requested, client_.get(), &client_bridge::set_conversation_muted);
+    connect(client_.get(), &client_bridge::mute_finished, this, [this](qint64 conversation, bool muted, QString error) {
+        if (!error.isEmpty())
+        {
+            chat_page_->set_error(std::move(error));
+            return;
+        }
+        chat_page_->set_conversation_muted(conversation, muted);
+        client_->get_conversations();
+    });
 
     connect(&chat_page_->avatars(), &avatar_cache::requested, client_.get(), &client_bridge::get_avatar);
     connect(client_.get(), &client_bridge::avatar_changed, &chat_page_->avatars(), &avatar_cache::observe);
@@ -411,7 +421,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                     if (chat_page_->conversation(message.conversation)) { notify_message(message); }
                 }
             },
-            Qt::QueuedConnection);
+            Qt::AutoConnection);
 
     connect(client_.get(), &client_bridge::contacts_received, this,
             [this](QList<user_data> contacts, QString const& error_message) {
@@ -782,6 +792,7 @@ void main_window::notify_message(message_data const& message)
         pending_notifications_.push_back(message);
         return;
     }
+    if (conversation->muted) { return; }
     auto const title = conversation->group
         ? QStringLiteral("%1 · %2").arg(conversation->username.left(80), message.username.left(80))
         : message.username.left(80);

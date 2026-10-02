@@ -24,6 +24,7 @@
 | `aa8a459` | 搜索消息未加载成员身份时保持双勾，避免误显示已读人数 | 无 |
 | `09a511e` | 单聊和群聊有限表情回应、持久化、实时与重连 | SQL 016 |
 | `a6b1a31` | 图片气泡、完整附件传输、缓存及点击预览 | 无 |
+| `3001ed5` | 桌面消息通知、实际阅读判定及窗口恢复 | 无 |
 
 另外完成历史大响应接收、编辑消息布局和消息操作按钮对比度修复，分别见 `32f3f3b`、`a545c9a`、`f73b8f4`。
 
@@ -31,7 +32,7 @@
 
 - `users` 保存账号、最后在线时间和单调递增的 `avatar_revision`；`contacts` 是单向关系。`user_avatars` 保存一个当前头像，是否存在由数据行决定；不与消息附件共表。
 - `conversations.kind` 显式区分 `direct/group`；单聊使用真实的两端 user ID，群使用会话 ID、群名和 `owner_id`。
-- `conversation_members` 表示当前成员，持有 `is_admin`、`last_read_message_id` 和 `joined_message_id`。群主必须是群成员，由延迟外键保证；管理员上限在同一会话锁事务内检查。
+- `conversation_members` 表示当前成员，持有 `is_admin`、`last_read_message_id`、`joined_message_id` 和个人 `muted`。群主必须是群成员，由延迟外键保证；管理员上限在同一会话锁事务内检查。
 - `messages` 指向会话和真实作者，包含回复 ID、编辑时间、删除占位；`message_attachments` 保存附件元数据和内容。删除附件消息会清除文件内容。SQL 016 增加独立 `message_reactions` 和消息的单调 `reaction_revision`，每用户每消息一条回应，删除消息时清除回应。
 - SQL 008 保留旧单聊、自聊、消息、联系人和阅读位置；SQL 009–014 渐进增加上述能力。SQL 013 应用前已确认本次数据库没有既存群，不猜测旧群创建者，也不删除旧消息。
 - 新建或重新加入的成员能读取完整历史。邀请取得会话锁后读取最新消息 ID 作为加入水位；实际阅读仍从 0 开始，仅由 `mark_read` 推进。未读统计使用 `id > greatest(last_read_message_id, joined_message_id)`，排除删除消息及群成员自己的消息。
@@ -43,7 +44,8 @@
 | RPC | 主要参数或结果 |
 |---|---|
 | `open_direct_conversation` / `create_group` | 真实用户 / 群名及联系人 ID 列表；返回会话 ID |
-| `get_conversations` | 活动时间和会话 ID cursor；会话类型、人数、最新消息、独立未读 |
+| `get_conversations` | 活动时间和会话 ID cursor；会话类型、人数、最新消息、独立未读和个人 muted |
+| `set_conversation_muted` | `conversation, muted`；只修改当前成员自己的偏好，返回当前 muted |
 | `get_messages` | 会话及互斥的 `before/after` 消息 ID；消息、当前成员实际阅读位置、`has_more` |
 | `mark_read` | 会话和真实消息 ID；阅读位置只增不减 |
 | `get_members` | `members: [{id, username, role}]`，角色为 `owner/admin/member` |
@@ -82,7 +84,7 @@ git diff --check
 
 ## 保持的边界与后续可选路线
 
-当前尚未实现入群审批、邀请链接、@mention、公告、mute 或 pin。群主必须先手动转让再退出；群主/管理员没有编辑、删除他人消息的权限。退出或被移除者本地活动历史清空；服务端仍保留群消息，重新加入可重新获取。移除不等于永久封禁，重新邀请恢复普通成员，旧管理员身份和真实读位不继承。
+当前尚未实现入群审批、邀请链接、@mention、公告或 pin。群主必须先手动转让再退出；群主/管理员没有编辑、删除他人消息的权限。退出或被移除者本地活动历史清空；服务端仍保留群消息，重新加入可重新获取。移除不等于永久封禁，重新邀请恢复普通成员，旧管理员身份和真实读位不继承。
 
 2026-10-02 启动新的长期路线：验证基线、群已读详情、reaction、图片气泡预览、桌面通知、会话 mute/pin、群 mention、群置顶消息、公告、邀请链接和审批，依序独立实施。此列表表示规划，尚未实现的阶段不计入已完成能力。范围仍不扩大到多设备、微服务、Redis、Kafka、event sourcing 或 CQRS。
 
@@ -271,3 +273,25 @@ Qt 回归覆盖排队上限、去重、失败和损坏图片 fallback、迟到�
 | UBSan `build/ubsan` | PASS | 14/14 PASS | 62.78 s |
 
 未使用 suppression 或测试排除，`git diff --check` PASS。下一阶段为服务端持久化的个人会话 mute；本次没有提前加入通知偏好或其他产品功能。
+
+## 长期路线：个人会话免打扰
+
+从重新 fetch 后的 `3001ed5`、干净工作树开始。SQL 017 给 `conversation_members` 无损增加 `muted BOOLEAN NOT NULL DEFAULT false`，既有单聊和群成员默认未静音。偏好属于本人当前 membership；退出或被移除后失效，重新加入从 false 开始。不新增偏好表、计时、通知等级或多设备同步。
+
+`set_conversation_muted {conversation,muted}` 明确设置 true/false，返回 `{muted}`；重复设置幂等，缺失、null、错误类型、未知字段、未认证或非成员请求拒绝。同一 conversation 行锁后重新更新本人 membership，与 send/remove/invite 等现有路径串行化；事务错误关闭连接，权限失败回滚，不遗留不可复用事务。个人设置通过本人 RPC 确认，不向其他成员广播；重新登录和重连从 `get_conversations.muted` 恢复。
+
+静音只抑制桌面通知；服务器实时消息、typing、实际阅读、历史、搜索、未读与活动时间均保持现有行为。SDK 严格解析 bool，Qt 会话列表右键提供“静音/取消静音”，标题旁显示轻量“静音”文字。确认结果更新现有模型并刷新权威列表，同时使较早的列表请求失效；不添加本地 pending mute、影子偏好或额外 generation。通知直接检查同一模型，未知会话仍先获取权威资料。
+
+独立审查没有发现权限或事务问题，补充单聊断线重新登录验证。真实 UI 回归另外复现了菜单打开后实时消息重置会话列表，旧 persistent index 使操作丢失；菜单现保存稳定会话 ID 和明确目标 bool，触发时复核当前会话仍存在。该回归修复前失败，修复后与完整验证一起执行，不模拟列表数据。
+
+回归覆盖 SQL 016→017 及已有成员默认值；SDK metadata、错误响应和显式设置；服务端未认证、参数、权限、幂等、个人隔离、未读保持、单聊重新登录、群重连、remove/reinvite 默认值及真实会话锁竞争；Qt model/delegate、三个真实窗口中的单聊/群聊通知抑制、实时消息和未读、取消静音恢复、菜单刷新竞争及旧连接回调。没有新增测试框架或跳过原有行为断言。
+
+最终执行 `tests/verify.sh`，所有构建启用 Qt、Debug、`-j12`，继承 libpq 环境：
+
+| 构建 | 完整 build | 完整 CTest | 总耗时 |
+|---|---|---|---|
+| 正常 `build` | PASS | 14/14 PASS | 53.02 s |
+| ASan `build/asan` | PASS | 14/14 PASS | 69.83 s |
+| UBSan `build/ubsan` | PASS | 14/14 PASS | 67.21 s |
+
+未使用 suppression 或测试排除；`git diff --check` PASS。静音标识及正常未读截图已检查。历史滚动回归先等待前一条消息的异步滚动和服务端阅读确认，再模拟查看历史，保持通知、位置和真实读位断言。无调试打印、临时 schema 或未使用状态。下一阶段为服务端个人会话 pin 和正确的 cursor 排序。

@@ -598,7 +598,7 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         std::cout << "PASS registration duplicate\n";
 
         for (auto const* method : {"begin_avatar_upload", "upload_avatar_chunk", "finish_avatar_upload",
-                                    "cancel_avatar_upload", "get_avatar", "clear_avatar", "set_message_reaction"})
+                                    "cancel_avatar_upload", "get_avatar", "clear_avatar", "set_message_reaction", "set_conversation_muted"})
         {
             auto [write_ec] = co_await send_websocket_text(socket,
                 std::string("{\"jsonrpc\":\"2.0\",\"method\":\"") + method + "\",\"params\":{},\"id\":\"avatar-auth\"}");
@@ -1620,6 +1620,20 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return std::move(reply);
     };
     auto attachment_begin = "{\"conversation\":" + direct_conversation + ",\"filename\":\"probe.bin\",\"size\":3}";
+    for (auto const& params : {
+        "{\"conversation\":" + direct_conversation + "}",
+        "{\"conversation\":" + direct_conversation + ",\"muted\":null}",
+        "{\"conversation\":" + direct_conversation + ",\"muted\":\"true\"}",
+        "{\"conversation\":" + direct_conversation + ",\"muted\":true,\"user\":1}",
+        std::string("{\"conversation\":0,\"muted\":false}")})
+    {
+        auto reply = co_await peer_rpc("set_conversation_muted", params);
+        if (!json_matches(reply, R"({"error":{"code":-32602}})"))
+        {
+            std::cerr << "FAIL mute params: " << reply << '\n';
+            co_return 1;
+        }
+    }
     for (auto const& params : {
         std::string("{\"conversation\":") + direct_conversation + ",\"message\":1}",
         std::string("{\"conversation\":") + direct_conversation + ",\"message\":1,\"emoji\":null}",

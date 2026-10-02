@@ -225,6 +225,7 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
             value.last_timestamp = item.last.timestamp;
             value.last_text = item.last.deleted ? QStringLiteral("消息已删除") : from_utf8(item.last.text);
             value.unread = item.unread;
+            value.muted = item.muted;
                         bool found = false;
                         for (auto const& existing : conversations)
                         {
@@ -250,6 +251,18 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
                 },
                 Qt::QueuedConnection);
         });
+}
+
+void client_bridge::set_conversation_muted(qint64 conversation, bool muted)
+{
+    auto const generation = connection_generation_.load();
+    client_->set_conversation_muted(conversation, muted, [this, conversation, generation](auto result) {
+        QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
+            if (generation != connection_generation_) { return; }
+            if (result) { ++conversations_generation_; }
+            emit mute_finished(conversation, result ? *result : false, result ? QString{} : from_utf8(result.error().message));
+        }, Qt::QueuedConnection);
+    });
 }
 
 void client_bridge::open_direct_conversation(qint64 user, QString username)

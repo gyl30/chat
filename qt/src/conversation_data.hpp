@@ -21,6 +21,7 @@ struct conversation_data
     bool online = false;
     quint64 member_count = 0;
     chat::avatar_state avatar;
+    bool muted = false;
 };
 
 Q_DECLARE_METATYPE(conversation_data)

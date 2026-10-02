@@ -235,6 +235,14 @@ int main(int argc, char** argv)
         if (rendered.pixelColor(chat_theme::dialog_left + chat_theme::dialog_avatar_size / 2,
                                 chat_theme::dialog_avatar_top + chat_theme::dialog_avatar_size / 2) != green) { return 1; }
     }
+    auto const unmuted_rendering = rendered;
+    conversations.set_muted(direct.id, true);
+    rendered.fill(Qt::white);
+    QPainter muted_painter(&rendered);
+    conversation_painter.paint(&muted_painter, option, conversations.index(0, 0));
+    muted_painter.end();
+    if (rendered == unmuted_rendering) { std::cerr << "FAIL conversation mute indicator\n"; return 1; }
+    conversations.set_muted(direct.id, false);
     // Keep the edited-message rendering assertion on its original image.
     rendered.fill(QColor(QStringLiteral("#F7F5EF")));
     QPainter message_painter(&rendered);

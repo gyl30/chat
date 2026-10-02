@@ -37,6 +37,7 @@ class client_bridge final : public QObject
     void authenticate(QString const& username, QString const& password);
     void register_user(QString const& username, QString const& password);
     void get_conversations();
+    void set_conversation_muted(qint64 conversation, bool muted);
     void open_direct_conversation(qint64 user, QString username);
     void create_group(QString title, QList<qint64> members);
     void get_members(qint64 conversation);
@@ -76,6 +77,7 @@ class client_bridge final : public QObject
     void authentication_finished(bool authenticated, qint64 user, QString error_message, bool retryable_error, chat::avatar_state avatar);
     void registration_finished(qint64 user, QString error_message);
     void conversations_received(QList<conversation_data> conversations, QString error_message);
+    void mute_finished(qint64 conversation, bool muted, QString error_message);
     void contacts_received(QList<user_data> contacts, QString error_message);
     void presences_received(QList<presence_data> users, QString error_message);
     void presence_changed(presence_data user);

@@ -96,7 +96,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
         auto query_result = co_await lease.connection().execute_scalar(
             R"SQL(
         WITH page AS (
-            SELECT c.*, own.last_read_message_id, own.joined_message_id,
+            SELECT c.*, own.last_read_message_id, own.joined_message_id, own.muted,
                    CASE WHEN c.direct_user_low=$1::bigint THEN c.direct_user_high ELSE c.direct_user_low END AS peer
             FROM conversations c JOIN conversation_members own ON own.conversation_id=c.id
             WHERE own.user_id=$1::bigint AND (c.activity,c.id)<($2::bigint,$3::bigint)
@@ -107,7 +107,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
             'conversations',COALESCE((SELECT json_agg(json_build_object(
                 'id',c.id,'kind',c.kind,'user',c.peer,'username',COALESCE(c.title,u.username),
                 'avatar_revision',COALESCE(u.avatar_revision,0),'has_avatar',EXISTS(SELECT 1 FROM user_avatars WHERE user_id=u.id),
-                'activity',c.activity,'member_count',(SELECT count(*) FROM conversation_members WHERE conversation_id=c.id),
+                'activity',c.activity,'muted',c.muted,'member_count',(SELECT count(*) FROM conversation_members WHERE conversation_id=c.id),
                 'last',(SELECT json_build_object('id',m.id,'conversation',m.conversation_id,'from',m.sender_id,
                       'avatar_revision',author.avatar_revision,'has_avatar',EXISTS(SELECT 1 FROM user_avatars WHERE user_id=author.id),
                       'reaction_revision',m.reaction_revision,'reactions',(SELECT coalesce(json_agg(json_build_object('emoji',emoji,'users',users) ORDER BY emoji),'[]'::json)

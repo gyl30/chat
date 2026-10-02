@@ -189,6 +189,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     conversations_view_->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     conversations_view_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     conversations_view_->setMouseTracking(true);
+    conversations_view_->setContextMenuPolicy(Qt::CustomContextMenu);
     conversations_view_->verticalScrollBar()->setSingleStep(24);
     conversations_layout->addWidget(conversations_view_, 1);
     sidebar_pages_->addWidget(conversations_page);
@@ -541,6 +542,21 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     connect(add_user_search_, &QLineEdit::returnPressed, this, [this] { search_users(); });
     connect(add_users_view_, &QListView::clicked, this, [this](QModelIndex const& index) { select_add_user(index); });
     connect(conversations_view_, &QListView::clicked, this, [this](QModelIndex const& index) { select_conversation(index); });
+    connect(conversations_view_, &QWidget::customContextMenuRequested, this, [this](QPoint point) {
+        auto const* item = conversations_->conversation_at(conversations_view_->indexAt(point));
+        if (!connection_available_ || !item) { return; }
+        auto const conversation = item->id;
+        auto const muted = !item->muted;
+        QMenu menu(this);
+        menu.addAction(muted ? QStringLiteral("静音") : QStringLiteral("取消静音"),
+            [this, conversation, muted] {
+                if (connection_available_ && conversations_->index_for_conversation(conversation).isValid())
+                {
+                    emit mute_requested(conversation, muted);
+                }
+            });
+        menu.exec(conversations_view_->viewport()->mapToGlobal(point));
+    });
     connect(conversations_delegate, &conversation_delegate::avatar_clicked, this, [this](QModelIndex const& index) {
         if (auto const* item = conversations_->conversation_at(index))
         {
@@ -1364,6 +1380,11 @@ std::optional<conversation_data> chat_widget::conversation(qint64 id) const
 {
     if (auto const* item = conversations_->conversation_at(conversations_->index_for_conversation(id))) { return *item; }
     return std::nullopt;
+}
+
+void chat_widget::set_conversation_muted(qint64 conversation, bool muted)
+{
+    conversations_->set_muted(conversation, muted);
 }
 
 void chat_widget::create_group()

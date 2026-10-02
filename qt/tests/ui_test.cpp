@@ -94,11 +94,13 @@ int main(int argc, char** argv)
             QObject::connect(&bridge, &client_bridge::reaction_changed, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::message_image_received, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::read_marked, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::mute_finished, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::error, &bridge, [&](auto) { failed_connect.set_value(); }, Qt::DirectConnection);
             bridge.send_attachment(1, "stale.bin", "old upload");
             bridge.get_attachment(1, 1);
             bridge.get_message_image(1, 1);
             bridge.mark_read(1, 1);
+            bridge.set_conversation_muted(1, true);
             bridge.search_messages(1, "old search");
             bridge.set_message_reaction(1, 1, QStringLiteral("👍"));
             QObject::connect(&bridge, &client_bridge::avatar_received, &bridge, [&](auto...) { ++stale_results; });
@@ -171,6 +173,45 @@ int main(int argc, char** argv)
                 windows[actor]->activateWindow();
                 wait([&] { return windows[actor]->isActiveWindow(); });
                 QApplication::processEvents();
+            };
+            auto set_mute = [&](int actor, qint64 conversation, bool muted, bool refresh = false) {
+                for (auto* button : windows[actor]->findChildren<QToolButton*>())
+                {
+                    if (button->text() == QStringLiteral("聊天")) { button->click(); }
+                }
+                auto* view = windows[actor]->findChild<QListView*>("conversationList");
+                wait([&] { return view->isVisible(); });
+                QModelIndex index;
+                wait([&] {
+                    for (int row = 0; row < view->model()->rowCount(); ++row)
+                    {
+                        auto const item = view->model()->index(row, 0);
+                        if (item.data(conversation_model::id_role).toLongLong() == conversation) { index = item; return true; }
+                    }
+                    return false;
+                });
+                check(index.data(conversation_model::muted_role).toBool() != muted, "Mute menu starts from authoritative state");
+                QTimer::singleShot(20, [&, actor, conversation, muted, refresh] {
+                    auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+                    check(menu, "Conversation mute menu");
+                    auto const label = muted ? QStringLiteral("静音") : QStringLiteral("取消静音");
+                    QAction* selected = nullptr;
+                    for (auto* action : menu->actions()) { if (action->text() == label) { selected = action; } }
+                    check(selected, "Conversation mute action");
+                    if (refresh)
+                    {
+                        int resets = 0;
+                        auto const capture = QObject::connect(view->model(), &QAbstractItemModel::modelReset, menu, [&] { ++resets; });
+                        pages[0]->send_message_requested(conversation, QStringLiteral("静音菜单打开时的列表刷新"), 0);
+                        wait([&] { return resets > 0 && pages[actor]->conversation(conversation)->last_text == QStringLiteral("静音菜单打开时的列表刷新"); });
+                        QObject::disconnect(capture);
+                    }
+                    menu->setActiveAction(selected);
+                    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+                    QApplication::sendEvent(menu, &enter);
+                });
+                view->customContextMenuRequested(view->visualRect(index).center());
+                wait([&] { auto const value = pages[actor]->conversation(conversation); return value && value->muted == muted; });
             };
             QToolButton* create = nullptr;
             for (auto* b : windows[0]->findChildren<QToolButton*>())
@@ -668,6 +709,7 @@ int main(int argc, char** argv)
             windows[0]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_smoke.png");
             type_character(1);
             wait([&] { return group_typing->isVisible(); });
+            set_mute(2, group, true);
             server.terminate();
             check(server.waitForFinished(3000), "Stop server");
             wait([&] { return !windows[0]->findChild<QToolButton*>("sendButton")->isEnabled(); });
@@ -713,6 +755,9 @@ int main(int argc, char** argv)
                 check(pages[i]->avatars().state(ids[0]) == chat::avatar_state{1, true} &&
                     pages[i]->avatars().image(ids[0]).toImage().pixelColor(0, 0) == avatar_color, "Reconnect preserves matching avatar cache");
             }
+            wait([&] { return pages[2]->conversation(group) && pages[2]->conversation(group)->muted; });
+            check(!pages[0]->conversation(group)->muted && !pages[1]->conversation(group)->muted,
+                "Reconnect restores private mute only for the selecting user");
             for (int i = 0; i < 3; ++i)
             {
                 auto* view = windows[i]->findChild<QListView*>("messageList");
@@ -736,11 +781,16 @@ int main(int argc, char** argv)
             check(notifications[0].size() + notifications[1].size() + notifications[2].size() == notices_before_reconnect,
                 "History, edits, deletion and reaction recovery produce no ordinary notification");
             activate(0);
+            auto const muted_group_notices = notifications[2].size();
             windows[1]->findChild<QToolButton*>("sendButton")->click();
             for (int i = 0; i < 3; ++i)
             {
                 wait([&, i] { return windows[i]->findChild<QListView*>("messageList")->model()->rowCount() == 4; });
             }
+            wait([&] { return pages[2]->conversation(group)->last_id == pages[2]->latest_message_id(); });
+            check(notifications[2].size() == muted_group_notices && pages[2]->conversation(group)->unread > 0,
+                "Muted group still receives realtime messages and unread without desktop notification");
+            set_mute(2, group, false);
             activate(2);
             activate(0);
             for (int i = 0; i < 3; ++i)
@@ -1385,7 +1435,17 @@ int main(int argc, char** argv)
                 std::ranges::any_of(notifications[2], [](auto const& value) { return value.summary == QStringLiteral("文件：removal.bin"); }),
                 "Image and ordinary file notifications use compact summaries");
             activate(1);
+            set_mute(1, direct, true, true);
             auto const other_conversation_notices = notifications[1].size();
+            activate(0);
+            pages[0]->send_message_requested(direct, QStringLiteral("静音单聊仍实时到达"), 0);
+            wait([&] { return pages[1]->conversation(direct)->last_text == QStringLiteral("静音单聊仍实时到达") &&
+                pages[1]->conversation(direct)->unread > 0; });
+            check(notifications[1].size() == other_conversation_notices && !pages[0]->conversation(direct)->muted,
+                "Personal direct mute preserves realtime activity and unread");
+            windows[1]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_conversation_mute.png");
+            set_mute(1, direct, false);
+            activate(1);
             pages[0]->send_message_requested(direct, QStringLiteral("前台查看其他会话"), 0);
             wait([&] { return notifications[1].size() == other_conversation_notices + 1; });
             check(notifications[1].back().conversation == direct && notifications[1].back().title == names[0],
@@ -1414,9 +1474,13 @@ int main(int argc, char** argv)
             auto const long_message = QStringLiteral("history line\n").repeated(60);
             pages[0]->send_message_requested(direct, long_message, 0);
             auto* direct_messages = windows[1]->findChild<QListView*>("messageList");
+            auto* read_model = dynamic_cast<message_model*>(direct_messages->model());
+            check(read_model, "Real conversation message model");
             wait([&] {
                 return direct_messages->model()->index(direct_messages->model()->rowCount() - 1, 0).data(message_model::text_role).toString() == long_message &&
-                    direct_messages->verticalScrollBar()->maximum() > 200;
+                    direct_messages->verticalScrollBar()->maximum() > 200 &&
+                    direct_messages->verticalScrollBar()->value() == direct_messages->verticalScrollBar()->maximum() &&
+                    read_model->read_position(ids[1]) >= pages[1]->latest_message_id();
             });
             check(notifications[1].size() == foreground_notices, "Foreground latest view has no extra notification");
             auto* direct_scroll = direct_messages->verticalScrollBar();
@@ -1443,8 +1507,6 @@ int main(int argc, char** argv)
                 PQclear(read);
                 return seen;
             });
-            auto* read_model = dynamic_cast<message_model*>(direct_messages->model());
-            check(read_model, "Real conversation message model");
             wait([&] { return read_model->read_position(ids[1]) >= notified_message; });
             int redundant_reads = 0;
             auto const read_capture = QObject::connect(pages[1], &chat_widget::read_requested, windows[1].get(),

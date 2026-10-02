@@ -66,6 +66,7 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     auto const unread = index.data(conversation_model::unread_role).toULongLong();
     auto const group = index.data(conversation_model::group_role).toBool();
     auto const online = index.data(conversation_model::online_role).toBool();
+    auto const muted = index.data(conversation_model::muted_role).toBool();
 
     QRect avatar_rect(rect.left() + chat_theme::dialog_left, rect.top() + chat_theme::dialog_avatar_top,
                       chat_theme::dialog_avatar_size, chat_theme::dialog_avatar_size);
@@ -98,7 +99,19 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     username_font.setPixelSize(14);
     painter->setFont(username_font);
     painter->setPen(QColor(QStringLiteral("#25332D")));
-    auto const name_right = content_right - (date_width > 0 ? date_width + 8 : 0);
+    auto name_right = content_right - (date_width > 0 ? date_width + 8 : 0);
+    if (muted)
+    {
+        auto const label = QStringLiteral("静音");
+        painter->setFont(date_font);
+        painter->setPen(QColor(QStringLiteral("#8C948F")));
+        auto const label_width = QFontMetrics(date_font).horizontalAdvance(label);
+        painter->drawText(QRect(name_right - label_width, rect.top() + chat_theme::dialog_name_top,
+                                label_width, QFontMetrics(date_font).height()), Qt::AlignVCenter, label);
+        name_right -= label_width + 8;
+        painter->setFont(username_font);
+        painter->setPen(QColor(QStringLiteral("#25332D")));
+    }
     QRect username_rect(content_left, rect.top() + chat_theme::dialog_name_top,
                         std::max(0, name_right - content_left), QFontMetrics(username_font).height());
     painter->drawText(username_rect, Qt::AlignLeft | Qt::AlignVCenter,

@@ -32,6 +32,7 @@ class chat_session
     boost::capy::task<simdjson::error_code> handle_echo(json_rpc_request& request, std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_get_conversations(json_rpc_request& request, std::string& response);
+    boost::capy::task<simdjson::error_code> handle_conversation_mute(json_rpc_request& request, std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_get_contacts(json_rpc_request& request, std::string& response);
 

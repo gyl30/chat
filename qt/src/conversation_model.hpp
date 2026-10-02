@@ -21,6 +21,7 @@ class conversation_model final : public QAbstractListModel
         last_timestamp_role,
         unread_role,
         online_role,
+        muted_role,
     };
 
     explicit conversation_model(QObject* parent = nullptr, avatar_cache* avatars = nullptr);
@@ -30,6 +31,7 @@ class conversation_model final : public QAbstractListModel
 
     void set_conversations(QList<conversation_data> conversations);
     void set_online(qint64 user, bool online);
+    void set_muted(qint64 conversation, bool muted);
     conversation_data const* conversation_at(QModelIndex const& index) const;
      QModelIndex index_for_conversation(qint64 conversation) const;
 
