@@ -511,10 +511,24 @@ main_window::main_window(QString server_url, QWidget* parent)
             [this](qint64 conversation, qint64 self_user, QString title) {
                 auto const snapshot = chat_page_->conversation(conversation);
                 if (!snapshot || !snapshot->group) { return; }
-                group_dialog dialog(conversation, self_user, title, snapshot->announcement, this, &chat_page_->avatars());
+                group_dialog dialog(conversation, self_user, title, snapshot->announcement, snapshot->join_approval, this, &chat_page_->avatars());
                 connect(client_.get(), &client_bridge::members_received, &dialog, &group_dialog::set_members);
                 connect(client_.get(), &client_bridge::group_action_finished, &dialog, &group_dialog::finish_action);
                 connect(client_.get(), &client_bridge::group_invite_received, &dialog, &group_dialog::set_invite);
+                connect(client_.get(), &client_bridge::group_join_requests_received, &dialog, &group_dialog::set_requests);
+                connect(&dialog, &group_dialog::approval_requested, &dialog, [this, conversation](bool required) {
+                    client_->set_group_join_approval(conversation, required);
+                });
+                connect(&dialog, &group_dialog::requests_requested, &dialog, [this, conversation](qint64 before) {
+                    client_->get_group_join_requests(conversation, before);
+                });
+                connect(&dialog, &group_dialog::request_response_requested, &dialog, [this, conversation](qint64 user, bool accept) {
+                    client_->respond_group_join_request(conversation, user, accept);
+                });
+                connect(client_.get(), &client_bridge::group_join_request_changed, &dialog,
+                    [&dialog, conversation](qint64 id, qint64, chat::group_join_request_state) {
+                        if (id == conversation) { dialog.refresh_requests(); }
+                    });
                 connect(&dialog, &group_dialog::invite_link_requested, &dialog, [this, conversation](std::optional<bool> create) {
                     client_->group_invite(conversation, create);
                 });
@@ -588,6 +602,20 @@ main_window::main_window(QString server_url, QWidget* parent)
             }
             chat_page_->open_conversation(std::move(conversation));
             client_->get_conversations();
+        });
+    connect(client_.get(), &client_bridge::group_join_pending, this, [this](QString const& title) {
+        chat_page_->set_error(QStringLiteral("已申请加入 %1，等待管理员处理。").arg(title));
+    });
+    connect(client_.get(), &client_bridge::group_join_request_changed, this,
+        [this](qint64, qint64 user, chat::group_join_request_state state) {
+            if (user == chat_page_->self_user())
+            {
+                if (state == chat::group_join_request_state::accepted) { client_->get_conversations(); }
+                chat_page_->set_error(state == chat::group_join_request_state::accepted ? QStringLiteral("入群申请已通过。") :
+                    state == chat::group_join_request_state::rejected ? QStringLiteral("入群申请被拒绝。") : QStringLiteral("入群申请已提交。"));
+            }
+            else if (state == chat::group_join_request_state::pending)
+            { chat_page_->set_error(QStringLiteral("收到新的入群申请，可在群资料中处理。")); }
         });
     connect(client_.get(), &client_bridge::group_action_finished, this,
             [this](qint64 conversation, bool left, QString const& error) {

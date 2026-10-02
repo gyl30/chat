@@ -47,6 +47,8 @@ class client
     using group_action_handler = std::function<void(std::expected<bool, error>)>;
     using group_invite_handler = std::function<void(std::expected<std::optional<std::string>, error>)>;
     using group_join_handler = std::function<void(std::expected<group_join_result, error>)>;
+    using group_join_requests_handler = std::function<void(std::expected<group_join_requests_result, error>)>;
+    using group_join_request_handler = std::function<void(group_join_request_event)>;
     using user_handler = std::function<void(std::expected<user, error>)>;
     using remove_contact_handler = std::function<void(std::expected<bool, error>)>;
     using mark_read_handler = std::function<void(std::expected<std::int64_t, error>)>;
@@ -82,6 +84,7 @@ class client
     void set_conversation_handler(conversation_changed_handler handler);
     void set_avatar_handler(avatar_changed_handler handler);
     void set_reaction_handler(reaction_handler handler);
+    void set_group_join_request_handler(group_join_request_handler handler);
 
     void connect(std::string url);
     void close();
@@ -103,6 +106,9 @@ class client
     void create_group_invite(std::int64_t conversation, group_invite_handler handler);
     void revoke_group_invite(std::int64_t conversation, group_invite_handler handler);
     void join_group(std::string token, group_join_handler handler);
+    void set_group_join_approval(std::int64_t conversation, bool required, group_action_handler handler);
+    void get_group_join_requests(std::int64_t conversation, std::optional<std::int64_t> before, group_join_requests_handler handler);
+    void respond_group_join_request(std::int64_t conversation, std::int64_t user, bool accept, group_action_handler handler);
     void invite_group_members(std::int64_t conversation, std::vector<std::int64_t> members, group_action_handler handler);
     void leave_group(std::int64_t conversation, group_action_handler handler);
     void pin_group_message(std::int64_t conversation, std::int64_t message, group_action_handler handler);

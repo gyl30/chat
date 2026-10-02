@@ -12,10 +12,13 @@
 #include <QVBoxLayout>
 #include <QClipboard>
 #include <QGuiApplication>
+#include <QCheckBox>
+#include <QTabWidget>
+#include <QSignalBlocker>
 
 #include <algorithm>
 
-group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const& title, QString const& announcement,
+group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const& title, QString const& announcement, bool join_approval,
                            QWidget* parent, avatar_cache* avatars)
     : QDialog(parent), avatars_(avatars), conversation_(conversation), self_user_(self_user), title_(title),
       announcement_(announcement)
@@ -53,7 +56,11 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     invite_controls_ = new QWidget(this);
     auto* invite_layout = new QVBoxLayout(invite_controls_);
     invite_layout->setContentsMargins(0, 0, 0, 0);
-    invite_layout->addWidget(new QLabel(QStringLiteral("邀请链接 · 持有链接的已登录用户可以加入"), invite_controls_));
+    invite_layout->addWidget(new QLabel(QStringLiteral("邀请链接"), invite_controls_));
+    approval_ = new QCheckBox(QStringLiteral("通过邀请链接加入需要审批"), invite_controls_);
+    approval_->setObjectName(QStringLiteral("groupJoinApprovalCheck"));
+    approval_->setChecked(join_approval);
+    invite_layout->addWidget(approval_);
     invite_edit_ = new QLineEdit(invite_controls_);
     invite_edit_->setObjectName(QStringLiteral("groupInviteLinkEdit"));
     invite_edit_->setReadOnly(true);
@@ -73,6 +80,36 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     }
     invite_layout->addLayout(invite_row);
     layout->addWidget(invite_controls_);
+    tabs_ = new QTabWidget(this);
+    tabs_->setObjectName(QStringLiteral("groupTabs"));
+    auto* members_page = new QWidget(tabs_);
+    auto* members_layout = new QVBoxLayout(members_page);
+    members_layout->setContentsMargins(0, 0, 0, 0);
+    tabs_->addTab(members_page, QStringLiteral("成员"));
+    auto* requests_page = new QWidget(tabs_);
+    auto* requests_layout = new QVBoxLayout(requests_page);
+    requests_layout->setContentsMargins(0, 0, 0, 0);
+    requests_ = new QListWidget(requests_page);
+    requests_->setObjectName(QStringLiteral("groupJoinRequestsList"));
+    requests_->setIconSize(QSize(32, 32));
+    requests_layout->addWidget(requests_, 1);
+    auto* decisions = new QHBoxLayout;
+    accept_request_button_ = new QPushButton(QStringLiteral("通过申请"), requests_page);
+    accept_request_button_->setObjectName(QStringLiteral("groupAcceptRequestButton"));
+    reject_request_button_ = new QPushButton(QStringLiteral("拒绝申请"), requests_page);
+    reject_request_button_->setObjectName(QStringLiteral("groupRejectRequestButton"));
+    for (auto* button : {accept_request_button_, reject_request_button_})
+    {
+        button->setAutoDefault(false);
+        decisions->addWidget(button);
+    }
+    requests_layout->addLayout(decisions);
+    more_requests_button_ = new QPushButton(QStringLiteral("加载更多申请"), requests_page);
+    more_requests_button_->setObjectName(QStringLiteral("groupMoreRequestsButton"));
+    more_requests_button_->setAutoDefault(false);
+    requests_layout->addWidget(more_requests_button_);
+    tabs_->addTab(requests_page, QStringLiteral("入群申请"));
+    layout->addWidget(tabs_, 1);
     list_ = new QListWidget(this);
     list_->setObjectName(QStringLiteral("groupMembersList"));
     list_->setIconSize(QSize(32, 32));
@@ -87,9 +124,14 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
                     list_->item(row)->setIcon(avatar_icon(members_[row].username, 32, avatars_->image(user)));
                 }
             }
+            for (int row = 0; row < requests_->count(); ++row)
+            {
+                auto* item = requests_->item(row);
+                if (item->data(Qt::UserRole).toLongLong() == user) { item->setIcon(avatar_icon(item->text(), 32, avatars_->image(user))); }
+            }
         });
     }
-    layout->addWidget(list_, 1);
+    members_layout->addWidget(list_, 1);
     status_ = new QLabel(QStringLiteral("正在加载成员…"), this);
     status_->setObjectName(QStringLiteral("groupStatus"));
     status_->setTextFormat(Qt::PlainText);
@@ -104,7 +146,7 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     auto* roles_row = new QHBoxLayout;
     roles_row->addWidget(admin_button_);
     roles_row->addWidget(transfer_button_);
-    layout->addLayout(roles_row);
+    members_layout->addLayout(roles_row);
     remove_button_ = new QPushButton(QStringLiteral("移除成员"), this);
     remove_button_->setObjectName(QStringLiteral("groupRemoveButton"));
     remove_button_->setAutoDefault(false);
@@ -114,16 +156,40 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     auto* members_row = new QHBoxLayout;
     members_row->addWidget(remove_button_);
     members_row->addWidget(invite_button_);
-    layout->addLayout(members_row);
+    members_layout->addLayout(members_row);
     leave_button_ = new QPushButton(QStringLiteral("退出群聊"), this);
     leave_button_->setObjectName(QStringLiteral("groupLeaveButton"));
     leave_button_->setAutoDefault(false);
-    layout->addWidget(leave_button_);
+    members_layout->addWidget(leave_button_);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
     buttons->button(QDialogButtonBox::Close)->setText(QStringLiteral("关闭"));
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(list_, &QListWidget::currentRowChanged, this, [this] { update_actions(); });
+    connect(requests_, &QListWidget::currentRowChanged, this, [this] { update_actions(); });
+    connect(approval_, &QCheckBox::clicked, this, [this](bool required) {
+        approval_->setChecked(!required);
+        pending_ = true;
+        update_actions();
+        emit approval_requested(required);
+    });
+    connect(accept_request_button_, &QPushButton::clicked, this, [this] {
+        auto const user = requests_->currentItem()->data(Qt::UserRole).toLongLong();
+        pending_ = true;
+        update_actions();
+        emit request_response_requested(user, true);
+    });
+    connect(reject_request_button_, &QPushButton::clicked, this, [this] {
+        auto const user = requests_->currentItem()->data(Qt::UserRole).toLongLong();
+        pending_ = true;
+        update_actions();
+        emit request_response_requested(user, false);
+    });
+    connect(more_requests_button_, &QPushButton::clicked, this, [this] {
+        pending_ = true;
+        update_actions();
+        emit requests_requested(next_request_);
+    });
     connect(admin_button_, &QPushButton::clicked, this, [this] {
         auto const row = list_->currentRow();
         if (row < 0 || row >= members_.size() || !admin_button_->isEnabled())
@@ -280,7 +346,11 @@ void group_dialog::set_members(qint64 conversation, QList<member_data> members, 
     status_->setText(QStringLiteral("共 %1 名成员；最多 3 名管理员，群主不计入。只有群主能任免管理员。").arg(members_.size()));
     update_actions();
     auto const self = std::find_if(members_.begin(), members_.end(), [this](auto const& member) { return member.id == self_user_; });
-    if (self != members_.end() && self->role != chat::member_role::member) { emit invite_link_requested(std::nullopt); }
+    if (self != members_.end() && self->role != chat::member_role::member)
+    {
+        emit invite_link_requested(std::nullopt);
+        refresh_requests();
+    }
 }
 
 void group_dialog::finish_action(qint64 conversation, bool left, QString const& error)
@@ -339,6 +409,7 @@ void group_dialog::set_conversations(QList<conversation_data> conversations, QSt
         announcement_ = found->announcement;
         if (!modified) { announcement_edit_->setPlainText(announcement_); }
     }
+    approval_->setChecked(found->join_approval);
     update_actions();
 }
 
@@ -361,6 +432,33 @@ void group_dialog::set_invite(qint64 conversation, QString const& token, QString
     update_actions();
 }
 
+void group_dialog::set_requests(qint64 conversation, QList<user_data> users, qint64 next, bool older, QString const& error)
+{
+    if (conversation != conversation_) { return; }
+    if (older) { pending_ = false; }
+    auto const self = std::find_if(members_.begin(), members_.end(), [this](auto const& member) { return member.id == self_user_; });
+    if (self == members_.end() || self->role == chat::member_role::member) { update_actions(); return; }
+    if (!error.isEmpty()) { status_->setText(error); update_actions(); return; }
+    if (!older) { requests_->clear(); }
+    for (auto const& user : users)
+    {
+        if (avatars_) { avatars_->observe(user.id, user.avatar); }
+        auto* item = new QListWidgetItem(user.username, requests_);
+        item->setData(Qt::UserRole, user.id);
+        item->setIcon(avatar_icon(user.username, 32, avatars_ ? avatars_->image(user.id) : QPixmap{}));
+    }
+    next_request_ = next;
+    tabs_->setTabText(1, QStringLiteral("入群申请 (%1%2)").arg(requests_->count()).arg(next ? QStringLiteral("+") : QString{}));
+    update_actions();
+}
+
+void group_dialog::refresh_requests()
+{
+    next_request_ = 0;
+    update_actions();
+    emit requests_requested(0);
+}
+
 void group_dialog::update_actions()
 {
     auto const self = std::find_if(members_.begin(), members_.end(), [this](auto const& member) {
@@ -370,6 +468,16 @@ void group_dialog::update_actions()
     auto const manager = self != members_.end() && self->role != chat::member_role::member;
     auto const enabled = available_ && !pending_;
     invite_controls_->setVisible(manager);
+    approval_->setEnabled(enabled && manager);
+    tabs_->setTabVisible(1, manager);
+    if (!manager)
+    {
+        next_request_ = 0;
+        if (requests_->count() > 0) { QSignalBlocker blocked(requests_); requests_->clear(); }
+    }
+    accept_request_button_->setEnabled(enabled && manager && requests_->currentItem());
+    reject_request_button_->setEnabled(enabled && manager && requests_->currentItem());
+    more_requests_button_->setEnabled(enabled && manager && next_request_ > 0);
     if (!manager) { invite_edit_->clear(); }
     create_invite_button_->setEnabled(enabled && manager && invite_edit_->text().isEmpty());
     copy_invite_button_->setEnabled(enabled && manager && !invite_edit_->text().isEmpty());

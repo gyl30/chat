@@ -641,6 +641,27 @@ struct client::impl
                 return;
             }
 
+            if (method->as_string() == "join_request")
+            {
+                auto const& object = params->as_object();
+                auto const* conversation = object.if_contains("conversation");
+                auto const* user = object.if_contains("user");
+                auto const* state = object.if_contains("state");
+                auto id = conversation ? parse_int64(*conversation) : std::nullopt;
+                auto applicant = user ? parse_int64(*user) : std::nullopt;
+                if (!id || *id <= 0 || !applicant || *applicant <= 0 || !state || !state->is_string() ||
+                    (state->as_string() != "pending" && state->as_string() != "accepted" && state->as_string() != "rejected"))
+                { report_error(make_error(error_kind::protocol, "Invalid join request notification")); return; }
+                group_join_request_handler handler;
+                { std::lock_guard lock(handler_mutex_); handler = join_request_handler_; }
+                if (handler && !suppress_callbacks_.load())
+                {
+                    handler({*id, *applicant, state->as_string() == "pending" ? group_join_request_state::pending :
+                        state->as_string() == "accepted" ? group_join_request_state::accepted : group_join_request_state::rejected});
+                }
+                return;
+            }
+
             if (method->as_string() == "avatar")
             {
                 auto const* field = params->as_object().if_contains("user");
@@ -946,12 +967,14 @@ struct client::impl
                     auto const* pinned = object.if_contains("pinned");
                     auto const* pinned_message = object.if_contains("pinned_message");
                     auto const* announcement = object.if_contains("announcement");
+                    auto const* approval = object.if_contains("join_approval");
                     auto id = id_value ? parse_int64(*id_value) : std::nullopt;
                     auto unread = unread_value ? parse_uint64(*unread_value) : std::nullopt;
                     auto count = count_value ? parse_uint64(*count_value) : std::nullopt;
                     if (!id || *id <= 0 || !kind || !kind->is_string() || !user_value || !name || !name->is_string() ||
                         !last || !unread || !count || *count == 0 || !muted || !muted->is_bool() ||
-                        !pinned || !pinned->is_bool() || !pinned_message || !announcement || !announcement->is_string())
+                        !pinned || !pinned->is_bool() || !pinned_message || !announcement || !announcement->is_string() ||
+                        !approval || !approval->is_bool() || (kind->as_string() == "direct" && approval->as_bool()))
                 {
                     handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation")));
                     return;
@@ -964,6 +987,7 @@ struct client::impl
                     item.muted = muted->as_bool();
                     item.pinned = pinned->as_bool();
                     item.announcement = std::string(announcement->as_string());
+                    item.join_approval = approval->as_bool();
                     if (item.announcement.size() > 4096 || item.announcement.find('\0') != std::string::npos ||
                         (kind->as_string() == "direct" && !item.announcement.empty()))
                     {
@@ -1160,13 +1184,48 @@ struct client::impl
             if (!id || *id <= 0 || !title || !title->is_string() || title->as_string().empty() ||
                 title->as_string().size() > 256 || title->as_string().find('\0') != boost::json::string::npos ||
                 !members || *members == 0 || !state || !state->is_string() ||
-                (state->as_string() != "joined" && state->as_string() != "member"))
+                (state->as_string() != "joined" && state->as_string() != "member" && state->as_string() != "pending"))
             {
                 handler(std::unexpected(make_error(error_kind::protocol, "Invalid group join result")));
                 return;
             }
             handler(group_join_result{*id, std::string(title->as_string()), *members,
-                state->as_string() == "joined" ? group_join_state::joined : group_join_state::member});
+                state->as_string() == "joined" ? group_join_state::joined :
+                state->as_string() == "member" ? group_join_state::member : group_join_state::pending});
+        });
+        co_return;
+    }
+
+    boost::capy::task<> get_group_join_requests(std::int64_t conversation, std::optional<std::int64_t> before, group_join_requests_handler handler)
+    {
+        boost::json::object params{{"conversation", conversation}};
+        if (before) { params.emplace("before", *before); }
+        send_request("get_group_join_requests", std::move(params), [before, handler = std::move(handler)](auto response) mutable {
+            if (!response) { handler(std::unexpected(std::move(response.error()))); return; }
+            auto const* requests = response->is_object() ? response->as_object().if_contains("requests") : nullptr;
+            auto const* next = response->is_object() ? response->as_object().if_contains("next") : nullptr;
+            if (!requests || !requests->is_array() || requests->as_array().size() > 50 || !next)
+            { handler(std::unexpected(make_error(error_kind::protocol, "Invalid join requests"))); return; }
+            group_join_requests_result result;
+            for (auto const& value : requests->as_array())
+            {
+                group_join_request item;
+                auto const* created = value.is_object() ? value.as_object().if_contains("created_at") : nullptr;
+                auto time = created ? parse_int64(*created) : std::nullopt;
+                if (!value.is_object() || !parse_user(value.as_object(), item.applicant) || !time || *time <= 0 ||
+                    (before && item.applicant.id >= *before) || (!result.requests.empty() && item.applicant.id >= result.requests.back().applicant.id))
+                { handler(std::unexpected(make_error(error_kind::protocol, "Invalid join request"))); return; }
+                item.created_at = *time;
+                result.requests.push_back(std::move(item));
+            }
+            if (!next->is_null())
+            {
+                auto cursor = parse_int64(*next);
+                if (!cursor || *cursor <= 0 || result.requests.size() != 50 || *cursor != result.requests.back().applicant.id)
+                { handler(std::unexpected(make_error(error_kind::protocol, "Invalid join request cursor"))); return; }
+                result.next = cursor;
+            }
+            handler(std::move(result));
         });
         co_return;
     }
@@ -2036,6 +2095,7 @@ struct client::impl
     typing_handler typing_handler_;
     avatar_changed_handler avatar_handler_;
     reaction_handler reaction_handler_;
+    group_join_request_handler join_request_handler_;
     std::atomic_bool suppress_callbacks_ = false;
 };
 
@@ -2098,6 +2158,12 @@ void client::set_reaction_handler(reaction_handler handler)
 {
     std::lock_guard lock(impl_->handler_mutex_);
     impl_->reaction_handler_ = std::move(handler);
+}
+
+void client::set_group_join_request_handler(group_join_request_handler handler)
+{
+    std::lock_guard lock(impl_->handler_mutex_);
+    impl_->join_request_handler_ = std::move(handler);
 }
 
 void client::set_read_handler(read_handler handler)
@@ -2241,6 +2307,23 @@ void client::revoke_group_invite(std::int64_t conversation, group_invite_handler
 void client::join_group(std::string token, group_join_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->join_group(std::move(token), std::move(handler)));
+}
+
+void client::set_group_join_approval(std::int64_t conversation, bool required, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_action(
+        "set_group_join_approval", {{"conversation", conversation}, {"required", required}}, std::move(handler)));
+}
+
+void client::get_group_join_requests(std::int64_t conversation, std::optional<std::int64_t> before, group_join_requests_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_group_join_requests(conversation, before, std::move(handler)));
+}
+
+void client::respond_group_join_request(std::int64_t conversation, std::int64_t user, bool accept, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_action(
+        "respond_group_join_request", {{"conversation", conversation}, {"user", user}, {"accept", accept}}, std::move(handler)));
 }
 
 void client::leave_group(std::int64_t conversation, group_action_handler handler)

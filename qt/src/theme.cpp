@@ -14,6 +14,23 @@ QString chat_style_sheet()
         QDialog {
             background: #FFFEFA;
         }
+        QDialog#groupDialog QListWidget, QTabWidget#groupTabs::pane {
+            background: #FFFFFF;
+            border: 1px solid #D7DDD9;
+        }
+        QDialog#groupDialog QListWidget {
+            selection-background-color: #315A4B;
+            selection-color: #FFFFFF;
+        }
+        QTabWidget#groupTabs QTabBar::tab {
+            background: #F0F4F1;
+            border: 1px solid #D7DDD9;
+            padding: 6px 12px;
+        }
+        QTabWidget#groupTabs QTabBar::tab:selected {
+            background: #FFFFFF;
+            color: #315A4B;
+        }
         QDialog QPushButton, QToolButton#messageSearchButton, QToolButton#sendAttachmentButton {
             min-height: 32px;
             padding: 0 12px;

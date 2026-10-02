@@ -13,13 +13,15 @@ class QLineEdit;
 class QPlainTextEdit;
 class QListWidget;
 class QPushButton;
+class QCheckBox;
+class QTabWidget;
 
 class group_dialog final : public QDialog
 {
     Q_OBJECT
 
    public:
-    group_dialog(qint64 conversation, qint64 self_user, QString const& title, QString const& announcement,
+    group_dialog(qint64 conversation, qint64 self_user, QString const& title, QString const& announcement, bool join_approval,
                  QWidget* parent, avatar_cache* avatars = nullptr);
     void set_members(qint64 conversation, QList<member_data> members, QString const& error);
     void finish_action(qint64 conversation, bool left, QString const& error);
@@ -27,6 +29,8 @@ class group_dialog final : public QDialog
     void set_conversations(QList<conversation_data> conversations, QString const& error);
     void set_error(QString const& error);
     void set_invite(qint64 conversation, QString const& token, QString const& error);
+    void set_requests(qint64 conversation, QList<user_data> users, qint64 next, bool older, QString const& error);
+    void refresh_requests();
 
    signals:
     void admin_requested(qint64 user, bool admin);
@@ -34,6 +38,9 @@ class group_dialog final : public QDialog
     void announcement_requested(QString text);
     void invite_requested(QList<qint64> members);
     void invite_link_requested(std::optional<bool> create);
+    void approval_requested(bool required);
+    void requests_requested(qint64 before);
+    void request_response_requested(qint64 user, bool accept);
     void leave_requested();
     void transfer_requested(qint64 user);
     void remove_requested(qint64 user);
@@ -67,6 +74,13 @@ class group_dialog final : public QDialog
     QPushButton* create_invite_button_;
     QPushButton* copy_invite_button_;
     QPushButton* revoke_invite_button_;
+    QCheckBox* approval_;
+    QTabWidget* tabs_;
+    QListWidget* requests_;
+    QPushButton* accept_request_button_;
+    QPushButton* reject_request_button_;
+    QPushButton* more_requests_button_;
+    qint64 next_request_ = 0;
     QLabel* status_;
 };
 

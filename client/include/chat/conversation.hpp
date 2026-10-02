@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "message.hpp"
+#include "user.hpp"
 
 namespace chat
 {
@@ -38,6 +39,7 @@ struct conversation
     bool pinned = false;
     std::optional<quoted_message> pinned_message;
     std::string announcement;
+    bool join_approval = false;
 };
 
 struct conversations_result
@@ -49,7 +51,8 @@ struct conversations_result
 enum class group_join_state
 {
     joined,
-    member
+    member,
+    pending
 };
 
 struct group_join_result
@@ -58,6 +61,27 @@ struct group_join_result
     std::string title;
     std::uint64_t member_count = 0;
     group_join_state state = group_join_state::member;
+};
+
+struct group_join_request
+{
+    user applicant;
+    std::int64_t created_at = 0;
+};
+
+struct group_join_requests_result
+{
+    std::vector<group_join_request> requests;
+    std::optional<std::int64_t> next;
+};
+
+enum class group_join_request_state { pending, accepted, rejected };
+
+struct group_join_request_event
+{
+    std::int64_t conversation = 0;
+    std::int64_t user = 0;
+    group_join_request_state state = group_join_request_state::pending;
 };
 
 }    // namespace chat

@@ -1,5 +1,7 @@
 #include <QApplication>
 #include <QClipboard>
+#include <QCheckBox>
+#include <QTabWidget>
 #include <QDialogButtonBox>
 #include <QFile>
 #include <QFileDialog>
@@ -88,12 +90,21 @@ int main(int argc, char** argv)
     {
         start();
         {
-            group_dialog dialog(1, 1, QStringLiteral("公告草稿"), QStringLiteral("旧公告"), nullptr);
+            group_dialog dialog(1, 1, QStringLiteral("公告草稿"), QStringLiteral("旧公告"), false, nullptr);
             dialog.set_members(1, {{1, "owner", chat::member_role::owner, {}}, {2, "admin", chat::member_role::admin, {}}}, {});
             dialog.set_invite(1, QString(64, 'a'), {});
             auto* invite_edit = dialog.findChild<QLineEdit*>("groupInviteLinkEdit");
             check(invite_edit->text() == QStringLiteral("chat://join/") + QString(64, 'a') &&
                 dialog.findChild<QPushButton*>("groupCopyInviteButton")->isEnabled(), "Manager can display current invite link");
+            dialog.set_requests(1, {{3, "applicant", false, 0, {}}}, 3, false, {});
+            auto* requests_list = dialog.findChild<QListWidget*>("groupJoinRequestsList");
+            requests_list->setCurrentRow(0);
+            check(requests_list->count() == 1 && dialog.findChild<QPushButton*>("groupAcceptRequestButton")->isEnabled(),
+                "Managers can review a real applicant independently of members");
+            check(dialog.findChild<QPushButton*>("groupMoreRequestsButton")->isEnabled(), "Cursor enables the next pending page");
+            dialog.refresh_requests();
+            check(!dialog.findChild<QPushButton*>("groupMoreRequestsButton")->isEnabled(),
+                "Refreshing the first page immediately invalidates the old pagination cursor");
             auto* edit = dialog.findChild<QPlainTextEdit*>("groupAnnouncementEdit");
             edit->setPlainText(QStringLiteral("未保存草稿"));
             conversation_data snapshot;
@@ -105,6 +116,10 @@ int main(int argc, char** argv)
             check(edit->toPlainText() == QStringLiteral("未保存草稿"), "Realtime snapshot preserves unsaved announcement draft");
             dialog.set_members(1, {{1, "member", chat::member_role::member, {}}, {2, "owner", chat::member_role::owner, {}}}, {});
             dialog.set_invite(1, QString(64, 'b'), {});
+            dialog.set_requests(1, {{3, "stale applicant", false, 0, {}}}, 0, false, {});
+            check(requests_list->count() == 0 && !dialog.findChild<QTabWidget*>("groupTabs")->isTabVisible(1) &&
+                !dialog.findChild<QPushButton*>("groupAcceptRequestButton")->isEnabled(),
+                "Role loss clears private applications and rejects stale request callbacks");
             check(invite_edit->text().isEmpty() && !dialog.findChild<QPushButton*>("groupCopyInviteButton")->isEnabled(),
                 "Role loss clears invite secret and rejects a stale link callback");
             check(edit->isReadOnly() && edit->toPlainText() == snapshot.announcement &&
@@ -137,6 +152,8 @@ int main(int argc, char** argv)
             QObject::connect(&bridge, &client_bridge::group_invite_received, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::conversation_opened, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::members_received, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::group_join_requests_received, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::group_join_pending, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::error, &bridge, [&](auto) { failed_connect.set_value(); }, Qt::DirectConnection);
             bridge.send_attachment(1, "stale.bin", "old upload");
             bridge.get_attachment(1, 1);
@@ -155,6 +172,9 @@ int main(int argc, char** argv)
             bridge.group_invite(1, false);
             bridge.join_group(QString(64, 'a'));
             bridge.get_members(1);
+            bridge.set_group_join_approval(1, true);
+            bridge.get_group_join_requests(1);
+            bridge.respond_group_join_request(1, 2, true);
             bridge.search_messages(1, "old search");
             bridge.set_message_reaction(1, 1, QStringLiteral("👍"));
             QObject::connect(&bridge, &client_bridge::avatar_received, &bridge, [&](auto...) { ++stale_results; });
@@ -1654,6 +1674,103 @@ int main(int argc, char** argv)
             check(replacement_link != original_link, "Recreate generates a fresh link in Qt");
             join_link(replacement_link);
             wait([&] { return pages[2]->active_conversation() == group && pages[2]->messages_ready(); });
+            auto approval_action = [&](int actor, bool required) {
+                bool finished = false, submitted = false;
+                int polls = 0;
+                QTimer approval_poll;
+                QObject::connect(&approval_poll, &QTimer::timeout, [&] {
+                    auto* dialog = qobject_cast<group_dialog*>(QApplication::activeModalWidget());
+                    if (++polls > 250) { approval_poll.stop(); if (dialog) { dialog->reject(); } return; }
+                    if (!dialog || dialog->findChild<QListWidget*>("groupMembersList")->count() < 2) { return; }
+                    auto* checkbox = dialog->findChild<QCheckBox*>("groupJoinApprovalCheck");
+                    if (!submitted && checkbox->isEnabled())
+                    {
+                        check(checkbox->isChecked() != required, "Approval toggle starts from authoritative current setting");
+                        submitted = true;
+                        checkbox->click();
+                    }
+                    else if (submitted && checkbox->isEnabled() && checkbox->isChecked() == required)
+                    {
+                        finished = true;
+                        approval_poll.stop();
+                        dialog->accept();
+                    }
+                });
+                approval_poll.start(20);
+                windows[actor]->findChild<QPushButton*>("chatHeaderButton")->click();
+                check(finished, "Approval setting completes through actual Qt controls");
+                wait([&] { return pages[0]->conversation(group)->join_approval == required && pages[1]->conversation(group)->join_approval == required; });
+            };
+            auto review_application = [&](int actor, bool accept) {
+                bool finished = false, submitted = false;
+                int polls = 0;
+                QTimer review_poll;
+                QObject::connect(&review_poll, &QTimer::timeout, [&] {
+                    auto* dialog = qobject_cast<group_dialog*>(QApplication::activeModalWidget());
+                    if (++polls > 250) { review_poll.stop(); if (dialog) { dialog->reject(); } return; }
+                    if (!dialog || dialog->findChild<QListWidget*>("groupMembersList")->count() < 2) { return; }
+                    auto* tabs = dialog->findChild<QTabWidget*>("groupTabs");
+                    auto* requests = dialog->findChild<QListWidget*>("groupJoinRequestsList");
+                    tabs->setCurrentIndex(1);
+                    if (!submitted && requests->count() == 1)
+                    {
+                        check(requests->item(0)->data(Qt::UserRole).toLongLong() == ids[2], "Application shows actual requester, not a group member");
+                        requests->setCurrentRow(0);
+                        auto* button = dialog->findChild<QPushButton*>(accept ? "groupAcceptRequestButton" : "groupRejectRequestButton");
+                        if (!button->isEnabled()) { return; }
+                        dialog->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_join_request.png");
+                        submitted = true;
+                        button->click();
+                    }
+                    else if (submitted && requests->count() == 0)
+                    {
+                        finished = true;
+                        review_poll.stop();
+                        dialog->accept();
+                    }
+                });
+                review_poll.start(20);
+                windows[actor]->findChild<QPushButton*>("chatHeaderButton")->click();
+                check(finished, "Manager decides an application through real Qt buttons");
+            };
+            approval_action(0, true);
+            member_action(0, ids[2], "groupRemoveButton");
+            wait([&] { return pages[2]->active_conversation() == 0 && !pages[2]->conversation(group); });
+            join_link(replacement_link);
+            wait([&] { return std::ranges::any_of(windows[2]->findChildren<QLabel*>(), [](auto* label) {
+                return label->text().contains(QStringLiteral("申请"));
+            }); });
+            check(pages[2]->active_conversation() == 0 && !pages[2]->conversation(group) &&
+                windows[2]->findChild<QListView*>("messageList")->model()->rowCount() == 0,
+                "Pending Qt join never opens group history or injects a conversation");
+            join_link(replacement_link);
+            review_application(1, false);
+            wait([&] { return std::ranges::any_of(windows[2]->findChildren<QLabel*>(), [](auto* label) {
+                return label->text().contains(QStringLiteral("被拒绝"));
+            }); });
+            check(!pages[2]->conversation(group), "Reject result is realtime and grants no membership");
+            join_link(replacement_link);
+            wait([&] {
+                auto const query = "SELECT user_id FROM group_join_requests WHERE conversation_id=" + std::to_string(group) +
+                    " AND user_id=" + std::to_string(ids[2]);
+                std::unique_ptr<PGresult, decltype(&PQclear)> pending(PQexec(db, query.c_str()), &PQclear);
+                return pending && PQresultStatus(pending.get()) == PGRES_TUPLES_OK && PQntuples(pending.get()) == 1;
+            });
+            server.terminate();
+            check(server.waitForFinished(3000), "Restart with pending application");
+            wait([&] { return !windows[0]->findChild<QToolButton*>("sendButton")->isEnabled(); });
+            start();
+            for (int i = 0; i < 2; ++i)
+            { wait([&, i] { return pages[i]->messages_ready() && windows[i]->findChild<QToolButton*>("sendButton")->isEnabled(); }); }
+            wait([&] { return windows[2]->findChild<QToolButton*>("joinGroupButton")->isEnabled(); });
+            check(!pages[2]->conversation(group) && pages[2]->active_conversation() == 0, "Reconnect retains pending isolation");
+            review_application(0, true);
+            wait([&] { return pages[2]->conversation(group) && pages[2]->conversation(group)->member_count == 3; });
+            select_group(2);
+            wait([&] { return pages[2]->messages_ready() && pages[2]->active_conversation() == group; });
+            check(pages[2]->conversation(group)->join_approval, "Acceptance restores authoritative group and approval metadata after reconnect");
+            approval_action(1, false);
+            std::cout << "PASS Qt approval toggle, pending isolation, repeat request, administrator rejection, pending reconnect and owner acceptance\n";
             member_action(0, ids[1], "groupTransferButton");
             server.terminate();
             check(server.waitForFinished(3000), "Restart after Qt ownership transfer");

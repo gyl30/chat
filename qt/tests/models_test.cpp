@@ -240,9 +240,12 @@ int main(int argc, char** argv)
     group.pinned = true;
     group.pinned_message = {10, "author", "pinned"};
     group.announcement = QStringLiteral("当前群公告\n<纯文本>");
+    group.join_approval = true;
     conversations.set_conversations({direct, group});
     if (conversations.conversation_at(conversations.index_for_conversation(2))->announcement != group.announcement ||
-        !conversations.conversation_at(conversations.index_for_conversation(1))->announcement.isEmpty()) { return 1; }
+        !conversations.conversation_at(conversations.index_for_conversation(1))->announcement.isEmpty() ||
+        !conversations.conversation_at(conversations.index_for_conversation(2))->join_approval ||
+        conversations.conversation_at(conversations.index_for_conversation(1))->join_approval) { return 1; }
     if (conversations.index_for_conversation(2).data(conversation_model::pinned_message_role).value<quoted_message_data>().id != 10 ||
         conversations.index_for_conversation(1).data(conversation_model::pinned_message_role).value<quoted_message_data>().id != 0) { return 1; }
     conversations.set_online(2, true);

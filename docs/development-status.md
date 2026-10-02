@@ -1,6 +1,6 @@
 # 开发状态
 
-本记录对应截至 2026-10-02 的仓库实际历史。阶段提交和 push 结果以 Git 历史为准，Telegram 调研与裁剪依据见 [调研记录](telegram-group-design-research.md)。
+本记录对应截至 2026-10-03 的仓库实际历史。阶段提交和 push 结果以 Git 历史为准，Telegram 调研与裁剪依据见 [调研记录](telegram-group-design-research.md)。
 
 ## 已完成路线
 
@@ -30,6 +30,7 @@
 | `a653634` | 群成员提及、真实目标持久化、文字高亮与重连 | SQL 019 |
 | `31d6cc4` | 群内单条消息置顶、实时摘要、编辑与删除一致性、历史搜索 | SQL 020 |
 | `d6c0952` | 当前群公告、纯文本编辑、实时查看及草稿与权限生命周期 | SQL 021 |
+| `fbdb06b` | 单个高熵群邀请链接、撤销、非联系人加入及完整生命周期 | SQL 022 |
 
 另外完成历史大响应接收、编辑消息布局和消息操作按钮对比度修复，分别见 `32f3f3b`、`a545c9a`、`f73b8f4`。
 
@@ -43,6 +44,7 @@
 - SQL 020 的 `conversations.pinned_message_id` 保存每群一个当前置顶消息；与个人 membership 的 pinned 独立。初始为空，软删除同事务清空，物理删除通过外键 SET NULL 清空。
 - SQL 021 的 `conversations.announcement` 保存每群一个当前纯文本公告，默认空字符串，空字符串表示未设置；数据库约束限定 group 和最多 4096 个 UTF-8 字节。没有公告历史或消息伪装。
 - SQL 022 的 `conversations.invite_token` 保存每群一个可空、唯一的当前邀请 secret；仅 group 可保存 64 位小写十六进制 token。撤销设为 NULL，重新创建使用新的 OpenSSL 随机值，不维护过期、次数或链接历史。
+- SQL 023 的 `conversations.join_approval` 控制邀请链接是否产生申请，默认 false；`group_join_requests(conversation_id,user_id,created_at)` 仅保存唯一的待处理关系，接受/拒绝后删除。申请不等于 membership，没有审批历史。
 - SQL 008 保留旧单聊、自聊、消息、联系人和阅读位置；SQL 009–014 渐进增加上述能力。SQL 013 应用前已确认本次数据库没有既存群，不猜测旧群创建者，也不删除旧消息。
 - 新建或重新加入的成员能读取完整历史。邀请取得会话锁后读取最新消息 ID 作为加入水位；实际阅读仍从 0 开始，仅由 `mark_read` 推进。未读统计使用 `id > greatest(last_read_message_id, joined_message_id)`，排除删除消息及群成员自己的消息。
 
@@ -68,7 +70,10 @@
 | `pin_group_message` / `unpin_group_message` | 会话及真实消息 ID / 会话；仅群主、管理员；返回 `changed` |
 | `set_group_announcement` | `conversation, text`；群主/管理员设置当前纯文本，空字符串清除；返回 `changed` |
 | `get_group_invite` / `create_group_invite` / `revoke_group_invite` | `conversation`；仅当前群主/管理员；返回 `{token: null|string}`；创建稳定，撤销幂等 |
-| `join_group` | `token`；已认证用户使用当前链接；返回权威 `conversation/title/member_count/state`，state 为 `joined/member` |
+| `join_group` | `token`；已认证用户使用当前链接；返回权威 `conversation/title/member_count/state`，state 为 `joined/member/pending` |
+| `set_group_join_approval` | `conversation, required`；当前群主/管理员设置链接加入模式，返回 `changed` |
+| `get_group_join_requests` | `conversation, before?`；当前群主/管理员获取申请人 metadata、创建时间及 `next`，每页最多 50 条，按 user ID 降序 |
+| `respond_group_join_request` | `conversation, user, accept`；当前群主/管理员接受或拒绝，原子结束 pending 关系，返回 `changed` |
 | `send_message` / `edit_message` / `delete_message` | 会话、真实消息或回复 ID；编辑/删除仅作者且仍为当前成员 |
 | `search_messages` | 会话、字面查询和 `before` cursor |
 | `set_message_reaction` | `conversation, message, emoji`；六种表情之一，显式空字符串清除；返回 reaction snapshot |
@@ -100,7 +105,7 @@ git diff --check
 
 ## 保持的边界与后续可选路线
 
-当前邀请链接已实现直接加入，入群审批仍未实现。群公告、@mention、个人会话置顶和群内单条置顶消息已接入，个人会话置顶不等于群内置顶消息。群主必须先手动转让再退出；群主/管理员没有编辑、删除他人消息的权限。退出或被移除者本地活动历史清空；服务端仍保留群消息，重新加入可重新获取。移除不等于永久封禁，重新邀请或持有有效链接均可重新加入，恢复普通成员，旧管理员身份和真实读位不继承。
+邀请链接默认直接加入，可由群主/管理员启用审批；显式联系人邀请继续直接加入。群公告、@mention、个人会话置顶和群内单条置顶消息已接入，个人会话置顶不等于群内置顶消息。群主必须先手动转让再退出；群主/管理员没有编辑、删除他人消息的权限。退出或被移除者本地活动历史清空；服务端仍保留群消息，重新加入可重新获取。移除不等于永久封禁，重新邀请或使用有效链接均可重新加入或提交审批，恢复普通成员，旧管理员身份和真实读位不继承。
 
 2026-10-02 启动新的长期路线：验证基线、群已读详情、reaction、图片气泡预览、桌面通知、会话 mute/pin、群 mention、群置顶消息、公告、邀请链接和审批，依序独立实施。此列表表示规划，尚未实现的阶段不计入已完成能力。范围仍不扩大到多设备、微服务、Redis、Kafka、event sourcing 或 CQRS。
 
@@ -426,3 +431,29 @@ Qt 群资料按当前角色显示链接、创建、复制和撤销，成员列�
 | UBSan | PASS | 14/14 PASS，77.08 s |
 
 无 suppression 或测试排除，`git diff --check` PASS。没有修改 SQL 001–021，没有临时 migration、调试输出、链接历史或无需求抽象。下一阶段为邀请链接上的最小入群审批。
+
+## 群聊入群审批
+
+从重新 fetch 后的 `fbdb06b` 开始。SQL 023 无损增加 group-only 的 `join_approval`，已有群默认 false，保持链接直接加入；群主、管理员可切换为审批模式。独立 `group_join_requests` 只保存 `(conversation_id,user_id,created_at)` 的唯一待处理关系，外键级联清理，不保存审批历史、留言或结束状态。
+
+启用时，非成员使用当前有效链接得到 `pending`，重复申请保持同一创建时间；不会创建 membership、增加成员数或获得历史、搜索、成员、消息、附件及阅读权限。已有成员仍返回 `member` 并保留角色和偏好。显式联系人邀请继续直接加入，并在同一事务清除对应 pending；撤销链接不删除已经提交的申请。关闭审批不批量批准，申请人随后使用当前直接链接加入时原子清除自己的 pending。
+
+`set_group_join_approval/get_group_join_requests/respond_group_join_request` 仅允许当前群主、管理员。申请列表使用 user ID 降序 cursor，每页 50 条，返回申请人当前头像 metadata 和创建时间；无 offset 或任意申请数量上限。接受原子删除申请并创建普通 membership，加入水位取锁后最新消息 ID，真实读位 0、非管理员、个人 mute/pin 默认 false；旧历史可见且不计未读。拒绝只删除 pending，重复决定返回 `changed:false`。申请、审批、配置、权限变化及发送继续共用 conversation 行锁。
+
+`join_request {conversation,user,state:pending|accepted|rejected}` 只通知当前群主、管理员和申请人，收件人去重；普通成员不接收私有申请。它是当前关系的变化提示：发布时复核 pending/membership，抑制已被后续变化取代的旧提示，不引入事件日志或版本框架。接受及联系人邀请还通过权威 `conversation` 快照恢复成员资格。离线恢复不回放审批事件或保存决定历史；管理员重新加载 pending，申请人从会话列表恢复已接受的群，或再次使用有效链接取得当前加入结果。
+
+Qt 群资料包含审批开关和独立“入群申请”页，显示姓名、统一头像、通过/拒绝和加载更多。首页刷新立即失效旧游标，阻止刷新期间从旧 cursor 加页；同一 session 按序处理并回传 RPC，复用现有 pending 和连接 generation，没有新增分页代次框架。角色丢失清空私有申请并拒绝迟到结果。`pending` 回复只给轻量提示，绝不打开会话或注入虚构列表项；新 RPC 和 notification 在 Qt 线程校验连接 generation，关闭窗口由 QObject context 清理回调。
+
+新增回归覆盖 SQL 022→023 的既有用户/单聊/群默认值、group-only 开关、pending 唯一性及级联；未认证、非法参数、普通成员/非成员权限；重复申请、隔离、私有通知、接受/拒绝、真实读位/未读、待审批重连、撤销/切换模式和显式联系人邀请；58 个申请人的完整 cursor 遍历；审批与降权/发送、重复接受和接受/拒绝的真实锁竞争。SDK 验证三个 RPC、metadata、pending 结果和 notification 的异常协议。三个真实 Qt 窗口完成配置、重复申请、管理员拒绝、待审批状态服务器重启、群主接受和历史恢复；申请页截图已检查。
+
+Qt 重启测试先确认申请已在服务器持久化，再重启，避免把尚未完成的 RPC 当作成功提交；瞬时状态文字可能被其他快照刷新覆盖，不用它代替数据库事实。新的 modal 测试有单步超时。已删除临时诊断输出，未改 SQL 001–022。完成本阶段后进入最终综合审查，不增加其他产品功能。
+
+最终实际执行 `tests/verify.sh`，三套均启用 Qt、Debug、`-j12`，完整 CTest 顺序继承 libpq 环境：
+
+| 构建 | 完整 build | 完整 CTest |
+|---|---|---|
+| normal | PASS | 14/14 PASS，66.04 s |
+| ASan | PASS | 14/14 PASS，84.30 s |
+| UBSan | PASS | 14/14 PASS，77.46 s |
+
+首次完整入口受到 SIGTERM 中断，没有计作成功；重新完整运行后通过。未使用 suppression、测试排除或扩大现有测试超时，`git diff --check` PASS。

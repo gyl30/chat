@@ -90,6 +90,7 @@ presence_data to_presence_data(chat::presence const& value)
 client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::make_unique<chat::client>())
 {
     qRegisterMetaType<chat::avatar_state>();
+    qRegisterMetaType<chat::group_join_request_state>();
     qRegisterMetaType<QList<conversation_data>>();
     qRegisterMetaType<conversation_data>();
     qRegisterMetaType<read_positions>();
@@ -141,6 +142,12 @@ client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::ma
         emit conversation_changed(id, removed);
     });
     client_->set_presence_handler([this](chat::presence value) { emit presence_changed(to_presence_data(value)); });
+    client_->set_group_join_request_handler([this](chat::group_join_request_event value) {
+        auto const generation = connection_generation_.load();
+        QMetaObject::invokeMethod(this, [this, generation, value] {
+            if (generation == connection_generation_) { emit group_join_request_changed(value.conversation, value.user, value.state); }
+        }, Qt::QueuedConnection);
+    });
 }
 
 client_bridge::~client_bridge() { client_.reset(); }
@@ -238,6 +245,7 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
             value.pinned = item.pinned;
             value.pinned_message = to_reply_data(item.pinned_message);
             value.announcement = from_utf8(item.announcement);
+            value.join_approval = item.join_approval;
                         bool found = false;
                         for (auto const& existing : conversations)
                         {
@@ -346,6 +354,11 @@ void client_bridge::join_group(QString token)
         QMetaObject::invokeMethod(this, [this, generation, result = std::move(result)] {
             if (generation != connection_generation_) { return; }
             conversation_data value;
+            if (result && result->state == chat::group_join_state::pending)
+            {
+                emit group_join_pending(from_utf8(result->title));
+                return;
+            }
             if (result)
             {
                 ++conversations_generation_;
@@ -377,6 +390,52 @@ void client_bridge::group_invite(qint64 conversation, std::optional<bool> create
     if (!create) { client_->get_group_invite(conversation, std::move(finished)); }
     else if (*create) { client_->create_group_invite(conversation, std::move(finished)); }
     else { client_->revoke_group_invite(conversation, std::move(finished)); }
+}
+
+void client_bridge::set_group_join_approval(qint64 conversation, bool required)
+{
+    auto const generation = connection_generation_.load();
+    client_->set_group_join_approval(conversation, required, [this, conversation, generation](auto result) {
+        QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
+            if (generation != connection_generation_) { return; }
+            if (result) { ++conversations_generation_; }
+            emit group_action_finished(conversation, false, result ? QString{} : from_utf8(result.error().message));
+        }, Qt::QueuedConnection);
+    });
+}
+
+void client_bridge::get_group_join_requests(qint64 conversation, qint64 before)
+{
+    auto const generation = connection_generation_.load();
+    client_->get_group_join_requests(conversation, before > 0 ? std::optional<std::int64_t>(before) : std::nullopt,
+        [this, conversation, before, generation](auto result) {
+            QMetaObject::invokeMethod(this, [this, conversation, before, generation, result = std::move(result)] {
+                if (generation != connection_generation_) { return; }
+                QList<user_data> values;
+                if (result)
+                {
+                    for (auto const& request : result->requests)
+                    {
+                        auto const& user = request.applicant;
+                        values.push_back({user.id, from_utf8(user.username), false, 0, user.avatar});
+                    }
+                }
+                emit group_join_requests_received(conversation, std::move(values), result ? result->next.value_or(0) : 0,
+                    before > 0, result ? QString{} : from_utf8(result.error().message));
+            }, Qt::QueuedConnection);
+        });
+}
+
+void client_bridge::respond_group_join_request(qint64 conversation, qint64 user, bool accept)
+{
+    auto const generation = connection_generation_.load();
+    client_->respond_group_join_request(conversation, user, accept, [this, conversation, generation](auto result) {
+        QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
+            if (generation != connection_generation_) { return; }
+            if (result) { ++conversations_generation_; }
+            emit group_action_finished(conversation, false, result ? QString{} : from_utf8(result.error().message));
+        }, Qt::QueuedConnection);
+    });
 }
 
 void client_bridge::get_members(qint64 conversation)

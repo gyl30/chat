@@ -44,7 +44,7 @@ int main(int argc, char** argv)
               "012_create_message_attachments.sql", "013_add_group_roles.sql", "014_add_member_join_position.sql",
               "015_create_user_avatars.sql", "016_create_message_reactions.sql", "017_add_conversation_mute.sql",
               "018_add_conversation_pin.sql", "019_create_message_mentions.sql", "020_add_group_pinned_message.sql",
-              "021_add_group_announcement.sql", "022_add_group_invite.sql"})
+              "021_add_group_announcement.sql", "022_add_group_invite.sql", "023_create_group_join_requests.sql"})
         {
             if (std::string(name).starts_with("008"))
             {
@@ -54,7 +54,7 @@ int main(int argc, char** argv)
                         "INSERT INTO message_read_positions(user_id,peer_user_id,last_read_message_id) "
                         "VALUES(2,1,1),(1,2,2),(1,1,0)");
             }
-            if (std::string(name).starts_with("021") || std::string(name).starts_with("022"))
+            if (std::string(name).starts_with("021") || std::string(name).starts_with("022") || std::string(name).starts_with("023"))
             {
                 execute("WITH created AS (INSERT INTO conversations(kind,title,owner_id) VALUES('group','before announcement',1) RETURNING id) "
                         "INSERT INTO conversation_members(conversation_id,user_id) SELECT id,1 FROM created");
@@ -65,11 +65,12 @@ int main(int argc, char** argv)
                 throw std::runtime_error("Migration file missing");
             }
             execute(std::string(std::istreambuf_iterator<char>(file), {}));
-            if (std::string(name).starts_with("021") || std::string(name).starts_with("022"))
+            if (std::string(name).starts_with("021") || std::string(name).starts_with("022") || std::string(name).starts_with("023"))
             {
                 auto defaults = execute(std::string(name).starts_with("021") ?
                     "SELECT count(*) FROM conversations WHERE announcement=''" :
-                    "SELECT count(*) FROM conversations WHERE invite_token IS NULL");
+                    std::string(name).starts_with("022") ? "SELECT count(*) FROM conversations WHERE invite_token IS NULL" :
+                    "SELECT count(*) FROM conversations WHERE NOT join_approval");
                 if (std::string(PQgetvalue(defaults.get(), 0, 0)) != "3") { throw std::runtime_error("Existing group metadata defaults"); }
                 execute("DELETE FROM conversations WHERE title='before announcement'");
             }
@@ -87,6 +88,8 @@ int main(int argc, char** argv)
                               "AND NOT EXISTS(SELECT 1 FROM conversations WHERE pinned_message_id IS NOT NULL) "
                               "AND NOT EXISTS(SELECT 1 FROM conversations WHERE announcement<>'') "
                               "AND NOT EXISTS(SELECT 1 FROM conversations WHERE invite_token IS NOT NULL) "
+                              "AND NOT EXISTS(SELECT 1 FROM conversations WHERE join_approval) "
+                              "AND NOT EXISTS(SELECT 1 FROM group_join_requests) "
                               "AND NOT EXISTS(SELECT 1 FROM conversation_members WHERE is_admin OR joined_message_id<>0 OR muted OR pinned) "
                               "AND (SELECT count(*) FROM conversation_members WHERE last_read_message_id IN (1,2))=2 "
                               "AND NOT EXISTS(SELECT 1 FROM messages m JOIN conversations c ON c.id=m.conversation_id "
@@ -117,6 +120,10 @@ int main(int argc, char** argv)
         try { execute("UPDATE conversations SET invite_token=repeat('a',64) WHERE kind='direct'"); }
         catch (std::runtime_error const&) { direct_invite_rejected = true; }
         if (!direct_invite_rejected) { throw std::runtime_error("Direct conversation accepts invite token"); }
+        bool direct_approval_rejected = false;
+        try { execute("UPDATE conversations SET join_approval=true WHERE kind='direct'"); }
+        catch (std::runtime_error const&) { direct_approval_rejected = true; }
+        if (!direct_approval_rejected) { throw std::runtime_error("Direct conversation accepts join approval"); }
         execute("UPDATE messages SET deleted=true,body='' WHERE id=1");
         auto deleted = execute("SELECT deleted AND body='' AND id=1 FROM messages WHERE id=1");
         if (std::string(PQgetvalue(deleted.get(), 0, 0)) != "t")
@@ -165,6 +172,14 @@ int main(int argc, char** argv)
         }
         catch (std::runtime_error const&) { duplicate_invite_rejected = true; }
         if (!duplicate_invite_rejected) { throw std::runtime_error("Duplicate invite token accepted"); }
+        execute("UPDATE conversations SET join_approval=true WHERE kind='group'; "
+                "INSERT INTO group_join_requests(conversation_id,user_id) SELECT id,2 FROM conversations WHERE kind='group'");
+        auto pending = execute("SELECT count(*) FROM group_join_requests WHERE created_at IS NOT NULL");
+        if (std::string(PQgetvalue(pending.get(), 0, 0)) != "1") { throw std::runtime_error("Pending join request timestamp"); }
+        bool duplicate_request_rejected = false;
+        try { execute("INSERT INTO group_join_requests(conversation_id,user_id) SELECT id,2 FROM conversations WHERE kind='group'"); }
+        catch (std::runtime_error const&) { duplicate_request_rejected = true; }
+        if (!duplicate_request_rejected) { throw std::runtime_error("Duplicate pending request accepted"); }
         execute("INSERT INTO messages(sender_id,conversation_id,body) SELECT 2,id,'pinned' FROM conversations WHERE kind='group'; "
                 "UPDATE conversations SET pinned_message_id=(SELECT max(id) FROM messages WHERE conversation_id=conversations.id) "
                 "WHERE kind='group'");
@@ -177,7 +192,7 @@ int main(int argc, char** argv)
         execute("DELETE FROM users WHERE id=1");
         auto cleaned = execute("SELECT (SELECT count(*) FROM messages)+(SELECT count(*) FROM message_attachments)"
                                "+(SELECT count(*) FROM conversations WHERE kind='group')+(SELECT count(*) FROM user_avatars)"
-                               "+(SELECT count(*) FROM message_reactions)+(SELECT count(*) FROM message_mentions)");
+                               "+(SELECT count(*) FROM message_reactions)+(SELECT count(*) FROM message_mentions)+(SELECT count(*) FROM group_join_requests)");
         if (std::string(PQgetvalue(cleaned.get(), 0, 0)) != "0")
         {
             throw std::runtime_error("Reply cascade cleanup");

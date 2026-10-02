@@ -56,6 +56,7 @@ struct events
     std::vector<chat::read_position> reads;
     std::vector<chat::typing_event> typing;
     std::vector<chat::avatar> avatars;
+    std::vector<chat::group_join_request_event> join_requests;
 
     template <class F> void wait(F predicate)
     {
@@ -65,6 +66,11 @@ struct events
 
     void attach(chat::client& client)
     {
+        client.set_group_join_request_handler([this](chat::group_join_request_event value) {
+            std::lock_guard lock(mutex);
+            join_requests.push_back(value);
+            condition.notify_all();
+        });
         client.set_reaction_handler([this](chat::reaction_update value) {
             std::lock_guard lock(mutex);
             reactions.push_back(std::move(value));
@@ -1196,6 +1202,133 @@ int run_group_tests()
                 restored_join && restored_join->state == chat::group_join_state::member,
                 "Reconnect restores link-created membership and persistent invite token");
             std::cout << "PASS group invite secret permissions, stable creation/revoke, direct join, fresh rejoin, notifications and reconnect\n";
+            require(!conversation(a, mention_group).join_approval, "Existing group defaults to direct invitation join");
+            auto member_approval = call<bool>([&](auto h) { c.set_group_join_approval(mention_group, true, h); });
+            auto direct_approval = call<bool>([&](auto h) { a.set_group_join_approval(*direct, true, h); });
+            require(!member_approval && member_approval.error().code == -32009 && !direct_approval && direct_approval.error().code == -32006,
+                "Only group managers may configure link approval");
+            require(call<bool>([&](auto h) { a.set_group_join_approval(mention_group, true, h); }).value() &&
+                !call<bool>([&](auto h) { b.set_group_join_approval(mention_group, true, h); }).value() &&
+                conversation(c, mention_group).join_approval, "Owner enables approval; administrator repeat is idempotent");
+            require(call<chat::group_join_result>([&](auto h) { d.join_group(**replacement, h); })->state == chat::group_join_state::member,
+                "Approval does not turn existing membership into an application");
+            require(call<bool>([&](auto h) { a.remove_group_member(mention_group, data.users[3], h); }).value(), "Remove applicant fixture");
+            std::size_t ordinary_requests, requester_requests, manager_requests;
+            { std::lock_guard lock(c_events.mutex); ordinary_requests = c_events.join_requests.size(); }
+            { std::lock_guard lock(d_events.mutex); requester_requests = d_events.join_requests.size(); }
+            { std::lock_guard lock(b_events.mutex); manager_requests = b_events.join_requests.size(); }
+            auto pending_join = call<chat::group_join_result>([&](auto h) { d.join_group(**replacement, h); });
+            require(pending_join && pending_join->state == chat::group_join_state::pending &&
+                pending_join->member_count == before_join.member_count, "Pending join does not create a membership");
+            b_events.wait([&] { return b_events.join_requests.size() > manager_requests; });
+            d_events.wait([&] { return d_events.join_requests.size() > requester_requests; });
+            auto requests = call<chat::group_join_requests_result>([&](auto h) { a.get_group_join_requests(mention_group, {}, h); });
+            require(requests && requests->requests.size() == 1 && !requests->next &&
+                requests->requests.front().applicant.id == data.users[3] && requests->requests.front().applicant.username == names[3],
+                "Manager sees actual applicant metadata");
+            auto const requested_at = requests->requests.front().created_at;
+            auto duplicate_pending = call<chat::group_join_result>([&](auto h) { d.join_group(**replacement, h); });
+            auto duplicate_list = call<chat::group_join_requests_result>([&](auto h) { b.get_group_join_requests(mention_group, {}, h); });
+            require(duplicate_pending && duplicate_pending->state == chat::group_join_state::pending && duplicate_list &&
+                duplicate_list->requests.size() == 1 && duplicate_list->requests.front().created_at == requested_at,
+                "Repeated pending join preserves the single application and creation time");
+            auto private_requests = call<chat::group_join_requests_result>([&](auto h) { c.get_group_join_requests(mention_group, {}, h); });
+            auto private_response = call<bool>([&](auto h) { c.respond_group_join_request(mention_group, data.users[3], true, h); });
+            auto pending_requests = call<chat::group_join_requests_result>([&](auto h) { d.get_group_join_requests(mention_group, {}, h); });
+            auto denied_send = call<chat::send_message_result>([&](auto h) { d.send_message(mention_group, "pending send", h); });
+            auto denied_history = call<chat::messages_result>([&](auto h) { d.get_messages(mention_group, {}, h); });
+            auto denied_members = call<std::vector<chat::conversation_member>>([&](auto h) { d.get_members(mention_group, h); });
+            auto denied_search = call<chat::messages_result>([&](auto h) { d.search_messages(mention_group, "link", {}, h); });
+            auto denied_read = call<std::int64_t>([&](auto h) { d.mark_read(mention_group, after_link->message_id, h); });
+            auto denied_file = call<chat::message>([&](auto h) { d.send_attachment(mention_group, "pending.bin", "pending", h); });
+            require(!private_requests && private_requests.error().code == -32009 && !private_response && private_response.error().code == -32009 &&
+                !pending_requests && pending_requests.error().code == -32006 && !denied_send && !denied_history && !denied_members &&
+                !denied_search && !denied_read && !denied_file, "Pending applicant has no group data or message permissions");
+            int pending_connects, pending_disconnects;
+            { std::lock_guard lock(d_events.mutex); pending_connects = d_events.connected; pending_disconnects = d_events.disconnected; }
+            d.close();
+            d_events.wait([&] { return d_events.disconnected == pending_disconnects + 1; });
+            d.connect(server.url);
+            d_events.wait([&] { return d_events.connected == pending_connects + 1; });
+            auto pending_auth = call<chat::authentication_result>([&](auto h) { d.authenticate(names[3], "group password", h); });
+            auto pending_snapshot = call<chat::conversations_result>([&](auto h) { d.get_conversations({}, h); });
+            auto recovered_request = call<chat::group_join_requests_result>([&](auto h) { a.get_group_join_requests(mention_group, {}, h); });
+            require(pending_auth && pending_auth->authenticated && pending_snapshot &&
+                std::ranges::none_of(pending_snapshot->conversations, [&](auto const& value) { return value.id == mention_group; }) &&
+                recovered_request && recovered_request->requests.size() == 1 && recovered_request->requests.front().created_at == requested_at,
+                "Reconnect preserves pending relation without granting a conversation");
+            auto rejected = call<bool>([&](auto h) { b.respond_group_join_request(mention_group, data.users[3], false, h); });
+            d_events.wait([&] { return std::ranges::any_of(d_events.join_requests, [&](auto const& value) {
+                return value.conversation == mention_group && value.state == chat::group_join_request_state::rejected;
+            }); });
+            require(rejected && *rejected && !call<bool>([&](auto h) { a.respond_group_join_request(mention_group, data.users[3], false, h); }).value() &&
+                call<chat::group_join_requests_result>([&](auto h) { a.get_group_join_requests(mention_group, {}, h); })->requests.empty(),
+                "Administrator rejects, applicant receives result, repeated decision is idempotent");
+            require(call<chat::group_join_result>([&](auto h) { d.join_group(**replacement, h); })->state == chat::group_join_state::pending,
+                "Rejected user may submit a new application");
+            std::size_t before_pending_messages;
+            { std::lock_guard lock(d_events.mutex); before_pending_messages = d_events.messages.size(); }
+            auto before_accept = call<chat::send_message_result>([&](auto h) { a.send_message(mention_group, "before approval acceptance", h); });
+            require(before_accept && call<bool>([&](auto h) { a.respond_group_join_request(mention_group, data.users[3], true, h); }).value(),
+                "Owner accepts a pending application");
+            d_events.wait([&] { return std::ranges::any_of(d_events.join_requests, [&](auto const& value) {
+                return value.conversation == mention_group && value.state == chat::group_join_request_state::accepted;
+            }); });
+            auto accepted_history = call<chat::messages_result>([&](auto h) { d.get_messages(mention_group, {}, h); });
+            auto accepted_members = call<std::vector<chat::conversation_member>>([&](auto h) { d.get_members(mention_group, h); });
+            auto accepted_snapshot = conversation(d, mention_group);
+            require(accepted_history && position(*accepted_history, data.users[3]) == 0 && accepted_members &&
+                std::ranges::any_of(*accepted_members, [&](auto const& value) { return value.id == data.users[3] && value.role == chat::member_role::member; }) &&
+                accepted_snapshot.unread == 0 && !accepted_snapshot.muted && !accepted_snapshot.pinned && accepted_snapshot.join_approval &&
+                call<chat::group_join_requests_result>([&](auto h) { b.get_group_join_requests(mention_group, {}, h); })->requests.empty(),
+                "Acceptance atomically removes request and creates fresh ordinary membership with zero real read and latest unread watermark");
+            { std::lock_guard lock(d_events.mutex); require(d_events.messages.size() == before_pending_messages, "Pending applicant is isolated from group realtime messages"); }
+            { std::lock_guard lock(c_events.mutex); require(c_events.join_requests.size() == ordinary_requests, "Ordinary group members never receive private join applications or results"); }
+            auto after_accept = call<chat::send_message_result>([&](auto h) { a.send_message(mention_group, "after approval acceptance", h); });
+            require(after_accept && conversation(d, mention_group).unread == 1, "Only post-acceptance messages count unread");
+            d_events.wait([&] { return std::ranges::any_of(d_events.messages, [&](auto const& value) { return value.id == after_accept->message_id; }); });
+            require(call<bool>([&](auto h) { a.remove_group_member(mention_group, data.users[3], h); }).value() &&
+                call<chat::group_join_result>([&](auto h) { d.join_group(**replacement, h); })->state == chat::group_join_state::pending,
+                "Rejoin after removal again requires approval");
+            require(call<chat::user>([&](auto h) { a.add_contact(data.users[3], h); }).has_value() &&
+                call<bool>([&](auto h) { a.invite_group_members(mention_group, {data.users[3]}, h); }).value() &&
+                call<chat::group_join_requests_result>([&](auto h) { a.get_group_join_requests(mention_group, {}, h); })->requests.empty(),
+                "Explicit contact invitation bypasses link approval and atomically clears an existing application");
+            require(call<bool>([&](auto h) { a.remove_group_member(mention_group, data.users[3], h); }).value() &&
+                call<chat::group_join_result>([&](auto h) { d.join_group(**replacement, h); })->state == chat::group_join_state::pending,
+                "Create pending request before changing mode");
+            require(call<std::optional<std::string>>([&](auto h) { a.revoke_group_invite(mention_group, h); }).has_value() &&
+                call<chat::group_join_requests_result>([&](auto h) { a.get_group_join_requests(mention_group, {}, h); })->requests.size() == 1,
+                "Revocation blocks new use without deleting a previously submitted application");
+            auto approval_link = call<std::optional<std::string>>([&](auto h) { a.create_group_invite(mention_group, h); });
+            require(approval_link && *approval_link && call<bool>([&](auto h) { b.set_group_join_approval(mention_group, false, h); }).value() &&
+                call<chat::group_join_requests_result>([&](auto h) { a.get_group_join_requests(mention_group, {}, h); })->requests.size() == 1,
+                "Disabling approval does not automatically accept pending users");
+            auto mode_join = call<chat::group_join_result>([&](auto h) { d.join_group(**approval_link, h); });
+            require(mode_join && mode_join->state == chat::group_join_state::joined &&
+                call<chat::group_join_requests_result>([&](auto h) { a.get_group_join_requests(mention_group, {}, h); })->requests.empty(),
+                "Using the current direct link joins normally and removes the pending application atomically");
+            auto const request_sql = "WITH applicants AS (INSERT INTO users(username,password_hash) SELECT 'chat_request_page_" +
+                std::to_string(getpid()) + "_'||n,repeat('x',60) FROM generate_series(1,58) n RETURNING id), "
+                "requests AS (INSERT INTO group_join_requests(conversation_id,user_id) SELECT " + std::to_string(mention_group) +
+                ",id FROM applicants RETURNING user_id) SELECT user_id FROM requests ORDER BY user_id DESC";
+            std::unique_ptr<PGresult, decltype(&PQclear)> request_fixture(PQexec(data.database.get(), request_sql.c_str()), &PQclear);
+            require(request_fixture && PQresultStatus(request_fixture.get()) == PGRES_TUPLES_OK && PQntuples(request_fixture.get()) == 58,
+                "Create real multi-page pending application fixtures");
+            for (int row = 0; row < 58; ++row) { data.users.push_back(std::stoll(PQgetvalue(request_fixture.get(), row, 0))); }
+            auto first_requests = call<chat::group_join_requests_result>([&](auto h) { a.get_group_join_requests(mention_group, {}, h); });
+            require(first_requests && first_requests->requests.size() == 50 && first_requests->next == first_requests->requests.back().applicant.id,
+                "Pending applications use a bounded first page and exact last-user cursor");
+            auto second_requests = call<chat::group_join_requests_result>([&](auto h) { b.get_group_join_requests(mention_group, first_requests->next, h); });
+            require(second_requests && second_requests->requests.size() == 8 && !second_requests->next,
+                "Pending application cursor terminates without truncation");
+            for (int row = 0; row < 58; ++row)
+            {
+                auto const& item = row < 50 ? first_requests->requests[row] : second_requests->requests[row - 50];
+                require(item.applicant.id == std::stoll(PQgetvalue(request_fixture.get(), row, 0)), "Application pages contain each user exactly once in cursor order");
+            }
+            data.execute("DELETE FROM group_join_requests WHERE conversation_id=" + std::to_string(mention_group));
+            std::cout << "PASS group join approval permission, private notification, pending isolation, accept/reject, reconnect, mode changes and cursor pagination\n";
             std::cout << "PASS persistent group mentions, literal names, boundaries, edits, leave/rejoin, reconnect and payload limit\n";
         }
         auto const page_owner = std::to_string(data.users[0]);
@@ -1261,7 +1394,7 @@ int run_group_tests()
         a_events.wait([&] { return a_events.disconnected == 1; });
         b_events.wait([&] { return b_events.disconnected == 3; });
         c_events.wait([&] { return c_events.disconnected == 4; });
-        d_events.wait([&] { return d_events.disconnected == 2; });
+        d_events.wait([&] { return d_events.disconnected == 3; });
         {
             std::array<events, 5> managed_events;
             std::array<chat::client, 5> managed;
@@ -1814,6 +1947,69 @@ int run_group_tests()
                 "Join/send race separates current membership watermark from real read and counts only later messages");
             require(call<bool>([&](auto h) { managed[1].remove_group_member(lifecycle_group, managed_ids[4], h); }).value(), "Remove link race member before existing recovery tests");
             std::cout << "PASS invite role/revocation/send races under conversation lock\n";
+            require(call<bool>([&](auto h) { managed[1].set_group_join_approval(lifecycle_group, true, h); }).value() &&
+                call<chat::group_join_result>([&](auto h) { managed[4].join_group(**send_link, h); })->state == chat::group_join_state::pending,
+                "Create pending applicant for serialized approval races");
+            auto [approval_demote, demoted_accept] = locked_race([&] {
+                return call<bool>([&](auto h) { managed[1].set_group_admin(lifecycle_group, managed_ids[2], false, h); });
+            }, [&] {
+                return call<bool>([&](auto h) { managed[2].respond_group_join_request(lifecycle_group, managed_ids[4], true, h); });
+            });
+            require(approval_demote && *approval_demote && (demoted_accept ? *demoted_accept : demoted_accept.error().code == -32009),
+                "Approval/demotion race validates manager role after conversation lock");
+            auto demoted_response = call<bool>([&](auto h) { managed[2].respond_group_join_request(lifecycle_group, managed_ids[4], false, h); });
+            require(!demoted_response && demoted_response.error().code == -32009 &&
+                call<bool>([&](auto h) { managed[1].set_group_admin(lifecycle_group, managed_ids[2], true, h); }).value(),
+                "Demoted administrator cannot respond to pending applications");
+            if (demoted_accept)
+            {
+                require(call<bool>([&](auto h) { managed[1].remove_group_member(lifecycle_group, managed_ids[4], h); }).value() &&
+                    call<chat::group_join_result>([&](auto h) { managed[4].join_group(**send_link, h); })->state == chat::group_join_state::pending,
+                    "Restore pending applicant after acceptance won demotion race");
+            }
+            auto const before_accept_race = conversation(managed[1], lifecycle_group).last.id;
+            auto [accept_send, send_accept] = locked_race([&] {
+                return call<bool>([&](auto h) { managed[1].respond_group_join_request(lifecycle_group, managed_ids[4], true, h); });
+            }, [&] {
+                return call<chat::send_message_result>([&](auto h) { managed[2].send_message(lifecycle_group, "concurrent approval acceptance", h); });
+            });
+            require(accept_send && *accept_send && send_accept, "Concurrent acceptance and send both complete");
+            std::unique_ptr<PGresult, decltype(&PQclear)> accepted_watermark(PQexec(data.database.get(), watermark_sql.c_str()), &PQclear);
+            require(accepted_watermark && PQresultStatus(accepted_watermark.get()) == PGRES_TUPLES_OK && PQntuples(accepted_watermark.get()) == 1,
+                "Read serialized approval membership watermark");
+            auto const accepted_joined = std::stoll(PQgetvalue(accepted_watermark.get(), 0, 0));
+            require((accepted_joined == before_accept_race || accepted_joined == send_accept->message_id) &&
+                std::string_view(PQgetvalue(accepted_watermark.get(), 0, 1)) == "0" &&
+                std::string_view(PQgetvalue(accepted_watermark.get(), 0, 2)) == "false" &&
+                conversation(managed[4], lifecycle_group).unread == (accepted_joined < send_accept->message_id ? 1 : 0),
+                "Acceptance/send lock order sets current join watermark without treating older history as read");
+            require(call<bool>([&](auto h) { managed[1].remove_group_member(lifecycle_group, managed_ids[4], h); }).value() &&
+                call<chat::group_join_result>([&](auto h) { managed[4].join_group(**send_link, h); })->state == chat::group_join_state::pending,
+                "Create pending request for duplicate acceptance race");
+            auto [owner_accept, admin_accept] = locked_race([&] {
+                return call<bool>([&](auto h) { managed[1].respond_group_join_request(lifecycle_group, managed_ids[4], true, h); });
+            }, [&] {
+                return call<bool>([&](auto h) { managed[2].respond_group_join_request(lifecycle_group, managed_ids[4], true, h); });
+            });
+            require(owner_accept && admin_accept && *owner_accept != *admin_accept &&
+                call<chat::group_join_requests_result>([&](auto h) { managed[1].get_group_join_requests(lifecycle_group, {}, h); })->requests.empty(),
+                "Duplicate accept race consumes one request and creates one membership");
+            require(call<bool>([&](auto h) { managed[1].remove_group_member(lifecycle_group, managed_ids[4], h); }).value() &&
+                call<chat::group_join_result>([&](auto h) { managed[4].join_group(**send_link, h); })->state == chat::group_join_state::pending,
+                "Create pending request for accept/reject race");
+            auto [racing_accept, racing_reject] = locked_race([&] {
+                return call<bool>([&](auto h) { managed[1].respond_group_join_request(lifecycle_group, managed_ids[4], true, h); });
+            }, [&] {
+                return call<bool>([&](auto h) { managed[2].respond_group_join_request(lifecycle_group, managed_ids[4], false, h); });
+            });
+            auto decided_members = call<std::vector<chat::conversation_member>>([&](auto h) { managed[1].get_members(lifecycle_group, h); });
+            require(racing_accept && racing_reject && *racing_accept != *racing_reject && decided_members &&
+                std::ranges::any_of(*decided_members, [&](auto const& value) { return value.id == managed_ids[4]; }) == *racing_accept &&
+                call<chat::group_join_requests_result>([&](auto h) { managed[1].get_group_join_requests(lifecycle_group, {}, h); })->requests.empty(),
+                "Accept/reject race produces exactly one decision with consistent membership");
+            if (*racing_accept) { require(call<bool>([&](auto h) { managed[1].remove_group_member(lifecycle_group, managed_ids[4], h); }).value(), "Remove accepted race fixture"); }
+            require(call<bool>([&](auto h) { managed[1].set_group_join_approval(lifecycle_group, false, h); }).value(), "Restore direct-join mode for remaining lifecycle tests");
+            std::cout << "PASS approval/demotion, approval/send, duplicate acceptance and accept/reject races under conversation lock\n";
             require(call<chat::user>([&](auto handler) { managed[2].add_contact(managed_ids[3], handler); }).has_value(),
                 "Racing invitation contact");
             std::size_t typing_before;

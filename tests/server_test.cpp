@@ -600,7 +600,8 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         for (auto const* method : {"begin_avatar_upload", "upload_avatar_chunk", "finish_avatar_upload",
                                     "cancel_avatar_upload", "get_avatar", "clear_avatar", "set_message_reaction", "set_conversation_muted", "set_conversation_pinned",
                                     "pin_group_message", "unpin_group_message", "set_group_announcement",
-                                    "get_group_invite", "create_group_invite", "revoke_group_invite", "join_group"})
+                                    "get_group_invite", "create_group_invite", "revoke_group_invite", "join_group",
+                                    "set_group_join_approval", "get_group_join_requests", "respond_group_join_request"})
         {
             auto [write_ec] = co_await send_websocket_text(socket,
                 std::string("{\"jsonrpc\":\"2.0\",\"method\":\"") + method + "\",\"params\":{},\"id\":\"avatar-auth\"}");
@@ -1690,6 +1691,23 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     {
         auto reply = co_await peer_rpc("join_group", params);
         if (!json_matches(reply, R"({"error":{"code":-32602}})")) { std::cerr << "FAIL join params\n"; co_return 1; }
+    }
+    for (auto const* params : {R"({"conversation":1})", R"({"conversation":1,"required":null})",
+        R"({"conversation":1,"required":"true"})", R"({"conversation":0,"required":true})", R"({"conversation":1,"required":true,"user":1})"})
+    {
+        auto reply = co_await peer_rpc("set_group_join_approval", params);
+        if (!json_matches(reply, R"({"error":{"code":-32602}})")) { std::cerr << "FAIL approval params\n"; co_return 1; }
+    }
+    for (auto const* params : {R"({"conversation":1})", R"({"conversation":1,"user":1})", R"({"conversation":1,"user":1,"accept":null})",
+        R"({"conversation":1,"user":0,"accept":false})", R"({"conversation":1,"user":1,"accept":"true"})", R"({"conversation":1,"user":1,"accept":true,"text":"x"})"})
+    {
+        auto reply = co_await peer_rpc("respond_group_join_request", params);
+        if (!json_matches(reply, R"({"error":{"code":-32602}})")) { std::cerr << "FAIL request response params\n"; co_return 1; }
+    }
+    for (auto const* params : {R"({"conversation":0})", R"({"conversation":1,"before":0})", R"({"conversation":1,"before":"1"})", R"({"conversation":1,"user":1})"})
+    {
+        auto reply = co_await peer_rpc("get_group_join_requests", params);
+        if (!json_matches(reply, R"({"error":{"code":-32602}})")) { std::cerr << "FAIL request cursor params\n"; co_return 1; }
     }
     for (auto const* params : {
         R"({"before":{"activity":1,"id":1}})",

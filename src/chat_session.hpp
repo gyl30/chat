@@ -42,6 +42,7 @@ class chat_session
     boost::capy::task<simdjson::error_code> handle_get_members(json_rpc_request& request, std::string& response);
     boost::capy::task<simdjson::error_code> handle_group_management(json_rpc_request& request, std::string& response);
     boost::capy::task<simdjson::error_code> handle_group_invite(json_rpc_request& request, std::string& response);
+    boost::capy::task<simdjson::error_code> handle_group_join_request(json_rpc_request& request, std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_get_messages(json_rpc_request& request, std::string& response);
 
@@ -65,6 +66,7 @@ class chat_session
 
     boost::capy::task<bool> publish_conversation(std::int64_t conversation, std::string notification,
                                               bool require_sender_membership = false);
+    boost::capy::task<void> publish_join_request(std::int64_t conversation, std::int64_t user, std::string state);
 
     bool enqueue_message(std::string message);
 

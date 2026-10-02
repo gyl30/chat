@@ -375,7 +375,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
                 "WITH added AS (INSERT INTO conversation_members(conversation_id,user_id,joined_message_id) "
                 "SELECT $1::bigint,id,(SELECT coalesce(max(id),0) FROM messages WHERE conversation_id=$1::bigint) "
                 "FROM unnest($2::bigint[]) AS invited(id) ON CONFLICT DO NOTHING RETURNING user_id) "
-                "SELECT count(*)::text FROM added", {std::to_string(conversation), ids});
+                ", cleared AS (DELETE FROM group_join_requests WHERE conversation_id=$1::bigint "
+                "AND user_id=ANY($2::bigint[]) RETURNING user_id) SELECT count(*)::text FROM added", {std::to_string(conversation), ids});
             if (std::get<0>(inserted))
             {
                 connection.close();

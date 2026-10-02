@@ -74,7 +74,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_invite(json_r
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
     auto locked = co_await connection.execute_row(
-        "SELECT kind,coalesce(owner_id,0)::text,coalesce(title,''),coalesce(invite_token,'') "
+        "SELECT kind,coalesce(owner_id,0)::text,coalesce(title,''),coalesce(invite_token,''),join_approval::text "
         "FROM conversations WHERE id=$1::bigint FOR UPDATE", {std::to_string(conversation)});
     auto& [lock_ec, group] = locked;
     if (lock_ec)
@@ -85,6 +85,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_invite(json_r
     int error = 0;
     std::string message;
     bool changed = false;
+    bool request_changed = false;
+    std::string join_state;
     std::string result;
     if (!group || (*group)[0] != "group" || (joining && (*group)[3] != token))
     {
@@ -93,18 +95,53 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_invite(json_r
     }
     else if (joining)
     {
-        auto inserted = co_await connection.execute_row(
-            "INSERT INTO conversation_members(conversation_id,user_id,joined_message_id) "
-            "VALUES($1::bigint,$2::bigint,(SELECT coalesce(max(id),0) FROM messages WHERE conversation_id=$1::bigint)) "
-            "ON CONFLICT DO NOTHING RETURNING user_id::text", {std::to_string(conversation), std::to_string(*user_id_)});
-        auto count = co_await connection.execute_scalar(
-            "SELECT count(*)::text FROM conversation_members WHERE conversation_id=$1::bigint", {std::to_string(conversation)});
-        if (std::get<0>(inserted) || std::get<0>(count))
+        auto member = co_await connection.execute_row(
+            "SELECT user_id::text FROM conversation_members WHERE conversation_id=$1::bigint AND user_id=$2::bigint",
+            {std::to_string(conversation), std::to_string(*user_id_)});
+        if (std::get<0>(member))
         {
             connection.close();
             co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
         }
-        changed = std::get<1>(inserted).has_value();
+        if (std::get<1>(member)) { join_state = "member"; }
+        else if ((*group)[4] == "true")
+        {
+            auto submitted = co_await connection.execute_row(
+                "INSERT INTO group_join_requests(conversation_id,user_id) VALUES($1::bigint,$2::bigint) "
+                "ON CONFLICT DO NOTHING RETURNING user_id::text", {std::to_string(conversation), std::to_string(*user_id_)});
+            if (std::get<0>(submitted))
+            {
+                connection.close();
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            request_changed = std::get<1>(submitted).has_value();
+            join_state = "pending";
+        }
+        else
+        {
+            auto inserted = co_await connection.execute_row(
+                "INSERT INTO conversation_members(conversation_id,user_id,joined_message_id) "
+                "VALUES($1::bigint,$2::bigint,(SELECT coalesce(max(id),0) FROM messages WHERE conversation_id=$1::bigint)) "
+                "ON CONFLICT DO NOTHING RETURNING user_id::text", {std::to_string(conversation), std::to_string(*user_id_)});
+            auto cleared = co_await connection.execute_row(
+                "DELETE FROM group_join_requests WHERE conversation_id=$1::bigint AND user_id=$2::bigint RETURNING user_id::text",
+                {std::to_string(conversation), std::to_string(*user_id_)});
+            if (std::get<0>(inserted) || std::get<0>(cleared))
+            {
+                connection.close();
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            changed = std::get<1>(inserted).has_value();
+            request_changed = std::get<1>(cleared).has_value();
+            join_state = "joined";
+        }
+        auto count = co_await connection.execute_scalar(
+            "SELECT count(*)::text FROM conversation_members WHERE conversation_id=$1::bigint", {std::to_string(conversation)});
+        if (std::get<0>(count))
+        {
+            connection.close();
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
         struct join_result
         {
             std::int64_t conversation;
@@ -112,7 +149,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_invite(json_r
             std::uint64_t member_count;
             std::string state;
         };
-        join_result value{conversation, (*group)[2], std::stoull(std::get<1>(count)), changed ? "joined" : "member"};
+        join_result value{conversation, (*group)[2], std::stoull(std::get<1>(count)), join_state};
         if (simdjson::builder::to_json_string(value).get(result))
         {
             connection.close();
@@ -190,6 +227,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_invite(json_r
     }
     lease = {};
     if (error) { co_return serialize_json_rpc_error(error, message, std::move(request.id), response); }
+    if (request_changed) { co_await publish_join_request(conversation, *user_id_, join_state == "pending" ? "pending" : "accepted"); }
     if (changed)
     {
         co_await publish_conversation(conversation,

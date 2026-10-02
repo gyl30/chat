@@ -214,6 +214,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             { co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false}; }
             auto const token = params->at("token").as_string();
             boost::json::object result{{"conversation", 2}, {"title", "linked group"}, {"member_count", 3}, {"state", token.front() == 'b' ? "member" : "joined"}};
+            if (token.front() == '0') { result["state"] = "pending"; }
             if (token.front() == 'c') { result.erase("conversation"); }
             if (token.front() == 'd') { result["conversation"] = 0; }
             if (token.front() == 'e') { result["title"] = ""; }
@@ -227,7 +228,46 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             co_return boost::capy::io_result<bool>{sent, !sent};
         }
 
-        if (operation == "pin_group_message" || operation == "unpin_group_message" || operation == "set_group_announcement")
+        if (operation == "get_group_join_requests")
+        {
+            auto const conversation = params->at("conversation").as_int64();
+            boost::json::object applicant{{"id", 3}, {"username", "requester"}, {"avatar_revision", 0}, {"has_avatar", false}, {"created_at", 1000}};
+            boost::json::object result{{"requests", boost::json::array{applicant}}, {"next", nullptr}};
+            if (conversation == 99) { result.erase("requests"); }
+            if (conversation == 98) { result["requests"] = true; }
+            if (conversation == 97) { result.erase("next"); }
+            if (conversation == 96) { result["next"] = 3; }
+            if (conversation == 95) { result["requests"].as_array().push_back(applicant); }
+            if (conversation == 94) { result["requests"].as_array()[0].as_object().erase("avatar_revision"); }
+            if (conversation == 93) { result["requests"].as_array()[0].as_object()["created_at"] = 0; }
+            if (conversation == 92) { result["requests"].as_array()[0].as_object()["id"] = 0; }
+            response.emplace("result", std::move(result));
+            auto [sent] = co_await send_text(connection, std::move(response));
+            if (sent) { co_return boost::capy::io_result<bool>{sent, false}; }
+            if (conversation == 2)
+            {
+                for (auto const* state : {"pending", "accepted", "rejected"})
+                {
+                    auto [notification_ec] = co_await send_text(connection, {{"jsonrpc", "2.0"}, {"method", "join_request"},
+                        {"params", boost::json::object{{"conversation", 2}, {"user", 3}, {"state", state}}}});
+                    if (notification_ec) { co_return boost::capy::io_result<bool>{notification_ec, false}; }
+                }
+            }
+            else if (conversation >= 80 && conversation <= 84)
+            {
+                boost::json::object notification{{"conversation", 2}, {"user", 3}, {"state", "pending"}};
+                if (conversation == 80) { notification["conversation"] = 0; }
+                if (conversation == 81) { notification["user"] = 0; }
+                if (conversation == 82) { notification["state"] = "unknown"; }
+                if (conversation == 83) { notification.erase("state"); }
+                if (conversation == 84) { notification["user"] = "3"; }
+                auto [notification_ec] = co_await send_text(connection, {{"jsonrpc", "2.0"}, {"method", "join_request"}, {"params", std::move(notification)}});
+                if (notification_ec) { co_return boost::capy::io_result<bool>{notification_ec, false}; }
+            }
+            co_return boost::capy::io_result<bool>{std::error_code{}, true};
+        }
+        if (operation == "pin_group_message" || operation == "unpin_group_message" || operation == "set_group_announcement" ||
+            operation == "set_group_join_approval" || operation == "respond_group_join_request")
         {
             auto const conversation = params->at("conversation").as_int64();
             boost::json::object result{{"changed", true}};
@@ -239,6 +279,10 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 { co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false}; }
                 result["changed"] = !params->at("text").as_string().empty();
             }
+            if (operation == "set_group_join_approval" && (params->as_object().size() != 2 || !params->at("required").is_bool()))
+            { co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false}; }
+            if (operation == "respond_group_join_request" && (params->as_object().size() != 3 || params->at("user").as_int64() != 3 || !params->at("accept").is_bool()))
+            { co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false}; }
             if (conversation == 98) { result.erase("changed"); }
             if (conversation == 99) { result["changed"] = "true"; }
             response.emplace("result", std::move(result));
@@ -279,6 +323,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 conversation.emplace("pinned", true);
                 conversation.emplace("pinned_message", nullptr);
                 conversation.emplace("announcement", "");
+                conversation.emplace("join_approval", false);
                 if (before && before->at("id").as_int64() >= 80 && before->at("id").as_int64() <= 85)
                 {
                     auto const probe = before->at("id").as_int64();
@@ -309,6 +354,16 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 if (before && before->at("id").as_int64() == 95) { conversation["pinned"] = "false"; }
                 if (before && before->at("id").as_int64() == 98) { conversation.erase("muted"); }
                 if (before && before->at("id").as_int64() == 99) { conversation["muted"] = "false"; }
+                if (before && before->at("id").as_int64() >= 100 && before->at("id").as_int64() <= 103)
+                {
+                    auto const probe = before->at("id").as_int64();
+                    conversation["kind"] = "group";
+                    conversation["user"] = nullptr;
+                    conversation["join_approval"] = true;
+                    if (probe == 101) { conversation.erase("join_approval"); }
+                    if (probe == 102) { conversation["join_approval"] = "true"; }
+                    if (probe == 103) { conversation["kind"] = "direct"; conversation["user"] = 2; }
+                }
                 conversations.push_back(std::move(conversation));
             }
             else if (before->is_object() && before->as_object().at("id").as_int64() == 2)
@@ -344,6 +399,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 conversation.emplace("pinned", false);
                 conversation.emplace("pinned_message", nullptr);
                 conversation.emplace("announcement", "");
+                conversation.emplace("join_approval", false);
                 conversations.push_back(std::move(conversation));
             }
             else
@@ -782,6 +838,7 @@ struct test_state
     std::vector<chat::error> errors;
     std::vector<chat::message> messages;
     std::vector<chat::reaction_update> reactions;
+    std::vector<chat::group_join_request_event> join_requests;
     std::vector<std::pair<std::int64_t, std::int64_t>> reads;
     std::vector<chat::presence> presences;
     std::vector<std::pair<std::int64_t, chat::avatar_state>> avatars;
@@ -853,6 +910,11 @@ int main()
     client.set_reaction_handler([&state](chat::reaction_update update) {
         std::lock_guard lock(state.mutex);
         state.reactions.push_back(std::move(update));
+        state.condition.notify_all();
+    });
+    client.set_group_join_request_handler([&state](chat::group_join_request_event value) {
+        std::lock_guard lock(state.mutex);
+        state.join_requests.push_back(value);
         state.condition.notify_all();
     });
     client.set_read_handler(
@@ -1215,17 +1277,45 @@ int main()
             if (invalid || invalid.error().kind != chat::error_kind::protocol) { return 1; }
         }
     }
-    for (char token : {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'})
+    for (char token : {'0', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'})
     {
         auto joined = avatar_call.operator()<chat::group_join_result>([&](auto h) { client.join_group(std::string(64, token), h); });
         if (token <= 'b')
         {
             if (!joined || joined->conversation != 2 || joined->title != "linked group" || joined->member_count != 3 ||
-                joined->state != (token == 'a' ? chat::group_join_state::joined : chat::group_join_state::member)) { return 1; }
+                joined->state != (token == '0' ? chat::group_join_state::pending : token == 'a' ? chat::group_join_state::joined : chat::group_join_state::member)) { return 1; }
         }
         else if (joined || joined.error().kind != chat::error_kind::protocol) { return 1; }
     }
     std::cout << "PASS client invite view/create/revoke, join states and strict protocol validation\n";
+    auto request_list = avatar_call.operator()<chat::group_join_requests_result>([&](auto h) { client.get_group_join_requests(2, {}, h); });
+    if (!request_list || request_list->requests.size() != 1 || request_list->next || request_list->requests.front().applicant.id != 3 ||
+        request_list->requests.front().created_at != 1000 || !state.wait([&] { return state.join_requests.size() == 3; })) { return 1; }
+    for (int i = 0; i < 3; ++i)
+    {
+        if (state.join_requests[i].conversation != 2 || state.join_requests[i].user != 3 ||
+            state.join_requests[i].state != static_cast<chat::group_join_request_state>(i)) { return 1; }
+    }
+    for (auto id : {99, 98, 97, 96, 95, 94, 93, 92})
+    {
+        auto invalid = avatar_call.operator()<chat::group_join_requests_result>([&](auto h) { client.get_group_join_requests(id, {}, h); });
+        if (invalid || invalid.error().kind != chat::error_kind::protocol) { return 1; }
+    }
+    for (auto choice : {false, true})
+    {
+        for (auto id : {2, 98, 99})
+        {
+            auto configured = avatar_call.operator()<bool>([&](auto h) { client.set_group_join_approval(id, choice, h); });
+            auto decided = avatar_call.operator()<bool>([&](auto h) { client.respond_group_join_request(id, 3, choice, h); });
+            if (id == 2 ? !configured || !*configured || !decided || !*decided :
+                configured || configured.error().kind != chat::error_kind::protocol || decided || decided.error().kind != chat::error_kind::protocol) { return 1; }
+        }
+    }
+    for (auto id : {100, 101, 102, 103})
+    {
+        auto metadata = avatar_call.operator()<chat::conversations_result>([&](auto h) { client.get_conversations(chat::conversation_cursor{1, id, false}, h); });
+        if (id == 100 ? !metadata || !metadata->conversations.front().join_approval : metadata || metadata.error().kind != chat::error_kind::protocol) { return 1; }
+    }
     auto avatar_bytes = std::string(40000, 'x');
     auto uploaded = avatar_call.operator()<chat::avatar_state>([&](auto h) { client.set_avatar(avatar_bytes, h); });
     auto downloaded = avatar_call.operator()<chat::avatar>([&](auto h) { client.get_avatar(1, 1, h); });
@@ -1240,6 +1330,15 @@ int main()
     }
     if (!state.wait([&] { return state.errors.size() == 1; }) || state.errors.front().kind != chat::error_kind::protocol)
     { std::cerr << "FAIL client malformed avatar notification\n"; return 1; }
+    std::size_t join_errors;
+    { std::lock_guard lock(state.mutex); join_errors = state.errors.size(); }
+    for (auto id : {80, 81, 82, 83, 84})
+    {
+        auto listed = avatar_call.operator()<chat::group_join_requests_result>([&](auto h) { client.get_group_join_requests(id, {}, h); });
+        if (!listed) { return 1; }
+    }
+    if (!state.wait([&] { return state.errors.size() == join_errors + 5; }) || state.join_requests.size() != 3) { return 1; }
+    std::cout << "PASS client join approval, request list, metadata, decisions and malformed notifications\n";
     for (auto const* payload : {"bad-offset", "bad-finish"})
     {
         auto rejected_upload = avatar_call.operator()<chat::avatar_state>([&](auto h) { client.set_avatar(payload, h); });
