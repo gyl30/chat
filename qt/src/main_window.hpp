@@ -5,6 +5,7 @@
 
 #include <QMainWindow>
 #include <QString>
+#include "message_data.hpp"
 
 class QDialog;
 class QLabel;
@@ -13,14 +14,22 @@ class QPushButton;
 class QStackedWidget;
 class QTimer;
 class QWidget;
+class QSystemTrayIcon;
 class chat_widget;
 class client_bridge;
 
 class main_window final : public QMainWindow
 {
+    Q_OBJECT
    public:
     explicit main_window(QString server_url, QWidget* parent = nullptr);
     ~main_window() override;
+
+   signals:
+    void notification_requested(qint64 conversation, QString title, QString summary);
+
+   protected:
+    void changeEvent(QEvent* event) override;
 
    private:
     enum class pending_action
@@ -49,6 +58,8 @@ class main_window final : public QMainWindow
     void finish_reconnect();
     void stop_reconnect();
     void return_to_login(QString message);
+    bool reading_conversation(qint64 conversation) const;
+    void notify_message(message_data const& message);
 
     QStackedWidget* pages_ = nullptr;
     QWidget* login_page_ = nullptr;
@@ -70,6 +81,8 @@ class main_window final : public QMainWindow
     QTimer* reconnect_countdown_timer_ = nullptr;
     QTimer* reconnect_notice_timer_ = nullptr;
     QTimer* reconnect_recovered_timer_ = nullptr;
+    QSystemTrayIcon* tray_ = nullptr;
+    QList<message_data> pending_notifications_;
 
     bool connected_ = false;
     bool logout_pending_ = false;

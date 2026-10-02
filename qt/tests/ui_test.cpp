@@ -18,12 +18,15 @@
 #include <QThread>
 #include <QTemporaryDir>
 #include <QSortFilterProxyModel>
+#include <QScrollBar>
+#include <QSystemTrayIcon>
 #include <source_location>
 #include <QTimer>
 #include <QToolButton>
 #include <chat/client.hpp>
 #include <libpq-fe.h>
 #include <future>
+#include <algorithm>
 #include <iostream>
 #include <unistd.h>
 #include "main_window.hpp"
@@ -65,6 +68,7 @@ int main(int argc, char** argv)
     {
         return 1;
     }
+    QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
     QApplication app(argc, argv);
     QProcess server;
     std::vector<long> ids;
@@ -89,10 +93,12 @@ int main(int argc, char** argv)
             QObject::connect(&bridge, &client_bridge::message_search_received, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::reaction_changed, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::message_image_received, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::read_marked, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::error, &bridge, [&](auto) { failed_connect.set_value(); }, Qt::DirectConnection);
             bridge.send_attachment(1, "stale.bin", "old upload");
             bridge.get_attachment(1, 1);
             bridge.get_message_image(1, 1);
+            bridge.mark_read(1, 1);
             bridge.search_messages(1, "old search");
             bridge.set_message_reaction(1, 1, QStringLiteral("👍"));
             QObject::connect(&bridge, &client_bridge::avatar_received, &bridge, [&](auto...) { ++stale_results; });
@@ -132,10 +138,16 @@ int main(int argc, char** argv)
         {
             std::vector<std::unique_ptr<main_window>> windows;
             std::vector<chat_widget*> pages;
+            struct notification { qint64 conversation; QString title; QString summary; };
+            QList<notification> notifications[3];
             for (int i = 0; i < 3; ++i)
             {
                 auto w = std::make_unique<main_window>(QString::fromStdString(url));
                 w->show();
+                QObject::connect(w.get(), &main_window::notification_requested, w.get(),
+                    [&, i](qint64 conversation, QString title, QString summary) {
+                        notifications[i].push_back({conversation, std::move(title), std::move(summary)});
+                    });
                 for (auto* e : w->findChildren<QLineEdit*>())
                 {
                     if (e->placeholderText() == QStringLiteral("用户名") && e->parent()->objectName() == "loginCard")
@@ -153,6 +165,13 @@ int main(int argc, char** argv)
                 pages.push_back(page);
                 windows.push_back(std::move(w));
             }
+            auto activate = [&](int actor) {
+                windows[actor]->showNormal();
+                windows[actor]->raise();
+                windows[actor]->activateWindow();
+                wait([&] { return windows[actor]->isActiveWindow(); });
+                QApplication::processEvents();
+            };
             QToolButton* create = nullptr;
             for (auto* b : windows[0]->findChildren<QToolButton*>())
             {
@@ -225,6 +244,7 @@ int main(int argc, char** argv)
             type_character(0);
             wait([&] { return peer_typing->isVisible(); });
             edit->setText(QStringLiteral("Qt 群消息验证"));
+            activate(1);
             windows[0]->findChild<QToolButton*>("sendButton")->click();
             wait([&] { return !peer_typing->isVisible() && !group_typing->isVisible(); });
             for (int i = 0; i < 3; ++i)
@@ -236,6 +256,19 @@ int main(int argc, char** argv)
             }
             auto* receipt_view = windows[0]->findChild<QListView*>("messageList");
             auto const reaction_message = receipt_view->model()->index(0, 0).data(message_model::id_role).toLongLong();
+            wait([&] { return notifications[2].size() == 1; });
+            check(notifications[0].isEmpty() && notifications[1].isEmpty() &&
+                notifications[2].front().conversation == group && notifications[2].front().title.contains(QStringLiteral("Qt 三人群")) &&
+                notifications[2].front().title.contains(names[0]) && notifications[2].front().summary == QStringLiteral("Qt 群消息验证"),
+                "Only background recipient receives a real group notification; sender and active reader do not");
+            auto unread_sql = "SELECT last_read_message_id FROM conversation_members WHERE conversation_id=" +
+                std::to_string(group) + " AND user_id=" + std::to_string(ids[2]);
+            auto* unread_result = PQexec(db, unread_sql.c_str());
+            check(PQresultStatus(unread_result) == PGRES_TUPLES_OK && PQntuples(unread_result) == 1 &&
+                std::string_view(PQgetvalue(unread_result, 0, 0)) == "0", "Background view does not advance real read position");
+            PQclear(unread_result);
+            activate(2);
+            activate(0);
             auto choose_reaction = [&](int actor, QString emoji) {
                 auto* view = windows[actor]->findChild<QListView*>("messageList");
                 QTimer::singleShot(20, [emoji] {
@@ -665,6 +698,7 @@ int main(int argc, char** argv)
             auto* reaction_result = PQexec(db, offline_reaction_sql.c_str());
             check(PQresultStatus(reaction_result) == PGRES_COMMAND_OK, "Offline reaction fixture");
             PQclear(reaction_result);
+            auto const notices_before_reconnect = notifications[0].size() + notifications[1].size() + notifications[2].size();
             start();
             for (int i = 0; i < 3; ++i)
             {
@@ -699,11 +733,16 @@ int main(int argc, char** argv)
                     });
             }
             windows[1]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("重连后的群消息"));
+            check(notifications[0].size() + notifications[1].size() + notifications[2].size() == notices_before_reconnect,
+                "History, edits, deletion and reaction recovery produce no ordinary notification");
+            activate(0);
             windows[1]->findChild<QToolButton*>("sendButton")->click();
             for (int i = 0; i < 3; ++i)
             {
                 wait([&, i] { return windows[i]->findChild<QListView*>("messageList")->model()->rowCount() == 4; });
             }
+            activate(2);
+            activate(0);
             for (int i = 0; i < 3; ++i)
             {
                 auto* view = windows[i]->findChild<QListView*>("messageList");
@@ -762,6 +801,11 @@ int main(int argc, char** argv)
             windows[0]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("保留单聊历史"));
             windows[0]->findChild<QToolButton*>("sendButton")->click();
             wait([&] { return windows[0]->findChild<QListView*>("messageList")->model()->rowCount() == 1; });
+            wait([&] {
+                return std::ranges::any_of(notifications[1], [&](auto const& value) {
+                    return value.conversation == direct && value.title == names[0] && value.summary == QStringLiteral("保留单聊历史");
+                });
+            });
             choose_reaction(0, QStringLiteral("😮"));
             wait([&] { return windows[0]->findChild<QListView*>("messageList")->model()->index(0, 0)
                                   .data(message_model::own_reaction_role).toString() == QStringLiteral("😮"); });
@@ -1104,6 +1148,7 @@ int main(int argc, char** argv)
             windows[0]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("退出期间的群消息"));
             windows[0]->findChild<QToolButton*>("sendButton")->click();
             wait([&] { return pages[0]->latest_message_id() > before_leave_message; });
+            activate(1);
             wait([&] {
                 auto* view = windows[0]->findChild<QListView*>("messageList");
                 return view->model()->index(view->model()->rowCount() - 1, 0)
@@ -1336,6 +1381,88 @@ int main(int argc, char** argv)
                 Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
             QApplication::sendEvent(group_images->viewport(), &image_release);
             check(opened_group_image, "Real group image bubble click");
+            check(std::ranges::any_of(notifications[1], [](auto const& value) { return value.summary == QStringLiteral("图片：photo.png"); }) &&
+                std::ranges::any_of(notifications[2], [](auto const& value) { return value.summary == QStringLiteral("文件：removal.bin"); }),
+                "Image and ordinary file notifications use compact summaries");
+            activate(1);
+            auto const other_conversation_notices = notifications[1].size();
+            pages[0]->send_message_requested(direct, QStringLiteral("前台查看其他会话"), 0);
+            wait([&] { return notifications[1].size() == other_conversation_notices + 1; });
+            check(notifications[1].back().conversation == direct && notifications[1].back().title == names[0],
+                "Foreground window still notifies for another conversation");
+            auto* direct_list = windows[1]->findChild<QListView*>("conversationList");
+            QModelIndex notice_conversation;
+            wait([&] {
+                for (int row = 0; row < direct_list->model()->rowCount(); ++row)
+                {
+                    auto const index = direct_list->model()->index(row, 0);
+                    if (index.data(conversation_model::id_role).toLongLong() == direct) { notice_conversation = index; return true; }
+                }
+                return false;
+            });
+            direct_list->clicked(notice_conversation);
+            wait([&] { return pages[1]->active_conversation() == direct && pages[1]->messages_ready(); });
+            windows[1]->showMinimized();
+            wait([&] { return windows[1]->isMinimized(); });
+            auto const minimized_notices = notifications[1].size();
+            pages[0]->send_message_requested(direct, QStringLiteral("最小化后的消息"), 0);
+            wait([&] { return notifications[1].size() == minimized_notices + 1; });
+            auto* tray = windows[1]->findChild<QSystemTrayIcon*>("notificationTray");
+            check(tray && QMetaObject::invokeMethod(tray, "messageClicked", Qt::DirectConnection), "Notification restore signal wiring");
+            wait([&] { return !windows[1]->isMinimized() && windows[1]->isActiveWindow(); });
+            auto const foreground_notices = notifications[1].size();
+            auto const long_message = QStringLiteral("history line\n").repeated(60);
+            pages[0]->send_message_requested(direct, long_message, 0);
+            auto* direct_messages = windows[1]->findChild<QListView*>("messageList");
+            wait([&] {
+                return direct_messages->model()->index(direct_messages->model()->rowCount() - 1, 0).data(message_model::text_role).toString() == long_message &&
+                    direct_messages->verticalScrollBar()->maximum() > 200;
+            });
+            check(notifications[1].size() == foreground_notices, "Foreground latest view has no extra notification");
+            auto* direct_scroll = direct_messages->verticalScrollBar();
+            direct_scroll->setValue(direct_scroll->maximum() - 150);
+            auto const history_scroll = direct_scroll->value();
+            auto const previous_read = pages[1]->latest_message_id();
+            auto const sender_notices = notifications[0].size();
+            pages[0]->send_message_requested(direct, long_message + QStringLiteral("\n历史阅读时的新消息"), 0);
+            wait([&] { return notifications[1].size() == foreground_notices + 1 && pages[1]->latest_message_id() > previous_read; });
+            check(direct_scroll->value() == history_scroll && notifications[1].back().summary.size() == 120 &&
+                notifications[0].size() == sender_notices, "History scroll stays fixed; notification is compact and sender is excluded");
+            auto const notified_message = pages[1]->latest_message_id();
+            auto read_query = "SELECT last_read_message_id FROM conversation_members WHERE conversation_id=" +
+                std::to_string(direct) + " AND user_id=" + std::to_string(ids[1]);
+            auto* history_read = PQexec(db, read_query.c_str());
+            check(PQresultStatus(history_read) == PGRES_TUPLES_OK && PQntuples(history_read) == 1 &&
+                std::stoll(PQgetvalue(history_read, 0, 0)) < notified_message, "Viewing old history does not read the new message");
+            PQclear(history_read);
+            direct_messages->scrollToBottom();
+            wait([&] {
+                auto* read = PQexec(db, read_query.c_str());
+                bool const seen = PQresultStatus(read) == PGRES_TUPLES_OK && PQntuples(read) == 1 &&
+                    std::stoll(PQgetvalue(read, 0, 0)) >= notified_message;
+                PQclear(read);
+                return seen;
+            });
+            auto* read_model = dynamic_cast<message_model*>(direct_messages->model());
+            check(read_model, "Real conversation message model");
+            wait([&] { return read_model->read_position(ids[1]) >= notified_message; });
+            int redundant_reads = 0;
+            auto const read_capture = QObject::connect(pages[1], &chat_widget::read_requested, windows[1].get(),
+                [&](qint64, qint64) { ++redundant_reads; });
+            for (int i = 0; i < 10; ++i)
+            {
+                direct_scroll->setValue(direct_scroll->maximum() - 20);
+                direct_messages->scrollToBottom();
+            }
+            check(redundant_reads == 0, "Already acknowledged read position prevents duplicate scroll writes");
+            QObject::disconnect(read_capture);
+            pages[0]->edit_message_requested(direct, notified_message, QStringLiteral("已编辑通知原消息"));
+            wait([&] { return direct_messages->model()->index(direct_messages->model()->rowCount() - 1, 0)
+                .data(message_model::text_role).toString() == QStringLiteral("已编辑通知原消息"); });
+            pages[0]->delete_message_requested(direct, notified_message);
+            wait([&] { return direct_messages->model()->index(direct_messages->model()->rowCount() - 1, 0)
+                .data(message_model::deleted_role).toBool(); });
+            check(notifications[1].size() == foreground_notices + 1, "Edit and deletion do not generate ordinary notifications");
             avatar_update(avatar_path, false, true);
             wait([&] { return pages[0]->avatars().state(ids[0]) == chat::avatar_state{4, true} && !pages[0]->avatars().image(ids[0]).isNull(); });
             pages[0]->logout_requested();

@@ -74,6 +74,10 @@ class chat_widget final : public QWidget
     qint64 latest_message_id() const;
     std::optional<qint64> recovery_cursor() const;
     bool messages_ready() const;
+    bool viewing_latest() const;
+    void mark_visible_messages();
+    qint64 self_user() const { return self_user_; }
+    std::optional<conversation_data> conversation(qint64 id) const;
 
    signals:
     void avatar_set_requested(QByteArray data);
@@ -97,6 +101,7 @@ class chat_widget final : public QWidget
     void attachment_send_requested(qint64 conversation, QString filename, QByteArray data, qint64 reply_to);
     void attachment_open_requested(qint64 conversation, qint64 message, QString filename, bool preview);
     void typing_requested(qint64 conversation, bool typing);
+    void read_requested(qint64 conversation, qint64 message);
 
    protected:
     bool eventFilter(QObject* object, QEvent* event) override;

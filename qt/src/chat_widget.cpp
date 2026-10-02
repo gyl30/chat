@@ -4,6 +4,7 @@
 #include <iterator>
 
 #include <QAbstractItemView>
+#include <QApplication>
 #include <QClipboard>
 #include <QColor>
 #include <QDialog>
@@ -636,6 +637,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     typing_expiry->start();
     connect(messages_view_->verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int value) {
         load_visible_images();
+        mark_visible_messages();
         if (value == messages_view_->verticalScrollBar()->minimum())
         {
             request_older_messages();
@@ -905,7 +907,10 @@ void chat_widget::set_messages(qint64 user, QList<message_data> messages, read_p
     {
         messages_loaded_ = true;
         set_message_status(messages_->rowCount() == 0 ? QStringLiteral("暂无消息") : QString{});
-        QTimer::singleShot(0, messages_view_, [view = messages_view_] { view->scrollToBottom(); });
+        QTimer::singleShot(0, messages_view_, [this] {
+            messages_view_->scrollToBottom();
+            mark_visible_messages();
+        });
         return;
     }
 
@@ -938,20 +943,27 @@ void chat_widget::add_message(qint64 user, message_data message)
         return;
     }
 
+    auto const at_bottom = messages_view_->verticalScrollBar()->value() == messages_view_->verticalScrollBar()->maximum();
     if (messages_->add_message(std::move(message)))
     {
         set_message_status({});
-        QTimer::singleShot(0, messages_view_, [view = messages_view_] { view->scrollToBottom(); });
+        if (at_bottom)
+        {
+            QTimer::singleShot(0, messages_view_, [this] {
+                messages_view_->scrollToBottom();
+                mark_visible_messages();
+            });
+        }
     }
 }
 
 void chat_widget::update_message(message_data message)
 {
+    messages_->update_message(message);
     if (message.conversation != active_conversation_)
     {
         return;
     }
-    messages_->update_message(message);
     if (reply_to_ == message.id)
     {
         reply_preview_->setText(
@@ -1329,6 +1341,29 @@ std::optional<qint64> chat_widget::recovery_cursor() const
 bool chat_widget::messages_ready() const
 {
     return messages_loaded_ && !messages_loading_;
+}
+
+bool chat_widget::viewing_latest() const
+{
+    auto const* scroll = messages_view_->verticalScrollBar();
+    return connection_available_ && messages_ready() && messages_view_->isVisible() &&
+        window()->isActiveWindow() && !window()->isMinimized() &&
+        !QApplication::activeModalWidget() && !QApplication::activePopupWidget() && scroll->value() == scroll->maximum();
+}
+
+void chat_widget::mark_visible_messages()
+{
+    auto const message = messages_->last_message_id();
+    if (active_conversation_ > 0 && viewing_latest() && message > messages_->read_position(self_user_))
+    {
+        emit read_requested(active_conversation_, message);
+    }
+}
+
+std::optional<conversation_data> chat_widget::conversation(qint64 id) const
+{
+    if (auto const* item = conversations_->conversation_at(conversations_->index_for_conversation(id))) { return *item; }
+    return std::nullopt;
 }
 
 void chat_widget::create_group()

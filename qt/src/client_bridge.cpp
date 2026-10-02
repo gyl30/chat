@@ -102,9 +102,18 @@ client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::ma
     client_->set_connected_handler([this] { emit connected(); });
     client_->set_disconnected_handler([this] { ++connection_generation_; emit disconnected(); });
     client_->set_error_handler([this](chat::error const& value) { emit error(from_utf8(value.message)); });
-    client_->set_message_handler([this](chat::message message) { emit message_received(to_message_data(message)); });
-    client_->set_message_updated_handler([this](chat::message value)
-                                         { emit message_updated(value.conversation, to_message_data(value), {}); });
+    client_->set_message_handler([this](chat::message message) {
+        auto const generation = connection_generation_.load();
+        QMetaObject::invokeMethod(this, [this, generation, message = std::move(message)] {
+            if (generation == connection_generation_) { emit message_received(to_message_data(message)); }
+        }, Qt::QueuedConnection);
+    });
+    client_->set_message_updated_handler([this](chat::message value) {
+        auto const generation = connection_generation_.load();
+        QMetaObject::invokeMethod(this, [this, generation, value = std::move(value)] {
+            if (generation == connection_generation_) { emit message_updated(value.conversation, to_message_data(value), {}); }
+        }, Qt::QueuedConnection);
+    });
     client_->set_reaction_handler([this](chat::reaction_update value) {
         auto const generation = connection_generation_.load();
         QMetaObject::invokeMethod(this, [this, generation, value = std::move(value)] {
@@ -613,13 +622,12 @@ void client_bridge::remove_contact(qint64 user)
 
 void client_bridge::mark_read(qint64 user, qint64 message)
 {
-    client_->mark_read(user, message, [this, user](std::expected<std::int64_t, chat::error> result) {
-        if (!result)
-        {
-            emit read_marked(user, 0, from_utf8(result.error().message));
-            return;
-        }
-        emit read_marked(user, *result, {});
+    auto const generation = connection_generation_.load();
+    client_->mark_read(user, message, [this, user, generation](std::expected<std::int64_t, chat::error> result) {
+        QMetaObject::invokeMethod(this, [this, user, generation, result = std::move(result)] {
+            if (generation != connection_generation_) { return; }
+            emit read_marked(user, result ? *result : 0, result ? QString{} : from_utf8(result.error().message));
+        }, Qt::QueuedConnection);
     });
 }
 

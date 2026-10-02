@@ -6,6 +6,8 @@
 #include <utility>
 
 #include <QDialog>
+#include <QApplication>
+#include <QEvent>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QFrame>
@@ -14,6 +16,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QStackedWidget>
+#include <QSystemTrayIcon>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -24,6 +27,7 @@
 #include "client_bridge.hpp"
 #include "message_search_dialog.hpp"
 #include "theme.hpp"
+#include "icons.hpp"
 
 main_window::main_window(QString server_url, QWidget* parent)
     : QMainWindow(parent), client_(std::make_unique<client_bridge>())
@@ -134,6 +138,22 @@ main_window::main_window(QString server_url, QWidget* parent)
 
     chat_page_ = new chat_widget(pages_);
 
+    tray_ = new QSystemTrayIcon(svg_icon(u"chat", QColor(QStringLiteral("#365E4B")), QSize(32, 32)), this);
+    tray_->setObjectName(QStringLiteral("notificationTray"));
+    tray_->setToolTip(QStringLiteral("Chat"));
+    auto restore_window = [this] { showNormal(); raise(); activateWindow(); };
+    connect(tray_, &QSystemTrayIcon::messageClicked, this, restore_window);
+    connect(tray_, &QSystemTrayIcon::activated, this, [restore_window](QSystemTrayIcon::ActivationReason reason) {
+        if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick) { restore_window(); }
+    });
+    connect(this, &main_window::notification_requested, tray_, [this](qint64, QString const& title, QString const& summary) {
+        if (QSystemTrayIcon::isSystemTrayAvailable() && QSystemTrayIcon::supportsMessages())
+        {
+            tray_->showMessage(title, summary, QSystemTrayIcon::Information);
+        }
+    });
+    connect(chat_page_, &chat_widget::read_requested, client_.get(), &client_bridge::mark_read);
+
     connect(&chat_page_->avatars(), &avatar_cache::requested, client_.get(), &client_bridge::get_avatar);
     connect(client_.get(), &client_bridge::avatar_changed, &chat_page_->avatars(), &avatar_cache::observe);
     connect(client_.get(), &client_bridge::avatar_received, &chat_page_->avatars(), &avatar_cache::receive);
@@ -224,6 +244,7 @@ main_window::main_window(QString server_url, QWidget* parent)
     }, Qt::QueuedConnection);
 
     connect(client_.get(), &client_bridge::disconnected, this, [this] {
+        pending_notifications_.clear();
         auto const action = pending_action_;
         connected_ = false;
         if (logout_pending_)
@@ -378,10 +399,17 @@ main_window::main_window(QString server_url, QWidget* parent)
             [this](QList<conversation_data> conversations, QString const& error_message) {
                 if (!error_message.isEmpty())
                 {
+                    pending_notifications_.clear();
                     chat_page_->set_error(error_message);
                     return;
                 }
                 chat_page_->set_conversations(std::move(conversations));
+                auto pending = std::move(pending_notifications_);
+                pending_notifications_.clear();
+                for (auto const& message : pending)
+                {
+                    if (chat_page_->conversation(message.conversation)) { notify_message(message); }
+                }
             },
             Qt::QueuedConnection);
 
@@ -554,6 +582,7 @@ main_window::main_window(QString server_url, QWidget* parent)
         client_.get(), &client_bridge::conversation_changed, this, [this](qint64 conversation, bool removed) {
             if (removed)
             {
+                pending_notifications_.removeIf([conversation](auto const& message) { return message.conversation == conversation; });
                 chat_page_->close_conversation(conversation);
             }
             client_->get_conversations();
@@ -589,12 +618,7 @@ main_window::main_window(QString server_url, QWidget* parent)
         chat_page_->finish_attachment_send(conversation, error);
         if (error.isEmpty())
         {
-            auto const id = message.id;
             chat_page_->add_message(conversation, std::move(message));
-            if (chat_page_->active_conversation() == conversation && chat_page_->messages_ready())
-            {
-                client_->mark_read(conversation, id);
-            }
             client_->get_conversations();
         }
     }, Qt::QueuedConnection);
@@ -640,14 +664,6 @@ main_window::main_window(QString server_url, QWidget* parent)
                 }
 
             chat_page_->set_messages(user, std::move(messages), std::move(positions), older, recovering, has_more);
-            if (!older && (!recovering || !has_more) && chat_page_->active_conversation() == user)
-                {
-                    auto const message = chat_page_->latest_message_id();
-                    if (message > 0)
-                    {
-                        client_->mark_read(user, message);
-                    }
-                }
             },
             Qt::QueuedConnection);
 
@@ -656,19 +672,15 @@ main_window::main_window(QString server_url, QWidget* parent)
         [this](message_data message)
         {
             auto const user = message.conversation;
-                auto const message_id = message.id;
-                chat_page_->add_message(user, std::move(message));
-            if (chat_page_->active_conversation() == user && chat_page_->messages_ready())
-                {
-                    client_->mark_read(user, message_id);
-                }
-                else
-                {
-                    client_->get_conversations();
-                    client_->get_presence();
-                }
-            },
-            Qt::QueuedConnection);
+            notify_message(message);
+            chat_page_->add_message(user, std::move(message));
+            if (!reading_conversation(user))
+            {
+                client_->get_conversations();
+                client_->get_presence();
+            }
+        },
+        Qt::AutoConnection);
 
     connect(chat_page_, &chat_widget::delete_message_requested, this,
             [this](qint64 conversation, qint64 message) { client_->delete_message(conversation, message); });
@@ -698,10 +710,15 @@ main_window::main_window(QString server_url, QWidget* parent)
                 chat_page_->set_message_error(conversation, std::move(error));
                 return;
             }
+            pending_notifications_.removeIf([&message](auto const& value) { return message.deleted && value.id == message.id; });
+            for (auto& value : pending_notifications_)
+            {
+                if (value.id == message.id) { value = message; }
+            }
             chat_page_->update_message(std::move(message));
             client_->get_conversations();
         },
-        Qt::QueuedConnection);
+        Qt::AutoConnection);
 
     connect(
         client_.get(), &client_bridge::messages_read, this, [this](qint64 conversation, qint64 user, qint64 message)
@@ -727,18 +744,55 @@ main_window::main_window(QString server_url, QWidget* parent)
 
     connect(client_.get(), &client_bridge::read_marked, this,
             [this](qint64 user, qint64 message, QString const& error_message) {
-                (void)message;
                 if (!error_message.isEmpty())
                 {
                     chat_page_->set_message_error(user, error_message);
                     return;
                 }
+                chat_page_->set_read_message(user, chat_page_->self_user(), message);
                 client_->get_conversations();
             },
-            Qt::QueuedConnection);
+            Qt::AutoConnection);
 }
 
 main_window::~main_window() { client_.reset(); }
+
+void main_window::changeEvent(QEvent* event)
+{
+    QMainWindow::changeEvent(event);
+    if (event->type() == QEvent::ActivationChange && isActiveWindow())
+    {
+        QTimer::singleShot(0, this, [this] { chat_page_->mark_visible_messages(); });
+    }
+}
+
+bool main_window::reading_conversation(qint64 conversation) const
+{
+    return connected_ && !reconnecting_ &&
+        pages_->currentWidget() == chat_page_ && chat_page_->active_conversation() == conversation && chat_page_->viewing_latest();
+}
+
+void main_window::notify_message(message_data const& message)
+{
+    if (!connected_ || reconnecting_ || pages_->currentWidget() != chat_page_ ||
+        message.deleted || message.from == chat_page_->self_user() || reading_conversation(message.conversation)) { return; }
+    auto const conversation = chat_page_->conversation(message.conversation);
+    if (!conversation)
+    {
+        pending_notifications_.push_back(message);
+        return;
+    }
+    auto const title = conversation->group
+        ? QStringLiteral("%1 · %2").arg(conversation->username.left(80), message.username.left(80))
+        : message.username.left(80);
+    auto summary = message.text.simplified();
+    if (message.attachment)
+    {
+        summary = (message.attachment->media_type.startsWith(QStringLiteral("image/"))
+            ? QStringLiteral("图片：") : QStringLiteral("文件：")) + message.attachment->filename;
+    }
+    emit notification_requested(message.conversation, title, summary.left(120));
+}
 
 void main_window::start_login()
 {
@@ -832,6 +886,8 @@ void main_window::register_user()
 
 void main_window::logout()
 {
+    pending_notifications_.clear();
+    tray_->hide();
     auto const should_close = connected_ || reconnecting_ || pending_action_ == pending_action::reconnect;
     stop_reconnect();
     pending_action_ = pending_action::none;
@@ -907,6 +963,7 @@ void main_window::show_authenticated_page(qint64 user)
     chat_page_->set_connection_status({}, false);
     chat_page_->set_loading();
     pages_->setCurrentWidget(chat_page_);
+    tray_->show();
     client_->get_conversations();
     client_->get_contacts();
     client_->get_presence();
@@ -1028,6 +1085,8 @@ void main_window::stop_reconnect()
 
 void main_window::return_to_login(QString message)
 {
+    pending_notifications_.clear();
+    tray_->hide();
     auto const username = session_username_;
     auto const should_close = connected_;
     stop_reconnect();
