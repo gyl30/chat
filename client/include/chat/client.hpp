@@ -45,6 +45,8 @@ class client
     using users_handler = std::function<void(std::expected<std::vector<user>, error>)>;
     using members_handler = std::function<void(std::expected<std::vector<conversation_member>, error>)>;
     using group_action_handler = std::function<void(std::expected<bool, error>)>;
+    using group_invite_handler = std::function<void(std::expected<std::optional<std::string>, error>)>;
+    using group_join_handler = std::function<void(std::expected<group_join_result, error>)>;
     using user_handler = std::function<void(std::expected<user, error>)>;
     using remove_contact_handler = std::function<void(std::expected<bool, error>)>;
     using mark_read_handler = std::function<void(std::expected<std::int64_t, error>)>;
@@ -97,6 +99,10 @@ class client
     void remove_group_member(std::int64_t conversation, std::int64_t user, group_action_handler handler);
     void rename_group(std::int64_t conversation, std::string title, group_action_handler handler);
     void set_group_announcement(std::int64_t conversation, std::string text, group_action_handler handler);
+    void get_group_invite(std::int64_t conversation, group_invite_handler handler);
+    void create_group_invite(std::int64_t conversation, group_invite_handler handler);
+    void revoke_group_invite(std::int64_t conversation, group_invite_handler handler);
+    void join_group(std::string token, group_join_handler handler);
     void invite_group_members(std::int64_t conversation, std::vector<std::int64_t> members, group_action_handler handler);
     void leave_group(std::int64_t conversation, group_action_handler handler);
     void pin_group_message(std::int64_t conversation, std::int64_t message, group_action_handler handler);

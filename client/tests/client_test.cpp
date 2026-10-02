@@ -193,6 +193,40 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             co_return boost::capy::io_result<bool>{sent, !sent};
         }
 
+        if (operation == "get_group_invite" || operation == "create_group_invite" || operation == "revoke_group_invite")
+        {
+            if (params->as_object().size() != 1 || !params->at("conversation").is_int64())
+            { co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false}; }
+            auto const conversation = params->at("conversation").as_int64();
+            boost::json::object result{{"token", operation == "revoke_group_invite" || conversation == 1 ? boost::json::value(nullptr) : boost::json::value(std::string(64, 'a'))}};
+            if (conversation == 98) { result.erase("token"); }
+            if (conversation == 99) { result["token"] = true; }
+            if (conversation == 97) { result["token"] = std::string(64, 'z'); }
+            if (conversation == 96) { result["token"] = std::string(63, 'a'); }
+            if (conversation == 95) { result["token"] = operation == "revoke_group_invite" ? boost::json::value(std::string(64, 'a')) : boost::json::value(nullptr); }
+            response.emplace("result", std::move(result));
+            auto [sent] = co_await send_text(connection, std::move(response));
+            co_return boost::capy::io_result<bool>{sent, !sent};
+        }
+        if (operation == "join_group")
+        {
+            if (params->as_object().size() != 1 || !params->at("token").is_string())
+            { co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false}; }
+            auto const token = params->at("token").as_string();
+            boost::json::object result{{"conversation", 2}, {"title", "linked group"}, {"member_count", 3}, {"state", token.front() == 'b' ? "member" : "joined"}};
+            if (token.front() == 'c') { result.erase("conversation"); }
+            if (token.front() == 'd') { result["conversation"] = 0; }
+            if (token.front() == 'e') { result["title"] = ""; }
+            if (token.front() == 'f') { result["member_count"] = 0; }
+            if (token.front() == 'g') { result["state"] = "unknown"; }
+            if (token.front() == 'h') { result["member_count"] = "3"; }
+            if (token.front() == 'i') { result["title"] = std::string("a\0b", 3); }
+            if (token.front() == 'j') { result["title"] = std::string(257, 'a'); }
+            response.emplace("result", std::move(result));
+            auto [sent] = co_await send_text(connection, std::move(response));
+            co_return boost::capy::io_result<bool>{sent, !sent};
+        }
+
         if (operation == "pin_group_message" || operation == "unpin_group_message" || operation == "set_group_announcement")
         {
             auto const conversation = params->at("conversation").as_int64();
@@ -1158,6 +1192,40 @@ int main()
         }
     }
     std::cout << "PASS client group announcement metadata, set/clear and malformed protocol\n";
+    auto invite_call = [&](int operation, int id) {
+        return avatar_call.operator()<std::optional<std::string>>([&](auto h) {
+            if (operation == 0) { client.get_group_invite(id, h); }
+            else if (operation == 1) { client.create_group_invite(id, h); }
+            else { client.revoke_group_invite(id, h); }
+        });
+    };
+    if (!invite_call(0, 1) || *invite_call(0, 1)) { return 1; }
+    for (int operation = 0; operation < 3; ++operation)
+    {
+        auto token = invite_call(operation, 2);
+        if (!token || (operation == 2 ? token->has_value() : *token != std::optional<std::string>(std::string(64, 'a')))) { return 1; }
+        for (int id : {98, 99, 97, 96})
+        {
+            auto invalid = invite_call(operation, id);
+            if (invalid || invalid.error().kind != chat::error_kind::protocol) { return 1; }
+        }
+        if (operation != 0)
+        {
+            auto invalid = invite_call(operation, 95);
+            if (invalid || invalid.error().kind != chat::error_kind::protocol) { return 1; }
+        }
+    }
+    for (char token : {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'})
+    {
+        auto joined = avatar_call.operator()<chat::group_join_result>([&](auto h) { client.join_group(std::string(64, token), h); });
+        if (token <= 'b')
+        {
+            if (!joined || joined->conversation != 2 || joined->title != "linked group" || joined->member_count != 3 ||
+                joined->state != (token == 'a' ? chat::group_join_state::joined : chat::group_join_state::member)) { return 1; }
+        }
+        else if (joined || joined.error().kind != chat::error_kind::protocol) { return 1; }
+    }
+    std::cout << "PASS client invite view/create/revoke, join states and strict protocol validation\n";
     auto avatar_bytes = std::string(40000, 'x');
     auto uploaded = avatar_call.operator()<chat::avatar_state>([&](auto h) { client.set_avatar(avatar_bytes, h); });
     auto downloaded = avatar_call.operator()<chat::avatar>([&](auto h) { client.get_avatar(1, 1, h); });

@@ -108,6 +108,7 @@ add_executable(chat_server
     src/chat_session.cpp
     src/conversation_request.cpp
     src/group_management_request.cpp
+    src/group_invite_request.cpp
     src/authenticate_request.cpp
     src/update_message_request.cpp
     src/reaction_request.cpp
@@ -248,6 +249,7 @@ add_executable(chat_server_test
     src/chat_session.cpp
     src/conversation_request.cpp
     src/group_management_request.cpp
+    src/group_invite_request.cpp
     src/authenticate_request.cpp
     src/update_message_request.cpp
     src/reaction_request.cpp

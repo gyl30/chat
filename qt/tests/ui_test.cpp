@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QClipboard>
 #include <QDialogButtonBox>
 #include <QFile>
 #include <QFileDialog>
@@ -89,6 +90,10 @@ int main(int argc, char** argv)
         {
             group_dialog dialog(1, 1, QStringLiteral("公告草稿"), QStringLiteral("旧公告"), nullptr);
             dialog.set_members(1, {{1, "owner", chat::member_role::owner, {}}, {2, "admin", chat::member_role::admin, {}}}, {});
+            dialog.set_invite(1, QString(64, 'a'), {});
+            auto* invite_edit = dialog.findChild<QLineEdit*>("groupInviteLinkEdit");
+            check(invite_edit->text() == QStringLiteral("chat://join/") + QString(64, 'a') &&
+                dialog.findChild<QPushButton*>("groupCopyInviteButton")->isEnabled(), "Manager can display current invite link");
             auto* edit = dialog.findChild<QPlainTextEdit*>("groupAnnouncementEdit");
             edit->setPlainText(QStringLiteral("未保存草稿"));
             conversation_data snapshot;
@@ -99,6 +104,9 @@ int main(int argc, char** argv)
             dialog.set_conversations({snapshot}, {});
             check(edit->toPlainText() == QStringLiteral("未保存草稿"), "Realtime snapshot preserves unsaved announcement draft");
             dialog.set_members(1, {{1, "member", chat::member_role::member, {}}, {2, "owner", chat::member_role::owner, {}}}, {});
+            dialog.set_invite(1, QString(64, 'b'), {});
+            check(invite_edit->text().isEmpty() && !dialog.findChild<QPushButton*>("groupCopyInviteButton")->isEnabled(),
+                "Role loss clears invite secret and rejects a stale link callback");
             check(edit->isReadOnly() && edit->toPlainText() == snapshot.announcement &&
                 !dialog.findChild<QPushButton*>("groupAnnouncementButton")->isEnabled(), "Loss of management permission restores authoritative announcement");
             dialog.set_members(1, {{1, "owner", chat::member_role::owner, {}}, {2, "admin", chat::member_role::admin, {}}}, {});
@@ -126,6 +134,9 @@ int main(int argc, char** argv)
             QObject::connect(&bridge, &client_bridge::message_updated, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::group_pin_finished, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::group_action_finished, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::group_invite_received, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::conversation_opened, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::members_received, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::error, &bridge, [&](auto) { failed_connect.set_value(); }, Qt::DirectConnection);
             bridge.send_attachment(1, "stale.bin", "old upload");
             bridge.get_attachment(1, 1);
@@ -139,6 +150,11 @@ int main(int argc, char** argv)
             bridge.set_group_pinned_message(1, 1);
             bridge.set_group_pinned_message(1, std::nullopt);
             bridge.set_group_announcement(1, QStringLiteral("旧连接的公告"));
+            bridge.group_invite(1);
+            bridge.group_invite(1, true);
+            bridge.group_invite(1, false);
+            bridge.join_group(QString(64, 'a'));
+            bridge.get_members(1);
             bridge.search_messages(1, "old search");
             bridge.set_message_reaction(1, 1, QStringLiteral("👍"));
             QObject::connect(&bridge, &client_bridge::avatar_received, &bridge, [&](auto...) { ++stale_results; });
@@ -1563,6 +1579,81 @@ int main(int argc, char** argv)
                     "Removal closes nested modals and clears history, reply, draft, typing and attachment UI");
                 invite_again();
             }
+            auto link_action = [&](int actor, std::optional<bool> create) {
+                QString link;
+                bool finished = false;
+                int step = 0;
+                QTimer link_poll;
+                QObject::connect(&link_poll, &QTimer::timeout, [&] {
+                    auto* dialog = qobject_cast<group_dialog*>(QApplication::activeModalWidget());
+                    if (!dialog || dialog->findChild<QListWidget*>("groupMembersList")->count() < 2) { return; }
+                    auto* edit = dialog->findChild<QLineEdit*>("groupInviteLinkEdit");
+                    auto* create_button = dialog->findChild<QPushButton*>("groupCreateInviteButton");
+                    auto* revoke_button = dialog->findChild<QPushButton*>("groupRevokeInviteButton");
+                    if (step == 0 && create.has_value())
+                    {
+                        auto* action = *create ? create_button : revoke_button;
+                        if (!action->isEnabled()) { return; }
+                        ++step;
+                        action->click();
+                        return;
+                    }
+                    if (create == std::optional<bool>(false) ? edit->text().isEmpty() && create_button->isEnabled() :
+                        !edit->text().isEmpty() && revoke_button->isEnabled())
+                    {
+                        link = edit->text();
+                        if (!link.isEmpty())
+                        {
+                            dialog->findChild<QPushButton*>("groupCopyInviteButton")->click();
+                            check(QApplication::clipboard()->text() == link, "Copy invitation uses actual persisted token");
+                        }
+                        dialog->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_invite.png");
+                        finished = true;
+                        link_poll.stop();
+                        dialog->accept();
+                    }
+                });
+                link_poll.start(20);
+                windows[actor]->findChild<QPushButton*>("chatHeaderButton")->click();
+                check(finished, "Invite link action completes in real Qt dialog");
+                return link;
+            };
+            auto const original_link = link_action(0, true);
+            check(original_link.startsWith(QStringLiteral("chat://join/")) && original_link.size() == 76 &&
+                link_action(1, std::nullopt) == original_link, "Administrator sees same stable owner-created link");
+            auto join_link = [&](QString const& link) {
+                bool pasted = false;
+                QTimer::singleShot(20, [&] {
+                    auto* input = qobject_cast<QInputDialog*>(QApplication::activeModalWidget());
+                    check(input && input->windowTitle() == QStringLiteral("加入群聊"), "Join entry opens invitation input");
+                    input->setTextValue(link);
+                    pasted = true;
+                    input->accept();
+                });
+                windows[2]->findChild<QToolButton*>("joinGroupButton")->click();
+                check(pasted, "Paste invitation through real Qt input");
+            };
+            member_action(0, ids[2], "groupRemoveButton");
+            wait([&] { return pages[2]->active_conversation() == 0 && !pages[2]->conversation(group); });
+            join_link(original_link);
+            wait([&] { return pages[2]->active_conversation() == group && pages[2]->messages_ready() &&
+                pages[2]->conversation(group) && pages[2]->conversation(group)->member_count == 3; });
+            check(pages[2]->conversation(group)->username == pages[0]->conversation(group)->username,
+                "Joined conversation opens with authoritative title and old history");
+            join_link(original_link);
+            wait([&] { return pages[2]->messages_ready() && pages[2]->conversation(group)->member_count == 3; });
+            link_action(1, false);
+            member_action(0, ids[2], "groupRemoveButton");
+            wait([&] { return pages[2]->active_conversation() == 0 && !pages[2]->conversation(group); });
+            join_link(original_link);
+            wait([&] { return std::ranges::any_of(windows[2]->findChildren<QLabel*>(), [](auto* label) {
+                return label->text().contains(QStringLiteral("Invite unavailable"));
+            }); });
+            check(pages[2]->active_conversation() == 0, "Revoked link cannot reopen a removed conversation");
+            auto const replacement_link = link_action(0, true);
+            check(replacement_link != original_link, "Recreate generates a fresh link in Qt");
+            join_link(replacement_link);
+            wait([&] { return pages[2]->active_conversation() == group && pages[2]->messages_ready(); });
             member_action(0, ids[1], "groupTransferButton");
             server.terminate();
             check(server.waitForFinished(3000), "Restart after Qt ownership transfer");
@@ -1592,6 +1683,7 @@ int main(int argc, char** argv)
             owner_poll.start(20);
             windows[1]->findChild<QPushButton*>("chatHeaderButton")->click();
             check(recovered_owner, "Reconnect member snapshot");
+            check(link_action(1, std::nullopt) == replacement_link, "Invite link persists through reconnect and owner transfer");
             for (auto* page : pages) { check(page->conversation(group)->announcement == announcement_text, "Announcement survives reconnect and ownership transfer"); }
             announcement_action(0, QStringLiteral("转让后管理员更新的公告"));
             announcement_action(1, {}, true);

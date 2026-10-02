@@ -1121,6 +1121,81 @@ int run_group_tests()
                 conversation(c, mention_group).announcement.empty() && conversation(b, mention_group).member_count == before_pin.member_count,
                 "Admin clears announcement and repeat clear preserves current membership");
             std::cout << "PASS group announcement permission, persistence, notification, limits, no-op and reconnect\n";
+            auto no_link = call<std::optional<std::string>>([&](auto h) { a.get_group_invite(mention_group, h); });
+            auto member_link = call<std::optional<std::string>>([&](auto h) { c.get_group_invite(mention_group, h); });
+            auto outsider_link = call<std::optional<std::string>>([&](auto h) { d.create_group_invite(mention_group, h); });
+            auto direct_link = call<std::optional<std::string>>([&](auto h) { a.create_group_invite(*direct, h); });
+            require(no_link && !*no_link && !member_link && member_link.error().code == -32009 &&
+                !outsider_link && outsider_link.error().code == -32006 && !direct_link && direct_link.error().code == -32006,
+                "Only current group managers may view or create invite secrets; existing groups default to no link");
+            auto created_link = call<std::optional<std::string>>([&](auto h) { a.create_group_invite(mention_group, h); });
+            require(created_link && *created_link && (**created_link).size() == 64, "Owner creates high-entropy invite token");
+            auto const token = **created_link;
+            auto owner_link = call<std::optional<std::string>>([&](auto h) { a.get_group_invite(mention_group, h); });
+            require(owner_link && *owner_link == std::optional<std::string>(token), "Owner reads the persistent current token");
+            auto admin_link = call<std::optional<std::string>>([&](auto h) { b.create_group_invite(mention_group, h); });
+            require(admin_link && *admin_link == std::optional<std::string>(token), "Create is stable and administrator can recover current link");
+            auto invalid_link = call<chat::group_join_result>([&](auto h) { d.join_group(std::string(64, 'a'), h); });
+            require(!invalid_link && invalid_link.error().code == -32014, "Unknown opaque token cannot join a group");
+            auto const before_join = conversation(a, mention_group);
+            std::size_t before_join_events;
+            { std::lock_guard lock(c_events.mutex); before_join_events = c_events.conversations.size(); }
+            auto joined = call<chat::group_join_result>([&](auto h) { d.join_group(token, h); });
+            require(joined && joined->conversation == mention_group && joined->title == before_join.username &&
+                joined->member_count == before_join.member_count + 1 && joined->state == chat::group_join_state::joined,
+                "Authenticated non-contact joins with authoritative title/count");
+            c_events.wait([&] { return c_events.conversations.size() > before_join_events; });
+            auto joined_history = call<chat::messages_result>([&](auto h) { d.get_messages(mention_group, {}, h); });
+            require(joined_history && !joined_history->messages.empty() && position(*joined_history, data.users[3]) == 0 &&
+                conversation(d, mention_group).unread == 0 && conversation(a, mention_group).last.id == before_join.last.id,
+                "Link join exposes old history without pretending it was read or changing activity");
+            auto repeated_join = call<chat::group_join_result>([&](auto h) { d.join_group(token, h); });
+            require(repeated_join && repeated_join->state == chat::group_join_state::member && repeated_join->member_count == joined->member_count,
+                "Existing membership joins idempotently without duplicate members");
+            auto after_link = call<chat::send_message_result>([&](auto h) { a.send_message(mention_group, "after link join", h); });
+            require(after_link && conversation(d, mention_group).unread == 1, "Only new messages count unread after link join");
+            d_events.wait([&] { return std::any_of(d_events.messages.begin(), d_events.messages.end(), [&](auto const& value) { return value.id == after_link->message_id; }); });
+            require(call<bool>([&](auto h) { d.mark_read(mention_group, after_link->message_id, h); }).has_value() &&
+                call<bool>([&](auto h) { d.set_conversation_muted(mention_group, true, h); }).has_value() &&
+                call<bool>([&](auto h) { d.set_conversation_pinned(mention_group, true, h); }).has_value() &&
+                call<bool>([&](auto h) { a.set_group_admin(mention_group, data.users[3], true, h); }).has_value(),
+                "Set real read position, preferences and administrator role before repeat join");
+            auto repeat_admin = call<chat::group_join_result>([&](auto h) { d.join_group(token, h); });
+            auto preserved_history = call<chat::messages_result>([&](auto h) { d.get_messages(mention_group, {}, h); });
+            auto preserved_members = call<std::vector<chat::conversation_member>>([&](auto h) { d.get_members(mention_group, h); });
+            auto preserved = conversation(d, mention_group);
+            require(repeat_admin && repeat_admin->state == chat::group_join_state::member && preserved_history &&
+                position(*preserved_history, data.users[3]) == after_link->message_id && preserved.muted && preserved.pinned && preserved_members &&
+                std::any_of(preserved_members->begin(), preserved_members->end(), [&](auto const& value) { return value.id == data.users[3] && value.role == chat::member_role::admin; }),
+                "Repeat link join preserves role, read position and personal preferences");
+            require(call<bool>([&](auto h) { a.remove_group_member(mention_group, data.users[3], h); }).value(), "Remove link-joined administrator");
+            auto rejoined = call<chat::group_join_result>([&](auto h) { d.join_group(token, h); });
+            auto rejoined_members = call<std::vector<chat::conversation_member>>([&](auto h) { d.get_members(mention_group, h); });
+            auto rejoined_history = call<chat::messages_result>([&](auto h) { d.get_messages(mention_group, {}, h); });
+            auto fresh = conversation(d, mention_group);
+            require(rejoined && rejoined->state == chat::group_join_state::joined && !fresh.muted && !fresh.pinned && fresh.unread == 0 &&
+                rejoined_history && position(*rejoined_history, data.users[3]) == 0 && rejoined_members &&
+                std::any_of(rejoined_members->begin(), rejoined_members->end(), [&](auto const& value) { return value.id == data.users[3] && value.role == chat::member_role::member; }),
+                "Link rejoin creates a fresh ordinary membership with current watermark, zero real read and default preferences");
+            auto revoked = call<std::optional<std::string>>([&](auto h) { b.revoke_group_invite(mention_group, h); });
+            auto repeated_revoke = call<std::optional<std::string>>([&](auto h) { a.revoke_group_invite(mention_group, h); });
+            auto stale_link = call<chat::group_join_result>([&](auto h) { d.join_group(token, h); });
+            require(revoked && !*revoked && repeated_revoke && !*repeated_revoke && !stale_link && stale_link.error().code == -32014,
+                "Administrator revokes link idempotently and old secret no longer joins");
+            auto replacement = call<std::optional<std::string>>([&](auto h) { b.create_group_invite(mention_group, h); });
+            require(replacement && *replacement && **replacement != token, "Recreating revoked link generates a different random secret");
+            int d_connects, d_disconnects;
+            { std::lock_guard lock(d_events.mutex); d_connects = d_events.connected; d_disconnects = d_events.disconnected; }
+            d.close();
+            d_events.wait([&] { return d_events.disconnected == d_disconnects + 1; });
+            d.connect(server.url);
+            d_events.wait([&] { return d_events.connected == d_connects + 1; });
+            auto d_auth = call<chat::authentication_result>([&](auto h) { d.authenticate(names[3], "group password", h); });
+            auto restored_join = call<chat::group_join_result>([&](auto h) { d.join_group(**replacement, h); });
+            require(d_auth && d_auth->authenticated && conversation(d, mention_group).unread == 0 &&
+                restored_join && restored_join->state == chat::group_join_state::member,
+                "Reconnect restores link-created membership and persistent invite token");
+            std::cout << "PASS group invite secret permissions, stable creation/revoke, direct join, fresh rejoin, notifications and reconnect\n";
             std::cout << "PASS persistent group mentions, literal names, boundaries, edits, leave/rejoin, reconnect and payload limit\n";
         }
         auto const page_owner = std::to_string(data.users[0]);
@@ -1186,7 +1261,7 @@ int run_group_tests()
         a_events.wait([&] { return a_events.disconnected == 1; });
         b_events.wait([&] { return b_events.disconnected == 3; });
         c_events.wait([&] { return c_events.disconnected == 4; });
-        d_events.wait([&] { return d_events.disconnected == 1; });
+        d_events.wait([&] { return d_events.disconnected == 2; });
         {
             std::array<events, 5> managed_events;
             std::array<chat::client, 5> managed;
@@ -1696,6 +1771,49 @@ int run_group_tests()
             require(!denied_announcement && denied_announcement.error().code == -32009 &&
                 call<bool>([&](auto h) { managed[1].set_group_admin(lifecycle_group, managed_ids[2], true, h); }).value(),
                 "Demoted member cannot write; restore administrator for existing lifecycle tests");
+            auto lifecycle_link = call<std::optional<std::string>>([&](auto h) { managed[1].create_group_invite(lifecycle_group, h); });
+            require(lifecycle_link && *lifecycle_link, "Create link for lock races");
+            auto [demoted_inviter, racing_link] = locked_race([&] {
+                return call<bool>([&](auto h) { managed[1].set_group_admin(lifecycle_group, managed_ids[2], false, h); });
+            }, [&] {
+                return call<std::optional<std::string>>([&](auto h) { managed[2].create_group_invite(lifecycle_group, h); });
+            });
+            auto denied_link = call<std::optional<std::string>>([&](auto h) { managed[2].get_group_invite(lifecycle_group, h); });
+            require(demoted_inviter && *demoted_inviter && (racing_link || racing_link.error().code == -32009) &&
+                !denied_link && denied_link.error().code == -32009 &&
+                call<bool>([&](auto h) { managed[1].set_group_admin(lifecycle_group, managed_ids[2], true, h); }).value(),
+                "Link/demotion race checks current role under conversation lock");
+            auto [revoke_race, join_race] = locked_race([&] {
+                return call<std::optional<std::string>>([&](auto h) { managed[2].revoke_group_invite(lifecycle_group, h); });
+            }, [&] {
+                return call<chat::group_join_result>([&](auto h) { managed[4].join_group(**lifecycle_link, h); });
+            });
+            auto post_revoke_join = call<chat::group_join_result>([&](auto h) { managed[4].join_group(**lifecycle_link, h); });
+            require(revoke_race && !*revoke_race && (join_race || join_race.error().code == -32014) &&
+                !post_revoke_join && post_revoke_join.error().code == -32014,
+                "Join/revoke race rechecks token after acquiring lock; stale secret always fails afterwards");
+            if (join_race) { require(call<bool>([&](auto h) { managed[1].remove_group_member(lifecycle_group, managed_ids[4], h); }).value(), "Restore removed race fixture"); }
+            auto send_link = call<std::optional<std::string>>([&](auto h) { managed[1].create_group_invite(lifecycle_group, h); });
+            require(send_link && *send_link, "Fresh link for concurrent join/send");
+            auto const pre_join_latest = conversation(managed[1], lifecycle_group).last.id;
+            auto [join_send, send_join] = locked_race([&] {
+                return call<chat::group_join_result>([&](auto h) { managed[4].join_group(**send_link, h); });
+            }, [&] {
+                return call<chat::send_message_result>([&](auto h) { managed[1].send_message(lifecycle_group, "concurrent link join", h); });
+            });
+            require(join_send && join_send->state == chat::group_join_state::joined && send_join, "Concurrent join and send both complete");
+            auto watermark_sql = "SELECT joined_message_id::text,last_read_message_id::text,is_admin::text FROM conversation_members WHERE conversation_id=" +
+                std::to_string(lifecycle_group) + " AND user_id=" + std::to_string(managed_ids[4]);
+            std::unique_ptr<PGresult, decltype(&PQclear)> join_watermark(PQexec(data.database.get(), watermark_sql.c_str()), &PQclear);
+            require(join_watermark && PQresultStatus(join_watermark.get()) == PGRES_TUPLES_OK && PQntuples(join_watermark.get()) == 1,
+                "Read serialized link join watermark");
+            auto const actual_joined = std::stoll(PQgetvalue(join_watermark.get(), 0, 0));
+            require((actual_joined == pre_join_latest || actual_joined == send_join->message_id) &&
+                std::string_view(PQgetvalue(join_watermark.get(), 0, 1)) == "0" && std::string_view(PQgetvalue(join_watermark.get(), 0, 2)) == "false" &&
+                conversation(managed[4], lifecycle_group).unread == (actual_joined < send_join->message_id ? 1 : 0),
+                "Join/send race separates current membership watermark from real read and counts only later messages");
+            require(call<bool>([&](auto h) { managed[1].remove_group_member(lifecycle_group, managed_ids[4], h); }).value(), "Remove link race member before existing recovery tests");
+            std::cout << "PASS invite role/revocation/send races under conversation lock\n";
             require(call<chat::user>([&](auto handler) { managed[2].add_contact(managed_ids[3], handler); }).has_value(),
                 "Racing invitation contact");
             std::size_t typing_before;

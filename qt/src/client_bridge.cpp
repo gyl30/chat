@@ -339,10 +339,53 @@ void client_bridge::create_group(QString title, QList<qint64> members)
                           });
 }
 
+void client_bridge::join_group(QString token)
+{
+    auto const generation = connection_generation_.load();
+    client_->join_group(to_utf8(token), [this, generation](auto result) {
+        QMetaObject::invokeMethod(this, [this, generation, result = std::move(result)] {
+            if (generation != connection_generation_) { return; }
+            conversation_data value;
+            if (result)
+            {
+                ++conversations_generation_;
+                value.id = result->conversation;
+                value.group = true;
+                value.username = from_utf8(result->title);
+                value.member_count = result->member_count;
+            }
+            emit conversation_opened(value, result ? QString{} : from_utf8(result.error().message));
+        }, Qt::QueuedConnection);
+    });
+}
+
+void client_bridge::group_invite(qint64 conversation, std::optional<bool> create)
+{
+    auto const generation = connection_generation_.load();
+    auto finished = [this, conversation, create, generation](auto result) {
+        QMetaObject::invokeMethod(this, [this, conversation, create, generation, result = std::move(result)] {
+            if (generation != connection_generation_) { return; }
+            auto const error = result ? QString{} : from_utf8(result.error().message);
+            if (create.has_value())
+            {
+                if (result) { ++conversations_generation_; }
+                emit group_action_finished(conversation, false, error);
+            }
+            emit group_invite_received(conversation, result && *result ? from_utf8(**result) : QString{}, error);
+        }, Qt::QueuedConnection);
+    };
+    if (!create) { client_->get_group_invite(conversation, std::move(finished)); }
+    else if (*create) { client_->create_group_invite(conversation, std::move(finished)); }
+    else { client_->revoke_group_invite(conversation, std::move(finished)); }
+}
+
 void client_bridge::get_members(qint64 conversation)
 {
+    auto const generation = connection_generation_.load();
     client_->get_members(conversation,
-        [this, conversation](std::expected<std::vector<chat::conversation_member>, chat::error> result) {
+        [this, conversation, generation](std::expected<std::vector<chat::conversation_member>, chat::error> result) {
+        QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
+            if (generation != connection_generation_) { return; }
             if (!result)
             {
                 emit members_received(conversation, {}, from_utf8(result.error().message));
@@ -354,6 +397,7 @@ void client_bridge::get_members(qint64 conversation)
                 values.push_back(member_data{user.id, from_utf8(user.username), user.role, user.avatar});
             }
             emit members_received(conversation, std::move(values), {});
+        }, Qt::QueuedConnection);
         });
 }
 

@@ -29,6 +29,7 @@
 | `638b775` | 个人会话置顶及跨置顶/普通层的完整 cursor 分页 | SQL 018 |
 | `a653634` | 群成员提及、真实目标持久化、文字高亮与重连 | SQL 019 |
 | `31d6cc4` | 群内单条消息置顶、实时摘要、编辑与删除一致性、历史搜索 | SQL 020 |
+| `d6c0952` | 当前群公告、纯文本编辑、实时查看及草稿与权限生命周期 | SQL 021 |
 
 另外完成历史大响应接收、编辑消息布局和消息操作按钮对比度修复，分别见 `32f3f3b`、`a545c9a`、`f73b8f4`。
 
@@ -41,6 +42,7 @@
 - SQL 019 的 `message_mentions(message_id,user_id)` 保存群文字提及的真实目标；编辑替换、删除清空，退出成员不删除历史目标。旧消息不回填。
 - SQL 020 的 `conversations.pinned_message_id` 保存每群一个当前置顶消息；与个人 membership 的 pinned 独立。初始为空，软删除同事务清空，物理删除通过外键 SET NULL 清空。
 - SQL 021 的 `conversations.announcement` 保存每群一个当前纯文本公告，默认空字符串，空字符串表示未设置；数据库约束限定 group 和最多 4096 个 UTF-8 字节。没有公告历史或消息伪装。
+- SQL 022 的 `conversations.invite_token` 保存每群一个可空、唯一的当前邀请 secret；仅 group 可保存 64 位小写十六进制 token。撤销设为 NULL，重新创建使用新的 OpenSSL 随机值，不维护过期、次数或链接历史。
 - SQL 008 保留旧单聊、自聊、消息、联系人和阅读位置；SQL 009–014 渐进增加上述能力。SQL 013 应用前已确认本次数据库没有既存群，不猜测旧群创建者，也不删除旧消息。
 - 新建或重新加入的成员能读取完整历史。邀请取得会话锁后读取最新消息 ID 作为加入水位；实际阅读仍从 0 开始，仅由 `mark_read` 推进。未读统计使用 `id > greatest(last_read_message_id, joined_message_id)`，排除删除消息及群成员自己的消息。
 
@@ -65,6 +67,8 @@
 | `leave_group` | `conversation`；普通成员/管理员自退，群主先转让再退出；返回 `changed` |
 | `pin_group_message` / `unpin_group_message` | 会话及真实消息 ID / 会话；仅群主、管理员；返回 `changed` |
 | `set_group_announcement` | `conversation, text`；群主/管理员设置当前纯文本，空字符串清除；返回 `changed` |
+| `get_group_invite` / `create_group_invite` / `revoke_group_invite` | `conversation`；仅当前群主/管理员；返回 `{token: null|string}`；创建稳定，撤销幂等 |
+| `join_group` | `token`；已认证用户使用当前链接；返回权威 `conversation/title/member_count/state`，state 为 `joined/member` |
 | `send_message` / `edit_message` / `delete_message` | 会话、真实消息或回复 ID；编辑/删除仅作者且仍为当前成员 |
 | `search_messages` | 会话、字面查询和 `before` cursor |
 | `set_message_reaction` | `conversation, message, emoji`；六种表情之一，显式空字符串清除；返回 reaction snapshot |
@@ -96,7 +100,7 @@ git diff --check
 
 ## 保持的边界与后续可选路线
 
-当前尚未实现入群审批或邀请链接。群公告、@mention、个人会话置顶和群内单条置顶消息已接入，个人会话置顶不等于群内置顶消息。群主必须先手动转让再退出；群主/管理员没有编辑、删除他人消息的权限。退出或被移除者本地活动历史清空；服务端仍保留群消息，重新加入可重新获取。移除不等于永久封禁，重新邀请恢复普通成员，旧管理员身份和真实读位不继承。
+当前邀请链接已实现直接加入，入群审批仍未实现。群公告、@mention、个人会话置顶和群内单条置顶消息已接入，个人会话置顶不等于群内置顶消息。群主必须先手动转让再退出；群主/管理员没有编辑、删除他人消息的权限。退出或被移除者本地活动历史清空；服务端仍保留群消息，重新加入可重新获取。移除不等于永久封禁，重新邀请或持有有效链接均可重新加入，恢复普通成员，旧管理员身份和真实读位不继承。
 
 2026-10-02 启动新的长期路线：验证基线、群已读详情、reaction、图片气泡预览、桌面通知、会话 mute/pin、群 mention、群置顶消息、公告、邀请链接和审批，依序独立实施。此列表表示规划，尚未实现的阶段不计入已完成能力。范围仍不扩大到多设备、微服务、Redis、Kafka、event sourcing 或 CQRS。
 
@@ -398,3 +402,27 @@ ASan 前置 UI 回归暴露 typing 段的观察时序：先前只等待一个查
 | UBSan | PASS | 14/14 PASS，70.15 s |
 
 无 suppression 或测试排除，`git diff --check` PASS。没有修改 SQL 001–020，没有新增 shadow state、通用公告管理框架、调试输出或临时 migration。下一阶段为单个高熵、可撤销的群邀请链接。
+
+## 群邀请链接
+
+从重新 fetch 后的 `d6c0952` 开始。SQL 022 无损增加一个当前可空 invite token，不修改 SQL 001–021。服务端用现有 OpenSSL `RAND_bytes` 生成 32 个随机字节，编码为 64 位小写十六进制；唯一约束支持查找，群类型和格式受数据库约束。token 作为 opaque secret 保存，只有当前群主、管理员能查询，普通会话、历史、成员资料及 notification 不携带它。
+
+`get_group_invite/create_group_invite/revoke_group_invite {conversation}` 返回 `{token:null|string}`。创建已有链接时返回同一 secret，撤销重复执行仍返回 null；撤销后重新创建产生新 secret。`join_group {token}` 要求认证，允许非联系人使用有效链接，返回权威会话 ID、群名、成员数量及 `joined/member` 状态。已有成员幂等保留角色、真实阅读位置、加入水位及个人 mute/pin。新加入或重新加入使用当前群消息水位、普通成员身份、实际读位 0 和默认偏好；旧历史可见且不计未读。
+
+创建、查看、撤销和加入均复用 conversation 行锁。加入先通过唯一 token 定位，再在取得群锁后复核当前 token，不能凭已撤销的旧查询结果插入成员。管理操作锁后重新检查当前 membership 和角色，与降权、移除、转让、退出及发送串行化。提交后用现有 conversation 变化通知刷新当前成员；没有全局广播、订阅或事件框架。仅真实变化通知，不改变 message、activity 或阅读位置。
+
+Qt 群资料按当前角色显示链接、创建、复制和撤销，成员列表保留实际空间。侧栏“加入群”接收完整 `chat://join/<token>`，只解析这一格式；复制和粘贴是普通文本入口，没有操作系统 URL 注册或 deep-link 框架。成功加入使用服务器返回的群名和成员数打开历史，再刷新权威列表；无占位群名、pending join ID 或链接缓存状态。移除不是永久封禁，持有仍有效链接的用户可以重新加入；不再允许该链接加入时应由管理员撤销。
+
+新增旧连接成员回调回归在修复前失败：`get_members` 原来直接 emit，排队结果可能在断线后重新启用群管理。现于 Qt 线程复核已有 connection generation，再交给成员模型和资料窗口；链接与加入使用相同防过期方式。没有增加 generation 字段。AutoConnection 按实际发射线程与接收线程判断，跨线程会排队，同线程避免再次排队，依据见 [Qt 线程与信号](https://doc.qt.io/qt-6/threads-qobject.html)。同一 session 的 RPC 逐个 await 并按顺序响应，链接查询和修改不会反序覆盖，因此不增加冗余链接 loading 状态。
+
+回归覆盖 SQL 021→022 的既有单聊/群默认值、group-only、token 格式和唯一性；未认证、非法参数、普通成员、非成员和单聊拒绝；owner/admin 查看、稳定创建、撤销与重建；非联系人加入、旧历史、实时新消息、真实读位及幂等角色/偏好保留；移除后的普通身份重新加入和登录恢复；管理员降权/链接、撤销/加入、加入/发送的真实会话锁竞争。SDK 检查四个 RPC 的结果和异常协议。三个真实 Qt 窗口完成创建、复制、管理员查看与撤销、移除后粘贴加入、旧链接拒绝、重新创建及转让/重连恢复；资料截图已检查。测试收尾的断线次数随新增重连用例更新，原生命周期断言保持。
+
+最终代码沿用 `tests/verify.sh` 的配置和命令，三套均启用 Qt、Debug、`-j12`，完整 CTest 继承 libpq 环境顺序运行：
+
+| 构建 | 完整 build | 完整 CTest |
+|---|---|---|
+| normal | PASS | 14/14 PASS，66.01 s |
+| ASan | PASS | 14/14 PASS，80.12 s |
+| UBSan | PASS | 14/14 PASS，77.08 s |
+
+无 suppression 或测试排除，`git diff --check` PASS。没有修改 SQL 001–021，没有临时 migration、调试输出、链接历史或无需求抽象。下一阶段为邀请链接上的最小入群审批。

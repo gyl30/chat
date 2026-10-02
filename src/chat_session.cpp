@@ -267,6 +267,11 @@ boost::capy::task<void> chat_session::run()
             {
                 rpc_error = co_await handle_get_members(request, response);
             }
+            else if (request.method == "get_group_invite" || request.method == "create_group_invite" ||
+                     request.method == "revoke_group_invite" || request.method == "join_group")
+            {
+                rpc_error = co_await handle_group_invite(request, response);
+            }
             else if (request.method == "set_group_admin" || request.method == "rename_group" ||
                      request.method == "invite_group_members" || request.method == "leave_group" ||
                      request.method == "transfer_group_owner" || request.method == "remove_group_member" ||

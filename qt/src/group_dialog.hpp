@@ -2,6 +2,7 @@
 #define CHAT_QT_SRC_GROUP_DIALOG_HPP
 
 #include <QDialog>
+#include <optional>
 #include "member_data.hpp"
 #include "conversation_data.hpp"
 #include "user_data.hpp"
@@ -25,12 +26,14 @@ class group_dialog final : public QDialog
     void set_contacts(QList<user_data> contacts, QString const& error);
     void set_conversations(QList<conversation_data> conversations, QString const& error);
     void set_error(QString const& error);
+    void set_invite(qint64 conversation, QString const& token, QString const& error);
 
    signals:
     void admin_requested(qint64 user, bool admin);
     void rename_requested(QString title);
     void announcement_requested(QString text);
     void invite_requested(QList<qint64> members);
+    void invite_link_requested(std::optional<bool> create);
     void leave_requested();
     void transfer_requested(qint64 user);
     void remove_requested(qint64 user);
@@ -59,6 +62,11 @@ class group_dialog final : public QDialog
     QPlainTextEdit* announcement_edit_;
     QPushButton* announcement_button_;
     QPushButton* clear_announcement_button_;
+    QWidget* invite_controls_;
+    QLineEdit* invite_edit_;
+    QPushButton* create_invite_button_;
+    QPushButton* copy_invite_button_;
+    QPushButton* revoke_invite_button_;
     QLabel* status_;
 };
 

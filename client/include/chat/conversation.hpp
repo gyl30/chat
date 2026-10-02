@@ -46,6 +46,20 @@ struct conversations_result
     std::optional<conversation_cursor> next;
 };
 
+enum class group_join_state
+{
+    joined,
+    member
+};
+
+struct group_join_result
+{
+    std::int64_t conversation = 0;
+    std::string title;
+    std::uint64_t member_count = 0;
+    group_join_state state = group_join_state::member;
+};
+
 }    // namespace chat
 
 #endif

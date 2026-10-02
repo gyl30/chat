@@ -41,6 +41,8 @@ class client_bridge final : public QObject
     void set_conversation_pinned(qint64 conversation, bool pinned);
     void open_direct_conversation(qint64 user, QString username);
     void create_group(QString title, QList<qint64> members);
+    void join_group(QString token);
+    void group_invite(qint64 conversation, std::optional<bool> create = {});
     void get_members(qint64 conversation);
     void set_group_admin(qint64 conversation, qint64 user, bool admin);
     void transfer_group_owner(qint64 conversation, qint64 user);
@@ -96,6 +98,7 @@ class client_bridge final : public QObject
     void conversation_opened(conversation_data conversation, QString error_message);
     void members_received(qint64 conversation, QList<member_data> members, QString error_message);
     void group_action_finished(qint64 conversation, bool left, QString error_message);
+    void group_invite_received(qint64 conversation, QString token, QString error_message);
     void group_pin_finished(qint64 conversation, QString error_message);
     void conversation_changed(qint64 conversation, bool removed);
     void message_sent(qint64 user, QString text, qint64 message, qint64 timestamp, bool realtime,

@@ -1110,6 +1110,67 @@ struct client::impl
         co_return;
     }
 
+    boost::capy::task<> group_invite(std::string method, std::int64_t conversation, group_invite_handler handler)
+    {
+        auto const creating = method == "create_group_invite";
+        auto const revoking = method == "revoke_group_invite";
+        send_request(std::move(method), {{"conversation", conversation}},
+            [creating, revoking, handler = std::move(handler)](auto response) mutable {
+                if (!response) { handler(std::unexpected(std::move(response.error()))); return; }
+                auto const* token = response->is_object() ? response->as_object().if_contains("token") : nullptr;
+                if (!token || (!token->is_null() && !token->is_string()) || (creating && token->is_null()) ||
+                    (revoking && !token->is_null()))
+                {
+                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid group invite")));
+                    return;
+                }
+                std::optional<std::string> value;
+                if (token->is_string())
+                {
+                    value = std::string(token->as_string());
+                    if (value->size() != 64 || !std::all_of(value->begin(), value->end(), [](char c) {
+                        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+                    }))
+                    {
+                        handler(std::unexpected(make_error(error_kind::protocol, "Invalid invite token")));
+                        return;
+                    }
+                }
+                handler(std::move(value));
+            });
+        co_return;
+    }
+
+    boost::capy::task<> join_group(std::string token, group_join_handler handler)
+    {
+        send_request("join_group", {{"token", std::move(token)}}, [handler = std::move(handler)](auto response) mutable {
+            if (!response) { handler(std::unexpected(std::move(response.error()))); return; }
+            if (!response->is_object())
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid group join result")));
+                return;
+            }
+            auto const& object = response->as_object();
+            auto const* conversation = object.if_contains("conversation");
+            auto const* title = object.if_contains("title");
+            auto const* count = object.if_contains("member_count");
+            auto const* state = object.if_contains("state");
+            auto id = conversation ? parse_int64(*conversation) : std::nullopt;
+            auto members = count ? parse_uint64(*count) : std::nullopt;
+            if (!id || *id <= 0 || !title || !title->is_string() || title->as_string().empty() ||
+                title->as_string().size() > 256 || title->as_string().find('\0') != boost::json::string::npos ||
+                !members || *members == 0 || !state || !state->is_string() ||
+                (state->as_string() != "joined" && state->as_string() != "member"))
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid group join result")));
+                return;
+            }
+            handler(group_join_result{*id, std::string(title->as_string()), *members,
+                state->as_string() == "joined" ? group_join_state::joined : group_join_state::member});
+        });
+        co_return;
+    }
+
     boost::capy::task<> group_action(std::string method, boost::json::object params, group_action_handler handler)
     {
         send_request(std::move(method), std::move(params), [handler = std::move(handler)](auto response) mutable {
@@ -2160,6 +2221,26 @@ void client::set_group_announcement(std::int64_t conversation, std::string text,
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_action(
         "set_group_announcement", {{"conversation", conversation}, {"text", std::move(text)}}, std::move(handler)));
+}
+
+void client::get_group_invite(std::int64_t conversation, group_invite_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_invite("get_group_invite", conversation, std::move(handler)));
+}
+
+void client::create_group_invite(std::int64_t conversation, group_invite_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_invite("create_group_invite", conversation, std::move(handler)));
+}
+
+void client::revoke_group_invite(std::int64_t conversation, group_invite_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_invite("revoke_group_invite", conversation, std::move(handler)));
+}
+
+void client::join_group(std::string token, group_join_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->join_group(std::move(token), std::move(handler)));
 }
 
 void client::leave_group(std::int64_t conversation, group_action_handler handler)

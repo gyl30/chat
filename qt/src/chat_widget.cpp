@@ -118,6 +118,9 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     groups_navigation_ =
         make_navigation_button(QStringLiteral("建群"), QStringLiteral("groups"), navigation_panel, false, true);
     navigation_layout->addWidget(groups_navigation_, 0, Qt::AlignHCenter);
+    join_navigation_ = make_navigation_button(QStringLiteral("加入群"), QStringLiteral("groups"), navigation_panel, false, true);
+    join_navigation_->setObjectName(QStringLiteral("joinGroupButton"));
+    navigation_layout->addWidget(join_navigation_, 0, Qt::AlignHCenter);
     navigation_layout->addWidget(
         make_navigation_button(QStringLiteral("动态"), QStringLiteral("activity"), navigation_panel, false, false),
         0, Qt::AlignHCenter);
@@ -589,6 +592,16 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     connect(chats_navigation_, &QToolButton::clicked, this, [this] { show_conversations_section(); });
     connect(contacts_navigation_, &QToolButton::clicked, this, [this] { show_contacts_section(); });
     connect(groups_navigation_, &QToolButton::clicked, this, [this] { create_group(); });
+    connect(join_navigation_, &QToolButton::clicked, this, [this] {
+        bool accepted = false;
+        auto const link = QInputDialog::getText(this, QStringLiteral("加入群聊"), QStringLiteral("粘贴邀请链接"),
+            QLineEdit::Normal, {}, &accepted).trimmed();
+        if (!accepted || !connection_available_) { return; }
+        static QRegularExpression const pattern(QStringLiteral("\\Achat://join/([0-9a-f]{64})\\z"));
+        auto const matched = pattern.match(link);
+        if (!matched.hasMatch()) { set_error(QStringLiteral("邀请链接无效，请复制完整链接。")); return; }
+        emit group_join_requested(matched.captured(1));
+    });
     connect(logout_navigation_, &QToolButton::clicked, this, [this] { emit logout_requested(); });
     connect(sidebar_back_button_, &QToolButton::clicked, this, [this] { show_contacts_section(); });
     connect(add_contact_button_, &QToolButton::clicked, this, [this] { show_add_contact_section(); });
@@ -826,6 +839,7 @@ void chat_widget::set_connection_available(bool available)
         messages_->set_read_positions({});
     }
     groups_navigation_->setEnabled(available);
+    join_navigation_->setEnabled(available);
     messages_loading_ = available && active_conversation_ > 0;
     message_edit_->setEnabled(available && active_conversation_ > 0);
     send_button_->setEnabled(available && active_conversation_ > 0);

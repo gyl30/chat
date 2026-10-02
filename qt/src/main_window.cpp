@@ -506,14 +506,18 @@ main_window::main_window(QString server_url, QWidget* parent)
             [this](qint64 user, QString username) { client_->open_direct_conversation(user, std::move(username)); });
     connect(chat_page_, &chat_widget::group_create_requested, this, [this](QString title, QList<qint64> members)
             { client_->create_group(std::move(title), std::move(members)); });
+    connect(chat_page_, &chat_widget::group_join_requested, this, [this](QString token) { client_->join_group(std::move(token)); });
     connect(chat_page_, &chat_widget::members_requested, this,
             [this](qint64 conversation, qint64 self_user, QString title) {
                 auto const snapshot = chat_page_->conversation(conversation);
                 if (!snapshot || !snapshot->group) { return; }
                 group_dialog dialog(conversation, self_user, title, snapshot->announcement, this, &chat_page_->avatars());
-                connect(client_.get(), &client_bridge::members_received, &dialog, &group_dialog::set_members,
-                        Qt::QueuedConnection);
+                connect(client_.get(), &client_bridge::members_received, &dialog, &group_dialog::set_members);
                 connect(client_.get(), &client_bridge::group_action_finished, &dialog, &group_dialog::finish_action);
+                connect(client_.get(), &client_bridge::group_invite_received, &dialog, &group_dialog::set_invite);
+                connect(&dialog, &group_dialog::invite_link_requested, &dialog, [this, conversation](std::optional<bool> create) {
+                    client_->group_invite(conversation, create);
+                });
                 connect(client_.get(), &client_bridge::disconnected, &dialog, [&dialog] {
                     dialog.set_error(QStringLiteral("连接已断开，请重连后重新打开群成员。"));
                 }, Qt::QueuedConnection);
@@ -584,8 +588,7 @@ main_window::main_window(QString server_url, QWidget* parent)
             }
             chat_page_->open_conversation(std::move(conversation));
             client_->get_conversations();
-        },
-        Qt::QueuedConnection);
+        });
     connect(client_.get(), &client_bridge::group_action_finished, this,
             [this](qint64 conversation, bool left, QString const& error) {
                 if (error.isEmpty())
@@ -617,8 +620,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                 client_->get_messages(conversation, {}, chat_page_->recovery_cursor());
             }
         }, Qt::QueuedConnection);
-    connect(client_.get(), &client_bridge::members_received, chat_page_, &chat_widget::set_members,
-            Qt::QueuedConnection);
+    connect(client_.get(), &client_bridge::members_received, chat_page_, &chat_widget::set_members);
 
     connect(chat_page_, &chat_widget::conversation_selected, this,
             [this](qint64 user, bool group) {

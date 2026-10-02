@@ -99,6 +99,7 @@ class chat_widget final : public QWidget
     void reconnect_requested();
     void direct_conversation_requested(qint64 user, QString username);
     void group_create_requested(QString title, QList<qint64> members);
+    void group_join_requested(QString token);
     void members_requested(qint64 conversation, qint64 self_user, QString title);
     void message_search_requested(qint64 conversation, qint64 self_user, bool group, QString title, QString query);
     void group_message_pin_requested(qint64 conversation, std::optional<qint64> message);
@@ -142,6 +143,7 @@ class chat_widget final : public QWidget
     QToolButton* chats_navigation_ = nullptr;
     QToolButton* contacts_navigation_ = nullptr;
     QToolButton* groups_navigation_ = nullptr;
+    QToolButton* join_navigation_ = nullptr;
     QToolButton* logout_navigation_ = nullptr;
     QToolButton* sidebar_back_button_ = nullptr;
     QToolButton* add_contact_button_ = nullptr;
