@@ -9,7 +9,7 @@
 namespace chat::tui
 {
 enum class connection { signed_out, connecting, authenticating, online, reconnecting };
-enum class page { conversations, conversation, contacts, friend_requests, friend_sent, users, profile, members, requests, search, group, help, pick_contacts, copy };
+enum class page { conversations, conversation, new_action, contacts, friend_requests, friend_sent, users, profile, members, requests, search, group, help, pick_contacts, copy };
 enum class layout_mode { too_small, narrow, wide };
 
 // Mutated exclusively by the UI event loop. SDK callbacks only enqueue payloads.

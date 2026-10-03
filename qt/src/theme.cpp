@@ -175,22 +175,34 @@ QString chat_style_sheet()
             font-weight: 700;
             color: #27362F;
         }
-        QToolButton#sidebarHeaderButton, QToolButton#sidebarTextButton {
+        QToolButton#sidebarHeaderButton, QToolButton#sidebarTextButton, QToolButton#chatsActionsButton {
             border: 0;
             background: transparent;
             color: #315A4B;
             font-weight: 600;
         }
-        QToolButton#sidebarHeaderButton {
+        QToolButton#sidebarHeaderButton, QToolButton#chatsActionsButton {
             font-size: 26px;
         }
         QToolButton#sidebarTextButton {
             padding: 6px 4px;
             font-size: 13px;
         }
-        QToolButton#sidebarHeaderButton:hover, QToolButton#sidebarTextButton:hover {
+        QToolButton#sidebarHeaderButton:hover, QToolButton#sidebarTextButton:hover, QToolButton#chatsActionsButton:hover {
             background: #EEF1ED;
             border-radius: 8px;
+        }
+        QMenu#chatsActionsMenu {
+            background: #FFFEFA;
+            color: #27332E;
+            border: 1px solid #D7DDD9;
+            padding: 4px;
+        }
+        QMenu#chatsActionsMenu::item {
+            padding: 8px 16px;
+        }
+        QMenu#chatsActionsMenu::item:selected {
+            background: #EEF1ED;
         }
         QLabel#subtleText {
             color: #8B918D;

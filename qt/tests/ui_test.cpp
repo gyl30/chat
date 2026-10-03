@@ -1,4 +1,6 @@
 #include <QApplication>
+#include <QAction>
+#include <QFrame>
 #include <QClipboard>
 #include <QCheckBox>
 #include <QTabWidget>
@@ -71,14 +73,95 @@ template <class T, class F> T rpc(F f)
     check(r.has_value(), "RPC failed");
     return std::move(*r);
 }
+void check_primary_navigation()
+{
+    chat_widget page;
+    page.setStyleSheet(chat_style_sheet());
+    page.resize(1180, 760);
+    page.set_user(QStringLiteral("本人"), 1);
+    page.set_connection_available(true);
+    page.show();
+    QApplication::processEvents();
+    auto* navigation = page.findChild<QFrame*>("navigationPanel");
+    auto buttons = navigation->findChildren<QToolButton*>();
+    check(buttons.size() == 3, "Primary navigation is only Chats, Contacts and account avatar");
+    auto* actions = page.findChild<QToolButton*>("chatsActionsButton");
+    check(actions && actions->isVisible() && actions->menu(), "Chats header exposes a lightweight action menu");
+    auto* add = page.findChild<QAction*>("addFriendAction");
+    auto* create = page.findChild<QAction*>("createGroupAction");
+    auto* join = page.findChild<QAction*>("joinGroupAction");
+    check(add && create && join && actions->menu()->actions().size() == 3, "Header menu has three real actions");
+    add->trigger();
+    auto searches = page.findChildren<QLineEdit*>("userSearchEdit");
+    check(std::any_of(searches.begin(), searches.end(), [](auto* field) {
+        return field->isVisible() && field->placeholderText() == QStringLiteral("搜索用户");
+    }), "Header add friend opens existing search");
+    for (auto* button : buttons)
+    { if (button->text() == QStringLiteral("联系人")) { button->click(); } }
+    check(!actions->isVisible(), "Chats actions do not become another primary page");
+    auto lists = page.findChildren<QListView*>("userList");
+    auto selected_list = std::find_if(lists.begin(), lists.end(), [](auto* view) { return view->isVisible(); });
+    check(selected_list != lists.end(), "Contacts list is visible");
+    auto* contact_view = *selected_list;
+    auto* incoming = page.findChild<QListWidget*>("incomingFriendRequests");
+    auto* outgoing = page.findChild<QListWidget*>("outgoingFriendRequests");
+    QList<user_data> contacts;
+    for (int count : {0, 1, 20})
+    {
+        contacts.clear();
+        for (int i = 0; i < count; ++i)
+        { contacts.push_back({10+i, QStringLiteral("张 三😀").repeated(4) + QString::number(i), false, 0, {}}); }
+        page.set_contacts(contacts);
+        page.set_friend_requests({{200, QStringLiteral("收到 申请"), false, 0, {}}}, {{201, QStringLiteral("发出 申请"), false, 0, {}}}, {});
+        check(contact_view->model()->rowCount() == count, "Only accepted contacts appear at 0/1/20 counts");
+        check(incoming->count() == 1 && outgoing->count() == 1, "Pending requests remain separate from accepted contacts");
+        QTimer::singleShot(0, [&] {
+            auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+            check(dialog && dialog->objectName() == "createGroupDialog", "Menu invokes existing two-step group flow");
+            auto* list = dialog->findChild<QListWidget*>("groupContactPicker");
+            auto* next = dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok);
+            check(list->count() == count && !next->isEnabled(), "Group picker only contains accepted contacts and requires selection");
+            if (count > 0)
+            {
+                list->item(0)->setCheckState(Qt::Checked);
+                auto* chips = dialog->findChild<QListWidget*>("groupSelectedContacts");
+                check(chips->count() == 1 && chips->item(0)->text().contains(contacts[0].username), "Long Unicode selection remains intact");
+                next->click();
+                check(dialog->findChild<QLineEdit*>("newGroupTitleEdit")->isVisible(), "Selected friends precede group title step");
+            }
+            dialog->reject();
+        });
+        create->trigger();
+    }
+    conversation_data direct;
+    direct.id = 50; direct.user = 200; direct.username = QStringLiteral("收到 申请"); direct.can_send = false;
+    page.open_conversation(direct);
+    auto* edit = page.findChild<QLineEdit*>("messageEdit");
+    page.set_friend_requests({}, {}, {});
+    check(!edit->isEnabled() && edit->placeholderText().contains(QStringLiteral("添加好友")), "Read-only history distinguishes no friendship");
+    page.set_friend_requests({}, {{200, direct.username, false, 0, {}}}, {});
+    check(!edit->isEnabled() && edit->placeholderText().contains(QStringLiteral("等待对方")), "Read-only history distinguishes outgoing pending");
+    page.set_friend_requests({{200, direct.username, false, 0, {}}}, {}, {});
+    check(!edit->isEnabled() && edit->placeholderText().contains(QStringLiteral("待处理")), "Read-only history distinguishes incoming pending");
+    page.set_connection_available(false);
+    check(!actions->isEnabled() && !add->isEnabled() && !create->isEnabled() && !join->isEnabled(), "Offline header actions cannot issue requests");
+    std::cout << "PASS Qt primary navigation, action menu, accepted contacts and pending history states\n";
+}
+
 int main(int argc, char** argv)
 {
-    if (argc != 3)
+    bool const widgets_only = argc == 2 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--widgets-only");
+    if (!widgets_only && argc != 3)
     {
         return 1;
     }
     QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
     QApplication app(argc, argv);
+    if (widgets_only)
+    {
+        try { check_primary_navigation(); return 0; }
+        catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
+    }
     QProcess server;
     std::vector<long> ids;
     long group = 0;
@@ -93,6 +176,7 @@ int main(int argc, char** argv)
     };
     try
     {
+        check_primary_navigation();
         start();
         {
             chat_widget page;
@@ -390,15 +474,8 @@ int main(int argc, char** argv)
                 view->customContextMenuRequested(view->visualRect(index).center());
                 wait([&] { auto const item = pages[actor]->conversation(conversation); return item && (pin ? item->pinned : item->muted) == value; });
             };
-            QToolButton* create = nullptr;
-            for (auto* b : windows[0]->findChildren<QToolButton*>())
-            {
-                if (b->text() == QStringLiteral("建群"))
-                {
-                    create = b;
-                }
-            }
-            check(create, "Create button");
+            auto* create = windows[0]->findChild<QAction*>("createGroupAction");
+            check(create, "Chats menu create group action");
             QTimer::singleShot(50,
                                [&]
                                {
@@ -425,7 +502,7 @@ int main(int argc, char** argv)
                                    title->setText(QStringLiteral("Qt 三人群"));
                                    dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->click();
                                });
-            create->click();
+            create->trigger();
             wait([&] { return pages[0]->active_conversation() > 0 && pages[0]->messages_ready(); });
             group = pages[0]->active_conversation();
             for (int i = 1; i < 3; ++i)
@@ -2025,7 +2102,7 @@ int main(int argc, char** argv)
                     pasted = true;
                     input->accept();
                 });
-                windows[2]->findChild<QToolButton*>("joinGroupButton")->click();
+                windows[2]->findChild<QAction*>("joinGroupAction")->trigger();
                 check(pasted, "Paste invitation through real Qt input");
             };
             member_action(0, ids[2], "groupRemoveButton");
@@ -2137,7 +2214,7 @@ int main(int argc, char** argv)
             start();
             for (int i = 0; i < 2; ++i)
             { wait([&, i] { return pages[i]->messages_ready() && windows[i]->findChild<QToolButton*>("sendButton")->isEnabled(); }); }
-            wait([&] { return windows[2]->findChild<QToolButton*>("joinGroupButton")->isEnabled(); });
+            wait([&] { return windows[2]->findChild<QAction*>("joinGroupAction")->isEnabled(); });
             check(!pages[2]->conversation(group) && pages[2]->active_conversation() == 0, "Reconnect retains pending isolation");
             review_application(0, true);
             wait([&] { return pages[2]->conversation(group) && pages[2]->conversation(group)->member_count == 3; });

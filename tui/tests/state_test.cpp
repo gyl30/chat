@@ -74,6 +74,16 @@ int main()
         s.apply_conversations({{convo(9), convo(7, false)}, {}}, false);
         check(s.view == page::conversations && s.active == 7 && s.conversations.size() == history_count,
               "Read-only refresh preserves Chats navigation and historical direct");
+        s.view = page::contacts;
+        s.apply_contacts({{2, "peer", {}}, {5, "another friend", {}}});
+        s.selected = 2;
+        s.apply_contacts({{5, "another friend", {}}, {2, "peer", {}}});
+        check(s.selected == 1, "Contact refresh preserves selected friend identity");
+        s.apply_contacts({{2, "peer", {}}});
+        check(s.selected == 1, "Removing selected friend leaves a valid accepted row");
+        s.apply_contacts({});
+        check(s.selected == 0, "Empty contacts selects New friends entry");
+        s.apply_contacts({{2, "peer", {}}});
         s.pick_query = "peer";
         check(s.pick_candidates().size() == 1, "Pick accepted matching friend");
         s.pick_query = "missing";

@@ -299,7 +299,7 @@ class Driver:
             self.screenshot(actor, 'bad-password')
         self.paste(actor, self.password)
         self.keys(actor, 'Enter')
-        self.wait(actor, lambda screen: 'connected' in screen and 'Conversations' in screen, timeout=25)
+        self.wait(actor, lambda screen: 'connected' in screen and 'Chats' in screen, timeout=25)
 
     def registration_edges(self, actor):
         self.keys(actor, 'Tab')
@@ -340,7 +340,7 @@ class Driver:
     def open_main(self, actor):
         self.keys(actor, 'Escape')
         self.command(actor, 'conversations')
-        self.wait(actor, 'Conversations')
+        self.wait(actor, 'Chats')
         self.keys(actor, 'k', repeat=200)
         self.barrier(actor)
         marker = self.title[:5]
@@ -413,7 +413,7 @@ class Driver:
     def open_named(self, actor, title):
         self.keys(actor, 'Escape')
         self.command(actor, 'conversations')
-        self.wait(actor, 'Conversations')
+        self.wait(actor, 'Chats')
         self.keys(actor, 'k', repeat=200)
         self.barrier(actor)
         for _ in range(200):
@@ -1109,7 +1109,7 @@ def stage_removed_friend(d, files):
         d.wait('C', 'Add friend')
         for actor, peer in [('B', 'C'), ('C', 'B')]:
             d.open_named(actor, d.name(peer))
-            d.wait(actor, '双方接受好友申请后可发送消息')
+            d.wait(actor, '你们目前不是好友')
             for action in ('compose', 'reply', 'edit', 'reaction 1', 'file ' + str(files['text'])):
                 d.command(actor, action)
                 d.wait(actor, '双方接受好友申请后可发送消息')
@@ -1154,7 +1154,7 @@ def stage_admin_friend_invite(d):
         d.choose_member('A', 'D')
         d.command('A', 'kick')
         d.confirm('A', '移除群成员')
-        d.wait('D', lambda text: 'Conversations' in text and d.title not in text)
+        d.wait('D', lambda text: 'Chats' in text and d.title not in text)
         d.open_main('B')
         d.command('B', 'group')
         d.wait('B', 'Your role: admin')
@@ -1260,7 +1260,7 @@ def stage_group_management(d):
             d.choose_member('A', 'D')
             d.command('A', 'kick')
             d.confirm('A', '移除群成员')
-            d.wait('D', lambda text: 'Conversations' in text and d.title not in text)
+            d.wait('D', lambda text: 'Chats' in text and d.title not in text)
             d.screenshot('D', 'removed-' + page)
             gap = d.query('S005', 'send_message', conversation=d.group, text='removed_gap_' + page + '_' + d.args.run_id)
             if page == 'conversation':
@@ -1341,7 +1341,7 @@ def stage_group_management(d):
             d.wait('A', name)
             seen.append(item['id'])
             d.keys('A', 'Escape')
-            d.wait('A', 'Conversations')
+            d.wait('A', 'Chats')
             d.keys('A', 'j')
             time.sleep(.08)
         assert seen == [value['id'] for value in expected]
@@ -1426,15 +1426,15 @@ def stage_resize(d):
                 d.paste('A', 'resize_draft')
             elif page != 'conversation':
                 d.command('A', page)
-            heading = {'conversations':'Conversations', 'members':'Members (100)',
+            heading = {'conversations':'Chats', 'members':'Members (100)',
                        'conversation':d.title, 'search':'Search:', 'requests':'Join requests',
-                       'account':'Profile ·', 'help':'Keyboard help', 'compose':'resize_draft'}[page]
+                       'account':'Account ·', 'help':'Keyboard help', 'compose':'resize_draft'}[page]
             d.wait('A', heading)
             for width,height in sizes:
                 d.resize('A', width,height)
                 d.wait('A', 'Terminal too small' if width < 40 else heading)
                 if width >= 100 and page in ('conversations','conversation','compose'):
-                    d.wait('A', 'Conversations')
+                    d.wait('A', 'Chats')
                 d.screenshot('A', f'{page}-{width}x{height}')
             d.resize('A', 160,45)
             d.wait('A', heading)
@@ -1444,7 +1444,7 @@ def stage_resize(d):
             d.open_main(actor)
             d.wait(actor, 'i: compose')
             d.keys(actor, 'Escape')
-            d.wait(actor, 'Conversations')
+            d.wait(actor, 'Chats')
             d.keys(actor, 'Enter')
             d.resize(actor, 160,45)
 
@@ -1711,7 +1711,7 @@ def stage_transfer_logout(d):
             d.command(actor, 'logout')
             d.wait(actor, '退出当前账号')
             d.keys(actor, 'Escape')
-            d.wait(actor, 'Profile ·')
+            d.wait(actor, 'Account ·')
             d.logout(actor)
             d.screenshot(actor, 'logged-out')
             d.keys(actor, 'C-c')

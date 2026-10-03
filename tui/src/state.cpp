@@ -129,7 +129,15 @@ std::vector<user const*> state::pick_candidates() const
 
 void state::apply_contacts(std::vector<user> values)
 {
+    auto const selected_id = view == page::contacts && selected > 0 && static_cast<std::size_t>(selected) <= contacts.size()
+        ? contacts[selected - 1].id : 0;
     contacts = std::move(values);
+    if (view == page::contacts)
+    {
+        auto found = std::ranges::find(contacts, selected_id, &user::id);
+        selected = found != contacts.end() ? static_cast<int>(found - contacts.begin()) + 1
+                                          : std::clamp(selected, 0, static_cast<int>(contacts.size()));
+    }
     std::erase_if(picked_contacts, [this](auto id) { return !is_contact(id); });
     std::erase_if(presences, [this](auto const& value) { return !is_contact(value.first); });
 }

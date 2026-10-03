@@ -48,6 +48,7 @@ parser.add_argument('--build', default='build')
 parser.add_argument('--port', type=int, default=18881)
 parser.add_argument('--output', default='/tmp/chat-qt-x11-' + time.strftime('%Y%m%d-%H%M%S'))
 parser.add_argument('--keep-db', action='store_true')
+parser.add_argument('--navigation-only', action='store_true', help='Six-user navigation regression instead of the scale scenario')
 args = parser.parse_args()
 work = pathlib.Path(args.output).resolve()
 work.mkdir(mode=448, parents=True)
@@ -101,9 +102,10 @@ def control(command, timeout=30, **payload):
 password = secrets.token_hex(16)
 control('configure', url=url, prefix='qtx11_' + time.strftime('%H%M%S'), password=password)
 print(json.dumps(dict(stage='seeding', work=str(work), database=database)), flush=True)
-manifest = control('seed', timeout=600, pending=0)
+manifest = control('seed_navigation' if args.navigation_only else 'seed', timeout=600, **({} if args.navigation_only else {'pending':0}))
 (work / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
-control('disconnect', actors=['S030'])
+if not args.navigation_only:
+    control('disconnect', actors=['S030'])
 xvfb = S.Popen(['Xvfb', '-displayfd', '1', '-screen', '0', '2400x1000x24', '-nolisten', 'tcp'], stdout=S.PIPE, stderr=(work / 'xvfb.log').open('w'), text=True)
 owned.append(xvfb)
 display = ':' + xvfb.stdout.readline().strip()
@@ -229,7 +231,7 @@ def members(conversation):
     result = control('sdk', actor='S006', method='get_members', conversation=conversation)
     assert result['ok'], result
     return result['value']
-try:
+def run_scale():
     a = login('A', 0)
     b = login('S030', 1200)
 
@@ -297,7 +299,9 @@ try:
     capture('10-bidirectional-chat')
     record('request-accept-and-bidirectional-chat', ['06-readable-new-friends-entry.png', '07-incoming-and-outgoing.png', '08-incoming-profile.png', 'accepted-contact-count.txt', '10-bidirectional-chat.png', 'bidirectional-message-facts.txt'])
     focus(a)
-    click(41, 238)
+    click(41, 95)
+    click(380, 37)
+    click(420, 101)
     wizard = modal('A', '创建群聊')
     capture('11-contact-picker')
 
@@ -346,9 +350,17 @@ try:
     assert clients['A'].poll() is None
     capture('19-logout-login-page')
     record('account-profile-confirmed-logout-keeps-app', ['16-self-profile.png', '17-logout-confirmation.png', '18-logout-cancelled.png', '19-logout-login-page.png'])
+    return 4
+
+try:
+    if args.navigation_only:
+        from qt_navigation_steps import run
+        case_count = run(globals())
+    else:
+        case_count = run_scale()
     query_fact('final-user-count', 'SELECT count(*) FROM users')
     (work / 'capture-sha256.json').write_text(json.dumps({path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(work.glob('*.png'))}, indent=2))
-    (work / 'result.json').write_text(json.dumps(dict(status='PASS', database=database, head=(work / 'head.txt').read_text().strip(), cases=4), indent=2))
+    (work / 'result.json').write_text(json.dumps(dict(status='PASS', database=database, head=(work / 'head.txt').read_text().strip(), cases=case_count), indent=2))
     print(json.dumps(dict(status='PASS', evidence=str(work))), flush=True)
 except BaseException:
     capture('failure')

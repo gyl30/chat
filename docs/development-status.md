@@ -18,6 +18,20 @@ Qt 左下角自身头像打开账号资料，替代独立退出导航按钮；�
 
 好友实现阶段统一验证已实际通过 normal、ASan、UBSan，各 20/20 CTest；新增 `friendship` 复用现有 server fixture，覆盖关系状态机、离线恢复及真实数据库锁同步竞争。百人真实矩阵、100 在线 99/99 无重复 fanout、独立 1800.399873 秒稳态及最终统一验证已完成；最终 normal/ASan/UBSan 均 20/20 PASS，分别 93.65/125.41/112.12 秒，证据与限制见专门报告。
 
+## Qt / TUI 信息架构与导航
+
+本轮基线 `4a861f23cabed157f89f8ec97340d72c7048fef2`，fetch 后 HEAD 与 origin/main 一致，工作区和 submodules 干净。只修改两端展示、导航及测试；不新增 SQL/RPC，不改变好友确认、presence 或群成员/角色模型。
+
+Qt 一级只保留 Chats（聊天）、Contacts（联系人），底部自己的头像打开 Account。聊天列表 header 的 `+` 统一提供添加好友、发起群聊、加入群聊；复用现有动作，建群仍先搜索/多选/取消已确认好友，再填写群名，成功后直接进入新群。联系人 header 保留添加好友快捷入口。Account 显示用户名、头像设置/清除与需要确认的退出登录，不是退出程序。
+
+TUI 一级为 Chats、Contacts、Account，常驻键位 `h/c/u`；`N`（Shift+n）打开 New 菜单，提供同样三个动作，`:new` 与原有命令仍可用。小写 `n` 保留申请页的拒绝动作，避免全局 New 与破坏性动作冲突。Contacts header 不再把建群当成主要内容，顶部 New friends(N) 只是进入 incoming/outgoing 的入口；Tab 在两个申请分页之间切换，Esc 返回 Contacts。TUI 不启用鼠标或内联图片。
+
+两端 Contacts 正文始终来自 `get_contacts()` 的 accepted friends，pending 只在新的朋友/关系资料中出现。没有增加客户端过滤来掩盖服务端或 state 污染。陌生人、outgoing、incoming 的 profile 分别提供添加、等待/取消、接受/拒绝，只有 accepted 才显示 Message；无历史 pending 不创建空 direct。已有历史即使删除或重新申请仍保留在 Chats，按权威 `can_send=false` 只读，聊天区区分未好友、等待确认和收到申请；原历史/搜索/旧附件下载/已读/个人静音置顶/删除自己旧消息不受导航改动影响。
+
+本次真实基线测试中，最简单窄屏 Enter→Esc 能返回；可复现的失败是从只读历史切换顶层 `:conversations` 后 Esc 又返回旧会话。另有 Tab 反复压入返回栈及宽屏列表/消息双高亮。先留 RED 后修复：顶级目的地清理旧返回栈，同级 tab 不压栈，只有实际键盘区域反色；历史、草稿和当前会话保留。联系人刷新后按用户身份保持选择，已选好友被删或列表为空时选择合法项，不会无高亮且 Enter 无响应。
+
+定向验证：Qt models/delegate/UI 3/3 PASS；TUI state/render/integration 3/3 PASS。真实 tmux TUI 导航回归 5/5 PASS（只读历史 Enter/Esc、Tab 返回根页面、联系人与新朋友分离、New 三动作、Account 退出）；真实 Qt X11 导航回归 3/3 PASS（accepted-only 联系人与申请隔离、聊天页三动作与两步建群、底部账号取消与确认退出）。最终 normal/ASan/UBSan 结果在本轮收尾后补入。
+
 ## 已完成路线
 
 | 提交 | 阶段 | 数据库演进 |
@@ -624,7 +638,7 @@ cmake --build build -j12
 
 支持会话 cursor 分页、置顶/静音/未读、用户搜索、好友申请/接受/拒绝/取消/移除、已确认好友双向 direct 权限、好友 presence、消息历史/收发/回复/编辑/确认删除/reaction/已读/typing/搜索及服务端 mention；附件路径上传与显式路径保存；自己/联系人/非联系人资料和头像上传清除；群创建/邀请/成员角色/群主转让/移除/退出/重命名、公告、群置顶、邀请链接、加入审批及申请分页。权限呈现使用权威 `can_send` 和当前成员角色，server 仍是最终授权边界。
 
-100 列及以上使用双栏，40–99 列使用列表与会话页面切换；小于 40 列或 12 行显示尺寸提示。`j/k`、方向键、Enter、Esc、Tab 切换和选择，`i` 输入，`:` 打开命令输入，`?` 显示真实键位及命令，Ctrl+C 安全退出。完整键位以程序内帮助为准。中文、emoji 和长单行使用 FTXUI 的字符宽度；长消息可逐行浏览。向上浏览历史或长消息、进入其他页面、终端过小时不自动标记最新消息已读。
+100 列及以上使用双栏，40–99 列使用列表与会话页面切换；小于 40 列或 12 行显示尺寸提示。`h/c/u` 打开 Chats/Contacts/Account，`N` 打开 New；`j/k`、方向键、Enter、Esc、Tab 切换和选择，`i` 输入，`:` 打开命令输入，`?` 显示真实键位及命令，Ctrl+C 安全退出。完整键位以程序内帮助为准。中文、emoji 和长单行使用 FTXUI 的字符宽度；长消息可逐行浏览。向上浏览历史或长消息、进入其他页面、终端过小时不自动标记最新消息已读。
 
 SDK callback 只捕获值并投递线程安全 inbox，再用 FTXUI `PostEvent(Custom)` 唤醒 UI；所有快照、页面和组件变更在 UI 线程执行。一个阻塞 deadline worker 负责 typing 和 1/2/4/8/15 秒重连退避，空闲不由应用轮询。连接/session 与页面上下文拒绝过期回调；分页保留服务端顺序和真实 cursor。关闭先停止接收队列，再取消并在 UI 线程析构 SDK、join 网络与定时线程，最后退出 FTXUI loop。
 

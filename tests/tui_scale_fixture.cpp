@@ -406,6 +406,64 @@ public:
     {
         for (auto& [name, value] : accounts_) { (void)name; value->close(); }
     }
+    json::value seed_navigation()
+    {
+        require(configured_ && !seeded_, "configure once before seed; never reuse a partial seed");
+        seeded_ = true;
+        for (auto const& [alias, name] : std::vector<std::pair<std::string, std::string>>{
+                 {"A", "导航A_"}, {"B", "历史B_"}, {"C", "好友C_"}, {"D", "申请D_"},
+                 {"E", "等待E_"}, {"S005", "观察S005_"}})
+        { add(alias, name + prefix_); }
+        {
+            account registrar("registrar", "", events_);
+            registrar.connect(url_);
+            for (auto const& [alias, value] : accounts_)
+            {
+                (void)alias;
+                value->id = rpc<std::int64_t>([&](auto done) {
+                    registrar.client->register_user(value->username, password_, done);
+                });
+            }
+        }
+        for (auto const& [alias, value] : accounts_) { (void)value; connect_actor(alias); }
+        for (auto const* alias : {"A", "B", "C", "D", "E"}) { befriend("S005", alias); }
+        befriend("A", "B");
+        befriend("A", "C");
+        auto title = "导航测试群_" + prefix_;
+        group_ = rpc<std::int64_t>([&](auto done) {
+            connected("A").create_group(title, {actor("B").id, actor("C").id, actor("S005").id}, done);
+        });
+        auto invite = rpc<std::optional<std::string>>([&](auto done) { connected("A").create_group_invite(group_, done); });
+        require(invite.has_value(), "Navigation group invite missing");
+        auto direct = rpc<chat::direct_conversation_result>([&](auto done) {
+            connected("A").open_direct_conversation(actor("B").id, done);
+        });
+        auto marker = "readonly_history_" + prefix_;
+        auto message = rpc<chat::send_message_result>([&](auto done) {
+            connected("A").send_message(direct.conversation, marker, done);
+        });
+        rpc<bool>([&](auto done) { connected("A").remove_contact(actor("B").id, done); });
+        auto incoming = rpc<chat::friendship_result>([&](auto done) {
+            connected("D").send_friend_request(actor("A").id, done);
+        });
+        auto outgoing = rpc<chat::friendship_result>([&](auto done) {
+            connected("A").send_friend_request(actor("E").id, done);
+        });
+        auto contacts = rpc<std::vector<chat::user>>([&](auto done) { connected("A").get_contacts(done); });
+        auto requests = rpc<chat::friend_requests_result>([&](auto done) { connected("A").get_friend_requests(done); });
+        require(contacts.size() == 2 && requests.incoming.size() == 1 && requests.outgoing.size() == 1 &&
+                incoming.state == chat::friendship_state::outgoing_pending &&
+                outgoing.state == chat::friendship_state::outgoing_pending, "Navigation fixture relationships mismatch");
+        json::object actors;
+        for (auto const* alias : {"A", "B", "C", "D", "E"}) { actors[alias] = actor(alias).description(); }
+        manifest_ = {{"prefix", prefix_}, {"url", url_}, {"actors", std::move(actors)},
+            {"sdk", json::array{actor("S005").description()}}, {"group", json::object{{"id", group_}, {"title", title}}},
+            {"invite_token", *invite}, {"navigation", json::object{{"readonly_conversation", direct.conversation},
+                {"history_message", message.message_id}, {"history_marker", marker},
+                {"accepted", json::array{"C", "S005"}}, {"incoming", "D"}, {"outgoing", "E"}}}};
+        for (auto const* alias : {"A", "B", "C", "D", "E"}) { disconnect_actor(alias); }
+        return manifest_;
+    }
     json::value seed(json::object const& input)
     {
         require(configured_ && !seeded_, "configure once before seed; never reuse a partial seed");
@@ -972,6 +1030,7 @@ public:
             configured_ = true;
             return json::object{{"configured", true}};
         }
+        if (name == "seed_navigation") { return seed_navigation(); }
         if (name == "seed") { return seed(input); }
         if (name == "manifest") { return manifest_; }
         if (name == "close") { close(); return json::object{{"closed", true}, {"business_data_deleted", false}}; }
@@ -1024,7 +1083,7 @@ int main(int argc, char** argv)
     {
         std::cout << "Explicit 100-member diagnostic fixture; JSONL controls on stdin/stdout.\n"
             "Configure via stdin: {id,command:\"configure\",url,prefix,password}. Never pass credentials as CLI arguments.\n"
-            "Commands: seed, manifest, status, connect, disconnect, replace-reserved, exercise_friend_pairs, measure_sizes, sdk, read, read_snapshot, events_reset, events, close.\n"
+            "Commands: seed, seed_navigation, manifest, status, connect, disconnect, replace-reserved, exercise_friend_pairs, measure_sizes, sdk, read, read_snapshot, events_reset, events, close.\n"
             "Use a dedicated disposable database. This tool never deletes business data or executes SQL.\n";
         return 0;
     }

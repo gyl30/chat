@@ -34,7 +34,9 @@ constexpr std::array shortcuts{
     shortcut{"G", "Latest message"},
     shortcut{"[ / ]", "Scroll within selected long message"},
     shortcut{"m / p", "Mute / personal pin"},
-    shortcut{"c / g", "Contacts / group actions"},
+    shortcut{"h / c / u", "Chats / Contacts / Account"},
+    shortcut{"N (Shift+n)", "New: add friend / create group / join group"},
+    shortcut{"g", "Current group actions"},
     shortcut{"A / O / D (members)", "Admin / transfer owner / remove member"},
     shortcut{"y / n (requests)", "Accept / reject selected request"},
     shortcut{"Tab (new friends)", "Switch incoming / outgoing requests"},
@@ -47,6 +49,8 @@ constexpr std::array shortcuts{
 struct menu_action { std::string label, command; };
 std::vector<menu_action> actions(state const& s)
 {
+    if (s.view == page::new_action)
+    { return {{"Add friend", "add-contact"}, {"Create group", "create-group"}, {"Join group", "join"}}; }
     if (s.view == page::profile)
     {
         std::vector<menu_action> items{{"Show copyable username", "copy-user"}};
@@ -186,7 +190,7 @@ Element conversation_list(state const& s)
             s.conversation_selected == static_cast<int>(i), s.view == page::conversations));
     }
     if (s.next_conversations) { rows.push_back(text("↓ More conversations")); }
-    return vbox({text("Conversations") | bold, separator(), scroll(std::move(rows))}) | flex;
+    return vbox({text("Chats") | bold, separator(), scroll(std::move(rows))}) | flex;
 }
 Element message_item(state const& s, message const& m, bool highlighted, int width, int scroll_line)
 {
@@ -265,7 +269,19 @@ Element conversation_view(state const& s, Element input, std::string typing, int
     items.push_back(separator());
     if (!s.can_send())
     {
-        items.push_back(text(s.link != connection::online ? "Waiting for connection…" : c->kind == conversation_kind::direct ? "双方接受好友申请后可发送消息" : "当前会话不可发送消息"));
+        std::string hint = "当前会话不可发送消息";
+        if (s.link != connection::online) { hint = "Waiting for connection…"; }
+        else if (c->kind == conversation_kind::direct)
+        {
+            switch (s.friendship(c->user))
+            {
+                case friendship_state::outgoing_pending: hint = "好友申请已发送，等待对方确认"; break;
+                case friendship_state::incoming_pending: hint = "对方已发送好友申请，确认后可继续聊天"; break;
+                case friendship_state::accepted: hint = "正在刷新聊天权限"; break;
+                default: hint = "你们目前不是好友"; break;
+            }
+        }
+        items.push_back(wrapped_text(hint, width));
     }
     else
     {
@@ -281,13 +297,20 @@ Element secondary(state const& s, int width, int message_scroll)
     std::string title;
     switch (s.view)
     {
+        case page::new_action:
+        {
+            title = "New";
+            auto items = actions(s);
+            for (std::size_t i = 0; i < items.size(); ++i)
+            { rows.push_back(selected(text(items[i].label), s.selected == static_cast<int>(i))); }
+            break;
+        }
         case page::contacts:
         case page::users:
         case page::pick_contacts:
         {
-            title = s.view == page::contacts ? "Contacts · :add-contact / :create-group" : s.view == page::users ? "User search · Enter: profile" : "Choose friends · Space: toggle · Enter: next";
-            if (s.view == page::contacts)
-            { rows.push_back(selected(text("New friends (" + std::to_string(s.friends.incoming.size()) + ")"), s.selected == 0)); }
+            title = s.view == page::contacts ? "Contacts" : s.view == page::users ? "User search · Enter: profile" : "Choose friends · Space: toggle · Enter: next";
+            if (s.view == page::contacts && s.contacts.empty()) { rows.push_back(text("No accepted friends yet") | dim); }
             if (s.view == page::pick_contacts)
             {
                 rows.push_back(text("Selected: " + std::to_string(s.picked_contacts.size()) + " · /: search · " + s.pick_query));
@@ -317,6 +340,12 @@ Element secondary(state const& s, int width, int message_scroll)
                     rows.push_back(selected(text(user_label(value.username) + presence_label(s, value.id)), s.selected == static_cast<int>(i) + offset));
                 }
             }
+            if (s.view == page::contacts)
+            {
+                return vbox({text(title) | bold, separator(),
+                    selected(text("New friends (" + std::to_string(s.friends.incoming.size()) + ")"), s.selected == 0),
+                    separator(), scroll(std::move(rows))}) | flex;
+            }
             break;
         }
         case page::friend_requests:
@@ -336,7 +365,7 @@ Element secondary(state const& s, int width, int message_scroll)
         }
         case page::profile:
         {
-            title = "Profile · " + user_label(s.profile.username);
+            title = std::string(s.profile.id == s.self.id ? "Account · " : "Profile · ") + user_label(s.profile.username);
             rows.push_back(text(std::string("Avatar: ") + (s.profile.avatar.present ? "set" : "default")));
             auto presence = presence_label(s, s.profile.id);
             if (!presence.empty()) { rows.push_back(text(presence)); }
@@ -400,7 +429,7 @@ Element secondary(state const& s, int width, int message_scroll)
             title = "Keyboard help";
             for (auto const& shortcut : shortcuts) { rows.push_back(text(std::string(shortcut.key) + "  " + std::string(shortcut.description))); }
             rows.push_back(separator());
-            rows.push_back(paragraph("Commands: contacts, friend-requests, friend-sent, accept-friend, reject-friend, cancel-friend, filter, add-contact, profile, account, create-group, join, file, save, members, invite, rename, announcement, show-announcement, pinned, pin-message, unpin-message, link, link-create, link-revoke, approval, requests, avatar, avatar-clear, logout, quit"));
+            rows.push_back(paragraph("Commands: new, chats, contacts, friend-requests, friend-sent, accept-friend, reject-friend, cancel-friend, filter, add-contact, profile, account, create-group, join, file, save, members, invite, rename, announcement, show-announcement, pinned, pin-message, unpin-message, link, link-create, link-revoke, approval, requests, avatar, avatar-clear, logout, quit"));
             rows.push_back(text("Clipboard: copyable text page; select with your terminal."));
             break;
         case page::copy:
@@ -436,7 +465,7 @@ Element render_impl(state const& s, int width, int height, Element compose = {},
         else { content = s.view == page::conversations ? conversation_list(s) : conversation_view(s, compose, std::move(typing), width - 3, message_scroll); }
     }
     else { content = secondary(s, width - 3, message_scroll); }
-    return vbox({hbox({text("Chat · " + s.self.username) | bold, filler(), text(link_label(s.link))}), separator(), content, separator(), text(s.status.empty() ? "?: help · : command · Ctrl+C: quit" : s.status)}) | border;
+    return vbox({hbox({preview_text("Chat · " + s.self.username) | bold | flex, text(link_label(s.link))}), text("h Chats  c Contacts  u Account  N New") | dim, separator(), content, separator(), hbox({preview_text(s.status.empty() ? "?: help · : command · Ctrl+C: quit" : s.status) | flex, text(" Esc: back") | dim})}) | border;
 }
 std::size_t selection_count(state const& s, int width)
 {
@@ -451,7 +480,7 @@ std::size_t selection_count(state const& s, int width)
         case page::members: return s.members.size();
         case page::requests: return s.requests.size();
         case page::search: return s.search_results.size();
-        case page::profile: case page::group: return actions(s).size();
+        case page::new_action: case page::profile: case page::group: return actions(s).size();
         case page::help: return shortcuts.size() + 5;
         case page::copy:
         {
@@ -657,6 +686,9 @@ public:
             if (event == Event::Character('y')) { app_.command("accept"); return true; }
             if (event == Event::Character('n')) { app_.command("reject"); return true; }
         }
+        if (event == Event::Character('N')) { app_.command("new"); return true; }
+        if (event == Event::Character('h')) { app_.command("chats"); return true; }
+        if (event == Event::Character('u')) { app_.command("account"); return true; }
         if (event == Event::Character('i'))
         {
             if (s.view != page::conversation) { return false; }

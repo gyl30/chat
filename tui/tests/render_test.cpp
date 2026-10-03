@@ -44,12 +44,18 @@ int main()
     {
         auto output = draw(s, columns, rows);
         ok &= expect(output.find("张 三") != std::string::npos, "Unicode remains visible");
-        ok &= expect(output.find("双方接受好友申请后可发送消息") != std::string::npos, "read-only direct prompt");
+        ok &= expect(output.find("你们目前不是好友") != std::string::npos, "read-only direct prompt");
     }
+    s.friends.outgoing = {{{direct.user, direct.username, {}}, 1}};
+    ok &= expect(draw(s, 80, 24).find("好友申请已发送，等待对方确认") != std::string::npos, "historical outgoing direct has pending banner");
+    s.friends.outgoing.clear();
+    s.friends.incoming = {{{direct.user, direct.username, {}}, 1}};
+    ok &= expect(draw(s, 80, 24).find("对方已发送好友申请，确认后可继续聊天") != std::string::npos, "historical incoming direct has pending banner");
+    s.friends.incoming.clear();
     ok &= expect(draw(s, 20, 4).find("Terminal too small") != std::string::npos, "too small fallback");
     s.view = page::conversations;
-    ok &= expect(draw(s, 60, 20).find("Conversations") != std::string::npos, "narrow list navigation");
-    ok &= expect(draw(s, 60, 20).find("双方接受好友申请") == std::string::npos, "narrow list does not squeeze conversation");
+    ok &= expect(draw(s, 60, 20).find("Chats") != std::string::npos, "narrow list navigation");
+    ok &= expect(draw(s, 60, 20).find("你们目前不是好友") == std::string::npos, "narrow list does not squeeze conversation");
     {
         auto long_name_list = s;
         long_name_list.conversations.front().username = "LongUsernamePrefix" + std::string(46, 'x');
@@ -168,6 +174,12 @@ int main()
                  "incoming pending profile actions");
     s.view = page::contacts;
     ok &= expect(draw(s, 80, 24).find("New friends (1)") != std::string::npos, "contacts expose pending friend count");
+    ok &= expect(draw(s, 80, 24).find(":create-group") == std::string::npos, "Contacts header contains no group creation action");
+    s.contacts = {{9, "AcceptedOnly", {}}};
+    s.friends.outgoing = {{{10, "OutgoingOnly", {}}, 1}};
+    output = draw(s, 80, 24);
+    ok &= expect(output.find("AcceptedOnly") != std::string::npos && output.find("OutgoingOnly") == std::string::npos &&
+                 output.find("stranger") == std::string::npos, "Contacts rows exclude incoming and outgoing requests");
     s.view = page::friend_requests;
     ok &= expect(draw(s, 60, 20).find("Incoming") != std::string::npos, "incoming requests page");
     s.view = page::friend_sent;
@@ -218,6 +230,46 @@ int main()
     ok &= expect(draw(s, 60, 20).find("HEAD") != std::string::npos, "long copy beginning");
     s.selected = 10000;
     ok &= expect(draw(s, 60, 20).find("TAIL") != std::string::npos, "long copy tail");
+    // Contacts remain a distinct, usable list even with many accepted and pending rows.
+    for (int count : {0, 1, 25})
+    {
+        state contacts;
+        contacts.self = {1, "自己", {}};
+        contacts.link = connection::online;
+        contacts.view = page::contacts;
+        for (int i = 0; i < count; ++i) { contacts.contacts.push_back({i + 2, "好友" + std::to_string(i), {}}); }
+        for (int i = 0; i < 5; ++i)
+        {
+            contacts.friends.incoming.push_back({{100 + i, "PendingIncoming" + std::to_string(i), {}}, 1});
+            contacts.friends.outgoing.push_back({{200 + i, "PendingOutgoing" + std::to_string(i), {}}, 1});
+        }
+        contacts.selected = count;
+        for (auto [columns, rows] : {std::pair{70, 20}, {80, 24}, {120, 40}})
+        {
+            auto text = draw(contacts, columns, rows);
+            ok &= expect(text.find("New friends (5)") != std::string::npos, "New friends entry remains at Contacts top while scrolling accepted rows");
+            ok &= expect(text.find("PendingIncoming") == std::string::npos && text.find("PendingOutgoing") == std::string::npos,
+                         "Many pending requests never appear as accepted rows");
+            if (count) { ok &= expect(text.find("好友" + std::to_string(count - 1)) != std::string::npos, "Selected accepted friend stays visible"); }
+        }
+    }
+    {
+        auto hundred = s;
+        hundred.view = page::members;
+        hundred.members.clear();
+        for (int i = 0; i < 100; ++i)
+        { hundred.members.push_back({i + 1, "Member" + std::to_string(i), i == 0 ? chat::member_role::owner : i < 4 ? chat::member_role::admin : chat::member_role::member, {}}); }
+        for (int index : {0, 2, 50, 99})
+        {
+            hundred.selected = index;
+            for (auto [columns, rows] : {std::pair{70, 20}, {100, 30}, {120, 40}})
+            {
+                auto text = draw(hundred, columns, rows);
+                ok &= expect(text.find("Members (100)") != std::string::npos && text.find("Member" + std::to_string(index)) != std::string::npos,
+                             "Hundred member navigation retains header and selected member at every width");
+            }
+        }
+    }
     // Real FTXUI input and routing: no terminal or network is needed.
     {
         app application;
@@ -266,6 +318,22 @@ int main()
         application.navigate(page::friend_requests);
         component->OnEvent(ftxui::Event::Escape);
         ok &= expect(application.data.view == page::contacts, "Friend request tabs return directly to Contacts");
+        component->OnEvent(ftxui::Event::Character('N'));
+        output = draw(application.data, 80, 24);
+        ok &= expect(output.find("Add friend") != std::string::npos && output.find("Create group") != std::string::npos &&
+                     output.find("Join group") != std::string::npos, "New menu exposes existing three actions");
+        component->OnEvent(ftxui::Event::Escape);
+        for (auto requests_page : {page::friend_requests, page::requests})
+        {
+            application.navigate(requests_page);
+            component->OnEvent(ftxui::Event::Character('N'));
+            ok &= expect(application.data.view == page::new_action, "New key never invokes a friend/group request rejection");
+            component->OnEvent(ftxui::Event::Escape);
+        }
+        component->OnEvent(ftxui::Event::Character('u'));
+        output = draw(application.data, 80, 24);
+        ok &= expect(output.find("Account") != std::string::npos && output.find("Log out") != std::string::npos,
+                     "Account primary shortcut exposes existing profile and logout");
         application.data.link = connection::online;
         application.command("logout");
         ok &= expect(application.dialog && application.dialog->confirmation && application.data.self.id == 1, "logout requires confirmation");

@@ -153,8 +153,7 @@ class chat_widget final : public QWidget
     QToolButton* profile_avatar_ = nullptr;
     QToolButton* chats_navigation_ = nullptr;
     QToolButton* contacts_navigation_ = nullptr;
-    QToolButton* groups_navigation_ = nullptr;
-    QToolButton* join_navigation_ = nullptr;
+    QToolButton* chats_actions_ = nullptr;
     QToolButton* sidebar_back_button_ = nullptr;
     QToolButton* add_contact_button_ = nullptr;
     QToolButton* message_search_button_ = nullptr;

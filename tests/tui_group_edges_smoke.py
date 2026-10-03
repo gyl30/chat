@@ -217,7 +217,7 @@ def prepare_reconnect(d):
         _eventually(lambda: _membership(d)['muted'], 'Real UI mute did not reach the server')
         d.resize('A', 80, 30)
         d.command('A', 'conversations')
-        d.wait('A', lambda text: 'Conversations' in text and '[mute]' in text)
+        d.wait('A', lambda text: 'Chats' in text and '[mute]' in text)
         d.barrier('A')
         before = _membership(d)
         assert before['muted']
@@ -242,7 +242,7 @@ def verify_reconnect(d):
         # selected history. Wide-sidebar badge layout has separate coverage.
         d.resize('A', 80, 30)
         d.command('A', 'conversations')
-        d.wait('A', lambda text: 'Conversations' in text and '[mute]' in text)
+        d.wait('A', lambda text: 'Chats' in text and '[mute]' in text)
         d.screenshot('A', 'mute-survived-restarts-list')
         d.resize('A', 160, 45)
         d.open_main('A')

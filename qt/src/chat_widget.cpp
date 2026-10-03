@@ -118,18 +118,6 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     contacts_navigation_ =
         make_navigation_button(QStringLiteral("联系人"), QStringLiteral("contacts"), navigation_panel, false, true);
     navigation_layout->addWidget(contacts_navigation_, 0, Qt::AlignHCenter);
-    groups_navigation_ =
-        make_navigation_button(QStringLiteral("建群"), QStringLiteral("groups"), navigation_panel, false, true);
-    navigation_layout->addWidget(groups_navigation_, 0, Qt::AlignHCenter);
-    join_navigation_ = make_navigation_button(QStringLiteral("加入群"), QStringLiteral("groups"), navigation_panel, false, true);
-    join_navigation_->setObjectName(QStringLiteral("joinGroupButton"));
-    navigation_layout->addWidget(join_navigation_, 0, Qt::AlignHCenter);
-    navigation_layout->addWidget(
-        make_navigation_button(QStringLiteral("动态"), QStringLiteral("activity"), navigation_panel, false, false),
-        0, Qt::AlignHCenter);
-    navigation_layout->addWidget(
-        make_navigation_button(QStringLiteral("收藏"), QStringLiteral("bookmark"), navigation_panel, false, false),
-        0, Qt::AlignHCenter);
     navigation_layout->addStretch();
 
     profile_avatar_ = new QToolButton(navigation_panel);
@@ -167,6 +155,24 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     add_contact_button_->setCursor(Qt::PointingHandCursor);
     add_contact_button_->hide();
     conversation_header_layout->addWidget(add_contact_button_);
+    chats_actions_ = new QToolButton(conversation_header);
+    chats_actions_->setObjectName(QStringLiteral("chatsActionsButton"));
+    chats_actions_->setText(QStringLiteral("+"));
+    chats_actions_->setAccessibleName(QStringLiteral("聊天操作"));
+    chats_actions_->setToolTip(QStringLiteral("添加好友、发起群聊或加入群聊"));
+    chats_actions_->setFixedSize(32, 32);
+    chats_actions_->setCursor(Qt::PointingHandCursor);
+    chats_actions_->setPopupMode(QToolButton::InstantPopup);
+    auto* actions = new QMenu(chats_actions_);
+    actions->setObjectName(QStringLiteral("chatsActionsMenu"));
+    auto* add_friend = actions->addAction(QStringLiteral("添加好友"));
+    add_friend->setObjectName(QStringLiteral("addFriendAction"));
+    auto* create_group = actions->addAction(QStringLiteral("发起群聊"));
+    create_group->setObjectName(QStringLiteral("createGroupAction"));
+    auto* join_group = actions->addAction(QStringLiteral("加入群聊"));
+    join_group->setObjectName(QStringLiteral("joinGroupAction"));
+    chats_actions_->setMenu(actions);
+    conversation_header_layout->addWidget(chats_actions_);
     conversation_layout->addWidget(conversation_header);
 
     sidebar_pages_ = new QStackedWidget(conversation_panel);
@@ -624,8 +630,9 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     });
     connect(chats_navigation_, &QToolButton::clicked, this, [this] { show_conversations_section(); });
     connect(contacts_navigation_, &QToolButton::clicked, this, [this] { show_contacts_section(); });
-    connect(groups_navigation_, &QToolButton::clicked, this, [this] { create_group(); });
-    connect(join_navigation_, &QToolButton::clicked, this, [this] {
+    connect(create_group, &QAction::triggered, this, [this] { this->create_group(); });
+    connect(add_friend, &QAction::triggered, this, [this] { show_add_contact_section(); });
+    connect(join_group, &QAction::triggered, this, [this] {
         bool accepted = false;
         auto const link = QInputDialog::getText(this, QStringLiteral("加入群聊"), QStringLiteral("粘贴邀请链接"),
             QLineEdit::Normal, {}, &accepted).trimmed();
@@ -882,8 +889,8 @@ void chat_widget::set_connection_available(bool available)
     {
         messages_->set_read_positions({});
     }
-    groups_navigation_->setEnabled(available);
-    join_navigation_->setEnabled(available);
+    chats_actions_->setEnabled(available);
+    for (auto* action : chats_actions_->menu()->actions()) { action->setEnabled(available); }
     messages_loading_ = available && active_conversation_ > 0;
     update_compose_state();
     add_contact_button_->setEnabled(available);
@@ -970,6 +977,7 @@ void chat_widget::set_contacts(QList<user_data> contacts)
         contacts_->set_presence(item.user, item.online, item.last_seen);
     }
     filter_contacts(contact_search_->text());
+    update_compose_state();
     update_chat_presence();
 }
 
@@ -1054,6 +1062,7 @@ void chat_widget::set_friend_requests(QList<user_data> incoming, QList<user_data
     populate(outgoing_friends_, outgoing_requests_, QStringLiteral("等待验证"));
     friend_requests_status_->setText(incoming_requests_.empty() && outgoing_requests_.empty()
         ? QStringLiteral("暂无好友申请") : QString{});
+    update_compose_state();
     emit friendship_updated();
 }
 
@@ -1216,6 +1225,7 @@ void chat_widget::show_conversations_section()
     sidebar_pages_->setCurrentIndex(0);
     sidebar_back_button_->hide();
     add_contact_button_->hide();
+    chats_actions_->show();
     set_navigation_button(chats_navigation_, QStringLiteral("chat"), true);
     set_navigation_button(contacts_navigation_, QStringLiteral("contacts"), false);
 }
@@ -1226,6 +1236,7 @@ void chat_widget::show_contacts_section()
     sidebar_pages_->setCurrentIndex(1);
     sidebar_back_button_->hide();
     add_contact_button_->show();
+    chats_actions_->hide();
     set_navigation_button(chats_navigation_, QStringLiteral("chat"), false);
     set_navigation_button(contacts_navigation_, QStringLiteral("contacts"), true);
     contact_search_->setFocus();
@@ -1237,6 +1248,7 @@ void chat_widget::show_add_contact_section()
     sidebar_pages_->setCurrentIndex(2);
     sidebar_back_button_->show();
     add_contact_button_->hide();
+    chats_actions_->hide();
     set_navigation_button(chats_navigation_, QStringLiteral("chat"), false);
     set_navigation_button(contacts_navigation_, QStringLiteral("contacts"), true);
     add_user_search_->setFocus();
@@ -1354,8 +1366,22 @@ void chat_widget::update_compose_state()
     message_edit_->setEnabled(allowed);
     send_button_->setEnabled(allowed);
     attachment_button_->setEnabled(allowed && !attachment_sending_);
-    message_edit_->setPlaceholderText(current && !current->group && !current->can_send
-        ? QStringLiteral("你们还不是好友，通过验证后可发送消息") : QStringLiteral("输入消息…"));
+    auto hint = QStringLiteral("输入消息…");
+    if (current && !current->group && !current->can_send)
+    {
+        switch (friend_state(current->user))
+        {
+            case chat::friendship_state::outgoing_pending:
+                hint = QStringLiteral("好友申请已发出，等待对方接受"); break;
+            case chat::friendship_state::incoming_pending:
+                hint = QStringLiteral("有待处理的好友申请，接受后可发送消息"); break;
+            case chat::friendship_state::accepted:
+                hint = QStringLiteral("正在更新会话状态，请稍候"); break;
+            case chat::friendship_state::none:
+                hint = QStringLiteral("你们还不是好友，添加好友并通过验证后可发送消息"); break;
+        }
+    }
+    message_edit_->setPlaceholderText(hint);
     if (!allowed)
     {
         typing_idle_timer_->stop();

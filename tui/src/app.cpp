@@ -475,8 +475,17 @@ void app::command(std::string text)
     if (name == "logout") { confirm("退出当前账号？", [this] { logout(); }); return; }
     if (name == "reconnect") { reconnect(); return; }
     if (name == "help") { navigate(page::help); return; }
+    if (data.self.id && name == "new") { navigate(page::new_action); return; }
+    if (data.self.id && (name == "chats" || name == "conversations")) { navigate(page::conversations); return; }
+    if (data.self.id && name == "account")
+    { profile_command(name, {}); pages_.clear(); data.selected = 0; return; }
+    if (data.self.id && name == "contacts")
+    {
+        navigate(page::contacts);
+        if (data.link == connection::online) { contacts(); friend_requests(); }
+        return;
+    }
     if (!online()) { return; }
-    if (name == "contacts") { navigate(page::contacts); contacts(); friend_requests(); return; }
     if (name == "friend-requests" || name == "friend-sent")
     { navigate(name == "friend-requests" ? page::friend_requests : page::friend_sent); friend_requests(); return; }
     if (name == "filter" && data.view == page::pick_contacts)
@@ -486,7 +495,6 @@ void app::command(std::string text)
         else { filter(std::move(argument)); }
         return;
     }
-    if (name == "conversations") { navigate(page::conversations); return; }
     if (name == "refresh") { refresh(); return; }
     if (name == "more")
     {
