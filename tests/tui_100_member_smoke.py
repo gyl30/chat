@@ -882,6 +882,68 @@ def stage_terminal_messages(d):
         d.query('S005', 'delete_message', conversation=d.group, message=sent['message_id'])
 
 
+def stage_large_text(d):
+    with d.case('real-tui-61440-byte-single-line', 'Real TUI paste and Enter sends exactly 61440 UTF-8 bytes; peer copy view and SDK prove no truncation or duplicates'):
+        for actor in 'AB':
+            d.open_main(actor)
+        head = 'TUI_HEAD_' + d.args.run_id + ' 中文😀 '
+        tail = ' 中文😀 TUI_TAIL_' + d.args.run_id
+        body = head + 'x' * (61440 - len(head.encode()) - len(tail.encode())) + tail
+        assert len(body.encode()) == 61440 and '\n' not in body
+        d.keys('A', 'i')
+        d.clear_input('A')
+        started = time.monotonic()
+        d.paste('A', body)
+        # A large bracketed paste takes real input/render time; do not race Enter.
+        d.wait('A', 'TUI_TAIL_' + d.args.run_id, timeout=60)
+        ready = time.monotonic()
+        d.screenshot('A', 'full-input-tail')
+        d.keys('A', 'Enter')
+        d.wait('A', '消息已发送', timeout=60)
+        d.keys('A', 'Escape')
+        d.keys('B', 'G')
+        d.wait('B', 'TUI_TAIL_' + d.args.run_id, timeout=60)
+        peer_visible = time.monotonic()
+        d.screenshot('B', 'received-tail')
+        d.command('B', 'copy')
+        d.wait('B', 'TUI_HEAD_' + d.args.run_id)
+        d.screenshot('B', 'copy-head')
+        for _ in range(60):
+            d.keys('B', 'j', repeat=40)
+            d.barrier('B')
+            if 'TUI_TAIL_' + d.args.run_id in d.capture('B'):
+                break
+        d.wait('B', 'TUI_TAIL_' + d.args.run_id)
+        d.screenshot('B', 'copy-tail')
+        result = d.query('S005', 'search_messages', conversation=d.group, query='TUI_HEAD_' + d.args.run_id)
+        assert len(result['messages']) == 1 and not result['has_more']
+        message = result['messages'][0]
+        assert message['text'] == body
+        d.evidence('boundary-summary', {
+            'message': message['id'], 'utf8_bytes': len(body.encode()), 'matching_messages': 1,
+            'expected_sha256': hashlib.sha256(body.encode()).hexdigest(),
+            'actual_sha256': hashlib.sha256(message['text'].encode()).hexdigest(),
+            'paste_to_input_tail_ms': (ready-started)*1000,
+            'paste_to_peer_visible_ms': (peer_visible-started)*1000,
+            'input_ready_to_peer_visible_ms': (peer_visible-ready)*1000,
+            'measurement': 'Actual paste/render/polling and Enter until peer tail is visible; not callback or network-only latency. Single-line input, not a multiline editor.'})
+        d.keys('B', 'Escape')
+
+
+def check_rejected_avatar(d, actor, path):
+    def metadata():
+        return next(user['avatar'] for user in d.query('S005', 'search_users', query=d.name(actor))
+                    if user['username'] == d.name(actor))
+    before = metadata()
+    assert before['present'], 'Rejection must preserve a previously valid avatar'
+    d.command(actor, 'avatar set ' + str(path))
+    d.wait(actor, lambda text: 'invalid' in text.lower() or '无效' in text or '参数' in text)
+    after = metadata()
+    assert after == before, (before, after)
+    d.evidence(path.stem + '-rejection', {'bytes': path.stat().st_size, 'before': before, 'after': after})
+    d.screenshot(actor, path.stem + '-rejected')
+
+
 def stage_files(d):
     files = d.fixtures()
     with d.case('attachments-five-types', 'Five real TUI uploads/downloads (text, binary, PNG, JPEG, near 10 MiB), exact SHA256, no silent overwrite'):
@@ -923,10 +985,10 @@ def stage_files(d):
                 time.sleep(.1)
             d.evidence('avatar-' + media + '-revision', profile)
             d.screenshot('D', 'avatar-' + media)
-        truncated = d.work / 'truncated.png'
-        truncated.write_bytes(files['png'].read_bytes()[:12])
-        d.command('D', 'avatar set ' + str(truncated))
-        d.wait('D', lambda text: 'invalid' in text.lower() or '无效' in text or '参数' in text)
+        for media in ('png', 'jpeg'):
+            truncated = d.work / ('truncated-' + media + '.' + media)
+            truncated.write_bytes(files[media].read_bytes()[:12])
+            check_rejected_avatar(d, 'D', truncated)
         large = d.work / 'oversize.png'
         large.write_bytes(files['png'].read_bytes() + bytes(1024 * 1024))
         d.command('D', 'avatar set ' + str(large))
@@ -1661,6 +1723,7 @@ def run_matrix(d):
     stage_onboard(d)
     stage_messages(d)
     stage_terminal_messages(d)
+    stage_large_text(d)
     files = stage_files(d)
     stage_friend_direct(d, files)
     stage_removed_friend(d, files)
