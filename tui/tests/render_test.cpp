@@ -70,6 +70,26 @@ int main()
     auto output = draw(s, 120, 40);
     for (auto const* token : {"开发公告", "你好", "(edited)", "消息已删除", "👍", "@Alice"})
     { ok &= expect(output.find(token) != std::string::npos, token); }
+    {
+        auto preview_state = s;
+        auto& current = preview_state.conversations.front();
+        current.announcement.clear();
+        std::string quote;
+        for (int i = 0; i < 2048; ++i) { current.announcement += "a\n"; }
+        for (int i = 0; i < 80; ++i) { quote += "q\n"; }
+        current.pinned_message = chat::quoted_message{2, 1, "Alice", quote, {}, false};
+        preview_state.reply = current.pinned_message;
+        preview_state.messages.front().reply = current.pinned_message;
+        preview_state.messages.front().text = "VISIBLE_HISTORY";
+        preview_state.composing = true;
+        preview_state.draft = "DRAFT_ACCESS\nsecond line";
+        for (auto const& [columns, rows] : {std::pair{60, 20}, {80, 24}})
+        {
+            auto preview_output = draw(preview_state, columns, rows);
+            ok &= expect(preview_output.find("DRAFT_ACCESS") != std::string::npos, "multiline previews preserve composer");
+            ok &= expect(preview_output.find("VISIBLE_HISTORY") != std::string::npos, "multiline previews preserve history");
+        }
+    }
     s.view = page::profile;
     s.profile = {3, "stranger", {}};
     output = draw(s, 80, 24);
@@ -78,8 +98,15 @@ int main()
     s.presences.emplace(3, chat::presence{3, true, 0});
     ok &= expect(draw(s, 80, 24).find("online") == std::string::npos, "non-contact presence hidden");
     s.view = page::group;
+    s.conversations.front().pinned_message = chat::quoted_message{1, 2, "张 三", "pinned", {}, false};
     s.members = {{1, "Alice", chat::member_role::member, {}}};
     ok &= expect(draw(s, 80, 24).find("invitation link") == std::string::npos, "members never see secret link actions");
+    ok &= expect(draw(s, 80, 24).find("Show full announcement") != std::string::npos, "members can read full announcement");
+    ok &= expect(draw(s, 80, 24).find("View pinned message") != std::string::npos, "members can view pinned message");
+    auto const saved_announcement = s.conversations.front().announcement;
+    s.conversations.front().announcement = std::string(2000, 'A');
+    ok &= expect(draw(s, 60, 20).find("Show full announcement") != std::string::npos, "long announcement preview leaves actions visible");
+    s.conversations.front().announcement = saved_announcement;
     s.members.front().role = chat::member_role::owner;
     ok &= expect(draw(s, 120, 40).find("Create invitation link") != std::string::npos, "owner management actions");
     s.view = page::help;

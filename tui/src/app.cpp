@@ -45,7 +45,11 @@ void app::error(chat::error const& value)
 {
     data.status = value.message.empty() ? "请求失败" : value.message;
     if (value.kind == error_kind::transport &&
-        (data.link == connection::connecting || data.link == connection::authenticating)) { disconnected(); }
+        (data.link == connection::connecting || data.link == connection::authenticating))
+    {
+        disconnected();
+        data.status = (data.link == connection::reconnecting ? "连接失败，正在重连：" : "连接失败：") + value.message;
+    }
 }
 void app::login(bool registration)
 {
@@ -74,6 +78,7 @@ void app::start_connection()
     ++search_request_;
     client_.reset(); // UI-thread destruction joins the previous network thread.
     conversations_busy_ = history_busy_ = search_busy_ = requests_busy_ = sending_ = false;
+    requests_again_ = false;
     conversations_again_ = false;
     reconnect_at_.reset();
     data.link = connection::connecting;
@@ -107,6 +112,11 @@ void app::start_connection()
             if (!value)
             {
                 if (value.error().kind == error_kind::transport) { error(value.error()); }
+                else if (data.self.id && value.error().code == -32004)
+                {
+                    client_->close(); disconnected();
+                    data.status = "旧连接正在释放，稍后重新认证…";
+                }
                 else { auto message = value.error().message; logout(); data.status = std::move(message); }
                 return;
             }
@@ -180,7 +190,7 @@ void app::disconnected()
     pending_open_ = 0;
     data.composing = false;
     typing_sent_ = false; typing_stop_at_.reset(); typing_.clear();
-    data.presences.clear(); data.members.clear(); data.requests.clear(); data.search_results.clear();
+    data.presences.clear(); data.members.clear(); data.requests.clear(); data.search_results.clear(); data.search_before.reset();
     data.messages.clear(); data.history_before.reset(); data.history_more = false;
     data.read_positions.clear(); data.reply.reset(); data.editing = 0; marked_read_ = 0;
     for (auto& conversation : data.conversations) { conversation.can_send = false; }
@@ -189,6 +199,7 @@ void app::disconnected()
     pages_.clear(); data.copy_text.clear(); data.picked_contacts.clear();
     pick_action_.clear(); group_title_.clear();
     conversations_busy_ = history_busy_ = search_busy_ = requests_busy_ = sending_ = false;
+    requests_again_ = false;
     if (reconnect_enabled_ && !password.empty())
     {
         data.link = connection::reconnecting;
@@ -263,6 +274,14 @@ void app::conversations_page(std::optional<conversation_cursor> cursor, bool app
             return;
         }
         conversations_busy_ = false;
+        // Defer destructive absence conclusions when a newer event already requested recovery.
+        // Ordinary activity updates still apply, so sustained traffic cannot starve the list.
+        if (!append && conversations_again_ && (!contains(data.active) || !contains(pending_open_)))
+        {
+            conversations_again_ = false;
+            conversations();
+            return;
+        }
         data.apply_conversations({std::move(values), result->next}, append);
         if (!append && !data.next_conversations && data.active && !data.active_conversation())
         {
@@ -273,6 +292,7 @@ void app::conversations_page(std::optional<conversation_cursor> cursor, bool app
             data.view = page::conversations;
             pages_.clear(); cancel_prompt();
             history_busy_ = search_busy_ = requests_busy_ = sending_ = false;
+            requests_again_ = false;
             marked_read_ = 0;
             data.status = "当前会话已不可访问，已刷新会话列表";
         }
@@ -296,6 +316,7 @@ void app::open_conversation(std::int64_t id)
     if (data.active) { drafts_[data.active] = data.draft; }
     ++view_; ++search_request_;
     history_busy_ = search_busy_ = requests_busy_ = sending_ = false;
+    requests_again_ = false;
     data.select_conversation(id);
     data.draft = drafts_[id];
     data.view = page::conversation;
@@ -309,10 +330,11 @@ void app::history(bool older)
     if (!online() || !data.active || history_busy_) { return; }
     if (older && (!data.history_more || !data.history_before)) { return; }
     history_busy_ = true;
+    auto const request = ++history_request_;
     auto const conversation = data.active; auto const view = view_;
     auto before = older ? data.history_before : std::nullopt;
-    client_->get_messages(conversation, before, callback([this, conversation, view, older](auto value) {
-        if (view != view_ || conversation != data.active) { return; }
+    client_->get_messages(conversation, before, callback([this, conversation, view, older, request](auto value) {
+        if (view != view_ || conversation != data.active || request != history_request_) { return; }
         history_busy_ = false;
         if (!value) { error(value.error()); return; }
         data.apply_history(std::move(*value), older);
@@ -322,15 +344,15 @@ void app::history(bool older)
 void app::search(std::string query, bool more)
 {
     if (!online() || !data.active || query.empty()) { return; }
-    if (more && (!data.search_more || data.search_results.empty() || search_busy_)) { return; }
+    if (more && (!data.search_more || !data.search_before || search_busy_)) { return; }
     if (!more)
     {
         stop_composing(); navigate(page::search); data.search_query = query;
-        data.search_results.clear(); data.selected = 0;
+        data.search_results.clear(); data.search_before.reset(); data.selected = 0;
     }
     search_busy_ = true;
     auto const request = ++search_request_; auto const conversation = data.active; auto const view = view_;
-    auto before = more ? std::optional{data.search_results.back().id} : std::nullopt;
+    auto before = more ? data.search_before : std::nullopt;
     client_->search_messages(conversation, query, before, callback([this, conversation, view, query, request, more](auto value) {
         if (request != search_request_ || view != view_ || conversation != data.active || query != data.search_query) { return; }
         search_busy_ = false;
@@ -347,6 +369,7 @@ void app::navigate(page target)
     {
         ++view_; ++search_request_;
         history_busy_ = search_busy_ = requests_busy_ = sending_ = false;
+        requests_again_ = false;
         pages_.push_back(data.view); data.view = target; data.selected = 0;
     }
     cancel_prompt();
@@ -360,6 +383,7 @@ void app::back()
     if (command_mode) { command_mode = false; return; }
     if (data.composing) { stop_composing(); return; }
     ++view_; ++search_request_; history_busy_ = search_busy_ = requests_busy_ = sending_ = false;
+    requests_again_ = false;
     if (!pages_.empty()) { data.view = pages_.back(); pages_.pop_back(); }
     else { data.view = page::conversations; }
     data.selected = 0;
@@ -454,7 +478,7 @@ void app::command(std::string text)
         return;
     }
     if (name == "group" || name == "create-group" || name == "members" || name == "invite" || name == "rename" ||
-        name == "announcement" || name == "admin" || name == "transfer" || name == "kick" || name == "leave" ||
+        name == "announcement" || name == "show-announcement" || name == "pinned" || name == "admin" || name == "transfer" || name == "kick" || name == "leave" ||
         name == "pin-message" || name == "unpin-message" || name == "link" || name == "link-create" ||
         name == "link-revoke" || name == "approval" || name == "requests" || name == "accept" || name == "reject" || name == "join")
     { group_command(name, std::move(argument)); return; }
@@ -471,7 +495,15 @@ void app::changed(std::int64_t conversation, bool removed)
         pages_.clear(); cancel_prompt(); data.status = "已离开该群";
     }
     conversations();
-    if (!removed && conversation == data.active) { members(); }
+    if (!removed && conversation == data.active)
+    {
+        // Membership removal/rejoin can reset server read positions to zero.
+        // Invalidate any pre-change history response before authoritative recovery.
+        ++history_request_;
+        history_busy_ = false;
+        data.read_positions.clear(); marked_read_ = 0;
+        history(); members();
+    }
 }
 void app::stop_typing()
 {

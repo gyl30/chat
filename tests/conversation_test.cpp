@@ -2509,17 +2509,20 @@ int run_tui_tests()
         bool ready = false;
         auto notify = [&] { std::lock_guard lock(mutex); ready = true; wake.notify_one(); };
         chat::tui::app app(notify);
-        auto pump = [&](auto predicate, std::source_location location = std::source_location::current()) {
+        auto pump_app = [&](chat::tui::app& target, auto predicate, std::source_location location = std::source_location::current()) {
             auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
             while (true)
             {
-                app.drain();
+                target.drain();
                 if (predicate()) { return; }
                 std::unique_lock lock(mutex);
                 if (!wake.wait_until(lock, deadline, [&] { return ready; }))
-                { throw std::runtime_error("TUI timeout at line " + std::to_string(location.line()) + ": " + app.data.status); }
+                { throw std::runtime_error("TUI timeout at line " + std::to_string(location.line()) + ": " + target.data.status); }
                 ready = false;
             }
+        };
+        auto pump = [&](auto predicate, std::source_location location = std::source_location::current()) {
+            pump_app(app, std::move(predicate), location);
         };
         auto const suffix = std::to_string(getpid());
         auto const account = "tui_用户_" + suffix;
@@ -2696,10 +2699,279 @@ int run_tui_tests()
         auto after_reconnect = call<chat::send_message_result>([&](auto handler) { peer.send_message(direct, "after reconnect", handler); });
         require(after_reconnect.has_value(), "Peer sends after reconnect");
         pump([&] { return std::ranges::any_of(app.data.messages, [&](auto const& value) { return value.id == after_reconnect->message_id; }); });
+        // Group actions exercise the same UI app with the existing real server fixture.
+        app.command("create-group 终端 测试群");
+        require(app.data.view == page::pick_contacts, "Group creation selects only own contacts");
+        auto choose_contact = [&](std::int64_t user) {
+            auto found = std::ranges::find(app.data.contacts, user, &chat::user::id);
+            require(found != app.data.contacts.end(), "Pick a real contact");
+            app.data.selected = static_cast<int>(found - app.data.contacts.begin());
+            app.toggle_pick();
+        };
+        choose_contact(peer_id);
+        app.finish_pick();
+        pump([&] { return app.data.active_conversation() && app.data.active_conversation()->kind == chat::conversation_kind::group; });
+        auto const group = app.data.active;
+        data.groups.push_back(group);
+        pump([&] { return app.data.self_role() == chat::member_role::owner && app.data.members.size() == 2; });
+        app.command("invite");
+        choose_contact(other_id);
+        app.finish_pick();
+        pump([&] { return app.data.members.size() == 3 && app.data.view == page::members; });
+        auto choose_member = [&](std::int64_t user) {
+            auto found = std::ranges::find(app.data.members, user, &chat::conversation_member::id);
+            require(found != app.data.members.end(), "Select a current group member");
+            app.data.selected = static_cast<int>(found - app.data.members.begin());
+        };
+        choose_member(peer_id);
+        app.command("admin");
+        pump([&] {
+            auto found = std::ranges::find(app.data.members, peer_id, &chat::conversation_member::id);
+            return found != app.data.members.end() && found->role == chat::member_role::admin;
+        });
+        app.command("rename 终端 重命名群");
+        pump([&] { return app.data.active_conversation() && app.data.active_conversation()->username == "终端 重命名群"; });
+        app.command("announcement 第一条群公告");
+        pump([&] { return app.data.active_conversation()->announcement == "第一条群公告"; });
+        app.command("show-announcement");
+        require(app.data.view == page::copy && app.data.copy_text == "第一条群公告", "Full group announcement is readable");
+        app.back();
+        app.command("announcement");
+        require(app.dialog.has_value(), "Announcement edit prompt");
+        app.dialog->text.clear();
+        app.submit_prompt();
+        pump([&] { return app.data.active_conversation()->announcement.empty(); });
+        app.open_conversation(group);
+        app.command("compose");
+        app.data.draft = "群消息 @" + peer_name;
+        app.send();
+        pump([&] { return app.data.draft.empty() && !app.data.messages.empty(); });
+        auto const group_message = app.data.messages.back().id;
+        require(std::ranges::any_of(app.data.messages.back().mentions, [&](auto const& value) { return value.user == peer_id; }),
+                "TUI group mentions use server parsed authority");
+        select(group_message);
+        app.command("pin-message");
+        pump([&] { return app.data.active_conversation()->pinned_message.has_value(); });
+        require(app.data.active_conversation()->pinned_message->id == group_message, "TUI pins selected group message");
+        app.command("pinned");
+        require(app.data.view == page::conversation && app.data.selected_message() && app.data.selected_message()->id == group_message,
+                "Pinned action selects a loaded message");
+        app.command("unpin-message");
+        pump([&] { return !app.data.active_conversation()->pinned_message; });
+        require(call<std::int64_t>([&](auto handler) { peer.mark_read(group, group_message, handler); }).has_value(), "Peer marks group read");
+        pump([&] { return std::ranges::any_of(app.data.read_positions, [&](auto const& position) {
+            return position.user == peer_id && position.message >= group_message;
+        }); });
+        require(call<std::int64_t>([&](auto handler) { other.mark_read(group, group_message, handler); }).has_value(), "Other member reads before removal");
+        pump([&] { return std::ranges::any_of(app.data.read_positions, [&](auto const& position) {
+            return position.user == other_id && position.message >= group_message;
+        }); });
+        app.command("members");
+        pump([&] { return app.data.members.size() == 3; });
+        choose_member(other_id);
+        app.command("kick");
+        require(app.dialog && app.dialog->confirmation, "Member removal requires confirmation");
+        app.dialog->text = "y"; app.submit_prompt();
+        pump([&] { return app.data.members.size() == 2; });
+        app.command("approval");
+        pump([&] { return app.data.active_conversation()->join_approval; });
+        app.command("link-create");
+        pump([&] { return app.data.view == page::copy && app.data.copy_text.starts_with("chat://join/"); });
+        auto const token = app.data.copy_text.substr(std::string("chat://join/").size());
+        require(token.size() == 64, "TUI shows the server invite token");
+        app.back();
+        auto pending = call<chat::group_join_result>([&](auto handler) { other.join_group(token, handler); });
+        require(pending && pending->state == chat::group_join_state::pending, "Link admission is pending");
+        auto forbidden_history = call<chat::messages_result>([&](auto handler) { other.get_messages(group, {}, handler); });
+        require(!forbidden_history, "Pending applicant has no history");
+        app.command("requests");
+        pump([&] { return app.data.requests.size() == 1; });
+        app.command("accept");
+        pump([&] { return app.data.requests.empty() && app.data.members.size() == 3; });
+        pump([&] { return std::ranges::any_of(app.data.read_positions, [&](auto const& position) {
+            return position.user == other_id && position.message == 0;
+        }); });
+        require(call<bool>([&](auto handler) { other.leave_group(group, handler); }).has_value(), "Applicant leaves accepted group");
+        pending = call<chat::group_join_result>([&](auto handler) { other.join_group(token, handler); });
+        require(pending && pending->state == chat::group_join_state::pending, "Applicant requests again");
+        app.requests();
+        pump([&] { return app.data.requests.size() == 1; });
+        app.command("reject");
+        pump([&] { return app.data.requests.empty(); });
+        app.reconnect();
+        require(app.data.view == page::conversation && app.data.requests.empty(),
+                "Reconnect leaves temporary requests page");
+        pump([&] { return app.data.link == connection::online && app.data.self_role() == chat::member_role::owner; });
+        app.command("link-revoke");
+        require(app.dialog && app.dialog->confirmation, "Invite revocation requires confirmation");
+        app.dialog->text = "y"; app.submit_prompt();
+        pump([&] { return app.data.status == "邀请链接已撤销"; });
+        auto revoked = call<chat::group_join_result>([&](auto handler) { other.join_group(token, handler); });
+        require(!revoked, "Revoked link cannot join");
+        app.command("leave");
+        require(!app.dialog && app.data.status.find("先转让") != std::string::npos, "Owner cannot leave without transfer");
+        app.command("members");
+        pump([&] { return app.data.members.size() == 2; });
+        choose_member(peer_id);
+        app.command("transfer");
+        require(app.dialog && app.dialog->confirmation, "Owner transfer requires confirmation");
+        app.dialog->text = "y"; app.submit_prompt();
+        pump([&] { return app.data.self_role() != chat::member_role::owner; });
+        app.command("leave");
+        require(app.dialog && app.dialog->confirmation, "Member leave requires confirmation");
+        app.dialog->text = "y"; app.submit_prompt();
+        pump([&] { return app.data.active == 0; });
+
+        require(call<chat::user>([&](auto handler) { peer.add_contact(other_id, handler); }).has_value(), "Peer authorizes initial contact");
+
+        require(call<bool>([&](auto handler) { peer.invite_group_members(group, {self}, handler); }).has_value(), "Owner reinvites TUI user for role-revocation fixture");
+        require(call<bool>([&](auto handler) { peer.set_group_admin(group, self, true, handler); }).has_value(), "Owner promotes TUI manager");
+        app.conversations();
+        pump([&] { return std::ranges::any_of(app.data.conversations, [&](auto const& value) { return value.id == group; }); });
+        app.open_conversation(group);
+        pump([&] { return app.data.self_role() == chat::member_role::admin; });
+        auto renewed_invite = call<std::optional<std::string>>([&](auto handler) { peer.create_group_invite(group, handler); });
+        require(renewed_invite && renewed_invite->has_value(), "Owner renews invite for role-revocation fixture");
+        auto role_request = call<chat::group_join_result>([&](auto handler) { other.join_group(**renewed_invite, handler); });
+        require(role_request && role_request->state == chat::group_join_state::pending, "Applicant waits in real request list");
+        app.command("requests");
+        pump([&] { return app.data.requests.size() == 1; });
+        require(call<bool>([&](auto handler) { peer.set_group_admin(group, self, false, handler); }).has_value(), "Owner demotes TUI administrator");
+        pump([&] { return app.data.self_role() == chat::member_role::member && app.data.view == page::group; });
+        require(app.data.requests.empty() && !app.data.next_requests, "Demotion closes requests page and clears private snapshot");
+        app.command("leave");
+        require(app.dialog && app.dialog->confirmation, "Demoted member can leave");
+        app.dialog->text = "y"; app.submit_prompt();
+        pump([&] { return app.data.active == 0; });
+        auto external = call<std::int64_t>([&](auto handler) { peer.create_group("加入流程测试", {other_id}, handler); });
+        require(external.has_value(), "Peer creates admission fixture");
+        data.groups.push_back(*external);
+        require(call<bool>([&](auto handler) { peer.set_group_join_approval(*external, true, handler); }).has_value(), "Peer enables approval");
+        auto invite = call<std::optional<std::string>>([&](auto handler) { peer.create_group_invite(*external, handler); });
+        require(invite && invite->has_value(), "Peer creates valid invite");
+        app.command("join chat://join/" + **invite + "?unsafe=query");
+        require(app.data.status.find("无效") != std::string::npos, "TUI safely rejects invite query suffix");
+        app.command("join chat://join/" + **invite);
+        pump([&] { return app.data.status == "申请已提交，等待管理员审批"; });
+        require(app.data.active == 0 && app.data.messages.empty(), "TUI pending join opens no group history");
+        require(call<bool>([&](auto handler) { peer.respond_group_join_request(*external, self, true, handler); }).has_value(), "Peer accepts TUI user");
+        pump([&] { return app.data.active == *external && app.data.can_send(); });
+        app.command("members");
+        pump([&] { return app.data.members.size() == 3; });
+        app.command("link");
+        require(app.data.view != page::copy && app.data.status.find("仅群主") != std::string::npos, "Ordinary member cannot fetch invite secret");
+        app.command("search old search");
+        require(app.data.view == page::search, "Search page is active before disconnect");
+        app.reconnect();
+        require(app.data.view == page::conversation && app.data.search_results.empty(),
+                "Reconnect discards temporary search page");
+        require(call<bool>([&](auto handler) { peer.remove_group_member(*external, self, handler); }).has_value(),
+                "Owner removes TUI member while its UI is disconnected");
+        pump([&] { return app.data.link == connection::online && app.data.active == 0; });
+        require(app.data.messages.empty() && app.data.view == page::conversations,
+                "Reconnect authoritatively closes group removed while offline");
+        app.open_conversation(direct);
+        pump([&] { return !app.data.messages.empty(); });
+
+        auto const avatar_path = directory / "avatar.png";
+        auto avatar_bytes = chat::detail::decode_base64(avatar_png_base64);
+        require(avatar_bytes.has_value(), "Decode existing avatar fixture");
+        { std::ofstream stream(avatar_path, std::ios::binary); stream << *avatar_bytes; }
+        app.command("avatar set " + avatar_path.string());
+        pump([&] { return app.data.self.avatar.present; });
+        app.command("avatar clear");
+        pump([&] { return !app.data.self.avatar.present; });
+        std::cout << "PASS TUI real SDK groups, members, admin, transfer, invitations, announcement, pin, join approval and avatar\n";
+
+        // Batch only this test's own fixtures; exercise actual server cursor pages.
+        auto sql_ids = [&](std::string const& query) {
+            std::unique_ptr<PGresult, decltype(&PQclear)> rows(PQexec(data.database.get(), query.c_str()), &PQclear);
+            require(rows && PQresultStatus(rows.get()) == PGRES_TUPLES_OK, PQerrorMessage(data.database.get()));
+            std::vector<std::int64_t> ids;
+            for (int i = 0; i < PQntuples(rows.get()); ++i) { ids.push_back(std::stoll(PQgetvalue(rows.get(), i, 0))); }
+            return ids;
+        };
+        auto page_groups = sql_ids(
+            "WITH created AS (INSERT INTO conversations(kind,title,owner_id,activity) "
+            "SELECT 'group','TUI pagination '||n," + std::to_string(self) +
+            ",n FROM generate_series(1,51) n RETURNING id), "
+            "added AS (INSERT INTO conversation_members(conversation_id,user_id) "
+            "SELECT id," + std::to_string(self) + " FROM created UNION ALL SELECT id," +
+            std::to_string(peer_id) + " FROM created RETURNING conversation_id) SELECT id FROM created ORDER BY id");
+        data.groups.insert(data.groups.end(), page_groups.begin(), page_groups.end());
+        data.execute("UPDATE conversation_members SET pinned=true WHERE user_id=" + std::to_string(self) +
+                     " AND conversation_id=" + std::to_string(page_groups.front()));
+        app.navigate(page::conversations);
+        app.conversations();
+        pump([&] { return app.data.conversations.size() == 50 && app.data.next_conversations.has_value(); });
+        app.conversations(true);
+        pump([&] { return !app.data.next_conversations; });
+        auto expected_order = sql_ids(
+            "SELECT c.id FROM conversations c JOIN conversation_members m ON m.conversation_id=c.id "
+            "WHERE m.user_id=" + std::to_string(self) + " ORDER BY m.pinned DESC,c.activity DESC,c.id DESC");
+        require(app.data.conversations.size() == expected_order.size(), "TUI conversation cursor returns all rows");
+        for (std::size_t i = 0; i < expected_order.size(); ++i)
+        { require(app.data.conversations[i].id == expected_order[i], "TUI preserves server pinned/activity/id order across pages"); }
+        auto const paging_group = page_groups.front();
+        auto message_ids = sql_ids(
+            "INSERT INTO messages(sender_id,conversation_id,body) SELECT " + std::to_string(peer_id) + "," +
+            std::to_string(paging_group) + ",'tui-page-search-'||n FROM generate_series(1,51) n RETURNING id");
+        app.open_conversation(paging_group);
+        pump([&] { return app.data.messages.size() == 50 && app.data.history_more; });
+        app.select_message(-20);
+        auto const selected_before_page = app.data.selected_message()->id;
+        app.history(true);
+        pump([&] { return app.data.messages.size() == 51 && !app.data.history_more; });
+        require(app.data.selected_message()->id == selected_before_page && !app.data.at_latest,
+                "Older real history page preserves selected message and does not mark new area read");
+        require(app.data.messages.front().id == message_ids.front() && app.data.messages.back().id == message_ids.back(),
+                "Real history cursor merges chronological pages without duplicates");
+        app.search("tui-page-search-");
+        pump([&] { return app.data.search_results.size() == 50 && app.data.search_more; });
+        app.search(app.data.search_query, true);
+        pump([&] { return app.data.search_results.size() == 51 && !app.data.search_more; });
+        require(app.data.search_results.front().id == message_ids.back() && app.data.search_results.back().id == message_ids.front(),
+                "Real search cursor preserves newest-first results across pages");
+        app.back();
+        app.members();
+        pump([&] { return app.data.self_role() == chat::member_role::owner; });
+        auto applicants = sql_ids(
+            "INSERT INTO users(username,password_hash) SELECT 'tui_page_request_" + std::to_string(self) +
+            "_'||n,repeat('x',60) FROM generate_series(1,51) n RETURNING id");
+        data.users.insert(data.users.end(), applicants.begin(), applicants.end());
+        std::string applicant_ids;
+        for (auto id : applicants) { if (!applicant_ids.empty()) { applicant_ids += ","; } applicant_ids += std::to_string(id); }
+        data.execute("INSERT INTO group_join_requests(conversation_id,user_id) SELECT " + std::to_string(paging_group) +
+                     ",id FROM users WHERE id IN (" + applicant_ids + ")");
+        app.command("requests");
+        pump([&] { return app.data.requests.size() == 50 && app.data.next_requests.has_value(); });
+        app.requests(true);
+        pump([&] { return app.data.requests.size() == 51 && !app.data.next_requests; });
+        require(app.data.requests.front().applicant.id == applicants.back() &&
+                app.data.requests.back().applicant.id == applicants.front(), "Real requests cursor preserves server order");
+        app.requests();
+        app.requests(); // A refresh while an earlier request is outstanding must be retained.
+        pump([&] { return app.data.requests.size() == 50 && app.data.next_requests.has_value(); });
+        app.command("conversations");
+        app.open_conversation(direct);
+        pump([&] { return !app.data.messages.empty(); });
+        std::cout << "PASS TUI real conversation, history, search and join-request cursor pagination\n";
+        std::size_t offline_before_logout = 0;
+        {
+            std::lock_guard lock(peer_events.mutex);
+            offline_before_logout = std::ranges::count_if(peer_events.presences, [&](auto const& value) { return value.user == self && !value.online; });
+        }
+        app.command("file " + upload.string());
+        require(app.data.status == "正在上传附件…", "Attachment request pending at logout");
         app.logout();
+        app.drain();
         require(app.data.link == connection::signed_out && app.password.empty() && app.data.messages.empty(), "Logout clears account and credentials");
         app.shutdown();
         app.shutdown();
+        peer_events.wait([&] {
+            return static_cast<std::size_t>(std::ranges::count_if(peer_events.presences,
+                [&](auto const& value) { return value.user == self && !value.online; })) > offline_before_logout;
+        });
         {
             chat::tui::app connecting;
             connecting.server_url = server.url;
@@ -2719,6 +2991,31 @@ int run_tui_tests()
             queued.logout();
             queued.drain();
             require(queued.data.link == connection::signed_out && queued.data.self.id == 0, "Queued callbacks cannot restore a logged out session");
+        }
+        {
+            chat::tui::app reconnecting(notify);
+            reconnecting.server_url = server.url;
+            reconnecting.username = account;
+            reconnecting.password = "test password";
+            reconnecting.login();
+            pump_app(reconnecting, [&] { return reconnecting.data.link == connection::online; });
+            reconnecting.reconnect();
+            require(reconnecting.data.link == connection::reconnecting, "Reconnect scheduled before shutdown");
+            reconnecting.shutdown();
+            reconnecting.drain();
+            require(reconnecting.exiting, "Shutdown cancels reconnect timer and callbacks");
+        }
+        {
+            chat::tui::app authenticating(notify);
+            authenticating.server_url = server.url;
+            authenticating.username = account;
+            authenticating.password = "test password";
+            authenticating.login();
+            // drain() uses a bounded batch: authentication is queued by the connected task.
+            pump_app(authenticating, [&] { return authenticating.data.link == connection::authenticating; });
+            authenticating.shutdown();
+            authenticating.drain();
+            require(authenticating.exiting && authenticating.password.empty(), "Shutdown during authentication joins callbacks safely");
         }
         std::cout << "PASS TUI real SDK registration, contacts, direct, Unicode, authorization, messages, reactions, typing, search, attachments, reconnect and shutdown\n";
         return 0;

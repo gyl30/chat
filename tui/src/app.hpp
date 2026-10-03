@@ -83,6 +83,8 @@ private:
     std::uint64_t search_request_ = 0;
     std::uint64_t contacts_request_ = 0;
     std::uint64_t presence_request_ = 0;
+    std::uint64_t members_request_ = 0;
+    std::uint64_t history_request_ = 0;
     bool registering_ = false;
     bool reconnect_enabled_ = false;
     bool conversations_busy_ = false;
@@ -90,6 +92,7 @@ private:
     bool history_busy_ = false;
     bool search_busy_ = false;
     bool requests_busy_ = false;
+    bool requests_again_ = false;
     bool sending_ = false;
     bool typing_sent_ = false;
     int retry_ = 0;

@@ -163,7 +163,16 @@ int main()
         check(searched.messages.size() == 2 && !searched.history_before,
               "Search never inserts its results into loaded history");
         searched.apply_search({{}, {}, false}, false);
-        check(searched.search_results.empty() && searched.selected == 0, "Empty search resets selection");
+        check(searched.search_results.empty() && searched.selected == 0 && !searched.search_before,
+              "Empty new search resets selection and cursor");
+        searched.apply_search({{msg(10)}, {}, true}, false);
+        check(searched.search_results.empty() && searched.search_more && searched.search_before == 10,
+              "Entire search page filtered as deleted still retains its server cursor");
+        searched.apply_search({{msg(5)}, {}, false}, true);
+        check(searched.search_results.size() == 1 && searched.search_results[0].id == 5 && searched.search_before == 5,
+              "Older search page remains accessible after filtered page");
+        searched.select_conversation(99);
+        check(!searched.search_before, "Conversation switch clears search cursor");
         check(state::layout(39, 24) == layout_mode::too_small && state::layout(120, 11) == layout_mode::too_small &&
               state::layout(60, 20) == layout_mode::narrow && state::layout(80, 24) == layout_mode::narrow &&
               state::layout(100, 30) == layout_mode::wide && state::layout(120, 40) == layout_mode::wide,

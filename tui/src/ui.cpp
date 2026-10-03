@@ -66,6 +66,8 @@ std::vector<menu_action> actions(state const& s)
     auto c = s.active_conversation();
     if (!c || c->kind != conversation_kind::group) { return {}; }
     std::vector<menu_action> items{{"Members", "members"}};
+    if (!c->announcement.empty()) { items.push_back({"Show full announcement", "show-announcement"}); }
+    if (c->pinned_message) { items.push_back({"View pinned message", "pinned"}); }
     if (s.self_role() != member_role::member)
     {
         items.push_back({"Invite your contacts", "invite"});
@@ -103,6 +105,13 @@ Element wrapped_text(std::string const& value, int width)
         column += cells;
     }
     return text(output);
+}
+Element preview_text(std::string value)
+{
+    // Headers and quotes are previews: embedded line breaks must not consume
+    // the history or composer. Full text remains available on the copy page.
+    for (char& c : value) { if (c == '\n' || c == '\r' || c == '\t') { c = ' '; } }
+    return text(value) | size(HEIGHT, EQUAL, 1);
 }
 std::string user_label(std::string const& name) { return "[" + first_glyph(name) + "] " + name; }
 std::string timestamp(std::int64_t value)
@@ -173,7 +182,7 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
     Elements lines{text(heading) | bold};
     if (m.reply)
     {
-        lines.push_back(text("↪ " + m.reply->username + ": " + (m.reply->deleted ? "消息已删除" : m.reply->text)) | dim);
+        lines.push_back(preview_text("↪ " + m.reply->username + ": " + (m.reply->deleted ? "消息已删除" : m.reply->text)) | dim);
     }
     if (m.deleted) { lines.push_back(text("消息已删除") | dim); }
     else
@@ -231,9 +240,9 @@ Element conversation_view(state const& s, Element input, std::string typing, int
 {
     auto c = s.active_conversation();
     if (!c) { return text("Select a conversation and press Enter") | center | flex; }
-    Elements items{text(c->username + (c->kind == conversation_kind::group ? " · " + std::to_string(c->member_count) + " members" : presence_label(s, c->user))) | bold};
-    if (c->pinned_message) { items.push_back(text("Pinned: " + (c->pinned_message->deleted ? "消息已删除" : c->pinned_message->text)) | dim); }
-    if (!c->announcement.empty()) { items.push_back(text("公告: " + c->announcement) | dim); }
+    Elements items{preview_text(c->username + (c->kind == conversation_kind::group ? " · " + std::to_string(c->member_count) + " members" : presence_label(s, c->user))) | bold};
+    if (c->pinned_message) { items.push_back(preview_text("Pinned: " + (c->pinned_message->deleted ? "消息已删除" : c->pinned_message->text)) | dim); }
+    if (!c->announcement.empty()) { items.push_back(preview_text("公告: " + c->announcement) | dim); }
     items.push_back(separator());
     items.push_back(history(s, width, message_scroll));
     if (!typing.empty()) { items.push_back(text(typing) | dim); }
@@ -245,9 +254,9 @@ Element conversation_view(state const& s, Element input, std::string typing, int
     }
     else
     {
-        if (s.reply) { items.push_back(text("Reply " + s.reply->username + ": " + s.reply->text) | dim); }
+        if (s.reply) { items.push_back(preview_text("Reply " + s.reply->username + ": " + s.reply->text) | dim); }
         if (s.editing) { items.push_back(text("Editing message · Esc: keep draft") | dim); }
-        items.push_back(input ? input : text(s.composing ? "> " + s.draft : "i: compose · " + s.draft));
+        items.push_back(input ? input | size(HEIGHT, EQUAL, 1) : preview_text(s.composing ? "> " + s.draft : "i: compose · " + s.draft));
     }
     return vbox(std::move(items)) | flex;
 }
@@ -314,7 +323,7 @@ Element secondary(state const& s, int width, int message_scroll)
             if (c)
             {
                 rows.push_back(text("Your role: " + role_label(s.self_role())));
-                rows.push_back(paragraph("公告: " + (c->announcement.empty() ? "(none)" : c->announcement)));
+                rows.push_back(wrapped_text("公告: " + (c->announcement.empty() ? "(none)" : c->announcement), width) | size(HEIGHT, LESS_THAN, 3));
                 rows.push_back(text(c->join_approval ? "Join approval: on" : "Join approval: off"));
                 rows.push_back(separator());
             }
@@ -326,7 +335,7 @@ Element secondary(state const& s, int width, int message_scroll)
             title = "Keyboard help";
             for (auto const& shortcut : shortcuts) { rows.push_back(text(std::string(shortcut.key) + "  " + std::string(shortcut.description))); }
             rows.push_back(separator());
-            rows.push_back(paragraph("Commands: contacts, add-contact, profile, account, create-group, join, file, save, members, invite, rename, announcement, pin-message, unpin-message, link, link-create, link-revoke, approval, requests, avatar, avatar-clear, logout, quit"));
+            rows.push_back(paragraph("Commands: contacts, add-contact, profile, account, create-group, join, file, save, members, invite, rename, announcement, show-announcement, pinned, pin-message, unpin-message, link, link-create, link-revoke, approval, requests, avatar, avatar-clear, logout, quit"));
             rows.push_back(text("Clipboard: copyable text page; select with your terminal."));
             break;
         case page::copy:

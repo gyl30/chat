@@ -151,7 +151,12 @@ void state::apply_search(messages_result result, bool append)
 {
     auto selected_id = append && selected >= 0 && static_cast<std::size_t>(selected) < search_results.size()
         ? search_results[selected].id : 0;
-    if (!append) { search_results.clear(); }
+    if (!append) { search_results.clear(); search_before.reset(); }
+    for (auto const& value : result.messages)
+    {
+        if (value.conversation == active && (!search_before || value.id < *search_before))
+        { search_before = value.id; }
+    }
     for (auto& value : result.messages)
     {
         if (value.conversation != active) { continue; }
@@ -248,6 +253,7 @@ void state::select_conversation(std::int64_t id)
     draft.clear();
     message_selected = selected = 0;
     history_before.reset();
+    search_before.reset();
     history_more = search_more = false;
     at_latest = true;
 }

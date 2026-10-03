@@ -594,3 +594,32 @@ presence/last_seen 只对观察者自己主动添加的联系人可见。get_pre
 本轮基线 `ae59692bab1dfd9b1cec586a8d66e190ff5486ac`，开始时工作树干净且 `HEAD == origin/main`。先扩展现有 helper、server 注册和 Qt 注册测试，三个入口均确认 RED，再修改共享校验；首尾 Unicode whitespace 被拒绝，内部 ASCII/NBSP/U+3000 及中文继续合法。注册拒绝返回参数错误且不落库，Qt 显示首尾空白规则。搜索继续使用原有 trimmed query 和 prefix match，真实注册/搜索及现有 mention 的最长匹配、大小写、邮箱/`@@` 边界、Unicode 和字面特殊字符回归通过。
 
 SQL 025 的迁移及 insert/update 回归验证合法旧身份原样保留，并保留 SQL 024 的 `@`、control、纯空白和字节上限约束。定向测试 4/4 PASS；随后实际完整运行 `tests/verify.sh`，normal、ASan、UBSan 均完成构建和全部 14/14 CTest，无 suppression、排除测试或放宽 timeout。`git diff --check` PASS。
+
+## 终端 TUI 客户端
+
+以 `545f1dbd0ff3e5fa7ed1eee4e5a955f7d5668865` 为本轮基线，新增 C++26 `chat_tui`，通过 `CHAT_BUILD_TUI_CLIENT`（默认 OFF）构建。FTXUI 以 `third/ftxui` submodule 固定到 v7.0.3 / `f921fad208912747c17d129a8ef75ec7624b6eec`，不使用浮动分支或配置时联网下载。TUI 直接调用 `chat::client`，不依赖 Qt，不新增协议实现。
+
+```sh
+git submodule update --init --recursive
+cmake -S . -B build -DCHAT_BUILD_QT_CLIENT=ON -DCHAT_BUILD_TUI_CLIENT=ON -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j12
+./build/chat_tui ws://127.0.0.1:18080/ws
+```
+
+不传 URL 时使用上述默认值，也可在登录页修改。用户名与群标题复用现有校验；密码隐藏输入、只保留在进程内存，退出登录清除。`--help`、`--version` 不进入全屏。
+
+支持会话 cursor 分页、置顶/静音/未读、联系人搜索与添加移除、单向 direct 权限、联系人 presence、消息历史/收发/回复/编辑/确认删除/reaction/已读/typing/搜索及服务端 mention；附件路径上传与显式路径保存；自己/联系人/非联系人资料和头像上传清除；群创建/邀请/成员角色/群主转让/移除/退出/重命名、公告、群置顶、邀请链接、加入审批及申请分页。权限呈现使用权威 `can_send` 和当前成员角色，server 仍是最终授权边界。
+
+100 列及以上使用双栏，40–99 列使用列表与会话页面切换；小于 40 列或 12 行显示尺寸提示。`j/k`、方向键、Enter、Esc、Tab 切换和选择，`i` 输入，`:` 打开命令输入，`?` 显示真实键位及命令，Ctrl+C 安全退出。完整键位以程序内帮助为准。中文、emoji 和长单行使用 FTXUI 的字符宽度；长消息可逐行浏览。向上浏览历史或长消息、进入其他页面、终端过小时不自动标记最新消息已读。
+
+SDK callback 只捕获值并投递线程安全 inbox，再用 FTXUI `PostEvent(Custom)` 唤醒 UI；所有快照、页面和组件变更在 UI 线程执行。一个阻塞 deadline worker 负责 typing 和 1/2/4/8/15 秒重连退避，空闲不由应用轮询。连接/session 与页面上下文拒绝过期回调；分页保留服务端顺序和真实 cursor。关闭先停止接收队列，再取消并在 UI 线程析构 SDK、join 网络与定时线程，最后退出 FTXUI loop。
+
+重连重新认证，刷新联系人/presence、已加载会话列表范围、当前最新一页消息和群元数据；保留当前会话及草稿，清除 typing、reply/edit、临时页面/弹窗与上传状态。断线期间已被移出群时回到会话列表。附件上传不会重放；发送或保存失败显示 status，不擅自清除草稿。只在当前会话最新区域标记已读，群已读人数只统计当前成员。
+
+终端限制：附件最多 10 MiB，只按文件路径选择；保存使用排他创建，拒绝覆盖已有文件。图片仅显示文件信息，无 inline graphics 或外部 opener。头像只显示 Unicode 首字符 fallback 和 set/default 状态，不下载位图或建立头像缓存。复制采用可滚动的文本页和终端自身选择，无剪贴板重依赖、系统通知、默认响铃或磁盘凭据配置。
+
+Qt bridge 的字符串转换、signal、页面焦点和 reconnect 呈现仍是 Qt glue。TUI 使用 SDK 原有 DTO；本轮未为了少量快照合并规则增加跨 DTO 适配框架，也未修改 SDK/server 的协议或已确定的联系人、presence 等产品语义。
+
+TUI 测试入口包括 `tui_state`（权限、导航、单调消息合并与分页 cursor）、`tui_inbox`（跨线程投递、取消与关闭）、`tui_file`（路径、类型、大小和不覆盖保存）、`tui_render`（登录、群聊、只读 direct、Unicode、安全文本、宽窄屏和输入可见性），以及复用现有真实 server fixture 的 `tui_integration`。集成测试通过 SDK 驱动 TUI app，覆盖单向联系人、消息交互、附件、头像、群角色/链接/审批、超过 50 条的真实分页、重连和异步退出；原有 Qt/server/client 测试继续运行。
+
+TUI 专项审查修复了迟到会话快照误关闭刚重新加入的群、成员重新加入后旧已读位置覆盖新 membership、权限降级后残留审批页、搜索结果删除后丢失分页边界，以及多行 header 遮挡输入框。恢复使用请求上下文和最小 generation；普通消息流量不会因为每次 dirty 都重启分页而饿死列表。
