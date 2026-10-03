@@ -95,6 +95,22 @@ int main(int argc, char** argv)
     {
         start();
         {
+            chat_widget page;
+            page.setStyleSheet(chat_style_sheet());
+            page.resize(1180, 760);
+            page.show();
+            for (auto* button : page.findChildren<QToolButton*>())
+            {
+                if (button->text() == QStringLiteral("联系人")) { button->click(); break; }
+            }
+            auto* entry = page.findChild<QPushButton*>("newFriendsButton");
+            check(entry && entry->isVisible(), "New friends entry is visible above contacts");
+            auto const image = entry->grab().toImage();
+            auto const background = image.pixelColor(10, image.height() / 2);
+            check(background.alpha() == 255 && background.lightness() > 200,
+                "New friends entry has an opaque light background for readable dark text");
+        }
+        {
             main_window registration(QStringLiteral("ws://127.0.0.1:18769/ws"));
             registration.show();
             registration.findChild<QPushButton*>("registerButton")->click();

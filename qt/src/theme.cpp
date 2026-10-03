@@ -31,7 +31,7 @@ QString chat_style_sheet()
             background: #FFFFFF;
             color: #315A4B;
         }
-        QDialog QPushButton, QToolButton#messageSearchButton, QToolButton#sendAttachmentButton {
+        QDialog QPushButton, QPushButton#newFriendsButton, QToolButton#messageSearchButton, QToolButton#sendAttachmentButton {
             min-height: 32px;
             padding: 0 12px;
             background: #FFFFFF;
@@ -39,7 +39,7 @@ QString chat_style_sheet()
             border: 1px solid #AFC0B8;
             border-radius: 8px;
         }
-        QDialog QPushButton:disabled, QToolButton#messageSearchButton:disabled, QToolButton#sendAttachmentButton:disabled {
+        QDialog QPushButton:disabled, QPushButton#newFriendsButton:disabled, QToolButton#messageSearchButton:disabled, QToolButton#sendAttachmentButton:disabled {
             color: #96A29C;
             border-color: #D7DDD9;
         }
