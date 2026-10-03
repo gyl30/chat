@@ -173,12 +173,16 @@ Element conversation_list(state const& s)
     {
         auto const& c = s.conversations[i];
         auto label = user_label(c.username);
-        if (c.pinned) { label += " [pin]"; }
-        if (c.muted) { label += " [mute]"; }
-        if (c.unread) { label += " (" + std::to_string(c.unread) + ")"; }
         if (c.kind == conversation_kind::direct) { label += presence_label(s, c.user); }
+        auto unread = c.unread ? " (" + std::to_string(c.unread) + ")" : std::string{};
+        std::string flags;
+        if (c.pinned) { flags += " [pin]"; }
+        if (c.muted) { flags += " [mute]"; }
         auto summary = c.last.deleted ? "消息已删除" : c.last.attachment ? "[文件] " + c.last.attachment->filename : c.last.text;
-        rows.push_back(selected(vbox({text(label), preview_text(summary) | dim}), s.conversation_selected == static_cast<int>(i)));
+        rows.push_back(selected(vbox({
+            hbox({text(label) | flex, text(unread)}),
+            hbox({preview_text(summary) | dim | flex, text(flags)})}),
+            s.conversation_selected == static_cast<int>(i)));
     }
     if (s.next_conversations) { rows.push_back(text("↓ More conversations")); }
     return vbox({text("Conversations") | bold, separator(), scroll(std::move(rows))}) | flex;

@@ -57,6 +57,21 @@ int main()
         ok &= expect(draw(long_name_list, 60, 20).find("LongUsernamePrefix") != std::string::npos, "narrow list retains long username prefix");
     }
     {
+        auto status_list = s;
+        auto& item = status_list.conversations.front();
+        item.kind = chat::conversation_kind::group;
+        item.username = "百人验证_" + std::string(48, 'x');
+        item.pinned = true; item.muted = true; item.unread = 100;
+        for (auto const& [columns, rows] : {std::pair{80, 24}, {160, 45}})
+        {
+            auto output = draw(status_list, columns, rows);
+            ok &= expect(output.find("[pin]") != std::string::npos, "long conversation title keeps personal pin visible");
+            ok &= expect(output.find("[mute]") != std::string::npos, "long conversation title keeps mute visible");
+            ok &= expect(output.find("(100)") != std::string::npos, "long conversation title keeps unread count visible");
+            ok &= expect(output.find("[百] 百") != std::string::npos, "conversation status leaves an identifiable title prefix");
+        }
+    }
+    {
         auto multiline_list = s;
         multiline_list.conversations.front().username = "Main summary group";
         multiline_list.conversations.front().last.text.clear();
