@@ -14,9 +14,9 @@ SDK 与 RPC 使用 `send_friend_request`、`get_friend_requests`、`respond_frie
 
 Qt 联系人顶部提供“新的朋友”与未处理数量；Qt/TUI 独立区分 incoming/outgoing，资料与搜索按关系提供添加、等待/取消、接受/拒绝、消息/删除。群成员身份不构成好友关系。手工建群/邀请仅选择已确认好友，选人支持搜索、多选、取消与计数，再输入群名确认；群资料以概要和全部成员入口呈现，角色与管理动作分层。邀请链接与群加入审批仍不要求好友。
 
-Qt 左下角自身头像打开账号资料，替代独立退出导航按钮；资料提供头像操作和确认退出登录。TUI `:account` 提供等价入口，不启用鼠标或终端图片。百人群、百人在线、稳态与最终 sanitizer 的实际结果另记于 `docs/tui_100_member_verification.md`；未完成的测试不得据此视为通过。
+Qt 左下角自身头像打开账号资料，替代独立退出导航按钮；资料提供头像操作和确认退出登录。TUI `:account` 提供等价入口，不启用鼠标或终端图片。百人群、百人在线、稳态与最终 sanitizer 的实际结果另记于[百人验证记录](tui_100_member_verification.md)。
 
-好友实现阶段统一验证已实际通过 normal、ASan、UBSan，各 20/20 CTest；新增 `friendship` 复用现有 server fixture，覆盖关系状态机、离线恢复及真实数据库锁同步竞争。规模终端验证的最终结果以专门报告为准。
+好友实现阶段统一验证已实际通过 normal、ASan、UBSan，各 20/20 CTest；新增 `friendship` 复用现有 server fixture，覆盖关系状态机、离线恢复及真实数据库锁同步竞争。百人真实矩阵、100 在线 99/99 无重复 fanout、独立 1800.399873 秒稳态及最终统一验证已完成；最终 normal/ASan/UBSan 均 20/20 PASS，分别 93.65/125.41/112.12 秒，证据与限制见专门报告。
 
 ## 已完成路线
 
@@ -55,7 +55,7 @@ Qt 左下角自身头像打开账号资料，替代独立退出导航按钮；�
 
 ## 数据模型
 
-- `users` 保存账号、最后在线时间和单调递增的 `avatar_revision`；`contacts(owner_id,contact_id)` 是单向主动单聊通讯授权。`user_avatars` 保存一个当前头像，是否存在由数据行决定；不与消息附件共表。
+- `users` 保存账号、最后在线时间和单调递增的 `avatar_revision`；`contacts(owner_id,contact_id)` 保存已确认好友的双向记录；`friend_requests` 只保存当前待确认申请。`user_avatars` 保存一个当前头像，是否存在由数据行决定；不与消息附件共表。
 - `conversations.kind` 显式区分 `direct/group`；单聊使用真实的两端 user ID，群使用会话 ID、群名和 `owner_id`。
 - `conversation_members` 表示当前成员，持有 `is_admin`、`last_read_message_id`、`joined_message_id` 和个人 `muted/pinned`。群主必须是群成员，由延迟外键保证；管理员上限在同一会话锁事务内检查。
 - `messages` 指向会话和真实作者，包含回复 ID、编辑时间、删除占位；`message_attachments` 保存附件元数据和内容。删除附件消息会清除文件内容。SQL 016 增加独立 `message_reactions` 和消息的单调 `reaction_revision`，每用户每消息一条回应，删除消息时清除回应。
@@ -521,7 +521,7 @@ Qt 重启测试先确认申请已在服务器持久化，再重启，避免把�
 
 本 Goal 至此停止。未实现且不属于本轮范围的能力包括多设备同步、E2EE、音视频、超大群、channel/broadcast、bot、分布式 presence、对象存储/CDN、Redis/Kafka、微服务、event sourcing 和 CQRS；需要另行确定真实需求。没有自动启动这些路线。
 
-## 产品语义与授权审查：联系人和单聊
+## 历史产品语义与授权审查：联系人和单聊（已由好友确认模型替代）
 
 本轮重新 fetch 后的起点为 `HEAD = origin/main = 49bfa2941dd23aff3c50332d7a90b8d9cae9d592`，开始时工作树干净。修改前完整运行统一验证入口，normal、ASan、UBSan 均 14/14 PASS，分别 67.03、85.61、80.21 秒；新增非联系人 open 回归在修复前失败。本部分没有 schema migration，SQL 001–023 未修改。
 
@@ -622,7 +622,7 @@ cmake --build build -j12
 
 不传 URL 时使用上述默认值，也可在登录页修改。用户名与群标题复用现有校验；密码隐藏输入、只保留在进程内存，退出登录清除。`--help`、`--version` 不进入全屏。
 
-支持会话 cursor 分页、置顶/静音/未读、联系人搜索与添加移除、单向 direct 权限、联系人 presence、消息历史/收发/回复/编辑/确认删除/reaction/已读/typing/搜索及服务端 mention；附件路径上传与显式路径保存；自己/联系人/非联系人资料和头像上传清除；群创建/邀请/成员角色/群主转让/移除/退出/重命名、公告、群置顶、邀请链接、加入审批及申请分页。权限呈现使用权威 `can_send` 和当前成员角色，server 仍是最终授权边界。
+支持会话 cursor 分页、置顶/静音/未读、用户搜索、好友申请/接受/拒绝/取消/移除、已确认好友双向 direct 权限、好友 presence、消息历史/收发/回复/编辑/确认删除/reaction/已读/typing/搜索及服务端 mention；附件路径上传与显式路径保存；自己/联系人/非联系人资料和头像上传清除；群创建/邀请/成员角色/群主转让/移除/退出/重命名、公告、群置顶、邀请链接、加入审批及申请分页。权限呈现使用权威 `can_send` 和当前成员角色，server 仍是最终授权边界。
 
 100 列及以上使用双栏，40–99 列使用列表与会话页面切换；小于 40 列或 12 行显示尺寸提示。`j/k`、方向键、Enter、Esc、Tab 切换和选择，`i` 输入，`:` 打开命令输入，`?` 显示真实键位及命令，Ctrl+C 安全退出。完整键位以程序内帮助为准。中文、emoji 和长单行使用 FTXUI 的字符宽度；长消息可逐行浏览。向上浏览历史或长消息、进入其他页面、终端过小时不自动标记最新消息已读。
 
@@ -632,9 +632,9 @@ SDK callback 只捕获值并投递线程安全 inbox，再用 FTXUI `PostEvent(C
 
 终端限制：附件最多 10 MiB，只按文件路径选择；保存使用排他创建，拒绝覆盖已有文件。图片仅显示文件信息，无 inline graphics 或外部 opener。头像只显示 Unicode 首字符 fallback 和 set/default 状态，不下载位图或建立头像缓存。复制采用可滚动的文本页和终端自身选择，无剪贴板重依赖、系统通知、默认响铃或磁盘凭据配置。
 
-Qt bridge 的字符串转换、signal、页面焦点和 reconnect 呈现仍是 Qt glue。TUI 使用 SDK 原有 DTO；本轮未为了少量快照合并规则增加跨 DTO 适配框架，也未修改 SDK/server 的协议或已确定的联系人、presence 等产品语义。
+Qt bridge 的字符串转换、signal、页面焦点和 reconnect 呈现仍是 Qt glue。TUI 初始接入使用 SDK 原有 DTO，未为了少量快照合并规则增加跨 DTO 适配框架；后续好友确认需求增加 SDK 好友 API，当前联系人/presence 语义以本文顶部的好友确认模型为准。
 
-TUI 测试入口包括 `tui_state`（权限、导航、单调消息合并与分页 cursor）、`tui_inbox`（跨线程投递、取消与关闭）、`tui_file`（路径、类型、大小和不覆盖保存）、`tui_render`（登录、群聊、只读 direct、Unicode、安全文本、宽窄屏和输入可见性），以及复用现有真实 server fixture 的 `tui_integration`。集成测试通过 SDK 驱动 TUI app，覆盖单向联系人、消息交互、附件、头像、群角色/链接/审批、超过 50 条的真实分页、重连和异步退出；原有 Qt/server/client 测试继续运行。
+TUI 测试入口包括 `tui_state`（权限、导航、单调消息合并与分页 cursor）、`tui_inbox`（跨线程投递、取消与关闭）、`tui_file`（路径、类型、大小和不覆盖保存）、`tui_render`（登录、群聊、只读 direct、Unicode、安全文本、宽窄屏和输入可见性），以及复用现有真实 server fixture 的 `tui_integration`。集成测试通过 SDK 驱动 TUI app，覆盖好友申请状态与删除后双向只读、消息交互、附件、头像、群角色/链接/审批、超过 50 条的真实分页、重连和异步退出；原有 Qt/server/client 测试继续运行。
 
 TUI 专项审查修复了迟到会话快照误关闭刚重新加入的群、成员重新加入后旧已读位置覆盖新 membership、权限降级后残留审批页、搜索结果删除后丢失分页边界，以及多行 header 遮挡输入框。恢复使用请求上下文和最小 generation；普通消息流量不会因为每次 dirty 都重启分页而饿死列表。
 
