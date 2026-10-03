@@ -16,3 +16,6 @@
 [submodule "third/spdlog"]
 	path = third/spdlog
 	url = https://github.com/gabime/spdlog.git
+[submodule "third/ftxui"]
+	path = third/ftxui
+	url = https://github.com/ArthurSonzogni/FTXUI.git

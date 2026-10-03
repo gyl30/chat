@@ -1,0 +1,29 @@
+set(FTXUI_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(FTXUI_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(FTXUI_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(FTXUI_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+add_subdirectory("${PROJECT_SOURCE_DIR}/third/ftxui" "${PROJECT_BINARY_DIR}/third/ftxui" EXCLUDE_FROM_ALL)
+
+add_executable(chat_tui src/main.cpp)
+target_link_libraries(chat_tui PRIVATE chat_client ftxui::component)
+set_target_properties(chat_tui PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}")
+
+add_executable(chat_tui_render_test tests/render_test.cpp)
+target_link_libraries(chat_tui_render_test PRIVATE ftxui::dom)
+add_test(NAME tui_render COMMAND chat_tui_render_test)
+set_tests_properties(tui_render PROPERTIES TIMEOUT 5)
+
+add_library(chat_tui_state STATIC src/state.cpp)
+target_include_directories(chat_tui_state PUBLIC src)
+target_link_libraries(chat_tui_state PUBLIC chat_client)
+
+add_executable(chat_tui_state_test tests/state_test.cpp)
+target_link_libraries(chat_tui_state_test PRIVATE chat_tui_state)
+add_test(NAME tui_state COMMAND chat_tui_state_test)
+set_tests_properties(tui_state PROPERTIES TIMEOUT 5)
+
+add_executable(chat_tui_inbox_test tests/inbox_test.cpp)
+target_include_directories(chat_tui_inbox_test PRIVATE src)
+target_link_libraries(chat_tui_inbox_test PRIVATE Threads::Threads)
+add_test(NAME tui_inbox COMMAND chat_tui_inbox_test)
+set_tests_properties(tui_inbox PROPERTIES TIMEOUT 5)
