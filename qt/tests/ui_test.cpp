@@ -143,6 +143,10 @@ int main(int argc, char** argv)
             check(invite_edit->text() == QStringLiteral("chat://join/") + QString(64, 'a') &&
                 dialog.findChild<QPushButton*>("groupCopyInviteButton")->isEnabled(), "Manager can display current invite link");
             dialog.set_requests(1, {{3, "applicant", false, 0, {}}}, 3, false, {});
+            auto* tabs = dialog.findChild<QTabWidget*>("groupTabs");
+            check(tabs->tabText(1) == QStringLiteral("成员") &&
+                tabs->tabText(2) == QStringLiteral("入群申请 (1+)"),
+                "Pending count updates the requests tab without renaming members");
             auto* requests_list = dialog.findChild<QListWidget*>("groupJoinRequestsList");
             requests_list->setCurrentRow(0);
             check(requests_list->count() == 1 && dialog.findChild<QPushButton*>("groupAcceptRequestButton")->isEnabled(),

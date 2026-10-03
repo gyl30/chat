@@ -574,7 +574,7 @@ void group_dialog::set_requests(qint64 conversation, QList<user_data> users, qin
         item->setIcon(avatar_icon(user.username, 32, avatars_ ? avatars_->image(user.id) : QPixmap{}));
     }
     next_request_ = next;
-    tabs_->setTabText(1, QStringLiteral("入群申请 (%1%2)").arg(requests_->count()).arg(next ? QStringLiteral("+") : QString{}));
+    tabs_->setTabText(2, QStringLiteral("入群申请 (%1%2)").arg(requests_->count()).arg(next ? QStringLiteral("+") : QString{}));
     update_actions();
 }
 
