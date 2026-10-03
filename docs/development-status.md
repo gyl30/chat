@@ -623,3 +623,17 @@ Qt bridge 的字符串转换、signal、页面焦点和 reconnect 呈现仍是 Q
 TUI 测试入口包括 `tui_state`（权限、导航、单调消息合并与分页 cursor）、`tui_inbox`（跨线程投递、取消与关闭）、`tui_file`（路径、类型、大小和不覆盖保存）、`tui_render`（登录、群聊、只读 direct、Unicode、安全文本、宽窄屏和输入可见性），以及复用现有真实 server fixture 的 `tui_integration`。集成测试通过 SDK 驱动 TUI app，覆盖单向联系人、消息交互、附件、头像、群角色/链接/审批、超过 50 条的真实分页、重连和异步退出；原有 Qt/server/client 测试继续运行。
 
 TUI 专项审查修复了迟到会话快照误关闭刚重新加入的群、成员重新加入后旧已读位置覆盖新 membership、权限降级后残留审批页、搜索结果删除后丢失分页边界，以及多行 header 遮挡输入框。恢复使用请求上下文和最小 generation；普通消息流量不会因为每次 dirty 都重启分页而饿死列表。
+
+实际运行双用户 `chat_tui` 并在 tmux 中完成注册登录、联系人与单向只读、direct 双向收发、回复、reaction、搜索/可复制文本、附件上传/保存且 SHA-256 一致，以及群创建/typing/公告/置顶。覆盖 80×24、100×30、120×40、60×20、35×10 再恢复；停止并重启独立测试 server 后自动重连、恢复当前群及历史、再次发送成功，最后两端 logout/Ctrl+C 正常退出。空闲 3 秒实测进程 CPU 增量为 0 ticks。仅按创建时记录的精确 ID 清理本次测试账号与会话，未修改历史身份。终端 smoke 另修复长用户名列表水平居中裁掉前缀的问题，增加合法 64 字节用户名渲染回归。
+
+最终 ASan 的“认证中关闭 TUI”集成回归暴露服务端会话 lifetime 缺口：bcrypt 转到 system thread pool 时没有维持 I/O outstanding work，测试服务退出可能早于认证 continuation 返回。`connection_worker::run_session()` 现在为整个会话持有 work guard，让关闭正常等待会话结束；未修改第三方源码、协议或授权规则，保留原失败场景作为回归，不用延时等待或 suppression 绕过。
+
+全部修复后重新实际执行 `tests/verify.sh`，Qt/TUI 在三套构建中均为 ON；完整构建及全部 19 个 CTest 通过：
+
+| 构建 | 完整 build | 完整 CTest | CTest 耗时 |
+|---|---|---|---|
+| normal | PASS | 19/19 PASS | 81.77 s |
+| ASan | PASS | 19/19 PASS | 105.87 s |
+| UBSan | PASS | 19/19 PASS | 97.26 s |
+
+包含原有 `qt_models`、`qt_delegate`、`qt_ui` 和全部 server/client/migration 测试；没有 suppression、测试排除、跳过 TUI 或放宽 timeout。`git diff --check` PASS。依赖除新增 FTXUI 外未升级，SQL 001–025 未修改。

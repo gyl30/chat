@@ -155,7 +155,7 @@ Element selected(Element item, bool value)
 Element scroll(Elements items)
 {
     if (items.empty()) { items.push_back(text("No items")); }
-    return vbox(std::move(items)) | vscroll_indicator | frame | flex;
+    return vbox(std::move(items)) | vscroll_indicator | yframe | flex;
 }
 Element conversation_list(state const& s)
 {

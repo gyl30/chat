@@ -6,6 +6,7 @@
 
 #include <boost/url/parse.hpp>
 #include <boost/capy/write.hpp>
+#include <boost/capy/ex/work_guard.hpp>
 #include <boost/http/field.hpp>
 #include <boost/http/config.hpp>
 #include <boost/http/status.hpp>
@@ -90,6 +91,8 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
 
     boost::capy::task<void> run_session()
     {
+        // Offloaded bcrypt work must finish before the owning io_context drains.
+        auto work = boost::capy::make_work_guard(io_context_.get_executor());
         parser_.reset();
         parser_.start();
         params_.session_data.clear();

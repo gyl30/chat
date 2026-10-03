@@ -50,6 +50,12 @@ int main()
     s.view = page::conversations;
     ok &= expect(draw(s, 60, 20).find("Conversations") != std::string::npos, "narrow list navigation");
     ok &= expect(draw(s, 60, 20).find("添加联系人") == std::string::npos, "narrow list does not squeeze conversation");
+    {
+        auto long_name_list = s;
+        long_name_list.conversations.front().username = "LongUsernamePrefix" + std::string(46, 'x');
+        ok &= expect(draw(long_name_list, 120, 40).find("LongUsernamePrefix") != std::string::npos, "sidebar retains long username prefix");
+        ok &= expect(draw(long_name_list, 60, 20).find("LongUsernamePrefix") != std::string::npos, "narrow list retains long username prefix");
+    }
     s.view = page::conversation;
     auto& group = s.conversations.front();
     group.kind = chat::conversation_kind::group;
