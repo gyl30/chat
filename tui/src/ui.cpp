@@ -178,7 +178,7 @@ Element conversation_list(state const& s)
         if (c.unread) { label += " (" + std::to_string(c.unread) + ")"; }
         if (c.kind == conversation_kind::direct) { label += presence_label(s, c.user); }
         auto summary = c.last.deleted ? "消息已删除" : c.last.attachment ? "[文件] " + c.last.attachment->filename : c.last.text;
-        rows.push_back(selected(vbox({text(label), text(summary) | dim}), s.conversation_selected == static_cast<int>(i)));
+        rows.push_back(selected(vbox({text(label), preview_text(summary) | dim}), s.conversation_selected == static_cast<int>(i)));
     }
     if (s.next_conversations) { rows.push_back(text("↓ More conversations")); }
     return vbox({text("Conversations") | bold, separator(), scroll(std::move(rows))}) | flex;

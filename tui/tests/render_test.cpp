@@ -56,6 +56,21 @@ int main()
         ok &= expect(draw(long_name_list, 120, 40).find("LongUsernamePrefix") != std::string::npos, "sidebar retains long username prefix");
         ok &= expect(draw(long_name_list, 60, 20).find("LongUsernamePrefix") != std::string::npos, "narrow list retains long username prefix");
     }
+    {
+        auto multiline_list = s;
+        multiline_list.conversations.front().username = "Main summary group";
+        multiline_list.conversations.front().last.text.clear();
+        for (int i = 0; i < 512; ++i) { multiline_list.conversations.front().last.text += "summary line\n"; }
+        auto next = multiline_list.conversations.front();
+        next.id = 11; next.username = "Next visible friend"; next.last.text = "short";
+        multiline_list.conversations.push_back(std::move(next));
+        for (auto const& [columns, rows] : {std::pair{80,24}, {160,45}})
+        {
+            auto output = draw(multiline_list, columns, rows);
+            ok &= expect(output.find("[M] Main summary group") != std::string::npos, "multiline latest summary keeps selected conversation title visible");
+            ok &= expect(output.find("Next visible friend") != std::string::npos, "multiline latest summary leaves next conversation visible");
+        }
+    }
     s.view = page::conversation;
     auto& group = s.conversations.front();
     group.kind = chat::conversation_kind::group;
