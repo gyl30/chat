@@ -2060,8 +2060,10 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     }
     auto [commit_ec, commit_row] = co_await fixture_connection.execute_row("COMMIT");
     if (commit_ec) { co_return 1; }
-    auto [removed_ec, removed_reply] = co_await receive_websocket_text(removing);
-    auto [finished_ec, revoked_finish] = co_await receive_websocket_text(source_socket);
+    auto removed_result = co_await receive_websocket_text(removing);
+    auto& [removed_ec, removed_reply] = removed_result;
+    auto revoked_finish_result = co_await receive_websocket_text(source_socket);
+    auto& [finished_ec, revoked_finish] = revoked_finish_result;
     if (removed_ec || finished_ec || !json_matches(removed_reply, R"({"result":{"removed":true}})"))
     { co_return 1; }
     removing.close();
@@ -2846,7 +2848,8 @@ int main(int argc, char** argv)
 #ifdef CHAT_TEST_TUI
     if (argc == 2 && std::string_view(argv[1]) == "--tui-only") { return run_tui_tests(); }
 #endif
-    if (argc != 1) { std::cerr << "Unknown test argument\n"; return 1; }
+    bool const raw_only = argc == 2 && std::string_view(argv[1]) == "--raw-websocket-only";
+    if (argc != 1 && !raw_only) { std::cerr << "Unknown test argument\n"; return 1; }
     (void)argv;
     boost::corosio::io_context io_context;
 
@@ -2901,5 +2904,5 @@ int main(int argc, char** argv)
 
     std::cout << "PASS chat server shutdown\n";
     std::cout << "PASS chat server validation\n";
-    return run_group_tests();
+    return raw_only ? 0 : run_group_tests();
 }
