@@ -298,6 +298,13 @@ target_link_libraries(chat_server_test
         wslay
 )
 
+if(CHAT_BUILD_TUI_CLIENT)
+    target_link_libraries(chat_server_test PRIVATE chat_tui_core)
+    target_compile_definitions(chat_server_test PRIVATE CHAT_TEST_TUI)
+    add_test(NAME tui_integration COMMAND chat_server_test --tui-only)
+    set_tests_properties(tui_integration PROPERTIES TIMEOUT 60)
+endif()
+
 add_test(NAME server COMMAND chat_server_test)
 set_tests_properties(server PROPERTIES TIMEOUT 60)
 

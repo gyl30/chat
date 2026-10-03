@@ -21,6 +21,12 @@
 
 #include "server.hpp"
 #include "avatar_fixture.hpp"
+#ifdef CHAT_TEST_TUI
+#include "app.hpp"
+#include <filesystem>
+#include <fstream>
+#include <source_location>
+#endif
 
 namespace
 {
@@ -2487,3 +2493,240 @@ int run_group_tests()
         return 1;
     }
 }
+
+#ifdef CHAT_TEST_TUI
+int run_tui_tests()
+{
+    using chat::tui::connection;
+    using chat::tui::page;
+    try
+    {
+        runtime server;
+        fixture data;
+        require(PQstatus(data.database.get()) == CONNECTION_OK, "TUI fixture database connection");
+        std::mutex mutex;
+        std::condition_variable wake;
+        bool ready = false;
+        auto notify = [&] { std::lock_guard lock(mutex); ready = true; wake.notify_one(); };
+        chat::tui::app app(notify);
+        auto pump = [&](auto predicate, std::source_location location = std::source_location::current()) {
+            auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+            while (true)
+            {
+                app.drain();
+                if (predicate()) { return; }
+                std::unique_lock lock(mutex);
+                if (!wake.wait_until(lock, deadline, [&] { return ready; }))
+                { throw std::runtime_error("TUI timeout at line " + std::to_string(location.line()) + ": " + app.data.status); }
+                ready = false;
+            }
+        };
+        auto const suffix = std::to_string(getpid());
+        auto const account = "tui_用户_" + suffix;
+        auto const peer_name = "tui_Alice Bob_" + suffix;
+        auto const other_name = "tui_张 三_" + suffix;
+        app.server_url = server.url;
+        app.username = " Alice";
+        app.password = "test password";
+        app.login(true);
+        require(app.data.link == connection::signed_out && app.data.status.find("首尾") != std::string::npos,
+                "TUI rejects edge whitespace before registration");
+        app.username = account;
+        app.login(true);
+        pump([&] { return app.data.link == connection::signed_out; });
+        require(app.data.status == "注册成功，请登录", "TUI registration reaches server");
+        auto const* account_param = account.c_str();
+        std::unique_ptr<PGresult, decltype(&PQclear)> registered(PQexecParams(data.database.get(),
+            "SELECT id FROM users WHERE username=$1", 1, nullptr, &account_param, nullptr, nullptr, 0), &PQclear);
+        require(registered && PQresultStatus(registered.get()) == PGRES_TUPLES_OK && PQntuples(registered.get()) == 1,
+                "TUI registered identity persisted");
+        auto const self = std::stoll(PQgetvalue(registered.get(), 0, 0));
+        data.users.push_back(self);
+        app.login();
+        pump([&] { return app.data.link == connection::online; });
+        require(app.data.self.id == self, "TUI authenticates registered account");
+
+        events peer_events, other_events;
+        chat::client peer, other;
+        peer_events.attach(peer);
+        other_events.attach(other);
+        peer.connect(server.url);
+        other.connect(server.url);
+        peer_events.wait([&] { return peer_events.connected == 1; });
+        other_events.wait([&] { return other_events.connected == 1; });
+        auto register_peer = [&](chat::client& client, std::string const& name) {
+            auto registered_user = call<std::int64_t>([&](auto handler) { client.register_user(name, "test password", handler); });
+            require(registered_user.has_value(), "TUI peer register");
+            data.users.push_back(*registered_user);
+            auto authenticated = call<chat::authentication_result>([&](auto handler) { client.authenticate(name, "test password", handler); });
+            require(authenticated && authenticated->authenticated, "TUI peer authenticate");
+            return *registered_user;
+        };
+        auto const peer_id = register_peer(peer, peer_name);
+        auto const other_id = register_peer(other, other_name);
+        auto add_contact = [&](std::string const& name, std::int64_t id) {
+            app.command("search-users " + name);
+            pump([&] { return app.data.users.size() == 1 && app.data.users[0].id == id; });
+            app.command("add");
+            pump([&] { return app.data.is_contact(id); });
+        };
+        add_contact(peer_name, peer_id);
+        app.command("message");
+        pump([&] { return app.data.active > 0 && app.data.can_send(); });
+        auto const direct = app.data.active;
+        pump([&] { return app.data.presences.contains(peer_id); });
+        require(app.data.presences.at(peer_id).online, "TUI shows presence only for its contact");
+        auto peer_conversation = conversation(peer, direct);
+        require(!peer_conversation.can_send, "TUI unilateral contact leaves recipient read only");
+        auto forbidden = call<chat::send_message_result>([&](auto handler) { peer.send_message(direct, "must fail", handler); });
+        require(!forbidden, "Server remains unilateral authorization boundary");
+        app.command("compose");
+        app.data.draft = "TUI 中文 hello @" + peer_name;
+        app.compose_changed();
+        peer_events.wait([&] { return std::ranges::any_of(peer_events.typing, [](auto const& value) { return value.typing; }); });
+        app.send();
+        pump([&] { return app.data.draft.empty() && !app.data.messages.empty(); });
+        auto const own_message = app.data.messages.back().id;
+        require(app.data.messages.back().text.find("TUI 中文") != std::string::npos, "TUI sends Unicode text via SDK");
+        peer_events.wait([&] { return std::ranges::any_of(peer_events.messages, [&](auto const& value) { return value.id == own_message; }); });
+        require(call<chat::user>([&](auto handler) { peer.add_contact(self, handler); }).has_value(), "Peer authorizes return messages");
+        auto incoming = call<chat::send_message_result>([&](auto handler) { peer.send_message(direct, "peer incoming", handler); });
+        require(incoming.has_value(), "Peer sends incoming message");
+        pump([&] { return std::ranges::any_of(app.data.messages, [&](auto const& value) { return value.id == incoming->message_id; }); });
+        require(call<bool>([&](auto handler) { peer.set_typing(direct, true, handler); }).has_value(), "Peer typing");
+        pump([&] { return !app.typing_text().empty(); });
+        require(call<bool>([&](auto handler) { peer.set_typing(direct, false, handler); }).has_value(), "Peer typing stop");
+        pump([&] { return app.typing_text().empty(); });
+        auto select = [&](std::int64_t id) {
+            auto found = std::ranges::find(app.data.messages, id, &chat::message::id);
+            require(found != app.data.messages.end(), "TUI selected message exists");
+            app.data.message_selected = static_cast<int>(found - app.data.messages.begin());
+        };
+        select(incoming->message_id);
+        app.command("reaction 1");
+        pump([&] {
+            auto found = std::ranges::find(app.data.messages, incoming->message_id, &chat::message::id);
+            return found != app.data.messages.end() && found->reaction_revision > 0;
+        });
+        select(incoming->message_id);
+        app.command("reply");
+        app.data.draft = "reply draft survives deletion";
+        require(app.data.reply && app.data.reply->id == incoming->message_id, "TUI reply selected");
+        require(call<chat::message>([&](auto handler) { peer.delete_message(direct, incoming->message_id, handler); }).has_value(), "Delete selected quote remotely");
+        pump([&] { return !app.data.reply; });
+        require(app.data.draft == "reply draft survives deletion", "Deleted reply target preserves unsent draft");
+        select(own_message);
+        app.command("reply");
+        app.data.draft = "reply from TUI";
+        app.send();
+        pump([&] { return app.data.draft.empty() && app.data.messages.back().reply.has_value(); });
+        auto const reply_id = app.data.messages.back().id;
+        require(app.data.messages.back().reply->id == own_message, "TUI reply round trip");
+        select(reply_id);
+        app.command("edit");
+        app.data.draft = "edited from TUI";
+        app.send();
+        pump([&] {
+            auto found = std::ranges::find(app.data.messages, reply_id, &chat::message::id);
+            return found != app.data.messages.end() && found->text == "edited from TUI" && app.data.draft.empty();
+        });
+        app.command("search edited");
+        pump([&] { return !app.data.search_results.empty(); });
+        require(app.data.search_results[0].id == reply_id, "TUI real message search");
+        app.back();
+        pump([&] { return app.data.view == page::conversation; });
+
+        auto const directory = std::filesystem::temp_directory_path() / ("chat_tui_test_" + suffix);
+        require(std::filesystem::create_directory(directory), "Unique TUI attachment temporary directory");
+        struct remove_directory { std::filesystem::path value; ~remove_directory() { std::error_code ec; std::filesystem::remove_all(value, ec); } } files{directory};
+        auto const upload = directory / "测试 file.txt";
+        auto const saved = directory / "saved.txt";
+        { std::ofstream stream(upload, std::ios::binary); stream << "TUI attachment 中文"; require(bool(stream), "Write attachment fixture"); }
+        app.command("file " + upload.string());
+        pump([&] { return std::ranges::any_of(app.data.messages, [](auto const& value) { return value.attachment.has_value(); }); });
+        auto attachment = std::ranges::find_if(app.data.messages, [](auto const& value) { return value.attachment.has_value(); })->id;
+        select(attachment);
+        app.command("save " + saved.string());
+        pump([&] { return std::filesystem::exists(saved); });
+        { std::ifstream stream(saved, std::ios::binary); std::string content{std::istreambuf_iterator<char>(stream), {}};
+          require(content == "TUI attachment 中文", "TUI SDK attachment download round trip"); }
+        app.command("save " + saved.string());
+        pump([&] { return app.data.status != "正在下载附件…"; });
+        require(app.data.status.find("已保存") == std::string::npos, "TUI does not overwrite existing attachment file");
+        select(own_message);
+        app.command("remove-contact");
+        require(app.dialog && app.dialog->confirmation, "Contact deletion requires confirmation");
+        app.dialog->text = "y";
+        app.submit_prompt();
+        pump([&] { return !app.data.can_send() && !app.data.is_contact(peer_id); });
+        require(!app.data.presences.contains(peer_id), "Contact removal clears presence");
+        app.command("compose");
+        require(!app.data.composing, "Non-contact TUI disables compose");
+        app.data.draft = "readonly draft";
+        app.send();
+        require(app.data.draft == "readonly draft", "Read-only send preserves draft");
+        select(own_message);
+        app.command("delete");
+        require(app.dialog && app.dialog->confirmation, "Read-only own-message delete remains available");
+        app.dialog->text = "y";
+        app.submit_prompt();
+        pump([&] {
+            auto found = std::ranges::find(app.data.messages, own_message, &chat::message::id);
+            return found != app.data.messages.end() && found->deleted;
+        });
+        add_contact(peer_name, peer_id);
+        app.command("message");
+        pump([&] { return app.data.active == direct && app.data.can_send(); });
+        add_contact(other_name, other_id);
+        app.command("message");
+        pump([&] { return app.data.active != direct && app.data.can_send(); });
+        auto const other_direct = app.data.active;
+        app.open_conversation(direct);
+        app.open_conversation(other_direct);
+        app.refresh();
+        pump([&] { return app.data.active == other_direct && app.data.presences.contains(other_id); });
+        require(std::ranges::all_of(app.data.messages, [&](auto const& value) { return value.conversation == other_direct; }),
+                "Late conversation A history cannot overwrite B");
+        app.open_conversation(direct);
+        pump([&] { return !app.data.messages.empty(); });
+        app.data.draft = "reconnect draft";
+        app.reconnect();
+        pump([&] { return app.data.link == connection::online && app.data.active == direct && app.data.can_send() && !app.data.messages.empty(); });
+        require(app.data.draft == "reconnect draft", "Reconnect preserves draft and refreshes authoritative history");
+        auto after_reconnect = call<chat::send_message_result>([&](auto handler) { peer.send_message(direct, "after reconnect", handler); });
+        require(after_reconnect.has_value(), "Peer sends after reconnect");
+        pump([&] { return std::ranges::any_of(app.data.messages, [&](auto const& value) { return value.id == after_reconnect->message_id; }); });
+        app.logout();
+        require(app.data.link == connection::signed_out && app.password.empty() && app.data.messages.empty(), "Logout clears account and credentials");
+        app.shutdown();
+        app.shutdown();
+        {
+            chat::tui::app connecting;
+            connecting.server_url = server.url;
+            connecting.username = account;
+            connecting.password = "test password";
+            connecting.login();
+            connecting.shutdown();
+            connecting.drain();
+            require(connecting.exiting, "Shutdown while connecting is safe");
+        }
+        {
+            chat::tui::app queued;
+            queued.server_url = server.url;
+            queued.username = account;
+            queued.password = "test password";
+            queued.login();
+            queued.logout();
+            queued.drain();
+            require(queued.data.link == connection::signed_out && queued.data.self.id == 0, "Queued callbacks cannot restore a logged out session");
+        }
+        std::cout << "PASS TUI real SDK registration, contacts, direct, Unicode, authorization, messages, reactions, typing, search, attachments, reconnect and shutdown\n";
+        return 0;
+    }
+    catch (std::exception const& error)
+    {
+        std::cerr << "FAIL TUI integration: " << error.what() << "\n";
+        return 1;
+    }
+}
+#endif

@@ -2771,8 +2771,17 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
 
 int run_group_tests();
 
-int main()
+#ifdef CHAT_TEST_TUI
+int run_tui_tests();
+#endif
+
+int main(int argc, char** argv)
 {
+#ifdef CHAT_TEST_TUI
+    if (argc == 2 && std::string_view(argv[1]) == "--tui-only") { return run_tui_tests(); }
+#endif
+    if (argc != 1) { std::cerr << "Unknown test argument\n"; return 1; }
+    (void)argv;
     boost::corosio::io_context io_context;
 
     boost::http::router<boost::http::route_params> router;

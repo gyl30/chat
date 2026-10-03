@@ -73,6 +73,9 @@ int main()
         s.apply_read(7, 2, 1);
         s.apply_read(99, 2, 99);
         check(s.read_positions[1].message == 30, "Read events are monotonic and conversation scoped");
+        s.apply_history({{msg(20), msg(30)}, {{1, 10}, {2, 20}}, true}, false);
+        check(!s.history_more && s.history_before == 1, "Latest refresh preserves exhausted older-page cursor");
+        check(s.read_positions[1].message == 30, "Late history snapshot cannot regress read position");
         auto edit = msg(10, "edited");
         edit.edited_at = 100;
         s.apply_message(edit);
@@ -116,6 +119,51 @@ int main()
         s.select_conversation(99);
         check(s.messages.empty() && s.members.empty() && s.search_results.empty() && s.read_positions.empty() &&
               !s.reply && !s.editing && !s.composing, "Conversation switch clears scoped state");
+        check(!s.history_before, "Conversation switch clears history cursor");
+        state pages;
+        pages.select_conversation(7);
+        auto old_update = msg(1);
+        old_update.deleted = true;
+        pages.apply_message(old_update);
+        pages.apply_history({{msg(80), msg(90)}, {}, true}, false);
+        check(pages.history_before == 80 && pages.messages.front().id == 1,
+              "Realtime old-message update cannot skip unloaded history");
+        pages.apply_history({{msg(40), msg(60)}, {}, true}, true);
+        check(pages.history_before == 40 && pages.history_more, "Older page advances server history boundary");
+        pages.apply_history({{msg(80), msg(90)}, {}, true}, false);
+        check(pages.history_before == 40 && pages.history_more, "Latest refresh preserves unfinished older boundary");
+        pages.apply_history({{msg(1), msg(20)}, {}, false}, true);
+        check(pages.history_before == 1 && !pages.history_more && pages.messages.front().deleted,
+              "Delayed history preserves earlier deletion and reaches oldest page");
+        state searched;
+        searched.select_conversation(7);
+        searched.view = page::search;
+        auto tombstone = msg(10);
+        tombstone.deleted = true;
+        searched.apply_message(tombstone);
+        auto authoritative = msg(20, "new text");
+        authoritative.edited_at = 200;
+        authoritative.reaction_revision = 5;
+        authoritative.reactions = {{"👍", {1}}};
+        searched.apply_message(authoritative);
+        auto quoted = msg(30);
+        quoted.reply = quoted_message{10, 1, "Alice", "old quote", {}, false};
+        searched.apply_search({{msg(10), msg(20, "old text"), quoted, msg(20)}, {}, true}, false);
+        check(searched.search_results.size() == 2 && searched.search_results[0].id == 30 &&
+              searched.search_results[1].id == 20 && searched.search_more,
+              "Search deduplicates descending results and does not resurrect tombstones");
+        check(searched.search_results[1].text == "new text" && searched.search_results[1].reaction_revision == 5 &&
+              searched.search_results[0].reply->deleted,
+              "Search reconciles current edits, reactions and quote deletion");
+        searched.selected = 1;
+        searched.apply_search({{msg(5), msg(20, "stale")}, {}, false}, true);
+        check(searched.search_results.size() == 3 && searched.search_results[searched.selected].id == 20 &&
+              !searched.search_more && searched.search_results[1].text == "new text",
+              "Search older page preserves selected identity and newer revisions");
+        check(searched.messages.size() == 2 && !searched.history_before,
+              "Search never inserts its results into loaded history");
+        searched.apply_search({{}, {}, false}, false);
+        check(searched.search_results.empty() && searched.selected == 0, "Empty search resets selection");
         check(state::layout(39, 24) == layout_mode::too_small && state::layout(120, 11) == layout_mode::too_small &&
               state::layout(60, 20) == layout_mode::narrow && state::layout(80, 24) == layout_mode::narrow &&
               state::layout(100, 30) == layout_mode::wide && state::layout(120, 40) == layout_mode::wide,

@@ -1,15 +1,13 @@
-#include <iostream>
-#include <string>
-#include <string_view>
+#include "app.hpp"
+#include "ui.hpp"
 
-#include <ftxui/component/component.hpp>
+#include <iostream>
+#include <string_view>
 #include <ftxui/component/event.hpp>
 #include <ftxui/component/screen_interactive.hpp>
-#include <ftxui/dom/elements.hpp>
 
 int main(int argc, char** argv)
 {
-    std::string server_url = "ws://127.0.0.1:18080/ws";
     if (argc > 2)
     {
         std::cerr << "Usage: chat_tui [server-url]\n";
@@ -22,7 +20,7 @@ int main(int argc, char** argv)
         {
             std::cout << "Usage: chat_tui [server-url]\n"
                          "Default: ws://127.0.0.1:18080/ws\n"
-                         "Ctrl+C / Esc: quit\n";
+                         "Enter credentials in the login page. Press ? for keyboard help.\n";
             return 0;
         }
         if (arg == "--version")
@@ -32,29 +30,18 @@ int main(int argc, char** argv)
         }
         if (arg.starts_with("-"))
         {
-            std::cerr << "Unknown option: " << arg << "\n";
+            std::cerr << "Unknown option\n";
             return 1;
         }
-        server_url = arg;
     }
+    // Screen outlives the SDK, its callback queue and every wake source.
     auto screen = ftxui::ScreenInteractive::Fullscreen();
     screen.ForceHandleCtrlC(false);
-    auto page = ftxui::Renderer([&] {
-        return ftxui::vbox({
-            ftxui::text("Chat TUI") | ftxui::bold,
-            ftxui::separator(),
-            ftxui::text(server_url),
-            ftxui::text("Terminal client foundation"),
-            ftxui::text("Ctrl+C / Esc: quit"),
-        }) | ftxui::border;
-    });
-    page |= ftxui::CatchEvent([&](ftxui::Event event) {
-        if (event == ftxui::Event::CtrlC || event == ftxui::Event::Escape)
-        {
-            screen.Exit();
-            return true;
-        }
-        return false;
-    });
-    screen.Loop(page);
+    // Keep native terminal selection available for copyable text pages.
+    screen.TrackMouse(false);
+    chat::tui::app application([&screen] { screen.PostEvent(ftxui::Event::Custom); });
+    if (argc == 2) { application.server_url = argv[1]; }
+    auto ui = chat::tui::make_ui(application, [&screen] { screen.Exit(); });
+    screen.Loop(ui);
+    application.shutdown();
 }

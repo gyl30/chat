@@ -28,6 +28,8 @@ struct state
     std::vector<conversation_member> members;
     std::vector<group_join_request> requests;
     std::optional<std::int64_t> next_requests;
+    // Oldest history-page boundary; realtime edits can refer to older messages.
+    std::optional<std::int64_t> history_before;
     bool history_more = false, search_more = false, at_latest = true, composing = false;
     std::string draft, search_query;
     std::optional<quoted_message> reply;
@@ -46,6 +48,7 @@ struct state
     void apply_conversations(conversations_result result, bool append);
     void apply_contacts(std::vector<user> values);
     void apply_history(messages_result result, bool older);
+    void apply_search(messages_result result, bool append);
     void apply_message(message value);
     void apply_reaction(reaction_update value);
     void apply_read(std::int64_t conversation, std::int64_t user, std::int64_t message);

@@ -1,6 +1,7 @@
 #include "state.hpp"
 
 #include <algorithm>
+#include <functional>
 #include <utility>
 
 namespace chat::tui
@@ -118,15 +119,58 @@ void state::apply_history(messages_result result, bool older)
 {
     auto selected_id = message_selected >= 0 && static_cast<std::size_t>(message_selected) < messages.size()
         ? messages[message_selected].id : 0;
+    std::optional<std::int64_t> page_before;
+    for (auto const& value : result.messages)
+    {
+        if (!page_before || value.id < *page_before) { page_before = value.id; }
+    }
+    // A latest-page refresh says nothing about the availability before an
+    // already loaded older page. Realtime updates do not move this cursor.
+    if (older || !history_before || (page_before && *page_before < *history_before))
+    {
+        if (page_before) { history_before = page_before; }
+        history_more = result.has_more;
+    }
     for (auto& value : result.messages) { apply_message(std::move(value)); }
+    for (auto& position : result.read_positions)
+    {
+        auto previous = std::ranges::find(read_positions, position.user, &read_position::user);
+        if (previous != read_positions.end()) { position.message = std::max(position.message, previous->message); }
+    }
     read_positions = std::move(result.read_positions);
-    history_more = result.has_more;
     if (at_latest && !older) { message_selected = bounded(static_cast<int>(messages.size()) - 1, messages.size()); }
     else
     {
         auto found = std::ranges::find(messages, selected_id, &message::id);
         message_selected = found == messages.end() ? bounded(message_selected, messages.size())
             : static_cast<int>(found - messages.begin());
+    }
+}
+
+void state::apply_search(messages_result result, bool append)
+{
+    auto selected_id = append && selected >= 0 && static_cast<std::size_t>(selected) < search_results.size()
+        ? search_results[selected].id : 0;
+    if (!append) { search_results.clear(); }
+    for (auto& value : result.messages)
+    {
+        if (value.conversation != active) { continue; }
+        // Search snapshots can arrive after an edit, reaction or deletion event.
+        // Reconcile with known history without moving its pagination boundary.
+        auto known = std::ranges::find(messages, value.id, &message::id);
+        if (known != messages.end()) { merge(value, *known); }
+        for (auto const& target : messages) { update_quote(value.reply, target); }
+        auto current = std::ranges::find(search_results, value.id, &message::id);
+        if (current == search_results.end()) { search_results.push_back(std::move(value)); }
+        else { merge(*current, value); }
+    }
+    std::erase_if(search_results, [](auto const& value) { return value.deleted; });
+    std::ranges::sort(search_results, std::greater{}, &message::id);
+    search_more = result.has_more;
+    if (view == page::search)
+    {
+        auto current = std::ranges::find(search_results, selected_id, &message::id);
+        selected = current == search_results.end() ? 0 : static_cast<int>(current - search_results.begin());
     }
 }
 
@@ -203,6 +247,7 @@ void state::select_conversation(std::int64_t id)
     composing = false;
     draft.clear();
     message_selected = selected = 0;
+    history_before.reset();
     history_more = search_more = false;
     at_latest = true;
 }
