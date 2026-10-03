@@ -1,5 +1,8 @@
 #include <iostream>
 #include <utility>
+#include <string>
+#include <vector>
+#include <chat/text.hpp>
 
 #include <QCoreApplication>
 
@@ -9,6 +12,26 @@
 int main(int argc, char** argv)
 {
     QCoreApplication app(argc, argv);
+    for (auto const& name : std::vector<std::string>{"ASCII", "中文", "normal space", "dot.name", "dash-name", "under_score",
+        "r(.*)[z]\\_'", " edge spaces ", std::string(64, 'x')})
+    {
+        if (!chat::valid_username(name)) { return 1; }
+    }
+    for (auto const& name : std::vector<std::string>{"", " \u00a0\u3000", "a@b", std::string("a\0b", 3), "a\u2028b",
+        "a\u202eb", "a\u2066b", std::string(65, 'x'), "中中中中中中中中中中中中中中中中中中中中中中",
+        std::string("\xc0\x80", 2), std::string("\xe4", 1), std::string("\xed\xa0\x80", 3)})
+    {
+        if (chat::valid_username(name)) { return 1; }
+    }
+    for (int control = 0; control <= 0x9f; ++control)
+    {
+        if (control >= 0x20 && control < 0x7f) { continue; }
+        auto name = QStringLiteral("a") + QChar(control) + QStringLiteral("b");
+        if (chat::valid_username(name.toUtf8().toStdString())) { return 1; }
+    }
+    if (!chat::valid_group_title("  群 名  ") || !chat::valid_group_title(std::string(256, 'x')) ||
+        chat::valid_group_title(" \u00a0\u3000") || chat::valid_group_title(std::string(257, 'x')) ||
+        chat::valid_group_title(std::string("a\0b", 3))) { return 1; }
     message_model messages;
     messages.set_self_user(1);
     messages.reset(1, true);
@@ -108,6 +131,32 @@ int main(int argc, char** argv)
         return 1;
     }
     messages.reset(1);
+    {
+        message_model late_reply;
+        late_reply.reset(1);
+        late_reply.merge_messages({deleted});
+        if (!late_reply.add_message(outgoing) ||
+            !late_reply.index(1, 0).data(message_model::reply_text_role).toString().contains(QStringLiteral("消息已删除")))
+        {
+            std::cerr << "FAIL late reply resurrects deleted quoted text\n";
+            return 1;
+        }
+        late_reply.reset(1);
+        late_reply.merge_messages({outgoing, deleted});
+        if (!late_reply.index(1, 0).data(message_model::reply_text_role).toString().contains(QStringLiteral("消息已删除")))
+        {
+            std::cerr << "FAIL unordered history page resurrects deleted quoted text\n";
+            return 1;
+        }
+        late_reply.reset(1);
+        late_reply.merge_messages({edited});
+        if (!late_reply.add_message(outgoing) ||
+            !late_reply.index(1, 0).data(message_model::reply_text_role).toString().contains(edited.text))
+        {
+            std::cerr << "FAIL late reply restores an older edit of quoted text\n";
+            return 1;
+        }
+    }
     messages.merge_messages({outgoing});
     messages.set_read_positions({{1, outgoing.id}, {2, 0}});
     if (messages.index(0, 0).data(message_model::read_role).toBool() ||

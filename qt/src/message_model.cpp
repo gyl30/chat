@@ -6,6 +6,23 @@
 #include <iterator>
 #include <utility>
 
+namespace
+{
+
+void merge_reply(quoted_message_data& reply, QList<message_data> const& messages)
+{
+    if (reply.id <= 0 || reply.deleted) { return; }
+    auto const target = std::find_if(messages.cbegin(), messages.cend(), [&](auto const& message) {
+        return message.id == reply.id;
+    });
+    if (target != messages.cend() && (target->deleted || target->edited_at > reply.edited_at))
+    {
+        reply = {target->id, target->username, target->text.left(160), target->edited_at, target->deleted};
+    }
+}
+
+} // namespace
+
 message_model::message_model(QObject* parent, avatar_cache* avatars, message_images* images)
     : QAbstractListModel(parent), avatars_(avatars), images_(images)
 {
@@ -189,6 +206,7 @@ int message_model::merge_messages(QList<message_data> messages)
         return 0;
     }
 
+    for (auto& message : merged) { merge_reply(message.reply, merged); }
     std::sort(merged.begin(), merged.end(), [](message_data const& lhs, message_data const& rhs) { return lhs.id < rhs.id; });
     auto const inserted = merged.size() - messages_.size();
     beginResetModel();
@@ -212,6 +230,7 @@ bool message_model::add_message(message_data message)
         return false;
     }
 
+    merge_reply(message.reply, messages_);
     auto position = std::lower_bound(messages_.cbegin(), messages_.cend(), message.id, [](message_data const& value, qint64 id) {
         return value.id < id;
     });

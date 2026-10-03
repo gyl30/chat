@@ -181,37 +181,6 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         notification.params.attachment = chat::attachment_info{attachment->filename, std::move(media_type), attachment->size};
     }
 
-    if (params.reply_to)
-    {
-        auto lease = co_await database_.acquire();
-        if (lease.error())
-        {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        auto query_result = co_await lease.connection().execute_row(
-            "SELECT r.id::text,r.sender_id::text,u.username,left(r.body,160),COALESCE(((extract(epoch FROM "
-            "r.edited_at)*1000)::bigint)::text,''),r.deleted::text FROM messages r "
-            "JOIN users u ON u.id=r.sender_id JOIN conversation_members own ON own.conversation_id=r.conversation_id "
-            "WHERE r.id=$3::bigint AND r.conversation_id=$2::bigint AND own.user_id=$1::bigint",
-            {std::to_string(*user_id_), std::to_string(params.conversation), std::to_string(*params.reply_to)});
-        auto& [ec, row] = query_result;
-        if (ec)
-        {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        if (!row)
-        {
-            co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
-        }
-        notification.params.reply = quoted_message_payload{
-            std::stoll(row->at(0)),
-            std::stoll(row->at(1)),
-            row->at(2),
-            row->at(3),
-            row->at(4).empty() ? std::nullopt : std::optional<std::int64_t>(std::stoll(row->at(4))),
-            row->at(5) == "true"};
-    }
-
     std::string notification_json;
     auto error = simdjson::builder::to_json_string(notification).get(notification_json);
     if (error)
@@ -264,6 +233,38 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
                     allowed ? "Communication not allowed" : "Server error", std::move(request.id), response);
             }
             co_return simdjson::SUCCESS;
+        }
+
+        if (params.reply_to)
+        {
+            auto quoted = co_await connection.execute_row(
+                "SELECT r.id::text,r.sender_id::text,u.username,left(r.body,160),COALESCE(((extract(epoch FROM "
+                "r.edited_at)*1000)::bigint)::text,'') FROM messages r JOIN users u ON u.id=r.sender_id "
+                "WHERE r.id=$1::bigint AND r.conversation_id=$2::bigint AND NOT r.deleted",
+                {std::to_string(*params.reply_to), std::to_string(params.conversation)});
+            auto& [quote_ec, quote] = quoted;
+            if (quote_ec)
+            {
+                connection.close();
+                if (request.id.present)
+                {
+                    co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+                }
+                co_return simdjson::SUCCESS;
+            }
+            if (!quote)
+            {
+                auto rolled_back = co_await connection.execute_row("ROLLBACK");
+                if (std::get<0>(rolled_back)) { connection.close(); }
+                if (request.id.present)
+                {
+                    co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+                }
+                co_return simdjson::SUCCESS;
+            }
+            notification.params.reply = quoted_message_payload{
+                std::stoll(quote->at(0)), std::stoll(quote->at(1)), quote->at(2), quote->at(3),
+                quote->at(4).empty() ? std::nullopt : std::optional<std::int64_t>(std::stoll(quote->at(4))), false};
         }
 
         std::vector<std::string> parameters;

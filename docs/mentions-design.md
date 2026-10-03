@@ -2,7 +2,9 @@
 
 SQL 019 增加 `message_mentions(message_id,user_id)`，主键保证同一消息的目标不重复。消息与用户外键级联清理；退出群不删除历史目标。旧消息不根据当前成员回填提及。
 
-只解析群聊文字正文中的 `@username`。现有用户名没有字符限制，因而使用当前成员完整用户名的字面匹配，区分大小写，并排除词内、邮箱和 `@@`。空格、Unicode 和正则符号仍是用户名的一部分，不引入另一套用户名规则。正文中存在前缀相同的姓名时，PostgreSQL ARE 使用最长完整匹配；所有姓名先转义为字面模式。依据见 [PostgreSQL 17 正则规则](https://www.postgresql.org/docs/17/functions-matching.html)。单聊文字和附件文件名不产生群提及。
+只解析群聊文字正文中的 `@username`。SQL 024 将用户名限定为 1–64 UTF-8 字节，保留中文、普通空格、正常标点及大小写敏感身份，不自动 trim、归一化或重命名。拒绝纯 Unicode 空白、`@`、NUL/C0/C1、行段分隔符和显式双向方向控制字符。server 和 Qt 共用 `chat/text.hpp`，数据库 CHECK 使用相同字节上限和字符范围；UTF-8 解码复用现有 Boost Locale 的 header-only `utf_traits`，未新增库。空白和方向控制依据 [Unicode White_Space/Bidi_Control 属性](https://www.unicode.org/Public/17.0.0/ucd/PropList.txt)，不是只允许 ASCII，也不禁止正常文本所需的 ZWJ。
+
+提及使用当前成员完整用户名的字面匹配，区分大小写，并排除词内、邮箱和 `@@`。空格、Unicode 和正则符号仍是用户名的一部分。正文中存在前缀相同的姓名时，PostgreSQL ARE 使用最长完整匹配；所有姓名先转义为字面模式。依据见 [PostgreSQL 17 正则规则](https://www.postgresql.org/docs/17/functions-matching.html)。单聊文字和附件文件名不产生群提及。
 
 发送和编辑在既有 conversation 行锁、事务内解析当前成员并保存目标，与正文一起提交。编辑替换目标，删除清空目标。加入、退出、移除与发送共享锁边界，不能提及已经退出的成员；历史已保存的目标仍表示当时的事实。新增目标使完整 notification 超过现有 64 KiB 边界时，整个修改回滚。
 

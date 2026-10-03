@@ -4,6 +4,7 @@
 #include <array>
 #include <memory>
 #include <utility>
+#include <chat/text.hpp>
 
 #include <QDialog>
 #include <QApplication>
@@ -911,6 +912,11 @@ void main_window::start_registration()
     if (username.isEmpty() || password.isEmpty() || password_confirm.isEmpty())
     {
         registration_status_label_->setText(QStringLiteral("用户名和密码不能为空"));
+        return;
+    }
+    if (!chat::valid_username(username.toUtf8().toStdString()))
+    {
+        registration_status_label_->setText(QStringLiteral("用户名须为 1–64 UTF-8 字节，不能只有空白，也不能含 @ 或控制字符"));
         return;
     }
     if (password != password_confirm)

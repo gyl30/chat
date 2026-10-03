@@ -8,6 +8,7 @@
 
 #include <simdjson.h>
 #include <boost/http/bcrypt.hpp>
+#include <chat/text.hpp>
 
 #include "chat_session.hpp"
 #include "pg_connection_pool.hpp"
@@ -54,7 +55,7 @@ simdjson::error_code parse_register_params(json_rpc_params& params, register_par
         return simdjson::TRAILING_CONTENT;
     }
 
-    if (value.username.empty() || value.password.empty() || value.password.size() > 72)
+    if (!chat::valid_username(value.username) || value.password.empty() || value.password.size() > 72)
     {
         return simdjson::INCORRECT_TYPE;
     }

@@ -1,4 +1,5 @@
 #include "chat_widget.hpp"
+#include <chat/text.hpp>
 
 #include <utility>
 #include <iterator>
@@ -1090,9 +1091,15 @@ void chat_widget::update_message(message_data message)
     }
     if (reply_to_ == message.id)
     {
-        reply_preview_->setText(
-            QStringLiteral("回复 %1：%2")
-                .arg(message.username, message.deleted ? QStringLiteral("消息已删除") : message.text.left(80)));
+        if (message.deleted)
+        {
+            reply_to_ = 0;
+            reply_bar_->hide();
+        }
+        else
+        {
+            reply_preview_->setText(QStringLiteral("回复 %1：%2").arg(message.username, message.text.left(80)));
+        }
     }
 }
 
@@ -1573,7 +1580,6 @@ void chat_widget::create_group()
     auto* layout = new QVBoxLayout(&dialog);
     auto* title = new QLineEdit(&dialog);
     title->setPlaceholderText(QStringLiteral("群名称"));
-    title->setMaxLength(64);
     layout->addWidget(title);
     auto* list = new QListWidget(&dialog);
     for (int row = 0; row < contacts_->rowCount(); ++row)
@@ -1597,7 +1603,7 @@ void chat_widget::create_group()
                 {
                     selected = selected || list->item(i)->checkState() == Qt::Checked;
                 }
-                if (!title->text().trimmed().isEmpty() && selected)
+                if (chat::valid_group_title(title->text().toUtf8().toStdString()) && selected)
                 {
                     dialog.accept();
                 }
@@ -1615,7 +1621,7 @@ void chat_widget::create_group()
             members.push_back(list->item(i)->data(Qt::UserRole).toLongLong());
         }
     }
-    emit group_create_requested(title->text().trimmed(), std::move(members));
+    emit group_create_requested(title->text(), std::move(members));
 }
 
 void chat_widget::request_older_messages()

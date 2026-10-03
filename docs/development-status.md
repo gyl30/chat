@@ -34,6 +34,8 @@
 | `d6c0952` | 当前群公告、纯文本编辑、实时查看及草稿与权限生命周期 | SQL 021 |
 | `fbdb06b` | 单个高熵群邀请链接、撤销、非联系人加入及完整生命周期 | SQL 022 |
 | `93d8dc3` | 链接加入审批、私有申请通知、分页管理与原子成员创建 | SQL 023 |
+| `49bfa29` | 异步回调、图片下载和连接生命周期收口 | 无 |
+| `3f1acef` | 单向联系人通讯授权、历史只读、权威 can_send、Profile 和 presence 隐私 | 无 |
 
 另外完成历史大响应接收、编辑消息布局和消息操作按钮对比度修复，分别见 `32f3f3b`、`a545c9a`、`f73b8f4`。
 
@@ -48,6 +50,7 @@
 - SQL 021 的 `conversations.announcement` 保存每群一个当前纯文本公告，默认空字符串，空字符串表示未设置；数据库约束限定 group 和最多 4096 个 UTF-8 字节。没有公告历史或消息伪装。
 - SQL 022 的 `conversations.invite_token` 保存每群一个可空、唯一的当前邀请 secret；仅 group 可保存 64 位小写十六进制 token。撤销设为 NULL，重新创建使用新的 OpenSSL 随机值，不维护过期、次数或链接历史。
 - SQL 023 的 `conversations.join_approval` 控制邀请链接是否产生申请，默认 false；`group_join_requests(conversation_id,user_id,created_at)` 仅保存唯一的待处理关系，接受/拒绝后删除。申请不等于 membership，没有审批历史。
+- SQL 024 增加用户名和群标题 CHECK；不修改身份、不改变大小写敏感唯一性，不回改 SQL 001–023。
 - SQL 008 保留旧单聊、自聊、消息、联系人和阅读位置；SQL 009–014 渐进增加上述能力。SQL 013 应用前已确认本次数据库没有既存群，不猜测旧群创建者，也不删除旧消息。
 - 新建或重新加入的成员能读取完整历史。邀请取得会话锁后读取最新消息 ID 作为加入水位；实际阅读仍从 0 开始，仅由 `mark_read` 推进。未读统计使用 `id > greatest(last_read_message_id, joined_message_id)`，排除删除消息及群成员自己的消息。
 
@@ -535,3 +538,52 @@ presence/last_seen 只对观察者自己主动添加的联系人可见。get_pre
 | UBSan | PASS | 14/14 PASS | 88.85 s |
 
 首次 ASan 复验揭示旧测试固定要求“群移除与 typing 竞争时 typing 必须成功”，该断言与移除先取得锁后的权限失效冲突。已改为检查实际锁顺序对应的成功或权限拒绝以及通知隔离，然后重新完整执行三套验证。没有 suppression、测试排除或增加超时，`git diff --check` PASS。
+
+## 产品语义与授权审查：消息、身份及群状态
+
+阶段起点重新 fetch 确认 `HEAD = origin/main = 3f1acef633855726a69b7e6844b7f1e73231c029`，工作树干净。本轮没有新增产品功能，以下规则由数据库、server、SDK、Qt 和回归共同表达。
+
+- 新回复的目标必须属于当前 conversation 且 `NOT deleted`。目标查询移到发送事务的 conversation 行锁之后，文字和附件 finish 共用这条路径；删除和回复按取得锁的顺序执行。已经存在的 reply 保留真实 ID，原文删除后历史、实时恢复和 Qt 显示“消息已删除”。拒绝新回复时回滚整个发送，不留消息、附件或 activity 变化。
+- 用户名为 1–64 UTF-8 字节，保留中文、普通空格、`.`、`-`、`_`、其他正常标点及大小写敏感身份。拒绝非法 UTF-8、纯 Unicode White_Space、`@`、NUL/C0/C1、U+2028/U+2029 和显式 Bidi_Control；不 trim、归一化或自动改名。server 与 Qt 共用 `chat/text.hpp`，复用现有 Boost header-only UTF 解码，SQL 024 按同一范围 CHECK。具体规则及 Unicode/正则依据见 [提及设计](mentions-design.md)。
+- SQL 024 前实际扫描测试库：47 个既有用户中，空白、`@`、控制/方向字符冲突为 0；唯一超长项精确匹配旧测试的 2000 字符尾缀、fixture 前缀和固定测试 hash。仅清理这个已经核实的测试遗留项，没有改名、截断或删除真实身份。原测试改为合法的 64 字节最长 username，并继续验证提及扩展后完整消息超过 64 KiB 时原子回滚。群标题扫描 138 条，无纯空白或超长冲突；测试库 SQL 023→024 成功，隔离 schema 的 migration 回归还验证既有中文/空格身份和历史不被改变。
+- group title 统一为不含 NUL、不超过 256 UTF-8 字节、不能全是 Unicode 空白。create/rename 和 Qt 使用相同规则，有意义的前后、内嵌空格原样保存。公告空字符串或纯 Unicode 空白表示 clear；有意义的内容不 trim，仍为 4096 字节上限和纯文本。
+- clear_avatar 在用户行锁之后读取当前状态：已经无头像则返回当前 revision，不递增、不发通知；实际清除递增，重新上传继续递增。头像仍为公开资料，和 presence 的隐私边界分离，缓存没有 ABA；见 [头像设计](avatar-design.md)。
+
+全局审查的前置、事实变化、依赖和恢复语义如下。持久化业务以 PostgreSQL 为准，mutation RPC 独立检查；Qt 快照和 generation 只控制显示与异步交付。
+
+| 能力 | 前置与事实变化 | 后置、撤销和重连；并发边界 |
+|---|---|---|
+| 群内 pinned message | owner/admin；同群未删除消息；每群一个当前 ID | conversation 刷新摘要，编辑同步；删除自动清空；同一 conversation 行锁 |
+| 个人 conversation pin | 当前历史 membership；仅自己的 pinned | 不改 message activity；服务端 `(pinned,activity,id)` cursor，分页和重连保持；conversation 行锁 |
+| mute | 当前历史 membership；仅自己的 muted | 只抑制桌面通知，包括 mention；消息、未读、实时不变，重新登录恢复；conversation 行锁 |
+| 桌面通知 | 新的他人实时消息，非实际活动阅读、未 mute | 文字/图片/文件摘要；编辑、删除和 reconnect history 不作为新消息通知；离线不回放一串通知 |
+| reaction | 群当前 member，direct 自己 contact；未删除消息，每人一条 | 聚合/revision 持久化及实时恢复；删消息清空，删 contact 保留历史但不能再改；conversation 行锁 |
+| mention | 群当前成员完整字面 username；由 server 解析真实 user ID | 正文和目标原子保存，编辑替换、删除清空；退出者不能成为新目标，旧事实保留；conversation 行锁 |
+| attachment / image | begin/finish 都检查当前发送资格；session 未完成上传 | 10 MiB/32 KiB；历史 membership 可下载，direct 删 contact 不删文件；group 移除失去访问；finish 与 membership/contact 变化共享锁 |
+| avatar | 认证用户仅改自己；认证用户可读公开头像 | 独立表、1 MiB/32 KiB、单调 revision；相关用户更新，旧 callback 不覆盖；用户行锁与原子数据事务 |
+| typing | 群当前 member，direct 自己 contact；true/false 都检查 | 不持久化；接收过期、切换和断线清理；发送范围在 conversation 锁内复核 |
+| read/unread / 已读详情 | 当前历史 membership；同会话真实 message ID | member 行 GREATEST 单调阅读；joined 仅未读基线，deleted 不计未读；详情只计当前其他成员真实读位，重连取权威快照 |
+| reply | 当前发送资格；同会话未删除目标 | 新回复和删除共用 conversation 行锁；旧 reply 在删除后保持 ID 和占位 |
+| edit/delete | 作者及当前 membership；direct 编辑另需自己 contact，历史删除不需 contact | 编辑时间单调；软删保持 ID，清正文/reaction/mention/附件/群 pin；不增加 unread；conversation 行锁 |
+| search/history | 当前历史 membership；direct 不需 contact | cursor 分页，当前删除/引用状态；被移出群后拒绝，重新邀请后旧历史可见但不计初始未读 |
+| group roles / transfer | owner 任免最多三 admin；转让目标必须是当前 admin | 新 owner 的 is_admin=false，旧 owner 降 admin，admin 数不增加；转让后旧 owner 可退出；权限在 conversation 行锁后读取 |
+| invite/remove/leave/rejoin | 手工 owner/admin invite 要求操作者自己的 contacts；owner 可移 admin/member，admin 只移 member；owner 不能直接退出/移自己 | 移除者收到一次会话变化、Qt 清当前会话及交互状态；后续全部群访问/实时隔离；再邀请是普通 member、read=0、最新 joined 水位；conversation 行锁 |
+| announcement | 当前 member 可读，仅 owner/admin set/clear | 独立群字段，不是 message；不改 unread/activity，不进入 search/reply/reaction；conversation 权威刷新及锁后权限 |
+| invite link | owner/admin 单个 256-bit 随机 opaque token；authenticated 加入，无 contact 要求 | 锁后复核 token；revoke 旧链接不能发起新 join/request，已提交 pending 保留；remove 不等于 ban，不自动产生联系人 |
+| join approval | link 按当前模式 direct/pending；手工 invite 始终直接加入 | pending 唯一，非 member 无群访问；accept 锁内消费 request、当前水位新 membership，reject 仅消费；申请和结果只到管理者/申请人，重连取实际关系 |
+
+新增回归覆盖已删除目标的新文字/附件回复、真实数据库锁排队的 delete-first/reply-first RPC 两种顺序、旧引用占位、初始与重复无头像 clear 无广播及重新上传不复用缓存键；正式 username 的 server/Qt/DB 规则、合法中文空格标点/64 字节边界、非法控制/NUL/方向字符/字节超限；群名 create/rename 空白和内容保持、公告空白 clear；撤销链接后旧 pending 独立保留。原有 direct 四组合、群权限/加入/移除/转让、pin、mute/通知、提及、阅读、缓存和生命周期回归保留。
+
+延伸检查还复现了 Qt 引用合并缺陷：已加载原文的删除更新先到、带旧 quote 的新回复或分页结果后到时，旧正文会重新显示。回归在修复前失败；现在新插入和批量合并都用已有原文的 deleted/edited_at 单调合并 quote，晚到引用不恢复已删除内容或旧编辑。不保存额外 tombstone/cache/generation，不在 paint 查询网络；原文尚未加载时继续使用服务端 quote，历史及重连从权威查询恢复。
+
+原文在撰写回复期间被删除时，Qt 立即取消这个已经失效的待发送引用，保留用户尚未发送的文字草稿；已发布的旧回复仍保留删除占位。真实三窗口测试先选中待回复消息，再通过作者菜单删除，验证引用栏关闭、草稿不丢失以及之后发送成功。
+
+全部源码收口后再次实际运行 `tests/verify.sh`，三套完整构建和全部既有 CTest 均通过：
+
+| 构建 | 完整 build | 完整 CTest | 总耗时 |
+|---|---|---|---|
+| normal | PASS | 14/14 PASS | 72.79 s |
+| ASan | PASS | 14/14 PASS | 92.32 s |
+| UBSan | PASS | 14/14 PASS | 88.37 s |
+
+没有 suppression、排除测试或放宽超时。SQL 001–023 未改，编号连续至 024；新增 helper 均有多个实际调用点，没有新权限状态、通用框架、兼容路径或调试代码，`git diff --check` PASS。本轮仅修复已经确定的不一致；完成独立提交和 push、确认远端与工作区后停止，不进入新产品开发。

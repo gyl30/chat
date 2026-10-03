@@ -5,6 +5,7 @@
 #include <vector>
 
 #include <simdjson.h>
+#include <chat/text.hpp>
 
 #include "chat_session.hpp"
 #include "pg_connection_pool.hpp"
@@ -57,8 +58,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_create_conversation
     auto const group = request.method == "create_group";
     std::sort(params.members.begin(), params.members.end());
     if ((!group && (params.user <= 0 || !params.title.empty() || !params.members.empty())) ||
-        (group && (params.user != 0 || params.title.empty() || params.title.size() > 256 ||
-                   params.title.find('\0') != std::string::npos || params.members.empty() ||
+        (group && (params.user != 0 || !chat::valid_group_title(params.title) || params.members.empty() ||
                    params.members.front() <= 0 ||
                    std::adjacent_find(params.members.begin(), params.members.end()) != params.members.end() ||
                    std::binary_search(params.members.begin(), params.members.end(), *user_id_))))

@@ -6,7 +6,7 @@
 
 SQL 015 给 `users` 增加 `avatar_revision`，默认 0；`user_avatars` 按 `user_id` 保存唯一当前头像的 media type、size、BYTEA 和更新时间。是否有头像由当前数据行是否存在决定，不重复保存 bool。
 
-更新和清除都在一个事务内锁定用户行、递增 revision，再写入或删除数据。清除保留递增后的 revision，重新上传继续递增：例如 `1/存在 → 2/不存在 → 3/存在`。因此缓存键不会出现 ABA。账号、联系人、用户搜索、单聊对端、消息作者、群成员对象返回 `avatar_revision` 和 `has_avatar`，不返回图片内容。历史消息查询当前用户状态，不向 messages 表固化版本。
+更新和实际清除都在一个事务内锁定用户行、递增 revision，并原子写入或删除数据。已经没有头像时重复 clear 返回当前状态，不增加 revision、不广播；清除判断发生在取得用户锁之后，和上传使用同一串行化边界。实际清除保留递增后的 revision，重新上传继续递增：例如 `1/存在 → 2/不存在 → 2/再次清除 → 3/存在`。因此缓存键不会出现 ABA。账号、联系人、用户搜索、单聊对端、消息作者、群成员对象返回 `avatar_revision` 和 `has_avatar`，不返回图片内容。历史消息查询当前用户状态，不向 messages 表固化版本。
 
 ## RPC 与通知
 
@@ -29,7 +29,7 @@ SDK 对外提供 `set_avatar/get_avatar/clear_avatar`，内部负责分块和错
 
 get 请求 revision 过期时返回当前 metadata、空内容、size/offset 0、has_more false；SDK 返回权威新状态，Qt 据此重新获取。每块读取在同一 SQL 快照中取得版本和数据，更新不会把新版本配上旧内容。
 
-提交后发 `avatar {user, avatar_revision, has_avatar}`。收件人包括自己、双向联系人、已有单聊对端（包括尚无消息的单聊）、当前共享群的成员；SQL UNION 去重，不全局广播。头像是公开用户信息，群退出或移除不使该用户头像变为私有。没有头像事件回放，离线变化由登录、联系人、会话和已加载历史等权威快照恢复。
+实际变化提交后发 `avatar {user, avatar_revision, has_avatar}`。收件人包括自己、任一方向存在联系人关系的用户、已有单聊对端（包括尚无消息的单聊）、当前共享群的成员；SQL UNION 去重，不全局广播。头像是公开用户信息，群退出或移除不使该用户头像变为私有；presence/last_seen 的单向联系人隐私边界不适用于头像。没有头像事件回放，离线变化由登录、联系人、会话和已加载历史等权威快照恢复。
 
 ## Qt 缓存和展示
 

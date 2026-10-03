@@ -1,4 +1,5 @@
 #include "group_dialog.hpp"
+#include <chat/text.hpp>
 #include "avatar.hpp"
 
 #include <QDialogButtonBox>
@@ -222,7 +223,16 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     connect(announcement_button_, &QPushButton::clicked, this, [this] {
         pending_ = true;
         update_actions();
-        emit announcement_requested(announcement_edit_->toPlainText());
+        auto const text = announcement_edit_->toPlainText();
+        if (chat::text_is_blank(text.toUtf8().toStdString()))
+        {
+            announcement_edit_->clear();
+            emit announcement_requested({});
+        }
+        else
+        {
+            emit announcement_requested(text);
+        }
     });
     connect(clear_announcement_button_, &QPushButton::clicked, this, [this] {
         announcement_edit_->clear();
@@ -257,7 +267,7 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     connect(rename_button_, &QPushButton::clicked, this, [this] {
         pending_ = true;
         update_actions();
-        emit rename_requested(title_edit_->text().trimmed());
+        emit rename_requested(title_edit_->text());
     });
     connect(invite_button_, &QPushButton::clicked, this, [this] {
         QDialog dialog(this);
@@ -490,11 +500,14 @@ void group_dialog::update_actions()
     if (!manager && announcement_edit_->toPlainText() != announcement_) { announcement_edit_->setPlainText(announcement_); }
     announcement_edit_->setReadOnly(!enabled || !manager);
     auto const announcement = announcement_edit_->toPlainText();
-    announcement_button_->setEnabled(enabled && manager && announcement != announcement_ && announcement.toUtf8().size() <= 4096);
+    auto const announcement_bytes = announcement.toUtf8();
+    auto const announcement_value = chat::text_is_blank(announcement_bytes.toStdString()) ? QString{} : announcement;
+    announcement_button_->setEnabled(enabled && manager && announcement_value != announcement_ &&
+        announcement_bytes.size() <= 4096 && !announcement.contains(QChar{}));
     announcement_button_->setToolTip(announcement.toUtf8().size() > 4096 ? QStringLiteral("公告超过 4 KiB，请缩短后保存。") : QString{});
     clear_announcement_button_->setEnabled(enabled && manager && !announcement_.isEmpty());
-    rename_button_->setEnabled(enabled && manager && !title_edit_->text().trimmed().isEmpty() &&
-        title_edit_->text().trimmed() != title_);
+    rename_button_->setEnabled(enabled && manager && chat::valid_group_title(title_edit_->text().toUtf8().toStdString()) &&
+        title_edit_->text() != title_);
     invite_button_->setEnabled(enabled && manager && contacts_ready_);
     leave_button_->setEnabled(enabled && self != members_.end() && !owner);
     leave_button_->setToolTip(owner ? QStringLiteral("请先将群主转让给一位管理员，再退出群聊。") : QString{});

@@ -189,6 +189,34 @@ boost::capy::task<simdjson::error_code> chat_session::handle_avatar(json_rpc_req
         connection.close();
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
+    if (clearing)
+    {
+        auto locked = co_await connection.execute_scalar(
+            "SELECT avatar_revision::text FROM users WHERE id=$1::bigint FOR UPDATE", {std::to_string(*user_id_)});
+        if (std::get<0>(locked))
+        {
+            connection.close();
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        auto removed = co_await connection.execute_row(
+            "DELETE FROM user_avatars WHERE user_id=$1::bigint RETURNING user_id::text", {std::to_string(*user_id_)});
+        if (std::get<0>(removed))
+        {
+            connection.close();
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        if (!std::get<1>(removed))
+        {
+            auto committed = co_await connection.execute_row("COMMIT");
+            if (std::get<0>(committed))
+            {
+                connection.close();
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            co_return serialize_json_rpc_success(
+                "{\"avatar_revision\":" + std::get<1>(locked) + ",\"has_avatar\":false}", std::move(request.id), response);
+        }
+    }
     auto revised = co_await connection.execute_scalar(
         "UPDATE users SET avatar_revision=avatar_revision+1 WHERE id=$1::bigint RETURNING avatar_revision::text", {std::to_string(*user_id_)});
     auto& [revision_ec, revision] = revised;
@@ -197,20 +225,18 @@ boost::capy::task<simdjson::error_code> chat_session::handle_avatar(json_rpc_req
         connection.close();
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
-    std::string query = clearing ? "DELETE FROM user_avatars WHERE user_id=$1::bigint"
-                                 : "INSERT INTO user_avatars(user_id,media_type,size,data) VALUES($1::bigint,$2,$3::bigint,decode($4,'base64')) "
-                                   "ON CONFLICT(user_id) DO UPDATE SET media_type=EXCLUDED.media_type,size=EXCLUDED.size,data=EXCLUDED.data,"
-                                   "updated_at=CURRENT_TIMESTAMP";
-    std::vector<std::string> values{std::to_string(*user_id_)};
     if (!clearing)
     {
-        values.insert(values.end(), {media_type, std::to_string(content.size()), chat::detail::encode_base64(content)});
-    }
-    auto written = co_await connection.execute_row(std::move(query), std::move(values));
-    if (std::get<0>(written))
-    {
-        connection.close();
-        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        auto written = co_await connection.execute_row(
+            "INSERT INTO user_avatars(user_id,media_type,size,data) VALUES($1::bigint,$2,$3::bigint,decode($4,'base64')) "
+            "ON CONFLICT(user_id) DO UPDATE SET media_type=EXCLUDED.media_type,size=EXCLUDED.size,data=EXCLUDED.data,"
+            "updated_at=CURRENT_TIMESTAMP",
+            {std::to_string(*user_id_), media_type, std::to_string(content.size()), chat::detail::encode_base64(content)});
+        if (std::get<0>(written))
+        {
+            connection.close();
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
     }
     auto committed = co_await connection.execute_row("COMMIT");
     if (std::get<0>(committed))

@@ -260,6 +260,16 @@ int run_group_tests()
             event_list[i]->attach(client);
             client.connect(server.url);
             event_list[i]->wait([&, i] { return event_list[i]->connected == 1; });
+            if (i == 0)
+            {
+                for (auto const& invalid : std::vector<std::string>{"", " \u00a0\u3000", "a@b", std::string("a\0b", 3),
+                    "a\x01", "a\u0085b", "a\u2028b", "a\u202eb", "a\u2066b", std::string(65, 'x'),
+                    "中中中中中中中中中中中中中中中中中中中中中中"})
+                {
+                    auto rejected_name = call<std::int64_t>([&](auto handler) { client.register_user(invalid, "valid password", handler); });
+                    require(!rejected_name && rejected_name.error().code == -32602, "Registration rejects invalid identity before persistence");
+                }
+            }
             names.push_back("chat_group_test_" + std::to_string(getpid()) + "_" + std::to_string(i));
             auto registered = call<std::int64_t>([&](auto handler)
                                                  { client.register_user(names.back(), "group password", handler); });
@@ -314,6 +324,7 @@ int run_group_tests()
             for (int i = 0; i < 3; ++i)
             {
                 identities[i] = "chat_semantics_" + std::to_string(getpid()) + "_" + std::to_string(i);
+                if (i == 2) { identities[i] = "中文 空格._-" + identities[i]; }
                 changes[i].attach(peers[i]);
                 peers[i].connect(server.url);
                 changes[i].wait([&] { return changes[i].connected == 1; });
@@ -446,15 +457,17 @@ int run_group_tests()
                 require(changes[0].presences.size() == previous_presence && changes[2].presences.empty(),
                     "Removed contact, historical peer and shared group receive no private presence notifications");
             }
-            auto wait_blocked = [&] {
+            auto wait_blocked = [&](int count = 1) {
                 bool waiting = false;
                 for (int attempt = 0; attempt < 100 && !waiting; ++attempt)
                 {
                     std::unique_ptr<PGresult, decltype(&PQclear)> state(PQexec(relations.database.get(),
-                        "SELECT pg_stat_clear_snapshot(); SELECT EXISTS(SELECT 1 FROM pg_stat_activity "
-                        "WHERE datname=current_database() AND pg_backend_pid()=ANY(pg_blocking_pids(pid)))"), &PQclear);
+                        "SELECT pg_stat_clear_snapshot(); WITH RECURSIVE blocked(pid) AS ("
+                        "SELECT pid FROM pg_stat_activity WHERE datname=current_database() AND pg_backend_pid()=ANY(pg_blocking_pids(pid)) "
+                        "UNION SELECT a.pid FROM pg_stat_activity a JOIN blocked b ON b.pid=ANY(pg_blocking_pids(a.pid)) "
+                        "WHERE a.datname=current_database()) SELECT count(*) FROM blocked"), &PQclear);
                     waiting = state && PQresultStatus(state.get()) == PGRES_TUPLES_OK &&
-                        std::string_view(PQgetvalue(state.get(), 0, 0)) == "t";
+                        std::stoi(PQgetvalue(state.get(), 0, 0)) >= count;
                     if (!waiting) { std::this_thread::sleep_for(std::chrono::milliseconds(10)); }
                 }
                 return waiting;
@@ -481,7 +494,42 @@ int run_group_tests()
             require(send_first && call<bool>([&](auto h) { left.remove_contact(right_id, h); }).value() &&
                 call<chat::messages_result>([&](auto h) { left.search_messages(direct_id, "先发送后移除", {}, h); }).value().messages.size() == 1,
                 "A completed send survives subsequent contact removal");
-            auto fresh_user = call<std::int64_t>([&](auto h) { left.register_user("chat_semantics_new_" + std::to_string(getpid()), "semantics", h); });
+            for (bool delete_first : {true, false})
+            {
+                auto target = call<chat::send_message_result>([&](auto h) { right.send_message(*shared, "锁竞争的原文", h); });
+                require(target.has_value(), "Create live reply target");
+                relations.execute("BEGIN");
+                relations.execute("UPDATE conversations SET title=title WHERE id=" + std::to_string(*shared));
+                std::future<std::expected<chat::message, chat::error>> deletion;
+                std::future<std::expected<chat::send_message_result, chat::error>> reply;
+                auto deleting = [&] { return call<chat::message>([&](auto h) { right.delete_message(*shared, target->message_id, h); }); };
+                auto replying = [&] { return call<chat::send_message_result>([&](auto h) { left.send_message(*shared, "锁竞争的新回复", h, target->message_id); }); };
+                if (delete_first) { deletion = std::async(std::launch::async, deleting); }
+                else { reply = std::async(std::launch::async, replying); }
+                auto const first_waiting = wait_blocked();
+                if (delete_first) { reply = std::async(std::launch::async, replying); }
+                else { deletion = std::async(std::launch::async, deleting); }
+                auto const both_waiting = wait_blocked(2);
+                relations.execute("COMMIT");
+                auto removed = deletion.get();
+                auto answered = reply.get();
+                require(first_waiting, "First reply/delete RPC waits on the conversation lock");
+                require(both_waiting, "Both reply/delete RPCs are queued behind the authoritative lock");
+                require(removed && removed->deleted &&
+                    (delete_first ? (!answered && answered.error().code == -32602) : answered.has_value()),
+                    "Actual delete/reply RPCs obey their database lock order");
+                if (!delete_first)
+                {
+                    auto history = call<chat::messages_result>([&](auto h) { left.get_messages(*shared, {}, h); });
+                    require(history && std::ranges::any_of(history->messages, [&](auto const& message) {
+                        return message.id == answered->message_id && message.reply &&
+                            message.reply->id == target->message_id && message.reply->deleted && message.reply->text.empty();
+                    }), "Existing reply survives deletion with a deleted placeholder");
+                }
+            }
+            auto fresh_name = "chat_semantics_new_" + std::to_string(getpid());
+            fresh_name.append(64 - fresh_name.size(), 'x');
+            auto fresh_user = call<std::int64_t>([&](auto h) { left.register_user(fresh_name, "semantics", h); });
             require(fresh_user.has_value(), "New direct creation race identity");
             relations.users.push_back(*fresh_user);
             require(call<chat::user>([&](auto h) { left.add_contact(*fresh_user, h); }).has_value(), "New direct creation race contact");
@@ -512,11 +560,25 @@ int run_group_tests()
         auto duplicate = call<std::int64_t>([&](auto handler)
                                             { a.create_group("invalid", {data.users[1], data.users[1]}, handler); });
         require(!duplicate && duplicate.error().code == -32602, "Reject duplicate members");
+        for (auto const& title : std::vector<std::string>{"", " \t\n", "\u00a0\u3000", std::string("a\0b", 3), std::string(257, 'x')})
+        {
+            auto invalid_title = call<std::int64_t>([&](auto handler) { a.create_group(title, {data.users[1]}, handler); });
+            require(!invalid_title && invalid_title.error().code == -32602, "Create rejects blank, NUL and oversized group title");
+        }
         auto created = call<std::int64_t>([&](auto handler)
                                           { a.create_group("三人测试群", {data.users[1], data.users[2]}, handler); });
         require(created.has_value(), "Create group");
         auto group = *created;
         data.groups.push_back(group);
+        auto spaced_title = call<bool>([&](auto handler) { a.rename_group(group, "  三人 测试群  ", handler); });
+        require(spaced_title && *spaced_title && conversation(b, group).username == "  三人 测试群  ",
+            "Rename preserves meaningful whitespace exactly");
+        for (auto const& title : std::vector<std::string>{"", " \t\n", "\u00a0\u3000", std::string("a\0b", 3), std::string(257, 'x')})
+        {
+            auto invalid_title = call<bool>([&](auto handler) { a.rename_group(group, title, handler); });
+            require(!invalid_title && invalid_title.error().code == -32602, "Create and rename use the same group title rule");
+        }
+        require(call<bool>([&](auto handler) { a.rename_group(group, "三人测试群", handler); }).value(), "Restore group title fixture");
         b_events.wait([&] { return !b_events.conversations.empty(); });
         c_events.wait([&] { return !c_events.conversations.empty(); });
         auto empty = conversation(b, group);
@@ -618,6 +680,11 @@ int run_group_tests()
             auto empty_avatar = call<chat::avatar>([&](auto handler) { b.get_avatar(data.users[0], 0, handler); });
             require(empty_avatar && empty_avatar->state == chat::avatar_state{} && empty_avatar->data.empty(),
                     "Existing user starts without an avatar");
+            auto empty_clear = call<chat::avatar_state>([&](auto handler) { a.clear_avatar(handler); });
+            require(empty_clear && *empty_clear == chat::avatar_state{} &&
+                call<std::vector<chat::user>>([&](auto handler) { b.get_contacts(handler); }).has_value(), "Clearing an absent avatar is a no-op");
+            { std::scoped_lock lock(a_events.mutex, b_events.mutex); require(a_events.avatars.empty() && b_events.avatars.empty(),
+                "No-op avatar clear sends no notification"); }
             auto first_avatar = call<chat::avatar_state>([&](auto handler) { a.set_avatar(png, handler); });
             require(first_avatar && first_avatar->present && first_avatar->revision == 1, "Upload persistent PNG avatar");
             a_events.wait([&] { return a_events.avatars.size() == 1; });
@@ -643,6 +710,12 @@ int run_group_tests()
                 "Replacement changes revision and old history uses the author's current avatar");
             auto cleared = call<chat::avatar_state>([&](auto handler) { a.clear_avatar(handler); });
             require(cleared && cleared->revision == 3 && !cleared->present, "Clear retains a monotonic revision");
+            b_events.wait([&] { return b_events.avatars.size() == 3; });
+            auto repeated_clear = call<chat::avatar_state>([&](auto handler) { a.clear_avatar(handler); });
+            require(repeated_clear && *repeated_clear == *cleared &&
+                call<std::vector<chat::user>>([&](auto handler) { b.get_contacts(handler); }).has_value(),
+                "Repeated clear preserves the authoritative revision");
+            { std::lock_guard lock(b_events.mutex); require(b_events.avatars.size() == 3, "Repeated clear does not broadcast"); }
             auto cleared_file = call<chat::avatar>([&](auto handler) { b.get_avatar(data.users[0], 2, handler); });
             auto restored_avatar = call<chat::avatar_state>([&](auto handler) { a.set_avatar(png, handler); });
             require(cleared_file && cleared_file->state == *cleared && cleared_file->data.empty() &&
@@ -946,6 +1019,15 @@ int run_group_tests()
         auto edit_deleted =
             call<chat::message>([&](auto handler) { a.edit_message(group, sent->message_id, "resurrect", handler); });
         require(!edit_deleted && edit_deleted.error().code == -32007, "Deleted message cannot be edited");
+        auto reply_deleted = call<chat::send_message_result>([&](auto handler) {
+            b.send_message(group, "不能引用删除的原文", handler, sent->message_id);
+        });
+        require(!reply_deleted && reply_deleted.error().code == -32602, "Deleted message cannot be a new reply target");
+        auto attachment_reply_deleted = call<chat::message>([&](auto handler) {
+            b.send_attachment(group, "new reply.bin", "content", handler, sent->message_id);
+        });
+        require(!attachment_reply_deleted && attachment_reply_deleted.error().code == -32602,
+            "Attachment finish also rejects an already deleted reply target");
         auto delete_unread =
             call<chat::message>([&](auto handler) { b.delete_message(group, replied->message_id, handler); });
         require(delete_unread && delete_unread->deleted, "Deleted messages do not count as unread");
@@ -1174,7 +1256,7 @@ int run_group_tests()
         {
             auto const base = "chat_mention_" + std::to_string(getpid());
             std::vector<std::string> special_names{base, base + ".plus", "名 字_" + base,
-                "r(.*)[z]\\_'" + base, base + std::string(2000, 'x')};
+                "r(.*)[z]\\_'" + base, base + std::string(64 - base.size(), 'x')};
             std::vector<std::int64_t> special_ids;
             std::vector<std::int64_t> mention_members{data.users[1], data.users[2]};
             require(call<chat::user>([&](auto handler) { a.add_contact(data.users[1], handler); }).has_value(),
@@ -1223,6 +1305,11 @@ int run_group_tests()
             require(literal_mentions && targets(literal_mentions->mentions) ==
                 std::vector<std::int64_t>{special_ids[1], special_ids[2], special_ids[3]},
                 "Full longest usernames match literally, including Unicode, spaces and regex metacharacters");
+            auto longest = call<chat::send_message_result>([&](auto handler) {
+                a.send_message(mention_group, "@" + special_names.back(), handler);
+            });
+            require(longest && targets(longest->mentions) == std::vector<std::int64_t>{special_ids.back()},
+                "A maximum-length valid username is a complete mention token");
             auto boundaries = call<chat::send_message_result>([&](auto handler) {
                 a.send_message(mention_group, "mail@" + base + " @" + base + "_extra @@" + base + " @CHAT_MENTION_" + std::to_string(getpid()), handler);
             });
@@ -1236,7 +1323,7 @@ int run_group_tests()
             require(deleted_mention && deleted_mention->mentions.empty(), "Deleted message loses interactive mention metadata");
             auto before_large = conversation(a, mention_group);
             auto oversized = call<chat::send_message_result>([&](auto handler) {
-                a.send_message(mention_group, std::string(63000, 'x') + " @" + special_names.back(), handler);
+                a.send_message(mention_group, std::string(65200, 'x') + " @" + special_names.back(), handler);
             });
             require(!oversized && oversized.error().code == -32602 && conversation(a, mention_group).last.id == before_large.last.id,
                 "Mention-expanded 64 KiB payload is rejected without committing message or targets");
@@ -1278,15 +1365,15 @@ int run_group_tests()
                 std::lock_guard lock(c_events.mutex);
                 before_announcement_events = {c_events.conversations.size(), c_events.messages.size()};
             }
-            auto announcement = call<bool>([&](auto h) { a.set_group_announcement(mention_group, "群公告\n<纯文本>", h); });
+            auto announcement = call<bool>([&](auto h) { a.set_group_announcement(mention_group, "  群公告\n<纯文本>  ", h); });
             require(announcement && *announcement, "Owner saves a current plaintext announcement");
             c_events.wait([&] { return c_events.conversations.size() > before_announcement_events[0]; });
             auto with_announcement = conversation(c, mention_group);
-            require(with_announcement.announcement == "群公告\n<纯文本>" && with_announcement.last.id == before_pin.last.id &&
+            require(with_announcement.announcement == "  群公告\n<纯文本>  " && with_announcement.last.id == before_pin.last.id &&
                 with_announcement.unread == before_pin.unread && with_announcement.member_count == before_pin.member_count,
                 "Announcement refresh does not change messages, unread or membership");
-            auto same_announcement = call<bool>([&](auto h) { b.set_group_announcement(mention_group, "群公告\n<纯文本>", h); });
-            require(same_announcement && !*same_announcement && conversation(c, mention_group).announcement == "群公告\n<纯文本>",
+            auto same_announcement = call<bool>([&](auto h) { b.set_group_announcement(mention_group, "  群公告\n<纯文本>  ", h); });
+            require(same_announcement && !*same_announcement && conversation(c, mention_group).announcement == "  群公告\n<纯文本>  ",
                 "Announcement no-op does not fall through to leave");
             {
                 std::lock_guard lock(c_events.mutex);
@@ -1348,7 +1435,7 @@ int run_group_tests()
             require(call<bool>([&](auto h) { a.pin_group_message(mention_group, rejoined_mention->message_id, h); }).has_value() &&
                 call<chat::message>([&](auto h) { a.delete_message(mention_group, rejoined_mention->message_id, h); }).has_value() &&
                 !conversation(c, mention_group).pinned_message, "Deleting current pinned message atomically clears the reference");
-            auto clear_announcement = call<bool>([&](auto h) { b.set_group_announcement(mention_group, "", h); });
+            auto clear_announcement = call<bool>([&](auto h) { b.set_group_announcement(mention_group, " \t\u00a0\u3000", h); });
             auto repeated_clear = call<bool>([&](auto h) { a.set_group_announcement(mention_group, "", h); });
             require(clear_announcement && *clear_announcement && repeated_clear && !*repeated_clear &&
                 conversation(c, mention_group).announcement.empty() && conversation(b, mention_group).member_count == before_pin.member_count,
@@ -1459,6 +1546,15 @@ int run_group_tests()
             require(duplicate_pending && duplicate_pending->state == chat::group_join_state::pending && duplicate_list &&
                 duplicate_list->requests.size() == 1 && duplicate_list->requests.front().created_at == requested_at,
                 "Repeated pending join preserves the single application and creation time");
+            auto revoked_link = call<std::optional<std::string>>([&](auto h) { a.revoke_group_invite(mention_group, h); });
+            require(revoked_link && !revoked_link->has_value(), "Revoke link with an existing pending request");
+            auto revoked_pending = call<chat::group_join_result>([&](auto h) { d.join_group(**replacement, h); });
+            auto retained_pending = call<chat::group_join_requests_result>([&](auto h) { b.get_group_join_requests(mention_group, {}, h); });
+            require(!revoked_pending && revoked_pending.error().code == -32014 && retained_pending &&
+                retained_pending->requests.size() == 1 && retained_pending->requests.front().created_at == requested_at,
+                "Revocation blocks new link operations and preserves the independent submitted application");
+            replacement = call<std::optional<std::string>>([&](auto h) { b.create_group_invite(mention_group, h); });
+            require(replacement && replacement->has_value() && **replacement != token, "Restore a fresh link for subsequent approval lifecycle");
             auto private_requests = call<chat::group_join_requests_result>([&](auto h) { c.get_group_join_requests(mention_group, {}, h); });
             auto private_response = call<bool>([&](auto h) { c.respond_group_join_request(mention_group, data.users[3], true, h); });
             auto pending_requests = call<chat::group_join_requests_result>([&](auto h) { d.get_group_join_requests(mention_group, {}, h); });

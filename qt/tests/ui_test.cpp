@@ -94,8 +94,46 @@ int main(int argc, char** argv)
     {
         start();
         {
+            main_window registration(QStringLiteral("ws://127.0.0.1:18769/ws"));
+            registration.show();
+            registration.findChild<QPushButton*>("registerButton")->click();
+            auto* dialog = registration.findChild<QDialog*>("registrationDialog");
+            QLineEdit* username = nullptr;
+            for (auto* field : dialog->findChildren<QLineEdit*>())
+            {
+                if (field->placeholderText() == QStringLiteral("用户名")) { username = field; }
+                else { field->setText(QStringLiteral("valid password")); }
+            }
+            check(username, "Registration identity field");
+            for (auto const& name : QList<QString>{QStringLiteral(" \u00a0\u3000"), QStringLiteral("a@b"),
+                QStringLiteral("a\u0001b"), QStringLiteral("a\u0085b"), QStringLiteral("a\u202eb"), QString(65, 'x'),
+                QString(22, QChar(0x4e2d))})
+            {
+                username->setText(name);
+                dialog->findChild<QPushButton*>("registrationSubmitButton")->click();
+                check(dialog->findChild<QLabel*>("subtleText")->text().contains(QStringLiteral("1–64 UTF-8")) &&
+                    dialog->findChild<QPushButton*>("registrationSubmitButton")->isEnabled(),
+                    "Qt rejects invalid identity before connecting or registering");
+            }
+            dialog->reject();
+        }
+        {
             group_dialog dialog(1, 1, QStringLiteral("公告草稿"), QStringLiteral("旧公告"), false, nullptr);
             dialog.set_members(1, {{1, "owner", chat::member_role::owner, {}}, {2, "admin", chat::member_role::admin, {}}}, {});
+            auto* title = dialog.findChild<QLineEdit*>("groupTitleEdit");
+            auto* rename = dialog.findChild<QPushButton*>("groupRenameButton");
+            check(rename, "Group rename control");
+            for (auto const& value : QList<QString>{QStringLiteral(" \u00a0\u3000"), QString(257, 'x')})
+            {
+                title->setText(value);
+                check(!rename->isEnabled(), "Qt group title rejects Unicode blank and oversized values");
+            }
+            QString requested_title;
+            QObject::connect(&dialog, &group_dialog::rename_requested, &dialog, [&](QString value) { requested_title = value; });
+            title->setText(QStringLiteral("  群 名  "));
+            rename->click();
+            check(requested_title == QStringLiteral("  群 名  "), "Qt preserves meaningful title whitespace");
+            dialog.finish_action(1, false, {});
             dialog.set_invite(1, QString(64, 'a'), {});
             auto* invite_edit = dialog.findChild<QLineEdit*>("groupInviteLinkEdit");
             check(invite_edit->text() == QStringLiteral("chat://join/") + QString(64, 'a') &&
@@ -129,8 +167,12 @@ int main(int argc, char** argv)
             check(edit->isReadOnly() && edit->toPlainText() == snapshot.announcement &&
                 !dialog.findChild<QPushButton*>("groupAnnouncementButton")->isEnabled(), "Loss of management permission restores authoritative announcement");
             dialog.set_members(1, {{1, "owner", chat::member_role::owner, {}}, {2, "admin", chat::member_role::admin, {}}}, {});
-            edit->setPlainText(QStringLiteral("清空前的草稿"));
-            dialog.findChild<QPushButton*>("groupClearAnnouncementButton")->click();
+            QString requested_announcement = QStringLiteral("not yet cleared");
+            QObject::connect(&dialog, &group_dialog::announcement_requested, &dialog,
+                [&](QString value) { requested_announcement = value; });
+            edit->setPlainText(QStringLiteral(" \u00a0\u3000"));
+            dialog.findChild<QPushButton*>("groupAnnouncementButton")->click();
+            check(requested_announcement.isEmpty(), "Qt whitespace-only announcement uses clear semantics");
             snapshot.announcement.clear();
             dialog.set_conversations({snapshot}, {});
             dialog.finish_action(1, false, {});
@@ -923,6 +965,11 @@ int main(int argc, char** argv)
                       "Live edited quote");
             }
             auto* reply_view = windows[1]->findChild<QListView*>("messageList");
+            choose_reply(2, 1);
+            auto* pending_reply_preview = windows[2]->findChild<QLabel*>("replyPreview");
+            auto* pending_reply_draft = windows[2]->findChild<QLineEdit*>("messageEdit");
+            pending_reply_draft->setText(QStringLiteral("尚未发送的草稿"));
+            check(pending_reply_preview->isVisible(), "Prepare a reply before the target is deleted");
             QTimer delete_dialog;
             QObject::connect(&delete_dialog, &QTimer::timeout,
                              [&]
@@ -963,6 +1010,8 @@ int main(int argc, char** argv)
                           QStringLiteral("消息已删除"),
                       "Live deletion marker");
             }
+            check(!pending_reply_preview->isVisible() && pending_reply_draft->text() == QStringLiteral("尚未发送的草稿"),
+                "Deleting a prepared reply target clears the invalid reference and preserves the draft");
             windows[2]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("离线编辑验证"));
             windows[2]->findChild<QToolButton*>("sendButton")->click();
             for (int i = 0; i < 3; ++i)

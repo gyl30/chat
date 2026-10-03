@@ -3,6 +3,8 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <vector>
+#include <utility>
 #include <unistd.h>
 
 #include <libpq-fe.h>
@@ -44,7 +46,8 @@ int main(int argc, char** argv)
               "012_create_message_attachments.sql", "013_add_group_roles.sql", "014_add_member_join_position.sql",
               "015_create_user_avatars.sql", "016_create_message_reactions.sql", "017_add_conversation_mute.sql",
               "018_add_conversation_pin.sql", "019_create_message_mentions.sql", "020_add_group_pinned_message.sql",
-              "021_add_group_announcement.sql", "022_add_group_invite.sql", "023_create_group_join_requests.sql"})
+              "021_add_group_announcement.sql", "022_add_group_invite.sql", "023_create_group_join_requests.sql",
+              "024_validate_identity_and_group_title.sql"})
         {
             if (std::string(name).starts_with("008"))
             {
@@ -58,6 +61,11 @@ int main(int argc, char** argv)
             {
                 execute("WITH created AS (INSERT INTO conversations(kind,title,owner_id) VALUES('group','before announcement',1) RETURNING id) "
                         "INSERT INTO conversation_members(conversation_id,user_id) SELECT id,1 FROM created");
+            }
+            if (std::string(name).starts_with("024"))
+            {
+                execute("UPDATE users SET username='中文 空格._-' WHERE id=1; "
+                        "UPDATE users SET username=repeat('b',64) WHERE id=2");
             }
             std::ifstream file(std::string(argv[1]) + "/" + name);
             if (!file)
@@ -98,6 +106,33 @@ int main(int argc, char** argv)
         {
             throw std::runtime_error("Migration invariants");
         }
+        auto identities = execute("SELECT username='中文 空格._-' FROM users WHERE id=1 UNION ALL "
+                                  "SELECT username=repeat('b',64) FROM users WHERE id=2");
+        if (PQntuples(identities.get()) != 2 || std::string(PQgetvalue(identities.get(), 0, 0)) != "t" ||
+            std::string(PQgetvalue(identities.get(), 1, 0)) != "t")
+        {
+            throw std::runtime_error("Identity migration changed existing usernames");
+        }
+        for (auto const& [username, valid] : std::vector<std::pair<std::string, bool>>{
+            {"ASCII", true}, {"中文", true}, {"normal space", true}, {"dot.name", true}, {"dash-name", true},
+            {"under_score", true}, {"r(.*)[z]\\_'", true}, {" edge spaces ", true}, {std::string(64, 'x'), true},
+            {"", false}, {" \t", false}, {"\u00a0\u3000", false}, {"a@b", false}, {"a\x01", false},
+            {"a\u0085b", false}, {"a\u2028b", false}, {"a\u202eb", false}, {"a\u2066b", false},
+            {std::string(65, 'x'), false}, {"中中中中中中中中中中中中中中中中中中中中中中", false}})
+        {
+            auto const* value = username.c_str();
+            std::unique_ptr<PGresult, decltype(&PQclear)> inserted(PQexecParams(connection.get(),
+                "INSERT INTO users(username,password_hash) VALUES($1,repeat('x',60))", 1,
+                nullptr, &value, nullptr, nullptr, 0), &PQclear);
+            if (!inserted || (PQresultStatus(inserted.get()) == PGRES_COMMAND_OK) != valid)
+            {
+                throw std::runtime_error("Database username rule mismatch");
+            }
+        }
+        bool nul_rejected = false;
+        try { execute("UPDATE users SET username='a'||chr(0)||'b' WHERE id=2"); }
+        catch (std::runtime_error const&) { nul_rejected = true; }
+        if (!nul_rejected) { throw std::runtime_error("NUL username accepted"); }
         execute("INSERT INTO messages(sender_id,conversation_id,body,reply_to_id) "
                 "SELECT 2,conversation_id,'reply',id FROM messages WHERE id=1");
         execute("INSERT INTO message_attachments(message_id,filename,media_type,size,data) "
@@ -138,6 +173,18 @@ int main(int argc, char** argv)
         if (std::string(PQgetvalue(owner.get(), 0, 0)) != "1")
         {
             throw std::runtime_error("Group owner membership invariant");
+        }
+        for (auto const& [title, valid] : std::vector<std::pair<std::string, bool>>{
+            {"  正常 群名  ", true}, {std::string(256, 'x'), true}, {"", false}, {" \t\n", false},
+            {"\u00a0\u3000", false}, {std::string(257, 'x'), false}})
+        {
+            auto const* value = title.c_str();
+            std::unique_ptr<PGresult, decltype(&PQclear)> updated(PQexecParams(connection.get(),
+                "UPDATE conversations SET title=$1 WHERE kind='group'", 1, nullptr, &value, nullptr, nullptr, 0), &PQclear);
+            if (!updated || (PQresultStatus(updated.get()) == PGRES_COMMAND_OK) != valid)
+            {
+                throw std::runtime_error("Database group title rule mismatch");
+            }
         }
         bool rejected_owner = false;
         try

@@ -6,6 +6,7 @@
 #include <vector>
 
 #include <simdjson.h>
+#include <chat/text.hpp>
 
 #include "chat_session.hpp"
 #include "pg_connection_pool.hpp"
@@ -131,13 +132,17 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
     }
     if (parse_error || !document.at_end() || conversation <= 0 || ((setting_admin || transferring || removing) && user <= 0) ||
         (pinning && pinned_message <= 0) ||
-        (renaming && (title.empty() || title.size() > 256 || title.find('\0') != std::string::npos)) ||
+        (renaming && !chat::valid_group_title(title)) ||
         (announcing && (!announcement || announcement->size() > 4096 || announcement->find('\0') != std::string::npos)) ||
         (inviting && (members.empty() || members.front() <= 0 ||
             std::adjacent_find(members.begin(), members.end()) != members.end() ||
             std::binary_search(members.begin(), members.end(), *user_id_))))
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+    }
+    if (announcing && chat::text_is_blank(*announcement))
+    {
+        announcement->clear();
     }
     auto lease = co_await database_.acquire();
     if (lease.error())
