@@ -424,6 +424,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                     return;
                 }
                 chat_page_->set_conversations(std::move(conversations));
+                chat_page_->set_connection_available(true);
                 auto pending = std::move(pending_notifications_);
                 pending_notifications_.clear();
                 for (auto const& message : pending)
@@ -448,6 +449,7 @@ main_window::main_window(QString server_url, QWidget* parent)
             [this](QList<presence_data> users, QString const& error_message) {
                 if (!error_message.isEmpty())
                 {
+                    chat_page_->set_presences({});
                     chat_page_->set_error(error_message);
                     return;
                 }
@@ -479,15 +481,15 @@ main_window::main_window(QString server_url, QWidget* parent)
             [this](qint64 user) { client_->add_contact(user); });
 
     connect(client_.get(), &client_bridge::contact_added, this,
-            [this](user_data, QString const& error_message) {
+            [this](user_data user, QString const& error_message) {
+                chat_page_->finish_add_contact(user.id, error_message);
                 if (!error_message.isEmpty())
                 {
-                    chat_page_->set_add_contact_search_error(error_message);
                     return;
                 }
-                chat_page_->finish_add_contact();
                 client_->get_contacts();
                 client_->get_presence();
+                client_->get_conversations();
             },
             Qt::AutoConnection);
 
@@ -501,6 +503,7 @@ main_window::main_window(QString server_url, QWidget* parent)
         }
         client_->get_contacts();
         client_->get_presence();
+        client_->get_conversations();
     }, Qt::AutoConnection);
     connect(chat_page_, &chat_widget::direct_conversation_requested, this,
             [this](qint64 user, QString username) { client_->open_direct_conversation(user, std::move(username)); });
@@ -512,6 +515,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                 auto const snapshot = chat_page_->conversation(conversation);
                 if (!snapshot || !snapshot->group) { return; }
                 group_dialog dialog(conversation, self_user, title, snapshot->announcement, snapshot->join_approval, this, &chat_page_->avatars());
+                connect(&dialog, &group_dialog::user_requested, chat_page_, &chat_widget::show_user_details);
                 connect(client_.get(), &client_bridge::members_received, &dialog, &group_dialog::set_members);
                 connect(client_.get(), &client_bridge::group_action_finished, &dialog, &group_dialog::finish_action);
                 connect(client_.get(), &client_bridge::group_invite_received, &dialog, &group_dialog::set_invite);
@@ -1105,7 +1109,6 @@ void main_window::finish_reconnect()
     reconnecting_ = false;
     reconnect_attempt_ = 0;
     reconnect_seconds_left_ = 0;
-    chat_page_->set_connection_available(true);
     chat_page_->avatars().retry();
 
     if (reconnect_notice_visible_)

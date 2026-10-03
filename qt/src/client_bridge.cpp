@@ -254,6 +254,7 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
             value.pinned_message = to_reply_data(item.pinned_message);
             value.announcement = from_utf8(item.announcement);
             value.join_approval = item.join_approval;
+            value.can_send = item.can_send;
                         bool found = false;
                         for (auto const& existing : conversations)
                         {
@@ -327,7 +328,8 @@ void client_bridge::open_direct_conversation(qint64 user, QString username)
             conversation_data value;
             if (result)
             {
-                value.id = *result;
+                value.id = result->conversation;
+                value.can_send = result->can_send;
                 value.user = user;
                 value.username = username;
             }
@@ -349,6 +351,7 @@ void client_bridge::create_group(QString title, QList<qint64> members)
             {
                 value.id = *result;
                 value.group = true;
+                value.can_send = true;
                 value.username = title;
                 value.member_count = count;
             }
@@ -375,6 +378,7 @@ void client_bridge::join_group(QString token)
                 value.id = result->conversation;
                 value.group = true;
                 value.username = from_utf8(result->title);
+                value.can_send = true;
                 value.member_count = result->member_count;
             }
             emit conversation_opened(value, result ? QString{} : from_utf8(result.error().message));
@@ -810,11 +814,13 @@ void client_bridge::search_messages(qint64 conversation, QString query, qint64 b
 void client_bridge::add_contact(qint64 user)
 {
     auto const generation = connection_generation_.load();
-    client_->add_contact(user, [this, generation](auto result) {
-        post_result(generation, [this, result = std::move(result)] {
+    client_->add_contact(user, [this, generation, user](auto result) {
+        post_result(generation, [this, user, result = std::move(result)] {
             if (!result)
             {
-                emit contact_added({}, from_utf8(result.error().message));
+                user_data value;
+                value.id = user;
+                emit contact_added(value, from_utf8(result.error().message));
                 return;
             }
 

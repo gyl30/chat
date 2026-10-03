@@ -40,6 +40,9 @@
 #include "client_bridge.hpp"
 #include "message_model.hpp"
 #include "conversation_model.hpp"
+#include "user_delegate.hpp"
+#include "message_delegate.hpp"
+#include "theme.hpp"
 
 void check(bool v, char const* text)
 {
@@ -648,6 +651,11 @@ int main(int argc, char** argv)
                 QObject::connect(&update_poll, &QTimer::timeout, [&] {
                     auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
                     if (!dialog || dialog->objectName() != "profileDialog") { return; }
+                    for (auto* action : dialog->findChildren<QToolButton*>("profileActionButton"))
+                    {
+                        check(!action->isVisible() || (action->text() != QStringLiteral("消息") && action->text() != QStringLiteral("添加联系人")),
+                            "Own profile has no self messaging or self contact action");
+                    }
                     auto* button = dialog->findChild<QPushButton*>(remove ? "removeAvatarButton" : "changeAvatarButton");
                     if (step == 0 && button->isEnabled())
                     {
@@ -755,6 +763,78 @@ int main(int argc, char** argv)
                 }
             }
             wait([&] { return ordinary_member; });
+            auto inspect_noncontact_profile = [&](QString const& username, bool add) {
+                auto* profile = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                check(profile && profile->objectName() == "profileDialog" &&
+                    profile->findChild<QLabel*>("profileDialogName")->text() == username, "Public non-contact profile identity");
+                QToolButton* action = nullptr;
+                for (auto* button : profile->findChildren<QToolButton*>("profileActionButton"))
+                {
+                    check(!button->isVisible() || button->text() != QStringLiteral("消息"), "Non-contact cannot directly message from profile");
+                    if (button->text() == QStringLiteral("添加联系人")) { action = button; }
+                }
+                check(action && action->isVisible() && action->isEnabled(), "Non-contact profile offers add");
+                if (add)
+                {
+                    action->click();
+                    check(!action->isEnabled(), "Profile waits for authoritative add result");
+                    wait([&] { return action->isEnabled() && action->text() == QStringLiteral("消息"); });
+                }
+                profile->reject();
+            };
+            QTimer group_profile_poll;
+            bool group_profile_checked = false;
+            QObject::connect(&group_profile_poll, &QTimer::timeout, [&] {
+                auto* dialog = qobject_cast<group_dialog*>(QApplication::activeModalWidget());
+                if (!dialog) { return; }
+                auto* list = dialog->findChild<QListWidget*>("groupMembersList");
+                if (list->count() != 3) { return; }
+                group_profile_poll.stop();
+                QTimer::singleShot(30, windows[2].get(), [&] { inspect_noncontact_profile(names[0], true); });
+                list->itemDoubleClicked(list->item(0));
+                group_profile_checked = true;
+                dialog->accept();
+            });
+            group_profile_poll.start(20);
+            windows[2]->findChild<QPushButton*>("chatHeaderButton")->click();
+            check(group_profile_checked, "Group member profile uses unilateral contact actions");
+            pages[2]->contact_remove_requested(ids[0]);
+            QListView* third_contacts = nullptr;
+            for (auto* view : windows[2]->findChildren<QListView*>("userList"))
+            {
+                if (qobject_cast<QSortFilterProxyModel*>(view->model())) { third_contacts = view; }
+            }
+            check(third_contacts, "Third user's own contact view");
+            wait([&] { return third_contacts->model()->rowCount() == 0; });
+            auto* sender_view = windows[2]->findChild<QListView*>("messageList");
+            auto* sender_delegate = qobject_cast<message_delegate*>(sender_view->itemDelegate());
+            check(sender_delegate, "Group sender avatar profile delegate");
+            QTimer::singleShot(30, windows[2].get(), [&] { inspect_noncontact_profile(names[0], false); });
+            sender_delegate->avatar_clicked(sender_view->model()->index(0, 0));
+            windows[2]->findChild<QToolButton*>("sidebarTextButton")->click();
+            QLineEdit* search_input = nullptr;
+            QListView* search_view = nullptr;
+            for (auto* input : windows[2]->findChildren<QLineEdit*>("userSearchEdit"))
+            { if (input->isVisible()) { search_input = input; } }
+            for (auto* view : windows[2]->findChildren<QListView*>("userList"))
+            { if (view->isVisible()) { search_view = view; } }
+            check(search_input && search_view, "Non-contact user search UI");
+            search_input->setText(names[1]);
+            search_input->returnPressed();
+            wait([&] { return search_view->model()->rowCount() == 1; });
+            auto* search_delegate = qobject_cast<user_delegate*>(search_view->itemDelegate());
+            check(search_delegate, "Search avatar profile delegate");
+            QTimer::singleShot(30, windows[2].get(), [&] { inspect_noncontact_profile(names[1], true); });
+            QStyleOptionViewItem search_option;
+            search_option.rect = search_view->visualRect(search_view->model()->index(0, 0));
+            QMouseEvent avatar_click(QEvent::MouseButtonRelease,
+                QPointF(search_option.rect.left() + chat_theme::dialog_left + 4,
+                        search_option.rect.top() + chat_theme::dialog_avatar_top + 4),
+                Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+            check(search_delegate->editorEvent(&avatar_click, search_view->model(), search_option,
+                search_view->model()->index(0, 0)), "Search result avatar opens public profile");
+            pages[2]->contact_remove_requested(ids[1]);
+            wait([&] { return third_contacts->model()->rowCount() == 0; });
             auto choose_reply = [&](int actor = 1, int row = 0)
             {
                 auto* view = windows[actor]->findChild<QListView*>("messageList");
@@ -1094,11 +1174,11 @@ int main(int argc, char** argv)
             wait([&] { return pages[0]->active_conversation() != group && pages[0]->messages_ready(); });
             wait([&] { return !group_typing->isVisible(); });
             auto const direct = pages[0]->active_conversation();
-            pages[0]->set_conversations({});
+            wait([&] { return pages[0]->conversation(direct) && pages[0]->conversation(direct)->can_send; });
             check(pages[0]->active_conversation() == direct &&
                       windows[0]->findChild<QLineEdit*>("messageEdit")->isEnabled() &&
                       windows[0]->findChild<QListView*>("messageList")->model()->rowCount() == 0,
-                  "Refreshing conversations preserves a newly opened empty direct chat");
+                  "An authoritative snapshot preserves a newly opened empty direct chat");
             windows[0]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("保留单聊历史"));
             windows[0]->findChild<QToolButton*>("sendButton")->click();
             wait([&] { return windows[0]->findChild<QListView*>("messageList")->model()->rowCount() == 1; });
@@ -1125,15 +1205,42 @@ int main(int argc, char** argv)
             });
             windows[0]->findChild<QPushButton*>("chatHeaderButton")->click();
             wait([&] { return contact_view->model()->rowCount() == 1; });
+            wait([&] { return pages[0]->conversation(direct) && !pages[0]->conversation(direct)->can_send; });
             check(pages[0]->active_conversation() == direct &&
                       windows[0]->findChild<QListView*>("messageList")->model()->rowCount() == 1,
                   "Contact removal retains active chat and history");
+            check(!windows[0]->findChild<QLineEdit*>("messageEdit")->isEnabled() &&
+                !windows[0]->findChild<QToolButton*>("sendButton")->isEnabled() &&
+                !windows[0]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled() &&
+                windows[0]->findChild<QLineEdit*>("messageEdit")->placeholderText().contains(QStringLiteral("不是你的联系人")),
+                "The removed contact direct is explicitly read-only");
             auto contacts_sql = "SELECT count(*) FROM contacts WHERE owner_id=" + std::to_string(ids[0]) +
                                 " AND contact_id=" + std::to_string(ids[1]);
             auto* contacts_result = PQexec(db, contacts_sql.c_str());
             check(PQresultStatus(contacts_result) == PGRES_TUPLES_OK &&
                       std::string_view(PQgetvalue(contacts_result, 0, 0)) == "0", "Contact removal persisted");
             PQclear(contacts_result);
+
+            QTimer::singleShot(50, [&] {
+                auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                check(dialog && dialog->objectName() == "profileDialog", "Removed contact profile");
+                QToolButton* action = nullptr;
+                for (auto* candidate : dialog->findChildren<QToolButton*>())
+                {
+                    check(candidate->text() != QStringLiteral("消息"), "A non-contact has no direct message action");
+                    if (candidate->text() == QStringLiteral("添加联系人")) { action = candidate; }
+                }
+                check(action && action->isEnabled(), "Non-contact profile offers unilateral add");
+                action->click();
+                check(!windows[0]->findChild<QLineEdit*>("messageEdit")->isEnabled(), "Adding is not optimistic authorization");
+                wait([&] { return action->text() == QStringLiteral("消息") && action->isEnabled(); }, 250);
+                action->click();
+            });
+            windows[0]->findChild<QPushButton*>("chatHeaderButton")->click();
+            wait([&] { return pages[0]->conversation(direct) && pages[0]->conversation(direct)->can_send &&
+                windows[0]->findChild<QLineEdit*>("messageEdit")->isEnabled(); });
+            check(pages[0]->active_conversation() == direct && windows[0]->findChild<QListView*>("messageList")->model()->rowCount() == 1,
+                "Re-add and authoritative direct open restore writing without losing history");
 
             QTemporaryDir attachments(QString::fromLocal8Bit(argv[2]) + "/attachments_XXXXXX");
             check(attachments.isValid(), "Attachment fixture directory");
@@ -1177,18 +1284,18 @@ int main(int argc, char** argv)
                 return false;
             });
             peer_conversations->clicked(direct_index);
+            pages[1]->contact_remove_requested(ids[0]);
+            wait([&] { return avatar_contacts->model()->rowCount() == 0 && !pages[1]->conversation(direct)->can_send; });
             auto* peer_attachment_view = windows[1]->findChild<QListView*>("messageList");
             wait([&] { return pages[1]->active_conversation() == direct && pages[1]->messages_ready() &&
                                   peer_attachment_view->model()->rowCount() == 2; });
+            check(!pages[1]->conversation(direct)->can_send &&
+                !windows[1]->findChild<QLineEdit*>("messageEdit")->isEnabled() &&
+                !windows[1]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled(),
+                "Receiving a direct message does not grant reverse sending permission");
             wait([&] { return !peer_attachment_view->model()->index(1, 0).data(message_model::image_role).value<QPixmap>().isNull(); });
             check(peer_attachment_view->model()->index(0, 0).data(message_model::reactions_role)
                       .value<QList<reaction_data>>().size() == 1, "Direct history restores reaction");
-            choose_reaction(1, QStringLiteral("😮"));
-            wait([&] {
-                auto const reactions = windows[0]->findChild<QListView*>("messageList")->model()->index(0, 0)
-                    .data(message_model::reactions_role).value<QList<reaction_data>>();
-                return reactions.size() == 1 && reactions.front().users.size() == 2;
-            });
             check(!peer_attachment_view->model()->index(0, 0).data(Qt::DecorationRole).value<QPixmap>().isNull(), "Direct message real avatar");
             check(!direct_index.data(Qt::DecorationRole).value<QPixmap>().isNull(), "Direct conversation real avatar");
             bool saw_avatar_profile = false;
@@ -1197,11 +1304,28 @@ int main(int argc, char** argv)
                 check(dialog && dialog->objectName() == "profileDialog", "Peer avatar profile");
                 auto const picture = dialog->findChild<QLabel*>("profileDialogAvatar")->pixmap();
                 check(picture.toImage() == avatar_icon(names[0], 104, pages[1]->avatars().image(ids[0])).pixmap(104, 104).toImage(), "Peer profile real image");
+                QToolButton* action = nullptr;
+                for (auto* button : dialog->findChildren<QToolButton*>("profileActionButton"))
+                {
+                    check(button->text() != QStringLiteral("消息"), "Non-contact historical peer has no message action");
+                    if (button->text() == QStringLiteral("添加联系人")) { action = button; }
+                }
+                check(action, "Non-contact historical peer offers add");
+                action->click();
+                check(!windows[1]->findChild<QLineEdit*>("messageEdit")->isEnabled(), "Add does not optimistically grant send");
+                wait([&] { return action->text() == QStringLiteral("消息") && action->isEnabled() &&
+                    pages[1]->conversation(direct)->can_send; });
                 saw_avatar_profile = true;
-                dialog->accept();
+                action->click();
             });
             windows[1]->findChild<QPushButton*>("chatHeaderButton")->click();
             check(saw_avatar_profile, "Peer profile avatar UI");
+            choose_reaction(1, QStringLiteral("😮"));
+            wait([&] {
+                auto const reactions = windows[0]->findChild<QListView*>("messageList")->model()->index(0, 0)
+                    .data(message_model::reactions_role).value<QList<reaction_data>>();
+                return reactions.size() == 1 && reactions.front().users.size() == 2;
+            });
             windows[1]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_avatar_direct.png");
             avatar_image.fill(QColor("#df6f22"));
             check(avatar_image.save(avatar_path, "JPEG"), "Avatar JPEG replacement fixture");
@@ -1294,8 +1418,31 @@ int main(int argc, char** argv)
                 dialog->reject();
             });
             attachment_action(1, QStringLiteral("下载文件"));
+            auto const remove_during_disconnect = "DELETE FROM contacts WHERE owner_id=" + std::to_string(ids[0]) +
+                " AND contact_id=" + std::to_string(ids[1]);
+            std::unique_ptr<PGresult, decltype(&PQclear)> removed_offline(PQexec(db, remove_during_disconnect.c_str()), &PQclear);
+            check(removed_offline && PQresultStatus(removed_offline.get()) == PGRES_COMMAND_OK,
+                "Contact removal while Qt is disconnected");
+            std::unique_ptr<PGresult, decltype(&PQclear)> held_snapshot(PQexec(db,
+                "BEGIN; LOCK TABLE conversations IN ACCESS EXCLUSIVE MODE"), &PQclear);
+            check(held_snapshot && PQresultStatus(held_snapshot.get()) == PGRES_COMMAND_OK, "Hold authoritative reconnect snapshot");
             start();
-            for (int i = 0; i < 3; ++i)
+            wait([&] {
+                std::unique_ptr<PGresult, decltype(&PQclear)> blocked(PQexec(db,
+                    "SELECT pg_stat_clear_snapshot(); SELECT EXISTS(SELECT 1 FROM pg_stat_activity "
+                    "WHERE datname=current_database() AND pg_backend_pid()=ANY(pg_blocking_pids(pid)))"), &PQclear);
+                return blocked && PQresultStatus(blocked.get()) == PGRES_TUPLES_OK &&
+                    std::string_view(PQgetvalue(blocked.get(), 0, 0)) == "t";
+            });
+            check(!windows[0]->findChild<QLineEdit*>("messageEdit")->isEnabled() &&
+                !windows[0]->findChild<QToolButton*>("sendButton")->isEnabled(),
+                "Reconnect cannot re-enable cached send permission before the authoritative snapshot");
+            std::unique_ptr<PGresult, decltype(&PQclear)> released_snapshot(PQexec(db, "COMMIT"), &PQclear);
+            check(released_snapshot && PQresultStatus(released_snapshot.get()) == PGRES_COMMAND_OK, "Release reconnect snapshot");
+            wait([&] { return pages[0]->messages_ready() && !pages[0]->conversation(direct)->can_send; });
+            check(!windows[0]->findChild<QLineEdit*>("messageEdit")->isEnabled() &&
+                !windows[0]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled(), "Reconnect restores read-only direct");
+            for (int i = 1; i < 3; ++i)
             {
                 wait([&, i] { return windows[i]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled() &&
                                       pages[i]->messages_ready(); });
@@ -1316,6 +1463,9 @@ int main(int argc, char** argv)
                       "Deleted attachment has no download metadata");
                 check(pages[i]->images().bytes(cached_image_id).isEmpty(), "Deleted image leaves cache");
             }
+            pages[0]->contact_add_requested(ids[1]);
+            wait([&] { return pages[0]->conversation(direct)->can_send &&
+                windows[0]->findChild<QToolButton*>("sendButton")->isEnabled(); });
 
             auto select_group = [&](int actor) {
                 auto* list = windows[actor]->findChild<QListView*>("conversationList");

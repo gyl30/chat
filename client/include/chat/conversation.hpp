@@ -40,6 +40,13 @@ struct conversation
     std::optional<quoted_message> pinned_message;
     std::string announcement;
     bool join_approval = false;
+    bool can_send = false;
+};
+
+struct direct_conversation_result
+{
+    std::int64_t conversation = 0;
+    bool can_send = false;
 };
 
 struct conversations_result

@@ -101,13 +101,33 @@ boost::capy::task<simdjson::error_code> chat_session::handle_contact_change(json
         parameters.emplace_back(std::to_string(params.user));
         if (request.method == "remove_contact")
         {
+            auto begun = co_await lease.connection().execute_row("BEGIN");
+            auto locked = co_await lease.connection().execute_row(
+                "SELECT id::text FROM conversations WHERE kind='direct' AND direct_user_low=least($1::bigint,$2::bigint) "
+                "AND direct_user_high=greatest($1::bigint,$2::bigint) FOR UPDATE", parameters);
+            if (std::get<0>(begun) || std::get<0>(locked))
+            {
+                lease.connection().close();
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
             auto remove_result = co_await lease.connection().execute_scalar(
                 "WITH removed AS (DELETE FROM contacts WHERE owner_id=$1::bigint AND contact_id=$2::bigint "
                 "RETURNING 1) SELECT (count(*)>0)::text FROM removed", std::move(parameters));
             auto& [ec, removed] = remove_result;
             if (ec)
             {
+                lease.connection().close();
                 co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            auto committed = co_await lease.connection().execute_row("COMMIT");
+            if (std::get<0>(committed))
+            {
+                lease.connection().close();
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            if (upload_ && std::get<1>(locked) && upload_->conversation == std::stoll(std::get<1>(locked)->front()))
+            {
+                upload_.reset();
             }
             co_return serialize_json_rpc_success("{\"removed\":" + removed + "}", std::move(request.id), response);
         }

@@ -166,6 +166,10 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(list_, &QListWidget::currentRowChanged, this, [this] { update_actions(); });
+    connect(list_, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
+        auto const row = list_->row(item);
+        if (row >= 0 && row < members_.size()) { emit user_requested(members_[row].id, members_[row].username); }
+    });
     connect(requests_, &QListWidget::currentRowChanged, this, [this] { update_actions(); });
     connect(approval_, &QCheckBox::clicked, this, [this](bool required) {
         approval_->setChecked(!required);

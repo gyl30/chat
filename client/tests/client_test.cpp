@@ -179,6 +179,18 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             co_return boost::capy::io_result<bool>{std::error_code{}, true};
         }
 
+        if (operation == "open_direct_conversation")
+        {
+            auto const user = params->at("user").as_int64();
+            boost::json::object result{{"conversation", 2}, {"can_send", true}};
+            if (user == 98) { result.erase("can_send"); }
+            if (user == 99) { result["can_send"] = "true"; }
+            if (user == 97) { result["can_send"] = false; }
+            if (user == 96) { result["conversation"] = 0; }
+            response.emplace("result", std::move(result));
+            auto [sent] = co_await send_text(connection, std::move(response));
+            co_return boost::capy::io_result<bool>{sent, !sent};
+        }
         if (operation == "set_conversation_muted" || operation == "set_conversation_pinned")
         {
             auto const conversation = params->at("conversation").as_int64();
@@ -312,6 +324,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 boost::json::object conversation;
                 conversation.emplace("id", 2);
                 conversation.emplace("kind", "direct");
+                conversation.emplace("can_send", true);
                 conversation.emplace("member_count", 2);
                 conversation.emplace("user", 2);
                 conversation.emplace("username", "bob");
@@ -338,6 +351,11 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                     if (probe == 85) { conversation["kind"] = "direct"; conversation["user"] = 2; }
                 }
                 if (before && before->at("id").as_int64() == 94) { conversation.erase("pinned"); }
+                if (before && before->at("id").as_int64() == 104) { conversation.erase("can_send"); }
+                if (before && before->at("id").as_int64() == 105) { conversation["can_send"] = "true"; }
+                if (before && before->at("id").as_int64() == 106) { conversation["can_send"] = false; }
+                if (before && before->at("id").as_int64() == 107)
+                { conversation["kind"] = "group"; conversation["user"] = nullptr; conversation["can_send"] = false; }
                 if (before && before->at("id").as_int64() >= 86 && before->at("id").as_int64() <= 92)
                 {
                     auto const probe = before->at("id").as_int64();
@@ -391,6 +409,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 conversation.emplace("member_count", 2);
                 conversation.emplace("user", 3);
                 conversation.emplace("username", "carol");
+                conversation.emplace("can_send", false);
                 conversation.emplace("avatar_revision", 0);
                 conversation.emplace("has_avatar", false);
                 conversation.emplace("last", std::move(last));
@@ -1074,7 +1093,7 @@ int main()
     if (!state.wait([&] { return conversations_called; }) || conversations.size() != 1 || conversations[0].user != 2 ||
         conversations[0].username != "bob" || conversations[0].last.id != 12 || conversations[0].last.from != 2 ||
         conversations[0].last.timestamp != 1700000000000LL || conversations[0].last.text != "hello" ||
-        conversations[0].unread != 3 || !conversations[0].muted || !conversations[0].pinned)
+        conversations[0].unread != 3 || !conversations[0].muted || !conversations[0].pinned || !conversations[0].can_send)
     {
         std::cerr << "FAIL client conversations\n";
         return 1;
@@ -1096,12 +1115,35 @@ int main()
     });
     if (!state.wait([&] { return conversation_cursor_called; }) || older_conversations.size() != 1 ||
         older_conversations[0].user != 3 || older_conversations[0].last.id != 6 || older_conversations[0].muted ||
-        older_conversations[0].pinned)
+        older_conversations[0].pinned || older_conversations[0].can_send)
     {
         std::cerr << "FAIL client conversation cursor\n";
         return 1;
     }
     std::cout << "PASS client conversation cursor\n";
+
+    for (auto user : {2, 96, 97, 98, 99})
+    {
+        auto promise = std::make_shared<std::promise<std::expected<chat::direct_conversation_result, chat::error>>>();
+        auto future = promise->get_future();
+        client.open_direct_conversation(user, [promise](auto result) { promise->set_value(std::move(result)); });
+        if (future.wait_for(5s) != std::future_status::ready) { return 1; }
+        auto result = future.get();
+        if (user == 2 ? (!result || result->conversation != 2 || !result->can_send)
+                      : (result.has_value() || result.error().kind != chat::error_kind::protocol)) { return 1; }
+    }
+    for (auto probe : {104, 105, 106, 107})
+    {
+        auto promise = std::make_shared<std::promise<std::expected<chat::conversations_result, chat::error>>>();
+        auto future = promise->get_future();
+        client.get_conversations(chat::conversation_cursor{1700000000000LL, probe, false},
+            [promise](auto result) { promise->set_value(std::move(result)); });
+        if (future.wait_for(5s) != std::future_status::ready) { return 1; }
+        auto result = future.get();
+        if (probe == 106 ? (!result || result->conversations.front().can_send)
+                         : (result.has_value() || result.error().kind != chat::error_kind::protocol)) { return 1; }
+    }
+    std::cout << "PASS authoritative direct capability and strict snapshot validation\n";
 
     bool messages_called = false;
     chat::messages_result messages_result;

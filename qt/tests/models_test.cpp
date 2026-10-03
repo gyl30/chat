@@ -235,6 +235,7 @@ int main(int argc, char** argv)
     conversation_data group;
     group.id = 2;
     group.group = true;
+    group.can_send = true;
     group.user = 0;
     group.muted = true;
     group.pinned = true;
@@ -242,6 +243,14 @@ int main(int argc, char** argv)
     group.announcement = QStringLiteral("当前群公告\n<纯文本>");
     group.join_approval = true;
     conversations.set_conversations({direct, group});
+    if (conversations.conversation_at(conversations.index_for_conversation(1))->can_send ||
+        !conversations.conversation_at(conversations.index_for_conversation(2))->can_send) { return 1; }
+    direct.can_send = true;
+    conversations.set_conversations({direct, group});
+    if (!conversations.conversation_at(conversations.index_for_conversation(1))->can_send) { return 1; }
+    direct.can_send = false;
+    conversations.set_conversations({direct, group});
+    if (conversations.conversation_at(conversations.index_for_conversation(1))->can_send) { return 1; }
     if (conversations.conversation_at(conversations.index_for_conversation(2))->announcement != group.announcement ||
         !conversations.conversation_at(conversations.index_for_conversation(1))->announcement.isEmpty() ||
         !conversations.conversation_at(conversations.index_for_conversation(2))->join_approval ||

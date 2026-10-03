@@ -3,6 +3,7 @@
 #include <QFont>
 #include <QFontMetrics>
 #include <QPainter>
+#include <QMouseEvent>
 
 #include "avatar.hpp"
 #include "presence.hpp"
@@ -10,6 +11,21 @@
 #include "user_model.hpp"
 
 user_delegate::user_delegate(QObject* parent) : QStyledItemDelegate(parent) {}
+
+bool user_delegate::editorEvent(QEvent* event, QAbstractItemModel* model,
+                                QStyleOptionViewItem const& option, QModelIndex const& index)
+{
+    if (event->type() != QEvent::MouseButtonRelease)
+    {
+        return QStyledItemDelegate::editorEvent(event, model, option, index);
+    }
+    auto* mouse = static_cast<QMouseEvent*>(event);
+    QRect avatar_rect(option.rect.left() + chat_theme::dialog_left, option.rect.top() + chat_theme::dialog_avatar_top,
+                      chat_theme::dialog_avatar_size, chat_theme::dialog_avatar_size);
+    if (mouse->button() != Qt::LeftButton || !avatar_rect.contains(mouse->pos())) { return false; }
+    emit avatar_clicked(index);
+    return true;
+}
 
 void user_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option, QModelIndex const& index) const
 {

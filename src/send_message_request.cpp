@@ -253,6 +253,18 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
             }
             co_return simdjson::SUCCESS;
         }
+        auto allowed = co_await check_conversation_send(connection, params.conversation);
+        if (!allowed || !*allowed)
+        {
+            auto rolled_back = co_await connection.execute_row("ROLLBACK");
+            if (std::get<0>(rolled_back)) { connection.close(); }
+            if (request.id.present)
+            {
+                co_return serialize_json_rpc_error(allowed ? -32006 : -32000,
+                    allowed ? "Communication not allowed" : "Server error", std::move(request.id), response);
+            }
+            co_return simdjson::SUCCESS;
+        }
 
         std::vector<std::string> parameters;
         parameters.emplace_back(std::to_string(*user_id_));
@@ -392,6 +404,6 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         co_return serialize_json_rpc_success(payload, std::move(request.id), response);
     }
 
-    co_return serialize_send_message_result(notification.params.id, notification.params.timestamp, realtime,
+    co_return serialize_send_message_result(notification.params.id, notification.params.timestamp, realtime.value_or(false),
                                             std::move(notification.params.reply), std::move(notification.params.mentions), std::move(request.id), response);
 }

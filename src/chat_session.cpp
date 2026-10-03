@@ -69,23 +69,24 @@ boost::capy::task<void> chat_session::publish_presence(bool online)
         auto& [update_ec, value] = update_result;
         if (update_ec)
         {
+            lease.connection().close();
             co_return;
         }
         last_seen = std::move(value);
     }
 
+    auto begun = co_await lease.connection().execute_row("BEGIN");
+    if (std::get<0>(begun)) { lease.connection().close(); co_return; }
+
     auto watchers_result = co_await lease.connection().execute_scalar(
-        "SELECT COALESCE(string_agg(peer::text, ',' ORDER BY peer), '') FROM ("
-        "SELECT owner_id AS peer FROM contacts WHERE contact_id = $1::bigint "
-        "UNION "
-        "SELECT CASE WHEN direct_user_low=$1::bigint THEN direct_user_high ELSE direct_user_low END AS peer "
-        "FROM conversations c WHERE kind='direct' AND (direct_user_low=$1::bigint OR direct_user_high=$1::bigint) "
-        "AND EXISTS(SELECT 1 FROM messages WHERE conversation_id=c.id)"
-        ") AS peers WHERE peer <> $1::bigint",
+        "WITH watchers AS (SELECT owner_id AS peer FROM contacts WHERE contact_id=$1::bigint "
+        "ORDER BY owner_id FOR KEY SHARE) "
+        "SELECT COALESCE(string_agg(peer::text, ',' ORDER BY peer), '') FROM watchers WHERE peer<>$1::bigint",
         {user});
     auto& [watchers_ec, watchers] = watchers_result;
     if (watchers_ec)
     {
+        lease.connection().close();
         co_return;
     }
 
@@ -118,15 +119,17 @@ boost::capy::task<void> chat_session::publish_presence(bool online)
         }
         remaining.remove_prefix(separator + 1);
     }
+    auto committed = co_await lease.connection().execute_row("COMMIT");
+    if (std::get<0>(committed)) { lease.connection().close(); }
 }
 
-boost::capy::task<bool> chat_session::publish_conversation(std::int64_t conversation, std::string notification,
-                                                        bool require_sender_membership)
+boost::capy::task<std::expected<bool, std::error_code>> chat_session::publish_conversation(
+    std::int64_t conversation, std::string notification, bool require_sender_permission)
 {
     auto lease = co_await database_.acquire();
     if (lease.error())
     {
-        co_return false;
+        co_return std::unexpected(lease.error());
     }
     auto& connection = lease.connection();
     // 取得锁后查询当前成员，并在释放锁前入队，避免移除后仍使用旧收件人快照。
@@ -136,21 +139,29 @@ boost::capy::task<bool> chat_session::publish_conversation(std::int64_t conversa
     if (std::get<0>(begun) || std::get<0>(locked))
     {
         connection.close();
-        co_return false;
+        co_return std::unexpected(std::get<0>(begun) ? std::get<0>(begun) : std::get<0>(locked));
+    }
+    if (require_sender_permission)
+    {
+        auto allowed = co_await check_conversation_send(connection, conversation);
+        if (!allowed || !*allowed)
+        {
+            auto rolled_back = co_await connection.execute_row("ROLLBACK");
+            if (std::get<0>(rolled_back)) { connection.close(); }
+            co_return std::unexpected(allowed ? std::make_error_code(std::errc::permission_denied) : allowed.error());
+        }
     }
     auto query_result = co_await lease.connection().execute_scalar(
         "SELECT COALESCE(string_agg(m.user_id::text, ',' ORDER BY m.user_id),'') "
         "FROM conversation_members m JOIN conversations c ON c.id=m.conversation_id "
         "WHERE m.conversation_id=$1::bigint AND (m.user_id<>$2::bigint OR "
-        "(c.kind='direct' AND c.direct_user_low=c.direct_user_high)) "
-        "AND (NOT $3::boolean OR EXISTS(SELECT 1 FROM conversation_members "
-        "WHERE conversation_id=$1::bigint AND user_id=$2::bigint))",
-        {std::to_string(conversation), std::to_string(*user_id_), require_sender_membership ? "true" : "false"});
+        "(c.kind='direct' AND c.direct_user_low=c.direct_user_high))",
+        {std::to_string(conversation), std::to_string(*user_id_)});
     auto& [ec, recipients] = query_result;
     if (ec)
     {
         connection.close();
-        co_return false;
+        co_return std::unexpected(ec);
     }
     bool realtime = false;
     std::string_view remaining = recipients;

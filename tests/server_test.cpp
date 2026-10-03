@@ -1038,7 +1038,7 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         auto unavailable_send_message_reply_result = co_await receive_websocket_text(socket);
         auto& [unavailable_send_message_read_ec, unavailable_send_message_reply] = unavailable_send_message_reply_result;
         constexpr std::string_view expected_unavailable_send_message_reply =
-            R"({"jsonrpc":"2.0","error":{"code":-32006,"message":"Conversation unavailable"},"id":"send-unavailable"})";
+            R"({"jsonrpc":"2.0","error":{"code":-32006,"message":"Communication not allowed"},"id":"send-unavailable"})";
         if (unavailable_send_message_read_ec ||
             !json_matches(unavailable_send_message_reply, expected_unavailable_send_message_reply))
         {
@@ -1047,79 +1047,38 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         }
         std::cout << "PASS unavailable send message rejected\n";
 
-        auto self_conversation = co_await open_direct(socket, registered_user->front());
-        if (self_conversation.empty())
+        if (!(co_await open_direct(socket, registered_user->front())).empty())
         {
-            std::cerr << "FAIL self conversation\n";
+            std::cerr << "FAIL self direct requires an impossible self-contact\n";
             co_return 1;
         }
-
+        auto legacy_result = co_await fixture_connection.execute_row(
+            "WITH created AS (INSERT INTO conversations(kind,direct_user_low,direct_user_high) "
+            "VALUES('direct',$1::bigint,$1::bigint) RETURNING id), "
+            "members AS (INSERT INTO conversation_members(conversation_id,user_id) SELECT id,$1::bigint FROM created) "
+            "SELECT id::text FROM created", {registered_user->front()});
+        auto& [legacy_ec, legacy_row] = legacy_result;
+        if (legacy_ec || !legacy_row) { co_return 1; }
+        auto const self_conversation = legacy_row->front();
+        auto legacy_message = co_await fixture_connection.execute_row(
+            "INSERT INTO messages(sender_id,conversation_id,body) VALUES($1::bigint,$2::bigint,'hello self') "
+            "RETURNING id::text,sender_id::text,sender_id::text,body,"
+            "((extract(epoch FROM created_at)*1000)::bigint)::text", {registered_user->front(), self_conversation});
+        auto& [self_message_ec, self_message_row] = legacy_message;
+        if (self_message_ec || !self_message_row) { co_return 1; }
         std::string self_send_message = R"({"jsonrpc":"2.0","method":"send_message","params":{"conversation":)";
         self_send_message.append(self_conversation);
-        self_send_message.append(R"(,"text":"hello self"},"id":"send-self"})");
-        auto [self_send_message_write_ec] = co_await send_websocket_text(socket, self_send_message);
-        if (self_send_message_write_ec)
+        self_send_message.append(R"(,"text":"new self communication"},"id":"send-self"})");
+        auto [self_write_ec] = co_await send_websocket_text(socket, self_send_message);
+        if (self_write_ec) { co_return 1; }
+        auto self_reply = co_await receive_websocket_text(socket);
+        if (std::get<0>(self_reply) || !json_matches(std::get<1>(self_reply),
+            R"({"error":{"code":-32006},"id":"send-self"})"))
         {
-            std::cerr << "FAIL self send message write\n";
+            std::cerr << "FAIL historical self direct is read-only\n";
             co_return 1;
         }
-
-        auto self_send_message_reply_result = co_await receive_websocket_text(socket);
-        auto& [self_send_message_read_ec, self_send_message_reply] = self_send_message_reply_result;
-        if (self_send_message_read_ec)
-        {
-            std::cerr << "FAIL self send message response\n";
-            co_return 1;
-        }
-
-        std::vector<std::string> self_message_parameters;
-        self_message_parameters.push_back(registered_user->front());
-        auto self_message_result = co_await fixture_connection.execute_row(
-            "SELECT id::text, sender_id::text, sender_id::text, body, "
-            "((extract(epoch from created_at) * 1000)::bigint)::text FROM messages "
-            "WHERE sender_id = $1::bigint AND conversation_id=(SELECT id FROM conversations WHERE kind='direct' AND "
-            "direct_user_low=$1::bigint AND direct_user_high=$1::bigint) "
-            "ORDER BY id DESC LIMIT 1",
-            std::move(self_message_parameters));
-        auto& [self_message_ec, self_message_row] = self_message_result;
-        if (self_message_ec || !self_message_row || self_message_row->size() != 5 ||
-            self_message_row->at(1) != registered_user->front() || self_message_row->at(2) != registered_user->front() ||
-            self_message_row->at(3) != "hello self")
-        {
-            std::cerr << "FAIL self message persistence: " << fixture_connection.error_message() << '\n';
-            co_return 1;
-        }
-        std::cout << "PASS self message persistence\n";
-
-        std::string expected_self_send_message_reply = R"({"jsonrpc":"2.0","result":{"message":)";
-        expected_self_send_message_reply.append(self_message_row->at(0));
-        expected_self_send_message_reply.append(R"(,"timestamp":)");
-        expected_self_send_message_reply.append(self_message_row->at(4));
-        expected_self_send_message_reply.append(R"(,"realtime":true},"id":"send-self"})");
-        if (!json_matches(self_send_message_reply, expected_self_send_message_reply))
-        {
-            std::cerr << "FAIL self send message response\n";
-            co_return 1;
-        }
-        std::cout << "PASS self send message response\n";
-
-        auto self_message_notification_result = co_await receive_websocket_text(socket);
-        auto& [self_message_notification_read_ec, self_message_notification] = self_message_notification_result;
-        std::string expected_self_message_notification =
-            R"({"jsonrpc":"2.0","method":"message","params":{"id":)";
-        expected_self_message_notification.append(self_message_row->at(0));
-        expected_self_message_notification.append(R"(,"from":)");
-        expected_self_message_notification.append(registered_user->front());
-        expected_self_message_notification.append(R"(,"timestamp":)");
-        expected_self_message_notification.append(self_message_row->at(4));
-        expected_self_message_notification.append(R"(,"text":"hello self"}})");
-        if (self_message_notification_read_ec ||
-            !json_matches(self_message_notification, expected_self_message_notification))
-        {
-            std::cerr << "FAIL self message notification\n";
-            co_return 1;
-        }
-        std::cout << "PASS self message notification\n";
+        std::cout << "PASS historical self direct retained without new self communication\n";
 
         std::string get_messages_request = R"({"jsonrpc":"2.0","method":"get_messages","params":{"conversation":)";
         get_messages_request.append(self_conversation);
@@ -1599,13 +1558,6 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return 1;
     }
 
-    auto direct_conversation = co_await open_direct(source_socket, peer_user_id);
-    if (direct_conversation.empty())
-    {
-        std::cerr << "FAIL direct conversation\n";
-        co_return 1;
-    }
-
     auto peer_rpc = [&](std::string method, std::string params) -> boost::capy::task<std::string> {
         auto [write_ec] = co_await send_websocket_text(source_socket,
             "{\"jsonrpc\":\"2.0\",\"method\":\"" + method + "\",\"params\":" + params +
@@ -1614,14 +1566,28 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         {
             co_return std::string{};
         }
-        auto reply_result = co_await receive_websocket_text(source_socket);
-        auto& [read_ec, reply] = reply_result;
-        if (read_ec)
+        for (;;)
         {
-            co_return std::string{};
+            auto reply_result = co_await receive_websocket_text(source_socket);
+            auto& [read_ec, reply] = reply_result;
+            if (read_ec) { co_return std::string{}; }
+            auto value = boost::json::parse(reply);
+            auto const* method = value.as_object().if_contains("method");
+            if (method && method->as_string() == "presence") { continue; }
+            co_return std::move(reply);
         }
-        co_return std::move(reply);
     };
+    auto denied_direct = co_await peer_rpc("open_direct_conversation", "{\"user\":" + peer_user_id + "}");
+    if (!json_matches(denied_direct, R"({"error":{"code":-32005}})")) { co_return 1; }
+    auto initial_contact = co_await peer_rpc("add_contact", "{\"user\":" + peer_user_id + "}");
+    if (!boost::json::parse(initial_contact).as_object().contains("result")) { co_return 1; }
+    auto direct_conversation = co_await open_direct(source_socket, peer_user_id);
+    if (direct_conversation.empty())
+    {
+        std::cerr << "FAIL direct conversation\n";
+        co_return 1;
+    }
+
     auto attachment_begin = "{\"conversation\":" + direct_conversation + ",\"filename\":\"probe.bin\",\"size\":3}";
     auto forged_mentions = co_await peer_rpc("send_message", "{\"conversation\":" + direct_conversation +
         ",\"text\":\"@user\",\"mentions\":[{\"user\":1,\"username\":\"user\"}]}");
@@ -2017,6 +1983,41 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     }
     std::cout << "PASS typing strict params and offline response\n";
 
+    auto contact_upload = co_await peer_rpc("begin_attachment", attachment_begin);
+    auto const contact_upload_id = boost::json::parse(contact_upload).at("result").at("upload").as_int64();
+    co_await peer_rpc("upload_attachment", "{\"upload\":" + std::to_string(contact_upload_id) +
+        ",\"offset\":0,\"data\":\"AAEC\"}");
+    co_await fixture_connection.execute_row("BEGIN");
+    co_await fixture_connection.execute_row("SELECT id FROM conversations WHERE id=$1::bigint FOR UPDATE", {direct_conversation});
+    auto externally_removed = co_await fixture_connection.execute_row(
+        "DELETE FROM contacts WHERE owner_id=$1::bigint AND contact_id=$2::bigint", {source_user_id, peer_user_id});
+    auto removal_committed = co_await fixture_connection.execute_row("COMMIT");
+    if (std::get<0>(externally_removed) || std::get<0>(removal_committed)) { co_return 1; }
+    auto revoked_finish = co_await peer_rpc("finish_attachment", "{\"upload\":" + std::to_string(contact_upload_id) + "}");
+    auto revoked_chunk = co_await peer_rpc("upload_attachment", "{\"upload\":" + std::to_string(contact_upload_id) +
+        ",\"offset\":0,\"data\":\"AAEC\"}");
+    if (!json_matches(revoked_finish, R"({"error":{"code":-32006}})") ||
+        !json_matches(revoked_chunk, R"({"error":{"code":-32008}})"))
+    {
+        std::cerr << "FAIL attachment finish does not recheck authoritative contact or release upload state\n";
+        co_return 1;
+    }
+    co_await peer_rpc("add_contact", "{\"user\":" + peer_user_id + "}");
+    contact_upload = co_await peer_rpc("begin_attachment", attachment_begin);
+    auto const next_contact_upload = boost::json::parse(contact_upload).at("result").at("upload").as_int64();
+    co_await peer_rpc("upload_attachment", "{\"upload\":" + std::to_string(next_contact_upload) +
+        ",\"offset\":0,\"data\":\"AAEC\"}");
+    auto removed_for_search = co_await peer_rpc("remove_contact", "{\"user\":" + peer_user_id + "}");
+    if (!json_matches(removed_for_search, R"({"result":{"removed":true}})")) { co_return 1; }
+    auto contact_finish = co_await peer_rpc("finish_attachment", "{\"upload\":" + std::to_string(next_contact_upload) + "}");
+    auto contact_begin = co_await peer_rpc("begin_attachment", attachment_begin);
+    if (!json_matches(contact_finish, R"({"error":{"code":-32008}})") ||
+        !json_matches(contact_begin, R"({"error":{"code":-32006}})"))
+    {
+        std::cerr << "FAIL contact removal retains an active upload\n";
+        co_return 1;
+    }
+    std::cout << "PASS contact removal cancels upload and forbids new attachment\n";
     constexpr std::string_view empty_contacts_request =
         R"({"jsonrpc":"2.0","method":"get_contacts","id":"contacts-empty"})";
     auto empty_contacts_write_result = co_await send_websocket_text(source_socket, empty_contacts_request);

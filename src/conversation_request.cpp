@@ -21,6 +21,20 @@ struct [[= simdjson::deny_unknown_fields]] create_conversation_params
 
 }
 
+boost::capy::task<std::expected<bool, std::error_code>> chat_session::check_conversation_send(
+    pg_connection& connection, std::int64_t conversation)
+{
+    auto result = co_await connection.execute_row(
+        "SELECT own.user_id::text FROM conversation_members own JOIN conversations c ON c.id=own.conversation_id "
+        "WHERE c.id=$2::bigint AND own.user_id=$1::bigint AND (c.kind='group' OR EXISTS(SELECT 1 FROM contacts "
+        "WHERE owner_id=$1::bigint AND contact_id=CASE WHEN c.direct_user_low=$1::bigint "
+        "THEN c.direct_user_high ELSE c.direct_user_low END FOR KEY SHARE))",
+        {std::to_string(*user_id_), std::to_string(conversation)});
+    auto& [ec, row] = result;
+    if (ec) { co_return std::unexpected(ec); }
+    co_return row.has_value();
+}
+
 boost::capy::task<simdjson::error_code> chat_session::handle_create_conversation(json_rpc_request& request,
                                                                                  std::string& response)
 {
@@ -83,6 +97,12 @@ boost::capy::task<simdjson::error_code> chat_session::handle_create_conversation
     }
     else
     {
+        auto begun = co_await lease.connection().execute_row("BEGIN");
+        if (std::get<0>(begun))
+        {
+            lease.connection().close();
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
         values.push_back(std::to_string(params.user));
         query = "WITH created AS (INSERT INTO conversations(kind,direct_user_low,direct_user_high) "
                 "SELECT 'direct',least($1::bigint,id),greatest($1::bigint,id) FROM users WHERE id=$2::bigint "
@@ -97,20 +117,46 @@ boost::capy::task<simdjson::error_code> chat_session::handle_create_conversation
     auto& [ec, row] = query_result;
     if (ec)
     {
+        if (!group) { lease.connection().close(); }
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
     if (!row)
     {
+        if (!group)
+        {
+            auto rolled_back = co_await lease.connection().execute_row("ROLLBACK");
+            if (std::get<0>(rolled_back)) { lease.connection().close(); }
+        }
         co_return serialize_json_rpc_error(-32005, "User unavailable", std::move(request.id), response);
     }
-    lease = {};
     auto const id = std::stoll(row->front());
+    if (!group)
+    {
+        auto allowed = co_await check_conversation_send(lease.connection(), id);
+        if (!allowed)
+        {
+            lease.connection().close();
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        auto ended = co_await lease.connection().execute_row(*allowed ? "COMMIT" : "ROLLBACK");
+        if (std::get<0>(ended))
+        {
+            lease.connection().close();
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        if (!*allowed)
+        {
+            co_return serialize_json_rpc_error(-32005, "Contact required", std::move(request.id), response);
+        }
+    }
+    lease = {};
     if (group)
     {
         co_await publish_conversation(
             id, "{\"jsonrpc\":\"2.0\",\"method\":\"conversation\",\"params\":{\"conversation\":" + row->front() + "}}");
     }
-    co_return serialize_json_rpc_success("{\"conversation\":" + row->front() + "}", std::move(request.id), response);
+    co_return serialize_json_rpc_success("{\"conversation\":" + row->front() +
+        (group ? "}" : ",\"can_send\":true}"), std::move(request.id), response);
 }
 
 boost::capy::task<simdjson::error_code> chat_session::handle_get_members(json_rpc_request& request,

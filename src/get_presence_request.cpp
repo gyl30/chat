@@ -53,10 +53,6 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_presence(json_r
         auto query_result = co_await lease.connection().execute_scalar(
             "WITH peers AS ("
             "SELECT contact_id AS id FROM contacts WHERE owner_id = $1::bigint "
-            "UNION "
-            "SELECT CASE WHEN direct_user_low=$1::bigint THEN direct_user_high ELSE direct_user_low END AS id "
-            "FROM conversations c WHERE kind='direct' AND (direct_user_low=$1::bigint OR direct_user_high=$1::bigint) "
-            "AND EXISTS(SELECT 1 FROM messages WHERE conversation_id=c.id)"
             "), found AS ("
             "SELECT u.id, (extract(epoch from u.last_seen_at) * 1000)::bigint AS last_seen "
             "FROM peers JOIN users u ON u.id = peers.id "

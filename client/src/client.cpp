@@ -968,13 +968,16 @@ struct client::impl
                     auto const* pinned_message = object.if_contains("pinned_message");
                     auto const* announcement = object.if_contains("announcement");
                     auto const* approval = object.if_contains("join_approval");
+                    auto const* can_send = object.if_contains("can_send");
                     auto id = id_value ? parse_int64(*id_value) : std::nullopt;
                     auto unread = unread_value ? parse_uint64(*unread_value) : std::nullopt;
                     auto count = count_value ? parse_uint64(*count_value) : std::nullopt;
                     if (!id || *id <= 0 || !kind || !kind->is_string() || !user_value || !name || !name->is_string() ||
                         !last || !unread || !count || *count == 0 || !muted || !muted->is_bool() ||
                         !pinned || !pinned->is_bool() || !pinned_message || !announcement || !announcement->is_string() ||
-                        !approval || !approval->is_bool() || (kind->as_string() == "direct" && approval->as_bool()))
+                        !approval || !approval->is_bool() || !can_send || !can_send->is_bool() ||
+                        (kind->as_string() == "group" && !can_send->as_bool()) ||
+                        (kind->as_string() == "direct" && approval->as_bool()))
                 {
                     handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation")));
                     return;
@@ -988,6 +991,7 @@ struct client::impl
                     item.pinned = pinned->as_bool();
                     item.announcement = std::string(announcement->as_string());
                     item.join_approval = approval->as_bool();
+                    item.can_send = can_send->as_bool();
                     if (item.announcement.size() > 4096 || item.announcement.find('\0') != std::string::npos ||
                         (kind->as_string() == "direct" && !item.announcement.empty()))
                     {
@@ -1077,10 +1081,28 @@ struct client::impl
         co_return;
     }
 
-    boost::capy::task<> create_conversation(std::string method, boost::json::object params,
-                                            conversation_handler handler)
+    boost::capy::task<> open_direct_conversation(std::int64_t user, direct_conversation_handler handler)
     {
-        send_request(std::move(method), std::move(params),
+        send_request("open_direct_conversation", {{"user", user}}, [handler = std::move(handler)](auto response) mutable {
+            if (!response) { handler(std::unexpected(std::move(response.error()))); return; }
+            auto const* id_value = response->is_object() ? response->as_object().if_contains("conversation") : nullptr;
+            auto const* allowed = response->is_object() ? response->as_object().if_contains("can_send") : nullptr;
+            auto id = id_value ? parse_int64(*id_value) : std::nullopt;
+            if (!id || *id <= 0 || !allowed || !allowed->is_bool() || !allowed->as_bool())
+            {
+                handler(std::unexpected(make_error(error_kind::protocol, "Invalid direct conversation result")));
+                return;
+            }
+            handler(direct_conversation_result{*id, allowed->as_bool()});
+        });
+        co_return;
+    }
+
+    boost::capy::task<> create_group(std::string title, std::vector<std::int64_t> members, conversation_handler handler)
+    {
+        boost::json::array values;
+        for (auto id : members) { values.emplace_back(id); }
+        send_request("create_group", {{"title", std::move(title)}, {"members", std::move(values)}},
                      [handler = std::move(handler)](auto response) mutable
                      {
                          if (!response)
@@ -2227,21 +2249,16 @@ void client::set_conversation_pinned(std::int64_t conversation, bool pinned, pin
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->set_conversation_preference(conversation, pinned, true, std::move(handler)));
 }
 
-void client::open_direct_conversation(std::int64_t user, conversation_handler handler)
+void client::open_direct_conversation(std::int64_t user, direct_conversation_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(
-        impl_->create_conversation("open_direct_conversation", {{"user", user}}, std::move(handler)));
+        impl_->open_direct_conversation(user, std::move(handler)));
 }
 
 void client::create_group(std::string title, std::vector<std::int64_t> members, conversation_handler handler)
 {
-    boost::json::array values;
-    for (auto id : members)
-    {
-        values.emplace_back(id);
-    }
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->create_conversation(
-        "create_group", {{"title", std::move(title)}, {"members", std::move(values)}}, std::move(handler)));
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->create_group(std::move(title), std::move(members), std::move(handler)));
 }
 
 void client::get_members(std::int64_t conversation, members_handler handler)

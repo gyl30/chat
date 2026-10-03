@@ -2,7 +2,7 @@
 
 本记录对应截至 2026-10-03 的仓库实际历史。阶段提交和 push 结果以 Git 历史为准，Telegram 调研与裁剪依据见 [调研记录](telegram-group-design-research.md)。
 
-当前长期 Goal 从 `bac606681cac9acff3f75c9c0588831b77646214` 开始；头像在该基线已完成，未重复开发。阶段 0–12 的产品能力和最终综合审查均已完成，最终验证见文末。下文各阶段的“下一阶段”是当时的开发记录，当前状态以已完成路线和最终综合审查为准。
+上一轮长期 Goal 从 `bac606681cac9acff3f75c9c0588831b77646214` 开始；头像在该基线已完成，未重复开发。阶段 0–12 的产品能力和最终综合审查均已完成。本轮从 `49bfa2941dd23aff3c50332d7a90b8d9cae9d592` 开始，仅收口产品语义、授权关系和状态转换，不增加产品功能。下文各阶段的“下一阶段”是当时的开发记录，当前规则以本轮审查记录为准。
 
 ## 已完成路线
 
@@ -39,7 +39,7 @@
 
 ## 数据模型
 
-- `users` 保存账号、最后在线时间和单调递增的 `avatar_revision`；`contacts` 是单向关系。`user_avatars` 保存一个当前头像，是否存在由数据行决定；不与消息附件共表。
+- `users` 保存账号、最后在线时间和单调递增的 `avatar_revision`；`contacts(owner_id,contact_id)` 是单向主动单聊通讯授权。`user_avatars` 保存一个当前头像，是否存在由数据行决定；不与消息附件共表。
 - `conversations.kind` 显式区分 `direct/group`；单聊使用真实的两端 user ID，群使用会话 ID、群名和 `owner_id`。
 - `conversation_members` 表示当前成员，持有 `is_admin`、`last_read_message_id`、`joined_message_id` 和个人 `muted/pinned`。群主必须是群成员，由延迟外键保证；管理员上限在同一会话锁事务内检查。
 - `messages` 指向会话和真实作者，包含回复 ID、编辑时间、删除占位；`message_attachments` 保存附件元数据和内容。删除附件消息会清除文件内容。SQL 016 增加独立 `message_reactions` 和消息的单调 `reaction_revision`，每用户每消息一条回应，删除消息时清除回应。
@@ -57,8 +57,8 @@
 
 | RPC | 主要参数或结果 |
 |---|---|
-| `open_direct_conversation` / `create_group` | 真实用户 / 群名及联系人 ID 列表；返回会话 ID |
-| `get_conversations` | `(pinned, activity, id)` cursor；置顶优先，各层内活动时间和 ID 降序；会话资料、未读与个人 muted/pinned |
+| `open_direct_conversation` / `create_group` | 真实用户 / 群名及自己的联系人 ID 列表；open 要求当前联系人，返回 `conversation,can_send:true`；create 返回会话 ID |
+| `get_conversations` | `(pinned, activity, id)` cursor；全部当前 membership，包括已创建的空单聊；置顶优先，各层内活动时间和 ID 降序；会话资料、未读、个人 muted/pinned 和权威 `can_send` |
 | `set_conversation_muted` | `conversation, muted`；只修改当前成员自己的偏好，返回当前 muted |
 | `set_conversation_pinned` | `conversation, pinned`；只修改本人列表排序偏好，返回当前 pinned |
 | `get_messages` | 会话及互斥的 `before/after` 消息 ID；消息、当前成员实际阅读位置、`has_more` |
@@ -503,3 +503,35 @@ Qt 重启测试先确认申请已在服务器持久化，再重启，避免把�
 当前成员快照、读位返回和群通知 fanout 随成员数线性增长；已测范围 3–200 人，没有凭此新增人数上限或大群基础设施。GitHub Actions 仍未接入，当前 GCC 16 反射及 Boost 1.92 缺少固定、已验证的 hosted 工具链获取基线，可靠本地入口和限制见 [验证说明](verification.md)。桌面通知点击恢复窗口，Qt 公共接口未提供稳定的通知会话身份，未声称可精确跳到任意旧通知对应的会话。
 
 本 Goal 至此停止。未实现且不属于本轮范围的能力包括多设备同步、E2EE、音视频、超大群、channel/broadcast、bot、分布式 presence、对象存储/CDN、Redis/Kafka、微服务、event sourcing 和 CQRS；需要另行确定真实需求。没有自动启动这些路线。
+
+## 产品语义与授权审查：联系人和单聊
+
+本轮重新 fetch 后的起点为 `HEAD = origin/main = 49bfa2941dd23aff3c50332d7a90b8d9cae9d592`，开始时工作树干净。修改前完整运行统一验证入口，normal、ASan、UBSan 均 14/14 PASS，分别 67.03、85.61、80.21 秒；新增非联系人 open 回归在修复前失败。本部分没有 schema migration，SQL 001–023 未修改。
+
+`contacts(owner_id,contact_id)` 是操作者自己的单向主动 direct 通讯授权。A 添加 B 只授予 A→B，接收消息、对方添加自己、历史会话和共享群都不授予反向发送资格。get_contacts 只返回自己的关系，search_users 排除自己和自己的已有联系人。direct conversation 是历史容器，删除联系人不删除会话、成员、消息、读位、搜索或附件。
+
+| direct 操作 | 自己仍持有 peer contact | 自己已无 peer contact |
+|---|---|---|
+| open direct、发送文字/新回复、附件 begin/finish、typing 开始/结束、reaction 添加/替换/清除、编辑自己的消息 | 允许，仍检查当前 membership/作者/目标 | 拒绝 |
+| 历史及 cursor、历史搜索、附件/图片查看、公开头像和资料、mark_read、个人 mute/pin | 允许 | 允许，仍检查历史 membership |
+| 删除自己过去发布的消息 | 允许 | 允许，仍检查作者和历史 membership |
+
+direct mutations 在 conversation 行锁之后查询当前联系人的数据库事实。remove_contact 使用同一个 conversation 行锁后删除自己的关系；不存在已提交 pair 的创建竞争由 contact 行 `FOR KEY SHARE` 与 DELETE 串行化，拒绝的创建完整回滚。没有 server permission cache、关系 generation、全局 mutex 或 ACL 框架。附件 begin 和 finish 都检查，移除联系人清理自己的未完成上传；服务端 finish 也独立拒绝数据库关系已经撤销的在途上传并释放状态。
+
+get_conversations 返回权威 `can_send`，包括已创建但无消息的真实 direct 容器；群当前成员为 true，direct 为自己是否仍持有 peer contact。open_direct 成功返回实际会话 ID 和 can_send:true，非联系人返回明确 domain error。SDK 使用独立结果 DTO 和严格解析，不保留旧 int 结果兼容接口。Qt 只用该快照决定 compose 和消息交互，历史及删除自己的旧内容保持；只读输入提示“对方不是你的联系人，添加联系人后可发送消息”。添加/删除联系人刷新联系人、presence 和会话；重连取得会话快照前不恢复缓存的发送资格。
+
+Profile 的自己页面保留头像和复制用户名；联系人有消息及移除入口；非联系人有添加及复制入口。添加按钮等待 RPC 成功和权威联系人刷新后才变为消息，没有乐观赋权。联系人/搜索头像、消息作者、历史 direct peer 和群成员复用同一资料窗口。
+
+presence/last_seen 只对观察者自己主动添加的联系人可见。get_presence 不包含历史 direct 或共享群；实时发布仅查 `contacts(contact_id=变化用户)` 对应的 owner，并在联系人行锁释放前入队，移除完成后的新发布不再包括该观察者。last_seen 先持久化，通知后查询不会读到提交前旧值。Qt 清理移除、断线和失败刷新的旧 presence。username/头像仍是公开资料，头像通知保留联系人关系、历史 direct 和共享群的相关范围。
+
+回归覆盖四种 A→B/B→A 组合中双方的全部主动操作与历史权限、实际删除/重新添加和重连；三个用户的 presence 单向隐私与公开头像区分；数据库锁同步的发送/typing/reaction/edit 与关系撤销、新 pair 创建竞争；附件上传期间关系撤销及清理；已有多页置顶排序、群生命周期、三窗口 Profile 实际添加、非联系人只读和历史附件访问。Qt 在断线期间真实删除关系，再持有数据库锁延迟 reconnect snapshot，确认旧发送资格不会复活；随后在只读单聊通过实际菜单删除自己的旧附件。
+
+本阶段实际完整运行 `tests/verify.sh`：
+
+| 构建 | 完整 build | 完整 CTest | 总耗时 |
+|---|---|---|---|
+| normal | PASS | 14/14 PASS | 74.08 s |
+| ASan | PASS | 14/14 PASS | 95.55 s |
+| UBSan | PASS | 14/14 PASS | 88.85 s |
+
+首次 ASan 复验揭示旧测试固定要求“群移除与 typing 竞争时 typing 必须成功”，该断言与移除先取得锁后的权限失效冲突。已改为检查实际锁顺序对应的成功或权限拒绝以及通知隔离，然后重新完整执行三套验证。没有 suppression、测试排除或增加超时，`git diff --check` PASS。

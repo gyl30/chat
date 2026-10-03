@@ -101,7 +101,6 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
                    CASE WHEN c.direct_user_low=$1::bigint THEN c.direct_user_high ELSE c.direct_user_low END AS peer
             FROM conversations c JOIN conversation_members own ON own.conversation_id=c.id
             WHERE own.user_id=$1::bigint AND (own.pinned,c.activity,c.id)<($4::boolean,$2::bigint,$3::bigint)
-              AND (c.kind='group' OR EXISTS(SELECT 1 FROM messages WHERE conversation_id=c.id))
             ORDER BY own.pinned DESC,c.activity DESC,c.id DESC LIMIT 51
         ), visible AS (SELECT * FROM page ORDER BY pinned DESC,activity DESC,id DESC LIMIT 50)
         SELECT json_build_object(
@@ -109,6 +108,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
                 'id',c.id,'kind',c.kind,'user',c.peer,'username',COALESCE(c.title,u.username),
                 'avatar_revision',COALESCE(u.avatar_revision,0),'has_avatar',EXISTS(SELECT 1 FROM user_avatars WHERE user_id=u.id),
                 'activity',c.activity,'muted',c.muted,'pinned',c.pinned,'member_count',(SELECT count(*) FROM conversation_members WHERE conversation_id=c.id),
+                'can_send',c.kind='group' OR EXISTS(SELECT 1 FROM contacts WHERE owner_id=$1::bigint AND contact_id=c.peer),
                 'announcement',c.announcement,'join_approval',c.join_approval,
                 'pinned_message',(SELECT json_build_object('id',pm.id,'from',pm.sender_id,'username',pu.username,
                     'text',left(pm.body,160),'edited_at',(extract(epoch FROM pm.edited_at)*1000)::bigint,'deleted',false)

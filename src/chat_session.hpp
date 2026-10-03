@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <deque>
+#include <expected>
 #include <optional>
 #include <string>
 
@@ -12,6 +13,7 @@
 #include "websocket.hpp"
 
 class pg_connection_pool;
+class pg_connection;
 
 class chat_session
 {
@@ -64,8 +66,10 @@ class chat_session
 
     boost::capy::task<void> publish_presence(bool online);
 
-    boost::capy::task<bool> publish_conversation(std::int64_t conversation, std::string notification,
-                                              bool require_sender_membership = false);
+    boost::capy::task<std::expected<bool, std::error_code>> check_conversation_send(pg_connection& connection,
+                                                                                std::int64_t conversation);
+    boost::capy::task<std::expected<bool, std::error_code>> publish_conversation(std::int64_t conversation,
+        std::string notification, bool require_sender_permission = false);
     boost::capy::task<void> publish_join_request(std::int64_t conversation, std::int64_t user, std::string state);
 
     bool enqueue_message(std::string message);

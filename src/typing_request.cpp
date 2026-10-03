@@ -30,25 +30,6 @@ boost::capy::task<simdjson::error_code> chat_session::handle_set_typing(json_rpc
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
-    {
-        auto lease = co_await database_.acquire();
-        if (lease.error())
-        {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        auto result = co_await lease.connection().execute_row(
-            "SELECT user_id::text FROM conversation_members WHERE conversation_id=$2::bigint AND user_id=$1::bigint",
-            {std::to_string(*user_id_), std::to_string(params.conversation)});
-        auto& [ec, member] = result;
-        if (ec)
-        {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        if (!member)
-        {
-            co_return serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response);
-        }
-    }
     struct notification
     {
         std::string jsonrpc = "2.0";
@@ -63,6 +44,12 @@ boost::capy::task<simdjson::error_code> chat_session::handle_set_typing(json_rpc
         co_return error;
     }
     auto const realtime = co_await publish_conversation(params.conversation, std::move(json), true);
-    co_return serialize_json_rpc_success(realtime ? "{\"realtime\":true}" : "{\"realtime\":false}",
+    if (!realtime)
+    {
+        auto const denied = realtime.error() == std::errc::permission_denied;
+        co_return serialize_json_rpc_error(denied ? -32006 : -32000,
+            denied ? "Communication not allowed" : "Server error", std::move(request.id), response);
+    }
+    co_return serialize_json_rpc_success(*realtime ? "{\"realtime\":true}" : "{\"realtime\":false}",
                                         std::move(request.id), response);
 }

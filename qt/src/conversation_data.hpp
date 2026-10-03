@@ -27,6 +27,7 @@ struct conversation_data
     quoted_message_data pinned_message;
     QString announcement;
     bool join_approval = false;
+    bool can_send = false;
 };
 
 Q_DECLARE_METATYPE(conversation_data)

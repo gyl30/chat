@@ -66,6 +66,14 @@ boost::capy::task<simdjson::error_code> chat_session::handle_message_reaction(js
         co_return serialize_json_rpc_error(read_ec ? -32000 : -32007,
                                           read_ec ? "Server error" : "Message unavailable", std::move(request.id), response);
     }
+    auto allowed = co_await check_conversation_send(connection, params.conversation);
+    if (!allowed || !*allowed)
+    {
+        auto rolled_back = co_await connection.execute_row("ROLLBACK");
+        if (std::get<0>(rolled_back)) { connection.close(); }
+        co_return serialize_json_rpc_error(allowed ? -32006 : -32000,
+            allowed ? "Communication not allowed" : "Server error", std::move(request.id), response);
+    }
     auto const changed = row->front() != *params.emoji;
     if (changed)
     {

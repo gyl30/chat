@@ -57,6 +57,7 @@ struct events
     std::vector<chat::typing_event> typing;
     std::vector<chat::avatar> avatars;
     std::vector<chat::group_join_request_event> join_requests;
+    std::vector<chat::presence> presences;
 
     template <class F> void wait(F predicate)
     {
@@ -66,6 +67,11 @@ struct events
 
     void attach(chat::client& client)
     {
+        client.set_presence_handler([this](chat::presence value) {
+            std::lock_guard lock(mutex);
+            presences.push_back(value);
+            condition.notify_all();
+        });
         client.set_group_join_request_handler([this](chat::group_join_request_event value) {
             std::lock_guard lock(mutex);
             join_requests.push_back(value);
@@ -297,6 +303,210 @@ int run_group_tests()
             require(call<chat::user>([&](auto handler) { a.add_contact(data.users[i], handler); }).has_value(),
                     "Add group contact");
         }
+        auto forbidden_direct = call<chat::direct_conversation_result>([&](auto handler) { d.open_direct_conversation(data.users[0], handler); });
+        require(!forbidden_direct && forbidden_direct.error().code == -32005,
+                "A shared group or a registered user does not grant direct communication authorization");
+        {
+            fixture relations;
+            std::array<events, 3> changes;
+            std::array<chat::client, 3> peers;
+            std::array<std::string, 3> identities;
+            for (int i = 0; i < 3; ++i)
+            {
+                identities[i] = "chat_semantics_" + std::to_string(getpid()) + "_" + std::to_string(i);
+                changes[i].attach(peers[i]);
+                peers[i].connect(server.url);
+                changes[i].wait([&] { return changes[i].connected == 1; });
+                auto registered = call<std::int64_t>([&](auto h) { peers[i].register_user(identities[i], "semantics", h); });
+                require(registered.has_value(), "Register relationship fixture");
+                relations.users.push_back(*registered);
+                auto authenticated = call<chat::authentication_result>([&](auto h) {
+                    peers[i].authenticate(identities[i], "semantics", h);
+                });
+                require(authenticated && authenticated->authenticated, "Authenticate relationship fixture");
+            }
+            auto& left = peers[0];
+            auto& right = peers[1];
+            auto const left_id = relations.users[0], right_id = relations.users[1], outsider_id = relations.users[2];
+            for (int i = 0; i < 2; ++i)
+            {
+                auto denied = call<chat::direct_conversation_result>([&](auto h) {
+                    peers[i].open_direct_conversation(relations.users[1-i], h);
+                });
+                require(!denied && denied.error().code == -32005, "Neither direction can create a non-contact direct");
+            }
+            require(call<chat::user>([&](auto h) { left.add_contact(right_id, h); }).has_value(), "Unilateral contact");
+            auto opened = call<chat::direct_conversation_result>([&](auto h) { left.open_direct_conversation(right_id, h); });
+            require(opened && opened->can_send, "Contact owner can open direct");
+            auto const direct_id = opened->conversation;
+            auto original = call<chat::send_message_result>([&](auto h) { left.send_message(direct_id, "授权历史", h); });
+            require(original && !conversation(right, direct_id).can_send, "Receiving does not authorize replying");
+            auto unilateral_reply = call<chat::send_message_result>([&](auto h) {
+                right.send_message(direct_id, "denied reply", h, original->message_id);
+            });
+            require(!unilateral_reply && unilateral_reply.error().code == -32006, "A unilateral recipient cannot reply");
+            auto file = call<chat::message>([&](auto h) { left.send_attachment(direct_id, "history.bin", "historical bytes", h); });
+            require(file.has_value(), "Create downloadable direct history");
+            require(call<chat::user>([&](auto h) { left.add_contact(outsider_id, h); }).has_value(), "Group fixture contact");
+            auto shared = call<std::int64_t>([&](auto h) { left.create_group("关系边界", {right_id, outsider_id}, h); });
+            require(shared.has_value(), "Create shared membership without reverse contacts");
+            relations.groups.push_back(*shared);
+            auto outsider_direct = call<chat::direct_conversation_result>([&](auto h) {
+                left.open_direct_conversation(outsider_id, h);
+            });
+            require(outsider_direct && call<chat::send_message_result>([&](auto h) {
+                left.send_message(outsider_direct->conversation, "presence history", h);
+            }).has_value(), "Create a non-contact receiver's direct history");
+            require(call<bool>([&](auto h) { left.remove_contact(outsider_id, h); }).value(), "Remove fixture contact");
+            for (auto const& state : {std::pair{false,false}, std::pair{true,false}, std::pair{false,true}, std::pair{true,true}})
+            {
+                for (int i = 0; i < 2; ++i)
+                { require(call<chat::user>([&](auto h) { peers[i].add_contact(relations.users[1-i], h); }).has_value(), "Prepare own history"); }
+                std::array<std::int64_t, 2> own;
+                for (int i = 0; i < 2; ++i)
+                {
+                    auto message = call<chat::send_message_result>([&](auto h) { peers[i].send_message(direct_id, "可管理的旧消息", h); });
+                    require(message.has_value(), "Prepare an author's historical message");
+                    own[i] = message->message_id;
+                }
+                for (int i = 0; i < 2; ++i)
+                {
+                    auto const allowed = i == 0 ? state.first : state.second;
+                    if (!allowed) { require(call<bool>([&](auto h) { peers[i].remove_contact(relations.users[1-i], h); }).value(), "Set unilateral state"); }
+                }
+                for (int i = 0; i < 2; ++i)
+                {
+                    auto& actor = peers[i];
+                    auto const allowed = i == 0 ? state.first : state.second;
+                    auto verify_active = [allowed](auto const& result) {
+                        require(result.has_value() == allowed && (allowed || result.error().code == -32006),
+                            "Direct mutation depends only on the caller's contact");
+                    };
+                    auto open = call<chat::direct_conversation_result>([&](auto h) { actor.open_direct_conversation(relations.users[1-i], h); });
+                    require(open.has_value() == allowed && (allowed ? open->can_send : open.error().code == -32005), "Open authorization matrix");
+                    verify_active(call<chat::send_message_result>([&](auto h) { actor.send_message(direct_id, "主动消息", h); }));
+                    verify_active(call<chat::send_message_result>([&](auto h) { actor.send_message(direct_id, "主动回复", h, original->message_id); }));
+                    verify_active(call<chat::message>([&](auto h) { actor.send_attachment(direct_id, "new.bin", "new", h); }));
+                    verify_active(call<bool>([&](auto h) { actor.set_typing(direct_id, true, h); }));
+                    verify_active(call<bool>([&](auto h) { actor.set_typing(direct_id, false, h); }));
+                    verify_active(call<chat::reaction_update>([&](auto h) { actor.set_message_reaction(direct_id, original->message_id, "👍", h); }));
+                    verify_active(call<chat::reaction_update>([&](auto h) { actor.set_message_reaction(direct_id, original->message_id, "🎉", h); }));
+                    verify_active(call<chat::reaction_update>([&](auto h) { actor.set_message_reaction(direct_id, original->message_id, "", h); }));
+                    verify_active(call<chat::message>([&](auto h) { actor.edit_message(direct_id, own[i], "编辑旧消息", h); }));
+                    auto removed_own = call<chat::message>([&](auto h) { actor.delete_message(direct_id, own[i], h); });
+                    require(removed_own && removed_own->deleted, "Deleting own published content remains authorized");
+                    require(call<chat::messages_result>([&](auto h) { actor.get_messages(direct_id, {}, h); }).has_value() &&
+                        call<chat::messages_result>([&](auto h) { actor.search_messages(direct_id, "授权历史", {}, h); })->messages.size() == 1 &&
+                        call<std::string>([&](auto h) { actor.get_attachment(direct_id, file->id, h); }).value() == "historical bytes" &&
+                        call<std::int64_t>([&](auto h) { actor.mark_read(direct_id, file->id, h); }).has_value() &&
+                        call<bool>([&](auto h) { actor.set_conversation_muted(direct_id, true, h); }).value() &&
+                        call<bool>([&](auto h) { actor.set_conversation_pinned(direct_id, true, h); }).value(),
+                        "Read-only direct preserves history, search, attachment, read and private preferences");
+                    auto contacts = call<std::vector<chat::user>>([&](auto h) { actor.get_contacts(h); });
+                    auto presence = call<std::vector<chat::presence>>([&](auto h) { actor.get_presence(h); });
+                    require(contacts && contacts->size() == (allowed ? 1u : 0u) && presence &&
+                        presence->size() == contacts->size() && conversation(actor, direct_id).can_send == allowed,
+                        "Contacts, private presence and authoritative capability have the same direction");
+                }
+            }
+            auto outsider_presence = call<std::vector<chat::presence>>([&](auto h) { peers[2].get_presence(h); });
+            require(outsider_presence && outsider_presence->empty(), "Shared group and direct history do not disclose presence");
+            auto avatar = call<chat::avatar_state>([&](auto h) { left.set_avatar(*chat::detail::decode_base64(avatar_png_base64), h); });
+            require(avatar && avatar->present, "Set public profile avatar");
+            changes[2].wait([&] { return !changes[2].avatars.empty(); });
+            {
+                std::lock_guard lock(changes[2].mutex);
+                require(changes[2].avatars.back().user == left_id && changes[2].presences.empty(),
+                    "A non-contact receives public avatar changes but no private presence");
+            }
+            left.close();
+            changes[0].wait([&] { return changes[0].disconnected == 1; });
+            changes[1].wait([&] { return !changes[1].presences.empty() && !changes[1].presences.back().online; });
+            left.connect(server.url);
+            changes[0].wait([&] { return changes[0].connected == 2; });
+            require(call<chat::authentication_result>([&](auto h) { left.authenticate(identities[0], "semantics", h); }).value().authenticated,
+                "Reconnect relationship owner");
+            changes[1].wait([&] { return changes[1].presences.size() >= 2 && changes[1].presences.back().online; });
+            require(conversation(left, direct_id).can_send, "Reconnect restores authoritative contact permission");
+            require(call<bool>([&](auto h) { left.remove_contact(right_id, h); }).value(), "Remove presence visibility");
+            std::size_t previous_presence;
+            { std::lock_guard lock(changes[0].mutex); previous_presence = changes[0].presences.size(); }
+            right.close();
+            changes[1].wait([&] { return changes[1].disconnected == 1; });
+            right.connect(server.url);
+            changes[1].wait([&] { return changes[1].connected == 2; });
+            auto authenticated = call<chat::authentication_result>([&](auto h) { right.authenticate(identities[1], "semantics", h); });
+            require(authenticated && authenticated->authenticated, "Reconnect contact peer");
+            require(call<std::vector<chat::presence>>([&](auto h) { left.get_presence(h); }).value().empty() &&
+                call<std::vector<chat::presence>>([&](auto h) { peers[2].get_presence(h); }).value().empty() &&
+                !conversation(left, direct_id).can_send && conversation(right, direct_id).can_send,
+                "Reconnect preserves independent unilateral permissions");
+            {
+                std::scoped_lock lock(changes[0].mutex, changes[2].mutex);
+                require(changes[0].presences.size() == previous_presence && changes[2].presences.empty(),
+                    "Removed contact, historical peer and shared group receive no private presence notifications");
+            }
+            auto wait_blocked = [&] {
+                bool waiting = false;
+                for (int attempt = 0; attempt < 100 && !waiting; ++attempt)
+                {
+                    std::unique_ptr<PGresult, decltype(&PQclear)> state(PQexec(relations.database.get(),
+                        "SELECT pg_stat_clear_snapshot(); SELECT EXISTS(SELECT 1 FROM pg_stat_activity "
+                        "WHERE datname=current_database() AND pg_backend_pid()=ANY(pg_blocking_pids(pid)))"), &PQclear);
+                    waiting = state && PQresultStatus(state.get()) == PGRES_TUPLES_OK &&
+                        std::string_view(PQgetvalue(state.get(), 0, 0)) == "t";
+                    if (!waiting) { std::this_thread::sleep_for(std::chrono::milliseconds(10)); }
+                }
+                return waiting;
+            };
+            auto after_remove = [&](auto operation) {
+                require(call<chat::user>([&](auto h) { left.add_contact(right_id, h); }).has_value(), "Prepare contact race");
+                relations.execute("BEGIN");
+                relations.execute("UPDATE conversations SET title=title WHERE id=" + std::to_string(direct_id));
+                relations.execute("DELETE FROM contacts WHERE owner_id=" + std::to_string(left_id) +
+                    " AND contact_id=" + std::to_string(right_id));
+                auto pending = std::async(std::launch::async, operation);
+                auto const waiting = wait_blocked();
+                relations.execute("COMMIT");
+                auto result = pending.get();
+                require(waiting && !result && result.error().code == -32006,
+                    "Mutation blocked on conversation lock rechecks the committed contact removal");
+            };
+            after_remove([&] { return call<chat::send_message_result>([&](auto h) { left.send_message(direct_id, "blocked send", h); }); });
+            after_remove([&] { return call<bool>([&](auto h) { left.set_typing(direct_id, true, h); }); });
+            after_remove([&] { return call<chat::reaction_update>([&](auto h) { left.set_message_reaction(direct_id, original->message_id, "👍", h); }); });
+            after_remove([&] { return call<chat::message>([&](auto h) { left.edit_message(direct_id, original->message_id, "blocked edit", h); }); });
+            require(call<chat::user>([&](auto h) { left.add_contact(right_id, h); }).has_value(), "Restore sender for reverse lock order");
+            auto send_first = call<chat::send_message_result>([&](auto h) { left.send_message(direct_id, "先发送后移除", h); });
+            require(send_first && call<bool>([&](auto h) { left.remove_contact(right_id, h); }).value() &&
+                call<chat::messages_result>([&](auto h) { left.search_messages(direct_id, "先发送后移除", {}, h); }).value().messages.size() == 1,
+                "A completed send survives subsequent contact removal");
+            auto fresh_user = call<std::int64_t>([&](auto h) { left.register_user("chat_semantics_new_" + std::to_string(getpid()), "semantics", h); });
+            require(fresh_user.has_value(), "New direct creation race identity");
+            relations.users.push_back(*fresh_user);
+            require(call<chat::user>([&](auto h) { left.add_contact(*fresh_user, h); }).has_value(), "New direct creation race contact");
+            relations.execute("BEGIN");
+            relations.execute("DELETE FROM contacts WHERE owner_id=" + std::to_string(left_id) +
+                " AND contact_id=" + std::to_string(*fresh_user));
+            auto opening = std::async(std::launch::async, [&] {
+                return call<chat::direct_conversation_result>([&](auto h) { left.open_direct_conversation(*fresh_user, h); });
+            });
+            auto const creation_waits = wait_blocked();
+            relations.execute("COMMIT");
+            auto denied_creation = opening.get();
+            require(creation_waits && !denied_creation && denied_creation.error().code == -32005,
+                "New uncommitted pair cannot bypass a contact removal that wins its row lock");
+            auto creation_snapshot = call<chat::conversations_result>([&](auto h) { left.get_conversations({}, h); });
+            require(creation_snapshot && std::ranges::none_of(creation_snapshot->conversations, [&](auto const& value) {
+                return value.user == *fresh_user;
+            }), "Unauthorized creation rolls back both conversation and membership");
+            require(call<chat::user>([&](auto h) { left.add_contact(*fresh_user, h); }).has_value(), "Restore creation authorization");
+            auto creation_first = call<chat::direct_conversation_result>([&](auto h) { left.open_direct_conversation(*fresh_user, h); });
+            require(creation_first && call<bool>([&](auto h) { left.remove_contact(*fresh_user, h); }).value() &&
+                !conversation(left, creation_first->conversation).can_send,
+                "Open before removal retains an empty authoritative read-only conversation");
+            std::cout << "PASS all four unilateral contact states and historical direct operations\n";
+        }
         auto rejected = call<std::int64_t>([&](auto handler) { a.create_group("invalid", {data.users[3]}, handler); });
         require(!rejected && rejected.error().code == -32005, "Reject non-contact creation");
         auto duplicate = call<std::int64_t>([&](auto handler)
@@ -450,8 +660,12 @@ int run_group_tests()
                 std::lock_guard lock(d_events.mutex);
                 require(d_events.avatars.empty(), "Avatar changes are not globally broadcast");
             }
-            auto empty_direct = call<std::int64_t>([&](auto handler) { d.open_direct_conversation(data.users[0], handler); });
+            require(call<chat::user>([&](auto handler) { d.add_contact(data.users[0], handler); }).has_value(),
+                "An empty direct conversation starts with the caller's contact authorization");
+            auto empty_direct = call<chat::direct_conversation_result>([&](auto handler) { d.open_direct_conversation(data.users[0], handler); });
             require(empty_direct.has_value(), "Empty direct conversation notification relationship");
+            require(call<bool>([&](auto handler) { d.remove_contact(data.users[0], handler); }).value(),
+                "Public avatar routing survives removal of the initiating contact");
             auto updating = std::async(std::launch::async, [&] {
                 return call<chat::avatar_state>([&](auto handler) { a.set_avatar(jpeg, handler); });
             });
@@ -577,19 +791,25 @@ int run_group_tests()
         require(call<std::int64_t>([&](auto handler) { c.mark_read(group, sent->message_id, handler); }).value() ==
                     latest,
                 "Monotonic read position");
-        auto direct = call<std::int64_t>([&](auto handler) { a.open_direct_conversation(data.users[1], handler); });
-        auto same = call<std::int64_t>([&](auto handler) { b.open_direct_conversation(data.users[0], handler); });
-        require(direct && same && *direct == *same && *direct != group, "Canonical direct pair");
+        auto direct = call<chat::direct_conversation_result>([&](auto handler) { a.open_direct_conversation(data.users[1], handler); });
+        auto same = call<chat::direct_conversation_result>([&](auto handler) { b.open_direct_conversation(data.users[0], handler); });
+        require(direct && direct->can_send && !same && same.error().code == -32005 &&
+            !conversation(b, direct->conversation).can_send, "The receiver has history access without reverse send permission");
+        require(call<chat::user>([&](auto handler) { b.add_contact(data.users[0], handler); }).has_value(),
+                "The receiver independently grants its own outgoing authorization");
+        same = call<chat::direct_conversation_result>([&](auto handler) { b.open_direct_conversation(data.users[0], handler); });
+        require(same && same->can_send && direct->conversation == same->conversation && direct->conversation != group,
+                "Canonical direct pair after independent contact authorization");
         auto direct_sent = call<chat::send_message_result>([&](auto handler)
-                                                           { a.send_message(*direct, "direct after group", handler); });
+                                                           { a.send_message(direct->conversation, "direct after group", handler); });
         require(direct_sent.has_value(), "Direct send after group");
-        auto direct_before_mute = conversation(b, *direct);
-        auto direct_mute = call<bool>([&](auto handler) { b.set_conversation_muted(*direct, true, handler); });
-        require(direct_mute && *direct_mute && conversation(b, *direct).muted && !conversation(a, *direct).muted &&
-            conversation(b, *direct).unread == direct_before_mute.unread &&
-            conversation(b, *direct).last.id == direct_before_mute.last.id, "Direct mute is also a personal preference");
-        require(call<bool>([&](auto handler) { b.set_conversation_pinned(*direct, true, handler); }).value() &&
-            !conversation(a, *direct).pinned, "Direct pin is private");
+        auto direct_before_mute = conversation(b, direct->conversation);
+        auto direct_mute = call<bool>([&](auto handler) { b.set_conversation_muted(direct->conversation, true, handler); });
+        require(direct_mute && *direct_mute && conversation(b, direct->conversation).muted && !conversation(a, direct->conversation).muted &&
+            conversation(b, direct->conversation).unread == direct_before_mute.unread &&
+            conversation(b, direct->conversation).last.id == direct_before_mute.last.id, "Direct mute is also a personal preference");
+        require(call<bool>([&](auto handler) { b.set_conversation_pinned(direct->conversation, true, handler); }).value() &&
+            !conversation(a, direct->conversation).pinned, "Direct pin is private");
         b.close();
         b_events.wait([&] { return b_events.disconnected == 1; });
         b.connect(server.url);
@@ -597,13 +817,13 @@ int run_group_tests()
         auto direct_relogin = call<chat::authentication_result>([&](auto handler) {
             b.authenticate(names[1], "group password", handler);
         });
-        require(direct_relogin && direct_relogin->authenticated && conversation(b, *direct).muted && conversation(b, *direct).pinned &&
-            conversation(b, *direct).unread == direct_before_mute.unread,
+        require(direct_relogin && direct_relogin->authenticated && conversation(b, direct->conversation).muted && conversation(b, direct->conversation).pinned &&
+            conversation(b, direct->conversation).unread == direct_before_mute.unread,
             "Disconnect and login restore persisted direct mute and unread");
-        auto direct_unmute = call<bool>([&](auto handler) { b.set_conversation_muted(*direct, false, handler); });
-        require(direct_unmute && !*direct_unmute && !conversation(b, *direct).muted, "Explicit unmute restores direct preference");
+        auto direct_unmute = call<bool>([&](auto handler) { b.set_conversation_muted(direct->conversation, false, handler); });
+        require(direct_unmute && !*direct_unmute && !conversation(b, direct->conversation).muted, "Explicit unmute restores direct preference");
         auto direct_reaction = call<chat::reaction_update>([&](auto handler) {
-            b.set_message_reaction(*direct, direct_sent->message_id, "🎉", handler);
+            b.set_message_reaction(direct->conversation, direct_sent->message_id, "🎉", handler);
         });
         auto cross_reaction = call<chat::reaction_update>([&](auto handler) {
             b.set_message_reaction(group, direct_sent->message_id, "🎉", handler);
@@ -612,8 +832,8 @@ int run_group_tests()
                 "Direct reaction and cross-conversation rejection");
         auto wrong = call<std::int64_t>([&](auto handler) { b.mark_read(group, direct_sent->message_id, handler); });
         require(!wrong && wrong.error().code == -32602, "Reject cross-conversation read");
-        require(conversation(b, *direct).kind == chat::conversation_kind::direct &&
-                    conversation(b, *direct).user == data.users[0],
+        require(conversation(b, direct->conversation).kind == chat::conversation_kind::direct &&
+                    conversation(b, direct->conversation).user == data.users[0],
                 "Direct descriptor remains user-scoped");
         auto one = std::async(std::launch::async,
                               [&]
@@ -656,14 +876,14 @@ int run_group_tests()
             [&](auto handler) { b.send_message(group, "wrong", handler, 9223372036854775807LL); });
         require(!missing_reply && missing_reply.error().code == -32602, "Reject nonexistent reply");
         auto direct_reply = call<chat::send_message_result>(
-            [&](auto handler) { b.send_message(*direct, "direct reply", handler, direct_sent->message_id); });
+            [&](auto handler) { b.send_message(direct->conversation, "direct reply", handler, direct_sent->message_id); });
         require(direct_reply && direct_reply->reply && direct_reply->reply->id == direct_sent->message_id,
                 "Direct reply");
         auto forbidden_edit = call<chat::message>(
             [&](auto handler) { b.edit_message(group, sent->message_id, "other author", handler); });
         require(!forbidden_edit && forbidden_edit.error().code == -32007, "Cannot edit another author");
         auto cross_edit = call<chat::message>(
-            [&](auto handler) { a.edit_message(*direct, sent->message_id, "other conversation", handler); });
+            [&](auto handler) { a.edit_message(direct->conversation, sent->message_id, "other conversation", handler); });
         require(!cross_edit && cross_edit.error().code == -32007, "Cannot edit across conversations");
         auto unread_before_edit = conversation(b, group).unread;
         c.close();
@@ -691,8 +911,8 @@ int run_group_tests()
                     recovered_edit->messages.front().edited_at == edited_again->edited_at,
                 "Recover old edited message");
         auto edited_direct = call<chat::message>(
-            [&](auto handler) { b.edit_message(*direct, direct_reply->message_id, "edited direct reply", handler); });
-        require(edited_direct && edited_direct->reply && conversation(a, *direct).last.text == "edited direct reply",
+            [&](auto handler) { b.edit_message(direct->conversation, direct_reply->message_id, "edited direct reply", handler); });
+        require(edited_direct && edited_direct->reply && conversation(a, direct->conversation).last.text == "edited direct reply",
                 "Direct edit and summary");
         auto unauthorized_delete =
             call<chat::message>([&](auto handler) { b.delete_message(group, sent->message_id, handler); });
@@ -747,10 +967,10 @@ int run_group_tests()
                     recovered_delete->messages.front().deleted && recovered_delete->messages.front().text.empty(),
                 "Recover old deleted message");
         auto deleted_direct =
-            call<chat::message>([&](auto handler) { b.delete_message(*direct, direct_reply->message_id, handler); });
-        require(deleted_direct && deleted_direct->deleted && conversation(a, *direct).last.deleted,
+            call<chat::message>([&](auto handler) { b.delete_message(direct->conversation, direct_reply->message_id, handler); });
+        require(deleted_direct && deleted_direct->deleted && conversation(a, direct->conversation).last.deleted,
                 "Direct deletion summary");
-        require(call<std::int64_t>([&](auto handler) { a.mark_read(*direct, direct_reply->message_id, handler); })
+        require(call<std::int64_t>([&](auto handler) { a.mark_read(direct->conversation, direct_reply->message_id, handler); })
                     .has_value(),
                 "Read position can retain a deleted ID");
         for (int i = 0; i < 2; ++i)
@@ -780,7 +1000,7 @@ int run_group_tests()
                 "Conversation summaries exceed a single message size");
         require(call<chat::user>([&](auto handler) { b.add_contact(data.users[0], handler); }).has_value(),
                 "Create reverse contact");
-        auto before_remove = call<chat::messages_result>([&](auto handler) { a.get_messages(*direct, {}, handler); });
+        auto before_remove = call<chat::messages_result>([&](auto handler) { a.get_messages(direct->conversation, {}, handler); });
         auto removed = call<bool>([&](auto handler) { a.remove_contact(data.users[1], handler); });
         require(removed && *removed, "Remove owned contact");
         auto removed_again = call<bool>([&](auto handler) { a.remove_contact(data.users[1], handler); });
@@ -791,7 +1011,7 @@ int run_group_tests()
                     contacts_after_remove->front().id == data.users[2] && reverse_contacts &&
                     reverse_contacts->size() == 1 && reverse_contacts->front().id == data.users[0],
                 "Only the caller's contact relation is removed");
-        auto after_remove = call<chat::messages_result>([&](auto handler) { a.get_messages(*direct, {}, handler); });
+        auto after_remove = call<chat::messages_result>([&](auto handler) { a.get_messages(direct->conversation, {}, handler); });
         require(before_remove && after_remove && before_remove->messages.size() == after_remove->messages.size() &&
                     position(*before_remove, data.users[0]) == position(*after_remove, data.users[0]) &&
                     conversation(a, group).member_count == 3,
@@ -805,11 +1025,11 @@ int run_group_tests()
         require(!invalid_remove && invalid_remove.error().code == -32602 && !self_remove &&
                     self_remove.error().code == -32602, "Invalid and self contact removal rejected");
         auto presence_after_remove = call<std::vector<chat::presence>>([&](auto handler) { a.get_presence(handler); });
-        require(presence_after_remove && std::ranges::any_of(*presence_after_remove, [&](auto const& value)
+        require(presence_after_remove && std::ranges::none_of(*presence_after_remove, [&](auto const& value)
                     { return value.user == data.users[1]; }),
-                "Direct history retains presence after contact removal");
+                "Direct history does not retain presence after contact removal");
         auto removed_search = call<chat::messages_result>(
-            [&](auto handler) { a.search_messages(*direct, "direct reply", {}, handler); });
+            [&](auto handler) { a.search_messages(direct->conversation, "direct reply", {}, handler); });
         require(removed_search && removed_search->messages.empty(), "Deleted messages are excluded from search");
         auto literal = call<chat::send_message_result>([&](auto handler) {
             a.send_message(group, "100%_literal中文O'Reilly", handler);
@@ -818,14 +1038,21 @@ int run_group_tests()
         auto literal_search = call<chat::messages_result>(
             [&](auto handler) { b.search_messages(group, "%_literal中文O'Reilly", {}, handler); });
         auto other_conversation_search = call<chat::messages_result>(
-            [&](auto handler) { a.search_messages(*direct, "中文", {}, handler); });
+            [&](auto handler) { a.search_messages(direct->conversation, "中文", {}, handler); });
         require(literal_search && literal_search->messages.size() == 1 &&
                     literal_search->messages.front().id == literal->message_id && other_conversation_search &&
                     other_conversation_search->messages.empty(), "Unicode and punctuation are literal and scoped");
-        auto direct_typing = call<bool>([&](auto handler) { a.set_typing(*direct, true, handler); });
+        auto denied_direct_typing = call<bool>([&](auto handler) { a.set_typing(direct->conversation, true, handler); });
+        auto denied_stop = call<bool>([&](auto handler) { a.set_typing(direct->conversation, false, handler); });
+        require(!denied_direct_typing && denied_direct_typing.error().code == -32006 && !denied_stop &&
+            denied_stop.error().code == -32006 && !conversation(a, direct->conversation).can_send,
+            "Removing a contact rejects both typing states and restores a read-only snapshot");
+        require(call<chat::user>([&](auto handler) { a.add_contact(data.users[1], handler); }).has_value(),
+            "Re-adding a contact restores direct communication");
+        auto direct_typing = call<bool>([&](auto handler) { a.set_typing(direct->conversation, true, handler); });
         require(direct_typing && *direct_typing, "Direct conversation typing");
-        b_events.wait([&] { return b_events.typing.size() == 3 && b_events.typing.back().conversation == *direct; });
-        require(call<bool>([&](auto handler) { a.set_typing(*direct, false, handler); }).has_value(), "Direct typing stop");
+        b_events.wait([&] { return b_events.typing.size() == 3 && b_events.typing.back().conversation == direct->conversation; });
+        require(call<bool>([&](auto handler) { a.set_typing(direct->conversation, false, handler); }).has_value(), "Direct typing stop");
         b_events.wait([&] { return b_events.typing.size() == 4 && !b_events.typing.back().typing; });
         {
             std::lock_guard lock(c_events.mutex);
@@ -865,7 +1092,7 @@ int run_group_tests()
         auto forbidden_download = call<std::string>(
             [&](auto handler) { d.get_attachment(group, file->id, handler); });
         auto wrong_conversation_download = call<std::string>(
-            [&](auto handler) { a.get_attachment(*direct, file->id, handler); });
+            [&](auto handler) { a.get_attachment(direct->conversation, file->id, handler); });
         auto forbidden_upload = call<chat::message>(
             [&](auto handler) { d.send_attachment(group, "forbidden.bin", "data", handler); });
         auto edit_attachment = call<chat::message>(
@@ -879,11 +1106,11 @@ int run_group_tests()
         });
         require(!failed_file_reply && failed_file_reply.error().code == -32602, "Attachment cross-conversation reply rejected");
         auto empty_file = call<chat::message>(
-            [&](auto handler) { a.send_attachment(*direct, "empty.bin", "", handler); });
+            [&](auto handler) { a.send_attachment(direct->conversation, "empty.bin", "", handler); });
         require(empty_file && empty_file->attachment && empty_file->attachment->size == 0,
                 "Empty file and next upload after cancelled failure");
         auto downloaded_empty = call<std::string>(
-            [&](auto handler) { b.get_attachment(*direct, empty_file->id, handler); });
+            [&](auto handler) { b.get_attachment(direct->conversation, empty_file->id, handler); });
         require(downloaded_empty && downloaded_empty->empty(), "Empty attachment download");
         auto bad_filename = call<chat::message>(
             [&](auto handler) { a.send_attachment(group, "../bad.bin", "data", handler); });
@@ -908,7 +1135,7 @@ int run_group_tests()
         require(file_reply_history && file_reply_history->messages.back().reply &&
                     file_reply_history->messages.back().reply->deleted, "Deleted attachment reply placeholder");
         auto image_file = call<chat::message>([&](auto handler) {
-            a.send_attachment(*direct, "detected.bin", std::string("\x89PNG\r\n\x1a\n", 8), handler);
+            a.send_attachment(direct->conversation, "detected.bin", std::string("\x89PNG\r\n\x1a\n", 8), handler);
         });
         require(image_file && image_file->attachment && image_file->attachment->media_type == "image/png",
                 "Image type detected from bytes rather than filename");
@@ -916,16 +1143,16 @@ int run_group_tests()
         auto const png_bytes = *chat::detail::decode_base64(avatar_png_base64);
         auto boundary_bytes = png_bytes + std::string(chat::max_attachment_size - png_bytes.size(), '\0');
         auto boundary_image = call<chat::message>([&](auto handler) {
-            a.send_attachment(*direct, "boundary.png", boundary_bytes, handler);
+            a.send_attachment(direct->conversation, "boundary.png", boundary_bytes, handler);
         }, std::chrono::seconds(30));
         require(boundary_image && boundary_image->attachment &&
                 boundary_image->attachment->size == static_cast<std::int64_t>(chat::max_attachment_size),
                 "Exactly 10 MiB PNG attachment is accepted");
         auto const download_start = std::chrono::steady_clock::now();
         auto first_download = std::async(std::launch::async, [&] {
-            return call<std::string>([&](auto handler) { b.get_attachment(*direct, boundary_image->id, handler); }, std::chrono::seconds(30));
+            return call<std::string>([&](auto handler) { b.get_attachment(direct->conversation, boundary_image->id, handler); }, std::chrono::seconds(30));
         });
-        auto second_download = call<std::string>([&](auto handler) { b.get_attachment(*direct, boundary_image->id, handler); }, std::chrono::seconds(30));
+        auto second_download = call<std::string>([&](auto handler) { b.get_attachment(direct->conversation, boundary_image->id, handler); }, std::chrono::seconds(30));
         auto completed_download = first_download.get();
         require(completed_download && second_download && *completed_download == boundary_bytes && *second_download == boundary_bytes,
                 "Concurrent downloads from one client preserve both complete 10 MiB results");
@@ -1028,11 +1255,11 @@ int run_group_tests()
             auto member_pin = call<bool>([&](auto h) { c.pin_group_message(mention_group, mentioned->message_id, h); });
             auto member_unpin = call<bool>([&](auto h) { c.unpin_group_message(mention_group, h); });
             auto outsider_pin = call<bool>([&](auto h) { d.pin_group_message(mention_group, mentioned->message_id, h); });
-            auto direct_pin_history = call<chat::messages_result>([&](auto h) { a.get_messages(*direct, {}, h); });
+            auto direct_pin_history = call<chat::messages_result>([&](auto h) { a.get_messages(direct->conversation, {}, h); });
             require(direct_pin_history && !direct_pin_history->messages.empty(), "Cross-conversation pin fixture");
             auto cross_pin = call<bool>([&](auto h) { a.pin_group_message(mention_group, direct_pin_history->messages.front().id, h); });
             auto deleted_pin = call<bool>([&](auto h) { a.pin_group_message(mention_group, literal_mentions->message_id, h); });
-            auto direct_pin = call<bool>([&](auto h) { a.pin_group_message(*direct, mentioned->message_id, h); });
+            auto direct_pin = call<bool>([&](auto h) { a.pin_group_message(direct->conversation, mentioned->message_id, h); });
             require(!member_pin && member_pin.error().code == -32009 && !member_unpin && member_unpin.error().code == -32009 &&
                 !outsider_pin && outsider_pin.error().code == -32006 && !deleted_pin && deleted_pin.error().code == -32007 &&
                 !cross_pin && cross_pin.error().code == -32007 &&
@@ -1041,7 +1268,7 @@ int run_group_tests()
             require(before_pin.announcement.empty(), "Groups default to no announcement");
             auto member_announcement = call<bool>([&](auto h) { c.set_group_announcement(mention_group, "denied", h); });
             auto outsider_announcement = call<bool>([&](auto h) { d.set_group_announcement(mention_group, "denied", h); });
-            auto direct_announcement = call<bool>([&](auto h) { a.set_group_announcement(*direct, "denied", h); });
+            auto direct_announcement = call<bool>([&](auto h) { a.set_group_announcement(direct->conversation, "denied", h); });
             require(!member_announcement && member_announcement.error().code == -32009 &&
                 !outsider_announcement && outsider_announcement.error().code == -32006 &&
                 !direct_announcement && direct_announcement.error().code == -32006,
@@ -1110,7 +1337,7 @@ int run_group_tests()
             require(recovered_mentions && targets(recovered_mentions->messages.back().mentions) == targets(rejoined_mention->mentions) &&
                 paged_mentions && targets(paged_mentions->messages.front().mentions) == targets(mentioned->mentions),
                 "Reconnect and cursor history retain persisted targets");
-            auto direct_mention = call<chat::send_message_result>([&](auto handler) { a.send_message(*direct, "direct @" + names[1], handler); });
+            auto direct_mention = call<chat::send_message_result>([&](auto handler) { a.send_message(direct->conversation, "direct @" + names[1], handler); });
             auto filename_mention = call<chat::message>([&](auto handler) { a.send_attachment(mention_group, "@" + names[1], "file", handler); });
             require(direct_mention && direct_mention->mentions.empty() && filename_mention && filename_mention->mentions.empty(),
                 "Direct text and attachment filenames do not create group mentions");
@@ -1130,7 +1357,7 @@ int run_group_tests()
             auto no_link = call<std::optional<std::string>>([&](auto h) { a.get_group_invite(mention_group, h); });
             auto member_link = call<std::optional<std::string>>([&](auto h) { c.get_group_invite(mention_group, h); });
             auto outsider_link = call<std::optional<std::string>>([&](auto h) { d.create_group_invite(mention_group, h); });
-            auto direct_link = call<std::optional<std::string>>([&](auto h) { a.create_group_invite(*direct, h); });
+            auto direct_link = call<std::optional<std::string>>([&](auto h) { a.create_group_invite(direct->conversation, h); });
             require(no_link && !*no_link && !member_link && member_link.error().code == -32009 &&
                 !outsider_link && outsider_link.error().code == -32006 && !direct_link && direct_link.error().code == -32006,
                 "Only current group managers may view or create invite secrets; existing groups default to no link");
@@ -1204,7 +1431,7 @@ int run_group_tests()
             std::cout << "PASS group invite secret permissions, stable creation/revoke, direct join, fresh rejoin, notifications and reconnect\n";
             require(!conversation(a, mention_group).join_approval, "Existing group defaults to direct invitation join");
             auto member_approval = call<bool>([&](auto h) { c.set_group_join_approval(mention_group, true, h); });
-            auto direct_approval = call<bool>([&](auto h) { a.set_group_join_approval(*direct, true, h); });
+            auto direct_approval = call<bool>([&](auto h) { a.set_group_join_approval(direct->conversation, true, h); });
             require(!member_approval && member_approval.error().code == -32009 && !direct_approval && direct_approval.error().code == -32006,
                 "Only group managers may configure link approval");
             require(call<bool>([&](auto h) { a.set_group_join_approval(mention_group, true, h); }).value() &&
@@ -1346,8 +1573,7 @@ int run_group_tests()
         auto verify_pages = [&](chat::client& client, std::int64_t user) {
             auto const sql = "SELECT c.id,own.pinned FROM conversations c JOIN conversation_members own ON own.conversation_id=c.id "
                 "WHERE own.user_id=" + std::to_string(user) +
-                " AND (c.kind='group' OR EXISTS(SELECT 1 FROM messages WHERE conversation_id=c.id)) "
-                "ORDER BY own.pinned DESC,c.activity DESC,c.id DESC";
+                " ORDER BY own.pinned DESC,c.activity DESC,c.id DESC";
             std::unique_ptr<PGresult, decltype(&PQclear)> expected(PQexec(data.database.get(), sql.c_str()), &PQclear);
             require(expected && PQresultStatus(expected.get()) == PGRES_TUPLES_OK, "Expected conversation order");
             std::optional<chat::conversation_cursor> cursor;
@@ -1483,10 +1709,10 @@ int run_group_tests()
                 [&](auto handler) { managed[2].get_members(managed_group, handler); });
             require(authenticated && authenticated->authenticated && recovered && (*recovered)[1].role == chat::member_role::member &&
                         (*recovered)[2].role == chat::member_role::admin, "Roles persist across reconnect");
-            auto direct = call<std::int64_t>([&](auto handler) { managed[0].open_direct_conversation(managed_ids[1], handler); });
+            auto direct = call<chat::direct_conversation_result>([&](auto handler) { managed[0].open_direct_conversation(managed_ids[1], handler); });
             require(direct.has_value(), "Direct conversation remains available");
             auto direct_admin = call<bool>([&](auto handler) {
-                managed[0].set_group_admin(*direct, managed_ids[1], true, handler);
+                managed[0].set_group_admin(direct->conversation, managed_ids[1], true, handler);
             });
             auto invalid_group = call<std::int64_t>([&](auto handler) {
                 managed[0].create_group(std::string("a\0b", 3), {managed_ids[1]}, handler);
@@ -2022,12 +2248,12 @@ int run_group_tests()
             }, [&] {
                 return call<bool>([&](auto handler) { managed[3].set_typing(lifecycle_group, true, handler); });
             });
-            require(typing_remove && racing_typing && call<std::vector<chat::conversation_member>>([&](auto handler) {
+            require(typing_remove && (racing_typing || racing_typing.error().code == -32006) && call<std::vector<chat::conversation_member>>([&](auto handler) {
                 managed[1].get_members(lifecycle_group, handler);
             }).has_value(), "Remove/typing race completes");
             {
                 std::lock_guard lock(managed_events[1].mutex);
-                require(managed_events[1].typing.size() == typing_before + (*racing_typing ? 1 : 0),
+                require(managed_events[1].typing.size() == typing_before + (racing_typing.value_or(false) ? 1 : 0),
                     "Typing before removal is published; typing after removal is suppressed");
             }
             require(call<bool>([&](auto handler) {

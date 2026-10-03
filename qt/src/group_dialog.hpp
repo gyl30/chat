@@ -33,6 +33,7 @@ class group_dialog final : public QDialog
     void refresh_requests();
 
    signals:
+    void user_requested(qint64 user, QString username);
     void admin_requested(qint64 user, bool admin);
     void rename_requested(QString title);
     void announcement_requested(QString text);

@@ -51,6 +51,17 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
         connection.close();
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
+    if (!deleting)
+    {
+        auto allowed = co_await check_conversation_send(connection, params.conversation);
+        if (!allowed || !*allowed)
+        {
+            auto rolled_back = co_await connection.execute_row("ROLLBACK");
+            if (std::get<0>(rolled_back)) { connection.close(); }
+            co_return serialize_json_rpc_error(allowed ? -32006 : -32000,
+                allowed ? "Communication not allowed" : "Server error", std::move(request.id), response);
+        }
+    }
     auto original = co_await lease.connection().execute_row(
         "SELECT json_build_object('id',m.id,'conversation',m.conversation_id,'from',m.sender_id,'username',u.username,"
         "'avatar_revision',u.avatar_revision,'has_avatar',EXISTS(SELECT 1 FROM user_avatars WHERE user_id=u.id),"

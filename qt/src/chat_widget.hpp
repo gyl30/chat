@@ -57,7 +57,7 @@ class chat_widget final : public QWidget
     void set_contacts_error(QString message);
     void set_add_contact_search_results(QList<user_data> users);
     void set_add_contact_search_error(QString message);
-    void finish_add_contact();
+    void finish_add_contact(qint64 user, QString error);
     void set_messages(qint64 conversation, QList<message_data> messages, read_positions positions, bool older,
                       bool recovering, bool has_more);
     void set_read_message(qint64 conversation, qint64 user, qint64 message);
@@ -81,6 +81,7 @@ class chat_widget final : public QWidget
     std::optional<conversation_data> conversation(qint64 id) const;
     void set_conversation_muted(qint64 conversation, bool muted);
     void set_conversation_pinned(qint64 conversation, bool pinned);
+    void show_user_details(qint64 user, QString const& username);
 
    signals:
     void avatar_set_requested(QByteArray data);
@@ -95,6 +96,7 @@ class chat_widget final : public QWidget
     void add_contact_search_requested(QString query);
     void contact_add_requested(qint64 user);
     void contact_remove_requested(qint64 user);
+    void contact_add_finished(qint64 user, QString error);
     void logout_requested();
     void reconnect_requested();
     void direct_conversation_requested(qint64 user, QString username);
@@ -123,10 +125,12 @@ class chat_widget final : public QWidget
     void select_add_user(QModelIndex const& index);
     void select_conversation(QModelIndex const& index);
     void open_chat(qint64 user, QString username);
+    bool is_contact(qint64 user) const;
+    bool can_send() const;
+    void update_compose_state();
     void create_group();
     void request_older_messages();
     void send_current_message();
-    void show_user_details(qint64 user, QString const& username);
     void show_read_details(QModelIndex const& index);
     void update_chat_header(QString const& username);
     void update_pinned_message();
