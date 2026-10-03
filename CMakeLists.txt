@@ -351,3 +351,7 @@ target_link_libraries(chat_bcrypt_test
 
 add_test(NAME bcrypt COMMAND chat_bcrypt_test)
 set_tests_properties(bcrypt PROPERTIES TIMEOUT 5)
+
+# Explicit diagnostic fixture: intentionally excluded from normal builds and CTest.
+add_executable(chat_tui_scale_fixture EXCLUDE_FROM_ALL tests/tui_scale_fixture.cpp)
+target_link_libraries(chat_tui_scale_fixture PRIVATE chat_client Boost::json Threads::Threads)

@@ -2554,54 +2554,10 @@ int run_group_tests()
                 }) && std::none_of(lifecycle_snapshot->begin(), lifecycle_snapshot->end(), [&](auto const& member) {
                     return member.id == managed_ids[4];
                 }), "Reconnect restores transferred owner and removed membership");
-            auto scale_query = "INSERT INTO users(username,password_hash) SELECT 'chat_scale_test_" + std::to_string(getpid()) +
-                "_'||n,repeat('x',60) FROM generate_series(1,199) n RETURNING id";
-            std::unique_ptr<PGresult, decltype(&PQclear)> scale_users(PQexec(data.database.get(), scale_query.c_str()), &PQclear);
-            require(scale_users && PQresultStatus(scale_users.get()) == PGRES_TUPLES_OK && PQntuples(scale_users.get()) == 199,
-                    "Small group measurement users");
-            std::vector<std::int64_t> scale_ids;
-            for (int i = 0; i < 199; ++i)
-            {
-                auto id = std::stoll(PQgetvalue(scale_users.get(), i, 0));
-                scale_ids.push_back(id);
-                data.users.push_back(id);
-            }
-            data.execute("INSERT INTO contacts(owner_id,contact_id) SELECT " + std::to_string(managed_ids[0]) +
-                ",id FROM users WHERE username LIKE 'chat_scale_test_" + std::to_string(getpid()) + "_%'");
-            for (int size : {3, 10, 50, 200})
-            {
-                std::vector<std::int64_t> members(scale_ids.begin(), scale_ids.begin() + size - 1);
-                auto scale_group = call<std::int64_t>([&](auto handler) {
-                    managed[0].create_group("规模测量", members, handler);
-                });
-                require(scale_group.has_value(), "Create measured small group");
-                data.groups.push_back(*scale_group);
-                std::array<double, 3> milliseconds{};
-                for (int sample = 0; sample < 3; ++sample)
-                {
-                    auto start = std::chrono::steady_clock::now();
-                    auto listed = call<std::vector<chat::conversation_member>>([&](auto handler) {
-                        managed[0].get_members(*scale_group, handler);
-                    });
-                    auto members_done = std::chrono::steady_clock::now();
-                    auto history = call<chat::messages_result>([&](auto handler) {
-                        managed[0].get_messages(*scale_group, {}, handler);
-                    });
-                    auto history_done = std::chrono::steady_clock::now();
-                    auto sent = call<chat::send_message_result>([&](auto handler) {
-                        managed[0].send_message(*scale_group, "规模样本", handler);
-                    });
-                    auto send_done = std::chrono::steady_clock::now();
-                    require(listed && listed->size() == static_cast<std::size_t>(size) && history &&
-                        history->read_positions.size() == static_cast<std::size_t>(size) && sent,
-                        "Member/read/publish paths remain complete at measured size");
-                    milliseconds[0] += std::chrono::duration<double, std::milli>(members_done - start).count() / 3;
-                    milliseconds[1] += std::chrono::duration<double, std::milli>(history_done - members_done).count() / 3;
-                    milliseconds[2] += std::chrono::duration<double, std::milli>(send_done - history_done).count() / 3;
-                }
-                std::cout << "GROUP_SCALE members=" << size << " samples=3 get_members_ms=" << milliseconds[0]
-                    << " history_ms=" << milliseconds[1] << " send_ms=" << milliseconds[2] << '\n';
-            }
+            // The 3/10/50/200-member measurements are run explicitly through
+            // chat_tui_scale_fixture's measure_sizes command. That path preserves
+            // all member/read/send assertions while preparing users and memberships
+            // with SDK registration and public invite links instead of SQL fixtures.
             for (int i = 0; i < 5; ++i)
             {
                 managed[i].close();
