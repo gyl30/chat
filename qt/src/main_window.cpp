@@ -916,7 +916,7 @@ void main_window::start_registration()
     }
     if (!chat::valid_username(username.toUtf8().toStdString()))
     {
-        registration_status_label_->setText(QStringLiteral("用户名须为 1–64 UTF-8 字节，不能只有空白，也不能含 @ 或控制字符"));
+        registration_status_label_->setText(QStringLiteral("用户名须为 1–64 UTF-8 字节，首尾不能有空白，且不能含 @ 或控制字符"));
         return;
     }
     if (password != password_confirm)

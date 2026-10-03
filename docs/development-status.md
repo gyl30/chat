@@ -544,7 +544,8 @@ presence/last_seen 只对观察者自己主动添加的联系人可见。get_pre
 阶段起点重新 fetch 确认 `HEAD = origin/main = 3f1acef633855726a69b7e6844b7f1e73231c029`，工作树干净。本轮没有新增产品功能，以下规则由数据库、server、SDK、Qt 和回归共同表达。
 
 - 新回复的目标必须属于当前 conversation 且 `NOT deleted`。目标查询移到发送事务的 conversation 行锁之后，文字和附件 finish 共用这条路径；删除和回复按取得锁的顺序执行。已经存在的 reply 保留真实 ID，原文删除后历史、实时恢复和 Qt 显示“消息已删除”。拒绝新回复时回滚整个发送，不留消息、附件或 activity 变化。
-- 用户名为 1–64 UTF-8 字节，保留中文、普通空格、`.`、`-`、`_`、其他正常标点及大小写敏感身份。拒绝非法 UTF-8、纯 Unicode White_Space、`@`、NUL/C0/C1、U+2028/U+2029 和显式 Bidi_Control；不 trim、归一化或自动改名。server 与 Qt 共用 `chat/text.hpp`，复用现有 Boost header-only UTF 解码，SQL 024 按同一范围 CHECK。具体规则及 Unicode/正则依据见 [提及设计](mentions-design.md)。
+- 用户名为 1–64 UTF-8 字节，保留中文及合法 Unicode、内部 whitespace、`.`、`-`、`_`、其他正常标点及大小写敏感身份。首尾不能是 Unicode White_Space。拒绝非法 UTF-8、纯 Unicode White_Space、`@`、NUL/C0/C1、U+2028/U+2029 和显式 Bidi_Control；不 trim、归一化或自动改名。server 与 Qt 共用 `chat/text.hpp`，复用现有 Boost header-only UTF 解码，SQL 024 保留已有 CHECK，SQL 025 按同一 Unicode 空白集合增加首尾约束。具体规则及 Unicode/正则依据见 [提及设计](mentions-design.md)。
+- SQL 025 前实际扫描现有 46 个用户：首空白、尾空白及总冲突均为 0；应用 024→025 后核对全部既有 user ID/username 快照不变，没有改名、trim、归一化或删除历史身份。SQL 001–024 保持不变，新增 CHECK 复用 SQL 024 的 25 个 Unicode White_Space 字符；实测 `btrim(text, characters)` 去除集合内首尾字符并保留内部空白。
 - SQL 024 前实际扫描测试库：47 个既有用户中，空白、`@`、控制/方向字符冲突为 0；唯一超长项精确匹配旧测试的 2000 字符尾缀、fixture 前缀和固定测试 hash。仅清理这个已经核实的测试遗留项，没有改名、截断或删除真实身份。原测试改为合法的 64 字节最长 username，并继续验证提及扩展后完整消息超过 64 KiB 时原子回滚。群标题扫描 138 条，无纯空白或超长冲突；测试库 SQL 023→024 成功，隔离 schema 的 migration 回归还验证既有中文/空格身份和历史不被改变。
 - group title 统一为不含 NUL、不超过 256 UTF-8 字节、不能全是 Unicode 空白。create/rename 和 Qt 使用相同规则，有意义的前后、内嵌空格原样保存。公告空字符串或纯 Unicode 空白表示 clear；有意义的内容不 trim，仍为 4096 字节上限和纯文本。
 - clear_avatar 在用户行锁之后读取当前状态：已经无头像则返回当前 revision，不递增、不发通知；实际清除递增，重新上传继续递增。头像仍为公开资料，和 presence 的隐私边界分离，缓存没有 ABA；见 [头像设计](avatar-design.md)。
@@ -587,3 +588,9 @@ presence/last_seen 只对观察者自己主动添加的联系人可见。get_pre
 | UBSan | PASS | 14/14 PASS | 88.37 s |
 
 没有 suppression、排除测试或放宽超时。SQL 001–023 未改，编号连续至 024；新增 helper 均有多个实际调用点，没有新权限状态、通用框架、兼容路径或调试代码，`git diff --check` PASS。本轮仅修复已经确定的不一致；完成独立提交和 push、确认远端与工作区后停止，不进入新产品开发。
+
+## 用户名首尾空白收口
+
+本轮基线 `ae59692bab1dfd9b1cec586a8d66e190ff5486ac`，开始时工作树干净且 `HEAD == origin/main`。先扩展现有 helper、server 注册和 Qt 注册测试，三个入口均确认 RED，再修改共享校验；首尾 Unicode whitespace 被拒绝，内部 ASCII/NBSP/U+3000 及中文继续合法。注册拒绝返回参数错误且不落库，Qt 显示首尾空白规则。搜索继续使用原有 trimmed query 和 prefix match，真实注册/搜索及现有 mention 的最长匹配、大小写、邮箱/`@@` 边界、Unicode 和字面特殊字符回归通过。
+
+SQL 025 的迁移及 insert/update 回归验证合法旧身份原样保留，并保留 SQL 024 的 `@`、control、纯空白和字节上限约束。定向测试 4/4 PASS；随后实际完整运行 `tests/verify.sh`，normal、ASan、UBSan 均完成构建和全部 14/14 CTest，无 suppression、排除测试或放宽 timeout。`git diff --check` PASS。

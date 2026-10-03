@@ -34,6 +34,7 @@ inline bool valid_username(std::string_view username)
         return false;
     }
     bool visible = false;
+    bool last_whitespace = false;
     auto current = username.begin();
     while (current != username.end())
     {
@@ -45,9 +46,14 @@ inline bool valid_username(std::string_view username)
         {
             return false;
         }
-        visible = visible || !unicode_whitespace(value);
+        last_whitespace = unicode_whitespace(value);
+        if (!visible && last_whitespace)
+        {
+            return false;
+        }
+        visible = visible || !last_whitespace;
     }
-    return visible;
+    return visible && !last_whitespace;
 }
 
 inline bool valid_group_title(std::string_view title)

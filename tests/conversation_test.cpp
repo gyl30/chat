@@ -264,13 +264,27 @@ int run_group_tests()
             {
                 for (auto const& invalid : std::vector<std::string>{"", " \u00a0\u3000", "a@b", std::string("a\0b", 3),
                     "a\x01", "a\u0085b", "a\u2028b", "a\u202eb", "a\u2066b", std::string(65, 'x'),
-                    "中中中中中中中中中中中中中中中中中中中中中中"})
+                    "中中中中中中中中中中中中中中中中中中中中中中",
+                    " Alice", "Alice ", " 张三 ", "\tAlice", "Alice\n", "\u00a0Alice", "Alice\u00a0",
+                    "\u3000张三", "张三\u3000"})
                 {
                     auto rejected_name = call<std::int64_t>([&](auto handler) { client.register_user(invalid, "valid password", handler); });
+                    if (rejected_name) { data.users.push_back(*rejected_name); }
                     require(!rejected_name && rejected_name.error().code == -32602, "Registration rejects invalid identity before persistence");
+                    if (invalid.find('\0') == std::string::npos)
+                    {
+                        auto const* value = invalid.c_str();
+                        std::unique_ptr<PGresult, decltype(&PQclear)> persisted(PQexecParams(data.database.get(),
+                            "SELECT count(*) FROM users WHERE username=$1", 1, nullptr, &value, nullptr, nullptr, 0), &PQclear);
+                        require(persisted && PQresultStatus(persisted.get()) == PGRES_TUPLES_OK &&
+                            std::string(PQgetvalue(persisted.get(), 0, 0)) == "0", "Invalid identity never persisted");
+                    }
                 }
             }
             names.push_back("chat_group_test_" + std::to_string(getpid()) + "_" + std::to_string(i));
+            if (i == 1) { names.back() += " Alice Bob"; }
+            if (i == 2) { names.back() += " 张 三"; }
+            if (i == 3) { names.back() += " Alice\u00a0Bob张\u3000三"; }
             auto registered = call<std::int64_t>([&](auto handler)
                                                  { client.register_user(names.back(), "group password", handler); });
             require(registered.has_value(), "Register group fixture");
@@ -307,6 +321,14 @@ int run_group_tests()
                 [&](auto handler) { client.authenticate(names.back(), "group password", handler); });
             require(authenticated && authenticated->authenticated && authenticated->user == *registered,
                     "Authenticate identity");
+        }
+        for (int i = 1; i < 4; ++i)
+        {
+            auto const query = names[i].substr(0, names[i].size() - (i == 1 ? 2 : i == 2 ? 4 : 6));
+            auto found = call<std::vector<chat::user>>([&](auto handler) { a.search_users(query, handler); });
+            require(found && std::ranges::any_of(*found, [&](auto const& user) {
+                return user.id == data.users[i] && user.username == names[i];
+            }), "Prefix search preserves registered internal ASCII and Unicode whitespace");
         }
         for (int i = 1; i < 3; ++i)
         {

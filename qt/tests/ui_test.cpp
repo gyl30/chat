@@ -107,11 +107,14 @@ int main(int argc, char** argv)
             check(username, "Registration identity field");
             for (auto const& name : QList<QString>{QStringLiteral(" \u00a0\u3000"), QStringLiteral("a@b"),
                 QStringLiteral("a\u0001b"), QStringLiteral("a\u0085b"), QStringLiteral("a\u202eb"), QString(65, 'x'),
-                QString(22, QChar(0x4e2d))})
+                QString(22, QChar(0x4e2d)), QStringLiteral(" Alice"), QStringLiteral("Alice "),
+                QStringLiteral(" 张三 "), QStringLiteral("\u00a0Alice"), QStringLiteral("Alice\u00a0"),
+                QStringLiteral("\u3000张三"), QStringLiteral("张三\u3000")})
             {
                 username->setText(name);
                 dialog->findChild<QPushButton*>("registrationSubmitButton")->click();
                 check(dialog->findChild<QLabel*>("subtleText")->text().contains(QStringLiteral("1–64 UTF-8")) &&
+                    dialog->findChild<QLabel*>("subtleText")->text().contains(QStringLiteral("首尾不能有空白")) &&
                     dialog->findChild<QPushButton*>("registrationSubmitButton")->isEnabled(),
                     "Qt rejects invalid identity before connecting or registering");
             }

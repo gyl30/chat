@@ -47,7 +47,7 @@ int main(int argc, char** argv)
               "015_create_user_avatars.sql", "016_create_message_reactions.sql", "017_add_conversation_mute.sql",
               "018_add_conversation_pin.sql", "019_create_message_mentions.sql", "020_add_group_pinned_message.sql",
               "021_add_group_announcement.sql", "022_add_group_invite.sql", "023_create_group_join_requests.sql",
-              "024_validate_identity_and_group_title.sql"})
+              "024_validate_identity_and_group_title.sql", "025_validate_username_edges.sql"})
         {
             if (std::string(name).starts_with("008"))
             {
@@ -67,12 +67,29 @@ int main(int argc, char** argv)
                 execute("UPDATE users SET username='中文 空格._-' WHERE id=1; "
                         "UPDATE users SET username=repeat('b',64) WHERE id=2");
             }
+            if (std::string(name).starts_with("025"))
+            {
+                execute("INSERT INTO users(username,password_hash) VALUES "
+                        "('Alice',repeat('x',60)),('Alice Bob',repeat('x',60)),('张三',repeat('x',60)),"
+                        "('张 三',repeat('x',60)),('Alice\u00a0Bob',repeat('x',60)),('张\u3000三',repeat('x',60)); "
+                        "CREATE TEMP TABLE username_edges_before AS SELECT id,username FROM users");
+            }
             std::ifstream file(std::string(argv[1]) + "/" + name);
             if (!file)
             {
                 throw std::runtime_error("Migration file missing");
             }
             execute(std::string(std::istreambuf_iterator<char>(file), {}));
+            if (std::string(name).starts_with("025"))
+            {
+                auto unchanged = execute("SELECT count(*)=8 AND bool_and(u.username IS NOT DISTINCT FROM b.username) "
+                    "FROM users u FULL JOIN username_edges_before b ON u.id=b.id");
+                if (std::string(PQgetvalue(unchanged.get(), 0, 0)) != "t")
+                {
+                    throw std::runtime_error("Username edge migration changed existing identities");
+                }
+                execute("DELETE FROM users WHERE id>2; DROP TABLE username_edges_before");
+            }
             if (std::string(name).starts_with("021") || std::string(name).starts_with("022") || std::string(name).starts_with("023"))
             {
                 auto defaults = execute(std::string(name).starts_with("021") ?
@@ -115,18 +132,28 @@ int main(int argc, char** argv)
         }
         for (auto const& [username, valid] : std::vector<std::pair<std::string, bool>>{
             {"ASCII", true}, {"中文", true}, {"normal space", true}, {"dot.name", true}, {"dash-name", true},
-            {"under_score", true}, {"r(.*)[z]\\_'", true}, {" edge spaces ", true}, {std::string(64, 'x'), true},
+            {"under_score", true}, {"r(.*)[z]\\_'", true}, {"Alice Bob", true}, {"张 三", true}, {"Alice\u00a0Bob", true}, {"张\u3000三", true},
+            {" Alice", false}, {"Alice ", false}, {" 张三 ", false}, {"\tAlice", false}, {"Alice\n", false},
+            {"\u00a0Alice", false}, {"Alice\u00a0", false}, {"\u3000张三", false}, {"张三\u3000", false}, {std::string(64, 'x'), true},
             {"", false}, {" \t", false}, {"\u00a0\u3000", false}, {"a@b", false}, {"a\x01", false},
             {"a\u0085b", false}, {"a\u2028b", false}, {"a\u202eb", false}, {"a\u2066b", false},
             {std::string(65, 'x'), false}, {"中中中中中中中中中中中中中中中中中中中中中中", false}})
         {
             auto const* value = username.c_str();
-            std::unique_ptr<PGresult, decltype(&PQclear)> inserted(PQexecParams(connection.get(),
-                "INSERT INTO users(username,password_hash) VALUES($1,repeat('x',60))", 1,
-                nullptr, &value, nullptr, nullptr, 0), &PQclear);
-            if (!inserted || (PQresultStatus(inserted.get()) == PGRES_COMMAND_OK) != valid)
+            for (auto const* query : {"INSERT INTO users(username,password_hash) VALUES($1,repeat('x',60))",
+                                     "UPDATE users SET username=$1 WHERE id=2"})
             {
-                throw std::runtime_error("Database username rule mismatch");
+                execute("BEGIN");
+                std::unique_ptr<PGresult, decltype(&PQclear)> changed(PQexecParams(connection.get(), query, 1,
+                    nullptr, &value, nullptr, nullptr, 0), &PQclear);
+                bool const accepted = changed && PQresultStatus(changed.get()) == PGRES_COMMAND_OK;
+                auto const* sqlstate = changed ? PQresultErrorField(changed.get(), PG_DIAG_SQLSTATE) : nullptr;
+                bool const check_rejected = sqlstate && std::string(sqlstate) == "23514";
+                execute("ROLLBACK");
+                if (accepted != valid || (!valid && !check_rejected))
+                {
+                    throw std::runtime_error("Database username insert/update rule mismatch");
+                }
             }
         }
         bool nul_rejected = false;

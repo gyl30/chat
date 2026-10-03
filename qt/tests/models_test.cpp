@@ -13,21 +13,32 @@ int main(int argc, char** argv)
 {
     QCoreApplication app(argc, argv);
     for (auto const& name : std::vector<std::string>{"ASCII", "中文", "normal space", "dot.name", "dash-name", "under_score",
-        "r(.*)[z]\\_'", " edge spaces ", std::string(64, 'x')})
+        "r(.*)[z]\\_'", "Alice Bob", "张 三", "Alice\u00a0Bob", "张\u3000三", std::string(64, 'x')})
     {
         if (!chat::valid_username(name)) { return 1; }
     }
     for (auto const& name : std::vector<std::string>{"", " \u00a0\u3000", "a@b", std::string("a\0b", 3), "a\u2028b",
         "a\u202eb", "a\u2066b", std::string(65, 'x'), "中中中中中中中中中中中中中中中中中中中中中中",
-        std::string("\xc0\x80", 2), std::string("\xe4", 1), std::string("\xed\xa0\x80", 3)})
+        " Alice", "Alice ", " 张三 ", "\tAlice", "Alice\n", "\u00a0Alice", "Alice\u00a0",
+        "\u3000张三", "张三\u3000", std::string("\xc0\x80", 2), std::string("\xe4", 1), std::string("\xed\xa0\x80", 3)})
     {
-        if (chat::valid_username(name)) { return 1; }
+        if (chat::valid_username(name)) { std::cerr << "FAIL invalid username accepted, bytes=" << name.size() << '\n'; return 1; }
     }
     for (int control = 0; control <= 0x9f; ++control)
     {
         if (control >= 0x20 && control < 0x7f) { continue; }
         auto name = QStringLiteral("a") + QChar(control) + QStringLiteral("b");
         if (chat::valid_username(name.toUtf8().toStdString())) { return 1; }
+    }
+    for (auto codepoint : {0x0009, 0x000a, 0x000b, 0x000c, 0x000d, 0x0020, 0x0085, 0x00a0, 0x1680,
+        0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200a,
+        0x2028, 0x2029, 0x202f, 0x205f, 0x3000})
+    {
+        auto const space = QString(QChar(codepoint)).toUtf8().toStdString();
+        bool const allowed_inside = codepoint == 0x0020 || codepoint == 0x00a0 || codepoint == 0x1680 ||
+            (codepoint >= 0x2000 && codepoint <= 0x200a) || codepoint >= 0x202f;
+        if (chat::valid_username(space + "Alice") || chat::valid_username("Alice" + space) ||
+            chat::valid_username("Alice" + space + "Bob") != allowed_inside) { return 1; }
     }
     if (!chat::valid_group_title("  群 名  ") || !chat::valid_group_title(std::string(256, 'x')) ||
         chat::valid_group_title(" \u00a0\u3000") || chat::valid_group_title(std::string(257, 'x')) ||
