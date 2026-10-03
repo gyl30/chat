@@ -64,6 +64,16 @@ int main()
         check(s.friendship(2) == chat::friendship_state::incoming_pending && !s.is_contact(2), "Incoming request is not a friend");
         s.apply_contacts({{2, "peer", {}}});
         check(s.friendship(2) == chat::friendship_state::accepted, "Accepted contacts are authoritative");
+        s.friends.incoming = {{{3, "pending incoming", {}}, 1}};
+        s.friends.outgoing = {{{4, "pending outgoing", {}}, 2}};
+        s.apply_contacts({{2, "peer", {}}});
+        check(s.contacts.size() == 1 && s.contacts.front().id == 2 && !s.is_contact(3) && !s.is_contact(4),
+              "Pending snapshots do not populate accepted contacts");
+        s.view = page::conversations;
+        auto history_count = s.conversations.size();
+        s.apply_conversations({{convo(9), convo(7, false)}, {}}, false);
+        check(s.view == page::conversations && s.active == 7 && s.conversations.size() == history_count,
+              "Read-only refresh preserves Chats navigation and historical direct");
         s.pick_query = "peer";
         check(s.pick_candidates().size() == 1, "Pick accepted matching friend");
         s.pick_query = "missing";

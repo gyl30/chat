@@ -2787,6 +2787,29 @@ int run_tui_tests()
         pump([&] { return app.data.view == page::conversation; });
         require(!app.data.can_send(), "Removed friendship retains history/search/preferences but remains read only");
 
+        app.command("add");
+        pump([&] { return app.data.friendship(peer_id) == chat::friendship_state::outgoing_pending; });
+        require(!app.data.is_contact(peer_id) && !app.data.can_send(), "Re-request preserves read-only history without adding a contact");
+        for (int width : {120, 70, 120, 70})
+        {
+            app.viewport_width = width;
+            app.command("conversations");
+            auto found = std::ranges::find(app.data.conversations, direct, &chat::conversation::id);
+            require(found != app.data.conversations.end(), "Pending historical direct remains in Chats");
+            app.data.conversation_selected = static_cast<int>(found - app.data.conversations.begin());
+            app.activate();
+            pump([&] { return !app.data.messages.empty(); });
+            require(app.data.view == page::conversation && !app.data.can_send(), "Chats opens historical pending direct read only");
+            app.back();
+            app.drain();
+            require(app.data.view == page::conversations && app.data.active == direct, "Back returns from read-only history to Chats after resize");
+        }
+        require(call<chat::friendship_result>([&](auto h) { peer.respond_friend_request(self, false, h); }).has_value(),
+                "Recipient rejects pending navigation fixture");
+        pump([&] { return app.data.friendship(peer_id) == chat::friendship_state::none; });
+        app.open_conversation(direct);
+        pump([&] { return !app.data.messages.empty(); });
+
         app.command("compose");
         require(!app.data.composing, "Non-contact TUI disables compose");
         app.data.draft = "readonly draft";

@@ -389,7 +389,14 @@ void app::navigate(page target)
         ++view_; ++search_request_;
         history_busy_ = search_busy_ = requests_busy_ = sending_ = false;
         requests_again_ = false;
-        pages_.push_back(data.view); data.view = target; data.selected = 0;
+        bool const primary = target == page::conversations || target == page::contacts;
+        bool const chat_tab = data.view == page::conversations && target == page::conversation;
+        bool const friend_tab = (data.view == page::friend_requests || data.view == page::friend_sent) &&
+                                (target == page::friend_requests || target == page::friend_sent);
+        // Primary destinations and sibling tabs are not nested detail pages.
+        if (primary) { pages_.clear(); }
+        else if (!chat_tab && !friend_tab) { pages_.push_back(data.view); }
+        data.view = target; data.selected = 0;
     }
     cancel_prompt();
     if (target == page::conversation && data.active) { history(); members(); }

@@ -86,6 +86,28 @@ int main()
             ok &= expect(output.find("Next visible friend") != std::string::npos, "multiline latest summary leaves next conversation visible");
         }
     }
+    // A visible conversation must not keep the keyboard highlight after Esc.
+    {
+        auto navigation = s;
+        navigation.messages = {chat::message{}};
+        navigation.messages.front().id = 1;
+        navigation.messages.front().conversation = 10;
+        navigation.messages.front().text = "READONLY_HISTORY";
+        navigation.messages.front().username = "peer";
+        for (auto view : {page::conversations, page::conversation})
+        {
+            navigation.view = view;
+            ftxui::Screen screen(120, 40);
+            ftxui::Render(screen, render(navigation, 120, 40));
+            bool list_focus = false, history_focus = false;
+            for (int y = 0; y < 40; ++y)
+                for (int x = 1; x < 119; ++x)
+                    if (screen.CellAt(x, y).inverted)
+                    { (x < 31 ? list_focus : history_focus) = true; }
+            ok &= expect(list_focus == (view == page::conversations), "only Chats keyboard focus highlights its list");
+            ok &= expect(history_focus == (view == page::conversation), "Esc removes conversation keyboard highlight even when read only");
+        }
+    }
     s.view = page::conversation;
     auto& group = s.conversations.front();
     group.kind = chat::conversation_kind::group;
@@ -218,6 +240,32 @@ int main()
         ok &= expect(application.data.view == page::profile && application.data.profile.id == 2, "contact profile navigation");
         component->OnEvent(ftxui::Event::Escape);
         ok &= expect(application.data.view == page::contacts, "Esc returns from profile");
+        application.data.conversations = {direct};
+        application.data.active = direct.id;
+        application.data.friends.outgoing = {{{direct.user, direct.username, {}}, 1}};
+        application.data.draft = "read-only draft";
+        for (int width : {120, 70, 120, 70})
+        {
+            application.viewport_width = width;
+            application.navigate(page::conversations);
+            application.navigate(page::conversation);
+            component->OnEvent(ftxui::Event::Escape);
+            ok &= expect(application.data.view == page::conversations && application.data.active == direct.id &&
+                         application.data.draft == "read-only draft", "read-only Escape returns to Chats without hiding history or draft");
+        }
+        application.navigate(page::conversations);
+        application.navigate(page::conversation);
+        component->OnEvent(ftxui::Event::Tab);
+        component->OnEvent(ftxui::Event::Tab);
+        component->OnEvent(ftxui::Event::Escape);
+        component->OnEvent(ftxui::Event::Escape);
+        ok &= expect(application.data.view == page::conversations, "Tab between Chats and history does not create a Back loop");
+        application.navigate(page::contacts);
+        application.navigate(page::friend_requests);
+        application.navigate(page::friend_sent);
+        application.navigate(page::friend_requests);
+        component->OnEvent(ftxui::Event::Escape);
+        ok &= expect(application.data.view == page::contacts, "Friend request tabs return directly to Contacts");
         application.data.link = connection::online;
         application.command("logout");
         ok &= expect(application.dialog && application.dialog->confirmation && application.data.self.id == 1, "logout requires confirmation");

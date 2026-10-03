@@ -157,9 +157,10 @@ std::string link_label(connection link)
         default: return "signed out";
     }
 }
-Element selected(Element item, bool value)
+Element selected(Element item, bool value, bool active = true)
 {
-    return value ? item | inverted | focus : item;
+    if (!value) { return item; }
+    return active ? item | inverted | focus : item | focus;
 }
 Element scroll(Elements items)
 {
@@ -182,7 +183,7 @@ Element conversation_list(state const& s)
         rows.push_back(selected(vbox({
             hbox({text(label) | flex, text(unread)}),
             hbox({preview_text(summary) | dim | flex, text(flags)})}),
-            s.conversation_selected == static_cast<int>(i)));
+            s.conversation_selected == static_cast<int>(i), s.view == page::conversations));
     }
     if (s.next_conversations) { rows.push_back(text("↓ More conversations")); }
     return vbox({text("Conversations") | bold, separator(), scroll(std::move(rows))}) | flex;
@@ -236,7 +237,8 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
     item->ComputeRequirement();
     auto const last_line = std::max(1, item->requirement().min_y - 1);
     float position = scroll_line < 0 ? 1.f : static_cast<float>(std::clamp(scroll_line, 0, last_line)) / last_line;
-    return item | inverted | focusPositionRelative(0.f, position);
+    if (s.view == page::conversation || s.view == page::search) { item = item | inverted; }
+    return item | focusPositionRelative(0.f, position);
 }
 Element history(state const& s, int width, int message_scroll)
 {
