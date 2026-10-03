@@ -16,6 +16,7 @@
 #include "presence.hpp"
 #include "typing.hpp"
 #include "user.hpp"
+#include "friendship.hpp"
 
 namespace chat
 {
@@ -50,6 +51,9 @@ class client
     using group_join_handler = std::function<void(std::expected<group_join_result, error>)>;
     using group_join_requests_handler = std::function<void(std::expected<group_join_requests_result, error>)>;
     using group_join_request_handler = std::function<void(group_join_request_event)>;
+    using friendship_handler = std::function<void(std::expected<friendship_result, error>)>;
+    using friend_requests_handler = std::function<void(std::expected<friend_requests_result, error>)>;
+    using friendship_changed_handler = std::function<void(std::int64_t user)>;
     using user_handler = std::function<void(std::expected<user, error>)>;
     using remove_contact_handler = std::function<void(std::expected<bool, error>)>;
     using mark_read_handler = std::function<void(std::expected<std::int64_t, error>)>;
@@ -86,6 +90,7 @@ class client
     void set_avatar_handler(avatar_changed_handler handler);
     void set_reaction_handler(reaction_handler handler);
     void set_group_join_request_handler(group_join_request_handler handler);
+    void set_friendship_handler(friendship_changed_handler handler);
 
     void connect(std::string url);
     void close();
@@ -131,7 +136,10 @@ class client
     void edit_message(std::int64_t conversation, std::int64_t message, std::string text,
                       message_result_handler handler);
     void search_users(std::string query, users_handler handler);
-    void add_contact(std::int64_t user, user_handler handler);
+    void get_friend_requests(friend_requests_handler handler);
+    void send_friend_request(std::int64_t user, friendship_handler handler);
+    void respond_friend_request(std::int64_t user, bool accept, friendship_handler handler);
+    void cancel_friend_request(std::int64_t user, friendship_handler handler);
     void remove_contact(std::int64_t user, remove_contact_handler handler);
     void mark_read(std::int64_t conversation, std::int64_t message, mark_read_handler handler);
     void set_typing(std::int64_t conversation, bool typing, typing_result_handler handler);

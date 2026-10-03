@@ -31,8 +31,15 @@ void app::profile_command(std::string const& name, std::string argument)
             if (data.view == page::contacts || data.view == page::users)
             {
                 auto const& values = data.view == page::contacts ? data.contacts : data.users;
-                if (data.selected >= 0 && static_cast<std::size_t>(data.selected) < values.size())
-                { data.profile = values[data.selected]; }
+                auto const selected = data.selected - (data.view == page::contacts ? 1 : 0);
+                if (selected >= 0 && static_cast<std::size_t>(selected) < values.size())
+                { data.profile = values[selected]; }
+            }
+            else if (data.view == page::friend_requests || data.view == page::friend_sent)
+            {
+                auto const& requests = data.view == page::friend_requests ? data.friends.incoming : data.friends.outgoing;
+                if (data.selected >= 0 && static_cast<std::size_t>(data.selected) < requests.size())
+                { data.profile = requests[data.selected].user; }
             }
             else if (data.view == page::members)
             {
@@ -63,8 +70,9 @@ void app::profile_command(std::string const& name, std::string argument)
         if (data.view == page::contacts || data.view == page::users)
         {
             auto const& values = data.view == page::contacts ? data.contacts : data.users;
-            if (data.selected >= 0 && static_cast<std::size_t>(data.selected) < values.size())
-            { data.copy_text = values[data.selected].username; }
+            auto const selected = data.selected - (data.view == page::contacts ? 1 : 0);
+            if (selected >= 0 && static_cast<std::size_t>(selected) < values.size())
+            { data.copy_text = values[selected].username; }
         }
         else if (data.view == page::members)
         {
@@ -125,22 +133,39 @@ void app::profile_command(std::string const& name, std::string argument)
     if (data.view == page::contacts || data.view == page::users)
     {
         auto const& values = data.view == page::contacts ? data.contacts : data.users;
-        if (data.selected < 0 || static_cast<std::size_t>(data.selected) >= values.size())
+        auto const selected = data.selected - (data.view == page::contacts ? 1 : 0);
+        if (selected < 0 || static_cast<std::size_t>(selected) >= values.size())
         { data.status = "请先选择用户"; return; }
-        target = values[data.selected];
+        target = values[selected];
     }
-    if (name == "add" || name == "add-contact")
+    if (data.view == page::friend_requests || data.view == page::friend_sent)
+    {
+        auto const& requests = data.view == page::friend_requests ? data.friends.incoming : data.friends.outgoing;
+        if (data.selected < 0 || static_cast<std::size_t>(data.selected) >= requests.size())
+        { data.status = "请先选择好友申请"; return; }
+        target = requests[data.selected].user;
+    }
+    if (name == "add" || name == "add-contact" || name == "accept-friend" || name == "reject-friend" || name == "cancel-friend")
     {
         if (!online()) { return; }
         if (target.id <= 0 || target.id == data.self.id) { data.status = "请先选择其他用户"; return; }
-        if (data.is_contact(target.id)) { data.status = "已经是你的联系人"; return; }
+        auto const relationship = data.friendship(target.id);
+        if ((name == "add" || name == "add-contact") && relationship != friendship_state::none)
+        { data.status = relationship == friendship_state::accepted ? "已经是好友" : "请先处理当前好友申请"; return; }
+        if ((name == "accept-friend" || name == "reject-friend") && relationship != friendship_state::incoming_pending)
+        { data.status = "请选择收到的好友申请"; return; }
+        if (name == "cancel-friend" && relationship != friendship_state::outgoing_pending)
+        { data.status = "请选择已发送的好友申请"; return; }
         auto const view = view_;
-        client_->add_contact(target.id, callback([this, view](auto value) {
+        auto done = callback([this, view](auto value) {
             if (!value) { if (view == view_) { error(value.error()); } return; }
-            contacts();
-            conversations();
-            if (view == view_) { data.status = "联系人已添加"; }
-        }));
+            contacts(); friend_requests(); conversations();
+            if (view == view_) { data.status = "好友申请已更新"; }
+        });
+        if (name == "accept-friend" || name == "reject-friend")
+        { client_->respond_friend_request(target.id, name == "accept-friend", std::move(done)); }
+        else if (name == "cancel-friend") { client_->cancel_friend_request(target.id, std::move(done)); }
+        else { client_->send_friend_request(target.id, std::move(done)); }
         return;
     }
     if (name == "remove-contact")
@@ -148,11 +173,11 @@ void app::profile_command(std::string const& name, std::string argument)
         if (!online()) { return; }
         if (!data.is_contact(target.id)) { data.status = "请选择你的联系人"; return; }
         auto const view = view_;
-        confirm("删除联系人？历史记录会保留", [this, view, target] {
+        confirm("删除好友？双方聊天权限将关闭，历史记录保留", [this, view, target] {
             if (view != view_ || !online()) { return; }
             client_->remove_contact(target.id, callback([this, view](auto value) {
                 if (!value) { if (view == view_) { error(value.error()); } return; }
-                contacts();
+                contacts(); friend_requests();
                 conversations();
                 if (view == view_) { data.status = "联系人已删除，历史记录保留"; }
             }));
@@ -163,7 +188,7 @@ void app::profile_command(std::string const& name, std::string argument)
     {
         if (!online()) { return; }
         if (!data.is_contact(target.id))
-        { data.status = "添加联系人后可主动发送消息"; return; }
+        { data.status = "双方接受好友申请后可发送消息"; return; }
         auto const view = view_;
         client_->open_direct_conversation(target.id, callback([this, view](auto value) {
             if (view != view_) { return; }

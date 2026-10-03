@@ -50,6 +50,7 @@ public:
     void refresh();
     void conversations(bool more = false);
     void contacts();
+    void friend_requests();
     void presence();
     void open_conversation(std::int64_t id);
     void history(bool older = false);
@@ -82,6 +83,7 @@ private:
     std::uint64_t list_request_ = 0;
     std::uint64_t search_request_ = 0;
     std::uint64_t contacts_request_ = 0;
+    std::uint64_t friends_request_ = 0;
     std::uint64_t presence_request_ = 0;
     std::uint64_t members_request_ = 0;
     std::uint64_t history_request_ = 0;

@@ -108,10 +108,6 @@ boost::capy::task<simdjson::error_code> chat_session::handle_search_users(json_r
             "SELECT u.id, u.username,u.avatar_revision,EXISTS(SELECT 1 FROM user_avatars WHERE user_id=u.id) AS has_avatar FROM users u "
             "WHERE u.id <> $1::bigint "
             "AND starts_with(lower(u.username), lower($2)) "
-            "AND NOT EXISTS ("
-            "SELECT 1 FROM contacts c "
-            "WHERE c.owner_id = $1::bigint AND c.contact_id = u.id"
-            ") "
             "ORDER BY u.username, u.id LIMIT 20"
             ") AS found",
             std::move(parameters));

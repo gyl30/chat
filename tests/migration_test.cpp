@@ -38,8 +38,8 @@ int main(int argc, char** argv)
         execute("CREATE SCHEMA " + schema);
         created = true;
         execute("SET search_path TO " + schema);
-        for (auto const* name :
-             {"001_create_users.sql", "002_create_messages.sql", "003_add_messages_conversation_index.sql",
+        std::vector<char const*> migrations{
+              "001_create_users.sql", "002_create_messages.sql", "003_add_messages_conversation_index.sql",
               "004_create_message_read_positions.sql", "005_add_messages_recipient_index.sql",
               "006_create_contacts.sql", "007_add_user_last_seen.sql", "008_create_conversations.sql",
               "009_add_message_replies.sql", "010_add_message_edits.sql", "011_add_message_deletion.sql",
@@ -47,7 +47,8 @@ int main(int argc, char** argv)
               "015_create_user_avatars.sql", "016_create_message_reactions.sql", "017_add_conversation_mute.sql",
               "018_add_conversation_pin.sql", "019_create_message_mentions.sql", "020_add_group_pinned_message.sql",
               "021_add_group_announcement.sql", "022_add_group_invite.sql", "023_create_group_join_requests.sql",
-              "024_validate_identity_and_group_title.sql", "025_validate_username_edges.sql"})
+              "024_validate_identity_and_group_title.sql", "025_validate_username_edges.sql", "026_create_friend_requests.sql"};
+        for (auto const* name : migrations)
         {
             if (std::string(name).starts_with("008"))
             {
@@ -74,12 +75,48 @@ int main(int argc, char** argv)
                         "('张 三',repeat('x',60)),('Alice\u00a0Bob',repeat('x',60)),('张\u3000三',repeat('x',60)); "
                         "CREATE TEMP TABLE username_edges_before AS SELECT id,username FROM users");
             }
+            if (std::string(name).starts_with("026"))
+            {
+                execute("INSERT INTO users(id,username,password_hash) OVERRIDING SYSTEM VALUE VALUES "
+                        "(9001,'mutual a',repeat('x',60)),(9002,'mutual b',repeat('x',60)),"
+                        "(9003,'pending recipient',repeat('x',60)),(9004,'pending requester',repeat('x',60)); "
+                        "INSERT INTO contacts(owner_id,contact_id,created_at) VALUES "
+                        "(9001,9002,'2020-01-01 UTC'),(9002,9001,'2020-01-02 UTC'),(9004,9003,'2020-01-03 UTC'); "
+                        "CREATE TEMP TABLE friends_before AS SELECT * FROM contacts; "
+                        "CREATE TEMP TABLE identities_before AS SELECT id,username FROM users");
+            }
             std::ifstream file(std::string(argv[1]) + "/" + name);
             if (!file)
             {
                 throw std::runtime_error("Migration file missing");
             }
             execute(std::string(std::istreambuf_iterator<char>(file), {}));
+            if (std::string(name).starts_with("026"))
+            {
+                auto converted = execute(
+                    "SELECT (SELECT count(*) FROM contacts)=2 AND (SELECT count(*) FROM friend_requests)=2 "
+                    "AND NOT EXISTS(SELECT 1 FROM contacts c LEFT JOIN friends_before b "
+                    "ON c.owner_id=b.owner_id AND c.contact_id=b.contact_id WHERE c.created_at IS DISTINCT FROM b.created_at) "
+                    "AND NOT EXISTS(SELECT 1 FROM friend_requests r LEFT JOIN friends_before b "
+                    "ON r.requester_id=b.owner_id AND r.recipient_id=b.contact_id WHERE r.created_at IS DISTINCT FROM b.created_at) "
+                    "AND EXISTS(SELECT 1 FROM friend_requests WHERE requester_id=1 AND recipient_id=2) "
+                    "AND EXISTS(SELECT 1 FROM friend_requests WHERE requester_id=9004 AND recipient_id=9003) "
+                    "AND NOT EXISTS(SELECT 1 FROM users u FULL JOIN identities_before b USING(id) "
+                    "WHERE u.username IS DISTINCT FROM b.username)");
+                if (std::string(PQgetvalue(converted.get(), 0, 0)) != "t")
+                { throw std::runtime_error("Friend migration must preserve mutual pairs and convert one-way relations without changing identities"); }
+                for (auto const* query : {
+                    "INSERT INTO friend_requests(requester_id,recipient_id) VALUES(1,2)",
+                    "INSERT INTO friend_requests(requester_id,recipient_id) VALUES(2,1)",
+                    "INSERT INTO friend_requests(requester_id,recipient_id) VALUES(1,1)",
+                    "INSERT INTO friend_requests(requester_id,recipient_id) VALUES(1,9999999)"})
+                {
+                    bool rejected = false;
+                    try { execute(query); } catch (std::runtime_error const&) { rejected = true; }
+                    if (!rejected) { throw std::runtime_error("Friend request pair/self/foreign key invariant"); }
+                }
+                execute("DELETE FROM users WHERE id>=9001; DROP TABLE friends_before; DROP TABLE identities_before");
+            }
             if (std::string(name).starts_with("025"))
             {
                 auto unchanged = execute("SELECT count(*)=8 AND bool_and(u.username IS NOT DISTINCT FROM b.username) "
@@ -103,7 +140,8 @@ int main(int argc, char** argv)
         auto result = execute("SELECT (SELECT count(*) FROM conversations)=2 "
                               "AND (SELECT count(*) FROM conversation_members)=3 "
                               "AND (SELECT count(*) FROM messages WHERE id IN (1,2,3))=3 "
-                              "AND (SELECT count(*) FROM contacts)=1 "
+                              "AND (SELECT count(*) FROM contacts)=0 "
+                              "AND (SELECT count(*) FROM friend_requests WHERE requester_id=1 AND recipient_id=2)=1 "
                               "AND (SELECT count(*) FROM users WHERE avatar_revision=0)=2 "
                               "AND NOT EXISTS(SELECT 1 FROM user_avatars) "
                               "AND NOT EXISTS(SELECT 1 FROM messages WHERE reaction_revision<>0) "
@@ -266,7 +304,8 @@ int main(int argc, char** argv)
         execute("DELETE FROM users WHERE id=1");
         auto cleaned = execute("SELECT (SELECT count(*) FROM messages)+(SELECT count(*) FROM message_attachments)"
                                "+(SELECT count(*) FROM conversations WHERE kind='group')+(SELECT count(*) FROM user_avatars)"
-                               "+(SELECT count(*) FROM message_reactions)+(SELECT count(*) FROM message_mentions)+(SELECT count(*) FROM group_join_requests)");
+                               "+(SELECT count(*) FROM message_reactions)+(SELECT count(*) FROM message_mentions)+(SELECT count(*) FROM group_join_requests)"
+                               "+(SELECT count(*) FROM friend_requests)");
         if (std::string(PQgetvalue(cleaned.get(), 0, 0)) != "0")
         {
             throw std::runtime_error("Reply cascade cleanup");
@@ -274,7 +313,21 @@ int main(int argc, char** argv)
         execute("SET search_path TO public");
         execute("DROP SCHEMA " + schema + " CASCADE");
         created = false;
-        std::cout << "PASS fresh schema and populated direct/self/read-position migration\n";
+        execute("CREATE SCHEMA " + schema);
+        created = true;
+        execute("SET search_path TO " + schema);
+        for (auto const* name : migrations)
+        {
+            std::ifstream file(std::string(argv[1]) + "/" + name);
+            if (!file) { throw std::runtime_error("Fresh migration file missing"); }
+            execute(std::string(std::istreambuf_iterator<char>(file), {}));
+        }
+        auto fresh = execute("SELECT (SELECT count(*) FROM users)+(SELECT count(*) FROM contacts)+(SELECT count(*) FROM friend_requests)");
+        if (std::string(PQgetvalue(fresh.get(), 0, 0)) != "0") { throw std::runtime_error("Fresh schema must have no identity or relation fixtures"); }
+        execute("SET search_path TO public");
+        execute("DROP SCHEMA " + schema + " CASCADE");
+        created = false;
+        std::cout << "PASS fresh 001-026 schema and populated identity/direct/friend-request migration\n";
         return 0;
     }
     catch (std::exception const& error)

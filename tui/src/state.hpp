@@ -3,12 +3,13 @@
 #include <chat/conversation.hpp>
 #include <chat/member.hpp>
 #include <chat/presence.hpp>
+#include <chat/friendship.hpp>
 #include <unordered_map>
 
 namespace chat::tui
 {
 enum class connection { signed_out, connecting, authenticating, online, reconnecting };
-enum class page { conversations, conversation, contacts, users, profile, members, requests, search, group, help, pick_contacts, copy };
+enum class page { conversations, conversation, contacts, friend_requests, friend_sent, users, profile, members, requests, search, group, help, pick_contacts, copy };
 enum class layout_mode { too_small, narrow, wide };
 
 // Mutated exclusively by the UI event loop. SDK callbacks only enqueue payloads.
@@ -21,6 +22,8 @@ struct state
     std::vector<chat::conversation> conversations;
     std::optional<conversation_cursor> next_conversations;
     std::vector<user> contacts, users;
+    friend_requests_result friends;
+    std::string pick_query;
     std::unordered_map<std::int64_t, presence> presences;
     std::int64_t active = 0;
     std::vector<message> messages, search_results;
@@ -45,6 +48,8 @@ struct state
     bool can_send() const;
     member_role self_role() const;
     bool is_contact(std::int64_t id) const;
+    friendship_state friendship(std::int64_t id) const;
+    std::vector<user const*> pick_candidates() const;
     void apply_conversations(conversations_result result, bool append);
     void apply_contacts(std::vector<user> values);
     void apply_history(messages_result result, bool older);

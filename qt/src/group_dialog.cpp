@@ -16,6 +16,7 @@
 #include <QCheckBox>
 #include <QTabWidget>
 #include <QSignalBlocker>
+#include <QMenu>
 
 #include <algorithm>
 
@@ -26,8 +27,74 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
 {
     setObjectName(QStringLiteral("groupDialog"));
     setWindowTitle(title + QStringLiteral(" · 群资料"));
-    resize(480, 680);
-    auto* layout = new QVBoxLayout(this);
+    resize(520, 680);
+    auto* outer = new QVBoxLayout(this);
+    tabs_ = new QTabWidget(this);
+    tabs_->setObjectName(QStringLiteral("groupTabs"));
+    outer->addWidget(tabs_, 1);
+    auto* overview = new QWidget(tabs_);
+    auto* overview_layout = new QVBoxLayout(overview);
+    overview_title_ = new QLabel(title, overview);
+    overview_title_->setObjectName(QStringLiteral("groupOverviewTitle"));
+    overview_title_->setTextFormat(Qt::PlainText);
+    overview_title_->setWordWrap(true);
+    overview_title_->setStyleSheet(QStringLiteral("font-size: 22px; font-weight: 600;"));
+    overview_layout->addWidget(overview_title_);
+    overview_count_ = new QLabel(QStringLiteral("正在加载成员…"), overview);
+    overview_count_->setObjectName(QStringLiteral("groupOverviewCount"));
+    overview_layout->addWidget(overview_count_);
+    overview_layout->addWidget(new QLabel(QStringLiteral("群公告"), overview));
+    overview_announcement_ = new QLabel(announcement.isEmpty() ? QStringLiteral("暂无公告") : announcement, overview);
+    overview_announcement_->setObjectName(QStringLiteral("groupOverviewAnnouncement"));
+    overview_announcement_->setTextFormat(Qt::PlainText);
+    overview_announcement_->setWordWrap(true);
+    overview_announcement_->setMaximumHeight(120);
+    overview_announcement_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    overview_layout->addWidget(overview_announcement_);
+    auto* full_announcement = new QPushButton(QStringLiteral("查看完整公告"), overview);
+    full_announcement->setObjectName(QStringLiteral("groupReadAnnouncementButton"));
+    overview_layout->addWidget(full_announcement);
+    connect(full_announcement, &QPushButton::clicked, this, [this] {
+        QDialog dialog(this);
+        dialog.setWindowTitle(QStringLiteral("群公告"));
+        dialog.resize(480, 400);
+        auto* layout = new QVBoxLayout(&dialog);
+        auto* text = new QPlainTextEdit(announcement_, &dialog);
+        text->setReadOnly(true);
+        layout->addWidget(text);
+        auto* close = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+        connect(close, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+        layout->addWidget(close);
+        dialog.exec();
+    });
+    overview_pin_ = new QLabel(QStringLiteral("暂无置顶消息"), overview);
+    overview_pin_->setObjectName(QStringLiteral("groupOverviewPinned"));
+    overview_pin_->setTextFormat(Qt::PlainText);
+    overview_pin_->setWordWrap(true);
+    overview_layout->addWidget(overview_pin_);
+    overview_invite_ = new QLabel(overview);
+    overview_invite_->setObjectName(QStringLiteral("groupOverviewInvite"));
+    overview_invite_->setTextFormat(Qt::PlainText);
+    overview_invite_->setWordWrap(true);
+    overview_invite_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    overview_layout->addWidget(overview_invite_);
+    preview_ = new QListWidget(overview);
+    preview_->setObjectName(QStringLiteral("groupMemberPreview"));
+    preview_->setIconSize(QSize(32, 32));
+    preview_->setMaximumHeight(210);
+    overview_layout->addWidget(preview_);
+    auto* all_members = new QPushButton(QStringLiteral("查看全部成员"), overview);
+    all_members->setObjectName(QStringLiteral("groupAllMembersButton"));
+    overview_layout->addWidget(all_members);
+    connect(all_members, &QPushButton::clicked, this, [this] { tabs_->setCurrentIndex(1); });
+    manage_button_ = new QPushButton(QStringLiteral("群管理"), overview);
+    manage_button_->setObjectName(QStringLiteral("groupManageButton"));
+    overview_layout->addWidget(manage_button_);
+    connect(manage_button_, &QPushButton::clicked, this, [this] { tabs_->setCurrentIndex(3); });
+    overview_layout->addStretch();
+    tabs_->addTab(overview, QStringLiteral("群资料"));
+    auto* management = new QWidget(tabs_);
+    auto* layout = new QVBoxLayout(management);
     auto* name_row = new QHBoxLayout;
     title_edit_ = new QLineEdit(title, this);
     title_edit_->setObjectName(QStringLiteral("groupTitleEdit"));
@@ -81,8 +148,6 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     }
     invite_layout->addLayout(invite_row);
     layout->addWidget(invite_controls_);
-    tabs_ = new QTabWidget(this);
-    tabs_->setObjectName(QStringLiteral("groupTabs"));
     auto* members_page = new QWidget(tabs_);
     auto* members_layout = new QVBoxLayout(members_page);
     members_layout->setContentsMargins(0, 0, 0, 0);
@@ -110,7 +175,7 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     more_requests_button_->setAutoDefault(false);
     requests_layout->addWidget(more_requests_button_);
     tabs_->addTab(requests_page, QStringLiteral("入群申请"));
-    layout->addWidget(tabs_, 1);
+    tabs_->addTab(management, QStringLiteral("管理"));
     list_ = new QListWidget(this);
     list_->setObjectName(QStringLiteral("groupMembersList"));
     list_->setIconSize(QSize(32, 32));
@@ -132,41 +197,71 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
             }
         });
     }
+    auto* member_hint = new QLabel(QStringLiteral("群主 · 管理员 · 成员，按角色排列；右键查看成员操作"), members_page);
+    member_hint->setWordWrap(true);
+    members_layout->addWidget(member_hint);
     members_layout->addWidget(list_, 1);
     status_ = new QLabel(QStringLiteral("正在加载成员…"), this);
     status_->setObjectName(QStringLiteral("groupStatus"));
     status_->setTextFormat(Qt::PlainText);
     status_->setWordWrap(true);
-    layout->addWidget(status_);
+    outer->addWidget(status_);
     admin_button_ = new QPushButton(QStringLiteral("设为管理员"), this);
     admin_button_->setObjectName(QStringLiteral("groupAdminButton"));
     admin_button_->setAutoDefault(false);
     transfer_button_ = new QPushButton(QStringLiteral("转让群主"), this);
     transfer_button_->setObjectName(QStringLiteral("groupTransferButton"));
     transfer_button_->setAutoDefault(false);
-    auto* roles_row = new QHBoxLayout;
-    roles_row->addWidget(admin_button_);
-    roles_row->addWidget(transfer_button_);
-    members_layout->addLayout(roles_row);
+    admin_button_->hide();
+    transfer_button_->hide();
     remove_button_ = new QPushButton(QStringLiteral("移除成员"), this);
     remove_button_->setObjectName(QStringLiteral("groupRemoveButton"));
     remove_button_->setAutoDefault(false);
     invite_button_ = new QPushButton(QStringLiteral("从联系人邀请"), this);
     invite_button_->setObjectName(QStringLiteral("groupInviteButton"));
     invite_button_->setAutoDefault(false);
-    auto* members_row = new QHBoxLayout;
-    members_row->addWidget(remove_button_);
-    members_row->addWidget(invite_button_);
-    members_layout->addLayout(members_row);
+    remove_button_->hide();
+    members_layout->addWidget(invite_button_);
     leave_button_ = new QPushButton(QStringLiteral("退出群聊"), this);
     leave_button_->setObjectName(QStringLiteral("groupLeaveButton"));
     leave_button_->setAutoDefault(false);
-    members_layout->addWidget(leave_button_);
+    overview_layout->addWidget(leave_button_);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
     buttons->button(QDialogButtonBox::Close)->setText(QStringLiteral("关闭"));
-    layout->addWidget(buttons);
+    outer->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(list_, &QListWidget::currentRowChanged, this, [this] { update_actions(); });
+    list_->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(list_, &QWidget::customContextMenuRequested, this, [this](QPoint point) {
+        if (auto* item = list_->itemAt(point)) { list_->setCurrentItem(item); }
+        if (!list_->currentItem()) { return; }
+        update_actions();
+        QMenu menu(this);
+        auto const target = members_[list_->currentRow()].id;
+        menu.addAction(QStringLiteral("个人资料"), [this, target] {
+            auto found = std::find_if(members_.begin(), members_.end(), [target](auto const& member) { return member.id == target; });
+            if (found != members_.end()) { emit user_requested(found->id, found->username); }
+        });
+        for (auto* button : {admin_button_, transfer_button_, remove_button_})
+        {
+            if (button->isEnabled())
+            {
+                menu.addAction(button->text(), [this, target, button] {
+                    auto found = std::find_if(members_.begin(), members_.end(), [target](auto const& member) { return member.id == target; });
+                    if (found == members_.end()) { return; }
+                    list_->setCurrentRow(static_cast<int>(std::distance(members_.begin(), found)));
+                    update_actions();
+                    if (button->isEnabled()) { button->click(); }
+                });
+            }
+        }
+        menu.exec(list_->viewport()->mapToGlobal(point));
+    });
+    connect(preview_, &QListWidget::itemClicked, this, [this](QListWidgetItem* item) {
+        auto const id = item->data(Qt::UserRole).toLongLong();
+        auto found = std::find_if(members_.begin(), members_.end(), [id](auto const& member) { return member.id == id; });
+        if (found != members_.end()) { emit user_requested(found->id, found->username); }
+    });
     connect(list_, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
         auto const row = list_->row(item);
         if (row >= 0 && row < members_.size()) { emit user_requested(members_[row].id, members_[row].username); }
@@ -342,15 +437,26 @@ void group_dialog::set_members(qint64 conversation, QList<member_data> members, 
     auto const row = list_->currentRow();
     auto const selected = row >= 0 && row < members_.size() ? members_[row].id : 0;
     members_ = std::move(members);
+    std::stable_sort(members_.begin(), members_.end(), [](auto const& a, auto const& b) {
+        return static_cast<int>(a.role) > static_cast<int>(b.role);
+    });
     list_->clear();
+    preview_->clear();
+    overview_count_->setText(QStringLiteral("%1 位成员").arg(members_.size()));
     for (auto const& member : members_)
     {
         auto const role = member.role == chat::member_role::owner ? QStringLiteral("群主") :
             member.role == chat::member_role::admin ? QStringLiteral("管理员") : QStringLiteral("成员");
         if (avatars_) { avatars_->observe(member.id, member.avatar); }
-        auto* item = new QListWidgetItem(member.username + QStringLiteral(" · ") + role, list_);
+        auto* item = new QListWidgetItem(member.username + QStringLiteral(" · ") + role +
+            (member.id == self_user_ ? QStringLiteral(" · 你") : QString{}), list_);
         item->setData(Qt::UserRole, member.id);
         item->setIcon(avatar_icon(member.username, 32, avatars_ ? avatars_->image(member.id) : QPixmap{}));
+        if (preview_->count() < 5)
+        {
+            auto* preview = new QListWidgetItem(item->icon(), item->text(), preview_);
+            preview->setData(Qt::UserRole, member.id);
+        }
         if (member.id == selected)
         {
             list_->setCurrentItem(item);
@@ -415,6 +521,7 @@ void group_dialog::set_conversations(QList<conversation_data> conversations, QSt
     {
         title_ = found->username;
         title_edit_->setText(title_);
+        overview_title_->setText(title_);
         setWindowTitle(title_ + QStringLiteral(" · 群资料"));
     }
     if (announcement_ != found->announcement)
@@ -423,6 +530,11 @@ void group_dialog::set_conversations(QList<conversation_data> conversations, QSt
         announcement_ = found->announcement;
         if (!modified) { announcement_edit_->setPlainText(announcement_); }
     }
+    overview_announcement_->setText(announcement_.isEmpty() ? QStringLiteral("暂无公告") : announcement_);
+    overview_pin_->setText(found->pinned_message.id > 0
+        ? QStringLiteral("置顶消息 · %1：%2").arg(found->pinned_message.username,
+            found->pinned_message.deleted ? QStringLiteral("消息已删除") : found->pinned_message.text)
+        : QStringLiteral("暂无置顶消息"));
     approval_->setChecked(found->join_approval);
     update_actions();
 }
@@ -483,7 +595,11 @@ void group_dialog::update_actions()
     auto const enabled = available_ && !pending_;
     invite_controls_->setVisible(manager);
     approval_->setEnabled(enabled && manager);
-    tabs_->setTabVisible(1, manager);
+    tabs_->setTabVisible(2, manager);
+    tabs_->setTabVisible(3, manager);
+    manage_button_->setVisible(manager);
+    overview_invite_->setVisible(manager);
+    overview_invite_->setText(invite_edit_->text().isEmpty() ? QStringLiteral("邀请链接 · 尚未创建") : invite_edit_->text());
     if (!manager)
     {
         next_request_ = 0;
@@ -492,7 +608,7 @@ void group_dialog::update_actions()
     accept_request_button_->setEnabled(enabled && manager && requests_->currentItem());
     reject_request_button_->setEnabled(enabled && manager && requests_->currentItem());
     more_requests_button_->setEnabled(enabled && manager && next_request_ > 0);
-    if (!manager) { invite_edit_->clear(); }
+    if (!manager) { invite_edit_->clear(); overview_invite_->clear(); }
     create_invite_button_->setEnabled(enabled && manager && invite_edit_->text().isEmpty());
     copy_invite_button_->setEnabled(enabled && manager && !invite_edit_->text().isEmpty());
     revoke_invite_button_->setEnabled(enabled && manager && !invite_edit_->text().isEmpty());

@@ -147,6 +147,9 @@ client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::ma
     client_->set_conversation_handler([this](std::int64_t id, bool removed) {
         post_result(connection_generation_.load(), [this, id, removed] { emit conversation_changed(id, removed); });
     });
+    client_->set_friendship_handler([this](std::int64_t user) {
+        post_result(connection_generation_.load(), [this, user] { emit friendship_changed(user); });
+    });
     client_->set_presence_handler([this](chat::presence value) {
         post_result(connection_generation_.load(), [this, value] { emit presence_changed(to_presence_data(value)); });
     });
@@ -556,8 +559,10 @@ void client_bridge::leave_group(qint64 conversation)
 void client_bridge::get_contacts()
 {
     auto const generation = connection_generation_.load();
-    client_->get_contacts([this, generation](auto result) {
-        post_result(generation, [this, result = std::move(result)] {
+    auto const request = ++contacts_generation_;
+    client_->get_contacts([this, generation, request](auto result) {
+        post_result(generation, [this, request, result = std::move(result)] {
+            if (request != contacts_generation_) { return; }
             if (!result)
             {
                 emit contacts_received({}, from_utf8(result.error().message));
@@ -814,7 +819,7 @@ void client_bridge::search_messages(qint64 conversation, QString query, qint64 b
 void client_bridge::add_contact(qint64 user)
 {
     auto const generation = connection_generation_.load();
-    client_->add_contact(user, [this, generation, user](auto result) {
+    client_->send_friend_request(user, [this, generation, user](auto result) {
         post_result(generation, [this, user, result = std::move(result)] {
             if (!result)
             {
@@ -825,10 +830,56 @@ void client_bridge::add_contact(qint64 user)
             }
 
             user_data value;
-            value.id = result->id;
-            value.username = from_utf8(result->username);
-            value.avatar = result->avatar;
+            value.id = result->user.id;
+            value.username = from_utf8(result->user.username);
+            value.avatar = result->user.avatar;
             emit contact_added(std::move(value), {});
+        });
+    });
+}
+
+void client_bridge::get_friend_requests()
+{
+    auto const generation = connection_generation_.load();
+    auto const request = ++friend_requests_generation_;
+    client_->get_friend_requests([this, generation, request](auto result) {
+        post_result(generation, [this, request, result = std::move(result)] {
+            if (request != friend_requests_generation_) { return; }
+            QList<user_data> incoming, outgoing;
+            if (!result) { emit friend_requests_received({}, {}, from_utf8(result.error().message)); return; }
+            for (auto const& request : result->incoming)
+            {
+                user_data user; user.id = request.user.id; user.username = from_utf8(request.user.username);
+                user.avatar = request.user.avatar; incoming.push_back(std::move(user));
+            }
+            for (auto const& request : result->outgoing)
+            {
+                user_data user; user.id = request.user.id; user.username = from_utf8(request.user.username);
+                user.avatar = request.user.avatar; outgoing.push_back(std::move(user));
+            }
+            emit friend_requests_received(std::move(incoming), std::move(outgoing), {});
+        });
+    });
+}
+
+void client_bridge::respond_friend_request(qint64 user, bool accept)
+{
+    auto const generation = connection_generation_.load();
+    client_->respond_friend_request(user, accept, [this, generation, user](auto result) {
+        post_result(generation, [this, user, result = std::move(result)] {
+            user_data value; value.id = user;
+            emit contact_added(value, result ? QString{} : from_utf8(result.error().message));
+        });
+    });
+}
+
+void client_bridge::cancel_friend_request(qint64 user)
+{
+    auto const generation = connection_generation_.load();
+    client_->cancel_friend_request(user, [this, generation, user](auto result) {
+        post_result(generation, [this, user, result = std::move(result)] {
+            user_data value; value.id = user;
+            emit contact_added(value, result ? QString{} : from_utf8(result.error().message));
         });
     });
 }

@@ -116,6 +116,18 @@ bool parse_user(boost::json::object const& object, user& value)
     return parse_avatar_state(object, value.avatar);
 }
 
+std::optional<friendship_state> parse_friendship_state(boost::json::value const* value)
+{
+    if (!value || !value->is_string()) { return {}; }
+    auto const& state = value->as_string();
+    if (state == "none") { return friendship_state::none; }
+    if (state == "outgoing_pending") { return friendship_state::outgoing_pending; }
+    if (state == "incoming_pending") { return friendship_state::incoming_pending; }
+    if (state == "accepted") { return friendship_state::accepted; }
+    return {};
+}
+
+
 bool parse_deleted(boost::json::object const& object, bool& deleted)
 {
     auto const* value = object.if_contains("deleted");
@@ -616,6 +628,18 @@ struct client::impl
                     return;
                 }
                 notify_presence(std::move(notification));
+                return;
+            }
+
+            if (method->as_string() == "friendship")
+            {
+                auto const* field = params->as_object().if_contains("user");
+                auto user = field ? parse_int64(*field) : std::nullopt;
+                if (!user || *user <= 0)
+                { report_error(make_error(error_kind::protocol, "Invalid friendship notification")); return; }
+                friendship_changed_handler handler;
+                { std::lock_guard lock(handler_mutex_); handler = friendship_handler_; }
+                if (handler && !suppress_callbacks_.load()) { handler(*user); }
                 return;
             }
 
@@ -1774,40 +1798,57 @@ struct client::impl
         co_return;
     }
 
-    boost::capy::task<> add_contact(std::int64_t contact, user_handler handler)
+    boost::capy::task<> change_friendship(std::string method, boost::json::object params,
+                                              friendship_handler handler)
     {
-        boost::json::object params;
-        params.emplace("user", contact);
-
-        send_request("add_contact", std::move(params), [handler = std::move(handler)](auto response) mutable {
-            if (!response)
-            {
-                handler(std::unexpected(std::move(response.error())));
-                return;
-            }
-            if (!response->is_object())
-            {
-                handler(std::unexpected(make_error(error_kind::protocol, "Invalid add_contact result")));
-                return;
-            }
-
-            auto const* user_value = response->as_object().if_contains("user");
-            if (!user_value || !user_value->is_object())
-            {
-                handler(std::unexpected(make_error(error_kind::protocol, "Invalid add_contact result")));
-                return;
-            }
-
-            user value;
-            if (!parse_user(user_value->as_object(), value))
-            {
-                handler(std::unexpected(make_error(error_kind::protocol, "Invalid user")));
-                return;
-            }
-
-            handler(std::move(value));
+        send_request(std::move(method), std::move(params), [handler = std::move(handler)](auto response) mutable {
+            if (!response) { handler(std::unexpected(std::move(response.error()))); return; }
+            auto const* user = response->is_object() ? response->as_object().if_contains("user") : nullptr;
+            auto state = response->is_object() ? parse_friendship_state(response->as_object().if_contains("state")) :
+                                                std::nullopt;
+            friendship_result result;
+            if (!user || !user->is_object() || !state || !parse_user(user->as_object(), result.user))
+            { handler(std::unexpected(make_error(error_kind::protocol, "Invalid friendship result"))); return; }
+            result.state = *state;
+            handler(std::move(result));
         });
+        co_return;
+    }
 
+    boost::capy::task<> get_friend_requests(friend_requests_handler handler)
+    {
+        send_request("get_friend_requests", {}, [handler = std::move(handler)](auto response) mutable {
+            if (!response) { handler(std::unexpected(std::move(response.error()))); return; }
+            friend_requests_result result;
+            auto parse = [&](char const* name, std::vector<friend_request>& output) {
+                auto const* list = response->is_object() ? response->as_object().if_contains(name) : nullptr;
+                if (!list || !list->is_array()) { return false; }
+                std::unordered_set<std::int64_t> seen;
+                for (auto const& entry : list->as_array())
+                {
+                    auto const* user = entry.is_object() ? entry.as_object().if_contains("user") : nullptr;
+                    auto const* time = entry.is_object() ? entry.as_object().if_contains("created_at") : nullptr;
+                    auto created = time ? parse_int64(*time) : std::nullopt;
+                    friend_request request;
+                    if (!user || !user->is_object() || !created || *created < 0 ||
+                        !parse_user(user->as_object(), request.user) || !seen.insert(request.user.id).second)
+                    { return false; }
+                    request.created_at = *created;
+                    output.push_back(std::move(request));
+                }
+                return true;
+            };
+            if (!parse("incoming", result.incoming) || !parse("outgoing", result.outgoing))
+            { handler(std::unexpected(make_error(error_kind::protocol, "Invalid friend requests result"))); return; }
+            for (auto const& incoming : result.incoming)
+            {
+                if (std::ranges::any_of(result.outgoing, [&](auto const& outgoing) {
+                    return incoming.user.id == outgoing.user.id;
+                }))
+                { handler(std::unexpected(make_error(error_kind::protocol, "Conflicting friend requests"))); return; }
+            }
+            handler(std::move(result));
+        });
         co_return;
     }
 
@@ -2118,6 +2159,7 @@ struct client::impl
     avatar_changed_handler avatar_handler_;
     reaction_handler reaction_handler_;
     group_join_request_handler join_request_handler_;
+    friendship_changed_handler friendship_handler_;
     std::atomic_bool suppress_callbacks_ = false;
 };
 
@@ -2438,9 +2480,33 @@ void client::search_users(std::string query, users_handler handler)
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->search_users(std::move(query), std::move(handler)));
 }
 
-void client::add_contact(std::int64_t user, user_handler handler)
+void client::set_friendship_handler(friendship_changed_handler handler)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->add_contact(user, std::move(handler)));
+    std::lock_guard lock(impl_->handler_mutex_);
+    impl_->friendship_handler_ = std::move(handler);
+}
+
+void client::get_friend_requests(friend_requests_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_friend_requests(std::move(handler)));
+}
+
+void client::send_friend_request(std::int64_t user, friendship_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->change_friendship(
+        "send_friend_request", {{"user", user}}, std::move(handler)));
+}
+
+void client::respond_friend_request(std::int64_t user, bool accept, friendship_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->change_friendship(
+        "respond_friend_request", {{"user", user}, {"accept", accept}}, std::move(handler)));
+}
+
+void client::cancel_friend_request(std::int64_t user, friendship_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->change_friendship(
+        "cancel_friend_request", {{"user", user}}, std::move(handler)));
 }
 
 void client::remove_contact(std::int64_t user, remove_contact_handler handler)

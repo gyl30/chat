@@ -29,7 +29,7 @@ SDK 对外提供 `set_avatar/get_avatar/clear_avatar`，内部负责分块和错
 
 get 请求 revision 过期时返回当前 metadata、空内容、size/offset 0、has_more false；SDK 返回权威新状态，Qt 据此重新获取。每块读取在同一 SQL 快照中取得版本和数据，更新不会把新版本配上旧内容。
 
-实际变化提交后发 `avatar {user, avatar_revision, has_avatar}`。收件人包括自己、任一方向存在联系人关系的用户、已有单聊对端（包括尚无消息的单聊）、当前共享群的成员；SQL UNION 去重，不全局广播。头像是公开用户信息，群退出或移除不使该用户头像变为私有；presence/last_seen 的单向联系人隐私边界不适用于头像。没有头像事件回放，离线变化由登录、联系人、会话和已加载历史等权威快照恢复。
+实际变化提交后发 `avatar {user, avatar_revision, has_avatar}`。收件人包括自己、任一方向存在联系人关系的用户、已有单聊对端（包括尚无消息的单聊）、当前共享群的成员；SQL UNION 去重，不全局广播。头像是公开用户信息，群退出或移除不使该用户头像变为私有；presence/last_seen 的已确认好友隐私边界不适用于头像。没有头像事件回放，离线变化由登录、联系人、会话和已加载历史等权威快照恢复。
 
 ## Qt 缓存和展示
 

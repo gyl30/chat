@@ -617,23 +617,40 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             co_return boost::capy::io_result<bool>{send_ec, !send_ec};
         }
 
-        if (method->as_string() == "add_contact")
+        if (method->as_string() == "send_friend_request" || method->as_string() == "respond_friend_request" ||
+            method->as_string() == "cancel_friend_request")
         {
-            auto const* user_id = params->as_object().if_contains("user");
-            if (!user_id || !user_id->is_int64() || user_id->as_int64() != 2)
+            auto const* target = params->as_object().if_contains("user");
+            auto const* accept = params->as_object().if_contains("accept");
+            if (!target || !target->is_int64() ||
+                (method->as_string() == "respond_friend_request" && (!accept || !accept->is_bool())))
+            { co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false}; }
+            boost::json::object user{{"id", 2}, {"username", "bob"}, {"avatar_revision", 0}, {"has_avatar", false}};
+            std::string state = method->as_string() == "send_friend_request" ? "outgoing_pending" :
+                method->as_string() == "respond_friend_request" && accept->as_bool() ? "accepted" : "none";
+            if (target->as_int64() == 3) { state = "incoming_pending"; }
+            if (target->as_int64() == 98) { state = "unknown"; }
+            response["result"] = boost::json::object{{"user", std::move(user)}, {"state", state}};
+            auto [send_ec] = co_await send_text(connection, std::move(response));
+            if (!send_ec && target->as_int64() == 2)
             {
-                co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false};
+                boost::json::object event{{"jsonrpc", "2.0"}, {"method", "friendship"},
+                    {"params", boost::json::object{{"user", 2}}}};
+                auto sent = co_await send_text(connection, std::move(event));
+                send_ec = std::get<0>(sent);
             }
+            co_return boost::capy::io_result<bool>{send_ec, !send_ec};
+        }
 
-            boost::json::object user;
-            user.emplace("id", 2);
-            user.emplace("username", "bob");
-            user.emplace("avatar_revision", 0);
-            user.emplace("has_avatar", false);
-            boost::json::object result;
-            result.emplace("user", std::move(user));
-            response.emplace("result", std::move(result));
-
+        if (method->as_string() == "get_friend_requests")
+        {
+            response["result"] = boost::json::object{
+                {"incoming", boost::json::array{boost::json::object{
+                    {"user", boost::json::object{{"id", 2}, {"username", "bob"},
+                        {"avatar_revision", 0}, {"has_avatar", false}}}, {"created_at", 1700000000000LL}}}},
+                {"outgoing", boost::json::array{boost::json::object{
+                    {"user", boost::json::object{{"id", 3}, {"username", "张 三"},
+                        {"avatar_revision", 0}, {"has_avatar", false}}}, {"created_at", 1700000000001LL}}}}};
             auto [send_ec] = co_await send_text(connection, std::move(response));
             co_return boost::capy::io_result<bool>{send_ec, !send_ec};
         }
@@ -855,6 +872,7 @@ struct test_state
     int connected = 0;
     int disconnected = 0;
     std::vector<chat::error> errors;
+    std::vector<std::int64_t> friendship_events;
     std::vector<chat::message> messages;
     std::vector<chat::reaction_update> reactions;
     std::vector<chat::group_join_request_event> join_requests;
@@ -1060,8 +1078,8 @@ int main()
     std::cout << "PASS client user search\n";
 
     bool contact_added_called = false;
-    chat::user added_contact;
-    client.add_contact(2, [&](std::expected<chat::user, chat::error> result) {
+    chat::friendship_result added_contact;
+    client.send_friend_request(2, [&](std::expected<chat::friendship_result, chat::error> result) {
         std::lock_guard lock(state.mutex);
         contact_added_called = true;
         if (result)
@@ -1070,12 +1088,13 @@ int main()
         }
         state.condition.notify_all();
     });
-    if (!state.wait([&] { return contact_added_called; }) || added_contact.id != 2 || added_contact.username != "bob")
+    if (!state.wait([&] { return contact_added_called; }) || added_contact.user.id != 2 || added_contact.user.username != "bob" ||
+        added_contact.state != chat::friendship_state::outgoing_pending)
     {
-        std::cerr << "FAIL client add contact\n";
+        std::cerr << "FAIL client send friend request\n";
         return 1;
     }
-    std::cout << "PASS client add contact\n";
+    std::cout << "PASS client send friend request\n";
 
     bool conversations_called = false;
     std::vector<chat::conversation> conversations;
@@ -1392,6 +1411,33 @@ int main()
     if (!cleared_avatar || cleared_avatar->present || cleared_avatar->revision != 2)
     { std::cerr << "FAIL client invalid avatar upload or clear\n"; return 1; }
     std::cout << "PASS client multi-chunk avatar transport and malformed protocol validation\n";
+
+    client.set_friendship_handler([&](auto user) {
+        std::lock_guard lock(state.mutex);
+        state.friendship_events.push_back(user);
+        state.condition.notify_all();
+    });
+    auto requests = avatar_call.operator()<chat::friend_requests_result>([&](auto h) { client.get_friend_requests(h); });
+    if (!requests || requests->incoming.size() != 1 || requests->outgoing.size() != 1 ||
+        requests->incoming[0].user.id != 2 || requests->incoming[0].created_at != 1700000000000LL ||
+        requests->outgoing[0].user.username != "张 三") { return 1; }
+    auto incoming = avatar_call.operator()<chat::friendship_result>([&](auto h) { client.send_friend_request(3, h); });
+    auto malformed_friend = avatar_call.operator()<chat::friendship_result>([&](auto h) { client.send_friend_request(98, h); });
+    if (!incoming || incoming->state != chat::friendship_state::incoming_pending || malformed_friend ||
+        malformed_friend.error().kind != chat::error_kind::protocol) { return 1; }
+    for (bool accept : {false, true})
+    {
+        auto decision = avatar_call.operator()<chat::friendship_result>([&](auto h) {
+            client.respond_friend_request(2, accept, h);
+        });
+        if (!decision || decision->state != (accept ? chat::friendship_state::accepted : chat::friendship_state::none))
+        { return 1; }
+    }
+    auto cancelled = avatar_call.operator()<chat::friendship_result>([&](auto h) { client.cancel_friend_request(2, h); });
+    if (!cancelled || cancelled->state != chat::friendship_state::none ||
+        !state.wait([&] { return state.friendship_events.size() == 3; })) { return 1; }
+    client.set_friendship_handler({});
+    std::cout << "PASS client friendship request DTO, directions, decisions, cancellation, invalid state and events\n";
 
     auto reaction_result = avatar_call.operator()<chat::reaction_update>([&](auto handler) {
         client.set_message_reaction(2, 10, "👍", handler);

@@ -48,6 +48,19 @@ template <class T, class F> std::expected<T, chat::error> call(F operation, std:
     return future.get();
 }
 
+bool make_friends(chat::client& first, std::int64_t first_id, chat::client& second, std::int64_t second_id)
+{
+    auto contacts = call<std::vector<chat::user>>([&](auto h) { first.get_contacts(h); });
+    if (!contacts) { return false; }
+    if (std::ranges::any_of(*contacts, [&](auto const& user) { return user.id == second_id; })) { return true; }
+    auto requested = call<chat::friendship_result>([&](auto h) { first.send_friend_request(second_id, h); });
+    if (!requested) { return false; }
+    auto accepted = requested->state == chat::friendship_state::incoming_pending
+        ? call<chat::friendship_result>([&](auto h) { first.respond_friend_request(second_id, true, h); })
+        : call<chat::friendship_result>([&](auto h) { second.respond_friend_request(first_id, true, h); });
+    return accepted && accepted->state == chat::friendship_state::accepted;
+}
+
 struct events
 {
     std::mutex mutex;
@@ -154,7 +167,8 @@ struct fixture
     void execute(std::string const& query)
     {
         std::unique_ptr<PGresult, decltype(&PQclear)> result(PQexec(database.get(), query.c_str()), &PQclear);
-        require(result && PQresultStatus(result.get()) == PGRES_COMMAND_OK, PQerrorMessage(database.get()));
+        require(result && (PQresultStatus(result.get()) == PGRES_COMMAND_OK || PQresultStatus(result.get()) == PGRES_TUPLES_OK),
+                PQerrorMessage(database.get()));
     }
 
     void cleanup()
@@ -248,6 +262,353 @@ std::int64_t position(chat::messages_result const& result, std::int64_t user)
 
 }
 
+int run_friendship_tests()
+{
+    try
+    {
+        runtime server;
+        {
+            fixture relations;
+            std::array<events, 3> changes;
+            std::array<chat::client, 3> peers;
+            std::array<std::string, 3> identities;
+            for (int i = 0; i < 3; ++i)
+            {
+                identities[i] = "chat_semantics_" + std::to_string(getpid()) + "_" + std::to_string(i);
+                if (i == 2) { identities[i] = "中文 空格._-" + identities[i]; }
+                changes[i].attach(peers[i]);
+                peers[i].connect(server.url);
+                changes[i].wait([&] { return changes[i].connected == 1; });
+                auto registered = call<std::int64_t>([&](auto h) { peers[i].register_user(identities[i], "semantics", h); });
+                require(registered.has_value(), "Register relationship fixture");
+                relations.users.push_back(*registered);
+                auto authenticated = call<chat::authentication_result>([&](auto h) {
+                    peers[i].authenticate(identities[i], "semantics", h);
+                });
+                require(authenticated && authenticated->authenticated, "Authenticate relationship fixture");
+            }
+            auto& left = peers[0];
+            auto& right = peers[1];
+            auto const left_id = relations.users[0], right_id = relations.users[1], outsider_id = relations.users[2];
+            for (int i = 0; i < 2; ++i)
+            {
+                auto denied = call<chat::direct_conversation_result>([&](auto h) {
+                    peers[i].open_direct_conversation(relations.users[1-i], h);
+                });
+                require(!denied && denied.error().code == -32005, "Neither direction can create a non-contact direct");
+            }
+            auto requested = call<chat::friendship_result>([&](auto h) { left.send_friend_request(right_id, h); });
+            require(requested && requested->state == chat::friendship_state::outgoing_pending, "Request remains pending");
+            auto duplicate_request = call<chat::friendship_result>([&](auto h) { left.send_friend_request(right_id, h); });
+            auto reverse_request = call<chat::friendship_result>([&](auto h) { right.send_friend_request(left_id, h); });
+            auto pending = call<chat::friend_requests_result>([&](auto h) { right.get_friend_requests(h); });
+            require(duplicate_request && reverse_request && reverse_request->state == chat::friendship_state::incoming_pending &&
+                pending && pending->incoming.size() == 1 && pending->outgoing.empty(), "Duplicate and opposite request never implicitly accept");
+            for (auto* actor : {&left, &right})
+            {
+                require(call<std::vector<chat::user>>([&](auto h) { actor->get_contacts(h); }).value().empty() &&
+                    call<std::vector<chat::presence>>([&](auto h) { actor->get_presence(h); }).value().empty(),
+                    "Pending is neither a contact nor presence authorization");
+            }
+            require(call<chat::friendship_result>([&](auto h) { right.respond_friend_request(left_id, false, h); }).value().state == chat::friendship_state::none,
+                "Reject deletes only the pending request");
+            require(call<chat::friendship_result>([&](auto h) { left.send_friend_request(right_id, h); }).has_value() &&
+                call<chat::friendship_result>([&](auto h) { left.cancel_friend_request(right_id, h); }).value().state == chat::friendship_state::none,
+                "Requester can cancel and retry without granting permission");
+            require(make_friends(left, left_id, right, right_id), "Explicit acceptance creates friendship");
+            auto repeated_friend = call<chat::friendship_result>([&](auto h) { left.send_friend_request(right_id, h); });
+            require(!repeated_friend, "Accepted friends cannot create another pending request");
+            auto opened = call<chat::direct_conversation_result>([&](auto h) { left.open_direct_conversation(right_id, h); });
+            require(opened && opened->can_send, "Accepted friend can open direct");
+            auto const direct_id = opened->conversation;
+            auto original = call<chat::send_message_result>([&](auto h) { left.send_message(direct_id, "授权历史", h); });
+            require(original && conversation(right, direct_id).can_send, "Acceptance grants both directions");
+            auto file = call<chat::message>([&](auto h) { left.send_attachment(direct_id, "history.bin", "historical bytes", h); });
+            require(file.has_value(), "Create downloadable direct history");
+            require(make_friends(left, left_id, peers[2], outsider_id), "Confirmed friend can be manually invited");
+            auto shared = call<std::int64_t>([&](auto h) { left.create_group("关系边界", {right_id, outsider_id}, h); });
+            require(shared.has_value(), "Create shared membership");
+            relations.groups.push_back(*shared);
+            auto outsider_direct = call<chat::direct_conversation_result>([&](auto h) { left.open_direct_conversation(outsider_id, h); });
+            require(outsider_direct && call<chat::send_message_result>([&](auto h) {
+                left.send_message(outsider_direct->conversation, "presence history", h);
+            }).has_value(), "Create history before friendship removal");
+            require(call<bool>([&](auto h) { left.remove_contact(outsider_id, h); }).value(), "Remove fixture friendship");
+            for (std::string_view state : {"no_relation", "outgoing_pending", "incoming_pending", "accepted", "removed", "reaccepted"})
+            {
+                require(make_friends(left, left_id, right, right_id), "Prepare both authors' history");
+                std::array<std::int64_t, 2> own;
+                for (int i = 0; i < 2; ++i)
+                {
+                    auto message = call<chat::send_message_result>([&](auto h) { peers[i].send_message(direct_id, "可管理的旧消息", h); });
+                    require(message.has_value(), "Prepare an author's historical message");
+                    own[i] = message->message_id;
+                }
+                require(call<bool>([&](auto h) { left.remove_contact(right_id, h); }).value(), "Clear both friendship directions");
+                if (state == "outgoing_pending")
+                { require(call<chat::friendship_result>([&](auto h) { left.send_friend_request(right_id, h); }).has_value(), "Outgoing pending state"); }
+                else if (state == "incoming_pending")
+                { require(call<chat::friendship_result>([&](auto h) { right.send_friend_request(left_id, h); }).has_value(), "Incoming pending state"); }
+                else if (state == "accepted" || state == "reaccepted")
+                { require(make_friends(left, left_id, right, right_id), "Accepted/reaccepted state"); }
+                for (int i = 0; i < 2; ++i)
+                {
+                    auto& actor = peers[i];
+                    auto const allowed = state == "accepted" || state == "reaccepted";
+                    auto verify_active = [allowed](auto const& result) {
+                        require(result.has_value() == allowed && (allowed || result.error().code == -32006),
+                            "Direct mutations require explicitly accepted friendship in both directions");
+                    };
+                    auto open = call<chat::direct_conversation_result>([&](auto h) { actor.open_direct_conversation(relations.users[1-i], h); });
+                    require(open.has_value() == allowed && (allowed ? open->can_send : open.error().code == -32005), "Open authorization matrix");
+                    verify_active(call<chat::send_message_result>([&](auto h) { actor.send_message(direct_id, "主动消息", h); }));
+                    verify_active(call<chat::send_message_result>([&](auto h) { actor.send_message(direct_id, "主动回复", h, original->message_id); }));
+                    verify_active(call<chat::message>([&](auto h) { actor.send_attachment(direct_id, "new.bin", "new", h); }));
+                    verify_active(call<bool>([&](auto h) { actor.set_typing(direct_id, true, h); }));
+                    verify_active(call<bool>([&](auto h) { actor.set_typing(direct_id, false, h); }));
+                    verify_active(call<chat::reaction_update>([&](auto h) { actor.set_message_reaction(direct_id, original->message_id, "👍", h); }));
+                    verify_active(call<chat::reaction_update>([&](auto h) { actor.set_message_reaction(direct_id, original->message_id, "🎉", h); }));
+                    verify_active(call<chat::reaction_update>([&](auto h) { actor.set_message_reaction(direct_id, original->message_id, "", h); }));
+                    verify_active(call<chat::message>([&](auto h) { actor.edit_message(direct_id, own[i], "编辑旧消息", h); }));
+                    auto removed_own = call<chat::message>([&](auto h) { actor.delete_message(direct_id, own[i], h); });
+                    require(removed_own && removed_own->deleted, "Deleting own published content remains authorized");
+                    require(call<chat::messages_result>([&](auto h) { actor.get_messages(direct_id, {}, h); }).has_value() &&
+                        call<chat::messages_result>([&](auto h) { actor.search_messages(direct_id, "授权历史", {}, h); })->messages.size() == 1 &&
+                        call<std::string>([&](auto h) { actor.get_attachment(direct_id, file->id, h); }).value() == "historical bytes" &&
+                        call<std::int64_t>([&](auto h) { actor.mark_read(direct_id, file->id, h); }).has_value() &&
+                        call<bool>([&](auto h) { actor.set_conversation_muted(direct_id, true, h); }).value() &&
+                        call<bool>([&](auto h) { actor.set_conversation_pinned(direct_id, true, h); }).value(),
+                        "Read-only direct preserves history, search, attachment, read and private preferences");
+                    auto contacts = call<std::vector<chat::user>>([&](auto h) { actor.get_contacts(h); });
+                    auto presence = call<std::vector<chat::presence>>([&](auto h) { actor.get_presence(h); });
+                    require(contacts && contacts->size() == (allowed ? 1u : 0u) && presence &&
+                        presence->size() == contacts->size() && conversation(actor, direct_id).can_send == allowed,
+                        "Contacts, private presence and authoritative capability agree with confirmed friendship");
+                }
+            }
+            auto outsider_presence = call<std::vector<chat::presence>>([&](auto h) { peers[2].get_presence(h); });
+            require(outsider_presence && outsider_presence->empty(), "Shared group and direct history do not disclose presence");
+            auto avatar = call<chat::avatar_state>([&](auto h) { left.set_avatar(*chat::detail::decode_base64(avatar_png_base64), h); });
+            require(avatar && avatar->present, "Set public profile avatar");
+            changes[2].wait([&] { return !changes[2].avatars.empty(); });
+            {
+                std::lock_guard lock(changes[2].mutex);
+                require(changes[2].avatars.back().user == left_id && changes[2].presences.empty(),
+                    "A non-contact receives public avatar changes but no private presence");
+            }
+            left.close();
+            changes[0].wait([&] { return changes[0].disconnected == 1; });
+            changes[1].wait([&] { return !changes[1].presences.empty() && !changes[1].presences.back().online; });
+            left.connect(server.url);
+            changes[0].wait([&] { return changes[0].connected == 2; });
+            require(call<chat::authentication_result>([&](auto h) { left.authenticate(identities[0], "semantics", h); }).value().authenticated,
+                "Reconnect relationship owner");
+            changes[1].wait([&] { return changes[1].presences.size() >= 2 && changes[1].presences.back().online; });
+            require(conversation(left, direct_id).can_send, "Reconnect restores authoritative contact permission");
+            require(call<bool>([&](auto h) { left.remove_contact(right_id, h); }).value(), "Remove presence visibility");
+            std::size_t previous_presence;
+            { std::lock_guard lock(changes[0].mutex); previous_presence = changes[0].presences.size(); }
+            right.close();
+            changes[1].wait([&] { return changes[1].disconnected == 1; });
+            right.connect(server.url);
+            changes[1].wait([&] { return changes[1].connected == 2; });
+            auto authenticated = call<chat::authentication_result>([&](auto h) { right.authenticate(identities[1], "semantics", h); });
+            require(authenticated && authenticated->authenticated, "Reconnect contact peer");
+            require(call<std::vector<chat::presence>>([&](auto h) { left.get_presence(h); }).value().empty() &&
+                call<std::vector<chat::presence>>([&](auto h) { peers[2].get_presence(h); }).value().empty() &&
+                !conversation(left, direct_id).can_send && !conversation(right, direct_id).can_send,
+                "Reconnect preserves symmetric removal");
+            {
+                std::scoped_lock lock(changes[0].mutex, changes[2].mutex);
+                require(changes[0].presences.size() == previous_presence && changes[2].presences.empty(),
+                    "Removed contact, historical peer and shared group receive no private presence notifications");
+            }
+            auto wait_blocked = [&](int count = 1) {
+                bool waiting = false;
+                for (int attempt = 0; attempt < 100 && !waiting; ++attempt)
+                {
+                    std::unique_ptr<PGresult, decltype(&PQclear)> state(PQexec(relations.database.get(),
+                        "SELECT pg_stat_clear_snapshot(); WITH RECURSIVE blocked(pid) AS ("
+                        "SELECT pid FROM pg_stat_activity WHERE datname=current_database() AND pg_backend_pid()=ANY(pg_blocking_pids(pid)) "
+                        "UNION SELECT a.pid FROM pg_stat_activity a JOIN blocked b ON b.pid=ANY(pg_blocking_pids(a.pid)) "
+                        "WHERE a.datname=current_database()) SELECT count(*) FROM blocked"), &PQclear);
+                    waiting = state && PQresultStatus(state.get()) == PGRES_TUPLES_OK &&
+                        std::stoi(PQgetvalue(state.get(), 0, 0)) >= count;
+                    if (!waiting) { std::this_thread::sleep_for(std::chrono::milliseconds(10)); }
+                }
+                return waiting;
+            };
+            auto after_remove = [&](auto operation) {
+                require(make_friends(left, left_id, right, right_id), "Prepare contact race");
+                relations.execute("BEGIN");
+                relations.execute("SELECT id FROM conversations WHERE id=" + std::to_string(direct_id) + " FOR UPDATE");
+                auto removal = std::async(std::launch::async, [&] {
+                    return call<bool>([&](auto h) { right.remove_contact(left_id, h); });
+                });
+                auto const removal_waiting = wait_blocked();
+                auto pending = std::async(std::launch::async, operation);
+                auto const waiting = wait_blocked(2);
+                relations.execute("COMMIT");
+                auto removed = removal.get();
+                auto result = pending.get();
+                require(removal_waiting && waiting && removed && *removed && !result && result.error().code == -32006,
+                    "Actual friendship removal wins conversation lock and queued mutation rechecks permission");
+            };
+            after_remove([&] { return call<chat::send_message_result>([&](auto h) { left.send_message(direct_id, "blocked send", h); }); });
+            after_remove([&] { return call<bool>([&](auto h) { left.set_typing(direct_id, true, h); }); });
+            after_remove([&] { return call<chat::reaction_update>([&](auto h) { left.set_message_reaction(direct_id, original->message_id, "👍", h); }); });
+            after_remove([&] { return call<chat::message>([&](auto h) { left.edit_message(direct_id, original->message_id, "blocked edit", h); }); });
+            require(make_friends(left, left_id, right, right_id), "Restore sender for reverse lock order");
+            auto send_first = call<chat::send_message_result>([&](auto h) { left.send_message(direct_id, "先发送后移除", h); });
+            require(send_first && call<bool>([&](auto h) { left.remove_contact(right_id, h); }).value() &&
+                call<chat::messages_result>([&](auto h) { left.search_messages(direct_id, "先发送后移除", {}, h); }).value().messages.size() == 1,
+                "A completed send survives subsequent contact removal");
+            for (bool delete_first : {true, false})
+            {
+                auto target = call<chat::send_message_result>([&](auto h) { right.send_message(*shared, "锁竞争的原文", h); });
+                require(target.has_value(), "Create live reply target");
+                relations.execute("BEGIN");
+                relations.execute("UPDATE conversations SET title=title WHERE id=" + std::to_string(*shared));
+                std::future<std::expected<chat::message, chat::error>> deletion;
+                std::future<std::expected<chat::send_message_result, chat::error>> reply;
+                auto deleting = [&] { return call<chat::message>([&](auto h) { right.delete_message(*shared, target->message_id, h); }); };
+                auto replying = [&] { return call<chat::send_message_result>([&](auto h) { left.send_message(*shared, "锁竞争的新回复", h, target->message_id); }); };
+                if (delete_first) { deletion = std::async(std::launch::async, deleting); }
+                else { reply = std::async(std::launch::async, replying); }
+                auto const first_waiting = wait_blocked();
+                if (delete_first) { reply = std::async(std::launch::async, replying); }
+                else { deletion = std::async(std::launch::async, deleting); }
+                auto const both_waiting = wait_blocked(2);
+                relations.execute("COMMIT");
+                auto removed = deletion.get();
+                auto answered = reply.get();
+                require(first_waiting, "First reply/delete RPC waits on the conversation lock");
+                require(both_waiting, "Both reply/delete RPCs are queued behind the authoritative lock");
+                require(removed && removed->deleted &&
+                    (delete_first ? (!answered && answered.error().code == -32602) : answered.has_value()),
+                    "Actual delete/reply RPCs obey their database lock order");
+                if (!delete_first)
+                {
+                    auto history = call<chat::messages_result>([&](auto h) { left.get_messages(*shared, {}, h); });
+                    require(history && std::ranges::any_of(history->messages, [&](auto const& message) {
+                        return message.id == answered->message_id && message.reply &&
+                            message.reply->id == target->message_id && message.reply->deleted && message.reply->text.empty();
+                    }), "Existing reply survives deletion with a deleted placeholder");
+                }
+            }
+            auto fresh_name = "chat_semantics_new_" + std::to_string(getpid());
+            fresh_name.append(64 - fresh_name.size(), 'x');
+            auto fresh_user = call<std::int64_t>([&](auto h) { left.register_user(fresh_name, "semantics", h); });
+            require(fresh_user.has_value(), "New direct creation race identity");
+            relations.users.push_back(*fresh_user);
+            events fresh_events;
+            chat::client fresh;
+            fresh_events.attach(fresh);
+            fresh.connect(server.url);
+            fresh_events.wait([&] { return fresh_events.connected == 1; });
+            require(call<chat::authentication_result>([&](auto h) { fresh.authenticate(fresh_name, "semantics", h); }).value().authenticated,
+                "Authenticate new direct peer");
+            require(make_friends(left, left_id, fresh, *fresh_user), "New direct creation requires explicit acceptance");
+            relations.execute("BEGIN");
+            relations.execute("SELECT owner_id FROM contacts WHERE owner_id=" + std::to_string(left_id) +
+                " AND contact_id=" + std::to_string(*fresh_user) + " FOR UPDATE");
+            auto removal = std::async(std::launch::async, [&] {
+                return call<bool>([&](auto h) { fresh.remove_contact(left_id, h); });
+            });
+            auto const remove_waits = wait_blocked();
+            auto opening = std::async(std::launch::async, [&] {
+                return call<chat::direct_conversation_result>([&](auto h) { left.open_direct_conversation(*fresh_user, h); });
+            });
+            auto const creation_waits = wait_blocked(2);
+            relations.execute("COMMIT");
+            auto removed_friend = removal.get();
+            auto denied_creation = opening.get();
+            require(remove_waits && creation_waits && removed_friend && *removed_friend && !denied_creation && denied_creation.error().code == -32005,
+                "New uncommitted pair cannot bypass a friendship removal that wins its contact row lock");
+            auto creation_snapshot = call<chat::conversations_result>([&](auto h) { left.get_conversations({}, h); });
+            require(creation_snapshot && std::ranges::none_of(creation_snapshot->conversations, [&](auto const& value) {
+                return value.user == *fresh_user;
+            }), "Unauthorized creation rolls back both conversation and membership");
+            require(make_friends(left, left_id, fresh, *fresh_user), "Restore creation authorization");
+            auto creation_first = call<chat::direct_conversation_result>([&](auto h) { left.open_direct_conversation(*fresh_user, h); });
+            require(creation_first && call<bool>([&](auto h) { left.remove_contact(*fresh_user, h); }).value() &&
+                !conversation(left, creation_first->conversation).can_send,
+                "Open before removal retains an empty authoritative read-only conversation");
+            for (bool cancel : {false, true})
+            {
+                for (bool accept_first : {false, true})
+                {
+                    require(call<bool>([&](auto h) { left.remove_contact(right_id, h); }).has_value(), "Clear race state");
+                    require(call<chat::friendship_result>([&](auto h) { left.send_friend_request(right_id, h); }).has_value(), "Create pending race");
+                    relations.execute("BEGIN");
+                    relations.execute("SELECT id FROM users WHERE id IN (" + std::to_string(left_id) + "," +
+                        std::to_string(right_id) + ") ORDER BY id FOR NO KEY UPDATE");
+                    auto accept = [&] { return call<chat::friendship_result>([&](auto h) { right.respond_friend_request(left_id, true, h); }); };
+                    auto alternative = [&] {
+                        return cancel ? call<chat::friendship_result>([&](auto h) { left.cancel_friend_request(right_id, h); })
+                                      : call<chat::friendship_result>([&](auto h) { right.respond_friend_request(left_id, false, h); });
+                    };
+                    auto first = std::async(std::launch::async, [&] { return accept_first ? accept() : alternative(); });
+                    auto const first_waiting = wait_blocked();
+                    auto second = std::async(std::launch::async, [&] { return accept_first ? alternative() : accept(); });
+                    // Reject shares the authenticated recipient's serialized session; cancellation has a second session.
+                    auto const both_waiting = !cancel || wait_blocked(2);
+                    relations.execute("COMMIT");
+                    auto first_result = first.get(); auto second_result = second.get();
+                    require(first_waiting && both_waiting && first_result.has_value(), "Friend decisions obey the actual pair row lock");
+                    auto confirmed = call<std::vector<chat::user>>([&](auto h) { left.get_contacts(h); });
+                    auto other_confirmed = call<std::vector<chat::user>>([&](auto h) { right.get_contacts(h); });
+                    auto requests = call<chat::friend_requests_result>([&](auto h) { left.get_friend_requests(h); });
+                    require(confirmed && other_confirmed && requests && requests->incoming.empty() && requests->outgoing.empty() &&
+                        std::ranges::any_of(*confirmed, [&](auto const& u) { return u.id == right_id; }) == accept_first &&
+                        std::ranges::any_of(*other_confirmed, [&](auto const& u) { return u.id == left_id; }) == accept_first,
+                        "Accept/reject/cancel race leaves exactly one symmetric friendship decision and no history row");
+                    if (!accept_first) { require(!second_result, "A consumed request cannot later be accepted"); }
+                }
+            }
+            require(call<chat::friendship_result>([&](auto h) { left.send_friend_request(*fresh_user, h); }).has_value(), "Open race pending");
+            relations.execute("BEGIN");
+            relations.execute("SELECT id FROM users WHERE id IN (" + std::to_string(left_id) + "," +
+                std::to_string(*fresh_user) + ") ORDER BY id FOR NO KEY UPDATE");
+            auto accepting = std::async(std::launch::async, [&] {
+                return call<chat::friendship_result>([&](auto h) { fresh.respond_friend_request(left_id, true, h); });
+            });
+            auto const accept_waiting = wait_blocked();
+            auto pending_open = call<chat::direct_conversation_result>([&](auto h) { left.open_direct_conversation(*fresh_user, h); });
+            relations.execute("COMMIT");
+            auto accepted_open = accepting.get();
+            require(accept_waiting && !pending_open && pending_open.error().code == -32005 && accepted_open &&
+                call<chat::direct_conversation_result>([&](auto h) { left.open_direct_conversation(*fresh_user, h); }).has_value(),
+                "Open cannot observe half of an uncommitted acceptance, then succeeds after commit");
+            require(call<bool>([&](auto h) { left.remove_contact(right_id, h); }).has_value(), "Prepare offline request");
+            right.close();
+            changes[1].wait([&] { return changes[1].disconnected == 2; });
+            require(call<chat::friendship_result>([&](auto h) { left.send_friend_request(right_id, h); }).has_value(), "Request persists for offline recipient");
+            right.connect(server.url);
+            changes[1].wait([&] { return changes[1].connected == 3; });
+            require(call<chat::authentication_result>([&](auto h) { right.authenticate(identities[1], "semantics", h); }).value().authenticated &&
+                call<chat::friend_requests_result>([&](auto h) { right.get_friend_requests(h); }).value().incoming.size() == 1,
+                "Offline recipient recovers authoritative pending request");
+            left.close();
+            changes[0].wait([&] { return changes[0].disconnected == 2; });
+            require(call<chat::friendship_result>([&](auto h) { right.respond_friend_request(left_id, true, h); }).has_value(), "Accept while requester offline");
+            left.connect(server.url);
+            changes[0].wait([&] { return changes[0].connected == 3; });
+            require(call<chat::authentication_result>([&](auto h) { left.authenticate(identities[0], "semantics", h); }).value().authenticated &&
+                conversation(left, direct_id).can_send && conversation(right, direct_id).can_send &&
+                call<chat::friend_requests_result>([&](auto h) { left.get_friend_requests(h); }).value().outgoing.empty(),
+                "Offline requester recovers accepted friendship and bilateral capability");
+            std::cout << "PASS friendship state machine, offline recovery and real pair/conversation lock races\n";
+        }
+        return 0;
+    }
+    catch (std::exception const& error)
+    {
+        std::cerr << "FAIL friendship: " << error.what() << '\n';
+        return 1;
+    }
+}
+
 int run_group_tests()
 {
     try
@@ -338,251 +699,12 @@ int run_group_tests()
         }
         for (int i = 1; i < 3; ++i)
         {
-            require(call<chat::user>([&](auto handler) { a.add_contact(data.users[i], handler); }).has_value(),
+            require(make_friends(a, data.users[0], *clients[i], data.users[i]),
                     "Add group contact");
         }
         auto forbidden_direct = call<chat::direct_conversation_result>([&](auto handler) { d.open_direct_conversation(data.users[0], handler); });
         require(!forbidden_direct && forbidden_direct.error().code == -32005,
                 "A shared group or a registered user does not grant direct communication authorization");
-        {
-            fixture relations;
-            std::array<events, 3> changes;
-            std::array<chat::client, 3> peers;
-            std::array<std::string, 3> identities;
-            for (int i = 0; i < 3; ++i)
-            {
-                identities[i] = "chat_semantics_" + std::to_string(getpid()) + "_" + std::to_string(i);
-                if (i == 2) { identities[i] = "中文 空格._-" + identities[i]; }
-                changes[i].attach(peers[i]);
-                peers[i].connect(server.url);
-                changes[i].wait([&] { return changes[i].connected == 1; });
-                auto registered = call<std::int64_t>([&](auto h) { peers[i].register_user(identities[i], "semantics", h); });
-                require(registered.has_value(), "Register relationship fixture");
-                relations.users.push_back(*registered);
-                auto authenticated = call<chat::authentication_result>([&](auto h) {
-                    peers[i].authenticate(identities[i], "semantics", h);
-                });
-                require(authenticated && authenticated->authenticated, "Authenticate relationship fixture");
-            }
-            auto& left = peers[0];
-            auto& right = peers[1];
-            auto const left_id = relations.users[0], right_id = relations.users[1], outsider_id = relations.users[2];
-            for (int i = 0; i < 2; ++i)
-            {
-                auto denied = call<chat::direct_conversation_result>([&](auto h) {
-                    peers[i].open_direct_conversation(relations.users[1-i], h);
-                });
-                require(!denied && denied.error().code == -32005, "Neither direction can create a non-contact direct");
-            }
-            require(call<chat::user>([&](auto h) { left.add_contact(right_id, h); }).has_value(), "Unilateral contact");
-            auto opened = call<chat::direct_conversation_result>([&](auto h) { left.open_direct_conversation(right_id, h); });
-            require(opened && opened->can_send, "Contact owner can open direct");
-            auto const direct_id = opened->conversation;
-            auto original = call<chat::send_message_result>([&](auto h) { left.send_message(direct_id, "授权历史", h); });
-            require(original && !conversation(right, direct_id).can_send, "Receiving does not authorize replying");
-            auto unilateral_reply = call<chat::send_message_result>([&](auto h) {
-                right.send_message(direct_id, "denied reply", h, original->message_id);
-            });
-            require(!unilateral_reply && unilateral_reply.error().code == -32006, "A unilateral recipient cannot reply");
-            auto file = call<chat::message>([&](auto h) { left.send_attachment(direct_id, "history.bin", "historical bytes", h); });
-            require(file.has_value(), "Create downloadable direct history");
-            require(call<chat::user>([&](auto h) { left.add_contact(outsider_id, h); }).has_value(), "Group fixture contact");
-            auto shared = call<std::int64_t>([&](auto h) { left.create_group("关系边界", {right_id, outsider_id}, h); });
-            require(shared.has_value(), "Create shared membership without reverse contacts");
-            relations.groups.push_back(*shared);
-            auto outsider_direct = call<chat::direct_conversation_result>([&](auto h) {
-                left.open_direct_conversation(outsider_id, h);
-            });
-            require(outsider_direct && call<chat::send_message_result>([&](auto h) {
-                left.send_message(outsider_direct->conversation, "presence history", h);
-            }).has_value(), "Create a non-contact receiver's direct history");
-            require(call<bool>([&](auto h) { left.remove_contact(outsider_id, h); }).value(), "Remove fixture contact");
-            for (auto const& state : {std::pair{false,false}, std::pair{true,false}, std::pair{false,true}, std::pair{true,true}})
-            {
-                for (int i = 0; i < 2; ++i)
-                { require(call<chat::user>([&](auto h) { peers[i].add_contact(relations.users[1-i], h); }).has_value(), "Prepare own history"); }
-                std::array<std::int64_t, 2> own;
-                for (int i = 0; i < 2; ++i)
-                {
-                    auto message = call<chat::send_message_result>([&](auto h) { peers[i].send_message(direct_id, "可管理的旧消息", h); });
-                    require(message.has_value(), "Prepare an author's historical message");
-                    own[i] = message->message_id;
-                }
-                for (int i = 0; i < 2; ++i)
-                {
-                    auto const allowed = i == 0 ? state.first : state.second;
-                    if (!allowed) { require(call<bool>([&](auto h) { peers[i].remove_contact(relations.users[1-i], h); }).value(), "Set unilateral state"); }
-                }
-                for (int i = 0; i < 2; ++i)
-                {
-                    auto& actor = peers[i];
-                    auto const allowed = i == 0 ? state.first : state.second;
-                    auto verify_active = [allowed](auto const& result) {
-                        require(result.has_value() == allowed && (allowed || result.error().code == -32006),
-                            "Direct mutation depends only on the caller's contact");
-                    };
-                    auto open = call<chat::direct_conversation_result>([&](auto h) { actor.open_direct_conversation(relations.users[1-i], h); });
-                    require(open.has_value() == allowed && (allowed ? open->can_send : open.error().code == -32005), "Open authorization matrix");
-                    verify_active(call<chat::send_message_result>([&](auto h) { actor.send_message(direct_id, "主动消息", h); }));
-                    verify_active(call<chat::send_message_result>([&](auto h) { actor.send_message(direct_id, "主动回复", h, original->message_id); }));
-                    verify_active(call<chat::message>([&](auto h) { actor.send_attachment(direct_id, "new.bin", "new", h); }));
-                    verify_active(call<bool>([&](auto h) { actor.set_typing(direct_id, true, h); }));
-                    verify_active(call<bool>([&](auto h) { actor.set_typing(direct_id, false, h); }));
-                    verify_active(call<chat::reaction_update>([&](auto h) { actor.set_message_reaction(direct_id, original->message_id, "👍", h); }));
-                    verify_active(call<chat::reaction_update>([&](auto h) { actor.set_message_reaction(direct_id, original->message_id, "🎉", h); }));
-                    verify_active(call<chat::reaction_update>([&](auto h) { actor.set_message_reaction(direct_id, original->message_id, "", h); }));
-                    verify_active(call<chat::message>([&](auto h) { actor.edit_message(direct_id, own[i], "编辑旧消息", h); }));
-                    auto removed_own = call<chat::message>([&](auto h) { actor.delete_message(direct_id, own[i], h); });
-                    require(removed_own && removed_own->deleted, "Deleting own published content remains authorized");
-                    require(call<chat::messages_result>([&](auto h) { actor.get_messages(direct_id, {}, h); }).has_value() &&
-                        call<chat::messages_result>([&](auto h) { actor.search_messages(direct_id, "授权历史", {}, h); })->messages.size() == 1 &&
-                        call<std::string>([&](auto h) { actor.get_attachment(direct_id, file->id, h); }).value() == "historical bytes" &&
-                        call<std::int64_t>([&](auto h) { actor.mark_read(direct_id, file->id, h); }).has_value() &&
-                        call<bool>([&](auto h) { actor.set_conversation_muted(direct_id, true, h); }).value() &&
-                        call<bool>([&](auto h) { actor.set_conversation_pinned(direct_id, true, h); }).value(),
-                        "Read-only direct preserves history, search, attachment, read and private preferences");
-                    auto contacts = call<std::vector<chat::user>>([&](auto h) { actor.get_contacts(h); });
-                    auto presence = call<std::vector<chat::presence>>([&](auto h) { actor.get_presence(h); });
-                    require(contacts && contacts->size() == (allowed ? 1u : 0u) && presence &&
-                        presence->size() == contacts->size() && conversation(actor, direct_id).can_send == allowed,
-                        "Contacts, private presence and authoritative capability have the same direction");
-                }
-            }
-            auto outsider_presence = call<std::vector<chat::presence>>([&](auto h) { peers[2].get_presence(h); });
-            require(outsider_presence && outsider_presence->empty(), "Shared group and direct history do not disclose presence");
-            auto avatar = call<chat::avatar_state>([&](auto h) { left.set_avatar(*chat::detail::decode_base64(avatar_png_base64), h); });
-            require(avatar && avatar->present, "Set public profile avatar");
-            changes[2].wait([&] { return !changes[2].avatars.empty(); });
-            {
-                std::lock_guard lock(changes[2].mutex);
-                require(changes[2].avatars.back().user == left_id && changes[2].presences.empty(),
-                    "A non-contact receives public avatar changes but no private presence");
-            }
-            left.close();
-            changes[0].wait([&] { return changes[0].disconnected == 1; });
-            changes[1].wait([&] { return !changes[1].presences.empty() && !changes[1].presences.back().online; });
-            left.connect(server.url);
-            changes[0].wait([&] { return changes[0].connected == 2; });
-            require(call<chat::authentication_result>([&](auto h) { left.authenticate(identities[0], "semantics", h); }).value().authenticated,
-                "Reconnect relationship owner");
-            changes[1].wait([&] { return changes[1].presences.size() >= 2 && changes[1].presences.back().online; });
-            require(conversation(left, direct_id).can_send, "Reconnect restores authoritative contact permission");
-            require(call<bool>([&](auto h) { left.remove_contact(right_id, h); }).value(), "Remove presence visibility");
-            std::size_t previous_presence;
-            { std::lock_guard lock(changes[0].mutex); previous_presence = changes[0].presences.size(); }
-            right.close();
-            changes[1].wait([&] { return changes[1].disconnected == 1; });
-            right.connect(server.url);
-            changes[1].wait([&] { return changes[1].connected == 2; });
-            auto authenticated = call<chat::authentication_result>([&](auto h) { right.authenticate(identities[1], "semantics", h); });
-            require(authenticated && authenticated->authenticated, "Reconnect contact peer");
-            require(call<std::vector<chat::presence>>([&](auto h) { left.get_presence(h); }).value().empty() &&
-                call<std::vector<chat::presence>>([&](auto h) { peers[2].get_presence(h); }).value().empty() &&
-                !conversation(left, direct_id).can_send && conversation(right, direct_id).can_send,
-                "Reconnect preserves independent unilateral permissions");
-            {
-                std::scoped_lock lock(changes[0].mutex, changes[2].mutex);
-                require(changes[0].presences.size() == previous_presence && changes[2].presences.empty(),
-                    "Removed contact, historical peer and shared group receive no private presence notifications");
-            }
-            auto wait_blocked = [&](int count = 1) {
-                bool waiting = false;
-                for (int attempt = 0; attempt < 100 && !waiting; ++attempt)
-                {
-                    std::unique_ptr<PGresult, decltype(&PQclear)> state(PQexec(relations.database.get(),
-                        "SELECT pg_stat_clear_snapshot(); WITH RECURSIVE blocked(pid) AS ("
-                        "SELECT pid FROM pg_stat_activity WHERE datname=current_database() AND pg_backend_pid()=ANY(pg_blocking_pids(pid)) "
-                        "UNION SELECT a.pid FROM pg_stat_activity a JOIN blocked b ON b.pid=ANY(pg_blocking_pids(a.pid)) "
-                        "WHERE a.datname=current_database()) SELECT count(*) FROM blocked"), &PQclear);
-                    waiting = state && PQresultStatus(state.get()) == PGRES_TUPLES_OK &&
-                        std::stoi(PQgetvalue(state.get(), 0, 0)) >= count;
-                    if (!waiting) { std::this_thread::sleep_for(std::chrono::milliseconds(10)); }
-                }
-                return waiting;
-            };
-            auto after_remove = [&](auto operation) {
-                require(call<chat::user>([&](auto h) { left.add_contact(right_id, h); }).has_value(), "Prepare contact race");
-                relations.execute("BEGIN");
-                relations.execute("UPDATE conversations SET title=title WHERE id=" + std::to_string(direct_id));
-                relations.execute("DELETE FROM contacts WHERE owner_id=" + std::to_string(left_id) +
-                    " AND contact_id=" + std::to_string(right_id));
-                auto pending = std::async(std::launch::async, operation);
-                auto const waiting = wait_blocked();
-                relations.execute("COMMIT");
-                auto result = pending.get();
-                require(waiting && !result && result.error().code == -32006,
-                    "Mutation blocked on conversation lock rechecks the committed contact removal");
-            };
-            after_remove([&] { return call<chat::send_message_result>([&](auto h) { left.send_message(direct_id, "blocked send", h); }); });
-            after_remove([&] { return call<bool>([&](auto h) { left.set_typing(direct_id, true, h); }); });
-            after_remove([&] { return call<chat::reaction_update>([&](auto h) { left.set_message_reaction(direct_id, original->message_id, "👍", h); }); });
-            after_remove([&] { return call<chat::message>([&](auto h) { left.edit_message(direct_id, original->message_id, "blocked edit", h); }); });
-            require(call<chat::user>([&](auto h) { left.add_contact(right_id, h); }).has_value(), "Restore sender for reverse lock order");
-            auto send_first = call<chat::send_message_result>([&](auto h) { left.send_message(direct_id, "先发送后移除", h); });
-            require(send_first && call<bool>([&](auto h) { left.remove_contact(right_id, h); }).value() &&
-                call<chat::messages_result>([&](auto h) { left.search_messages(direct_id, "先发送后移除", {}, h); }).value().messages.size() == 1,
-                "A completed send survives subsequent contact removal");
-            for (bool delete_first : {true, false})
-            {
-                auto target = call<chat::send_message_result>([&](auto h) { right.send_message(*shared, "锁竞争的原文", h); });
-                require(target.has_value(), "Create live reply target");
-                relations.execute("BEGIN");
-                relations.execute("UPDATE conversations SET title=title WHERE id=" + std::to_string(*shared));
-                std::future<std::expected<chat::message, chat::error>> deletion;
-                std::future<std::expected<chat::send_message_result, chat::error>> reply;
-                auto deleting = [&] { return call<chat::message>([&](auto h) { right.delete_message(*shared, target->message_id, h); }); };
-                auto replying = [&] { return call<chat::send_message_result>([&](auto h) { left.send_message(*shared, "锁竞争的新回复", h, target->message_id); }); };
-                if (delete_first) { deletion = std::async(std::launch::async, deleting); }
-                else { reply = std::async(std::launch::async, replying); }
-                auto const first_waiting = wait_blocked();
-                if (delete_first) { reply = std::async(std::launch::async, replying); }
-                else { deletion = std::async(std::launch::async, deleting); }
-                auto const both_waiting = wait_blocked(2);
-                relations.execute("COMMIT");
-                auto removed = deletion.get();
-                auto answered = reply.get();
-                require(first_waiting, "First reply/delete RPC waits on the conversation lock");
-                require(both_waiting, "Both reply/delete RPCs are queued behind the authoritative lock");
-                require(removed && removed->deleted &&
-                    (delete_first ? (!answered && answered.error().code == -32602) : answered.has_value()),
-                    "Actual delete/reply RPCs obey their database lock order");
-                if (!delete_first)
-                {
-                    auto history = call<chat::messages_result>([&](auto h) { left.get_messages(*shared, {}, h); });
-                    require(history && std::ranges::any_of(history->messages, [&](auto const& message) {
-                        return message.id == answered->message_id && message.reply &&
-                            message.reply->id == target->message_id && message.reply->deleted && message.reply->text.empty();
-                    }), "Existing reply survives deletion with a deleted placeholder");
-                }
-            }
-            auto fresh_name = "chat_semantics_new_" + std::to_string(getpid());
-            fresh_name.append(64 - fresh_name.size(), 'x');
-            auto fresh_user = call<std::int64_t>([&](auto h) { left.register_user(fresh_name, "semantics", h); });
-            require(fresh_user.has_value(), "New direct creation race identity");
-            relations.users.push_back(*fresh_user);
-            require(call<chat::user>([&](auto h) { left.add_contact(*fresh_user, h); }).has_value(), "New direct creation race contact");
-            relations.execute("BEGIN");
-            relations.execute("DELETE FROM contacts WHERE owner_id=" + std::to_string(left_id) +
-                " AND contact_id=" + std::to_string(*fresh_user));
-            auto opening = std::async(std::launch::async, [&] {
-                return call<chat::direct_conversation_result>([&](auto h) { left.open_direct_conversation(*fresh_user, h); });
-            });
-            auto const creation_waits = wait_blocked();
-            relations.execute("COMMIT");
-            auto denied_creation = opening.get();
-            require(creation_waits && !denied_creation && denied_creation.error().code == -32005,
-                "New uncommitted pair cannot bypass a contact removal that wins its row lock");
-            auto creation_snapshot = call<chat::conversations_result>([&](auto h) { left.get_conversations({}, h); });
-            require(creation_snapshot && std::ranges::none_of(creation_snapshot->conversations, [&](auto const& value) {
-                return value.user == *fresh_user;
-            }), "Unauthorized creation rolls back both conversation and membership");
-            require(call<chat::user>([&](auto h) { left.add_contact(*fresh_user, h); }).has_value(), "Restore creation authorization");
-            auto creation_first = call<chat::direct_conversation_result>([&](auto h) { left.open_direct_conversation(*fresh_user, h); });
-            require(creation_first && call<bool>([&](auto h) { left.remove_contact(*fresh_user, h); }).value() &&
-                !conversation(left, creation_first->conversation).can_send,
-                "Open before removal retains an empty authoritative read-only conversation");
-            std::cout << "PASS all four unilateral contact states and historical direct operations\n";
-        }
         auto rejected = call<std::int64_t>([&](auto handler) { a.create_group("invalid", {data.users[3]}, handler); });
         require(!rejected && rejected.error().code == -32005, "Reject non-contact creation");
         auto duplicate = call<std::int64_t>([&](auto handler)
@@ -724,6 +846,8 @@ int run_group_tests()
                 downloaded && downloaded->data == png && downloaded->media_type == "image/png",
                 "Stale revision returns current metadata; searchable users have readable avatars");
             auto search = call<std::vector<chat::user>>([&](auto handler) { b.search_users(names[0], handler); });
+            require(search && search->size() == 1 && search->front().id == data.users[0],
+                "User search must include accepted friends so clients can display the accepted relationship");
             auto avatar_members = call<std::vector<chat::conversation_member>>([&](auto handler) { c.get_members(group, handler); });
             require(search && search->size() == 1 && search->front().avatar == *first_avatar &&
                 avatar_members && avatar_members->front().avatar == *first_avatar,
@@ -761,7 +885,7 @@ int run_group_tests()
                 std::lock_guard lock(d_events.mutex);
                 require(d_events.avatars.empty(), "Avatar changes are not globally broadcast");
             }
-            require(call<chat::user>([&](auto handler) { d.add_contact(data.users[0], handler); }).has_value(),
+            require(make_friends(d, data.users[3], a, data.users[0]),
                 "An empty direct conversation starts with the caller's contact authorization");
             auto empty_direct = call<chat::direct_conversation_result>([&](auto handler) { d.open_direct_conversation(data.users[0], handler); });
             require(empty_direct.has_value(), "Empty direct conversation notification relationship");
@@ -894,9 +1018,9 @@ int run_group_tests()
                 "Monotonic read position");
         auto direct = call<chat::direct_conversation_result>([&](auto handler) { a.open_direct_conversation(data.users[1], handler); });
         auto same = call<chat::direct_conversation_result>([&](auto handler) { b.open_direct_conversation(data.users[0], handler); });
-        require(direct && direct->can_send && !same && same.error().code == -32005 &&
-            !conversation(b, direct->conversation).can_send, "The receiver has history access without reverse send permission");
-        require(call<chat::user>([&](auto handler) { b.add_contact(data.users[0], handler); }).has_value(),
+        require(direct && direct->can_send && same && same->can_send &&
+            conversation(b, direct->conversation).can_send, "Accepted friends have symmetric direct permission");
+        require(make_friends(b, data.users[1], a, data.users[0]),
                 "The receiver independently grants its own outgoing authorization");
         same = call<chat::direct_conversation_result>([&](auto handler) { b.open_direct_conversation(data.users[0], handler); });
         require(same && same->can_send && direct->conversation == same->conversation && direct->conversation != group,
@@ -1108,7 +1232,7 @@ int run_group_tests()
         require(conversation(c, group).last.text.size() == 40000 &&
                     conversation(c, *second_group).last.text.size() == 40000,
                 "Conversation summaries exceed a single message size");
-        require(call<chat::user>([&](auto handler) { b.add_contact(data.users[0], handler); }).has_value(),
+        require(make_friends(b, data.users[1], a, data.users[0]),
                 "Create reverse contact");
         auto before_remove = call<chat::messages_result>([&](auto handler) { a.get_messages(direct->conversation, {}, handler); });
         auto removed = call<bool>([&](auto handler) { a.remove_contact(data.users[1], handler); });
@@ -1119,8 +1243,7 @@ int run_group_tests()
         auto reverse_contacts = call<std::vector<chat::user>>([&](auto handler) { b.get_contacts(handler); });
         require(contacts_after_remove && contacts_after_remove->size() == 1 &&
                     contacts_after_remove->front().id == data.users[2] && reverse_contacts &&
-                    reverse_contacts->size() == 1 && reverse_contacts->front().id == data.users[0],
-                "Only the caller's contact relation is removed");
+                    reverse_contacts->empty(), "Removing friendship deletes both directions");
         auto after_remove = call<chat::messages_result>([&](auto handler) { a.get_messages(direct->conversation, {}, handler); });
         require(before_remove && after_remove && before_remove->messages.size() == after_remove->messages.size() &&
                     position(*before_remove, data.users[0]) == position(*after_remove, data.users[0]) &&
@@ -1157,7 +1280,7 @@ int run_group_tests()
         require(!denied_direct_typing && denied_direct_typing.error().code == -32006 && !denied_stop &&
             denied_stop.error().code == -32006 && !conversation(a, direct->conversation).can_send,
             "Removing a contact rejects both typing states and restores a read-only snapshot");
-        require(call<chat::user>([&](auto handler) { a.add_contact(data.users[1], handler); }).has_value(),
+        require(make_friends(a, data.users[0], b, data.users[1]),
             "Re-adding a contact restores direct communication");
         auto direct_typing = call<bool>([&](auto handler) { a.set_typing(direct->conversation, true, handler); });
         require(direct_typing && *direct_typing, "Direct conversation typing");
@@ -1287,21 +1410,24 @@ int run_group_tests()
                 "r(.*)[z]\\_'" + base, base + std::string(64 - base.size(), 'x')};
             std::vector<std::int64_t> special_ids;
             std::vector<std::int64_t> mention_members{data.users[1], data.users[2]};
-            require(call<chat::user>([&](auto handler) { a.add_contact(data.users[1], handler); }).has_value(),
+            require(make_friends(a, data.users[0], b, data.users[1]),
                 "Restore contact removed by the earlier contact lifecycle test");
             for (auto const& name : special_names)
             {
-                auto const* value = name.c_str();
-                std::unique_ptr<PGresult, decltype(&PQclear)> inserted(PQexecParams(data.database.get(),
-                    "INSERT INTO users(username,password_hash) VALUES($1,repeat('x',60)) RETURNING id", 1,
-                    nullptr, &value, nullptr, nullptr, 0), &PQclear);
-                require(inserted && PQresultStatus(inserted.get()) == PGRES_TUPLES_OK && PQntuples(inserted.get()) == 1,
-                    "Create literal Unicode, whitespace and regex username fixtures");
-                auto const id = std::stoll(PQgetvalue(inserted.get(), 0, 0));
+                auto registered = call<std::int64_t>([&](auto h) { a.register_user(name, "mention password", h); });
+                require(registered.has_value(), "Register literal Unicode, whitespace and regex username fixtures");
+                auto const id = *registered;
+                events literal_events;
+                chat::client literal;
+                literal_events.attach(literal);
+                literal.connect(server.url);
+                literal_events.wait([&] { return literal_events.connected == 1; });
+                require(call<chat::authentication_result>([&](auto h) { literal.authenticate(name, "mention password", h); }).value().authenticated,
+                    "Authenticate literal fixture to explicitly accept friendship");
                 data.users.push_back(id);
                 special_ids.push_back(id);
                 mention_members.push_back(id);
-                require(call<chat::user>([&](auto handler) { a.add_contact(id, handler); }).has_value(), "Mention fixture contact");
+                require(make_friends(a, data.users[0], literal, id), "Mention fixture contact");
             }
             auto created_mentions = call<std::int64_t>([&](auto handler) { a.create_group("mention", mention_members, handler); });
             require(created_mentions.has_value(), "Create mention group");
@@ -1641,7 +1767,7 @@ int run_group_tests()
             require(call<bool>([&](auto h) { a.remove_group_member(mention_group, data.users[3], h); }).value() &&
                 call<chat::group_join_result>([&](auto h) { d.join_group(**replacement, h); })->state == chat::group_join_state::pending,
                 "Rejoin after removal again requires approval");
-            require(call<chat::user>([&](auto h) { a.add_contact(data.users[3], h); }).has_value() &&
+            require(make_friends(a, data.users[0], d, data.users[3]) &&
                 call<bool>([&](auto h) { a.invite_group_members(mention_group, {data.users[3]}, h); }).value() &&
                 call<chat::group_join_requests_result>([&](auto h) { a.get_group_join_requests(mention_group, {}, h); })->requests.empty(),
                 "Explicit contact invitation bypasses link approval and atomically clears an existing application");
@@ -1767,7 +1893,7 @@ int run_group_tests()
                 require(authenticated && authenticated->authenticated, "Authenticate roles fixture");
                 if (i > 0)
                 {
-                    require(call<chat::user>([&](auto handler) { managed[0].add_contact(*id, handler); }).has_value(),
+                    require(make_friends(managed[0], managed_ids[0], client, *id),
                             "Owner role contacts");
                 }
             }
@@ -1915,7 +2041,7 @@ int run_group_tests()
                 managed[2].invite_group_members(managed_group, {managed_ids[4]}, handler);
             });
             require(!missing_contact && missing_contact.error().code == -32005, "Administrators must invite their own contacts");
-            require(call<chat::user>([&](auto handler) { managed[2].add_contact(managed_ids[4], handler); }).has_value(),
+            require(make_friends(managed[2], managed_ids[2], managed[4], managed_ids[4]),
                     "Administrator contact");
             data.execute("BEGIN");
             data.execute("UPDATE conversations SET title=title WHERE id=" + std::to_string(managed_group));
@@ -2023,7 +2149,7 @@ int run_group_tests()
                 }) == 2, "Transfer swaps roles without consuming an administrator slot");
             require(call<bool>([&](auto handler) { managed[0].leave_group(lifecycle_group, handler); }).has_value(),
                 "Former owner can leave after transfer");
-            require(call<chat::user>([&](auto handler) { managed[1].add_contact(managed_ids[0], handler); }).has_value(),
+            require(make_friends(managed[1], managed_ids[1], managed[0], managed_ids[0]),
                 "New owner contact");
             require(call<bool>([&](auto handler) {
                 managed[1].invite_group_members(lifecycle_group, {managed_ids[0]}, handler);
@@ -2129,7 +2255,7 @@ int run_group_tests()
                     std::count(managed_events[4].removals.begin(), managed_events[4].removals.end(), lifecycle_group) == 1,
                     "Removed member receives exactly one removal and no later realtime events");
             }
-            require(call<chat::user>([&](auto handler) { managed[1].add_contact(managed_ids[4], handler); }).has_value() &&
+            require(make_friends(managed[1], managed_ids[1], managed[4], managed_ids[4]) &&
                 call<bool>([&](auto handler) {
                     managed[1].invite_group_members(lifecycle_group, {managed_ids[4]}, handler);
                 }).has_value(), "Reinvite removed member");
@@ -2360,7 +2486,7 @@ int run_group_tests()
             if (*racing_accept) { require(call<bool>([&](auto h) { managed[1].remove_group_member(lifecycle_group, managed_ids[4], h); }).value(), "Remove accepted race fixture"); }
             require(call<bool>([&](auto h) { managed[1].set_group_join_approval(lifecycle_group, false, h); }).value(), "Restore direct-join mode for remaining lifecycle tests");
             std::cout << "PASS approval/demotion, approval/send, duplicate acceptance and accept/reject races under conversation lock\n";
-            require(call<chat::user>([&](auto handler) { managed[2].add_contact(managed_ids[3], handler); }).has_value(),
+            require(make_friends(managed[2], managed_ids[2], managed[3], managed_ids[3]),
                 "Racing invitation contact");
             std::size_t typing_before;
             {
@@ -2570,19 +2696,48 @@ int run_tui_tests()
         auto add_contact = [&](std::string const& name, std::int64_t id) {
             app.command("search-users " + name);
             pump([&] { return app.data.users.size() == 1 && app.data.users[0].id == id; });
+            if (id == other_id)
+            {
+                require(call<chat::friendship_result>([&](auto h) { other.send_friend_request(self, h); }).has_value(), "Other sends incoming request");
+                pump([&] { return app.data.friendship(id) == chat::friendship_state::incoming_pending; });
+                app.activate();
+                app.command("accept-friend");
+                pump([&] { return app.data.is_contact(id); });
+                return;
+            }
             app.command("add");
+            pump([&] { return app.data.friendship(id) == chat::friendship_state::outgoing_pending; });
+            require(!app.data.is_contact(id) && !app.data.presences.contains(id), "Pending outgoing grants neither contact nor presence");
+            app.command("message");
+            require(app.data.status.find("接受好友申请") != std::string::npos, "Pending outgoing cannot start a direct");
+            auto& recipient = id == peer_id ? peer : other;
+            require(call<chat::friendship_result>([&](auto h) { recipient.respond_friend_request(self, true, h); }).has_value(),
+                    "Recipient explicitly accepts TUI friend request");
             pump([&] { return app.data.is_contact(id); });
         };
+        // Incoming requests are a separate, actionable page and are not contacts.
+        require(call<chat::friendship_result>([&](auto h) { peer.send_friend_request(self, h); }).has_value(), "Peer sends friend request");
+        pump([&] { return app.data.friendship(peer_id) == chat::friendship_state::incoming_pending; });
+        require(!app.data.is_contact(peer_id) && !app.data.presences.contains(peer_id), "Incoming pending hides presence");
+        app.command("friend-requests");
+        pump([&] { return app.data.friends.incoming.size() == 1; });
+        app.command("reject-friend");
+        pump([&] { return app.data.friendship(peer_id) == chat::friendship_state::none; });
+        app.command("search-users " + peer_name);
+        pump([&] { return app.data.users.size() == 1; });
+        app.command("add");
+        pump([&] { return app.data.friendship(peer_id) == chat::friendship_state::outgoing_pending; });
+        app.command("friend-sent");
+        app.command("cancel-friend");
+        pump([&] { return app.data.friendship(peer_id) == chat::friendship_state::none; });
         add_contact(peer_name, peer_id);
         app.command("message");
         pump([&] { return app.data.active > 0 && app.data.can_send(); });
         auto const direct = app.data.active;
         pump([&] { return app.data.presences.contains(peer_id); });
-        require(app.data.presences.at(peer_id).online, "TUI shows presence only for its contact");
+        require(app.data.presences.at(peer_id).online, "TUI accepted friend presence");
         auto peer_conversation = conversation(peer, direct);
-        require(!peer_conversation.can_send, "TUI unilateral contact leaves recipient read only");
-        auto forbidden = call<chat::send_message_result>([&](auto handler) { peer.send_message(direct, "must fail", handler); });
-        require(!forbidden, "Server remains unilateral authorization boundary");
+        require(peer_conversation.can_send, "Accepted friendship authorizes both directions");
         app.command("compose");
         app.data.draft = "TUI 中文 hello @" + peer_name;
         app.compose_changed();
@@ -2592,7 +2747,6 @@ int run_tui_tests()
         auto const own_message = app.data.messages.back().id;
         require(app.data.messages.back().text.find("TUI 中文") != std::string::npos, "TUI sends Unicode text via SDK");
         peer_events.wait([&] { return std::ranges::any_of(peer_events.messages, [&](auto const& value) { return value.id == own_message; }); });
-        require(call<chat::user>([&](auto handler) { peer.add_contact(self, handler); }).has_value(), "Peer authorizes return messages");
         auto incoming = call<chat::send_message_result>([&](auto handler) { peer.send_message(direct, "peer incoming", handler); });
         require(incoming.has_value(), "Peer sends incoming message");
         pump([&] { return std::ranges::any_of(app.data.messages, [&](auto const& value) { return value.id == incoming->message_id; }); });
@@ -2663,6 +2817,20 @@ int run_tui_tests()
         app.submit_prompt();
         pump([&] { return !app.data.can_send() && !app.data.is_contact(peer_id); });
         require(!app.data.presences.contains(peer_id), "Contact removal clears presence");
+        require(!conversation(peer, direct).can_send, "Removing friendship closes both directions");
+        for (auto const* action : {"reply", "edit", "reaction 1", "file"})
+        {
+            app.command(action);
+            require(!app.data.composing && !app.dialog, "Removed friend write actions remain disabled");
+        }
+        app.command("mute");
+        app.command("pin");
+        app.command("search edited");
+        pump([&] { return !app.data.search_results.empty(); });
+        app.back();
+        pump([&] { return app.data.view == page::conversation; });
+        require(!app.data.can_send(), "Removed friendship retains history/search/preferences but remains read only");
+
         app.command("compose");
         require(!app.data.composing, "Non-contact TUI disables compose");
         app.data.draft = "readonly draft";
@@ -2709,7 +2877,21 @@ int run_tui_tests()
             app.toggle_pick();
         };
         choose_contact(peer_id);
+        require(app.data.picked_contacts.size() == 1, "Friend selected");
+        app.command("filter not-a-match");
+        require(app.data.pick_candidates().size() == 1, "Selected friend remains removable outside filter");
+        app.data.selected = 0; app.toggle_pick();
+        require(app.data.picked_contacts.empty(), "Selected friend can be cancelled");
+        app.command("filter");
+        require(app.dialog.has_value(), "Group picker filter prompt");
+        app.dialog->text.clear(); app.submit_prompt();
+        choose_contact(peer_id);
         app.finish_pick();
+        require(app.dialog && !app.dialog->confirmation, "Group selection leads to title step");
+        app.submit_prompt();
+        require(app.dialog && app.dialog->confirmation, "Group title requires final confirmation");
+        app.dialog->text = "y";
+        app.submit_prompt();
         pump([&] { return app.data.active_conversation() && app.data.active_conversation()->kind == chat::conversation_kind::group; });
         auto const group = app.data.active;
         data.groups.push_back(group);
@@ -2822,7 +3004,7 @@ int run_tui_tests()
         app.dialog->text = "y"; app.submit_prompt();
         pump([&] { return app.data.active == 0; });
 
-        require(call<chat::user>([&](auto handler) { peer.add_contact(other_id, handler); }).has_value(), "Peer authorizes initial contact");
+        require(make_friends(peer, peer_id, other, other_id), "Peer and other are accepted friends");
 
         require(call<bool>([&](auto handler) { peer.invite_group_members(group, {self}, handler); }).has_value(), "Owner reinvites TUI user for role-revocation fixture");
         require(call<bool>([&](auto handler) { peer.set_group_admin(group, self, true, handler); }).has_value(), "Owner promotes TUI manager");

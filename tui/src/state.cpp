@@ -109,9 +109,28 @@ void state::apply_conversations(conversations_result result, bool append)
     if (!can_send()) { composing = false; editing = 0; reply.reset(); }
 }
 
+friendship_state state::friendship(std::int64_t id) const
+{
+    if (is_contact(id)) { return friendship_state::accepted; }
+    for (auto const& request : friends.incoming) { if (request.user.id == id) { return friendship_state::incoming_pending; } }
+    for (auto const& request : friends.outgoing) { if (request.user.id == id) { return friendship_state::outgoing_pending; } }
+    return friendship_state::none;
+}
+std::vector<user const*> state::pick_candidates() const
+{
+    std::vector<user const*> values;
+    for (auto const& value : contacts)
+    {
+        if (value.id != self.id && (pick_query.empty() || value.username.find(pick_query) != std::string::npos ||
+            std::ranges::find(picked_contacts, value.id) != picked_contacts.end())) { values.push_back(&value); }
+    }
+    return values;
+}
+
 void state::apply_contacts(std::vector<user> values)
 {
     contacts = std::move(values);
+    std::erase_if(picked_contacts, [this](auto id) { return !is_contact(id); });
     std::erase_if(presences, [this](auto const& value) { return !is_contact(value.first); });
 }
 

@@ -307,6 +307,8 @@ endif()
 
 add_test(NAME server COMMAND chat_server_test)
 set_tests_properties(server PROPERTIES TIMEOUT 60)
+add_test(NAME friendship COMMAND chat_server_test --friendship-only)
+set_tests_properties(friendship PROPERTIES TIMEOUT 60)
 
 add_executable(chat_avatar_image_test tests/avatar_image_test.cpp src/avatar_image.cpp)
 target_include_directories(chat_avatar_image_test PRIVATE src client/include)

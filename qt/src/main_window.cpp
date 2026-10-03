@@ -443,6 +443,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                     return;
                 }
                 chat_page_->set_contacts(std::move(contacts));
+                client_->get_presence();
             },
             Qt::AutoConnection);
 
@@ -478,6 +479,14 @@ main_window::main_window(QString server_url, QWidget* parent)
             },
             Qt::AutoConnection);
 
+    connect(client_.get(), &client_bridge::friend_requests_received, chat_page_, &chat_widget::set_friend_requests);
+    connect(client_.get(), &client_bridge::friendship_changed, this, [this](qint64) {
+        client_->get_contacts();
+        client_->get_friend_requests();
+        client_->get_conversations();
+    });
+    connect(chat_page_, &chat_widget::friend_request_respond_requested, client_.get(), &client_bridge::respond_friend_request);
+    connect(chat_page_, &chat_widget::friend_request_cancel_requested, client_.get(), &client_bridge::cancel_friend_request);
     connect(chat_page_, &chat_widget::contact_add_requested, this,
             [this](qint64 user) { client_->add_contact(user); });
 
@@ -489,7 +498,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                     return;
                 }
                 client_->get_contacts();
-                client_->get_presence();
+                client_->get_friend_requests();
                 client_->get_conversations();
             },
             Qt::AutoConnection);
@@ -503,7 +512,7 @@ main_window::main_window(QString server_url, QWidget* parent)
             return;
         }
         client_->get_contacts();
-        client_->get_presence();
+        client_->get_friend_requests();
         client_->get_conversations();
     }, Qt::AutoConnection);
     connect(chat_page_, &chat_widget::direct_conversation_requested, this,
@@ -574,6 +583,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                     client_->leave_group(conversation);
                 });
                 client_->get_contacts();
+                client_->get_friend_requests();
                 client_->get_members(conversation);
                 dialog.exec();
             });
@@ -1036,7 +1046,7 @@ void main_window::show_authenticated_page(qint64 user)
     tray_->show();
     client_->get_conversations();
     client_->get_contacts();
-    client_->get_presence();
+    client_->get_friend_requests();
 }
 
 void main_window::begin_reconnect()
@@ -1130,7 +1140,7 @@ void main_window::finish_reconnect()
 
     client_->get_conversations();
     client_->get_contacts();
-    client_->get_presence();
+    client_->get_friend_requests();
     auto const user = chat_page_->active_conversation();
     if (user > 0)
     {

@@ -58,6 +58,16 @@ int main()
         s.presences[3] = {3, true, 0};
         s.apply_contacts({{1, "self", {}}});
         check(s.presences.empty() && !s.is_contact(2), "Presence filtered after contact removal");
+        s.friends.outgoing = {{{2, "peer", {}}, 1}};
+        check(s.friendship(2) == chat::friendship_state::outgoing_pending && !s.is_contact(2), "Outgoing request is not a friend");
+        s.friends.outgoing.clear(); s.friends.incoming = {{{2, "peer", {}}, 1}};
+        check(s.friendship(2) == chat::friendship_state::incoming_pending && !s.is_contact(2), "Incoming request is not a friend");
+        s.apply_contacts({{2, "peer", {}}});
+        check(s.friendship(2) == chat::friendship_state::accepted, "Accepted contacts are authoritative");
+        s.pick_query = "peer";
+        check(s.pick_candidates().size() == 1, "Pick accepted matching friend");
+        s.pick_query = "missing";
+        check(s.pick_candidates().empty(), "Group picker filters without extra snapshot");
         s.members = {{1, "self", member_role::owner, {}}};
         check(s.self_role() == member_role::owner, "Role derives from current members");
         s.apply_history({{msg(10), msg(20)}, {{1, 10}}, true}, false);

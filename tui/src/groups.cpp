@@ -97,9 +97,10 @@ void app::group_done(bool left)
 void app::toggle_pick()
 {
     assert_ui();
+    auto candidates = data.pick_candidates();
     if (data.view != page::pick_contacts || data.selected < 0 ||
-        static_cast<std::size_t>(data.selected) >= data.contacts.size()) { return; }
-    auto const id = data.contacts[data.selected].id;
+        static_cast<std::size_t>(data.selected) >= candidates.size()) { return; }
+    auto const id = candidates[data.selected]->id;
     if (id == data.self.id) { return; }
     if (pick_action_ == "invite" && std::ranges::find(data.members, id, &conversation_member::id) != data.members.end())
     { data.status = "该联系人已在群聊中"; return; }
@@ -118,18 +119,24 @@ void app::finish_pick()
     if (pick_action_ == "create")
     {
         if (picked.empty()) { data.status = "请至少选择一位联系人创建群聊"; return; }
-        if (!valid_group_title(group_title_)) { data.status = "群名称须为 1–256 UTF-8 字节且不能只有空白或含 NUL"; return; }
-        pick_action_ = "creating";
-        client_->create_group(group_title_, std::move(picked), callback([this, view](auto value) {
-            if (view_ != view || data.view != page::pick_contacts) { return; }
-            if (!value) { pick_action_ = "create"; error(value.error()); return; }
-            pick_action_.clear();
-            data.picked_contacts.clear();
-            navigate(page::conversations);
-            pending_open_ = *value;
-            data.status = "群聊已创建";
-            conversations();
-        }));
+        ask("创建群聊 · 下一步：群名称", group_title_, [this, view, picked = std::move(picked)](std::string title) mutable {
+            if (!valid_group_title(title)) { data.status = "群名称须为 1–256 UTF-8 字节且不能只有空白或含 NUL"; return; }
+            group_title_ = title;
+            confirm("创建群聊「" + title + "」 · " + std::to_string(picked.size() + 1) + " 位成员？",
+                [this, view, title = std::move(title), picked = std::move(picked)]() mutable {
+                    if (view_ != view || data.view != page::pick_contacts || !online()) { return; }
+                    std::erase_if(picked, [this](auto id) { return !data.is_contact(id); });
+                    if (picked.empty()) { data.status = "所选好友关系已变更，请重新选择"; return; }
+                    pick_action_ = "creating";
+                    client_->create_group(std::move(title), std::move(picked), callback([this, view](auto value) {
+                        if (view_ != view || data.view != page::pick_contacts) { return; }
+                        if (!value) { pick_action_ = "create"; error(value.error()); return; }
+                        pick_action_.clear(); data.picked_contacts.clear(); data.pick_query.clear();
+                        navigate(page::conversations); pending_open_ = *value;
+                        data.status = "群聊已创建"; conversations();
+                    }));
+                });
+        });
     }
     else if (pick_action_ == "invite")
     {
@@ -155,15 +162,9 @@ void app::group_command(std::string const& name, std::string argument)
     if (!online()) { return; }
     if (name == "create-group")
     {
-        if (argument.empty())
-        {
-            ask("创建群聊 · 输入群名称", {}, [this](std::string title) { group_command("create-group", std::move(title)); });
-            return;
-        }
-        if (!valid_group_title(argument)) { data.status = "群名称须为 1–256 UTF-8 字节且不能只有空白或含 NUL"; return; }
         group_title_ = std::move(argument);
         pick_action_ = "create";
-        data.picked_contacts.clear();
+        data.picked_contacts.clear(); data.pick_query.clear();
         navigate(page::pick_contacts);
         contacts();
         return;
@@ -250,7 +251,7 @@ void app::group_command(std::string const& name, std::string argument)
     if (name == "invite")
     {
         pick_action_ = "invite";
-        data.picked_contacts.clear();
+        data.picked_contacts.clear(); data.pick_query.clear();
         navigate(page::pick_contacts);
         contacts();
         members();

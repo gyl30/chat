@@ -10,6 +10,7 @@
 #include <QtGlobal>
 #include <QByteArray>
 #include <optional>
+#include <chat/friendship.hpp>
 
 #include "conversation_data.hpp"
 #include "avatar.hpp"
@@ -22,6 +23,7 @@
 class QLabel;
 class QLineEdit;
 class QListView;
+class QListWidget;
 class QModelIndex;
 class QPushButton;
 class QSortFilterProxyModel;
@@ -52,6 +54,7 @@ class chat_widget final : public QWidget
     void set_connection_status(QString text, bool retry_enabled);
     void set_conversations(QList<conversation_data> conversations);
     void set_contacts(QList<user_data> contacts);
+    void set_friend_requests(QList<user_data> incoming, QList<user_data> outgoing, QString error);
     void set_presences(QList<presence_data> users);
     void set_presence(presence_data user);
     void set_contacts_error(QString message);
@@ -95,6 +98,9 @@ class chat_widget final : public QWidget
     void reaction_requested(qint64 conversation, qint64 message, QString emoji);
     void add_contact_search_requested(QString query);
     void contact_add_requested(qint64 user);
+    void friend_request_respond_requested(qint64 user, bool accept);
+    void friend_request_cancel_requested(qint64 user);
+    void friendship_updated();
     void contact_remove_requested(qint64 user);
     void contact_add_finished(qint64 user, QString error);
     void logout_requested();
@@ -126,6 +132,7 @@ class chat_widget final : public QWidget
     void select_conversation(QModelIndex const& index);
     void open_chat(qint64 user, QString username);
     bool is_contact(qint64 user) const;
+    chat::friendship_state friend_state(qint64 user) const;
     bool can_send() const;
     void update_compose_state();
     void create_group();
@@ -148,7 +155,6 @@ class chat_widget final : public QWidget
     QToolButton* contacts_navigation_ = nullptr;
     QToolButton* groups_navigation_ = nullptr;
     QToolButton* join_navigation_ = nullptr;
-    QToolButton* logout_navigation_ = nullptr;
     QToolButton* sidebar_back_button_ = nullptr;
     QToolButton* add_contact_button_ = nullptr;
     QToolButton* message_search_button_ = nullptr;
@@ -162,6 +168,11 @@ class chat_widget final : public QWidget
     QLineEdit* contact_search_ = nullptr;
     QListView* contacts_view_ = nullptr;
     QLabel* contacts_status_ = nullptr;
+    QPushButton* new_friends_button_ = nullptr;
+    QListWidget* incoming_friends_ = nullptr;
+    QListWidget* outgoing_friends_ = nullptr;
+    QLabel* friend_requests_status_ = nullptr;
+    QList<user_data> incoming_requests_, outgoing_requests_;
     QLineEdit* add_user_search_ = nullptr;
     QListView* add_users_view_ = nullptr;
     QLabel* add_users_status_ = nullptr;

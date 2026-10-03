@@ -83,6 +83,13 @@ class group_dialog final : public QDialog
     QPushButton* more_requests_button_;
     qint64 next_request_ = 0;
     QLabel* status_;
+    QLabel* overview_title_;
+    QLabel* overview_count_;
+    QLabel* overview_announcement_;
+    QLabel* overview_pin_;
+    QLabel* overview_invite_;
+    QListWidget* preview_;
+    QPushButton* manage_button_;
 };
 
 #endif

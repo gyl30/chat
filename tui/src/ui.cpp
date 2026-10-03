@@ -37,6 +37,8 @@ constexpr std::array shortcuts{
     shortcut{"c / g", "Contacts / group actions"},
     shortcut{"A / O / D (members)", "Admin / transfer owner / remove member"},
     shortcut{"y / n (requests)", "Accept / reject selected request"},
+    shortcut{"Tab (new friends)", "Switch incoming / outgoing requests"},
+    shortcut{"/ (contacts picker)", "Filter accepted friends by name"},
     shortcut{"Space / Enter (contacts picker)", "Toggle member / finish selection"},
     shortcut{":", "Command input (:help for command list)"},
     shortcut{"?", "Help"},
@@ -57,20 +59,27 @@ std::vector<menu_action> actions(state const& s)
         else if (s.is_contact(s.profile.id))
         {
             items.push_back({"Message", "message"});
-            items.push_back({"Remove contact", "remove-contact"});
+            items.push_back({"Remove friend", "remove-contact"});
         }
-        else { items.push_back({"Add contact", "add"}); }
+        else if (s.friendship(s.profile.id) == friendship_state::outgoing_pending)
+        { items.push_back({"Cancel friend request", "cancel-friend"}); }
+        else if (s.friendship(s.profile.id) == friendship_state::incoming_pending)
+        {
+            items.push_back({"Accept friend request", "accept-friend"});
+            items.push_back({"Reject friend request", "reject-friend"});
+        }
+        else { items.push_back({"Add friend", "add"}); }
         return items;
     }
     if (s.view != page::group) { return {}; }
     auto c = s.active_conversation();
     if (!c || c->kind != conversation_kind::group) { return {}; }
-    std::vector<menu_action> items{{"Members", "members"}};
+    std::vector<menu_action> items{{"All members", "members"}};
     if (!c->announcement.empty()) { items.push_back({"Show full announcement", "show-announcement"}); }
     if (c->pinned_message) { items.push_back({"View pinned message", "pinned"}); }
     if (s.self_role() != member_role::member)
     {
-        items.push_back({"Invite your contacts", "invite"});
+        items.push_back({"Invite accepted friends", "invite"});
         items.push_back({"Rename group", "rename"});
         items.push_back({"Edit / clear announcement", "announcement"});
         items.push_back({"Pin selected message", "pin-message"});
@@ -250,7 +259,7 @@ Element conversation_view(state const& s, Element input, std::string typing, int
     items.push_back(separator());
     if (!s.can_send())
     {
-        items.push_back(text(s.link != connection::online ? "Waiting for connection…" : c->kind == conversation_kind::direct ? "对方不是你的联系人，添加联系人后可发送消息" : "当前会话不可发送消息"));
+        items.push_back(text(s.link != connection::online ? "Waiting for connection…" : c->kind == conversation_kind::direct ? "双方接受好友申请后可发送消息" : "当前会话不可发送消息"));
     }
     else
     {
@@ -270,15 +279,53 @@ Element secondary(state const& s, int width, int message_scroll)
         case page::users:
         case page::pick_contacts:
         {
-            title = s.view == page::contacts ? "Contacts · :add-contact / :create-group" : s.view == page::users ? "User search · Enter: profile" : "Choose contacts · Space: toggle · Enter: finish";
-            auto const& values = s.view == page::users ? s.users : s.contacts;
-            for (std::size_t i = 0; i < values.size(); ++i)
+            title = s.view == page::contacts ? "Contacts · :add-contact / :create-group" : s.view == page::users ? "User search · Enter: profile" : "Choose friends · Space: toggle · Enter: next";
+            if (s.view == page::contacts)
+            { rows.push_back(selected(text("New friends (" + std::to_string(s.friends.incoming.size()) + ")"), s.selected == 0)); }
+            if (s.view == page::pick_contacts)
             {
-                auto const& value = values[i];
-                auto label = user_label(value.username) + presence_label(s, value.id);
-                if (s.view == page::pick_contacts) { label = std::ranges::find(s.picked_contacts, value.id) != s.picked_contacts.end() ? "[x] " + label : "[ ] " + label; }
-                rows.push_back(selected(text(label), s.selected == static_cast<int>(i)));
+                rows.push_back(text("Selected: " + std::to_string(s.picked_contacts.size()) + " · /: search · " + s.pick_query));
+                // Selected friends remain removable even while the current filter hides them.
+                std::string picked = "Picked: ";
+                for (auto id : s.picked_contacts)
+                {
+                    auto found = std::ranges::find(s.contacts, id, &user::id);
+                    if (found != s.contacts.end()) { picked += found->username + "; "; }
+                }
+                rows.push_back(preview_text(picked));
+                auto values = s.pick_candidates();
+                for (std::size_t i = 0; i < values.size(); ++i)
+                {
+                    auto const& value = *values[i];
+                    auto checked = std::ranges::find(s.picked_contacts, value.id) != s.picked_contacts.end();
+                    rows.push_back(selected(text(std::string(checked ? "[x] " : "[ ] ") + user_label(value.username)), s.selected == static_cast<int>(i)));
+                }
             }
+            else
+            {
+                auto const& values = s.view == page::users ? s.users : s.contacts;
+                for (std::size_t i = 0; i < values.size(); ++i)
+                {
+                    auto const& value = values[i];
+                    auto offset = s.view == page::contacts ? 1 : 0;
+                    rows.push_back(selected(text(user_label(value.username) + presence_label(s, value.id)), s.selected == static_cast<int>(i) + offset));
+                }
+            }
+            break;
+        }
+        case page::friend_requests:
+        case page::friend_sent:
+        {
+            bool const incoming = s.view == page::friend_requests;
+            title = incoming ? "New friends · Incoming · Tab: outgoing" : "New friends · Outgoing · Tab: incoming";
+            auto const& requests = incoming ? s.friends.incoming : s.friends.outgoing;
+            rows.push_back(text(incoming ? "y: accept · n: reject · Enter: profile" : "x: cancel · Enter: profile"));
+            for (std::size_t i = 0; i < requests.size(); ++i)
+            {
+                auto const& request = requests[i];
+                rows.push_back(selected(text(user_label(request.user.username) + " " + timestamp(request.created_at)), s.selected == static_cast<int>(i)));
+            }
+            if (requests.empty()) { rows.push_back(text("No pending friend requests")); }
             break;
         }
         case page::profile:
@@ -287,6 +334,13 @@ Element secondary(state const& s, int width, int message_scroll)
             rows.push_back(text(std::string("Avatar: ") + (s.profile.avatar.present ? "set" : "default")));
             auto presence = presence_label(s, s.profile.id);
             if (!presence.empty()) { rows.push_back(text(presence)); }
+            if (s.profile.id != s.self.id)
+            {
+                auto relation = s.friendship(s.profile.id);
+                rows.push_back(text(relation == friendship_state::accepted ? "Friends" :
+                    relation == friendship_state::outgoing_pending ? "Waiting for acceptance" :
+                    relation == friendship_state::incoming_pending ? "Incoming friend request" : "Not friends"));
+            }
             rows.push_back(separator());
             auto items = actions(s);
             for (std::size_t i = 0; i < items.size(); ++i) { rows.push_back(selected(text(items[i].label), s.selected == static_cast<int>(i))); }
@@ -322,7 +376,12 @@ Element secondary(state const& s, int width, int message_scroll)
             title = c ? "Group · " + c->username : "Group";
             if (c)
             {
-                rows.push_back(text("Your role: " + role_label(s.self_role())));
+                rows.push_back(text("Members: " + std::to_string(s.members.size()) + " · Your role: " + role_label(s.self_role())));
+                std::string preview = "Members: ";
+                for (std::size_t i = 0; i < std::min<std::size_t>(3, s.members.size()); ++i)
+                { preview += s.members[i].username + " (" + role_label(s.members[i].role) + ") "; }
+                rows.push_back(preview_text(preview));
+                if (c->pinned_message) { rows.push_back(preview_text("Pinned: " + c->pinned_message->text)); }
                 rows.push_back(wrapped_text("公告: " + (c->announcement.empty() ? "(none)" : c->announcement), width) | size(HEIGHT, LESS_THAN, 3));
                 rows.push_back(text(c->join_approval ? "Join approval: on" : "Join approval: off"));
                 rows.push_back(separator());
@@ -335,7 +394,7 @@ Element secondary(state const& s, int width, int message_scroll)
             title = "Keyboard help";
             for (auto const& shortcut : shortcuts) { rows.push_back(text(std::string(shortcut.key) + "  " + std::string(shortcut.description))); }
             rows.push_back(separator());
-            rows.push_back(paragraph("Commands: contacts, add-contact, profile, account, create-group, join, file, save, members, invite, rename, announcement, show-announcement, pinned, pin-message, unpin-message, link, link-create, link-revoke, approval, requests, avatar, avatar-clear, logout, quit"));
+            rows.push_back(paragraph("Commands: contacts, friend-requests, friend-sent, accept-friend, reject-friend, cancel-friend, filter, add-contact, profile, account, create-group, join, file, save, members, invite, rename, announcement, show-announcement, pinned, pin-message, unpin-message, link, link-create, link-revoke, approval, requests, avatar, avatar-clear, logout, quit"));
             rows.push_back(text("Clipboard: copyable text page; select with your terminal."));
             break;
         case page::copy:
@@ -378,7 +437,10 @@ std::size_t selection_count(state const& s, int width)
     switch (s.view)
     {
         case page::conversations: return s.conversations.size();
-        case page::contacts: case page::pick_contacts: return s.contacts.size();
+        case page::contacts: return s.contacts.size() + 1;
+        case page::pick_contacts: return s.pick_candidates().size();
+        case page::friend_requests: return s.friends.incoming.size();
+        case page::friend_sent: return s.friends.outgoing.size();
         case page::users: return s.users.size();
         case page::members: return s.members.size();
         case page::requests: return s.requests.size();
@@ -516,7 +578,9 @@ public:
         if (event == Event::Character(':')) { app_.command_mode = true; app_.command_text.clear(); command_->TakeFocus(); return true; }
         if (event == Event::Tab || event == Event::TabReverse)
         {
-            if (s.view == page::conversations && s.active) { app_.navigate(page::conversation); }
+            if (s.view == page::friend_requests || s.view == page::friend_sent)
+            { app_.command(s.view == page::friend_requests ? "friend-sent" : "friend-requests"); }
+            else if (s.view == page::conversations && s.active) { app_.navigate(page::conversation); }
             else if (s.view == page::conversation) { app_.navigate(page::conversations); }
             return true;
         }
@@ -573,6 +637,15 @@ public:
             if (event == Event::Character('O')) { app_.command("transfer"); return true; }
             if (event == Event::Character('D')) { app_.command("kick"); return true; }
         }
+        if (s.view == page::pick_contacts && event == Event::Character('/'))
+        { app_.command("filter"); return true; }
+        if (s.view == page::friend_requests)
+        {
+            if (event == Event::Character('y')) { app_.command("accept-friend"); return true; }
+            if (event == Event::Character('n')) { app_.command("reject-friend"); return true; }
+        }
+        if (s.view == page::friend_sent && event == Event::Character('x'))
+        { app_.command("cancel-friend"); return true; }
         if (s.view == page::requests)
         {
             if (event == Event::Character('y')) { app_.command("accept"); return true; }

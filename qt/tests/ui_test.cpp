@@ -89,6 +89,7 @@ int main(int argc, char** argv)
         server.start(QString::fromLocal8Bit(argv[1]), {"18769", "8", "4"});
         check(server.waitForStarted(), "Start server");
         QThread::msleep(100);
+        check(server.state() == QProcess::Running, "Test server remains running on its dedicated port");
     };
     try
     {
@@ -162,7 +163,7 @@ int main(int argc, char** argv)
             dialog.set_members(1, {{1, "member", chat::member_role::member, {}}, {2, "owner", chat::member_role::owner, {}}}, {});
             dialog.set_invite(1, QString(64, 'b'), {});
             dialog.set_requests(1, {{3, "stale applicant", false, 0, {}}}, 0, false, {});
-            check(requests_list->count() == 0 && !dialog.findChild<QTabWidget*>("groupTabs")->isTabVisible(1) &&
+            check(requests_list->count() == 0 && !dialog.findChild<QTabWidget*>("groupTabs")->isTabVisible(2) &&
                 !dialog.findChild<QPushButton*>("groupAcceptRequestButton")->isEnabled(),
                 "Role loss clears private applications and rejects stale request callbacks");
             check(invite_edit->text().isEmpty() && !dialog.findChild<QPushButton*>("groupCopyInviteButton")->isEnabled(),
@@ -276,7 +277,15 @@ int main(int argc, char** argv)
             rpc<chat::authentication_result>([&](auto h) { c.authenticate(names[0].toStdString(), "ui password", h); });
             for (int i = 1; i < 3; ++i)
             {
-                rpc<chat::user>([&](auto h) { c.add_contact(ids[i], h); });
+                rpc<chat::friendship_result>([&](auto h) { c.send_friend_request(ids[i], h); });
+                chat::client peer;
+                std::promise<void> peer_connected;
+                peer.set_connected_handler([&] { peer_connected.set_value(); });
+                peer.connect(url);
+                check(peer_connected.get_future().wait_for(std::chrono::seconds(5)) == std::future_status::ready, "Connect setup peer");
+                rpc<chat::authentication_result>([&](auto h) { peer.authenticate(names[i].toStdString(), "ui password", h); });
+                rpc<chat::friendship_result>([&](auto h) { peer.respond_friend_request(ids[0], true, h); });
+                peer.close();
             }
             c.close();
             check(closed.get_future().wait_for(std::chrono::seconds(5)) == std::future_status::ready, "Close setup");
@@ -375,13 +384,25 @@ int main(int argc, char** argv)
                                {
                                    auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
                                    check(dialog, "Create modal");
-                                   dialog->findChild<QLineEdit*>()->setText(QStringLiteral("Qt 三人群"));
-                                   auto* list = dialog->findChild<QListWidget*>();
+                                   auto* list = dialog->findChild<QListWidget*>("groupContactPicker");
                                    check(list->count() == 2, "Contact selection");
                                    for (int i = 0; i < list->count(); ++i)
                                    {
                                        list->item(i)->setCheckState(Qt::Checked);
                                    }
+                                   auto* chips = dialog->findChild<QListWidget*>("groupSelectedContacts");
+                                   check(chips->count() == 2, "Selected friend chips");
+                                   chips->itemClicked(chips->item(0));
+                                   check(chips->count() == 1, "Selected friend can be removed");
+                                   list->item(0)->setCheckState(Qt::Checked);
+                                   auto* search = dialog->findChild<QLineEdit*>("groupContactSearch");
+                                   search->setText(names[1]);
+                                   check(!list->item(0)->isHidden() && list->item(1)->isHidden(), "Group picker searches friends");
+                                   search->clear();
+                                   dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->click();
+                                   auto* title = dialog->findChild<QLineEdit*>("newGroupTitleEdit");
+                                   check(title->isVisible(), "Group name follows friend selection");
+                                   title->setText(QStringLiteral("Qt 三人群"));
                                    dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->click();
                                });
             create->click();
@@ -688,7 +709,6 @@ int main(int argc, char** argv)
             check(avatar_files.isValid() && avatar_image.save(avatar_path), "Avatar PNG fixture");
             check(QFile(avatar_path).size() > static_cast<qint64>(chat::attachment_chunk_size), "Avatar uses multiple transport chunks");
             auto const avatar_color = avatar_image.scaled(128, 128, Qt::KeepAspectRatio, Qt::SmoothTransformation).pixelColor(0, 0);
-            pages[1]->contact_add_requested(ids[0]);
             auto avatar_update = [&](QString const& path, bool remove, bool close_early = false) {
                 bool finished = false;
                 QTimer update_poll;
@@ -698,7 +718,7 @@ int main(int argc, char** argv)
                     if (!dialog || dialog->objectName() != "profileDialog") { return; }
                     for (auto* action : dialog->findChildren<QToolButton*>("profileActionButton"))
                     {
-                        check(!action->isVisible() || (action->text() != QStringLiteral("消息") && action->text() != QStringLiteral("添加联系人")),
+                        check(!action->isVisible() || (action->text() != QStringLiteral("消息") && action->text() != QStringLiteral("添加好友")),
                             "Own profile has no self messaging or self contact action");
                     }
                     auto* button = dialog->findChild<QPushButton*>(remove ? "removeAvatarButton" : "changeAvatarButton");
@@ -763,6 +783,10 @@ int main(int argc, char** argv)
                 if (!dialog) { return; }
                 auto* list = dialog->findChild<QListWidget*>("groupMembersList");
                 if (list->count() != 3) { return; }
+                check(dialog->findChild<QTabWidget*>("groupTabs")->currentIndex() == 0 &&
+                    dialog->findChild<QLabel*>("groupOverviewCount")->text().contains(QStringLiteral("3")) &&
+                    dialog->findChild<QListWidget*>("groupMemberPreview")->count() == 3,
+                    "Group opens hierarchical overview with count and member preview");
                 check(list->item(0)->icon().pixmap(32, 32).toImage() == avatar_icon(names[0], 32, pages[1]->avatars().image(ids[0])).pixmap(32, 32).toImage(), "Group member avatar");
                 avatar_members = true;
                 avatar_members_poll.stop();
@@ -808,6 +832,39 @@ int main(int argc, char** argv)
                 }
             }
             wait([&] { return ordinary_member; });
+            auto accept_friend = [&](int receiver, int sender) {
+                auto* incoming = windows[receiver]->findChild<QListWidget*>("incomingFriendRequests");
+                wait([&] {
+                    for (int row = 0; row < incoming->count(); ++row)
+                    { if (incoming->item(row)->data(Qt::UserRole).toLongLong() == ids[sender]) { return true; } }
+                    return false;
+                });
+                check(windows[receiver]->findChild<QPushButton*>("newFriendsButton")->text().contains(QStringLiteral("1")),
+                    "Incoming friend count is visible at contacts entry");
+                QTimer::singleShot(20, [&] {
+                    auto* profile = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                    check(profile && profile->objectName() == "profileDialog", "Incoming friend profile");
+                    QToolButton* accept = nullptr;
+                    for (auto* button : profile->findChildren<QToolButton*>("profileActionButton"))
+                    { if (button->text() == QStringLiteral("接受申请")) { accept = button; } }
+                    check(accept && accept->isEnabled(), "Incoming friend can be accepted explicitly");
+                    accept->click();
+                    wait([&] { return accept->text() == QStringLiteral("消息") && accept->isEnabled(); });
+                    profile->accept();
+                });
+                windows[receiver]->findChild<QPushButton*>("newFriendsButton")->click();
+                for (int row = 0; row < incoming->count(); ++row)
+                {
+                    if (incoming->item(row)->data(Qt::UserRole).toLongLong() == ids[sender])
+                    { incoming->itemClicked(incoming->item(row)); break; }
+                }
+            };
+            pages[2]->contact_remove_requested(ids[0]);
+            wait([&] {
+                for (auto* view : windows[2]->findChildren<QListView*>("userList"))
+                { if (qobject_cast<QSortFilterProxyModel*>(view->model())) { return view->model()->rowCount() == 0; } }
+                return false;
+            });
             auto inspect_noncontact_profile = [&](QString const& username, bool add) {
                 auto* profile = qobject_cast<QDialog*>(QApplication::activeModalWidget());
                 check(profile && profile->objectName() == "profileDialog" &&
@@ -816,13 +873,39 @@ int main(int argc, char** argv)
                 for (auto* button : profile->findChildren<QToolButton*>("profileActionButton"))
                 {
                     check(!button->isVisible() || button->text() != QStringLiteral("消息"), "Non-contact cannot directly message from profile");
-                    if (button->text() == QStringLiteral("添加联系人")) { action = button; }
+                    if (button->text() == QStringLiteral("添加好友")) { action = button; }
                 }
                 check(action && action->isVisible() && action->isEnabled(), "Non-contact profile offers add");
                 if (add)
                 {
                     action->click();
-                    check(!action->isEnabled(), "Profile waits for authoritative add result");
+                    check(!action->isEnabled(), "Profile waits for authoritative request result");
+                    wait([&] { return action->text() == QStringLiteral("等待验证"); });
+                    check(!action->isEnabled(), "Outgoing pending does not grant messaging");
+                    if (username == names[1])
+                    {
+                        auto* cancel = profile->findChild<QPushButton*>("cancelFriendRequestButton");
+                        check(cancel->isVisible() && cancel->isEnabled(), "Outgoing request can be cancelled");
+                        cancel->click();
+                        wait([&] { return action->text() == QStringLiteral("添加好友") && action->isEnabled(); });
+                        action->click();
+                        wait([&] { return action->text() == QStringLiteral("等待验证"); });
+                        auto* incoming = windows[1]->findChild<QListWidget*>("incomingFriendRequests");
+                        wait([&] { return incoming->count() == 1; });
+                        QTimer::singleShot(20, [&] {
+                            auto* received = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                            auto* reject = received->findChild<QPushButton*>("rejectFriendRequestButton");
+                            check(reject && reject->isVisible() && reject->isEnabled(), "Incoming request offers reject");
+                            reject->click();
+                            wait([&] { return !reject->isVisible(); });
+                            received->reject();
+                        });
+                        incoming->itemClicked(incoming->item(0));
+                        wait([&] { return action->text() == QStringLiteral("添加好友") && action->isEnabled(); });
+                        action->click();
+                        wait([&] { return action->text() == QStringLiteral("等待验证"); });
+                    }
+                    accept_friend(username == names[0] ? 0 : 1, 2);
                     wait([&] { return action->isEnabled() && action->text() == QStringLiteral("消息"); });
                 }
                 profile->reject();
@@ -842,7 +925,7 @@ int main(int argc, char** argv)
             });
             group_profile_poll.start(20);
             windows[2]->findChild<QPushButton*>("chatHeaderButton")->click();
-            check(group_profile_checked, "Group member profile uses unilateral contact actions");
+            check(group_profile_checked, "Group member profile uses explicit friendship confirmation");
             pages[2]->contact_remove_requested(ids[0]);
             QListView* third_contacts = nullptr;
             for (auto* view : windows[2]->findChildren<QListView*>("userList"))
@@ -878,8 +961,28 @@ int main(int argc, char** argv)
                 Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
             check(search_delegate->editorEvent(&avatar_click, search_view->model(), search_option,
                 search_view->model()->index(0, 0)), "Search result avatar opens public profile");
+            search_input->clear();
+            search_input->returnPressed();
+            check(search_view->model()->rowCount() == 0, "Clear previous user search results");
+            search_input->setText(names[1]);
+            search_input->returnPressed();
+            wait([&] { return search_view->model()->rowCount() == 1; });
+            QTimer::singleShot(20, [&] {
+                auto* profile = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                check(profile && profile->objectName() == "profileDialog", "Search accepted friend profile");
+                bool message = false;
+                for (auto* button : profile->findChildren<QToolButton*>("profileActionButton"))
+                { if (button->text() == QStringLiteral("消息") && button->isEnabled()) { message = true; } }
+                check(message && profile->findChild<QPushButton*>("removeContactButton")->isVisible(),
+                    "Accepted search result offers messaging and friend removal");
+                profile->reject();
+            });
+            search_view->clicked(search_view->model()->index(0, 0));
             pages[2]->contact_remove_requested(ids[1]);
             wait([&] { return third_contacts->model()->rowCount() == 0; });
+            pages[0]->contact_add_requested(ids[2]);
+            accept_friend(2, 0);
+            std::cout << "PASS Qt friendship request, pending, cancellation, rejection, explicit acceptance and shared-group isolation\n";
             auto choose_reply = [&](int actor = 1, int row = 0)
             {
                 auto* view = windows[actor]->findChild<QListView*>("messageList");
@@ -1264,7 +1367,7 @@ int main(int argc, char** argv)
             check(!windows[0]->findChild<QLineEdit*>("messageEdit")->isEnabled() &&
                 !windows[0]->findChild<QToolButton*>("sendButton")->isEnabled() &&
                 !windows[0]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled() &&
-                windows[0]->findChild<QLineEdit*>("messageEdit")->placeholderText().contains(QStringLiteral("不是你的联系人")),
+                windows[0]->findChild<QLineEdit*>("messageEdit")->placeholderText().contains(QStringLiteral("还不是好友")),
                 "The removed contact direct is explicitly read-only");
             auto contacts_sql = "SELECT count(*) FROM contacts WHERE owner_id=" + std::to_string(ids[0]) +
                                 " AND contact_id=" + std::to_string(ids[1]);
@@ -1280,12 +1383,14 @@ int main(int argc, char** argv)
                 for (auto* candidate : dialog->findChildren<QToolButton*>())
                 {
                     check(candidate->text() != QStringLiteral("消息"), "A non-contact has no direct message action");
-                    if (candidate->text() == QStringLiteral("添加联系人")) { action = candidate; }
+                    if (candidate->text() == QStringLiteral("添加好友")) { action = candidate; }
                 }
-                check(action && action->isEnabled(), "Non-contact profile offers unilateral add");
+                check(action && action->isEnabled(), "Non-contact profile offers friend request");
                 action->click();
                 check(!windows[0]->findChild<QLineEdit*>("messageEdit")->isEnabled(), "Adding is not optimistic authorization");
-                wait([&] { return action->text() == QStringLiteral("消息") && action->isEnabled(); }, 250);
+                wait([&] { return action->text() == QStringLiteral("等待验证"); });
+                accept_friend(1, 0);
+                wait([&] { return action->text() == QStringLiteral("消息") && action->isEnabled(); });
                 action->click();
             });
             windows[0]->findChild<QPushButton*>("chatHeaderButton")->click();
@@ -1344,7 +1449,7 @@ int main(int argc, char** argv)
             check(!pages[1]->conversation(direct)->can_send &&
                 !windows[1]->findChild<QLineEdit*>("messageEdit")->isEnabled() &&
                 !windows[1]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled(),
-                "Receiving a direct message does not grant reverse sending permission");
+                "Removing friendship makes the historical direct read-only");
             wait([&] { return !peer_attachment_view->model()->index(1, 0).data(message_model::image_role).value<QPixmap>().isNull(); });
             check(peer_attachment_view->model()->index(0, 0).data(message_model::reactions_role)
                       .value<QList<reaction_data>>().size() == 1, "Direct history restores reaction");
@@ -1360,11 +1465,13 @@ int main(int argc, char** argv)
                 for (auto* button : dialog->findChildren<QToolButton*>("profileActionButton"))
                 {
                     check(button->text() != QStringLiteral("消息"), "Non-contact historical peer has no message action");
-                    if (button->text() == QStringLiteral("添加联系人")) { action = button; }
+                    if (button->text() == QStringLiteral("添加好友")) { action = button; }
                 }
                 check(action, "Non-contact historical peer offers add");
                 action->click();
                 check(!windows[1]->findChild<QLineEdit*>("messageEdit")->isEnabled(), "Add does not optimistically grant send");
+                wait([&] { return action->text() == QStringLiteral("等待验证"); });
+                accept_friend(0, 1);
                 wait([&] { return action->text() == QStringLiteral("消息") && action->isEnabled() &&
                     pages[1]->conversation(direct)->can_send; });
                 saw_avatar_profile = true;
@@ -1470,15 +1577,26 @@ int main(int argc, char** argv)
                 dialog->reject();
             });
             attachment_action(1, QStringLiteral("下载文件"));
-            auto const remove_during_disconnect = "DELETE FROM contacts WHERE owner_id=" + std::to_string(ids[0]) +
-                " AND contact_id=" + std::to_string(ids[1]);
-            std::unique_ptr<PGresult, decltype(&PQclear)> removed_offline(PQexec(db, remove_during_disconnect.c_str()), &PQclear);
-            check(removed_offline && PQresultStatus(removed_offline.get()) == PGRES_COMMAND_OK,
-                "Contact removal while Qt is disconnected");
+            start();
+            {
+                // Keep the Qt event loop suspended until the SDK mutation and snapshot lock
+                // are complete. Qt cannot authenticate or apply a recovery snapshot yet.
+                chat::client actor;
+                std::promise<void> actor_connected;
+                actor.set_connected_handler([&] { actor_connected.set_value(); });
+                actor.connect(url);
+                check(actor_connected.get_future().wait_for(std::chrono::seconds(5)) == std::future_status::ready,
+                    "Connect friend-removal actor while Qt recovery is suspended");
+                rpc<chat::authentication_result>([&](auto handler) {
+                    actor.authenticate(names[0].toStdString(), "ui password", handler);
+                });
+                check(rpc<bool>([&](auto handler) { actor.remove_contact(ids[1], handler); }),
+                    "Real remove_contact RPC deletes friendship before Qt recovery");
+                actor.close();
+            }
             std::unique_ptr<PGresult, decltype(&PQclear)> held_snapshot(PQexec(db,
                 "BEGIN; LOCK TABLE conversations IN ACCESS EXCLUSIVE MODE"), &PQclear);
             check(held_snapshot && PQresultStatus(held_snapshot.get()) == PGRES_COMMAND_OK, "Hold authoritative reconnect snapshot");
-            start();
             wait([&] {
                 std::unique_ptr<PGresult, decltype(&PQclear)> blocked(PQexec(db,
                     "SELECT pg_stat_clear_snapshot(); SELECT EXISTS(SELECT 1 FROM pg_stat_activity "
@@ -1494,11 +1612,9 @@ int main(int argc, char** argv)
             wait([&] { return pages[0]->messages_ready() && !pages[0]->conversation(direct)->can_send; });
             check(!windows[0]->findChild<QLineEdit*>("messageEdit")->isEnabled() &&
                 !windows[0]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled(), "Reconnect restores read-only direct");
-            for (int i = 1; i < 3; ++i)
-            {
-                wait([&, i] { return windows[i]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled() &&
-                                      pages[i]->messages_ready(); });
-            }
+            wait([&] { return !windows[1]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled() &&
+                pages[1]->messages_ready() && windows[2]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled() &&
+                pages[2]->messages_ready(); });
             check(pages[1]->images().image(cached_image_id).cacheKey() == cached_image_key,
                   "Reconnect preserves immutable downloaded image");
             QTimer::singleShot(50, [] {
@@ -1516,6 +1632,7 @@ int main(int argc, char** argv)
                 check(pages[i]->images().bytes(cached_image_id).isEmpty(), "Deleted image leaves cache");
             }
             pages[0]->contact_add_requested(ids[1]);
+            accept_friend(1, 0);
             wait([&] { return pages[0]->conversation(direct)->can_send &&
                 windows[0]->findChild<QToolButton*>("sendButton")->isEnabled(); });
 
@@ -1714,19 +1831,32 @@ int main(int argc, char** argv)
                         list->setCurrentRow(row);
                         if (!button->isEnabled()) { return; }
                         ++step;
-                        QTimer::singleShot(20, [] {
-                            auto* confirmation = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
-                            check(confirmation, "Member action confirmation");
-                            confirmation->button(QMessageBox::Yes)->click();
+                        dialog->findChild<QPushButton*>("groupAllMembersButton")->click();
+                        check(!button->isVisible(), "Member management uses context actions");
+                        auto const label = button->text();
+                        QTimer::singleShot(20, [label] {
+                            auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+                            check(menu, "Member context menu");
+                            QAction* action = nullptr;
+                            for (auto* candidate : menu->actions()) { if (candidate->text() == label) { action = candidate; } }
+                            check(action, "Authorized member context action");
+                            QTimer::singleShot(20, [] {
+                                auto* confirmation = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+                                check(confirmation, "Member action confirmation");
+                                confirmation->button(QMessageBox::Yes)->click();
+                            });
+                            menu->setActiveAction(action);
+                            QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+                            QApplication::sendEvent(menu, &enter);
                         });
-                        button->click();
+                        list->customContextMenuRequested(list->visualItemRect(list->item(row)).center());
                     }
                     else if (step == 1 && (button_name == "groupRemoveButton" ? row == -1 :
                         row >= 0 && list->item(row)->text().contains(QStringLiteral("群主"))))
                     {
                         if (button_name == "groupTransferButton")
                         {
-                            check(list->item(0)->text().contains(QStringLiteral("管理员")), "Former Qt owner becomes admin");
+                            check(list->item(1)->data(Qt::UserRole).toLongLong() == ids[0] && list->item(1)->text().contains(QStringLiteral("管理员")), "Former Qt owner becomes admin");
                             check(dialog->findChild<QPushButton*>("groupLeaveButton")->isEnabled(), "Former Qt owner may leave");
                             dialog->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_transfer.png");
                         }
@@ -1936,7 +2066,7 @@ int main(int argc, char** argv)
                     if (!dialog || dialog->findChild<QListWidget*>("groupMembersList")->count() < 2) { return; }
                     auto* tabs = dialog->findChild<QTabWidget*>("groupTabs");
                     auto* requests = dialog->findChild<QListWidget*>("groupJoinRequestsList");
-                    tabs->setCurrentIndex(1);
+                    tabs->setCurrentIndex(2);
                     if (!submitted && requests->count() == 1)
                     {
                         check(requests->item(0)->data(Qt::UserRole).toLongLong() == ids[2], "Application shows actual requester, not a group member");
@@ -2012,9 +2142,9 @@ int main(int argc, char** argv)
                 if (!dialog) { return; }
                 auto* list = dialog->findChild<QListWidget*>("groupMembersList");
                 if (list->count() != 3) { return; }
-                check(list->item(0)->text().contains(QStringLiteral("管理员")) &&
-                    list->item(1)->text().contains(QStringLiteral("群主")), "Ownership roles recover in Qt after reconnect");
-                list->setCurrentRow(0);
+                check(list->item(0)->text().contains(QStringLiteral("群主")) &&
+                    list->item(1)->text().contains(QStringLiteral("管理员")), "Ownership roles recover in Qt role groups after reconnect");
+                list->setCurrentRow(1);
                 check(dialog->findChild<QPushButton*>("groupRemoveButton")->isEnabled(), "New Qt owner can remove administrator");
                 list->setCurrentRow(2);
                 check(!dialog->findChild<QPushButton*>("groupTransferButton")->isEnabled(), "New Qt owner cannot transfer to ordinary member");
@@ -2192,7 +2322,17 @@ int main(int argc, char** argv)
             check(notifications[1].size() == foreground_notices + 1, "Edit and deletion do not generate ordinary notifications");
             avatar_update(avatar_path, false, true);
             wait([&] { return pages[0]->avatars().state(ids[0]) == chat::avatar_state{4, true} && !pages[0]->avatars().image(ids[0]).isNull(); });
-            pages[0]->logout_requested();
+            QTimer::singleShot(20, [&] {
+                auto* profile = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                check(profile && profile->objectName() == "profileDialog", "Account opens from bottom avatar");
+                QTimer::singleShot(20, [] {
+                    auto* confirmation = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+                    check(confirmation && confirmation->text().contains(QStringLiteral("登录页")), "Logout confirmation");
+                    confirmation->button(QMessageBox::Yes)->click();
+                });
+                profile->findChild<QPushButton*>("profileLogoutButton")->click();
+            });
+            windows[0]->findChild<QToolButton*>("profileAvatar")->click();
             wait([&] { return !pages[0]->isVisible() && windows[0]->findChild<QPushButton*>("loginButton")->isEnabled(); });
             check(pages[0]->avatars().image(ids[0]).isNull(), "Logout clears current account cache");
             check(pages[0]->images().bytes(pages[2]->latest_message_id()).isEmpty(), "Logout clears image cache");

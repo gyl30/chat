@@ -11,7 +11,6 @@
 namespace
 {
 
-constexpr std::string_view kAddContactMethod = "add_contact";
 constexpr std::string_view kAuthenticateMethod = "authenticate";
 constexpr std::string_view kEchoMethod = "echo";
 constexpr std::string_view kGetContactsMethod = "get_contacts";
@@ -236,7 +235,9 @@ boost::capy::task<void> chat_session::run()
 
         if (response.empty())
         {
-            if (request.method == kAddContactMethod || request.method == "remove_contact")
+            if (request.method == "send_friend_request" || request.method == "respond_friend_request" ||
+                request.method == "cancel_friend_request" || request.method == "get_friend_requests" ||
+                request.method == "remove_contact")
             {
                 rpc_error = co_await handle_contact_change(request, response);
             }

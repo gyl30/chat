@@ -44,12 +44,12 @@ int main()
     {
         auto output = draw(s, columns, rows);
         ok &= expect(output.find("张 三") != std::string::npos, "Unicode remains visible");
-        ok &= expect(output.find("添加联系人后可发送消息") != std::string::npos, "read-only direct prompt");
+        ok &= expect(output.find("双方接受好友申请后可发送消息") != std::string::npos, "read-only direct prompt");
     }
     ok &= expect(draw(s, 20, 4).find("Terminal too small") != std::string::npos, "too small fallback");
     s.view = page::conversations;
     ok &= expect(draw(s, 60, 20).find("Conversations") != std::string::npos, "narrow list navigation");
-    ok &= expect(draw(s, 60, 20).find("添加联系人") == std::string::npos, "narrow list does not squeeze conversation");
+    ok &= expect(draw(s, 60, 20).find("双方接受好友申请") == std::string::npos, "narrow list does not squeeze conversation");
     {
         auto long_name_list = s;
         long_name_list.conversations.front().username = "LongUsernamePrefix" + std::string(46, 'x');
@@ -99,10 +99,35 @@ int main()
     s.view = page::profile;
     s.profile = {3, "stranger", {}};
     output = draw(s, 80, 24);
-    ok &= expect(output.find("Add contact") != std::string::npos, "non-contact add action");
+    ok &= expect(output.find("Add friend") != std::string::npos, "non-contact add action");
     ok &= expect(output.find("Message") == std::string::npos, "non-contact cannot message");
     s.presences.emplace(3, chat::presence{3, true, 0});
     ok &= expect(draw(s, 80, 24).find("online") == std::string::npos, "non-contact presence hidden");
+    s.friends.outgoing = {{{3, "stranger", {}}, 1}};
+    output = draw(s, 80, 24);
+    ok &= expect(output.find("Waiting for acceptance") != std::string::npos && output.find("Cancel friend request") != std::string::npos,
+                 "outgoing pending profile can cancel");
+    ok &= expect(output.find("Message") == std::string::npos && output.find("online") == std::string::npos,
+                 "pending profile cannot message or see presence");
+    s.friends.outgoing.clear();
+    s.friends.incoming = {{{3, "stranger", {}}, 1}};
+    output = draw(s, 80, 24);
+    ok &= expect(output.find("Accept friend request") != std::string::npos && output.find("Reject friend request") != std::string::npos,
+                 "incoming pending profile actions");
+    s.view = page::contacts;
+    ok &= expect(draw(s, 80, 24).find("New friends (1)") != std::string::npos, "contacts expose pending friend count");
+    s.view = page::friend_requests;
+    ok &= expect(draw(s, 60, 20).find("Incoming") != std::string::npos, "incoming requests page");
+    s.view = page::friend_sent;
+    ok &= expect(draw(s, 60, 20).find("Outgoing") != std::string::npos, "outgoing requests page");
+    s.contacts = {{3, "stranger", {}}, {4, "张 三", {}}};
+    s.view = page::pick_contacts;
+    s.pick_query = "张";
+    s.picked_contacts = {4};
+    output = draw(s, 80, 24);
+    ok &= expect(output.find("Selected: 1") != std::string::npos && output.find("[x]") != std::string::npos && output.find("stranger") == std::string::npos,
+                 "group picker filters accepted friends and shows selected count");
+    s.pick_query.clear(); s.picked_contacts.clear();
     s.view = page::group;
     s.conversations.front().pinned_message = chat::quoted_message{1, 2, "张 三", "pinned", {}, false};
     s.members = {{1, "Alice", chat::member_role::member, {}}};
@@ -160,9 +185,13 @@ int main()
         component->OnEvent(ftxui::Event::Character('j'));
         ok &= expect(application.data.selected == 1, "contact keyboard selection");
         component->OnEvent(ftxui::Event::Return);
-        ok &= expect(application.data.view == page::profile && application.data.profile.id == 3, "contact profile navigation");
+        ok &= expect(application.data.view == page::profile && application.data.profile.id == 2, "contact profile navigation");
         component->OnEvent(ftxui::Event::Escape);
         ok &= expect(application.data.view == page::contacts, "Esc returns from profile");
+        application.data.link = connection::online;
+        application.command("logout");
+        ok &= expect(application.dialog && application.dialog->confirmation && application.data.self.id == 1, "logout requires confirmation");
+        application.cancel_prompt();
         application.data.draft = "保留草稿";
         application.data.composing = true;
         component->OnEvent(ftxui::Event::Escape);

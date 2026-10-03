@@ -215,7 +215,7 @@ boost::capy::io_task<> send_websocket_text(boost::corosio::tcp_socket& socket, s
     co_return {};
 }
 
-boost::capy::io_task<std::string> receive_websocket_text(boost::corosio::tcp_socket& socket)
+boost::capy::io_task<std::string> receive_websocket_frame_text(boost::corosio::tcp_socket& socket)
 {
     std::array<std::uint8_t, 2> header{};
     auto [header_ec, header_read] = co_await boost::capy::read(socket, boost::capy::mutable_buffer(header.data(), header.size()));
@@ -282,6 +282,22 @@ boost::capy::io_task<std::string> receive_websocket_text(boost::corosio::tcp_soc
     }
 
     co_return boost::capy::io_result<std::string>{std::error_code{}, std::move(payload)};
+}
+
+boost::capy::io_task<std::string> receive_websocket_text(boost::corosio::tcp_socket& socket)
+{
+    for (;;)
+    {
+        auto result = co_await receive_websocket_frame_text(socket);
+        auto& [ec, payload] = result;
+        if (ec) { co_return std::move(result); }
+        auto value = boost::json::parse(payload);
+        auto const* method = value.is_object() ? value.as_object().if_contains("method") : nullptr;
+        // Relation invalidations are covered by the SDK integration tests. Keep the raw
+        // message/presence/typing assertions below focused on their expected notification.
+        if (method && method->is_string() && method->as_string() == "friendship") { continue; }
+        co_return std::move(result);
+    }
 }
 
 boost::capy::io_task<> authenticate_websocket(boost::corosio::tcp_socket& socket,
@@ -730,23 +746,23 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         }
         std::cout << "PASS unauthenticated get contacts rejected\n";
 
-        constexpr std::string_view unauthenticated_add_contact =
-            R"({"jsonrpc":"2.0","method":"add_contact","params":{"user":1},"id":"add-contact-auth-required"})";
-        auto [unauthenticated_add_contact_write_ec] =
-            co_await send_websocket_text(socket, unauthenticated_add_contact);
-        if (unauthenticated_add_contact_write_ec)
+        constexpr std::string_view unauthenticated_send_friend_request =
+            R"({"jsonrpc":"2.0","method":"send_friend_request","params":{"user":1},"id":"add-contact-auth-required"})";
+        auto [unauthenticated_send_friend_request_write_ec] =
+            co_await send_websocket_text(socket, unauthenticated_send_friend_request);
+        if (unauthenticated_send_friend_request_write_ec)
         {
             std::cerr << "FAIL unauthenticated add contact write\n";
             co_return 1;
         }
 
-        auto unauthenticated_add_contact_reply_result = co_await receive_websocket_text(socket);
-        auto& [unauthenticated_add_contact_read_ec, unauthenticated_add_contact_reply] =
-            unauthenticated_add_contact_reply_result;
-        constexpr std::string_view expected_unauthenticated_add_contact_reply =
+        auto unauthenticated_send_friend_request_reply_result = co_await receive_websocket_text(socket);
+        auto& [unauthenticated_send_friend_request_read_ec, unauthenticated_send_friend_request_reply] =
+            unauthenticated_send_friend_request_reply_result;
+        constexpr std::string_view expected_unauthenticated_send_friend_request_reply =
             R"({"jsonrpc":"2.0","error":{"code":-32001,"message":"Authentication required"},"id":"add-contact-auth-required"})";
-        if (unauthenticated_add_contact_read_ec ||
-            !json_matches(unauthenticated_add_contact_reply, expected_unauthenticated_add_contact_reply))
+        if (unauthenticated_send_friend_request_read_ec ||
+            !json_matches(unauthenticated_send_friend_request_reply, expected_unauthenticated_send_friend_request_reply))
         {
             std::cerr << "FAIL unauthenticated add contact rejected\n";
             co_return 1;
@@ -1517,20 +1533,6 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return 1;
     }
 
-    std::vector<std::string> contact_cleanup_parameters;
-    contact_cleanup_parameters.push_back(source_user_id);
-    auto contact_cleanup_result = co_await fixture_connection.execute_scalar(
-        "WITH deleted AS (DELETE FROM contacts WHERE owner_id = $1::bigint RETURNING 1) "
-        "SELECT count(*)::text FROM deleted",
-        std::move(contact_cleanup_parameters));
-    auto& [contact_cleanup_ec, contact_cleanup_count] = contact_cleanup_result;
-    (void)contact_cleanup_count;
-    if (contact_cleanup_ec)
-    {
-        std::cerr << "FAIL contacts fixture cleanup: " << fixture_connection.error_message() << '\n';
-        co_return 1;
-    }
-
     boost::corosio::tcp_socket source_socket(io_context);
     auto source_connect_result = co_await connect(source_socket, port);
     auto& [source_connect_ec] = source_connect_result;
@@ -1577,10 +1579,39 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
             co_return std::move(reply);
         }
     };
+    auto clean_contacts = co_await peer_rpc("get_contacts", "{}");
+    if (!json_matches(clean_contacts, R"({"result":{"users":[]}})"))
+    {
+        std::cerr << "FAIL fresh fixture unexpectedly has contacts\n";
+        co_return 1;
+    }
+    auto establish_friendship = [&]() -> boost::capy::task<bool> {
+        auto sent = co_await peer_rpc("send_friend_request", "{\"user\":" + peer_user_id + "}");
+        if (!json_matches(sent, R"({"result":{"state":"outgoing_pending"}})")) { co_return false; }
+        boost::corosio::tcp_socket accepting(io_context);
+        auto [connected] = co_await connect(accepting, port);
+        if (connected) { co_return false; }
+        boost::http::response_parser parser(parser_config);
+        auto [upgraded] = co_await upgrade_websocket(accepting, parser);
+        if (upgraded) { co_return false; }
+        auto [authenticated] = co_await authenticate_websocket(accepting, kPeerUsername, "friend-accept-auth");
+        if (authenticated) { co_return false; }
+        auto [sent_accept] = co_await send_websocket_text(accepting,
+            "{\"jsonrpc\":\"2.0\",\"method\":\"respond_friend_request\",\"params\":{\"user\":" +
+            source_user_id + ",\"accept\":true},\"id\":\"friend-accept\"}");
+        if (sent_accept) { co_return false; }
+        auto [read, reply] = co_await receive_websocket_text(accepting);
+        if (read || !json_matches(reply, R"({"result":{"state":"accepted"}})")) { co_return false; }
+        accepting.close();
+        auto [offline_ec, offline] = co_await receive_websocket_text(source_socket);
+        if (offline_ec || !json_matches(offline, R"({"method":"presence","params":{"online":false}})"))
+        { co_return false; }
+        peer_last_seen = std::to_string(boost::json::parse(offline).at("params").at("last_seen").as_int64());
+        co_return true;
+    };
     auto denied_direct = co_await peer_rpc("open_direct_conversation", "{\"user\":" + peer_user_id + "}");
     if (!json_matches(denied_direct, R"({"error":{"code":-32005}})")) { co_return 1; }
-    auto initial_contact = co_await peer_rpc("add_contact", "{\"user\":" + peer_user_id + "}");
-    if (!boost::json::parse(initial_contact).as_object().contains("result")) { co_return 1; }
+    if (!co_await establish_friendship()) { std::cerr << "FAIL initial friend handshake\n"; co_return 1; }
     auto direct_conversation = co_await open_direct(source_socket, peer_user_id);
     if (direct_conversation.empty())
     {
@@ -1987,13 +2018,65 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     auto const contact_upload_id = boost::json::parse(contact_upload).at("result").at("upload").as_int64();
     co_await peer_rpc("upload_attachment", "{\"upload\":" + std::to_string(contact_upload_id) +
         ",\"offset\":0,\"data\":\"AAEC\"}");
-    co_await fixture_connection.execute_row("BEGIN");
-    co_await fixture_connection.execute_row("SELECT id FROM conversations WHERE id=$1::bigint FOR UPDATE", {direct_conversation});
-    auto externally_removed = co_await fixture_connection.execute_row(
-        "DELETE FROM contacts WHERE owner_id=$1::bigint AND contact_id=$2::bigint", {source_user_id, peer_user_id});
-    auto removal_committed = co_await fixture_connection.execute_row("COMMIT");
-    if (std::get<0>(externally_removed) || std::get<0>(removal_committed)) { co_return 1; }
-    auto revoked_finish = co_await peer_rpc("finish_attachment", "{\"upload\":" + std::to_string(contact_upload_id) + "}");
+    boost::corosio::tcp_socket removing(io_context);
+    boost::http::response_parser removing_parser(parser_config);
+    auto [removing_connected] = co_await connect(removing, port);
+    auto [removing_upgraded] = co_await upgrade_websocket(removing, removing_parser);
+    auto [removing_authenticated] = co_await authenticate_websocket(removing, kPeerUsername, "friend-remove-race-auth");
+    if (removing_connected || removing_upgraded || removing_authenticated) { co_return 1; }
+    auto [online_ec, online_notice] = co_await receive_websocket_text(source_socket);
+    if (online_ec || !json_matches(online_notice, R"({"method":"presence","params":{"online":true}})")) { co_return 1; }
+    auto [begun_ec, begun_row] = co_await fixture_connection.execute_row("BEGIN");
+    auto [locked_ec, locked_row] = co_await fixture_connection.execute_row(
+        "SELECT id FROM conversations WHERE id=$1::bigint FOR UPDATE", {direct_conversation});
+    if (begun_ec || locked_ec || !locked_row) { co_return 1; }
+    auto [remove_sent] = co_await send_websocket_text(removing,
+        "{\"jsonrpc\":\"2.0\",\"method\":\"remove_contact\",\"params\":{\"user\":" +
+        source_user_id + "},\"id\":\"friend-remove-race\"}");
+    if (remove_sent) { co_return 1; }
+    for (int contenders : {1, 2})
+    {
+        bool waiting = false;
+        for (int i = 0; i < 100 && !waiting; ++i)
+        {
+            auto [wait_ec, count] = co_await fixture_connection.execute_scalar(
+                "SELECT (count(*)>=$1::int)::text FROM pg_stat_activity WHERE datname=current_database() "
+                "AND wait_event_type='Lock' AND cardinality(pg_blocking_pids(pid))>0", {std::to_string(contenders)});
+            waiting = !wait_ec && count == "true";
+        }
+        if (!waiting)
+        {
+            co_await fixture_connection.execute_row("ROLLBACK");
+            std::cerr << "FAIL friend remove/attachment finish lock contenders\n";
+            co_return 1;
+        }
+        if (contenders == 1)
+        {
+            auto [finish_sent] = co_await send_websocket_text(source_socket,
+                "{\"jsonrpc\":\"2.0\",\"method\":\"finish_attachment\",\"params\":{\"upload\":" +
+                std::to_string(contact_upload_id) + "},\"id\":\"friend-finish-race\"}");
+            if (finish_sent) { co_return 1; }
+        }
+    }
+    auto [commit_ec, commit_row] = co_await fixture_connection.execute_row("COMMIT");
+    if (commit_ec) { co_return 1; }
+    auto [removed_ec, removed_reply] = co_await receive_websocket_text(removing);
+    auto [finished_ec, revoked_finish] = co_await receive_websocket_text(source_socket);
+    if (removed_ec || finished_ec || !json_matches(removed_reply, R"({"result":{"removed":true}})"))
+    { co_return 1; }
+    removing.close();
+    // Removal hides presence immediately, so use the fixture's read-only last_seen observation
+    // to wait for server-side disconnect before logging this same actor in again.
+    bool removing_closed = false;
+    for (int i = 0; i < 100 && !removing_closed; ++i)
+    {
+        auto [seen_ec, seen] = co_await fixture_connection.execute_scalar(
+            "SELECT ((extract(epoch FROM last_seen_at)*1000)::bigint)::text FROM users WHERE id=$1::bigint",
+            {peer_user_id});
+        removing_closed = !seen_ec && seen != peer_last_seen;
+        if (removing_closed) { peer_last_seen = std::move(seen); }
+    }
+    if (!removing_closed) { co_return 1; }
     auto revoked_chunk = co_await peer_rpc("upload_attachment", "{\"upload\":" + std::to_string(contact_upload_id) +
         ",\"offset\":0,\"data\":\"AAEC\"}");
     if (!json_matches(revoked_finish, R"({"error":{"code":-32006}})") ||
@@ -2002,7 +2085,7 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         std::cerr << "FAIL attachment finish does not recheck authoritative contact or release upload state\n";
         co_return 1;
     }
-    co_await peer_rpc("add_contact", "{\"user\":" + peer_user_id + "}");
+    if (!co_await establish_friendship()) { std::cerr << "FAIL renewed friend handshake\n"; co_return 1; }
     contact_upload = co_await peer_rpc("begin_attachment", attachment_begin);
     auto const next_contact_upload = boost::json::parse(contact_upload).at("result").at("upload").as_int64();
     co_await peer_rpc("upload_attachment", "{\"upload\":" + std::to_string(next_contact_upload) +
@@ -2017,7 +2100,7 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         std::cerr << "FAIL contact removal retains an active upload\n";
         co_return 1;
     }
-    std::cout << "PASS contact removal cancels upload and forbids new attachment\n";
+    std::cout << "PASS bilateral contact removal, locked finish race and upload cancellation\n";
     constexpr std::string_view empty_contacts_request =
         R"({"jsonrpc":"2.0","method":"get_contacts","id":"contacts-empty"})";
     auto empty_contacts_write_result = co_await send_websocket_text(source_socket, empty_contacts_request);
@@ -2082,28 +2165,8 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     }
     std::cout << "PASS self user search exclusion\n";
 
-    std::string add_contact_request = R"({"jsonrpc":"2.0","method":"add_contact","params":{"user":)";
-    add_contact_request.append(peer_user_id);
-    add_contact_request.append(R"(},"id":"contact-add"})");
-    auto add_contact_write_result = co_await send_websocket_text(source_socket, add_contact_request);
-    auto& [add_contact_write_ec] = add_contact_write_result;
-    if (add_contact_write_ec)
-    {
-        std::cerr << "FAIL add contact write\n";
-        co_return 1;
-    }
-
-    auto add_contact_reply_result = co_await receive_websocket_text(source_socket);
-    auto& [add_contact_read_ec, add_contact_reply] = add_contact_reply_result;
-    std::string expected_add_contact_reply = R"({"jsonrpc":"2.0","result":{"user":{"id":)";
-    expected_add_contact_reply.append(peer_user_id);
-    expected_add_contact_reply.append(R"(,"username":"chat_server_peer"}},"id":"contact-add"})");
-    if (add_contact_read_ec || !json_matches(add_contact_reply, expected_add_contact_reply))
-    {
-        std::cerr << "FAIL add contact\n";
-        co_return 1;
-    }
-    std::cout << "PASS add contact\n";
+    if (!co_await establish_friendship()) { std::cerr << "FAIL final friend handshake\n"; co_return 1; }
+    std::cout << "PASS friend request and bilateral acceptance\n";
 
     constexpr std::string_view contacts_request =
         R"({"jsonrpc":"2.0","method":"get_contacts","id":"contacts-list"})";
@@ -2139,15 +2202,16 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
 
     auto existing_contact_search_reply_result = co_await receive_websocket_text(source_socket);
     auto& [existing_contact_search_read_ec, existing_contact_search_reply] = existing_contact_search_reply_result;
-    constexpr std::string_view expected_existing_contact_search_reply =
-        R"({"jsonrpc":"2.0","result":{"users":[]},"id":"contact-search-existing"})";
+    std::string expected_existing_contact_search_reply =
+        R"({"jsonrpc":"2.0","result":{"users":[{"id":)" + peer_user_id +
+        R"(,"username":"chat_server_peer"}]},"id":"contact-search-existing"})";
     if (existing_contact_search_read_ec ||
         !json_matches(existing_contact_search_reply, expected_existing_contact_search_reply))
     {
-        std::cerr << "FAIL existing contact search exclusion\n";
+        std::cerr << "FAIL confirmed friend remains searchable\n";
         co_return 1;
     }
-    std::cout << "PASS existing contact search exclusion\n";
+    std::cout << "PASS confirmed friend remains searchable\n";
 
     std::string offline_send_request = R"({"jsonrpc":"2.0","method":"send_message","params":{"conversation":)";
     offline_send_request.append(direct_conversation);
@@ -2770,6 +2834,7 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
 }    // namespace
 
 int run_group_tests();
+int run_friendship_tests();
 
 #ifdef CHAT_TEST_TUI
 int run_tui_tests();
@@ -2777,6 +2842,7 @@ int run_tui_tests();
 
 int main(int argc, char** argv)
 {
+    if (argc == 2 && std::string_view(argv[1]) == "--friendship-only") { return run_friendship_tests(); }
 #ifdef CHAT_TEST_TUI
     if (argc == 2 && std::string_view(argv[1]) == "--tui-only") { return run_tui_tests(); }
 #endif

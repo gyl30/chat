@@ -2,7 +2,21 @@
 
 本记录对应截至 2026-10-03 的仓库实际历史。阶段提交和 push 结果以 Git 历史为准，Telegram 调研与裁剪依据见 [调研记录](telegram-group-design-research.md)。
 
-上一轮长期 Goal 从 `bac606681cac9acff3f75c9c0588831b77646214` 开始；头像在该基线已完成，未重复开发。阶段 0–12 的产品能力和最终综合审查均已完成。本轮从 `49bfa2941dd23aff3c50332d7a90b8d9cae9d592` 开始，仅收口产品语义、授权关系和状态转换，不增加产品功能。下文各阶段的“下一阶段”是当时的开发记录，当前规则以本轮审查记录为准。
+上一轮长期 Goal 从 `bac606681cac9acff3f75c9c0588831b77646214` 开始；头像在该基线已完成，未重复开发。阶段 0–12 的产品能力和最终综合审查均已完成。本轮从 `49bfa2941dd23aff3c50332d7a90b8d9cae9d592` 开始，仅收口产品语义、授权关系和状态转换，不增加产品功能。下文各阶段的“下一阶段”是当时的开发记录，好友关系已在后续百人验证 Goal 中明确变更，当前关系规则以下面的“好友申请与确认”为准；历史单向授权描述仅记录旧版本。
+
+## 好友申请与确认
+
+正式关系由陌生人、outgoing pending、incoming pending、accepted friend 构成。申请必须由对方明确接受，接受后在同一事务创建双向 contacts；pending 不进入联系人列表，不获得 direct communication 或 presence 权限。反向申请只呈现已有 incoming，不暗中接受；同方向重复申请幂等。好友删除原子清除双向 contacts 和该 pair pending。现有单聊与历史保留，双方变为只读：仍可查询历史/搜索、下载旧附件、mark read、个人静音/置顶、删除自己旧消息；不能 send/reply/edit/reaction/typing 或新附件。
+
+SQL 026 新增仅保存当前 pending 的 `friend_requests`，用户外键、自申请 CHECK、无序 pair 唯一索引；不保存决定历史。SQL 001–025 不改。迁移保留已有双向联系人，将旧单向关系转为原方向 pending 并删除该单向 contacts，绝不自动授予反向好友权限；保留身份、历史和原创建时间。开发库实际 preflight 为 41 条 contacts：3 对互为联系人、35 条单向，无 self/orphan 行。停服后再次扫描并应用 026，结果保留 6 条 contacts、生成 35 条 pending；逐行核对关系方向和创建时间，全部用户名/用户 ID 保持不变，重启后 health PASS。
+
+SDK 与 RPC 使用 `send_friend_request`、`get_friend_requests`、`respond_friend_request`、`cancel_friend_request` 和双向 `remove_contact`；旧 `add_contact` 不再提供。pair mutation 按用户 ID 顺序取得 `FOR NO KEY UPDATE`，再锁已有 direct conversation；既有 direct mutation 继续在同一 conversation 锁后复核权限。双方 `friendship` 通知只表示状态失效，由客户端重新获取 contacts、friend requests、presence 与 conversations；重连取持久化权威快照，不建立 decision history。
+
+Qt 联系人顶部提供“新的朋友”与未处理数量；Qt/TUI 独立区分 incoming/outgoing，资料与搜索按关系提供添加、等待/取消、接受/拒绝、消息/删除。群成员身份不构成好友关系。手工建群/邀请仅选择已确认好友，选人支持搜索、多选、取消与计数，再输入群名确认；群资料以概要和全部成员入口呈现，角色与管理动作分层。邀请链接与群加入审批仍不要求好友。
+
+Qt 左下角自身头像打开账号资料，替代独立退出导航按钮；资料提供头像操作和确认退出登录。TUI `:account` 提供等价入口，不启用鼠标或终端图片。百人群、百人在线、稳态与最终 sanitizer 的实际结果另记于 `docs/tui_100_member_verification.md`；未完成的测试不得据此视为通过。
+
+好友实现阶段统一验证已实际通过 normal、ASan、UBSan，各 20/20 CTest；新增 `friendship` 复用现有 server fixture，覆盖关系状态机、离线恢复及真实数据库锁同步竞争。规模终端验证的最终结果以专门报告为准。
 
 ## 已完成路线
 

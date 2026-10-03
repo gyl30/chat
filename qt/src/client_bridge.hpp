@@ -57,6 +57,9 @@ class client_bridge final : public QObject
     void leave_group(qint64 conversation);
     void set_group_pinned_message(qint64 conversation, std::optional<qint64> message);
     void get_contacts();
+    void get_friend_requests();
+    void respond_friend_request(qint64 user, bool accept);
+    void cancel_friend_request(qint64 user);
     void get_presence();
     void get_messages(qint64 conversation, std::optional<qint64> before = {}, std::optional<qint64> after = {});
     void send_message(qint64 user, QString text, qint64 reply_to = 0);
@@ -88,6 +91,8 @@ class client_bridge final : public QObject
     void conversations_received(QList<conversation_data> conversations, QString error_message);
     void mute_finished(qint64 conversation, bool muted, QString error_message);
     void pin_finished(qint64 conversation, bool pinned, QString error_message);
+    void friendship_changed(qint64 user);
+    void friend_requests_received(QList<user_data> incoming, QList<user_data> outgoing, QString error_message);
     void contacts_received(QList<user_data> contacts, QString error_message);
     void presences_received(QList<presence_data> users, QString error_message);
     void presence_changed(presence_data user);
@@ -130,6 +135,8 @@ class client_bridge final : public QObject
      void get_conversations_page(std::optional<chat::conversation_cursor> before,
                                  QList<conversation_data> conversations, std::uint64_t generation);
      std::uint64_t conversations_generation_ = 0;
+     std::uint64_t contacts_generation_ = 0;
+     std::uint64_t friend_requests_generation_ = 0;
      std::uint64_t messages_generation_ = 0;
      std::uint64_t search_generation_ = 0;
      std::uint64_t upload_generation_ = 0;
