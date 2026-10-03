@@ -4,6 +4,37 @@
 
 上一轮长期 Goal 从 `bac606681cac9acff3f75c9c0588831b77646214` 开始；头像在该基线已完成，未重复开发。阶段 0–12 的产品能力和最终综合审查均已完成。本轮从 `49bfa2941dd23aff3c50332d7a90b8d9cae9d592` 开始，仅收口产品语义、授权关系和状态转换，不增加产品功能。下文各阶段的“下一阶段”是当时的开发记录，好友关系已在后续百人验证 Goal 中明确变更，当前关系规则以下面的“好友申请与确认”为准；历史单向授权描述仅记录旧版本。
 
+## 长期 Goal 恢复核验与最终收口
+
+本次恢复执行的实际 `BASE_HEAD` 为 `387cf76fc60455d54747d71cc0158e844893f0af`。重新 fetch 后 `HEAD == origin/main`，工作区和 submodules 干净，没有未完成的头像修改。根据当前实现、SQL、回归和 Git 历史逐项核验阶段 0–12；下方路线表中的十五个产品阶段及修复提交（`bac6066` 至 `49bfa29`）均已存在于 `origin/main`，没有重复开发或合并阶段。保留后来已经发布的好友确认模型和 Qt/TUI 客户端。
+
+完成需求与规范两轴审查，复核 server/client/Qt 的连接与 QObject 生命周期、现有 generation 和请求状态、上传清理、头像及图片缓存、事务失败后的连接恢复、锁后成员与角色权限、实时收件范围，以及服务端 cursor 排序。群阅读仍基于当前其他成员的真实读位；mute 仅抑制通知，包括 mention；群公告与消息、个人置顶与群消息置顶保持独立。链接撤销不删除已有 pending，审批接受与加入水位在同一会话锁事务中完成。没有确认新的代码缺陷，没有因文件大小拆分模块或增加状态、抽象和产品功能。
+
+SQL 编号连续为 001–026，当前 migration 回归覆盖 fresh 升级及已有身份、消息和读位保持。本次没有新增或修改 migration；长期产品阶段使用 SQL 015–023，024–026 为随后已经发布的身份及好友关系演进。完整验证仍采用已经实际运行的本地 `tests/verify.sh`；CI 未接入缺少固定工具链获取方案的 hosted workflow，限制见 [验证说明](verification.md)。
+
+重新运行已有 `chat_tui_scale_fixture` 的 `configure → seed → measure_sizes → close`。使用新建专用数据库并依序应用 001–026，账号、已确认好友、成员和消息全部通过 SDK 建立，没有用 SQL 注入业务状态。每种规模各三个真实成员查询、历史查询及发送样本，成员数与 read positions 数均等于群规模：
+
+| 人数 | get_members 均值 | history 均值 | send 均值 | 结果 |
+|---:|---:|---:|---:|---|
+| 3 | 53.806 ms | 4.022 ms | 17.890 ms | PASS |
+| 10 | 2.053 ms | 56.167 ms | 68.399 ms | PASS |
+| 50 | 43.116 ms | 146.359 ms | 18.285 ms | PASS |
+| 200 | 98.542 ms | 44.831 ms | 18.487 ms | PASS |
+
+均值包含网络、数据库和回调等待，是本次观测而非性能阈值。部分成员在线，不代表 200 个在线连接的 fanout 吞吐；成员快照、读位和通知遍历仍随人数增长，没有设定新人数上限。SDK 与 server 正常退出，成功删除本轮自建数据库，未修改既有用户身份。证据位于 `/tmp/chat-long-goal-capacity-q_26fdex`。
+
+审查和规模测试之后，实际完整执行 `tests/verify.sh`，Qt/TUI 均 ON，三套构建及全部 20 个 CTest 通过：
+
+| 构建 | 完整 build | 完整 CTest | CTest 耗时 |
+|---|---|---|---|
+| normal Debug | PASS | 20/20 PASS | 92.22 s |
+| ASan | PASS | 20/20 PASS | 125.83 s |
+| UBSan | PASS | 20/20 PASS | 117.05 s |
+
+包含 migration、server/client、friendship、PostgreSQL、Qt model/delegate/真实多窗口 UI，以及 TUI 的状态、渲染、文件、跨线程投递和真实集成测试。既有连接重连、并发消息、成员竞争、edit/delete/reaction/read/typing、附件头像、移除转让、邀请重入、mute/通知、mention、群 pin、公告、链接及审批回归均保留。没有 suppression、排除测试、忽略失败或放宽 timeout，`git diff --check` PASS；完整日志为 `/tmp/chat-long-goal-final-verify.log`。
+
+本次收口仅更新实际审查与验证记录。产品路线和最终审查已完成，边界仍见下方“保持的边界与后续可选路线”，不继续多设备、E2EE、音视频、超大群或新的基础设施。
+
 ## 好友申请与确认
 
 正式关系由陌生人、outgoing pending、incoming pending、accepted friend 构成。申请必须由对方明确接受，接受后在同一事务创建双向 contacts；pending 不进入联系人列表，不获得 direct communication 或 presence 权限。反向申请只呈现已有 incoming，不暗中接受；同方向重复申请幂等。好友删除原子清除双向 contacts 和该 pair pending。现有单聊与历史保留，双方变为只读：仍可查询历史/搜索、下载旧附件、mark read、个人静音/置顶、删除自己旧消息；不能 send/reply/edit/reaction/typing 或新附件。
@@ -30,7 +61,7 @@ TUI 一级为 Chats、Contacts、Account，常驻键位 `h/c/u`；`N`（Shift+n�
 
 本次真实基线测试中，最简单窄屏 Enter→Esc 能返回；可复现的失败是从只读历史切换顶层 `:conversations` 后 Esc 又返回旧会话。另有 Tab 反复压入返回栈及宽屏列表/消息双高亮。先留 RED 后修复：顶级目的地清理旧返回栈，同级 tab 不压栈，只有实际键盘区域反色；历史、草稿和当前会话保留。联系人刷新后按用户身份保持选择，已选好友被删或列表为空时选择合法项，不会无高亮且 Enter 无响应。
 
-定向验证：Qt models/delegate/UI 3/3 PASS；TUI state/render/integration 3/3 PASS。真实 tmux TUI 导航回归 5/5 PASS（只读历史 Enter/Esc、Tab 返回根页面、联系人与新朋友分离、New 三动作、Account 退出）；真实 Qt X11 导航回归 3/3 PASS（accepted-only 联系人与申请隔离、聊天页三动作与两步建群、底部账号取消与确认退出）。最终 normal/ASan/UBSan 结果在本轮收尾后补入。
+定向验证：Qt models/delegate/UI 3/3 PASS；TUI state/render/integration 3/3 PASS。真实 tmux TUI 导航回归 5/5 PASS（只读历史 Enter/Esc、Tab 返回根页面、联系人与新朋友分离、New 三动作、Account 退出）；真实 Qt X11 导航回归 3/3 PASS（accepted-only 联系人与申请隔离、聊天页三动作与两步建群、底部账号取消与确认退出）。同一代码在本次长期 Goal 恢复核验中完整通过 normal/ASan/UBSan，各 20/20 CTest，实际结果见上方收口记录。
 
 ## 已完成路线
 
