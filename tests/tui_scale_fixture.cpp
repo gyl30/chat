@@ -488,6 +488,20 @@ public:
         }
         for (auto const* alias : {"B", "S005", "S006"})
         { rpc<bool>([&](auto done) { owner.client->set_group_admin(group_, actor(alias).id, true, done); }); }
+        auto admin_limit = measured<bool>([&](auto done) {
+            owner.client->set_group_admin(group_, actor("C").id, true, done);
+        }).as_object();
+        require(!admin_limit.at("ok").as_bool() &&
+            std::string(admin_limit.at("error").as_object().at("message").as_string()).find("three administrators") != std::string::npos,
+            "Server must reject an actual fourth-administrator request");
+        auto limited_roles = members();
+        auto owner_count = std::ranges::count(limited_roles, chat::member_role::owner, &chat::conversation_member::role);
+        auto admin_count = std::ranges::count(limited_roles, chat::member_role::admin, &chat::conversation_member::role);
+        auto ordinary_count = std::ranges::count(limited_roles, chat::member_role::member, &chat::conversation_member::role);
+        require(limited_roles.size() == 100 && owner_count == 1 && admin_count == 3 && ordinary_count == 96,
+                "Rejected fourth administrator must preserve the authoritative 1/3/96 roles");
+        json::object admin_limit_evidence{{"attempted_user", actor("C").id}, {"rpc", std::move(admin_limit)},
+            {"members", limited_roles.size()}, {"owners", owner_count}, {"admins", admin_count}, {"ordinary_members", ordinary_count}};
 
         json::array conversations{json::object{{"id", group_}, {"title", title}, {"pinned", true}}};
         rpc<bool>([&](auto done) { owner.client->set_conversation_pinned(group_, true, done); });
@@ -571,7 +585,7 @@ public:
         for (auto const& [alias, account] : accounts_) { if (alias.starts_with('S')) { sdk.push_back(account->description()); } }
         manifest_ = json::object{{"prefix", prefix_}, {"url", url_}, {"group", json::object{{"id", group_}, {"title", title}}},
             {"actors", std::move(actors)}, {"sdk", std::move(sdk)}, {"reserved", actor("S100").description()},
-            {"admins", json::array{"B", "S005", "S006"}}, {"messages", std::move(messages)},
+            {"admins", json::array{"B", "S005", "S006"}}, {"admin_limit_rejection", std::move(admin_limit_evidence)}, {"messages", std::move(messages)},
             {"search_query", search_query}, {"conversations", std::move(conversations)},
             {"pending", std::move(pending)}, {"invite_token", *invite}, {"owner_friends", std::move(owner_friends)},
             {"friend_pairs", std::move(friend_pairs)},

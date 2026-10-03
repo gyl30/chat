@@ -19,6 +19,7 @@ import re
 import socket
 import hashlib
 import atexit
+import signal
 import ctypes as C, json, os, pathlib, secrets, selectors, subprocess as S, sys, time, urllib.request
 from PIL import ImageGrab
 owned = []
@@ -33,6 +34,15 @@ def cleanup_processes():
                 proc.kill()
                 proc.wait()
 atexit.register(cleanup_processes)
+
+def interrupted(signum, frame):
+    # Let finally/atexit reap owned children even if another signal arrives.
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    raise SystemExit(128 + signum)
+
+signal.signal(signal.SIGINT, interrupted)
+signal.signal(signal.SIGTERM, interrupted)
 parser = argparse.ArgumentParser(description='Real xcb chat_qt smoke via Xvfb/XTest; requires a disposable DB creation role, xclip, Pillow and the SDK scale fixture target. No OCR or offscreen widget driver.')
 parser.add_argument('--build', default='build')
 parser.add_argument('--port', type=int, default=18881)
