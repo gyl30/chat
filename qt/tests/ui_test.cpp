@@ -17,6 +17,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QInputDialog>
+#include <QInputMethodEvent>
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QPushButton>
@@ -252,7 +253,7 @@ void check_primary_navigation()
     conversation_data direct;
     direct.id = 50; direct.user = 200; direct.username = QStringLiteral("收到 申请"); direct.can_send = false;
     page.open_conversation(direct);
-    auto* edit = page.findChild<QLineEdit*>("messageEdit");
+    auto* edit = page.findChild<QPlainTextEdit*>("messageEdit");
     page.set_friend_requests({}, {}, {});
     check(!edit->isEnabled() && edit->placeholderText().contains(QStringLiteral("添加好友")), "Read-only history distinguishes no friendship");
     page.set_friend_requests({}, {{200, direct.username, false, 0, {}}}, {});
@@ -290,6 +291,88 @@ void check_primary_navigation()
     std::cout << "PASS Qt primary navigation, action menu, accepted contacts and pending history states\n";
 }
 
+void check_message_composer()
+{
+    chat_widget page;
+    page.setStyleSheet(chat_style_sheet());
+    page.resize(1180, 760);
+    page.set_user(QStringLiteral("本人"), 1);
+    conversation_data direct;
+    direct.id = 50;
+    direct.user = 2;
+    direct.username = QStringLiteral("朋友");
+    direct.can_send = true;
+    page.open_conversation(direct);
+    page.show();
+    QApplication::processEvents();
+    auto* edit = page.findChild<QPlainTextEdit*>("messageEdit");
+    check(edit, "Message composer supports plain multiline editing");
+    auto* send = page.findChild<QToolButton*>("sendButton");
+    auto const compact_height = edit->height();
+    check(compact_height <= 46 && !send->isEnabled() && !edit->accessibleName().isEmpty(),
+          "Empty composer is compact, named and cannot send");
+    int sent = 0;
+    QString sent_text;
+    QObject::connect(&page, &chat_widget::send_message_requested, &page,
+        [&](qint64 conversation, QString text, qint64 reply) {
+            check(conversation == direct.id && reply == 0, "Composer sends to the active conversation");
+            ++sent;
+            sent_text = std::move(text);
+        });
+    edit->setFocus();
+    auto const text = QStringLiteral("第一行 中文\n第二行 emoji 🙂\n第三行");
+    QApplication::clipboard()->setText(text);
+    QKeyEvent paste(QEvent::KeyPress, Qt::Key_V, Qt::ControlModifier, "v");
+    QApplication::sendEvent(edit, &paste);
+    check(edit->toPlainText() == text, "Multiline paste preserves message text and newlines");
+    wait([&] { return edit->height() > compact_height; });
+    check(sent == 0 && send->isEnabled(), "Pasting only edits the draft");
+    QKeyEvent newline(QEvent::KeyPress, Qt::Key_Return, Qt::ShiftModifier, "\n");
+    QApplication::sendEvent(edit, &newline);
+    edit->insertPlainText(QStringLiteral("尾行"));
+    check(sent == 0 && edit->toPlainText() == text + QStringLiteral("\n尾行"),
+          "Shift+Enter inserts a newline without sending");
+    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier, "\r");
+    QApplication::sendEvent(edit, &enter);
+    check(sent == 1 && sent_text == text + QStringLiteral("\n尾行") && edit->toPlainText().isEmpty(),
+          "Enter sends the complete multiline draft");
+    wait([&] { return edit->height() == compact_height; });
+    check(!send->isEnabled(), "Cleared composer disables sending");
+    auto const long_text = QStringLiteral("长内容 中文 🙂\n").repeated(20);
+    edit->setPlainText(long_text);
+    wait([&] { return edit->verticalScrollBar()->maximum() > 0; });
+    auto const bounded_height = edit->height();
+    check(bounded_height <= 160 && edit->toPlainText() == long_text, "Long drafts scroll without truncation or unlimited growth");
+    edit->setPlainText(QStringLiteral("长内容 中文 🙂\n").repeated(40));
+    check(edit->height() == bounded_height, "Extra lines do not further enlarge the composer");
+    page.resize(1920, 1080);
+    edit->setPlainText(QStringLiteral("中文混合 ") + QStringLiteral("自然换行").repeated(12));
+    QApplication::processEvents();
+    auto const wide_height = edit->height();
+    page.resize(980, 640);
+    wait([&] { return edit->height() > wide_height; });
+    auto* bar = page.findChild<QFrame*>("inputBar");
+    wait([&] { return bar->rect().contains(send->geometry()) && bar->rect().contains(edit->geometry()); });
+    auto const draft = edit->toPlainText();
+    page.set_connection_available(false);
+    QApplication::sendEvent(edit, &enter);
+    check(sent == 1 && !edit->isEnabled() && !send->isEnabled() && edit->toPlainText() == draft,
+          "Offline composer preserves the draft and refuses sending");
+    page.set_connection_available(true);
+    edit->setPlainText(QStringLiteral("准备 "));
+    edit->moveCursor(QTextCursor::End);
+    QInputMethodEvent preedit(QStringLiteral("zhong"), {});
+    QApplication::sendEvent(edit, &preedit);
+    QApplication::sendEvent(edit, &enter);
+    check(sent == 1, "Enter cannot send while the input method has uncommitted text");
+    QInputMethodEvent commit;
+    commit.setCommitString(QStringLiteral("中"));
+    QApplication::sendEvent(edit, &commit);
+    QApplication::sendEvent(edit, &enter);
+    check(sent == 2 && sent_text == QStringLiteral("准备 中"), "Committed input method text can be sent normally");
+    std::cout << "PASS Qt multiline composer, keyboard, bounded wrapping, offline and input method\n";
+}
+
 int main(int argc, char** argv)
 {
     bool const widgets_only = argc == 2 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--widgets-only");
@@ -301,7 +384,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_primary_navigation(); return 0; }
+        try { check_authentication_layout(); check_primary_navigation(); check_message_composer(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
@@ -320,6 +403,7 @@ int main(int argc, char** argv)
     {
         check_authentication_layout();
         check_primary_navigation();
+        check_message_composer();
         start();
         {
             chat_widget page;
@@ -655,9 +739,9 @@ int main(int argc, char** argv)
                 view->clicked(view->model()->index(0, 0));
                 wait([&] { return pages[i]->active_conversation() == group && pages[i]->messages_ready(); });
             }
-            auto* edit = windows[0]->findChild<QLineEdit*>("messageEdit");
+            auto* edit = windows[0]->findChild<QPlainTextEdit*>("messageEdit");
             auto type_character = [&](int actor) {
-                auto* input = windows[actor]->findChild<QLineEdit*>("messageEdit");
+                auto* input = windows[actor]->findChild<QPlainTextEdit*>("messageEdit");
                 QKeyEvent key(QEvent::KeyPress, Qt::Key_X, Qt::NoModifier, "x");
                 QApplication::sendEvent(input, &key);
             };
@@ -690,10 +774,10 @@ int main(int argc, char** argv)
             type_character(0);
             wait([&] { return peer_typing->isVisible(); });
             wait([&] { return !peer_typing->isVisible(); });
-            check(edit->text() == "x", "Typing ends after idle without discarding the draft");
+            check(edit->toPlainText() == "x", "Typing ends after idle without discarding the draft");
             type_character(0);
             wait([&] { return peer_typing->isVisible(); });
-            edit->setText(QStringLiteral("Qt 群消息验证"));
+            edit->setPlainText(QStringLiteral("Qt 群消息验证"));
             activate(1);
             windows[0]->findChild<QToolButton*>("sendButton")->click();
             wait([&] { return !peer_typing->isVisible() && !group_typing->isVisible(); });
@@ -1242,7 +1326,7 @@ int main(int argc, char** argv)
             windows[1]->findChild<QToolButton*>("cancelReplyButton")->click();
             check(!windows[1]->findChild<QLabel*>("replyPreview")->isVisible(), "Cancel reply");
             choose_reply();
-            windows[1]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("Qt 引用回复"));
+            windows[1]->findChild<QPlainTextEdit*>("messageEdit")->setPlainText(QStringLiteral("Qt 引用回复"));
             windows[1]->findChild<QToolButton*>("sendButton")->click();
             for (int i = 0; i < 3; ++i)
             {
@@ -1313,8 +1397,8 @@ int main(int argc, char** argv)
             auto* reply_view = windows[1]->findChild<QListView*>("messageList");
             choose_reply(2, 1);
             auto* pending_reply_preview = windows[2]->findChild<QLabel*>("replyPreview");
-            auto* pending_reply_draft = windows[2]->findChild<QLineEdit*>("messageEdit");
-            pending_reply_draft->setText(QStringLiteral("尚未发送的草稿"));
+            auto* pending_reply_draft = windows[2]->findChild<QPlainTextEdit*>("messageEdit");
+            pending_reply_draft->setPlainText(QStringLiteral("尚未发送的草稿"));
             check(pending_reply_preview->isVisible(), "Prepare a reply before the target is deleted");
             QTimer delete_dialog;
             QObject::connect(&delete_dialog, &QTimer::timeout,
@@ -1356,9 +1440,9 @@ int main(int argc, char** argv)
                           QStringLiteral("消息已删除"),
                       "Live deletion marker");
             }
-            check(!pending_reply_preview->isVisible() && pending_reply_draft->text() == QStringLiteral("尚未发送的草稿"),
+            check(!pending_reply_preview->isVisible() && pending_reply_draft->toPlainText() == QStringLiteral("尚未发送的草稿"),
                 "Deleting a prepared reply target clears the invalid reference and preserves the draft");
-            windows[2]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("离线编辑验证"));
+            windows[2]->findChild<QPlainTextEdit*>("messageEdit")->setPlainText(QStringLiteral("离线编辑验证"));
             windows[2]->findChild<QToolButton*>("sendButton")->click();
             for (int i = 0; i < 3; ++i)
             {
@@ -1374,7 +1458,7 @@ int main(int argc, char** argv)
             set_preference(2, group, true, true);
             server.terminate();
             check(server.waitForFinished(3000), "Stop server");
-            wait([&] { return !windows[0]->findChild<QToolButton*>("sendButton")->isEnabled(); });
+            wait([&] { return !windows[0]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled(); });
             auto offline_sql =
                 "UPDATE messages SET body='offline edit',edited_at=greatest(clock_timestamp(),edited_at+interval '1 "
                 "millisecond') WHERE conversation_id=" +
@@ -1409,7 +1493,7 @@ int main(int argc, char** argv)
                 wait(
                     [&, i]
                     {
-                        return windows[i]->findChild<QToolButton*>("sendButton")->isEnabled() &&
+                        return windows[i]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled() &&
                                pages[i]->messages_ready();
                     });
                 check(!windows[i]->findChild<QLabel*>("typingStatusLabel")->isVisible(),
@@ -1443,7 +1527,7 @@ int main(int argc, char** argv)
                                view->model()->index(2, 0).data(message_model::reactions_role).value<QList<reaction_data>>().front().emoji == QStringLiteral("❤️");
                     });
             }
-            windows[1]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("重连后的群消息 @") + names[2]);
+            windows[1]->findChild<QPlainTextEdit*>("messageEdit")->setPlainText(QStringLiteral("重连后的群消息 @") + names[2]);
             check(notifications[0].size() + notifications[1].size() + notifications[2].size() == notices_before_reconnect,
                 "History, edits, deletion and reaction recovery produce no ordinary notification");
             activate(0);
@@ -1571,10 +1655,10 @@ int main(int argc, char** argv)
             auto const direct = pages[0]->active_conversation();
             wait([&] { return pages[0]->conversation(direct) && pages[0]->conversation(direct)->can_send; });
             check(pages[0]->active_conversation() == direct &&
-                      windows[0]->findChild<QLineEdit*>("messageEdit")->isEnabled() &&
+                      windows[0]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled() &&
                       windows[0]->findChild<QListView*>("messageList")->model()->rowCount() == 0,
                   "An authoritative snapshot preserves a newly opened empty direct chat");
-            windows[0]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("保留单聊历史"));
+            windows[0]->findChild<QPlainTextEdit*>("messageEdit")->setPlainText(QStringLiteral("保留单聊历史"));
             windows[0]->findChild<QToolButton*>("sendButton")->click();
             wait([&] { return windows[0]->findChild<QListView*>("messageList")->model()->rowCount() == 1; });
             wait([&] {
@@ -1604,10 +1688,10 @@ int main(int argc, char** argv)
             check(pages[0]->active_conversation() == direct &&
                       windows[0]->findChild<QListView*>("messageList")->model()->rowCount() == 1,
                   "Contact removal retains active chat and history");
-            check(!windows[0]->findChild<QLineEdit*>("messageEdit")->isEnabled() &&
+            check(!windows[0]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled() &&
                 !windows[0]->findChild<QToolButton*>("sendButton")->isEnabled() &&
                 !windows[0]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled() &&
-                windows[0]->findChild<QLineEdit*>("messageEdit")->placeholderText().contains(QStringLiteral("还不是好友")),
+                windows[0]->findChild<QPlainTextEdit*>("messageEdit")->placeholderText().contains(QStringLiteral("还不是好友")),
                 "The removed contact direct is explicitly read-only");
             auto contacts_sql = "SELECT count(*) FROM contacts WHERE owner_id=" + std::to_string(ids[0]) +
                                 " AND contact_id=" + std::to_string(ids[1]);
@@ -1627,7 +1711,7 @@ int main(int argc, char** argv)
                 }
                 check(action && action->isEnabled(), "Non-contact profile offers friend request");
                 action->click();
-                check(!windows[0]->findChild<QLineEdit*>("messageEdit")->isEnabled(), "Adding is not optimistic authorization");
+                check(!windows[0]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled(), "Adding is not optimistic authorization");
                 wait([&] { return action->text() == QStringLiteral("等待验证"); });
                 accept_friend(1, 0);
                 wait([&] { return action->text() == QStringLiteral("消息") && action->isEnabled(); });
@@ -1635,7 +1719,7 @@ int main(int argc, char** argv)
             });
             windows[0]->findChild<QPushButton*>("chatHeaderButton")->click();
             wait([&] { return pages[0]->conversation(direct) && pages[0]->conversation(direct)->can_send &&
-                windows[0]->findChild<QLineEdit*>("messageEdit")->isEnabled(); });
+                windows[0]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled(); });
             check(pages[0]->active_conversation() == direct && windows[0]->findChild<QListView*>("messageList")->model()->rowCount() == 1,
                 "Re-add and authoritative direct open restore writing without losing history");
 
@@ -1687,7 +1771,7 @@ int main(int argc, char** argv)
             wait([&] { return pages[1]->active_conversation() == direct && pages[1]->messages_ready() &&
                                   peer_attachment_view->model()->rowCount() == 2; });
             check(!pages[1]->conversation(direct)->can_send &&
-                !windows[1]->findChild<QLineEdit*>("messageEdit")->isEnabled() &&
+                !windows[1]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled() &&
                 !windows[1]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled(),
                 "Removing friendship makes the historical direct read-only");
             wait([&] { return !peer_attachment_view->model()->index(1, 0).data(message_model::image_role).value<QPixmap>().isNull(); });
@@ -1709,7 +1793,7 @@ int main(int argc, char** argv)
                 }
                 check(action, "Non-contact historical peer offers add");
                 action->click();
-                check(!windows[1]->findChild<QLineEdit*>("messageEdit")->isEnabled(), "Add does not optimistically grant send");
+                check(!windows[1]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled(), "Add does not optimistically grant send");
                 wait([&] { return action->text() == QStringLiteral("等待验证"); });
                 accept_friend(0, 1);
                 wait([&] { return action->text() == QStringLiteral("消息") && action->isEnabled() &&
@@ -1844,13 +1928,13 @@ int main(int argc, char** argv)
                 return blocked && PQresultStatus(blocked.get()) == PGRES_TUPLES_OK &&
                     std::string_view(PQgetvalue(blocked.get(), 0, 0)) == "t";
             });
-            check(!windows[0]->findChild<QLineEdit*>("messageEdit")->isEnabled() &&
+            check(!windows[0]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled() &&
                 !windows[0]->findChild<QToolButton*>("sendButton")->isEnabled(),
                 "Reconnect cannot re-enable cached send permission before the authoritative snapshot");
             std::unique_ptr<PGresult, decltype(&PQclear)> released_snapshot(PQexec(db, "COMMIT"), &PQclear);
             check(released_snapshot && PQresultStatus(released_snapshot.get()) == PGRES_COMMAND_OK, "Release reconnect snapshot");
             wait([&] { return pages[0]->messages_ready() && !pages[0]->conversation(direct)->can_send; });
-            check(!windows[0]->findChild<QLineEdit*>("messageEdit")->isEnabled() &&
+            check(!windows[0]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled() &&
                 !windows[0]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled(), "Reconnect restores read-only direct");
             wait([&] { return !windows[1]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled() &&
                 pages[1]->messages_ready() && windows[2]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled() &&
@@ -1874,7 +1958,7 @@ int main(int argc, char** argv)
             pages[0]->contact_add_requested(ids[1]);
             accept_friend(1, 0);
             wait([&] { return pages[0]->conversation(direct)->can_send &&
-                windows[0]->findChild<QToolButton*>("sendButton")->isEnabled(); });
+                windows[0]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled(); });
 
             auto select_group = [&](int actor) {
                 auto* list = windows[actor]->findChild<QListView*>("conversationList");
@@ -1978,7 +2062,7 @@ int main(int argc, char** argv)
             windows[1]->findChild<QPushButton*>("chatHeaderButton")->click();
             wait([&] { return administrator; });
             select_group(2);
-            windows[2]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("退出后清除的草稿"));
+            windows[2]->findChild<QPlainTextEdit*>("messageEdit")->setPlainText(QStringLiteral("退出后清除的草稿"));
             QTimer leave_poll;
             QObject::connect(&leave_poll, &QTimer::timeout, [&] {
                 auto* dialog = qobject_cast<group_dialog*>(QApplication::activeModalWidget());
@@ -1998,14 +2082,14 @@ int main(int argc, char** argv)
             windows[2]->findChild<QPushButton*>("chatHeaderButton")->click();
             wait([&] { return pages[2]->active_conversation() == 0; });
             check(windows[2]->findChild<QListView*>("messageList")->model()->rowCount() == 0 &&
-                      windows[2]->findChild<QLineEdit*>("messageEdit")->text().isEmpty() &&
+                      windows[2]->findChild<QPlainTextEdit*>("messageEdit")->toPlainText().isEmpty() &&
                       !windows[2]->findChild<QToolButton*>("sendButton")->isEnabled() &&
                       !windows[2]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled(),
                   "Leaving clears active history, draft and sending controls");
             wait([&] { return windows[0]->findChild<QLabel*>("chatPresence")->text().contains(QStringLiteral("2 名成员")); });
             wait([&] { return windows[2]->findChild<QListView*>("conversationList")->model()->rowCount() == 0; });
             auto const before_leave_message = pages[0]->latest_message_id();
-            windows[0]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("退出期间的群消息"));
+            windows[0]->findChild<QPlainTextEdit*>("messageEdit")->setPlainText(QStringLiteral("退出期间的群消息"));
             windows[0]->findChild<QToolButton*>("sendButton")->click();
             wait([&] { return pages[0]->latest_message_id() > before_leave_message; });
             activate(1);
@@ -2149,7 +2233,7 @@ int main(int argc, char** argv)
                 {
                     choose_reply(2, windows[2]->findChild<QListView*>("messageList")->model()->rowCount() - 1);
                     check(windows[2]->findChild<QLabel*>("replyPreview")->isVisible(), "Reply pending before removal");
-                    windows[2]->findChild<QLineEdit*>("messageEdit")->setText(QStringLiteral("移除后清理的草稿"));
+                    windows[2]->findChild<QPlainTextEdit*>("messageEdit")->setPlainText(QStringLiteral("移除后清理的草稿"));
                     pages[0]->typing_requested(group, true);
                     wait([&] { return group_typing->isVisible(); });
                 }
@@ -2188,7 +2272,7 @@ int main(int argc, char** argv)
                 else { pages[2]->attachment_open_requested(group, file_message, "removal.bin", false); }
                 wait([&] { return pages[2]->active_conversation() == 0; });
                 check(!QApplication::activeModalWidget() && windows[2]->findChild<QListView*>("messageList")->model()->rowCount() == 0 &&
-                    windows[2]->findChild<QLineEdit*>("messageEdit")->text().isEmpty() &&
+                    windows[2]->findChild<QPlainTextEdit*>("messageEdit")->toPlainText().isEmpty() &&
                     !windows[2]->findChild<QLabel*>("replyPreview")->isVisible() && !group_typing->isVisible() &&
                     !windows[2]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled(),
                     "Removal closes nested modals and clears history, reply, draft, typing and attachment UI");
@@ -2353,10 +2437,10 @@ int main(int argc, char** argv)
             });
             server.terminate();
             check(server.waitForFinished(3000), "Restart with pending application");
-            wait([&] { return !windows[0]->findChild<QToolButton*>("sendButton")->isEnabled(); });
+            wait([&] { return !windows[0]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled(); });
             start();
             for (int i = 0; i < 2; ++i)
-            { wait([&, i] { return pages[i]->messages_ready() && windows[i]->findChild<QToolButton*>("sendButton")->isEnabled(); }); }
+            { wait([&, i] { return pages[i]->messages_ready() && windows[i]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled(); }); }
             wait([&] { return windows[2]->findChild<QAction*>("joinGroupAction")->isEnabled(); });
             check(!pages[2]->conversation(group) && pages[2]->active_conversation() == 0, "Reconnect retains pending isolation");
             review_application(0, true);
@@ -2369,11 +2453,11 @@ int main(int argc, char** argv)
             member_action(0, ids[1], "groupTransferButton");
             server.terminate();
             check(server.waitForFinished(3000), "Restart after Qt ownership transfer");
-            wait([&] { return !windows[0]->findChild<QToolButton*>("sendButton")->isEnabled(); });
+            wait([&] { return !windows[0]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled(); });
             start();
             for (int i = 0; i < 3; ++i)
             {
-                wait([&, i] { return pages[i]->messages_ready() && windows[i]->findChild<QToolButton*>("sendButton")->isEnabled(); });
+                wait([&, i] { return pages[i]->messages_ready() && windows[i]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled(); });
             }
             bool recovered_owner = false;
             QTimer owner_poll;

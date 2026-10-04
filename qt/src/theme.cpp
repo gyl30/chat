@@ -405,14 +405,14 @@ QString chat_style_sheet()
             border: 0;
             border-radius: 0;
         }
-        QLineEdit#messageEdit {
+        QPlainTextEdit#messageEdit {
             min-height: 36px;
             padding: 0 4px;
             background: transparent;
             border: 0;
             border-radius: 0;
         }
-        QLineEdit#messageEdit:focus {
+        QPlainTextEdit#messageEdit:focus {
             border: 0;
         }
         QToolButton#sendButton {

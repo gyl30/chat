@@ -22,6 +22,7 @@
 
 class QLabel;
 class QLineEdit;
+class QPlainTextEdit;
 class QListView;
 class QListWidget;
 class QModelIndex;
@@ -193,7 +194,7 @@ class chat_widget final : public QWidget
     QToolButton* connection_status_ = nullptr;
     QLabel* message_status_ = nullptr;
     QListView* messages_view_ = nullptr;
-    QLineEdit* message_edit_ = nullptr;
+    QPlainTextEdit* message_edit_ = nullptr;
     QWidget* reply_bar_ = nullptr;
     QLabel* reply_preview_ = nullptr;
     qint64 reply_to_ = 0;

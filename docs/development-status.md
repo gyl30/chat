@@ -795,3 +795,15 @@ TUI 默认聚焦 Username，服务器设置渐进展开，保留原有 URL 与�
 完整 `tests/verify.sh`：normal 20/20（95.70 s）、ASan 20/20（129.81 s）、UBSan 20/20（123.16 s），
 无编译警告、suppression、跳过或 timeout 放宽，`git diff --check` PASS。
 尚未完成多行 Qt composer、跨页一致性与最终两轮品质自审，不将本阶段等同于整个 Goal 完成。
+
+
+## 体验品质审查：桌面多行消息输入
+
+Qt 输入区从单行改为有界增长的纯文本编辑，支持多行粘贴、Enter 发送与 Shift+Enter 换行。
+空草稿禁用发送，离线保留文字，长内容在框内滚动，输入法未确认文字不会提前发送。
+回归覆盖多行、软换行 resize、滚动、离线和输入法确认；原有回复、typing、
+删除联系人、成员移除与重连用例继续通过，没有改业务规则或 migration。
+真实 Qt/X11 双客户端与五档尺寸、三档缩放、导航共 7/7 通过；TUI/tmux 回归 11/11 通过。
+完整 `tests/verify.sh`：normal 20/20（100.30 s）、ASan 20/20（127.75 s）、UBSan 20/20（119.27 s），
+无编译警告、suppression、跳过或 timeout 放宽，`git diff --check` PASS。
+截图和阶段评分继续维护在 [体验品质审查](experience-quality.md)，整体 Goal 仍在进行。

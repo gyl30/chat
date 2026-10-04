@@ -5,6 +5,7 @@
 #include <iterator>
 
 #include <QAbstractItemView>
+#include <QAbstractTextDocumentLayout>
 #include <QApplication>
 #include <QClipboard>
 #include <QColor>
@@ -19,13 +20,16 @@
 #include <QGuiApplication>
 #include <QIcon>
 #include <QLabel>
+#include <QKeyEvent>
 #include <QLineEdit>
 #include <QListView>
 #include <QMessageBox>
 #include <QMenu>
 #include <QInputDialog>
+#include <QInputMethod>
 #include <QModelIndex>
 #include <QPushButton>
+#include <QPlainTextEdit>
 #include <QRegularExpression>
 #include <QSortFilterProxyModel>
 #include <QScrollBar>
@@ -36,6 +40,9 @@
 #include <QStackedWidget>
 #include <QStyle>
 #include <QTimer>
+#include <QTextDocument>
+#include <QTextBlock>
+#include <QTextLayout>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <chat/attachment.hpp>
@@ -549,17 +556,30 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     auto* input_layout = new QHBoxLayout(input_bar);
     input_layout->setContentsMargins(12, 5, 8, 5);
     input_layout->setSpacing(4);
-    message_edit_ = new QLineEdit(input_bar);
+    message_edit_ = new QPlainTextEdit(input_bar);
     message_edit_->setObjectName(QStringLiteral("messageEdit"));
     message_edit_->setPlaceholderText(QStringLiteral("输入消息…"));
-    message_edit_->setMinimumHeight(chat_theme::compose_field_min_height);
+    message_edit_->setAccessibleName(QStringLiteral("消息输入"));
+    message_edit_->setToolTip(QStringLiteral("Enter 发送，Shift+Enter 换行"));
+    message_edit_->setTabChangesFocus(true);
+    message_edit_->document()->setDocumentMargin(8);
+    message_edit_->setFixedHeight(chat_theme::compose_field_min_height);
+    message_edit_->installEventFilter(this);
     message_edit_->setEnabled(false);
-    input_layout->addWidget(message_edit_, 1);
+    input_layout->addWidget(message_edit_, 1, Qt::AlignBottom);
+    auto const resize_composer = [this] {
+        auto const lines = qBound(1, message_edit_->document()->lineCount(), 6);
+        message_edit_->setFixedHeight(qMax(chat_theme::compose_field_min_height,
+            lines * message_edit_->fontMetrics().lineSpacing() + 16));
+    };
+    connect(message_edit_->document()->documentLayout(), &QAbstractTextDocumentLayout::documentSizeChanged,
+            this, resize_composer);
+    connect(message_edit_, &QPlainTextEdit::updateRequest, this, resize_composer, Qt::QueuedConnection);
     attachment_button_ = new QToolButton(input_bar);
     attachment_button_->setObjectName(QStringLiteral("sendAttachmentButton"));
     attachment_button_->setText(QStringLiteral("文件/图片"));
     attachment_button_->setEnabled(false);
-    input_layout->addWidget(attachment_button_);
+    input_layout->addWidget(attachment_button_, 0, Qt::AlignBottom);
     connect(attachment_button_, &QToolButton::clicked, this, [this] {
         auto const path = QFileDialog::getOpenFileName(this, QStringLiteral("发送文件或图片"));
         if (path.isEmpty())
@@ -602,10 +622,12 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     send_button_->setObjectName(QStringLiteral("sendButton"));
     send_button_->setIcon(svg_icon(QStringLiteral("send"), QColor(QStringLiteral("#315A4B")), QSize(22, 22)));
     send_button_->setIconSize(QSize(22, 22));
+    send_button_->setToolTip(QStringLiteral("发送消息（Enter）"));
+    send_button_->setAccessibleName(QStringLiteral("发送消息"));
     send_button_->setFixedSize(chat_theme::compose_button_width, chat_theme::compose_button_height);
     send_button_->setEnabled(false);
     send_button_->setCursor(Qt::PointingHandCursor);
-    input_layout->addWidget(send_button_);
+    input_layout->addWidget(send_button_, 0, Qt::AlignBottom);
     chat_layout->addWidget(input_bar);
 
     layout->addWidget(navigation_panel);
@@ -744,7 +766,6 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
         }
     });
     connect(send_button_, &QToolButton::clicked, this, [this] { send_current_message(); });
-    connect(message_edit_, &QLineEdit::returnPressed, this, [this] { send_current_message(); });
     typing_clock_.start();
     typing_idle_timer_ = new QTimer(this);
     typing_idle_timer_->setSingleShot(true);
@@ -752,12 +773,13 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     connect(typing_idle_timer_, &QTimer::timeout, this, [this] {
         if (can_send()) { emit typing_requested(active_conversation_, false); }
     });
-    connect(message_edit_, &QLineEdit::textEdited, this, [this](QString const& text) {
+    connect(message_edit_, &QPlainTextEdit::textChanged, this, [this] {
+        update_compose_state();
         if (!can_send())
         {
             return;
         }
-        if (text.isEmpty())
+        if (message_edit_->toPlainText().isEmpty())
         {
             stop_typing();
             return;
@@ -840,6 +862,21 @@ void chat_widget::set_user(QString const& username, qint64 user)
 
 bool chat_widget::eventFilter(QObject* object, QEvent* event)
 {
+    if (object == message_edit_ && event->type() == QEvent::KeyPress)
+    {
+        auto* key = static_cast<QKeyEvent*>(event);
+        if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) &&
+            !(key->modifiers() & Qt::ShiftModifier))
+        {
+            if (!message_edit_->textCursor().block().layout()->preeditAreaText().isEmpty())
+            {
+                QGuiApplication::inputMethod()->commit();
+                return true;
+            }
+            send_current_message();
+            return true;
+        }
+    }
     if (object == messages_view_->viewport() && (event->type() == QEvent::Resize || event->type() == QEvent::Show))
     {
         QTimer::singleShot(0, messages_view_, [this] { load_visible_images(); });
@@ -1377,7 +1414,7 @@ void chat_widget::update_compose_state()
     auto const current = conversation(active_conversation_);
     auto const allowed = can_send();
     message_edit_->setEnabled(allowed);
-    send_button_->setEnabled(allowed);
+    send_button_->setEnabled(allowed && !message_edit_->toPlainText().isEmpty());
     attachment_button_->setEnabled(allowed && !attachment_sending_);
     auto hint = QStringLiteral("输入消息…");
     if (current && !current->group && !current->can_send)
@@ -1803,12 +1840,12 @@ void chat_widget::request_older_messages()
 
 void chat_widget::send_current_message()
 {
-    if (!can_send() || message_edit_->text().isEmpty())
+    if (!can_send() || message_edit_->toPlainText().isEmpty())
     {
         return;
     }
 
-    auto text = message_edit_->text();
+    auto text = message_edit_->toPlainText();
     stop_typing();
     message_edit_->clear();
     set_message_status({});
