@@ -57,7 +57,24 @@ void app::send()
     }
     sending_ = true;
     auto complete = [this, conversation, view, draft, editing, reply](auto value) {
-        if (view != view_ || conversation != data.active) { return; }
+        if (value)
+        {
+            if (conversation == data.active)
+            {
+                auto const current_reply = data.reply ? std::optional(data.reply->id) : std::nullopt;
+                if (data.draft == draft && data.editing == editing && current_reply == reply)
+                {
+                    data.draft.clear();
+                    data.reply.reset();
+                    data.editing = 0;
+                    stop_typing();
+                }
+            }
+            else if (auto saved = drafts_.find(conversation); saved != drafts_.end() && saved->second == draft)
+            { saved->second.clear(); }
+        }
+        if (view != view_ || conversation != data.active)
+        { if (value) { conversations(); } return; }
         sending_ = false;
         if (!value) { error(value.error()); return; }
         if constexpr (std::is_same_v<typename decltype(value)::value_type, chat::message>)
@@ -77,14 +94,6 @@ void app::send()
             sent.mentions = std::move(value->mentions);
             sent.avatar = data.self.avatar;
             data.apply_message(std::move(sent));
-        }
-        auto const current_reply = data.reply ? std::optional(data.reply->id) : std::nullopt;
-        if (data.draft == draft && data.editing == editing && current_reply == reply)
-        {
-            data.draft.clear();
-            data.reply.reset();
-            data.editing = 0;
-            stop_typing();
         }
         data.status = editing ? "消息已编辑" : "消息已发送";
         history();

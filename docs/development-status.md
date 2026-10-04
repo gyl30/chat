@@ -736,3 +736,29 @@ TUI 专项审查修复了迟到会话快照误关闭刚重新加入的群、成�
 现有 `tui_render` 回归先确认 RED，再转为 GREEN，覆盖多行正文、取消、会话变化、重连上下文及密码/命令输入不自动提交。真实 tmux smoke 11/11 PASS：两个 TUI 收发中文、emoji、空行和末尾换行，三次均确认粘贴及 Esc 保留草稿时没有消息，Enter 后只持久化并送达一条完整正文；粘贴途中停止/重启 server 后，残余输入不执行导航/退出，恢复后保留草稿并等待手动发送。另以实际 shell job control 验证 Ctrl+Z 挂起关闭粘贴模式、`fg` 恢复重新启用，以及 Ctrl+C 退出关闭模式。
 
 实际完整执行 `tests/verify.sh`，Qt/TUI 均为 ON；normal、ASan、UBSan 完整 build 及全部 20/20 CTest PASS，CTest 耗时分别为 94.46 s、126.62 s、122.40 s。没有 suppression、排除测试或放宽 timeout。SQL、server、client library 和 Qt 未修改。
+
+## 真实使用与发送后切页回归
+
+本轮实际基线为 `e55d877945c96856f58096ac0fdecd25dd9c8a9d`，开始时工作树干净且与 `origin/main` 一致。审查最近提交、当前产品规则、Qt/TUI 导航与发送回调、已有验证及真实交互入口；没有按功能清单继续增加产品能力。Qt/TUI 均启用的 Debug clean build 完成，未发现编译警告。
+
+真实 TUI 复现了发送后立即切页的问题：消息已经提交，但成功回调先因页面上下文变化返回，尚未清除的已发送正文仍作为草稿，返回会话后容易重复发送。用隔离数据库的 conversation 行锁阻塞真实发送 RPC，确认其等待锁后切页再释放；修复前连续三次均仅持久化一条消息但遗留草稿。
+
+`tui/src/messages.cpp` 现在先处理成功发送所属会话的草稿，再检查当前页面。仅清除仍与这次发送相同的草稿；切到其他会话时使用已有草稿映射，保留后来输入的正文。成功后会话列表仍从服务端刷新，迟到回调不切换页面、不改变新页面的发送状态；失败继续保留草稿。没有增加 generation、缓存、字段或协议，也没有修改 server、SDK、Qt 生产代码或 SQL。
+
+现有 `tui_integration` 新增回归覆盖切到 Contacts、切到另一会话并保留该会话草稿、保留后来输入的草稿及服务端拒绝时不清除。测试通过 SDK 回调投递与 UI inbox 的实际边界确定执行顺序，不依赖 sleep；修复前确认 RED，修复后 `tui_integration`、`tui_state`、`tui_render` 共 3/3 PASS。真实 tmux 相同锁同步场景再跑三次，均只持久化一次且原草稿清空。
+
+真实 Qt 规模测试发现的另一问题属于驱动：两步建群和退出确认的坐标点击了相反按钮。`239a69d`（修正真实 Qt 测试的对话框操作）仅修正 `tests/qt_x11_smoke.py` 的点击位置，保留原断言；两个真实 Qt/X11 进程的四个场景全部通过，包括 100 人群、陌生人资料申请和明确接受、双向消息、两步建群搜索多选取消，以及退出取消/确认。
+
+真实 TUI 导航 smoke 11/11 PASS，覆盖好友申请与历史只读、宽窄屏导航、动态选择、双向消息布局、中文多行粘贴、断线期间粘贴尾部丢弃、建群/加入和退出确认。另用两个真实终端完成六个日常场景：窄屏长文件名附件复制/保存且 SHA-256 相同、原文删除后已发布引用的占位、双会话草稿在实时重排后保持、55 条消息的历史/搜索分页、搜索期间断线后恢复会话和未发送草稿、两端 Ctrl+C 退出。相同文件名在气泡中截断但复制页及保存可访问完整内容，没有证据要求改变现有布局；临时驱动等待了不可见文本或错误语言的状态也没有被当作产品缺陷。
+
+最终实际完整运行 `tests/verify.sh`，Qt/TUI 都为 ON：
+
+| 构建 | 完整 build | 完整 CTest | CTest 耗时 |
+|---|---|---|---|
+| normal | PASS | 20/20 PASS | 91.69 s |
+| ASan | PASS | 20/20 PASS | 128.73 s |
+| UBSan | PASS | 20/20 PASS | 122.72 s |
+
+没有 suppression、跳过、排除测试或放宽 timeout；构建日志没有编译警告，`git diff --check` PASS。原有 migration、依赖和 submodule 未改，临时脚本与证据仅保留于 `/tmp`。主要证据为 `/tmp/chat-maintainer-final-verify-20261004.log`、`/tmp/chat-maintainer-qt-final-20261004`、`/tmp/chat-maintainer-tui-nav-20261004`、`/tmp/chat-maintainer-send-switch-20261004`、`/tmp/chat-maintainer-send-switch-green-20261004` 和 `/tmp/chat-maintainer-tui-use-confirmed-20261004`。
+
+资源观察期间两端 TUI 都保持 4 个线程、7 个 FD；恢复后空闲三秒 RSS 不变，CPU 增量分别为 0.01 s、0 s。上述是短时真实使用与状态转换证据，不能证明数天运行无泄漏，也没有据此修改 allocator、缓存或轮询策略。

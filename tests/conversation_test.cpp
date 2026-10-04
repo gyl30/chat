@@ -2835,6 +2835,60 @@ int run_tui_tests()
         pump([&] { return app.data.active != direct && app.data.can_send(); });
         auto const other_direct = app.data.active;
         app.open_conversation(direct);
+        pump([&] { return !app.data.messages.empty(); });
+        app.data.draft = "sent before leaving page";
+        app.send();
+        app.navigate(page::contacts);
+        peer_events.wait([&] {
+            return std::ranges::any_of(peer_events.messages, [](auto const& value) { return value.text == "sent before leaving page"; });
+        });
+        pump([&] { return app.data.draft.empty(); });
+        require(app.data.view == page::contacts, "Send acknowledgement clears its draft without reopening the conversation");
+
+        app.open_conversation(direct);
+        pump([&] { return !app.data.messages.empty(); });
+        app.data.draft = "sent before switching conversation";
+        app.send();
+        app.open_conversation(other_direct);
+        app.data.draft = "keep other conversation draft";
+        peer_events.wait([&] {
+            return std::ranges::any_of(peer_events.messages, [](auto const& value) { return value.text == "sent before switching conversation"; });
+        });
+        pump([&] {
+            auto found = std::ranges::find(app.data.conversations, direct, &chat::conversation::id);
+            return found != app.data.conversations.end() && found->last.text == "sent before switching conversation";
+        });
+        require(app.data.active == other_direct && app.data.draft == "keep other conversation draft",
+                "Old send acknowledgement preserves the current conversation and its draft");
+        app.open_conversation(direct);
+        pump([&] {
+            return std::ranges::any_of(app.data.messages, [](auto const& value) { return value.text == "sent before switching conversation"; });
+        });
+        require(app.data.draft.empty(), "Successful send clears the saved draft of its original conversation");
+
+        app.data.draft = "sent before typing another draft";
+        app.send();
+        app.navigate(page::contacts);
+        app.data.draft = "keep later unsent draft";
+        peer_events.wait([&] {
+            return std::ranges::any_of(peer_events.messages, [](auto const& value) { return value.text == "sent before typing another draft"; });
+        });
+        pump([&] {
+            auto found = std::ranges::find(app.data.conversations, direct, &chat::conversation::id);
+            return found != app.data.conversations.end() && found->last.text == "sent before typing another draft";
+        });
+        require(app.data.draft == "keep later unsent draft", "Send acknowledgement does not clear a newer draft");
+
+        app.open_conversation(direct);
+        pump([&] { return !app.data.messages.empty(); });
+        require(call<bool>([&](auto h) { peer.remove_contact(self, h); }).has_value(), "Peer removes friendship before the UI consumes the notification");
+        require(app.data.can_send(), "TUI still has its prior snapshot before draining callbacks");
+        app.data.draft = "rejected send keeps draft";
+        app.send();
+        pump([&] { return !app.data.is_contact(peer_id) && !app.data.can_send(); });
+        require(app.data.draft == "rejected send keeps draft", "Asynchronous send rejection preserves the unsent draft");
+        add_contact(peer_name, peer_id);
+        app.open_conversation(direct);
         app.open_conversation(other_direct);
         app.refresh();
         pump([&] { return app.data.active == other_direct && app.data.presences.contains(other_id); });
