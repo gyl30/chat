@@ -114,6 +114,14 @@ QQ 材料来自[官方下载页](https://im.qq.com/download)和
 | T02 | P2 | TUI 空消息、空申请等不同页面均出现泛化的 No items | 未处理 |
 | T03 | P2 | TUI 长页眉和操作提示在窄屏缺少清楚的摘要层级 | 未处理 |
 
+后续真实使用新增的确定问题：
+
+| 编号 | 严重度 | 已观察到的问题 | 处理状态 |
+| --- | --- | --- | --- |
+| Q06 | P1 | Qt 切换会话时沿用同一输入框文字，草稿可能带到另一接收方 | 已修复并通过完整验证 |
+| Q07 | P1 | Qt 提交请求即清空草稿，服务端拒绝或断线时丢失尚未确认的正文 | 已修复并通过完整验证 |
+| Q08 | P2 | Qt composer 按字体指标估算行高，中文多行恢复后发生不必要滚动并遮住前行 | 已修复并通过完整验证 |
+
 键盘打开列表、Qt 多行编辑、长公告、长 username、dialog 滚动、selection/focus、
 terminal light/dark、combining、SSH 和 suspend/restore 仍需进一步实际核验。
 没有把尚未复现的风险写成确定 bug，也没有把未知项记为 PASS。
@@ -258,3 +266,50 @@ Qt 暂评 74/100：12/20、12/15、7/10、8/10、9/10、7/10、8/10、3/5、4/5�
 TUI 保持 70/100。这是阶段复核，未计入最终连续两轮 fresh review。
 本阶段关闭 Q03，跨会话草稿和发送反馈继续实际核验，
 联系人/群页一致性、终端空态、图标 HiDPI 与全流程最终审查仍未完成。
+
+## 第五轮修复：桌面草稿归属与发送确认
+
+本阶段从 `772f1cdadd929ec6333e5239ba8fc5d315e99830` 开始，工作区干净且与远端一致。
+真实 X11 复现切换到历史只读会话后仍显示群草稿，以及超出传输上限后输入区被清空。
+现有 Qt 组件回归确认跨会话草稿 RED；真实 server 的参数拒绝回归也确认原文丢失 RED。
+
+只把非当前会话的正文保存到内存映射，当前草稿仍以编辑框为准。
+切换时恢复对应正文并抑制程序赋值产生的 typing；关闭会话、权威成员移除和账号切换清理对应草稿。
+每个会话记录正在等待的发送，保持输入可编辑并阻止重复提交。
+成功确认只清除仍匹配本次正文和回复选择的当前草稿；后台确认只处理所属会话。
+失败保留正文和当前回复选择，显示内联反馈；断线清理等待状态并保留正文，
+若仍在等待结果则提示检查历史，重连不自动重发。
+沿用 client bridge 的连接 generation，没有新增服务端草稿、协议、migration 或通用资源层。
+
+真实截图进一步发现高度数字正确不等于正文完整可见：字体指标行高低于实际中文 fallback 排版，
+且 QPlainTextEdit 的滚动范围还预留一个像素。
+回归先确认短中文/emoji 草稿存在不必要的滚动 RED，再按 QTextLine 的实际行高和文档边距计算，
+最多六行；使用原有文档布局和 updateRequest 信号排队更新，没有新增布局状态字段。
+恢复后的两行正文和 200% 下的六行输入均重新查看实际 X11 原图。
+
+真实证据：
+
+- 草稿带错会话 [before](images/experience/before-qt-draft-cross-conversation.png) /
+  恢复原会话 [after](images/experience/after-qt-draft-restored.png)。
+- 断线丢稿 [before](images/experience/before-qt-draft-lost.png) /
+  RPC 拒绝后保留正文 [after](images/experience/after-qt-draft-failure.png)。
+- [迟到确认保留后来文字](images/experience/after-qt-draft-new-text.png)、
+  [修正行高后的 200% 输入](images/experience/after-qt-composer-line-height-hidpi.png)。
+
+两个真实 Qt 窗口的六个草稿场景通过，包括手动修正、切页、重复 Enter、
+等待期间改写、断线/重连和手动发送。
+竞争场景用真实 PostgreSQL conversation 行锁及 pg_stat_activity 确认请求已经等待，
+然后切页或修改正文再释放，不靠 sleep 猜竞争顺序。
+首次驱动误用 SDK 的单个 actor 参数调用批量 disconnect；修正后完整重跑六项，
+该次部分结果没有被记为完整 PASS，自有进程与数据库已清理。
+另重跑多行输入、五档窗口、连续 resize、三档缩放及原生导航七项通过。
+TUI 未修改，真实 tmux 导航 11/11 通过。
+原始证据分别位于 `/tmp/chat-quality-drafts-final-qt-20261005`、
+`/tmp/chat-quality-drafts-composer-final-qt-20261005` 和
+`/tmp/chat-quality-drafts-tui-regression-20261005`。
+
+最终完整 `tests/verify.sh`：normal 20/20（98.19 秒）、ASan 20/20（129.67 秒）、
+UBSan 20/20（124.03 秒），Qt/TUI 均启用；没有编译警告、suppression、跳过或 timeout 放宽。
+`git diff --check` PASS；server、client library、SQL 和依赖未修改。
+阶段评分暂维持 Qt 74/100、TUI 70/100，新增问题修复不替代完整全流程评审。
+Q04/Q05、T02/T03、图标 HiDPI 和最终连续两轮 fresh review 仍未完成。

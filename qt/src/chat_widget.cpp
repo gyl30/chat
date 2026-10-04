@@ -43,6 +43,7 @@
 #include <QTextDocument>
 #include <QTextBlock>
 #include <QTextLayout>
+#include <QtMath>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <chat/attachment.hpp>
@@ -568,12 +569,23 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     message_edit_->setEnabled(false);
     input_layout->addWidget(message_edit_, 1, Qt::AlignBottom);
     auto const resize_composer = [this] {
-        auto const lines = qBound(1, message_edit_->document()->lineCount(), 6);
-        message_edit_->setFixedHeight(qMax(chat_theme::compose_field_min_height,
-            lines * message_edit_->fontMetrics().lineSpacing() + 16));
+        auto* document = message_edit_->document();
+        auto height = 2 * document->documentMargin() + 1;
+        int lines = 0;
+        for (auto block = document->begin(); block.isValid() && lines < 6; block = block.next())
+        {
+            document->documentLayout()->blockBoundingRect(block);
+            auto* text = block.layout();
+            for (int row = 0; row < text->lineCount() && lines < 6; ++row, ++lines)
+            {
+                auto const line = text->lineAt(row);
+                height += line.height() + qMin(0, qCeil(line.leading()));
+            }
+        }
+        message_edit_->setFixedHeight(qMax(chat_theme::compose_field_min_height, qCeil(height)));
     };
     connect(message_edit_->document()->documentLayout(), &QAbstractTextDocumentLayout::documentSizeChanged,
-            this, resize_composer);
+            this, resize_composer, Qt::QueuedConnection);
     connect(message_edit_, &QPlainTextEdit::updateRequest, this, resize_composer, Qt::QueuedConnection);
     attachment_button_ = new QToolButton(input_bar);
     attachment_button_->setObjectName(QStringLiteral("sendAttachmentButton"));
@@ -824,6 +836,8 @@ void chat_widget::set_user(QString const& username, qint64 user)
     profile_avatar_->setToolTip(username);
     profile_avatar_->setStyleSheet(QStringLiteral("border: none; background: transparent;"));
     self_user_ = user;
+    drafts_.clear();
+    message_sending_.clear();
     attachment_sending_ = false;
     active_peer_ = 0;
     active_group_ = false;
@@ -914,6 +928,11 @@ void chat_widget::set_connection_available(bool available)
         set_presences({});
         typing_users_.clear();
         update_typing_label();
+        if (message_sending_.contains(active_conversation_))
+        {
+            set_message_status(QStringLiteral("连接已断开，草稿已保留。重连后请查看历史确认是否送达。"));
+        }
+        message_sending_.clear();
     }
     if (!available && avatar_updating_)
     {
@@ -960,6 +979,12 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
 {
     auto const previous_user = active_conversation_;
     conversations_->set_conversations(std::move(conversations));
+    for (auto it = drafts_.begin(); it != drafts_.end();)
+    {
+        if (!conversations_->index_for_conversation(it.key()).isValid()) { it = drafts_.erase(it); }
+        else { ++it; }
+    }
+    message_sending_.removeIf([this](qint64 id) { return !conversations_->index_for_conversation(id).isValid(); });
     update_compose_state();
     update_pinned_message();
     for (auto const& item : presence_)
@@ -1216,9 +1241,29 @@ bool chat_widget::set_reactions(qint64 conversation, qint64 message, qint64 revi
     return conversation != active_conversation_ || messages_->set_reactions(message, revision, std::move(reactions));
 }
 
-void chat_widget::add_sent_message(qint64 user, qint64 message, qint64 timestamp, QString text,
-                                   quoted_message_data reply, QList<mention_data> mentions)
+void chat_widget::finish_message_send(qint64 user, qint64 message, qint64 timestamp, QString text,
+                                      quoted_message_data reply, QList<mention_data> mentions, QString error)
 {
+    if (message_sending_.remove(user) && error.isEmpty())
+    {
+        if (user == active_conversation_)
+        {
+            if (message_edit_->toPlainText() == text && reply_to_ == reply.id)
+            {
+                stop_typing();
+                message_edit_->clear();
+                reply_to_ = 0;
+                reply_bar_->hide();
+            }
+        }
+        else if (drafts_.value(user) == text) { drafts_.remove(user); }
+    }
+    update_compose_state();
+    if (!error.isEmpty())
+    {
+        set_message_error(user, QStringLiteral("发送失败：%1。草稿已保留。").arg(error));
+        return;
+    }
     if (user != active_conversation_)
     {
         return;
@@ -1414,7 +1459,7 @@ void chat_widget::update_compose_state()
     auto const current = conversation(active_conversation_);
     auto const allowed = can_send();
     message_edit_->setEnabled(allowed);
-    send_button_->setEnabled(allowed && !message_edit_->toPlainText().isEmpty());
+    send_button_->setEnabled(allowed && !message_sending_.contains(active_conversation_) && !message_edit_->toPlainText().isEmpty());
     attachment_button_->setEnabled(allowed && !attachment_sending_);
     auto hint = QStringLiteral("输入消息…");
     if (current && !current->group && !current->can_send)
@@ -1497,7 +1542,18 @@ void chat_widget::open_conversation(conversation_data conversation)
     reply_to_ = 0;
     reply_bar_->hide();
     images_.discard_queued();
+    if (active_conversation_ > 0)
+    {
+        auto text = message_edit_->toPlainText();
+        if (text.isEmpty()) { drafts_.remove(active_conversation_); }
+        else { drafts_.insert(active_conversation_, std::move(text)); }
+    }
     active_conversation_ = user;
+    {
+        QSignalBlocker const blocker(message_edit_);
+        message_edit_->setPlainText(drafts_.take(user));
+        message_edit_->moveCursor(QTextCursor::End);
+    }
     message_search_button_->setEnabled(connection_available_);
     messages_->reset(active_conversation_, active_group_);
     update_pinned_message();
@@ -1514,6 +1570,8 @@ void chat_widget::open_conversation(conversation_data conversation)
 
 void chat_widget::close_conversation(qint64 conversation)
 {
+    drafts_.remove(conversation);
+    message_sending_.remove(conversation);
     if (conversation != active_conversation_)
     {
         images_.remove(conversation);
@@ -1840,18 +1898,17 @@ void chat_widget::request_older_messages()
 
 void chat_widget::send_current_message()
 {
-    if (!can_send() || message_edit_->toPlainText().isEmpty())
+    if (!can_send() || message_sending_.contains(active_conversation_) || message_edit_->toPlainText().isEmpty())
     {
         return;
     }
 
     auto text = message_edit_->toPlainText();
     stop_typing();
-    message_edit_->clear();
-    set_message_status({});
+    message_sending_.insert(active_conversation_);
+    update_compose_state();
+    set_message_status(QStringLiteral("正在发送…"));
     auto const reply = reply_to_;
-    reply_to_ = 0;
-    reply_bar_->hide();
     emit send_message_requested(active_conversation_, std::move(text), reply);
 }
 

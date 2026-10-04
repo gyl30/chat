@@ -326,6 +326,7 @@ void check_message_composer()
     QApplication::sendEvent(edit, &paste);
     check(edit->toPlainText() == text, "Multiline paste preserves message text and newlines");
     wait([&] { return edit->height() > compact_height; });
+    check(edit->verticalScrollBar()->maximum() == 0, "Short Chinese and emoji drafts show all lines without scrolling");
     check(sent == 0 && send->isEnabled(), "Pasting only edits the draft");
     QKeyEvent newline(QEvent::KeyPress, Qt::Key_Return, Qt::ShiftModifier, "\n");
     QApplication::sendEvent(edit, &newline);
@@ -334,8 +335,10 @@ void check_message_composer()
           "Shift+Enter inserts a newline without sending");
     QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier, "\r");
     QApplication::sendEvent(edit, &enter);
-    check(sent == 1 && sent_text == text + QStringLiteral("\n尾行") && edit->toPlainText().isEmpty(),
-          "Enter sends the complete multiline draft");
+    check(sent == 1 && sent_text == text + QStringLiteral("\n尾行") && edit->toPlainText() == sent_text && !send->isEnabled(),
+          "Enter submits the complete multiline draft and retains it until confirmation");
+    page.finish_message_send(direct.id, 1, 1, sent_text, {}, {}, {});
+    check(edit->toPlainText().isEmpty(), "Confirmed sending clears the matching draft");
     wait([&] { return edit->height() == compact_height; });
     check(!send->isEnabled(), "Cleared composer disables sending");
     auto const long_text = QStringLiteral("长内容 中文 🙂\n").repeated(20);
@@ -373,6 +376,86 @@ void check_message_composer()
     std::cout << "PASS Qt multiline composer, keyboard, bounded wrapping, offline and input method\n";
 }
 
+void check_conversation_drafts()
+{
+    chat_widget page;
+    page.setStyleSheet(chat_style_sheet());
+    page.resize(1180, 760);
+    page.set_user(QStringLiteral("本人"), 1);
+    conversation_data first;
+    first.id = 50;
+    first.user = 2;
+    first.username = QStringLiteral("朋友");
+    first.can_send = true;
+    conversation_data second;
+    second.id = 60;
+    second.group = true;
+    second.username = QStringLiteral("群聊");
+    second.can_send = true;
+    auto* edit = page.findChild<QPlainTextEdit*>("messageEdit");
+    page.open_conversation(first);
+    page.show();
+    QApplication::processEvents();
+    edit->setPlainText(QStringLiteral("给朋友的草稿\n还没有发送"));
+    page.open_conversation(second);
+    check(edit->toPlainText().isEmpty(), "Changing conversations does not carry a draft to another recipient");
+    edit->setPlainText(QStringLiteral("给群聊的草稿"));
+    page.open_conversation(first);
+    check(edit->toPlainText() == QStringLiteral("给朋友的草稿\n还没有发送"), "Returning restores that conversation's draft");
+    wait([&] { return edit->verticalScrollBar()->maximum() == 0; });
+    page.open_conversation(second);
+    check(edit->toPlainText() == QStringLiteral("给群聊的草稿"), "Each conversation retains its own draft");
+    page.close_conversation(first.id);
+    page.open_conversation(first);
+    check(edit->toPlainText().isEmpty(), "Closing an inactive conversation discards its draft");
+    page.set_conversations({first});
+    page.open_conversation(second);
+    check(edit->toPlainText().isEmpty(), "Authoritative removal discards an inactive group's draft");
+    edit->setPlainText(QStringLiteral("上一个账号的草稿"));
+    page.open_conversation(first);
+    page.set_user(QStringLiteral("另一账号"), 3);
+    page.open_conversation(second);
+    check(edit->toPlainText().isEmpty(), "Changing accounts cannot restore the previous account's draft");
+    auto* send = page.findChild<QToolButton*>("sendButton");
+    int requests = 0;
+    QObject::connect(&page, &chat_widget::send_message_requested, &page, [&](auto...) { ++requests; });
+    auto const failed_text = QStringLiteral("失败后继续编辑");
+    edit->setPlainText(failed_text);
+    send->click();
+    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier, "\r");
+    QApplication::sendEvent(edit, &enter);
+    check(requests == 1 && !send->isEnabled() && edit->isEnabled() && edit->toPlainText() == failed_text,
+          "Pending sending preserves editable text and prevents duplicate submission");
+    page.finish_message_send(second.id, 0, 0, failed_text, {}, {}, QStringLiteral("Invalid params"));
+    check(send->isEnabled() && edit->toPlainText() == failed_text, "Rejected sending leaves the draft ready for manual correction");
+    send->click();
+    edit->setPlainText(QStringLiteral("等待期间写的新草稿"));
+    page.finish_message_send(second.id, 1, 1, failed_text, {}, {}, {});
+    check(requests == 2 && send->isEnabled() && edit->toPlainText() == QStringLiteral("等待期间写的新草稿"),
+          "Confirmation cannot erase text edited after submission");
+    auto const background_text = QStringLiteral("发给群的消息");
+    edit->setPlainText(background_text);
+    send->click();
+    page.open_conversation(first);
+    edit->setPlainText(QStringLiteral("另一会话的草稿"));
+    page.finish_message_send(second.id, 2, 2, background_text, {}, {}, {});
+    check(edit->toPlainText() == QStringLiteral("另一会话的草稿"), "Background confirmation does not modify the current conversation");
+    page.open_conversation(second);
+    check(edit->toPlainText().isEmpty(), "Background confirmation clears only the submitted conversation's matching draft");
+    edit->setPlainText(failed_text);
+    send->click();
+    page.open_conversation(first);
+    page.finish_message_send(second.id, 0, 0, failed_text, {}, {}, QStringLiteral("Invalid params"));
+    page.open_conversation(second);
+    check(edit->toPlainText() == failed_text && send->isEnabled(), "Background rejection retains the original conversation's draft");
+    send->click();
+    page.set_connection_available(false);
+    check(edit->toPlainText() == failed_text && !edit->isEnabled(), "Disconnect keeps unconfirmed text");
+    page.set_connection_available(true);
+    check(edit->toPlainText() == failed_text && send->isEnabled(), "Reconnect leaves the draft available without automatic resending");
+    std::cout << "PASS Qt conversation draft ownership, closure and account isolation\n";
+}
+
 int main(int argc, char** argv)
 {
     bool const widgets_only = argc == 2 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--widgets-only");
@@ -384,7 +467,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_primary_navigation(); check_message_composer(); return 0; }
+        try { check_authentication_layout(); check_primary_navigation(); check_message_composer(); check_conversation_drafts(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
@@ -404,6 +487,7 @@ int main(int argc, char** argv)
         check_authentication_layout();
         check_primary_navigation();
         check_message_composer();
+        check_conversation_drafts();
         start();
         {
             chat_widget page;
@@ -789,6 +873,17 @@ int main(int argc, char** argv)
                       "Real author identity");
             }
             auto* receipt_view = windows[0]->findChild<QListView*>("messageList");
+            auto const rejected_draft = QString(64 * 1024 - 256, QLatin1Char('x'));
+            edit->setPlainText(rejected_draft);
+            windows[0]->findChild<QToolButton*>("sendButton")->click();
+            wait([&] {
+                return std::ranges::any_of(pages[0]->findChildren<QLabel*>(), [](auto* label) {
+                    return label->text().contains(QStringLiteral("Invalid params"));
+                });
+            });
+            check(edit->toPlainText() == rejected_draft && receipt_view->model()->rowCount() == 1,
+                "Server rejection preserves the complete draft without adding a message");
+            edit->clear();
             auto const reaction_message = receipt_view->model()->index(0, 0).data(message_model::id_role).toLongLong();
             wait([&] { return notifications[2].size() == 1; });
             check(notifications[0].isEmpty() && notifications[1].isEmpty() &&

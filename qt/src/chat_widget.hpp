@@ -5,6 +5,7 @@
 #include <QDeadlineTimer>
 #include <QElapsedTimer>
 #include <QList>
+#include <QSet>
 #include <QString>
 #include <QWidget>
 #include <QtGlobal>
@@ -70,8 +71,8 @@ class chat_widget final : public QWidget
     void add_message(qint64 user, message_data message);
     void update_message(message_data message);
     bool set_reactions(qint64 conversation, qint64 message, qint64 revision, QList<reaction_data> reactions);
-    void add_sent_message(qint64 user, qint64 message, qint64 timestamp, QString text, quoted_message_data reply,
-                          QList<mention_data> mentions);
+    void finish_message_send(qint64 user, qint64 message, qint64 timestamp, QString text, quoted_message_data reply,
+                             QList<mention_data> mentions, QString error);
     void set_message_error(qint64 user, QString message);
     void finish_attachment_send(qint64 conversation, QString error_message);
 
@@ -195,6 +196,8 @@ class chat_widget final : public QWidget
     QLabel* message_status_ = nullptr;
     QListView* messages_view_ = nullptr;
     QPlainTextEdit* message_edit_ = nullptr;
+    QHash<qint64, QString> drafts_;
+    QSet<qint64> message_sending_;
     QWidget* reply_bar_ = nullptr;
     QLabel* reply_preview_ = nullptr;
     qint64 reply_to_ = 0;

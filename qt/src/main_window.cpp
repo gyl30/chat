@@ -858,14 +858,14 @@ main_window::main_window(QString server_url, QWidget* parent)
         [this](qint64 user, QString text, qint64 message, qint64 timestamp, bool realtime, quoted_message_data reply,
                QList<mention_data> mentions, QString const& error_message)
         {
+            chat_page_->finish_message_send(user, message, timestamp, std::move(text), std::move(reply), std::move(mentions),
+                                            error_message);
             if (!error_message.isEmpty())
             {
-                chat_page_->set_message_error(user, error_message);
                 return;
             }
 
             (void)realtime;
-            chat_page_->add_sent_message(user, message, timestamp, std::move(text), std::move(reply), std::move(mentions));
             client_->get_conversations();
             client_->get_presence();
         },

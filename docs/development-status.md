@@ -807,3 +807,19 @@ Qt 输入区从单行改为有界增长的纯文本编辑，支持多行粘贴�
 完整 `tests/verify.sh`：normal 20/20（100.30 s）、ASan 20/20（127.75 s）、UBSan 20/20（119.27 s），
 无编译警告、suppression、跳过或 timeout 放宽，`git diff --check` PASS。
 截图和阶段评分继续维护在 [体验品质审查](experience-quality.md)，整体 Goal 仍在进行。
+
+## 体验品质审查：桌面草稿与发送确认
+
+Qt 草稿按会话保存于内存，切换恢复对应正文，关闭/成员移除/账号切换清理。
+发送等待期间保持输入可编辑，阻止同一会话重复提交；成功后仅清除仍匹配的草稿。
+迟到成功不覆盖后来文字或其他会话；参数拒绝和断线保留未确认正文，重连不自动重发。
+中文 fallback 字体的实际行高曾使短多行正文被遮住，现按 QTextLine 排版结果有界增长到六行。
+保持原有 server/RPC/SQL、回复切换行为和 client bridge 的连接 generation。
+
+既有 Qt 测试新增会话归属、成功/失败、后台确认、新草稿、重连和真实 server 拒绝回归，
+三处缺陷均先确认 RED 后修复。
+真实 Qt 双客户端草稿六项、输入/五档窗口/三档缩放/导航七项，TUI/tmux 回归 11/11 均通过；
+发送竞争以真实数据库行锁同步，不靠 sleep 猜顺序。
+最终完整 `tests/verify.sh`：normal 20/20（98.19 s）、ASan 20/20（129.67 s）、
+UBSan 20/20（124.03 s），无编译警告、suppression、跳过或 timeout 放宽，`git diff --check` PASS。
+真实截图、边界和未完成项见 [体验品质审查](experience-quality.md)；整体品质循环仍未完成。
