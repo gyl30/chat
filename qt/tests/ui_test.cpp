@@ -96,6 +96,11 @@ void check_primary_navigation()
     check(std::any_of(searches.begin(), searches.end(), [](auto* field) {
         return field->isVisible() && field->placeholderText() == QStringLiteral("搜索用户");
     }), "Header add friend opens existing search");
+    auto* back = page.findChild<QToolButton*>("sidebarHeaderButton");
+    auto* chats = *std::find_if(buttons.begin(), buttons.end(), [](auto* button) { return button->text() == QStringLiteral("聊天"); });
+    check(chats->objectName() == "navigationSelected", "Add friend from Chats preserves primary ownership");
+    back->click();
+    check(actions->isVisible() && !back->isVisible(), "Add friend Back returns to Chats");
     for (auto* button : buttons)
     { if (button->text() == QStringLiteral("联系人")) { button->click(); } }
     check(!actions->isVisible(), "Chats actions do not become another primary page");
@@ -103,6 +108,17 @@ void check_primary_navigation()
     auto selected_list = std::find_if(lists.begin(), lists.end(), [](auto* view) { return view->isVisible(); });
     check(selected_list != lists.end(), "Contacts list is visible");
     auto* contact_view = *selected_list;
+    auto* add_contact = page.findChild<QToolButton*>("sidebarTextButton");
+    add_contact->click();
+    back->click();
+    check(contact_view->isVisible() && !back->isVisible(), "Contacts Add friend Back returns to Contacts");
+    auto* new_friends = page.findChild<QPushButton*>("newFriendsButton");
+    new_friends->click();
+    add_contact->click();
+    back->click();
+    check(page.findChild<QListWidget*>("incomingFriendRequests")->isVisible() && back->isVisible(), "Add friend Back restores New friends");
+    back->click();
+    check(contact_view->isVisible() && !back->isVisible(), "New friends Back returns to Contacts");
     auto* incoming = page.findChild<QListWidget*>("incomingFriendRequests");
     auto* outgoing = page.findChild<QListWidget*>("outgoingFriendRequests");
     QList<user_data> contacts;
@@ -133,6 +149,39 @@ void check_primary_navigation()
         });
         create->trigger();
     }
+    page.set_contacts({{10, QStringLiteral("Alice Bob"), false, 0, {}}, {11, QStringLiteral("张 三"), false, 0, {}},
+                       {12, QStringLiteral("a.b"), false, 0, {}}, {13, QStringLiteral("Älice"), false, 0, {}}});
+    auto* contact_search = *std::find_if(searches.begin(), searches.end(), [](auto* field) {
+        return field->placeholderText() == QStringLiteral("搜索联系人");
+    });
+    for (auto const& [query, id] : QList<QPair<QString, qint64>>{{"BOB", 10}, {QStringLiteral("三"), 11}, {".b", 12}, {QStringLiteral("äli"), 13}})
+    {
+        contact_search->setText(query);
+        check(contact_view->model()->rowCount() == 1 && contact_view->model()->index(0, 0).data(Qt::UserRole + 1).toLongLong() == id,
+              ("Contacts substring match: " + query.toStdString() + " rows=" + std::to_string(contact_view->model()->rowCount()) +
+               " id=" + std::to_string(contact_view->model()->index(0, 0).data(Qt::UserRole + 1).toLongLong())).c_str());
+        check(new_friends->isVisible(), "Local search never filters the New friends entry");
+        QTimer::singleShot(0, [&] {
+            auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+            auto* search = dialog->findChild<QLineEdit*>("groupContactSearch");
+            auto* list = dialog->findChild<QListWidget*>("groupContactPicker");
+            search->setText(query);
+            int visible = 0;
+            for (int row = 0; row < list->count(); ++row)
+            {
+                if (!list->item(row)->isHidden())
+                {
+                    ++visible;
+                    check(list->item(row)->data(Qt::UserRole).toLongLong() == id, "Group picker matches the same accepted friend");
+                }
+            }
+            check(visible == 1, "Group picker and Contacts share matching semantics");
+            dialog->reject();
+        });
+        create->trigger();
+    }
+    contact_search->clear();
+    check(contact_view->model()->rowCount() == 4, "Cleared Contacts filter restores accepted list");
     conversation_data direct;
     direct.id = 50; direct.user = 200; direct.username = QStringLiteral("收到 申请"); direct.can_send = false;
     page.open_conversation(direct);

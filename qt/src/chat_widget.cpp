@@ -209,12 +209,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     new_friends_button_ = new QPushButton(QStringLiteral("新的朋友"), contacts_page);
     new_friends_button_->setObjectName(QStringLiteral("newFriendsButton"));
     contacts_layout->addWidget(new_friends_button_);
-    connect(new_friends_button_, &QPushButton::clicked, this, [this] {
-        section_title_->setText(QStringLiteral("新的朋友"));
-        sidebar_pages_->setCurrentIndex(3);
-        sidebar_back_button_->show();
-        add_contact_button_->show();
-    });
+    connect(new_friends_button_, &QPushButton::clicked, this, [this] { show_new_friends_section(); });
     contact_search_ = new QLineEdit(contacts_page);
     contact_search_->setObjectName(QStringLiteral("userSearchEdit"));
     contact_search_->setPlaceholderText(QStringLiteral("搜索联系人"));
@@ -590,7 +585,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
         }
         if (!can_send())
         {
-            set_message_status(connection_available_ ? QStringLiteral("对方不是你的联系人，无法发送文件。")
+            set_message_status(connection_available_ ? QStringLiteral("当前会话暂时无法发送文件。")
                                                      : QStringLiteral("连接已断开，请重新发送文件。"));
             return;
         }
@@ -642,7 +637,18 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
         if (!matched.hasMatch()) { set_error(QStringLiteral("邀请链接无效，请复制完整链接。")); return; }
         emit group_join_requested(matched.captured(1));
     });
-    connect(sidebar_back_button_, &QToolButton::clicked, this, [this] { show_contacts_section(); });
+    connect(sidebar_back_button_, &QToolButton::clicked, this, [this] {
+        if (sidebar_pages_->currentIndex() == 2)
+        {
+            switch (add_friend_parent_)
+            {
+                case sidebar_parent::chats: show_conversations_section(); return;
+                case sidebar_parent::new_friends: show_new_friends_section(); return;
+                case sidebar_parent::contacts: break;
+            }
+        }
+        show_contacts_section();
+    });
     connect(add_contact_button_, &QToolButton::clicked, this, [this] { show_add_contact_section(); });
     connect(contact_search_, &QLineEdit::textChanged, this, [this](QString const& query) { filter_contacts(query); });
     connect(contacts_view_, &QListView::clicked, this, [this](QModelIndex const& index) { select_contact(index); });
@@ -1244,29 +1250,36 @@ void chat_widget::show_contacts_section()
 
 void chat_widget::show_add_contact_section()
 {
+    if (sidebar_pages_->currentIndex() != 2)
+    {
+        add_friend_parent_ = sidebar_pages_->currentIndex() == 0 ? sidebar_parent::chats
+            : sidebar_pages_->currentIndex() == 3 ? sidebar_parent::new_friends : sidebar_parent::contacts;
+    }
     section_title_->setText(QStringLiteral("添加好友"));
     sidebar_pages_->setCurrentIndex(2);
     sidebar_back_button_->show();
     add_contact_button_->hide();
     chats_actions_->hide();
+    set_navigation_button(chats_navigation_, QStringLiteral("chat"), add_friend_parent_ == sidebar_parent::chats);
+    set_navigation_button(contacts_navigation_, QStringLiteral("contacts"), add_friend_parent_ != sidebar_parent::chats);
+    add_user_search_->setFocus();
+}
+
+void chat_widget::show_new_friends_section()
+{
+    section_title_->setText(QStringLiteral("新的朋友"));
+    sidebar_pages_->setCurrentIndex(3);
+    sidebar_back_button_->show();
+    add_contact_button_->show();
+    chats_actions_->hide();
     set_navigation_button(chats_navigation_, QStringLiteral("chat"), false);
     set_navigation_button(contacts_navigation_, QStringLiteral("contacts"), true);
-    add_user_search_->setFocus();
 }
 
 void chat_widget::filter_contacts(QString const& query)
 {
-    auto const trimmed = query.trimmed();
-    if (trimmed.isEmpty())
-    {
-        contacts_filter_->setFilterRegularExpression(QRegularExpression{});
-    }
-    else
-    {
-        auto const pattern = QStringLiteral("^") + QRegularExpression::escape(trimmed);
-        QRegularExpression expression(pattern, QRegularExpression::CaseInsensitiveOption);
-        contacts_filter_->setFilterRegularExpression(expression);
-    }
+    contacts_filter_->setFilterFixedString(query);
+    contacts_filter_->setFilterCaseSensitivity(Qt::CaseInsensitive);
 
     if (contacts_->rowCount() == 0)
     {

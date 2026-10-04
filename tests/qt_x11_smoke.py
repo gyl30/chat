@@ -59,6 +59,7 @@ for binary in ['chat_server', 'chat_tui_scale_fixture', 'qt/chat_qt']:
         raise RuntimeError('Build required target: ' + binary)
 url = 'ws://127.0.0.1:' + str(args.port) + '/ws'
 with socket.socket() as available:
+    available.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
     available.bind(('127.0.0.1', args.port))
 (work / 'head.txt').write_text(S.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo, text=True))
 database = 'chat_qtx11_' + time.strftime('%m%d%H%M%S') + '_' + str(os.getpid())
@@ -133,6 +134,8 @@ def windows():
     return S.check_output(['xwininfo', '-root', '-tree'], text=True)
 
 def focus(w):
+    wait(lambda:'Map State: IsViewable' in S.check_output(['xwininfo','-id',hex(w)],text=True),
+         'window is mapped before input focus')
     x.XRaiseWindow(d, w)
     x.XSetInputFocus(d, w, 2, 0)
     x.XFlush(d)

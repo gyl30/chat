@@ -1,8 +1,40 @@
 # 开发状态
 
-本记录对应截至 2026-10-03 的仓库实际历史。阶段提交和 push 结果以 Git 历史为准，Telegram 调研与裁剪依据见 [调研记录](telegram-group-design-research.md)。
+本记录对应截至 2026-10-04 的仓库实际历史。阶段提交和 push 结果以 Git 历史为准，Telegram 调研与裁剪依据见 [调研记录](telegram-group-design-research.md)。
 
 上一轮长期 Goal 从 `bac606681cac9acff3f75c9c0588831b77646214` 开始；头像在该基线已完成，未重复开发。阶段 0–12 的产品能力和最终综合审查均已完成。本轮从 `49bfa2941dd23aff3c50332d7a90b8d9cae9d592` 开始，仅收口产品语义、授权关系和状态转换，不增加产品功能。下文各阶段的“下一阶段”是当时的开发记录，好友关系已在后续百人验证 Goal 中明确变更，当前关系规则以下面的“好友申请与确认”为准；历史单向授权描述仅记录旧版本。
+
+## Qt / TUI 一致性收口与冻结
+
+本轮实际 `BASE_HEAD` 为 `9b2c09de393969347e00a13303b81a82cae3df7d`。重新 fetch 后 HEAD 与 origin/main 一致，工作区和 submodules 干净。只修复客户端展示、动态列表选择和二级导航，并按用户追加要求实现 TUI 消息左右布局。
+
+| 问题 | 修复 | 回归边界 |
+|---|---|---|
+| TUI incoming/outgoing 刷新只 clamp 索引，前项删除或重排会改变操作目标 | 应用快照前临时保存选中 user ID，刷新后按 ID 恢复，消失则 clamp，空列表归零 | 前项/当前项删除、重排、空列表；真实 y/n/x 的 SDK 事实与选中人一致 |
+| TUI 群选人刷新按原索引定位，过滤后也可能漂移 | 按过滤后的候选 user ID 恢复选择；清除失去 accepted 关系的已选项，隐藏的已选好友仍可取消 | 有/无过滤、删除、重排、空列表及已选项取消 |
+| Qt 添加好友的 Back 一律返回 Contacts | 只记录 Chats、Contacts、New friends 三种来源，Back 恢复来源及一级高亮；New friends 再返回 Contacts | widget 实际按钮点击及真实 X11 的三条返回路径 |
+| 本地已确认好友搜索在 Contacts 与选人窗口语义不同 | 统一字面 substring；Qt 使用 Unicode 大小写不敏感，TUI 仅折叠 ASCII 大小写，其他 Unicode 按字面匹配 | ASCII、中文、空格、点号、Qt Unicode 大小写与 TUI 边界；TUI /、清空、j/k/Enter；New friends 固定入口保留 |
+| TUI 操作错误提示与只读会话横幅不一致 | 从当前关系推导同一提示：未好友、已发申请、收到申请、正在刷新聊天权限 | 状态、渲染及真实 SDK 集成；不保留旧统一文案 |
+
+远端 Add Friend 的 `search_users` 仍使用服务端 prefix 查询，没有把待确认申请或陌生人放入 accepted Contacts。没有增加长期 selected ID 或权限 shadow state。TUI 资料、复制和好友动作统一读取当前可见用户，修复 `:contact` 忽略 New friends 首行产生的索引偏移。入群审批响应不再重复本地删行，由现有权威刷新保持申请人 ID；真实异步回归验证请求处理期间移动选择不会换人。
+
+TUI 消息自己的靠右、他人的靠左，短消息块按内容收缩，长消息最多占聊天区 75% 宽度并换行。发送者、时间、引用、附件、回应、已读和消息滚动保留；历史和搜索使用同一绘制路径。渲染回归覆盖 60/80/120/160 列及长中文消息的头、中、尾可达，真实 tmux 在 80/160 列核对两方消息位置。
+
+P3 取舍：Qt 文件选择后的二次发送资格检查使用“当前会话暂时无法发送文件。”，断线仍保留原提示。Qt 已打开 Profile 的 presence 展示保持原行为，本轮不增加资料窗口的 presence 变化订阅或失效信号；头像与好友关系的既有刷新保留。
+
+本轮没有修改 server、client library、RPC、WebSocket、SQL、数据库模型或 third/submodule；migration 仍连续为 001–026。X11 测试驱动等待窗口实际映射后再聚焦，并修正实际按钮坐标；断言和 timeout 保持。失败日志与成功截图保留，只清理本轮创建的专用测试数据库，不修改已有用户身份。
+
+各局部回归先确认 RED 再修复为 GREEN；Qt models/delegate/UI 定向 3/3、TUI state/render/integration 定向 3/3 均通过。最终代码实际执行 `tests/verify.sh`，Qt/TUI 均 ON，没有 suppression、排除测试、忽略失败或放宽 timeout：
+
+| 构建 | 完整 build | 完整 CTest | CTest 耗时 |
+|---|---|---|---|
+| normal Debug | PASS | 20/20 PASS | 93.29 s |
+| ASan | PASS | 20/20 PASS | 127.28 s |
+| UBSan | PASS | 20/20 PASS | 116.67 s |
+
+真实 tmux 导航/动作回归 9/9 PASS，真实 Qt X11 导航回归 4/4 PASS。证据分别位于 `/tmp/chat-ui-freeze-tmux-aligned`、`/tmp/chat-ui-freeze-x11-final`，最终统一验证日志为 `/tmp/chat-ui-freeze-verify-final.log`。`git diff --check` PASS，submodules 干净，没有新增临时 migration、调试代码或兼容入口。
+
+本轮完成后冻结现有 Chats、Contacts、New friends、New、Account、二级返回、本地好友搜索和只读会话信息架构。后续仅在真实复现支持下做必要的小修复，不自行展开新产品功能或全仓重构。
 
 ## 长期 Goal 恢复核验与最终收口
 

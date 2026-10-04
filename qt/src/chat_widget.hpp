@@ -124,6 +124,7 @@ class chat_widget final : public QWidget
    private:
     void show_conversations_section();
     void show_contacts_section();
+    void show_new_friends_section();
     void show_add_contact_section();
     void filter_contacts(QString const& query);
     void search_users();
@@ -162,6 +163,8 @@ class chat_widget final : public QWidget
     QToolButton* attachment_button_ = nullptr;
     QLabel* section_title_ = nullptr;
     QStackedWidget* sidebar_pages_ = nullptr;
+    enum class sidebar_parent { chats, contacts, new_friends };
+    sidebar_parent add_friend_parent_ = sidebar_parent::contacts;
     QListView* conversations_view_ = nullptr;
     QLabel* conversations_status_ = nullptr;
     QLineEdit* contact_search_ = nullptr;
