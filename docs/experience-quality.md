@@ -110,7 +110,7 @@ QQ 材料来自[官方下载页](https://im.qq.com/download)和
 | Q03 | P2 | Qt 输入框仍是单行 QLineEdit，不能提供目标要求的多行有界增长 | 未处理 |
 | Q04 | P2 | Qt 新朋友列表仍有默认控件选中样式和大片分隔空白，与联系人行节奏不一致 | 未处理 |
 | Q05 | P2 | Qt 群资料/管理界面表单和等宽文字按钮密集，信息和操作缺少分层 | 未处理 |
-| T01 | P2 | TUI 登录 URL 为首要焦点，按钮各自带框，用户名规则长期占一整行 | 未处理 |
+| T01 | P2 | TUI 登录 URL 为首要焦点，按钮各自带框，用户名规则长期占一整行 | 已修复并通过完整验证 |
 | T02 | P2 | TUI 空消息、空申请等不同页面均出现泛化的 No items | 未处理 |
 | T03 | P2 | TUI 长页眉和操作提示在窄屏缺少清楚的摘要层级 | 未处理 |
 
@@ -189,3 +189,36 @@ UBSan 20/20（123.90 秒），无编译警告、suppression、跳过或 timeout 
 12/20、11/15、7/10、7/10、9/10、7/10、7/10、3/5、4/5、4/5；TUI 仍为 60/100。
 这是阶段复核，不能替代最终连续两轮完整 fresh review。
 本阶段只关闭 Q02，聊天输入、联系人/群页一致性、终端认证和跨页状态仍需继续。
+
+## 第三轮修复：终端登录层级
+
+TUI 登录默认进入 Username，Password 后依次是 Log in、Create account 和 Server settings。
+用默认终端前景、bold、dim、反色和 `>` 焦点标记区分层级与选择，移除每个按钮的独立边框。
+用户名规则只在验证失败时显示，不长期占据首屏。
+服务器设置使用现有 FTXUI Maybe，仅保存 UI 的展开布尔状态；
+地址继续绑定 `app.server_url`，展开聚焦地址，Esc 收起并返回用户名。
+未改注册、登录、重连、登出或 bracketed paste 的业务路径。
+高度不足 20 行时减少说明与空白，错误反馈优先于辅助提示。
+
+真实 tmux 样式对比：
+[before](images/experience/before-tui-login.ansi.gz) /
+[after](images/experience/after-tui-login.ansi.gz)，
+对应 [before 预览](images/experience/before-tui-login.png) /
+[after 预览](images/experience/after-tui-login.png)。
+另保留 [60×20 展开设置](images/experience/after-tui-login-settings.ansi.gz)及
+[40×12 错误](images/experience/after-tui-login-error.ansi.gz)；
+PNG 为 ANSI 格宽预览，不是终端模拟器的原生像素截图。
+
+先确认旧焦点和 URL 首屏在组件回归中 RED，再验证 Unicode、密码遮蔽、
+展开编辑、Esc 收起及值保留 GREEN；编辑位置通过实际 End 键明确，不依赖输入框初始光标。
+真实 tmux 在 40×12、60×12、60×20、70×24、80×24、100×30、120×40、160×45
+采集收起和展开两种状态，用 Tab / Shift+Tab 的可见焦点变化确认 resize 后新帧。
+注册通过原生键盘拒绝首尾 Unicode 空白，并创建中文、内部空格用户名。
+后续日常导航、好友、消息、粘贴、重连、群和退出共 13/13 通过，
+证据在 `/tmp/chat-quality-auth-after-tui-20261004`，自有进程与隔离数据库已清理。
+
+`tests/verify.sh`：normal 20/20（95.70 秒）、ASan 20/20（129.81 秒）、
+UBSan 20/20（123.16 秒），无编译警告、suppression、跳过或 timeout 放宽。
+基于基线和本阶段认证改进，TUI 暂评 70/100：
+12/20、11/15、7/10、8/10、9/10、7/10、7/10、3/5、2/5、4/5；Qt 仍为 71/100。
+本阶段只关闭 T01，T02/T03、Qt 输入和跨页一致性、完整两轮 fresh review 仍未完成。

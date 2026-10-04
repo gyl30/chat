@@ -350,7 +350,6 @@ int main()
     {
         app application;
         auto component = make_ui(application, [] {});
-        component->OnEvent(ftxui::Event::Tab);
         component->OnEvent(ftxui::Event::Special("\x1b[200~"));
         component->OnEvent(ftxui::Event::Character("Alice"));
         component->OnEvent(ftxui::Event::Return);
@@ -371,14 +370,31 @@ int main()
         app application;
         bool quit = false;
         auto component = make_ui(application, [&] { quit = true; });
-        component->OnEvent(ftxui::Event::Tab);
         component->OnEvent(ftxui::Event::Character("张三"));
         ok &= expect(application.username == "张三", "login Unicode input");
         component->OnEvent(ftxui::Event::Tab);
         component->OnEvent(ftxui::Event::Character("secret-password"));
         ftxui::Screen login_screen(80, 24);
         ftxui::Render(login_screen, component->Render());
+        ok &= expect(login_screen.ToString().find("Login / Register") != std::string::npos &&
+                     login_screen.ToString().find(application.server_url) == std::string::npos,
+                     "Login hides server configuration until explicitly expanded");
         ok &= expect(login_screen.ToString().find("secret-password") == std::string::npos, "password hidden");
+        component->OnEvent(ftxui::Event::Tab);
+        component->OnEvent(ftxui::Event::Tab);
+        component->OnEvent(ftxui::Event::Tab);
+        component->OnEvent(ftxui::Event::Return);
+        ftxui::Screen settings_screen(80, 24);
+        ftxui::Render(settings_screen, component->Render());
+        ok &= expect(settings_screen.ToString().find(application.server_url) != std::string::npos,
+                     "Server settings reveal the authoritative connection address");
+        component->OnEvent(ftxui::Event::End);
+        component->OnEvent(ftxui::Event::Character("/chosen"));
+        component->OnEvent(ftxui::Event::Escape);
+        component->OnEvent(ftxui::Event::End);
+        component->OnEvent(ftxui::Event::Character("四"));
+        ok &= expect(application.server_url.ends_with("/chosen") && application.username == "张三四" &&
+                     application.password == "secret-password", "Closing server settings preserves values and restores username focus");
         application.data.self = {1, "Alice", {}};
         application.data.view = page::contacts;
         application.data.contacts = {{2, "Bob", {}}, {3, "张三", {}}};

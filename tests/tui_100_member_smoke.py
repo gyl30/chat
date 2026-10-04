@@ -289,7 +289,6 @@ class Driver:
         self.wait(actor, 'Login / Register')
         # Password Enter submits and leaves focus in that field across logout.
         if first:
-            self.keys(actor, 'Tab')
             self.paste(actor, self.name(actor))
             self.keys(actor, 'Tab')
         if bad_password:
@@ -302,30 +301,29 @@ class Driver:
         self.wait(actor, lambda screen: 'connected' in screen and 'Chats' in screen, timeout=25)
 
     def registration_edges(self, actor):
-        self.keys(actor, 'Tab')
         self.paste(actor, ' Alice')
         self.keys(actor, 'Tab')
         self.paste(actor, self.password)
-        self.keys(actor, 'Tab', 'Right', 'Enter')
+        self.keys(actor, 'Tab', 'Tab', 'Enter')
         self.wait(actor, '用户名须为 1–64 UTF-8 字节')
         for name in ('Alice ', ' Alice', 'Alice ', '　张三', '张三　'):
-            self.keys(actor, 'Up', 'BTab')
+            self.keys(actor, 'BTab', 'BTab', 'BTab')
             self.clear_input(actor)
             self.paste(actor, name)
-            self.keys(actor, 'Tab', 'Tab', 'Right', 'Enter')
+            self.keys(actor, 'Tab', 'Tab', 'Tab', 'Enter')
             self.wait(actor, '用户名须为 1–64 UTF-8 字节')
         self.screenshot(actor, 'registration-edge-rejection')
-        self.keys(actor, 'Up', 'BTab')
+        self.keys(actor, 'BTab', 'BTab', 'BTab')
         self.clear_input(actor)
         registered = '注册 用户_' + self.args.run_id
         self.paste(actor, registered)
-        self.keys(actor, 'Tab', 'Tab', 'Right', 'Enter')
+        self.keys(actor, 'Tab', 'Tab', 'Tab', 'Enter')
         self.wait(actor, '注册成功，请登录', timeout=25)
         rows = read_only_sql("SELECT id,username FROM users WHERE username='" + registered + "'")
         assert len(rows) == 1 and rows[0][1] == registered, rows
         self.evidence('real-tui-registration', {'user': rows[0][0], 'username': registered})
         self.screenshot(actor, 'successful-unicode-registration')
-        self.keys(actor, 'Up', 'BTab')
+        self.keys(actor, 'BTab', 'BTab', 'BTab')
         self.clear_input(actor)
         self.paste(actor, self.name(actor))
         self.keys(actor, 'Tab')

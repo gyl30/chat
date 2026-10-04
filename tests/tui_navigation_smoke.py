@@ -40,7 +40,7 @@ class NavigationDriver(Driver):
     def login(self,actor,first=True):
         self.wait(actor,'Login / Register')
         if first:
-            self.keys(actor,'Tab'); self.paste(actor,self.name(actor)); self.keys(actor,'Tab')
+            self.paste(actor,self.name(actor)); self.keys(actor,'Tab')
         self.paste(actor,self.password); self.keys(actor,'Enter')
         self.wait(actor,lambda s:'connected' in s and ('Chats' in s or 'Conversations' in s))
 

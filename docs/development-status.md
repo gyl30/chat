@@ -785,3 +785,13 @@ Qt 登录默认聚焦用户名，服务器地址默认收起并可渐进展开�
 完整 `tests/verify.sh`：normal 20/20（96.68 s）、ASan 20/20（129.13 s）、UBSan 20/20（123.90 s），
 无编译警告、suppression、跳过或 timeout 放宽，`git diff --check` PASS。
 截图、审查取舍和未完成项继续维护在 [体验品质审查](experience-quality.md)；整体品质循环仍未完成。
+
+## 体验品质审查：终端登录层级
+
+TUI 默认聚焦 Username，服务器设置渐进展开，保留原有 URL 与认证语义。
+采用无按钮独立边框的终端原生层级、明确反色焦点和紧凑低高度布局。
+组件回归先 RED 后 GREEN，覆盖 Unicode、密码遮蔽、设置展开编辑及收起后值保留。
+真实 tmux 八档尺寸、原生注册和日常导航共 13/13 通过，保存原始 ANSI 与格宽预览。
+完整 `tests/verify.sh`：normal 20/20（95.70 s）、ASan 20/20（129.81 s）、UBSan 20/20（123.16 s），
+无编译警告、suppression、跳过或 timeout 放宽，`git diff --check` PASS。
+尚未完成多行 Qt composer、跨页一致性与最终两轮品质自审，不将本阶段等同于整个 Goal 完成。

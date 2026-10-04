@@ -453,7 +453,11 @@ Element render_impl(state const& s, int width, int height, Element compose = {},
     if (state::layout(width, height) == layout_mode::too_small) { return text("Terminal too small (40x12 minimum)") | center; }
     if (!s.self.id)
     {
-        return vbox({text("Chat · Login / Register") | bold, text("Server URL"), text("Username"), text("Password"), text(link_label(s.link)), text(s.status)}) | border;
+        return vbox({text("Chat · Login / Register") | bold, text("和朋友，轻松聊。") | dim,
+                     text(""), text("Username"), text(""), text("Password"), text(""),
+                     text("Log in") | bold, text("Create account"), text("Server settings"),
+                     paragraph(s.status), text("Tab: move · Enter: select · Ctrl+C: quit") | dim}) |
+            size(WIDTH, LESS_THAN, std::min(44, width - 4)) | center;
     }
     Element content;
     if (s.view == page::conversations || s.view == page::conversation)
@@ -504,9 +508,21 @@ public:
         password_option.password = true;
         password_option.on_enter = [this] { app_.login(); };
         password_ = Input(&app_.password, "Password", password_option);
-        login_ = Button("Login", [this] { app_.login(); });
-        register_ = Button("Register", [this] { app_.login(true); });
-        login_form_ = Container::Vertical({url_, username_, password_, Container::Horizontal({login_, register_})});
+        ButtonOption action;
+        action.transform = [](EntryState const& item) {
+            auto body = text((item.focused ? "> " : "  ") + item.label);
+            if (item.label == "Log in") { body |= bold; }
+            if (item.focused) { body |= inverted; }
+            return body;
+        };
+        login_ = Button("Log in", [this] { app_.login(); }, action);
+        register_ = Button("Create account", [this] { app_.login(true); }, action);
+        server_settings_ = Button("Server settings", [this] {
+            server_settings_open_ = !server_settings_open_;
+            if (server_settings_open_) { url_->TakeFocus(); }
+            else { username_->TakeFocus(); }
+        }, action);
+        login_form_ = Container::Vertical({username_, password_, login_, register_, server_settings_, Maybe(url_, &server_settings_open_)});
         Add(login_form_);
         auto compose_option = single;
         compose_option.multiline = true;
@@ -517,7 +533,7 @@ public:
         Add(command_);
         prompt_ = Input(&prompt_text_, "", single);
         Add(prompt_);
-        url_->TakeFocus();
+        username_->TakeFocus();
     }
     Element OnRender() override
     {
@@ -530,7 +546,28 @@ public:
         { return render(s, terminal.dimx, terminal.dimy); }
         if (!s.self.id)
         {
-            page = vbox({text("Chat · Login / Register") | bold, separator(), text("Server URL"), url_->Render(), text("Username"), username_->Render(), text("Password"), password_->Render(), hbox({login_->Render(), register_->Render()}), text("用户名首尾不能有空白，禁止 @ / 控制字符"), text(link_label(s.link)), paragraph(s.status), text("Tab: next field · Ctrl+C: quit")}) | border | center;
+            auto const width = std::min(44, terminal.dimx - 4);
+            auto const roomy = terminal.dimy >= 20;
+            Elements fields{hbox({text("Chat") | bold, text(" · Login / Register") | dim})};
+            if (roomy) { fields.push_back(text("和朋友，轻松聊。") | dim); fields.push_back(text("")); }
+            fields.push_back(text("Username"));
+            fields.push_back(username_->Render());
+            if (roomy) { fields.push_back(text("")); }
+            fields.push_back(text("Password"));
+            fields.push_back(password_->Render());
+            if (roomy) { fields.push_back(text("")); }
+            fields.push_back(login_->Render());
+            fields.push_back(register_->Render());
+            fields.push_back(server_settings_->Render());
+            if (server_settings_open_) { fields.push_back(url_->Render()); }
+            if (!s.status.empty())
+            { fields.push_back(wrapped_text(s.status, width)); }
+            else if (s.link != connection::signed_out)
+            { fields.push_back(text(link_label(s.link)) | bold); }
+            if (roomy) { fields.push_back(text("")); }
+            if (roomy || s.status.empty())
+            { fields.push_back(paragraph("Tab: move · Enter: select · Ctrl+C: quit") | dim); }
+            page = vbox(std::move(fields)) | size(WIDTH, EQUAL, width) | center;
         }
         else
         {
@@ -624,6 +661,12 @@ public:
             if (s.link != connection::signed_out)
             {
                 if (event == Event::Escape) { app_.logout(); }
+                return true;
+            }
+            if (event == Event::Escape && server_settings_open_)
+            {
+                server_settings_open_ = false;
+                username_->TakeFocus();
                 return true;
             }
             return login_form_->OnEvent(event);
@@ -794,7 +837,8 @@ private:
     }
     app& app_;
     std::function<void()> quit_;
-    Component url_, username_, password_, login_, register_, login_form_, compose_, command_, prompt_;
+    Component url_, username_, password_, login_, register_, server_settings_, login_form_, compose_, command_, prompt_;
+    bool server_settings_open_ = false;
     bool pasting_ = false;
     Component paste_input_;
     std::int64_t paste_conversation_ = 0;
