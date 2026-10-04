@@ -19,6 +19,7 @@
 #include <QStackedWidget>
 #include <QSystemTrayIcon>
 #include <QTimer>
+#include <QToolButton>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -49,45 +50,88 @@ main_window::main_window(QString server_url, QWidget* parent)
 
     auto* login_card = new QFrame(login_page_);
     login_card->setObjectName(QStringLiteral("loginCard"));
-    login_card->setFixedWidth(420);
+    login_card->setFixedWidth(chat_theme::auth_card_width);
     auto* login_layout = new QVBoxLayout(login_card);
-    login_layout->setContentsMargins(34, 30, 34, 30);
-    login_layout->setSpacing(18);
+    login_layout->setContentsMargins(chat_theme::auth_padding, chat_theme::auth_padding,
+                                    chat_theme::auth_padding, chat_theme::auth_padding);
+    login_layout->setSpacing(chat_theme::auth_spacing);
 
+    auto* brand = new QHBoxLayout;
+    brand->setSpacing(chat_theme::auth_spacing);
+    auto* mark = new QLabel(login_card);
+    mark->setObjectName(QStringLiteral("authMark"));
+    mark->setFixedSize(48, 48);
+    mark->setAlignment(Qt::AlignCenter);
+    mark->setPixmap(svg_icon(u"chat", Qt::white, QSize(28, 28)).pixmap(28, 28));
+    brand->addWidget(mark);
+    auto* identity = new QVBoxLayout;
+    identity->setSpacing(4);
     auto* title = new QLabel(QStringLiteral("Chat"), login_card);
     title->setObjectName(QStringLiteral("loginTitle"));
-    login_layout->addWidget(title);
+    identity->addWidget(title);
+    auto* subtitle = new QLabel(QStringLiteral("和朋友，轻松聊。"), login_card);
+    subtitle->setObjectName(QStringLiteral("authSubtitle"));
+    identity->addWidget(subtitle);
+    brand->addLayout(identity, 1);
+    login_layout->addLayout(brand);
+    login_layout->addSpacing(8);
 
     auto* form = new QFormLayout;
-    form->setHorizontalSpacing(16);
-    form->setVerticalSpacing(14);
+    form->setRowWrapPolicy(QFormLayout::WrapAllRows);
+    form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    form->setVerticalSpacing(8);
     server_edit_ = new QLineEdit(std::move(server_url), login_card);
+    server_edit_->setObjectName(QStringLiteral("serverUrlEdit"));
+    server_edit_->setAccessibleName(QStringLiteral("服务器地址"));
+    server_edit_->setPlaceholderText(QStringLiteral("ws://服务器地址:端口/ws"));
     username_edit_ = new QLineEdit(login_card);
+    username_edit_->setObjectName(QStringLiteral("loginUsernameEdit"));
+    username_edit_->setAccessibleName(QStringLiteral("用户名"));
     password_edit_ = new QLineEdit(login_card);
+    password_edit_->setObjectName(QStringLiteral("loginPasswordEdit"));
+    password_edit_->setAccessibleName(QStringLiteral("密码"));
     password_edit_->setEchoMode(QLineEdit::Password);
     username_edit_->setPlaceholderText(QStringLiteral("用户名"));
     password_edit_->setPlaceholderText(QStringLiteral("密码"));
 
-    form->addRow(QStringLiteral("服务器"), server_edit_);
     form->addRow(QStringLiteral("用户名"), username_edit_);
     form->addRow(QStringLiteral("密码"), password_edit_);
     login_layout->addLayout(form);
-
-    auto* auth_buttons = new QHBoxLayout;
-    auth_buttons->setSpacing(10);
-    login_button_ = new QPushButton(QStringLiteral("登录"), login_card);
-    login_button_->setObjectName(QStringLiteral("loginButton"));
-    login_button_->setDefault(true);
-    auth_buttons->addWidget(login_button_, 1);
-    register_button_ = new QPushButton(QStringLiteral("注册"), login_card);
-    register_button_->setObjectName(QStringLiteral("registerButton"));
-    auth_buttons->addWidget(register_button_, 1);
-    login_layout->addLayout(auth_buttons);
 
     status_label_ = new QLabel(login_card);
     status_label_->setObjectName(QStringLiteral("subtleText"));
     status_label_->setWordWrap(true);
     login_layout->addWidget(status_label_);
+
+    login_button_ = new QPushButton(QStringLiteral("登录"), login_card);
+    login_button_->setObjectName(QStringLiteral("loginButton"));
+    login_button_->setDefault(true);
+    login_layout->addWidget(login_button_);
+    register_button_ = new QPushButton(QStringLiteral("创建账号"), login_card);
+    register_button_->setObjectName(QStringLiteral("registerButton"));
+    login_layout->addWidget(register_button_);
+
+    auto* server_settings = new QToolButton(login_card);
+    server_settings->setObjectName(QStringLiteral("serverSettingsButton"));
+    server_settings->setText(QStringLiteral("服务器设置"));
+    server_settings->setAccessibleName(QStringLiteral("展开或收起服务器设置"));
+    server_settings->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    server_settings->setArrowType(Qt::RightArrow);
+    server_settings->setCheckable(true);
+    login_layout->addWidget(server_settings, 0, Qt::AlignLeft);
+    login_layout->addWidget(server_edit_);
+    server_edit_->hide();
+    connect(server_settings, &QToolButton::toggled, this, [this, server_settings](bool expanded) {
+        server_edit_->setVisible(expanded);
+        server_settings->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
+        if (expanded) { server_edit_->setFocus(); }
+        else { username_edit_->setFocus(); }
+    });
+    setTabOrder(username_edit_, password_edit_);
+    setTabOrder(password_edit_, login_button_);
+    setTabOrder(login_button_, register_button_);
+    setTabOrder(register_button_, server_settings);
+    setTabOrder(server_settings, server_edit_);
 
     login_outer->addWidget(login_card, 0, Qt::AlignHCenter);
     login_outer->addStretch();
@@ -96,21 +140,31 @@ main_window::main_window(QString server_url, QWidget* parent)
     registration_dialog_->setObjectName(QStringLiteral("registrationDialog"));
     registration_dialog_->setWindowTitle(QStringLiteral("注册"));
     registration_dialog_->setModal(true);
-    registration_dialog_->setFixedWidth(420);
+    registration_dialog_->setFixedWidth(chat_theme::auth_card_width);
     auto* registration_layout = new QVBoxLayout(registration_dialog_);
-    registration_layout->setContentsMargins(32, 28, 32, 28);
-    registration_layout->setSpacing(18);
+    registration_layout->setContentsMargins(chat_theme::auth_padding, chat_theme::auth_padding,
+                                            chat_theme::auth_padding, chat_theme::auth_padding);
+    registration_layout->setSpacing(chat_theme::auth_spacing);
 
-    auto* registration_title = new QLabel(QStringLiteral("注册新账号"), registration_dialog_);
+    auto* registration_title = new QLabel(QStringLiteral("创建账号"), registration_dialog_);
     registration_title->setObjectName(QStringLiteral("registrationTitle"));
     registration_layout->addWidget(registration_title);
+    auto* registration_subtitle = new QLabel(QStringLiteral("用用户名找到朋友，也让朋友找到你。"), registration_dialog_);
+    registration_subtitle->setObjectName(QStringLiteral("authSubtitle"));
+    registration_subtitle->setWordWrap(true);
+    registration_layout->addWidget(registration_subtitle);
 
     auto* registration_form = new QFormLayout;
-    registration_form->setHorizontalSpacing(16);
-    registration_form->setVerticalSpacing(14);
+    registration_form->setRowWrapPolicy(QFormLayout::WrapAllRows);
+    registration_form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    registration_form->setVerticalSpacing(8);
     registration_username_edit_ = new QLineEdit(registration_dialog_);
     registration_password_edit_ = new QLineEdit(registration_dialog_);
     registration_password_confirm_edit_ = new QLineEdit(registration_dialog_);
+    registration_username_edit_->setObjectName(QStringLiteral("registrationUsernameEdit"));
+    registration_username_edit_->setAccessibleName(QStringLiteral("用户名"));
+    registration_password_edit_->setAccessibleName(QStringLiteral("密码"));
+    registration_password_confirm_edit_->setAccessibleName(QStringLiteral("确认密码"));
     registration_password_edit_->setEchoMode(QLineEdit::Password);
     registration_password_confirm_edit_->setEchoMode(QLineEdit::Password);
     registration_username_edit_->setPlaceholderText(QStringLiteral("用户名"));
@@ -121,21 +175,22 @@ main_window::main_window(QString server_url, QWidget* parent)
     registration_form->addRow(QStringLiteral("确认密码"), registration_password_confirm_edit_);
     registration_layout->addLayout(registration_form);
 
-    auto* registration_buttons = new QHBoxLayout;
-    registration_buttons->setSpacing(10);
-    registration_cancel_button_ = new QPushButton(QStringLiteral("取消"), registration_dialog_);
-    registration_cancel_button_->setObjectName(QStringLiteral("registrationCancelButton"));
-    registration_buttons->addWidget(registration_cancel_button_, 1);
-    registration_submit_button_ = new QPushButton(QStringLiteral("注册"), registration_dialog_);
-    registration_submit_button_->setObjectName(QStringLiteral("registrationSubmitButton"));
-    registration_submit_button_->setDefault(true);
-    registration_buttons->addWidget(registration_submit_button_, 1);
-    registration_layout->addLayout(registration_buttons);
-
     registration_status_label_ = new QLabel(registration_dialog_);
     registration_status_label_->setObjectName(QStringLiteral("subtleText"));
     registration_status_label_->setWordWrap(true);
     registration_layout->addWidget(registration_status_label_);
+
+    registration_submit_button_ = new QPushButton(QStringLiteral("创建账号"), registration_dialog_);
+    registration_submit_button_->setObjectName(QStringLiteral("registrationSubmitButton"));
+    registration_submit_button_->setDefault(true);
+    registration_layout->addWidget(registration_submit_button_);
+    registration_cancel_button_ = new QPushButton(QStringLiteral("返回登录"), registration_dialog_);
+    registration_cancel_button_->setObjectName(QStringLiteral("registrationCancelButton"));
+    registration_layout->addWidget(registration_cancel_button_);
+    setTabOrder(registration_username_edit_, registration_password_edit_);
+    setTabOrder(registration_password_edit_, registration_password_confirm_edit_);
+    setTabOrder(registration_password_confirm_edit_, registration_submit_button_);
+    setTabOrder(registration_submit_button_, registration_cancel_button_);
 
     chat_page_ = new chat_widget(pages_);
 
@@ -827,6 +882,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                 client_->get_conversations();
             },
             Qt::AutoConnection);
+    username_edit_->setFocus();
 }
 
 main_window::~main_window() { client_.reset(); }
@@ -875,9 +931,14 @@ void main_window::start_login()
     auto const username = username_edit_->text();
     auto const password = password_edit_->text();
 
-    if (server.isEmpty() || username.isEmpty() || password.isEmpty())
+    if (server.isEmpty())
     {
-        status_label_->setText(QStringLiteral("服务器、用户名和密码不能为空"));
+        status_label_->setText(QStringLiteral("请在服务器设置中填写连接地址"));
+        return;
+    }
+    if (username.isEmpty() || password.isEmpty())
+    {
+        status_label_->setText(QStringLiteral("请输入用户名和密码"));
         return;
     }
 
@@ -916,7 +977,7 @@ void main_window::start_registration()
 
     if (server.isEmpty())
     {
-        registration_status_label_->setText(QStringLiteral("服务器不能为空"));
+        registration_status_label_->setText(QStringLiteral("请先在登录页的服务器设置中填写连接地址"));
         return;
     }
     if (username.isEmpty() || password.isEmpty() || password_confirm.isEmpty())
@@ -1006,6 +1067,7 @@ void main_window::set_login_busy(bool busy)
     username_edit_->setEnabled(!busy);
     password_edit_->setEnabled(!busy);
     login_button_->setEnabled(!busy);
+    login_button_->setText(busy ? QStringLiteral("请稍候…") : QStringLiteral("登录"));
     register_button_->setEnabled(!busy);
     server_edit_->setEnabled(!busy && !connected_);
 }

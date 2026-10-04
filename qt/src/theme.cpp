@@ -79,6 +79,18 @@ QString chat_style_sheet()
             font-weight: 700;
             color: #294B3E;
         }
+        QLabel#authMark {
+            background: #315A4B;
+            border-radius: 12px;
+        }
+        QLabel#authSubtitle {
+            color: #5D6C64;
+            font-size: 13px;
+        }
+        QFrame#loginCard QLabel#subtleText, QDialog#registrationDialog QLabel#subtleText {
+            color: #5D6C64;
+            font-size: 13px;
+        }
         QLineEdit {
             min-height: 38px;
             padding: 0 12px;
@@ -90,70 +102,64 @@ QString chat_style_sheet()
         QLineEdit:focus {
             border-color: #789487;
         }
-        QPushButton#loginButton {
-            min-height: 40px;
+        QFrame#loginCard QLineEdit:focus, QDialog#registrationDialog QLineEdit:focus {
+            border-color: #547C68;
+        }
+        QPushButton#loginButton, QPushButton#registrationSubmitButton {
+            min-height: 44px;
             background: #315A4B;
             color: #FFFFFF;
-            border: 0;
+            border: 2px solid transparent;
             border-radius: 10px;
             font-weight: 600;
         }
-        QPushButton#loginButton:hover {
+        QPushButton#loginButton:hover, QPushButton#registrationSubmitButton:hover {
             background: #294D40;
         }
-        QPushButton#loginButton:disabled {
+        QPushButton#loginButton:pressed, QPushButton#registrationSubmitButton:pressed {
+            background: #234536;
+        }
+        QPushButton#loginButton:focus, QPushButton#registrationSubmitButton:focus {
+            border-color: #88A697;
+        }
+        QPushButton#loginButton:disabled, QPushButton#registrationSubmitButton:disabled {
             background: #AEBDB6;
         }
-        QPushButton#registerButton {
-            min-height: 40px;
-            background: #FFFFFF;
+        QPushButton#registerButton, QPushButton#registrationCancelButton {
+            min-height: 28px;
+            background: transparent;
             color: #315A4B;
-            border: 1px solid #AFC0B8;
-            border-radius: 10px;
-            font-weight: 600;
+            border: 2px solid transparent;
+            border-radius: 8px;
         }
-        QPushButton#registerButton:hover {
+        QPushButton#registerButton:hover, QPushButton#registrationCancelButton:hover {
             background: #F0F4F1;
-            border-color: #789487;
         }
-        QPushButton#registerButton:disabled {
+        QPushButton#registerButton:focus, QPushButton#registrationCancelButton:focus {
+            border-color: #547C68;
+        }
+        QPushButton#registerButton:disabled, QPushButton#registrationCancelButton:disabled {
             color: #96A29C;
-            border-color: #D7DDD9;
         }
         QLabel#registrationTitle {
             font-size: 22px;
             font-weight: 700;
             color: #294B3E;
         }
-        QPushButton#registrationSubmitButton {
-            min-height: 40px;
-            background: #315A4B;
-            color: #FFFFFF;
-            border: 0;
-            border-radius: 10px;
-            font-weight: 600;
+        QToolButton#serverSettingsButton {
+            min-height: 28px;
+            padding: 0 8px;
+            background: transparent;
+            color: #5D6C64;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            font-size: 13px;
         }
-        QPushButton#registrationSubmitButton:hover {
-            background: #294D40;
-        }
-        QPushButton#registrationSubmitButton:disabled {
-            background: #AEBDB6;
-        }
-        QPushButton#registrationCancelButton {
-            min-height: 40px;
-            background: #FFFFFF;
-            color: #315A4B;
-            border: 1px solid #AFC0B8;
-            border-radius: 10px;
-            font-weight: 600;
-        }
-        QPushButton#registrationCancelButton:hover {
+        QToolButton#serverSettingsButton:hover {
             background: #F0F4F1;
-            border-color: #789487;
         }
-        QPushButton#registrationCancelButton:disabled {
-            color: #96A29C;
-            border-color: #D7DDD9;
+        QToolButton#serverSettingsButton:focus {
+            border-color: #547C68;
         }
         QFrame#navigationPanel {
             background: #294F40;

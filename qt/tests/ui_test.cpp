@@ -73,6 +73,73 @@ template <class T, class F> T rpc(F f)
     check(r.has_value(), "RPC failed");
     return std::move(*r);
 }
+void check_authentication_layout()
+{
+    main_window window(QStringLiteral("ws://127.0.0.1:18769/ws"));
+    window.resize(980, 640);
+    window.show();
+    window.activateWindow();
+    QApplication::processEvents();
+    auto* card = window.findChild<QFrame*>("loginCard");
+    QLineEdit* username = nullptr;
+    QLineEdit* password = nullptr;
+    for (auto* field : card->findChildren<QLineEdit*>())
+    {
+        if (field->placeholderText() == QStringLiteral("用户名")) { username = field; }
+        if (field->placeholderText() == QStringLiteral("密码")) { password = field; }
+    }
+    check(username && password && username->hasFocus(), "Login starts at username rather than server configuration");
+    auto* server = card->findChild<QLineEdit*>("serverUrlEdit");
+    auto* settings = card->findChild<QToolButton*>("serverSettingsButton");
+    check(server && settings && server->isHidden(), "Server address is available through progressive settings");
+    check(!username->accessibleName().isEmpty() && !password->accessibleName().isEmpty() &&
+          !server->accessibleName().isEmpty(), "Authentication fields have accessible names");
+    check(password->echoMode() == QLineEdit::Password, "Login password stays masked");
+    QKeyEvent tab(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier);
+    QApplication::sendEvent(username, &tab);
+    check(password->hasFocus(), "Tab moves from username to password");
+    username->setText(QStringLiteral("张 三"));
+    settings->click();
+    QApplication::processEvents();
+    check(server->isVisible() && server->hasFocus(), "Expanded settings focus the server address");
+    server->setText(QStringLiteral("ws://localhost:18769/ws"));
+    settings->click();
+    QApplication::processEvents();
+    check(server->isHidden() && username->hasFocus() && username->text() == QStringLiteral("张 三") &&
+          server->text() == QStringLiteral("ws://localhost:18769/ws"), "Collapsing settings preserves identity and connection address");
+    window.findChild<QPushButton*>("loginButton")->click();
+    check(card->findChild<QLabel*>("subtleText")->text().contains(QStringLiteral("密码")),
+          "Missing credentials produce inline feedback without connecting");
+    for (auto const size : {QSize(980, 640), QSize(1180, 760), QSize(1280, 800), QSize(1440, 900), QSize(1920, 1080)})
+    {
+        window.resize(size);
+        for (int expanded = 0; expanded < 2; ++expanded)
+        {
+            settings->setChecked(expanded);
+            QApplication::processEvents();
+            auto* page = card->parentWidget();
+            check(page->rect().contains(card->geometry()), "Authentication card fits every supported desktop size");
+            for (auto* field : card->findChildren<QLineEdit*>())
+            {
+                if (field->isVisible())
+                { check(card->rect().contains(field->geometry()), "Authentication fields fit both collapsed and expanded settings"); }
+            }
+        }
+    }
+    window.findChild<QPushButton*>("registerButton")->click();
+    QApplication::processEvents();
+    auto* registration = window.findChild<QDialog*>("registrationDialog");
+    check(registration->isVisible() && registration->width() == card->width(), "Registration shares the login card geometry");
+    auto* registration_username = registration->findChild<QLineEdit*>("registrationUsernameEdit");
+    check(registration_username && registration_username->hasFocus(), "Registration starts at username");
+    registration->findChild<QPushButton*>("registrationSubmitButton")->click();
+    check(registration->findChild<QLabel*>("subtleText")->text().contains(QStringLiteral("用户名")),
+          "Empty registration remains actionable with inline feedback");
+    registration->findChild<QPushButton*>("registrationCancelButton")->click();
+    check(!registration->isVisible(), "Cancel returns to the login page");
+    std::cout << "PASS Qt authentication hierarchy, keyboard focus and responsive settings\n";
+}
+
 void check_primary_navigation()
 {
     chat_widget page;
@@ -234,7 +301,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_primary_navigation(); return 0; }
+        try { check_authentication_layout(); check_primary_navigation(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
@@ -251,6 +318,7 @@ int main(int argc, char** argv)
     };
     try
     {
+        check_authentication_layout();
         check_primary_navigation();
         start();
         {

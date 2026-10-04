@@ -220,7 +220,8 @@ def login(alias, offset):
     x.XMoveResizeWindow(d, w, offset, 0, 1180, 760)
     x.XFlush(d)
     focus(w)
-    click(offset + 600, 358)
+    # Username has initial focus; use the real keyboard order rather than form coordinates.
+    key('a', ctrl=True)
     paste(actor(alias)['username'])
     key('Tab')
     time.sleep(0.1)
