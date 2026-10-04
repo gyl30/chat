@@ -62,7 +62,9 @@ void app::send()
             if (conversation == data.active)
             {
                 auto const current_reply = data.reply ? std::optional(data.reply->id) : std::nullopt;
-                if (data.draft == draft && data.editing == editing && current_reply == reply)
+                if (data.draft == draft &&
+                    ((data.editing == editing && current_reply == reply) ||
+                     (view != view_ && !data.editing && !current_reply)))
                 {
                     data.draft.clear();
                     data.reply.reset();

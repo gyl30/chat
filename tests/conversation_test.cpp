@@ -2834,6 +2834,150 @@ int run_tui_tests()
         app.command("message");
         pump([&] { return app.data.active != direct && app.data.can_send(); });
         auto const other_direct = app.data.active;
+
+        auto wait_blocked = [](fixture& holder) {
+            auto const deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+            while (std::chrono::steady_clock::now() < deadline)
+            {
+                std::unique_ptr<PGresult, decltype(&PQclear)> waiting(PQexec(holder.database.get(),
+                    "SELECT pg_stat_clear_snapshot(); WITH RECURSIVE blocked(pid) AS ("
+                    "SELECT pid FROM pg_stat_activity WHERE datname=current_database() AND pg_backend_pid()=ANY(pg_blocking_pids(pid)) "
+                    "UNION SELECT a.pid FROM pg_stat_activity a JOIN blocked b ON b.pid=ANY(pg_blocking_pids(a.pid)) "
+                    "WHERE a.datname=current_database()) SELECT count(*) FROM blocked"), &PQclear);
+                require(waiting && PQresultStatus(waiting.get()) == PGRES_TUPLES_OK, "Inspect actual RPC lock wait");
+                if (std::stoi(PQgetvalue(waiting.get(), 0, 0)) > 0) { return; }
+                std::this_thread::yield();
+            }
+            throw std::runtime_error("TUI RPC did not reach the held conversation lock");
+        };
+        std::array<bool, 3> round_trip_cleared{};
+        auto const actions = std::array{"compose", "reply", "edit"};
+        for (std::size_t index = 0; index < actions.size(); ++index)
+        {
+            app.open_conversation(direct);
+            pump([&] { return std::ranges::find(app.data.messages, reply_id, &chat::message::id) != app.data.messages.end(); });
+            select(reply_id);
+            app.command(actions[index]);
+            auto const text = "ACK round trip " + std::string(actions[index]);
+            app.data.draft = text;
+            data.execute("BEGIN");
+            data.execute("SELECT id FROM conversations WHERE id=" + std::to_string(direct) + " FOR UPDATE");
+            app.send();
+            wait_blocked(data);
+            app.open_conversation(other_direct);
+            app.open_conversation(direct);
+            require(app.data.draft == text && !app.data.reply && app.data.editing == 0,
+                    "Round trip restores only the draft while the RPC is still blocked");
+            data.execute("COMMIT");
+            pump([&] { return std::ranges::any_of(app.data.messages, [&](auto const& value) { return value.text == text; }); });
+            auto history = call<chat::messages_result>([&](auto h) { peer.get_messages(direct, std::nullopt, h); });
+            require(history && std::ranges::count(history->messages, text, &chat::message::text) == 1,
+                    "Normal/reply persists once and edit preserves one authoritative message");
+            auto found = std::ranges::find(history->messages, text, &chat::message::text);
+            if (index == 1) { require(found->reply && found->reply->id == reply_id, "Server persisted the real reply target"); }
+            if (index == 2)
+            {
+                require(found->id == reply_id && found->edited_at > 0, "Server edited the original message");
+                peer_events.wait([&] {
+                    return std::ranges::any_of(peer_events.updates, [&](auto const& value) { return value.id == reply_id && value.text == text; });
+                });
+                std::lock_guard lock(peer_events.mutex);
+                require(std::ranges::count(peer_events.updates, text, &chat::message::text) == 1,
+                        "Round-trip edit produces one authoritative realtime update");
+            }
+            round_trip_cleared[index] = app.data.draft.empty();
+            std::cout << "TUI ACK round trip " << actions[index] << ": persisted=1, draft_cleared=" << round_trip_cleared[index] << '\n';
+        }
+        require(round_trip_cleared[0], "Normal send round trip clears the successfully submitted draft");
+        require(round_trip_cleared[1] && round_trip_cleared[2], "Reply and edit round trips clear successfully submitted drafts after their UI contexts reset");
+
+        for (auto const* action : {"reply", "edit"})
+        {
+            app.open_conversation(direct);
+            pump([&] { return std::ranges::find(app.data.messages, reply_id, &chat::message::id) != app.data.messages.end(); });
+            select(reply_id);
+            app.command(action);
+            auto const text = "ACK later draft " + std::string(action);
+            app.data.draft = text;
+            data.execute("BEGIN");
+            data.execute("SELECT id FROM conversations WHERE id=" + std::to_string(direct) + " FOR UPDATE");
+            app.send();
+            wait_blocked(data);
+            app.open_conversation(other_direct);
+            app.open_conversation(direct);
+            app.data.draft = "keep new unsent " + std::string(action);
+            auto const later = app.data.draft;
+            data.execute("COMMIT");
+            pump([&] { return std::ranges::any_of(app.data.messages, [&](auto const& value) { return value.text == text; }); });
+            require(app.data.draft == later, "Reply/edit acknowledgement preserves a later draft after a conversation round trip");
+
+            select(reply_id);
+            app.command(action);
+            auto const failed_text = "ACK failed " + std::string(action);
+            app.data.draft = failed_text;
+            require(call<bool>([&](auto h) { peer.remove_contact(self, h); }).has_value(), "Remove friendship before consuming the UI notification");
+            require(app.data.can_send(), "Failure test uses the old UI snapshot, leaving the server authoritative");
+            data.execute("BEGIN");
+            data.execute("SELECT id FROM conversations WHERE id=" + std::to_string(direct) + " FOR UPDATE");
+            app.send();
+            wait_blocked(data);
+            app.open_conversation(other_direct);
+            app.open_conversation(direct);
+            data.execute("COMMIT");
+            // This new contacts result follows the rejected RPC on the same connection.
+            // Invalidate older snapshots so the predicate also waits for its failure ACK.
+            app.contacts();
+            pump([&] { return !app.data.is_contact(peer_id) && !app.data.can_send(); });
+            require(app.data.draft == failed_text, "Failed reply/edit RPC preserves its draft after a conversation round trip");
+            auto history = call<chat::messages_result>([&](auto h) { peer.get_messages(direct, {}, h); });
+            require(history && std::ranges::none_of(history->messages, [&](auto const& value) { return value.text == failed_text; }),
+                    "Rejected reply/edit does not change persisted messages");
+            add_contact(peer_name, peer_id);
+        }
+
+        auto seeded = call<chat::send_message_result>([&](auto h) { other.send_message(other_direct, "ACK B history barrier", h); });
+        require(seeded.has_value(), "Seed conversation B before interleaving sends");
+        app.open_conversation(direct);
+        pump([&] {
+            auto found = std::ranges::find(app.data.conversations, other_direct, &chat::conversation::id);
+            return !app.data.messages.empty() && found != app.data.conversations.end() && found->last.id == seeded->message_id;
+        });
+        fixture busy_b;
+        data.execute("BEGIN");
+        data.execute("SELECT id FROM conversations WHERE id=" + std::to_string(direct) + " FOR UPDATE");
+        busy_b.execute("BEGIN");
+        busy_b.execute("SELECT id FROM conversations WHERE id=" + std::to_string(other_direct) + " FOR UPDATE");
+        app.data.draft = "ACK busy A";
+        app.send();
+        wait_blocked(data);
+        app.open_conversation(other_direct);
+        app.data.draft = "ACK busy B";
+        app.send();
+        data.execute("COMMIT");
+        wait_blocked(busy_b);
+        // B's history request precedes its send; its result follows A's ACK on the same connection.
+        pump([&] { return std::ranges::find(app.data.messages, seeded->message_id, &chat::message::id) != app.data.messages.end(); });
+        app.data.draft = "ACK blocked third send";
+        app.send();
+        busy_b.execute("COMMIT");
+        other_events.wait([&] {
+            return std::ranges::any_of(other_events.messages, [](auto const& value) { return value.text == "ACK busy B"; });
+        });
+        auto b_history = call<chat::messages_result>([&](auto h) { other.get_messages(other_direct, {}, h); });
+        require(b_history.has_value(), "Read authoritative B send result");
+        auto b_message = std::ranges::find(b_history->messages, std::string("ACK busy B"), &chat::message::text);
+        require(b_message != b_history->messages.end(), "B's original send committed");
+        pump([&] {
+            return std::ranges::any_of(app.data.read_positions, [&](auto const& position) {
+                return position.user == self && position.message >= b_message->id;
+            });
+        });
+        require(app.data.draft == "ACK blocked third send", "A's old acknowledgement cannot release B's pending send protection");
+        b_history = call<chat::messages_result>([&](auto h) { other.get_messages(other_direct, {}, h); });
+        require(b_history && std::ranges::count(b_history->messages, std::string("ACK busy B"), &chat::message::text) == 1 &&
+                std::ranges::none_of(b_history->messages, [](auto const& value) { return value.text == "ACK blocked third send"; }),
+                "While B waits for its ACK the third send is blocked, and B persists exactly once");
+
         app.open_conversation(direct);
         pump([&] { return !app.data.messages.empty(); });
         app.data.draft = "sent before leaving page";
@@ -2885,6 +3029,7 @@ int run_tui_tests()
         require(app.data.can_send(), "TUI still has its prior snapshot before draining callbacks");
         app.data.draft = "rejected send keeps draft";
         app.send();
+        app.contacts(); // A fresh result follows the failed send ACK on this connection.
         pump([&] { return !app.data.is_contact(peer_id) && !app.data.can_send(); });
         require(app.data.draft == "rejected send keeps draft", "Asynchronous send rejection preserves the unsent draft");
         add_contact(peer_name, peer_id);
