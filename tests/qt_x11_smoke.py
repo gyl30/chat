@@ -322,10 +322,10 @@ def run_scale():
     click(535, 90)
     key('a', True)
     key('BackSpace')
-    click(665, 593)
+    click(745, 593)
     capture('14-next-group-name')
     paste('Qt X11 验证群')
-    click(579, 593)
+    click(745, 593)
     created = wait(lambda : sql("SELECT id FROM conversations WHERE title='Qt X11 验证群'"), 'group created')
     actual = members(int(created))
     assert {m['id'] for m in actual} == {aid, actor('S006')['id'], actor('S007')['id']}, actual
@@ -338,13 +338,13 @@ def run_scale():
     click(580, 596)
     modal('A', '退出登录')
     capture('17-logout-confirmation')
-    click(675, 320)
+    click(600, 320)
     capture('18-logout-cancelled')
     assert clients['A'].poll() is None
     assert online_both(), 'Cancelling logout must retain the authenticated session'
     click(580, 596)
     modal('A', '退出登录')
-    click(600, 320)
+    click(675, 320)
 
     def offline():
         result = control('sdk', actor='S005', method='get_presence')
