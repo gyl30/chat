@@ -14,6 +14,29 @@ QString chat_style_sheet()
         QDialog {
             background: #FFFEFA;
         }
+        QMenu {
+            background: #FFFEFA;
+            color: #27332E;
+            border: 1px solid #D7DDD9;
+            border-radius: 8px;
+            padding: 6px;
+        }
+        QMenu::item {
+            padding: 8px 28px 8px 12px;
+            border-radius: 4px;
+        }
+        QMenu::item:selected {
+            background: #315A4B;
+            color: #FFFFFF;
+        }
+        QMenu::item:disabled {
+            color: #96A29C;
+        }
+        QMenu::separator {
+            height: 1px;
+            background: #D7DDD9;
+            margin: 4px 8px;
+        }
         QDialog#groupDialog QListWidget, QTabWidget#groupTabs::pane {
             background: #FFFFFF;
             border: 1px solid #D7DDD9;

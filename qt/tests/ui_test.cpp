@@ -194,6 +194,32 @@ void check_primary_navigation()
     check(!edit->isEnabled() && edit->placeholderText().contains(QStringLiteral("待处理")), "Read-only history distinguishes incoming pending");
     page.set_connection_available(false);
     check(!actions->isEnabled() && !add->isEnabled() && !create->isEnabled() && !join->isEnabled(), "Offline header actions cannot issue requests");
+    {
+        QMenu menu(&page);
+        auto* reply = menu.addAction(QStringLiteral("回复"));
+        auto* reactions = menu.addMenu(QStringLiteral("表情回应"));
+        reactions->addAction(QStringLiteral("👍"));
+        menu.addSeparator();
+        menu.addAction(QStringLiteral("删除"));
+        menu.popup(page.mapToGlobal(QPoint(430, 90)));
+        QApplication::processEvents();
+        auto const background = menu.grab().toImage().pixelColor(8, 8);
+        check(background.alpha() == 255 && background.lightness() > 200,
+              "Popup menu paints an opaque light background instead of transparent black");
+        menu.setActiveAction(reply);
+        QApplication::processEvents();
+        auto const row = menu.actionGeometry(reply);
+        auto const selected = menu.grab().toImage().pixelColor(row.right() - 8, row.center().y());
+        check(selected.alpha() == 255 && selected.lightness() < 150,
+              "Focused popup action has a distinct opaque selection");
+        reactions->popup(menu.mapToGlobal(QPoint(menu.width(), 0)));
+        QApplication::processEvents();
+        auto const submenu = reactions->grab().toImage().pixelColor(8, 8);
+        check(submenu.alpha() == 255 && submenu.lightness() > 200,
+              "Reaction submenu shares the readable popup surface");
+        reactions->close();
+        menu.close();
+    }
     std::cout << "PASS Qt primary navigation, action menu, accepted contacts and pending history states\n";
 }
 

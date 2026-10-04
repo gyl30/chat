@@ -762,3 +762,15 @@ TUI 专项审查修复了迟到会话快照误关闭刚重新加入的群、成�
 没有 suppression、跳过、排除测试或放宽 timeout；构建日志没有编译警告，`git diff --check` PASS。原有 migration、依赖和 submodule 未改，临时脚本与证据仅保留于 `/tmp`。主要证据为 `/tmp/chat-maintainer-final-verify-20261004.log`、`/tmp/chat-maintainer-qt-final-20261004`、`/tmp/chat-maintainer-tui-nav-20261004`、`/tmp/chat-maintainer-send-switch-20261004`、`/tmp/chat-maintainer-send-switch-green-20261004` 和 `/tmp/chat-maintainer-tui-use-confirmed-20261004`。
 
 资源观察期间两端 TUI 都保持 4 个线程、7 个 FD；恢复后空闲三秒 RSS 不变，CPU 增量分别为 0.01 s、0 s。上述是短时真实使用与状态转换证据，不能证明数天运行无泄漏，也没有据此修改 allocator、缓存或轮询策略。
+
+## 体验品质审查：弹出菜单
+
+体验提升以 `75fb9a0292a3891fcec84982579e0fe1c346d999` 为基线。
+真实 Qt/X11 截图发现全局透明 QWidget 样式使消息右键菜单出现黑底深色字。
+现在为 QMenu、选中项和子菜单设置明确的浅色表面与绿色选中态，保持原有动作和权限。
+回归先确认透明背景 RED，再验证菜单、键盘选中项和 reaction 子菜单 GREEN。
+真实 Qt 导航 4/4、补充 X11 页面及 HiDPI 采集通过；真实 TUI 基线导航 11/11 通过。
+完整 `tests/verify.sh`：normal 20/20（97.91 s）、ASan 20/20（131.87 s）、UBSan 20/20（123.57 s），
+无 suppression、跳过或 timeout 放宽，`git diff --check` PASS。
+参考边界、before/after 原图、初始问题清单和评分见 [体验品质审查](experience-quality.md)。
+登录层级、多行输入、跨页一致性和连续两轮最终自审仍在本轮 Goal 内，尚未宣称完成。
