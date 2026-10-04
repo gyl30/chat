@@ -305,6 +305,67 @@ int main()
             }
         }
     }
+    {
+        app application;
+        application.data.self = {1, "Alice", {}};
+        application.data.active = 10;
+        application.data.composing = true;
+        auto component = make_ui(application, [] {});
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        component->OnEvent(ftxui::Event::Character("第一行"));
+        component->OnEvent(ftxui::Event::Return);
+        component->OnEvent(ftxui::Event::Character("second line 🙂"));
+        component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        ok &= expect(application.data.draft == "第一行\nsecond line 🙂", "Multiline paste remains intact in the draft");
+        ok &= expect(application.data.status.empty(), "Pasted Return does not submit the message");
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        component->OnEvent(ftxui::Event::Character(" kept"));
+        component->OnEvent(ftxui::Event::Escape);
+        component->OnEvent(ftxui::Event::Character(":quit"));
+        component->OnEvent(ftxui::Event::Return);
+        component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        ok &= expect(application.data.draft == "第一行\nsecond line 🙂 kept" && !application.exiting,
+                     "Cancelled paste discards remaining input without executing shortcuts");
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        application.data.active = 20;
+        application.data.draft = "other conversation";
+        component->OnEvent(ftxui::Event::Character("wrong target"));
+        component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        ok &= expect(application.data.draft == "other conversation", "Interrupted paste cannot follow a changed conversation");
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        application.data.composing = false;
+        component->OnEvent(ftxui::Event::Custom);
+        component->OnEvent(ftxui::Event::Character("N"));
+        component->OnEvent(ftxui::Event::Return);
+        component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        ok &= expect(application.data.draft == "other conversation" && application.data.view == page::conversations,
+                     "Connection recovery discards pasted tail rather than opening another page");
+        application.command_mode = true;
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        component->OnEvent(ftxui::Event::Character("quit"));
+        component->OnEvent(ftxui::Event::Return);
+        component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        ok &= expect(!application.exiting && application.command_text == "quit ", "Pasted newline cannot execute a command");
+    }
+    {
+        app application;
+        auto component = make_ui(application, [] {});
+        component->OnEvent(ftxui::Event::Tab);
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        component->OnEvent(ftxui::Event::Character("Alice"));
+        component->OnEvent(ftxui::Event::Return);
+        component->OnEvent(ftxui::Event::Character("Bob"));
+        component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        ok &= expect(application.username == "Alice Bob", "Single-line fields insert pasted newline as space");
+        component->OnEvent(ftxui::Event::Tab);
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        component->OnEvent(ftxui::Event::Character("secret"));
+        component->OnEvent(ftxui::Event::Return);
+        component->OnEvent(ftxui::Event::Character("password"));
+        component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        ok &= expect(application.password == "secret password" && application.data.link == connection::signed_out,
+                     "Password paste cannot trigger authentication");
+    }
     // Real FTXUI input and routing: no terminal or network is needed.
     {
         app application;

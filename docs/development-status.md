@@ -728,3 +728,11 @@ TUI 专项审查修复了迟到会话快照误关闭刚重新加入的群、成�
 | UBSan | PASS | 19/19 PASS | 97.26 s |
 
 包含原有 `qt_models`、`qt_delegate`、`qt_ui` 和全部 server/client/migration 测试；没有 suppression、测试排除、跳过 TUI 或放宽 timeout。`git diff --check` PASS。依赖除新增 FTXUI 外未升级，SQL 001–025 未修改。
+
+## 终端多行粘贴修复
+
+以 `a000f0901d393a4653055139604b370777970f00` 为基线，TUI 启用终端 bracketed paste，并通过现有 FTXUI `Special` 事件识别开始/结束标记。粘贴中的换行进入消息草稿，不触发发送；手动 Enter 仍发送一条完整消息。单行字段将粘贴换行/tab 作为空格输入，不触发登录、命令或确认操作。粘贴只进入开始时的输入目标；取消或会话/输入上下文变化后丢弃剩余内容。没有增加完整粘贴缓存、定时器、配置项或第三方修改。未提供粘贴边界的终端输入仍无法可靠区分粘贴换行与手动 Enter。
+
+现有 `tui_render` 回归先确认 RED，再转为 GREEN，覆盖多行正文、取消、会话变化、重连上下文及密码/命令输入不自动提交。真实 tmux smoke 11/11 PASS：两个 TUI 收发中文、emoji、空行和末尾换行，三次均确认粘贴及 Esc 保留草稿时没有消息，Enter 后只持久化并送达一条完整正文；粘贴途中停止/重启 server 后，残余输入不执行导航/退出，恢复后保留草稿并等待手动发送。另以实际 shell job control 验证 Ctrl+Z 挂起关闭粘贴模式、`fg` 恢复重新启用，以及 Ctrl+C 退出关闭模式。
+
+实际完整执行 `tests/verify.sh`，Qt/TUI 均为 ON；normal、ASan、UBSan 完整 build 及全部 20/20 CTest PASS，CTest 耗时分别为 94.46 s、126.62 s、122.40 s。没有 suppression、排除测试或放宽 timeout。SQL、server、client library 和 Qt 未修改。

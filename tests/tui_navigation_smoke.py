@@ -241,6 +241,44 @@ def message_alignment(d):
         d.control('disconnect',actors=['C'])
 
 
+def paste_messages(d):
+    with d.case('bracketed-multiline-paste','Paste preserves draft and sends exactly one complete message only after Enter'):
+        d.spawn_tui('C');d.login('C')
+        d.select_chat('C',d.title);d.select_chat('A',d.title)
+        for index in range(3):
+            marker='PASTE_'+str(index)+'_'+d.args.run_id
+            text=marker+'\n第二行 🙂\n\nLAST_'+str(index)+('\n' if index==2 else '')
+            d.keys('A','i');d.clear_input('A');d.paste('A',text)
+            if index==2: d.keys('A','Up')
+            d.wait('A','LAST_'+str(index))
+            assert not d.query('S005','search_messages',conversation=d.group,query=marker)['messages']
+            d.keys('A','Escape');d.wait('A','i: compose')
+            d.screenshot('A','unsent-multiline-'+str(index))
+            assert not d.query('S005','search_messages',conversation=d.group,query=marker)['messages']
+            d.keys('A','i','Enter','Escape');d.wait('A','消息已发送')
+            result=d.query('S005','search_messages',conversation=d.group,query=marker)['messages']
+            assert len(result)==1 and result[0]['text']==text,result
+            d.wait('C','LAST_'+str(index))
+            d.screenshot('C','received-multiline-'+str(index))
+    with d.case('paste-interrupted-by-reconnect','A disconnected composer keeps its draft and ignores the remainder of the old paste'):
+        marker='PASTE_INTERRUPTED_'+d.args.run_id
+        d.keys('A','i');d.clear_input('A')
+        d.tmux('send-keys','-l','-t',d.panes['A'],'\x1b[200~'+marker)
+        d.wait('A',marker)
+        d.stop_server();d.control('close');d.wait('A','正在重连')
+        d.tmux('send-keys','-l','-t',d.panes['A'],'\nN:quit\x1b[201~')
+        d.wait('A','正在重连')
+        d.start_server();d.control('connect',actors=['S005'])
+        d.wait('A',lambda s:'connected' in s and 'i: compose' in s)
+        assert not d.query('S005','search_messages',conversation=d.group,query=marker)['messages']
+        d.keys('A','i');d.wait('A',marker)
+        d.screenshot('A','interrupted-paste-draft')
+        d.keys('A','Enter','Escape');d.wait('A','消息已发送')
+        result=d.query('S005','search_messages',conversation=d.group,query=marker)['messages']
+        assert len(result)==1 and result[0]['text']==marker,result
+        d.wait('C',marker)
+
+
 def new_actions(d):
     with d.case('new-menu-three-actions','Global New offers add friend, two-step create, and actual join'):
         d.keys('A','h','N');d.wait('A',lambda s: all(t in s for t in ['Add friend','Create group','Join group']))
@@ -319,6 +357,7 @@ def main():
             friends_navigation(driver)
             request_selection(driver)
             message_alignment(driver)
+            paste_messages(driver)
             new_actions(driver)
             account_logout(driver)
         success=True

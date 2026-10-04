@@ -509,6 +509,7 @@ public:
         login_form_ = Container::Vertical({url_, username_, password_, Container::Horizontal({login_, register_})});
         Add(login_form_);
         auto compose_option = single;
+        compose_option.multiline = true;
         compose_option.on_change = [this] { app_.compose_changed(); };
         compose_ = Input(&app_.data.draft, "Message · Enter: send · Esc: keep", compose_option);
         Add(compose_);
@@ -557,6 +558,31 @@ public:
             return true;
         }
         if (app_.exiting) { quit_(); return true; }
+        if (event == Event::Special("\x1b[200~"))
+        {
+            if (!pasting_)
+            {
+                pasting_ = true;
+                paste_input_ = input();
+                paste_conversation_ = s.active;
+            }
+            return true;
+        }
+        if (event == Event::Special("\x1b[201~"))
+        { pasting_ = false; paste_input_.reset(); return true; }
+        if (pasting_ && event != Event::Custom)
+        {
+            if (paste_input_ != input() || paste_conversation_ != s.active) { paste_input_.reset(); }
+            if (paste_input_)
+            {
+                if (event == Event::Escape) { paste_input_.reset(); }
+                else if (event.is_character()) { paste_input_->OnEvent(event); }
+                else if (event == Event::Return)
+                { paste_input_->OnEvent(paste_input_ == compose_ ? Event::Return : Event::Character(' ')); }
+                else if (event == Event::Tab) { paste_input_->OnEvent(Event::Character(' ')); }
+            }
+            return true;
+        }
         if (event == Event::Custom)
         {
             if (!s.self.id) { login_form_->TakeFocus(); }
@@ -714,6 +740,17 @@ public:
         return false;
     }
 private:
+    Component input()
+    {
+        if (app_.dialog) { sync_prompt(); return prompt_; }
+        if (app_.command_mode) { return command_; }
+        if (app_.data.composing) { return compose_; }
+        if (!app_.data.self.id && app_.data.link == connection::signed_out)
+        {
+            for (auto const& field : {url_, username_, password_}) { if (field->Focused()) { return field; } }
+        }
+        return {};
+    }
     void sync_message_scroll()
     {
         auto const& s = app_.data;
@@ -758,6 +795,9 @@ private:
     app& app_;
     std::function<void()> quit_;
     Component url_, username_, password_, login_, register_, login_form_, compose_, command_, prompt_;
+    bool pasting_ = false;
+    Component paste_input_;
+    std::int64_t paste_conversation_ = 0;
     std::string prompt_text_;
     bool prompt_active_ = false;
     int message_scroll_ = -1;
