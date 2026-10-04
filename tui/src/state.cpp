@@ -54,6 +54,13 @@ int bounded(int index, std::size_t size)
 {
     return size == 0 ? 0 : std::clamp(index, 0, static_cast<int>(size) - 1);
 }
+
+bool friend_matches(std::string const& username, std::string const& query)
+{
+    return query.empty() || std::search(username.begin(), username.end(), query.begin(), query.end(), [](unsigned char a, unsigned char b) {
+        return (a >= 'A' && a <= 'Z' ? a + ('a' - 'A') : a) == (b >= 'A' && b <= 'Z' ? b + ('a' - 'A') : b);
+    }) != username.end();
+}
 }
 
 chat::conversation const* state::active_conversation() const
@@ -116,30 +123,88 @@ friendship_state state::friendship(std::int64_t id) const
     for (auto const& request : friends.outgoing) { if (request.user.id == id) { return friendship_state::outgoing_pending; } }
     return friendship_state::none;
 }
+
+std::string state::friendship_hint(std::int64_t id) const
+{
+    switch (friendship(id))
+    {
+        case friendship_state::outgoing_pending: return "好友申请已发送，等待对方确认";
+        case friendship_state::incoming_pending: return "对方已发送好友申请，确认后可继续聊天";
+        case friendship_state::accepted: return "正在刷新聊天权限";
+        default: return "你们目前不是好友";
+    }
+}
 std::vector<user const*> state::pick_candidates() const
 {
     std::vector<user const*> values;
     for (auto const& value : contacts)
     {
-        if (value.id != self.id && (pick_query.empty() || value.username.find(pick_query) != std::string::npos ||
+        if (value.id != self.id && (friend_matches(value.username, pick_query) ||
             std::ranges::find(picked_contacts, value.id) != picked_contacts.end())) { values.push_back(&value); }
     }
     return values;
 }
 
-void state::apply_contacts(std::vector<user> values)
+std::vector<user const*> state::visible_contacts() const
 {
-    auto const selected_id = view == page::contacts && selected > 0 && static_cast<std::size_t>(selected) <= contacts.size()
-        ? contacts[selected - 1].id : 0;
-    contacts = std::move(values);
+    std::vector<user const*> values;
+    for (auto const& value : contacts)
+    { if (friend_matches(value.username, contacts_query)) { values.push_back(&value); } }
+    return values;
+}
+
+user const* state::selected_user() const
+{
     if (view == page::contacts)
     {
-        auto found = std::ranges::find(contacts, selected_id, &user::id);
-        selected = found != contacts.end() ? static_cast<int>(found - contacts.begin()) + 1
-                                          : std::clamp(selected, 0, static_cast<int>(contacts.size()));
+        auto values = visible_contacts();
+        return selected > 0 && static_cast<std::size_t>(selected) <= values.size() ? values[selected - 1] : nullptr;
     }
+    return view == page::users && selected >= 0 && static_cast<std::size_t>(selected) < users.size() ? &users[selected] : nullptr;
+}
+
+void state::apply_contacts(std::vector<user> values)
+{
+    auto const* selected_contact = selected_user();
+    auto selected_id = view == page::contacts && selected_contact ? selected_contact->id : 0;
+    if (view == page::pick_contacts)
+    {
+        auto candidates = pick_candidates();
+        if (selected >= 0 && static_cast<std::size_t>(selected) < candidates.size())
+        { selected_id = candidates[selected]->id; }
+    }
+    contacts = std::move(values);
     std::erase_if(picked_contacts, [this](auto id) { return !is_contact(id); });
+    if (view == page::contacts)
+    {
+        auto candidates = visible_contacts();
+        auto found = std::ranges::find_if(candidates, [selected_id](auto value) { return value->id == selected_id; });
+        selected = found != candidates.end() ? static_cast<int>(found - candidates.begin()) + 1
+                                            : std::clamp(selected, 0, static_cast<int>(candidates.size()));
+    }
+    if (view == page::pick_contacts)
+    {
+        auto candidates = pick_candidates();
+        auto found = std::ranges::find_if(candidates, [selected_id](auto value) { return value->id == selected_id; });
+        selected = found == candidates.end() ? bounded(selected, candidates.size())
+                                            : static_cast<int>(found - candidates.begin());
+    }
     std::erase_if(presences, [this](auto const& value) { return !is_contact(value.first); });
+}
+
+void state::apply_friend_requests(friend_requests_result values)
+{
+    auto const& old = view == page::friend_sent ? friends.outgoing : friends.incoming;
+    auto const selected_id = selected >= 0 && static_cast<std::size_t>(selected) < old.size()
+        ? old[selected].user.id : 0;
+    friends = std::move(values);
+    if (view == page::friend_requests || view == page::friend_sent)
+    {
+        auto const& requests = view == page::friend_requests ? friends.incoming : friends.outgoing;
+        auto found = std::ranges::find_if(requests, [selected_id](auto const& value) { return value.user.id == selected_id; });
+        selected = found == requests.end() ? bounded(selected, requests.size())
+                                          : static_cast<int>(found - requests.begin());
+    }
 }
 
 void state::apply_history(messages_result result, bool older)

@@ -40,7 +40,7 @@ constexpr std::array shortcuts{
     shortcut{"A / O / D (members)", "Admin / transfer owner / remove member"},
     shortcut{"y / n (requests)", "Accept / reject selected request"},
     shortcut{"Tab (new friends)", "Switch incoming / outgoing requests"},
-    shortcut{"/ (contacts picker)", "Filter accepted friends by name"},
+    shortcut{"/ (contacts / picker)", "Filter accepted friends by name"},
     shortcut{"Space / Enter (contacts picker)", "Toggle member / finish selection"},
     shortcut{":", "Command input (:help for command list)"},
     shortcut{"?", "Help"},
@@ -194,6 +194,7 @@ Element conversation_list(state const& s)
 }
 Element message_item(state const& s, message const& m, bool highlighted, int width, int scroll_line)
 {
+    auto const content_width = std::max(1, width * 3 / 4);
     std::string heading = m.from == s.self.id ? "You" : m.username;
     heading += " " + timestamp(m.timestamp);
     if (m.edited_at && !m.deleted) { heading += " (edited)"; }
@@ -205,7 +206,7 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
     if (m.deleted) { lines.push_back(text("消息已删除") | dim); }
     else
     {
-        if (!m.text.empty()) { lines.push_back(wrapped_text(m.text, width)); }
+        if (!m.text.empty()) { lines.push_back(wrapped_text(m.text, content_width)); }
         if (m.attachment)
         {
             auto const& a = *m.attachment;
@@ -236,13 +237,16 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
         });
         lines.push_back(text(c && c->kind == conversation_kind::group ? "已读 " + std::to_string(read_count) + " 人" : read_count ? "✓✓" : "✓") | dim);
     }
-    auto item = vbox(std::move(lines));
-    if (!highlighted) { return item; }
-    item->ComputeRequirement();
-    auto const last_line = std::max(1, item->requirement().min_y - 1);
-    float position = scroll_line < 0 ? 1.f : static_cast<float>(std::clamp(scroll_line, 0, last_line)) / last_line;
-    if (s.view == page::conversation || s.view == page::search) { item = item | inverted; }
-    return item | focusPositionRelative(0.f, position);
+    auto item = vbox(std::move(lines)) | size(WIDTH, LESS_THAN, content_width);
+    if (highlighted)
+    {
+        item->ComputeRequirement();
+        auto const last_line = std::max(1, item->requirement().min_y - 1);
+        float position = scroll_line < 0 ? 1.f : static_cast<float>(std::clamp(scroll_line, 0, last_line)) / last_line;
+        if (s.view == page::conversation || s.view == page::search) { item = item | inverted; }
+        item = item | focusPositionRelative(0.f, position);
+    }
+    return m.from == s.self.id ? hbox({filler(), item}) : hbox({item, filler()});
 }
 Element history(state const& s, int width, int message_scroll)
 {
@@ -273,13 +277,7 @@ Element conversation_view(state const& s, Element input, std::string typing, int
         if (s.link != connection::online) { hint = "Waiting for connection…"; }
         else if (c->kind == conversation_kind::direct)
         {
-            switch (s.friendship(c->user))
-            {
-                case friendship_state::outgoing_pending: hint = "好友申请已发送，等待对方确认"; break;
-                case friendship_state::incoming_pending: hint = "对方已发送好友申请，确认后可继续聊天"; break;
-                case friendship_state::accepted: hint = "正在刷新聊天权限"; break;
-                default: hint = "你们目前不是好友"; break;
-            }
+            hint = s.friendship_hint(c->user);
         }
         items.push_back(wrapped_text(hint, width));
     }
@@ -311,6 +309,7 @@ Element secondary(state const& s, int width, int message_scroll)
         {
             title = s.view == page::contacts ? "Contacts" : s.view == page::users ? "User search · Enter: profile" : "Choose friends · Space: toggle · Enter: next";
             if (s.view == page::contacts && s.contacts.empty()) { rows.push_back(text("No accepted friends yet") | dim); }
+            if (s.view == page::contacts) { rows.push_back(preview_text("/: search · " + s.contacts_query) | dim); }
             if (s.view == page::pick_contacts)
             {
                 rows.push_back(text("Selected: " + std::to_string(s.picked_contacts.size()) + " · /: search · " + s.pick_query));
@@ -332,10 +331,11 @@ Element secondary(state const& s, int width, int message_scroll)
             }
             else
             {
-                auto const& values = s.view == page::users ? s.users : s.contacts;
-                for (std::size_t i = 0; i < values.size(); ++i)
+                auto contacts = s.visible_contacts();
+                auto count = s.view == page::users ? s.users.size() : contacts.size();
+                for (std::size_t i = 0; i < count; ++i)
                 {
-                    auto const& value = values[i];
+                    auto const& value = s.view == page::users ? s.users[i] : *contacts[i];
                     auto offset = s.view == page::contacts ? 1 : 0;
                     rows.push_back(selected(text(user_label(value.username) + presence_label(s, value.id)), s.selected == static_cast<int>(i) + offset));
                 }
@@ -472,7 +472,7 @@ std::size_t selection_count(state const& s, int width)
     switch (s.view)
     {
         case page::conversations: return s.conversations.size();
-        case page::contacts: return s.contacts.size() + 1;
+        case page::contacts: return s.visible_contacts().size() + 1;
         case page::pick_contacts: return s.pick_candidates().size();
         case page::friend_requests: return s.friends.incoming.size();
         case page::friend_sent: return s.friends.outgoing.size();
@@ -672,7 +672,7 @@ public:
             if (event == Event::Character('O')) { app_.command("transfer"); return true; }
             if (event == Event::Character('D')) { app_.command("kick"); return true; }
         }
-        if (s.view == page::pick_contacts && event == Event::Character('/'))
+        if ((s.view == page::contacts || s.view == page::pick_contacts) && event == Event::Character('/'))
         { app_.command("filter"); return true; }
         if (s.view == page::friend_requests)
         {

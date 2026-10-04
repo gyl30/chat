@@ -38,7 +38,9 @@ bool app::writable()
 {
     if (!online()) { return false; }
     if (data.can_send()) { return true; }
-    data.status = "双方接受好友申请后可发送消息";
+    auto const* current = data.active_conversation();
+    data.status = current && current->kind == conversation_kind::direct
+        ? data.friendship_hint(current->user) : "当前会话不可发送消息";
     return false;
 }
 void app::error(chat::error const& value)
@@ -245,12 +247,7 @@ void app::friend_requests()
     client_->get_friend_requests(callback([this, request](auto value) {
         if (request != friends_request_) { return; }
         if (!value) { error(value.error()); return; }
-        data.friends = std::move(*value);
-        if (data.view == page::friend_requests || data.view == page::friend_sent)
-        {
-            auto const count = data.view == page::friend_requests ? data.friends.incoming.size() : data.friends.outgoing.size();
-            data.selected = std::clamp(data.selected, 0, std::max(0, static_cast<int>(count) - 1));
-        }
+        data.apply_friend_requests(std::move(*value));
     }));
 }
 void app::presence()
@@ -449,10 +446,8 @@ void app::activate()
     else if (data.view == page::contacts || data.view == page::users)
     {
         if (data.view == page::contacts && data.selected == 0) { command("friend-requests"); return; }
-        auto const& users = data.view == page::contacts ? data.contacts : data.users;
-        auto const selected = data.selected - (data.view == page::contacts ? 1 : 0);
-        if (selected >= 0 && selected < static_cast<int>(users.size()))
-        { data.profile = users[selected]; navigate(page::profile); }
+        if (auto const* user = data.selected_user())
+        { data.profile = *user; navigate(page::profile); }
     }
     else if (data.view == page::friend_requests || data.view == page::friend_sent)
     {
@@ -485,16 +480,19 @@ void app::command(std::string text)
         if (data.link == connection::online) { contacts(); friend_requests(); }
         return;
     }
-    if (!online()) { return; }
-    if (name == "friend-requests" || name == "friend-sent")
-    { navigate(name == "friend-requests" ? page::friend_requests : page::friend_sent); friend_requests(); return; }
-    if (name == "filter" && data.view == page::pick_contacts)
+    if (name == "filter" && (data.view == page::contacts || data.view == page::pick_contacts))
     {
-        auto filter = [this](std::string query) { data.pick_query = std::move(query); data.selected = 0; };
-        if (argument.empty()) { ask("搜索已接受的好友 · 留空显示全部", data.pick_query, std::move(filter)); }
+        auto filter = [this](std::string query) {
+            (data.view == page::contacts ? data.contacts_query : data.pick_query) = std::move(query);
+            data.selected = 0;
+        };
+        if (argument.empty()) { ask("搜索已接受的好友 · 留空显示全部", data.view == page::contacts ? data.contacts_query : data.pick_query, std::move(filter)); }
         else { filter(std::move(argument)); }
         return;
     }
+    if (!online()) { return; }
+    if (name == "friend-requests" || name == "friend-sent")
+    { navigate(name == "friend-requests" ? page::friend_requests : page::friend_sent); friend_requests(); return; }
     if (name == "refresh") { refresh(); return; }
     if (name == "more")
     {

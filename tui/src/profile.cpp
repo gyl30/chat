@@ -30,10 +30,7 @@ void app::profile_command(std::string const& name, std::string argument)
         {
             if (data.view == page::contacts || data.view == page::users)
             {
-                auto const& values = data.view == page::contacts ? data.contacts : data.users;
-                auto const selected = data.selected - (data.view == page::contacts ? 1 : 0);
-                if (selected >= 0 && static_cast<std::size_t>(selected) < values.size())
-                { data.profile = values[selected]; }
+                if (auto const* selected = data.selected_user()) { data.profile = *selected; }
             }
             else if (data.view == page::friend_requests || data.view == page::friend_sent)
             {
@@ -57,10 +54,10 @@ void app::profile_command(std::string const& name, std::string argument)
     }
     if (name == "user" || name == "contact")
     {
-        auto const& values = name == "contact" ? data.contacts : data.users;
-        if (data.selected < 0 || static_cast<std::size_t>(data.selected) >= values.size())
+        auto const* selected = data.selected_user();
+        if (!selected)
         { data.status = "请先选择用户"; return; }
-        data.profile = values[data.selected];
+        data.profile = *selected;
         navigate(page::profile);
         return;
     }
@@ -69,10 +66,7 @@ void app::profile_command(std::string const& name, std::string argument)
         data.copy_text = data.view == page::profile ? data.profile.username : data.self.username;
         if (data.view == page::contacts || data.view == page::users)
         {
-            auto const& values = data.view == page::contacts ? data.contacts : data.users;
-            auto const selected = data.selected - (data.view == page::contacts ? 1 : 0);
-            if (selected >= 0 && static_cast<std::size_t>(selected) < values.size())
-            { data.copy_text = values[selected].username; }
+            if (auto const* selected = data.selected_user()) { data.copy_text = selected->username; }
         }
         else if (data.view == page::members)
         {
@@ -132,11 +126,10 @@ void app::profile_command(std::string const& name, std::string argument)
     }
     if (data.view == page::contacts || data.view == page::users)
     {
-        auto const& values = data.view == page::contacts ? data.contacts : data.users;
-        auto const selected = data.selected - (data.view == page::contacts ? 1 : 0);
-        if (selected < 0 || static_cast<std::size_t>(selected) >= values.size())
+        auto const* selected = data.selected_user();
+        if (!selected)
         { data.status = "请先选择用户"; return; }
-        target = values[selected];
+        target = *selected;
     }
     if (data.view == page::friend_requests || data.view == page::friend_sent)
     {
@@ -188,7 +181,7 @@ void app::profile_command(std::string const& name, std::string argument)
     {
         if (!online()) { return; }
         if (!data.is_contact(target.id))
-        { data.status = "双方接受好友申请后可发送消息"; return; }
+        { data.status = data.friendship_hint(target.id); return; }
         auto const view = view_;
         client_->open_direct_conversation(target.id, callback([this, view](auto value) {
             if (view != view_) { return; }

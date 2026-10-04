@@ -88,6 +88,92 @@ int main()
         check(s.pick_candidates().size() == 1, "Pick accepted matching friend");
         s.pick_query = "missing";
         check(s.pick_candidates().empty(), "Group picker filters without extra snapshot");
+        {
+            state local;
+            local.self.id = 1;
+            local.view = page::contacts;
+            local.apply_contacts({{2, "Alice Bob", {}}, {3, "张 三", {}}, {4, "a.b", {}}, {5, "Älice", {}}});
+            local.friends.incoming = {{{6, "Pending Bob", {}}, 1}};
+            local.friends.outgoing = {{{7, "Outgoing Bob", {}}, 1}};
+            local.users = {{8, "Stranger Bob", {}}};
+            for (auto const& [query, id] : std::vector<std::pair<std::string, std::int64_t>>{{"BOB", 2}, {"三", 3}, {".b", 4}, {"Äli", 5}})
+            {
+                local.contacts_query = local.pick_query = query;
+                check(local.visible_contacts().size() == 1 && local.visible_contacts()[0]->id == id,
+                      "Contacts searches accepted friends using literal Unicode and ASCII-insensitive substring");
+                check(local.pick_candidates().size() == 1 && local.pick_candidates()[0]->id == id,
+                      "Contacts and picker use the same local matching rule");
+                local.selected = 1;
+                check(local.selected_user()->id == id, "Visible filtered selection targets the matching user");
+            }
+            local.contacts_query = local.pick_query = "äli";
+            check(local.visible_contacts().empty() && local.pick_candidates().empty(), "TUI does not pretend to fold non-ASCII case");
+            local.contacts_query = "Bob";
+            local.selected = 1;
+            local.apply_contacts({{3, "张 三", {}}, {2, "Alice Bob", {}}});
+            check(local.selected_user()->id == 2, "Contacts refresh preserves identity within filtered rows");
+            local.apply_contacts({{3, "张 三", {}}});
+            check(local.selected == 0 && !local.selected_user(), "Empty filtered Contacts keeps the New friends entry selected");
+            local.contacts_query.clear();
+            check(local.visible_contacts().size() == 1, "Clear filter restores accepted friends only");
+            check(local.friendship_hint(8) == "你们目前不是好友" &&
+                  local.friendship_hint(6) == "对方已发送好友申请，确认后可继续聊天" &&
+                  local.friendship_hint(7) == "好友申请已发送，等待对方确认" &&
+                  local.friendship_hint(3) == "正在刷新聊天权限", "Read-only hints distinguish all authoritative relationship states");
+        }
+        for (auto view : {page::friend_requests, page::friend_sent})
+        {
+            state requests;
+            requests.view = view;
+            auto snapshot = [view](std::vector<friend_request> entries) {
+                friend_requests_result value;
+                (view == page::friend_requests ? value.incoming : value.outgoing) = std::move(entries);
+                return value;
+            };
+            requests.apply_friend_requests(snapshot({{{2, "Alice", {}}, 1}, {{3, "Bob", {}}, 2}, {{4, "Carol", {}}, 3}}));
+            requests.selected = 1;
+            requests.apply_friend_requests(snapshot({{{3, "Bob", {}}, 2}, {{4, "Carol", {}}, 3}}));
+            check(requests.selected == 0, "Request removed before selection preserves Bob in both tabs");
+            requests.apply_friend_requests(snapshot({{{4, "Carol", {}}, 3}, {{3, "Bob", {}}, 2}}));
+            check(requests.selected == 1, "Request reorder preserves selected user");
+            requests.apply_friend_requests(snapshot({{{4, "Carol", {}}, 3}}));
+            check(requests.selected == 0, "Removing selected request clamps to remaining user");
+            requests.apply_friend_requests(snapshot({}));
+            check(requests.selected == 0, "Empty requests resets selection in both tabs");
+        }
+        for (auto const& query : {std::string{}, std::string{"friend"}})
+        {
+            state picker;
+            picker.self.id = 1;
+            picker.view = page::pick_contacts;
+            picker.pick_query = query;
+            picker.apply_contacts({{2, "Alice friend", {}}, {3, "Bob friend", {}}, {4, "Carol friend", {}}});
+            picker.selected = 1;
+            picker.apply_contacts({{3, "Bob friend", {}}, {4, "Carol friend", {}}});
+            check(picker.pick_candidates()[picker.selected]->id == 3, "Picker removal before selection preserves user identity");
+            picker.apply_contacts({{4, "Carol friend", {}}, {3, "Bob friend", {}}});
+            check(picker.selected == 1, "Picker reorder preserves selected user");
+            picker.picked_contacts = {3};
+            picker.apply_contacts({{4, "Carol friend", {}}});
+            check(picker.selected == 0 && picker.pick_candidates()[0]->id == 4 && picker.picked_contacts.empty(),
+                  "Removed selected friend leaves a valid candidate and clears picked identity");
+            picker.apply_contacts({});
+            check(picker.selected == 0 && picker.pick_candidates().empty(), "Empty picker resets selection");
+        }
+        {
+            state picker;
+            picker.view = page::pick_contacts;
+            picker.apply_contacts({{2, "match first", {}}, {3, "hidden", {}}, {4, "match last", {}}});
+            picker.pick_query = "match";
+            picker.picked_contacts = {3};
+            picker.selected = 1;
+            picker.apply_contacts({{4, "match last", {}}, {3, "hidden", {}}});
+            check(picker.pick_candidates()[picker.selected]->id == 3, "Filtered picked friend remains selected and cancellable");
+            picker.picked_contacts.clear();
+            picker.selected = 0;
+            picker.apply_contacts({{3, "hidden", {}}});
+            check(picker.pick_candidates().empty() && picker.selected == 0, "Empty filtered candidates reset selection");
+        }
         s.members = {{1, "self", member_role::owner, {}}};
         check(s.self_role() == member_role::owner, "Role derives from current members");
         s.apply_history({{msg(10), msg(20)}, {{1, 10}}, true}, false);

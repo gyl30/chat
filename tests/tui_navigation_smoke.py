@@ -12,7 +12,7 @@ import sys
 import time
 
 sys.dont_write_bytecode = True
-from tui_100_member_smoke import Driver, inverse_text
+from tui_100_member_smoke import Driver, inverse_text, choose_row
 
 READONLY='你们目前不是好友'
 
@@ -152,6 +152,95 @@ def friends_navigation(d):
         d.control('disconnect',actors=['B','D','E'])
 
 
+def contacts_search(d):
+    with d.case('contacts-local-search','Local accepted-only substring filtering supports ASCII case, clear, selection and profile'):
+        d.keys('A','c','/');d.wait('A','搜索已接受的好友')
+        d.paste('A','s005');d.keys('A','Enter')
+        d.wait('A',lambda s:'观察S005_' in s and d.name('C') not in s and 'New friends (1)' in s)
+        assert all(d.name(a) not in d.capture('A') for a in ['B','D','E'])
+        d.keys('A','j','j');d.wait_selected('A','观察S005_')
+        d.keys('A','Enter');d.wait('A','Remove friend');d.screenshot('A','filtered-contact-profile')
+        d.keys('A','Escape','/');d.wait('A','搜索已接受的好友')
+        d.keys('A','End','BSpace','BSpace','BSpace','BSpace','Enter')
+        d.wait('A',lambda s:d.name('C') in s and '观察S005_' in s and 'New friends (1)' in s)
+        d.screenshot('A','cleared-filter-accepted-only')
+
+
+def request_selection(d):
+    with d.case('request-refresh-preserves-identity','Incoming accept/reject and outgoing cancel target the visually selected user after external refresh'):
+        peers=['B','D','E'];d.control('connect',actors=peers)
+        aid=d.manifest['actors']['A']['id']
+        for peer in peers:d.query(peer,'send_friend_request',user='A')
+        d.command('A','friend-requests');d.wait('A',lambda s:all(d.name(p) in s for p in peers))
+        order=sorted(peers,key=lambda p:d.capture('A').index(d.name(p)))
+        d.keys('A','k',repeat=10);d.keys('A','j');d.wait_selected('A',d.name(order[1]))
+        d.query(order[0],'cancel_friend_request',user='A')
+        d.wait('A',lambda s:d.name(order[0]) not in s);d.wait_selected('A',d.name(order[1]))
+        d.screenshot('A','incoming-after-before-selection-cancel')
+        d.keys('A','n');d.wait('A',lambda s:d.name(order[1]) not in s)
+        assert not any(r['user']['id']==aid for r in d.query(order[1],'get_friend_requests')['outgoing'])
+        assert any(r['user']['id']==aid for r in d.query(order[2],'get_friend_requests')['outgoing'])
+        d.keys('A','y');d.wait('A','No pending friend requests')
+        assert any(v['id']==aid for v in d.query(order[2],'get_contacts'))
+        d.query(order[2],'remove_contact',user='A')
+        for peer in peers:
+            d.command('A','search-users '+d.name(peer));d.wait('A',d.name(peer))
+            d.keys('A','Enter');d.wait('A','Add friend');d.command('A','add');d.wait('A','Waiting for acceptance')
+        d.command('A','friend-sent');d.wait('A',lambda s:all(d.name(p) in s for p in peers))
+        order=sorted(peers,key=lambda p:d.capture('A').index(d.name(p)))
+        d.keys('A','k',repeat=10);d.keys('A','j');d.wait_selected('A',d.name(order[1]))
+        d.query(order[0],'respond_friend_request',user='A',accept=False)
+        d.wait('A',lambda s:d.name(order[0]) not in s);d.wait_selected('A',d.name(order[1]))
+        d.screenshot('A','outgoing-after-before-selection-reject')
+        d.keys('A','x');d.wait('A',lambda s:d.name(order[1]) not in s)
+        assert not any(r['user']['id']==aid for r in d.query(order[1],'get_friend_requests')['incoming'])
+        assert any(r['user']['id']==aid for r in d.query(order[2],'get_friend_requests')['incoming'])
+        d.query(order[2],'respond_friend_request',user='A',accept=False)
+        d.wait('A','No pending friend requests')
+        d.control('disconnect',actors=peers)
+
+
+def picker_selection(d):
+    with d.case('picker-refresh-preserves-identity','Friend removal keeps candidate identity and Space target; selected friend remains cancellable under a filter'):
+        d.control('connect',actors=['C'])
+        observer=d.manifest['sdk'][0]['username']
+        names={'C':d.name('C'),'S005':observer}
+        d.command('A','create-group');d.wait('A',lambda s:all(n in s for n in names.values()))
+        screen=d.capture('A');order=sorted(names,key=lambda a:screen.index(names[a]))
+        d.keys('A','k',repeat=10);d.keys('A','j');d.wait_selected('A',names[order[1]])
+        d.query(order[0],'remove_contact',user='A')
+        d.wait('A',lambda s:names[order[0]] not in s);d.wait_selected('A',names[order[1]])
+        d.keys('A','Space');d.wait('A','Selected: 1');d.screenshot('A','space-target-after-friend-removal')
+        d.command('A','filter no-matching-friend');d.wait('A','[x]')
+        d.keys('A','Space');d.wait('A',lambda s:'Selected: 0' in s and names[order[1]] not in s)
+        d.screenshot('A','filtered-selection-cancelled')
+        d.keys('A','Escape');d.wait('A','New friends (1)')
+        d.query(order[0],'send_friend_request',user='A')
+        d.command('A','friend-requests');d.wait('A',names[order[0]])
+        choose_row(d,'A',names[order[0]],limit=3)
+        d.keys('A','y');d.wait('A',lambda s:names[order[0]] not in s)
+        assert any(v['id']==d.manifest['actors']['A']['id'] for v in d.query(order[0],'get_contacts'))
+        d.keys('A','Escape');d.wait('A',lambda s:all(n in s for n in names.values()))
+        d.control('disconnect',actors=['C'])
+
+
+def message_alignment(d):
+    with d.case('own-right-peer-left','Real group history distinguishes own and peer messages at narrow and wide terminal sizes'):
+        d.control('connect',actors=['C'])
+        own='RIGHT_OWN_'+d.args.run_id;peer='LEFT_PEER_'+d.args.run_id
+        d.select_chat('A',d.title);d.wait('A','i: compose')
+        d.send('A',own)
+        d.query('C','send_message',conversation=d.group,text=peer)
+        for width in [80,160]:
+            d.resize('A',width,30);d.wait('A',lambda s:own in s and peer in s)
+            screen=d.capture('A').splitlines()
+            own_x=next(line.index(own) for line in screen if own in line)
+            peer_x=next(line.index(peer) for line in screen if peer in line)
+            assert own_x>peer_x+8,(width,own_x,peer_x)
+            d.screenshot('A','message-sides-'+str(width))
+        d.control('disconnect',actors=['C'])
+
+
 def new_actions(d):
     with d.case('new-menu-three-actions','Global New offers add friend, two-step create, and actual join'):
         d.keys('A','h','N');d.wait('A',lambda s: all(t in s for t in ['Add friend','Create group','Join group']))
@@ -200,11 +289,8 @@ def main():
     parser.add_argument('--port',type=int,default=18884)
     parser.add_argument('--work-dir',default='/tmp/chat-navigation-'+time.strftime('%m%d%H%M%S'))
     parser.add_argument('--red-only',action='store_true',help='Only readonly/focus regression')
-    parser.add_argument('--legacy-baseline',action='store_true')
     parser.add_argument('--keep-database',action='store_true')
     args=parser.parse_args()
-    global READONLY
-    if args.legacy_baseline: READONLY='双方接受好友申请后可发送消息'
     repo=Path(__file__).resolve().parents[1]
     args.build_dir=str(Path(args.build_dir).resolve())
     args.binary=Path(args.binary).resolve() if args.binary else Path(args.build_dir)/'chat_tui'
@@ -228,7 +314,11 @@ def main():
         readonly_navigation(driver)
         tab_navigation(driver)
         if not args.red_only:
+            contacts_search(driver)
+            picker_selection(driver)
             friends_navigation(driver)
+            request_selection(driver)
+            message_alignment(driver)
             new_actions(driver)
             account_logout(driver)
         success=True

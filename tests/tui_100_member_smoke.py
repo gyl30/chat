@@ -592,7 +592,7 @@ def stage_friendships(d):
         d.command('B', 'add')
         d.wait('B', 'Waiting for acceptance')
         d.command('B', 'message')
-        d.wait('B', '双方接受好友申请后可发送消息')
+        d.wait('B', '好友申请已发送，等待对方确认')
         d.find_profile('C', 'B')
         d.wait('C', 'Incoming friend request')
         assert 'Message' not in d.capture('C')
@@ -1112,7 +1112,7 @@ def stage_removed_friend(d, files):
             d.wait(actor, '你们目前不是好友')
             for action in ('compose', 'reply', 'edit', 'reaction 1', 'file ' + str(files['text'])):
                 d.command(actor, action)
-                d.wait(actor, '双方接受好友申请后可发送消息')
+                d.wait(actor, '你们目前不是好友')
                 assert '正在上传' not in d.capture(actor)
             d.command(actor, 'mute')
             d.command(actor, 'pin')

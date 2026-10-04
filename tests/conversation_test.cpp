@@ -2665,7 +2665,7 @@ int run_tui_tests()
             pump([&] { return app.data.friendship(id) == chat::friendship_state::outgoing_pending; });
             require(!app.data.is_contact(id) && !app.data.presences.contains(id), "Pending outgoing grants neither contact nor presence");
             app.command("message");
-            require(app.data.status.find("接受好友申请") != std::string::npos, "Pending outgoing cannot start a direct");
+            require(app.data.status == "好友申请已发送，等待对方确认", "Pending outgoing status matches its read-only banner");
             auto& recipient = id == peer_id ? peer : other;
             require(call<chat::friendship_result>([&](auto h) { recipient.respond_friend_request(self, true, h); }).has_value(),
                     "Recipient explicitly accepts TUI friend request");
@@ -2677,6 +2677,8 @@ int run_tui_tests()
         require(!app.data.is_contact(peer_id) && !app.data.presences.contains(peer_id), "Incoming pending hides presence");
         app.command("friend-requests");
         pump([&] { return app.data.friends.incoming.size() == 1; });
+        app.command("message");
+        require(app.data.status == "对方已发送好友申请，确认后可继续聊天", "Incoming message status matches its relationship");
         app.command("reject-friend");
         pump([&] { return app.data.friendship(peer_id) == chat::friendship_state::none; });
         app.command("search-users " + peer_name);
@@ -2812,6 +2814,7 @@ int run_tui_tests()
 
         app.command("compose");
         require(!app.data.composing, "Non-contact TUI disables compose");
+        require(app.data.status == "你们目前不是好友", "Nonfriend compose status matches its read-only banner");
         app.data.draft = "readonly draft";
         app.send();
         require(app.data.draft == "readonly draft", "Read-only send preserves draft");
@@ -2947,6 +2950,41 @@ int run_tui_tests()
         require(!forbidden_history, "Pending applicant has no history");
         app.command("requests");
         pump([&] { return app.data.requests.size() == 1; });
+        {
+            events first_notifications, second_notifications;
+            chat::client first_applicant, second_applicant;
+            first_notifications.attach(first_applicant); second_notifications.attach(second_applicant);
+            first_applicant.connect(server.url); second_applicant.connect(server.url);
+            first_notifications.wait([&] { return first_notifications.connected == 1; });
+            second_notifications.wait([&] { return second_notifications.connected == 1; });
+            register_peer(first_applicant, "tui_request_one_" + suffix);
+            register_peer(second_applicant, "tui_request_two_" + suffix);
+            require(call<chat::group_join_result>([&](auto h) { first_applicant.join_group(token, h); }).has_value(), "First extra pending applicant");
+            require(call<chat::group_join_result>([&](auto h) { second_applicant.join_group(token, h); }).has_value(), "Second extra pending applicant");
+            app.requests();
+            pump([&] { return app.data.requests.size() == 3; });
+            auto const accepted_id = app.data.requests[0].applicant.id;
+            auto const selected_id = app.data.requests[1].applicant.id;
+            app.data.selected = 0;
+            app.command("accept");
+            app.data.selected = 1;
+            pump([&] { return app.data.requests.size() == 2; });
+            require(app.data.requests[app.data.selected].applicant.id == selected_id,
+                    "Admission response preserves a different user selected while the action was in flight");
+            app.command("members");
+            pump([&] { return app.data.members.size() == 3; });
+            choose_member(accepted_id);
+            app.command("kick");
+            require(app.dialog && app.dialog->confirmation, "Remove temporary accepted applicant");
+            app.dialog->text = "y"; app.submit_prompt();
+            pump([&] { return app.data.members.size() == 2; });
+            app.command("requests");
+            pump([&] { return app.data.requests.size() == 2; });
+            auto extra = std::ranges::find_if(app.data.requests, [&](auto const& value) { return value.applicant.id != other_id; });
+            app.data.selected = static_cast<int>(extra - app.data.requests.begin());
+            app.command("reject");
+            pump([&] { return app.data.requests.size() == 1; });
+        }
         app.command("accept");
         pump([&] { return app.data.requests.empty() && app.data.members.size() == 3; });
         pump([&] { return std::ranges::any_of(app.data.read_positions, [&](auto const& position) {

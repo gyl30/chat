@@ -354,12 +354,10 @@ void app::group_command(std::string const& name, std::string argument)
         if (data.view != page::requests || data.selected < 0 || static_cast<std::size_t>(data.selected) >= data.requests.size())
         { data.status = "请先选择入群申请"; return; }
         auto const user = data.requests[data.selected].applicant.id;
-        client_->respond_group_join_request(id, user, name == "accept", callback([this, id, view, user](auto value) {
+        client_->respond_group_join_request(id, user, name == "accept", callback([this, id, view](auto value) {
             if (data.active != id || view_ != view || data.view != page::requests) { return; }
             if (!value) { error(value.error()); return; }
             data.status = "入群申请已处理";
-            std::erase_if(data.requests, [user](auto const& item) { return item.applicant.id == user; });
-            data.selected = std::max(0, std::min(data.selected, static_cast<int>(data.requests.size()) - 1));
             requests();
             changed(id, false);
         }));

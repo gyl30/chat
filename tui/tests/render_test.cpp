@@ -52,6 +52,9 @@ int main()
     s.friends.incoming = {{{direct.user, direct.username, {}}, 1}};
     ok &= expect(draw(s, 80, 24).find("对方已发送好友申请，确认后可继续聊天") != std::string::npos, "historical incoming direct has pending banner");
     s.friends.incoming.clear();
+    s.contacts = {{direct.user, direct.username, {}}};
+    ok &= expect(draw(s, 80, 24).find("正在刷新聊天权限") != std::string::npos, "accepted friend with stale permission shows refresh hint");
+    s.contacts.clear();
     ok &= expect(draw(s, 20, 4).find("Terminal too small") != std::string::npos, "too small fallback");
     s.view = page::conversations;
     ok &= expect(draw(s, 60, 20).find("Chats") != std::string::npos, "narrow list navigation");
@@ -154,6 +157,35 @@ int main()
             ok &= expect(preview_output.find("VISIBLE_HISTORY") != std::string::npos, "multiline previews preserve history");
         }
     }
+    {
+        auto aligned = s;
+        auto peer = message;
+        peer.text = "PEER_MESSAGE";
+        peer.reply.reset(); peer.reactions.clear(); peer.mentions.clear(); peer.edited_at.reset();
+        auto own = peer;
+        own.id = 2; own.from = aligned.self.id; own.text = "OWN_MESSAGE";
+        aligned.messages = {peer, own};
+        aligned.message_selected = 1;
+        aligned.conversations.front().announcement.clear();
+        for (int columns : {60, 80, 120, 160})
+        {
+            ftxui::Screen screen(columns, 30);
+            ftxui::Render(screen, render(aligned, columns, 30));
+            int peer_x = -1, own_x = -1;
+            for (int y = 0; y < 30; ++y)
+                for (int x = 0; x < columns; ++x)
+                {
+                    std::string cells;
+                    for (int i = x; i < std::min(columns, x + 12); ++i) { cells += screen.CellAt(i, y).character; }
+                    if (cells.starts_with("PEER_MESSAGE")) { peer_x = x; }
+                    if (cells.starts_with("OWN_MESSAGE")) { own_x = x; }
+                }
+            ok &= expect(peer_x >= 0 && own_x > peer_x + 8, "Own messages align right and peer messages left at narrow and wide widths");
+            ok &= expect(own_x - peer_x > (columns - peer_x - 2) / 2, "Short own messages shrink toward the right edge");
+            ok &= expect(screen.ToString().find("You") != std::string::npos && screen.ToString().find("已读") != std::string::npos,
+                         "Message alignment retains own heading and group read state");
+        }
+    }
     s.view = page::profile;
     s.profile = {3, "stranger", {}};
     output = draw(s, 80, 24);
@@ -218,12 +250,15 @@ int main()
     long_message.mentions.clear();
     long_message.text = "HEAD";
     for (int i = 0; i < 900; ++i) { long_message.text += "长"; }
-    long_message.text += "MIDDLE";
+    long_message.text += "\nMIDDLE\n";
     for (int i = 0; i < 900; ++i) { long_message.text += "文"; }
-    long_message.text += "TAIL";
+    long_message.text += "\nTAIL";
     ok &= expect(draw(s, 60, 20, 0).find("HEAD") != std::string::npos, "long unspaced message beginning wraps");
     ok &= expect(draw(s, 60, 20, -1).find("TAIL") != std::string::npos, "long message tail scrolls into view");
-    ok &= expect(draw(s, 60, 20, 34).find("MIDDLE") != std::string::npos, "long message middle scrolls into view");
+    bool middle_visible = false;
+    for (int line = 0; line < 100 && !middle_visible; ++line)
+    { middle_visible = draw(s, 60, 20, line).find("MIDDLE") != std::string::npos; }
+    ok &= expect(middle_visible, "long message middle scrolls into view");
     s.view = page::copy;
     s.copy_text = long_message.text;
     s.selected = 0;
@@ -292,6 +327,27 @@ int main()
         ok &= expect(application.data.view == page::profile && application.data.profile.id == 2, "contact profile navigation");
         component->OnEvent(ftxui::Event::Escape);
         ok &= expect(application.data.view == page::contacts, "Esc returns from profile");
+        application.command("filter bOB");
+        output = draw(application.data, 80, 24);
+        ok &= expect(output.find("Bob") != std::string::npos && output.find("张三") == std::string::npos,
+                     "Contacts local substring search ignores ASCII case");
+        ok &= expect(output.find("New friends (") != std::string::npos && output.find("/: search") != std::string::npos,
+                     "Contacts filter keeps New friends and search hint visible");
+        component->OnEvent(ftxui::Event::Character('j'));
+        component->OnEvent(ftxui::Event::Character('j'));
+        ok &= expect(application.data.selected == 1, "Filtered Contacts keyboard selection stays in visible rows");
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.data.view == page::profile && application.data.profile.id == 2, "Filtered Enter opens the visible friend's profile");
+        component->OnEvent(ftxui::Event::Escape);
+        component->OnEvent(ftxui::Event::Character('/'));
+        ok &= expect(application.dialog.has_value(), "Contacts slash opens local friend search");
+        if (application.dialog)
+        {
+            application.dialog->text.clear();
+            application.submit_prompt();
+        }
+        output = draw(application.data, 80, 24);
+        ok &= expect(output.find("Bob") != std::string::npos && output.find("张三") != std::string::npos, "Clear Contacts filter restores accepted friends");
         application.data.conversations = {direct};
         application.data.active = direct.id;
         application.data.friends.outgoing = {{{direct.user, direct.username, {}}, 1}};

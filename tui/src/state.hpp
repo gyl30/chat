@@ -23,7 +23,7 @@ struct state
     std::optional<conversation_cursor> next_conversations;
     std::vector<user> contacts, users;
     friend_requests_result friends;
-    std::string pick_query;
+    std::string contacts_query, pick_query;
     std::unordered_map<std::int64_t, presence> presences;
     std::int64_t active = 0;
     std::vector<message> messages, search_results;
@@ -49,9 +49,13 @@ struct state
     member_role self_role() const;
     bool is_contact(std::int64_t id) const;
     friendship_state friendship(std::int64_t id) const;
+    std::string friendship_hint(std::int64_t id) const;
+    user const* selected_user() const;
+    std::vector<user const*> visible_contacts() const;
     std::vector<user const*> pick_candidates() const;
     void apply_conversations(conversations_result result, bool append);
     void apply_contacts(std::vector<user> values);
+    void apply_friend_requests(friend_requests_result values);
     void apply_history(messages_result result, bool older);
     void apply_search(messages_result result, bool append);
     void apply_message(message value);
