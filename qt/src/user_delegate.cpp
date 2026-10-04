@@ -42,7 +42,7 @@ void user_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option,
         painter->fillRect(rect, QColor(QStringLiteral("#F1F3EF")));
     }
 
-    auto const username = index.data(user_model::username_role).toString();
+    auto const username = index.data(Qt::DisplayRole).toString();
     auto const online = index.data(user_model::online_role).toBool();
     auto const last_seen = index.data(user_model::last_seen_role).toLongLong();
     QRect avatar_rect(rect.left() + chat_theme::dialog_left, rect.top() + chat_theme::dialog_avatar_top,
@@ -62,19 +62,27 @@ void user_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option,
     painter->drawText(username_rect, Qt::AlignLeft | Qt::AlignVCenter,
                       QFontMetrics(username_font).elidedText(username, Qt::ElideRight, username_rect.width()));
 
-    auto const status = presence_text(online, last_seen);
+    auto const request_status = index.data(Qt::StatusTipRole);
+    auto const status = request_status.isValid() ? request_status.toString() : presence_text(online, last_seen);
     if (!status.isEmpty())
     {
         QFont status_font = option.font;
         status_font.setPixelSize(13);
         painter->setFont(status_font);
-        painter->setPen(QColor(online ? QStringLiteral("#4F8A70") : QStringLiteral("#858D88")));
+        painter->setPen(QColor(request_status.isValid() ? QStringLiteral("#5D6C64")
+            : online ? QStringLiteral("#4F8A70") : QStringLiteral("#858D88")));
         QRect status_rect(left, rect.top() + chat_theme::dialog_preview_top, right - left,
                           QFontMetrics(status_font).height());
         painter->drawText(status_rect, Qt::AlignLeft | Qt::AlignVCenter,
                           QFontMetrics(status_font).elidedText(status, Qt::ElideRight, status_rect.width()));
     }
 
+    if (option.state & QStyle::State_HasFocus)
+    {
+        painter->setPen(QColor(QStringLiteral("#547C68")));
+        painter->setBrush(Qt::NoBrush);
+        painter->drawRoundedRect(rect.adjusted(1, 1, -2, -2), 4, 4);
+    }
     painter->restore();
 }
 

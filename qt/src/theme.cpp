@@ -236,6 +236,13 @@ QString chat_style_sheet()
         QLabel#subtleText {
             color: #8B918D;
         }
+        QLabel#friendRequestsStatus, QLabel#friendRequestHeading {
+            color: #5D6C64;
+            font-size: 13px;
+        }
+        QLabel#friendRequestHeading {
+            font-weight: 600;
+        }
         QFrame#chatHeader {
             background: transparent;
         }
@@ -349,7 +356,8 @@ QString chat_style_sheet()
             background: #E8E4DB;
             border: 0;
         }
-        QListView#conversationList, QListView#userList, QListView#messageList {
+        QListView#conversationList, QListView#userList, QListView#messageList,
+        QListWidget#incomingFriendRequests, QListWidget#outgoingFriendRequests {
             border: 0;
             outline: 0;
             background: transparent;

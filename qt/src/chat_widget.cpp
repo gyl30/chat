@@ -278,24 +278,51 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
 
     auto* requests_page = new QWidget(sidebar_pages_);
     auto* requests_layout = new QVBoxLayout(requests_page);
+    requests_layout->setContentsMargins(0, 0, 0, 0);
+    requests_layout->setSpacing(0);
     friend_requests_status_ = new QLabel(requests_page);
     friend_requests_status_->setObjectName(QStringLiteral("friendRequestsStatus"));
     friend_requests_status_->setWordWrap(true);
+    friend_requests_status_->setContentsMargins(18, 16, 14, 8);
     requests_layout->addWidget(friend_requests_status_);
-    requests_layout->addWidget(new QLabel(QStringLiteral("收到的申请"), requests_page));
+    incoming_friends_title_ = new QLabel(requests_page);
+    incoming_friends_title_->setObjectName(QStringLiteral("friendRequestHeading"));
+    incoming_friends_title_->setContentsMargins(18, 16, 14, 8);
+    requests_layout->addWidget(incoming_friends_title_);
     incoming_friends_ = new QListWidget(requests_page);
     incoming_friends_->setObjectName(QStringLiteral("incomingFriendRequests"));
+    incoming_friends_->setAccessibleName(QStringLiteral("收到的好友申请"));
     requests_layout->addWidget(incoming_friends_, 1);
-    requests_layout->addWidget(new QLabel(QStringLiteral("发出的申请"), requests_page));
+    outgoing_friends_title_ = new QLabel(requests_page);
+    outgoing_friends_title_->setObjectName(QStringLiteral("friendRequestHeading"));
+    outgoing_friends_title_->setContentsMargins(18, 16, 14, 8);
+    requests_layout->addWidget(outgoing_friends_title_);
     outgoing_friends_ = new QListWidget(requests_page);
     outgoing_friends_->setObjectName(QStringLiteral("outgoingFriendRequests"));
+    outgoing_friends_->setAccessibleName(QStringLiteral("发出的好友申请"));
     requests_layout->addWidget(outgoing_friends_, 1);
+    requests_layout->addStretch();
     sidebar_pages_->addWidget(requests_page);
     auto open_request = [this](QListWidgetItem* item) {
         show_user_details(item->data(Qt::UserRole).toLongLong(), item->data(Qt::UserRole + 1).toString());
     };
     connect(incoming_friends_, &QListWidget::itemClicked, this, open_request);
     connect(outgoing_friends_, &QListWidget::itemClicked, this, open_request);
+    for (auto* list : {incoming_friends_, outgoing_friends_})
+    {
+        auto* delegate = new user_delegate(list);
+        list->setItemDelegate(delegate);
+        list->setUniformItemSizes(true);
+        list->setFrameShape(QFrame::NoFrame);
+        list->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+        list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        list->setMouseTracking(true);
+        list->installEventFilter(this);
+        list->viewport()->installEventFilter(this);
+        connect(delegate, &user_delegate::avatar_clicked, this, [list, open_request](QModelIndex const& index) {
+            open_request(list->item(index.row()));
+        });
+    }
     conversation_layout->addWidget(sidebar_pages_, 1);
 
     auto* chat_panel = new QFrame(this);
@@ -656,6 +683,15 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
             profile_avatar_->setIcon(avatar_icon(profile_avatar_->toolTip(), 44, avatars_.image(user)));
         }
         if (!active_group_ && user == active_peer_) { update_chat_header(active_username_); }
+        for (auto* list : {incoming_friends_, outgoing_friends_})
+        {
+            for (int row = 0; row < list->count(); ++row)
+            {
+                auto* item = list->item(row);
+                if (item->data(Qt::UserRole).toLongLong() == user)
+                { item->setData(Qt::DecorationRole, avatars_.image(user)); }
+            }
+        }
     });
     connect(chats_navigation_, &QToolButton::clicked, this, [this] { show_conversations_section(); });
     connect(contacts_navigation_, &QToolButton::clicked, this, [this] { show_contacts_section(); });
@@ -876,6 +912,23 @@ void chat_widget::set_user(QString const& username, qint64 user)
 
 bool chat_widget::eventFilter(QObject* object, QEvent* event)
 {
+    if ((object == incoming_friends_->viewport() || object == outgoing_friends_->viewport()) && event->type() == QEvent::Resize)
+    {
+        auto* list = object == incoming_friends_->viewport() ? incoming_friends_ : outgoing_friends_;
+        QTimer::singleShot(0, list, [list] {
+            if (list->hasFocus() && list->currentItem()) { list->scrollToItem(list->currentItem()); }
+        });
+    }
+    if ((object == incoming_friends_ || object == outgoing_friends_) && event->type() == QEvent::KeyPress)
+    {
+        auto* key = static_cast<QKeyEvent*>(event);
+        if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter)
+        {
+            auto* item = static_cast<QListWidget*>(object)->currentItem();
+            if (item) { show_user_details(item->data(Qt::UserRole).toLongLong(), item->data(Qt::UserRole + 1).toString()); }
+            return true;
+        }
+    }
     if (object == message_edit_ && event->type() == QEvent::KeyPress)
     {
         auto* key = static_cast<QKeyEvent*>(event);
@@ -1106,30 +1159,48 @@ void chat_widget::finish_add_contact(qint64 user, QString error)
 {
     emit contact_add_finished(user, error);
     friend_requests_status_->setText(error);
+    friend_requests_status_->setVisible(!error.isEmpty());
 }
 
 void chat_widget::set_friend_requests(QList<user_data> incoming, QList<user_data> outgoing, QString error)
 {
-    if (!error.isEmpty()) { friend_requests_status_->setText(error); return; }
+    if (!error.isEmpty()) { friend_requests_status_->setText(error); friend_requests_status_->show(); return; }
     incoming_requests_ = std::move(incoming);
     outgoing_requests_ = std::move(outgoing);
     new_friends_button_->setText(incoming_requests_.empty() ? QStringLiteral("新的朋友")
         : QStringLiteral("新的朋友  ·  %1").arg(incoming_requests_.size()));
     auto populate = [this](QListWidget* list, QList<user_data> const& users, QString const& hint) {
+        auto const selected_user = list->currentItem() ? list->currentItem()->data(Qt::UserRole).toLongLong() : 0;
+        auto const selected_visible = list->currentItem() &&
+            list->viewport()->rect().intersects(list->visualItemRect(list->currentItem()));
+        auto const scroll_position = list->verticalScrollBar()->value();
         list->clear();
         for (auto const& user : users)
         {
             avatars_.observe(user.id, user.avatar);
-            auto* item = new QListWidgetItem(avatar_icon(user.username, 32, avatars_.image(user.id)),
-                user.username + QStringLiteral("  ·  ") + hint, list);
+            auto* item = new QListWidgetItem(user.username, list);
             item->setData(Qt::UserRole, user.id);
             item->setData(Qt::UserRole + 1, user.username);
+            item->setData(Qt::StatusTipRole, hint);
+            item->setData(Qt::DecorationRole, avatars_.image(user.id));
+            item->setToolTip(user.username + QStringLiteral(" · ") + hint);
+            if (user.id == selected_user) { list->setCurrentItem(item); }
         }
+        list->setMaximumHeight(users.size() * chat_theme::dialog_row_height);
+        list->setVisible(!users.empty());
+        list->doItemsLayout();
+        list->verticalScrollBar()->setValue(scroll_position);
+        if (selected_visible && list->currentItem()) { list->scrollToItem(list->currentItem()); }
     };
     populate(incoming_friends_, incoming_requests_, QStringLiteral("待处理"));
     populate(outgoing_friends_, outgoing_requests_, QStringLiteral("等待验证"));
+    incoming_friends_title_->setText(QStringLiteral("收到的申请 · %1").arg(incoming_requests_.size()));
+    incoming_friends_title_->setVisible(!incoming_requests_.empty());
+    outgoing_friends_title_->setText(QStringLiteral("发出的申请 · %1").arg(outgoing_requests_.size()));
+    outgoing_friends_title_->setVisible(!outgoing_requests_.empty());
     friend_requests_status_->setText(incoming_requests_.empty() && outgoing_requests_.empty()
         ? QStringLiteral("暂无好友申请") : QString{});
+    friend_requests_status_->setVisible(incoming_requests_.empty() && outgoing_requests_.empty());
     update_compose_state();
     emit friendship_updated();
 }

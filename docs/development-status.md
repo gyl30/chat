@@ -823,3 +823,18 @@ Qt 草稿按会话保存于内存，切换恢复对应正文，关闭/成员移�
 最终完整 `tests/verify.sh`：normal 20/20（98.19 s）、ASan 20/20（129.67 s）、
 UBSan 20/20（124.03 s），无编译警告、suppression、跳过或 timeout 放宽，`git diff --check` PASS。
 真实截图、边界和未完成项见 [体验品质审查](experience-quality.md)；整体品质循环仍未完成。
+
+## 体验品质审查：桌面好友申请
+
+收到/发出的好友申请复用联系人行的头像、姓名/状态层级、选中态和焦点轮廓。
+短列表按内容收口，空区隐藏，长列表分别滚动；Enter 打开原有资料与申请操作。
+实时头像变化刷新对应行，权威列表刷新保持选择和正在浏览的位置，缩窗保留键盘选择可见。
+没有新增列表模型、权限状态、协议或 migration，好友语义不变。
+
+既有 Qt UI 回归覆盖行节奏、真实图片缓存、80 条申请、刷新/错误/空态、键盘与 resize；
+真实双 Qt 流程 8/8、25 条真实申请的键盘/缩窗流程、100 人群流程 4/4、TUI/tmux 11/11 通过。
+完整 `tests/verify.sh`：normal 20/20（97.06 s）、ASan 20/20（130.31 s）、UBSan 20/20（123.44 s）。
+随后 Qt/TUI/server/client 全量 clean build 和诊断 fixture PASS，client 严格警告检查 PASS，
+重建后的完整 CTest 20/20（101.00 s），无编译警告，`git diff --check` PASS。
+没有 suppression、跳过或 timeout 放宽；截图与待处理项见 [体验品质审查](experience-quality.md)。
+群资料、终端页面层级、HiDPI 图标及最终连续两轮品质自审仍未完成。

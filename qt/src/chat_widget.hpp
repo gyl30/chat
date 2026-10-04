@@ -175,6 +175,8 @@ class chat_widget final : public QWidget
     QPushButton* new_friends_button_ = nullptr;
     QListWidget* incoming_friends_ = nullptr;
     QListWidget* outgoing_friends_ = nullptr;
+    QLabel* incoming_friends_title_ = nullptr;
+    QLabel* outgoing_friends_title_ = nullptr;
     QLabel* friend_requests_status_ = nullptr;
     QList<user_data> incoming_requests_, outgoing_requests_;
     QLineEdit* add_user_search_ = nullptr;

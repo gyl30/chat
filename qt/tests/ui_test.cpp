@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QBuffer>
 #include <QAction>
 #include <QFrame>
 #include <QClipboard>
@@ -141,6 +142,112 @@ void check_authentication_layout()
     std::cout << "PASS Qt authentication hierarchy, keyboard focus and responsive settings\n";
 }
 
+void check_friend_request_layout()
+{
+    chat_widget page;
+    page.setStyleSheet(chat_style_sheet());
+    page.resize(1180, 760);
+    page.set_user(QStringLiteral("本人"), 1);
+    page.set_connection_available(true);
+    page.set_friend_requests({{200, QStringLiteral("收到 申请"), false, 0, {}}},
+                             {{201, QStringLiteral("发出 申请"), false, 0, {}}}, {});
+    page.show();
+    page.findChild<QPushButton*>("newFriendsButton")->click();
+    QApplication::processEvents();
+    auto* incoming = page.findChild<QListWidget*>("incomingFriendRequests");
+    auto* outgoing = page.findChild<QListWidget*>("outgoingFriendRequests");
+    check(incoming->visualItemRect(incoming->item(0)).height() == 62 &&
+          outgoing->visualItemRect(outgoing->item(0)).height() == 62,
+          "Friend requests share the contact row rhythm");
+    check(outgoing->y() - (incoming->y() + incoming->height()) < 80,
+          "A single incoming request does not leave half a window before outgoing requests");
+    check(incoming->verticalScrollBar()->maximum() == 0 && outgoing->verticalScrollBar()->maximum() == 0,
+          "A single request fits its complete row without inner scrolling");
+    QImage avatar(16, 16, QImage::Format_RGB32);
+    QColor const avatar_color(QStringLiteral("#C05656"));
+    avatar.fill(avatar_color);
+    QByteArray avatar_bytes;
+    QBuffer avatar_buffer(&avatar_bytes);
+    avatar_buffer.open(QIODevice::WriteOnly);
+    check(avatar.save(&avatar_buffer, "PNG"), "Friend request avatar fixture encodes");
+    page.avatars().observe(200, {1, true});
+    page.avatars().receive(200, {1, true}, avatar_bytes);
+    QApplication::processEvents();
+    auto const request_avatar = incoming->viewport()->grab().toImage();
+    check(request_avatar.pixelColor(20, incoming->visualItemRect(incoming->item(0)).center().y()) == avatar_color,
+          "A downloaded request avatar refreshes the visible row without reloading requests");
+    QList<user_data> many;
+    for (int row = 0; row < 80; ++row)
+    { many.push_back({300 + row, QStringLiteral("申请 用户😀") + QString::number(row), false, 0, {}}); }
+    page.set_friend_requests(many, {{201, QStringLiteral("发出 申请"), false, 0, {}}}, {});
+    for (auto const size : {QSize(980, 640), QSize(1180, 760), QSize(1280, 800), QSize(1440, 900), QSize(1920, 1080)})
+    {
+        page.resize(size);
+        QApplication::processEvents();
+        check(incoming->verticalScrollBar()->maximum() > 0 && outgoing->verticalScrollBar()->maximum() == 0 &&
+              outgoing->height() == 62, "A long incoming list scrolls without clipping the single outgoing request");
+        check(incoming->parentWidget()->rect().contains(incoming->geometry()) &&
+              outgoing->parentWidget()->rect().contains(outgoing->geometry()), "Both request sections fit supported window sizes");
+    }
+    incoming->setCurrentRow(40);
+    incoming->scrollToItem(incoming->currentItem());
+    many.push_back({500, QStringLiteral("另一份新申请"), false, 0, {}});
+    page.set_friend_requests(many, {{201, QStringLiteral("发出 申请"), false, 0, {}}}, {});
+    QApplication::processEvents();
+    check(incoming->currentItem() && incoming->currentItem()->data(Qt::UserRole).toLongLong() == 340 &&
+          incoming->viewport()->rect().contains(incoming->visualItemRect(incoming->currentItem())),
+          "An unrelated request refresh preserves the selected user and keeps that row visible");
+    incoming->verticalScrollBar()->setValue(0);
+    many.prepend({501, QStringLiteral("顶部新申请"), false, 0, {}});
+    page.set_friend_requests(many, {{201, QStringLiteral("发出 申请"), false, 0, {}}}, {});
+    QApplication::processEvents();
+    check(incoming->currentItem()->data(Qt::UserRole).toLongLong() == 340 &&
+          incoming->verticalScrollBar()->value() == 0,
+          "Browsing away from the selected request is not interrupted by a refresh");
+    incoming->scrollToItem(incoming->currentItem());
+    page.activateWindow();
+    incoming->setFocus();
+    QApplication::processEvents();
+    check(incoming->hasFocus() && !incoming->accessibleName().isEmpty() && !outgoing->accessibleName().isEmpty(),
+          "Request sections have keyboard focus and accessible names");
+    auto const selected_row = incoming->visualItemRect(incoming->currentItem());
+    auto const focused = incoming->viewport()->grab().toImage();
+    check(focused.pixelColor(1, selected_row.center().y()).lightness() <
+          focused.pixelColor(incoming->viewport()->width() - 8, selected_row.center().y()).lightness() - 40,
+          "Keyboard focus has a visible outline rather than relying on selection color");
+    bool opened = false;
+    QTimer::singleShot(0, &page, [&] {
+        auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+        if (!dialog) { return; }
+        opened = dialog->findChild<QLabel*>("profileDialogName")->text() == QStringLiteral("申请 用户😀40");
+        dialog->reject();
+    });
+    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QApplication::sendEvent(incoming, &enter);
+    QApplication::processEvents();
+    check(opened, "Enter opens the selected friend request's real profile action flow");
+    page.activateWindow();
+    incoming->setFocus();
+    QApplication::processEvents();
+    page.resize(980, 640);
+    QApplication::processEvents();
+    QApplication::processEvents();
+    check(incoming->hasFocus() && incoming->viewport()->rect().contains(incoming->visualItemRect(incoming->currentItem())),
+          "Shrinking the window keeps the keyboard's selected request fully visible");
+    page.set_friend_requests({}, {}, QStringLiteral("连接中断，稍后重试"));
+    QApplication::processEvents();
+    check(incoming->currentItem()->data(Qt::UserRole).toLongLong() == 340 &&
+          page.findChild<QLabel*>("friendRequestsStatus")->text().contains(QStringLiteral("连接中断")),
+          "Request load errors leave known requests and selection available with explicit feedback");
+    page.set_friend_requests({}, {}, {});
+    QApplication::processEvents();
+    auto* status = page.findChild<QLabel*>("friendRequestsStatus");
+    check(status->isVisible() && status->text().contains(QStringLiteral("暂无好友申请")) &&
+          !incoming->isVisible() && !outgoing->isVisible(),
+          "No requests shows an explicit empty state instead of empty list sections");
+    std::cout << "PASS Qt friend request row rhythm and empty state\n";
+}
+
 void check_primary_navigation()
 {
     chat_widget page;
@@ -184,7 +291,7 @@ void check_primary_navigation()
     new_friends->click();
     add_contact->click();
     back->click();
-    check(page.findChild<QListWidget*>("incomingFriendRequests")->isVisible() && back->isVisible(), "Add friend Back restores New friends");
+    check(page.findChild<QLabel*>("friendRequestsStatus")->isVisible() && back->isVisible(), "Add friend Back restores the empty New friends page");
     back->click();
     check(contact_view->isVisible() && !back->isVisible(), "New friends Back returns to Contacts");
     auto* incoming = page.findChild<QListWidget*>("incomingFriendRequests");
@@ -467,7 +574,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_primary_navigation(); check_message_composer(); check_conversation_drafts(); return 0; }
+        try { check_authentication_layout(); check_friend_request_layout(); check_primary_navigation(); check_message_composer(); check_conversation_drafts(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
@@ -485,6 +592,7 @@ int main(int argc, char** argv)
     try
     {
         check_authentication_layout();
+        check_friend_request_layout();
         check_primary_navigation();
         check_message_composer();
         check_conversation_drafts();

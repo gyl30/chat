@@ -44,7 +44,7 @@ def run(c):
     click(580,548);modal('A','移除联系人');capture('nav-remove-confirm')
     key('Left');key('Return');wait(lambda:sql(relation)=='0','remove accepted friend bilaterally')
     focus(a);capture('nav-removed-friend')
-    click(230,463);modal('A',actor('E')['username']);capture('nav-outgoing-profile')
+    click(230,130);modal('A',actor('E')['username']);capture('nav-outgoing-profile')
     click(580,548)
     pending=f'SELECT count(*) FROM friend_requests WHERE requester_id={aid} AND recipient_id={eid}'
     wait(lambda:sql(pending)=='0','outgoing request cancelled')

@@ -108,7 +108,7 @@ QQ 材料来自[官方下载页](https://im.qq.com/download)和
 | Q01 | P1 | X11 消息右键菜单黑底深色字，关键操作无法清楚辨认 | 已修复并通过完整验证 |
 | Q02 | P2 | Qt 登录的服务器配置先于身份；初始焦点也落在 URL | 已修复并通过完整验证 |
 | Q03 | P2 | Qt 输入框仍是单行 QLineEdit，不能提供目标要求的多行有界增长 | 已修复并通过完整验证 |
-| Q04 | P2 | Qt 新朋友列表仍有默认控件选中样式和大片分隔空白，与联系人行节奏不一致 | 未处理 |
+| Q04 | P2 | Qt 新朋友列表仍有默认控件选中样式和大片分隔空白，与联系人行节奏不一致 | 已修复并通过完整验证 |
 | Q05 | P2 | Qt 群资料/管理界面表单和等宽文字按钮密集，信息和操作缺少分层 | 未处理 |
 | T01 | P2 | TUI 登录 URL 为首要焦点，按钮各自带框，用户名规则长期占一整行 | 已修复并通过完整验证 |
 | T02 | P2 | TUI 空消息、空申请等不同页面均出现泛化的 No items | 未处理 |
@@ -313,3 +313,51 @@ UBSan 20/20（124.03 秒），Qt/TUI 均启用；没有编译警告、suppressio
 `git diff --check` PASS；server、client library、SQL 和依赖未修改。
 阶段评分暂维持 Qt 74/100、TUI 70/100，新增问题修复不替代完整全流程评审。
 Q04/Q05、T02/T03、图标 HiDPI 和最终连续两轮 fresh review 仍未完成。
+
+
+## 第六轮修复：桌面新的朋友
+
+本阶段从 `66dac9cd7c77dcbed9eac16cd7ec824c9e7bbbd1` 开始，工作区干净且与远端一致。
+真实 X11 复现两条申请各占半屏、默认蓝色选中行和 Enter 无法打开资料。
+请求列表直接复用联系人 delegate 的 62 像素行、46 像素头像、姓名/状态层级与浅绿色选中态；
+用 Qt 标准显示、状态和图片 role 传递数据，保留原有申请用户 ID 与资料动作。
+收到/发出标题显示数量，空区隐藏；短列表按内容收口，长列表保持各自滚动。
+仅添加两个实际标题控件引用，没有新增 model、manager、权限或加载状态。
+
+头像缓存变化现在刷新对应请求行。权威申请刷新按用户 ID 保留选择，
+保留正在浏览的滚动位置；可见选择继续可见，不把浏览中的用户强拉回旧选择。
+键盘 Enter 打开原有资料流程，焦点使用轮廓，不只靠颜色。
+真实长列表截图还发现缩小窗口会裁切键盘选择；viewport resize 后仅让有焦点的列表滚入当前行。
+没有捕获已删除 item 指针或维护额外 resize 状态。
+
+组件回归确认行节奏、头像刷新、选择丢失和焦点轮廓 RED 后修复。
+现有 Qt UI 测试覆盖 80 条列表、五档窗口、刷新/错误/空态、Enter 和有焦点的 resize。
+新增 resize 断言曾把 offscreen 资料窗口关闭后的未激活主窗口当作有焦点窗口；
+明确恢复窗口与列表焦点后通过。没有放宽 timeout 或删除断言，临时诊断输出已删除。
+
+真实证据：
+
+- 请求布局 [before](images/experience/before-qt-friend-requests.png) /
+  [after](images/experience/after-qt-friend-requests.png)。
+- [下载完成后的真实头像](images/experience/after-qt-friend-request-avatar.png)、
+  [200% 缩放](images/experience/after-qt-friend-requests-hidpi.png)。
+- resize 裁切选择 [before](images/experience/before-qt-friend-requests-resize.png) /
+  [保持选中行可见](images/experience/after-qt-friend-requests-resize.png)。
+
+两个真实 Qt 窗口、申请实时刷新/头像/清除、五档尺寸、连续 resize、三档缩放/重新登录，
+以及好友接受/移除/取消、建群和退出共 8/8 通过，证据在 `/tmp/chat-quality-friends-final-qt-20261005`。
+另用 SDK 建立 20 条收到、5 条发出的真实申请，核验 Tab、End、Enter、资料身份与窗口缩小，
+25 条申请仍保持 pending，证据在 `/tmp/chat-quality-friends-many-resize-final-qt-20261005`。
+原生脚本的头像证据查询和 fixture 数量/连接假设先纠正再完整重跑，失败部分结果没有记为 PASS；
+自有进程和失败的隔离数据库已清理，没有改测试账号的身份数据。
+现有 100 人群原生流程 4/4、真实 TUI/tmux 11/11 也通过。
+
+最终完整 `tests/verify.sh`：normal 20/20（97.06 秒）、ASan 20/20（130.31 秒）、
+UBSan 20/20（123.44 秒），Qt/TUI 均启用，无编译警告、suppression、跳过或 timeout 放宽。
+随后全量 clean build、诊断 fixture 和 client 严格警告检查均通过，警告/错误为零；
+重建后的 CTest 20/20（101.00 秒）与 `git diff --check` PASS。
+server、client library、SQL 和依赖未修改。
+
+Qt 暂评 76/100：13/20、12/15、7/10、8/10、9/10、8/10、8/10、3/5、4/5、4/5；
+TUI 保持 70/100。本阶段改善列表 craft 和跨页一致性，仍不计入最终连续两轮 fresh review。
+Q05、T02/T03、图标 HiDPI、完整参考证据与全流程审查仍未完成。
