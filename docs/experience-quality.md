@@ -163,7 +163,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q25 | P2 | 主消息列表可通过键盘移动当前消息，但NoSelection同时隐藏了当前行焦点 | 第二十九阶段复用现有焦点轮廓；永久RED/GREEN、四档真实键盘回复/回应/读者详情及三模式门禁通过，完整键盘矩阵仍开放 |
 | Q26 | P2 | 会话、联系人和用户搜索列表有键盘当前行，但Enter不执行对应动作 | 第三十阶段复用原生activated与现有业务动作；永久Return/小键盘Enter、真实双Qt三条Return任务及三模式完整门禁通过，完整键盘矩阵仍开放 |
 | Q27 | P2 | 当前 Qt 字体回退将复合 emoji 拆成独立图形，正文、回复和 composer 都可见 | 第三十一阶段真实双 Qt 保留拆画证据；通用 Noto 回退候选引入 keycap 回退而被拒绝，专用序列字体接口尚未实测，不计完成 |
-| Q28 | P2 | 账号注销返回登录后，键盘焦点落在服务器设置，而非主要身份输入 | 第三十一阶段 i3/真实 X11 的完整注册→登录→账号→注销探针在最终焦点步骤 actual1；原图保留，待永久回归和修复 |
+| Q28 | P2 | 账号注销返回登录后，键盘焦点落在服务器设置，而非主要身份输入 | 第三十二阶段在注销完成且登录控件恢复可用后返回用户名焦点；同一永久测试 RED→GREEN，完整原生流程 before actual1→after actual0，范围与门禁见下文 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 第十九轮字素编辑与宽字组合符附着修复已进入生产；终端 span、裁剪、leading mark 和 shaping 仍未闭环，不计 Unicode 全矩阵通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 | T06 | P2 | TUI 搜索选中消息之前一项被删除时，只clamp索引，选中目标跳到另一ID | 第二十四阶段修复，永久RED/GREEN、真实双TUI六档选中目标/可复制正文/草稿验证通过 |
@@ -2188,3 +2188,87 @@ Qt87/TUI78不提高，注册与注销完整键盘流程、两端全页面/日常
 strict 的-Werror单列，不将这轮测试用例增强称为产品BUG的RED/GREEN。
 正常 GUI 字节仍33493；本提交只有既有Qt测试与审查文档/原图，未改生产实现、
 server/client/SQL/third/依赖，不 push。Q27、Q28和T04继续开放。
+
+## 阶段 32：注销后的键盘起点与双终端好友任务
+
+基线 `605009e9931358155797ae4c51d6f3a289d0301d`。本阶段生产修改只涉及
+`main_window` 的三条注销完成路径，不新增状态、改变关系规则或修改服务端。
+
+### 注销完成后回到主要身份输入
+
+登录页在注销过程中先显示，身份控件暂时禁用；当不需要关闭连接、关闭已完成，
+或异步 disconnected 完成注销时，原逻辑恢复控件可用。本次在这三个实际完成点
+紧接着将焦点交给用户名，而不是修改全局 busy 方法、强制展开服务器设置或增加状态。
+同步 close 触发完成回调后再次进入无连接分支时，只会重复设置同一个焦点，不产生
+额外网络操作。
+
+永久 `qt_ui` 保留真实账号资料、确认框和完成后页面/控件检查，再严格断言用户名
+`hasFocus()`。测试只公开激活父窗口并处理事件，不直接给用户名设置焦点。此前多窗口
+offscreen 模态结束时窗口未激活，出现 local=username、global=null 的测试环境状态；
+不能把它当作修复仍失败，也不能据此弱化断言。校正窗口激活后的同一 fixture：
+旧生产实现 actual8，39.36s，准确失败在用户名焦点；恢复三个生产调用后 actual0，35.77s。
+原日志 `/tmp/chat-logout-focus-corrected-red.log` 和
+`/tmp/chat-logout-focus-restored-green.log` 保留。早先名字含 green 的失败日志不是通过。
+
+完整真实 X11/i3 after2 actual0，原15s与操作顺序不变：初始焦点、注册空输入/非法
+用户名/密码不一致、Cancel 后重开、真实注册、认证 S005 查询唯一新身份、公开登录、
+账号资料、默认 Return 安全取消注销、再次显式确认注销，最后用户名实际持有焦点。
+[before](images/experience/before-qt-logout-focus-100.png) /
+[after](images/experience/after-qt-logout-focus-100.png) 都是原始 X11 图片；主亲看两张
+及新的账号/确认图，独立代理另审原图。before 有自有 WM 装饰/状态栏，after 的 v4
+临时配置不含状态栏，所以这不是逐像素布局对照；焦点的真实控件身份另由 AT-SPI 核实。
+
+原目录 `/tmp/chat-quality-registration-keyboard-i3-after2-20261006` 保存16张原图、
+完整驱动快照与源40项首尾/current guard，实际 GUI `/proc/exe` SHA 为
+`cfd2073d75f7fbad8f33493c77b1c83444275edbde64387c10070fef3ae97660`。
+after1 在 Qt 启动前把 i3 默认文本当 JSON，bootstrap actual1；只为临时诊断调用
+补 `--raw` 后才运行独立 after2，不修改产品迎合探针，失败目录保留。此前无WM注册
+复用对照也仍保留，不将平台环境限制写成 Chat BUG。
+
+主独立检查 `/tmp/chat-logout-focus-main-independent.json` actual0，18项全真：
+用户名/SDK 原身份、driver 与原图字节、40项源、64个记录后代和3个独立 AT-SPI PID
+均 gone，精确库 `chat_qtx11_1006065101_521526` SQL count0，18908 无 listener，
+长期服务2876288未动。只覆盖100%这一完整键盘流程；不替代四档HiDPI、IME、Orca或
+完整账号头像管理验收。Q28收口，但不因此提高全产品评分。
+
+### 两个真实 TUI 的好友申请任务
+
+真实 A/C 终端进程、独立 tmux socket、请求80×30；A经公开 Contacts/New friends
+与 Enter 资料完成接受 D、取消 E、D经真实SDK解除关系并重发后拒绝。C公开查看已有
+A资料。另一端认证 D/E 的联系人和请求结果独立确认三个精确 userID，不用未登录
+别名或 SQL 业务写入代替结果；两端最终 Incoming 和 Outgoing 都在标题与空态同时
+满足后捕获。
+
+完整 final4 actual0，证据 `/tmp/chat-quality-new-friends-tui-native-final4-20261006`。
+[接受](images/experience/audit-tui-friend-accept.ansi.gz)、
+[取消](images/experience/audit-tui-friend-cancel.ansi.gz)、
+[拒绝](images/experience/audit-tui-friend-reject.ansi.gz) 是原始 tmux ANSI 无损 gzip，
+逐字节解压等于原文件，保留30行、反色焦点、UTF-8和末尾换行。主亲读三个样式原文及
+四个最终空页，独立代理读16对原文；原用户名、关系说明与当前动作清楚。这不是重新绘制
+的物理终端截图，不能证明终端字体、emoji shaping、六档尺寸、IME、Orca或T04通过。
+早期登录帧含resize前旧宽度，不拿它作80列几何证明。
+
+final1误连接已登录S005、final2标题匹配遗漏头像前缀、final3最终Tab空态捕获旧页，
+原失败/旧帧分别保留；final4只修临时驱动且严格同时等待目标标题与空态，不放宽15s、
+身份或SDK结果。原TUI两个实际进程SHA同为81fdcb74…，8项源与driver快照一致；
+exact库 `chat_nf1006063454_497580` SQL0，6个记录进程及自有socket gone，18910空，
+长期服务未动。主独立 `/tmp/chat-new-friends-tui-native-main-independent.json` actual0。
+
+### 本阶段门禁与范围
+
+既有 fresh 目录 `/tmp/chat-read-context-fresh.JwLH7s` 此次增量-Werror全build与
+23/23 CTest actual0，103.61s；不是新的fresh configure。原 `tests/verify.sh`
+实际0，`LOGOUT_FOCUS_VALIDATION_EXIT=0`，17项冻结源首尾一致，Qt/TUI均ON。
+
+| 配置 | build / 全量CTest | 实际耗时 | tui_render（原5s） |
+| --- | --- | ---: | ---: |
+| normal Debug | PASS / 23/23 | 105.70s | 0.85s |
+| ASan | PASS / 23/23 | 139.73s | 4.03s |
+| UBSan | PASS / 23/23 | 133.70s | 1.76s |
+
+日志 `/tmp/chat-logout-focus-{validation,strict-build,strict-ctest,final-verify}.log`。
+未skip、放宽timeout或引入编译warning/sanitizer报告。严格目录实际-g/-Werror；正式
+三模式保留原warnings及原插桩，分别记账，不称它们也加入-Werror。Qt87/TUI78暂评
+不提高；Q27、T04、完整页面/参考/日常任务/无障碍矩阵和最终连续两轮全产品fresh
+review继续开放。下一条日常任务是附件上传/保存及文件选择器取消的真实键盘闭环，
+尚未执行，不记为通过。无server/client/SQL/third/依赖修改，无push。

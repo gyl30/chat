@@ -1343,3 +1343,30 @@ normal/ASan/UBSan各23/23，104.97/137.03/130.90s，runner实际0，17项source�
 原render5s保留，无skip/新增warning/sanitizer报告。正式warnings与strict分记，
 正常GUI字节未变，本提交仅测试/文档/原图。Qt87/TUI78不提高，全产品、Unicode、
 真实日常与最终连续两轮审查仍未完成。未改third/server/SQL/依赖，未push。
+
+## 体验品质审查：注销后的键盘起点
+
+从 `605009e9931358155797ae4c51d6f3a289d0301d` 继续。三条注销完成分支在登录控件
+恢复enabled之后明确返回用户名focus；不新增状态或改变网络/账号清理。永久同一
+校正fixture old生产actual8/39.36s→修复actual0/35.77s，真实Account与确认路径保留，
+只公开activate父窗口，严格hasFocus，不直接focus用户名、不改目标或timeout。
+
+新cfd2073d…binary完整X11/i3注册→Cancel重开→注册→登录→Account→安全默认取消→
+显式注销→用户名focus actual0；原baseline5服务器设置focus actual1保留。after1仅
+i3诊断默认文本误当JSON、Qt未启动，补/tmp调用--raw后独立after2全流程通过。
+40production源一致，真实/proc SHA、SDK唯一注册身份和原始before/after焦点树相符；
+主与独立核验原图及cleanup，64记录后代/3busPIDgone、exact库SQL0、18908空，长期服务
+未动。仅100%完整账号键盘范围，不称四档/Orca/所有头像操作验收。Q28本次收口。
+
+另补两真实TUI80×30好友任务：A公开键盘接受D/取消E/重发后拒绝，认证另一端SDK核
+精确关系，C公开查看A资料；final4 actual0，8源/两个实际SHA/driver一致，原ANSI gzip
+逐byte无损。前面fixture/title/旧空页驱动问题保留，不拼接成功；exact库与6记录PID、
+ownsocket清理，18910空。不将ANSI证据冒称物理font/六尺寸/IME或T04验收。
+
+既有fresh目录增量strict-Werror全build与23/23 CTest103.61s；原tests/verify.sh
+normal/ASan/UBSan各23/23，105.70/139.73/133.70s，runner实际0，17项source一致，
+原render5s保留，无skip/新warning/sanitizer报告。正式warnings与strict分记。详细
+原图、原始capture、日志、独立核验与范围见[体验品质审查](experience-quality.md)。
+Qt87/TUI78不提高；Q27/T04、完整页面/日常/无障碍与最终连续两轮审查仍未完成。
+后续附件文件选择器取消/上传/另一端保存任务仍待实际运行。未改third/server/SQL/依赖，
+未push。

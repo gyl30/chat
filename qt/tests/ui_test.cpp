@@ -4199,6 +4199,8 @@ int main(int argc, char** argv)
             check(notifications[1].size() == foreground_notices + 1, "Edit and deletion do not generate ordinary notifications");
             avatar_update(avatar_path, false, true);
             wait([&] { return pages[0]->avatars().state(ids[0]) == chat::avatar_state{4, true} && !pages[0]->avatars().image(ids[0]).isNull(); });
+            windows[0]->activateWindow();
+            QApplication::processEvents();
             QTimer::singleShot(20, [&] {
                 auto* profile = qobject_cast<QDialog*>(QApplication::activeModalWidget());
                 check(profile && profile->objectName() == "profileDialog", "Account opens from bottom avatar");
@@ -4211,6 +4213,10 @@ int main(int argc, char** argv)
             });
             windows[0]->findChild<QToolButton*>("profileAvatar")->click();
             wait([&] { return !pages[0]->isVisible() && windows[0]->findChild<QPushButton*>("loginButton")->isEnabled(); });
+            windows[0]->activateWindow();
+            QApplication::processEvents();
+            check(windows[0]->findChild<QLineEdit*>("loginUsernameEdit")->hasFocus(),
+                  "Confirmed logout returns keyboard focus to the login identity field");
             check(pages[0]->avatars().image(ids[0]).isNull(), "Logout clears current account cache");
             check(pages[0]->images().bytes(pages[2]->latest_message_id()).isEmpty(), "Logout clears image cache");
             for (auto* input : windows[0]->findChildren<QLineEdit*>())

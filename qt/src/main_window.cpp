@@ -330,6 +330,7 @@ main_window::main_window(QString server_url, QWidget* parent)
             status_label_->clear();
             set_login_busy(false);
             server_edit_->setEnabled(true);
+            username_edit_->setFocus();
             return;
         }
         if (action == pending_action::registration && registration_dialog_->isVisible())
@@ -1047,6 +1048,7 @@ void main_window::logout()
         status_label_->clear();
         set_login_busy(false);
         server_edit_->setEnabled(true);
+        username_edit_->setFocus();
         return;
     }
 
@@ -1059,6 +1061,7 @@ void main_window::logout()
         status_label_->clear();
         set_login_busy(false);
         server_edit_->setEnabled(true);
+        username_edit_->setFocus();
     }
 }
 
