@@ -358,6 +358,50 @@ int main()
     ok &= expect(draw(s, 120, 40).find("Create invitation link") != std::string::npos, "owner management actions");
     s.view = page::help;
     ok &= expect(draw(s, 120, 40).find("Ctrl+C") != std::string::npos, "keyboard help");
+    for (int columns : {60, 70, 80, 100, 120, 160})
+    {
+        for (int rows : {24, 45})
+        {
+            app application;
+            application.data = s;
+            application.data.view = page::contacts;
+            application.command("help");
+            application.viewport_width = columns;
+            application.viewport_height = rows;
+            auto component = make_ui(application, [] {});
+            auto top = draw(application.data, columns, rows);
+            ok &= expect(top.find("Move selection") != std::string::npos,
+                         "Help opens at its first shortcut");
+            for (int i = 0; i < 200; ++i) { component->OnEvent(ftxui::Event::Character('j')); }
+            auto output = draw(application.data, columns, rows);
+            auto const start = output.find("Commands:");
+            auto const end = output.find("Clipboard:", start);
+            ok &= expect(start != std::string::npos && end != std::string::npos,
+                         "Keyboard scrolling reaches the complete Help command section");
+            auto const commands = start == std::string::npos ? std::string{} : output.substr(start, end - start);
+            for (auto command : {"new,", "chats,", "contacts,", "friend-requests,", "friend-sent,", "accept-friend,",
+                                 "reject-friend,", "cancel-friend,", "filter,", "add-contact,", "profile,", "account,",
+                                 "create-group,", "join,", "file,", "save,", "members,", "invite,", "rename,",
+                                 "announcement,", "show-announcement,", "pinned,", "pin-message,", "unpin-message,",
+                                 "link,", "link-create,", "link-revoke,", "approval,", "requests,", "avatar,",
+                                 "avatar-clear,", "logout,", "quit"})
+            {
+                ok &= expect(commands.find(command) != std::string::npos,
+                             "Every Help command remains whole and visible at the bottom");
+            }
+            if (rows == 24)
+            {
+                ok &= expect(output.find("Move selection") == std::string::npos,
+                             "Help scrolls its body rather than keeping the first shortcut pinned");
+            }
+            for (int i = 0; i < 200; ++i) { component->OnEvent(ftxui::Event::Character('k')); }
+            ok &= expect(application.data.selected == 0 && draw(application.data, columns, rows) == top,
+                         "Help keyboard scrolling returns to its original viewport");
+            component->OnEvent(ftxui::Event::Escape);
+            ok &= expect(application.data.view == page::contacts,
+                         "Escape leaves Help for its parent page");
+        }
+    }
     s.view = page::conversation;
     s.messages = {message};
     s.messages.front().from = s.self.id;

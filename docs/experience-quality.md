@@ -151,7 +151,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q13 | P2 | 图片 QLabel 的源尺寸阻止预览缩小；强制缩窗后裁掉边缘 | 第十二轮复用解码图片等比例适配显示区域，缩小/放大及真实保存通过 |
 | Q14 | P2 | 创建/加入群和确认框仍有默认平台图标、英文按钮及不一致的操作权重 | 第十三轮收口布局、动作、键盘默认与选人标记；验证见下文 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 真实 DSR 与依赖源码确认；未修复，不计 Unicode 全矩阵通过 |
-| T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十三轮独立 xterm/tmux 复现；下一语义阶段修复 |
+| T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 
 键盘打开列表、Qt 多行编辑、长公告、长 username、dialog 滚动、selection/focus、
 terminal light/dark、combining、SSH 和 suspend/restore 仍需进一步实际核验。
@@ -767,3 +767,56 @@ UBSan 20/20（122.08 秒），Qt/TUI 均启用；无编译警告、sanitizer 报
 Qt 暂评 87/100：18/20、13/15、7/10、10/10、9/10、9/10、9/10、4/5、4/5、4/5；
 TUI 保持 77/100。这不是最终两轮 fresh review。
 Help、复合字符、消息编辑弹窗及未闭环的全页面/键盘/参考/终端矩阵继续处理，不宣布达到退出门槛。
+
+## 第十四轮：终端 Help 的完整阅读与滚动
+
+以第十三轮独立复审的 T05 为依据，不更改命令、导航父子关系或业务规则。
+旧 Help 的命令 paragraph 位于同时允许横向滚动的 frame 内，长段落没有按实际宽度换行；
+快捷键也按单行 text 输出。固定的滚动项数又没有包括窄屏换行后的高度，
+所以到达旧上限仍看不到后半段命令。最初按字硬换行能显示文字，但会把命令名拆在两行，
+六档宽度断言仍有三档失败，不能算作完整可读。
+
+现在 Help 的静态说明按完整单词和 FTXUI terminal cell width 换行，
+同一 `help_content()` 同时供渲染与滚动范围计算，不保存另一份行数或滚动状态。
+Help 与 Copy 的视口只沿纵向 frame，标题与操作提示固定，正文可用 j/k 阅读。
+Copy 原有按 glyph 换行和消息字节处理不变；没有更换依赖或自造 Unicode 解析器。
+这不是 T04 的修复，也不把 ZWJ、FE0F 和宽字组合符记作已通过。
+
+- 短屏命令末尾 [before 60×24](images/experience/before-tui-help-60x24.png) /
+  [after 60×24](images/experience/after-tui-help-60x24.png)。
+- 宽屏 [before 160×45](images/experience/before-tui-help-160x45.png) /
+  [after 160×45](images/experience/after-tui-help-160x45.png)。
+- 六档真实宽度的其余原图：[60×45](images/experience/after-tui-help-60x45.png)、
+  [70×45](images/experience/after-tui-help-70x45.png)、
+  [80×45](images/experience/after-tui-help-80x45.png)、
+  [100×45](images/experience/after-tui-help-100x45.png)、
+  [120×45](images/experience/after-tui-help-120x45.png)。
+- [80×24 键盘返回顶部](images/experience/after-tui-help-returned-top.png)。
+
+自动回归包含六档宽度乘 24/45 行的 12 组真实 component 事件：
+从 Contacts 进入 Help，200 次 j 到底，在 Commands 到 Clipboard 之间检查全部 33 个完整命令，
+短屏首项确实滚出，再用 200 次 k 恢复原视口并用 Esc 返回 Contacts。
+断言保留物理换行，不能把拆开的命令名拼接后算通过；这些是既有 tui_render target 的断言，
+不是 12 个新增 CTest target。原有 Ctrl+C、Copy、Unicode、消息导航等回归保留。
+
+原生 xterm / tmux 测试覆盖 60/70/80/100/120/160×45 及 60/80×24，
+每档保存顶部、j 到底、k 返回与 Esc 返回 Chats，共 32 组 PNG、ANSI、文本。
+原图没有重排或合成；主代理和独立代理亲自检查短屏、窄长屏与宽屏，
+命令不再截断或拆词，正文、滚动条、标题与 footer 没有覆盖。
+原生输出 `/tmp/chat-quality-help-after-native-20261005`，result 为 PASS，errors 为空；
+旧 before 只有 60/80/160 三档宽度，不伪称已收集六档 before。
+测试只使用自有数据库、端口、tmux socket 和进程，结束后数据库已删除。
+
+Qt/X11 导航 4/4、TUI/tmux 导航 11/11 通过，证据分别在
+`/tmp/chat-quality-help-qt-navigation-20261005`、
+`/tmp/chat-quality-help-tui-regression-20261005`；其自有进程与成功隔离库已清理。
+完整 `tests/verify.sh`：normal 20/20（95.52 秒）、ASan 20/20（132.50 秒）、
+UBSan 20/20（124.60 秒），Qt/TUI 均启用。
+补充 Contacts 返回路径后再次重建 normal 定向断言，并完整重跑 normal 20/20（99.09 秒），
+ASan 与 UBSan 的构建已包含该最终断言。日志在 `/tmp/chat-help-verify-20261005.log`、
+`/tmp/chat-help-normal-final-20261005.log`。无编译警告、sanitizer 报告、suppression、跳过或 timeout 放宽。
+`git diff --check` PASS；验证隔离库已删除。
+Qt 暂评保持 87；TUI 暂评 78/100：14/20、13/15、7/10、8/10、9/10、9/10、9/10、3/5、2/5、4/5。
+Help 可用性改善不替代全产品评审；复合 Unicode、长身份的其余页面、消息编辑弹窗、
+完整键盘/终端/参考矩阵和最终连续两轮 fresh review 均继续保留。
+本阶段不改 Qt、server、client library、SQL 或 third，无 migration。

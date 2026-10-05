@@ -119,6 +119,37 @@ Element wrapped_text(std::string const& value, int width)
     }
     return text(output);
 }
+Element help_content(int width)
+{
+    auto wrap = [width](std::string_view value) {
+        std::string output;
+        int column = 0;
+        std::size_t start = 0;
+        while (start < value.size())
+        {
+            auto const end = value.find(' ', start);
+            auto const word = value.substr(start, end == std::string_view::npos ? value.size() - start : end - start);
+            if (!word.empty())
+            {
+                auto const cells = string_width(word);
+                if (column && column + 1 + cells > width) { output += '\n'; column = 0; }
+                else if (column) { output += ' '; ++column; }
+                output += word;
+                column += cells;
+            }
+            if (end == std::string_view::npos) { break; }
+            start = end + 1;
+        }
+        return text(output);
+    };
+    Elements rows;
+    for (auto const& shortcut : shortcuts)
+    { rows.push_back(wrap(std::string(shortcut.key) + "  " + std::string(shortcut.description))); }
+    rows.push_back(separator());
+    rows.push_back(wrap("Commands: new, chats, contacts, friend-requests, friend-sent, accept-friend, reject-friend, cancel-friend, filter, add-contact, profile, account, create-group, join, file, save, members, invite, rename, announcement, show-announcement, pinned, pin-message, unpin-message, link, link-create, link-revoke, approval, requests, avatar, avatar-clear, logout, quit"));
+    rows.push_back(wrap("Clipboard: copyable text page; select with your terminal."));
+    return vbox(std::move(rows));
+}
 Element preview_text(std::string value, int width)
 {
     // Headers and quotes are previews: embedded line breaks must not consume
@@ -459,10 +490,8 @@ Element secondary(state const& s, int width, int message_scroll)
         }
         case page::help:
             title = "Keyboard help";
-            for (auto const& shortcut : shortcuts) { rows.push_back(text(std::string(shortcut.key) + "  " + std::string(shortcut.description))); }
-            rows.push_back(separator());
-            rows.push_back(paragraph("Commands: new, chats, contacts, friend-requests, friend-sent, accept-friend, reject-friend, cancel-friend, filter, add-contact, profile, account, create-group, join, file, save, members, invite, rename, announcement, show-announcement, pinned, pin-message, unpin-message, link, link-create, link-revoke, approval, requests, avatar, avatar-clear, logout, quit"));
-            rows.push_back(text("Clipboard: copyable text page; select with your terminal."));
+            hint = "j/k: scroll · Esc: back";
+            rows.push_back(help_content(width));
             break;
         case page::copy:
             title = "Copyable text";
@@ -479,7 +508,7 @@ Element secondary(state const& s, int width, int message_scroll)
         auto body = vbox(std::move(rows));
         body->ComputeRequirement();
         auto const last_line = std::max(1, body->requirement().min_y - 1);
-        body = body | focusPositionRelative(0.f, static_cast<float>(std::clamp(s.selected, 0, last_line)) / last_line) | vscroll_indicator | frame | flex;
+        body = body | focusPositionRelative(0.f, static_cast<float>(std::clamp(s.selected, 0, last_line)) / last_line) | vscroll_indicator | yframe | flex;
         panel.push_back(body);
     }
     else { panel.push_back(scroll(std::move(rows))); }
@@ -523,10 +552,9 @@ std::size_t selection_count(state const& s, int width)
         case page::requests: return s.requests.size();
         case page::search: return s.search_results.size();
         case page::new_action: case page::profile: case page::group: return actions(s).size();
-        case page::help: return shortcuts.size() + 5;
-        case page::copy:
+        case page::help: case page::copy:
         {
-            auto body = wrapped_text(s.copy_text, width);
+            auto body = s.view == page::help ? help_content(width) : wrapped_text(s.copy_text, width);
             body->ComputeRequirement();
             return static_cast<std::size_t>(std::max(1, body->requirement().min_y));
         }

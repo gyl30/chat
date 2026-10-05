@@ -964,3 +964,19 @@ server、client library、TUI、SQL 和依赖不变，无 migration。
 Help 横向截断在独立真实终端复现；与复合 Unicode 和剩余矩阵继续处理。
 Qt 暂评 87、TUI 77，尚未进入最终连续两轮 fresh review。
 原图、驱动失败根因及覆盖边界见 [体验品质审查](experience-quality.md)。
+
+## 体验品质审查：终端 Help 完整阅读
+
+Help 静态说明按完整单词换行，同一内容生成同时用于渲染和实际滚动范围；
+Help/Copy 使用纵向视口，不再让未约束的命令段落横向裁掉。
+Copy 的原文本/Unicode 换行不变，不把此项算作复合字符问题的解决。
+六档宽度乘两档高度的公共键盘事件回归验证完整 33 命令、j/k 到底回顶和 Esc 返回 Contacts。
+真实 xterm/tmux 八组尺寸完成 32 组 PNG/ANSI，验证返回 Chats；
+主代理和独立代理亲看原图，专项 T05 收口，不代表最终全面 fresh review。
+
+Qt/X11 导航 4/4、TUI/tmux 导航 11/11；完整验证 normal、ASan、UBSan 各 20/20。
+最终 normal 重跑为 99.09 秒，ASan 132.50 秒、UBSan 124.60 秒，Qt/TUI 均启用。
+无 sanitizer 报告、编译警告、跳过或 timeout 放宽，自有成功隔离库与进程已清理。
+`git diff --check` PASS，Qt/server/client/SQL/third 不变，无 migration。
+Qt 暂评 87、TUI 78；复合 Unicode 与剩余页面、键盘、终端、参考矩阵继续处理。
+原图、覆盖边界和后续工作见 [体验品质审查](experience-quality.md)。
