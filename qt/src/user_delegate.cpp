@@ -22,8 +22,9 @@ bool user_delegate::editorEvent(QEvent* event, QAbstractItemModel* model,
     auto* mouse = static_cast<QMouseEvent*>(event);
     QRect avatar_rect(option.rect.left() + chat_theme::dialog_left, option.rect.top() + chat_theme::dialog_avatar_top,
                       chat_theme::dialog_avatar_size, chat_theme::dialog_avatar_size);
-    if (mouse->button() != Qt::LeftButton || !avatar_rect.contains(mouse->pos())) { return false; }
-    emit avatar_clicked(index);
+    if (mouse->button() != Qt::LeftButton) { return false; }
+    if (avatar_rect.contains(mouse->pos())) { emit avatar_clicked(index); }
+    else { emit body_clicked(index); }
     return true;
 }
 

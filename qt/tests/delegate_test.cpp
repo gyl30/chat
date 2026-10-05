@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include <QApplication>
+#include <QBuffer>
 #include <QFontMetrics>
 #include <QImage>
 #include <QMouseEvent>
@@ -18,10 +19,56 @@
 #include "message_model.hpp"
 #include "theme.hpp"
 #include "message_images.hpp"
+#include "icons.hpp"
 
 int main(int argc, char** argv)
 {
     QApplication app(argc, argv);
+    auto const chat_icon = svg_icon(QStringLiteral("chat"), QColor(QStringLiteral("#315A4B")));
+    for (qreal ratio : {1.0, 1.25, 1.5, 2.0})
+    {
+        auto const pixels = chat_icon.pixmap(QSize(20, 20), ratio);
+        if (pixels.width() < qRound(20 * ratio) || pixels.height() < qRound(20 * ratio) ||
+            pixels.deviceIndependentSize() != QSizeF(20, 20))
+        {
+            std::cerr << "FAIL SVG icon retains its pixel density at " << ratio << "x: "
+                      << pixels.width() << " pixels at " << pixels.devicePixelRatio() << "x\n";
+            return 1;
+        }
+    }
+    auto const initial_icon = avatar_icon(QStringLiteral("张三"), 64);
+    for (qreal ratio : {1.0, 1.25, 1.5, 2.0})
+    {
+        auto const pixels = initial_icon.pixmap(QSize(64, 64), ratio);
+        if (pixels.width() < qRound(64 * ratio) || pixels.height() < qRound(64 * ratio) ||
+            pixels.deviceIndependentSize() != QSizeF(64, 64) || pixels.toImage().pixelColor(0, 0).alpha() != 0)
+        {
+            std::cerr << "FAIL circular fallback avatar retains its pixel density at " << ratio << "x\n";
+            return 1;
+        }
+    }
+    for (int width : {208, 416})
+    {
+        QImage photo(width, 208, QImage::Format_RGB32);
+        for (int y = 0; y < photo.height(); ++y)
+        {
+            for (int x = 0; x < photo.width(); ++x) { photo.setPixelColor(x, y, x % 2 ? Qt::white : Qt::black); }
+        }
+        QByteArray bytes;
+        QBuffer buffer(&bytes);
+        buffer.open(QIODevice::WriteOnly);
+        if (!photo.save(&buffer, "PNG")) { return 1; }
+        avatar_cache profile_photo;
+        profile_photo.observe(7, {1, true});
+        profile_photo.receive(7, {1, true}, bytes);
+        auto const pixels = avatar_icon("photo", 104, profile_photo.image(7)).pixmap(QSize(104, 104), 2.0).toImage();
+        if (pixels.size() != QSize(208, 208) || pixels.pixelColor(64, 104) != Qt::black ||
+            pixels.pixelColor(65, 104) != Qt::white)
+        {
+            std::cerr << "FAIL profile photo retains source detail at 200%\n";
+            return 1;
+        }
+    }
     avatar_cache avatars;
     int downloads = 0;
     QObject::connect(&avatars, &avatar_cache::requested, &avatars, [&](qint64, qint64) { ++downloads; });

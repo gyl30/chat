@@ -319,9 +319,6 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
         list->setMouseTracking(true);
         list->installEventFilter(this);
         list->viewport()->installEventFilter(this);
-        connect(delegate, &user_delegate::avatar_clicked, this, [list, open_request](QModelIndex const& index) {
-            open_request(list->item(index.row()));
-        });
     }
     conversation_layout->addWidget(sidebar_pages_, 1);
 
@@ -721,18 +718,14 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     });
     connect(add_contact_button_, &QToolButton::clicked, this, [this] { show_add_contact_section(); });
     connect(contact_search_, &QLineEdit::textChanged, this, [this](QString const& query) { filter_contacts(query); });
-    connect(contacts_view_, &QListView::clicked, this, [this](QModelIndex const& index) { select_contact(index); });
+    connect(contacts_delegate, &user_delegate::body_clicked, this, [this](QModelIndex const& index) { select_contact(index); });
     connect(contacts_delegate, &user_delegate::avatar_clicked, this, [this](QModelIndex index) {
         auto const* user = contacts_->user_at(contacts_filter_->mapToSource(index));
         if (user) { show_user_details(user->id, user->username); }
     });
-    connect(add_users_delegate, &user_delegate::avatar_clicked, this, [this](QModelIndex index) {
-        auto const* user = add_users_->user_at(index);
-        if (user) { show_user_details(user->id, user->username); }
-    });
     connect(add_user_search_, &QLineEdit::returnPressed, this, [this] { search_users(); });
     connect(add_users_view_, &QListView::clicked, this, [this](QModelIndex const& index) { select_add_user(index); });
-    connect(conversations_view_, &QListView::clicked, this, [this](QModelIndex const& index) { select_conversation(index); });
+    connect(conversations_delegate, &conversation_delegate::body_clicked, this, [this](QModelIndex const& index) { select_conversation(index); });
     connect(conversations_view_, &QWidget::customContextMenuRequested, this, [this](QPoint point) {
         auto const* item = conversations_->conversation_at(conversations_view_->indexAt(point));
         if (!connection_available_ || !item) { return; }

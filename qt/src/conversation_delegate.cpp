@@ -188,11 +188,7 @@ bool conversation_delegate::editorEvent(QEvent* event, QAbstractItemModel* model
     QRect avatar_rect(option.rect.left() + chat_theme::dialog_left,
                       option.rect.top() + chat_theme::dialog_avatar_top,
                       chat_theme::dialog_avatar_size, chat_theme::dialog_avatar_size);
-    if (!avatar_rect.contains(mouse->position().toPoint()))
-    {
-        return false;
-    }
-
-    emit avatar_clicked(index);
+    if (avatar_rect.contains(mouse->position().toPoint())) { emit avatar_clicked(index); }
+    else { emit body_clicked(index); }
     return true;
 }

@@ -121,6 +121,8 @@ QQ 材料来自[官方下载页](https://im.qq.com/download)和
 | Q06 | P1 | Qt 切换会话时沿用同一输入框文字，草稿可能带到另一接收方 | 已修复并通过完整验证 |
 | Q07 | P1 | Qt 提交请求即清空草稿，服务端拒绝或断线时丢失尚未确认的正文 | 已修复并通过完整验证 |
 | Q08 | P2 | Qt composer 按字体指标估算行高，中文多行恢复后发生不必要滚动并遮住前行 | 已修复并通过完整验证 |
+| Q09 | P2 | 200% 下预渲染首字头像、真实头像和 SVG 图标密度不足，边缘锯齿或细节模糊 | 第九轮修复并通过完整验证及四档真实截图 |
+| Q10 | P2 | 点击部分头像会连续打开两次资料，或关闭资料后继续打开原行聊天 | 第九轮实际鼠标事件回归修复并通过完整验证 |
 
 键盘打开列表、Qt 多行编辑、长公告、长 username、dialog 滚动、selection/focus、
 terminal light/dark、combining、SSH 和 suspend/restore 仍需进一步实际核验。
@@ -456,3 +458,64 @@ TUI 暂评 74/100：13/20、12/15、7/10、8/10、9/10、8/10、8/10、3/5、2/5
 Qt 保持 78/100。五处空态已修复，标题与操作层级的明确剪裁问题已修复；
 长身份摘要、其他资料与弹窗、图标 HiDPI、完整参考证据、浅色/色深/终端字体矩阵
 及最终连续两轮 fresh review 仍需继续，不把局部通过记为整个 Goal 完成。
+
+
+## 第九轮修复：头像密度与资料点击
+
+本阶段从 `a60c78b41e110b3e1ab3da50399d9342e369dddc` 开始。
+两个真实 Qt 客户端在 100%、125%、150%、200% 下查看百人群概览、成员资料和自己的账号。
+200% 原图确认预渲染首字头像与 SVG 图标锯齿，真实头像因 128 像素缓存丢失细节；
+原有 delegate 直接绘制的 fallback 不需要改动。
+
+头像及 SVG 各保留一个 DPR=2 的资源，由 Qt 按目标尺寸缩小，不引入多版本管理或自定义 icon engine。
+真实头像缓存先按原有圆形绘制语义取中央方形，再缩至 208×208，
+满足最大 104 逻辑像素头像在 200% 下的密度。
+不是上传裁剪器；原始头像、传输、revision、重复下载和重连规则不变。
+每个已缓存头像约 169 KiB RGBA，100 个约 16.5 MiB；不保留原图和多档位缓存。
+
+依据 [Qt QIcon](https://doc.qt.io/qt-6/qicon.html) 和
+[QPixmap DPR](https://doc.qt.io/qt-6/qpixmap.html#setDevicePixelRatio)，
+测试检查足够的物理密度与不变的逻辑尺寸，不错误要求返回 DPR 必须等于请求 DPR。
+本项目 Qt 6.2.4 的
+[实际选择实现](https://raw.githubusercontent.com/qt/qtbase/v6.2.4/src/gui/image/qicon.cpp)
+也说明为什么同时提供 1x/2x 会在 125% 选择密度不足的 1x；最终只保留一份 2x 资源。
+公共绘制/缓存测试逐项确认 RED 后 GREEN；宽幅图片同时覆盖中心裁切后的细节。
+
+真实点击还发现：群概览、收到/发出的申请、搜索头像绑定了两条打开资料路径；
+关闭第一次资料会再次弹出。联系人与会话头像关闭后，还会继续执行原行聊天动作。
+移除重复的整行/头像绑定；需要两个不同动作的联系人和会话，由现有 delegate 的命中区域
+分别发出头像与正文事件。没有增加 dialog-open、busy、generation 等状态。
+组件测试使用实际 viewport 的按下/释放，验证一次资料、关闭后不打开聊天、正文仍单击打开聊天；
+集成测试也改用真实鼠标事件，保留好友确认、群权限、历史与生命周期断言。
+
+原始截图仅截取实际 X11 窗口，没有重排或修饰：
+
+- 200% 真实头像 [before](images/experience/before-qt-profile-hidpi-200.png) /
+  [after](images/experience/after-qt-profile-hidpi-200.png)。
+- 200% 首字头像 [before](images/experience/before-qt-account-hidpi-200.png) /
+  [after](images/experience/after-qt-account-hidpi-200.png)。
+- 200% 群概览 [before](images/experience/before-qt-group-hidpi-200.png) /
+  [after](images/experience/after-qt-group-hidpi-200.png)。
+- 真实资料 [100%](images/experience/after-qt-profile-hidpi-100.png)、
+  [125%](images/experience/after-qt-profile-hidpi-125.png)、
+  [150%](images/experience/after-qt-profile-hidpi-150.png)。
+- 自己的账号 [125%](images/experience/after-qt-account-hidpi-125.png)、
+  [150%](images/experience/after-qt-account-hidpi-150.png) 与
+  [200% 主窗口](images/experience/after-qt-main-hidpi-200.png)。
+
+本阶段四档原生流程通过，完成加载后查看资料并关闭，确认没有再次弹窗；
+原有 Qt/X11 导航 4/4、未修改 TUI 的 tmux 导航 11/11 通过。
+证据在 `/tmp/chat-quality-hidpi-avatar-after-qt-20261005`、
+`/tmp/chat-quality-avatar-nav-after-qt-20261005`、`/tmp/chat-quality-avatar-tui-regression-20261005`。
+此前失败采集既有驱动 readiness/焦点假设问题，也真实暴露了重复资料交互；
+没有把失败的部分结果记作 PASS。所有本阶段自有进程和隔离数据库已清理。
+本机缺少 at-spi bus 和两个 GTK 模块，原生日志如实保留；不是编译警告，也不代表无障碍已经完整验收。
+
+最终完整 `tests/verify.sh`：normal 20/20（93.23 秒）、ASan 20/20（131.17 秒）、
+UBSan 20/20（123.32 秒），Qt/TUI 均启用，无编译警告、suppression、跳过或 timeout 放宽。
+`git diff --check` PASS。
+Qt 暂评 80/100：15/20、12/15、7/10、9/10、9/10、8/10、9/10、3/5、4/5、4/5；
+TUI 保持 74/100。
+截图仍显示资料身份重复、操作权重接近；其他弹窗与资料整体语言还需继续真实评审。
+长身份摘要、完整参考、终端字体/色深/浅色矩阵和连续两轮 fresh review 仍未完成。
+本阶段不改 server、client library、SQL 或依赖，无 migration。

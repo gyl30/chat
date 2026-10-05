@@ -16,6 +16,7 @@ class user_delegate final : public QStyledItemDelegate
 
    signals:
     void avatar_clicked(QModelIndex index);
+    void body_clicked(QModelIndex index);
 };
 
 #endif

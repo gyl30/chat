@@ -76,6 +76,36 @@ template <class T, class F> T rpc(F f)
     check(r.has_value(), "RPC failed");
     return std::move(*r);
 }
+void check_profile_avatar_click(QAbstractItemView* list, QPoint point)
+{
+    int opened_profiles = 0;
+    QTimer close_profile;
+    QObject::connect(&close_profile, &QTimer::timeout, list, [&] {
+        auto* profile = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+        if (profile && profile->objectName() == "profileDialog")
+        {
+            ++opened_profiles;
+            profile->reject();
+        }
+    });
+    close_profile.start(0);
+    QMouseEvent press(QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent release(QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(list->viewport(), &press);
+    QApplication::sendEvent(list->viewport(), &release);
+    close_profile.stop();
+    check(opened_profiles == 1, "One avatar click opens one profile rather than reopening after close");
+}
+void click_list_body(QAbstractItemView* list, QModelIndex index)
+{
+    list->scrollTo(index);
+    QApplication::processEvents();
+    auto const point = list->visualRect(index).center();
+    QMouseEvent press(QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent release(QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(list->viewport(), &press);
+    QApplication::sendEvent(list->viewport(), &release);
+}
 void check_authentication_layout()
 {
     main_window window(QStringLiteral("ws://127.0.0.1:18769/ws"));
@@ -177,6 +207,11 @@ void check_friend_request_layout()
     auto const request_avatar = incoming->viewport()->grab().toImage();
     check(request_avatar.pixelColor(20, incoming->visualItemRect(incoming->item(0)).center().y()) == avatar_color,
           "A downloaded request avatar refreshes the visible row without reloading requests");
+    for (auto* list : {incoming, outgoing})
+    {
+        auto const point = QPoint(20, list->visualItemRect(list->item(0)).center().y());
+        check_profile_avatar_click(list, point);
+    }
     QList<user_data> many;
     for (int row = 0; row < 80; ++row)
     { many.push_back({300 + row, QStringLiteral("申请 用户😀") + QString::number(row), false, 0, {}}); }
@@ -273,6 +308,18 @@ void check_group_detail_layout()
     auto const image = preview->viewport()->grab().toImage();
     check(image.pixelColor(20, preview->visualItemRect(preview->item(2)).center().y()) == color,
           "A downloaded member avatar refreshes the visible group overview without reopening it");
+    int profile_requests = 0;
+    auto profile_connection = QObject::connect(&dialog, &group_dialog::user_requested, &dialog, [&](qint64 user, QString const&) {
+        check(user == 3, "Overview avatar opens the clicked member");
+        ++profile_requests;
+    });
+    auto const avatar_point = QPoint(20, preview->visualItemRect(preview->item(2)).center().y());
+    QMouseEvent press(QEvent::MouseButtonPress, avatar_point, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent release(QEvent::MouseButtonRelease, avatar_point, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(preview->viewport(), &press);
+    QApplication::sendEvent(preview->viewport(), &release);
+    check(profile_requests == 1, "One overview avatar click opens one profile rather than two sequential dialogs");
+    QObject::disconnect(profile_connection);
     auto* tabs = dialog.findChild<QTabWidget*>("groupTabs");
     tabs->setCurrentIndex(3);
     dialog.resize(420, 480);
@@ -401,6 +448,13 @@ void check_primary_navigation()
     check(std::any_of(searches.begin(), searches.end(), [](auto* field) {
         return field->isVisible() && field->placeholderText() == QStringLiteral("搜索用户");
     }), "Header add friend opens existing search");
+    page.set_add_contact_search_results({{600, QStringLiteral("搜索 用户"), false, 0, {}}});
+    QApplication::processEvents();
+    auto search_lists = page.findChildren<QListView*>("userList");
+    auto search_list = std::find_if(search_lists.begin(), search_lists.end(), [](auto* list) { return list->isVisible(); });
+    check(search_list != search_lists.end(), "User search results are visible before clicking their avatar");
+    auto const search_row = (*search_list)->visualRect((*search_list)->model()->index(0, 0));
+    check_profile_avatar_click(*search_list, QPoint(20, search_row.center().y()));
     auto* back = page.findChild<QToolButton*>("sidebarHeaderButton");
     auto* chats = *std::find_if(buttons.begin(), buttons.end(), [](auto* button) { return button->text() == QStringLiteral("聊天"); });
     check(chats->objectName() == "navigationSelected", "Add friend from Chats preserves primary ownership");
@@ -456,6 +510,39 @@ void check_primary_navigation()
     }
     page.set_contacts({{10, QStringLiteral("Alice Bob"), false, 0, {}}, {11, QStringLiteral("张 三"), false, 0, {}},
                        {12, QStringLiteral("a.b"), false, 0, {}}, {13, QStringLiteral("Älice"), false, 0, {}}});
+    QApplication::processEvents();
+    int direct_requests = 0;
+    auto direct_connection = QObject::connect(&page, &chat_widget::direct_conversation_requested, &page,
+        [&](qint64, QString) { ++direct_requests; });
+    auto const contact_row = contact_view->visualRect(contact_view->model()->index(0, 0));
+    check_profile_avatar_click(contact_view, QPoint(20, contact_row.center().y()));
+    check(direct_requests == 0, "Opening a contact avatar profile does not also open its chat after close");
+    QMouseEvent contact_press(QEvent::MouseButtonPress, QPoint(80, contact_row.center().y()), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent contact_release(QEvent::MouseButtonRelease, QPoint(80, contact_row.center().y()), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(contact_view->viewport(), &contact_press);
+    QApplication::sendEvent(contact_view->viewport(), &contact_release);
+    QObject::disconnect(direct_connection);
+    check(direct_requests == 1, "A contact row body still opens its chat with one click");
+    conversation_data direct;
+    direct.id = 91; direct.user = 10; direct.username = QStringLiteral("Alice Bob");
+    auto other = direct;
+    other.id = 92; other.user = 11; other.username = QStringLiteral("张 三");
+    page.set_conversations({direct, other});
+    chats->click();
+    QApplication::processEvents();
+    auto* conversations = page.findChild<QListView*>("conversationList");
+    click_list_body(conversations, conversations->model()->index(0, 0));
+    int chat_opens = 0;
+    auto chat_connection = QObject::connect(&page, &chat_widget::conversation_selected, &page,
+        [&](qint64, bool) { ++chat_opens; });
+    auto const conversation_row = conversations->visualRect(conversations->model()->index(1, 0));
+    check_profile_avatar_click(conversations, QPoint(20, conversation_row.center().y()));
+    check(chat_opens == 0, "Opening a direct conversation avatar profile does not also select its chat after close");
+    click_list_body(conversations, conversations->model()->index(1, 0));
+    QObject::disconnect(chat_connection);
+    check(chat_opens == 1, "A direct conversation row body still selects its chat with one click");
+    for (auto* button : buttons)
+    { if (button->text() == QStringLiteral("联系人")) { button->click(); } }
     auto* contact_search = *std::find_if(searches.begin(), searches.end(), [](auto* field) {
         return field->placeholderText() == QStringLiteral("搜索联系人");
     });
@@ -487,7 +574,7 @@ void check_primary_navigation()
     }
     contact_search->clear();
     check(contact_view->model()->rowCount() == 4, "Cleared Contacts filter restores accepted list");
-    conversation_data direct;
+    direct = {};
     direct.id = 50; direct.user = 200; direct.username = QStringLiteral("收到 申请"); direct.can_send = false;
     page.open_conversation(direct);
     auto* edit = page.findChild<QPlainTextEdit*>("messageEdit");
@@ -1059,7 +1146,7 @@ int main(int argc, char** argv)
             {
                 auto* view = windows[i]->findChild<QListView*>("conversationList");
                 wait([&] { return view->model()->rowCount() == 1; });
-                view->clicked(view->model()->index(0, 0));
+                click_list_body(view, view->model()->index(0, 0));
                 wait([&] { return pages[i]->active_conversation() == group && pages[i]->messages_ready(); });
             }
             auto* edit = windows[0]->findChild<QPlainTextEdit*>("messageEdit");
@@ -1366,7 +1453,7 @@ int main(int argc, char** argv)
             auto avatar_path = avatar_files.filePath("avatar.png");
             check(avatar_files.isValid() && avatar_image.save(avatar_path), "Avatar PNG fixture");
             check(QFile(avatar_path).size() > static_cast<qint64>(chat::attachment_chunk_size), "Avatar uses multiple transport chunks");
-            auto const avatar_color = avatar_image.scaled(128, 128, Qt::KeepAspectRatio, Qt::SmoothTransformation).pixelColor(0, 0);
+            auto const avatar_color = avatar_image.scaled(208, 208, Qt::KeepAspectRatio, Qt::SmoothTransformation).pixelColor(0, 0);
             auto avatar_update = [&](QString const& path, bool remove, bool close_early = false) {
                 bool finished = false;
                 QTimer update_poll;
@@ -1610,15 +1697,23 @@ int main(int argc, char** argv)
             wait([&] { return search_view->model()->rowCount() == 1; });
             auto* search_delegate = qobject_cast<user_delegate*>(search_view->itemDelegate());
             check(search_delegate, "Search avatar profile delegate");
-            QTimer::singleShot(30, windows[2].get(), [&] { inspect_noncontact_profile(names[1], true); });
+            bool search_profile_opened = false;
+            QTimer::singleShot(30, windows[2].get(), [&] {
+                inspect_noncontact_profile(names[1], true);
+                search_profile_opened = true;
+            });
+            search_view->scrollTo(search_view->model()->index(0, 0));
+            QApplication::processEvents();
             QStyleOptionViewItem search_option;
             search_option.rect = search_view->visualRect(search_view->model()->index(0, 0));
             QMouseEvent avatar_click(QEvent::MouseButtonRelease,
                 QPointF(search_option.rect.left() + chat_theme::dialog_left + 4,
                         search_option.rect.top() + chat_theme::dialog_avatar_top + 4),
                 Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
-            check(search_delegate->editorEvent(&avatar_click, search_view->model(), search_option,
-                search_view->model()->index(0, 0)), "Search result avatar opens public profile");
+            QMouseEvent avatar_press(QEvent::MouseButtonPress, avatar_click.position(), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+            QApplication::sendEvent(search_view->viewport(), &avatar_press);
+            check(QApplication::sendEvent(search_view->viewport(), &avatar_click), "Search result avatar opens public profile");
+            check(search_profile_opened, "A real search avatar click completes the profile and friendship action flow");
             search_input->clear();
             search_input->returnPressed();
             check(search_view->model()->rowCount() == 0, "Clear previous user search results");
@@ -1631,11 +1726,12 @@ int main(int argc, char** argv)
                 bool message = false;
                 for (auto* button : profile->findChildren<QToolButton*>("profileActionButton"))
                 { if (button->text() == QStringLiteral("消息") && button->isEnabled()) { message = true; } }
+                check(profile->findChild<QLabel*>("profileDialogName")->text() == names[1], "Accepted search result profile identity");
                 check(message && profile->findChild<QPushButton*>("removeContactButton")->isVisible(),
                     "Accepted search result offers messaging and friend removal");
                 profile->reject();
             });
-            search_view->clicked(search_view->model()->index(0, 0));
+            click_list_body(search_view, search_view->model()->index(0, 0));
             pages[2]->contact_remove_requested(ids[1]);
             wait([&] { return third_contacts->model()->rowCount() == 0; });
             pages[0]->contact_add_requested(ids[2]);
@@ -1983,7 +2079,7 @@ int main(int argc, char** argv)
             wait([&] { return contact_view->model()->rowCount() == 2; });
             type_character(0);
             wait([&] { return group_typing->isVisible(); });
-            contact_view->clicked(contact_view->model()->index(0, 0));
+            click_list_body(contact_view, contact_view->model()->index(0, 0));
             wait([&] { return pages[0]->active_conversation() != group && pages[0]->messages_ready(); });
             wait([&] { return !group_typing->isVisible(); });
             auto const direct = pages[0]->active_conversation();
@@ -2098,7 +2194,7 @@ int main(int argc, char** argv)
                 }
                 return false;
             });
-            peer_conversations->clicked(direct_index);
+            click_list_body(peer_conversations, direct_index);
             pages[1]->contact_remove_requested(ids[0]);
             wait([&] { return avatar_contacts->model()->rowCount() == 0 && !pages[1]->conversation(direct)->can_send; });
             auto* peer_attachment_view = windows[1]->findChild<QListView*>("messageList");
@@ -2309,7 +2405,7 @@ int main(int argc, char** argv)
                     }
                     return false;
                 });
-                list->clicked(selected);
+                click_list_body(list, selected);
                 wait([&] { return pages[actor]->active_conversation() == group && pages[actor]->messages_ready(); });
             };
             select_group(0);
@@ -2913,7 +3009,7 @@ int main(int argc, char** argv)
                 }
                 return false;
             });
-            direct_list->clicked(notice_conversation);
+            click_list_body(direct_list, notice_conversation);
             wait([&] { return pages[1]->active_conversation() == direct && pages[1]->messages_ready(); });
             windows[1]->showMinimized();
             wait([&] { return windows[1]->isMinimized(); });

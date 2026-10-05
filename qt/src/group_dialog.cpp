@@ -263,10 +263,13 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
         list->setMouseTracking(true);
         list->installEventFilter(this);
         list->viewport()->installEventFilter(this);
-        connect(delegate, &user_delegate::avatar_clicked, this, [this, list](QModelIndex const& index) {
-            auto* item = list->item(index.row());
-            emit user_requested(item->data(Qt::UserRole).toLongLong(), item->text());
-        });
+        if (list != preview_)
+        {
+            connect(delegate, &user_delegate::avatar_clicked, this, [this, list](QModelIndex const& index) {
+                auto* item = list->item(index.row());
+                emit user_requested(item->data(Qt::UserRole).toLongLong(), item->text());
+            });
+        }
     }
     list_->setAccessibleName(QStringLiteral("群成员"));
     preview_->setAccessibleName(QStringLiteral("群成员预览"));

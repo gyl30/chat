@@ -872,3 +872,23 @@ server、client library、SQL 和依赖未修改；证据及其余品质任务�
 完整 `tests/verify.sh`：normal 20/20（97.76 s）、ASan 20/20（132.49 s）、UBSan 20/20（122.70 s）。
 无编译警告、suppression、跳过或 timeout 放宽，`git diff --check` PASS。
 证据、评分及仍未完成的品质任务见 [体验品质审查](experience-quality.md)。
+
+
+## 体验品质审查：头像绘制与资料交互
+
+Qt 头像与 SVG 各使用一个 DPR=2 资源，保留逻辑尺寸，覆盖 100/125/150/200% 缩放。
+真实头像缓存保留原有中心圆形显示语义，解码一次后缩至 208×208，满足最大 104 逻辑像素头像。
+不引入多尺寸缓存或 icon engine；revision、传输、权限与生命周期规则不变。
+
+移除群概览、好友申请和搜索头像的重复资料绑定。
+联系人与会话由现有 delegate 区分头像/正文点击，关闭头像资料不会继续打开原行聊天；
+正文仍单击进入聊天。没有新增 opened/busy/generation 状态。
+既有公共绘制/缓存和实际 viewport 鼠标事件回归先 RED 后 GREEN，集成测试保留原业务断言。
+
+真实双 Qt 四档缩放、加载后的群/用户/自己资料和一次点击关闭验证通过；
+原有 Qt/X11 导航 4/4、TUI/tmux 导航 11/11 通过。
+完整 `tests/verify.sh`：normal 20/20（93.23 s）、ASan 20/20（131.17 s）、UBSan 20/20（123.32 s）。
+无编译警告、suppression、跳过或 timeout 放宽，`git diff --check` PASS。
+本机原生日志保留缺失 at-spi bus/GTK 模块提示，无障碍未据此记为完整验收。
+server、client library、SQL 和依赖不变，无 migration。
+截图、自评及仍未完成的资料整体层级和品质任务见 [体验品质审查](experience-quality.md)。

@@ -22,7 +22,8 @@ QIcon svg_icon(QStringView name, QColor const& color, QSize size)
         return {};
     }
 
-    QPixmap pixmap(size);
+    QPixmap pixmap(size * 2);
+    pixmap.setDevicePixelRatio(2);
     pixmap.fill(Qt::transparent);
     QPainter painter(&pixmap);
     renderer.render(&painter, QRectF(QPointF(0, 0), QSizeF(size)));

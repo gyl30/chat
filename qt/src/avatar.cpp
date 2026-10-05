@@ -59,10 +59,11 @@ void paint_avatar(QPainter& painter, QRect const& rect, QString const& username,
 
 QIcon avatar_icon(QString const& username, int size, QPixmap const& image)
 {
-    QPixmap pixmap(size, size);
+    QPixmap pixmap(size * 2, size * 2);
+    pixmap.setDevicePixelRatio(2);
     pixmap.fill(Qt::transparent);
     QPainter painter(&pixmap);
-    paint_avatar(painter, pixmap.rect(), username, 0, image);
+    paint_avatar(painter, QRect(0, 0, size, size), username, 0, image);
     return QIcon(pixmap);
 }
 
@@ -127,7 +128,10 @@ void avatar_cache::receive(qint64 user, chat::avatar_state state, QByteArray con
     auto const image = decode_avatar(bytes);
     if (!image.isNull())
     {
-        entries_[user].image = QPixmap::fromImage(image.scaled(128, 128, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        // The largest avatar is 104 logical pixels at 200% scaling.
+        auto const side = std::min(image.width(), image.height());
+        entries_[user].image = QPixmap::fromImage(image.copy((image.width() - side) / 2, (image.height() - side) / 2, side, side)
+            .scaled(208, 208, Qt::KeepAspectRatio, Qt::SmoothTransformation));
         emit changed(user);
     }
 }

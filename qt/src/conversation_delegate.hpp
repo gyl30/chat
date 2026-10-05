@@ -17,6 +17,7 @@ class conversation_delegate final : public QStyledItemDelegate
 
    signals:
     void avatar_clicked(QModelIndex const& index);
+    void body_clicked(QModelIndex const& index);
 };
 
 #endif
