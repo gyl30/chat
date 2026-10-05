@@ -1,8 +1,10 @@
 #include "attachment_dialog.hpp"
+#include "theme.hpp"
 #include <utility>
 
 #include <QBuffer>
 #include <QDialogButtonBox>
+#include <QEvent>
 #include <QFileDialog>
 #include <QImageReader>
 #include <QLabel>
@@ -14,12 +16,16 @@
 
 attachment_dialog::attachment_dialog(qint64 conversation, qint64 message, QString filename, bool preview, QWidget* parent,
                                      QPixmap image)
-    : QDialog(parent), conversation_(conversation), message_(message), filename_(std::move(filename)), preview_(preview)
+    : QDialog(parent), conversation_(conversation), message_(message), filename_(std::move(filename)), preview_(preview),
+      preview_image_(std::move(image))
 {
     setObjectName(QStringLiteral("attachmentDialog"));
     setWindowTitle(filename_);
     resize(preview ? QSize(700, 600) : QSize(500, 180));
     auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding,
+                              chat_theme::dialog_padding, chat_theme::dialog_padding);
+    layout->setSpacing(chat_theme::dialog_spacing);
     status_ = new QLabel(QStringLiteral("正在下载 %1…").arg(filename_), this);
     status_->setObjectName(QStringLiteral("attachmentStatus"));
     status_->setTextFormat(Qt::PlainText);
@@ -28,14 +34,18 @@ attachment_dialog::attachment_dialog(qint64 conversation, qint64 message, QStrin
     image_ = new QLabel(this);
     image_->setObjectName(QStringLiteral("attachmentImage"));
     image_->setAlignment(Qt::AlignCenter);
-    image_->setPixmap(std::move(image));
+    image_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+    image_->installEventFilter(this);
+    image_->setPixmap(preview_image_);
     image_->hide();
     layout->addWidget(image_, 1);
     save_button_ = new QPushButton(QStringLiteral("保存文件"), this);
     save_button_->setObjectName(QStringLiteral("saveAttachmentButton"));
     save_button_->setEnabled(false);
-    layout->addWidget(save_button_);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
+    buttons->addButton(save_button_, QDialogButtonBox::ActionRole);
+    buttons->button(QDialogButtonBox::Close)->setText(QStringLiteral("关闭"));
+    buttons->button(QDialogButtonBox::Close)->setIcon({});
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(save_button_, &QPushButton::clicked, this, [this] {
@@ -53,6 +63,16 @@ attachment_dialog::attachment_dialog(qint64 conversation, qint64 message, QStrin
         }
         status_->setText(QStringLiteral("已保存到 %1").arg(path));
     });
+}
+
+bool attachment_dialog::eventFilter(QObject* watched, QEvent* event)
+{
+    if (watched == image_ && event->type() == QEvent::Resize && !preview_image_.isNull())
+    {
+        image_->setPixmap(preview_image_.scaled(preview_image_.size().boundedTo(image_->size()),
+                                               Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    }
+    return QDialog::eventFilter(watched, event);
 }
 
 void attachment_dialog::set_data(qint64 conversation, qint64 message, QByteArray data, QString const& error_message)
@@ -73,7 +93,7 @@ void attachment_dialog::set_data(qint64 conversation, qint64 message, QByteArray
     {
         return;
     }
-    if (!image_->pixmap().isNull()) { image_->show(); return; }
+    if (!preview_image_.isNull()) { image_->show(); return; }
     QBuffer buffer(&data_);
     buffer.open(QIODevice::ReadOnly);
     QImageReader::setAllocationLimit(64);
@@ -92,6 +112,8 @@ void attachment_dialog::set_data(qint64 conversation, qint64 message, QByteArray
         status_->setText(QStringLiteral("图片无法预览；可以保存原文件。"));
         return;
     }
-    image_->setPixmap(QPixmap::fromImage(image));
+    preview_image_ = QPixmap::fromImage(image);
+    image_->setPixmap(preview_image_.scaled(preview_image_.size().boundedTo(image_->size()),
+                                           Qt::KeepAspectRatio, Qt::SmoothTransformation));
     image_->show();
 }

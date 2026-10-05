@@ -1,5 +1,6 @@
 #include "message_search_dialog.hpp"
 #include "avatar.hpp"
+#include "theme.hpp"
 
 #include <QClipboard>
 #include <QDialogButtonBox>
@@ -24,7 +25,11 @@ message_search_dialog::message_search_dialog(qint64 conversation, qint64 self_us
     setWindowTitle(title + QStringLiteral(" · 搜索消息"));
     resize(700, 600);
     auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding,
+                              chat_theme::dialog_padding, chat_theme::dialog_padding);
+    layout->setSpacing(chat_theme::dialog_spacing);
     auto* search_row = new QHBoxLayout;
+    search_row->setSpacing(chat_theme::dialog_spacing);
     input_ = new QLineEdit(this);
     input_->setObjectName(QStringLiteral("messageSearchEdit"));
     input_->setPlaceholderText(QStringLiteral("输入当前会话的关键词"));
@@ -32,11 +37,13 @@ message_search_dialog::message_search_dialog(qint64 conversation, qint64 self_us
     search_button_ = new QPushButton(QStringLiteral("搜索"), this);
     search_button_->setObjectName(QStringLiteral("searchMessagesButton"));
     search_button_->setAutoDefault(false);
+    search_button_->setDefault(true);
     search_row->addWidget(input_, 1);
     search_row->addWidget(search_button_);
     layout->addLayout(search_row);
     status_ = new QLabel(QStringLiteral("不区分大小写；已删除的消息不出现在结果中。"), this);
     status_->setObjectName(QStringLiteral("messageSearchStatus"));
+    status_->setWordWrap(true);
     layout->addWidget(status_);
     messages_ = new message_model(this, avatars);
     messages_->set_self_user(self_user);
@@ -51,14 +58,14 @@ message_search_dialog::message_search_dialog(qint64 conversation, qint64 self_us
     layout->addWidget(results_, 1);
     more_button_ = new QPushButton(QStringLiteral("更早的结果"), this);
     more_button_->setObjectName(QStringLiteral("moreSearchResultsButton"));
-    more_button_->setAutoDefault(false);
     more_button_->setEnabled(false);
-    layout->addWidget(more_button_);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
+    buttons->addButton(more_button_, QDialogButtonBox::ActionRole);
+    buttons->button(QDialogButtonBox::Close)->setText(QStringLiteral("关闭"));
+    buttons->button(QDialogButtonBox::Close)->setIcon({});
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(search_button_, &QPushButton::clicked, this, [this] { request_search(false); });
-    connect(input_, &QLineEdit::returnPressed, this, [this] { request_search(false); });
     connect(more_button_, &QPushButton::clicked, this, [this] { request_search(true); });
     connect(input_, &QLineEdit::textChanged, this, [this] {
         more_button_->setEnabled(next_before_ > 0 && input_->text().trimmed() == query_);

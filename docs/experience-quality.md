@@ -147,6 +147,9 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q09 | P2 | 200% 下预渲染首字头像、真实头像和 SVG 图标密度不足，边缘锯齿或细节模糊 | 第九轮修复并通过完整验证及四档真实截图 |
 | Q10 | P2 | 点击部分头像会连续打开两次资料，或关闭资料后继续打开原行聊天 | 第九轮实际鼠标事件回归修复并通过完整验证 |
 | Q11 | P2 | 用户/账号资料重复显示身份，主要/复制/退出操作权重接近，按钮块和宽度偏大 | 第十轮修复并通过完整验证和真实四档缩放/导航 |
+| Q12 | P1 | 消息搜索输入框 Enter 触发默认关闭，聚焦分页也无法用 Enter 请求更早结果 | 第十二轮修复默认/自动默认按钮和键盘回归，真实四档缩放搜索通过 |
+| Q13 | P2 | 图片 QLabel 的源尺寸阻止预览缩小；强制缩窗后裁掉边缘 | 第十二轮复用解码图片等比例适配显示区域，缩小/放大及真实保存通过 |
+| Q14 | P2 | 创建/加入群和确认框仍有默认平台图标、英文按钮及不一致的操作权重 | 已采集真实四档原图；未修复，下一轮继续 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 真实 DSR 与依赖源码确认；未修复，不计 Unicode 全矩阵通过 |
 
 键盘打开列表、Qt 多行编辑、长公告、长 username、dialog 滚动、selection/focus、
@@ -651,3 +654,62 @@ UBSan 20/20（121.19 秒），Qt/TUI 均启用；无编译警告、suppression�
 TUI 暂评 77/100：14/20、12/15、7/10、8/10、9/10、9/10、9/10、3/5、2/5、4/5；
 Qt 保持 83/100。复合 emoji、其他弹窗和全键盘/终端矩阵、完整参考证据与最终两轮
 fresh review 仍未完成；本阶段通过不代表整个品质 Goal 完成。
+
+
+## 第十二轮修复：消息搜索与附件弹窗
+
+本阶段从 `c4bd20c9310de5feac77f645314bc9fb1ea2d859` 开始。
+真实 X11 搜索框按 Enter 后窗口消失，窗口树确认它已关闭。
+既有 Qt 入口先复现 RED，再将“搜索”设为主默认按钮，移除重复的 returnPressed 路径；
+保留分页和关闭的自动默认行为，使聚焦按钮仍可 Enter，返回输入框又恢复搜索。
+公共事件回归核对请求次数与 cursor，不为键盘另建 handler 或状态。
+最初分页 fixture 漏填 conversation，被既有模型正确忽略；
+修正 fixture 后重新确认原分页 Enter 行为 RED，再完成修复。
+
+原预览依赖 QLabel 固定 pixmap 大小，正常 Qt resize 被源图尺寸限制；
+原生强制缩至 420×360 后只能看到中间部分。
+现让显示 QLabel 可收缩，既有 dialog 保留解码源 QPixmap，
+数据就绪和显示区 resize 时平滑等比例缩放，不放大源图、不反复解码、paint 不做 IO。
+源 pixmap 与缓存通过 Qt 隐式共享；窗口放大仍从源图缩放，保存继续使用原始 bytes。
+没有资源管理器、多尺寸 cache 或额外生命周期标志。
+
+两类大弹窗仍为 700×600；普通附件仍为 500×180。
+复用既有 24 像素内边距和 12 像素间距，把分页/保存与关闭放入同一紧凑操作行。
+搜索/保存明确为主要操作，关闭本地化并移除平台图标；hover、focus、disabled 复用现有配色。
+消息搜索结果去掉默认列表边框，状态保持次级文字；业务和网络查询不变。
+
+原图仅截取实际 X11 窗口，无重排、装饰或合成：
+
+- 消息搜索 [before](images/experience/before-qt-message-search.png) /
+  [after](images/experience/after-qt-message-search.png)。
+- 空结果 [125%](images/experience/after-qt-message-search-empty-125.png)，
+  匹配结果 [100%](images/experience/after-qt-message-search-results.png)、
+  [150%](images/experience/after-qt-message-search-results-150.png)、
+  [200%](images/experience/after-qt-message-search-results-200.png)。
+- 图片预览 [before](images/experience/before-qt-message-preview.png) /
+  [after](images/experience/after-qt-message-preview.png)，
+  窄预览 [before](images/experience/before-qt-message-preview-small.png) /
+  [after](images/experience/after-qt-message-preview-small.png)，
+  [200%](images/experience/after-qt-message-preview-200.png)。
+- [实际保存后的状态](images/experience/after-qt-message-preview-saved.png)。
+
+before 几何采集使用本轮保存的二进制，搜索默认关闭的单行初步修复已在其中，
+其他布局和预览尚未修改；Enter 错误来自此前单独的真实失败运行和公共回归，
+不把 before 几何截图伪称为全部旧行为。
+最终两个真实 Qt 完成链接入群、双向群聊、连续 Enter 空/匹配搜索，
+四档 100/125/150/200% 与原文件保存，共保留 50 张实际窗口采集。
+这不是 50 个独立测试，也不是全部页面尺寸组合验收。
+GTK 保存框只选中了文件名主干，早期驱动留下 `.png.png` 后缀；
+实际文件 bytes 完全相同，修正全选后完整重跑通过，未改产品保存逻辑。
+原生文件选择器继续使用系统组件，没有为其另建界面。
+
+现有 Qt UI 完整定向测试通过（37.47 秒），原有 Qt/X11 导航 4/4、TUI/tmux 11/11 通过。
+最终原生证据在 `/tmp/chat-quality-dialog-final-qt-20261005`、
+`/tmp/chat-quality-message-dialog-qt-nav-20261005`、
+`/tmp/chat-quality-message-dialog-tui-regression-20261005`；自有进程和隔离数据库已清理。
+完整 `tests/verify.sh`：normal 20/20（97.29 秒）、ASan 20/20（133.72 秒）、
+UBSan 20/20（120.43 秒），Qt/TUI 均启用，无编译警告、suppression、跳过或 timeout 放宽。
+`git diff --check` PASS。
+Qt 暂评 86/100：17/20、13/15、7/10、10/10、9/10、9/10、9/10、4/5、4/5、4/5；
+TUI 保持 77/100。创建/加入群、确认框、复合 emoji 和全键盘/终端矩阵、参考缺口
+及最终连续两轮 fresh review 继续保留。本阶段不改 server、client library、TUI、SQL 或依赖，无 migration。

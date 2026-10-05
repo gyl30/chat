@@ -61,7 +61,8 @@ QString chat_style_sheet()
             color: #294B3E;
         }
         QLabel#groupOverviewCount, QLabel#groupOverviewPinned, QLabel#groupOverviewInvite,
-        QLabel#groupDetailHint, QLabel#groupJoinRequestsStatus, QLabel#groupStatus {
+        QLabel#groupDetailHint, QLabel#groupJoinRequestsStatus, QLabel#groupStatus,
+        QLabel#messageSearchStatus, QLabel#attachmentStatus {
             font-size: 13px;
             color: #5D6C64;
         }
@@ -91,13 +92,16 @@ QString chat_style_sheet()
             color: #96A29C;
             border-color: #D7DDD9;
         }
-        QDialog#groupDialog QPushButton:hover {
+        QDialog#groupDialog QPushButton:hover,
+        QDialog#messageSearchDialog QPushButton:hover, QDialog#attachmentDialog QPushButton:hover {
             background: #F0F4F1;
         }
-        QDialog#groupDialog QPushButton:pressed {
+        QDialog#groupDialog QPushButton:pressed,
+        QDialog#messageSearchDialog QPushButton:pressed, QDialog#attachmentDialog QPushButton:pressed {
             background: #E7EEE9;
         }
-        QDialog#groupDialog QPushButton:focus {
+        QDialog#groupDialog QPushButton:focus,
+        QDialog#messageSearchDialog QPushButton:focus, QDialog#attachmentDialog QPushButton:focus {
             border-color: #547C68;
         }
         QDialog#groupDialog QPushButton#groupReadAnnouncementButton,
@@ -121,24 +125,32 @@ QString chat_style_sheet()
         }
         QDialog#groupDialog QPushButton#groupRenameButton,
         QDialog#groupDialog QPushButton#groupAnnouncementButton,
-        QDialog#groupDialog QPushButton#groupAcceptRequestButton {
+        QDialog#groupDialog QPushButton#groupAcceptRequestButton,
+        QDialog#messageSearchDialog QPushButton#searchMessagesButton,
+        QDialog#attachmentDialog QPushButton#saveAttachmentButton {
             background: #315A4B;
             color: #FFFFFF;
             border: 2px solid transparent;
         }
         QDialog#groupDialog QPushButton#groupRenameButton:hover,
         QDialog#groupDialog QPushButton#groupAnnouncementButton:hover,
-        QDialog#groupDialog QPushButton#groupAcceptRequestButton:hover {
+        QDialog#groupDialog QPushButton#groupAcceptRequestButton:hover,
+        QDialog#messageSearchDialog QPushButton#searchMessagesButton:hover,
+        QDialog#attachmentDialog QPushButton#saveAttachmentButton:hover {
             background: #294D40;
         }
         QDialog#groupDialog QPushButton#groupRenameButton:focus,
         QDialog#groupDialog QPushButton#groupAnnouncementButton:focus,
-        QDialog#groupDialog QPushButton#groupAcceptRequestButton:focus {
+        QDialog#groupDialog QPushButton#groupAcceptRequestButton:focus,
+        QDialog#messageSearchDialog QPushButton#searchMessagesButton:focus,
+        QDialog#attachmentDialog QPushButton#saveAttachmentButton:focus {
             border-color: #88A697;
         }
         QDialog#groupDialog QPushButton#groupRenameButton:disabled,
         QDialog#groupDialog QPushButton#groupAnnouncementButton:disabled,
-        QDialog#groupDialog QPushButton#groupAcceptRequestButton:disabled {
+        QDialog#groupDialog QPushButton#groupAcceptRequestButton:disabled,
+        QDialog#messageSearchDialog QPushButton#searchMessagesButton:disabled,
+        QDialog#attachmentDialog QPushButton#saveAttachmentButton:disabled {
             background: #E7EEE9;
             color: #78897F;
         }
@@ -475,7 +487,7 @@ QString chat_style_sheet()
             background: #E8E4DB;
             border: 0;
         }
-        QListView#conversationList, QListView#userList, QListView#messageList,
+        QListView#conversationList, QListView#userList, QListView#messageList, QListView#messageSearchResults,
         QListWidget#incomingFriendRequests, QListWidget#outgoingFriendRequests {
             border: 0;
             outline: 0;

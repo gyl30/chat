@@ -44,6 +44,8 @@
 #include "group_dialog.hpp"
 #include "client_bridge.hpp"
 #include "message_model.hpp"
+#include "message_search_dialog.hpp"
+#include "attachment_dialog.hpp"
 #include "conversation_model.hpp"
 #include "user_delegate.hpp"
 #include "message_delegate.hpp"
@@ -664,6 +666,92 @@ void check_profile_layout()
     std::cout << "PASS Qt profile identity hierarchy\n";
 }
 
+void check_message_dialogs()
+{
+    message_search_dialog dialog(50, 1, false, QStringLiteral("朋友"), {}, nullptr);
+    dialog.setStyleSheet(chat_style_sheet());
+    QList<qint64> requested;
+    QObject::connect(&dialog, &message_search_dialog::search_requested, &dialog,
+        [&](QString query, qint64 before) {
+            check(query == QStringLiteral("中文关键词"), "Enter searches the current query");
+            requested.push_back(before);
+        });
+    dialog.show();
+    QApplication::processEvents();
+    auto* input = dialog.findChild<QLineEdit*>("messageSearchEdit");
+    input->setFocus();
+    input->setText(QStringLiteral("中文关键词"));
+    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier, "\r");
+    QApplication::sendEvent(input, &enter);
+    QApplication::processEvents();
+    check(requested == QList<qint64>{0} && dialog.isVisible() && input->hasFocus(),
+          "Enter submits exactly one search without closing the dialog or losing input focus");
+    message_data match;
+    match.id = 100;
+    match.conversation = 50;
+    match.from = 2;
+    match.username = QStringLiteral("朋友");
+    match.text = QStringLiteral("中文关键词");
+    dialog.set_results(50, QStringLiteral("中文关键词"), 0, {match}, {}, true, {});
+    auto* more = dialog.findChild<QPushButton*>("moreSearchResultsButton");
+    more->setFocus();
+    QApplication::processEvents();
+    QApplication::sendEvent(more, &enter);
+    check(requested == QList<qint64>{0, 100} && dialog.isVisible(),
+          "Enter on the focused pagination button loads earlier results without closing search");
+    input->setFocus();
+    QApplication::processEvents();
+    QApplication::sendEvent(input, &enter);
+    check(requested == QList<qint64>{0, 100, 0} && dialog.isVisible(),
+          "Returning to the query restores Enter search after paging");
+    auto* search_button = dialog.findChild<QPushButton*>("searchMessagesButton");
+    auto* earlier = dialog.findChild<QPushButton*>("moreSearchResultsButton");
+    auto* search_close = dialog.findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Close);
+    check(input->mapTo(&dialog, QPoint()).x() == 24 && input->mapTo(&dialog, QPoint()).y() == 24 &&
+          earlier->mapTo(&dialog, earlier->rect().center()).y() == search_close->mapTo(&dialog, search_close->rect().center()).y(),
+          "Search shares detail padding and keeps secondary pagination in the footer");
+    check(search_close->text() == QStringLiteral("关闭") && search_close->icon().isNull() &&
+          search_button->grab().toImage().pixelColor(search_button->width()/2, 5) == QColor(49, 90, 75),
+          "Search has one primary action and a localized secondary close without a platform icon");
+    auto* close = dialog.findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Close);
+    close->setFocus();
+    QApplication::processEvents();
+    QApplication::sendEvent(close, &enter);
+    check(!dialog.isVisible(), "The focused Close button remains usable with Enter");
+    QPixmap source(640, 360);
+    source.fill(QColor(37, 83, 68));
+    attachment_dialog preview(50, 3, QStringLiteral("图片.png"), true, nullptr, source);
+    preview.setStyleSheet(chat_style_sheet());
+    preview.set_data(50, 3, QByteArray("cached image bytes"), {});
+    preview.show();
+    QApplication::processEvents();
+    auto* image = preview.findChild<QLabel*>("attachmentImage");
+    auto* save_button = preview.findChild<QPushButton*>("saveAttachmentButton");
+    auto* preview_close = preview.findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Close);
+    auto* status = preview.findChild<QLabel*>("attachmentStatus");
+    check(status->mapTo(&preview, QPoint()).x() == 24 &&
+          save_button->mapTo(&preview, save_button->rect().center()).y() == preview_close->mapTo(&preview, preview_close->rect().center()).y() &&
+          preview_close->text() == QStringLiteral("关闭") && preview_close->icon().isNull(),
+          "Attachment uses shared padding and one compact footer for save and close");
+    check(save_button->grab().toImage().pixelColor(save_button->width()/2, 5) == QColor(49, 90, 75),
+          "Saving the original attachment is the primary dialog action");
+    for (auto size : {QSize(420, 360), QSize(700, 600), QSize(500, 440)})
+    {
+        preview.resize(size);
+        QApplication::processEvents();
+        check(preview.size() == size, "An image does not impose its source dimensions as the preview window minimum");
+        auto const pixels = image->pixmap().size();
+        check(pixels.width() <= image->width() && pixels.height() <= image->height() &&
+              std::abs(pixels.width() * 9 - pixels.height() * 16) <= 16,
+              "Resizing image preview fits the complete image while preserving its aspect ratio");
+        check(pixels.width() <= 640 && pixels.height() <= 360 &&
+              preview.findChild<QPushButton*>("saveAttachmentButton")->isEnabled(),
+              "Preview resize never enlarges the source or disables original-file saving");
+    }
+    preview.reject();
+    std::cout << "PASS Qt message dialog keyboard, footer hierarchy and responsive image preview\n";
+}
+
 void check_message_composer()
 {
     chat_widget page;
@@ -840,7 +928,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_message_composer(); check_conversation_drafts(); return 0; }
+        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_message_dialogs(); check_message_composer(); check_conversation_drafts(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
@@ -862,6 +950,7 @@ int main(int argc, char** argv)
         check_group_detail_layout();
         check_primary_navigation();
         check_profile_layout();
+        check_message_dialogs();
         check_message_composer();
         check_conversation_drafts();
         start();

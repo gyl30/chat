@@ -929,3 +929,22 @@ TUI 单行摘要复用现有 FTXUI 格宽接口保留省略号，避免宽字吃
 额外 DSR 与依赖源码确认 FTXUI 7.0.3 对复合 emoji/宽字组合符存在格宽或输出问题，
 尚未修复，不将本轮记作全部 Unicode 验收。
 原图、参考边界、评分和后续工作见 [体验品质审查](experience-quality.md)。
+
+
+## 体验品质审查：消息搜索与附件弹窗
+
+搜索采用 Qt 主默认搜索按钮，Enter 在输入框只搜索一次，聚焦分页/关闭仍执行相应动作。
+取消重复 returnPressed 路径，不增加键盘状态或 handler 框架。
+图片预览按可用区域平滑等比例缩放，不再让源图尺寸限制窗口；
+保留解码源以便缩小后重新放大，不反复解码，保存继续使用原始 bytes。
+两类弹窗复用 24/12 布局尺度，底部操作紧凑排列，明确搜索/保存与关闭的权重。
+既有 Qt UI 公共事件、cursor、geometry、显示像素回归逐项 RED 后 GREEN，旧断言保留。
+
+真实双 Qt 完成邀请链接入群、群聊、连续 Enter 搜索、图片 resize 和系统文件选择器保存。
+100/125/150/200% 完成加载后采集 50 张实际窗口；不是全部页面的尺寸排列验收。
+原有 Qt/X11 导航 4/4、TUI/tmux 导航 11/11 通过。
+完整 `tests/verify.sh`：normal 20/20（97.29 s）、ASan 20/20（133.72 s）、UBSan 20/20（120.43 s）。
+无编译警告、suppression、跳过或 timeout 放宽，`git diff --check` PASS。
+server、client library、TUI、SQL 和依赖不变，无 migration。
+创建/加入群、确认框、复合 emoji、剩余矩阵与最终两轮 fresh review 尚未完成；
+原图、失败驱动的核验与阶段评分见 [体验品质审查](experience-quality.md)。
