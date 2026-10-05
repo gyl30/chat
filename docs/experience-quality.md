@@ -1526,3 +1526,24 @@ fresh与正式Qt编译参数、ASan/UBSan真实插桩另核，不借用上一阶
 当前索引仍为1、实际ID变为10，exit1；删除后面的10控制组保持20、draft保持不变。
 证据 `/tmp/chat-search-selection-state-red.UvQcMF`。不将这项后续修复混入focus提交。
 当前没有全页面独立fresh review或屏幕阅读器验收，Qt87/TUI78不提高，整体Goal继续开放。
+
+## 当前原生无障碍登录验证
+
+2026-10-06重新检查，本机AT-SPI组件已安装；此前环境缺bus的历史记录不再作为当前
+无法测试的理由。独立新dbus-run-session、自有Xvfb和空XDG配置启动正式normal Qt，
+使用前述 `6e902246…35df72` binary，URL为未使用的本地9端口，没有登录、凭据输入、
+服务或数据库操作，不连接18080。实际AT-SPI D-Bus desktop树仅有此一个Chat应用，
+不是public QAccessible近似读回；capture实际exit0。
+
+原生XTest Tab的实际名称/角色/焦点依序为：用户名(text)、密码(password text)、
+登录(push button)、创建账号(push button)、展开或收起服务器设置(check box)。
+Space展开后服务器地址(text)为showing/focused，toggle为checked；Shift+Tab焦点返回
+toggle，实际focused lost/gained事件与树快照一致。初始showing且focusable的元素无空名称。
+隐藏stacked页面仍在树中但not showing，不把存在本身认定为缺陷。
+
+证据 `/tmp/cpp-width-primary.3934Gy/atspi-login` 保存逐stage tree、事件、activation与
+实际binary/PID信息；自有Chat按预期SIGTERM/wait=-15，专用bus/Python/Xvfb均已结束，
+不是crash。主代理读取原始metadata和独立报告。
+此项不证明Orca语音、输入密码后的隐私、label关系、动态错误announce、注册或登录后
+完整无障碍矩阵。toggle目前以check box/Checked表达，不提供Expanded，需在真实
+屏幕阅读器任务中继续评估，未因此新增状态或无依据地宣告P2。整体评分不提高。

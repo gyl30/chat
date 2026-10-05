@@ -1155,3 +1155,8 @@ SSH最终观察返回255后重核原PID已结束、实际marker及结果已落�
 新发现Q21：live编辑/删除后的搜索数量口径不清，删除占位仍被计入；T06：TUI搜索删除
 前项只clamp索引导致选中ID漂移，public state实际RED。这两项保持开放，不混入键盘绘制修复。
 Qt87/TUI78不提高，T04与完整品质Goal继续推进，未push、未修改third或长期服务。
+
+本机当前AT-SPI已可用，独立专用bus/Xvfb实际读取正式Qt登录树和原生Tab/Space焦点事件，
+capture exit0；用户名/密码/登录/注册/服务器设置及展开后的地址名称角色均可读取。
+只验证登录导航，不冒称Orca语音、错误announce或登录后全矩阵；自有进程已清理。
+详细证据和未验证边界见[体验品质审查](experience-quality.md)，旧缺bus记录仅属于历史环境。
