@@ -415,27 +415,61 @@ QString chat_style_sheet()
             font-size: 22px;
             font-weight: 600;
         }
+        QLabel#profileRelationship {
+            color: #5D6C64;
+            font-size: 13px;
+        }
         QToolButton#profileActionButton {
-            padding: 9px 8px 7px 8px;
-            background: #FFFEFA;
+            padding: 0 12px;
+            background: transparent;
             color: #315A4B;
-            border: 1px solid #DFDDD7;
-            border-radius: 12px;
+            border: 2px solid transparent;
+            border-radius: 8px;
             font-size: 13px;
             font-weight: 500;
         }
         QToolButton#profileActionButton:hover {
-            background: #F4F5F2;
-            border-color: #D5D9D4;
+            background: #F0F4F1;
         }
-        QLabel#profileInfoValue {
-            color: #315A4B;
-            font-size: 16px;
-            font-weight: 500;
+        QToolButton#profileActionButton:pressed {
+            background: #E7EEE9;
         }
-        QLabel#profileInfoLabel {
-            color: #8B918D;
-            font-size: 13px;
+        QToolButton#profileActionButton:focus {
+            border-color: #547C68;
+        }
+        QDialog#profileDialog QPushButton {
+            background: transparent;
+            border: 2px solid transparent;
+        }
+        QToolButton#profileActionButton[primary="true"], QDialog#profileDialog QPushButton#changeAvatarButton {
+            background: #315A4B;
+            color: #FFFFFF;
+            border: 2px solid transparent;
+        }
+        QToolButton#profileActionButton[primary="true"]:hover, QDialog#profileDialog QPushButton#changeAvatarButton:hover {
+            background: #294D40;
+        }
+        QToolButton#profileActionButton[primary="true"]:focus, QDialog#profileDialog QPushButton#changeAvatarButton:focus {
+            border-color: #88A697;
+        }
+        QToolButton#profileActionButton[primary="true"]:disabled, QDialog#profileDialog QPushButton#changeAvatarButton:disabled {
+            background: #E7EEE9;
+            color: #78897F;
+        }
+        QDialog#profileDialog QPushButton#profileLogoutButton, QDialog#profileDialog QPushButton#removeContactButton,
+        QDialog#profileDialog QPushButton#rejectFriendRequestButton, QDialog#profileDialog QPushButton#cancelFriendRequestButton {
+            color: #A64C48;
+        }
+        QDialog#profileDialog QPushButton:hover {
+            background: #F0F4F1;
+        }
+        QDialog#profileDialog QPushButton:focus {
+            border-color: #547C68;
+        }
+        QDialog#profileDialog QPushButton:disabled,
+        QDialog#profileDialog QPushButton#profileLogoutButton:disabled, QDialog#profileDialog QPushButton#removeContactButton:disabled,
+        QDialog#profileDialog QPushButton#rejectFriendRequestButton:disabled, QDialog#profileDialog QPushButton#cancelFriendRequestButton:disabled {
+            color: #96A29C;
         }
         QFrame#separator {
             background: #E8E4DB;

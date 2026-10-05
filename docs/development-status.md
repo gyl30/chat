@@ -892,3 +892,22 @@ Qt 头像与 SVG 各使用一个 DPR=2 资源，保留逻辑尺寸，覆盖 100/
 本机原生日志保留缺失 at-spi bus/GTK 模块提示，无障碍未据此记为完整验收。
 server、client library、SQL 和依赖不变，无 migration。
 截图、自评及仍未完成的资料整体层级和品质任务见 [体验品质审查](experience-quality.md)。
+
+
+## 体验品质审查：用户与账号资料层级
+
+用户资料不再重复显示身份，保留标题选择与复制能力。
+宽度与群资料统一到 520、内边距 24、间距 12；头像仍为 104，主要/次级动作采用 160×40 图文按钮。
+消息/好友确认与更换头像为主要操作，复制为次级，退出及关系移除/取消/拒绝降低视觉权重。
+关闭图标有 accessible name 和 tooltip；身份下显示已有账号、关系或联系人 presence，
+现有 model/好友事件实时刷新，关系移除后停止显示 private presence。不增加请求或 shadow state。
+移除不用的重复身份控件和样式，未改 server、client library、TUI、SQL 或依赖，无 migration。
+
+现有 Qt UI 入口补 identity、64 字节中文/emoji、520×600 内有界布局、操作权重、关闭名称和实时关系/presence 回归，
+逐项 RED 后 GREEN，保留原好友/历史/群权限及生命周期断言。
+真实双 Qt 四档缩放、资料开关和系统 clipboard 复制通过；Qt/X11 导航 4/4、TUI/tmux 导航 11/11 通过。
+原生脚本更新可见操作定位，避免继续依赖旧资料绝对坐标；失败 fixture 已清理。
+完整 `tests/verify.sh`：normal 20/20（98.19 s）、ASan 20/20（131.03 s）、UBSan 20/20（121.52 s）。
+无编译警告、suppression、跳过或 timeout 放宽，`git diff --check` PASS。
+参考补证据记录了 FWA Ceramic Beats 真实 CLEAR 前后界面；Every Neuron 未完成加载，不记为交互验收。
+截图、自评和剩余品质工作见 [体验品质审查](experience-quality.md)。

@@ -615,6 +615,55 @@ void check_primary_navigation()
     std::cout << "PASS Qt primary navigation, action menu, accepted contacts and pending history states\n";
 }
 
+void check_profile_layout()
+{
+    chat_widget page;
+    page.setStyleSheet(chat_style_sheet());
+    page.resize(980, 640);
+    auto const username = QStringLiteral("测试用户").repeated(5) + QStringLiteral("😀");
+    page.set_user(username, 1);
+    page.set_connection_available(true);
+    page.show();
+    QTimer::singleShot(0, [&] {
+        auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+        check(dialog && dialog->objectName() == "profileDialog", "Own account profile is visible");
+        int identities = 0;
+        for (auto* label : dialog->findChildren<QLabel*>())
+        { if (label->isVisible() && label->text() == username) { ++identities; } }
+        check(identities == 1, "Profile presents the user identity once instead of repeating it in a second section");
+        check(dialog->width() <= 520 && dialog->height() <= 600, "Account profile fits the normal dialog width and a minimum-height desktop");
+        check(!dialog->findChild<QToolButton*>("profileCloseButton")->accessibleName().isEmpty(),
+              "The icon-only profile close control has an accessible name");
+        for (auto* action : dialog->findChildren<QToolButton*>("profileActionButton"))
+        { check(!action->isVisible() || action->height() <= 48, "Profile actions use compact desktop buttons rather than oversized tiles"); }
+        auto* change = dialog->findChild<QPushButton*>("changeAvatarButton");
+        auto* logout = dialog->findChild<QPushButton*>("profileLogoutButton");
+        auto const profile_pixels = dialog->grab().toImage();
+        auto const change_background = profile_pixels.pixelColor(change->mapTo(dialog, QPoint(change->width() - 12, change->height() / 2)));
+        auto const logout_background = profile_pixels.pixelColor(logout->mapTo(dialog, QPoint(logout->width() - 12, logout->height() / 2)));
+        check(change_background.lightness() < 100 && logout_background.lightness() > 200,
+              ("Account action hierarchy: change=" + change_background.name().toStdString() +
+               " logout=" + logout_background.name().toStdString()).c_str());
+        dialog->reject();
+    });
+    page.show_user_details(1, username);
+    auto const contact_name = QStringLiteral("朋友 用户😀");
+    page.set_contacts({{2, contact_name, false, 0, {}}});
+    page.set_presence({2, true, 0});
+    QTimer::singleShot(0, [&] {
+        auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+        auto* relationship = dialog->findChild<QLabel*>("profileRelationship");
+        check(relationship && relationship->text() == QStringLiteral("在线"), "Contact profile shows existing authoritative presence");
+        page.set_presence({2, false, 1710000000000});
+        check(relationship->text().startsWith(QStringLiteral("最后上线于")), "An open contact profile updates presence without reopening");
+        page.set_contacts({});
+        check(relationship->text() == QStringLiteral("添加好友后可发送消息"), "Removed friendship profile no longer shows private presence");
+        dialog->reject();
+    });
+    page.show_user_details(2, contact_name);
+    std::cout << "PASS Qt profile identity hierarchy\n";
+}
+
 void check_message_composer()
 {
     chat_widget page;
@@ -791,7 +840,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_message_composer(); check_conversation_drafts(); return 0; }
+        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_message_composer(); check_conversation_drafts(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
@@ -812,6 +861,7 @@ int main(int argc, char** argv)
         check_friend_request_layout();
         check_group_detail_layout();
         check_primary_navigation();
+        check_profile_layout();
         check_message_composer();
         check_conversation_drafts();
         start();

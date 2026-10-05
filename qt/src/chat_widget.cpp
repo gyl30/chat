@@ -2027,7 +2027,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
     dialog.setWindowTitle(username);
     dialog.setWindowFlag(Qt::FramelessWindowHint);
     dialog.setModal(true);
-    dialog.setFixedWidth(590);
+    dialog.setFixedWidth(520);
 
     auto* layout = new QVBoxLayout(&dialog);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -2036,7 +2036,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
     auto* header = new QFrame(&dialog);
     header->setObjectName(QStringLiteral("profileHeaderSection"));
     auto* header_layout = new QVBoxLayout(header);
-    header_layout->setContentsMargins(28, 18, 28, 24);
+    header_layout->setContentsMargins(24, 16, 24, 24);
     header_layout->setSpacing(12);
 
     auto* top = new QHBoxLayout;
@@ -2044,6 +2044,8 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
     top->addStretch();
     auto* close_button = new QToolButton(header);
     close_button->setObjectName(QStringLiteral("profileCloseButton"));
+    close_button->setAccessibleName(QStringLiteral("关闭资料"));
+    close_button->setToolTip(QStringLiteral("关闭资料"));
     close_button->setIcon(svg_icon(QStringLiteral("close"), QColor(QStringLiteral("#3F4542")), QSize(22, 22)));
     close_button->setIconSize(QSize(22, 22));
     close_button->setFixedSize(36, 36);
@@ -2066,27 +2068,34 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
     name->setAlignment(Qt::AlignCenter);
     name->setTextFormat(Qt::PlainText);
     name->setWordWrap(true);
+    name->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
     header_layout->addWidget(name);
+    auto* relationship = new QLabel(header);
+    relationship->setObjectName(QStringLiteral("profileRelationship"));
+    relationship->setAlignment(Qt::AlignCenter);
+    relationship->setWordWrap(true);
+    header_layout->addWidget(relationship);
 
     header_layout->addSpacing(4);
 
     auto* actions = new QHBoxLayout;
-    actions->setContentsMargins(20, 0, 20, 0);
-    actions->setSpacing(14);
+    actions->setContentsMargins(0, 0, 0, 0);
+    actions->setSpacing(12);
     actions->addStretch();
-    auto make_action = [header](QString text, QStringView icon) {
+    auto make_action = [header](QString text, QStringView icon, QColor const& color) {
         auto* button = new QToolButton(header);
         button->setObjectName(QStringLiteral("profileActionButton"));
         button->setText(std::move(text));
-        button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
-        button->setIcon(svg_icon(icon, QColor(QStringLiteral("#315A4B")), QSize(24, 24)));
-        button->setIconSize(QSize(24, 24));
-        button->setFixedSize(132, 78);
+        button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        button->setIcon(svg_icon(icon, color, QSize(20, 20)));
+        button->setIconSize(QSize(20, 20));
+        button->setFixedSize(160, 40);
         button->setCursor(Qt::PointingHandCursor);
         return button;
     };
-    auto* message_button = make_action(QStringLiteral("消息"), QStringLiteral("chat"));
-    auto* copy_username_button = make_action(QStringLiteral("复制用户名"), QStringLiteral("copy"));
+    auto* message_button = make_action(QStringLiteral("消息"), QStringLiteral("chat"), QColor(Qt::white));
+    message_button->setProperty("primary", true);
+    auto* copy_username_button = make_action(QStringLiteral("复制用户名"), QStringLiteral("copy"), QColor(QStringLiteral("#315A4B")));
     actions->addWidget(message_button);
     actions->addWidget(copy_username_button);
     actions->addStretch();
@@ -2101,17 +2110,9 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
     auto* info = new QFrame(&dialog);
     info->setObjectName(QStringLiteral("profileInfoSection"));
     auto* info_layout = new QVBoxLayout(info);
-    info_layout->setContentsMargins(34, 20, 34, 22);
-    info_layout->setSpacing(5);
+    info_layout->setContentsMargins(24, 16, 24, 24);
+    info_layout->setSpacing(12);
 
-    auto* username_value = new QLabel(username, info);
-    username_value->setObjectName(QStringLiteral("profileInfoValue"));
-    username_value->setTextFormat(Qt::PlainText);
-    username_value->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    info_layout->addWidget(username_value);
-    auto* username_label = new QLabel(QStringLiteral("用户名"), info);
-    username_label->setObjectName(QStringLiteral("profileInfoLabel"));
-    info_layout->addWidget(username_label);
     QPushButton* remove_contact_button = nullptr;
     if (user != self_user_)
     {
@@ -2141,8 +2142,21 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
     cancel_request->setObjectName(QStringLiteral("cancelFriendRequestButton"));
     info_layout->addWidget(reject_request);
     info_layout->addWidget(cancel_request);
-    auto update_contact = [this, user, message_button, remove_contact_button, reject_request, cancel_request] {
+    auto update_contact = [this, user, relationship, message_button, remove_contact_button, reject_request, cancel_request] {
         auto const state = friend_state(user);
+        if (user == self_user_) { relationship->setText(QStringLiteral("我的账号")); }
+        else if (state == chat::friendship_state::accepted)
+        {
+            auto const presence = presence_.value(user);
+            auto const text = presence_text(presence.online, presence.last_seen);
+            relationship->setText(text.isEmpty() ? QStringLiteral("已是好友") : text);
+        }
+        else
+        {
+            relationship->setText(state == chat::friendship_state::incoming_pending ? QStringLiteral("对方向你发送了好友申请")
+                : state == chat::friendship_state::outgoing_pending ? QStringLiteral("已发出申请，等待对方确认")
+                : QStringLiteral("添加好友后可发送消息"));
+        }
         message_button->setVisible(user != self_user_);
         message_button->setText(state == chat::friendship_state::accepted ? QStringLiteral("消息") : state == chat::friendship_state::incoming_pending ? QStringLiteral("接受申请")
             : state == chat::friendship_state::outgoing_pending ? QStringLiteral("等待验证") : QStringLiteral("添加好友"));
@@ -2155,6 +2169,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
     };
     update_contact();
     connect(contacts_, &QAbstractItemModel::modelReset, &dialog, update_contact);
+    connect(contacts_, &QAbstractItemModel::dataChanged, &dialog, update_contact);
     connect(this, &chat_widget::friendship_updated, &dialog, update_contact);
     connect(reject_request, &QPushButton::clicked, &dialog, [this, user, reject_request, message_button] {
         if (!connection_available_ || friend_state(user) != chat::friendship_state::incoming_pending) { return; }

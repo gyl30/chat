@@ -16,7 +16,7 @@
 | 微信 Windows | 官方 4.1.15 下载和更新页；作者发布的 4.1.8 新旧运行界面对比 | 4.1.8 图片是非官方旁证，不能代表 4.1.15 的所有状态 |
 | Webby | 官方评审标准和获奖作品记录 | 区分网站、软件与沉浸式作品；本项目自行制定评分权重 |
 | Awwwards | 官方指南、作品评审页面及只读参考调查 | 移动网页建议不机械套用到桌面窗口或终端；本轮重新下载 PDF 遇到网络失败 |
-| FWA | 官方作品平台与公开材料 | 动态网页未提供可核验的逐项评分公式，不编造官方权重 |
+| FWA | 官方 case API、Ceramic Beats 实际运行与 CLEAR 前后截图 | Every Neuron 加载未完成；未提供可核验的逐项评分公式，不编造官方权重 |
 
 Telegram 的原始图片来自官方
 [登录](https://translations.telegram.org/en/tdesktop/login/?mode=screenshots)、
@@ -34,6 +34,26 @@ QQ 材料来自[官方下载页](https://im.qq.com/download)和
 运行界面对比来自[4.1.8 作者文章](https://www.sohu.com/a/996230784_120914897)。
 已看到低重量的图标导航、明确的选中态、列表与聊天分区、输入动作集中排列；
 没有据此断言其登录、好友申请、重连或错误流程均已被覆盖。
+
+### FWA 功能参考补证据（2026-10-05）
+
+官方 case API 确认 [Ceramic Beats](https://thefwa.com/api/cases/ceramicbeats)
+为 2026-09-22 FWA of the Day；[Every Neuron](https://thefwa.com/api/cases/every-neuron)
+为 2026-09-20 FWA of the Day。这是作品记录，不代表本项目获奖或使用其官方评分。
+
+实际 [Ceramic Beats](https://ceramic-beats.zui.ooo/) 用 Chrome 153.0.8010.52、
+Playwright 1.61.1、1440×900 headless 浏览器加载，主代理亲自复核原始截图。
+真实点击 CLEAR 的 [before](images/experience/reference-fwa-ceramicbeats-before-clear.png) /
+[after](images/experience/reference-fwa-ceramicbeats-after-clear.png) 保留页面布局，
+样本网格清空，名称从 Kiln Floor 变为 untitled，底部计数从 21 变为 0。
+可直接观察到常用操作、材料、网格、持续状态的分层，以及内容改变后仍稳定的操作位置。
+借鉴清楚反馈和稳定层级，不移植材质装饰、播放语义或疏密比例到聊天列表。
+本次仅完成 CLEAR，不宣称播放、听音或保存流程已验收。
+
+[Every Neuron](https://everyneuron.com/) 返回 200，但仍停在白色页面和 0 加载进度，
+字体就绪等待也出现超时；后续 DOM 中出现导航文字不足以证明真实导航完成。
+其交互不记为通过。运行证据在 `/tmp/chat-quality-fwa-runtime-20261005`。
+QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在。
 
 ### 状态覆盖
 
@@ -123,6 +143,7 @@ QQ 材料来自[官方下载页](https://im.qq.com/download)和
 | Q08 | P2 | Qt composer 按字体指标估算行高，中文多行恢复后发生不必要滚动并遮住前行 | 已修复并通过完整验证 |
 | Q09 | P2 | 200% 下预渲染首字头像、真实头像和 SVG 图标密度不足，边缘锯齿或细节模糊 | 第九轮修复并通过完整验证及四档真实截图 |
 | Q10 | P2 | 点击部分头像会连续打开两次资料，或关闭资料后继续打开原行聊天 | 第九轮实际鼠标事件回归修复并通过完整验证 |
+| Q11 | P2 | 用户/账号资料重复显示身份，主要/复制/退出操作权重接近，按钮块和宽度偏大 | 第十轮修复并通过完整验证和真实四档缩放/导航 |
 
 键盘打开列表、Qt 多行编辑、长公告、长 username、dialog 滚动、selection/focus、
 terminal light/dark、combining、SSH 和 suspend/restore 仍需进一步实际核验。
@@ -519,3 +540,48 @@ TUI 保持 74/100。
 截图仍显示资料身份重复、操作权重接近；其他弹窗与资料整体语言还需继续真实评审。
 长身份摘要、完整参考、终端字体/色深/浅色矩阵和连续两轮 fresh review 仍未完成。
 本阶段不改 server、client library、SQL 或依赖，无 migration。
+
+
+## 第十轮修复：用户与账号资料层级
+
+本阶段从 `ab36058f312c35c4b47cb5288feb14a1514ff922` 开始。
+真实 100–200% 窗口显示同一用户名在头像下和第二块信息区重复出现，
+复制、消息和退出缺少明确权重；原宽度 590、132×78 操作块也比群资料更重。
+移除重复身份和不用的样式；保留标题的鼠标/键盘选择、复制用户名及原业务操作。
+
+资料宽度收口为 520，内边距 24、间距 12，头像仍为 104；
+操作改为 160×40、20 像素 SVG 的图文按钮。
+消息/好友确认和更换头像使用主要操作，复制为次级，移除/拒绝/取消/退出为安静的危险操作。
+图标关闭有明确 accessible name 和 tooltip，主要/次级操作保留 hover、disabled 和焦点区别。
+身份下显示账号、好友关系或现有 presence；已打开资料随现有 model/好友事件更新，
+失去好友关系立即不显示 private presence。不增加请求、DTO、缓存或权限状态。
+
+既有 Qt UI 入口依次补回归确认 RED，再修 identity、尺寸、操作权重、图标名称及关系/presence。
+64 UTF-8 字节中文/emoji 身份在 980×640 父窗口中完整换行，资料不超 520×600；
+头像传输、好友确认、历史、群权限和生命周期的旧断言保留。
+
+- 用户资料 [before](images/experience/before-qt-profile-layout.png) /
+  [after](images/experience/after-qt-profile-layout-normal.png)。
+- 自己账号 [before](images/experience/before-qt-account-layout.png) /
+  [after](images/experience/after-qt-account-layout-normal.png)。
+- 资料 [125%](images/experience/after-qt-profile-layout-125.png)、
+  [150%](images/experience/after-qt-profile-layout-150.png)、
+  [200%](images/experience/after-qt-profile-layout-200.png)。
+- 账号 [125%](images/experience/after-qt-account-layout-125.png)、
+  [150%](images/experience/after-qt-account-layout-150.png)、
+  [200%](images/experience/after-qt-account-layout-200.png)。
+
+两个真实 Qt 四档加载、资料打开/关闭与真实 clipboard 复制通过。
+原有 X11 导航 4/4 包含好友接受/移除、申请取消、返回、新建群以及退出取消/确认。
+旧导航脚本仍点击旧版绝对坐标而失败；改为从实际窗口可见操作定位，原业务结果断言不变，
+重新完整通过。没有用生产兜底或测试后门保留旧坐标。失败的自有数据库和进程已清理。
+证据在 `/tmp/chat-quality-profile-layout-final-qt-20261005`、
+`/tmp/chat-quality-profile-layout-nav-final-qt-20261005`。
+
+最终完整 `tests/verify.sh`：normal 20/20（98.19 秒）、ASan 20/20（131.03 秒）、
+UBSan 20/20（121.52 秒），Qt/TUI 均启用，无编译警告、suppression、跳过或 timeout 放宽。
+未修改 TUI 的真实 tmux 导航 11/11 通过，证据在
+`/tmp/chat-quality-profile-layout-tui-regression-20261005`。`git diff --check` PASS。
+server、client library、TUI、SQL 和依赖不变，无 migration。
+Qt 暂评 83/100：16/20、12/15、7/10、9/10、9/10、9/10、9/10、4/5、4/5、4/5；
+TUI 保持 74/100。这不是最终两轮 fresh review；其余弹窗、完整键盘/终端矩阵和参考缺口继续保留。

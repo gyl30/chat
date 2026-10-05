@@ -16,6 +16,22 @@ def run(c):
         return reply['value']
     def presence(online):
         return any(p['user']==actor('A')['id'] and p['online']==online for p in sdk('S005','get_presence'))
+    def profile_action(window, primary=False):
+        info=c['S'].check_output(['xwininfo','-id',hex(window)],text=True)
+        px=int(c['re'].search(r'Absolute upper-left X:\s*(-?\d+)',info)[1])
+        py=int(c['re'].search(r'Absolute upper-left Y:\s*(-?\d+)',info)[1])
+        width=int(c['re'].search(r'Width: (\d+)',info)[1])
+        height=int(c['re'].search(r'Height: (\d+)',info)[1])
+        image=ImageGrab.grab(xdisplay=c['display']).convert('RGB').crop((px,py,px+width,py+height))
+        if primary:
+            rows=[y for y in range(height) if sum(image.getpixel((x,y))==(49,90,75) for x in range(width//2))>100]
+            assert rows,'Visible primary profile action'
+            click(px+174,py+(min(rows)+max(rows))//2)
+        else:
+            pixels=[(x,y) for y in range(height) for x in range(width) if image.getpixel((x,y))==(166,76,72)]
+            assert pixels,'Visible destructive profile action'
+            click(px+(min(x for x,y in pixels)+max(x for x,y in pixels))//2,
+                  py+(min(y for x,y in pixels)+max(y for x,y in pixels))//2)
     a=c['login']('A',0)
     wait(lambda:presence(True),'Qt A authenticated')
     focus(a);chats_reference=capture('nav-01-chats-sidebar')
@@ -37,15 +53,15 @@ def run(c):
     click(230,73)
     # The initial fixture contains exactly one incoming and one outgoing request.
     click(230,130);profile=modal('A',actor('D')['username']);capture('nav-04-incoming-profile')
-    click(508,366)
+    profile_action(profile,True)
     relation=f'SELECT count(*) FROM contacts WHERE (owner_id={aid} AND contact_id={did}) OR (owner_id={did} AND contact_id={aid})'
     wait(lambda:sql(relation)=='2','incoming request accepted bilaterally')
     capture('nav-05-accepted-profile')
-    click(580,548);modal('A','移除联系人');capture('nav-remove-confirm')
+    profile_action(profile);modal('A','移除联系人');capture('nav-remove-confirm')
     key('Left');key('Return');wait(lambda:sql(relation)=='0','remove accepted friend bilaterally')
     focus(a);capture('nav-removed-friend')
-    click(230,130);modal('A',actor('E')['username']);capture('nav-outgoing-profile')
-    click(580,548)
+    click(230,130);profile=modal('A',actor('E')['username']);capture('nav-outgoing-profile')
+    profile_action(profile)
     pending=f'SELECT count(*) FROM friend_requests WHERE requester_id={aid} AND recipient_id={eid}'
     wait(lambda:sql(pending)=='0','outgoing request cancelled')
     capture('nav-cancelled-outgoing');key('Escape');focus(a)
@@ -76,10 +92,10 @@ def run(c):
     capture('nav-12-created-group-open')
     click(610,24);modal('A','群资料');capture('nav-13-created-group-header-opens-details');key('Escape');focus(a)
     record('qt-chats-three-actions-and-two-step-create',['nav-01-chats-sidebar.png','nav-06-chats-three-actions.png','nav-07-add-friend-search.png','nav-08-join-action.png','nav-09-create-select-contacts.png','nav-11-create-name-step.png','nav-12-created-group-open.png','nav-13-created-group-header-opens-details.png'])
-    click(41,724);modal('A',actor('A')['username']);capture('nav-14-bottom-account')
-    click(580,596);modal('A','退出登录');capture('nav-15-logout-confirmation')
+    click(41,724);profile=modal('A',actor('A')['username']);capture('nav-14-bottom-account')
+    profile_action(profile);modal('A','退出登录');capture('nav-15-logout-confirmation')
     click(600,320);assert presence(True),'Cancel must keep authenticated session'
-    capture('nav-16-logout-cancelled');click(580,596);modal('A','退出登录');click(675,320)
+    capture('nav-16-logout-cancelled');profile_action(profile);modal('A','退出登录');click(675,320)
     wait(lambda:presence(False),'Qt logout authoritative offline')
     assert c['clients']['A'].poll() is None
     capture('nav-17-logout-login-page')
