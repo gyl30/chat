@@ -154,6 +154,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q16 | P1 | 编辑菜单或弹窗等待期间插入旧历史，普通行索引会漂移到另一条消息 | 第十五轮修复编辑身份/正文捕获并完整验证；其他菜单路径继续逐条核验 |
 | Q17 | P1 | 历史插入后删除/回复/附件指向另一条消息，已读详情显示另一条消息读者 | 第十六轮四项实测 RED 后修复；永久回归、完整三模式验证与真实双 Qt 通过；搜索复制同类缺陷也已修复 |
 | Q18 | P2 | 回复取消按钮黑底低对比且无动作名称，已读成员默认浅蓝选中；头像/读者刷新丢失当前选择 | 第十七轮修复；公开事件回归、三模式完整验证、四档双 Qt 原图与独立专项复核完成 |
+| Q19 | P2 | 长提及越过气泡右缘；无空格长正文和 URL 无法正确分配换行高度 | 第十八轮统一正文排版，永久 256 组合与完整三模式验证 GREEN；原生专项结果见下文 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 真实 DSR 与依赖源码确认；未修复，不计 Unicode 全矩阵通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 
@@ -1009,3 +1010,88 @@ Qt 暂评 87、TUI 78；此项局部 GREEN 不代表全产品或连续两轮 fre
 复合 Unicode 的严格临时探针仍实际 RED：8 项拆字素编辑、9 项渲染丢失。
 原探针 exit 0 仅观察事件和粘贴成功，新 strict 退出码计入上述缺陷，旧证据日志未覆盖。
 未修改依赖，不把临时候选记为 T04 已解决。
+
+## 第十八轮：长消息与提及排版
+
+从 `07b3ceea7216cf53db619aeea19aeb6c63694bb4` 继续。
+第十七轮真实 125% 图中，合法长姓名的蓝色提及越过绿色气泡右缘，延伸到窗口裁切处。
+公开 delegate 探针又确认无空格长正文/URL 的旧测量无法为全部换行分配高度。
+永久回归先在旧实现得到 `FAIL long message allocates every wrapped line: 320/0/0`，实际 exit 1；
+不是把测试编译失败或人为大画布当成产品 RED。
+
+所有消息正文统一用 QTextLayout 的 `WrapAtWordBoundaryOrAnywhere` 测量与绘制，
+长 token 无词边界时也可换行；字号、气泡宽度、元数据规则与原始消息内容不改变。
+仅显示副本把 LF 换成等长 LineSeparator，保留原始 Unicode 和前导/尾随空行，
+提及的 UTF-16 偏移不变，引用正文不误高亮。sizeHint、paint、editorEvent 仍共享实际布局。
+没有用 clip 隐藏溢出，也没有增加另一套消息模型或持久布局状态。
+
+既有 `qt_delegate` 新增 256 个组合：四档宽度、双方向、长正文/URL/提及/引用、
+两个非零/零起点与四档 DPR。独立 Qt 公开排版 oracle 核对每行高度和全部字形像素，
+包含抗锯齿边缘；原有短正文、附件、反应与已读断言全部保留。
+不是 256 个新增 CTest target。独立探针另从实际绘制区域点击六种布局：
+36 次反应与六次已读点击目标正确，空白处零信号。
+短正文像素保持，但真实 fallback 字体可能使完整气泡高度增加；不宣称旧/新整张图完全相同。
+
+最终统一源码完整执行 `tests/verify.sh`，Qt/TUI 均 ON：
+
+| 构建 | 完整 build / CTest | 实际耗时 |
+|---|---|---:|
+| normal Debug | PASS / 20/20 | 103.42 s |
+| ASan | PASS / 20/20 | 141.22 s |
+| UBSan | PASS / 20/20 | 134.91 s |
+
+日志为 `/tmp/chat-q19-final-verify.log`；无编译警告、sanitizer 报告、
+suppression、跳过或 timeout 放宽，隔离库已删除。
+Qt/X11 导航 4/4、TUI/tmux 导航 11/11，证据分别在
+`/tmp/chat-q19-qt-navigation-20261005`、`/tmp/chat-q19-tui-navigation-20261005`。
+
+最终双 Qt 原生操作保留在 `/tmp/chat-quality-q19-native-final3-20261005`，驱动实际 exit 0。
+主客户端逐档 100/125/150/200%，另一客户端固定 100%；五次实际启动的
+`/proc/PID/exe` SHA 均为 `3f45f551d7d28ca8ffec640d1373d1a5286ece67c5ff34749d56fc7288ff692b`。
+每档覆盖 980×640、1280×800、1440×900、1680×960 逻辑窗口和连续 resize，
+共 44 组全屏原图/窗口裁图，不把图数视为独立测试数。
+真实 Qt 输入发送完整 Unicode 正文和 64-byte 合法用户名提及，持久化正文、目标用户均精确一致；
+SDK 更新反应和引用，Qt 实际呈现长 quote、末行、时间与读者信息。
+引用来自 SDK，不冒称本轮执行了 Qt 回复菜单；客户端聚焦并滚到最新后，真实阅读位置达到最后消息。
+同期源码 hash、SDK 事实、实际进程与几何信息齐全，不凭截图推断数据库结果。
+最终日志无运行错误标记，隔离数据库已由 SQL 再核不存在，自有 Qt/服务器/端口已清理，长期服务未动。
+
+首两次驱动失败分别为输入点击位置错误、背景读者未激活且未滚到底；
+失败图/SDK 记录保留，不改产品已读规则或放宽断言。
+第三次已完成所有事实与清理，但 SSH 观察返回 255，不冒称原命令成功；
+独立核对其完整产物后又重新执行上述 final3，拿到明确 exit 0，连续 resize 后也实际滚到最新再采图。
+公开回归和原生图相互补证，不把 `PASS_DRIVER` 单独当视觉验收。
+
+原图对照（旧/新夹具不同，不冒称内容完全相同）：
+
+- [旧 125% 长提及溢出](images/experience/before-qt-long-mention-125.png) /
+  [新 125% 最小窗口](images/experience/after-qt-long-message-minimum-125.png)。
+- [200% 长引用与末行](images/experience/after-qt-long-message-reply-200.png)、
+  [200% 连续 resize 后](images/experience/after-qt-long-message-resized-200.png)、
+  [另一客户端的提及、反应和引用](images/experience/after-qt-long-message-peer.png)。
+
+主代理亲看最终四档原图中的长 token、完整尾标、短行、时间/回执和反应位置，未见 Q19 溢出或重叠。
+独立代理已复看同一最终产品源码的前次 24 张 size/reply/peer 图，未见 Q19 新 material 缺陷；
+本次 final3 的 SDK 二十条正文/提及/反应/引用与读位另逐项核对，
+100/125% 的各四种尺寸和 resize 十张已复看。其余追加审图结果单独记录，
+未看项不算独立 PASS，不把本专项当全页面 fresh review。
+原生 emoji 的字体 shaping 仍需独立验收，本阶段不以字节保留声称全部显示策略已完成。
+
+### T04 的独立边界研究仍不是生产修复
+
+当前 pinned FTXUI 的扩大严格矩阵仍 RED：248 项 codepoint 模型检查中 25 项失败；
+真实 Chat bracketed-paste 事件中的九类原文保留，但光标/覆盖/密码/鼠标与显示列模型未闭环。
+真实 xterm/tmux DSR 表明 ZWJ、家庭等宽度不同，tmux 虚拟列数不等于外层终端实际 shaping；
+不能统一硬编码 emoji 为两列，也不能仅根据 TERM 假定已适配。
+
+临时维护库候选采用 utf8proc 2.12.0 / Unicode 18 的 stateful UAX29；
+独立 fresh 重编证据在 `/tmp/chat-t04-linear-review-BukhBV`。
+官方 GraphemeBreakTest 实际为 **853** cases（先前口头 883 包含注释等行，不是 case 数），
+逐 byte/正负位移/越界的边界错误为零；候选 512-byte Previous/Count/Iterate 各 decode 512 次，
+旧候选为 131839 次。原编辑、合并字素、覆盖/密码和 CRLF 回归 GREEN，旧 Input 对照仍严格 RED。
+这些只证明候选单次边界 API 线性，不代表整个 Input 操作线性或生产集成完成。
+leading combining 的实际渲染仍丢 bytes；终端 span、Screen continuation、边界裁剪与选择复制未解决。
+依赖与子模块未修改，不提交 `/tmp` fork 或用候选结果关闭 T04。
+
+Qt 暂评仍 87、TUI 78；本轮局部修复不替代全页面/参考/无障碍/终端矩阵，
+最终两次独立完整 fresh review 尚未完成。

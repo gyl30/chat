@@ -7,6 +7,8 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QStyleOptionViewItem>
+#include <QTextLayout>
+#include <QtMath>
 #include <chat/attachment.hpp>
 
 #include "message_delegate.hpp"
@@ -214,6 +216,138 @@ int main(int argc, char** argv)
 
     message_model messages(nullptr, &avatars);
     messages.set_self_user(1);
+    message_delegate long_delegate;
+    for (int width : {320, 430, 640, 1280})
+    {
+        for (bool outgoing : {false, true})
+        {
+            for (int kind : {0, 1, 2, 3})
+            {
+                for (QPoint origin : {QPoint(0, 0), QPoint(17, 23)})
+                {
+                    for (qreal ratio : {1.0, 1.25, 1.5, 2.0})
+                    {
+                        message_model long_messages;
+                        long_messages.set_self_user(1);
+                        long_messages.reset(1);
+                        message_data long_message;
+                        long_message.id = 1;
+                        long_message.conversation = 1;
+                        long_message.from = outgoing ? 1 : 2;
+                        auto const username = QString(64, QLatin1Char('W'));
+                        if (kind == 1 || kind == 3)
+                        {
+                            long_message.text = QLatin1Char('@') + username;
+                            long_message.mentions = {{2, username}};
+                        }
+                        else if (kind == 2)
+                        {
+                            long_message.text = QStringLiteral("https://example.com/") + QString(150, QLatin1Char('W')) +
+                                                QStringLiteral("/终点 é 👩‍💻\n最后一行\n");
+                        }
+                        else
+                        {
+                            long_message.text = QString(150, QLatin1Char('W'));
+                        }
+                        if (kind == 3)
+                        {
+                            long_message.reply = {9, QStringLiteral("引用者"), QStringLiteral("@") + username, 0, false};
+                        }
+                        long_messages.add_message(long_message);
+                        auto const index = long_messages.index(0, 0);
+                        QStyleOptionViewItem long_option;
+                        long_option.font = QApplication::font();
+                        long_option.font.setPixelSize(14);
+                        long_option.rect = QRect(origin, QSize(width, 2000));
+                        auto const reserved = chat_theme::message_side_margin * 2 + (outgoing ? 0 : chat_theme::message_avatar_skip);
+                        auto const bubble_max = std::min(chat_theme::message_max_width, width - reserved);
+                        auto const inner_max = bubble_max - chat_theme::message_padding_horizontal * 2;
+                        auto text = index.data(message_model::text_role).toString();
+                        auto const reply = index.data(message_model::reply_text_role).toString();
+                        auto const body_start = reply.isEmpty() ? 0 : reply.size() + 2;
+                        if (!reply.isEmpty())
+                        {
+                            text = reply + QStringLiteral("\n\n") + text;
+                        }
+                        text.replace(QLatin1Char('\n'), QChar::LineSeparator);
+                        QTextLayout reference_layout(text, long_option.font);
+                        QTextOption text_option;
+                        text_option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+                        reference_layout.setTextOption(text_option);
+                        if (!long_message.mentions.isEmpty())
+                        {
+                            QTextCharFormat format;
+                            format.setForeground(QColor(QStringLiteral("#277399")));
+                            reference_layout.setFormats({{static_cast<int>(body_start), static_cast<int>(long_message.text.size()), format}});
+                        }
+                        reference_layout.beginLayout();
+                        int text_height = 0;
+                        int text_width = 1;
+                        while (true)
+                        {
+                            auto line = reference_layout.createLine();
+                            if (!line.isValid())
+                            {
+                                break;
+                            }
+                            line.setLineWidth(inner_max);
+                            line.setPosition(QPointF(0, text_height));
+                            text_height += qCeil(line.height());
+                            text_width = std::max(text_width, qCeil(line.naturalTextWidth()));
+                        }
+                        reference_layout.endLayout();
+                        auto const hint = long_delegate.sizeHint(long_option, index);
+                        if (reference_layout.lineCount() < 2 ||
+                            hint.height() < text_height + chat_theme::message_padding_vertical * 2 + chat_theme::message_margin_top)
+                        {
+                            std::cerr << "FAIL long message allocates every wrapped line: " << width << '/' << outgoing << '/' << kind << '\n';
+                            return 1;
+                        }
+                        QImage actual(QSize(qCeil((width + origin.x() * 2) * ratio), qCeil((hint.height() + origin.y() * 2 + 20) * ratio)),
+                                      QImage::Format_ARGB32_Premultiplied);
+                        actual.setDevicePixelRatio(ratio);
+                        actual.fill(QColor(QStringLiteral("#F7F5EF")));
+                        QPainter actual_painter(&actual);
+                        long_delegate.paint(&actual_painter, long_option, index);
+                        actual_painter.end();
+                        QImage expected_long(actual.size(), actual.format());
+                        expected_long.setDevicePixelRatio(ratio);
+                        auto const bubble_color = QColor(outgoing ? QStringLiteral("#D6EAD9") : QStringLiteral("#FFFFFF"));
+                        expected_long.fill(bubble_color);
+                        QPainter expected_painter(&expected_long);
+                        expected_painter.setRenderHint(QPainter::Antialiasing);
+                        expected_painter.setPen(QColor(QStringLiteral("#26342E")));
+                        auto const left =
+                            outgoing ? width - chat_theme::message_side_margin - text_width - chat_theme::message_padding_horizontal
+                                     : chat_theme::message_side_margin + chat_theme::message_avatar_skip + chat_theme::message_padding_horizontal;
+                        reference_layout.draw(&expected_painter,
+                                              origin + QPoint(left, chat_theme::message_margin_top + chat_theme::message_padding_vertical));
+                        expected_painter.end();
+                        for (auto const color : {QColor(QStringLiteral("#26342E")), QColor(QStringLiteral("#277399"))})
+                        {
+                            for (int y = 0; y < actual.height(); ++y)
+                            {
+                                for (int x = 0; x < actual.width(); ++x)
+                                {
+                                    auto const actual_pixel = actual.pixelColor(x, y);
+                                    auto const expected_pixel = expected_long.pixelColor(x, y);
+                                    if ((actual_pixel == color) != (expected_pixel == color)
+                                        || (color == QColor(QStringLiteral("#26342E"))
+                                            && expected_pixel != bubble_color && actual_pixel != expected_pixel))
+                                    {
+                                        std::cerr << "FAIL long message retains complete body inside its bubble: " << width << '/' << outgoing << '/'
+                                                  << kind << " at " << x << ',' << y << '\n';
+                                        return 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    std::cout << "PASS long plain text, URL, mention and reply wrap without clipping\n";
     messages.reset(1, true);
     messages.set_members({{1, "self", {}, {}}, {2, QStringLiteral("成员"), {}, {}}});
     message_data message;

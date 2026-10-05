@@ -156,7 +156,6 @@ struct message_layout
     bool day_start = false;
     bool group_start = false;
     bool group_end = false;
-    bool single_line = false;
     bool time_on_text_line = false;
     int name_height = 0;
     int text_width = 0;
@@ -175,7 +174,7 @@ struct message_layout
     QString image_status;
     int image_width = 0;
     int image_height = 0;
-    std::unique_ptr<QTextLayout> formatted_text;
+    std::unique_ptr<QTextLayout> text_layout;
 };
 
 message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex const& index)
@@ -214,9 +213,6 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     auto const bubble_max = maximum_bubble_width(option, result.outgoing);
     auto const inner_max = std::max(80, bubble_max - chat_theme::message_padding_horizontal * 2);
 
-    QFontMetrics body_metrics(option.font);
-    auto const one_line_width = body_metrics.horizontalAdvance(result.text);
-    auto const body_line_height = body_metrics.height();
     auto const time_metrics = QFontMetrics(time_font(option));
     result.time_width = result.time.isEmpty() ? 0 : time_metrics.horizontalAdvance(result.time);
     result.time_height = result.time.isEmpty() ? 0 : time_metrics.height();
@@ -225,31 +221,15 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
         + ((result.time_width > 0 && result.receipt_width > 0) ? 3 : 0)
         + result.receipt_width;
 
-    result.single_line = !result.text.contains(QLatin1Char('\n')) && one_line_width <= inner_max;
-    if (result.single_line)
-    {
-        result.text_width = one_line_width;
-        result.text_height = body_line_height;
-        result.time_on_text_line = metadata_width == 0
-            || result.text_width + chat_theme::message_time_gap + metadata_width <= inner_max;
-    }
-    else
-    {
-        auto const bounds = body_metrics.boundingRect(
-            QRect(0, 0, inner_max, 10000), Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, result.text);
-        result.text_width = std::min(inner_max, std::max(1, bounds.width()));
-        result.text_height = std::max(body_line_height, bounds.height());
-    }
-
+    auto text = result.text;
+    text.replace(QLatin1Char('\n'), QChar::LineSeparator);
+    result.text_layout = std::make_unique<QTextLayout>(text, option.font);
+    QTextOption text_option;
+    text_option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+    result.text_layout->setTextOption(text_option);
     auto const mentions = index.data(message_model::mentions_role).value<QList<mention_data>>();
     if (!mentions.isEmpty())
     {
-        auto text = result.text;
-        text.replace(QLatin1Char('\n'), QChar::LineSeparator);
-        result.formatted_text = std::make_unique<QTextLayout>(text, option.font);
-        QTextOption text_option;
-        text_option.setWrapMode(QTextOption::WordWrap);
-        result.formatted_text->setTextOption(text_option);
         QList<QTextLayout::FormatRange> formats;
         auto const body_start = result.text.size() - index.data(message_model::text_role).toString().size();
         for (auto const& mention : mentions)
@@ -265,23 +245,23 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
                 formats.push_back({static_cast<int>(match.capturedStart()), static_cast<int>(match.capturedLength()), format});
             }
         }
-        result.formatted_text->setFormats(formats);
-        result.formatted_text->beginLayout();
-        result.text_height = 0;
-        result.text_width = 1;
-        while (true)
-        {
-            auto line = result.formatted_text->createLine();
-            if (!line.isValid()) { break; }
-            line.setLineWidth(inner_max);
-            line.setPosition(QPointF(0, result.text_height));
-            result.text_height += qCeil(line.height());
-            result.text_width = std::max(result.text_width, qCeil(line.naturalTextWidth()));
-        }
-        result.formatted_text->endLayout();
-        result.time_on_text_line = result.single_line &&
-            (metadata_width == 0 || result.text_width + chat_theme::message_time_gap + metadata_width <= inner_max);
+        result.text_layout->setFormats(formats);
     }
+    result.text_layout->beginLayout();
+    result.text_width = 1;
+    while (true)
+    {
+        auto line = result.text_layout->createLine();
+        if (!line.isValid()) { break; }
+        line.setLineWidth(inner_max);
+        line.setPosition(QPointF(0, result.text_height));
+        result.text_height += qCeil(line.height());
+        result.text_width = std::max(result.text_width, qCeil(line.naturalTextWidth()));
+    }
+    result.text_layout->endLayout();
+    auto const single_line = !result.text.contains(QLatin1Char('\n')) && result.text_layout->lineCount() <= 1;
+    result.time_on_text_line = single_line &&
+        (metadata_width == 0 || result.text_width + chat_theme::message_time_gap + metadata_width <= inner_max);
 
     auto content_width = result.text_width;
     auto content_height = result.text_height;
@@ -546,15 +526,7 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     QRect text_rect(content_left, content_top,
                     std::max(1, content_right - content_left - time_reserved),
                     layout.text_height);
-    if (layout.formatted_text)
-    {
-        layout.formatted_text->draw(painter, text_rect.topLeft());
-    }
-    else
-    {
-        painter->drawText(text_rect, Qt::AlignLeft | Qt::AlignTop
-            | (layout.single_line ? Qt::TextSingleLine : Qt::TextWordWrap), layout.text);
-    }
+    layout.text_layout->draw(painter, text_rect.topLeft());
 
     if (metadata_width > 0)
     {

@@ -1036,3 +1036,22 @@ Qt/X11 导航 4/4、TUI/tmux 导航 11/11；无 sanitizer 报告、警告、跳�
 最终隔离库已删除，自有进程和端口释放，长期服务未动，`git diff --check` PASS。
 未改 server、client、TUI、SQL 或 third，无 migration；证据见 [体验品质审查](experience-quality.md)。
 Qt 暂评 87、TUI 78，复合 Unicode 严格探针仍 RED，剩余矩阵和两轮完整 fresh review 未完成。
+
+## 体验品质审查：长消息与提及排版
+
+长姓名提及的旧原生图出现气泡外溢；公开回归又复现长 token 测量高度不足。
+统一正文 QTextLayout 测量与绘制，无词边界时自然换行；提及、引用和原文字节不变。
+永久 256 组合覆盖宽度、方向、正文种类、坐标原点和 DPR，先 RED 后 GREEN，
+核对完整高度与字形像素；短消息和原有反应/已读/附件断言保留。
+独立实际绘制区域点击补核 36 次反应与六次已读目标，无空白误触。
+
+最终 `tests/verify.sh`：normal 20/20（103.42 s）、ASan 20/20（141.22 s）、
+UBSan 20/20（134.91 s），Qt/TUI 均 ON；无 sanitizer 报告、编译警告、跳过或 timeout 放宽。
+Qt/X11 导航 4/4、TUI/tmux 导航 11/11；隔离验证库已删除。
+双 Qt 原生操作与最终视觉复审记录见 [体验品质审查](experience-quality.md)。
+最终驱动 exit 0，主端四档缩放、另一端固定 100%，44 组原图/裁图覆盖四种窗口和连续 resize；
+实际发送正文与提及、SDK 引用和真实读位一致，最终自有数据库、客户端和端口已清理。
+仅 Qt delegate、既有回归和证据文档变化，server/client/TUI/SQL/third 不变，无 migration。
+临时 UAX29 候选独立重编验证官方实际 853 cases 与单次线性扫描，
+但 leading mark 渲染、Screen span、裁剪和原生列策略仍未解决，不作为 T04 完成。
+Qt 暂评 87、TUI 78，完整品质矩阵与最终两次 fresh review 继续推进。
