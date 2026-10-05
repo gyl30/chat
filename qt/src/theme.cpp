@@ -56,6 +56,47 @@ QString chat_style_sheet()
         QDialog {
             background: #FFFEFA;
         }
+        QFileDialog QComboBox {
+            background: #FFFFFF;
+            color: #27332E;
+            border: 1px solid #AFC0B8;
+            border-radius: 6px;
+            min-height: 32px;
+            padding: 0 8px;
+        }
+        QFileDialog QComboBox:focus {
+            border-color: #547C68;
+        }
+        QFileDialog QComboBox QAbstractItemView {
+            background: #FFFFFF;
+            color: #27332E;
+            border: 1px solid #AFC0B8;
+            selection-background-color: #315A4B;
+            selection-color: #FFFFFF;
+        }
+        QFileDialog QHeaderView::section {
+            background: #F0F4F1;
+            color: #27332E;
+            border: 0;
+            border-bottom: 1px solid #D7DDD9;
+            padding: 4px 8px;
+        }
+        QFileDialog QToolButton {
+            background: transparent;
+            color: #27332E;
+            border: 2px solid transparent;
+            border-radius: 6px;
+            padding: 2px;
+        }
+        QFileDialog QToolButton:hover {
+            background: #F0F4F1;
+        }
+        QFileDialog QToolButton:pressed {
+            background: #E7EEE9;
+        }
+        QFileDialog QToolButton:focus {
+            border-color: #547C68;
+        }
         QMenu {
             background: #FFFEFA;
             color: #27332E;

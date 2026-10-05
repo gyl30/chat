@@ -164,7 +164,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q26 | P2 | 会话、联系人和用户搜索列表有键盘当前行，但Enter不执行对应动作 | 第三十阶段复用原生activated与现有业务动作；永久Return/小键盘Enter、真实双Qt三条Return任务及三模式完整门禁通过，完整键盘矩阵仍开放 |
 | Q27 | P2 | 当前 Qt 字体回退将复合 emoji 拆成独立图形，正文、回复和 composer 都可见 | 第三十一阶段真实双 Qt 保留拆画证据；通用 Noto 回退候选引入 keycap 回退而被拒绝，专用序列字体接口尚未实测，不计完成 |
 | Q28 | P2 | 账号注销返回登录后，键盘焦点落在服务器设置，而非主要身份输入 | 第三十二阶段在注销完成且登录控件恢复可用后返回用户名焦点；同一永久测试 RED→GREEN，完整原生流程 before actual1→after actual0，范围与门禁见下文 |
-| Q29 | P2 | 实际 Open/Save 文件选择器的路径、类型框和表头出现黑底深字，近不可读 | 第三十三阶段真实附件业务通过，但原图明确存在低对比；独立 public QFileDialog 探针复现，不把业务 PASS 当视觉 PASS，待局部修复 |
+| Q29 | P2 | 实际 Open/Save 文件选择器的路径、类型框和表头出现黑底深字，近不可读 | 第三十四阶段局部 QFileDialog 主题修复；同永久 fixture RED→GREEN、两个真实 Qt 完整附件 after 和三模式全门禁通过，关闭已复现的 fallback 对比度缺陷，不外推所有平台或四档附件验收 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 第十九轮字素编辑与宽字组合符附着修复已进入生产；终端 span、裁剪、leading mark 和 shaping 仍未闭环，不计 Unicode 全矩阵通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 | T06 | P2 | TUI 搜索选中消息之前一项被删除时，只clamp索引，选中目标跳到另一ID | 第二十四阶段修复，永久RED/GREEN、真实双TUI六档选中目标/可复制正文/草稿验证通过 |
@@ -2343,3 +2343,75 @@ after/永久回归/完整门禁另记，不能由本阶段业务证据预先宣�
 记账，不声称本阶段重新构建。Qt87/TUI78不提高；Q27、Q29、T04、完整参考/全页面/
 日常/无障碍矩阵和最终连续两轮全产品 fresh review 未完成。未 push 或修改 third、
 server/client/SQL/依赖。
+
+## 阶段 34：保持 Open / Save 的可读性
+
+本阶段从 `09e2bcb0a0940ee0092e3861f138155bd1b26b9c` 继续。Q29 的真实黑底深字
+在两个 AcceptMode 的公开 QFileDialog 中也可重现；修复仅限主题中的 QFileDialog
+组合框、popup、表头和工具按钮，不改变其他组合框或系统 native chooser 的选择。
+生产代码没有 `DontUseNativeDialog`；永久测试使用该选项明确覆盖 Qt fallback。
+
+### 同一永久 fixture：失败到通过
+
+现有 `check_message_dialogs()` 增加 Open / Save 实际控件 paint、文字 palette、
+focus 边框、popup 普通/选中颜色、可见 details 表头及当前 view mode 检查。
+固定 Detail 模式，避免用户 QSettings 改变验证对象；不增加 helper、skip 或 timeout。
+同一最终 fixture 配原主题 actual1，明确失败于路径/文件类型的浅色表面；仅恢复局部
+主题后 actual0。日志 `/tmp/chat-file-chooser-same-fixture-{red,green}.log` 与各自
+build 日志保留。早期将实际 view button 的 `isDown()` 误写为 `isChecked()` 的
+fixture 失败也保留；公开 probe 确认其不可 check，不将该驱动错误归为产品缺陷。
+
+公开 probe `/tmp/chat-file-chooser-probe-20261006` 两 mode 修复后实际组合框 paint
+白色、文字 #27332E，表头 paint #F0F4F1。表头 palette 的 Button 背景仍可能是
+#000000，不冒称修改了全局 palette；可读性结论来自实际绘制及原生窗口图。
+
+### 两个真实 Qt 完整 after
+
+`/tmp/chat-quality-attachment-keyboard-native-after1-20261006` 整次 actual0，
+`ATTACHMENT_KEYBOARD_ACTUAL_EXIT=0`。只更新临时 driver 的 HEAD / binary pin，
+原15s和全部业务断言不变。两个实际 Qt /proc SHA 同为 dd287c64…，HEAD 首尾09e2，
+40项生产源、driver/helper/reader 快照及4输入依赖首尾一致。
+
+两端公开登录；A原C消息 id2 的 Reply、Open Cancel 保留原回复与64byte原多行草稿；
+真实上传96byte中文名文件 id3/reply2；C公开定位原附件、Save Cancel 不创建目标，再
+真实保存；GUI保存、原文件和认证 S005 独立下载逐byte相等，SHA c4145090…。
+最后A在980×640最小窗口实际发送原草稿 id4/reply=null，C接收，最终历史精确 [2,3,4]。
+四份实际系统 clipboard 保留同一原文，不用 Qt 模型、信号或 SQL 业务写入代替动作。
+
+[实际 Open after](images/experience/after-qt-file-chooser-contrast-100.png) 是完整原始
+X11图；[最小窗口原草稿确认](images/experience/after-qt-attachment-draft-minimum.png)
+是实际980×640窗口 capture，不称完整屏幕。主亲看 Open、Save 与最小窗口，独立代理
+亲看五张原图，路径/类型文字、列标题、文件名选择和 view mode 均可读，捕获子集未见
+新增 material。21份图是17完整屏幕+4窗口图，不是21个独立测试。
+
+主独立27检查、代理18身份/原文与14清理检查全真。精确库
+`chat_qtx11_1006072631_576140` SQL0，36记录后代、core和3 observed AT-SPI PID均gone；
+这些重叠集合不相加。18911空、保护2876288存在。独立reader初次用旧poll序号造成
+FileNotFoundError，保留后改为本轮实际文件；没有重跑或弱化身份/内容 oracle。
+
+Q29 关闭的是本平台100%实际 fallback 选择器的原始对比度问题。popup/focus 永久
+控件测试通过不等于新增所有 popup 的 native 使用；不声称所有平台、文件类型、
+覆盖/大文件、图片预览、四档附件、IME 或 Orca 全部验收。
+
+### 当前源门禁与仍然开放的目标
+
+既有 fresh 目录 `/tmp/chat-read-context-fresh.JwLH7s` 增量 -Werror 全build及
+23/23 CTest actual0，104.39s；不是新的fresh configure。原 `tests/verify.sh`
+未修改，实际0，`FILE_CHOOSER_FORMAL_ACTUAL_EXIT=0`；18项冻结源首尾全一致，Qt/TUI ON。
+
+| 配置 | build / 全量CTest | 实际耗时 | tui_render（原5s） |
+| --- | --- | ---: | ---: |
+| normal Debug | PASS / 23/23 | 105.95s | 0.86s |
+| ASan | PASS / 23/23 | 142.38s | 4.04s |
+| UBSan | PASS / 23/23 | 139.47s | 1.77s |
+
+原完整日志 `/tmp/chat-file-chooser-{strict-build,strict-ctest,final-verify,formal-validation}.log`。
+严格目录 -g/-Werror 与正式三模式原 warnings/插桩分记；未增 timeout、skip 或新编译
+warning/sanitizer 报告。Qt87/TUI78暂评不提高，不以修完局部控件换取全产品评分。
+
+Q27 的 Qt6.2.4 tiny 公共 QTextLayout 新探针108行 actual0：完整明确 emoji span 的
+Noto+NoFontMerging 能正确组合键帽、woman ZWJ及带中间VS16的肤色序列；仅Noto仍会
+拆部分键帽。普通CJK/ASCII和VS15强制应用则退化，因此不是全字素通用方案；这是
+layout/QImage机制证据，不是 Chat、编辑器、系统IME或四档 native 验收，未生产移植。
+Q27/T04、完整参考/全页面/日常/无障碍矩阵与连续两轮全产品fresh review继续开放。
+无third、server/client/SQL或依赖修改，未push。

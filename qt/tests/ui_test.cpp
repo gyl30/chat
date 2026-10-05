@@ -5,11 +5,13 @@
 #include <QFrame>
 #include <QClipboard>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QTabWidget>
 #include <QDialogButtonBox>
 #include <QDateTime>
 #include <QFile>
 #include <QFileDialog>
+#include <QHeaderView>
 #include <QImage>
 #include <QLineEdit>
 #include <QListView>
@@ -1727,6 +1729,58 @@ void check_message_dialogs()
               "Preview resize never enlarges the source or disables original-file saving");
     }
     preview.reject();
+    QTemporaryDir chooser_files;
+    check(chooser_files.isValid(), "File chooser has an owned directory");
+    for (auto const mode : {QFileDialog::AcceptOpen, QFileDialog::AcceptSave})
+    {
+        QFileDialog picker(&dialog);
+        picker.setOption(QFileDialog::DontUseNativeDialog);
+        picker.setAcceptMode(mode);
+        picker.setViewMode(QFileDialog::Detail);
+        picker.setDirectory(chooser_files.path());
+        picker.show();
+        QApplication::processEvents();
+        for (auto const name : {"lookInCombo", "fileTypeCombo"})
+        {
+            auto* combo = picker.findChild<QComboBox*>(name);
+            check(combo && combo->isVisible(), "Open and Save expose their actual location and file-type controls");
+            auto const pixels = combo->grab().toImage();
+            check(pixels.pixelColor(pixels.width()/2, 4) == QColor(QStringLiteral("#FFFFFF")) &&
+                  combo->palette().color(QPalette::ButtonText) == QColor(QStringLiteral("#27332E")),
+                  "File chooser location and file type have readable text on a light surface");
+            combo->setFocus();
+            QApplication::processEvents();
+            auto const focused = combo->grab().toImage();
+            check(focused.pixelColor(0, focused.height()/2) == QColor(QStringLiteral("#547C68")),
+                  "File chooser combos expose their keyboard focus on the light surface");
+            combo->showPopup();
+            QApplication::processEvents();
+            check(combo->view()->isVisible() &&
+                  combo->view()->palette().color(QPalette::Base) == QColor(QStringLiteral("#FFFFFF")) &&
+                  combo->view()->palette().color(QPalette::Text) == QColor(QStringLiteral("#27332E")) &&
+                  combo->view()->palette().color(QPalette::Highlight) == QColor(QStringLiteral("#315A4B")) &&
+                  combo->view()->palette().color(QPalette::HighlightedText) == QColor(QStringLiteral("#FFFFFF")),
+                  "File chooser popup lists retain readable unselected and selected text");
+            combo->hidePopup();
+        }
+        bool visible_header = false;
+        for (auto* header : picker.findChildren<QHeaderView*>())
+        {
+            if (!header->isVisible()) { continue; }
+            visible_header = true;
+            auto const pixels = header->viewport()->grab().toImage();
+            check(pixels.pixelColor(5, 3) == QColor(QStringLiteral("#F0F4F1")) &&
+                  header->palette().color(QPalette::ButtonText) == QColor(QStringLiteral("#27332E")),
+                  "File chooser column headings remain readable on their own light surface");
+        }
+        check(visible_header, "The actual file chooser details header was checked");
+        auto* details = picker.findChild<QToolButton*>("detailModeButton");
+        check(details && details->isVisible() && details->isDown(), "File chooser exposes its current details mode");
+        auto const selected_mode = details->grab().toImage();
+        check(selected_mode.pixelColor(5, selected_mode.height()/2) == QColor(QStringLiteral("#E7EEE9")),
+              "The current file view mode uses the same readable selected surface");
+        picker.reject();
+    }
     std::cout << "PASS Qt message dialog keyboard, footer hierarchy and responsive image preview\n";
 }
 

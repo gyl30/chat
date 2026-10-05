@@ -1389,3 +1389,27 @@ Cancel重开、真实注册/SDK身份、登录、Account、默认安全取消和
 公开Qt fallback两mode实际palette/paint也复现，业务PASS不等于附件craft PASS。
 本提交仅原图/审查，不冒称新build/新全量gate；详情见[体验品质审查](experience-quality.md)。
 Qt87/TUI78不提高，Q27/Q29/T04与完整矩阵/连续两轮fresh review仍开放。未push。
+
+## 体验品质审查：文件选择器可读性
+
+从09e2继续，主题仅为 QFileDialog 的路径/类型 combo、popup、表头和工具按钮设置
+可读浅色 surface/focus/selection；不改全局组合框、不禁用生产 native chooser。
+现有ui_test永久覆盖实际Open/Save控件，同一最终fixture旧主题actual1→局部修复actual0；
+早期误把 view button isDown 写为 isChecked 的fixture错误保留，不算产品缺陷。
+
+新dd287c64…两个真实Qt完整附件after actual0：原15s与全部原文/身份断言不变，
+Open取消保原reply/draft，GUI上传id3/reply2，另一端Save取消再保存96bytes与SDK
+独立下载完全相等；最小980×640原64byte草稿实际发id4/reply=null并被另一端接收。
+40源、/proc、3快照、4依赖一致，主27、代理18/14检查全真，exact库SQL0、36记录PID
+及三个busPIDgone、18911空。主/代理亲看原始Open/Save after与最小窗口；关闭Q29
+原本平台100%fallback低对比，不外推四档附件/全部平台/IME/Orca。
+
+既有fresh目录增量strict-Werror全build/23CTest104.39s；未改tests/verify.sh实际0，
+normal/ASan/UBSan各23/23，105.95/142.38/139.47s，render0.86/4.04/1.77s保原5s；
+18源冻结一致，无skip/新增编译warning/sanitizer报告。不是新的fresh configure。
+原图、RED/GREEN及范围见[体验品质审查](experience-quality.md)。
+
+Qt6.2 tiny整emoji span Noto+NoMerge新机制证据可正确画键帽/ZWJ，但普通文字和VS15
+负对照失败；不能当通用tokenizer或Chat native修复。Q27/T04、完整页面/参考/日常/
+无障碍及连续两轮fresh review仍开放，Qt87/TUI78不提高。无third/server/SQL/依赖
+修改，未push。
