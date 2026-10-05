@@ -1079,3 +1079,17 @@ Qt/TUI 均 ON；无编译告警、sanitizer 报告、跳过或 timeout 放宽。
 真实 ZWJ 行仍有残留，不将本阶段 GREEN 视为 T04 完成。
 详见 [体验品质审查](experience-quality.md) 和 [依赖维护说明](../tui/cmake/README.md)。
 Qt 暂评 87、TUI 78，全产品品质目标及最终两轮 fresh review 继续推进。
+
+## 体验品质审查：终端渲染隔离验证
+
+严格107条span断言证明生产渲染仍61项FAIL。隔离原型完成整字组写入、原子裁剪，
+新增viewport传播并迁移Border/Separator/Gauge/Graph/Canvas实际writer；最终仍3项FAIL，
+未接入Chat或修改third。独立嵌套Frame/半格选择27/0、import14/0；sibling writer原型
+旧83条FAIL、新0，数量不是独立场景数。原生独占XTerm的3个CJK对照证实旧越界、
+边框缺失和覆盖字符丢失，候选对应修正，不能外推emoji或全产品。
+
+fresh隔离ASan/UBSan均build成功，82翻译单元全部核插桩；两套viewport/import/Unicode
+以及sibling writer检查均通过，report0。严格span仍exit1，未冒称正式21CTest重跑。
+两项leading/zero-only显示与raw空续格擦除契约、实际terminal列/outer shaping仍待处理。
+原型目录与冻结证据见[体验品质审查](experience-quality.md)；生产暂评Qt87/TUI78不提高，
+T04和完整体验目标保持未完成。本阶段无应用/server/client/SQL/third改动，无push。

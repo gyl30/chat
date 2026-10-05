@@ -1177,3 +1177,66 @@ leading combining 仍丢 bytes，窄 Text 会裁掉 cluster 内部，Screen 只�
 不能硬编码全部 emoji 两列或以 tmux 虚拟 DSR 冒称外层字体 shaping 正确。
 本轮只交付完整字素编辑基础，保留 T04 和整体品质目标。Qt 暂评 87、TUI 78；
 全页面、参考、无障碍及最终两次独立完整 fresh review 尚未完成。
+
+## 阶段 20：终端字素渲染的可见范围与写入契约
+
+生产基线 `d90397aadb014c3cb433e9210fa271367af83276` 未改实现。
+本阶段只在隔离 FTXUI 副本验证渲染结构，候选未接入 Chat，不构成 T04 交付。
+原 pin、子模块和应用源码保持不变。
+
+### 严格失败与隔离原型
+
+`/tmp/chat-t04-span-contract.cpp` 的 107 条固定断言覆盖 Screen/node/stencil 的整字素
+裁剪、半格复制、叠加覆盖、真实 Separator、VText、Canvas、Frame 和零宽 bytes。
+探针 SHA256 `6194e96d7a837745b6e69764142d3735950ce9b3f9d0e4c0bf3e52be2c79a0e3`。
+当前生产链接 actual exit1（61 条失败）；第一隔离原型
+`/tmp/chat-t04-span-candidate-QosU2Q` actual1（4 条失败）；第二原型
+`/tmp/chat-t04-span-viewport.EvHoJa` actual1（3 条失败）。断言数不是独立产品缺陷数。
+初版肤色 legacy slots 误写成4已更正为实测库值2，并补对照；部分裁剪的 oracle
+从保留旧点号加强为清空可见交集。旧失败记录保留，不将修正 fixture 当产品修复。
+
+第二原型将 Selection endpoint 和真正 viewport 分开；root/Frame/容器逐层传递
+当前可见交集，Text 仅复制完整可见字素。半格选区仍复制整个字，半格 viewport
+则不显示或复制该字。没有上一帧可见性缓存，没有改 child origin。
+独立 `/tmp/chat-t04-viewport-independent-Z1xCpm` 冻结 headers/archives 后验证27/0，
+涵盖嵌套 x/y、真实焦点滚动、负 origin、HBox/VBox/Flexbox、兄弟范围恢复、反选与 resize。
+GetNodeSelectedContent 的 parts 正确；既有叶节点空 return 未被宣称解决。
+
+递归 writer 审查补出原清单漏掉的 Gauge/Graph。第二原型使 Surface SetCell/SetGlyph
+共用撤销旧组的边界，迁移 Border/Cell、ClearUnder、ScrollIndicator、全部 Separator、
+Gauge/Graph 与 Canvas import/export；style-only 和 box 单列字符合并保留原语义。
+主代理 import 探针14/0；独立 sibling writer 旧157 checks/83 FAIL、新95 checks/0 FAIL。
+其中检查数量随实际 head/continuation 改变，新版另有9条 SetCell 检查，不能将83说成
+独立场景。六 ASCII 被误当一个6列字素的诊断 fixture 已更正，首版日志保留。
+
+### 原生 CJK 对照
+
+`/tmp/chat-t04-cjk-native-c1pExS` 冻结两版 binary/archives 后，在独占 Xvfb/XTerm372
+运行；20份真实TTY DSR、原始输出与4张 PNG 保存。主代理和独立代理亲看两版窗口：
+
+| 独立场景 | 生产 | 第一候选 |
+|---|---|---|
+| 分配1列的中 | 实际2列越界 | 1列空白，整字裁剪 |
+| 5列边框 | 中间行右边框丢失 | `│测 │`，完整边框 |
+| 续格覆盖X | X被吞 | ` XR`，X/R保留 |
+
+实际运行 `/proc/PID/exe` SHA 与冻结 binary 一致；自有 helper/xterm/Xvfb 全部退出，
+未用数据库、服务或 tmux0。这里仅是三个 CJK 场景，不是产品、emoji、tmux或T04 PASS。
+另外现存终端原图/DSR只读复审再次确认：tmux虚拟两列不证明outer XTerm完整shaping；
+Fontconfig找到Noto Color Emoji也不证明该终端实际绘制正确。
+
+### 隔离门禁与仍未完成的部分
+
+第二原型 normal/fresh ASan/fresh UBSan build actual0，各 sanitizer 82翻译单元均实际
+核对插桩。三套重新链接：独立 review8/0、viewport27/0、import14/0、Unicode853/0；
+sibling writer 又独立链接fresh ASan/UBSan，均95/0。report/warning/suppression/skip为零，
+但严格107断言仍3 FAIL、exit1，sanitizer无报告不能抹掉语义失败。
+这是隔离原型门禁，未重复宣称本阶段正式全项目21 CTest或真实双TUI验收。
+
+仍失败：leading/zero-only原bytes显示两项，以及raw空续格clear的不可观察擦除意图。
+还需统一显示载体、原文复制和Input列映射；确定真实受测terminal policy；完整复审
+custom writer与写入契约，再以TUI专属精确补丁交付并跑正式全量/原生门禁。
+旧 scalar width 尚未改，候选ZWJ5/11不能冒称native4/8或tmux2/2正确。
+不将任何raw mutation视为自动可观察，不把未合入原型当生产已修复。
+详细源码、hash、命令、失败与scope见上述各目录REPORT。
+Qt暂评87、TUI78，T04仍P2，全品质目标及两轮完整fresh review继续保持未完成。
