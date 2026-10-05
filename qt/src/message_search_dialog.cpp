@@ -76,11 +76,12 @@ message_search_dialog::message_search_dialog(qint64 conversation, qint64 self_us
         {
             return;
         }
+        auto const text = index.data(message_model::text_role).toString();
         QMenu menu(this);
         auto* copy = menu.addAction(QStringLiteral("复制消息"));
         if (menu.exec(results_->viewport()->mapToGlobal(point)) == copy)
         {
-            QGuiApplication::clipboard()->setText(index.data(message_model::text_role).toString());
+            QGuiApplication::clipboard()->setText(text);
         }
     });
     if (!query.isEmpty())

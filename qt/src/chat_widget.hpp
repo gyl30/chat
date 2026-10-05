@@ -141,7 +141,7 @@ class chat_widget final : public QWidget
     void create_group();
     void request_older_messages();
     void send_current_message();
-    void show_read_details(QModelIndex const& index);
+    void show_read_details(qint64 conversation, qint64 message);
     void update_chat_header(QString const& username);
     void update_pinned_message();
     void update_chat_presence();

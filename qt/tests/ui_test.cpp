@@ -861,6 +861,183 @@ void check_message_editor()
     std::cout << "PASS Qt message edit layout, keyboard and exact body semantics\n";
 }
 
+void check_message_action_targets()
+{
+    // Real menus and dialogs, without a server: older history resets the model
+    // while the user's action must retain the message selected before that reset.
+    for (auto const& action_text : {QStringLiteral("删除"), QStringLiteral("回复"),
+                                   QStringLiteral("下载文件"), QStringLiteral("已读详情")})
+    {
+        int const modes = action_text == QStringLiteral("删除") ? 4 : 2;
+        for (int mode = 0; mode < modes; ++mode)
+        {
+            chat_widget page;
+            page.setStyleSheet(chat_style_sheet());
+            page.resize(980, 640);
+            page.set_user(QStringLiteral("本人"), 1);
+            page.set_connection_available(true);
+            conversation_data original_conversation;
+            original_conversation.id = 50;
+            original_conversation.group = true;
+            original_conversation.username = QStringLiteral("原会话");
+            original_conversation.can_send = true;
+            page.open_conversation(original_conversation);
+            message_data original;
+            original.id = 7; original.conversation = 50; original.from = 1;
+            original.username = QStringLiteral("原发送者");
+            original.text = QStringLiteral("原消息 7：中文 🙂");
+            if (action_text == QStringLiteral("下载文件"))
+            {
+                original.attachment = attachment_data{QStringLiteral("original-7.bin"),
+                    QStringLiteral("application/octet-stream"), 12};
+            }
+            read_positions const positions{{2, 6}, {3, 7}};
+            page.set_messages(50, {original}, positions, false, false, false);
+            member_data self; self.id = 1; self.username = QStringLiteral("本人");
+            member_data older_reader; older_reader.id = 2; older_reader.username = QStringLiteral("只读到 6");
+            member_data original_reader; original_reader.id = 3; original_reader.username = QStringLiteral("已读原消息 7");
+            page.set_members(50, {self, older_reader, original_reader}, {});
+            page.show();
+            QApplication::processEvents();
+            auto* view = page.findChild<QListView*>("messageList");
+            auto const index = view->model()->index(0, 0);
+            view->scrollTo(index);
+            QApplication::processEvents();
+
+            int operation_count = 0;
+            qint64 submitted_conversation = 0, submitted_message = 0;
+            QString submitted_filename;
+            QObject::connect(&page, &chat_widget::delete_message_requested, &page,
+                [&](qint64 conversation, qint64 id) {
+                    ++operation_count; submitted_conversation = conversation; submitted_message = id;
+                });
+            QObject::connect(&page, &chat_widget::send_message_requested, &page,
+                [&](qint64 conversation, QString, qint64 reply) {
+                    ++operation_count; submitted_conversation = conversation; submitted_message = reply;
+                });
+            QObject::connect(&page, &chat_widget::attachment_open_requested, &page,
+                [&](qint64 conversation, qint64 id, QString filename, bool) {
+                    ++operation_count; submitted_conversation = conversation; submitted_message = id;
+                    submitted_filename = std::move(filename);
+                });
+            auto insert_older = [&] {
+                auto older = original; older.id = 6;
+                older.username = QStringLiteral("另一发送者");
+                older.text = QStringLiteral("不相关的较早消息 6");
+                if (older.attachment) { older.attachment->filename = QStringLiteral("older-6.bin"); }
+                page.set_messages(50, {older}, positions, true, false, false);
+                check(view->model()->rowCount() == 2 &&
+                          view->model()->index(0, 0).data(message_model::id_role).toLongLong() == 6 &&
+                          view->model()->index(1, 0).data(message_model::id_role).toLongLong() == 7,
+                      "Action target fixture really inserts an older message ahead of the original");
+            };
+            auto change_conversation = [&] {
+                auto other = original_conversation; other.id = 60; other.username = QStringLiteral("另一会话");
+                page.open_conversation(other);
+                auto unrelated = original; unrelated.id = 70; unrelated.conversation = 60;
+                page.set_messages(60, {unrelated}, positions, false, false, false);
+                page.set_members(60, {self, older_reader, original_reader}, {});
+                check(view->model()->index(0, 0).data(message_model::id_role).toLongLong() == 70,
+                      "Changed-conversation fixture is ready and contains a different message");
+            };
+
+            bool selected = false, inspected = false, timed_out = false;
+            QList<qint64> actual_readers;
+            QTimer inspect;
+            QObject::connect(&inspect, &QTimer::timeout, &page, [&] {
+                auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                if (!dialog) { return; }
+                if (auto* confirmation = qobject_cast<QMessageBox*>(dialog))
+                {
+                    if (action_text != QStringLiteral("删除")) { return; }
+                    inspect.stop(); inspected = true;
+                    if (mode == 0 || mode == 2) { insert_older(); }
+                    if (mode == 3) { change_conversation(); }
+                    confirmation->button(mode == 2 ? QMessageBox::No : QMessageBox::Yes)->click();
+                }
+                else if (dialog->objectName() == QStringLiteral("readDetailsDialog"))
+                {
+                    inspect.stop(); inspected = true;
+                    auto* list = dialog->findChild<QListWidget*>("readMembersList");
+                    check(list, "Read details use the actual members list");
+                    for (int row = 0; row < list->count(); ++row)
+                    {
+                        actual_readers.push_back(list->item(row)->data(Qt::UserRole).toLongLong());
+                    }
+                    dialog->reject();
+                }
+            });
+            inspect.start(0);
+            // Bounded escape for a missing driver callback, never a product PASS.
+            QTimer watchdog;
+            watchdog.setSingleShot(true);
+            QObject::connect(&watchdog, &QTimer::timeout, &page, [&] {
+                timed_out = true;
+                if (auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget())) { dialog->reject(); }
+                if (auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget())) { menu->close(); }
+            });
+            watchdog.start(5000);
+            QTimer::singleShot(0, &page, [&] {
+                auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+                check(menu, "Message actions are reached through the actual context menu");
+                QAction* action = nullptr;
+                for (auto* item : menu->actions()) { if (item->text() == action_text) { action = item; } }
+                check(action, "The fixture exposes the requested real message action");
+                selected = true;
+                if (mode == 1) { change_conversation(); }
+                else if (action_text != QStringLiteral("删除")) { insert_older(); }
+                menu->setActiveAction(action);
+                QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+                QApplication::sendEvent(menu, &enter);
+            });
+            view->customContextMenuRequested(view->visualRect(index).intersected(view->viewport()->rect()).center());
+            inspect.stop(); watchdog.stop();
+            check(selected && !timed_out, "Message action driver selected its real menu item within a bounded wait");
+
+            if (action_text == QStringLiteral("回复"))
+            {
+                auto* preview = page.findChild<QLabel*>("replyPreview");
+                check(preview, "Reply exposes its real preview");
+                if (mode == 0)
+                {
+                    check(preview->isVisible() &&
+                              preview->text() == QStringLiteral("回复 原发送者：原消息 7：中文 🙂"),
+                          "Reply preview retains the original sender and body after history insertion");
+                    page.findChild<QPlainTextEdit*>("messageEdit")->setPlainText(QStringLiteral("回复原消息"));
+                    page.findChild<QToolButton*>("sendButton")->click();
+                }
+                else { check(!preview->isVisible(), "Changing conversation while the menu is open does not start a reply"); }
+            }
+            if (action_text == QStringLiteral("已读详情"))
+            {
+                check(mode == 0 ? inspected && actual_readers == QList<qint64>{3} : !inspected,
+                      "Read details retain the original message readers and do not cross conversations");
+                check(operation_count == 0, "Read details do not emit a modifying operation");
+            }
+            else
+            {
+                check(operation_count == (mode == 0 ? 1 : 0),
+                      "Only a confirmed action in its original conversation emits an operation");
+                if (mode == 0)
+                {
+                    check(submitted_conversation == 50 && submitted_message == 7,
+                          "Delete, reply and attachment retain the original message target after history insertion");
+                    if (action_text == QStringLiteral("下载文件"))
+                    {
+                        check(submitted_filename == QStringLiteral("original-7.bin"),
+                              "Attachment target and filename both belong to the original message");
+                    }
+                }
+            }
+            if (action_text == QStringLiteral("删除") && mode != 1)
+            {
+                check(inspected, "Deletion modes entered the actual confirmation dialog");
+            }
+        }
+    }
+    std::cout << "PASS Qt message action target identity, cancellation and conversation fencing\n";
+}
+
 void check_message_dialogs()
 {
     message_search_dialog dialog(50, 1, false, QStringLiteral("朋友"), {}, nullptr);
@@ -908,6 +1085,34 @@ void check_message_dialogs()
     check(search_close->text() == QStringLiteral("关闭") && search_close->icon().isNull() &&
           search_button->grab().toImage().pixelColor(search_button->width()/2, 5) == QColor(49, 90, 75),
           "Search has one primary action and a localized secondary close without a platform icon");
+    match.text = QStringLiteral("中文关键词 original é 👩‍💻");
+    dialog.set_results(50, QStringLiteral("中文关键词"), 0, {match}, {}, true, {});
+    earlier->click();
+    auto* results = dialog.findChild<QListView*>("messageSearchResults");
+    auto const result_index = results->model()->index(0, 0);
+    results->scrollTo(result_index);
+    QApplication::processEvents();
+    QGuiApplication::clipboard()->clear();
+    QTimer::singleShot(0, &dialog, [&] {
+        auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+        check(menu, "Search copying opens the actual context menu");
+        auto older = match;
+        older.id = 99;
+        older.text = QStringLiteral("另一条较早的搜索结果");
+        dialog.set_results(50, QStringLiteral("中文关键词"), 100, {older}, {}, false, {});
+        check(results->model()->rowCount() == 2 &&
+              results->model()->index(0, 0).data(message_model::id_role).toLongLong() == 99 &&
+              results->model()->index(1, 0).data(message_model::id_role).toLongLong() == 100,
+              "A pending search page actually moves the original result to another row");
+        QAction* copy = nullptr;
+        for (auto* action : menu->actions()) { if (action->text() == QStringLiteral("复制消息")) { copy = action; } }
+        check(copy, "Search results expose their real copy action");
+        menu->setActiveAction(copy);
+        QApplication::sendEvent(menu, &enter);
+    });
+    results->customContextMenuRequested(results->visualRect(result_index).intersected(results->viewport()->rect()).center());
+    check(QGuiApplication::clipboard()->text() == match.text,
+          "Search copying retains the complete original message despite a pending page arriving");
     auto* close = dialog.findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Close);
     close->setFocus();
     QApplication::processEvents();
@@ -1123,7 +1328,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_message_dialogs(); check_message_composer(); check_conversation_drafts(); return 0; }
+        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_message_action_targets(); check_message_dialogs(); check_message_composer(); check_conversation_drafts(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
@@ -1147,6 +1352,7 @@ int main(int argc, char** argv)
         check_profile_layout();
         check_confirmation_dialogs();
         check_message_editor();
+        check_message_action_targets();
         check_message_dialogs();
         check_message_composer();
         check_conversation_drafts();

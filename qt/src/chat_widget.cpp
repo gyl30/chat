@@ -478,6 +478,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                 auto* reply = can_send() ? menu.addAction(QStringLiteral("回复")) : nullptr;
                 auto const message_id = index.data(message_model::id_role).toLongLong();
                 auto const message_text = index.data(message_model::text_role).toString();
+                auto const sender_name = index.data(message_model::sender_name_role).toString();
                 auto const current = conversation(active_conversation_);
                 auto const unpin = current && current->pinned_message.id == message_id;
                 auto* group_pin = messages_->can_manage_group()
@@ -514,6 +515,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                                    ? menu.addAction(QStringLiteral("删除"))
                                    : nullptr;
                 auto* selected = menu.exec(messages_view_->viewport()->mapToGlobal(position));
+                if (!connection_available_ || conversation != active_conversation_) { return; }
                 if (group_pin && selected == group_pin)
                 {
                     if (connection_available_ && conversation == active_conversation_ && messages_->can_manage_group())
@@ -525,12 +527,12 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                 }
                 if (readers && selected == readers)
                 {
-                    show_read_details(index);
+                    show_read_details(conversation, message_id);
                     return;
                 }
                 if ((download && selected == download) || (preview && selected == preview))
                 {
-                    emit attachment_open_requested(active_conversation_, index.data(message_model::id_role).toLongLong(),
+                    emit attachment_open_requested(conversation, message_id,
                                                    filename, preview && selected == preview);
                     return;
                 }
@@ -538,10 +540,10 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                 {
                     if (confirm_action(this, QStringLiteral("删除消息"),
                                               QStringLiteral("删除后所有成员均显示“消息已删除”。确认删除？"),
-                                              QStringLiteral("删除")))
+                                              QStringLiteral("删除")) &&
+                        connection_available_ && conversation == active_conversation_)
                     {
-                        emit delete_message_requested(active_conversation_,
-                                                      index.data(message_model::id_role).toLongLong());
+                        emit delete_message_requested(conversation, message_id);
                     }
                     return;
                 }
@@ -589,10 +591,9 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                 {
                     return;
                 }
-                reply_to_ = index.data(message_model::id_role).toLongLong();
+                reply_to_ = message_id;
                 reply_preview_->setText(QStringLiteral("回复 %1：%2")
-                                            .arg(index.data(message_model::sender_name_role).toString(),
-                                                 index.data(message_model::text_role).toString().left(80)));
+                                            .arg(sender_name, message_text.left(80)));
                 reply_bar_->show();
                 message_edit_->setFocus();
             });
@@ -816,7 +817,12 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                 show_user_details(index.data(message_model::from_role).toLongLong(),
                                   index.data(message_model::sender_name_role).toString());
             });
-    connect(messages_delegate, &message_delegate::read_details_clicked, this, &chat_widget::show_read_details);
+    connect(messages_delegate, &message_delegate::read_details_clicked, this, [this](QModelIndex const& index) {
+        if (index.data(message_model::read_count_role).isValid())
+        {
+            show_read_details(active_conversation_, index.data(message_model::id_role).toLongLong());
+        }
+    });
     connect(messages_delegate, &message_delegate::image_clicked, this, [this](QModelIndex const& index) {
         if (connection_available_ && !index.data(message_model::deleted_role).toBool())
         {
@@ -1756,14 +1762,8 @@ void chat_widget::set_members(qint64 conversation, QList<member_data> members, Q
     update_typing_label();
 }
 
-void chat_widget::show_read_details(QModelIndex const& index)
+void chat_widget::show_read_details(qint64 conversation, qint64 message)
 {
-    if (!index.data(message_model::read_count_role).isValid())
-    {
-        return;
-    }
-    auto const conversation = active_conversation_;
-    auto const message = index.data(message_model::id_role).toLongLong();
     QDialog dialog(this);
     dialog.setObjectName(QStringLiteral("readDetailsDialog"));
     dialog.setWindowTitle(QStringLiteral("已读详情"));
@@ -1798,7 +1798,7 @@ void chat_widget::show_read_details(QModelIndex const& index)
         if (active_conversation_ != conversation || !visible)
         {
             dialog.reject();
-            return;
+            return false;
         }
         auto const members = messages_->read_members(message);
         count->setText(QStringLiteral("已读 %1 人").arg(members.size()));
@@ -1809,11 +1809,12 @@ void chat_widget::show_read_details(QModelIndex const& index)
                                             member.username, list);
             item->setData(Qt::UserRole, member.id);
         }
+        return true;
     };
     connect(messages_, &QAbstractItemModel::dataChanged, &dialog, refresh);
     connect(messages_, &QAbstractItemModel::modelReset, &dialog, refresh);
     connect(&avatars_, &avatar_cache::changed, &dialog, refresh);
-    refresh();
+    if (!refresh()) { return; }
     dialog.exec();
 }
 

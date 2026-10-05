@@ -998,3 +998,21 @@ suppression、跳过或 timeout 放宽。自有成功隔离库与进程已清理
 Qt 暂评仍为 87、TUI 78；其他菜单目标、复合 Unicode、参考与剩余矩阵继续处理。
 未改 server、client library、TUI、SQL 或 third，无 migration。
 原图、失败驱动的区分及专项覆盖边界见 [体验品质审查](experience-quality.md)。
+
+## 体验品质审查：消息菜单操作归属
+
+真实嵌套菜单事件循环中的旧历史插入，先复现删除、回复、附件和读者详情目标漂移。
+操作捕获原会话与消息 ID，回复也保留原发送者/正文；菜单和删除确认后重查连接与会话。
+已读详情按原消息 ID 刷新，失去资格时关闭，不增加 token、状态或后端快照。
+递归检查又复现搜索分页期间复制错误正文，菜单前捕获 QString 后永久回归 GREEN。
+十个公共事件场景覆盖历史插入、会话切换、取消和确认时切换，原断言全部保留。
+
+真实双 Qt 完成特定读者、原 ID 回复、取消/显式删除、130-byte 附件原字节保存与系统剪贴板复制。
+统一最终二进制 SHA、同期源码与 fixture 元数据完整，26 原图和 20 裁图不是独立测试数。
+完整 `tests/verify.sh`：normal 20/20（98.08 s）、ASan 20/20（134.78 s）、UBSan 20/20（122.24 s）。
+Qt/X11 导航 4/4、TUI/tmux 导航 11/11；无警告、sanitizer 报告、跳过或 timeout 放宽。
+隔离库已删除、自有进程与端口释放，长期服务未动，`git diff --check` PASS。
+实际原图新增 Q18：回复取消按钮低对比、已读列表默认选中样式；下一阶段继续收口，
+不能以操作正确代替视觉与可访问性验收。Qt 暂评 87、TUI 78，复合 Unicode、全矩阵和
+最终连续两轮 fresh review 尚未完成。未改 server、client、TUI、SQL 或 third，无 migration。
+证据和覆盖边界见 [体验品质审查](experience-quality.md)。
