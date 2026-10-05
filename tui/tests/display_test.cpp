@@ -91,6 +91,17 @@ int main() {
           {"界", "界", 2},
           {"Z", "Z"}}},
         {"normal-combining", {{"e\u0301", "e\u0301"}, {"A", "A"}}},
+        {"orphan-skin-light", {{"\U0001f3fb", replacement}, {"A", "A"}}},
+        {"orphan-skin-medium-light", {{"\U0001f3fc", replacement}, {"A", "A"}}},
+        {"orphan-skin-medium", {{"\U0001f3fd", replacement}, {"A", "A"}}},
+        {"orphan-skin-medium-dark", {{"\U0001f3fe", replacement}, {"A", "A"}}},
+        {"orphan-skin-dark", {{"\U0001f3ff", replacement}, {"A", "A"}}},
+        {"normal-skin-light", {{"👋\U0001f3fb", "👋\U0001f3fb", 2}, {"A", "A"}}},
+        {"normal-skin-medium-light", {{"👋\U0001f3fc", "👋\U0001f3fc", 2}, {"A", "A"}}},
+        {"normal-skin-medium", {{"👋\U0001f3fd", "👋\U0001f3fd", 2}, {"A", "A"}}},
+        {"normal-skin-medium-dark", {{"👋\U0001f3fe", "👋\U0001f3fe", 2}, {"A", "A"}}},
+        {"normal-skin-dark", {{"👋\U0001f3ff", "👋\U0001f3ff", 2}, {"A", "A"}}},
+        {"orphan-skin-cluster", {{"\U0001f3fb\U0001f3fc\U0001f3fd\U0001f3fe\U0001f3ff", replacement}, {"A", "A"}}},
         // Native DSR measured dotted circle + orphan Mc U0903 as two columns,
         // so the one-cell orphan policy renders replacement, not that carrier.
         // Raw U0903 stays exact in copy/edit checks; base+Mc shaping is not certified.

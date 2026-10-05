@@ -1611,7 +1611,7 @@
  
  #include "ftxui/screen/deprecated.hpp"       // for wchar_width, wstring_width
  #include "ftxui/screen/string_internal.hpp"  // for WordBreakProperty, EatCodePoint, CodepointToWordBreakProperty, GlyphCount, GlyphIterate, GlyphNext, GlyphPrevious, IsCombining, IsControl, IsFullWidth, Utf8ToWordBreakProperty
-@@ -1387,177 +1390,175 @@
+@@ -1387,177 +1390,177 @@
  std::vector<std::string> Utf8ToGlyphs(std::string_view input) {
    std::vector<std::string> out;
    out.reserve(input.size());
@@ -1683,7 +1683,9 @@
        continue;
      }
 +    display += bytes;
-+    has_base |= property->charwidth > 0;
++    has_base |= property->charwidth > 0 &&
++                !(property->boundclass == UTF8PROC_BOUNDCLASS_EXTEND &&
++                  property->category == UTF8PROC_CATEGORY_SK);
 +    has_spacing_mark |= property->category == UTF8PROC_CATEGORY_MC;
 +    if (!property->ignorable &&
 +        (property->category == UTF8PROC_CATEGORY_MN ||
@@ -2003,4 +2005,3 @@
  /// @brief Access a cell (Cell) at a given position, without stencil check.
  /// @param x The cell position along the x-axis.
  /// @param y The cell position along the y-axis.
-

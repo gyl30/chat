@@ -1115,3 +1115,24 @@ SDK原文与唯一消息ID精确；成功及已定位的失败探针隔离库均
 
 本阶段不关闭T04：当前80列ZWJ capture仍有边界残留，完整terminal宽度/font shaping未解决。
 Qt暂评87、TUI78不提高；全产品矩阵及两次完整独立fresh review仍未完成。无server/client/SQL/third改动，无push。
+
+## 体验品质审查：孤立肤色修饰符
+
+从 `7019086662a55f7ce2016f97698a527ef4a12359` 继续。孤立肤色被当作有基字，
+而旧scalar列政策将其跳过，造成Text/Input零列、实际消失。永久11组追加fixture先取得
+1096项/108失败，再用精确 `Extend && Sk` 修正到已有显示载体，正式targeted1096/0。
+独立全码点扫描证明仅五种肤色命中，正常emoji＋肤色仍raw；复制/编辑/发送不写入replacement。
+span80/0与官方边界853/0保留。
+
+两个真实TUI六档宽度完成120条发送/原子Backspace，其中72条为本次肤色场景；
+SDK原文、唯一ID及对端接收一致，自建数据库/进程/端口清理，长期服务未动。
+最终正式 `tests/verify.sh` normal/ASan/UBSan各23/23，105.52/147.39/132.58s，runner exit0；
+fresh Debug `-Werror`全构建及23/23 CTest通过，102.40s。无编译警告、sanitizer报告、
+跳过、suppression或timeout放宽；原render5秒不变，正式0.86/4.10/1.75s。
+正式冻结库的原生前后对照八配置、96行、192份DSR实际exit0；六孤立输入四环境的
+24次after观测可见且完整行80列。正常手势的XTerm82列及空格组合的84/88列差异仍开放，
+原图保留失败行，不把helper或tmux虚拟格当作全产品通过；自有17进程/专用tmux已清理。
+完整终端宽度研究实际比较C11库API、XTerm/WezTerm/tmux的DSR与原图，
+候选能改善家庭/ZWJ但并未全部匹配，未集成候选、未修改third或终端配置。
+证据、版本和失败边界见[体验品质审查](experience-quality.md)。
+Qt暂评87、TUI78不提高；T04与整体品质目标、完整日常使用及两轮fresh review继续开放。

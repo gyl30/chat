@@ -1342,3 +1342,106 @@ carrier 首试错误等待被一行 composer 滚动隐藏的 marker，失败时�
 正常 base+Mc 未在本次 native helper 中独立验收，不以 unit bytes 保留冒称视觉通过。
 Qt 暂评87、TUI78不提高；T04 仍 P2。全页面、reference、responsive/HiDPI、无障碍、
 完整日常使用及连续两次完整独立 fresh review 仍需推进，不将本阶段局部门禁视为整体完成。
+
+## 阶段 22：孤立肤色修饰符与实际终端列策略
+
+从 `7019086662a55f7ce2016f97698a527ef4a12359` 继续。没有以“全部 emoji 两列”替换
+终端规则，也没有把第三方库的 API 数字当作实际字体、tmux 或完整产品验收。
+
+### 确定的显示缺陷及窄修复
+
+隔离原生对照发现孤立肤色修饰符没有显示出来。utf8proc 对其 scalar `charwidth` 为2，
+原 `GlyphDisplayText` 因此认为存在基字；旧 FTXUI `string_width` 却将其作为 Extend 跳过，
+最终 Text/Input 分配零列，光标、选择与可见输出不一致。
+新增11组永久 fixture 保留全部旧断言，旧生产链接实际1096项中108项失败、exit1；
+这是重复断言数，不是108个独立产品缺陷。日志 `/tmp/chat-t04-skin-red-test.log` 保留。
+
+只排除无基字簇中的 `Extend && Sk` 作为基字，使用已有 replacement 显示载体。
+独立扫描 utf8proc 2.12.0 / Unicode18 全部码点，该条件精确命中五种肤色修饰符；
+没有排除全部 Extend，因后者还会误伤六个正宽 Mc/Lm 字符。
+正常手势加肤色仍有真实基字，原字素不改写。连续五种修饰符是一整个无基字 EGC，
+只显示一个载体。空格隔开时也是五个 EGC，但实际边界为首个孤立修饰符加四个
+`space+modifier` 簇（GB9），不是五个孤立修饰符加四个独立空格，不混淆两种样本。
+
+Text/Input 的原文、每个边界光标、鼠标、密码和完整/单字素复制全部保留；
+显示载体不进入 SDK 正文或 clipboard。正式 targeted 结果1096/0、span80/0、官方边界853/0。
+首次修改补丁 hunk 长度误填导致 build exit2；修正到真实177行后零 fuzz build成功，
+失败 `/tmp/chat-t04-skin-green-build.log` 不覆盖、不冒充产品语义失败。
+
+两个真实 TUI 在60/70/80/100/120/160列完成120条发送/Backspace流程，其中72条覆盖
+五种肤色及连续簇，另48条重测既有孤立 mark/format。每条 SDK 正文精确、ID唯一，
+另一 TUI 实际收到；两实际 `/proc/PID/exe` SHA 均为
+`9d0eb3d19b98729764cc0a70d19d838b657137a2431ff08c930f49eb49b7e9ef`。
+证据 `/tmp/chat-t04-skin-app.s14buU/result`；成功自建库由 SQL 再核不存在，
+自有两个 TUI/服务器/18890端口清理，长期服务未动。
+首个 driver 把输出写到不存在的临时父目录而失败，未创建数据库或启动客户端；
+只纠正实际路径，保留 `/tmp/chat-t04-skin-app-run.log`，不改产品。
+
+最终统一源码执行完整 `tests/verify.sh`，Qt/TUI均ON，外层真实`VALIDATION_EXIT=0`：
+
+| 配置 | build / 全量 CTest | 实际耗时 |
+|---|---|---:|
+| normal Debug | PASS / 23/23 | 105.52 s |
+| ASan | PASS / 23/23 | 147.39 s |
+| UBSan | PASS / 23/23 | 132.58 s |
+
+日志 `/tmp/chat-t04-skin-final-verify.log`，runner `/tmp/chat-t04-skin-final-validation.log`。
+另全新目录 `/tmp/chat-t04-skin-fresh.ROUbgo` Debug `-Werror` 构建及23/23 CTest通过，102.40s；
+没有编译警告、sanitizer报告、suppression、跳过或timeout放宽。正式render耗时0.86/4.10/1.75s，
+原5秒时限不变。四套编译数据库各有76个FTXUI TU、没有重复TU；正式ASan/UBSan全部76个
+及utf8proc C TU实际插桩，新增1096断言在正式三套测试中执行，不与旧隔离628 binary混用。
+
+### 正式库的原生前后对照
+
+独立 helper 链接最终正式 normal 的冻结 Screen/DOM/utf8proc 库及 patched headers，
+没有使用候选列库。before/after × XTerm372/WezTerm20221119 × direct/tmux3.6a，
+八种配置、96行观测、192份DSR，driver实际exit0。after helper SHA为
+`fcfe972f85438dc30920a78f2f90e699e3ef0805fcb0bbdf3f4b1d9b6baf17bb`。
+六个孤立输入在四种after环境的24次观测均显示单格replacement，完整行80列；
+对应before24次为零列、内容不可见。主代理亲看四张原图，独立代理亲看八张窗口原图。
+
+| 原生 XTerm helper | 未裁去剩余失败的窗口原图 |
+| --- | --- |
+| before | [孤立修饰符消失](images/experience/before-tui-orphan-skin-xterm.png) |
+| after | [六个孤立输入可见](images/experience/after-tui-orphan-skin-xterm.png) |
+
+这不是整个Chat页面的截图，也不证明全部12种输入通过。正常手势加肤色在XTerm
+仍实际82列，tmux虚拟80列不能代替外层像素；空格隔开的样本声明5列，完整输出在
+XTerm direct/tmux为88列、WezTerm direct为84列、tmux虚拟为88列，真实差异仍开放。
+实际字素边界为 `[0,4,9,14,19,24]`。前次临时oracle误以为9列导致exit1，
+只修正探针，不修改产品迎合它；shell引号和私有header的探针失败证据也保留。
+完整报告 `/tmp/chat-t04-skin-carrier-native-final3.cBlpxU/REPORT.md`、raw/window原图及
+输入/库/DSR SHA齐全，17个自有进程和专用tmux均实际清理，无数据库或服务启动。
+
+### 列宽库不是字体 shaping 的替代证据
+
+读取维护中的 [C11 libwcwidth API](https://github.com/jquast/wcwidth/blob/f1793abb4ebace173e307294fc15d8eb0d8fdb88/libwcwidth/include/wcwidth/wcwidth.h)、
+[序列实现](https://github.com/jquast/wcwidth/blob/f1793abb4ebace173e307294fc15d8eb0d8fdb88/libwcwidth/src/wcswidth.c)和
+[终端修正](https://github.com/jquast/wcwidth/blob/f1793abb4ebace173e307294fc15d8eb0d8fdb88/libwcwidth/src/wcstwidth.c)，
+固定提交 `f1793abb4ebace173e307294fc15d8eb0d8fdb88`、C11、Unicode18，MIT并保留Kuhn声明。
+这是近期加入的 C11 实现，不能把长期 Python 项目的历史当作它已有多年部署验证。
+全新隔离默认构建实际12/12上游 C tests 通过；额外 C `-Wpedantic -Werror` 的全构建
+在上游测试宏失败，严格库/C++探针可构建，不伪称全上游严格构建成功。
+
+实际23种 canonical terminal profile、两种 ambiguous policy 的 UTF8/u32 API 对照，
+32样本1856次观测、扩展43样本2494次观测；43包含原32，不能称75个独立案例。
+`xterm:1` 与旧XTerm372默认32样本相同31项，肤色组合仍不符；
+`wezterm:1` 与本机20221119版直接终端43样本相同41项，两个Mc组合仍不符。
+没有一组 API profile 完全匹配本机43项；不存在 canonical tmux profile，传入tmux会静默
+回退默认，不能因此宣布适配。表按终端名称，不是版本/字体/config的运行时 oracle。
+报告与完整差异 `/tmp/chat-t04-libwcwidth-api.SSMbme/REPORT.md`。
+
+实际 WezTerm20221119 / tmux3.6a、43样本、172份TTY DSR和原图保留在
+`/tmp/chat-t04-wezterm-repertoire.osfpla`。字体包括 DejaVu Sans Mono、Lily Han Sans
+HW SC、Noto Color Emoji，实际图可看到部分ZWJ/肤色合成；终端存在或字体安装不等于验收。
+另把C11接到隔离FTXUI完整Screen helper，六种baseline/candidate/default × direct/tmux，
+258个完整输出行、516份DSR；目录 `/tmp/chat-t04-width-render.wuvPv4`。
+旧家庭行实际只有71列，候选为80列，表明候选能改善确定问题；
+但候选direct仍有三行79列，tmux还存在virtual与outer ASCII边界位置不一致。
+这些候选使用肤色修复前的冻结源码，不能混作本次最终production。
+隔离 sanitizer 的628/80/853是旧原型测试 binary，不是当前新增1096断言或正式全项目门禁。
+
+本次未集成 C11 列库、未改third或用户终端配置。T04继续开放：列模型须同时守住
+实际版本/config、完整输出、tmux虚拟格及外层像素、真实输入/选择与换行，
+不能用库返回数字或局部carrier通过代替整体证据。Qt暂评87、TUI78不提高，
+reference、全页面/无障碍矩阵与最终两轮完整独立fresh review仍未完成。

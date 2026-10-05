@@ -37,6 +37,7 @@ Frame 的可见范围与选择端点分别传递；完全可见的宽字任一�
 `DisplayWidth` 表示显示策略分配的列；`string_width` 保留旧固有宽度政策，不能用它
 计算带显示载体的布局。孤立 nonspacing/enclosing mark 用 dotted circle 承载；
 孤立 spacing mark 的载体在真实终端可能额外占列，使用单格替代标记，正常基字加 mark 不变。
+孤立肤色修饰符也使用替代标记；正常 emoji 基字加肤色保留原字素。
 零宽 format-only、
 非法 bytes、C0/C1 和 bidi 控制用替代字符显示，不把这些载体写入正文。
 Text 选择、Input 编辑和发送保持原始字素；密码仍按原字素数量遮蔽。
