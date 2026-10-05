@@ -1317,3 +1317,29 @@ Enter的精确身份/一次激活回归actualRED1→GREEN0，旧widgets约束仍
 正式三模式原warnings与strict -Werror分别记账。证据与截图见
 [体验品质审查](experience-quality.md)。无third/server/client/SQL修改或push。
 Qt87/TUI78不提高，字体/Unicode、全页面/完整日常任务/无障碍和最终两轮review继续开放。
+
+## 体验品质审查：好友申请键盘流程与字体证据
+
+从 `4cc830c31b4f7a785303a0ce0ec1a429a46f2b3a` 继续，正常GUI仍33493abf…。
+双Qt100%完整原生 Tab/Space/Home/Return/Escape 接受D、取消E、D重发后拒绝，
+请求另一端D/E认证SDK精确核结果；baseline3 actual0，独立23检查全真，主及
+独立代理亲看原图。前两次仅/tmp驱动误读request.user、误要求NoSelection的current
+必须selected，失败证据保留，不改产品迎合测试。三个exact库0、记录后代和额外
+a11y daemon gone、18909空、长期服务未动。永久回归补incoming Return与outgoing
+小键盘Enter的Tab/Space动作、原ID/一次发出、pending与错误恢复、Esc身份，旧断言不删。
+
+另有双Qt100% Unicode业务/字节任务actual0，但woman-technologist在正文/composer/
+reply明显拆画；通用Noto回退虽修此序列，却造成真实keycap形状回退，故候选不落地。
+Qt6.9专用emoji接口只完成官方源码研究，未升级或实测，Qt6.2兼容性仍待用户确认。
+Q27继续开放，不把字符串正确或glyph覆盖记成形状GREEN。
+
+注册Cancel重开失败由纯Qt无WM/i3对照定位为隔离运行环境限制，未改Chat workaround。
+已有i3、临时配置的完整注册→登录→账号→注销探针前序业务真实成功，但最终焦点落在
+服务器设置，整轮actual1，新增Q28待修。测试绿色不能覆盖这个真实原生失败。
+详细证据、原图、环境与范围见[体验品质审查](experience-quality.md)。
+
+既有fresh目录增量strict-Werror全build与23/23 CTest107.57s；原tests/verify.sh
+normal/ASan/UBSan各23/23，104.97/137.03/130.90s，runner实际0，17项source一致，
+原render5s保留，无skip/新增warning/sanitizer报告。正式warnings与strict分记，
+正常GUI字节未变，本提交仅测试/文档/原图。Qt87/TUI78不提高，全产品、Unicode、
+真实日常与最终连续两轮审查仍未完成。未改third/server/SQL/依赖，未push。

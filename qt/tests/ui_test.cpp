@@ -268,6 +268,84 @@ void check_friend_request_layout()
     QApplication::sendEvent(incoming, &enter);
     QApplication::processEvents();
     check(opened, "Enter opens the selected friend request's real profile action flow");
+    QList<QPair<qint64, bool>> responses;
+    QList<qint64> cancellations;
+    auto const response_connection = QObject::connect(&page, &chat_widget::friend_request_respond_requested, &page,
+        [&](qint64 user, bool accept) { responses.push_back({user, accept}); });
+    auto const cancel_connection = QObject::connect(&page, &chat_widget::friend_request_cancel_requested, &page,
+        [&](qint64 user) { cancellations.push_back(user); });
+    for (int action = 0; action < 3; ++action)
+    {
+        auto* list = action == 2 ? outgoing : incoming;
+        auto const user = action == 2 ? 201 : 340;
+        auto const username = action == 2 ? QStringLiteral("发出 申请") : QStringLiteral("申请 用户😀40");
+        int opened_profiles = 0;
+        page.activateWindow();
+        list->setFocus();
+        QApplication::processEvents();
+        if (action == 2)
+        {
+            QKeyEvent home(QEvent::KeyPress, Qt::Key_Home, Qt::NoModifier);
+            QApplication::sendEvent(list, &home);
+        }
+        QTimer::singleShot(0, &page, [&] {
+            auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+            check(dialog && dialog->findChild<QLabel*>("profileDialogName")->text() == username,
+                  "Keyboard friend request activation preserves the exact current user");
+            ++opened_profiles;
+            QAbstractButton* button = nullptr;
+            if (action == 0)
+            {
+                for (auto* candidate : dialog->findChildren<QToolButton*>())
+                { if (candidate->text() == QStringLiteral("接受申请")) { button = candidate; } }
+            }
+            else
+            {
+                button = dialog->findChild<QPushButton*>(action == 1 ? "rejectFriendRequestButton" : "cancelFriendRequestButton");
+            }
+            check(button && button->isVisible() && button->isEnabled(), "The current pending relationship exposes its keyboard action");
+            if (action == 2)
+            {
+                QToolButton* waiting = nullptr;
+                for (auto* candidate : dialog->findChildren<QToolButton*>())
+                {
+                    if (candidate->text() == QStringLiteral("等待验证")) { waiting = candidate; }
+                }
+                check(waiting && waiting->isVisible() && !waiting->isEnabled(),
+                      "An outgoing pending request exposes its status without enabling a direct chat");
+                check(!dialog->findChild<QPushButton*>("rejectFriendRequestButton")->isVisible(),
+                      "An outgoing request does not expose the incoming rejection action");
+            }
+            for (int step = 0; step < 12 && !button->hasFocus(); ++step)
+            {
+                QKeyEvent tab(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier);
+                QApplication::sendEvent(QApplication::focusWidget(), &tab);
+                QApplication::processEvents();
+            }
+            check(button->hasFocus(), "Tab reaches the pending relationship action in the real profile dialog");
+            QKeyEvent press(QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier);
+            QKeyEvent release(QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier);
+            QApplication::sendEvent(button, &press);
+            QApplication::sendEvent(button, &release);
+            check(!button->isEnabled(), "A keyboard request action cannot be resubmitted while its result is pending");
+            page.finish_add_contact(999, QStringLiteral("其他申请的错误"));
+            check(!button->isEnabled(), "Another user's response cannot reset the current pending action");
+            page.finish_add_contact(user, QStringLiteral("连接中断，稍后重试"));
+            check(button->isEnabled() && dialog->findChild<QLabel*>("profileContactStatus")->text().contains(QStringLiteral("连接中断")),
+                  "The same user's error restores an actionable relationship with inline feedback");
+            QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+            QApplication::sendEvent(dialog, &escape);
+        });
+        QKeyEvent activate(QEvent::KeyPress, action == 2 ? Qt::Key_Enter : Qt::Key_Return, Qt::NoModifier);
+        QApplication::sendEvent(list, &activate);
+        QApplication::processEvents();
+        check(opened_profiles == 1 && list->currentItem()->data(Qt::UserRole).toLongLong() == user,
+              "Return and keypad Enter open one profile and preserve the request's current identity after Escape");
+    }
+    check(responses == QList<QPair<qint64, bool>>{{340, true}, {340, false}} && cancellations == QList<qint64>{201},
+          "Keyboard accept, reject and cancel each emit exactly one action for the correct pending user");
+    QObject::disconnect(response_connection);
+    QObject::disconnect(cancel_connection);
     page.activateWindow();
     incoming->setFocus();
     QApplication::processEvents();

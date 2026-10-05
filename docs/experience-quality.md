@@ -162,6 +162,8 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q24 | P2 | 群消息可见已读人数包含peer与0，但原生Name仅描述自己消息的非零已读 | 第二十八阶段复用read_count_role，永久RED/GREEN及四档真实SDK/原生树计数一致；可见截图与完整无障碍验收分别记账 |
 | Q25 | P2 | 主消息列表可通过键盘移动当前消息，但NoSelection同时隐藏了当前行焦点 | 第二十九阶段复用现有焦点轮廓；永久RED/GREEN、四档真实键盘回复/回应/读者详情及三模式门禁通过，完整键盘矩阵仍开放 |
 | Q26 | P2 | 会话、联系人和用户搜索列表有键盘当前行，但Enter不执行对应动作 | 第三十阶段复用原生activated与现有业务动作；永久Return/小键盘Enter、真实双Qt三条Return任务及三模式完整门禁通过，完整键盘矩阵仍开放 |
+| Q27 | P2 | 当前 Qt 字体回退将复合 emoji 拆成独立图形，正文、回复和 composer 都可见 | 第三十一阶段真实双 Qt 保留拆画证据；通用 Noto 回退候选引入 keycap 回退而被拒绝，专用序列字体接口尚未实测，不计完成 |
+| Q28 | P2 | 账号注销返回登录后，键盘焦点落在服务器设置，而非主要身份输入 | 第三十一阶段 i3/真实 X11 的完整注册→登录→账号→注销探针在最终焦点步骤 actual1；原图保留，待永久回归和修复 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 第十九轮字素编辑与宽字组合符附着修复已进入生产；终端 span、裁剪、leading mark 和 shaping 仍未闭环，不计 Unicode 全矩阵通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 | T06 | P2 | TUI 搜索选中消息之前一项被删除时，只clamp索引，选中目标跳到另一ID | 第二十四阶段修复，永久RED/GREEN、真实双TUI六档选中目标/可复制正文/草稿验证通过 |
@@ -2087,3 +2089,102 @@ CTest actual0，109.70s；不是另一次fresh configure。原tests/verify.sh ac
 
 字体候选与终端T04研究未混入源代码；Qt87/TUI78不提高，全页面/完整日常任务/无障碍
 及最终连续两轮fresh review仍开放。无server/client/SQL/third修改，无migration或push。
+
+## 阶段 31：好友申请的真实键盘操作与字体取舍
+
+基线 `4cc830c31b4f7a785303a0ce0ec1a429a46f2b3a`。正常 Qt 仍为上一阶段
+`33493abfbf69cf9202d0e62a6f36c4345a98d260f2a7aacb4c3edf188a858fdc`，本阶段
+没有为探针改变 production 接口、关系规则、字体或模型。
+
+### 好友申请：完整原生任务与永久回归
+
+真实双 Qt100% 的 A/C 登录后，A 从联系人入口通过 Tab/Space 到
+[新的朋友](images/experience/audit-qt-new-friends-keyboard-100.png)。Home/Return
+打开收到的 D 和发出的 E，资料的身份、接受/拒绝与取消分别符合关系；
+[出站资料](images/experience/audit-qt-outgoing-request-keyboard-100.png)显示等待验证，
+消息操作禁用且仅提供取消。Tab/Space 接受 D、取消 E；D 经真实 SDK 解除关系并
+重发后，A 通过键盘拒绝。三项由已认证请求另一端 D/E 的原 SDK 结果独立核实，
+不是拿 A 的未登录 helper 或 SQL 业务写入冒充结果。最终真实空页显示暂无好友申请。
+
+完整 baseline3 driver/bus actual0，证据
+`/tmp/chat-quality-new-friends-native-baseline3-20261006`。源5项首尾/current一致，
+两个实际进程 SHA 同为33493，运行 driver 快照逐字节匹配。独立23检查全真，
+报告及15张窗口原图由独立代理全部查看；主亲看列表、出站和接受后资料。
+当前行焦点、关系文字、禁用/主次动作清楚，本范围未发现 material 问题。
+行原生 Description 为空，但父列表明确区分收到/发出的好友申请，不能仅据
+Description 为空就断言整个关系信息不可读取；完整屏幕阅读器任务仍待核。
+
+baseline1 是驱动误读 request.user 的嵌套数据，baseline2 是误要求 NoSelection
+列表的 current 必须 selected；两次失败原目录保留，只修 /tmp driver 数据模型和
+focused 判据，没有放宽原15s或精确身份。原生这轮只有100%的 Return，不冒称
+小键盘Enter、四档HiDPI或Orca完成。独立清理：三个 exact 测试库SQL count0，
+执行记录10个后代及日志中的额外 a11y daemon 全 gone，18909无listener，
+长期服务2876288未动。主检查 `/tmp/chat-new-friends-native-main-independent.json` actual0。
+
+永久 `check_friend_request_layout` 补真实 Tab/Space press+release 接受/拒绝/取消，
+incoming Return 和 outgoing 小键盘Enter 的原userID、恰好一次信号、Escape 后
+current身份、pending 禁用、他人错误不能重置、本人的错误恢复 inline 操作；旧鼠标、
+尺寸、焦点、滚动与空态断言保留。新增测试首次定时回调在 focus 准备的
+processEvents 中提前执行，属测试时序错误，不是产品RED；原日志保留，调整为
+focus准备完成后再排回调并立即进入真实 modal。独立审查又补了等待验证按钮的
+存在性断言，避免零次检查假PASS。
+
+### Unicode：业务字节正确不等于形状正确
+
+同一正常二进制的双 Qt100% 原生任务发送四份 mixed-script/emoji/长URL多行消息，
+另一端接收、公开键盘回复原消息，以及四份真实 clipboard 草稿严格保持 UTF-8。
+完整 driver actual0，独立18检查通过；原证据
+`/tmp/chat-quality-emoji-before-100-native-20261006`，不是 shaping GREEN。
+主与独立代理亲看七张原图：[正文与草稿](images/experience/audit-qt-emoji-shaping-100.png)
+中的 woman-technologist ZWJ 在正文/composer/reply 拆画，Q27继续开放。
+仅这一100% normal/minimum范围，不代替原生IME、四档或完整Unicode矩阵。
+
+隔离 public QTextLayout/widget/真实 delegate paint 探针证明，当前 Qt6.2.4 的
+通用 Noto Color Emoji 后备能合成 woman，却把 `1️⃣` 从覆盖数字的keycap变成
+数字旁独立空键帽；真实原图而非 glyph 数量已证实新的 material 回退。因此不
+移植该候选、不修改系统fontconfig、不写emoji白名单。
+证据 `/tmp/chat-qt-stack-advances.6MPvoZ/REPORT.md`。普通字体指标不要求与旧版
+逐字节相同；拒绝依据是可见 keycap 形状损坏，而不是单纯 metrics 改变。
+
+[Qt6.9专用emoji字体接口](https://doc.qt.io/qt-6.9/qfontdatabase.html#setApplicationEmojiFontFamilies)
+与官方v6.9.0源码的序列分段已实际读取，研究报告
+`/tmp/chat-qt69-emoji-primary.19wPDT/REPORT.md`。它不是所有EGC均正确合成的保证，
+中间VS16的肤色序列尤其需要实际矩阵；本机没有现代Qt运行证据，未升级依赖或
+改CMake最低版本，Qt6.2兼容性取舍仍待确认。T04的真实终端格宽/重画问题也未关闭。
+
+Qt87/TUI78不提高，注册与注销完整键盘流程、两端全页面/日常任务矩阵、完整
+无障碍/Unicode与最终连续两轮fresh review仍开放。测试绿色不等于达到92分。
+
+### 注册复用与注销：区分环境问题和产品问题
+
+无WM的注册 Cancel→重开探针实际失败，但原生树仍显示注册dialog，而X11未映射。
+不据此修改Chat：同一纯public Qt6.2.4的open/reject/open独立对照无WM actual1，
+现有i3/仅临时配置下 actual0。`/tmp/chat-public-dialog-reuse.6AgwmP`与
+`/tmp/chat-public-dialog-reuse-i3.rS34py`保存唯一dialog XID的真实MapState和focus，
+不是根据隐藏窗第一个匹配猜测。没有安装WM、改用户i3配置或加production workaround。
+
+新的 `/tmp/chat-quality-registration-keyboard-i3-baseline5-20261006` 完整真实流程
+保留用户名初始focus、空/非法用户名/密码不一致inline错误、Cancel与重开、成功注册、
+已认证S005查询唯一新账号、公开登录、账号资料和注销。第一次确认Enter走安全取消，
+显式确认后返回登录，但最终15s用户名focus要求失败：[注销原图](images/experience/before-qt-logout-focus-100.png)
+与AT-SPI均明确服务器设置持有focus。因此整次actual1，不拼前面成功步骤为完整PASS。
+原图含自有i3窗口装饰/状态栏，不冒称无WM截图或所有平台结论。Q28继续待修，
+不能通过删最后断言或改测试预期为服务器设置来收口。
+
+### 本阶段门禁
+
+既有 fresh 目录 `/tmp/chat-read-context-fresh.JwLH7s` 本次增量-Werror全build与
+23/23 CTest actual0，107.57s；不是重新fresh configure。原 `tests/verify.sh`
+实际0，`NEW_FRIENDS_KEYBOARD_VALIDATION_EXIT=0`，17项源 guard 首尾一致，Qt/TUI均ON。
+
+| 配置 | build / 全量CTest | 实际耗时 | tui_render（原5s） |
+| --- | --- | ---: | ---: |
+| normal Debug | PASS / 23/23 | 104.97s | 0.85s |
+| ASan | PASS / 23/23 | 137.03s | 4.04s |
+| UBSan | PASS / 23/23 | 130.90s | 1.75s |
+
+日志 `/tmp/chat-new-friends-keyboard-{validation,strict-build,strict-ctest,final-verify}.log`。
+没有 skip、放宽 timeout、新告警或 sanitizer 报告。正式三模式保留原 warnings，
+strict 的-Werror单列，不将这轮测试用例增强称为产品BUG的RED/GREEN。
+正常 GUI 字节仍33493；本提交只有既有Qt测试与审查文档/原图，未改生产实现、
+server/client/SQL/third/依赖，不 push。Q27、Q28和T04继续开放。
