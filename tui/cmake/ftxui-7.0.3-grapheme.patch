@@ -1611,7 +1611,16 @@
  
  #include "ftxui/screen/deprecated.hpp"       // for wchar_width, wstring_width
  #include "ftxui/screen/string_internal.hpp"  // for WordBreakProperty, EatCodePoint, CodepointToWordBreakProperty, GlyphCount, GlyphIterate, GlyphNext, GlyphPrevious, IsCombining, IsControl, IsFullWidth, Utf8ToWordBreakProperty
-@@ -1387,177 +1390,177 @@
+@@ -29,6 +32,8 @@
+   uint32_t last;
+ };
+ 
++#include "ftxui/screen/emoji_properties_18.inc"
++
+ // As of Unicode 13.0.0
+ constexpr std::array<Interval, 116> g_full_width_characters = {{
+     {0x01100, 0x0115f}, {0x0231a, 0x0231b}, {0x02329, 0x0232a},
+@@ -1387,177 +1392,194 @@
  std::vector<std::string> Utf8ToGlyphs(std::string_view input) {
    std::vector<std::string> out;
    out.reserve(input.size());
@@ -1650,6 +1659,10 @@
 +  std::string marks;
 +  bool has_base = false;
 +  bool has_spacing_mark = false;
++  // UTS#51 rev31, section2.4: immediate modifier-base relation only;
++  // exactly one intervening VS16 is the supported legacy exception.
++  bool previous_modifier_base = false;
++  bool previous_base_vs16 = false;
 +  for (size_t offset = 0; offset < glyph.size();) {
 +    utf8proc_int32_t codepoint = 0;
 +    const auto count = utf8proc_iterate(
@@ -1659,6 +1672,8 @@
 +      display += "�";
 +      ++offset;
 +      has_base = true;
++      previous_modifier_base = false;
++      previous_base_vs16 = false;
        continue;
      }
 -
@@ -1670,6 +1685,13 @@
 +    const auto bytes = glyph.substr(offset, static_cast<size_t>(count));
 +    offset += static_cast<size_t>(count);
 +    const auto* property = utf8proc_get_property(codepoint);
++    const bool modifier = Bisearch(static_cast<uint32_t>(codepoint),
++                                  g_emoji_modifiers18);
++    const bool modifier_attached = modifier &&
++        (previous_modifier_base || previous_base_vs16);
++    previous_base_vs16 = codepoint == 0xfe0f && previous_modifier_base;
++    previous_modifier_base = Bisearch(static_cast<uint32_t>(codepoint),
++                                     g_emoji_modifier_bases18);
 +    if (property->category == UTF8PROC_CATEGORY_CC ||
 +        property->category == UTF8PROC_CATEGORY_CS ||
 +        property->category == UTF8PROC_CATEGORY_CN ||
@@ -1682,7 +1704,11 @@
 +      has_base = true;
        continue;
      }
-+    display += bytes;
++    if (modifier && !modifier_attached) {
++      display += "�";
++    } else {
++      display += bytes;
++    }
 +    has_base |= property->charwidth > 0 &&
 +                !(property->boundclass == UTF8PROC_BOUNDCLASS_EXTEND &&
 +                  property->category == UTF8PROC_CATEGORY_SK);

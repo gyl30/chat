@@ -51,6 +51,12 @@ void expect_row(const Screen &s, const fixture &f, const std::string &label,
               label + " cell@" + std::to_string(x) +
                   " expected=" + hex(g.display) +
                   " actual=" + hex(s.CellAt(x, row).character));
+        check(s.CellAt(x, row).span == g.columns,
+              label + " head span@" + std::to_string(x));
+        for (int offset = 1; offset < g.columns; ++offset)
+            check(s.CellAt(x + offset, row).character.empty() &&
+                      s.CellAt(x + offset, row).span == -offset,
+                  label + " continuation@" + std::to_string(x + offset));
         x += g.columns;
     }
 }
@@ -102,6 +108,34 @@ int main() {
         {"normal-skin-medium-dark", {{"👋\U0001f3fe", "👋\U0001f3fe", 2}, {"A", "A"}}},
         {"normal-skin-dark", {{"👋\U0001f3ff", "👋\U0001f3ff", 2}, {"A", "A"}}},
         {"orphan-skin-cluster", {{"\U0001f3fb\U0001f3fc\U0001f3fd\U0001f3fe\U0001f3ff", replacement}, {"A", "A"}}},
+        // UTS#51 local modifier relation, not "any base in the EGC".
+        // Literal expected display/columns are independent of generated data.
+        {"space-skin-light", {{" \U0001f3fb", " " + replacement, 2}, {"A", "A"}}},
+        {"space-skin-medium-light", {{" \U0001f3fc", " " + replacement, 2}, {"A", "A"}}},
+        {"space-skin-medium", {{" \U0001f3fd", " " + replacement, 2}, {"A", "A"}}},
+        {"space-skin-medium-dark", {{" \U0001f3fe", " " + replacement, 2}, {"A", "A"}}},
+        {"space-skin-dark", {{" \U0001f3ff", " " + replacement, 2}, {"A", "A"}}},
+        {"letter-skin", {{"A🏽", "A" + replacement, 2}, {"Z", "Z"}}},
+        {"punctuation-skin", {{".🏽", "." + replacement, 2}, {"Z", "Z"}}},
+        {"NBSP-skin", {{"\u00a0🏽", "\u00a0" + replacement, 2}, {"Z", "Z"}}},
+        {"space-skin-mark", {{" 🏽\u0301", " " + replacement + "\u0301", 2}, {"Z", "Z"}}},
+        {"space-mark-unmodified", {{" \u0301", " \u0301"}, {"Z", "Z"}}},
+        {"normal-woman-skin", {{"👩🏽", "👩🏽", 2}, {"Z", "Z"}}},
+        {"normal-hand-VS16-skin", {{"👋\ufe0f🏽", "👋\ufe0f🏽", 2}, {"Z", "Z"}}},
+        {"interrupted-hand-mark", {{"👋\u0301🏽", "👋\u0301" + replacement, 3}, {"Z", "Z"}}},
+        {"interrupted-hand-VS15", {{"👋\ufe0e🏽", "👋\ufe0e" + replacement, 3}, {"Z", "Z"}}},
+        {"interrupted-hand-two-VS16", {{"👋\ufe0f\ufe0f🏽", "👋\ufe0f\ufe0f" + replacement, 3}, {"Z", "Z"}}},
+        {"normal-woman-ZWJ", {{"👩‍💻", "👩‍💻", 5}, {"Z", "Z"}}},
+        {"local-ZWJ-first-valid-last-malformed", {{"👩🏽‍💻🏽", "👩🏽‍💻" + replacement, 6}, {"Z", "Z"}}},
+        {"local-ZWJ-earlier-base-not-enough", {{"👩‍💻🏽", "👩‍💻" + replacement, 6}, {"Z", "Z"}}},
+        {"local-ZWJ-last-valid", {{"👩‍👩🏽", "👩‍👩🏽", 5}, {"Z", "Z"}}},
+        {"local-ZWJ-both-valid", {{"👩🏽‍👩🏽", "👩🏽‍👩🏽", 5}, {"Z", "Z"}}},
+        {"second-modifier-unattached", {{"👋🏽🏾", "👋🏽" + replacement, 3}, {"Z", "Z"}}},
+        // Structural ED13 membership is not the narrower RGI sequence set.
+        {"modifier-base-family-non-RGI", {{"👪🏽", "👪🏽", 2}, {"Z", "Z"}}},
+        // Unicode18 data includes this base; retain the old intrinsic width
+        // policy (1), without pretending it is a native terminal width oracle.
+        {"Unicode18-modifier-base", {{"\U0001faf9🏽", "\U0001faf9🏽", 1}, {"Z", "Z"}}},
         // Native DSR measured dotted circle + orphan Mc U0903 as two columns,
         // so the one-cell orphan policy renders replacement, not that carrier.
         // Raw U0903 stays exact in copy/edit checks; base+Mc shaping is not certified.
@@ -163,6 +197,12 @@ int main() {
             Selection one(selected_x, 0, selected_x + g.columns - 1, 0);
             node->Select(one);
             check(one.GetParts() == g.raw, f.name + " per-EGC raw copy");
+            for (int offset = 0; offset < g.columns; ++offset) {
+                Selection cell(selected_x + offset, 0, selected_x + offset, 0);
+                node->Select(cell);
+                check(cell.GetParts() == g.raw,
+                      f.name + " partial-cell raw EGC copy");
+            }
             selected_x += g.columns;
         }
         input_fixture input(source);

@@ -278,10 +278,37 @@ void integer_edges() {
     cursor = INT_MAX;
     check(input->OnEvent(ftxui::Event::ArrowLeft) && cursor == 12, "past-end external cursor normalizes");
 }
+
+void modifier_context_editing() {
+    const std::array<std::string_view, 13> clusters{
+        " 🏽", "A🏽", ".🏽", "\u00a0🏽", " 🏽\u0301", "👋\ufe0f🏽",
+        "👋\u0301🏽", "👋\ufe0e🏽", "👋\ufe0f\ufe0f🏽", "👩🏽‍💻🏽",
+        "👩‍💻🏽", "👋🏽🏾", "🏻🏼🏽🏾🏿"};
+    for (const auto cluster_view : clusters) {
+        const std::string cluster(cluster_view);
+        check_boundaries(cluster, {0, cluster.size()}, "modifier-context raw EGC");
+        for (int action = 0; action < 4; ++action) {
+            std::string text = cluster;
+            int cursor = action % 2 == 0 ? 0 : static_cast<int>(cluster.size());
+            ftxui::InputOption option; option.cursor_position = &cursor;
+            auto input = ftxui::Input(&text, option); input->TakeFocus();
+            const std::array events{ftxui::Event::ArrowRight, ftxui::Event::ArrowLeft,
+                                    ftxui::Event::Delete, ftxui::Event::Backspace};
+            check(input->OnEvent(events[action]), "modifier-context edit handled");
+            check(text == (action < 2 ? cluster : ""), "modifier-context raw bytes/edit unchanged");
+            check(cursor == (action == 0 ? static_cast<int>(cluster.size()) : 0),
+                  "modifier-context whole-EGC byte cursor");
+        }
+    }
+}
 }
 
 int main(int argc, char** argv) {
     if (argc != 2) { std::cerr << "usage: unicode_test GraphemeBreakTest.txt\n"; return 1; }
+    check(std::string_view(utf8proc_unicode_version()) == "18.0.0",
+          "modifier data and segmentation both use Unicode18.0.0");
+    check(std::string_view(utf8proc_version()) == "2.12.0",
+          "pinned utf8proc API version");
     official_boundaries(argv[1]);
     check_boundaries("", {0}, "empty");
     check_boundaries(std::string("A\xff", 2) + "́B", {0, 1, 2, 4, 5}, "invalid byte separates combining");
@@ -296,6 +323,7 @@ int main(int argc, char** argv) {
     merge_and_crlf();
     reentrant_callbacks();
     integer_edges();
+    modifier_context_editing();
     std::cout << "UNICODE_TEST_FAILURES=" << failures << '\n';
     return failures == 0 ? 0 : 1;
 }

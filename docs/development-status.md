@@ -1229,3 +1229,23 @@ timeout放宽。真实导航Qt4/4、TUI11/11 actual0，主只读cleanup核精确
 
 Q23 sender/time上下文专项收口；group可见读者metadata等价性、keyboard-to-latest与
 Qt emoji字体候选仍需处理。Qt87/TUI78不提高，T04和整体品质目标继续推进。
+
+## 体验品质审查：通用肤色附着关系
+
+把此前隔离context modifier研究正式接入现有FTXUI维护补丁。Unicode18官方属性数据/
+派生表/完整许可固定入仓，offline确定性生成器与CMake pin核验版本；正常配置无Python，
+TUI OFF不执行property模块或下载utf8proc。显示只承认紧邻base/单VS16例外，非法肤色
+仅display使用载体，原文/字素编辑/复制/SDK字节不变，无新长期状态或third修改。
+永久display2788断言actualRED1（465 failures）→GREEN0，unicode/display/span3/3，
+官方853条分界和旧断言保留；TUI OFF/checksum拒绝/生成表exact-check均实际核验。
+
+新生产archive正常链接helper在四terminal链18×2×4行实际执行0，outer像素与DSR证明
+前五类nonbase关系归80列；合法hand/ZWJ残余失败保留，不称全144行列正确。
+两轮双真实TUI60/80/160列各21facts actual0，SDK原UTF8/草稿精确；摄影轮39actual outer图。
+主亲看载体、copyable、草稿与160列合法ZWJ，仍见ENDN/边界残留，T04不关闭。
+copyable display不冒充OSrawclipboard；受控xterm15不冒充自然0。
+主独立checker actual0核两DB0/18902无listener/记录PIDgone/自有socket无server，未动长期服务。
+
+同13份冻结源码fresh全构建-Werror23/23及正式normal/ASan/UBSan各23/23已通过，
+source guard一致，原5s render未放宽。完整证据/原图/失败边界见
+[体验品质审查](experience-quality.md)。未push，Qt87/TUI78不提高；T04与整体目标继续推进。

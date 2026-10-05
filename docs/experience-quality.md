@@ -1810,3 +1810,85 @@ keyboard-to-latest、Qt复杂emoji font/shaping。新原图仍可见woman/laptop
 正确不等于字形正确。Q23仅关闭已确认的sender/time上下文缺陷；Qt87/TUI78不提高，
 T04、完整参考/全页面/日常使用/动态announce矩阵和连续两轮全产品fresh review仍开放。
 本阶段无server/client/SQL/third改动，无migration或push。
+
+## 阶段 27：肤色修饰符的局部显示关系
+
+接续阶段26的冻结验证，把阶段25隔离研究中通用malformed modifier修复正式接入
+现有FTXUI维护补丁。不是只处理空格的特例，也没有手写emoji白名单。
+Unicode18官方[emoji-data](https://www.unicode.org/Public/18.0.0/ucd/emoji/emoji-data.txt)
+完整原文件、派生表与Unicode License V3入仓；生成器离线、标准库、确定性stdout，
+只提取51 ranges/136 codepoints的Emoji_Modifier_Base和5个Emoji_Modifier。
+数据SHA `80d00f8e…33bf1`、表SHA `b200a53e…e6937`，完整pin和再生成方式见
+`tui/cmake/README.md`。CMake正常配置不依赖Python，验证data/table与utf8proc源码pin，
+COPYONLY表进入既有screen翻译单元；离线source override也不能绕过API/Unicode版本。
+TUI OFF全新配置actual0，无property模块执行或utf8proc下载。未改变third子模块/gitlink。
+
+显示策略依据[UTS#51 revision31 section2.4](https://www.unicode.org/reports/tr51/tr51-31.html#Diversity)：
+只承认紧邻modifier-base或中间恰好一个VS16的既有例外；Mn、VS15、第二VS16、ZWJ、
+前一个modifier均中断局部关联。同一EGC较早出现base不足以让后面的肤色合法。
+RGI集合与属性结构集合不是同一约束，保留FAMILY的属性会员控制，不混成RGI白名单。
+两个局部变量只活在当前显示调用栈，无长期snapshot/cache。非法附着肤色只在display
+替换成载体；source/raw EGC、Input编辑、发送、选择复制的原UTF8仍不变。
+正常space+Mn、合法手势/VS16/ZWJ与纯leading modifier既有单载体行为保留。
+本次没有改变DisplayWidth/CellToGlyphIndex等旧列策略，不能称完整emoji列修复。
+
+### 永久独立回归与配置验证
+
+新增23组literal display fixtures，不从实现反推expected；包含所有五肤色、A/标点/
+NBSP/空格、插入Mn/VS15/两VS16、ZWJ的局部关系、多个modifier及新Unicode18base。
+全部fixture另外核验head/continuation span、任意半格选择仍复制完整raw EGC。
+13组Input测试逐byte核验ArrowLeft/Right/Delete/Backspace；原官方853条分界与全部旧断言保留。
+旧生产patch+新增测试actualRED1（2788 assertions、465 failures），最终GREEN0
+（2788/0）；unicode/display/span 3/3 actual0。generator --check exact0，
+错误checksum输入明确reject1，官方许可原文独立fetch/hash一致。
+定向fresh证据 `/tmp/chat-t04-contextual-production.UqnATo/REPORT.md`，不是借旧隔离候选GREEN。
+
+### 新生产archive链接的原生终端
+
+`/tmp/chat-t04-contextual-production-native.cDWC2C`使用新正式构建的component/dom/screen/
+utf8proc archives正常链接helper，无额外对象override；对应生成string源码SHA首尾一致。
+18fixtures × before/after × XTerm372/WezTerm20221119 × direct/tmux3.6a，共144行，
+每次实际helper/proc SHA、原始DSR、outer X11原图均保存；driver actual0和八term actual0。
+独立像素读取真实外层竖线，不把tmux虚拟DSR代替宿主字形宽度。
+
+| 四环境证据中的两个例子 | before | after |
+| --- | --- | --- |
+| XTerm direct | [原错列](images/experience/before-tui-contextual-skin-xterm.png) | [非base载体归位](images/experience/after-tui-contextual-skin-xterm.png) |
+| WezTerm + tmux | [原错列](images/experience/before-tui-contextual-skin-wezterm-tmux.png) | [非base载体归位](images/experience/after-tui-contextual-skin-wezterm-tmux.png) |
+
+主代理亲看这四张原图。前五类nonbase关系after在四环境DSR与outer像素均为80列，
+但合法hand在XTerm仍82列，合法ZWJ在WezTerm仍77列等原失败完整保留。
+这里actual0表示探针执行和本次context normalization核验成功，不表示144行全部达到80。
+
+### 双真实TUI、原文与草稿
+
+fresh全项目binary `/tmp/chat-context-fresh.U3SIBY/chat_tui` SHA
+`32954f6ad547081972403cf737aa7fb1ca5f8cbb847bb79975d65bc1e5c62ba8`。
+独立双客户端+SDK在60/80/160列、30行，每宽实际发送六种raw UTF8正文并检查peer，
+选择消息进入copyable页，切会话恢复未发送draft再真实发送；共21facts，SDK正文逐byte
+与原输入相同，四业务/proc SHA记录一致。`/tmp/chat-t04-contextual-production-wire-20261006`
+driver actual0。copyable display载体可见不等于OS原始clipboard读回，未冒称已验收后者。
+
+另完整fresh轮`/tmp/chat-t04-contextual-production-wire-camera-20261006` actual0，
+同21facts并保存39张actual app outer原图；主亲看60载体选中、80copyable、80draft恢复、
+160合法ZWJ选中。载体正文/边框稳定，可见[60列实机](images/experience/after-tui-contextual-skin-app-60.png)。
+但[160列合法ZWJ](images/experience/tui-valid-zwj-width-open-160.png)仍有右边界和ENDN残留，
+80列原图也可见旧列/shaping/incremental repaint问题。该确定缺口继续归T04，不删失败图。
+摄影轮三个xterm受控terminate实际15，driver0/Xvfb0；不写成所有进程自然exit0。
+
+主独立只读checker `/tmp/chat-context-tui-evidence-review.py` actual0：核helper144行、
+两轮21facts原bytes、outer前五类列归位、16个native记录PID和8个业务PIDgone，
+两精确库`chat_cm_10060414_258811`/`chat_cm_10060417_266137`SQL count0，18902无listener，
+三个自有tmux socket无server，长期2876288仍在。报告
+`/tmp/chat-context-tui-evidence-review-20261006.json`；仅精确自有范围，不触碰tmux0。
+
+### 门禁与开放项
+
+阶段26记录的同13份冻结源码fresh -Werror及正式normal/ASan/UBSan门禁覆盖本实现，
+源码guard再次核验一致：各23/23、原runner actual0，无告警/sanitizer报告/skip/超时放宽。
+同期Qt4/4、TUI11/11导航也使用新fresh binary，不借旧候选运行结果。
+本次只收口通用malformed modifier显示关系，T04合法emoji/ZWJ列、字体与增量重绘仍开放；
+不硬编码terminal名/emoji宽度、不修改用户终端配置。主后续将继续从真实terminal链寻找
+维护中的cluster-width策略并验证原bytes/列/光标，而不是把宿主差异当成验收豁免。
+Qt87/TUI78不提高，完整reference/页面/日常使用/无障碍/terminal lifecycle矩阵和最终
+连续两轮独立全产品fresh review仍未完成。无server/client/SQL/third改动、无migration或push。
