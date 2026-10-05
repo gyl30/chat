@@ -1136,3 +1136,22 @@ fresh Debug `-Werror`全构建及23/23 CTest通过，102.40s。无编译警告�
 候选能改善家庭/ZWJ但并未全部匹配，未集成候选、未修改third或终端配置。
 证据、版本和失败边界见[体验品质审查](experience-quality.md)。
 Qt暂评87、TUI78不提高；T04与整体品质目标、完整日常使用及两轮fresh review继续开放。
+
+## 体验品质审查：搜索键盘选择
+
+从 `86787802751618a84fd84460d0de31f4042b25d9` 继续。实际Tab/Down已改变搜索当前行，
+但100/200%列表像素均零变化；各六条视觉断言RED。message delegate现从已有view
+selectionMode和Selected/HasFocus画选中/焦点轮廓，不保存新模式或选中状态；
+普通NoSelection消息、正文、尺寸及动作命中区域不变。
+永久delegate16组合及实际dialog逐行Tab/Down、blur回归GREEN，旧断言全部保留。
+真实双Qt四档缩放重新完成搜索/复制/peer编辑删除/草稿发送，统一实际binarySHA，
+主代理亲看四档原图。首轮关闭窗口枚举旧XID的driver失败保留，产品未为此修改。
+全新Debug Qt/TUI ON `-Werror`构建及23/23 CTest通过，103.48s；本阶段正式
+`tests/verify.sh` normal/ASan/UBSan各23/23，105.23/137.10/130.38s，原runner实际exit0。
+SSH最终观察返回255后重核原PID已结束、实际marker及结果已落盘，未重复启动；
+无编译告警/sanitizer报告/skip/suppression/timeout放宽。自有五Qt/两DB/18893已清理。
+证据、前后原图、已定位的测试driver失败边界见[体验品质审查](experience-quality.md)。
+
+新发现Q21：live编辑/删除后的搜索数量口径不清，删除占位仍被计入；T06：TUI搜索删除
+前项只clamp索引导致选中ID漂移，public state实际RED。这两项保持开放，不混入键盘绘制修复。
+Qt87/TUI78不提高，T04与完整品质Goal继续推进，未push、未修改third或长期服务。

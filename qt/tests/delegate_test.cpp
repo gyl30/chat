@@ -4,6 +4,7 @@
 #include <QBuffer>
 #include <QFontMetrics>
 #include <QImage>
+#include <QListView>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QStyleOptionViewItem>
@@ -23,9 +24,113 @@
 #include "message_images.hpp"
 #include "icons.hpp"
 
+bool check_message_selection_raster()
+{
+    message_model model;
+    model.set_self_user(1);
+    model.reset(50);
+    message_data message;
+    message.id = 100;
+    message.conversation = 50;
+    message.from = 2;
+    message.username = QStringLiteral("朋友");
+    message.text = QStringLiteral("搜索结果 é 👩‍💻");
+    model.add_message(message);
+    message_delegate delegate;
+    QListView selectable;
+    selectable.setSelectionMode(QAbstractItemView::SingleSelection);
+    QListView normal;
+    normal.setSelectionMode(QAbstractItemView::NoSelection);
+    for (int width : {320, 640})
+    {
+        for (auto origin : {QPoint(0, 0), QPoint(17, 23)})
+        {
+            for (qreal ratio : {1.0, 2.0})
+            {
+                for (bool outgoing : {false, true})
+                {
+                    message.from = outgoing ? 1 : 2;
+                    model.reset(50);
+                    model.add_message(message);
+                    auto const index = model.index(0, 0);
+                    QStyleOptionViewItem option;
+                    option.font = QApplication::font();
+                    option.font.setPixelSize(14);
+                    option.rect = QRect(origin, QSize(width, 200));
+                    auto const hint = delegate.sizeHint(option, index);
+                    option.rect.setHeight(hint.height());
+                    auto paint = [&](QWidget const* widget, QStyle::State state) {
+                        option.widget = widget;
+                        option.state = state;
+                        if (delegate.sizeHint(option, index) != hint) { std::abort(); }
+                        QImage image(QSize(qCeil((width + origin.x() + 20) * ratio),
+                                           qCeil((hint.height() + origin.y() + 20) * ratio)),
+                                     QImage::Format_ARGB32_Premultiplied);
+                        image.setDevicePixelRatio(ratio);
+                        image.fill(QColor(QStringLiteral("#F7F5EF")));
+                        QPainter painter(&image);
+                        delegate.paint(&painter, option, index);
+                        return image;
+                    };
+                    auto const plain = paint(&selectable, QStyle::State_Enabled);
+                    auto const selected = paint(&selectable, QStyle::State_Enabled | QStyle::State_Selected);
+                    auto const focus = paint(&selectable, QStyle::State_Enabled | QStyle::State_HasFocus);
+                    auto const combined = paint(&selectable, QStyle::State_Enabled | QStyle::State_Selected | QStyle::State_HasFocus);
+                    if (plain == selected || plain == focus || selected == combined)
+                    {
+                        std::cerr << "FAIL selectable message selection and focus are not separately visible\n";
+                        return false;
+                    }
+                    if (paint(nullptr, QStyle::State_Enabled | QStyle::State_Selected) != selected ||
+                        paint(nullptr, QStyle::State_Enabled | QStyle::State_HasFocus) != focus)
+                    {
+                        std::cerr << "FAIL null-widget message paint ignores standard style states\n";
+                        return false;
+                    }
+                    for (auto state : {QStyle::State(QStyle::State_Enabled | QStyle::State_Selected),
+                                       QStyle::State(QStyle::State_Enabled | QStyle::State_HasFocus),
+                                       QStyle::State(QStyle::State_Enabled | QStyle::State_Selected | QStyle::State_HasFocus)})
+                    {
+                        if (paint(&normal, state) != plain)
+                        {
+                            std::cerr << "FAIL NoSelection message changes its existing rendering\n";
+                            return false;
+                        }
+                    }
+                    QRect const inner(qRound((option.rect.left() + 8) * ratio),
+                                      qRound((option.rect.top() + 8) * ratio),
+                                      qRound((option.rect.width() - 16) * ratio),
+                                      qRound((option.rect.height() - 16) * ratio));
+                    if (plain.copy(inner) != selected.copy(inner) || plain.copy(inner) != combined.copy(inner))
+                    {
+                        std::cerr << "FAIL message selection recolors its body instead of an outline\n";
+                        return false;
+                    }
+                    QRect const row(qRound(option.rect.left() * ratio), qRound(option.rect.top() * ratio),
+                                    qRound(option.rect.width() * ratio), qRound(option.rect.height() * ratio));
+                    for (int y = 0; y < plain.height(); ++y)
+                    {
+                        for (int x = 0; x < plain.width(); ++x)
+                        {
+                            if (!row.contains(x, y) && plain.pixel(x, y) != combined.pixel(x, y))
+                            {
+                                std::cerr << "FAIL message outline escapes its row\n";
+                                return false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    std::cout << "PASS Qt selectable message outlines, null-widget states and unchanged NoSelection rendering\n";
+    return true;
+}
+
 int main(int argc, char** argv)
 {
     QApplication app(argc, argv);
+    if (!check_message_selection_raster()) { return 1; }
     auto const chat_icon = svg_icon(QStringLiteral("chat"), QColor(QStringLiteral("#315A4B")));
     for (qreal ratio : {1.0, 1.25, 1.5, 2.0})
     {

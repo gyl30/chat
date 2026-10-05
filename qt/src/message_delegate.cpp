@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <memory>
 
+#include <QAbstractItemView>
 #include <QDateTime>
 #include <QFont>
 #include <QFontMetrics>
@@ -569,6 +570,17 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
         painter->drawRoundedRect(rect, 10, 10);
         painter->setPen(QColor(QStringLiteral("#315A4B")));
         painter->drawText(rect, Qt::AlignCenter, reaction.emoji + QStringLiteral(" %1").arg(reaction.users.size()));
+    }
+
+    auto const* view = qobject_cast<QAbstractItemView const*>(option.widget);
+    if ((!view || view->selectionMode() != QAbstractItemView::NoSelection) &&
+        (option.state & (QStyle::State_Selected | QStyle::State_HasFocus)))
+    {
+        auto const focused = option.state & QStyle::State_HasFocus;
+        painter->setPen(QPen(QColor(focused ? QStringLiteral("#547C68") : QStringLiteral("#A9B8B1")),
+                             focused ? 2 : 1));
+        painter->setBrush(Qt::NoBrush);
+        painter->drawRoundedRect(option.rect.adjusted(2, 2, -3, -3), 4, 4);
     }
 
     painter->restore();

@@ -155,8 +155,11 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q17 | P1 | 历史插入后删除/回复/附件指向另一条消息，已读详情显示另一条消息读者 | 第十六轮四项实测 RED 后修复；永久回归、完整三模式验证与真实双 Qt 通过；搜索复制同类缺陷也已修复 |
 | Q18 | P2 | 回复取消按钮黑底低对比且无动作名称，已读成员默认浅蓝选中；头像/读者刷新丢失当前选择 | 第十七轮修复；公开事件回归、三模式完整验证、四档双 Qt 原图与独立专项复核完成 |
 | Q19 | P2 | 长提及越过气泡右缘；无空格长正文和 URL 无法正确分配换行高度 | 第十八轮统一正文排版，永久 256 组合与完整三模式验证 GREEN；原生专项结果见下文 |
+| Q20 | P2 | 消息搜索 Tab/Down 已改变当前/选中行，但无任何可见反馈 | 第二十三阶段修复，正式三模式及真实双Qt四档缩放通过 |
+| Q21 | P2 | 搜索正文实时更新后可能不再匹配；删除占位仍计入“找到”数量，与界面说明矛盾 | 四档真实双Qt复现，后续需统一已加载命中、删除排除和迟到分页语义，保持开放 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 第十九轮字素编辑与宽字组合符附着修复已进入生产；终端 span、裁剪、leading mark 和 shaping 仍未闭环，不计 Unicode 全矩阵通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
+| T06 | P2 | TUI 搜索选中消息之前一项被删除时，只clamp索引，选中目标跳到另一ID | 独立public state探针实测RED；删除后面一项控制组通过，修复待后续独立阶段 |
 
 键盘打开列表、Qt 多行编辑、长公告、长 username、dialog 滚动、selection/focus、
 terminal light/dark、combining、SSH 和 suspend/restore 仍需进一步实际核验。
@@ -1445,3 +1448,81 @@ HW SC、Noto Color Emoji，实际图可看到部分ZWJ/肤色合成；终端存�
 实际版本/config、完整输出、tmux虚拟格及外层像素、真实输入/选择与换行，
 不能用库返回数字或局部carrier通过代替整体证据。Qt暂评87、TUI78不提高，
 reference、全页面/无障碍矩阵与最终两轮完整独立fresh review仍未完成。
+
+## 阶段 23：搜索结果的键盘身份反馈
+
+从 `86787802751618a84fd84460d0de31f4042b25d9` 继续。真实双Qt的四档搜索流程
+发现Tab/Down后没有当前行标记。独立实际xcb/public-widget探针在100/200%确认：
+Tab确实进入结果，Down确实选择第二/第三行，但整个列表像素变化为零；各六条视觉断言
+失败、导航断言通过。没有用源码推测或“测试全绿”代替这个反例。
+
+只在message delegate绘制末尾使用现有QAbstractItemView::selectionMode及标准
+Selected/HasFocus：可选择的结果行显示克制轮廓，聚焦时轮廓更明确；NoSelection普通
+聊天消息完全不变。实际绘制传入的widget在100/200%均为QListView，未凭objectName推断。
+没有新增mode/member/index缓存，不改气泡颜色、正文、sizeHint、editorEvent或操作目标。
+
+追加既有delegate/UI测试，保留全部旧断言。16个incoming/outgoing ×宽度320/640×
+非零/零origin×DPR1/2组合检查selected/focus/null-widget、正文不重染、轮廓不越行；
+普通NoSelection在受测组合逐像素不变。实际搜索dialog的Tab/Down逐行检查旧标记消失、
+新标记出现，blur后保留选中身份；三条fixture完整可见，不让滚动变化代替反馈证据。
+
+定向build exit0、delegate CTest1/1、最终offscreen widgets-only全部旧检查和新检查exit0。
+独立native100/200%专项各十条断言GREEN，旧RED与图原样保留。
+初次新fixture置于旧检查前干扰窗口焦点，移到两条main路径的全部旧检查之后，未删旧断言；
+native整widgets200%的旧avatar像素断言仍失败，不冒称整个200% widgets测试通过。
+主代理与独立代理亲看100/200%专项完整原图：当前行可辨，正文、avatar、日期未被覆盖。
+专项的合成fixture日期不是日常Chat消息日期，不把该helper当作整个产品的使用证据。
+独立报告 `/tmp/cpp-width-visual.cg0hjY/qt_search_focus_implementation_review.md`。
+
+### 实际双Qt使用
+
+正式normal客户端SHA `6e9022465a269c7ccbe919dc848d004668b0c2cbd7f810c6c02abbcdaa35df72`，
+两个真实Qt完成A100/125/150/200%、peer C100%的原文搜索、Tab/Down、复制、peer编辑/
+删除、显式重搜和未发送草稿恢复。第二次driver实际exit0，原文/编辑文本/删除占位的
+系统clipboard逐byte一致，目标消息ID不漂移；没有把仍存在的Q21当作通过。
+主代理亲看四档真实search焦点原图，独立专项并不代替其他页面/尺寸的完整评审。
+
+| 真实X11搜索列表 | before | after |
+| --- | --- | --- |
+| 100% | [无当前行标记](images/experience/before-qt-search-keyboard-100.png) | [可见键盘当前行](images/experience/after-qt-search-keyboard-100.png) |
+| 200% | [无当前行标记](images/experience/before-qt-search-keyboard-200.png) | [可见键盘当前行](images/experience/after-qt-search-keyboard-200.png) |
+
+before与after为独立隔离数据库的真实相同操作，不是相同消息像素diff；严格同fixture
+像素对照由前述public-widget及delegate测试提供。证据目录
+`/tmp/chat-quality-search-focus-after-native-final2-20261006`。
+首轮driver实际exit1：关闭搜索后枚举旧XID，xprop抛BadWindow；SDK流程已到显式重搜，
+该轮不能称四档通过。仅临时driver重核消失窗口，保留失败目录/日志，不修改产品迎合探针。
+最终driver仍保留两次窗口消失时的xprop stderr，不冒称所有工具日志零error；
+重核窗口实际关闭后完整流程exit0。五个Qt PID已消失、两轮精确自建库SQL count0、
+18893无listener，长期服务PID2876288仍存在；五个相关source start/end/current SHA一致。
+独立代理亲看四档各focus/button/draft原图共12张，其他截图未冒称全部亲看。
+
+全新Debug Qt/TUI ON `-Werror`构建成功，23/23 CTest通过，103.48s。
+最终统一源码实际执行正式 `tests/verify.sh`，Qt/TUI均ON：
+
+| 配置 | build / 全量CTest | 实际耗时 |
+| --- | --- | ---: |
+| normal Debug | PASS / 23/23 | 105.23s |
+| ASan | PASS / 23/23 | 137.10s |
+| UBSan | PASS / 23/23 | 130.38s |
+
+本阶段日志 `/tmp/chat-search-focus-final-verify.log`；原runner日志
+`/tmp/chat-search-focus-final-validation.log`记录实际 `VALIDATION_EXIT=0`。
+最终SSH观察返回255，另读原PID已终止且上述marker/完整三套结果已落盘，未据此重启测试。
+没有编译告警、sanitizer报告、skip、suppression或timeout放宽；
+fresh与正式Qt编译参数、ASan/UBSan真实插桩另核，不借用上一阶段肤色门禁。
+
+### 新发现的搜索语义缺口仍需修复
+
+旧真实双Qt证据 `/tmp/chat-quality-search-live-native-fourth-20261006` 保存原文、live
+编辑/删除、OSclipboard、SDK当前搜索及草稿四档流程：编辑后的正文不含query仍计一行，
+删除占位仍计一行，而fresh SDK查询为零。这是Q21，不是本阶段键盘绘制修复的附带收益。
+后端每次分页查询排除deleted、使用PostgreSQL字面lower匹配，不提供live search订阅或
+跨页不可变事务快照；不得在客户端用另一Unicode casefold冒充服务端匹配。
+下一阶段需明确“已加载的查询时命中、正文实时更新、删除不显示、显式重新搜索”，并
+证明原始分页cursor、tombstone、迟到页面、原目标复制与草稿不回退，不能只改caption盖住错误。
+
+递归审查还发现T06。临时public state probe加载ID30/20/10，选中20；删除前面的30后
+当前索引仍为1、实际ID变为10，exit1；删除后面的10控制组保持20、draft保持不变。
+证据 `/tmp/chat-search-selection-state-red.UvQcMF`。不将这项后续修复混入focus提交。
+当前没有全页面独立fresh review或屏幕阅读器验收，Qt87/TUI78不提高，整体Goal继续开放。

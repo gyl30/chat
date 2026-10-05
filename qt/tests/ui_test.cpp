@@ -1196,6 +1196,80 @@ void check_message_action_targets()
     std::cout << "PASS Qt message action target identity, cancellation and conversation fencing\n";
 }
 
+void check_message_search_keyboard_visibility()
+{
+    message_search_dialog dialog(50, 1, false, QStringLiteral("搜索焦点"), {}, nullptr);
+    dialog.setStyleSheet(chat_style_sheet());
+    auto* input = dialog.findChild<QLineEdit*>("messageSearchEdit");
+    auto* button = dialog.findChild<QPushButton*>("searchMessagesButton");
+    auto* results = dialog.findChild<QListView*>("messageSearchResults");
+    dialog.show();
+    dialog.activateWindow();
+    input->setText(QStringLiteral("关键词"));
+    button->click();
+    QList<message_data> matches;
+    for (int i = 0; i < 3; ++i)
+    {
+        message_data match;
+        match.id = 100 + i;
+        match.conversation = 50;
+        match.from = 2;
+        match.username = QStringLiteral("朋友");
+        match.timestamp = 1770000000000 + i;
+        match.text = QStringLiteral("关键词 %1 é 👩‍💻").arg(i + 1);
+        matches.push_back(match);
+    }
+    dialog.set_results(50, QStringLiteral("关键词"), 0, matches, {}, false, {});
+    input->setFocus();
+    QApplication::processEvents();
+    check(input->hasFocus() && results->selectionMode() == QAbstractItemView::SingleSelection,
+          "Search starts at the query and preserves the results' actual SingleSelection policy");
+    auto row_image = [&](int row) {
+        QApplication::processEvents();
+        auto const rect = results->visualRect(results->model()->index(row, 0));
+        check(results->viewport()->rect().contains(rect), "Focus fixtures remain fully visible without scrolling");
+        auto const pixmap = results->viewport()->grab();
+        auto const ratio = pixmap.devicePixelRatio();
+        return pixmap.toImage().copy(qRound(rect.x() * ratio), qRound(rect.y() * ratio),
+                                    qRound(rect.width() * ratio), qRound(rect.height() * ratio));
+    };
+    auto const plain0 = row_image(0);
+    auto const plain1 = row_image(1);
+    auto const plain2 = row_image(2);
+    auto key = [&](int code) {
+        auto* focused = QApplication::focusWidget();
+        check(focused, "Search keyboard events go to the actual focused widget");
+        QKeyEvent press(QEvent::KeyPress, code, Qt::NoModifier);
+        QKeyEvent release(QEvent::KeyRelease, code, Qt::NoModifier);
+        QApplication::sendEvent(focused, &press);
+        QApplication::sendEvent(focused, &release);
+        QApplication::processEvents();
+    };
+    key(Qt::Key_Tab);
+    check(button->hasFocus(), "Tab first reaches the search action");
+    key(Qt::Key_Tab);
+    check(results->hasFocus() && results->currentIndex().row() == 0 &&
+          results->selectionModel()->selectedRows().isEmpty() && row_image(0) != plain0,
+          "Tab visibly identifies the current search result before selection");
+    key(Qt::Key_Down);
+    check(results->hasFocus() && results->currentIndex().row() == 1 &&
+          results->selectionModel()->isSelected(results->currentIndex()) &&
+          row_image(0) == plain0 && row_image(1) != plain1,
+          "Down moves the visible search-result identity to the selected second row");
+    key(Qt::Key_Down);
+    check(results->currentIndex().row() == 2 && results->selectionModel()->isSelected(results->currentIndex()) &&
+          row_image(1) == plain1 && row_image(2) != plain2,
+          "A second Down moves the visible selection without leaving a stale row outline");
+    auto const focused2 = row_image(2);
+    input->setFocus();
+    QApplication::processEvents();
+    check(!results->hasFocus() && results->selectionModel()->isSelected(results->currentIndex()) &&
+          row_image(2) != focused2 && row_image(2) != plain2,
+          "Blur removes the focus outline while retaining visible selected-result identity");
+    dialog.reject();
+    std::cout << "PASS Qt search results show actual Tab/Down focus and selected identity\n";
+}
+
 void check_message_dialogs()
 {
     message_search_dialog dialog(50, 1, false, QStringLiteral("朋友"), {}, nullptr);
@@ -1486,7 +1560,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_dialogs(); check_message_composer(); check_conversation_drafts(); return 0; }
+        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_dialogs(); check_message_composer(); check_conversation_drafts(); check_message_search_keyboard_visibility(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
@@ -1515,6 +1589,7 @@ int main(int argc, char** argv)
         check_message_dialogs();
         check_message_composer();
         check_conversation_drafts();
+        check_message_search_keyboard_visibility();
         start();
         {
             chat_widget page;
