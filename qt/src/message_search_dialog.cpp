@@ -56,6 +56,7 @@ message_search_dialog::message_search_dialog(qint64 conversation, qint64 self_us
     search_row->setSpacing(chat_theme::dialog_spacing);
     input_ = new QLineEdit(this);
     input_->setObjectName(QStringLiteral("messageSearchEdit"));
+    input_->setAccessibleName(QStringLiteral("消息搜索关键词"));
     input_->setPlaceholderText(QStringLiteral("输入当前会话的关键词"));
     input_->setMaxLength(256);
     search_button_ = new QPushButton(QStringLiteral("搜索"), this);
@@ -85,6 +86,7 @@ message_search_dialog::message_search_dialog(qint64 conversation, qint64 self_us
     visible_messages_->setSourceModel(messages_);
     results_ = new QListView(this);
     results_->setObjectName(QStringLiteral("messageSearchResults"));
+    results_->setAccessibleName(QStringLiteral("消息搜索结果"));
     results_->setModel(visible_messages_);
     results_->setItemDelegate(new message_delegate(results_));
     results_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
@@ -119,6 +121,7 @@ message_search_dialog::message_search_dialog(qint64 conversation, qint64 self_us
             QGuiApplication::clipboard()->setText(text);
         }
     });
+    refresh_count();
     if (!query.isEmpty())
     {
         input_->setText(query);
@@ -135,6 +138,7 @@ void message_search_dialog::request_search(bool older)
         {
             status_->setText(QStringLiteral("请输入关键词。"));
             status_->show();
+            refresh_count();
             return;
         }
         before_ = 0;
@@ -270,4 +274,5 @@ void message_search_dialog::refresh_count()
     auto const count = visible_messages_->rowCount();
     count_->setText(count > 0 ? QStringLiteral("已加载 %1 条搜索时命中的消息").arg(count)
                             : QStringLiteral("没有已加载的搜索命中；可重新搜索。"));
+    count_->setVisible(count > 0 || status_->isHidden());
 }

@@ -1186,3 +1186,22 @@ AT-SPI结果行1→1→0→0。两次临时driver失败分别为关闭XID枚举�
 Q21/T06专项修复不代表整个品质目标完成。fresh-empty两条近义提示仍是轻度polish候选；
 TUI ZWJ行仍有右边界残留，outer terminal shaping/T04未完成。Qt87/TUI78不提高，
 全页面、完整日常使用、无障碍和连续两轮独立全产品fresh review仍继续开放。
+
+## 体验品质审查：操作目的与搜索反馈
+
+从 `00dff64089551e3e452d661162255de462079b05` 继续。九个Qt入口提供稳定操作名称，
+profile仍使用真实用户名身份。搜索初始/loading/error/fresh-empty只有一条请求反馈，
+live删除归零继续邀请重搜；不保存额外状态，不改变消息或查询语义。
+两项永久widgets断言各实际RED1→GREEN0，原断言全部保留。
+正式normal新binary `c3081ac1…b0946`的双Qt四档原生AT-SPI、OSclipboard、SDK编辑/
+删除/重搜/草稿发送同轮通过，driver实际0；100%资料/联系人/添加好友原生Press成功。
+前三次临时driver失败及实际清理证据保留，未修改产品迎合驱动。
+
+全新Debug `-Werror`Qt/TUI ON构建和23/23 CTest通过，107.43s；当前源码正式
+`tests/verify.sh` normal/ASan/UBSan各23/23，106.49/144.97/134.25s，runner实际0且
+源码SHA guard成功，原5s render超时未放宽。Qt/X11导航4/4、TUI/tmux导航11/11通过，
+自有DB/PID/ports/socket精确清理；长期服务未动，无push、无third改动。
+原图、专项范围及失败边界见[体验品质审查](experience-quality.md)。
+
+Q22操作目的专项收口，Q23消息行sender/time无障碍上下文仍缺失；T04 outer宽度/shaping、
+全页面/完整日常使用/动态announce和连续两轮全产品fresh review未完成。Qt87/TUI78不提高。

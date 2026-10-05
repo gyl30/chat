@@ -156,10 +156,12 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q18 | P2 | 回复取消按钮黑底低对比且无动作名称，已读成员默认浅蓝选中；头像/读者刷新丢失当前选择 | 第十七轮修复；公开事件回归、三模式完整验证、四档双 Qt 原图与独立专项复核完成 |
 | Q19 | P2 | 长提及越过气泡右缘；无空格长正文和 URL 无法正确分配换行高度 | 第十八轮统一正文排版，永久 256 组合与完整三模式验证 GREEN；原生专项结果见下文 |
 | Q20 | P2 | 消息搜索 Tab/Down 已改变当前/选中行，但无任何可见反馈 | 第二十三阶段修复，正式三模式及真实双Qt四档缩放通过 |
-| Q21 | P2 | 搜索正文实时更新后可能不再匹配；删除占位仍计入“找到”数量，与界面说明矛盾 | 四档真实双Qt复现，后续需统一已加载命中、删除排除和迟到分页语义，保持开放 |
+| Q21 | P2 | 搜索正文实时更新后可能不再匹配；删除占位仍计入“找到”数量，与界面说明矛盾 | 第二十四阶段修复，正式三模式、真实双Qt四档与AT-SPI行数/复制/草稿核验通过 |
+| Q22 | P2 | 原生无障碍树中的搜索输入/结果、会话/消息列表和个人资料入口没有动作名称 | 第二十五阶段补九个稳定操作名称，原生四档树、资料/联系人/添加好友实际AT-SPI动作通过；不代表全部屏幕阅读器验收 |
+| Q23 | P2 | 原生消息记录/搜索结果行只有正文名称，没有发送者/时间的可读取上下文 | 第二十五阶段真实树已确认，需从唯一消息model提供上下文并验证live更新与实际原生树 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 第十九轮字素编辑与宽字组合符附着修复已进入生产；终端 span、裁剪、leading mark 和 shaping 仍未闭环，不计 Unicode 全矩阵通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
-| T06 | P2 | TUI 搜索选中消息之前一项被删除时，只clamp索引，选中目标跳到另一ID | 独立public state探针实测RED；删除后面一项控制组通过，修复待后续独立阶段 |
+| T06 | P2 | TUI 搜索选中消息之前一项被删除时，只clamp索引，选中目标跳到另一ID | 第二十四阶段修复，永久RED/GREEN、真实双TUI六档选中目标/可复制正文/草稿验证通过 |
 
 键盘打开列表、Qt 多行编辑、长公告、长 username、dialog 滚动、selection/focus、
 terminal light/dark、combining、SSH 和 suspend/restore 仍需进一步实际核验。
@@ -1658,3 +1660,73 @@ Qt成功finally本来不写database-cleanup.txt，未因缺marker重启或伪造
 本次不修改server/client/SQL/third、无migration，无push。Q21/T06专项收口，
 Qt87/TUI78暂评不提高；T04 outer列与font shaping、全页面/完整日常使用/无障碍矩阵、
 最终两轮独立全产品fresh review仍缺证据。总体品质Goal继续推进，不标记完成。
+
+## 阶段 25：操作目的与单一搜索反馈
+
+基线 `00dff64089551e3e452d661162255de462079b05`。原生AT-SPI旧树中个人资料、
+会话/消息列表、搜索输入/结果名称为空；不把placeholder或tooltip默认当作可读取目的。
+本阶段为这些入口及同构的联系人/添加好友输入和结果，共九个控件设置稳定名称。
+个人资料入口仍保留真实用户名tooltip，clicked所用身份未替换成动作文案。
+没有新增状态、wrapper、几何或导航变化。
+
+搜索在初始提示、loading、空query、初页error和fresh-empty时仅显示请求反馈；
+删除最后已加载命中后仍显示独立的重新搜索提示，而不冒充服务端全局空结果。
+非零loaded count与旧页error是两个不同事实，继续同时显示。
+可见性直接取已有status可见状态和真实proxy行数，不保存另一份pending/empty bool。
+永久widgets回归两项分别实际RED exit1后GREEN exit0，原断言均保留；覆盖初始、
+loading、unknown live事件、初页error、empty query、fresh-empty、live删除归零及旧页error。
+日志 `/tmp/chat-search-feedback-{red,green}.log`、
+`/tmp/chat-operational-names-{red,green}.log`。
+
+### 原生双Qt与视觉证据
+
+正式normal Qt SHA `c3081ac1c633582b93fb45bf4f71313d7572407b041ed953fe45def0534b0946`。
+final4同一轮A100/125/150/200%、C100%，五次实际/proc SHA一致，driver/bus实际exit0。
+每档真实编辑/删除、原文和编辑正文OSclipboard逐byte核对、SDK当前查询、返回未重贴
+草稿并真实发送均通过；loaded行1→1→0→0。原生树分别确认输入text、列表list和
+资料push button名称；100%额外Contacts/AddFriend及资料执行实际AT-SPI Press成功，
+资料页显示真实用户名。不是仅从QWidget属性读回，更不是Orca语音或完整动态announce验收。
+
+| 原生搜索状态 | before | after |
+| --- | --- | --- |
+| 100% fresh-empty | [两条近义反馈](images/experience/before-qt-search-single-feedback-100.png) | [仅权威空结果](images/experience/after-qt-search-single-feedback-100.png) |
+| 200% fresh-empty | [两条近义反馈](images/experience/before-qt-search-single-feedback-200.png) | [仅权威空结果](images/experience/after-qt-search-single-feedback-200.png) |
+
+before来自上一阶段隔离数据库，不是同fixture逐像素差异。主代理亲看final4这两张、
+200%live删除和100%资料原图；独立代理亲看四档edit/delete/fresh-empty/result-focus/
+button-focus/draft共24张，加资料/联系人/添加好友3张，未见本专项material回退。
+证据 `/tmp/chat-quality-q22-native-final4-20261006`，execution和independent-verification
+保存真实SHA、动作、SDK、clipboard和清理结果。最初三轮driver失败依次为新bus树尚未
+注册、已销毁model节点optional action getter、launcher未加载PG环境；未据此修改产品。
+临时reader采用有界等待注册、记录optional getter错误，必需名称/角色/动作断言没有删。
+瞬时XID BadWindow重枚举日志保留，不声称全部工具日志零error。
+
+四个精确自建库均SQL count0，四轮记录的PID全部消失，18898无listener；final4 source
+start/end/current一致，长期用户服务2876288仍在。Qt按预期SIGTERM/wait=-15清理，
+不将其称为crash。专项仍发现Q23：消息行Name只有正文、Description空，也没有sender/
+time子节点；接下来处理可读取消息上下文，不把当前Name修复替代全无障碍矩阵。
+
+### 当前源码完整门禁
+
+全新Debug Qt/TUI ON `-Werror`目录 `/tmp/chat-q22-fresh.oudW8V`构建和23/23 CTest通过，
+107.43s。正式 `tests/verify.sh` Qt/TUI ON，原runner实际exit0，
+`/tmp/chat-q22-final-validation.log`记录 `Q22_VALIDATION_EXIT=0`且三份source SHA guard成功。
+
+| 配置 | build / 全量CTest | 实际耗时 | tui_render（原5s） |
+| --- | --- | ---: | ---: |
+| normal Debug | PASS / 23/23 | 106.49s | 0.84s |
+| ASan | PASS / 23/23 | 144.97s | 4.02s |
+| UBSan | PASS / 23/23 | 134.25s | 1.74s |
+
+日志 `/tmp/chat-q22-final-verify.log`；实际插桩与严格编译参数另核，未放宽timeout、
+skip或suppression。当前源码Qt/X11导航4/4、TUI/tmux导航11/11各actualexit0。
+目录 `/tmp/chat-quality-q22-{qt,tui}-navigation-20261006`；主代理只读cleanup checker
+actualexit0，精确库`chat_qtx11_1006034252_197085`/`chat_nav1006034253_197248`均为0，
+18899/18900无listener，两个记录driver PID消失，自有DB/log/port关联活进程为空、
+专用tmux socket无server。没有historical child PID清单，不伪称逐child核验。
+
+T04通用malformed modifier候选隔离研究保留于
+`/tmp/chat-t04-contextual-skin-candidate.2t19yN/REPORT.md`：官方Unicode18属性和紧邻关系
+可解决非base前缀/非法插入关联，但合法ZWJ/emoji在不同outer terminal仍有宽度残留。
+候选尚未进入正式构建，不把其临时GREEN记作T04完成。本阶段无server/client/SQL/third
+改动、无migration或push；Qt87/TUI78不提高，完整日常使用和两轮全产品fresh review继续开放。

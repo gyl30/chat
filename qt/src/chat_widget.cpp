@@ -132,6 +132,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     profile_avatar_->setCursor(Qt::PointingHandCursor);
     profile_avatar_->setIconSize(QSize(44, 44));
     profile_avatar_->setObjectName(QStringLiteral("profileAvatar"));
+    profile_avatar_->setAccessibleName(QStringLiteral("我的资料"));
     profile_avatar_->setFixedSize(44, 44);
     navigation_layout->addWidget(profile_avatar_, 0, Qt::AlignHCenter);
 
@@ -197,6 +198,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     conversations_ = new conversation_model(this, &avatars_);
     conversations_view_ = new QListView(conversations_page);
     conversations_view_->setObjectName(QStringLiteral("conversationList"));
+    conversations_view_->setAccessibleName(QStringLiteral("会话列表"));
     conversations_view_->setModel(conversations_);
     auto* conversations_delegate = new conversation_delegate(conversations_view_);
     conversations_view_->setItemDelegate(conversations_delegate);
@@ -221,6 +223,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     contact_search_ = new QLineEdit(contacts_page);
     contact_search_->setObjectName(QStringLiteral("userSearchEdit"));
     contact_search_->setPlaceholderText(QStringLiteral("搜索联系人"));
+    contact_search_->setAccessibleName(QStringLiteral("搜索联系人"));
     contact_search_->setClearButtonEnabled(false);
     contacts_layout->addWidget(contact_search_);
     contacts_status_ = new QLabel(QStringLiteral("暂无联系人"), contacts_page);
@@ -235,6 +238,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     contacts_filter_->setFilterCaseSensitivity(Qt::CaseInsensitive);
     contacts_view_ = new QListView(contacts_page);
     contacts_view_->setObjectName(QStringLiteral("userList"));
+    contacts_view_->setAccessibleName(QStringLiteral("联系人列表"));
     contacts_view_->setModel(contacts_filter_);
     auto* contacts_delegate = new user_delegate(contacts_view_);
     contacts_view_->setItemDelegate(contacts_delegate);
@@ -254,6 +258,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     add_user_search_ = new QLineEdit(add_contacts_page);
     add_user_search_->setObjectName(QStringLiteral("userSearchEdit"));
     add_user_search_->setPlaceholderText(QStringLiteral("搜索用户"));
+    add_user_search_->setAccessibleName(QStringLiteral("搜索用户"));
     add_user_search_->setClearButtonEnabled(false);
     add_contacts_layout->addWidget(add_user_search_);
     add_users_status_ = new QLabel(QStringLiteral("输入用户名搜索"), add_contacts_page);
@@ -264,6 +269,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     add_users_ = new user_model(this, &avatars_);
     add_users_view_ = new QListView(add_contacts_page);
     add_users_view_->setObjectName(QStringLiteral("userList"));
+    add_users_view_->setAccessibleName(QStringLiteral("用户搜索结果"));
     add_users_view_->setModel(add_users_);
     auto* add_users_delegate = new user_delegate(add_users_view_);
     add_users_view_->setItemDelegate(add_users_delegate);
@@ -430,6 +436,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     messages_ = new message_model(this, &avatars_, &images_);
     messages_view_ = new QListView(chat_panel);
     messages_view_->setObjectName(QStringLiteral("messageList"));
+    messages_view_->setAccessibleName(QStringLiteral("消息记录"));
     connect(messages_, &QAbstractItemModel::modelReset, this, [this] {
         QTimer::singleShot(0, messages_view_, [this] { load_visible_images(); });
     });

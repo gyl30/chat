@@ -441,6 +441,10 @@ void check_primary_navigation()
     auto* navigation = page.findChild<QFrame*>("navigationPanel");
     auto buttons = navigation->findChildren<QToolButton*>();
     check(buttons.size() == 3, "Primary navigation is only Chats, Contacts and account avatar");
+    check(page.findChild<QToolButton*>("profileAvatar")->accessibleName() == QStringLiteral("我的资料") &&
+          page.findChild<QListView*>("conversationList")->accessibleName() == QStringLiteral("会话列表") &&
+          page.findChild<QListView*>("messageList")->accessibleName() == QStringLiteral("消息记录"),
+          "Account action, conversation list and message history have stable accessible purposes");
     auto* actions = page.findChild<QToolButton*>("chatsActionsButton");
     check(actions && actions->isVisible() && actions->menu(), "Chats header exposes a lightweight action menu");
     auto* add = page.findChild<QAction*>("addFriendAction");
@@ -457,6 +461,10 @@ void check_primary_navigation()
     auto search_lists = page.findChildren<QListView*>("userList");
     auto search_list = std::find_if(search_lists.begin(), search_lists.end(), [](auto* list) { return list->isVisible(); });
     check(search_list != search_lists.end(), "User search results are visible before clicking their avatar");
+    check((*search_list)->accessibleName() == QStringLiteral("用户搜索结果") &&
+          std::any_of(searches.begin(), searches.end(), [](auto* field) {
+              return field->isVisible() && field->accessibleName() == QStringLiteral("搜索用户");
+          }), "Add friend input and results expose their accessible purpose independently of placeholder text");
     auto const search_row = (*search_list)->visualRect((*search_list)->model()->index(0, 0));
     check_profile_avatar_click(*search_list, QPoint(20, search_row.center().y()));
     auto* back = page.findChild<QToolButton*>("sidebarHeaderButton");
@@ -471,6 +479,10 @@ void check_primary_navigation()
     auto selected_list = std::find_if(lists.begin(), lists.end(), [](auto* view) { return view->isVisible(); });
     check(selected_list != lists.end(), "Contacts list is visible");
     auto* contact_view = *selected_list;
+    check(contact_view->accessibleName() == QStringLiteral("联系人列表") &&
+          std::any_of(searches.begin(), searches.end(), [](auto* field) {
+              return field->isVisible() && field->accessibleName() == QStringLiteral("搜索联系人");
+          }), "Contacts input and list have accessible purposes distinct from user search");
     auto* add_contact = page.findChild<QToolButton*>("sidebarTextButton");
     add_contact->click();
     back->click();
@@ -1308,7 +1320,12 @@ void check_message_search_live_policy()
         return values;
     };
     dialog.show(); dialog.activateWindow(); QApplication::processEvents();
+    check(count->isHidden() && status->isVisible(), "A new search shows only its input prompt, not an empty loaded-count row");
+    check(input->accessibleName() == QStringLiteral("消息搜索关键词") &&
+          results->accessibleName() == QStringLiteral("消息搜索结果"),
+          "Message search input and result list have explicit accessible purposes");
     start();
+    check(count->isHidden() && status->isVisible(), "Initial search loading has one response feedback line");
     dialog.set_results(50, query, 0, {message(100), message(101)}, {}, false, {});
     auto edit = message(100); edit.text = QStringLiteral("no longer a current match"); edit.edited_at = 20;
     dialog.update_message(50, edit, {});
@@ -1331,9 +1348,18 @@ void check_message_search_live_policy()
     auto last_deleted = matching_edit; last_deleted.deleted = true;
     dialog.update_message(50, last_deleted, {});
     check(ids().isEmpty() && count->text().contains(QStringLiteral("重新搜索")) &&
-          status->text() != QStringLiteral("没有匹配的消息。"), "Deleting the last loaded hit invites refresh, not fresh global emptiness");
+          count->isVisible() && status->isHidden() && status->text() != QStringLiteral("没有匹配的消息。"),
+          "Deleting the last loaded hit visibly invites refresh, not fresh global emptiness");
     start(); dialog.set_results(50, query, 0, {}, {}, false, {});
-    check(status->text() == QStringLiteral("没有匹配的消息。"), "Explicit refresh may authoritatively return an empty search page");
+    check(status->text() == QStringLiteral("没有匹配的消息。") && status->isVisible() && count->isHidden(),
+          "Explicit refresh shows one authoritative empty-page response without a duplicate zero count");
+    input->clear(); search->click(); QApplication::processEvents();
+    check(status->text() == QStringLiteral("请输入关键词。") && status->isVisible() && count->isHidden(),
+          "An invalid empty query keeps only actionable input feedback");
+    start(); dialog.set_results(50, query, 0, {}, {}, false, QStringLiteral("初页搜索错误"));
+    dialog.update_message(50, message(99), {});
+    check(status->isVisible() && status->text() == QStringLiteral("初页搜索错误") && count->isHidden(),
+          "An initial page error remains the sole zero-hit feedback even after an unknown live event");
 
     start();
     dialog.set_reactions(50, 100, 7, {{QStringLiteral("👍"), {2}}}, {});
@@ -1342,6 +1368,7 @@ void check_message_search_live_policy()
     dialog.update_message(50, last_deleted, {});
     check(ids().isEmpty() && status->text() == QStringLiteral("正在搜索…"),
           "Unknown live events remain invisible and do not overwrite pending-search status");
+    check(count->isHidden(), "Unknown live events do not expose duplicate zero-count text during loading");
     dialog.set_results(50, query, 0, {message(100), message(101)}, {}, true, {});
     auto const merged_reactions = index_for(100).data(message_model::reactions_role).value<QList<reaction_data>>();
     check(ids() == QList<qint64>{100} && index_for(100).data(message_model::text_role).toString() == edit.text &&
@@ -1394,6 +1421,7 @@ void check_message_search_live_policy()
     dialog.update_message(50, foreign, {}); dialog.update_message(51, deleted, {});
     check(ids() == QList<qint64>{100} && status->text() == QStringLiteral("测试搜索错误"),
           "Live events preserve page-error status and foreign-conversation events cannot delete a loaded hit");
+    check(count->isVisible() && status->isVisible(), "An older-page error preserves the distinct nonzero loaded count");
     dialog.set_reactions(50, 99, 50, {{QStringLiteral("❤️"), {2}}}, {});
     auto const request_count = requests.size();
     start();
