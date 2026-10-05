@@ -737,6 +737,130 @@ void check_confirmation_dialogs()
     std::cout << "PASS Qt named confirmation actions and safe keyboard defaults\n";
 }
 
+void check_message_editor()
+{
+    chat_widget page;
+    page.setStyleSheet(chat_style_sheet());
+    page.resize(980, 640);
+    page.set_user(QStringLiteral("本人"), 1);
+    page.set_connection_available(true);
+    conversation_data direct;
+    direct.id = 50; direct.user = 2; direct.username = QStringLiteral("朋友"); direct.can_send = true;
+    page.open_conversation(direct);
+    message_data message;
+    message.id = 7; message.conversation = direct.id; message.from = 1; message.username = QStringLiteral("本人");
+    message.text = QStringLiteral("原始中文 🙂 é 与长内容\n").repeated(24);
+    page.set_messages(direct.id, {message}, {}, false, false, false);
+    page.show();
+    QApplication::processEvents();
+    auto* view = page.findChild<QListView*>("messageList");
+    int edits = 0;
+    QString submitted;
+    QObject::connect(&page, &chat_widget::edit_message_requested, &page,
+        [&](qint64 conversation, qint64 id, QString text) {
+            check(conversation == direct.id && id == message.id, "Message edit retains its original target");
+            ++edits;
+            submitted = std::move(text);
+        });
+    for (int choice = 0; choice < 7; ++choice)
+    {
+        if (choice == 6)
+        {
+            page.open_conversation(direct);
+            page.set_messages(direct.id, {message}, {}, false, false, false);
+        }
+        auto const edits_before = edits;
+        auto const index = view->model()->index(choice == 5 ? 1 : 0, 0);
+        view->scrollTo(index);
+        QApplication::processEvents();
+        QTimer inspect;
+        QObject::connect(&inspect, &QTimer::timeout, &page, [&] {
+            auto* dialog = qobject_cast<QInputDialog*>(QApplication::activeModalWidget());
+            if (!dialog) { return; }
+            inspect.stop();
+            dialog->activateWindow();
+            wait([&] { return dialog->isActiveWindow(); });
+            check(dialog->objectName() == "editMessageDialog", "Message editing has a named real input dialog");
+            check(dialog->layout()->contentsMargins() == QMargins(24, 24, 24, 24) && dialog->layout()->spacing() == 12,
+                  "Message editing uses shared dialog spacing");
+            check(dialog->width() == chat_theme::dialog_normal_width, "Message editing has the normal dialog width");
+            auto* editor = dialog->findChild<QPlainTextEdit*>("editMessageText");
+            check(editor && editor->toPlainText() == message.text && !editor->accessibleName().isEmpty(),
+                  "Message editing preserves the complete original Unicode body");
+            check(editor->lineWrapMode() == QPlainTextEdit::WidgetWidth && editor->tabChangesFocus(),
+                  "Message editing wraps text and uses Tab for focus rather than replacing the selection");
+            auto* buttons = dialog->findChild<QDialogButtonBox*>();
+            auto* save = buttons->button(QDialogButtonBox::Ok);
+            check(save->text() == QStringLiteral("保存") && buttons->button(QDialogButtonBox::Cancel)->text() == QStringLiteral("取消"),
+                  "Message editing names both decisions");
+            for (auto* button : buttons->buttons()) { check(button->icon().isNull(), "Message editing has no platform button icons"); }
+            check(save->grab().toImage().pixelColor(save->width() / 2, 4) == QColor("#315A4B"),
+                  "Message save is visibly the primary action");
+            editor->setFocus();
+            auto editor_image = editor->grab().toImage();
+            check(editor_image.pixelColor(0, editor_image.height() / 2) == QColor("#547C68"),
+                  "Message editing has a visible input focus boundary");
+            QKeyEvent tab(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier);
+            QApplication::sendEvent(editor, &tab);
+            check(QApplication::focusWidget() == save && editor->toPlainText() == message.text,
+                  "Tab reaches Save without mutating the body");
+            editor_image = editor->grab().toImage();
+            check(editor_image.pixelColor(0, editor_image.height() / 2) == QColor("#DDD9D0"),
+                  "Message editing retains its unfocused input boundary");
+            if (choice == 0)
+            {
+                QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+                QApplication::sendEvent(dialog, &escape);
+            }
+            else
+            {
+                editor->setPlainText(choice == 1 ? QString{} : choice == 2 ? QStringLiteral(" \n\t　") : QStringLiteral("已编辑中文 🙂\n第二行 é"));
+                if (choice == 4)
+                {
+                    auto older = message;
+                    older.id = 6;
+                    older.text = QStringLiteral("此前的另一条消息");
+                    page.set_messages(direct.id, {older}, {}, true, false, false);
+                }
+                if (choice == 5)
+                {
+                    auto other = direct;
+                    other.id = 60;
+                    page.open_conversation(other);
+                }
+                save->click();
+            }
+        });
+        inspect.start(0);
+        QTimer::singleShot(0, [&] {
+            auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+            check(menu, "Message edit is reached through the actual context menu");
+            QAction* edit = nullptr;
+            for (auto* action : menu->actions()) { if (action->text() == QStringLiteral("编辑")) { edit = action; } }
+            check(edit, "An own text message has an edit action");
+            if (choice == 6)
+            {
+                auto older = message;
+                older.id = 6;
+                older.text = QStringLiteral("菜单打开后载入的另一条消息");
+                page.set_messages(direct.id, {older}, {}, true, false, false);
+            }
+            menu->setActiveAction(edit);
+            QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+            QApplication::sendEvent(menu, &enter);
+        });
+        view->customContextMenuRequested(view->visualRect(index).intersected(view->viewport()->rect()).center());
+        check(edits == edits_before + (choice >= 2 && choice != 5),
+              "Escape, an empty body and a changed conversation do not submit an edit");
+        if (choice >= 2)
+        {
+            check(submitted == (choice == 2 ? QStringLiteral(" \n\t　") : QStringLiteral("已编辑中文 🙂\n第二行 é")),
+                  "Nonempty whitespace and multiline Unicode keep their existing exact save semantics");
+        }
+    }
+    std::cout << "PASS Qt message edit layout, keyboard and exact body semantics\n";
+}
+
 void check_message_dialogs()
 {
     message_search_dialog dialog(50, 1, false, QStringLiteral("朋友"), {}, nullptr);
@@ -999,7 +1123,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_dialogs(); check_message_composer(); check_conversation_drafts(); return 0; }
+        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_message_dialogs(); check_message_composer(); check_conversation_drafts(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
@@ -1022,6 +1146,7 @@ int main(int argc, char** argv)
         check_primary_navigation();
         check_profile_layout();
         check_confirmation_dialogs();
+        check_message_editor();
         check_message_dialogs();
         check_message_composer();
         check_conversation_drafts();

@@ -980,3 +980,21 @@ Qt/X11 导航 4/4、TUI/tmux 导航 11/11；完整验证 normal、ASan、UBSan �
 `git diff --check` PASS，Qt/server/client/SQL/third 不变，无 migration。
 Qt 暂评 87、TUI 78；复合 Unicode 与剩余页面、键盘、终端、参考矩阵继续处理。
 原图、覆盖边界和后续工作见 [体验品质审查](experience-quality.md)。
+
+## 体验品质审查：消息编辑与目标归属
+
+消息编辑继续使用真实 QInputDialog，宽度 520、内容边距 24、间距 12，
+中文保存/取消与原有按钮语言一致；正文按宽度换行，Tab 聚焦保存而不替换全选内容。
+菜单打开前捕获消息 ID、会话与正文，历史插入不会把编辑目标或初始正文带到另一条消息；
+保存仍检查原会话及可发送权限。空串不提交，非空空白原样保存，业务规则不变。
+
+七种公共事件场景、两类目标漂移与输入边框像素均先复现 RED，再验证 GREEN。
+首轮原图发现编辑区样式未应用，完成命名后刷新样式，再完整采集四档 DPI 与双 Qt。
+最终 49 张原图证据包含长 Unicode 正文、取消/保存、Tab、另一客户端实时更新，
+主代理与独立代理实际复核边框和长文首尾；不是全页面或无障碍完整验收。
+最终完整 `tests/verify.sh`：normal 20/20（97.32 s）、ASan 20/20（135.61 s）、UBSan 20/20（122.28 s）。
+Qt/X11 导航 4/4、TUI/tmux 导航 11/11，Qt/TUI 均启用；无编译警告、sanitizer 报告、
+suppression、跳过或 timeout 放宽。自有成功隔离库与进程已清理，`git diff --check` PASS。
+Qt 暂评仍为 87、TUI 78；其他菜单目标、复合 Unicode、参考与剩余矩阵继续处理。
+未改 server、client library、TUI、SQL 或 third，无 migration。
+原图、失败驱动的区分及专项覆盖边界见 [体验品质审查](experience-quality.md)。

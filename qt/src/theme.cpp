@@ -113,13 +113,13 @@ QString chat_style_sheet()
             font-weight: 600;
             color: #5D6C64;
         }
-        QPlainTextEdit#groupAnnouncementEdit {
+        QPlainTextEdit#groupAnnouncementEdit, QPlainTextEdit#editMessageText {
             background: #FFFFFF;
             border: 1px solid #DDD9D0;
             border-radius: 10px;
             padding: 8px;
         }
-        QPlainTextEdit#groupAnnouncementEdit:focus {
+        QPlainTextEdit#groupAnnouncementEdit:focus, QPlainTextEdit#editMessageText:focus {
             border-color: #547C68;
         }
         QDialog QPushButton, QPushButton#newFriendsButton, QToolButton#messageSearchButton, QToolButton#sendAttachmentButton {
@@ -135,29 +135,35 @@ QString chat_style_sheet()
             border-color: #D7DDD9;
         }
         QDialog#createGroupDialog QPushButton:hover, QDialog#joinGroupDialog QPushButton:hover,
-        QDialog#groupInviteDialog QPushButton:hover, QDialog#confirmationDialog QPushButton:hover {
+        QDialog#groupInviteDialog QPushButton:hover, QDialog#confirmationDialog QPushButton:hover,
+        QDialog#editMessageDialog QPushButton:hover {
             background: #F0F4F1;
         }
         QDialog#createGroupDialog QPushButton:focus, QDialog#joinGroupDialog QPushButton:focus,
-        QDialog#groupInviteDialog QPushButton:focus, QDialog#confirmationDialog QPushButton:focus {
+        QDialog#groupInviteDialog QPushButton:focus, QDialog#confirmationDialog QPushButton:focus,
+        QDialog#editMessageDialog QPushButton:focus {
             border-color: #547C68;
         }
         QDialog#createGroupDialog QPushButton#groupNextButton, QDialog#joinGroupDialog QPushButton#joinGroupButton,
-        QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton {
+        QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton,
+        QDialog#editMessageDialog QPushButton#editMessageButton {
             background: #315A4B;
             color: #FFFFFF;
             border: 2px solid transparent;
         }
         QDialog#createGroupDialog QPushButton#groupNextButton:hover, QDialog#joinGroupDialog QPushButton#joinGroupButton:hover,
-        QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton:hover {
+        QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton:hover,
+        QDialog#editMessageDialog QPushButton#editMessageButton:hover {
             background: #294D40;
         }
         QDialog#createGroupDialog QPushButton#groupNextButton:focus, QDialog#joinGroupDialog QPushButton#joinGroupButton:focus,
-        QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton:focus {
+        QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton:focus,
+        QDialog#editMessageDialog QPushButton#editMessageButton:focus {
             border-color: #88A697;
         }
         QDialog#createGroupDialog QPushButton#groupNextButton:disabled, QDialog#joinGroupDialog QPushButton#joinGroupButton:disabled,
-        QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton:disabled {
+        QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton:disabled,
+        QDialog#editMessageDialog QPushButton#editMessageButton:disabled {
             background: #E7EEE9;
             color: #78897F;
         }

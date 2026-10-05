@@ -477,6 +477,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                 QMenu menu(this);
                 auto* reply = can_send() ? menu.addAction(QStringLiteral("回复")) : nullptr;
                 auto const message_id = index.data(message_model::id_role).toLongLong();
+                auto const message_text = index.data(message_model::text_role).toString();
                 auto const current = conversation(active_conversation_);
                 auto const unpin = current && current->pinned_message.id == message_id;
                 auto* group_pin = messages_->can_manage_group()
@@ -546,15 +547,41 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                 }
                 if (edit && selected == edit)
                 {
-                    if (!can_send()) { return; }
-                    bool accepted = false;
-                    auto text =
-                        QInputDialog::getMultiLineText(this, QStringLiteral("编辑消息"), QStringLiteral("内容"),
-                                                       index.data(message_model::text_role).toString(), &accepted);
-                    if (accepted && !text.isEmpty() && can_send())
+                    if (!can_send() || conversation != active_conversation_) { return; }
+                    QInputDialog dialog(this);
+                    dialog.setObjectName(QStringLiteral("editMessageDialog"));
+                    dialog.setWindowTitle(QStringLiteral("编辑消息"));
+                    dialog.setLabelText(QStringLiteral("消息内容"));
+                    dialog.setOption(QInputDialog::UsePlainTextEditForTextInput);
+                    dialog.setInputMode(QInputDialog::TextInput);
+                    dialog.setTextValue(message_text);
+                    dialog.setOkButtonText(QStringLiteral("保存"));
+                    dialog.setCancelButtonText(QStringLiteral("取消"));
+                    dialog.layout()->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding,
+                                                       chat_theme::dialog_padding, chat_theme::dialog_padding);
+                    dialog.layout()->setSpacing(chat_theme::dialog_spacing);
+                    auto* editor = dialog.findChild<QPlainTextEdit*>();
+                    editor->setObjectName(QStringLiteral("editMessageText"));
+                    editor->setAccessibleName(QStringLiteral("消息内容"));
+                    editor->setMinimumWidth(chat_theme::dialog_normal_width - 2 * chat_theme::dialog_padding);
+                    editor->setMinimumHeight(200);
+                    editor->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+                    editor->setTabChangesFocus(true);
+                    editor->style()->unpolish(editor);
+                    editor->style()->polish(editor);
+                    auto* buttons = dialog.findChild<QDialogButtonBox*>();
+                    buttons->button(QDialogButtonBox::Ok)->setObjectName(QStringLiteral("editMessageButton"));
+                    for (auto* button : buttons->buttons())
                     {
-                        emit edit_message_requested(active_conversation_,
-                                                    index.data(message_model::id_role).toLongLong(), std::move(text));
+                        button->setIcon({});
+                        button->style()->unpolish(button);
+                        button->style()->polish(button);
+                    }
+                    if (dialog.exec() != QDialog::Accepted) { return; }
+                    auto text = dialog.textValue();
+                    if (!text.isEmpty() && can_send() && conversation == active_conversation_)
+                    {
+                        emit edit_message_requested(conversation, message_id, std::move(text));
                     }
                     return;
                 }

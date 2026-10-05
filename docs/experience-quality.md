@@ -150,6 +150,8 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q12 | P1 | 消息搜索输入框 Enter 触发默认关闭，聚焦分页也无法用 Enter 请求更早结果 | 第十二轮修复默认/自动默认按钮和键盘回归，真实四档缩放搜索通过 |
 | Q13 | P2 | 图片 QLabel 的源尺寸阻止预览缩小；强制缩窗后裁掉边缘 | 第十二轮复用解码图片等比例适配显示区域，缩小/放大及真实保存通过 |
 | Q14 | P2 | 创建/加入群和确认框仍有默认平台图标、英文按钮及不一致的操作权重 | 第十三轮收口布局、动作、键盘默认与选人标记；验证见下文 |
+| Q15 | P2 | 消息编辑框过窄，默认不换行、英文等权按钮；Tab 替换选中正文 | 第十五轮修复；七场景回归、四档原图与完整验证收口 |
+| Q16 | P1 | 编辑菜单或弹窗等待期间插入旧历史，普通行索引会漂移到另一条消息 | 第十五轮修复编辑身份/正文捕获并完整验证；其他菜单路径继续逐条核验 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 真实 DSR 与依赖源码确认；未修复，不计 Unicode 全矩阵通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 
@@ -820,3 +822,65 @@ Qt 暂评保持 87；TUI 暂评 78/100：14/20、13/15、7/10、8/10、9/10、9/
 Help 可用性改善不替代全产品评审；复合 Unicode、长身份的其余页面、消息编辑弹窗、
 完整键盘/终端/参考矩阵和最终连续两轮 fresh review 均继续保留。
 本阶段不改 Qt、server、client library、SQL 或 third，无 migration。
+
+## 第十五轮：消息编辑的阅读与目标归属
+
+本阶段从 `14f45b080601f09eb65e60aa6310e6d4c4117dba` 继续。
+真实 before 编辑框为 278×281，默认英文按钮和平台图标，正文不换行；
+Tab 会把全选的原文替换成制表符。原生驱动先后误选删除菜单项和只读会话，
+经实际窗口和权威 SDK fixture 核对后修正，没有为了旧坐标修改产品。
+
+编辑继续使用局部的真实 QInputDialog，复用 520 宽度、24 内容边距和 12 间距，
+多行正文按显示宽度换行，Tab 到保存，保存/取消中文且无平台图标。
+空字符串仍不提交，非空空白原样保存，不以 trim 改写既有业务规则。
+正文、会话和消息 ID 在菜单打开前捕获；保存时检查仍是原会话且可发送。
+不增加临时状态成员、协议、服务端快照或兼容包装。
+
+既有 Qt UI 入口新增七个公共事件场景：取消、空串、非空空白、多行 Unicode、
+弹窗期间插入历史、切换会话、菜单期间插入历史。
+两种历史插入分别先复现编辑目标错误和原文错误 RED，再验证捕获身份/正文后的 GREEN。
+定向驱动最初的焦点和菜单事件次序问题先修正，不记作产品失败或放宽断言。
+
+首轮四档缩放、双 Qt 完成 49 张真实窗口采集，行为通过，
+但独立原图复审发现输入区缺失主题边框和焦点轮廓，主代理再次亲看确认。
+按钮样式正确不等于输入区样式正确，该版不记为视觉完整 PASS。
+输入区聚焦/Tab 后左边中点的像素断言先复现 RED，再在完成对象命名和配置后刷新样式。
+七个场景均验证焦点色 `#547C68`、非焦点色 `#DDD9D0`，没有新增状态或样式框架。
+
+- 普通编辑 [before](images/experience/before-qt-message-edit.png) /
+  [after](images/experience/after-qt-message-edit.png)，[200%](images/experience/after-qt-message-edit-200.png)。
+- 长正文 [before](images/experience/before-qt-message-edit-long.png) /
+  [150% 首部](images/experience/after-qt-message-edit-long-150.png)、
+  [200% 末尾](images/experience/after-qt-message-edit-long-200.png)。
+- [125% Tab 到保存](images/experience/after-qt-message-edit-tab-125.png)、
+  [另一真实 Qt 收到更新](images/experience/after-qt-message-edit-peer.png)。
+
+最终原图来自 `/tmp/chat-quality-message-edit-polished-final-qt-20261005`，
+不是重排或合成；100/125/150/200% 实际窗口为 520×329、650×411、780×494、1040×658。
+五次进程启动均记录实际二进制 SHA `9763a11f50a02cf833f8f33e121f633ad1a5d361d1ca211557aa7b5169d074f5`，
+工作区 source hash 是同期观察，不冒称 HEAD 构建身份。
+正文包含中文、ASCII、emoji 和组合符；真实 16 行、2815 字节保存、另一客户端更新、
+三种编辑状态 Esc 保留、空串不提交和非空空白原样均逐项核对。
+主代理和独立代理实际复看聚焦、Tab、窄正文及 200% 长文末尾，没有新增本专项 material issue。
+49 张采集不等于 49 个独立测试，也不是全部页面或全部可访问性验收。
+首轮与中间版的截图和驱动失败证据保留，不混作最终二进制结果。
+最终完整 `tests/verify.sh`：normal 20/20（97.32 秒）、ASan 20/20（135.61 秒）、
+UBSan 20/20（122.28 秒），Qt/TUI 均启用；无编译警告、sanitizer 报告、suppression、跳过或 timeout 放宽。
+日志 `/tmp/chat-edit-final-verify-20261005.log`，对应验证隔离库已删除。
+最终 Qt/X11 导航 4/4、TUI/tmux 导航 11/11，证据在
+`/tmp/chat-edit-polished-qt-navigation-20261005`、`/tmp/chat-edit-polished-tui-navigation-20261005`。
+原生采集自有数据库已删除、进程与端口已释放；长期服务与用户库未动。
+`git diff --check` PASS。
+同类回复、删除、附件与已读菜单尚需逐条核验，不由编辑专项推断为正确。
+Qt 暂评仍为 87，TUI 78；全页面矩阵、复合字符、参考缺口和最终连续两轮
+fresh review 尚未完成。本阶段不改 server、client library、TUI、SQL 或 third，无 migration。
+
+### 终端复合字符的下一步证据
+
+临时探针 `/tmp/chat-unicode-combining-wMg22F` 直接链接当前 FTXUI 7.0.3，
+按 text → Screen → ANSI 核对字节。Latin 一/两个组合符通过，
+CJK 一/两个组合符及连续宽字三项均丢失组合符（exit 1）。
+只在 `/tmp` 副本中把组合符附加到最后实际 glyph，五项全部保留（exit 0），
+原有宽度 2/2/3/3/5 没有改变。
+这证明一个局部候选，不代表 ZWJ、FE0F 或实际 Input 光标、删除、Backspace 已正确。
+没有修改依赖、pin 或 third；T04 继续保留，下一阶段先补端到端矩阵。
