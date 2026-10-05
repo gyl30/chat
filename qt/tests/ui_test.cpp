@@ -51,6 +51,7 @@
 #include "user_delegate.hpp"
 #include "message_delegate.hpp"
 #include "theme.hpp"
+#include "avatar.hpp"
 
 void check(bool v, char const* text)
 {
@@ -861,6 +862,163 @@ void check_message_editor()
     std::cout << "PASS Qt message edit layout, keyboard and exact body semantics\n";
 }
 
+void check_reply_and_read_details_controls()
+{
+    chat_widget page;
+    page.setStyleSheet(chat_style_sheet());
+    page.resize(980, 640);
+    page.set_user(QStringLiteral("本人"), 1);
+    page.set_connection_available(true);
+    conversation_data conversation;
+    conversation.id = 50; conversation.group = true; conversation.can_send = true;
+    page.open_conversation(conversation);
+    message_data message;
+    message.id = 7; message.conversation = 50; message.from = 1;
+    message.username = QStringLiteral("本人"); message.text = QStringLiteral("原消息中文 🙂");
+    read_positions positions;
+    QList<member_data> members;
+    member_data self; self.id = 1; self.username = QStringLiteral("本人"); members.push_back(self);
+    QString const long_name = QStringLiteral("长读者姓名 中文 é 👩‍💻 ").repeated(12);
+    for (qint64 id = 2; id <= 24; ++id)
+    {
+        member_data member; member.id = id;
+        member.username = id == 3 ? long_name : QStringLiteral("读者 %1").arg(id);
+        members.push_back(member); positions.insert(id, 7);
+    }
+    page.set_messages(50, {message}, positions, false, false, false);
+    page.set_members(50, members, {});
+    page.show(); page.activateWindow();
+    wait([&] { return page.isActiveWindow(); });
+    auto* view = page.findChild<QListView*>("messageList");
+    auto open_action = [&](QString const& name) {
+        QTimer::singleShot(0, &page, [name] {
+            auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+            check(menu, "Read and reply controls are reached through the real message menu");
+            QAction* chosen = nullptr;
+            for (auto* action : menu->actions()) { if (action->text() == name) { chosen = action; } }
+            check(chosen, "The requested message control exists");
+            menu->setActiveAction(chosen);
+            QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+            QApplication::sendEvent(menu, &enter);
+        });
+        view->customContextMenuRequested(view->visualRect(view->model()->index(0, 0)).center());
+    };
+    open_action(QStringLiteral("回复"));
+    page.activateWindow();
+    wait([&] { return page.isActiveWindow(); });
+    auto* cancel = page.findChild<QToolButton*>("cancelReplyButton");
+    auto* editor = page.findChild<QPlainTextEdit*>("messageEdit");
+    QString const draft = QStringLiteral("保留草稿 中文 é 👩‍💻\n第二行");
+    editor->setPlainText(draft);
+    QApplication::processEvents();
+    check(cancel->isVisible() && cancel->size() == QSize(36, 36) && !cancel->icon().isNull(),
+          "Reply cancellation has the shared close icon and a usable hit box");
+    check(cancel->accessibleName() == QStringLiteral("取消回复") && cancel->toolTip() == QStringLiteral("取消回复"),
+          "Reply cancellation has a meaningful Chinese accessible name and tooltip");
+    editor->setFocus();
+    wait([&] { return editor->hasFocus(); });
+    QKeyEvent backtab(QEvent::KeyPress, Qt::Key_Backtab, Qt::ShiftModifier);
+    QApplication::sendEvent(editor, &backtab);
+    check(QApplication::focusWidget() == cancel && editor->toPlainText() == draft,
+          "Keyboard focus reaches reply cancellation without changing the draft");
+    auto const cancel_image = cancel->grab().toImage();
+    editor->setFocus();QApplication::processEvents();
+    auto const unfocused_image = cancel->grab().toImage();
+    QApplication::sendEvent(editor, &backtab);QApplication::processEvents();
+    int focus_pixels = 0;
+    int unfocused_pixels = 0;
+    for (int y = cancel_image.height() / 4; y < 3 * cancel_image.height() / 4; ++y)
+    {
+        for (int x = 0; x < 4; ++x)
+        {
+            auto const color = cancel_image.pixelColor(x, y);
+            if (color.rgb() == QColor("#547C68").rgb() && color.alpha() >= 200) { ++focus_pixels; }
+            auto const unfocused_color = unfocused_image.pixelColor(x, y);
+            if (unfocused_color.rgb() == QColor("#547C68").rgb() && unfocused_color.alpha() >= 200) { ++unfocused_pixels; }
+        }
+    }
+    check(focus_pixels > 0 && unfocused_pixels == 0,
+          "Reply cancellation has a visible keyboard focus boundary");
+    int sent = 0; qint64 reply = -1;
+    QObject::connect(&page, &chat_widget::send_message_requested, &page,
+        [&](qint64 conversation_id, QString text, qint64 reply_id) {
+            check(conversation_id == 50 && text == draft, "Cancelling reply preserves the original draft and conversation");
+            ++sent; reply = reply_id;
+        });
+    QKeyEvent space_press(QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier);
+    QKeyEvent space_release(QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier);
+    QApplication::sendEvent(cancel, &space_press); QApplication::sendEvent(cancel, &space_release);
+    check(!page.findChild<QLabel*>("replyPreview")->isVisible() && editor->toPlainText() == draft && editor->hasFocus(),
+          "Space cancels the reply and returns focus to the unchanged draft");
+    page.findChild<QToolButton*>("sendButton")->click();
+    check(sent == 1 && reply == 0, "A cancelled reply sends as an ordinary message");
+
+    bool inspected = false, timed_out = false;
+    QTimer inspect;
+    QObject::connect(&inspect, &QTimer::timeout, &page, [&] {
+        auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+        if (!dialog || dialog->objectName() != QStringLiteral("readDetailsDialog")) { return; }
+        inspect.stop(); inspected = true; dialog->activateWindow();
+        wait([&] { return dialog->isActiveWindow(); });
+        auto* list = dialog->findChild<QListWidget*>("readMembersList");
+        check(list && qobject_cast<user_delegate*>(list->itemDelegate()) && list->count() == 23,
+              "Read details use the existing user delegate and the actual readers");
+        check(list->accessibleName() == QStringLiteral("已读成员") &&
+                  list->item(1)->text() == long_name && list->item(1)->toolTip() == long_name &&
+                  list->item(1)->data(Qt::StatusTipRole).toString() == QStringLiteral("已读"),
+              "Read details retain long Unicode names and expose their complete tooltip without invented presence");
+        auto const mouse_point = list->visualItemRect(list->item(2)).center();
+        QMouseEvent mouse_press(QEvent::MouseButtonPress, mouse_point, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        QMouseEvent mouse_release(QEvent::MouseButtonRelease, mouse_point, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        QApplication::sendEvent(list->viewport(), &mouse_press);
+        QApplication::sendEvent(list->viewport(), &mouse_release);
+        check(list->currentItem() && list->currentItem()->data(Qt::UserRole).toLongLong() == 4,
+              "The existing user delegate preserves real mouse row selection without profile handlers");
+        list->setFocus(); list->setCurrentRow(0);
+        QKeyEvent down(QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier);
+        QApplication::sendEvent(list, &down);
+        check(list->currentItem()->data(Qt::UserRole).toLongLong() == 3,
+              "Read members support real keyboard row navigation");
+        auto const row_rect = list->visualItemRect(list->currentItem());
+        check(row_rect.height() == chat_theme::dialog_row_height, "Read members use shared user row metrics");
+        auto const list_image = list->viewport()->grab().toImage();
+        check(list_image.pixelColor(row_rect.right() - 6, row_rect.bottom() - 6) == QColor("#E7EEE9"),
+              "The selected read member uses the cream and green user-list palette");
+        list->setCurrentRow(13);
+        list->verticalScrollBar()->setValue(list->verticalScrollBar()->maximum() / 2);
+        auto const selected_id = list->currentItem()->data(Qt::UserRole).toLongLong();
+        auto const scroll = list->verticalScrollBar()->value();
+        check(selected_id == 15 && scroll > 0, "Refresh fixture has a selected reader and a nonzero scroll position");
+        page.findChild<avatar_cache*>()->changed(15);
+        check(list->currentItem() && list->currentItem()->data(Qt::UserRole).toLongLong() == selected_id &&
+                  list->verticalScrollBar()->value() == scroll && list->hasFocus(),
+              "Avatar refresh retains reader identity, scroll position and keyboard focus");
+        page.set_read_message(50, 2, 8);
+        check(list->currentItem() && list->currentItem()->data(Qt::UserRole).toLongLong() == selected_id &&
+                  list->verticalScrollBar()->value() == scroll,
+              "Read-receipt refresh retains the selected reader and scroll position");
+        members.removeIf([selected_id](member_data const& member) { return member.id == selected_id; });
+        page.set_members(50, members, {});
+        check(!list->currentItem() && list->selectedItems().isEmpty(),
+              "Removing the selected reader does not silently select a different reader");
+        QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+        QApplication::sendEvent(dialog, &escape);
+    });
+    inspect.start(0);
+    QTimer watchdog;
+    watchdog.setSingleShot(true);
+    QObject::connect(&watchdog, &QTimer::timeout, &page, [&] {
+        timed_out = true;
+        if (auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget())) { dialog->reject(); }
+        if (auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget())) { menu->close(); }
+    });
+    watchdog.start(5000);
+    open_action(QStringLiteral("已读详情"));
+    inspect.stop(); watchdog.stop();
+    check(inspected && !timed_out, "Read-control inspection completed through the real modal dialog");
+    std::cout << "PASS Qt reply cancellation and read-member controls\n";
+}
+
 void check_message_action_targets()
 {
     // Real menus and dialogs, without a server: older history resets the model
@@ -1328,7 +1486,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_message_action_targets(); check_message_dialogs(); check_message_composer(); check_conversation_drafts(); return 0; }
+        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_dialogs(); check_message_composer(); check_conversation_drafts(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
@@ -1352,6 +1510,7 @@ int main(int argc, char** argv)
         check_profile_layout();
         check_confirmation_dialogs();
         check_message_editor();
+        check_reply_and_read_details_controls();
         check_message_action_targets();
         check_message_dialogs();
         check_message_composer();

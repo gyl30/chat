@@ -455,7 +455,12 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     reply_preview_->setObjectName(QStringLiteral("replyPreview"));
     auto* cancel_reply = new QToolButton(reply_bar_);
     cancel_reply->setObjectName(QStringLiteral("cancelReplyButton"));
-    cancel_reply->setText(QStringLiteral("×"));
+    cancel_reply->setAccessibleName(QStringLiteral("取消回复"));
+    cancel_reply->setToolTip(QStringLiteral("取消回复"));
+    cancel_reply->setIcon(svg_icon(QStringLiteral("close"), QColor(QStringLiteral("#3F4542")), QSize(20, 20)));
+    cancel_reply->setIconSize(QSize(20, 20));
+    cancel_reply->setFixedSize(36, 36);
+    cancel_reply->setCursor(Qt::PointingHandCursor);
     reply_layout->addWidget(reply_preview_, 1);
     reply_layout->addWidget(cancel_reply);
     reply_bar_->hide();
@@ -465,6 +470,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
             {
                 reply_to_ = 0;
                 reply_bar_->hide();
+                message_edit_->setFocus();
             });
     connect(messages_view_, &QListView::customContextMenuRequested, this,
             [this](QPoint position)
@@ -1776,7 +1782,13 @@ void chat_widget::show_read_details(qint64 conversation, qint64 message)
     count->setObjectName(QStringLiteral("readDetailsCount"));
     auto* list = new QListWidget(&dialog);
     list->setObjectName(QStringLiteral("readMembersList"));
-    list->setIconSize(QSize(36, 36));
+    list->setAccessibleName(QStringLiteral("已读成员"));
+    list->setItemDelegate(new user_delegate(list));
+    list->setUniformItemSizes(true);
+    list->setFrameShape(QFrame::NoFrame);
+    list->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    list->setMouseTracking(true);
     layout->addWidget(count);
     layout->addWidget(list);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
@@ -1802,13 +1814,20 @@ void chat_widget::show_read_details(qint64 conversation, qint64 message)
         }
         auto const members = messages_->read_members(message);
         count->setText(QStringLiteral("已读 %1 人").arg(members.size()));
+        auto const selected = list->currentItem() ? list->currentItem()->data(Qt::UserRole).toLongLong() : 0;
+        auto const scroll = list->verticalScrollBar()->value();
         list->clear();
         for (auto const& member : members)
         {
-            auto* item = new QListWidgetItem(avatar_icon(member.username, 36, avatars_.image(member.id)),
-                                            member.username, list);
+            auto* item = new QListWidgetItem(member.username, list);
             item->setData(Qt::UserRole, member.id);
+            item->setData(Qt::StatusTipRole, QStringLiteral("已读"));
+            item->setData(Qt::DecorationRole, avatars_.image(member.id));
+            item->setToolTip(member.username);
+            if (member.id == selected) { list->setCurrentItem(item); }
         }
+        list->doItemsLayout();
+        list->verticalScrollBar()->setValue(scroll);
         return true;
     };
     connect(messages_, &QAbstractItemModel::dataChanged, &dialog, refresh);

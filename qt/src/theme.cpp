@@ -682,5 +682,16 @@ QString chat_style_sheet()
         QToolButton#sendButton:disabled {
             background: transparent;
         }
+        QToolButton#cancelReplyButton {
+            border: 1px solid transparent;
+            border-radius: 18px;
+            background: transparent;
+        }
+        QToolButton#cancelReplyButton:hover {
+            background: #E9EEE9;
+        }
+        QToolButton#cancelReplyButton:focus {
+            border-color: #547C68;
+        }
     )");
 }

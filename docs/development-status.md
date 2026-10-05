@@ -1016,3 +1016,23 @@ Qt/X11 导航 4/4、TUI/tmux 导航 11/11；无警告、sanitizer 报告、跳�
 不能以操作正确代替视觉与可访问性验收。Qt 暂评 87、TUI 78，复合 Unicode、全矩阵和
 最终连续两轮 fresh review 尚未完成。未改 server、client、TUI、SQL 或 third，无 migration。
 证据和覆盖边界见 [体验品质审查](experience-quality.md)。
+
+## 体验品质审查：回复取消与读者列表
+
+取消回复复用 SVG、36×36 点击区域、中文可访问名称和 tooltip，键盘轮廓与悬停同品牌。
+Space 或鼠标取消后回输入并保留多行草稿，下一条发送不携带旧引用。
+已读成员复用现有用户 delegate，以真实“已读”状态、头像、姓名省略和完整 tooltip 呈现；
+刷新仅局部捕获读者 ID 和滚动，恢复原身份，成员消失不移交选择，不增加长期状态。
+
+公开控件回归先 RED 后 GREEN；永久断言覆盖键盘、鼠标、草稿、23 人滚动、
+头像/回执更新与读者移除。独立四档延迟事件循环探针补核焦点、身份与滚动。
+真实双 Qt 的 100/125/150/200% 使用完成 76 组原图/裁图，实际多行正文与无 quote 发送精确一致，
+读者 51→52 后选择保持，64-byte Unicode 姓名合法注册，长提示完整可读。
+主代理与独立代理亲看最终状态原图，没有 Q18 新 material 缺陷，专项收口。
+两次原生驱动失败分别为未真实阅读、夹具预留账号未连接，证据不算 PASS，未为此改产品。
+
+完整 `tests/verify.sh`：normal 20/20（96.74 s）、ASan 20/20（137.27 s）、UBSan 20/20（123.14 s）。
+Qt/X11 导航 4/4、TUI/tmux 导航 11/11；无 sanitizer 报告、警告、跳过或 timeout 放宽。
+最终隔离库已删除，自有进程和端口释放，长期服务未动，`git diff --check` PASS。
+未改 server、client、TUI、SQL 或 third，无 migration；证据见 [体验品质审查](experience-quality.md)。
+Qt 暂评 87、TUI 78，复合 Unicode 严格探针仍 RED，剩余矩阵和两轮完整 fresh review 未完成。

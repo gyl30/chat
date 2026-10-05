@@ -153,7 +153,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q15 | P2 | 消息编辑框过窄，默认不换行、英文等权按钮；Tab 替换选中正文 | 第十五轮修复；七场景回归、四档原图与完整验证收口 |
 | Q16 | P1 | 编辑菜单或弹窗等待期间插入旧历史，普通行索引会漂移到另一条消息 | 第十五轮修复编辑身份/正文捕获并完整验证；其他菜单路径继续逐条核验 |
 | Q17 | P1 | 历史插入后删除/回复/附件指向另一条消息，已读详情显示另一条消息读者 | 第十六轮四项实测 RED 后修复；永久回归、完整三模式验证与真实双 Qt 通过；搜索复制同类缺陷也已修复 |
-| Q18 | P2 | 原生回复条的取消按钮仍为黑底低对比 ×，已读成员列表仍采用默认浅蓝选中行 | 第十六轮实际原图新增问题；后续专项修复，不记作本轮视觉完整通过 |
+| Q18 | P2 | 回复取消按钮黑底低对比且无动作名称，已读成员默认浅蓝选中；头像/读者刷新丢失当前选择 | 第十七轮修复；公开事件回归、三模式完整验证、四档双 Qt 原图与独立专项复核完成 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 真实 DSR 与依赖源码确认；未修复，不计 Unicode 全矩阵通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 
@@ -944,3 +944,68 @@ suppression、跳过或 timeout 放宽。日志 `/tmp/chat-actions-final-verify-
 身份修复不等于这些界面已经达到最终视觉品质。
 Qt 暂评 87、TUI 78，新增功能正确性问题的局部修复不替代全产品达标或最终两轮 fresh review。
 本阶段不改 server、client library、TUI、SQL 或 third，无 migration。
+
+## 第十七轮：回复取消与读者列表
+
+从 `1924f653657bb9635964a432ea149003a78c19cf` 继续。
+第十六轮真实原图的取消回复为 28×24 黑底 ×，无动作 tooltip，accessible name 也只是 ×。
+公开 widget 探针核对已读成员行高 38、默认浅蓝选中；选中读者 3 后触发实际头像刷新，
+current row 变为 -1、selection 清空，但键盘焦点仍在列表。
+这是选择身份丢失，不误称窗口丢焦点。
+
+取消回复复用已有 SVG close，36×36 点击区域、中文动作名称、透明表面和绿色键盘轮廓。
+Space 取消后回到原草稿，不清正文，下一条发送不携带旧 reply ID。
+读者列表复用现有 user_delegate、62 高行与头像尺度，显示真实“已读”而非虚构在线状态；
+姓名显示省略、完整 Unicode 姓名保留在数据与 tooltip。
+刷新前仅局部捕获当前读者 ID 和滚动位置，重建后按 ID 恢复；不存在的读者不移交选择。
+不增加成员状态、通用列表框架或后端快照。
+
+既有 Qt UI 新增公开控件场景，先在原代码得到点击区域/图标 RED，
+修改后全部 widgets-only GREEN；另有实际旧版头像刷新丢选择的独立探针。
+覆盖真实 Backtab/Space、草稿和发送 ID、MousePress/Release、Down、23 人滚动列表、
+头像/读回执刷新及读者移除。原有消息身份、编辑、权限和生命周期断言仍执行。
+离屏菜单返回后未重新激活窗口是驱动问题，先核验再修驱动，不添加产品 Tab 状态。
+圆角轮廓的 grab 像素 alpha 为 242，直接与不透明 QColor 比较会假失败；
+回归检查明确 RGB 与高 alpha，并对照失焦图无轮廓，不弱化可见焦点要求。
+最终完整 `tests/verify.sh`：normal 20/20（96.74 秒）、ASan 20/20（137.27 秒）、
+UBSan 20/20（123.14 秒），Qt/TUI 均启用；没有 sanitizer 报告、编译警告、
+suppression、跳过或 timeout 放宽。日志 `/tmp/chat-q18-verify-20261005.log`，隔离库已删除。
+Qt/X11 导航 4/4、TUI/tmux 导航 11/11，证据在
+`/tmp/chat-q18-qt-navigation-20261005`、`/tmp/chat-q18-tui-navigation-20261005`。
+独立公开 widget 探针在 100/125/150/200% 跨多次事件循环复核当前读者、滚动和焦点；
+移除所选读者后，resize 和新增读者不误交选择；按钮边缘鼠标取消也保留正文并回输入。
+这些不是原生视觉证明。随后真实双 Qt 的 100/125/150/200% X11 使用完成，
+76 组原始全屏图与对应窗口裁图保留在 `/tmp/chat-quality-q18-final-third-qt-20261005`。
+每档 19 组，不把图数当独立测试数或百人容量结果。
+五次实际启动的 `/proc/PID/exe` SHA 均为
+`1c6f2c28298947bca93daa82a9149564389234d9cd06e8decaf5a5e536bb8a9e`。
+每档实际取消保留完整多行 Unicode 草稿，随后发送不带 quote，另一客户端实际收到。
+真实 SDK 头像和读回执更新后读者数 51→52，原生选择行与滚动位置保持；
+数字读者身份与成员移除行为由永久控件断言补证，不仅凭屏幕行位置推断。
+主代理亲看最终原图，独立审查另看四档 48 张状态图和四张全屏 tooltip，
+没有发现 Q18 新 material 缺陷；长名提示自然跨过 dialog，不能用窗口裁图误判裁切。
+64 UTF-8 bytes 的 Unicode 姓名实际通过 SDK 注册，不用超限假名冒充业务支持。
+最终 `result.json` 为专项 PASS，自有数据库已删除、端口 18886 与自有进程释放，长期服务未动。
+首两次原生驱动分别没有让背景客户端真实阅读、没有重连预留给 TUI 的夹具账号；
+原图与 SDK 输出明确区分，失败不计为完整 PASS，自有数据库和进程均清理。
+没有为了驱动失败修改产品或放宽读者数断言。
+
+原图对照与关键状态：
+
+- 旧 [取消回复](images/experience/after-qt-message-action-reply-preview.png) /
+  新 [正常](images/experience/after-qt-reply-cancel-normal.png)、
+  [125% 悬停](images/experience/after-qt-reply-cancel-hover-125.png)、
+  [200% 键盘焦点](images/experience/after-qt-reply-cancel-focus-200.png)。
+- 旧 [读者详情](images/experience/after-qt-message-action-read-details.png) /
+  新 [键盘选择](images/experience/after-qt-read-members-keyboard.png)、
+  [125% 失焦仍保留选择](images/experience/after-qt-read-members-unfocused-125.png)、
+  [200% 回执刷新](images/experience/after-qt-read-members-refresh-200.png)。
+- [200% 完整长姓名提示原始全屏](images/experience/after-qt-read-members-tooltip-200.png)、
+  [另一客户端收到取消引用后的正文](images/experience/after-qt-cancelled-reply-peer.png)。
+
+上述 before 是发现缺陷的前一轮真实使用，不冒称与新夹具人数完全相同。
+
+Qt 暂评 87、TUI 78；此项局部 GREEN 不代表全产品或连续两轮 fresh review 完成。
+复合 Unicode 的严格临时探针仍实际 RED：8 项拆字素编辑、9 项渲染丢失。
+原探针 exit 0 仅观察事件和粘贴成功，新 strict 退出码计入上述缺陷，旧证据日志未覆盖。
+未修改依赖，不把临时候选记为 T04 已解决。
