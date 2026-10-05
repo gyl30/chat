@@ -12,8 +12,8 @@
 | 参考 | 实际核验的材料 | 边界 |
 | --- | --- | --- |
 | Telegram Desktop | 官方翻译平台的桌面截图：登录、聊天列表、私聊、群和资料；下载并查看了 29 张图片 | 图库混有历史和近期界面，不能将每张图片都标成当前版本；不是本机登录运行 |
-| QQ Windows / NT | 官方下载页的桌面宣传合成图；2025-09 的 9.9.22 模式对比图 | 对比图本身也是展示合成图；未获得足以证明当前最新构建的完整运行截图 |
-| 微信 Windows | 官方 4.1.15 下载和更新页；作者发布的 4.1.8 新旧运行界面对比 | 4.1.8 图片是非官方旁证，不能代表 4.1.15 的所有状态 |
+| QQ Windows / NT | 官方配置确认 9.9.36（2026-09-24）；官方宣传合成图及 2025-09 的 9.9.22 对比图 | 版本事实不等于运行证据；仍缺当前构建的完整操作截图 |
+| 微信 Windows | 官方 4.1.15（2026-09-15）下载和更新页；作者发布的 4.1.8 运行对比 | 4.1.8 图片是非官方旁证；当前 profile、群和错误流程仍有直接证据缺口 |
 | Webby | 官方评审标准和获奖作品记录 | 区分网站、软件与沉浸式作品；本项目自行制定评分权重 |
 | Awwwards | 官方指南、作品评审页面及只读参考调查 | 移动网页建议不机械套用到桌面窗口或终端；本轮重新下载 PDF 遇到网络失败 |
 | FWA | 官方 case API、Ceramic Beats 实际运行与 CLEAR 前后截图 | Every Neuron 加载未完成；未提供可核验的逐项评分公式，不编造官方权重 |
@@ -27,8 +27,11 @@ Telegram 的原始图片来自官方
 登录的高级入口低于主要身份操作，聊天区把列表、正文、输入明确分区，
 资料把身份、常用操作和详细信息分层；这些是对实际图片的观察，不移植其业务规则。
 
-QQ 材料来自[官方下载页](https://im.qq.com/download)和
+QQ 材料来自[官方下载页](https://im.qq.com/download)、
+[官方当前配置](https://qq-web.cdn-go.cn/im.qq.com_new/latest/rainbow/pcConfig.json)和
 [9.9.22 介绍](https://www.vgover.com/news/181045)。
+2026-10-05 补查确认当前 Windows 9.9.36 于 2026-09-24 发布；
+QQ 与微信的版本字段经实际官方响应核验，没有把发布说明或宣传合成图记作当前桌面操作验收。
 微信的当前版本依据[官方下载页](https://pc.weixin.qq.com/)和
 [4.1.15 更新](https://weixin.qq.com/updates?platform=windows&version=4.1.15)，
 运行界面对比来自[4.1.8 作者文章](https://www.sohu.com/a/996230784_120914897)。
@@ -132,7 +135,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q05 | P2 | Qt 群资料/管理界面表单和等宽文字按钮密集，信息和操作缺少分层 | 已修复；第七轮真实 X11 与键盘复核 |
 | T01 | P2 | TUI 登录 URL 为首要焦点，按钮各自带框，用户名规则长期占一整行 | 已修复并通过完整验证 |
 | T02 | P2 | TUI 空消息、空申请等不同页面均出现泛化的 No items | 第八轮修复五处已复现空态 |
-| T03 | P2 | TUI 长页眉和操作提示在窄屏缺少清楚的摘要层级 | 第八轮分离标题与操作提示；长身份摘要仍待全流程复核 |
+| T03 | P2 | TUI 长页眉和操作提示在窄屏缺少清楚的摘要层级 | 第八、十一轮修复页眉与长身份，六档宽度/两种背景原生复核；其他页面继续审查 |
 
 后续真实使用新增的确定问题：
 
@@ -144,6 +147,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q09 | P2 | 200% 下预渲染首字头像、真实头像和 SVG 图标密度不足，边缘锯齿或细节模糊 | 第九轮修复并通过完整验证及四档真实截图 |
 | Q10 | P2 | 点击部分头像会连续打开两次资料，或关闭资料后继续打开原行聊天 | 第九轮实际鼠标事件回归修复并通过完整验证 |
 | Q11 | P2 | 用户/账号资料重复显示身份，主要/复制/退出操作权重接近，按钮块和宽度偏大 | 第十轮修复并通过完整验证和真实四档缩放/导航 |
+| T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 真实 DSR 与依赖源码确认；未修复，不计 Unicode 全矩阵通过 |
 
 键盘打开列表、Qt 多行编辑、长公告、长 username、dialog 滚动、selection/focus、
 terminal light/dark、combining、SSH 和 suspend/restore 仍需进一步实际核验。
@@ -585,3 +589,65 @@ UBSan 20/20（121.52 秒），Qt/TUI 均启用，无编译警告、suppression�
 server、client library、TUI、SQL 和依赖不变，无 migration。
 Qt 暂评 83/100：16/20、12/15、7/10、9/10、9/10、9/10、9/10、4/5、4/5、4/5；
 TUI 保持 74/100。这不是最终两轮 fresh review；其余弹窗、完整键盘/终端矩阵和参考缺口继续保留。
+
+
+## 第十一轮修复：终端长身份与摘要
+
+本阶段从 `e2661351cc6082f7fa0a7d869e9ddb10305c28b5` 开始。
+真实 xterm 中，合法的长中文群名会剪掉人数，宽字可能覆盖右边框；
+64 字节身份在资料中被截断，成员角色被用户名挤掉，账号名与连接状态粘连。
+
+复用已有 FTXUI glyph/cell 接口，在单行摘要处按格宽保留省略号；
+群人数、成员角色和连接状态独立保留，会话侧栏为原滚动指示留一格。
+资料页完整身份换行，正文、复制、数据库身份和传输内容不变。
+没有新增解析器、状态、缓存或框架，也未改 Qt、server、client library、SQL 和依赖。
+
+既有 render 入口逐项确认 RED 后 GREEN，覆盖六档群名、长资料、角色和滚动指示。
+资料测试检查公共 Screen 中完整身份的字序，允许正常跨行；
+早期只查找 `_END` 的测试误将跨行当作丢字，已纠正，没有为错误观察方式改变产品。
+
+原生证据是实际 X11 xterm 窗口原图，同时保存 tmux styled ANSI，无重排或修饰：
+
+- 长群名 [60 列 before](images/experience/before-tui-long-title-60.png) /
+  [after](images/experience/after-tui-long-title-60.png)，
+  [100 列 before](images/experience/before-tui-long-title-100.png) /
+  [after](images/experience/after-tui-long-title-100.png)。
+- 其余聊天尺寸：[浅色 70](images/experience/after-tui-long-title-light-70.png)、
+  [80](images/experience/after-tui-long-title-80.png)、
+  [浅色 120](images/experience/after-tui-long-title-light-120.png)、
+  [160](images/experience/after-tui-long-title-160.png)。
+- 完整资料 [before](images/experience/before-tui-long-profile-60.png) /
+  [浅色 after](images/experience/after-tui-long-profile-light-60.png)。
+- 成员角色 [before](images/experience/before-tui-long-members-60.png) /
+  [after](images/experience/after-tui-long-members-60.png)。
+- 账号身份 [before](images/experience/before-tui-long-account-60.png) /
+  [after](images/experience/after-tui-long-account-60.png)。
+
+群名 before 来自未修复的原生运行；资料、成员和账号 before 来自本轮首次迭代、
+尚未修复完整身份/角色时保存的二进制。最终运行又通过真实注册和邀请链接加入一个
+64 字节账号，因此群人数由早期的 4 变为 5；不是 UI 修复改变了成员语义。
+两真实 TUI 双向聊天，第三个真实 TUI 注册、加入、查看账号，权威身份和 membership
+经实际 SDK 核验。最后采集 31 张窗口，六档 60/70/80/100/120/160 列、24/30/40/45 行，
+浅色/深色分别运行；60/100/160 的资料、成员和账号完成加载后检查。
+xterm 372 使用 DejaVu Sans Mono 与 Lily Han Sans HW SC；tmux 3.6a 终端声明
+256 色与 RGB 能力，应用仍用默认前景/背景和 dim/bold/inverted。
+这不是所有终端字体、独立色深配置及 SSH/suspend 的完整验收。
+
+基本 CJK、混合 ASCII、普通 emoji 和 Latin combining 在本轮可见。
+另外真实 DSR 光标查询确认：FTXUI 7.0.3 把 `👩‍💻` 算作 5 格，
+原始 xterm 算 4 格，tmux 中算 2 格；宽字后的组合符也可能在 FTXUI 输出时丢失。
+[上游修复](https://github.com/ArthurSonzogni/FTXUI/commit/71c036681659f9ef964b17fc48e99bb2e85074fc)
+处理宽字组合符及 U+FE0F，尚不能证明 ZWJ 或全部终端一致。
+未更新依赖、未自造 Unicode 框架，T04 继续保留为确定问题。
+
+最终完整 `tests/verify.sh`：normal 20/20（95.66 秒）、ASan 20/20（138.23 秒）、
+UBSan 20/20（121.19 秒），Qt/TUI 均启用；无编译警告、suppression、跳过或 timeout 放宽。
+原有真实 TUI 导航 11/11、Qt/X11 导航 4/4 通过。`git diff --check` PASS。
+证据在 `/tmp/chat-quality-tui-title-final-20261005`、
+`/tmp/chat-quality-tui-identity-nav-20261005`、`/tmp/chat-quality-tui-identity-qt-regression-20261005`。
+所有本轮自有进程和隔离数据库已清理；失败驱动的加载等待、窗口定位和临时端口问题
+也已核实，没有记作产品通过。无 migration。
+
+TUI 暂评 77/100：14/20、12/15、7/10、8/10、9/10、9/10、9/10、3/5、2/5、4/5；
+Qt 保持 83/100。复合 emoji、其他弹窗和全键盘/终端矩阵、完整参考证据与最终两轮
+fresh review 仍未完成；本阶段通过不代表整个品质 Goal 完成。

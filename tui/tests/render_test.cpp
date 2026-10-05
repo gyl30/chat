@@ -35,6 +35,14 @@ int main()
     s.self = {1, "Alice", {}};
     s.link = connection::online;
     {
+        auto long_account = s;
+        long_account.self.username = std::string(64, 'A');
+        ftxui::Screen screen(60, 24);
+        ftxui::Render(screen, render(long_account, 60, 24));
+        ok &= expect(screen.CellAt(49, 1).character == " ",
+                     "A clipped account identity stays separated from connection status");
+    }
+    {
         auto output = draw(s, 60, 20);
         ok &= expect(output.find("No chats to display") != std::string::npos &&
                      output.find("N: new chat options") != std::string::npos,
@@ -106,6 +114,22 @@ int main()
         long_name_list.conversations.front().username = "LongUsernamePrefix" + std::string(46, 'x');
         ok &= expect(draw(long_name_list, 120, 40).find("LongUsernamePrefix") != std::string::npos, "sidebar retains long username prefix");
         ok &= expect(draw(long_name_list, 60, 20).find("LongUsernamePrefix") != std::string::npos, "narrow list retains long username prefix");
+        long_name_list.conversations.front().username.clear();
+        long_name_list.conversations.front().kind = chat::conversation_kind::group;
+        for (int i = 0; i < 7; ++i) { long_name_list.conversations.front().username += "长中文群名称"; }
+        for (int columns : {100, 160})
+        {
+            ftxui::Screen screen(columns, 30);
+            ftxui::Render(screen, render(long_name_list, columns, 30));
+            bool visible_ellipsis = false;
+            for (int y = 0; y < 30; ++y)
+            {
+                std::string row;
+                for (int x = 1; x < 30; ++x) { row += screen.CellAt(x, y).character; }
+                if (row.starts_with("[长]")) { visible_ellipsis = row.find("…") != std::string::npos; }
+            }
+            ok &= expect(visible_ellipsis, "The sidebar scroll indicator cannot hide a clipped title's ellipsis");
+        }
     }
     {
         auto status_list = s;
@@ -176,6 +200,28 @@ int main()
     message.reactions = {{"👍", {1, 2}}};
     message.mentions = {{1, "Alice"}};
     s.messages.push_back(message);
+    {
+        auto long_title = s;
+        auto& current = long_title.conversations.front();
+        current.username.clear();
+        for (int i = 0; i < 7; ++i) { current.username += "长中文群名称"; }
+        current.username += " END";
+        current.announcement.clear();
+        for (int columns : {60, 70, 80, 100, 120, 160})
+        {
+            ftxui::Screen screen(columns, 30);
+            ftxui::Render(screen, render(long_title, columns, 30));
+            auto output = screen.ToString();
+            ok &= expect(output.find("长中文群名称") != std::string::npos &&
+                         output.find("3 members") != std::string::npos,
+                         "Long group headers retain identity and member count at every terminal width");
+            if (columns < 160)
+            { ok &= expect(output.find("…") != std::string::npos, "Clipped group identities have a visible ellipsis"); }
+            for (int y = 1; y < 29; ++y)
+            { ok &= expect(ftxui::string_width(screen.CellAt(columns - 2, y).character) != 2,
+                           "A clipped wide glyph cannot consume the outer right border"); }
+        }
+    }
     auto output = draw(s, 120, 40);
     for (auto const* token : {"开发公告", "你好", "(edited)", "消息已删除", "👍", "@Alice"})
     { ok &= expect(output.find(token) != std::string::npos, token); }
@@ -229,6 +275,26 @@ int main()
         }
     }
     s.view = page::profile;
+    {
+        auto long_profile = s;
+        for (auto id : {1, 2})
+        {
+            long_profile.profile = {id, std::string(60, 'A') + "_END", {}};
+            for (int columns : {60, 70, 80, 100, 120, 160})
+            {
+                ftxui::Screen screen(columns, 24);
+                ftxui::Render(screen, render(long_profile, columns, 24));
+                std::string identity;
+                for (int y = 0; y < 24; ++y)
+                    for (int x = 1; x < columns - 1; ++x)
+                        if (screen.CellAt(x, y).character != " ") { identity += screen.CellAt(x, y).character; }
+                auto output = screen.ToString();
+                ok &= expect(identity.find(std::string(60, 'A') + "_END") != std::string::npos &&
+                             output.find("Show copyable username") != std::string::npos,
+                             "Own and peer profiles show the complete maximum-length identity at every width");
+            }
+        }
+    }
     s.profile = {3, "stranger", {}};
     output = draw(s, 80, 24);
     ok &= expect(output.find("Add friend") != std::string::npos, "non-contact add action");
@@ -269,6 +335,18 @@ int main()
     s.view = page::group;
     s.conversations.front().pinned_message = chat::quoted_message{1, 2, "张 三", "pinned", {}, false};
     s.members = {{1, "Alice", chat::member_role::member, {}}};
+    {
+        auto long_member = s;
+        long_member.view = page::members;
+        long_member.members.push_back({2, std::string(60, 'A') + "_END", chat::member_role::admin, {}});
+        long_member.selected = 1;
+        for (int columns : {60, 70, 80, 100, 120, 160})
+        {
+            auto output = draw(long_member, columns, 24);
+            ok &= expect(output.find(" · admin") != std::string::npos,
+                         "Long member identities never clip their authoritative role");
+        }
+    }
     ok &= expect(draw(s, 80, 24).find("invitation link") == std::string::npos, "members never see secret link actions");
     ok &= expect(draw(s, 80, 24).find("Show full announcement") != std::string::npos, "members can read full announcement");
     ok &= expect(draw(s, 80, 24).find("View pinned message") != std::string::npos, "members can view pinned message");

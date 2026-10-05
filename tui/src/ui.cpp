@@ -107,7 +107,7 @@ Element wrapped_text(std::string const& value, int width)
     width = std::max(1, width);
     std::string output;
     int column = 0;
-    // FTXUI supplies both UTF-8 graphemes and terminal cell widths.
+    // Use FTXUI's glyphs and terminal cell widths for wrapping.
     for (auto const& glyph : Utf8ToGlyphs(value))
     {
         if (glyph.empty()) { continue; } // reserved second cell of a wide glyph
@@ -119,11 +119,26 @@ Element wrapped_text(std::string const& value, int width)
     }
     return text(output);
 }
-Element preview_text(std::string value)
+Element preview_text(std::string value, int width)
 {
     // Headers and quotes are previews: embedded line breaks must not consume
     // the history or composer. Full text remains available on the copy page.
     for (char& c : value) { if (c == '\n' || c == '\r' || c == '\t') { c = ' '; } }
+    width = std::max(1, width);
+    if (string_width(value) > width)
+    {
+        std::string clipped;
+        int column = 0;
+        for (auto const& glyph : Utf8ToGlyphs(value))
+        {
+            if (glyph.empty()) { continue; }
+            auto cells = string_width(glyph);
+            if (column + cells >= width) { break; }
+            clipped += glyph;
+            column += cells;
+        }
+        value = std::move(clipped) + "…";
+    }
     return text(value) | size(HEIGHT, EQUAL, 1);
 }
 std::string user_label(std::string const& name) { return "[" + first_glyph(name) + "] " + name; }
@@ -171,7 +186,7 @@ Element scroll(Elements items)
     if (items.empty()) { items.push_back(text("No items")); }
     return vbox(std::move(items)) | vscroll_indicator | yframe | flex;
 }
-Element conversation_list(state const& s)
+Element conversation_list(state const& s, int width)
 {
     Elements rows;
     if (s.conversations.empty())
@@ -190,8 +205,8 @@ Element conversation_list(state const& s)
         if (c.muted) { flags += " [mute]"; }
         auto summary = c.last.deleted ? "消息已删除" : c.last.attachment ? "[文件] " + c.last.attachment->filename : c.last.text;
         rows.push_back(selected(vbox({
-            hbox({text(label) | flex, text(unread)}),
-            hbox({preview_text(summary) | dim | flex, text(flags)})}),
+            hbox({preview_text(label, width - string_width(unread)) | flex, text(unread)}),
+            hbox({preview_text(summary, width - string_width(flags)) | dim | flex, text(flags)})}),
             s.conversation_selected == static_cast<int>(i), s.view == page::conversations));
     }
     if (s.next_conversations) { rows.push_back(text("↓ More conversations")); }
@@ -203,10 +218,10 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
     std::string heading = m.from == s.self.id ? "You" : m.username;
     heading += " " + timestamp(m.timestamp);
     if (m.edited_at && !m.deleted) { heading += " (edited)"; }
-    Elements lines{text(heading) | bold};
+    Elements lines{preview_text(heading, content_width) | bold};
     if (m.reply)
     {
-        lines.push_back(preview_text("↪ " + m.reply->username + ": " + (m.reply->deleted ? "消息已删除" : m.reply->text)) | dim);
+        lines.push_back(preview_text("↪ " + m.reply->username + ": " + (m.reply->deleted ? "消息已删除" : m.reply->text), content_width) | dim);
     }
     if (m.deleted) { lines.push_back(text("消息已删除") | dim); }
     else
@@ -269,9 +284,10 @@ Element conversation_view(state const& s, Element input, std::string typing, int
 {
     auto c = s.active_conversation();
     if (!c) { return text("Select a conversation and press Enter") | center | flex; }
-    Elements items{preview_text(c->username + (c->kind == conversation_kind::group ? " · " + std::to_string(c->member_count) + " members" : presence_label(s, c->user))) | bold};
-    if (c->pinned_message) { items.push_back(preview_text("Pinned: " + (c->pinned_message->deleted ? "消息已删除" : c->pinned_message->text)) | dim); }
-    if (!c->announcement.empty()) { items.push_back(preview_text("公告: " + c->announcement) | dim); }
+    auto detail = c->kind == conversation_kind::group ? " · " + std::to_string(c->member_count) + " members" : presence_label(s, c->user);
+    Elements items{hbox({preview_text(c->username, width - string_width(detail)) | bold | flex, text(detail) | dim})};
+    if (c->pinned_message) { items.push_back(preview_text("Pinned: " + (c->pinned_message->deleted ? "消息已删除" : c->pinned_message->text), width) | dim); }
+    if (!c->announcement.empty()) { items.push_back(preview_text("公告: " + c->announcement, width) | dim); }
     items.push_back(separator());
     items.push_back(history(s, width, message_scroll));
     if (!typing.empty()) { items.push_back(text(typing) | dim); }
@@ -289,9 +305,9 @@ Element conversation_view(state const& s, Element input, std::string typing, int
     }
     else
     {
-        if (s.reply) { items.push_back(preview_text("Reply " + s.reply->username + ": " + s.reply->text) | dim); }
+        if (s.reply) { items.push_back(preview_text("Reply " + s.reply->username + ": " + s.reply->text, width) | dim); }
         if (s.editing) { items.push_back(text("Editing message · Esc: keep draft") | dim); }
-        items.push_back(input ? input | size(HEIGHT, EQUAL, 1) : preview_text(s.composing ? "> " + s.draft : "i: compose · " + s.draft));
+        items.push_back(input ? input | size(HEIGHT, EQUAL, 1) : preview_text(s.composing ? "> " + s.draft : "i: compose · " + s.draft, width));
     }
     return vbox(std::move(items)) | flex;
 }
@@ -319,7 +335,7 @@ Element secondary(state const& s, int width, int message_scroll)
             if (s.view == page::pick_contacts) { hint = "Space: toggle · Enter: next"; }
             if (s.view == page::users && s.users.empty()) { rows.push_back(text("No users match this search") | dim); }
             if (s.view == page::contacts && s.contacts.empty()) { rows.push_back(text("No accepted friends yet") | dim); }
-            if (s.view == page::contacts) { rows.push_back(preview_text("/: search · " + s.contacts_query) | dim); }
+            if (s.view == page::contacts) { rows.push_back(preview_text("/: search · " + s.contacts_query, width) | dim); }
             if (s.view == page::pick_contacts)
             {
                 rows.push_back(text("Selected: " + std::to_string(s.picked_contacts.size()) + " · /: search · " + s.pick_query));
@@ -330,7 +346,7 @@ Element secondary(state const& s, int width, int message_scroll)
                     auto found = std::ranges::find(s.contacts, id, &user::id);
                     if (found != s.contacts.end()) { picked += found->username + "; "; }
                 }
-                rows.push_back(preview_text(picked));
+                rows.push_back(preview_text(picked, width));
                 auto values = s.pick_candidates();
                 for (std::size_t i = 0; i < values.size(); ++i)
                 {
@@ -398,7 +414,9 @@ Element secondary(state const& s, int width, int message_scroll)
             for (std::size_t i = 0; i < s.members.size(); ++i)
             {
                 auto const& m = s.members[i];
-                rows.push_back(selected(text(user_label(m.username) + " · " + role_label(m.role) + (m.id == s.self.id ? " (you)" : "")), s.selected == static_cast<int>(i)));
+                auto role = " · " + role_label(m.role) + (m.id == s.self.id ? " (you)" : "");
+                rows.push_back(selected(hbox({preview_text(user_label(m.username), width - string_width(role)) | flex,
+                    text(role) | dim}), s.selected == static_cast<int>(i)));
             }
             break;
         case page::requests:
@@ -429,8 +447,8 @@ Element secondary(state const& s, int width, int message_scroll)
                 std::string preview = "Members: ";
                 for (std::size_t i = 0; i < std::min<std::size_t>(3, s.members.size()); ++i)
                 { preview += s.members[i].username + " (" + role_label(s.members[i].role) + ") "; }
-                rows.push_back(preview_text(preview));
-                if (c->pinned_message) { rows.push_back(preview_text("Pinned: " + c->pinned_message->text)); }
+                rows.push_back(preview_text(preview, width));
+                if (c->pinned_message) { rows.push_back(preview_text("Pinned: " + c->pinned_message->text, width)); }
                 rows.push_back(wrapped_text("公告: " + (c->announcement.empty() ? "(none)" : c->announcement), width) | size(HEIGHT, LESS_THAN, 3));
                 rows.push_back(text(c->join_approval ? "Join approval: on" : "Join approval: off"));
                 rows.push_back(separator());
@@ -453,7 +471,7 @@ Element secondary(state const& s, int width, int message_scroll)
             break;
         default: title = "Chat"; break;
     }
-    Elements panel{preview_text(title) | bold};
+    Elements panel{(s.view == page::profile ? wrapped_text(title, width) : preview_text(title, width)) | bold};
     if (!hint.empty()) { panel.push_back(text(hint) | dim); }
     panel.push_back(separator());
     if (s.view == page::help || s.view == page::copy)
@@ -483,12 +501,13 @@ Element render_impl(state const& s, int width, int height, Element compose = {},
     {
         if (state::layout(width, height) == layout_mode::wide)
         {
-            content = hbox({conversation_list(s) | size(WIDTH, EQUAL, 30), separator(), conversation_view(s, compose, std::move(typing), width - 34, message_scroll)}) | flex;
+            content = hbox({conversation_list(s, 29) | size(WIDTH, EQUAL, 30), separator(), conversation_view(s, compose, std::move(typing), width - 34, message_scroll)}) | flex;
         }
-        else { content = s.view == page::conversations ? conversation_list(s) : conversation_view(s, compose, std::move(typing), width - 3, message_scroll); }
+        else { content = s.view == page::conversations ? conversation_list(s, width - 3) : conversation_view(s, compose, std::move(typing), width - 3, message_scroll); }
     }
     else { content = secondary(s, width - 3, message_scroll); }
-    return vbox({hbox({preview_text("Chat · " + s.self.username) | bold | flex, text(link_label(s.link))}), text("h Chats  c Contacts  u Account  N New") | dim, separator(), content, separator(), hbox({preview_text(s.status.empty() ? "?: help · : command · Ctrl+C: quit" : s.status) | flex, text(" Esc: back") | dim})}) | border;
+    auto link = " " + link_label(s.link);
+    return vbox({hbox({preview_text("Chat · " + s.self.username, width - 2 - string_width(link)) | bold | flex, text(link)}), text("h Chats  c Contacts  u Account  N New") | dim, separator(), content, separator(), hbox({preview_text(s.status.empty() ? "?: help · : command · Ctrl+C: quit" : s.status, width - 12) | flex, text(" Esc: back") | dim})}) | border;
 }
 std::size_t selection_count(state const& s, int width)
 {

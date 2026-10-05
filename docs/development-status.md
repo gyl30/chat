@@ -911,3 +911,21 @@ server、client library、SQL 和依赖不变，无 migration。
 无编译警告、suppression、跳过或 timeout 放宽，`git diff --check` PASS。
 参考补证据记录了 FWA Ceramic Beats 真实 CLEAR 前后界面；Every Neuron 未完成加载，不记为交互验收。
 截图、自评和剩余品质工作见 [体验品质审查](experience-quality.md)。
+
+
+## 体验品质审查：终端长身份与摘要
+
+TUI 单行摘要复用现有 FTXUI 格宽接口保留省略号，避免宽字吃掉边框；
+群人数、成员角色与连接状态独立保留，侧栏为滚动指示留一格。
+用户/账号资料显示完整身份并正常换行，正文、复制和身份数据不变。
+既有公共 render 回归逐项 RED 后 GREEN，覆盖六档宽度、64 字节身份及角色。
+没有新增状态或解析框架，Qt、server、client library、SQL 和依赖不变，无 migration。
+
+真实 xterm 浅色/深色和 60/70/80/100/120/160 列采集 31 张原图；
+两真实 TUI 双向聊天，另一个通过实际注册/邀请链接加入，并核对权威身份与成员关系。
+原有 TUI/tmux 导航 11/11、Qt/X11 导航 4/4 通过。
+完整 `tests/verify.sh`：normal 20/20（95.66 s）、ASan 20/20（138.23 s）、UBSan 20/20（121.19 s）。
+无编译警告、suppression、跳过或 timeout 放宽，`git diff --check` PASS。
+额外 DSR 与依赖源码确认 FTXUI 7.0.3 对复合 emoji/宽字组合符存在格宽或输出问题，
+尚未修复，不将本轮记作全部 Unicode 验收。
+原图、参考边界、评分和后续工作见 [体验品质审查](experience-quality.md)。
