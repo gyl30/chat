@@ -1,193 +1,103 @@
---- a/src/ftxui/screen/string.cpp
-+++ b/src/ftxui/screen/string.cpp
-@@ -12,12 +12,15 @@
- #include "ftxui/screen/string.hpp"
+--- a/include/ftxui/dom/canvas.hpp
++++ b/include/ftxui/dom/canvas.hpp
+@@ -130,6 +130,7 @@
+   void Style(int x, int y, const Stylizer& style);
  
- #include <array>        // for array
-+#include <algorithm>
- #include <cstddef>      // for size_t
- #include <cstdint>      // for uint32_t, uint8_t, uint16_t, int32_t
-+#include <iterator>
- #include <string>       // for string, basic_string, wstring
- #include <string_view>  // for string_view
- #include <tuple>        // for _Swallow_assign, ignore
- #include <vector>
-+#include <utf8proc.h>
+  private:
++  void ClearGlyph(int x, int y);
+   bool IsIn(int x, int y) const {
+     return x >= 0 && x < width_ && y >= 0 && y < height_;
+   }
+--- a/include/ftxui/dom/selection.hpp
++++ b/include/ftxui/dom/selection.hpp
+@@ -6,6 +6,7 @@
+ #define FTXUI_DOM_SELECTION_HPP
  
- #include "ftxui/screen/deprecated.hpp"       // for wchar_width, wstring_width
- #include "ftxui/screen/string_internal.hpp"  // for WordBreakProperty, EatCodePoint, CodepointToWordBreakProperty, GlyphCount, GlyphIterate, GlyphNext, GlyphPrevious, IsCombining, IsControl, IsFullWidth, Utf8ToWordBreakProperty
-@@ -1387,6 +1390,7 @@
- std::vector<std::string> Utf8ToGlyphs(std::string_view input) {
-   std::vector<std::string> out;
-   out.reserve(input.size());
-+  size_t last_glyph = 0;
-   size_t start = 0;
-   size_t end = 0;
-   while (start < input.size()) {
-@@ -1407,11 +1411,13 @@
-     // Combining characters are put with the previous glyph they are modifying.
-     if (IsCombining(codepoint)) {
-       if (!out.empty()) {
--        out.back() += append;
-+        out[last_glyph] += append;
-       }
-       continue;
-     }
+ #include <functional>
++#include <limits>
  
-+    last_glyph = out.size();
+ #include <sstream>
+ #include "ftxui/screen/box.hpp"   // for Box
+@@ -26,6 +27,8 @@
+   Selection(int start_x, int start_y, int end_x, int end_y);
+ 
+   const Box& GetBox() const;
++  const Box& GetViewport() const { return viewport_; }
++  Selection Clip(Box viewport);
+ 
+   Selection SaturateHorizontal(Box box);
+   Selection SaturateVertical(Box box);
+@@ -35,7 +38,8 @@
+   std::string GetParts() { return parts_.str(); }
+ 
+  private:
+-  Selection(int start_x, int start_y, int end_x, int end_y, Selection* parent);
++  Selection(int start_x, int start_y, int end_x, int end_y, Selection* parent,
++            Box viewport);
+ 
+   const int start_x_ = 0;
+   const int start_y_ = 0;
+@@ -44,6 +48,10 @@
+   const Box box_ = {};
+   Selection* const parent_ = this;
+   const bool empty_ = true;
++  const Box viewport_{std::numeric_limits<int>::min(),
++                      std::numeric_limits<int>::max(),
++                      std::numeric_limits<int>::min(),
++                      std::numeric_limits<int>::max()};
+   std::stringstream parts_;
+ 
+   // The position of the last inserted part.
+--- a/include/ftxui/screen/cell.hpp
++++ b/include/ftxui/screen/cell.hpp
+@@ -48,6 +48,9 @@
+   // like: a?, this can potentially contain multiple codepoints.
+   std::string character = "";
+ 
++  // Positive at the head, negative distance to the head at continuations.
++  int span = 0;
 +
-     // Fullwidth characters take two cells. The second is made of the empty
-     // string to reserve the space the first is taking.
-     if (IsFullWidth(codepoint)) {
-@@ -1426,69 +1432,64 @@
-   return out;
+   // Colors:
+   Color background_color = Color::Default;
+   Color foreground_color = Color::Default;
+--- a/include/ftxui/screen/string.hpp
++++ b/include/ftxui/screen/string.hpp
+@@ -27,6 +27,7 @@
  }
  
--size_t GlyphPrevious(std::string_view input, size_t start) {
--  while (true) {
--    if (start == 0) {
--      return 0;
--    }
--    start--;
--
--    // Skip the UTF8 continuation bytes.
--    if ((input[start] & 0b1100'0000) == 0b1000'0000) {
-+std::vector<size_t> GlyphBoundaries(std::string_view input) {
-+  std::vector<size_t> boundaries{0};
-+  utf8proc_int32_t previous = -1;
-+  utf8proc_int32_t state = 0;
-+  for (size_t offset = 0; offset < input.size();) {
-+    utf8proc_int32_t current = 0;
-+    const auto count = utf8proc_iterate(
-+        reinterpret_cast<const utf8proc_uint8_t*>(input.data() + offset),
-+        static_cast<utf8proc_ssize_t>(input.size() - offset), &current);
-+    if (count < 0) {
-+      if (boundaries.back() != offset) {
-+        boundaries.push_back(offset);
-+      }
-+      boundaries.push_back(++offset);
-+      previous = -1;
-+      state = 0;
-       continue;
-     }
--
--    uint32_t codepoint = 0;
--    size_t end = 0;
--    const bool eaten = EatCodePoint(input, start, &end, &codepoint);
--
--    // Ignore invalid, control characters and combining characters.
--    if (!eaten || IsControl(codepoint) || IsCombining(codepoint)) {
--      continue;
-+    const bool boundary = previous < 0 ||
-+        utf8proc_grapheme_break_stateful(previous, current, &state);
-+    if (boundary && boundaries.back() != offset) {
-+      boundaries.push_back(offset);
-     }
--
--    return start;
-+    previous = current;
-+    offset += static_cast<size_t>(count);
-   }
-+  if (boundaries.back() != input.size()) {
-+    boundaries.push_back(input.size());
-+  }
-+  return boundaries;
-+}
-+size_t GlyphPrevious(std::string_view input, size_t start) {
-+  const auto boundaries = GlyphBoundaries(input);
-+  const auto it = std::lower_bound(boundaries.begin(), boundaries.end(),
-+                                   std::min(start, input.size()));
-+  return it == boundaries.begin() ? 0 : *std::prev(it);
- }
+ FTXUI_EXPORT(SCREEN) int string_width(std::string_view);
++FTXUI_EXPORT(SCREEN) int DisplayWidth(std::string_view);
  
- size_t GlyphNext(std::string_view input, size_t start) {
--  bool glyph_found = false;
--  while (start < input.size()) {
--    size_t end = 0;
--    uint32_t codepoint = 0;
--    const bool eaten = EatCodePoint(input, start, &end, &codepoint);
--
--    // Ignore invalid, control characters and combining characters.
--    if (!eaten || IsControl(codepoint) || IsCombining(codepoint)) {
--      start = end;
--      continue;
--    }
--
--    // We eat the beginning of the next glyph. If we are eating the one
--    // requested, return its start position immediately.
--    if (glyph_found) {
--      return static_cast<int>(start);
--    }
--
--    // Otherwise, skip this glyph and iterate:
--    glyph_found = true;
--    start = end;
--  }
--  return static_cast<int>(input.size());
-+  const auto boundaries = GlyphBoundaries(input);
-+  const auto it = std::upper_bound(boundaries.begin(), boundaries.end(),
-+                                   std::min(start, input.size()));
-+  return it == boundaries.end() ? input.size() : *it;
- }
+ // Split the string into a its glyphs. An empty one is inserted ater fullwidth
+ // ones.
+--- a/include/ftxui/screen/surface.hpp
++++ b/include/ftxui/screen/surface.hpp
+@@ -5,6 +5,7 @@
+ #define FTXUI_SCREEN_SURFACE_HPP
  
- size_t GlyphIterate(std::string_view input, int glyph_offset, size_t start) {
--  if (glyph_offset >= 0) {
--    for (int i = 0; i < glyph_offset; ++i) {
--      start = GlyphNext(input, start);
--    }
--    return start;
--  } else {
--    for (int i = 0; i < -glyph_offset; ++i) {
--      start = GlyphPrevious(input, start);
--    }
-+  start = std::min(start, input.size());
-+  if (glyph_offset == 0) {
-     return start;
-   }
-+  const auto boundaries = GlyphBoundaries(input);
-+  const auto it = glyph_offset > 0
-+      ? std::upper_bound(boundaries.begin(), boundaries.end(), start)
-+      : std::lower_bound(boundaries.begin(), boundaries.end(), start);
-+  const auto index = static_cast<int64_t>(it - boundaries.begin()) +
-+                     static_cast<int64_t>(glyph_offset) - (glyph_offset > 0 ? 1 : 0);
-+  return boundaries[static_cast<size_t>(std::clamp<int64_t>(
-+      index, 0, static_cast<int64_t>(boundaries.size() - 1)))];
- }
+ #include <string>  // for string, basic_string, allocator
++#include <string_view>
+ #include <vector>  // for vector
  
- std::vector<int> CellToGlyphIndex(std::string_view input) {
-@@ -1533,31 +1534,7 @@
- }
+ #include "ftxui/screen/box.hpp"   // for Box
+@@ -39,6 +40,9 @@
+   Cell& CellAt(int x, int y);
+   const Cell& CellAt(int x, int y) const;
  
- int GlyphCount(std::string_view input) {
--  int size = 0;
--  size_t start = 0;
--  size_t end = 0;
--  while (start < input.size()) {
--    uint32_t codepoint = 0;
--    const bool eaten = EatCodePoint(input, start, &end, &codepoint);
--    start = end;
--
--    // Ignore invalid characters:
--    if (!eaten || IsControl(codepoint)) {
--      continue;
--    }
--
--    // Ignore combining characters, except when they don't have a preceding to
--    // combine with.
--    if (IsCombining(codepoint)) {
--      if (size == 0) {
--        size++;
--      }
--      continue;
--    }
--
--    size++;
--  }
--  return size;
-+  return static_cast<int>(GlyphBoundaries(input).size() - 1);
- }
++  bool SetGlyph(int x, int y, std::string_view value, int columns);
++  bool SetCell(int x, int y, const Cell& value, int columns);
++
+   // [Deprecated] alias for CellAt.
+   Cell& PixelAt(int x, int y) { return CellAt(x, y); }
+   const Cell& PixelAt(int x, int y) const { return CellAt(x, y); }
+@@ -63,6 +67,7 @@
+   Box stencil;
  
- std::vector<WordBreakProperty> Utf8ToWordBreakProperty(std::string_view input) {
+  protected:
++  void ClearGlyph(int x, int y);
+   Cell& FastCellAt(int x, int y);
+   const Cell& FastCellAt(int x, int y) const;
+ 
 --- a/src/ftxui/component/input.cpp
 +++ b/src/ftxui/component/input.cpp
 @@ -5,6 +5,7 @@
@@ -235,7 +145,7 @@
 -  }
 -  return 1;
 +size_t GlyphWidth(std::string_view input, size_t start, size_t end) {
-+  return static_cast<size_t>(string_width(input.substr(start, end - start)));
++  return static_cast<size_t>(DisplayWidth(input.substr(start, end - start)));
 +}
 +
 +size_t CountGlyphs(const std::vector<size_t>& boundaries, size_t start, size_t end) {
@@ -423,7 +333,7 @@
      }
 -    return width;
 +    const auto prefix = lines[line].text.substr(0, cursor_position() - lines[line].offset);
-+    return password() ? CountGlyphs(boundaries, lines[line].offset, cursor_position()) : string_width(prefix);
++    return password() ? CountGlyphs(boundaries, lines[line].offset, cursor_position()) : DisplayWidth(prefix);
    }
  
    // Move the cursor `columns` on the right, if possible.
@@ -726,7 +636,7 @@
 -            ? GlyphCount(lines[cursor_line].substr(0, cursor_char_index))
 -            : string_width(lines[cursor_line].substr(0, cursor_char_index));
 +            ? CountGlyphs(boundaries, lines[cursor_line].offset, cursor_position())
-+            : string_width(lines[cursor_line].text.substr(0, cursor_char_index));
++            : DisplayWidth(lines[cursor_line].text.substr(0, cursor_char_index));
  
      int new_cursor_column = cursor_column + event.mouse().x - cursor_box_.x_min;
      int new_cursor_line = cursor_line + event.mouse().y - cursor_box_.y_min;
@@ -744,7 +654,7 @@
          util::clamp(new_cursor_column, 0,
 -                    password() ? GlyphCount(line) : string_width(line));
 +                    password() ? static_cast<int>(CountGlyphs(boundaries, lines[new_cursor_line].offset,
-+                                                              lines[new_cursor_line].offset + line.size())) : string_width(line));
++                                                              lines[new_cursor_line].offset + line.size())) : DisplayWidth(line));
  
      if (new_cursor_column == cursor_column &&  //
          new_cursor_line == cursor_line) {
@@ -785,13 +695,1312 @@
    bool HandleInsert() {
      insert() = !insert();
      return true;
+--- a/src/ftxui/dom/border.cpp
++++ b/src/ftxui/dom/border.cpp
+@@ -15,6 +15,8 @@
+ #include "ftxui/screen/box.hpp"       // for Box
+ #include "ftxui/screen/cell.hpp"      // for Cell
+ #include "ftxui/screen/screen.hpp"    // for Cell, Screen
++#include "ftxui/screen/string.hpp"
++#include "ftxui/screen/string_internal.hpp"
+ 
+ namespace ftxui {
+ 
+@@ -87,24 +89,24 @@
+       return;
+     }
+ 
+-    screen.at(box_.x_min, box_.y_min) = charset_[0];  // NOLINT
+-    screen.at(box_.x_max, box_.y_min) = charset_[1];  // NOLINT
+-    screen.at(box_.x_min, box_.y_max) = charset_[2];  // NOLINT
+-    screen.at(box_.x_max, box_.y_max) = charset_[3];  // NOLINT
++    screen.SetGlyph(box_.x_min, box_.y_min, charset_[0], 1);  // NOLINT
++    screen.SetGlyph(box_.x_max, box_.y_min, charset_[1], 1);  // NOLINT
++    screen.SetGlyph(box_.x_min, box_.y_max, charset_[2], 1);  // NOLINT
++    screen.SetGlyph(box_.x_max, box_.y_max, charset_[3], 1);  // NOLINT
+ 
+     for (int x = box_.x_min + 1; x < box_.x_max; ++x) {
+       Cell& p1 = screen.CellAt(x, box_.y_min);
+       Cell& p2 = screen.CellAt(x, box_.y_max);
+-      p1.character = charset_[4];  // NOLINT
+-      p2.character = charset_[4];  // NOLINT
++      screen.SetGlyph(x, box_.y_min, charset_[4], 1);  // NOLINT
++      screen.SetGlyph(x, box_.y_max, charset_[4], 1);  // NOLINT
+       p1.automerge = true;
+       p2.automerge = true;
+     }
+     for (int y = box_.y_min + 1; y < box_.y_max; ++y) {
+       Cell& p3 = screen.CellAt(box_.x_min, y);
+       Cell& p4 = screen.CellAt(box_.x_max, y);
+-      p3.character = charset_[5];  // NOLINT
+-      p4.character = charset_[5];  // NOLINT
++      screen.SetGlyph(box_.x_min, y, charset_[5], 1);  // NOLINT
++      screen.SetGlyph(box_.x_max, y, charset_[5], 1);  // NOLINT
+       p3.automerge = true;
+       p4.automerge = true;
+     }
+@@ -132,7 +134,12 @@
+ class BorderCell : public Node {
+  public:
+   BorderCell(Elements children, Cell pixel)
+-      : Node(std::move(children)), pixel_(std::move(pixel)) {}
++      : Node(std::move(children)), pixel_(std::move(pixel)) {
++    pixel_.character = GlyphBoundaries(pixel_.character).size() == 2 &&
++                               DisplayWidth(pixel_.character) == 1
++                           ? GlyphDisplayText(pixel_.character)
++                           : " ";
++  }
+ 
+  private:
+   Cell pixel_;
+@@ -176,18 +183,18 @@
+       return;
+     }
+ 
+-    screen.CellAt(box_.x_min, box_.y_min) = pixel_;
+-    screen.CellAt(box_.x_max, box_.y_min) = pixel_;
+-    screen.CellAt(box_.x_min, box_.y_max) = pixel_;
+-    screen.CellAt(box_.x_max, box_.y_max) = pixel_;
++    screen.SetCell(box_.x_min, box_.y_min, pixel_, 1);
++    screen.SetCell(box_.x_max, box_.y_min, pixel_, 1);
++    screen.SetCell(box_.x_min, box_.y_max, pixel_, 1);
++    screen.SetCell(box_.x_max, box_.y_max, pixel_, 1);
+ 
+     for (int x = box_.x_min + 1; x < box_.x_max; ++x) {
+-      screen.CellAt(x, box_.y_min) = pixel_;
+-      screen.CellAt(x, box_.y_max) = pixel_;
++      screen.SetCell(x, box_.y_min, pixel_, 1);
++      screen.SetCell(x, box_.y_max, pixel_, 1);
+     }
+     for (int y = box_.y_min + 1; y < box_.y_max; ++y) {
+-      screen.CellAt(box_.x_min, y) = pixel_;
+-      screen.CellAt(box_.x_max, y) = pixel_;
++      screen.SetCell(box_.x_min, y, pixel_, 1);
++      screen.SetCell(box_.x_max, y, pixel_, 1);
+     }
+   }
+ };
+--- a/src/ftxui/dom/canvas.cpp
++++ b/src/ftxui/dom/canvas.cpp
+@@ -27,6 +27,7 @@
+ #include "ftxui/screen/cell.hpp"      // for Cell
+ #include "ftxui/screen/screen.hpp"    // for Cell, Screen
+ #include "ftxui/screen/string.hpp"    // for Utf8ToGlyphs
++#include "ftxui/screen/string_internal.hpp"
+ #include "ftxui/screen/surface.hpp"   // for Surface
+ #include "ftxui/util/ref.hpp"         // for ConstRef
+ 
+@@ -107,6 +108,24 @@
+   return (it == storage_.end()) ? Cell() : it->second.content;
+ }
+ 
++void Canvas::ClearGlyph(int x, int y) {
++  const auto old = GetCell(x, y);
++  const int head = x + std::min(0, old.span);
++  if (head < 0 || head >= (width_ + 1) / 2) {
++    return;
++  }
++  const int columns = std::clamp(GetCell(head, y).span, 1, (width_ + 1) / 2 - head);
++  for (int at = head; at < head + columns; ++at) {
++    auto& cell = storage_[XY{at, y}];
++    if (at != head && cell.content.span != head - at) {
++      continue;
++    }
++    cell.content.character.clear();
++    cell.content.span = 0;
++    cell.type = CellType::kCell;
++  }
++}
++
+ /// @brief Draw a braille dot.
+ /// @param x the x coordinate of the dot.
+ /// @param y the y coordinate of the dot.
+@@ -147,7 +166,9 @@
+   }
+   CanvasCell& cell = storage_[XY{x / 2, y / 4}];
+   if (cell.type != CellType::kBraille) {
++    ClearGlyph(x / 2, y / 4);
+     cell.content.character = "⠀";  // 3 bytes.
++    cell.content.span = 1;
+     cell.type = CellType::kBraille;
+   }
+ 
+@@ -164,7 +185,9 @@
+   }
+   CanvasCell& cell = storage_[XY{x / 2, y / 4}];
+   if (cell.type != CellType::kBraille) {
++    ClearGlyph(x / 2, y / 4);
+     cell.content.character = "⠀";  // 3 byt
++    cell.content.span = 1;
+     cell.type = CellType::kBraille;
+   }
+ 
+@@ -182,7 +205,9 @@
+   }
+   CanvasCell& cell = storage_[XY{x / 2, y / 4}];
+   if (cell.type != CellType::kBraille) {
++    ClearGlyph(x / 2, y / 4);
+     cell.content.character = "⠀";  // 3 byt
++    cell.content.span = 1;
+     cell.type = CellType::kBraille;
+   }
+ 
+@@ -479,7 +504,9 @@
+   y /= 2;
+   CanvasCell& cell = storage_[XY{x / 2, y / 2}];
+   if (cell.type != CellType::kBlock) {
++    ClearGlyph(x / 2, y / 2);
+     cell.content.character = " ";
++    cell.content.span = 1;
+     cell.type = CellType::kBlock;
+   }
+ 
+@@ -498,7 +525,9 @@
+   }
+   CanvasCell& cell = storage_[XY{x / 2, y / 4}];
+   if (cell.type != CellType::kBlock) {
++    ClearGlyph(x / 2, y / 4);
+     cell.content.character = " ";
++    cell.content.span = 1;
+     cell.type = CellType::kBlock;
+   }
+   y /= 2;
+@@ -519,7 +548,9 @@
+   }
+   CanvasCell& cell = storage_[XY{x / 2, y / 4}];
+   if (cell.type != CellType::kBlock) {
++    ClearGlyph(x / 2, y / 4);
+     cell.content.character = " ";
++    cell.content.span = 1;
+     cell.type = CellType::kBlock;
+   }
+   y /= 2;
+@@ -814,16 +845,33 @@
+                       int y,
+                       std::string_view value,
+                       const Stylizer& style) {
+-  for (const auto& it : Utf8ToGlyphs(value)) {
+-    if (!IsIn(x, y)) {
+-      x += 2;
++  const auto boundaries = GlyphBoundaries(value);
++  for (size_t i = 1; i < boundaries.size(); ++i) {
++    const auto cluster = value.substr(boundaries[i - 1], boundaries[i] - boundaries[i - 1]);
++    const int columns = DisplayWidth(cluster);
++    if (columns == 0) {
+       continue;
+     }
+-    CanvasCell& cell = storage_[XY{x / 2, y / 4}];
+-    cell.type = CellType::kCell;
+-    cell.content.character = it;
+-    style(cell.content);
+-    x += 2;
++    const bool complete = IsIn(x, y) && IsIn(x + 2 * (columns - 1), y);
++    for (int offset = 0; offset < columns; ++offset) {
++      const int at = x + 2 * offset;
++      if (!IsIn(at, y)) {
++        continue;
++      }
++      ClearGlyph(at / 2, y / 4);
++    }
++    for (int offset = 0; offset < columns; ++offset) {
++      const int at = x + 2 * offset;
++      if (!IsIn(at, y)) {
++        continue;
++      }
++      auto& cell = storage_[XY{at / 2, y / 4}];
++      cell.type = CellType::kCell;
++      cell.content.character = complete && offset == 0 ? GlyphDisplayText(cluster) : "";
++      cell.content.span = !complete ? 1 : offset == 0 ? columns : -offset;
++      style(cell.content);
++    }
++    x += 2 * columns;
+   }
+ }
+ 
+@@ -832,9 +880,26 @@
+ /// @param y the y coordinate of the pixel.
+ /// @param p the pixel to draw.
+ void Canvas::DrawCell(int x, int y, const Cell& p) {
+-  CanvasCell& cell = storage_[XY{x / 2, y / 4}];
+-  cell.type = CellType::kCell;
+-  cell.content = p;
++  const Cell content = p;
++  const int columns = content.span > 0 ? content.span : std::max(1, string_width(content.character));
++  const bool complete = IsIn(x, y) && IsIn(x + 2 * (columns - 1), y);
++  for (int offset = 0; offset < columns; ++offset) {
++    const int at = x + 2 * offset;
++    if (IsIn(at, y)) {
++      ClearGlyph(at / 2, y / 4);
++    }
++  }
++  for (int offset = 0; offset < columns; ++offset) {
++    const int at = x + 2 * offset;
++    if (!IsIn(at, y)) {
++      continue;
++    }
++    auto& cell = storage_[XY{at / 2, y / 4}];
++    cell.type = CellType::kCell;
++    cell.content = content;
++    cell.content.character = complete && offset == 0 ? content.character : "";
++    cell.content.span = !complete ? 1 : offset == 0 ? columns : -offset;
++  }
+ }
+ 
+ /// @brief Draw a predefined image, with top-left corner at the given coordinate
+@@ -846,19 +911,43 @@
+ void Canvas::DrawSurface(int x, int y, const Surface& image) {
+   x /= 2;
+   y /= 4;
+-  const int dx_begin = std::max(0, -x);
+   const int dy_begin = std::max(0, -y);
+-  const int dx_end = std::min(image.dimx(), width_ - x);
+-  const int dy_end = std::min(image.dimy(), height_ - y);
++  const int dy_end = std::min(image.dimy(), (height_ + 3) / 4 - y);
+ 
+   for (int dy = dy_begin; dy < dy_end; ++dy) {
+-    for (int dx = dx_begin; dx < dx_end; ++dx) {
+-      CanvasCell& cell = storage_[XY{
+-          x + dx,
+-          y + dy,
+-      }];
+-      cell.type = CellType::kCell;
+-      cell.content = image.CellAt(dx, dy);
++    for (int dx = 0; dx < image.dimx(); ++dx) {
++      if (!image.stencil.Contain(dx, dy)) {
++        continue;
++      }
++      const auto& cell = image.CellAt(dx, dy);
++      if (cell.span < 0) {
++        Cell blank = cell;
++        blank.character = " ";
++        blank.span = 1;
++        DrawCell(2 * (x + dx), 4 * (y + dy), blank);
++        continue;
++      }
++      const int columns = cell.span > 0 ? cell.span : std::max(1, string_width(cell.character));
++      bool complete = columns <= image.dimx() - dx &&
++          image.stencil.Contain(dx + columns - 1, dy);
++      for (int offset = 1; complete && offset < columns; ++offset) {
++        const auto& continuation = image.CellAt(dx + offset, dy);
++        complete = continuation.character.empty() &&
++            (cell.span == 0 || continuation.span == -offset);
++      }
++      if (complete) {
++        DrawCell(2 * (x + dx), 4 * (y + dy), cell);
++      } else {
++        for (int offset = 0; offset < std::min(columns, image.dimx() - dx); ++offset) {
++          if (image.stencil.Contain(dx + offset, dy)) {
++            Cell blank = image.CellAt(dx + offset, dy);
++            blank.character = " ";
++            blank.span = 1;
++            DrawCell(2 * (x + dx + offset), 4 * (y + dy), blank);
++          }
++        }
++      }
++      dx += std::min(columns, image.dimx() - dx) - 1;
+     }
+   }
+ }
+@@ -881,11 +970,26 @@
+ 
+   void Render(Screen& screen) override {
+     const Canvas& c = canvas();
+-    const int y_max = std::min(c.height() / 4, box_.y_max - box_.y_min + 1);
+-    const int x_max = std::min(c.width() / 2, box_.x_max - box_.x_min + 1);
++    const int y_max = std::min((c.height() + 3) / 4, box_.y_max - box_.y_min + 1);
++    const int x_max = std::min((c.width() + 1) / 2, box_.x_max - box_.x_min + 1);
++    const Box visible = Box::Intersection(screen.stencil, box_);
+     for (int y = 0; y < y_max; ++y) {
+       for (int x = 0; x < x_max; ++x) {
+-        screen.CellAt(box_.x_min + x, box_.y_min + y) = c.GetCell(x, y);
++        const auto cell = c.GetCell(x, y);
++        if (cell.span < 0) {
++          continue;
++        }
++        const int columns = cell.span > 0 ? cell.span : std::max(1, string_width(cell.character));
++        const int at = box_.x_min + x;
++        const int row = box_.y_min + y;
++        if (at < visible.x_min || at + columns - 1 > visible.x_max ||
++            !screen.SetCell(at, row, cell, columns)) {
++          for (int column = std::max(at, visible.x_min);
++               column <= std::min(at + columns - 1, visible.x_max); ++column) {
++            screen.SetGlyph(column, row, " ", 1);
++          }
++        }
++        x += columns - 1;
+       }
+     }
+   }
+--- a/src/ftxui/dom/clear_under.cpp
++++ b/src/ftxui/dom/clear_under.cpp
+@@ -22,8 +22,7 @@
+   void Render(Screen& screen) override {
+     for (int y = box_.y_min; y <= box_.y_max; ++y) {
+       for (int x = box_.x_min; x <= box_.x_max; ++x) {
+-        screen.CellAt(x, y) = Cell();
+-        screen.CellAt(x, y).character = " ";  // Consider the Cell written.
++        screen.SetCell(x, y, Cell(), 1);
+       }
+     }
+     Node::Render(screen);
+--- a/src/ftxui/dom/frame.cpp
++++ b/src/ftxui/dom/frame.cpp
+@@ -8,6 +8,7 @@
+ #include "ftxui/dom/elements.hpp"  // for Element, unpack, Elements, focus, frame, select, xframe, yframe
+ #include "ftxui/dom/node.hpp"         // for Node, Elements
+ #include "ftxui/dom/requirement.hpp"  // for Requirement
++#include "ftxui/dom/selection.hpp"
+ #include "ftxui/screen/box.hpp"       // for Box
+ #include "ftxui/screen/screen.hpp"    // for Screen, Screen::Cursor
+ #include "ftxui/util/autoreset.hpp"   // for AutoReset
+@@ -69,6 +70,11 @@
+     children_[0]->SetBox(children_box);
+   }
+ 
++  void Select(Selection& selection) override {
++    auto visible_selection = selection.Clip(box_);
++    children_[0]->Select(visible_selection);
++  }
++
+   void Render(Screen& screen) override {
+     const AutoReset<Box> stencil(&screen.stencil,
+                                  Box::Intersection(box_, screen.stencil));
+--- a/src/ftxui/dom/gauge.cpp
++++ b/src/ftxui/dom/gauge.cpp
+@@ -115,12 +115,12 @@
+     for (int y = box_.y_min; y <= box_.y_max; y++) {
+       int x = box_.x_min;
+       while (x < limit_int) {
+-        screen.at(x++, y) = charset[9];  // NOLINT
++        screen.SetGlyph(x++, y, charset[9], 1);  // NOLINT
+       }
+       // NOLINTNEXTLINE
+-      screen.at(x++, y) = charset[int(9 * (limit - limit_int))];
++      screen.SetGlyph(x++, y, charset[int(9 * (limit - limit_int))], 1);
+       while (x <= box_.x_max) {
+-        screen.at(x++, y) = charset[0];  // NOLINT
++        screen.SetGlyph(x++, y, charset[0], 1);  // NOLINT
+       }
+     }
+ 
+@@ -143,12 +143,12 @@
+     for (int x = box_.x_min; x <= box_.x_max; x++) {
+       int y = box_.y_min;
+       while (y < limit_int) {
+-        screen.at(x, y++) = charset_vertical[8];  // NOLINT
++        screen.SetGlyph(x, y++, charset_vertical[8], 1);  // NOLINT
+       }
+       // NOLINTNEXTLINE
+-      screen.at(x, y++) = charset_vertical[int(8 * (limit - limit_int))];
++      screen.SetGlyph(x, y++, charset_vertical[int(8 * (limit - limit_int))], 1);
+       while (y <= box_.y_max) {
+-        screen.at(x, y++) = charset_vertical[0];  // NOLINT
++        screen.SetGlyph(x, y++, charset_vertical[0], 1);  // NOLINT
+       }
+     }
+     if (invert) {
+--- a/src/ftxui/dom/graph.cpp
++++ b/src/ftxui/dom/graph.cpp
+@@ -62,8 +62,8 @@
+         const int yy = 2 * y;
+         const int i_1 = yy < height_1 ? 0 : yy == height_1 ? 3 : 6;  // NOLINT
+         const int i_2 = yy < height_2 ? 0 : yy == height_2 ? 1 : 2;  // NOLINT
+-        screen.at(x, y) =
+-            current_graph_charset.at(static_cast<size_t>(i_1 + i_2));  // NOLINT
++        screen.SetGlyph(x, y,
++            current_graph_charset.at(static_cast<size_t>(i_1 + i_2)), 1);  // NOLINT
+       }
+     }
+   }
+--- a/src/ftxui/dom/node.cpp
++++ b/src/ftxui/dom/node.cpp
+@@ -127,7 +127,8 @@
+ 
+   // Step 3: Selection
+   if (!selection.IsEmpty()) {
+-    node->Select(selection);
++    auto visible_selection = selection.Clip(box);
++    node->Select(visible_selection);
+   }
+ 
+   bool use_cursor = node->requirement().focused.enabled;
+@@ -202,7 +203,8 @@
+   }
+ 
+   // Step 3: Selection
+-  node->Select(selection);
++  auto visible_selection = selection.Clip(box);
++  node->Select(visible_selection);
+ 
+   // Step 4: get the selected content.
+   return node->GetSelectedContent(selection);
+--- a/src/ftxui/dom/scroll_indicator.cpp
++++ b/src/ftxui/dom/scroll_indicator.cpp
+@@ -63,7 +63,7 @@
+         const bool down = (start_y <= y_down) && (y_down <= start_y + size);
+ 
+         const char* c = up ? (down ? "┃" : "╹") : (down ? "╻" : " ");  // NOLINT
+-        screen.CellAt(x, y).character = c;
++        screen.SetGlyph(x, y, c, 1);
+       }
+     }
+   };
+@@ -119,7 +119,7 @@
+ 
+         const char* c =
+             left ? (right ? "─" : "╴") : (right ? "╶" : " ");  // NOLINT
+-        screen.CellAt(x, y).character = c;
++        screen.SetGlyph(x, y, c, 1);
+       }
+     }
+   };
+--- a/src/ftxui/dom/selection.cpp
++++ b/src/ftxui/dom/selection.cpp
+@@ -48,7 +48,8 @@
+                      int start_y,
+                      int end_x,
+                      int end_y,
+-                     Selection* parent)
++                     Selection* parent,
++                     Box viewport)
+     : start_x_(start_x),
+       start_y_(start_y),
+       end_x_(end_x),
+@@ -60,7 +61,8 @@
+           std::max(start_y, end_y),
+       },
+       parent_(parent),
+-      empty_(false) {}
++      empty_(false),
++      viewport_(viewport) {}
+ 
+ /// @brief Get the box of the selection.
+ /// @return The box of the selection.
+@@ -68,6 +70,14 @@
+   return box_;
+ }
+ 
++Selection Selection::Clip(Box viewport) {
++  if (empty_) {
++    return {};
++  }
++  return {start_x_, start_y_, end_x_, end_y_, parent_,
++          Box::Intersection(viewport_, viewport)};
++}
++
+ /// @brief Saturate the selection to be inside the box.
+ /// This is called by `hbox` to propagate the selection to its children.
+ /// @param box The box to saturate the selection in.
+@@ -102,7 +112,7 @@
+     }
+   }
+   return {
+-      start_x, start_y, end_x, end_y, parent_,
++      start_x, start_y, end_x, end_y, parent_, viewport_,
+   };
+ }
+ 
+@@ -140,7 +150,7 @@
+       end_y = box.y_min;
+     }
+   }
+-  return {start_x, start_y, end_x, end_y, parent_};
++  return {start_x, start_y, end_x, end_y, parent_, viewport_};
+ }
+ 
+ void Selection::AddPart(std::string_view part, int y, int left, int right) {
+--- a/src/ftxui/dom/separator.cpp
++++ b/src/ftxui/dom/separator.cpp
+@@ -14,6 +14,8 @@
+ #include "ftxui/screen/cell.hpp"      // for Cell
+ #include "ftxui/screen/color.hpp"     // for Color
+ #include "ftxui/screen/screen.hpp"    // for Cell, Screen
++#include "ftxui/screen/string.hpp"
++#include "ftxui/screen/string_internal.hpp"
+ 
+ namespace ftxui {
+ 
+@@ -33,7 +35,11 @@
+ 
+ class Separator : public Node {
+  public:
+-  explicit Separator(std::string value) : value_(std::move(value)) {}
++  explicit Separator(std::string value) : value_(std::move(value)) {
++    value_ = GlyphBoundaries(value_).size() == 2 && DisplayWidth(value_) == 1
++                 ? GlyphDisplayText(value_)
++                 : " ";
++  }
+ 
+   void ComputeRequirement() override {
+     requirement_.min_x = 1;
+@@ -43,8 +49,8 @@
+   void Render(Screen& screen) override {
+     for (int y = box_.y_min; y <= box_.y_max; ++y) {
+       for (int x = box_.x_min; x <= box_.x_max; ++x) {
++        screen.SetGlyph(x, y, value_, 1);
+         Cell& pixel = screen.CellAt(x, y);
+-        pixel.character = value_;
+         pixel.automerge = true;
+       }
+     }
+@@ -71,8 +77,8 @@
+ 
+     for (int y = box_.y_min; y <= box_.y_max; ++y) {
+       for (int x = box_.x_min; x <= box_.x_max; ++x) {
++        screen.SetGlyph(x, y, c, 1);
+         Cell& pixel = screen.CellAt(x, y);
+-        pixel.character = c;
+         pixel.automerge = true;
+       }
+     }
+@@ -85,12 +91,16 @@
+  public:
+   explicit SeparatorWithCell(Cell pixel)
+       : SeparatorAuto(LIGHT), pixel_(std::move(pixel)) {
++    pixel_.character = GlyphBoundaries(pixel_.character).size() == 2 &&
++                               DisplayWidth(pixel_.character) == 1
++                           ? GlyphDisplayText(pixel_.character)
++                           : " ";
+     pixel_.automerge = true;
+   }
+   void Render(Screen& screen) override {
+     for (int y = box_.y_min; y <= box_.y_max; ++y) {
+       for (int x = box_.x_min; x <= box_.x_max; ++x) {
+-        screen.CellAt(x, y) = pixel_;
++        screen.SetCell(x, y, pixel_, 1);
+       }
+     }
+   }
+@@ -476,10 +486,10 @@
+         const bool b_empty = demi_cell_left == b || demi_cell_right == b;
+ 
+         if (!a_empty && !b_empty) {
+-          pixel.character = "─";
++          screen.SetGlyph(x, y, "─", 1);
+           pixel.automerge = true;
+         } else {
+-          pixel.character = a_empty ? "╶" : "╴";  // NOLINT
++          screen.SetGlyph(x, y, a_empty ? "╶" : "╴", 1);  // NOLINT
+           pixel.automerge = false;
+         }
+ 
+@@ -546,10 +556,10 @@
+         const bool b_empty = demi_cell_up == b || demi_cell_down == b;
+ 
+         if (!a_empty && !b_empty) {
+-          pixel.character = "│";
++          screen.SetGlyph(x, y, "│", 1);
+           pixel.automerge = true;
+         } else {
+-          pixel.character = a_empty ? "╷" : "╵";  // NOLINT
++          screen.SetGlyph(x, y, a_empty ? "╷" : "╵", 1);  // NOLINT
+           pixel.automerge = false;
+         }
+ 
+--- a/src/ftxui/dom/text.cpp
++++ b/src/ftxui/dom/text.cpp
+@@ -17,6 +17,7 @@
+ #include "ftxui/screen/box.hpp"       // for Box
+ #include "ftxui/screen/screen.hpp"    // for Cell, Screen
+ #include "ftxui/screen/string.hpp"  // for string_width, Utf8ToGlyphs, to_string
++#include "ftxui/screen/string_internal.hpp"
+ 
+ namespace ftxui {
+ 
+@@ -25,24 +26,33 @@
+ 
+ class Text : public Node {
+  public:
+-  explicit Text(std::string_view text) : glyphs_(Utf8ToGlyphs(text)) {
++  explicit Text(std::string_view text)
++      : content_(text), boundaries_(GlyphBoundaries(content_)) {
++    widths_.reserve(boundaries_.size() - 1);
+     int max_width = 0;
+     int current_width = 0;
+     int lines_count = 1;
+     lines_offsets_.push_back(0);
++    const std::string_view value(content_);
+ 
+-    for (size_t i = 0; i < glyphs_.size(); ++i) {
+-      if (glyphs_[i] == "\n") {
++    for (size_t i = 1; i < boundaries_.size(); ++i) {
++      const auto glyph = value.substr(
++          boundaries_[i - 1], boundaries_[i] - boundaries_[i - 1]);
++      const int columns = glyph.size() == 1 && glyph[0] >= 32 && glyph[0] < 127
++                              ? 1
++                              : DisplayWidth(glyph);
++      widths_.push_back(columns);
++      if (glyph == "\n" || glyph == "\r\n") {
+         max_width = std::max(max_width, current_width);
+         current_width = 0;
+         lines_count++;
+-        lines_offsets_.push_back((int)i + 1);
++        lines_offsets_.push_back((int)i);
+       } else {
+-        current_width++;
++        current_width += columns;
+       }
+     }
+     max_width = std::max(max_width, current_width);
+-    lines_offsets_.push_back((int)glyphs_.size() + 1);
++    lines_offsets_.push_back((int)widths_.size() + 1);
+ 
+     requirement_.min_x = max_width;
+     requirement_.min_y = lines_count;
+@@ -56,7 +66,11 @@
+   }
+ 
+   void Select(Selection& selection) override {
+-    const Box selection_box = Box::Intersection(selection.GetBox(), box_);
++    if (selection.IsEmpty()) {
++      return;
++    }
++    const Box visible_box = Box::Intersection(selection.GetViewport(), box_);
++    const Box selection_box = Box::Intersection(selection.GetBox(), visible_box);
+     if (selection_box.IsEmpty()) {
+       return;
+     }
+@@ -86,10 +100,11 @@
+       const int start = lines_offsets_[i];
+       const int end = lines_offsets_[i + 1] - 1;
+       for (int j = start; j < end; ++j) {
+-        if (sel_start <= x && x <= sel_end) {
+-          part += glyphs_[j];
++        if (x >= visible_box.x_min && x + widths_[j] - 1 <= visible_box.x_max &&
++            x <= sel_end && x + widths_[j] - 1 >= sel_start) {
++          part += GlyphAt(j);
+         }
+-        x++;
++        x += widths_[j];
+       }
+       selection.AddPart(std::move(part), y, sel_start, sel_end);
+     }
+@@ -110,20 +125,29 @@
+     for (size_t line = first_line; line < last_line; ++line, ++y) {
+       int x = box_.x_min;
+ 
+-      for (auto glyph = glyphs_.begin() + lines_offsets_[line];
+-           glyph != glyphs_.end() && *glyph != "\n"; ++glyph, ++x) {
++      for (int index = lines_offsets_[line];
++           index < static_cast<int>(widths_.size()) && GlyphAt(index) != "\n";
++           x += widths_[index], ++index) {
+         if (x > box_.x_max) {
+           break;
+         }
+-
+-        auto& cell = screen.CellAt(x, y);
+-        cell.character = *glyph;
++        if (x < visible_box.x_min || x + widths_[index] - 1 > visible_box.x_max ||
++            !screen.SetGlyph(x, y, GlyphDisplayText(GlyphAt(index)), widths_[index])) {
++          const int begin = std::max(x, visible_box.x_min);
++          const int end = std::min(x + widths_[index] - 1, visible_box.x_max);
++          for (int at = begin; at <= end; ++at) {
++            screen.SetGlyph(at, y, " ", 1);
++          }
++          continue;
++        }
+ 
+         const size_t sel_index = line - selection_first_line_;
+         if (sel_index < selection_rows_.size()) {
+           const auto& [sel_start, sel_end] = selection_rows_[sel_index];
+-          if (sel_start != -1 && x >= sel_start && x <= sel_end) {
+-            screen.GetSelectionStyle()(cell);
++          if (sel_start != -1 && x <= sel_end && x + widths_[index] - 1 >= sel_start) {
++            for (int offset = 0; offset < widths_[index]; ++offset) {
++              screen.GetSelectionStyle()(screen.CellAt(x + offset, y));
++            }
+           }
+         }
+       }
+@@ -131,7 +155,15 @@
+   }
+ 
+  private:
+-  std::vector<std::string> glyphs_;
++  std::string_view GlyphAt(size_t index) const {
++    const auto glyph = std::string_view(content_).substr(
++        boundaries_[index], boundaries_[index + 1] - boundaries_[index]);
++    return glyph == "\r\n" ? "\n" : glyph;
++  }
++
++  std::string content_;
++  std::vector<size_t> boundaries_;
++  std::vector<int> widths_;
+   std::vector<int> lines_offsets_;
+   // Selection state for the line range [selection_first_line_,
+   // selection_first_line_ + selection_rows_.size()).
+@@ -141,61 +173,72 @@
+ 
+ class VText : public Node {
+  public:
+-  explicit VText(std::string_view text) : glyphs_(Utf8ToGlyphs(text)) {
+-    for (const auto& g : glyphs_) {
+-      if (g != "\n") {
+-        width_ = 1;
+-        break;
+-      }
+-    }
+-  }
+-
+-  void ComputeRequirement() override {
++  explicit VText(std::string_view text)
++      : content_(text), boundaries_(GlyphBoundaries(content_)) {
++    widths_.reserve(boundaries_.size() - 1);
+     int max_height = 0;
+     int current_height = 0;
+-    int columns = 1;
+-
+-    for (const auto& cell : glyphs_) {
+-      if (cell == "\n") {
++    int column_width = 0;
++    for (size_t i = 1; i < boundaries_.size(); ++i) {
++      const auto cluster = GlyphAt(i - 1);
++      const int width = DisplayWidth(cluster);
++      widths_.push_back(width);
++      if (cluster == "\n") {
+         max_height = std::max(max_height, current_height);
+         current_height = 0;
+-        columns++;
++        column_widths_.push_back(column_width);
++        requirement_.min_x += column_width;
++        column_width = 0;
+       } else {
+         current_height++;
++        column_width = std::max(column_width, width);
+       }
+     }
++    column_widths_.push_back(column_width);
++    requirement_.min_x += column_width;
+     max_height = std::max(max_height, current_height);
+-
+-    requirement_.min_x = width_ * columns;
+     requirement_.min_y = max_height;
+   }
+ 
++  void ComputeRequirement() override {}
++
+   void Render(Screen& screen) override {
+     int x = box_.x_min;
+     int y = box_.y_min;
+-    if (x + width_ - 1 > box_.x_max) {
+-      return;
+-    }
+-    for (const auto& it : glyphs_) {
+-      if (it == "\n") {
+-        x += width_;
++    size_t column = 0;
++    const Box visible = Box::Intersection(screen.stencil, box_);
++    for (size_t index = 0; index < widths_.size(); ++index) {
++      if (GlyphAt(index) == "\n") {
++        x += column_widths_[column++];
+         y = box_.y_min;
+-        if (x + width_ - 1 > box_.x_max) {
+-          return;
+-        }
+         continue;
+       }
+-      if (y > box_.y_max) {
+-        continue;
++      if (visible.y_min <= y && y <= visible.y_max) {
++        if (x >= visible.x_min && x + widths_[index] - 1 <= visible.x_max) {
++          screen.SetGlyph(x, y, GlyphDisplayText(GlyphAt(index)), widths_[index]);
++        } else {
++          const int first = std::max(x, visible.x_min);
++          const int last = std::min(x + widths_[index] - 1, visible.x_max);
++          for (int at = first; at <= last; ++at) {
++            screen.SetGlyph(at, y, " ", 1);
++          }
++        }
+       }
+-      screen.CellAt(x, y).character = it;
+       y += 1;
+     }
+   }
+ 
+  private:
+-  std::vector<std::string> glyphs_;
+-  int width_ = 0;
++  std::string_view GlyphAt(size_t index) const {
++    const auto glyph = std::string_view(content_).substr(
++        boundaries_[index], boundaries_[index + 1] - boundaries_[index]);
++    return glyph == "\r\n" ? "\n" : glyph;
++  }
++
++  std::string content_;
++  std::vector<size_t> boundaries_;
++  std::vector<int> widths_;
++  std::vector<int> column_widths_;
+ };
+ 
+ }  // namespace
+@@ -216,7 +259,7 @@
+ /// Hello world!
+ /// ```
+ Element text(std::string_view text) {
+-  return std::make_shared<Text>(std::string(text));
++  return std::make_shared<Text>(text);
+ }
+ 
+ /// @brief Display a piece of unicode text.
+--- a/src/ftxui/screen/screen.cpp
++++ b/src/ftxui/screen/screen.cpp
+@@ -2,6 +2,7 @@
+ // Use of this source code is governed by the MIT license that can be found in
+ // the LICENSE file.
+ #include <cstddef>  // for size_t
++#include <algorithm>
+ #include <cstdint>
+ #include <iostream>  // for cout, flush
+ #include <limits>
+@@ -453,26 +454,26 @@
+       ss += "\r\n";
+     }
+ 
+-    // After printing a fullwith character, we need to skip the next cell.
+-    bool previous_fullwidth = false;
+     if (dimx_ > 0) {
+       const Cell* line_start = &FastCellAt(0, y);
+       const Cell* line_end = line_start + dimx_;
+-      for (const Cell* it = line_start; it != line_end; ++it) {
++      for (const Cell* it = line_start; it != line_end;) {
+         const auto& cell = *it;
+-        if (!previous_fullwidth) {
+-          UpdateCellStyle(this, ss, *previous_cell_ref, cell);
+-          previous_cell_ref = &cell;
+-          if (cell.character.empty()) {
+-            ss += ' ';
+-          } else {
+-            ss += cell.character;
+-          }
++        const int columns = cell.span > 0 ? cell.span : std::max(1, string_width(cell.character));
++        bool complete = columns <= line_end - it;
++        for (int offset = 1; complete && offset < columns; ++offset) {
++          const auto& continuation = it[offset];
++          complete = continuation.character.empty() &&
++              (cell.span == 0 || continuation.span == -offset);
+         }
+-        if (cell.character.size() <= 1) {
+-          previous_fullwidth = false;
++        UpdateCellStyle(this, ss, *previous_cell_ref, cell);
++        previous_cell_ref = &cell;
++        if (!complete || cell.character.empty()) {
++          ss += ' ';
++          ++it;
+         } else {
+-          previous_fullwidth = (string_width(cell.character) == 2);
++          ss += cell.character;
++          it += columns;
+         }
+       }
+     }
+--- a/src/ftxui/screen/string.cpp
++++ b/src/ftxui/screen/string.cpp
+@@ -12,12 +12,15 @@
+ #include "ftxui/screen/string.hpp"
+ 
+ #include <array>        // for array
++#include <algorithm>
+ #include <cstddef>      // for size_t
+ #include <cstdint>      // for uint32_t, uint8_t, uint16_t, int32_t
++#include <iterator>
+ #include <string>       // for string, basic_string, wstring
+ #include <string_view>  // for string_view
+ #include <tuple>        // for _Swallow_assign, ignore
+ #include <vector>
++#include <utf8proc.h>
+ 
+ #include "ftxui/screen/deprecated.hpp"       // for wchar_width, wstring_width
+ #include "ftxui/screen/string_internal.hpp"  // for WordBreakProperty, EatCodePoint, CodepointToWordBreakProperty, GlyphCount, GlyphIterate, GlyphNext, GlyphPrevious, IsCombining, IsControl, IsFullWidth, Utf8ToWordBreakProperty
+@@ -1387,177 +1390,175 @@
+ std::vector<std::string> Utf8ToGlyphs(std::string_view input) {
+   std::vector<std::string> out;
+   out.reserve(input.size());
+-  size_t start = 0;
+-  size_t end = 0;
+-  while (start < input.size()) {
+-    uint32_t codepoint = 0;
+-    if (!EatCodePoint(input, start, &end, &codepoint)) {
+-      start = end;
+-      continue;
++  const auto boundaries = GlyphBoundaries(input);
++  for (size_t i = 1; i < boundaries.size(); ++i) {
++    const auto glyph = input.substr(boundaries[i - 1], boundaries[i] - boundaries[i - 1]);
++    out.emplace_back(glyph);
++    const int columns = DisplayWidth(glyph);
++    for (int column = 1; column < columns; ++column) {
++      out.emplace_back("");
+     }
++  }
++  return out;
++}
+ 
+-    const auto append = input.substr(start, end - start);
+-    start = end;
+-
+-    // Ignore control characters.
+-    if (IsControl(codepoint)) {
++std::string GlyphDisplayText(std::string_view glyph) {
++  if (glyph.empty() || glyph == "\n" || glyph == "\r\n") {
++    return std::string(glyph);
++  }
++  if (glyph.size() == 1 && glyph[0] >= 32 && glyph[0] < 127) {
++    return std::string(glyph);
++  }
++  std::string display;
++  std::string marks;
++  bool has_base = false;
++  bool has_spacing_mark = false;
++  for (size_t offset = 0; offset < glyph.size();) {
++    utf8proc_int32_t codepoint = 0;
++    const auto count = utf8proc_iterate(
++        reinterpret_cast<const utf8proc_uint8_t*>(glyph.data() + offset),
++        static_cast<utf8proc_ssize_t>(glyph.size() - offset), &codepoint);
++    if (count < 0) {
++      display += "�";
++      ++offset;
++      has_base = true;
+       continue;
+     }
+-
+-    // Combining characters are put with the previous glyph they are modifying.
+-    if (IsCombining(codepoint)) {
+-      if (!out.empty()) {
+-        out.back() += append;
+-      }
++    const auto bytes = glyph.substr(offset, static_cast<size_t>(count));
++    offset += static_cast<size_t>(count);
++    const auto* property = utf8proc_get_property(codepoint);
++    if (property->category == UTF8PROC_CATEGORY_CC ||
++        property->category == UTF8PROC_CATEGORY_CS ||
++        property->category == UTF8PROC_CATEGORY_CN ||
++        property->category == UTF8PROC_CATEGORY_ZL ||
++        property->category == UTF8PROC_CATEGORY_ZP ||
++        codepoint == 0x061c || codepoint == 0x200e || codepoint == 0x200f ||
++        (codepoint >= 0x202a && codepoint <= 0x202e) ||
++        (codepoint >= 0x2066 && codepoint <= 0x2069)) {
++      display += "�";
++      has_base = true;
+       continue;
+     }
++    display += bytes;
++    has_base |= property->charwidth > 0;
++    has_spacing_mark |= property->category == UTF8PROC_CATEGORY_MC;
++    if (!property->ignorable &&
++        (property->category == UTF8PROC_CATEGORY_MN ||
++         property->category == UTF8PROC_CATEGORY_MC ||
++         property->category == UTF8PROC_CATEGORY_ME)) {
++      marks += bytes;
++    }
++  }
++  if (has_base) {
++    return display;
++  }
++  // A display carrier owns a cell, but never becomes part of the source glyph.
++  // An isolated spacing mark can add a column to the synthetic base.
++  return marks.empty() || has_spacing_mark ? "�" : "◌" + marks;
++}
+ 
+-    // Fullwidth characters take two cells. The second is made of the empty
+-    // string to reserve the space the first is taking.
+-    if (IsFullWidth(codepoint)) {
+-      out.emplace_back(append);
+-      out.emplace_back("");
+-      continue;
++int DisplayWidth(std::string_view input) {
++  if (std::all_of(input.begin(), input.end(), [](unsigned char c) {
++        return c >= 32 && c < 127;
++      })) {
++    return static_cast<int>(input.size());
++  }
++  int columns = 0;
++  const auto boundaries = GlyphBoundaries(input);
++  for (size_t i = 1; i < boundaries.size(); ++i) {
++    const auto glyph = input.substr(boundaries[i - 1], boundaries[i] - boundaries[i - 1]);
++    if (glyph != "\n" && glyph != "\r\n") {
++      columns += string_width(GlyphDisplayText(glyph));
+     }
+-
+-    // Normal characters:
+-    out.emplace_back(append);
+   }
+-  return out;
++  return columns;
+ }
+ 
+-size_t GlyphPrevious(std::string_view input, size_t start) {
+-  while (true) {
+-    if (start == 0) {
+-      return 0;
++std::vector<size_t> GlyphBoundaries(std::string_view input) {
++  std::vector<size_t> boundaries{0};
++  if (std::all_of(input.begin(), input.end(), [](unsigned char c) { return c < 128; })) {
++    boundaries.reserve(input.size() + 1);
++    for (size_t offset = 0; offset < input.size(); ++offset) {
++      if (input[offset] == '\r' && offset + 1 < input.size() && input[offset + 1] == '\n') {
++        ++offset;
++      }
++      boundaries.push_back(offset + 1);
+     }
+-    start--;
+-
+-    // Skip the UTF8 continuation bytes.
+-    if ((input[start] & 0b1100'0000) == 0b1000'0000) {
++    return boundaries;
++  }
++  utf8proc_int32_t previous = -1;
++  utf8proc_int32_t state = 0;
++  for (size_t offset = 0; offset < input.size();) {
++    utf8proc_int32_t current = 0;
++    const auto count = utf8proc_iterate(
++        reinterpret_cast<const utf8proc_uint8_t*>(input.data() + offset),
++        static_cast<utf8proc_ssize_t>(input.size() - offset), &current);
++    if (count < 0) {
++      if (boundaries.back() != offset) {
++        boundaries.push_back(offset);
++      }
++      boundaries.push_back(++offset);
++      previous = -1;
++      state = 0;
+       continue;
+     }
+-
+-    uint32_t codepoint = 0;
+-    size_t end = 0;
+-    const bool eaten = EatCodePoint(input, start, &end, &codepoint);
+-
+-    // Ignore invalid, control characters and combining characters.
+-    if (!eaten || IsControl(codepoint) || IsCombining(codepoint)) {
+-      continue;
++    const bool boundary = previous < 0 ||
++        utf8proc_grapheme_break_stateful(previous, current, &state);
++    if (boundary && boundaries.back() != offset) {
++      boundaries.push_back(offset);
+     }
+-
+-    return start;
++    previous = current;
++    offset += static_cast<size_t>(count);
+   }
++  if (boundaries.back() != input.size()) {
++    boundaries.push_back(input.size());
++  }
++  return boundaries;
++}
++size_t GlyphPrevious(std::string_view input, size_t start) {
++  const auto boundaries = GlyphBoundaries(input);
++  const auto it = std::lower_bound(boundaries.begin(), boundaries.end(),
++                                   std::min(start, input.size()));
++  return it == boundaries.begin() ? 0 : *std::prev(it);
+ }
+ 
+ size_t GlyphNext(std::string_view input, size_t start) {
+-  bool glyph_found = false;
+-  while (start < input.size()) {
+-    size_t end = 0;
+-    uint32_t codepoint = 0;
+-    const bool eaten = EatCodePoint(input, start, &end, &codepoint);
+-
+-    // Ignore invalid, control characters and combining characters.
+-    if (!eaten || IsControl(codepoint) || IsCombining(codepoint)) {
+-      start = end;
+-      continue;
+-    }
+-
+-    // We eat the beginning of the next glyph. If we are eating the one
+-    // requested, return its start position immediately.
+-    if (glyph_found) {
+-      return static_cast<int>(start);
+-    }
+-
+-    // Otherwise, skip this glyph and iterate:
+-    glyph_found = true;
+-    start = end;
+-  }
+-  return static_cast<int>(input.size());
++  const auto boundaries = GlyphBoundaries(input);
++  const auto it = std::upper_bound(boundaries.begin(), boundaries.end(),
++                                   std::min(start, input.size()));
++  return it == boundaries.end() ? input.size() : *it;
+ }
+ 
+ size_t GlyphIterate(std::string_view input, int glyph_offset, size_t start) {
+-  if (glyph_offset >= 0) {
+-    for (int i = 0; i < glyph_offset; ++i) {
+-      start = GlyphNext(input, start);
+-    }
+-    return start;
+-  } else {
+-    for (int i = 0; i < -glyph_offset; ++i) {
+-      start = GlyphPrevious(input, start);
+-    }
++  start = std::min(start, input.size());
++  if (glyph_offset == 0) {
+     return start;
+   }
++  const auto boundaries = GlyphBoundaries(input);
++  const auto it = glyph_offset > 0
++      ? std::upper_bound(boundaries.begin(), boundaries.end(), start)
++      : std::lower_bound(boundaries.begin(), boundaries.end(), start);
++  const auto index = static_cast<int64_t>(it - boundaries.begin()) +
++                     static_cast<int64_t>(glyph_offset) - (glyph_offset > 0 ? 1 : 0);
++  return boundaries[static_cast<size_t>(std::clamp<int64_t>(
++      index, 0, static_cast<int64_t>(boundaries.size() - 1)))];
+ }
+ 
+ std::vector<int> CellToGlyphIndex(std::string_view input) {
+-  int x = -1;
+   std::vector<int> out;
+   out.reserve(input.size());
+-  size_t start = 0;
+-  size_t end = 0;
+-  while (start < input.size()) {
+-    uint32_t codepoint = 0;
+-    const bool eaten = EatCodePoint(input, start, &end, &codepoint);
+-    start = end;
+-
+-    // Ignore invalid / control characters.
+-    if (!eaten || IsControl(codepoint)) {
+-      continue;
+-    }
+-
+-    // Combining characters are put with the previous glyph they are modifying.
+-    if (IsCombining(codepoint)) {
+-      if (x == -1) {
+-        ++x;
+-        out.push_back(x);
+-      }
+-      continue;
++  const auto boundaries = GlyphBoundaries(input);
++  for (size_t i = 1; i < boundaries.size(); ++i) {
++    const auto glyph = input.substr(boundaries[i - 1], boundaries[i] - boundaries[i - 1]);
++    for (int column = 0; column < DisplayWidth(glyph); ++column) {
++      out.push_back(static_cast<int>(i - 1));
+     }
+-
+-    // Fullwidth characters take two cells. The second is made of the empty
+-    // string to reserve the space the first is taking.
+-    if (IsFullWidth(codepoint)) {
+-      ++x;
+-      out.push_back(x);
+-      out.push_back(x);
+-      continue;
+-    }
+-
+-    // Normal characters:
+-    ++x;
+-    out.push_back(x);
+   }
+   return out;
+ }
+ 
+ int GlyphCount(std::string_view input) {
+-  int size = 0;
+-  size_t start = 0;
+-  size_t end = 0;
+-  while (start < input.size()) {
+-    uint32_t codepoint = 0;
+-    const bool eaten = EatCodePoint(input, start, &end, &codepoint);
+-    start = end;
+-
+-    // Ignore invalid characters:
+-    if (!eaten || IsControl(codepoint)) {
+-      continue;
+-    }
+-
+-    // Ignore combining characters, except when they don't have a preceding to
+-    // combine with.
+-    if (IsCombining(codepoint)) {
+-      if (size == 0) {
+-        size++;
+-      }
+-      continue;
+-    }
+-
+-    size++;
+-  }
+-  return size;
++  return static_cast<int>(GlyphBoundaries(input).size() - 1);
+ }
+ 
+ std::vector<WordBreakProperty> Utf8ToWordBreakProperty(std::string_view input) {
 --- a/src/ftxui/screen/string_internal.hpp
 +++ b/src/ftxui/screen/string_internal.hpp
-@@ -28,6 +28,7 @@
+@@ -28,6 +28,8 @@
  FTXUI_EXPORT(SCREEN) bool IsFullWidth(uint32_t ucs);
  FTXUI_EXPORT(SCREEN) bool IsControl(uint32_t ucs);
  
 +FTXUI_EXPORT(SCREEN) std::vector<size_t> GlyphBoundaries(std::string_view input);
++FTXUI_EXPORT(SCREEN) std::string GlyphDisplayText(std::string_view glyph);
  FTXUI_EXPORT(SCREEN) size_t GlyphPrevious(std::string_view input, size_t start);
  FTXUI_EXPORT(SCREEN) size_t GlyphNext(std::string_view input, size_t start);
  
+--- a/src/ftxui/screen/surface.cpp
++++ b/src/ftxui/screen/surface.cpp
+@@ -8,6 +8,7 @@
+ 
+ #include "ftxui/screen/cell.hpp"
+ #include "ftxui/screen/surface.hpp"
++#include "ftxui/screen/string.hpp"
+ 
+ namespace ftxui {
+ 
+@@ -52,6 +53,58 @@
+   return stencil.Contain(x, y) ? FastCellAt(x, y) : dev_null_cell();
+ }
+ 
++void Surface::ClearGlyph(int x, int y) {
++  const int offset = std::min(0, FastCellAt(x, y).span);
++  const int head = x + offset;
++  if (head < 0 || head >= dimx_) {
++    return;
++  }
++  const int span = std::clamp(FastCellAt(head, y).span, 1, dimx_ - head);
++  for (int at = head; at < head + span; ++at) {
++    auto& cell = FastCellAt(at, y);
++    if (at != head && cell.span != head - at) {
++      continue;
++    }
++    cell.character.clear();
++    cell.span = 0;
++  }
++}
++
++bool Surface::SetGlyph(int x, int y, std::string_view value, int columns) {
++  if (columns <= 0 || x < 0 || y < 0 || y >= dimy_ ||
++      columns > dimx_ - x || !stencil.Contain(x, y) ||
++      !stencil.Contain(x + columns - 1, y)) {
++    return false;
++  }
++  const std::string bytes(value);
++  for (int at = x; at < x + columns; ++at) {
++    ClearGlyph(at, y);
++  }
++  auto& head = FastCellAt(x, y);
++  head.character = bytes;
++  head.span = columns;
++  for (int offset = 1; offset < columns; ++offset) {
++    auto& cell = FastCellAt(x + offset, y);
++    cell.character.clear();
++    cell.span = -offset;
++  }
++  return true;
++}
++
++bool Surface::SetCell(int x, int y, const Cell& value, int columns) {
++  const Cell content = value;
++  if (!SetGlyph(x, y, content.character, columns)) {
++    return false;
++  }
++  for (int offset = 0; offset < columns; ++offset) {
++    auto& cell = FastCellAt(x + offset, y);
++    cell = content;
++    cell.character = offset == 0 ? content.character : "";
++    cell.span = offset == 0 ? columns : -offset;
++  }
++  return true;
++}
++
+ /// @brief Access a cell (Cell) at a given position, without stencil check.
+ /// @param x The cell position along the x-axis.
+ /// @param y The cell position along the y-axis.
+

@@ -1,4 +1,4 @@
-# FTXUI 字素编辑补丁
+# FTXUI 字素编辑与渲染补丁
 
 FTXUI 保持 v7.0.3 子模块（`f921fad208912747c17d129a8ef75ec7624b6eec`）。
 其原 Input 以 codepoint/combining mark 近似字素，左右移动、删除和覆盖会拆开
@@ -12,9 +12,9 @@ ZWJ、区域指示符、肤色修饰符、Indic 等扩展字素。此补丁使�
 - 默认静态链接；TUI OFF 不下载此依赖。首次配置需要网络，后续使用该构建目录的下载缓存。
 - 离线配置可使用 CMake 标准的 `FETCHCONTENT_SOURCE_DIR_UTF8PROC` 指向该提交的解压源码。
 
-`ftxui_unicode.cmake` 校验三个原始文件的 SHA256，然后从 pristine 副本在构建目录
+`ftxui_unicode.cmake` 校验全部 21 个原始文件的 SHA256，然后从 pristine 副本在构建目录
 精确应用 `ftxui-7.0.3-grapheme.patch`（零 fuzz），不修改子模块。
-原 `screen` 和 `component` target 各替换一个翻译单元，内部声明也来自修补目录；
+原 `screen`、`dom` 和 `component` target 替换对应翻译单元，公有与内部声明均来自修补目录；
 不靠额外对象覆盖静态 archive 的符号。重配置先恢复 pristine 源，生成文件内容不变时不重编。
 升级 FTXUI 时必须重新审查原始源码、补丁与 Unicode 回归，校验失败不静默使用旧实现。
 
@@ -28,9 +28,28 @@ CRLF 保持原始 bytes 和 byte offset；非法 UTF-8 保持原 bytes，每个�
 Git 属性只允许补丁语法的空 context 行和官方 fixture 注释的原始尾空格，
 不规范化这两种原始文件，也不豁免 C++ 源码的 whitespace 检查。
 
-本补丁只完成编辑边界和宽字组合符附着位置修复；不是完整终端显示列策略。
-leading combining、emoji span、Screen continuation、裁剪、原生选择与终端 shaping
-仍需独立验收，不能仅凭字素回归通过关闭 T04。
+渲染以完整扩展字素写入：正 span 表示 head 的列数，负 span 是 continuation 到 head 的距离。
+Text、VText、Canvas 和装饰 writer 通过 `SetGlyph`/`SetCell` 提交或擦除整组，
+覆盖 continuation 也会清理旧组；不完整可见的字组只留下空白，不输出半个字符。
+Frame 的可见范围与选择端点分别传递；完全可见的宽字任一格被选中时复制完整原文，
+被视口裁掉的字组不进入复制结果。
+
+`DisplayWidth` 表示显示策略分配的列；`string_width` 保留旧固有宽度政策，不能用它
+计算带显示载体的布局。孤立 nonspacing/enclosing mark 用 dotted circle 承载；
+孤立 spacing mark 的载体在真实终端可能额外占列，使用单格替代标记，正常基字加 mark 不变。
+零宽 format-only、
+非法 bytes、C0/C1 和 bidi 控制用替代字符显示，不把这些载体写入正文。
+Text 选择、Input 编辑和发送保持原始字素；密码仍按原字素数量遮蔽。
+`Utf8ToGlyphs` 返回原始完整字素及其显示列的空续格，`CellToGlyphIndex` 使用相同列映射。
+应用的换行、省略与宽度分配也使用 `DisplayWidth`，CRLF 仍是一个换行边界。
+
+修改字符需使用 `SetGlyph`/`SetCell` 或 Canvas `DrawText`/`DrawCell`；mutable `CellAt`/`at`
+只保证读取或修改样式，不保证直接改字符后修复 span。空 continuation 的 `.clear()`
+没有可观察变化，不能自动解释成擦除请求。Canvas 导入尊重源 stencil，不导入半组。
+自定义 separator/border 是单格装饰，只接受一个显示列的完整字素，其余值为空格。
+
+这是编辑、显示载体与整字裁剪的实现，不是完整终端列或字体 shaping 政策。
+复合 emoji 的旧列数与真实 XTerm/tmux 仍可能不同，不能仅凭永久回归通过关闭 T04。
 
 FTXUI 补丁保留原 MIT 版权声明。utf8proc 的完整版权及许可证见
 `utf8proc-LICENSE.md`，分发静态链接二进制时也必须携带该声明。

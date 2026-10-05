@@ -1093,3 +1093,25 @@ fresh隔离ASan/UBSan均build成功，82翻译单元全部核插桩；两套view
 两项leading/zero-only显示与raw空续格擦除契约、实际terminal列/outer shaping仍待处理。
 原型目录与冻结证据见[体验品质审查](experience-quality.md)；生产暂评Qt87/TUI78不提高，
 T04和完整体验目标保持未完成。本阶段无应用/server/client/SQL/third改动，无push。
+
+## 体验品质审查：终端完整显示与原文选择
+
+从 `42687959b138aa8de567d8e00533a328a25df3d9` 继续，把完整字素 span、Frame 选择视口、
+typed writer 与显示载体接入正式 TUI。21 文件 SHA guard/零 fuzz 维护补丁不修改 FTXUI 子模块；
+patched public headers 传递给 screen/dom/component 消费者，避免 Cell 布局混用。
+Text/VText 保存单份原文与字素 offsets，Input/换行/省略共享显示列模型；复制、编辑与发送不写入载体。
+孤立 Mc 的 dotted-circle 原型经真实 DSR 发现两列后改成单格 replacement；正常 base+Mc 不改变。
+mutable CellAt/at 的字符修改不属于 typed 写入契约，未假称可以观察空续格 clear 的擦除意图。
+
+永久 `tui_display` 628/0、`tui_span` 80/0、原官方边界853/0。最终完整 `tests/verify.sh`
+normal/ASan/UBSan 各23/23，104.09/138.44/133.91 s，runner actual exit0；
+本阶段 fresh Debug `-Werror` 最终源码全构建与23/23 CTest通过（107.63 s）。
+初次 normal/ASan 的 render timeout 保留，未放宽5秒门禁；改为单份正文、单次布局后最终
+render 0.86/4.05/1.77 s。Qt/X11导航4/4、TUI/tmux导航11/11。
+两个真实 TUI 的132条字素编辑发送和六档宽度48条 carrier发送/删除均实际完成，
+SDK原文与唯一消息ID精确；成功及已定位的失败探针隔离库均已删除。
+独立当前正式库原生XTerm取得40份真实DSR和4PNG，carrier/CJK 10输出行严格匹配；
+主代理与独立代理亲看，before/after helper原图与准确版本证据见[体验品质审查](experience-quality.md)。
+
+本阶段不关闭T04：当前80列ZWJ capture仍有边界残留，完整terminal宽度/font shaping未解决。
+Qt暂评87、TUI78不提高；全产品矩阵及两次完整独立fresh review仍未完成。无server/client/SQL/third改动，无push。

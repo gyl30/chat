@@ -21,6 +21,16 @@ add_test(NAME tui_unicode COMMAND chat_tui_unicode_test
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/data/GraphemeBreakTest-18.0.0.txt")
 set_tests_properties(tui_unicode PROPERTIES TIMEOUT 5)
 
+add_executable(chat_tui_display_test tests/display_test.cpp)
+target_link_libraries(chat_tui_display_test PRIVATE ftxui::component)
+add_test(NAME tui_display COMMAND chat_tui_display_test)
+set_tests_properties(tui_display PROPERTIES TIMEOUT 5)
+
+add_executable(chat_tui_span_test tests/span_test.cpp)
+target_link_libraries(chat_tui_span_test PRIVATE ftxui::dom)
+add_test(NAME tui_span COMMAND chat_tui_span_test)
+set_tests_properties(tui_span PROPERTIES TIMEOUT 5)
+
 add_library(chat_tui_state STATIC src/state.cpp)
 target_include_directories(chat_tui_state PUBLIC src)
 target_link_libraries(chat_tui_state PUBLIC chat_client)

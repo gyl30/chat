@@ -111,8 +111,8 @@ Element wrapped_text(std::string const& value, int width)
     for (auto const& glyph : Utf8ToGlyphs(value))
     {
         if (glyph.empty()) { continue; } // reserved second cell of a wide glyph
-        if (glyph == "\n") { output += '\n'; column = 0; continue; }
-        auto const cells = string_width(glyph);
+        if (glyph == "\n" || glyph == "\r\n") { output += glyph; column = 0; continue; }
+        auto const cells = DisplayWidth(glyph);
         if (column && column + cells > width) { output += '\n'; column = 0; }
         output += glyph;
         column += cells;
@@ -131,7 +131,7 @@ Element help_content(int width)
             auto const word = value.substr(start, end == std::string_view::npos ? value.size() - start : end - start);
             if (!word.empty())
             {
-                auto const cells = string_width(word);
+                auto const cells = DisplayWidth(word);
                 if (column && column + 1 + cells > width) { output += '\n'; column = 0; }
                 else if (column) { output += ' '; ++column; }
                 output += word;
@@ -156,14 +156,14 @@ Element preview_text(std::string value, int width)
     // the history or composer. Full text remains available on the copy page.
     for (char& c : value) { if (c == '\n' || c == '\r' || c == '\t') { c = ' '; } }
     width = std::max(1, width);
-    if (string_width(value) > width)
+    if (DisplayWidth(value) > width)
     {
         std::string clipped;
         int column = 0;
         for (auto const& glyph : Utf8ToGlyphs(value))
         {
             if (glyph.empty()) { continue; }
-            auto cells = string_width(glyph);
+            auto cells = DisplayWidth(glyph);
             if (column + cells >= width) { break; }
             clipped += glyph;
             column += cells;
@@ -236,8 +236,8 @@ Element conversation_list(state const& s, int width)
         if (c.muted) { flags += " [mute]"; }
         auto summary = c.last.deleted ? "消息已删除" : c.last.attachment ? "[文件] " + c.last.attachment->filename : c.last.text;
         rows.push_back(selected(vbox({
-            hbox({preview_text(label, width - string_width(unread)) | flex, text(unread)}),
-            hbox({preview_text(summary, width - string_width(flags)) | dim | flex, text(flags)})}),
+            hbox({preview_text(label, width - DisplayWidth(unread)) | flex, text(unread)}),
+            hbox({preview_text(summary, width - DisplayWidth(flags)) | dim | flex, text(flags)})}),
             s.conversation_selected == static_cast<int>(i), s.view == page::conversations));
     }
     if (s.next_conversations) { rows.push_back(text("↓ More conversations")); }
@@ -316,7 +316,7 @@ Element conversation_view(state const& s, Element input, std::string typing, int
     auto c = s.active_conversation();
     if (!c) { return text("Select a conversation and press Enter") | center | flex; }
     auto detail = c->kind == conversation_kind::group ? " · " + std::to_string(c->member_count) + " members" : presence_label(s, c->user);
-    Elements items{hbox({preview_text(c->username, width - string_width(detail)) | bold | flex, text(detail) | dim})};
+    Elements items{hbox({preview_text(c->username, width - DisplayWidth(detail)) | bold | flex, text(detail) | dim})};
     if (c->pinned_message) { items.push_back(preview_text("Pinned: " + (c->pinned_message->deleted ? "消息已删除" : c->pinned_message->text), width) | dim); }
     if (!c->announcement.empty()) { items.push_back(preview_text("公告: " + c->announcement, width) | dim); }
     items.push_back(separator());
@@ -446,7 +446,7 @@ Element secondary(state const& s, int width, int message_scroll)
             {
                 auto const& m = s.members[i];
                 auto role = " · " + role_label(m.role) + (m.id == s.self.id ? " (you)" : "");
-                rows.push_back(selected(hbox({preview_text(user_label(m.username), width - string_width(role)) | flex,
+                rows.push_back(selected(hbox({preview_text(user_label(m.username), width - DisplayWidth(role)) | flex,
                     text(role) | dim}), s.selected == static_cast<int>(i)));
             }
             break;
@@ -536,7 +536,7 @@ Element render_impl(state const& s, int width, int height, Element compose = {},
     }
     else { content = secondary(s, width - 3, message_scroll); }
     auto link = " " + link_label(s.link);
-    return vbox({hbox({preview_text("Chat · " + s.self.username, width - 2 - string_width(link)) | bold | flex, text(link)}), text("h Chats  c Contacts  u Account  N New") | dim, separator(), content, separator(), hbox({preview_text(s.status.empty() ? "?: help · : command · Ctrl+C: quit" : s.status, width - 12) | flex, text(" Esc: back") | dim})}) | border;
+    return vbox({hbox({preview_text("Chat · " + s.self.username, width - 2 - DisplayWidth(link)) | bold | flex, text(link)}), text("h Chats  c Contacts  u Account  N New") | dim, separator(), content, separator(), hbox({preview_text(s.status.empty() ? "?: help · : command · Ctrl+C: quit" : s.status, width - 12) | flex, text(" Esc: back") | dim})}) | border;
 }
 std::size_t selection_count(state const& s, int width)
 {

@@ -1240,3 +1240,105 @@ custom writer与写入契约，再以TUI专属精确补丁交付并跑正式全�
 不将任何raw mutation视为自动可观察，不把未合入原型当生产已修复。
 详细源码、hash、命令、失败与scope见上述各目录REPORT。
 Qt暂评87、TUI78，T04仍P2，全品质目标及两轮完整fresh review继续保持未完成。
+
+## 阶段 21：完整字素显示、原子裁剪与原文选择
+
+本阶段从 `42687959b138aa8de567d8e00533a328a25df3d9` 继续，把前阶段隔离验证的
+完整 span、Selection viewport 与递归 writer 修复接入正式 TUI。FTXUI 原 pin 和
+所有 submodule 均不修改；维护补丁扩为 21 个文件的 SHA guard、零 fuzz 应用，
+screen/dom/component 真实 target 替换对应 TU，patched public header 优先传递给消费者。
+不使用额外对象覆盖 archive 符号，也不依赖 `/tmp` 源进行生产构建。
+独立重配置核对 21/21 文件与冻结候选一致；当前三套编译数据库各含 76 个 FTXUI TU，
+没有重复 TU，ASan/UBSan 的全部 76 TU 和 utf8proc C TU 均实际插桩。
+
+Text/VText/Canvas 按完整 EGC 提交；Surface 用明确 head/continuation span 维护整组。
+覆盖任一续格也清理旧组，半字视口只显示空白，不复制隐藏字；半格选择仍复制完整可见字。
+Frame 的 viewport 与选择端点分别传递，嵌套容器和 sibling 不泄漏可见范围。
+Border/Separator/Gauge/Graph/ScrollIndicator/ClearUnder 同步迁移到 typed 写入。
+自定义单格 separator/border 不能把宽字或多个 EGC 塞入一格；Canvas import 尊重源 stencil。
+
+### 显示载体不是原文
+
+完整原字素、编辑和发送保持不变。孤立 nonspacing/enclosing mark 使用 dotted circle，
+format-only、非法 bytes 和危险控制字符使用替代标记；这些显示载体不写入消息或复制内容。
+原生验证发现孤立 Mc `ः` 加圆圈在 XTerm 实占两列，旧候选只分配一列，严格 RED；
+最终孤立 spacing mark 采用单格 replacement，正常有基字的 cluster 不改写。
+这是 orphan display policy，不宣称解决普通 Indic 字体 shaping。
+`DisplayWidth`、Input 列映射、Text layout 与应用换行/省略共用同一显示列模型；
+`string_width` 的旧 scalar 政策未改。`Utf8ToGlyphs` 保留原字素及显示列的空 slots。
+Text 的既有 CRLF 行/复制归一化语义保留，不把它宣称为逐字节 CRLF copy；Input/source bytes 保留。
+
+mutable CellAt/at 只保证读取与样式修改，字符修改必须使用 SetGlyph/SetCell 或 Canvas typed API。
+空续格 `.clear()` 没有可观察变化，不能被解释成擦除请求；未伪造解决该 raw-mutation 反例。
+
+### 永久回归、失败记录与修正
+
+新增 `tui_display` 的 628 项断言覆盖 raw/display 分离、Text/Input 列与光标、密码、鼠标、
+换行、安全序列化、半字裁剪与原文选择；新增 `tui_span` 的 80 项覆盖 typed alias/整组擦除、
+Text/VText、嵌套 Frame、custom decorator、Canvas stencil、sibling writer 与 source ownership。
+Text/VText 只持有一份正文与边界 offset，不保存悬空 view，短临时正文和 65-byte 单 EGC
+在 caller 修改/销毁后仍正确绘制与复制。原官方 853 条字素边界断言保留。
+独立旧零载体原型实际 614 checks / 171 FAIL，新版首次永久测试 627/0；
+修正真实 Mc 策略后当前为 628/0。旧 span 原型 74/8，新版 74/0，随后补 6 项 ownership 得 80/0。
+不同版本的断言数量不能当作同一固定矩阵或独立产品缺陷数。
+
+首次正式门禁 normal 的 tui_render 在 5 秒时限失败；第二次 normal 通过而 ASan 超时。
+失败日志 `/tmp/chat-t04-render-production-verify.log` 和 `/tmp/chat-t04-render-final-verify.log` 保留。
+实际 GDB 调用栈定位到 Help 选择范围计算反复构建 Text，不放宽 timeout、不减少 200 次双向按键断言。
+删除重复 display 字符串、改为 owned source + offsets、单次布局，并为简单 ASCII 保留等价快速路径；
+完整 Unicode 分段仍交给 utf8proc，官方 853 条不减。最终直接 normal 0.86 s、ASan 4.06 s，
+两者所有原断言通过；不是容量 benchmark 或完整终端宽度政策。
+
+### 原生证据及范围
+
+最终 single-pass 正式库证据 `/tmp/chat-t04-production-native-current-TLI5Jm`：独占 XTerm372、
+DejaVu Sans Mono / Lily Han Sans HW SC、110×30，两版本 40 个真实 TTY DSR、4 张 X11 PNG。
+10 个输出行 bytes 与独立预期及实际列差全匹配；活进程 SHA、冻结 archives/source 齐全。
+主代理和独立代理亲看：carrier 可见，孤立 Mc/ZWJ replacement 各一列，CJK 半字空白、
+5 列边框完整、续格覆盖 X 未吞。21 个自有 PID 均退出，没有 DB/服务或 tmux0 操作。
+旧 Mc 严格 RED 目录 `75Qk3A` 与非最终首次 GREEN `green-X1y8ll` 均保留，不外推版本。
+
+- [旧 helper 原图](images/experience/before-tui-carrier-span-xterm.png) /
+  [最终正式库 helper 原图](images/experience/after-tui-carrier-span-xterm.png)。
+
+这两图是 isolated Screen helper，不冒称整个 Chat 截图或 emoji/full-app PASS。
+最终两个真实 TUI 在 60/80/120 列完成 132 条编辑发送流程，SDK 精确正文和唯一消息 ID、对端接收
+均一致；另在 60/70/80/100/120/160 列完成 48 条 carrier 原文发送/原子 Backspace 流程。
+两个探针的真实 `/proc/PID/exe` 均为
+`e94bcff63a8828b822fa5a2c156e230bac12c0dac1f2b626b4cbe1efb4de43b5`；SDK 证明显示载体未写入消息。
+证据为 `/tmp/chat-t04-owned-render-native-editing-20261006` 和
+`/tmp/chat-t04-owned-carrier-app-final2-20261006`，成功隔离库已删除。
+carrier 首试错误等待被一行 composer 滚动隐藏的 marker，失败时实际 carrier 已可见；
+只修临时驱动的观察目标，未改产品或删除失败日志。
+真实 Qt/X11 导航 4/4、TUI/tmux 导航 11/11，目录分别为
+`/tmp/chat-t04-owned-render-qt-navigation-20261006` 与 `/tmp/chat-t04-owned-render-tui-navigation-20261006`。
+
+### 最终统一门禁
+
+最终统一源码执行正式 `tests/verify.sh`，Qt/TUI 均 ON，无测试跳过、sanitizer suppression 或 timeout 放宽：
+
+| 配置 | build / 全量 CTest | 实际测试耗时 |
+|---|---|---:|
+| normal Debug | PASS / 23/23 | 104.09 s |
+| ASan | PASS / 23/23 | 138.44 s |
+| UBSan | PASS / 23/23 | 133.91 s |
+
+最终日志 `/tmp/chat-t04-owned-final-verify.log`，外层 runner
+`/tmp/chat-t04-owned-final-validation.log` 明确 `VALIDATION_EXIT=0`。
+额外本阶段全新独立 Debug `-Werror` 目录重新构建最终源码，23/23 CTest 通过（107.63 s），
+日志 `/tmp/chat-t04-owned-fresh-werror-{build,ctest}.log`；编译告警和 sanitizer 报告为零。
+正式门禁中的 tui_render 为 0.86/4.05/1.77 s，原 5 秒时限不变。
+三套 sanitizer/source target 插桩与 patched public-header ABI 另有独立复核。
+
+前一次完整 run 的 SSH 观察返回255，未把它当远端进程停止；检查原 PID 仍执行 UBSan，
+等待其自然完成，三套 CTest 实际全通过（101.50/135.53/129.83 s）。
+该观察日志 `/tmp/chat-t04-owned-render-complete-verify.log` 保留，不伪造总体 exit0；
+确认原进程终止后才串行重新跑上述带真实 terminal exit marker 的最终 run，没有重复并发夹具。
+
+### T04 与整体体验目标仍未完成
+
+这些证据证明 carrier、typed span 和受测 CJK 路径，不证明复合 emoji 的终端宽度或字体 shaping。
+主代理读当前 80 列真实 ZWJ capture，右侧仍有残留边界；tmux virtual DSR 不能代替 outer terminal。
+正常 base+Mc 未在本次 native helper 中独立验收，不以 unit bytes 保留冒称视觉通过。
+Qt 暂评87、TUI78不提高；T04 仍 P2。全页面、reference、responsive/HiDPI、无障碍、
+完整日常使用及连续两次完整独立 fresh review 仍需推进，不将本阶段局部门禁视为整体完成。
