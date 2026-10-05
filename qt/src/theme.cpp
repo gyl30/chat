@@ -1,4 +1,46 @@
 #include "theme.hpp"
+#include <QAbstractButton>
+#include <QLayout>
+#include <QMessageBox>
+#include <QPushButton>
+#include <QStyle>
+
+bool confirm_action(QWidget* parent, QString const& title, QString const& text, QString const& action)
+{
+    QMessageBox dialog(QMessageBox::NoIcon, title, text, QMessageBox::Yes | QMessageBox::No, parent);
+    dialog.setObjectName(QStringLiteral("confirmationDialog"));
+    dialog.setTextFormat(Qt::PlainText);
+    dialog.button(QMessageBox::Yes)->setText(action);
+    dialog.button(QMessageBox::Yes)->setObjectName(QStringLiteral("confirmationActionButton"));
+    dialog.button(QMessageBox::No)->setText(QStringLiteral("取消"));
+    dialog.button(QMessageBox::No)->setObjectName(QStringLiteral("confirmationCancelButton"));
+    for (auto* button : dialog.buttons())
+    {
+        button->setIcon({});
+        button->style()->unpolish(button);
+        button->style()->polish(button);
+    }
+    dialog.setDefaultButton(QMessageBox::No);
+    dialog.setEscapeButton(QMessageBox::No);
+    dialog.layout()->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding,
+                                       chat_theme::dialog_padding, chat_theme::dialog_padding);
+    dialog.layout()->setSpacing(chat_theme::dialog_spacing);
+    return dialog.exec() == QMessageBox::Yes;
+}
+
+void show_notice(QWidget* parent, QString const& title, QString const& text, QString const& action)
+{
+    QMessageBox dialog(QMessageBox::NoIcon, title, text, QMessageBox::Ok, parent);
+    dialog.setObjectName(QStringLiteral("noticeDialog"));
+    dialog.setTextFormat(Qt::PlainText);
+    auto* button = dialog.button(QMessageBox::Ok);
+    button->setText(action);
+    button->setIcon({});
+    dialog.layout()->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding,
+                                       chat_theme::dialog_padding, chat_theme::dialog_padding);
+    dialog.layout()->setSpacing(chat_theme::dialog_spacing);
+    dialog.exec();
+}
 
 QString chat_style_sheet()
 {
@@ -92,6 +134,75 @@ QString chat_style_sheet()
             color: #96A29C;
             border-color: #D7DDD9;
         }
+        QDialog#createGroupDialog QPushButton:hover, QDialog#joinGroupDialog QPushButton:hover,
+        QDialog#groupInviteDialog QPushButton:hover, QDialog#confirmationDialog QPushButton:hover {
+            background: #F0F4F1;
+        }
+        QDialog#createGroupDialog QPushButton:focus, QDialog#joinGroupDialog QPushButton:focus,
+        QDialog#groupInviteDialog QPushButton:focus, QDialog#confirmationDialog QPushButton:focus {
+            border-color: #547C68;
+        }
+        QDialog#createGroupDialog QPushButton#groupNextButton, QDialog#joinGroupDialog QPushButton#joinGroupButton,
+        QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton {
+            background: #315A4B;
+            color: #FFFFFF;
+            border: 2px solid transparent;
+        }
+        QDialog#createGroupDialog QPushButton#groupNextButton:hover, QDialog#joinGroupDialog QPushButton#joinGroupButton:hover,
+        QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton:hover {
+            background: #294D40;
+        }
+        QDialog#createGroupDialog QPushButton#groupNextButton:focus, QDialog#joinGroupDialog QPushButton#joinGroupButton:focus,
+        QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton:focus {
+            border-color: #88A697;
+        }
+        QDialog#createGroupDialog QPushButton#groupNextButton:disabled, QDialog#joinGroupDialog QPushButton#joinGroupButton:disabled,
+        QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton:disabled {
+            background: #E7EEE9;
+            color: #78897F;
+        }
+        QListWidget#groupContactPicker, QListWidget#groupNamingMembers, QListWidget#groupSelectedContacts {
+            background: transparent;
+            border: 0;
+            outline: 0;
+        }
+        QListWidget#groupContactPicker::item, QListWidget#groupNamingMembers::item {
+            padding: 0 8px;
+            border-radius: 8px;
+        }
+        QListWidget#groupContactPicker::item:hover { background: #F0F4F1; }
+        QListWidget#groupNamingMembers:focus { border: 1px solid #789487; border-radius: 8px; }
+        QListWidget#groupContactPicker::item:selected { background: #E7EEE9; color: #27332E; }
+        QListWidget#groupContactPicker::indicator, QDialog#groupInviteDialog QListWidget::indicator {
+            width: 16px;
+            height: 16px;
+            border: 1px solid #AFC0B8;
+            border-radius: 4px;
+            background: #FFFFFF;
+        }
+        QListWidget#groupContactPicker::indicator:checked, QDialog#groupInviteDialog QListWidget::indicator:checked {
+            background: #315A4B;
+            border-color: #315A4B;
+            image: url(:/icons/check.svg);
+        }
+        QListWidget#groupSelectedContacts::item {
+            background: #E7EEE9;
+            color: #315A4B;
+            border-radius: 8px;
+            padding: 0 8px;
+        }
+        QLabel#groupSelectedCount, QLabel#groupNamingSummary { color: #5D6C64; font-size: 13px; }
+        QDialog#confirmationDialog QLabel#qt_msgbox_label, QDialog#noticeDialog QLabel#qt_msgbox_label {
+            min-width: 340px;
+            max-width: 430px;
+        }
+        QDialog#confirmationDialog QPushButton#confirmationActionButton {
+            background: #A64C48;
+            color: #FFFFFF;
+            border: 2px solid transparent;
+        }
+        QDialog#confirmationDialog QPushButton#confirmationActionButton:hover { background: #913F3B; }
+        QDialog#confirmationDialog QPushButton#confirmationActionButton:focus { border-color: #DDAEAA; }
         QDialog#groupDialog QPushButton:hover,
         QDialog#messageSearchDialog QPushButton:hover, QDialog#attachmentDialog QPushButton:hover {
             background: #F0F4F1;

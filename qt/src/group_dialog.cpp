@@ -12,6 +12,7 @@
 #include <QMessageBox>
 #include <QListWidget>
 #include <QPushButton>
+#include <QStyle>
 #include <QVBoxLayout>
 #include <QClipboard>
 #include <QGuiApplication>
@@ -101,6 +102,7 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
         layout->addWidget(text);
         auto* close = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
         close->button(QDialogButtonBox::Close)->setText(QStringLiteral("关闭"));
+        close->button(QDialogButtonBox::Close)->setIcon({});
         connect(close, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
         layout->addWidget(close);
         dialog.exec();
@@ -321,6 +323,7 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     overview_layout->addWidget(leave_button_, 0, Qt::AlignLeft);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
     buttons->button(QDialogButtonBox::Close)->setText(QStringLiteral("关闭"));
+    buttons->button(QDialogButtonBox::Close)->setIcon({});
     outer->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(list_, &QListWidget::currentRowChanged, this, [this] { update_actions(); });
@@ -431,9 +434,9 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     connect(transfer_button_, &QPushButton::clicked, this, [this] {
         auto const row = list_->currentRow();
         auto const target = members_[row];
-        if (QMessageBox::question(this, QStringLiteral("转让群主"),
+        if (confirm_action(this, QStringLiteral("转让群主"),
             QStringLiteral("将群主转让给 %1？你将成为管理员，之后可以退出群聊。").arg(target.username),
-            QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes)
+            QStringLiteral("转让群主")))
         {
             pending_ = true;
             update_actions();
@@ -443,9 +446,9 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     connect(remove_button_, &QPushButton::clicked, this, [this] {
         auto const row = list_->currentRow();
         auto const target = members_[row];
-        if (QMessageBox::question(this, QStringLiteral("移除成员"),
+        if (confirm_action(this, QStringLiteral("移除成员"),
             QStringLiteral("将 %1 移出群聊？对方将无法继续访问群，重新加入需要邀请。").arg(target.username),
-            QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes)
+            QStringLiteral("移除成员")))
         {
             pending_ = true;
             update_actions();
@@ -484,6 +487,21 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
         }
         auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
         buttons->button(QDialogButtonBox::Ok)->setText(QStringLiteral("邀请"));
+        buttons->button(QDialogButtonBox::Ok)->setObjectName(QStringLiteral("groupInviteSubmitButton"));
+        buttons->button(QDialogButtonBox::Cancel)->setText(QStringLiteral("取消"));
+        for (auto* button : buttons->buttons())
+        {
+            button->setIcon({});
+            button->style()->unpolish(button);
+            button->style()->polish(button);
+        }
+        buttons->button(QDialogButtonBox::Ok)->setEnabled(false);
+        connect(list, &QListWidget::itemChanged, &dialog, [list, buttons] {
+            bool selected = false;
+            for (int row = 0; row < list->count(); ++row)
+            { selected = selected || list->item(row)->checkState() == Qt::Checked; }
+            buttons->button(QDialogButtonBox::Ok)->setEnabled(selected);
+        });
         layout->addWidget(buttons);
         connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
         connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
@@ -507,9 +525,9 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
         }
     });
     connect(leave_button_, &QPushButton::clicked, this, [this] {
-        if (QMessageBox::question(this, QStringLiteral("退出群聊"),
+        if (confirm_action(this, QStringLiteral("退出群聊"),
             QStringLiteral("退出后将无法继续访问这个群，重新加入需要群主或管理员邀请。确定退出？"),
-            QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes)
+            QStringLiteral("退出群聊")))
         {
             pending_ = true;
             update_actions();

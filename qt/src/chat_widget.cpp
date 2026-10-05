@@ -535,9 +535,9 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                 }
                 if (remove && selected == remove)
                 {
-                    if (QMessageBox::question(this, QStringLiteral("删除消息"),
+                    if (confirm_action(this, QStringLiteral("删除消息"),
                                               QStringLiteral("删除后所有成员均显示“消息已删除”。确认删除？"),
-                                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes)
+                                              QStringLiteral("删除")))
                     {
                         emit delete_message_requested(active_conversation_,
                                                       index.data(message_model::id_role).toLongLong());
@@ -695,10 +695,30 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     connect(create_group, &QAction::triggered, this, [this] { this->create_group(); });
     connect(add_friend, &QAction::triggered, this, [this] { show_add_contact_section(); });
     connect(join_group, &QAction::triggered, this, [this] {
-        bool accepted = false;
-        auto const link = QInputDialog::getText(this, QStringLiteral("加入群聊"), QStringLiteral("粘贴邀请链接"),
-            QLineEdit::Normal, {}, &accepted).trimmed();
-        if (!accepted || !connection_available_) { return; }
+        QInputDialog dialog(this);
+        dialog.setObjectName(QStringLiteral("joinGroupDialog"));
+        dialog.setWindowTitle(QStringLiteral("加入群聊"));
+        dialog.setLabelText(QStringLiteral("粘贴完整邀请链接"));
+        dialog.setInputMode(QInputDialog::TextInput);
+        dialog.setOkButtonText(QStringLiteral("加入"));
+        dialog.setCancelButtonText(QStringLiteral("取消"));
+        dialog.layout()->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding,
+                                           chat_theme::dialog_padding, chat_theme::dialog_padding);
+        dialog.layout()->setSpacing(chat_theme::dialog_spacing);
+        auto* buttons = dialog.findChild<QDialogButtonBox*>();
+        buttons->button(QDialogButtonBox::Ok)->setObjectName(QStringLiteral("joinGroupButton"));
+        for (auto* button : buttons->buttons())
+        {
+            button->setIcon({});
+            button->style()->unpolish(button);
+            button->style()->polish(button);
+        }
+        auto* input = dialog.findChild<QLineEdit*>();
+        input->setMinimumWidth(chat_theme::dialog_small_width - 2 * chat_theme::dialog_padding);
+        input->setPlaceholderText(QStringLiteral("chat://join/…"));
+        input->setAccessibleName(QStringLiteral("邀请链接"));
+        if (dialog.exec() != QDialog::Accepted || !connection_available_) { return; }
+        auto const link = dialog.textValue().trimmed();
         static QRegularExpression const pattern(QStringLiteral("\\Achat://join/([0-9a-f]{64})\\z"));
         auto const matched = pattern.match(link);
         if (!matched.hasMatch()) { set_error(QStringLiteral("邀请链接无效，请复制完整链接。")); return; }
@@ -1720,8 +1740,11 @@ void chat_widget::show_read_details(QModelIndex const& index)
     QDialog dialog(this);
     dialog.setObjectName(QStringLiteral("readDetailsDialog"));
     dialog.setWindowTitle(QStringLiteral("已读详情"));
-    dialog.resize(320, 360);
+    dialog.resize(chat_theme::dialog_small_width, 360);
     auto* layout = new QVBoxLayout(&dialog);
+    layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding,
+                              chat_theme::dialog_padding, chat_theme::dialog_padding);
+    layout->setSpacing(chat_theme::dialog_spacing);
     auto* count = new QLabel(&dialog);
     count->setObjectName(QStringLiteral("readDetailsCount"));
     auto* list = new QListWidget(&dialog);
@@ -1730,6 +1753,8 @@ void chat_widget::show_read_details(QModelIndex const& index)
     layout->addWidget(count);
     layout->addWidget(list);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    buttons->button(QDialogButtonBox::Close)->setText(QStringLiteral("关闭"));
+    buttons->button(QDialogButtonBox::Close)->setIcon({});
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     auto refresh = [this, &dialog, conversation, message, count, list] {
@@ -1815,12 +1840,17 @@ void chat_widget::create_group()
     QDialog dialog(this);
     dialog.setObjectName(QStringLiteral("createGroupDialog"));
     dialog.setWindowTitle(QStringLiteral("创建群聊"));
-    dialog.resize(440, 560);
+    dialog.resize(chat_theme::dialog_normal_width, 540);
     auto* layout = new QVBoxLayout(&dialog);
+    layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding,
+                              chat_theme::dialog_padding, chat_theme::dialog_padding);
+    layout->setSpacing(chat_theme::dialog_spacing);
     auto* steps = new QStackedWidget(&dialog);
     auto* pick_page = new QWidget(steps);
+    pick_page->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Ignored);
     auto* pick_layout = new QVBoxLayout(pick_page);
     pick_layout->setContentsMargins(0, 0, 0, 0);
+    pick_layout->setSpacing(chat_theme::dialog_spacing);
     auto* search = new QLineEdit(pick_page);
     search->setObjectName(QStringLiteral("groupContactSearch"));
     search->setPlaceholderText(QStringLiteral("搜索好友"));
@@ -1830,7 +1860,7 @@ void chat_widget::create_group()
     pick_layout->addWidget(selected_count);
     auto* selected = new QListWidget(pick_page);
     selected->setObjectName(QStringLiteral("groupSelectedContacts"));
-    selected->setMaximumHeight(112);
+    selected->setTextElideMode(Qt::ElideRight);
     selected->setFlow(QListView::LeftToRight);
     selected->setWrapping(true);
     selected->setResizeMode(QListView::Adjust);
@@ -1838,19 +1868,28 @@ void chat_widget::create_group()
     auto* list = new QListWidget(pick_page);
     list->setObjectName(QStringLiteral("groupContactPicker"));
     list->setIconSize(QSize(32, 32));
+    list->setAccessibleName(QStringLiteral("选择群成员"));
     pick_layout->addWidget(list, 1);
     steps->addWidget(pick_page);
     auto* name_page = new QWidget(steps);
     auto* name_layout = new QVBoxLayout(name_page);
-    name_layout->addWidget(new QLabel(QStringLiteral("为新群取一个名字"), name_page));
+    name_layout->setContentsMargins(0, 0, 0, 0);
+    name_layout->setSpacing(chat_theme::dialog_spacing);
+    name_layout->addWidget(new QLabel(QStringLiteral("群名称"), name_page));
     auto* title = new QLineEdit(name_page);
     title->setObjectName(QStringLiteral("newGroupTitleEdit"));
     title->setPlaceholderText(QStringLiteral("群名称"));
+    title->setAccessibleName(QStringLiteral("群名称"));
     name_layout->addWidget(title);
     auto* summary = new QLabel(name_page);
-    summary->setWordWrap(true);
+    summary->setObjectName(QStringLiteral("groupNamingSummary"));
     name_layout->addWidget(summary);
-    name_layout->addStretch();
+    auto* member_list = new QListWidget(name_page);
+    member_list->setObjectName(QStringLiteral("groupNamingMembers"));
+    member_list->setIconSize(QSize(32, 32));
+    member_list->setSelectionMode(QAbstractItemView::NoSelection);
+    member_list->setAccessibleName(QStringLiteral("已选群成员"));
+    name_layout->addWidget(member_list, 1);
     steps->addWidget(name_page);
     layout->addWidget(steps, 1);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
@@ -1861,11 +1900,18 @@ void chat_widget::create_group()
     proceed->setObjectName(QStringLiteral("groupNextButton"));
     proceed->setText(QStringLiteral("下一步"));
     buttons->button(QDialogButtonBox::Cancel)->setText(QStringLiteral("取消"));
+    for (auto* button : buttons->buttons())
+    {
+        button->setIcon({});
+        button->style()->unpolish(button);
+        button->style()->polish(button);
+    }
     layout->addWidget(buttons);
 
-    auto update = [list, selected, selected_count, title, summary, steps, proceed] {
+    auto update = [list, selected, selected_count, title, summary, member_list, steps, proceed] {
         QSignalBlocker blocked(selected);
         selected->clear();
+        member_list->clear();
         QStringList names;
         for (int row = 0; row < list->count(); ++row)
         {
@@ -1873,11 +1919,18 @@ void chat_widget::create_group()
             if (item->checkState() != Qt::Checked) { continue; }
             auto* chip = new QListWidgetItem(item->text() + QStringLiteral(" ×"), selected);
             chip->setData(Qt::UserRole, item->data(Qt::UserRole));
+            chip->setToolTip(item->text());
+            chip->setSizeHint(QSize(210, 32));
+            auto* member = new QListWidgetItem(item->icon(), item->text(), member_list);
+            member->setToolTip(item->text());
+            member->setSizeHint(QSize(0, 44));
             names.push_back(item->text());
         }
         selected_count->setText(QStringLiteral("已选 %1 位好友 · 点击姓名取消").arg(names.size()));
         selected->setVisible(!names.empty());
-        summary->setText(QStringLiteral("已选 %1 位好友\n%2").arg(names.size()).arg(names.join(QStringLiteral("、"))));
+        selected->setFixedHeight(names.size() <= 2 ? 40 : 76);
+        summary->setText(QStringLiteral("已选 %1 位好友").arg(names.size()));
+        member_list->setMaximumHeight(std::clamp(static_cast<int>(names.size()) * 44 + 4, 48, 180));
         proceed->setEnabled(!names.empty() && (steps->currentIndex() == 0 ||
             chat::valid_group_title(title->text().toUtf8().toStdString())));
     };
@@ -1898,6 +1951,8 @@ void chat_widget::create_group()
                 item->setData(Qt::UserRole, user->id);
                 item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
                 item->setCheckState(chosen.contains(user->id) ? Qt::Checked : Qt::Unchecked);
+                item->setToolTip(user->username);
+                item->setSizeHint(QSize(0, 50));
                 item->setHidden(!user->username.contains(search->text(), Qt::CaseInsensitive));
             }
         }
@@ -1918,13 +1973,15 @@ void chat_widget::create_group()
         { list->item(row)->setHidden(!list->item(row)->text().contains(query, Qt::CaseInsensitive)); }
     });
     connect(title, &QLineEdit::textChanged, &dialog, [update] { update(); });
-    connect(previous, &QPushButton::clicked, &dialog, [steps, proceed, previous, search, update] {
-        steps->setCurrentIndex(0); previous->hide(); proceed->setText(QStringLiteral("下一步")); search->setFocus(); update();
+    connect(previous, &QPushButton::clicked, &dialog, [&dialog, steps, proceed, previous, search, update] {
+        steps->setCurrentIndex(0); previous->hide(); proceed->setText(QStringLiteral("下一步"));
+        dialog.resize(chat_theme::dialog_normal_width, 540); search->setFocus(); update();
     });
     connect(buttons, &QDialogButtonBox::accepted, &dialog, [&dialog, steps, proceed, previous, title, update] {
         if (steps->currentIndex() == 0)
         {
-            steps->setCurrentIndex(1); previous->show(); proceed->setText(QStringLiteral("创建")); title->setFocus(); update();
+            steps->setCurrentIndex(1); previous->show(); proceed->setText(QStringLiteral("创建"));
+            update(); dialog.resize(chat_theme::dialog_normal_width, 300); title->setFocus();
         }
         else if (chat::valid_group_title(title->text().toUtf8().toStdString())) { dialog.accept(); }
     });
@@ -2122,9 +2179,9 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
         remove_button->setEnabled(connection_available_);
         info_layout->addWidget(remove_button);
         connect(remove_button, &QPushButton::clicked, &dialog, [this, &dialog, user, username] {
-            if (QMessageBox::question(&dialog, QStringLiteral("移除联系人"),
+            if (!confirm_action(&dialog, QStringLiteral("移除联系人"),
                 QStringLiteral("删除与 %1 的好友关系？双方将无法继续发送新消息，聊天记录和群成员资格会保留。").arg(username),
-                QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes)
+                QStringLiteral("移除联系人")))
             {
                 return;
             }
@@ -2240,9 +2297,9 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
         logout->setObjectName(QStringLiteral("profileLogoutButton"));
         info_layout->addWidget(logout);
         connect(logout, &QPushButton::clicked, &dialog, [this, &dialog] {
-            if (QMessageBox::question(&dialog, QStringLiteral("退出登录"),
+            if (!confirm_action(&dialog, QStringLiteral("退出登录"),
                 QStringLiteral("退出当前账号？应用会返回登录页。"),
-                QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes) { return; }
+                QStringLiteral("退出登录"))) { return; }
             dialog.accept();
             emit logout_requested();
         });

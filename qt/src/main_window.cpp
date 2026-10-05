@@ -462,8 +462,8 @@ main_window::main_window(QString server_url, QWidget* parent)
                 username_edit_->setText(username);
                 password_edit_->clear();
                 registration_status_label_->clear();
-                QMessageBox::information(registration_dialog_, QStringLiteral("注册成功"),
-                                         QStringLiteral("账号 %1 注册成功，请返回登录。").arg(username));
+                show_notice(registration_dialog_, QStringLiteral("注册成功"),
+                            QStringLiteral("账号 %1 注册成功，请返回登录。").arg(username), QStringLiteral("返回登录"));
                 registration_dialog_->accept();
                 registration_username_edit_->clear();
                 registration_password_edit_->clear();
@@ -563,7 +563,7 @@ main_window::main_window(QString server_url, QWidget* parent)
     connect(client_.get(), &client_bridge::contact_removed, this, [this](QString const& error_message) {
         if (!error_message.isEmpty())
         {
-            QMessageBox::warning(this, QStringLiteral("移除联系人失败"), error_message);
+            show_notice(this, QStringLiteral("移除联系人失败"), error_message, QStringLiteral("关闭"));
             return;
         }
         client_->get_contacts();

@@ -149,8 +149,9 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q11 | P2 | 用户/账号资料重复显示身份，主要/复制/退出操作权重接近，按钮块和宽度偏大 | 第十轮修复并通过完整验证和真实四档缩放/导航 |
 | Q12 | P1 | 消息搜索输入框 Enter 触发默认关闭，聚焦分页也无法用 Enter 请求更早结果 | 第十二轮修复默认/自动默认按钮和键盘回归，真实四档缩放搜索通过 |
 | Q13 | P2 | 图片 QLabel 的源尺寸阻止预览缩小；强制缩窗后裁掉边缘 | 第十二轮复用解码图片等比例适配显示区域，缩小/放大及真实保存通过 |
-| Q14 | P2 | 创建/加入群和确认框仍有默认平台图标、英文按钮及不一致的操作权重 | 已采集真实四档原图；未修复，下一轮继续 |
+| Q14 | P2 | 创建/加入群和确认框仍有默认平台图标、英文按钮及不一致的操作权重 | 第十三轮收口布局、动作、键盘默认与选人标记；验证见下文 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 真实 DSR 与依赖源码确认；未修复，不计 Unicode 全矩阵通过 |
+| T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十三轮独立 xterm/tmux 复现；下一语义阶段修复 |
 
 键盘打开列表、Qt 多行编辑、长公告、长 username、dialog 滚动、selection/focus、
 terminal light/dark、combining、SSH 和 suspend/restore 仍需进一步实际核验。
@@ -713,3 +714,56 @@ UBSan 20/20（120.43 秒），Qt/TUI 均启用，无编译警告、suppression�
 Qt 暂评 86/100：17/20、13/15、7/10、10/10、9/10、9/10、9/10、4/5、4/5、4/5；
 TUI 保持 77/100。创建/加入群、确认框、复合 emoji 和全键盘/终端矩阵、参考缺口
 及最终连续两轮 fresh review 继续保留。本阶段不改 server、client library、TUI、SQL 或依赖，无 migration。
+
+## 第十三轮：建群、加入与操作确认
+
+延续第十二轮的真实原图，处理 Q14，不更改群创建、邀请审批、权限或联系人规则。
+普通弹窗宽度采用 520，短表单采用 480，复用内容边距 24、间距 12。
+选人页为 520×540，保留搜索、选择 chips、联系人和两步流程；命名页按内容收为 520×300，
+以有界成员列表取代大片空白和可能撑大的姓名段落。列表保留完整文本、tooltip 和键盘滚动，
+多选 20 人时可由 Tab 到达列表并用 End 查看尾部；焦点有边框，不把可滚动内容设为 NoFocus。
+选中标记使用同族 SVG check，未选为空心边框，不能只靠颜色识别选择。
+
+加入群继续使用真实 QInputDialog、完整邀请链接和原有错误处理；明确“加入 / 取消”、
+字段 accessible name 与可读宽度，取消默认平台图标。六处危险操作共同使用具体动作名称，
+保留 QMessageBox 和原有 Yes/No 决策，但用户看到的是“删除 / 移除联系人 / 退出登录 /
+转让群主 / 移除成员 / 退出群聊”与“取消”。初始 Enter、Esc、关闭窗口均取消，
+只有显式确认才执行业务；正文按 PlainText 显示，不把用户名当作富文本。
+注册成功、错误通知及已有关闭条也使用明确中文动作，未增添新的确认步骤。
+
+标准按钮设置对象名后原先仍保留已缓存的次级样式，真实截图和新增显示像素断言发现主动作不绿；
+在完成按钮配置后刷新其样式。间距、主操作像素、多选键盘滚动均先复现 RED，再验证 GREEN。
+六种确认的四种决策共 24 个公共事件回归；这不是 24 个独立 CTest target。
+
+- 选人 [before](images/experience/before-qt-create-choice.png) / [after](images/experience/after-qt-create-choice.png)。
+- 命名 [before](images/experience/before-qt-create-name.png) / [after](images/experience/after-qt-create-name.png)，
+  [200%](images/experience/after-qt-create-name-200.png)，
+  [20 人键盘滚到末尾](images/experience/after-qt-create-members-keyboard.png)。
+- 加入 [before](images/experience/before-qt-join.png) / [after](images/experience/after-qt-join.png)。
+- 退出确认 [before](images/experience/before-qt-logout-confirm.png) / [after](images/experience/after-qt-logout-confirm.png)。
+
+本轮两个真实 Qt 在隔离库完成链接入群、群聊，100/125/150/200% 保留 44 张实际窗口采集，
+包括选人、命名、加入、搜索及确认；不是全部页面或全部尺寸的验收。
+原生证据在 `/tmp/chat-quality-create-keyboard-final-20261005`。
+最初临时驱动假定 fixture 免审批，但 SDK fixture 已开启审批，因此入群返回 pending；
+明确用 SDK 设定免审批场景后重跑，不改变产品规则。另两次旧坐标分别点到取消和错过图片；
+先查看原图再调整驱动，图片保存的前一轮证据不冒充本轮重测结果。
+
+独立 TUI 复审发现 T05：60/80/160 列和 24/45 行下，Help 的命令后半段不可见，
+滚到底仍不能访问 `avatar-clear, logout, quit`；实际 xterm 原图与 tmux ANSI 在
+`/tmp/chat-quality-help-audit-1r4t6svt`。FTXUI 的横向 frame 和未约束换行是直接原因，
+将单独修复。T04 的宽字组合符落在保留格、ZWJ 与 FE0F 问题仍未解决，不能只改 UI 截断函数
+就宣称端到端 Unicode 完成。本阶段不修改 TUI、server、client library、SQL 或 third，无 migration。
+
+最终 Qt/X11 导航 4/4（`/tmp/chat-quality-create-qt-navigation-final-20261005`），
+TUI/tmux 导航 11/11（`/tmp/chat-quality-create-tui-regression-20261005`）。
+建群驱动旧的全体绿色像素聚合把次级按钮文字计入范围，点中了上一步；
+改为实际窗口内连续主按钮填充区域，保留权威 SDK 群创建和成员断言后完整通过。
+退出以默认 Enter 取消、Tab 明确选择确认、权威 presence 变化验证，不再猜绝对屏幕坐标。
+完整 `tests/verify.sh`：normal 20/20（102.42 秒）、ASan 20/20（129.69 秒）、
+UBSan 20/20（122.08 秒），Qt/TUI 均启用；无编译警告、sanitizer 报告、跳过、suppression 或 timeout 放宽。
+最终日志 `/tmp/chat-q14-keyboard-verify-20261005.log`；自有进程和成功隔离库已清理，
+失败运行证据保留用于说明驱动问题。`git diff --check` PASS。
+Qt 暂评 87/100：18/20、13/15、7/10、10/10、9/10、9/10、9/10、4/5、4/5、4/5；
+TUI 保持 77/100。这不是最终两轮 fresh review。
+Help、复合字符、消息编辑弹窗及未闭环的全页面/键盘/参考/终端矩阵继续处理，不宣布达到退出门槛。

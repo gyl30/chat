@@ -48,6 +48,7 @@ qt_add_resources(chat_qt_widgets chat_icons
         resources/icons/activity.svg
         resources/icons/bookmark.svg
         resources/icons/chat.svg
+        resources/icons/check.svg
         resources/icons/close.svg
         resources/icons/contacts.svg
         resources/icons/copy.svg

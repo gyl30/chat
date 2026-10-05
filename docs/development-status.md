@@ -948,3 +948,19 @@ TUI 单行摘要复用现有 FTXUI 格宽接口保留省略号，避免宽字吃
 server、client library、TUI、SQL 和依赖不变，无 migration。
 创建/加入群、确认框、复合 emoji、剩余矩阵与最终两轮 fresh review 尚未完成；
 原图、失败驱动的核验与阶段评分见 [体验品质审查](experience-quality.md)。
+
+## 体验品质审查：建群与操作确认
+
+选人、命名、加入群共用 24/12 布局尺度与有限宽度；命名页不再沿用高列表画布，
+有界成员列表可用 Tab/End 浏览，真实 20 人尾部和焦点已复核。
+标准按钮完成命名后刷新样式，主操作与取消/危险动作分层，取消平台图标。
+六种确认使用具体中文动作与纯文本正文，初始 Enter/Esc/关闭取消；显式确认才执行。
+邀请联系人要求实际选择，注册成功/错误通知和关闭条使用中文动作。
+业务权限、邀请审批、群创建与联系人规则不变，无 server/client/SQL/third 修改或 migration。
+
+真实双 Qt、四档缩放完成 44 张原图；Qt/X11 导航 4/4、TUI/tmux 导航 11/11。
+完整 `tests/verify.sh`：normal 20/20（102.42 s）、ASan 20/20（129.69 s）、UBSan 20/20（122.08 s）。
+无 sanitizer 报告、编译警告、跳过或 timeout 放宽，`git diff --check` PASS。
+Help 横向截断在独立真实终端复现；与复合 Unicode 和剩余矩阵继续处理。
+Qt 暂评 87、TUI 77，尚未进入最终连续两轮 fresh review。
+原图、驱动失败根因及覆盖边界见 [体验品质审查](experience-quality.md)。

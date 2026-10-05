@@ -17,6 +17,7 @@
 #include <QMenu>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLayout>
 #include <QInputDialog>
 #include <QInputMethodEvent>
 #include <QPlainTextEdit>
@@ -495,21 +496,56 @@ void check_primary_navigation()
         QTimer::singleShot(0, [&] {
             auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
             check(dialog && dialog->objectName() == "createGroupDialog", "Menu invokes existing two-step group flow");
+            check(dialog->layout()->contentsMargins() == QMargins(24, 24, 24, 24) && dialog->layout()->spacing() == 12,
+                "Create group shares the dialog content rhythm");
             auto* list = dialog->findChild<QListWidget*>("groupContactPicker");
             auto* next = dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok);
+            auto* cancel = dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Cancel);
+            check(next->icon().isNull() && cancel->icon().isNull() && cancel->text() == QStringLiteral("取消"),
+                "Create group actions have no platform icons");
             check(list->count() == count && !next->isEnabled(), "Group picker only contains accepted contacts and requires selection");
             if (count > 0)
             {
                 list->item(0)->setCheckState(Qt::Checked);
+                auto const pixels = dialog->grab().toImage();
+                auto const primary = pixels.pixelColor(next->mapTo(dialog, QPoint(next->width() - 12, next->height() / 2)));
+                check(primary.lightness() < 100, "Enabled group progression is visibly primary");
                 auto* chips = dialog->findChild<QListWidget*>("groupSelectedContacts");
                 check(chips->count() == 1 && chips->item(0)->text().contains(contacts[0].username), "Long Unicode selection remains intact");
+                if (count == 20)
+                { for (int row = 1; row < list->count(); ++row) { list->item(row)->setCheckState(Qt::Checked); } }
                 next->click();
+                QApplication::processEvents();
                 check(dialog->findChild<QLineEdit*>("newGroupTitleEdit")->isVisible(), "Selected friends precede group title step");
+                check(dialog->height() <= 380, "Naming one selected friend does not retain the tall picker canvas");
+                check(dialog->findChild<QLineEdit*>("newGroupTitleEdit")->hasFocus(), "Naming starts at the title input");
+                if (count == 20)
+                {
+                    QKeyEvent tab(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier);
+                    QApplication::sendEvent(dialog->findChild<QLineEdit*>("newGroupTitleEdit"), &tab);
+                    auto* members = dialog->findChild<QListWidget*>("groupNamingMembers");
+                    check(members->hasFocus() && members->count() == 20, "Keyboard users can reach all selected group members");
+                    QKeyEvent end(QEvent::KeyPress, Qt::Key_End, Qt::NoModifier);
+                    QApplication::sendEvent(members, &end);
+                    check(members->verticalScrollBar()->value() > 0, "The bounded member summary can scroll by keyboard");
+                }
             }
             dialog->reject();
         });
         create->trigger();
     }
+    QTimer::singleShot(0, [&] {
+        auto* dialog = qobject_cast<QInputDialog*>(QApplication::activeModalWidget());
+        check(dialog && dialog->objectName() == "joinGroupDialog", "Join group keeps a focused link input");
+        check(dialog->width() >= 460 && dialog->okButtonText() == QStringLiteral("加入") &&
+            dialog->cancelButtonText() == QStringLiteral("取消"),
+            QStringLiteral("Join group uses a readable width and named actions: %1 / %2 / %3")
+                .arg(dialog->width()).arg(dialog->okButtonText()).arg(dialog->cancelButtonText()).toUtf8().constData());
+        for (auto* button : dialog->findChildren<QPushButton*>())
+        { check(button->icon().isNull(), "Join group has no platform action icons"); }
+        dialog->reject();
+    });
+    page.findChild<QAction*>("joinGroupAction")->trigger();
     page.set_contacts({{10, QStringLiteral("Alice Bob"), false, 0, {}}, {11, QStringLiteral("张 三"), false, 0, {}},
                        {12, QStringLiteral("a.b"), false, 0, {}}, {13, QStringLiteral("Älice"), false, 0, {}}});
     QApplication::processEvents();
@@ -664,6 +700,41 @@ void check_profile_layout()
     });
     page.show_user_details(2, contact_name);
     std::cout << "PASS Qt profile identity hierarchy\n";
+}
+
+void check_confirmation_dialogs()
+{
+    QWidget parent;
+    parent.setStyleSheet(chat_style_sheet());
+    parent.show();
+    for (auto const& action : {QStringLiteral("删除"), QStringLiteral("移除联系人"), QStringLiteral("退出登录"),
+                              QStringLiteral("转让群主"), QStringLiteral("移除成员"), QStringLiteral("退出群聊")})
+    {
+        for (int choice = 0; choice < 4; ++choice)
+        {
+            QTimer::singleShot(0, [&] {
+                auto* dialog = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+                check(dialog && dialog->objectName() == "confirmationDialog", "Shared confirmation remains a real message box");
+                check(dialog->icon() == QMessageBox::NoIcon && dialog->textFormat() == Qt::PlainText,
+                    "Confirmation does not add a platform icon or interpret user identity as markup");
+                check(dialog->button(QMessageBox::Yes)->text() == action &&
+                    dialog->button(QMessageBox::No)->text() == QStringLiteral("取消"), "Confirmation names both decisions");
+                check(dialog->defaultButton() == dialog->button(QMessageBox::No) &&
+                    dialog->escapeButton() == dialog->button(QMessageBox::No), "Dangerous actions default to cancellation");
+                for (auto* button : dialog->buttons()) { check(button->icon().isNull(), "Confirmation buttons have no platform icons"); }
+                if (choice < 2)
+                {
+                    QKeyEvent key(QEvent::KeyPress, choice == 0 ? Qt::Key_Return : Qt::Key_Escape, Qt::NoModifier);
+                    QApplication::sendEvent(dialog, &key);
+                }
+                else if (choice == 2) { dialog->close(); }
+                else { dialog->button(QMessageBox::Yes)->click(); }
+            });
+            check(confirm_action(&parent, action, QStringLiteral("测试用户 <b>张三😀</b> 的操作后果"), action) == (choice == 3),
+                "Enter, Escape and closing cancel; only an explicit positive selection confirms");
+        }
+    }
+    std::cout << "PASS Qt named confirmation actions and safe keyboard defaults\n";
 }
 
 void check_message_dialogs()
@@ -928,7 +999,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_message_dialogs(); check_message_composer(); check_conversation_drafts(); return 0; }
+        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_dialogs(); check_message_composer(); check_conversation_drafts(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
@@ -950,6 +1021,7 @@ int main(int argc, char** argv)
         check_group_detail_layout();
         check_primary_navigation();
         check_profile_layout();
+        check_confirmation_dialogs();
         check_message_dialogs();
         check_message_composer();
         check_conversation_drafts();

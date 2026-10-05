@@ -77,11 +77,41 @@ def run(c):
     click(380,37);click(420,133)
     modal('A','加入群聊');capture('nav-08-join-action');key('Escape');focus(a)
     click(380,37);click(420,101)
-    modal('A','创建群聊');capture('nav-09-create-select-contacts')
-    click(535,90);paste(actor('S005')['username']);click(382,162)
+    wizard=modal('A','创建群聊');focus(wizard);capture('nav-09-create-select-contacts')
+    def create_geometry():
+        info=c['S'].check_output(['xwininfo','-id',hex(wizard)],text=True)
+        return (int(c['re'].search(r'Absolute upper-left X:\s*(-?\d+)',info)[1]),
+                int(c['re'].search(r'Absolute upper-left Y:\s*(-?\d+)',info)[1]),
+                int(c['re'].search(r'Width: (\d+)',info)[1]),
+                int(c['re'].search(r'Height: (\d+)',info)[1]))
+    def create_primary():
+        # Re-read the real modal after each step changes its size and button row.
+        def primary_region():
+            px,py,width,height=create_geometry()
+            image=ImageGrab.grab(xdisplay=c['display']).convert('RGB').crop((px,py,px+width,py+height))
+            spans=[]
+            for y in range(max(0,height-80),height):
+                start=None
+                for x in range(width+1):
+                    filled=x<width and image.getpixel((x,y)) in [(49,90,75),(41,77,64)]
+                    if filled and start is None: start=x
+                    elif not filled and start is not None:
+                        if x-start>=50: spans.append((start,x-1,y))
+                        start=None
+            # Green text on secondary actions is not an enabled button fill.
+            if len({y for left,right,y in spans})<6: return None
+            return (px+(min(left for left,right,y in spans)+max(right for left,right,y in spans))//2,
+                    py+(min(y for left,right,y in spans)+max(y for left,right,y in spans))//2)
+        click(*wait(primary_region,'Visible enabled primary create button fill'))
+    paste(actor('S005')['username'])
+    px,py,_,picker_height=create_geometry();click(px+42,py+132)
     capture('nav-10-create-selected')
-    click(745,593);capture('nav-11-create-name-step')
-    title='Qt导航创建群_'+manifest['prefix'];paste(title);click(745,593)
+    create_primary()
+    wait(lambda:create_geometry()[3]<picker_height,'Create naming step uses its compact layout')
+    capture('nav-11-create-name-step')
+    px,py,width,_=create_geometry();focus(wizard);click(px+width//2,py+95)
+    title='Qt导航创建群_'+manifest['prefix'];key('a',True);paste(title)
+    capture('nav-11-create-title-filled');create_primary()
     # The observer is an actual selected member and reads the authoritative result.
     def created():
         page=sdk('S005','get_conversations')
@@ -91,13 +121,20 @@ def run(c):
     assert {m['id'] for m in members}=={aid,actor('S005')['id']},members
     capture('nav-12-created-group-open')
     click(610,24);modal('A','群资料');capture('nav-13-created-group-header-opens-details');key('Escape');focus(a)
-    record('qt-chats-three-actions-and-two-step-create',['nav-01-chats-sidebar.png','nav-06-chats-three-actions.png','nav-07-add-friend-search.png','nav-08-join-action.png','nav-09-create-select-contacts.png','nav-11-create-name-step.png','nav-12-created-group-open.png','nav-13-created-group-header-opens-details.png'])
+    record('qt-chats-three-actions-and-two-step-create',['nav-01-chats-sidebar.png','nav-06-chats-three-actions.png','nav-07-add-friend-search.png','nav-08-join-action.png','nav-09-create-select-contacts.png','nav-11-create-name-step.png','nav-11-create-title-filled.png','nav-12-created-group-open.png','nav-13-created-group-header-opens-details.png'])
     click(41,724);profile=modal('A',actor('A')['username']);capture('nav-14-bottom-account')
-    profile_action(profile);modal('A','退出登录');capture('nav-15-logout-confirmation')
-    click(600,320);assert presence(True),'Cancel must keep authenticated session'
-    capture('nav-16-logout-cancelled');profile_action(profile);modal('A','退出登录');click(675,320)
+    profile_action(profile);confirmation=modal('A','退出登录');focus(confirmation)
+    capture('nav-15-logout-confirmation')
+    # Address the actual modal window; Enter initially activates its safe default.
+    key('Return')
+    wait(lambda:c['window'](c['clients']['A'].pid,'退出登录') is None,'Default Enter cancels logout')
+    assert presence(True),'Cancel must keep authenticated session'
+    focus(profile);capture('nav-16-logout-cancelled')
+    profile_action(profile);confirmation=modal('A','退出登录');focus(confirmation)
+    # An explicit focus change selects the logout action without screen coordinates.
+    key('Tab');capture('nav-16-logout-explicit-confirm-focus');key('Return')
     wait(lambda:presence(False),'Qt logout authoritative offline')
     assert c['clients']['A'].poll() is None
     capture('nav-17-logout-login-page')
-    record('qt-bottom-account-cancel-and-confirm-logout',['nav-14-bottom-account.png','nav-15-logout-confirmation.png','nav-16-logout-cancelled.png','nav-17-logout-login-page.png'])
+    record('qt-bottom-account-cancel-and-confirm-logout',['nav-14-bottom-account.png','nav-15-logout-confirmation.png','nav-16-logout-cancelled.png','nav-16-logout-explicit-confirm-focus.png','nav-17-logout-login-page.png'])
     return 4
