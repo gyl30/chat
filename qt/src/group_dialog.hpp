@@ -46,6 +46,9 @@ class group_dialog final : public QDialog
     void transfer_requested(qint64 user);
     void remove_requested(qint64 user);
 
+   protected:
+    bool eventFilter(QObject* object, QEvent* event) override;
+
    private:
     void update_actions();
 
@@ -84,12 +87,15 @@ class group_dialog final : public QDialog
     qint64 next_request_ = 0;
     QLabel* status_;
     QLabel* overview_title_;
+    QLabel* overview_avatar_;
     QLabel* overview_count_;
     QLabel* overview_announcement_;
+    QPushButton* read_announcement_button_;
     QLabel* overview_pin_;
     QLabel* overview_invite_;
     QListWidget* preview_;
     QPushButton* manage_button_;
+    QLabel* requests_status_;
 };
 
 #endif

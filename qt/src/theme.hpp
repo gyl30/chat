@@ -10,6 +10,9 @@ inline constexpr int auth_card_width = 420;
 inline constexpr int auth_padding = 32;
 inline constexpr int auth_spacing = 12;
 
+inline constexpr int dialog_padding = 24;
+inline constexpr int dialog_spacing = 12;
+
 inline constexpr int dialog_row_height = 62;
 inline constexpr int dialog_avatar_size = 46;
 inline constexpr int dialog_left = 10;

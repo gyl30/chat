@@ -249,9 +249,13 @@ def run_scale():
     group = modal('A', '群资料')
     capture('02-group-overview')
     assert len(members(manifest['group']['id'])) == 100
-    click(580, 480)
+    info = S.check_output(['xwininfo', '-id', hex(group)], text=True)
+    group_x = int(re.search(r'Absolute upper-left X:\s*(-?\d+)', info)[1])
+    group_y = int(re.search(r'Absolute upper-left Y:\s*(-?\d+)', info)[1])
+    click(group_x + 44, group_y + 35)
+    key('Right')
     capture('03-all-members')
-    click(480, 87)
+    key('Tab')
     for char in 's030':
         key(char)
     time.sleep(0.2)

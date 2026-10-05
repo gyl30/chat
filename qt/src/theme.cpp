@@ -38,21 +38,46 @@ QString chat_style_sheet()
             margin: 4px 8px;
         }
         QDialog#groupDialog QListWidget, QTabWidget#groupTabs::pane {
-            background: #FFFFFF;
-            border: 1px solid #D7DDD9;
-        }
-        QDialog#groupDialog QListWidget {
-            selection-background-color: #315A4B;
-            selection-color: #FFFFFF;
+            background: transparent;
+            border: 0;
         }
         QTabWidget#groupTabs QTabBar::tab {
-            background: #F0F4F1;
-            border: 1px solid #D7DDD9;
-            padding: 6px 12px;
+            background: transparent;
+            color: #5D6C64;
+            border: 0;
+            border-bottom: 2px solid transparent;
+            padding: 10px 12px;
         }
         QTabWidget#groupTabs QTabBar::tab:selected {
-            background: #FFFFFF;
             color: #315A4B;
+            border-bottom-color: #315A4B;
+        }
+        QTabWidget#groupTabs QTabBar::tab:hover {
+            background: #F0F4F1;
+        }
+        QLabel#groupOverviewTitle {
+            font-size: 22px;
+            font-weight: 600;
+            color: #294B3E;
+        }
+        QLabel#groupOverviewCount, QLabel#groupOverviewPinned, QLabel#groupOverviewInvite,
+        QLabel#groupDetailHint, QLabel#groupJoinRequestsStatus, QLabel#groupStatus {
+            font-size: 13px;
+            color: #5D6C64;
+        }
+        QLabel#groupSectionHeading {
+            font-size: 13px;
+            font-weight: 600;
+            color: #5D6C64;
+        }
+        QPlainTextEdit#groupAnnouncementEdit {
+            background: #FFFFFF;
+            border: 1px solid #DDD9D0;
+            border-radius: 10px;
+            padding: 8px;
+        }
+        QPlainTextEdit#groupAnnouncementEdit:focus {
+            border-color: #547C68;
         }
         QDialog QPushButton, QPushButton#newFriendsButton, QToolButton#messageSearchButton, QToolButton#sendAttachmentButton {
             min-height: 32px;
@@ -65,6 +90,66 @@ QString chat_style_sheet()
         QDialog QPushButton:disabled, QPushButton#newFriendsButton:disabled, QToolButton#messageSearchButton:disabled, QToolButton#sendAttachmentButton:disabled {
             color: #96A29C;
             border-color: #D7DDD9;
+        }
+        QDialog#groupDialog QPushButton:hover {
+            background: #F0F4F1;
+        }
+        QDialog#groupDialog QPushButton:pressed {
+            background: #E7EEE9;
+        }
+        QDialog#groupDialog QPushButton:focus {
+            border-color: #547C68;
+        }
+        QDialog#groupDialog QPushButton#groupReadAnnouncementButton,
+        QDialog#groupDialog QPushButton#groupAllMembersButton,
+        QDialog#groupDialog QPushButton#groupManageButton,
+        QDialog#groupDialog QPushButton#groupLeaveButton {
+            background: transparent;
+            border: 2px solid transparent;
+            padding: 0 8px;
+        }
+        QDialog#groupDialog QPushButton#groupReadAnnouncementButton:hover,
+        QDialog#groupDialog QPushButton#groupAllMembersButton:hover,
+        QDialog#groupDialog QPushButton#groupManageButton:hover {
+            background: #F0F4F1;
+        }
+        QDialog#groupDialog QPushButton#groupReadAnnouncementButton:focus,
+        QDialog#groupDialog QPushButton#groupAllMembersButton:focus,
+        QDialog#groupDialog QPushButton#groupManageButton:focus,
+        QDialog#groupDialog QPushButton#groupLeaveButton:focus {
+            border-color: #547C68;
+        }
+        QDialog#groupDialog QPushButton#groupRenameButton,
+        QDialog#groupDialog QPushButton#groupAnnouncementButton,
+        QDialog#groupDialog QPushButton#groupAcceptRequestButton {
+            background: #315A4B;
+            color: #FFFFFF;
+            border: 2px solid transparent;
+        }
+        QDialog#groupDialog QPushButton#groupRenameButton:hover,
+        QDialog#groupDialog QPushButton#groupAnnouncementButton:hover,
+        QDialog#groupDialog QPushButton#groupAcceptRequestButton:hover {
+            background: #294D40;
+        }
+        QDialog#groupDialog QPushButton#groupRenameButton:focus,
+        QDialog#groupDialog QPushButton#groupAnnouncementButton:focus,
+        QDialog#groupDialog QPushButton#groupAcceptRequestButton:focus {
+            border-color: #88A697;
+        }
+        QDialog#groupDialog QPushButton#groupRenameButton:disabled,
+        QDialog#groupDialog QPushButton#groupAnnouncementButton:disabled,
+        QDialog#groupDialog QPushButton#groupAcceptRequestButton:disabled {
+            background: #E7EEE9;
+            color: #78897F;
+        }
+        QDialog#groupDialog QPushButton#groupLeaveButton,
+        QDialog#groupDialog QPushButton#groupRevokeInviteButton,
+        QDialog#groupDialog QPushButton#groupClearAnnouncementButton {
+            color: #A64C48;
+        }
+        QDialog#groupDialog QPushButton#groupRevokeInviteButton:disabled,
+        QDialog#groupDialog QPushButton#groupClearAnnouncementButton:disabled {
+            color: #96A29C;
         }
         QWidget#loginPage {
             background: #F7F5EF;

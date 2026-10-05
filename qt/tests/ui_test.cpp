@@ -26,6 +26,7 @@
 #include <QTemporaryDir>
 #include <QSortFilterProxyModel>
 #include <QScrollBar>
+#include <QScrollArea>
 #include <QSystemTrayIcon>
 #include <source_location>
 #include <QTimer>
@@ -246,6 +247,135 @@ void check_friend_request_layout()
           !incoming->isVisible() && !outgoing->isVisible(),
           "No requests shows an explicit empty state instead of empty list sections");
     std::cout << "PASS Qt friend request row rhythm and empty state\n";
+}
+
+void check_group_detail_layout()
+{
+    avatar_cache avatars;
+    group_dialog dialog(1, 1, QStringLiteral("群资料"), {}, false, nullptr, &avatars);
+    dialog.setStyleSheet(chat_style_sheet());
+    dialog.set_members(1, {{1, "owner", chat::member_role::owner, {}},
+                           {2, "admin", chat::member_role::admin, {}},
+                           {3, "member", chat::member_role::member, {}}}, {});
+    dialog.show();
+    QApplication::processEvents();
+    QImage avatar(16, 16, QImage::Format_RGB32);
+    QColor const color(QStringLiteral("#C05656"));
+    avatar.fill(color);
+    QByteArray bytes;
+    QBuffer buffer(&bytes);
+    buffer.open(QIODevice::WriteOnly);
+    check(avatar.save(&buffer, "PNG"), "Group member avatar fixture encodes");
+    avatars.observe(3, {1, true});
+    avatars.receive(3, {1, true}, bytes);
+    QApplication::processEvents();
+    auto* preview = dialog.findChild<QListWidget*>("groupMemberPreview");
+    auto const image = preview->viewport()->grab().toImage();
+    check(image.pixelColor(20, preview->visualItemRect(preview->item(2)).center().y()) == color,
+          "A downloaded member avatar refreshes the visible group overview without reopening it");
+    auto* tabs = dialog.findChild<QTabWidget*>("groupTabs");
+    tabs->setCurrentIndex(3);
+    dialog.resize(420, 480);
+    QApplication::processEvents();
+    check(dialog.width() <= 420 && dialog.height() <= 480,
+          "Group details fit a small desktop window without forcing a taller or wider dialog");
+    auto* management = qobject_cast<QScrollArea*>(tabs->widget(3));
+    check(management && management->verticalScrollBar()->maximum() > 0,
+          "Small group management scrolls its content instead of clipping its actions");
+    dialog.set_invite(1, QString(64, 'a'), {});
+    dialog.activateWindow();
+    dialog.findChild<QLineEdit*>("groupTitleEdit")->setFocus();
+    QApplication::processEvents();
+    auto* revoke = dialog.findChild<QPushButton*>("groupRevokeInviteButton");
+    for (int step = 0; step < 12 && !revoke->hasFocus(); ++step)
+    {
+        QKeyEvent tab(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier);
+        QApplication::sendEvent(QApplication::focusWidget(), &tab);
+        QApplication::processEvents();
+    }
+    check(revoke->hasFocus() && management->viewport()->rect().contains(revoke->mapTo(management->viewport(), QPoint{})),
+          "Keyboard focus brings a lower group management action into view");
+    tabs->setCurrentIndex(0);
+    QApplication::processEvents();
+    check(dialog.findChild<QPushButton*>("groupReadAnnouncementButton")->isHidden(),
+          "An empty announcement does not offer a redundant full announcement action");
+    tabs->setCurrentIndex(2);
+    dialog.set_requests(1, {}, 0, false, {});
+    QApplication::processEvents();
+    auto* requests_status = dialog.findChild<QLabel*>("groupJoinRequestsStatus");
+    check(requests_status && requests_status->isVisible() && requests_status->text().contains(QStringLiteral("暂无待处理申请")) &&
+          dialog.findChild<QPushButton*>("groupMoreRequestsButton")->isHidden(),
+          "A completed empty request list explains its state without an unavailable pagination action");
+    auto* requests = dialog.findChild<QListWidget*>("groupJoinRequestsList");
+    dialog.set_requests(1, {{10, "first", false, 0, {}}, {11, "selected", false, 0, {}}}, 0, false, {});
+    requests->setCurrentRow(1);
+    dialog.set_requests(1, {{12, "new", false, 0, {}}, {10, "first", false, 0, {}}, {11, "selected", false, 0, {}}}, 0, false, {});
+    check(requests->currentItem() && requests->currentItem()->data(Qt::UserRole).toLongLong() == 11,
+          "An unrelated new join request preserves the applicant being reviewed");
+    qint64 opened_user = 0;
+    QString opened_name;
+    QObject::connect(&dialog, &group_dialog::user_requested, &dialog, [&](qint64 user, QString name) {
+        opened_user = user;
+        opened_name = std::move(name);
+    });
+    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QApplication::sendEvent(requests, &enter);
+    check(opened_user == 11 && opened_name == QStringLiteral("selected"),
+          "Enter opens the selected applicant's original profile flow");
+    conversation_data snapshot;
+    snapshot.id = 1;
+    snapshot.group = true;
+    snapshot.username = QStringLiteral("群资料");
+    snapshot.announcement = QStringLiteral("第一段公告\n") + QString(900, QChar(0x4e2d));
+    dialog.set_conversations({snapshot}, {});
+    tabs->setCurrentIndex(0);
+    QApplication::processEvents();
+    bool full_announcement = false;
+    bool keyboard_announcement = false;
+    QTimer::singleShot(0, &dialog, [&] {
+        auto* reader = QApplication::activeModalWidget();
+        if (!reader || reader->objectName() != "groupAnnouncementDialog") { return; }
+        auto* text = reader->findChild<QPlainTextEdit*>();
+        full_announcement = text->toPlainText() == snapshot.announcement;
+        reader->activateWindow();
+        auto* close = reader->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Close);
+        close->setFocus();
+        QKeyEvent tab(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier);
+        QApplication::sendEvent(close, &tab);
+        QApplication::processEvents();
+        QKeyEvent end(QEvent::KeyPress, Qt::Key_End, Qt::ControlModifier);
+        QApplication::sendEvent(QApplication::focusWidget(), &end);
+        QApplication::processEvents();
+        keyboard_announcement = text->hasFocus() && text->verticalScrollBar()->maximum() > 0 &&
+            text->verticalScrollBar()->value() == text->verticalScrollBar()->maximum();
+        qobject_cast<QDialog*>(reader)->reject();
+    });
+    auto* read = dialog.findChild<QPushButton*>("groupReadAnnouncementButton");
+    check(!read->isHidden(), "A real announcement exposes its complete reading action");
+    read->click();
+    check(full_announcement, "Long announcements remain fully readable after the overview is bounded");
+    check(keyboard_announcement, "The full announcement can be focused and read to its end with the keyboard");
+    QList<member_data> many_members;
+    for (qint64 user = 1; user <= 100; ++user)
+    {
+        many_members.push_back({user, QStringLiteral("member %1").arg(user),
+            user == 1 ? chat::member_role::owner : chat::member_role::member, {}});
+    }
+    dialog.set_members(1, many_members, {});
+    tabs->setCurrentIndex(1);
+    dialog.resize(640, 760);
+    dialog.activateWindow();
+    auto* members = dialog.findChild<QListWidget*>("groupMembersList");
+    members->setFocus();
+    members->setCurrentRow(99);
+    members->scrollToItem(members->currentItem());
+    QApplication::processEvents();
+    dialog.resize(420, 480);
+    QApplication::processEvents();
+    QApplication::processEvents();
+    check(members->hasFocus() && members->viewport()->rect().contains(members->visualItemRect(members->currentItem())),
+          "Resizing a focused member list keeps the selected member visible");
+    std::cout << "PASS Qt group overview live member avatar and bounded details\n";
 }
 
 void check_primary_navigation()
@@ -574,7 +704,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_friend_request_layout(); check_primary_navigation(); check_message_composer(); check_conversation_drafts(); return 0; }
+        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_message_composer(); check_conversation_drafts(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
@@ -593,6 +723,7 @@ int main(int argc, char** argv)
     {
         check_authentication_layout();
         check_friend_request_layout();
+        check_group_detail_layout();
         check_primary_navigation();
         check_message_composer();
         check_conversation_drafts();
@@ -1103,7 +1234,7 @@ int main(int argc, char** argv)
                 if (role_step == 0)
                 {
                     check(list->item(0)->text().contains(names[0]) &&
-                              list->item(0)->text().contains(QStringLiteral("群主")) &&
+                              list->item(0)->data(Qt::StatusTipRole).toString().contains(QStringLiteral("群主")) &&
                               list->item(1)->text().contains(names[1]) &&
                               list->item(2)->text().contains(names[2]), "Members and creator role");
                     list->setCurrentRow(0);
@@ -1114,14 +1245,14 @@ int main(int argc, char** argv)
                     button->click();
                 }
                 else if (role_step == 1 && button->isEnabled() &&
-                         list->item(1)->text().contains(QStringLiteral("管理员")))
+                         list->item(1)->data(Qt::StatusTipRole).toString().contains(QStringLiteral("管理员")))
                 {
                     dialog->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_roles.png");
                     ++role_step;
                     button->click();
                 }
                 else if (role_step == 2 && button->isEnabled() &&
-                         !list->item(1)->text().contains(QStringLiteral("管理员")))
+                         !list->item(1)->data(Qt::StatusTipRole).toString().contains(QStringLiteral("管理员")))
                 {
                     members = true;
                     poll.stop();
@@ -1314,7 +1445,7 @@ int main(int argc, char** argv)
                     dialog->findChild<QLabel*>("groupOverviewCount")->text().contains(QStringLiteral("3")) &&
                     dialog->findChild<QListWidget*>("groupMemberPreview")->count() == 3,
                     "Group opens hierarchical overview with count and member preview");
-                check(list->item(0)->icon().pixmap(32, 32).toImage() == avatar_icon(names[0], 32, pages[1]->avatars().image(ids[0])).pixmap(32, 32).toImage(), "Group member avatar");
+                check(list->item(0)->data(Qt::DecorationRole).value<QPixmap>().toImage() == pages[1]->avatars().image(ids[0]).toImage(), "Group member avatar");
                 avatar_members = true;
                 avatar_members_poll.stop();
                 dialog->accept();
@@ -2215,7 +2346,7 @@ int main(int argc, char** argv)
                     }
                 }
                 else if (manage_step == 2 && promote->isEnabled() &&
-                         list->item(1)->text().contains(QStringLiteral("管理员")))
+                         list->item(1)->data(Qt::StatusTipRole).toString().contains(QStringLiteral("管理员")))
                 {
                     managed = true;
                     manage_poll.stop();
@@ -2242,7 +2373,7 @@ int main(int argc, char** argv)
                 }
                 if (admin_step == 0)
                 {
-                    check(list->item(1)->text().contains(QStringLiteral("管理员")), "Realtime role visible to administrator");
+                    check(list->item(1)->data(Qt::StatusTipRole).toString().contains(QStringLiteral("管理员")), "Realtime role visible to administrator");
                     list->setCurrentRow(2);
                     check(!dialog->findChild<QPushButton*>("groupAdminButton")->isEnabled(), "Admin cannot appoint another admin");
                     check(dialog->findChild<QPushButton*>("groupRemoveButton")->isEnabled(), "Admin may remove ordinary member");
@@ -2379,11 +2510,11 @@ int main(int argc, char** argv)
                         list->customContextMenuRequested(list->visualItemRect(list->item(row)).center());
                     }
                     else if (step == 1 && (button_name == "groupRemoveButton" ? row == -1 :
-                        row >= 0 && list->item(row)->text().contains(QStringLiteral("群主"))))
+                        row >= 0 && list->item(row)->data(Qt::StatusTipRole).toString().contains(QStringLiteral("群主"))))
                     {
                         if (button_name == "groupTransferButton")
                         {
-                            check(list->item(1)->data(Qt::UserRole).toLongLong() == ids[0] && list->item(1)->text().contains(QStringLiteral("管理员")), "Former Qt owner becomes admin");
+                            check(list->item(1)->data(Qt::UserRole).toLongLong() == ids[0] && list->item(1)->data(Qt::StatusTipRole).toString().contains(QStringLiteral("管理员")), "Former Qt owner becomes admin");
                             check(dialog->findChild<QPushButton*>("groupLeaveButton")->isEnabled(), "Former Qt owner may leave");
                             dialog->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_transfer.png");
                         }
@@ -2669,8 +2800,8 @@ int main(int argc, char** argv)
                 if (!dialog) { return; }
                 auto* list = dialog->findChild<QListWidget*>("groupMembersList");
                 if (list->count() != 3) { return; }
-                check(list->item(0)->text().contains(QStringLiteral("群主")) &&
-                    list->item(1)->text().contains(QStringLiteral("管理员")), "Ownership roles recover in Qt role groups after reconnect");
+                check(list->item(0)->data(Qt::StatusTipRole).toString().contains(QStringLiteral("群主")) &&
+                    list->item(1)->data(Qt::StatusTipRole).toString().contains(QStringLiteral("管理员")), "Ownership roles recover in Qt role groups after reconnect");
                 list->setCurrentRow(1);
                 check(dialog->findChild<QPushButton*>("groupRemoveButton")->isEnabled(), "New Qt owner can remove administrator");
                 list->setCurrentRow(2);

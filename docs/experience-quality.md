@@ -109,7 +109,7 @@ QQ 材料来自[官方下载页](https://im.qq.com/download)和
 | Q02 | P2 | Qt 登录的服务器配置先于身份；初始焦点也落在 URL | 已修复并通过完整验证 |
 | Q03 | P2 | Qt 输入框仍是单行 QLineEdit，不能提供目标要求的多行有界增长 | 已修复并通过完整验证 |
 | Q04 | P2 | Qt 新朋友列表仍有默认控件选中样式和大片分隔空白，与联系人行节奏不一致 | 已修复并通过完整验证 |
-| Q05 | P2 | Qt 群资料/管理界面表单和等宽文字按钮密集，信息和操作缺少分层 | 未处理 |
+| Q05 | P2 | Qt 群资料/管理界面表单和等宽文字按钮密集，信息和操作缺少分层 | 已修复；第七轮真实 X11 与键盘复核 |
 | T01 | P2 | TUI 登录 URL 为首要焦点，按钮各自带框，用户名规则长期占一整行 | 已修复并通过完整验证 |
 | T02 | P2 | TUI 空消息、空申请等不同页面均出现泛化的 No items | 未处理 |
 | T03 | P2 | TUI 长页眉和操作提示在窄屏缺少清楚的摘要层级 | 未处理 |
@@ -361,3 +361,55 @@ server、client library、SQL 和依赖未修改。
 Qt 暂评 76/100：13/20、12/15、7/10、8/10、9/10、8/10、8/10、3/5、4/5、4/5；
 TUI 保持 70/100。本阶段改善列表 craft 和跨页一致性，仍不计入最终连续两轮 fresh review。
 Q05、T02/T03、图标 HiDPI、完整参考证据与全流程审查仍未完成。
+
+
+## 第七轮修复：桌面群资料与管理
+
+本阶段从 `f257deb93f7efabce4bb241ba7e34825ec15828a` 开始，工作区干净且与远端一致。
+真实 X11 复核群概览、成员、申请和管理：旧表单在高窗口中拉开，大块留白与等权按钮削弱操作层级；
+申请空页缺少说明，预览头像下载后不刷新，申请刷新会丢失正在查看的用户。
+
+群身份采用头像、名称和人数层级，概览只显示最多三位成员并保留全部成员入口，不限制群人数。
+群资料和管理采用原生 QScrollArea，小窗口可滚动到操作，不强制扩大窗口。
+管理表单按名称、公告、邀请链接分组，主操作、次操作和危险操作明确区分；
+概览只说明链接状态，完整 opaque token 仍在原有管理页，普通成员不可见。
+未改权限、管理员上限、公告、邀请、审批、退出、移除或转让语义。
+
+三处用户列表复用联系人 delegate 的行节奏、真实头像、姓名/角色和焦点轮廓。
+Enter 或头像打开原有资料流程；头像缓存变化刷新对应用户行。
+申请按 ID 保留正在查看的用户与浏览位置，空态明确说明且隐藏无效操作。
+没有新增列表模型、状态框架、权限快照或通用资源层，新增成员字段都是实际控件引用。
+
+组件与真实窗口复核继续发现：滚到成员末尾后缩窗会裁切键盘选择；
+公告全文的只读正文默认不能进入键盘焦点，Tab 与 Ctrl+End 无法读到末尾。
+两项均先补回归确认 RED，再分别使用 viewport resize 后滚入当前项、
+只读正文的鼠标/键盘选择修复。全文正文保持只读，不改变公告内容。
+
+真实证据：
+
+- 群概览 [before](images/experience/before-qt-group-overview.png) /
+  [after](images/experience/after-qt-group-overview.png)。
+- 管理表单 [before](images/experience/before-qt-group-management.png) /
+  [after](images/experience/after-qt-group-management.png)，
+  [420×480 可滚动表单](images/experience/after-qt-group-management-minimum.png)。
+- [末尾成员缩窗仍可见](images/experience/after-qt-group-members-resize.png)、
+  [申请实时刷新保留身份](images/experience/after-qt-group-request-selection.png)。
+- [键盘读取公告末尾](images/experience/after-qt-group-announcement-keyboard.png)、
+  [200% 完成加载后的概览](images/experience/after-qt-group-hidpi.png)。
+
+两个真实 Qt 客户端的七项流程通过：百人成员列表 End/缩窗/资料身份、
+新增申请后的选择和资料身份、键盘通过/拒绝与真实 membership、头像更新/清除、
+长中文/emoji 公告全文、420×480/720×820/连续 resize、普通成员与断线/重连、
+125%/150%/200% 重新登录后恢复。
+原图在 `/tmp/chat-quality-group-keyboard-final-qt-20261005`；
+现有百人群原生流程 4/4、未修改的 TUI/tmux 回归 11/11 通过。
+若干临时原生驱动先修正 fixture 身份、焦点、排序和 readiness 假设再完整重跑；
+未把部分成功或加载中截图记作完整验收，失败的自有进程和隔离数据库均已清理。
+
+最终完整 `tests/verify.sh`：normal 20/20（94.53 秒）、ASan 20/20（135.70 秒）、
+UBSan 20/20（118.17 秒），Qt/TUI 均启用；无编译警告、suppression、跳过或 timeout 放宽。
+`git diff --check` PASS。
+server、client library、SQL 和依赖未修改，无 migration。
+Qt 暂评 78/100：14/20、12/15、7/10、8/10、9/10、8/10、9/10、3/5、4/5、4/5；
+TUI 保持 70/100。Q05 关闭；T02/T03、其他资料/弹窗一致性、图标 HiDPI、
+完整参考证据与最终连续两轮 fresh review 仍未完成，本阶段不等同于整个 Goal 完成。
