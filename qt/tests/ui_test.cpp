@@ -1270,6 +1270,175 @@ void check_message_search_keyboard_visibility()
     std::cout << "PASS Qt search results show actual Tab/Down focus and selected identity\n";
 }
 
+void check_message_search_live_policy()
+{
+    message_search_dialog dialog(50, 1, false, QStringLiteral("实时搜索命中"), {}, nullptr);
+    dialog.setStyleSheet(chat_style_sheet());
+    auto* input = dialog.findChild<QLineEdit*>("messageSearchEdit");
+    auto* search = dialog.findChild<QPushButton*>("searchMessagesButton");
+    auto* more = dialog.findChild<QPushButton*>("moreSearchResultsButton");
+    auto* results = dialog.findChild<QListView*>("messageSearchResults");
+    auto* status = dialog.findChild<QLabel*>("messageSearchStatus");
+    auto* count = dialog.findChild<QLabel*>("messageSearchCount");
+    QList<QPair<QString, qint64>> requests;
+    QObject::connect(&dialog, &message_search_dialog::search_requested, &dialog,
+        [&](QString query, qint64 before) { requests.push_back({query, before}); });
+    auto const query = QStringLiteral("%_中文");
+    auto message = [&](qint64 id) {
+        message_data value;
+        value.id = id; value.conversation = 50; value.from = 2;
+        value.username = QStringLiteral("朋友"); value.timestamp = 1770000000000 + id;
+        value.text = query + QStringLiteral(" original é 👩‍💻 %1").arg(id);
+        return value;
+    };
+    auto start = [&] { input->setText(query); search->click(); QApplication::processEvents(); };
+    auto index_for = [&](qint64 id) {
+        for (int row = 0; row < results->model()->rowCount(); ++row)
+        {
+            auto index = results->model()->index(row, 0);
+            if (index.data(message_model::id_role).toLongLong() == id) { return index; }
+        }
+        return QModelIndex{};
+    };
+    auto ids = [&] {
+        QApplication::processEvents();
+        QList<qint64> values;
+        for (int row = 0; row < results->model()->rowCount(); ++row)
+        { values.push_back(results->model()->index(row, 0).data(message_model::id_role).toLongLong()); }
+        return values;
+    };
+    dialog.show(); dialog.activateWindow(); QApplication::processEvents();
+    start();
+    dialog.set_results(50, query, 0, {message(100), message(101)}, {}, false, {});
+    auto edit = message(100); edit.text = QStringLiteral("no longer a current match"); edit.edited_at = 20;
+    dialog.update_message(50, edit, {});
+    auto matching_edit = message(101); matching_edit.edited_at = 21;
+    dialog.update_message(50, matching_edit, {});
+    dialog.update_message(50, message(99), {});
+    check(ids() == QList<qint64>{100, 101} && index_for(100).data(message_model::text_role).toString() == edit.text &&
+          requests.size() == 1, "Loaded hits retain live matching/nonmatching edits without matching or hidden searches");
+    auto deleted = edit; deleted.deleted = true; deleted.text.clear();
+    dialog.update_message(50, deleted, {});
+    check(ids() == QList<qint64>{101}, "A live-deleted loaded hit is actually absent, not a counted tombstone");
+    auto* help = dialog.findChild<QLabel*>("messageSearchHelp");
+    check(help && help->isVisible() && help->text().contains(QStringLiteral("正文实时更新")) &&
+          help->text().contains(QStringLiteral("重新搜索")) && count && count->text().contains(QStringLiteral("已加载 1")),
+          "Search persistently explains live bodies and counts only visible loaded hits");
+    check(help->font().pixelSize() == 13 && count->font().pixelSize() == 13 &&
+          help->palette().color(QPalette::WindowText) == QColor(QStringLiteral("#5D6C64")) &&
+          count->palette().color(QPalette::WindowText) == QColor(QStringLiteral("#5D6C64")),
+          "Search help and loaded count reuse the secondary-label font and foreground");
+    auto last_deleted = matching_edit; last_deleted.deleted = true;
+    dialog.update_message(50, last_deleted, {});
+    check(ids().isEmpty() && count->text().contains(QStringLiteral("重新搜索")) &&
+          status->text() != QStringLiteral("没有匹配的消息。"), "Deleting the last loaded hit invites refresh, not fresh global emptiness");
+    start(); dialog.set_results(50, query, 0, {}, {}, false, {});
+    check(status->text() == QStringLiteral("没有匹配的消息。"), "Explicit refresh may authoritatively return an empty search page");
+
+    start();
+    dialog.set_reactions(50, 100, 7, {{QStringLiteral("👍"), {2}}}, {});
+    dialog.set_reactions(50, 100, 6, {{QStringLiteral("❤️"), {2}}}, {});
+    dialog.update_message(50, edit, {});
+    dialog.update_message(50, last_deleted, {});
+    check(ids().isEmpty() && status->text() == QStringLiteral("正在搜索…"),
+          "Unknown live events remain invisible and do not overwrite pending-search status");
+    dialog.set_results(50, query, 0, {message(100), message(101)}, {}, true, {});
+    auto const merged_reactions = index_for(100).data(message_model::reactions_role).value<QList<reaction_data>>();
+    check(ids() == QList<qint64>{100} && index_for(100).data(message_model::text_role).toString() == edit.text &&
+          !merged_reactions.isEmpty() && merged_reactions.front().emoji == QStringLiteral("👍"),
+          "Initial late pages reconcile unknown edits, deletion and independent reaction revision");
+    more->click();
+    auto dead80 = message(80); dead80.deleted = true;
+    auto dead81 = message(81); dead81.deleted = true;
+    dialog.update_message(50, dead80, {}); dialog.update_message(50, dead81, {});
+    dialog.update_message(50, message(10), {});
+    dialog.set_results(50, query, 100, {message(80), message(81)}, {}, true, {});
+    check(ids() == QList<qint64>{100} && more->isEnabled(), "An all-filtered older page still permits pagination without exposing unknown live IDs");
+    more->click();
+    check(requests.back().second == 80, "Pagination uses the current raw-page boundary, not visible or cached-source first ID");
+    results->setCurrentIndex(index_for(100));
+    dialog.set_reactions(50, 78, 9, {}, {});
+    dialog.set_reactions(50, 78, 8, {{QStringLiteral("❤️"), {2}}}, {});
+    auto live79 = message(79); live79.edited_at = 25; live79.text = QStringLiteral("older-page live body no longer matching");
+    dialog.update_message(50, live79, {});
+    auto raw78 = message(78); raw78.reaction_revision = 1; raw78.reactions = {{QStringLiteral("👍"), {2}}};
+    auto const raw79 = message(79);
+    dialog.set_results(50, query, 80, {raw78, raw79}, {}, false, {});
+    check(ids() == QList<qint64>{78, 79, 100} && index_for(78).data(message_model::text_role).toString() == raw78.text &&
+          index_for(78).data(message_model::reactions_role).value<QList<reaction_data>>().isEmpty() &&
+          index_for(79).data(message_model::text_role).toString() == live79.text &&
+          results->currentIndex().data(message_model::id_role).toLongLong() == 100 &&
+          results->selectionModel()->isSelected(results->currentIndex()),
+          "Reaction-only pending clears retain the real unedited body and older-page merges retain selected ID");
+    auto dead79 = raw79; dead79.deleted = true; dialog.update_message(50, dead79, {});
+    check(results->currentIndex().data(message_model::id_role).toLongLong() == 100,
+          "Deleting a preceding visible row preserves selected identity");
+    auto dead78 = raw78; dead78.deleted = true; dialog.update_message(50, dead78, {});
+    dialog.update_message(50, deleted, {});
+    check(ids().isEmpty() && !results->currentIndex().isValid() && results->selectionModel()->selectedRows().isEmpty(),
+          "Deleting the selected last visible hit clears selection and current index");
+
+    start();
+    auto dead60 = message(60); dead60.deleted = true;
+    auto dead61 = message(61); dead61.deleted = true;
+    dialog.update_message(50, dead60, {}); dialog.update_message(50, dead61, {});
+    dialog.set_results(50, query, 0, {message(60), message(61)}, {}, true, {});
+    check(ids().isEmpty() && more->isEnabled(), "A wholly hidden loaded set still exposes its real older-page action");
+    more->click();
+    check(requests.back().second == 60, "Zero visible hits preserve the initial raw-page cursor");
+
+    start(); dialog.set_results(50, query, 0, {message(100)}, {}, true, {}); more->click();
+    dialog.set_results(50, query, 100, {}, {}, false, QStringLiteral("测试搜索错误"));
+    dialog.update_message(50, edit, {}); dialog.set_reactions(50, 100, 30, {}, {});
+    auto foreign = deleted; foreign.conversation = 51;
+    dialog.update_message(50, foreign, {}); dialog.update_message(51, deleted, {});
+    check(ids() == QList<qint64>{100} && status->text() == QStringLiteral("测试搜索错误"),
+          "Live events preserve page-error status and foreign-conversation events cannot delete a loaded hit");
+    dialog.set_reactions(50, 99, 50, {{QStringLiteral("❤️"), {2}}}, {});
+    auto const request_count = requests.size();
+    start();
+    check(requests.size() == request_count + 1 && requests.back() == qMakePair(query, qint64(0)) && ids().isEmpty(),
+          "Same-query explicit refresh sends a new before-zero request and resets loaded membership");
+    dialog.set_results(50, query, 100, {message(80)}, {}, true, {});
+    dialog.set_results(51, query, 0, {message(100)}, {}, false, {});
+    dialog.set_results(50, QStringLiteral("old query"), 0, {message(100)}, {}, false, {});
+    check(ids().isEmpty() && status->text() == QStringLiteral("正在搜索…"), "Stale before/query/conversation pages cannot overwrite a refresh");
+    dialog.set_results(50, query, 0, {message(99)}, {}, false, {});
+    check(index_for(99).data(message_model::reactions_role).value<QList<reaction_data>>().isEmpty(),
+          "Same-query refresh does not reuse pending reaction state from a prior request scope");
+
+    start(); dialog.set_results(50, query, 0, {message(100), message(101), message(102)}, {}, true, {});
+    results->setCurrentIndex(index_for(101));
+    auto middle_deleted = message(101); middle_deleted.deleted = true;
+    dialog.update_message(50, middle_deleted, {});
+    check(results->currentIndex().data(message_model::id_role).toLongLong() == 102 &&
+          results->selectionModel()->isSelected(results->currentIndex()), "Deleted selected hit moves to the nearest next visible hit");
+    auto final_deleted = message(102); final_deleted.deleted = true; dialog.update_message(50, final_deleted, {});
+    check(results->currentIndex().data(message_model::id_role).toLongLong() == 100,
+          "Deleting the last selected row falls back to the preceding hit");
+    more->click();
+    auto const original = message(100).text;
+    QGuiApplication::clipboard()->clear();
+    QTimer::singleShot(0, &dialog, [&] {
+        auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+        check(menu, "Loaded-hit copying opens the real menu before a live deletion");
+        dialog.update_message(50, deleted, {});
+        dialog.set_results(50, query, 100, {message(99)}, {}, false, {});
+        check(ids() == QList<qint64>{99}, "Deletion and pending insertion genuinely replace the clicked proxy row");
+        QAction* copy = nullptr;
+        for (auto* action : menu->actions()) { if (action->text() == QStringLiteral("复制消息")) { copy = action; } }
+        check(copy, "The already-open menu retains its captured copy action");
+        menu->setActiveAction(copy);
+        QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier, "\r");
+        QApplication::sendEvent(menu, &enter);
+    });
+    results->customContextMenuRequested(results->visualRect(index_for(100)).center());
+    check(QGuiApplication::clipboard()->text() == original,
+          "An already-open copy menu keeps its captured original text, never the replacement row");
+    dialog.reject();
+    std::cout << "PASS Qt loaded search hits, live reconciliation, raw cursors, status, selection and captured copy\n";
+}
+
 void check_message_dialogs()
 {
     message_search_dialog dialog(50, 1, false, QStringLiteral("朋友"), {}, nullptr);
@@ -1560,7 +1729,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_dialogs(); check_message_composer(); check_conversation_drafts(); check_message_search_keyboard_visibility(); return 0; }
+        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_dialogs(); check_message_composer(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
@@ -1590,6 +1759,7 @@ int main(int argc, char** argv)
         check_message_composer();
         check_conversation_drafts();
         check_message_search_keyboard_visibility();
+        check_message_search_live_policy();
         start();
         {
             chat_widget page;

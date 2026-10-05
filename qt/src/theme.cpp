@@ -104,7 +104,7 @@ QString chat_style_sheet()
         }
         QLabel#groupOverviewCount, QLabel#groupOverviewPinned, QLabel#groupOverviewInvite,
         QLabel#groupDetailHint, QLabel#groupJoinRequestsStatus, QLabel#groupStatus,
-        QLabel#messageSearchStatus, QLabel#attachmentStatus {
+        QLabel#messageSearchStatus, QLabel#messageSearchHelp, QLabel#messageSearchCount, QLabel#attachmentStatus {
             font-size: 13px;
             color: #5D6C64;
         }

@@ -464,7 +464,9 @@ Element secondary(state const& s, int width, int message_scroll)
         case page::search:
             title = "Search: " + s.search_query;
             hint = s.search_results.empty() ? "/: search again" : "Enter/y: show copyable text";
-            if (s.search_results.empty()) { rows.push_back(text("No messages match this search") | dim); }
+            rows.push_back(text("Loaded hits · live text") | dim);
+            rows.push_back(text("Re-search for current matches") | dim);
+            if (s.search_results.empty()) { rows.push_back(text("No loaded search hits") | dim); }
             for (std::size_t i = 0; i < s.search_results.size(); ++i) { rows.push_back(message_item(s, s.search_results[i], s.selected == static_cast<int>(i), width, message_scroll)); rows.push_back(text("")); }
             if (s.search_more) { rows.push_back(text("PgDn: earlier results")); }
             break;

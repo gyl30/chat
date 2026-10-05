@@ -75,8 +75,10 @@ int main()
         auto search = s;
         search.view = page::search;
         search.search_query = "no_such_message_prefix";
-        ok &= expect(draw(search, 60, 20).find("No messages match this search") != std::string::npos,
-                     "An empty message search identifies its missing matches");
+        auto empty_search = draw(search, 60, 20);
+        ok &= expect(empty_search.find("No loaded search hits") != std::string::npos &&
+                     empty_search.find("No messages match this search") == std::string::npos,
+                     "An empty message search describes loaded hits rather than claiming a fresh server match set");
         search.search_query = std::string(64, 'q');
         chat::message match;
         match.id = 1; match.conversation = 10; match.from = 2; match.username = "peer"; match.text = "matching message";
@@ -88,7 +90,24 @@ int main()
                          output.find("Enter/y: show copyable text") != std::string::npos &&
                          output.find("matching message") != std::string::npos,
                          "Long search queries do not clip the action hint or hide their selected result");
+            ok &= expect(output.find("Loaded hits") != std::string::npos &&
+                         output.find("live text") != std::string::npos &&
+                         output.find("Re-search for current matches") != std::string::npos,
+                         "Search explains loaded membership and live bodies at every supported width");
         }
+        search.search_query = "matching message";
+        auto edited = match;
+        edited.text = "edited body without the keyword";
+        edited.edited_at = 2;
+        search.apply_message(edited);
+        ok &= expect(draw(search, 60, 20).find(edited.text) != std::string::npos,
+                     "A loaded search hit keeps its live body without client-side matching");
+        edited.deleted = true;
+        search.apply_message(edited);
+        auto deleted_search = draw(search, 60, 20);
+        ok &= expect(deleted_search.find("No loaded search hits") != std::string::npos &&
+                     deleted_search.find(edited.text) == std::string::npos,
+                     "Deleting the final hit hides it without claiming no current server matches");
     }
     for (const auto& [columns, rows] : {std::pair{80, 24}, {100, 30}, {120, 40}, {60, 20}})
     {

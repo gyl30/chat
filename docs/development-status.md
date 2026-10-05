@@ -1160,3 +1160,29 @@ Qt87/TUI78不提高，T04与完整品质Goal继续推进，未push、未修改th
 capture exit0；用户名/密码/登录/注册/服务器设置及展开后的地址名称角色均可读取。
 只验证登录导航，不冒称Orca语音、错误announce或登录后全矩阵；自有进程已清理。
 详细证据和未验证边界见[体验品质审查](experience-quality.md)，旧缺bus记录仅属于历史环境。
+
+## 体验品质审查：搜索命中与实时操作目标
+
+从 `f35e7290738677dd4f3325761a77369491dad55f` 继续收口Q21/T06。搜索结果明确表示
+“已加载的查询时命中，正文实时更新；重新搜索获取当前匹配”，不在客户端重新实现
+PostgreSQL匹配。Qt使用已有message_model维护唯一正文/版本/墓碑，窄proxy仅保存返回过的
+ID membership并排除deleted；未知reaction只在完整正文到达前暂存独立revision。
+分页cursor来自当前原始返回页，过滤为空仍能加载更早页；live事件不覆盖请求反馈。
+Qt和TUI均在容器变化前临时捕获选中ID，变化后恢复同一对象或最近邻，不增加长期选中状态。
+已打开Qt复制菜单仍复制原捕获正文，不因删除/插页移交到替代行。
+
+新增永久断言实际先RED后GREEN，原断言保留。真实双TUI六档宽度删除前项后仍选MID，
+可复制正文和未重贴草稿发送与SDK逐byte一致；旧binary同动作实际RED，误选LOW。
+真实双Qt四档缩放完成编辑、删除、显式重搜、OSclipboard和草稿发送，final3实际exit0；
+AT-SPI结果行1→1→0→0。两次临时driver失败分别为关闭XID枚举和HiDPI坐标换算，
+保留失败证据，只修driver，不改产品迎合探针。主代理亲看最终原图，独立review亲看20张。
+
+最终正式 `tests/verify.sh` Qt/TUI ON，normal/ASan/UBSan各23/23，
+105.25/140.13/132.08s，runner实际exit0；全新Debug `-Werror`构建及23/23 CTest通过，
+104.74s。无编译告警、sanitizer报告、skip或timeout放宽；render0.85/4.02/1.74s，原5秒不变。
+本阶段真实Qt/X11导航4/4、TUI/tmux导航11/11。详细清理证据、前后原图和范围边界见
+[体验品质审查](experience-quality.md)。未改server/client/SQL/third，无migration或push。
+
+Q21/T06专项修复不代表整个品质目标完成。fresh-empty两条近义提示仍是轻度polish候选；
+TUI ZWJ行仍有右边界残留，outer terminal shaping/T04未完成。Qt87/TUI78不提高，
+全页面、完整日常使用、无障碍和连续两轮独立全产品fresh review仍继续开放。

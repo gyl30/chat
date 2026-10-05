@@ -1547,3 +1547,114 @@ toggle，实际focused lost/gained事件与树快照一致。初始showing且foc
 此项不证明Orca语音、输入密码后的隐私、label关系、动态错误announce、注册或登录后
 完整无障碍矩阵。toggle目前以check box/Checked表达，不提供Expanded，需在真实
 屏幕阅读器任务中继续评估，未因此新增状态或无依据地宣告P2。整体评分不提高。
+
+## 阶段 24：搜索命中语义与稳定操作目标
+
+基线 `f35e7290738677dd4f3325761a77369491dad55f`。Q21/T06不是caption装饰：
+旧Qt删除占位仍计为搜索行，旧TUI删前项后选中ID漂移，均有实际RED。
+本阶段保留服务端字面lower匹配和显式查询，不用前端casefold推导当前server匹配集合。
+
+### 事实与操作身份
+
+Qt的message_model仍是唯一正文、编辑revision、reaction revision和墓碑权威；
+message_search_results_model只持有server返回过的ID集合，筛选membership且not deleted。
+未知完整live正文/墓碑先进入既有model但不自动取得命中身份；未知reaction仅保存最高
+revision，完整正文到达后消费，不能制造空正文替代真实消息。刷新清除本次pending facet。
+next_before取当前原始页的合法最小ID，不取可见行或无关live缓存的first ID；
+整页被墓碑过滤、甚至可见集合为空时仍保留真实的更早页入口。
+
+持久说明、请求反馈、可见命中数量是三个不同label；没有新增pending/failed/received/
+fresh-empty四个bool。live事件仅更新正文、可见数量和选中目标，不抹掉loading或error。
+Qt/TUI均瞬时捕获当前ID，容器变化后按ID恢复；当前项删除才选择邻项，空集合安全清除。
+Qt嵌套菜单事件循环之前捕获复制正文，即使目标删除且迟到页插入，也不改复制对象。
+TUI搜索明确显示Loaded hits/live text及重新搜索提示，不把“没有已加载命中”称作全局空匹配。
+
+永久测试追加未知edit/delete/reaction、独立清空revision、迟到初页/旧页、原始cursor、
+all-filtered分页、同query刷新与tuple fencing、selected ID、邻项和已开菜单复制。
+TUI补前/后/当前/最后/最终空删除、真实cursor以下的迟到页、history/query/draft隔离。
+原控件和状态断言保留。Qt最终永久GREEN日志
+`/tmp/cpp-width-primary.3934Gy/q21-permanent-final-green.log`；TUI RED/GREEN存于
+`/tmp/chat-t06-selection-evidence.YdtU73`。最初TUI RED快照的迟到页fixture曾包含高于cursor
+的ID，最终修正为5/2小于10，原选中身份RED不变；不伪称前后fixture清单完全相同。
+TUI caption/render先RED后GREEN，targeted state/render/unicode/display/span实际5/5。
+
+### 双Qt真实使用与HiDPI
+
+最终normal Qt SHA `8445d49c0ba33f1076fa8981eb16efe5457f67a8b1010833df15da1c42c69630`。
+A100/125/150/200%、peer C100%，五次真实/proc binary均相同。final3 driver实际exit0，
+每档原文复制和live编辑后正文复制逐byte匹配OSclipboard；编辑不含query仍是已加载命中，
+fresh SDK查询为零；peer删除后AT-SPI列表实际无行；显式重新搜索返回权威空结果。
+草稿未重贴，原生返回composer后真实发送与SDK正文/身份一致。每档只有一个loaded hit，
+多行/分页/重入竞态属于永久public-widget覆盖，不冒称native容量或全屏幕阅读器验收。
+
+| 真实搜索列表 | before | after |
+| --- | --- | --- |
+| 100%删除 | [占位仍计一行](images/experience/before-qt-search-live-excluded-100.png) | [删除项真正排除](images/experience/after-qt-search-live-excluded-100.png) |
+| 200%删除 | [占位仍计一行](images/experience/before-qt-search-live-excluded-200.png) | [删除项真正排除](images/experience/after-qt-search-live-excluded-200.png) |
+| 200%编辑 | 原始命中正文实时改变 | [保留live正文及诚实数量](images/experience/after-qt-search-live-edited-200.png) |
+
+before和after来自独立隔离数据库，不是逐像素同fixture对比。主代理亲看最终200%编辑/
+删除和150%重搜原图；独立代理亲看final3四档edit/delete/fresh-empty/focus/draft共20张，
+并独立解析20份AT-SPI JSON、八份clipboard、四组SDK目标/草稿。报告
+`/tmp/chat-q21-independent-review-20261006.md`未发现本专项material回归，不是全产品fresh review。
+fresh-empty仍同屏显示“没有匹配的消息”和“没有已加载的搜索命中”，两条近义提示略重复，
+记录轻度展示polish候选，不借测试GREEN宣布所有视觉缺口消失。
+
+final3证据 `/tmp/chat-quality-search-live-policy-native-final3-20261006`。首轮实际exit1为
+关闭时xwininfo旧XID枚举失败；final2实际exit1为150%复制坐标来自AT-SPI逻辑extent，
+未转换成XTest物理坐标，clipboard仍sentinel。final3按actual X11窗口与accessible dialog
+的相对extent换算，不猜固定缩放倍数、不弱化原文assert，产品未为此修改。
+失败目录和日志保留；最终仍有瞬时BadWindow枚举stderr，不能称所有工具日志零error。
+三个精确自建库SQL为零，11个记录Qt PID全部消失，18894无listener，源码start/end/current
+SHA一致，受保护长期服务2876288存在；不把这一PID检查外推到未逐个记录的所有工具进程。
+
+### 双TUI真实选中身份
+
+normal TUI SHA `39910f6a2efcd06ae7a50cd3ab1f48a754a24f03ee37b50496656a11b97ef95a`。
+60/70/80/100/120/160×30六条真实双客户端流程：peer发送LOW/MID/TOP，A选MID，
+peer确认删除TOP后A仍以inverse选MID；打开Copyable text取得完整UTF8正文，返回原草稿
+不重贴发送，SDK逐byte及唯一ID核验。此处是terminal可选择正文，不是系统clipboard测试。
+最终after actualexit0；旧冻结binary60×30同动作actualexit1，选中MID3漂到LOW2，
+原styled失败capture保留。旧binary的runtime source快照是当前working tree，不能冒称
+旧编译源码；独立state RED另有旧源码冻结证据。首个driver因prefix超过24字符actualexit1，
+未登录或运行业务；只修临时夹具，不把它和产品RED混为一类。
+
+| styled tmux证据 | 内容 |
+| --- | --- |
+| [before60列](images/experience/before-tui-search-live-selection-60.ansi) | 删除前项后错误选中LOW |
+| [after60列](images/experience/after-tui-search-live-selection-60.ansi) | 删除前项仍选中MID |
+| [after160列](images/experience/after-tui-search-live-selection-160.ansi) | 同目标和live说明保持 |
+
+ANSI是带样式pane capture，不是outer terminal像素。主代理读60/160，独立代理读九份
+after和两份before；ZWJ行仍有额外右边框，明确不称完整render/shaping PASS。
+目录 `/tmp/chat-quality-t06-search-selection-native-final2-20261006`及before目录保存身份/
+正文/源码/进程证据，三个精确库SQL为零，八个记录业务PID消失、18895无listener，
+专用tmux无server，长期服务未动。
+
+### 统一正式验证与剩余目标
+
+最终八个源码SHA与formal source guard一致。全新Debug Qt/TUI ON `-Werror`
+`/tmp/chat-search-live-fresh.l2VXbq`全构建及23/23 CTest通过，104.74s。
+正式 `tests/verify.sh` 的原runner实际终止exit0，记录 `VALIDATION_EXIT=0`：
+
+| 配置 | build / 全量CTest | 实际耗时 | tui_render（原5s） |
+| --- | --- | ---: | ---: |
+| normal Debug | PASS / 23/23 | 105.25s | 0.85s |
+| ASan | PASS / 23/23 | 140.13s | 4.02s |
+| UBSan | PASS / 23/23 | 132.08s | 1.74s |
+
+日志 `/tmp/chat-search-live-final-verify.log`、runner
+`/tmp/chat-search-live-final-validation.log`。无编译告警、sanitizer报告、skip、suppression
+或timeout放宽，实际ASan/UBSan插桩另核，不借上一阶段结果。
+最终源码真实Qt/X11导航4/4、TUI/tmux导航11/11，各driver actualexit0，
+目录 `/tmp/chat-quality-search-live-qt-navigation-20261006`、
+`/tmp/chat-quality-search-live-tui-navigation-20261006`；这是导航范围，不是完整日常使用。
+独立cleanup checker实际exit0：Qt库`chat_qtx11_1006031007_144761`和TUI库
+`chat_nav1006031008_144763`均SQL count0，18896/18897无listener，两个记录driver PID消失，
+自有log/DB/port关联活进程为空，专用TUI socket无server，长期2876288仍存在。
+Qt成功finally本来不写database-cleanup.txt，未因缺marker重启或伪造逐child PID清单；
+报告 `/tmp/chat-search-live-navigation-cleanup-review-20261006.md`明确验证范围。
+
+本次不修改server/client/SQL/third、无migration，无push。Q21/T06专项收口，
+Qt87/TUI78暂评不提高；T04 outer列与font shaping、全页面/完整日常使用/无障碍矩阵、
+最终两轮独立全产品fresh review仍缺证据。总体品质Goal继续推进，不标记完成。

@@ -274,6 +274,8 @@ void state::apply_search(messages_result result, bool append)
 void state::apply_message(message value)
 {
     if (value.conversation != active) { return; }
+    auto const selected_search_id = view == page::search && selected >= 0 &&
+        static_cast<std::size_t>(selected) < search_results.size() ? search_results[selected].id : 0;
     auto selected_id = message_selected >= 0 && static_cast<std::size_t>(message_selected) < messages.size()
         ? messages[message_selected].id : 0;
     auto found = std::ranges::lower_bound(messages, value.id, {}, &message::id);
@@ -289,7 +291,12 @@ void state::apply_message(message value)
         update_quote(item.reply, authoritative);
     }
     std::erase_if(search_results, [](auto const& item) { return item.deleted; });
-    if (view == page::search) { selected = bounded(selected, search_results.size()); }
+    if (view == page::search)
+    {
+        auto current = std::ranges::find(search_results, selected_search_id, &message::id);
+        selected = current == search_results.end() ? bounded(selected, search_results.size())
+                                                  : static_cast<int>(current - search_results.begin());
+    }
     if (reply && reply->id == authoritative.id)
     {
         if (authoritative.deleted) { reply.reset(); }

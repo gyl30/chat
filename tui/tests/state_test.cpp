@@ -30,6 +30,91 @@ conversation convo(std::int64_t id, bool send = true)
     value.can_send = send;
     return value;
 }
+
+void check_search_live_selection()
+{
+    auto search = [] {
+        state value;
+        value.select_conversation(7);
+        value.view = page::search;
+        value.search_query = "hello";
+        value.draft = "未发送 Unicode 草稿 é 👩‍💻";
+        value.apply_search({{msg(30), msg(20), msg(10)}, {}, true}, false);
+        value.selected = 1;
+        value.history_before = 80;
+        return value;
+    };
+    auto deleted = [](std::int64_t id) {
+        auto value = msg(id, "");
+        value.deleted = true;
+        return value;
+    };
+    for (auto id : {30, 10})
+    {
+        auto value = search();
+        value.apply_message(deleted(id));
+        check(value.selected_message() && value.selected_message()->id == 20 && value.search_results.size() == 2,
+              id == 30 ? "Deleting before search selection preserves selected message identity"
+                       : "Deleting after search selection preserves selected message identity");
+        check(value.draft == "未发送 Unicode 草稿 é 👩‍💻" && value.search_query == "hello" &&
+              value.search_before == 10 && value.search_more && value.history_before == 80,
+              "Live search deletion preserves draft, query and independent page cursors");
+    }
+    {
+        auto value = search();
+        value.apply_message(deleted(20));
+        check(value.selected == 1 && value.selected_message() && value.selected_message()->id == 10,
+              "Deleting the selected search message chooses its remaining row neighbor");
+        value.selected = 1;
+        value.apply_message(deleted(10));
+        check(value.selected == 0 && value.selected_message() && value.selected_message()->id == 30,
+              "Deleting the selected last search message clamps to its preceding neighbor");
+        value.apply_message(deleted(30));
+        check(value.selected == 0 && value.search_results.empty() && !value.selected_message() &&
+              value.draft == "未发送 Unicode 草稿 é 👩‍💻" && value.search_before == 10 && value.search_more,
+              "Deleting the final search message leaves a safe empty selection and preserves draft and cursor");
+    }
+    {
+        auto value = search();
+        value.apply_message(deleted(30));
+        auto edit = msg(20, "edited body no longer matching");
+        edit.edited_at = 200;
+        value.apply_message(edit);
+        // The pending older page contains only IDs below its cursor10. A live
+        // tombstone can arrive for one of those IDs before that page completes.
+        value.apply_message(deleted(5));
+        value.apply_search({{msg(5), msg(2)}, {}, false}, true);
+        check(value.selected_message() && value.selected_message()->id == 20 &&
+              value.selected_message()->text == "edited body no longer matching" &&
+              value.search_results.size() == 3 && value.search_results[0].id == 20 &&
+              value.search_results.back().id == 2 && value.search_before == 2 &&
+              !value.search_more && value.history_before == 80,
+              "A delayed older page preserves live selected identity, newer body and tombstone without moving history cursor");
+        check(value.draft == "未发送 Unicode 草稿 é 👩‍💻" && value.search_query == "hello",
+              "Delayed search page preserves the unsent draft and query");
+    }
+    {
+        auto value = search();
+        value.view = page::contacts;
+        value.selected = 6;
+        value.apply_message(deleted(30));
+        check(value.selected == 6 && value.search_results.size() == 2 &&
+              value.draft == "未发送 Unicode 草稿 é 👩‍💻",
+              "Background search deletion does not change selection on a non-search page");
+    }
+    {
+        auto value = search();
+        auto other = deleted(30);
+        other.conversation = 99;
+        value.apply_message(other);
+        check(value.selected == 1 && value.selected_message()->id == 20 && value.search_results.size() == 3,
+              "An unrelated-conversation deletion cannot alter search selection");
+        value.selected = -1;
+        value.apply_message(msg(20));
+        check(value.selected == 0 && value.selected_message()->id == 30,
+              "An invalid prior search selection clamps without reading outside the vector");
+    }
+}
 }
 
 int main()
@@ -289,6 +374,7 @@ int main()
               "Older search page remains accessible after filtered page");
         searched.select_conversation(99);
         check(!searched.search_before, "Conversation switch clears search cursor");
+        check_search_live_selection();
         check(state::layout(39, 24) == layout_mode::too_small && state::layout(120, 11) == layout_mode::too_small &&
               state::layout(60, 20) == layout_mode::narrow && state::layout(80, 24) == layout_mode::narrow &&
               state::layout(100, 30) == layout_mode::wide && state::layout(120, 40) == layout_mode::wide,

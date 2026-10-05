@@ -11,6 +11,7 @@ class QLineEdit;
 class QListView;
 class QPushButton;
 class message_model;
+class message_search_results_model;
 
 class message_search_dialog final : public QDialog
 {
@@ -29,19 +30,37 @@ class message_search_dialog final : public QDialog
     void search_requested(QString query, qint64 before);
 
    private:
+    struct selection_state
+    {
+        qint64 current = 0;
+        qint64 selected = 0;
+        int row = -1;
+    };
+    struct pending_reaction
+    {
+        qint64 revision = 0;
+        QList<reaction_data> reactions;
+    };
     void request_search(bool older);
+    selection_state selection() const;
+    void restore_selection(selection_state const& previous);
+    void consume_reaction(qint64 message);
+    void refresh_count();
 
     qint64 conversation_;
     bool group_;
     QString query_;
     qint64 before_ = 0;
     qint64 next_before_ = 0;
+    QHash<qint64, pending_reaction> pending_reactions_;
     QLineEdit* input_;
     QPushButton* search_button_;
     QPushButton* more_button_;
     QLabel* status_;
+    QLabel* count_;
     QListView* results_;
     message_model* messages_;
+    message_search_results_model* visible_messages_;
 };
 
 #endif
