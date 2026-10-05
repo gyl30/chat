@@ -111,8 +111,8 @@ QQ 材料来自[官方下载页](https://im.qq.com/download)和
 | Q04 | P2 | Qt 新朋友列表仍有默认控件选中样式和大片分隔空白，与联系人行节奏不一致 | 已修复并通过完整验证 |
 | Q05 | P2 | Qt 群资料/管理界面表单和等宽文字按钮密集，信息和操作缺少分层 | 已修复；第七轮真实 X11 与键盘复核 |
 | T01 | P2 | TUI 登录 URL 为首要焦点，按钮各自带框，用户名规则长期占一整行 | 已修复并通过完整验证 |
-| T02 | P2 | TUI 空消息、空申请等不同页面均出现泛化的 No items | 未处理 |
-| T03 | P2 | TUI 长页眉和操作提示在窄屏缺少清楚的摘要层级 | 未处理 |
+| T02 | P2 | TUI 空消息、空申请等不同页面均出现泛化的 No items | 第八轮修复五处已复现空态 |
+| T03 | P2 | TUI 长页眉和操作提示在窄屏缺少清楚的摘要层级 | 第八轮分离标题与操作提示；长身份摘要仍待全流程复核 |
 
 后续真实使用新增的确定问题：
 
@@ -413,3 +413,46 @@ server、client library、SQL 和依赖未修改，无 migration。
 Qt 暂评 78/100：14/20、12/15、7/10、8/10、9/10、8/10、9/10、3/5、4/5、4/5；
 TUI 保持 70/100。Q05 关闭；T02/T03、其他资料/弹窗一致性、图标 HiDPI、
 完整参考证据与最终连续两轮 fresh review 仍未完成，本阶段不等同于整个 Goal 完成。
+
+
+## 第八轮修复：终端空态与页眉层级
+
+本阶段从 `870c9ab5bfbf42193e6e818d85257943c099e004` 开始，保留已完成的桌面群资料工作。
+两个真实 TUI 和隔离 PostgreSQL 复现空会话、空历史、空入群申请、空用户搜索、空消息搜索；
+五页原先均显示泛化的 `No items`。现在分别说明当前页缺少的内容，
+空会话提供现有 `N` 入口，空消息搜索提供现有 `/` 入口，不新增动作。
+文字说明当前显示内容，没有新增 loading 状态或把短暂空快照解释成永远没有历史。
+
+搜索、好友申请、成员、联系人选择和复制页把页面标题与次级键盘提示分开。
+64 字符搜索词在 60–160 列下不再挤掉复制入口；无入群申请时不提示通过/拒绝。
+成员管理提示置于固定页眉，不随长名单滚出视野。
+沿用原有 `preview_text`、滚动、选中和键盘模型，没有新增组件、权限状态或包装层。
+
+真实样式证据以 ANSI 原文为准，gzip 无损保留；PNG 只是格宽评审预览，
+其临时渲染字体未覆盖所有 emoji，不能据此宣称真实终端字体或浅色背景已完整验收。
+
+| 页面 | before 预览 | after 预览 | 原始样式 |
+| --- | --- | --- | --- |
+| 空会话 | [before](images/experience/before-tui-empty-chats.png) | [after](images/experience/after-tui-empty-chats.png) | [before](images/experience/before-tui-empty-chats.ansi.gz) / [after](images/experience/after-tui-empty-chats.ansi.gz) |
+| 空历史 | [before](images/experience/before-tui-empty-history.png) | [after](images/experience/after-tui-empty-history.png) | [before](images/experience/before-tui-empty-history.ansi.gz) / [after](images/experience/after-tui-empty-history.ansi.gz) |
+| 空入群申请 | [before](images/experience/before-tui-empty-join-requests.png) | [after](images/experience/after-tui-empty-join-requests.png) | [before](images/experience/before-tui-empty-join-requests.ansi.gz) / [after](images/experience/after-tui-empty-join-requests.ansi.gz) |
+| 空用户搜索 | [before](images/experience/before-tui-empty-user-search.png) | [after](images/experience/after-tui-empty-user-search.png) | [before](images/experience/before-tui-empty-user-search.ansi.gz) / [after](images/experience/after-tui-empty-user-search.ansi.gz) |
+| 空消息搜索 | [before](images/experience/before-tui-empty-message-search.png) | [after](images/experience/after-tui-empty-message-search.png) | [before](images/experience/before-tui-empty-message-search.ansi.gz) / [after](images/experience/after-tui-empty-message-search.ansi.gz) |
+
+[60 列真实搜索结果](images/experience/after-tui-search-narrow.png)及其
+[原始样式](images/experience/after-tui-search-narrow.ansi.gz)显示长查询、操作提示与正文独立。
+现有 render 测试逐项确认 RED 后 GREEN，没有新增测试 executable 或删除原业务断言。
+TUI 定向 CTest 5/5，通过已有导航的真实 tmux 11/11、未修改 Qt 的 X11 导航 4/4。
+新增原生流程 7/7：五处空态、真实发送后六档搜索/复制/返回、空会话的新建菜单/返回。
+两次驱动把跨行单词当作缺失，修正为按正文格内容判断后完整重跑；
+失败的部分结果没有计为 PASS，自有进程和隔离数据库已清理。
+本阶段证据在 `/tmp/chat-quality-tui-empty-verified-after-20261005`、
+`/tmp/chat-quality-tui-states-navigation-20261005` 与 `/tmp/chat-quality-tui-states-qt-regression-20261005`。
+
+最终完整 `tests/verify.sh`：normal 20/20（97.76 秒）、ASan 20/20（132.49 秒）、
+UBSan 20/20（122.70 秒），Qt/TUI 均启用；无编译警告、suppression、跳过或 timeout 放宽。
+`git diff --check` PASS；server、client library、Qt、SQL 和依赖未修改，无 migration。
+TUI 暂评 74/100：13/20、12/15、7/10、8/10、9/10、8/10、8/10、3/5、2/5、4/5；
+Qt 保持 78/100。五处空态已修复，标题与操作层级的明确剪裁问题已修复；
+长身份摘要、其他资料与弹窗、图标 HiDPI、完整参考证据、浅色/色深/终端字体矩阵
+及最终连续两轮 fresh review 仍需继续，不把局部通过记为整个 Goal 完成。

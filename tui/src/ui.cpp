@@ -174,6 +174,11 @@ Element scroll(Elements items)
 Element conversation_list(state const& s)
 {
     Elements rows;
+    if (s.conversations.empty())
+    {
+        rows.push_back(text("No chats to display"));
+        rows.push_back(text("N: new chat options") | dim);
+    }
     for (std::size_t i = 0; i < s.conversations.size(); ++i)
     {
         auto const& c = s.conversations[i];
@@ -251,6 +256,7 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
 Element history(state const& s, int width, int message_scroll)
 {
     Elements items;
+    if (s.messages.empty()) { items.push_back(text("No messages to display") | dim); }
     if (s.history_more) { items.push_back(text("PgUp: load earlier history") | dim); }
     for (std::size_t i = 0; i < s.messages.size(); ++i)
     {
@@ -293,6 +299,7 @@ Element secondary(state const& s, int width, int message_scroll)
 {
     Elements rows;
     std::string title;
+    std::string hint;
     switch (s.view)
     {
         case page::new_action:
@@ -307,7 +314,10 @@ Element secondary(state const& s, int width, int message_scroll)
         case page::users:
         case page::pick_contacts:
         {
-            title = s.view == page::contacts ? "Contacts" : s.view == page::users ? "User search · Enter: profile" : "Choose friends · Space: toggle · Enter: next";
+            title = s.view == page::contacts ? "Contacts" : s.view == page::users ? "User search" : "Choose friends";
+            if (s.view == page::users && !s.users.empty()) { hint = "Enter: profile"; }
+            if (s.view == page::pick_contacts) { hint = "Space: toggle · Enter: next"; }
+            if (s.view == page::users && s.users.empty()) { rows.push_back(text("No users match this search") | dim); }
             if (s.view == page::contacts && s.contacts.empty()) { rows.push_back(text("No accepted friends yet") | dim); }
             if (s.view == page::contacts) { rows.push_back(preview_text("/: search · " + s.contacts_query) | dim); }
             if (s.view == page::pick_contacts)
@@ -352,9 +362,9 @@ Element secondary(state const& s, int width, int message_scroll)
         case page::friend_sent:
         {
             bool const incoming = s.view == page::friend_requests;
-            title = incoming ? "New friends · Incoming · Tab: outgoing" : "New friends · Outgoing · Tab: incoming";
+            title = incoming ? "New friends · Incoming" : "New friends · Outgoing";
+            hint = incoming ? "Tab: outgoing · y: accept · n: reject · Enter: profile" : "Tab: incoming · x: cancel · Enter: profile";
             auto const& requests = incoming ? s.friends.incoming : s.friends.outgoing;
-            rows.push_back(text(incoming ? "y: accept · n: reject · Enter: profile" : "x: cancel · Enter: profile"));
             for (std::size_t i = 0; i < requests.size(); ++i)
             {
                 auto const& request = requests[i];
@@ -383,16 +393,18 @@ Element secondary(state const& s, int width, int message_scroll)
         }
         case page::members:
             title = "Members (" + std::to_string(s.members.size()) + ")";
+            if (s.self_role() == member_role::owner) { hint = "A: toggle admin · O: transfer to admin · D: remove"; }
+            else if (s.self_role() == member_role::admin) { hint = "D: remove selected member"; }
             for (std::size_t i = 0; i < s.members.size(); ++i)
             {
                 auto const& m = s.members[i];
                 rows.push_back(selected(text(user_label(m.username) + " · " + role_label(m.role) + (m.id == s.self.id ? " (you)" : "")), s.selected == static_cast<int>(i)));
             }
-            if (s.self_role() == member_role::owner) { rows.push_back(text("A: toggle admin · O: transfer to admin · D: remove") | dim); }
-            else if (s.self_role() == member_role::admin) { rows.push_back(text("D: remove selected member") | dim); }
             break;
         case page::requests:
-            title = "Join requests · y: accept · n: reject";
+            title = "Join requests";
+            if (!s.requests.empty()) { hint = "y: accept · n: reject"; }
+            if (s.requests.empty()) { rows.push_back(text("No join requests to display") | dim); }
             for (std::size_t i = 0; i < s.requests.size(); ++i)
             {
                 auto const& value = s.requests[i];
@@ -401,7 +413,9 @@ Element secondary(state const& s, int width, int message_scroll)
             if (s.next_requests) { rows.push_back(text("PgDn: more requests")); }
             break;
         case page::search:
-            title = "Search: " + s.search_query + " · Enter/y: show copyable text";
+            title = "Search: " + s.search_query;
+            hint = s.search_results.empty() ? "/: search again" : "Enter/y: show copyable text";
+            if (s.search_results.empty()) { rows.push_back(text("No messages match this search") | dim); }
             for (std::size_t i = 0; i < s.search_results.size(); ++i) { rows.push_back(message_item(s, s.search_results[i], s.selected == static_cast<int>(i), width, message_scroll)); rows.push_back(text("")); }
             if (s.search_more) { rows.push_back(text("PgDn: earlier results")); }
             break;
@@ -433,20 +447,25 @@ Element secondary(state const& s, int width, int message_scroll)
             rows.push_back(text("Clipboard: copyable text page; select with your terminal."));
             break;
         case page::copy:
-            title = "Copyable text · use terminal selection · Esc: back";
+            title = "Copyable text";
+            hint = "Use terminal selection · Esc: back";
             rows.push_back(wrapped_text(s.copy_text, width));
             break;
         default: title = "Chat"; break;
     }
+    Elements panel{preview_text(title) | bold};
+    if (!hint.empty()) { panel.push_back(text(hint) | dim); }
+    panel.push_back(separator());
     if (s.view == page::help || s.view == page::copy)
     {
         auto body = vbox(std::move(rows));
         body->ComputeRequirement();
         auto const last_line = std::max(1, body->requirement().min_y - 1);
         body = body | focusPositionRelative(0.f, static_cast<float>(std::clamp(s.selected, 0, last_line)) / last_line) | vscroll_indicator | frame | flex;
-        return vbox({text(title) | bold, separator(), body}) | flex;
+        panel.push_back(body);
     }
-    return vbox({text(title) | bold, separator(), scroll(std::move(rows))}) | flex;
+    else { panel.push_back(scroll(std::move(rows))); }
+    return vbox(std::move(panel)) | flex;
 }
 Element render_impl(state const& s, int width, int height, Element compose = {}, std::string typing = {}, int message_scroll = -1)
 {

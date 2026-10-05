@@ -857,3 +857,18 @@ UBSan 20/20（124.03 s），无编译警告、suppression、跳过或 timeout �
 无编译警告、suppression、跳过或 timeout 放宽，`git diff --check` PASS。
 server、client library、SQL 和依赖未修改；证据及其余品质任务见 [体验品质审查](experience-quality.md)。
 终端空态/页眉、其他资料与弹窗、HiDPI 图标和最终连续两轮 fresh review 仍未完成。
+
+
+## 体验品质审查：终端空态与页眉
+
+五处已复现的空会话、历史、入群申请、用户搜索和消息搜索分别说明内容，
+空会话和消息搜索提示已有的下一步入口。无入群申请时不再提示通过/拒绝。
+标题、次级键盘提示和正文分层，长搜索词不再剪掉操作提示；成员管理提示固定在页眉。
+没有新增状态、公共 API 或测试 executable；未改 Qt、server、client library、SQL 和依赖。
+
+既有 render 测试先 RED 后 GREEN；TUI 定向 CTest 5/5，真实双 TUI 七项空态/搜索/复制/新建流程、
+原有 tmux 导航 11/11、Qt/X11 导航 4/4 通过。实际查看 60、70、80、100、120、160 列，
+样式原文无损保留，PNG 仅为格宽预览，不替代完整终端字体和浅色背景验收。
+完整 `tests/verify.sh`：normal 20/20（97.76 s）、ASan 20/20（132.49 s）、UBSan 20/20（122.70 s）。
+无编译警告、suppression、跳过或 timeout 放宽，`git diff --check` PASS。
+证据、评分及仍未完成的品质任务见 [体验品质审查](experience-quality.md)。

@@ -34,12 +34,54 @@ int main()
     ok &= expect(draw(s, 80, 24).find("Login / Register") != std::string::npos, "login page");
     s.self = {1, "Alice", {}};
     s.link = connection::online;
+    {
+        auto output = draw(s, 60, 20);
+        ok &= expect(output.find("No chats to display") != std::string::npos &&
+                     output.find("N: new chat options") != std::string::npos,
+                     "An empty chat list explains its content and next action");
+    }
     chat::conversation direct;
     direct.id = 10;
     direct.user = 2;
     direct.username = "张 三";
     s.conversations.push_back(direct);
     s.select_conversation(10);
+    ok &= expect(draw(s, 60, 20).find("No messages to display") != std::string::npos,
+                 "An empty history identifies messages instead of generic items");
+    {
+        auto requests = s;
+        requests.view = page::requests;
+        auto output = draw(requests, 60, 20);
+        ok &= expect(output.find("No join requests to display") != std::string::npos,
+                     "An empty group request page identifies join requests");
+        ok &= expect(output.find("y: accept") == std::string::npos,
+                     "An empty request page does not offer decisions without an applicant");
+    }
+    {
+        auto users = s;
+        users.view = page::users;
+        ok &= expect(draw(users, 60, 20).find("No users match this search") != std::string::npos,
+                     "An empty user search explains that its prefix has no matches");
+    }
+    {
+        auto search = s;
+        search.view = page::search;
+        search.search_query = "no_such_message_prefix";
+        ok &= expect(draw(search, 60, 20).find("No messages match this search") != std::string::npos,
+                     "An empty message search identifies its missing matches");
+        search.search_query = std::string(64, 'q');
+        chat::message match;
+        match.id = 1; match.conversation = 10; match.from = 2; match.username = "peer"; match.text = "matching message";
+        search.search_results = {match};
+        for (auto [columns, rows] : {std::pair{60,20}, {70,22}, {80,24}, {100,30}, {120,40}, {160,45}})
+        {
+            auto output = draw(search, columns, rows);
+            ok &= expect(output.find("Search:") != std::string::npos &&
+                         output.find("Enter/y: show copyable text") != std::string::npos &&
+                         output.find("matching message") != std::string::npos,
+                         "Long search queries do not clip the action hint or hide their selected result");
+        }
+    }
     for (const auto& [columns, rows] : {std::pair{80, 24}, {100, 30}, {120, 40}, {60, 20}})
     {
         auto output = draw(s, columns, rows);
