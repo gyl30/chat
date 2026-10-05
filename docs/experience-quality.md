@@ -161,6 +161,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q23 | P2 | 原生消息记录/搜索结果行只有正文名称，没有发送者/时间的可读取上下文 | 第二十六阶段从唯一消息model提供上下文，永久RED/GREEN及四档真实原生树/live重建/删除隐私通过；全无障碍矩阵仍开放 |
 | Q24 | P2 | 群消息可见已读人数包含peer与0，但原生Name仅描述自己消息的非零已读 | 第二十八阶段复用read_count_role，永久RED/GREEN及四档真实SDK/原生树计数一致；可见截图与完整无障碍验收分别记账 |
 | Q25 | P2 | 主消息列表可通过键盘移动当前消息，但NoSelection同时隐藏了当前行焦点 | 第二十九阶段复用现有焦点轮廓；永久RED/GREEN、四档真实键盘回复/回应/读者详情及三模式门禁通过，完整键盘矩阵仍开放 |
+| Q26 | P2 | 会话、联系人和用户搜索列表有键盘当前行，但Enter不执行对应动作 | 第三十阶段复用原生activated与现有业务动作；永久Return/小键盘Enter、真实双Qt三条Return任务及三模式完整门禁通过，完整键盘矩阵仍开放 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 第十九轮字素编辑与宽字组合符附着修复已进入生产；终端 span、裁剪、leading mark 和 shaping 仍未闭环，不计 Unicode 全矩阵通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 | T06 | P2 | TUI 搜索选中消息之前一项被删除时，只clamp索引，选中目标跳到另一ID | 第二十四阶段修复，永久RED/GREEN、真实双TUI六档选中目标/可复制正文/草稿验证通过 |
@@ -2029,3 +2030,60 @@ Qt受控-15属于清理，不冒称客户端自然退出0。
 
 本次仅收口主消息当前行可见focus与上述三条键盘任务，不是全页面/完整键盘或Orca验收。
 Qt87/TUI78不提高，T04、全页面/完整日常使用/无障碍与最终两轮fresh review继续开放。
+
+## 阶段 30：列表的键盘激活与当前目标一致
+
+基线`a5fe13eab6adcbc1e7aa938a538422d7c0f7928b`。独立真实双Qt探针先鼠标打开群，
+随后通过公开Home/Down/Return选择历史B、联系人S005和搜索结果D。完整before final5
+driver actual1，三项目标确实focused/showing，前两项selected=true，搜索结果的current
+focused但selected=false。三次Enter均未打开目标，右侧仍是旧群；不是仅根据源码缺少
+activated连接判BUG。[before原图](images/experience/before-qt-list-keyboard-enter-100.png)。
+
+本次只连接三个QListView的原生activated到既有select_conversation/select_contact/
+select_add_user。保留鼠标body/avatar分工、proxy映射、好友与只读规则，不增加状态、
+键盘框架或后端接口。永久public键盘事件回归先actualRED1，再GREEN0，分别覆盖Return
+和小键盘Enter的精确user/conversation，以及搜索资料恰好打开一次；旧单击body/头像
+不串动作等全部widgets约束仍通过。日志`/tmp/chat-list-activation-{red,green}.log`。
+
+新正常Qt SHA`33493abfbf69cf9202d0e62a6f36c4345a98d260f2a7aacb4c3edf188a858fdc`，
+after final2两Qt实际/proc exe字节在运行时均严格核验，完整driver/bus actual0。历史B
+打开SDK原conversation2并显示旧正文/只读解释；联系人S005打开正确header，独立已认证
+S005的SDK同时出现与A的可写direct3；搜索D通过Tab/Home/Return打开同名pending资料，
+未改变关系。[历史after](images/experience/after-qt-list-keyboard-enter-100.png)、
+[搜索资料after](images/experience/after-qt-user-search-keyboard-enter-100.png)。主亲看历史
+before/after、联系人after及双窗口/资料原图，动作、身份、只读与关系呈现相符。
+原生这轮只验证100%的Return；小键盘Enter来自永久widget测试，不冒称四档原生或
+完整Tab/Orca覆盖。没有直接emit信号、注入currentIndex或用SQL写入业务状态。
+
+原生证据分别为`/tmp/chat-quality-list-keyboard-before-final5-native-20261006`和
+`/tmp/chat-quality-list-keyboard-after-final2-native-20261006`。四个before驱动失败依次
+为误假设历史row索引、使用未认证SDK actor、过早查询尚未到达的搜索结果、误要求current
+搜索结果必须selected；只修/tmp定位，不改产品或放宽目标/15s。完整final5三项产品RED
+独立保留，不拼局部失败为一轮。首次after漏载测试数据库环境，createdb在启动产品前
+失败；单独日志保留，新目录加载实际环境后完整运行，未增加production fallback。
+
+### 门禁与开放项
+
+既有fresh目录`/tmp/chat-read-context-fresh.JwLH7s`此次增量-Werror全build和23/23
+CTest actual0，109.70s；不是另一次fresh configure。原tests/verify.sh actual0，
+`LIST_ACTIVATION_VALIDATION_EXIT=0`，16份冻结source首尾一致，Qt/TUI均ON。
+
+| 配置 | build / 全量CTest | 实际耗时 | tui_render（原5s） |
+| --- | --- | ---: | ---: |
+| normal Debug | PASS / 23/23 | 107.04s | 0.85s |
+| ASan | PASS / 23/23 | 139.26s | 4.05s |
+| UBSan | PASS / 23/23 | 133.24s | 1.76s |
+
+日志`/tmp/chat-list-activation-{validation,strict-build,strict-ctest,final-verify}.log`，
+无新增编译告警/sanitizer报告、skip或timeout放宽。实际flags单独核：strict为-g/-Werror，
+正式三模式保留原-Wall/-Wextra/-Wpedantic及各自插桩，不冒称正式脚本也加了-Werror。
+
+独立checker actual0：`/tmp/chat-list-keyboard-stage30-independent-review.json`，主也
+逐项核验三原生目标、S005的SDKdirect、driver snapshot逐字节一致与source4 current
+一致。独立cleanup`/tmp/chat-list-keyboard-stage30-cleanup-independent.json`：before库
+`chat_qtx11_1006053112_390937`和after库`chat_qtx11_1006053820_401345`SQL count0，
+20个记录descendants消失，18906无listener，长期服务2876288仍在；不外推未记录的
+所有进程。真实/proc binary SHA在driver运行时断言，没有单独保存每个进程SHA清单。
+
+字体候选与终端T04研究未混入源代码；Qt87/TUI78不提高，全页面/完整日常任务/无障碍
+及最终连续两轮fresh review仍开放。无server/client/SQL/third修改，无migration或push。

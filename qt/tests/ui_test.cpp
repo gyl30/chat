@@ -469,6 +469,29 @@ void check_primary_navigation()
           }), "Add friend input and results expose their accessible purpose independently of placeholder text");
     auto const search_row = (*search_list)->visualRect((*search_list)->model()->index(0, 0));
     check_profile_avatar_click(*search_list, QPoint(20, search_row.center().y()));
+    for (auto key : {Qt::Key_Return, Qt::Key_Enter})
+    {
+        int opened_profiles = 0;
+        bool correct_profile = false;
+        QTimer close_profile;
+        QObject::connect(&close_profile, &QTimer::timeout, &page, [&] {
+            auto* profile = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+            if (profile && profile->objectName() == "profileDialog")
+            {
+                ++opened_profiles;
+                correct_profile = profile->windowTitle() == QStringLiteral("搜索 用户");
+                profile->reject();
+            }
+        });
+        close_profile.start(0);
+        (*search_list)->setFocus();
+        QKeyEvent home(QEvent::KeyPress, Qt::Key_Home, Qt::NoModifier);
+        QApplication::sendEvent(*search_list, &home);
+        QKeyEvent activate(QEvent::KeyPress, key, Qt::NoModifier);
+        QApplication::sendEvent(*search_list, &activate);
+        close_profile.stop();
+        check(opened_profiles == 1 && correct_profile, "User search keyboard activation opens exactly the current user's profile");
+    }
     auto* back = page.findChild<QToolButton*>("sidebarHeaderButton");
     auto* chats = *std::find_if(buttons.begin(), buttons.end(), [](auto* button) { return button->text() == QStringLiteral("聊天"); });
     check(chats->objectName() == "navigationSelected", "Add friend from Chats preserves primary ownership");
@@ -565,8 +588,9 @@ void check_primary_navigation()
                        {12, QStringLiteral("a.b"), false, 0, {}}, {13, QStringLiteral("Älice"), false, 0, {}}});
     QApplication::processEvents();
     int direct_requests = 0;
+    qint64 direct_user = 0;
     auto direct_connection = QObject::connect(&page, &chat_widget::direct_conversation_requested, &page,
-        [&](qint64, QString) { ++direct_requests; });
+        [&](qint64 user, QString) { ++direct_requests; direct_user = user; });
     auto const contact_row = contact_view->visualRect(contact_view->model()->index(0, 0));
     check_profile_avatar_click(contact_view, QPoint(20, contact_row.center().y()));
     check(direct_requests == 0, "Opening a contact avatar profile does not also open its chat after close");
@@ -574,8 +598,21 @@ void check_primary_navigation()
     QMouseEvent contact_release(QEvent::MouseButtonRelease, QPoint(80, contact_row.center().y()), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
     QApplication::sendEvent(contact_view->viewport(), &contact_press);
     QApplication::sendEvent(contact_view->viewport(), &contact_release);
-    QObject::disconnect(direct_connection);
     check(direct_requests == 1, "A contact row body still opens its chat with one click");
+    contact_view->setFocus();
+    QKeyEvent home(QEvent::KeyPress, Qt::Key_Home, Qt::NoModifier);
+    QKeyEvent down(QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier);
+    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QKeyEvent end(QEvent::KeyPress, Qt::Key_End, Qt::NoModifier);
+    QKeyEvent keypad_enter(QEvent::KeyPress, Qt::Key_Enter, Qt::NoModifier);
+    QApplication::sendEvent(contact_view, &home);
+    QApplication::sendEvent(contact_view, &down);
+    QApplication::sendEvent(contact_view, &enter);
+    check(direct_requests == 2 && direct_user == 11, "Contacts Enter opens exactly the current accepted contact");
+    QApplication::sendEvent(contact_view, &end);
+    QApplication::sendEvent(contact_view, &keypad_enter);
+    check(direct_requests == 3 && direct_user == 13, "Contacts keypad Enter opens exactly the current accepted contact");
+    QObject::disconnect(direct_connection);
     conversation_data direct;
     direct.id = 91; direct.user = 10; direct.username = QStringLiteral("Alice Bob");
     auto other = direct;
@@ -586,14 +623,22 @@ void check_primary_navigation()
     auto* conversations = page.findChild<QListView*>("conversationList");
     click_list_body(conversations, conversations->model()->index(0, 0));
     int chat_opens = 0;
+    qint64 opened_conversation = 0;
     auto chat_connection = QObject::connect(&page, &chat_widget::conversation_selected, &page,
-        [&](qint64, bool) { ++chat_opens; });
+        [&](qint64 conversation, bool) { ++chat_opens; opened_conversation = conversation; });
     auto const conversation_row = conversations->visualRect(conversations->model()->index(1, 0));
     check_profile_avatar_click(conversations, QPoint(20, conversation_row.center().y()));
     check(chat_opens == 0, "Opening a direct conversation avatar profile does not also select its chat after close");
     click_list_body(conversations, conversations->model()->index(1, 0));
-    QObject::disconnect(chat_connection);
     check(chat_opens == 1, "A direct conversation row body still selects its chat with one click");
+    conversations->setFocus();
+    QApplication::sendEvent(conversations, &home);
+    QApplication::sendEvent(conversations, &enter);
+    check(chat_opens == 2 && opened_conversation == 91, "Chats Enter opens exactly the current conversation");
+    QApplication::sendEvent(conversations, &end);
+    QApplication::sendEvent(conversations, &keypad_enter);
+    check(chat_opens == 3 && opened_conversation == 92, "Chats keypad Enter opens exactly the current conversation");
+    QObject::disconnect(chat_connection);
     for (auto* button : buttons)
     { if (button->text() == QStringLiteral("联系人")) { button->click(); } }
     auto* contact_search = *std::find_if(searches.begin(), searches.end(), [](auto* field) {

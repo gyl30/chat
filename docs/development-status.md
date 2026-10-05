@@ -1294,3 +1294,26 @@ origin/宽窄/1x2x约束保留。
 正式脚本保留原warnings，只有strict目录单列-Werror。证据和原图见
 [体验品质审查](experience-quality.md)。无third/server/client/SQL修改或push。
 Qt87/TUI78不提高，T04、Qt emoji拆画、完整页面/日常任务/无障碍和最终两轮review继续开放。
+
+## 体验品质审查：列表键盘激活
+
+从`a5fe13eab6adcbc1e7aa938a538422d7c0f7928b`继续。真实双Qt完整before三条公开
+Home/Down/Tab/Return任务actual1：历史会话、联系人和用户搜索结果均已正确focused，
+Enter却不打开目标。本次只给三个QListView连接原生activated，直接复用既有业务动作，
+不新增状态/快捷键框架，不改变好友、只读或body/avatar鼠标语义。永久Return与小键盘
+Enter的精确身份/一次激活回归actualRED1→GREEN0，旧widgets约束仍通过。
+
+新33493abf…binary双Qt100%完整after actual0：历史B原conversation2与只读正文、
+联系人S005对应header及独立SDK的direct3→A1、搜索D同名pending资料全真。
+主和独立代理亲看before/after原图并核identity；driver/source snapshot逐字节一致。
+原生只Return100%，不冒称小键盘/fourDPI/全键盘或Orca验收。此前临时定位/SDK actor/
+等待/selected假设错误及首次漏载PG环境均保留失败证据，只改/tmp驱动，不改产品
+迎合probe或放宽原目标/15s。两个exact测试库0、20记录PIDgone、18906无listener，
+长期服务未动。
+
+既有fresh目录增量-Werror全build和23/23 CTest109.70s，不称新fresh配置。
+原tests/verify.sh normal/ASan/UBSan各23/23，107.04/139.26/133.24s；实际runner0，
+16份source首尾一致，render原5s保留，无skip/新增编译告警或sanitizer报告。
+正式三模式原warnings与strict -Werror分别记账。证据与截图见
+[体验品质审查](experience-quality.md)。无third/server/client/SQL修改或push。
+Qt87/TUI78不提高，字体/Unicode、全页面/完整日常任务/无障碍和最终两轮review继续开放。
