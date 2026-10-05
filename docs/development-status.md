@@ -1370,3 +1370,22 @@ normal/ASan/UBSan各23/23，105.70/139.73/133.70s，runner实际0，17项source�
 Qt87/TUI78不提高；Q27/T04、完整页面/日常/无障碍与最终连续两轮审查仍未完成。
 后续附件文件选择器取消/上传/另一端保存任务仍待实际运行。未改third/server/SQL/依赖，
 未push。
+
+## 体验品质审查：账号缩放与附件原文
+
+同 d64/cfd2073d… 的125%、150%、200%独立完整原生账号流程均actual0：注册错误、
+Cancel重开、真实注册/SDK身份、登录、Account、默认安全取消和显式注销后的用户名焦点。
+窗口物理读回1475×950/1770×1140/2360×1520证明有效应用缩放，不冒称硬件DPI。
+主独立三轮17项核验全真，代理亲看48原图；三个exact库SQL0、66/71/69记录PID均gone，
+18908空。200%首尝试bind预检失败未启动Qt，保留证据、未把根因猜测写成事实。
+
+双真实Qt100%附件final3整次actual0：Open取消保原回复/64byte多行草稿；原96byte中文名
+文件真实GUI上传reply2，另一端Save取消再保存；GUI/SDK原bytes相等，最小980×640原草稿
+实际发送reply=null并被另一端接收。主独立27、代理18原文/14清理检查全真，40源/实际SHA/
+3快照/4依赖一致，exact库SQL0、35记录PID与3观测AT-SPI均gone、18911空。前两次菜单
+驱动ready/标签slash路径错误actual1保留，不用片段拼接成功。
+
+但亲看原图确认新增P2 Q29：实际Open/Save路径、类型combo和表头黑底深字，近不可读。
+公开Qt fallback两mode实际palette/paint也复现，业务PASS不等于附件craft PASS。
+本提交仅原图/审查，不冒称新build/新全量gate；详情见[体验品质审查](experience-quality.md)。
+Qt87/TUI78不提高，Q27/Q29/T04与完整矩阵/连续两轮fresh review仍开放。未push。

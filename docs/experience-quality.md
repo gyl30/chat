@@ -164,6 +164,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q26 | P2 | 会话、联系人和用户搜索列表有键盘当前行，但Enter不执行对应动作 | 第三十阶段复用原生activated与现有业务动作；永久Return/小键盘Enter、真实双Qt三条Return任务及三模式完整门禁通过，完整键盘矩阵仍开放 |
 | Q27 | P2 | 当前 Qt 字体回退将复合 emoji 拆成独立图形，正文、回复和 composer 都可见 | 第三十一阶段真实双 Qt 保留拆画证据；通用 Noto 回退候选引入 keycap 回退而被拒绝，专用序列字体接口尚未实测，不计完成 |
 | Q28 | P2 | 账号注销返回登录后，键盘焦点落在服务器设置，而非主要身份输入 | 第三十二阶段在注销完成且登录控件恢复可用后返回用户名焦点；同一永久测试 RED→GREEN，完整原生流程 before actual1→after actual0，范围与门禁见下文 |
+| Q29 | P2 | 实际 Open/Save 文件选择器的路径、类型框和表头出现黑底深字，近不可读 | 第三十三阶段真实附件业务通过，但原图明确存在低对比；独立 public QFileDialog 探针复现，不把业务 PASS 当视觉 PASS，待局部修复 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 第十九轮字素编辑与宽字组合符附着修复已进入生产；终端 span、裁剪、leading mark 和 shaping 仍未闭环，不计 Unicode 全矩阵通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 | T06 | P2 | TUI 搜索选中消息之前一项被删除时，只clamp索引，选中目标跳到另一ID | 第二十四阶段修复，永久RED/GREEN、真实双TUI六档选中目标/可复制正文/草稿验证通过 |
@@ -2272,3 +2273,73 @@ exact库 `chat_nf1006063454_497580` SQL0，6个记录进程及自有socket gone�
 不提高；Q27、T04、完整页面/参考/日常任务/无障碍矩阵和最终连续两轮全产品fresh
 review继续开放。下一条日常任务是附件上传/保存及文件选择器取消的真实键盘闭环，
 尚未执行，不记为通过。无server/client/SQL/third/依赖修改，无push。
+
+## 阶段 33：账号缩放与附件键盘闭环的真实边界
+
+本阶段运行基线 `d64d24d4e23c88b18002c11f5bbb994567454043`。这里记录同一已验证
+cfd2073d… 正常 Qt 二进制的额外真实使用，不把新的证据称为新的产品修改或全量构建。
+
+### 125%、150%、200% 完整账号流程
+
+三轮分别独立从登录开始，经注册空/非法用户名/密码不一致错误、Cancel 与真实重开、
+GUI 注册、认证 S005 精确查新身份、公开登录、Account、默认 Return 安全取消、再次
+显式注销到用户名实际 focus，全部 actual0，原15s等待不变。没有直接 focus 用户名、
+accessible Press、Qt 模型注入或 SQL 业务写入。原始错误和焦点图：
+[125%](images/experience/after-qt-logout-focus-125.png)、
+[150%](images/experience/after-qt-logout-focus-150.png)、
+[200%](images/experience/after-qt-logout-focus-200.png)、
+[200% 注册错误](images/experience/audit-qt-registration-mismatch-200.png)。图片未裁剪或重画。
+
+| 应用缩放 | 实际 X11 屏幕 | 实际主窗口物理尺寸 | 原始目录后缀 | 记录 PID 全 gone |
+| --- | --- | --- | --- | ---: |
+| 125% | 1600×1125 | 1475×950 | `after125-20261006` | 66/66 |
+| 150% | 1920×1350 | 1770×1140 | `after150-20261006` | 71/71 |
+| 200% | 2560×1800 | 2360×1520 | `after200-final-20261006` | 69/69 |
+
+每目录前缀 `/tmp/chat-quality-registration-keyboard-i3-`。每轮16次 xwininfo 读回
+窗口尺寸，相对于源初始化1180×760的比例准确对应应用缩放；不是只记录环境变量，
+也不冒称物理显示器 DPI 或 QScreen DPR 查询。相同原动作参数化 driver 的 SHA 为
+2cc1b8e…，源40项、ui_test、实际 /proc Qt SHA 与首尾 guards 一致。认证 S005 分别
+返回唯一 `键盘R_b552515b44ed`、`键盘R_9d5a7a9a2748`、`键盘R_305e8e87a2af`，均 id7；
+最终 focus 树实际用户名与原身份逐字相同，密码不从可访问树取明文。
+
+主复核三张最后原图和200%密码不一致图，独立代理亲看48张原图；所捕获中文、错误、
+确认和焦点清晰、未见控件裁切。只覆盖这条账号流程，不替代其他页、头像、IME 或 Orca。
+主 `/tmp/chat-logout-hidpi-main-independent.json` 三轮各17检查全真，actual0。精确库
+`chat_qtx11_1006070045_538005`、`chat_qtx11_1006070246_541017`、
+`chat_qtx11_1006070432_544280` 分别 SQL0；记录/core/三个各自 AT-SPI PID 均 gone，
+18908空，保护2876288存在。200%首尝试在 bind 预检查 OSError98 actual1、未启动Qt、
+无库/owned PID，原目录保留；失败时 socket 状态缺失，不把 TIME_WAIT 猜测写成根因。
+
+### 两个真实 Qt 的原文件与原草稿
+
+`/tmp/chat-quality-attachment-keyboard-native-final3-20261006` 整次 actual0：两实际
+Qt100%，正常1280×800到A最小980×640，真实键盘菜单 Reply 原C消息 id2；Open 取消
+保持原回复、原多行草稿和历史 [2]；重开并真实上传自有中文名96byte文件为 id3/reply2；
+C定位原附件行、Download、Save取消保持 [2,3] 且不写目标，再真实Save；最后A在最小
+窗口发送原草稿 id4/reply=null，C接收。已认证 SDK 独立核原ID和字节，不冒用A/C第二连接。
+上传源、C GUI 保存和 SDK 下载逐byte相等，SHA c4145090…；四份系统 clipboard 原文
+保持64byte、多行、组合符和双空格。没有通过缩短内容或测试后门换取成功。
+
+主独立27检查、代理独立18原文/身份检查与14清理检查全真。原图21份是17张完整X11
+加4张窗口裁剪，不是21独立任务；主亲看三个完整选择器图，代理亲看13份。实际双Qt
+/proc统一cfd2073d…，源40、driver/helper/reader快照与4输入依赖首尾一致。精确库
+`chat_qtx11_1006070941_551962` SQL0，35记录后代/core/3 observed AT-SPI PID 均 gone，
+18911空，长期服务未动。原首轮未等菜单实际动作 readiness、final2 的artifact标签
+`文件/图片`误当路径，分别 actual1，原trace/清理保留；final3独立完整重做，不拼成功片段。
+
+### 新发现 Q29：业务成功不代表文件选择器可读
+
+[原始 Open 图](images/experience/before-qt-file-chooser-contrast-100.png)中的路径框、
+文件类型框、表头是黑底深字；Save 原图同样，当前附件 craft 不通过。主与独立代理
+均亲看确认。没有仅因为测试绿色而提高评分或关闭这个问题。
+
+隔离 `/tmp/chat-file-chooser-probe-20261006` 使用原主题与公开 QFileDialog，两个
+AcceptMode 实际 paint 和 palette 均读回背景 #000000 / 文字 #27332E；这是可重现
+的主题/平台交互，不需要强制禁止系统 native chooser。下一阶段局部修复及真正
+after/永久回归/完整门禁另记，不能由本阶段业务证据预先宣布修复。
+
+本阶段提交只增加审查和原图，既有 d64 的 strict/normal/ASan/UBSan 门禁继续按原范围
+记账，不声称本阶段重新构建。Qt87/TUI78不提高；Q27、Q29、T04、完整参考/全页面/
+日常/无障碍矩阵和最终连续两轮全产品 fresh review 未完成。未 push 或修改 third、
+server/client/SQL/依赖。
