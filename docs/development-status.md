@@ -1249,3 +1249,25 @@ copyable display不冒充OSrawclipboard；受控xterm15不冒充自然0。
 同13份冻结源码fresh全构建-Werror23/23及正式normal/ASan/UBSan各23/23已通过，
 source guard一致，原5s render未放宽。完整证据/原图/失败边界见
 [体验品质审查](experience-quality.md)。未push，Qt87/TUI78不提高；T04与整体目标继续推进。
+
+## 体验品质审查：群读者信息等价性
+
+从 `6318d8653f2516e643f8ac35440cf5d6d103a3d7` 继续。群消息既有可见read_count_role
+包含peer与0，原生Name此前仅描述自己消息的非零已读；本次复用同一role，valid人数优先，
+direct自己的已读回退保留。没有新增计数缓存/状态、改变布局或server规则，墓碑隐私保持。
+永久models actualRED1→GREEN0，widgets actual0，所有旧断言保留。
+
+新正常binary4d2ea422…eca6的双Qt四档同轮actual0；五实际/proc SHA一致，16组SDK成员/
+read-position人数与原生Name精确对应，incoming同ID同path真实0→1。原Q23链与12份
+OSclipboard、草稿真实发送、搜索live编辑/reset/删除/墓碑和原动作均保留。三自建库0、
+记录PID消失、18901无listener，长期服务未动；主独立checker actual0。
+100/125/200新增0/1可见，150两节点showing=false、图片在视口外，明确只算原生树证据。
+主亲看100/200窗口原图，不冒称全部四档可见或全页面/Orca/动态announce通过。
+
+全新Qt/TUI ON Debug -Werror首次build因/tmp磁盘耗尽actual2，失败日志保留；只清理主
+旧自有两套构建的六个可重建object目录，binary/log/JSON/原图均保留。同fresh目录续构0，
+23/23 CTest108.57s。原tests/verify.sh正式normal/ASan/UBSan各23/23，105.84/143.36/
+130.96s，runner实际0、13份source guard一致。实际strict warnings/插桩另核，fresh才单列
+-Werror；原render5s不变，未skip，无新增编译告警/sanitizer报告，不借前阶段门禁。
+详细证据和限制见[体验品质审查](experience-quality.md)。Qt87/TUI78不提高，
+主消息keyboard入口、T04、完整页面/日常使用与最终两轮fresh review仍开放。未push。

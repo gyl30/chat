@@ -103,11 +103,14 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             {
                 if (message.edited_at > 0) { parts.push_back(QStringLiteral("已编辑")); }
                 if (data(index, mentioned_role).toBool()) { parts.push_back(QStringLiteral("提及你")); }
-                if (outgoing && data(index, read_role).toBool())
+                auto const count = data(index, read_count_role);
+                if (count.isValid())
                 {
-                    auto const count = data(index, read_count_role);
-                    parts.push_back(count.isValid() ? QStringLiteral("已读 %1 人").arg(count.toInt())
-                                                    : QStringLiteral("已读"));
+                    parts.push_back(QStringLiteral("已读 %1 人").arg(count.toInt()));
+                }
+                else if (outgoing && data(index, read_role).toBool())
+                {
+                    parts.push_back(QStringLiteral("已读"));
                 }
                 for (auto const& reaction : message.reactions)
                 {

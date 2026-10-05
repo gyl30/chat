@@ -159,6 +159,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q21 | P2 | 搜索正文实时更新后可能不再匹配；删除占位仍计入“找到”数量，与界面说明矛盾 | 第二十四阶段修复，正式三模式、真实双Qt四档与AT-SPI行数/复制/草稿核验通过 |
 | Q22 | P2 | 原生无障碍树中的搜索输入/结果、会话/消息列表和个人资料入口没有动作名称 | 第二十五阶段补九个稳定操作名称，原生四档树、资料/联系人/添加好友实际AT-SPI动作通过；不代表全部屏幕阅读器验收 |
 | Q23 | P2 | 原生消息记录/搜索结果行只有正文名称，没有发送者/时间的可读取上下文 | 第二十六阶段从唯一消息model提供上下文，永久RED/GREEN及四档真实原生树/live重建/删除隐私通过；全无障碍矩阵仍开放 |
+| Q24 | P2 | 群消息可见已读人数包含peer与0，但原生Name仅描述自己消息的非零已读 | 第二十八阶段复用read_count_role，永久RED/GREEN及四档真实SDK/原生树计数一致；可见截图与完整无障碍验收分别记账 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 第十九轮字素编辑与宽字组合符附着修复已进入生产；终端 span、裁剪、leading mark 和 shaping 仍未闭环，不计 Unicode 全矩阵通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 | T06 | P2 | TUI 搜索选中消息之前一项被删除时，只clamp索引，选中目标跳到另一ID | 第二十四阶段修复，永久RED/GREEN、真实双TUI六档选中目标/可复制正文/草稿验证通过 |
@@ -1778,8 +1779,9 @@ OSclipboard逐byte仍为原文/编辑正文；未重贴草稿恢复并真实发�
 
 前两完整driver actual1不拼接到成功轮：首轮150% target底部未全滚入，旧CtrlEnd操作
 没有达到viewing_latest；第二轮临时arrival断言误放附件helper，等待已删的普通target。
-最终仅修/tmp驱动，先在实际A消息子树确认目标到达，再公开wheel到底，记录真实scrollbar
-before/after，原15s SDK read-position断言不删除、不延长。各轮driver/reader快照保留。
+最终仅修/tmp驱动，先在实际A消息子树确认目标到达，再公开wheel到底，保存前后原图及
+scrollbar查询。原生树未暴露vertical scrollbar Value节点，不能称数值达到maximum；
+原15s SDK read-position断言不删除、不延长。各轮driver/reader快照保留。
 三精确自建库SQL count0，各轮记录PID均消失，18901无listener；成功轮source首尾/current
 一致，长期2876288未动。受控Qt SIGTERM不是crash。
 
@@ -1892,3 +1894,62 @@ driver actual0。copyable display载体可见不等于OS原始clipboard读回，
 维护中的cluster-width策略并验证原bytes/列/光标，而不是把宿主差异当成验收豁免。
 Qt87/TUI78不提高，完整reference/页面/日常使用/无障碍/terminal lifecycle矩阵和最终
 连续两轮独立全产品fresh review仍未完成。无server/client/SQL/third改动、无migration或push。
+
+## 阶段 28：可见群读者信息与原生上下文一致
+
+基线 `6318d8653f2516e643f8ac35440cf5d6d103a3d7`。delegate既有read_count_role对群消息
+显示已读人数，包括incoming和0；原AccessibleTextRole仅描述outgoing且read=true，
+两种呈现并不等价。本次直接复用同一read_count_role：valid时描述人数，否则保留单聊
+自己的已读事实。没有新增状态、计数缓存、轨道或server规则，也不改变正文、复制或布局。
+删除墓碑仍不描述已读/引用/附件等原上下文。
+
+### 永久回归
+
+新增own0与peer0/1断言在旧实现actualRED1，修复后models actual0、widgets actual0；
+已有direct回退、编辑/删除隐私、reaction与dataChanged roles断言保留。日志
+`/tmp/chat-group-read-context-{red,green,ui-green}.log`。
+
+### 新binary双Qt与独立计数
+
+`/tmp/chat-quality-q24-native-final3-20261006`同一完整轮driver/bus actual0，
+A100/125/150/200%、C100%五次/proc SHA均为
+`4d2ea422be432f498c3226842767ff7ff3c6e2b5e5485fa5d3251f596772eca6`。
+每档own0、incoming0、同一incoming真实read-position更新为1、原target当前计数共16组，
+从SDK members/read_positions独立计算，排除当前self，与原生Name精确一致；不从Name反推
+expected，也不把消息author错误当成排除对象。主独立checker actual0：
+`/tmp/chat-q24-independent-count-review-20261006.json`，同ID/同原生path live0→1成立。
+
+100/125/200%的新增0/1目标实际可见；150%两次对应节点showing=false且原图位于视口外，
+只证明exposedName，不称四档新增live1可见。该档随后原target当前0实际可见，是另一条
+证据，不替代同一消息live1。主亲看[100%窗口0](images/experience/after-qt-group-read-zero-100.png)
+与[200%live1](images/experience/after-qt-group-read-one-200.png)原图，可见文字与Name一致，
+布局未改变；既有woman/laptop拆画仍可见，字体/Unicode专项继续开放。
+
+原Q23/Q22严格链保持：同dialog重新搜索非空/live编辑/删除/墓碑隐私、12份OSclipboard
+原bytes、未重贴draft恢复真实发送、SDK目标ID与操作Name/Press。独立verification actual0。
+前两driver actual1分别误把send摘要当fullmessage、未透传target的mention/reaction上下文；
+仅修/tmp驱动，不修改产品或弱化15s/SDK/人数断言。三精确自建DB count0、所有记录PID
+消失、18901无listener，source首尾/current一致，长期2876288未动。受控Qt SIGTERM不是crash。
+
+### 门禁与未完成边界
+
+本阶段全新Qt/TUI ON Debug -Werror首次build actual2，两个编译单元无法向/tmp写汇编，
+实际为磁盘耗尽。失败日志`/tmp/chat-read-context-fresh-build.log`保留；只移除主先前两套
+已完成临时构建的六个可重建object目录，保留binary、JSON、原图和日志。资源回收后在同一
+fresh目录`/tmp/chat-read-context-fresh.JwLH7s`续构actual0，全量23/23 CTest actual0，108.57s。
+原`tests/verify.sh`此次actualexit0，`READ_CONTEXT_RESUME_VALIDATION_EXIT=0`，13份source
+guard再次一致。正式编译保留原-Wall/-Wextra/-Wpedantic，实际sanitizer flags与符号另核；
+只有fresh单列-Werror，不借阶段26门禁，也未放宽render原5s或skip任何测试。
+
+| 配置 | build / 全量CTest | 实际耗时 | tui_render（原5s） |
+| --- | --- | ---: | ---: |
+| normal Debug | PASS / 23/23 | 105.84s | 0.85s |
+| ASan | PASS / 23/23 | 143.36s | 4.00s |
+| UBSan | PASS / 23/23 | 130.96s | 1.76s |
+
+日志`/tmp/chat-read-context-final-verify.log`与`/tmp/chat-read-context-resume-validation.log`
+保留，无新增编译告警/sanitizer报告。既有TUI源码不变，未将上一阶段TUI原生运行冒充本次新轮。
+
+Q24计数上下文专项收口不等于全无障碍验收。主消息列表真实keyboard菜单/可见focus、
+全页面完整日常任务、Orca与动态announce仍缺完整证据；T04合法emoji列/shaping仍开放。
+Qt87/TUI78不提高，最终两轮独立全产品fresh review尚未开始。无push、无third改动。

@@ -69,9 +69,26 @@ bool check_message_accessible_context()
     if (!own_name().startsWith(QStringLiteral("你；")) || !own_name().contains(QStringLiteral("报告.pdf")) ||
         own_name().contains(own.text) || own_name().contains(QStringLiteral("已读"))) { return false; }
     model.set_members({{1,"self",{},{}},{2,"second",{},{}}});
-    if (!changed_roles.contains(Qt::AccessibleTextRole)) { return false; }
+    if (!changed_roles.contains(Qt::AccessibleTextRole) ||
+        !own_name().contains(QStringLiteral("已读 0 人")))
+    {
+        std::cerr << "FAIL visible group read-zero metadata is missing from accessible context\n";
+        return false;
+    }
     model.set_read_message(2, 101);
     if (!own_name().contains(QStringLiteral("已读 1 人")) || !changed_roles.contains(Qt::AccessibleTextRole)) { return false; }
+    auto peer = incoming;
+    peer.id = 102;
+    model.add_message(peer);
+    auto const third = model.index(2, 0);
+    if (!third.data(Qt::AccessibleTextRole).toString().contains(QStringLiteral("已读 0 人")))
+    {
+        std::cerr << "FAIL visible incoming group read metadata is missing from accessible context\n";
+        return false;
+    }
+    model.set_read_message(2, 102);
+    if (!third.data(Qt::AccessibleTextRole).toString().contains(QStringLiteral("已读 1 人")) ||
+        !changed_roles.contains(Qt::AccessibleTextRole) || name().contains(QStringLiteral("已读"))) { return false; }
     model.set_read_positions({{2,101}});
     if (!changed_roles.contains(Qt::AccessibleTextRole)) { return false; }
     model.reset(50);
