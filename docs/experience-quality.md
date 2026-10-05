@@ -162,7 +162,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q24 | P2 | 群消息可见已读人数包含peer与0，但原生Name仅描述自己消息的非零已读 | 第二十八阶段复用read_count_role，永久RED/GREEN及四档真实SDK/原生树计数一致；可见截图与完整无障碍验收分别记账 |
 | Q25 | P2 | 主消息列表可通过键盘移动当前消息，但NoSelection同时隐藏了当前行焦点 | 第二十九阶段复用现有焦点轮廓；永久RED/GREEN、四档真实键盘回复/回应/读者详情及三模式门禁通过，完整键盘矩阵仍开放 |
 | Q26 | P2 | 会话、联系人和用户搜索列表有键盘当前行，但Enter不执行对应动作 | 第三十阶段复用原生activated与现有业务动作；永久Return/小键盘Enter、真实双Qt三条Return任务及三模式完整门禁通过，完整键盘矩阵仍开放 |
-| Q27 | P2 | 当前 Qt 字体回退将复合 emoji 拆成独立图形，正文、回复和 composer 都可见 | 第三十一阶段真实双 Qt 保留拆画证据；通用 Noto 回退候选引入 keycap 回退而被拒绝，专用序列字体接口尚未实测，不计完成 |
+| Q27 | P2 | 当前 Qt 字体回退将复合 emoji 拆成独立图形，正文、回复和 composer 都可见 | 第三十一阶段保留真实拆画与被拒绝的 broad Noto 键帽退化；第三十四/三十五阶段整明确序列格式在 Qt6.2 layout 和标准编辑器有新证据，但通用 policy、Chat 各控件/IME/四档未闭环，不计完成 |
 | Q28 | P2 | 账号注销返回登录后，键盘焦点落在服务器设置，而非主要身份输入 | 第三十二阶段在注销完成且登录控件恢复可用后返回用户名焦点；同一永久测试 RED→GREEN，完整原生流程 before actual1→after actual0，范围与门禁见下文 |
 | Q29 | P2 | 实际 Open/Save 文件选择器的路径、类型框和表头出现黑底深字，近不可读 | 第三十四阶段局部 QFileDialog 主题修复；同永久 fixture RED→GREEN、两个真实 Qt 完整附件 after 和三模式全门禁通过，关闭已复现的 fallback 对比度缺陷，不外推所有平台或四档附件验收 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 第十九轮字素编辑与宽字组合符附着修复已进入生产；终端 span、裁剪、leading mark 和 shaping 仍未闭环，不计 Unicode 全矩阵通过 |
@@ -2415,3 +2415,60 @@ Noto+NoFontMerging 能正确组合键帽、woman ZWJ及带中间VS16的肤色序
 layout/QImage机制证据，不是 Chat、编辑器、系统IME或四档 native 验收，未生产移植。
 Q27/T04、完整参考/全页面/日常/无障碍矩阵与连续两轮全产品fresh review继续开放。
 无third、server/client/SQL或依赖修改，未push。
+
+## 阶段 35：两个真实 TUI 的附件取消与原草稿
+
+本阶段基线 `2796a4d089347f10abdc5d586cf35e07ef8d067f`，生产 TUI 未修改。
+`/tmp/chat-quality-tui-attachment-native-final1-20261006` 完整 driver actual0，
+工具85050真实终态0；两实际进程81fdcb74…，9项TUI/imported helper源、HEAD和
+at-run driver380f4adc… 首尾一致。两个真实 PTY 都实际读回80×30，不从字符计数猜宽。
+
+两端公开登录/进入群，只有认证 S005 作独立 SDK 事实查询；没有 A/C 二次 SDK 登录、
+模型注入或 SQL 业务写入。C公开发送39byte原消息 id2；A当前原行公开 Reply、
+bracketed paste 58byte多行中文/é/双空格草稿，Esc保留，再 `:file` 路径问询取消；
+历史精确 [2]。再次公开 file 上传中文名96byte原文件为 id3/reply2；C实际选中对应
+附件，`s`取消不创建目标，重开保存。原文件、GUI保存与 S005 原id下载逐byte一致，
+SHA c4145090…；A最后真实发原草稿 id4/reply=null，C显示两行，最终历史 [2,3,4]。
+原15s不增加，没有拼接多个任务的成功片段。
+
+原样式证据：[上传取消](images/experience/audit-tui-attachment-cancel.ansi.gz)、
+[另一端保存](images/experience/audit-tui-attachment-save.ansi.gz)、
+[原多行草稿已发送](images/experience/audit-tui-attachment-draft.ansi.gz)，均是实际
+tmux ANSI 无损gzip，解压逐byte等于原文件。总15对plain/ANSI是15帧，不是15个独立
+任务；主亲读取消上传/保存、保存完成、保留草稿和最终发送的实际样式原文，代理核
+两条当前消息反色与七任务文本。文件路径会在单行问询中横向滚动，不冒称整长路径
+都可见；原文件结果来自 bytes/ID，完整reply来自 SDK。问询是 terminal path prompt，
+不是 OS 文件选择器；这些 ANSI 不是外层字体/列宽 PNG、OS clipboard、IME 或 T04 PASS。
+
+主独立22、代理26检查全真；精确库 `chat_ta1006074304_609037` SQL0、5记录core PID
+gone、18912空，保护2876288在，没有独立采样全部后代树。首次清理检查有一个false：
+tmux退出后遗留自有Unix socket文件；原JSON保留。核socket/owner1000、ss无listener、
+exact-L no server及tmux PID gone后，只移除记录的自有socket，最终路径不存在。
+未重跑任务，不把清理残留归为产品业务失败。
+
+### Q27：标准编辑器机制的新实证，不是三字符串生产方案
+
+`/tmp/chat-emoji-editor-probe-20261006.nk5PNP` tiny系统Qt6.2.4/xcb actual0，
+两个公共 QPlainTextEdit / QTextEdit 各26检查全真，主再次独立核52检查和原始像素。
+文档拥有的 QSyntaxHighlighter 仅格式化明确三fixture完整键帽1、woman ZWJ、
+中间VS16肤色；Noto+NoFontMerging不改变原QString。普通数字/CJK/é/VS15仍按普通字体。
+实际widget grab可见三序列正确合成；这些是公共控件抓图，不称 Chat 完整X11原图。
+
+公开 selectAll/copy、独立第二 Qt 进程实际 X11 clipboard 都精确原文；普通文本
+插入/undo/redo，序列中插X后只有该fixture格式消失，回删/undo/redo后完整格式及
+原文恢复，高亮不增加undo记录。公开 NextCharacter 与 layout有效边界一致；不是
+物理键盘、系统IME/preedit或无障碍实测。编辑器 block glyphRuns 返回空数组，不拿
+此前108行layout的glyph身份冒充编辑器字体读回；实际颜色/图形来自本次控件像素。
+
+该52检查降低“display-only格式破坏原文/undo/copy”的风险，但三fixture匹配不是
+维护中的通用emoji presentation policy，不能生产使用白名单或给所有EGC强制Noto。
+未知/字体缺失、mentions合并、label/preview/reply、窄窗高度/命中、IME/a11y、四档
+仍须验证。own Xvfb/editor/两个clipboard reader共4 PID gone，保护PID在，没建业务库。
+首编译将依赖Qt头写作-I导致GCC16依赖头-Werror失败，按外部头-isystem正式build0，
+没有抑制warning选项、改生产或伪造运行通过。
+
+这里仅增加真实使用/机制/原样式证据，未称新产品build或新的全量gate；阶段34的
+normal/ASan/UBSan23/23仍按冻结源与原范围记账。Qt87/TUI78不提高；Q27/T04、完整
+参考/全页面/日常/无障碍矩阵和最终连续两轮全产品fresh review继续开放。
+下一步分开验证维护的通用presentation分词与终端logical-column重锚定边界，不用
+ANSI/字节成功代替physical shaping。未改third/server/client/SQL/依赖，未push。

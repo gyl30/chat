@@ -1413,3 +1413,22 @@ Qt6.2 tiny整emoji span Noto+NoMerge新机制证据可正确画键帽/ZWJ，但�
 负对照失败；不能当通用tokenizer或Chat native修复。Q27/T04、完整页面/参考/日常/
 无障碍及连续两轮fresh review仍开放，Qt87/TUI78不提高。无third/server/SQL/依赖
 修改，未push。
+
+## 体验品质审查：真实终端附件与编辑器边界
+
+2796基线的两个真实TUI80×30完整附件任务actual0：原C消息id2，A reply/原58byte
+多行草稿，file取消保原状态；原96byte中文名文件上传id3/reply2，C save取消再保存，
+原/GUI保存/SDK下载逐byte同c414；原草稿真正发id4/reply=null，两端持续显示。
+9源/两个实际81fd/probe380f/HEAD一致，原15s不变。主22、代理26独立核验全真，exact库
+SQL0、5core gone、18912空；最初遗留自有tmux socket已精确核无服务后删除，失败
+记录保留，保护PID未动。无损ANSI原文不冒称physical列宽/OS picker/clipboard/IME。
+
+另tiny公共Qt6.2 xcb标准Plain/Rich编辑器各26检查实际0：整明确emoji span display
+格式保原文、实际X11 clipboard、undo/redo与插入/回删的格式恢复，控件原像素可正确
+合成键帽/ZWJ/VS16肤色。仅3fixture，不是通用policy或Chat native/IME/四档验收；
+空glyphRuns不借layout样本补font身份。own4PIDgone，无生产/依赖改动。
+详细证据和限制见[体验品质审查](experience-quality.md)阶段35。
+
+这是原真实使用与机制证据提交，不冒称新build/gate；阶段34冻结源三模式23/23按原
+范围有效。Qt87/TUI78不提高；Q27/T04、全页面/参考/日常/无障碍与连续两轮fresh审查
+仍开放，继续推进通用分词与终端重绘实证。未push。
