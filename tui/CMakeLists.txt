@@ -3,6 +3,7 @@ set(FTXUI_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(FTXUI_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(FTXUI_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory("${PROJECT_SOURCE_DIR}/third/ftxui" "${PROJECT_BINARY_DIR}/third/ftxui" EXCLUDE_FROM_ALL)
+include(cmake/ftxui_unicode.cmake)
 
 add_executable(chat_tui src/main.cpp)
 target_link_libraries(chat_tui PRIVATE chat_tui_ui)
@@ -12,6 +13,13 @@ add_executable(chat_tui_render_test tests/render_test.cpp)
 target_link_libraries(chat_tui_render_test PRIVATE chat_tui_ui)
 add_test(NAME tui_render COMMAND chat_tui_render_test)
 set_tests_properties(tui_render PROPERTIES TIMEOUT 5)
+
+add_executable(chat_tui_unicode_test tests/unicode_test.cpp)
+target_include_directories(chat_tui_unicode_test PRIVATE "${ftxui_patched}/src")
+target_link_libraries(chat_tui_unicode_test PRIVATE ftxui::component utf8proc::utf8proc)
+add_test(NAME tui_unicode COMMAND chat_tui_unicode_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/data/GraphemeBreakTest-18.0.0.txt")
+set_tests_properties(tui_unicode PROPERTIES TIMEOUT 5)
 
 add_library(chat_tui_state STATIC src/state.cpp)
 target_include_directories(chat_tui_state PUBLIC src)

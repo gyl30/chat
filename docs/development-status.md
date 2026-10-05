@@ -1055,3 +1055,27 @@ Qt/X11 导航 4/4、TUI/tmux 导航 11/11；隔离验证库已删除。
 临时 UAX29 候选独立重编验证官方实际 853 cases 与单次线性扫描，
 但 leading mark 渲染、Screen span、裁剪和原生列策略仍未解决，不作为 T04 完成。
 Qt 暂评 87、TUI 78，完整品质矩阵与最终两次 fresh review 继续推进。
+
+## 体验品质审查：终端字素编辑
+
+以 `a04c91e1fc765ac9e0010ff8159b9bd3ef58432d` 为基线，FTXUI Input 改用维护库
+utf8proc 2.12.0 / Unicode 18 的 UAX29 边界，移动、删除、覆盖不拆字素，
+CRLF 保留原始 offset，回调重入不读取旧边界。宽字组合符附着到真实字格而非保留空格。
+依赖通过 TUI 专属 CMake 固定官方 archive/hash；构建目录精确修补原 target，
+子模块和 gitlink 不变，无 `/tmp` fork 交付或新应用层 Unicode framework。
+
+永久官方 853 条 oracle 与 11 类输入/合并/覆盖/密码/上下/鼠标/CRLF/重入通过，
+原 pin 对相同测试 actual RED，生产 actual GREEN。
+最终 `tests/verify.sh` normal/ASan/UBSan 均 21/21（104.86/136.98/132.55 s），
+Qt/TUI 均 ON；无编译告警、sanitizer 报告、跳过或 timeout 放宽。
+全新 Debug `-Werror` build/21 CTest 通过；额外全量 RelWithDebInfo `-Werror`
+遇未修改 Capy/PG coroutine 的 GCC 告警，仅 Unicode target 在该配置通过，未压告警。
+首次并行 CTest 固定端口冲突失败保留，最终已串行全量重跑。
+
+双真实 TUI 在 60/80/120 列完成 132 条字素编辑发送流程，SDK 精确正文和对端显示
+同时核验，66 份带样式 capture 保留；既有 TUI 导航 actual 11/11。
+隔离数据库、自有客户端/服务器/端口已清理，长期服务未动。
+终端 width/span、leading mark、原子裁剪、选择复制和外层 shaping 尚未解决，
+真实 ZWJ 行仍有残留，不将本阶段 GREEN 视为 T04 完成。
+详见 [体验品质审查](experience-quality.md) 和 [依赖维护说明](../tui/cmake/README.md)。
+Qt 暂评 87、TUI 78，全产品品质目标及最终两轮 fresh review 继续推进。

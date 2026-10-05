@@ -1,0 +1,2 @@
+tui/cmake/*.patch whitespace=-blank-at-eol,-blank-at-eof
+tui/tests/data/GraphemeBreakTest-18.0.0.txt whitespace=-blank-at-eol

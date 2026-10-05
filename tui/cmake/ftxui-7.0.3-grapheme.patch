@@ -1,0 +1,797 @@
+--- a/src/ftxui/screen/string.cpp
++++ b/src/ftxui/screen/string.cpp
+@@ -12,12 +12,15 @@
+ #include "ftxui/screen/string.hpp"
+ 
+ #include <array>        // for array
++#include <algorithm>
+ #include <cstddef>      // for size_t
+ #include <cstdint>      // for uint32_t, uint8_t, uint16_t, int32_t
++#include <iterator>
+ #include <string>       // for string, basic_string, wstring
+ #include <string_view>  // for string_view
+ #include <tuple>        // for _Swallow_assign, ignore
+ #include <vector>
++#include <utf8proc.h>
+ 
+ #include "ftxui/screen/deprecated.hpp"       // for wchar_width, wstring_width
+ #include "ftxui/screen/string_internal.hpp"  // for WordBreakProperty, EatCodePoint, CodepointToWordBreakProperty, GlyphCount, GlyphIterate, GlyphNext, GlyphPrevious, IsCombining, IsControl, IsFullWidth, Utf8ToWordBreakProperty
+@@ -1387,6 +1390,7 @@
+ std::vector<std::string> Utf8ToGlyphs(std::string_view input) {
+   std::vector<std::string> out;
+   out.reserve(input.size());
++  size_t last_glyph = 0;
+   size_t start = 0;
+   size_t end = 0;
+   while (start < input.size()) {
+@@ -1407,11 +1411,13 @@
+     // Combining characters are put with the previous glyph they are modifying.
+     if (IsCombining(codepoint)) {
+       if (!out.empty()) {
+-        out.back() += append;
++        out[last_glyph] += append;
+       }
+       continue;
+     }
+ 
++    last_glyph = out.size();
++
+     // Fullwidth characters take two cells. The second is made of the empty
+     // string to reserve the space the first is taking.
+     if (IsFullWidth(codepoint)) {
+@@ -1426,69 +1432,64 @@
+   return out;
+ }
+ 
+-size_t GlyphPrevious(std::string_view input, size_t start) {
+-  while (true) {
+-    if (start == 0) {
+-      return 0;
+-    }
+-    start--;
+-
+-    // Skip the UTF8 continuation bytes.
+-    if ((input[start] & 0b1100'0000) == 0b1000'0000) {
++std::vector<size_t> GlyphBoundaries(std::string_view input) {
++  std::vector<size_t> boundaries{0};
++  utf8proc_int32_t previous = -1;
++  utf8proc_int32_t state = 0;
++  for (size_t offset = 0; offset < input.size();) {
++    utf8proc_int32_t current = 0;
++    const auto count = utf8proc_iterate(
++        reinterpret_cast<const utf8proc_uint8_t*>(input.data() + offset),
++        static_cast<utf8proc_ssize_t>(input.size() - offset), &current);
++    if (count < 0) {
++      if (boundaries.back() != offset) {
++        boundaries.push_back(offset);
++      }
++      boundaries.push_back(++offset);
++      previous = -1;
++      state = 0;
+       continue;
+     }
+-
+-    uint32_t codepoint = 0;
+-    size_t end = 0;
+-    const bool eaten = EatCodePoint(input, start, &end, &codepoint);
+-
+-    // Ignore invalid, control characters and combining characters.
+-    if (!eaten || IsControl(codepoint) || IsCombining(codepoint)) {
+-      continue;
++    const bool boundary = previous < 0 ||
++        utf8proc_grapheme_break_stateful(previous, current, &state);
++    if (boundary && boundaries.back() != offset) {
++      boundaries.push_back(offset);
+     }
+-
+-    return start;
++    previous = current;
++    offset += static_cast<size_t>(count);
+   }
++  if (boundaries.back() != input.size()) {
++    boundaries.push_back(input.size());
++  }
++  return boundaries;
++}
++size_t GlyphPrevious(std::string_view input, size_t start) {
++  const auto boundaries = GlyphBoundaries(input);
++  const auto it = std::lower_bound(boundaries.begin(), boundaries.end(),
++                                   std::min(start, input.size()));
++  return it == boundaries.begin() ? 0 : *std::prev(it);
+ }
+ 
+ size_t GlyphNext(std::string_view input, size_t start) {
+-  bool glyph_found = false;
+-  while (start < input.size()) {
+-    size_t end = 0;
+-    uint32_t codepoint = 0;
+-    const bool eaten = EatCodePoint(input, start, &end, &codepoint);
+-
+-    // Ignore invalid, control characters and combining characters.
+-    if (!eaten || IsControl(codepoint) || IsCombining(codepoint)) {
+-      start = end;
+-      continue;
+-    }
+-
+-    // We eat the beginning of the next glyph. If we are eating the one
+-    // requested, return its start position immediately.
+-    if (glyph_found) {
+-      return static_cast<int>(start);
+-    }
+-
+-    // Otherwise, skip this glyph and iterate:
+-    glyph_found = true;
+-    start = end;
+-  }
+-  return static_cast<int>(input.size());
++  const auto boundaries = GlyphBoundaries(input);
++  const auto it = std::upper_bound(boundaries.begin(), boundaries.end(),
++                                   std::min(start, input.size()));
++  return it == boundaries.end() ? input.size() : *it;
+ }
+ 
+ size_t GlyphIterate(std::string_view input, int glyph_offset, size_t start) {
+-  if (glyph_offset >= 0) {
+-    for (int i = 0; i < glyph_offset; ++i) {
+-      start = GlyphNext(input, start);
+-    }
+-    return start;
+-  } else {
+-    for (int i = 0; i < -glyph_offset; ++i) {
+-      start = GlyphPrevious(input, start);
+-    }
++  start = std::min(start, input.size());
++  if (glyph_offset == 0) {
+     return start;
+   }
++  const auto boundaries = GlyphBoundaries(input);
++  const auto it = glyph_offset > 0
++      ? std::upper_bound(boundaries.begin(), boundaries.end(), start)
++      : std::lower_bound(boundaries.begin(), boundaries.end(), start);
++  const auto index = static_cast<int64_t>(it - boundaries.begin()) +
++                     static_cast<int64_t>(glyph_offset) - (glyph_offset > 0 ? 1 : 0);
++  return boundaries[static_cast<size_t>(std::clamp<int64_t>(
++      index, 0, static_cast<int64_t>(boundaries.size() - 1)))];
+ }
+ 
+ std::vector<int> CellToGlyphIndex(std::string_view input) {
+@@ -1533,31 +1534,7 @@
+ }
+ 
+ int GlyphCount(std::string_view input) {
+-  int size = 0;
+-  size_t start = 0;
+-  size_t end = 0;
+-  while (start < input.size()) {
+-    uint32_t codepoint = 0;
+-    const bool eaten = EatCodePoint(input, start, &end, &codepoint);
+-    start = end;
+-
+-    // Ignore invalid characters:
+-    if (!eaten || IsControl(codepoint)) {
+-      continue;
+-    }
+-
+-    // Ignore combining characters, except when they don't have a preceding to
+-    // combine with.
+-    if (IsCombining(codepoint)) {
+-      if (size == 0) {
+-        size++;
+-      }
+-      continue;
+-    }
+-
+-    size++;
+-  }
+-  return size;
++  return static_cast<int>(GlyphBoundaries(input).size() - 1);
+ }
+ 
+ std::vector<WordBreakProperty> Utf8ToWordBreakProperty(std::string_view input) {
+--- a/src/ftxui/component/input.cpp
++++ b/src/ftxui/component/input.cpp
+@@ -5,6 +5,7 @@
+ #include <cstddef>     // for size_t
+ #include <cstdint>     // for uint32_t
+ #include <functional>  // for function
++#include <iterator>
+ #include <sstream>     // for basic_istream, stringstream
+ #include <string>      // for string, basic_string, operator==, getline
+ #include <utility>     // for move
+@@ -27,28 +28,32 @@
+ 
+ namespace {
+ 
+-std::vector<std::string> SplitLines(std::string_view input) {
+-  std::vector<std::string> output;
++struct InputLine {
++  std::string text;
++  size_t offset;
++};
++
++std::vector<InputLine> SplitLines(std::string_view input) {
++  std::vector<InputLine> output;
+   size_t start = 0;
+   size_t end = input.find('\n');
+   while (end != std::string_view::npos) {
+-    output.push_back(std::string(input.substr(start, end - start)));
++    const size_t text_end = end > start && input[end - 1] == '\r' ? end - 1 : end;
++    output.push_back({std::string(input.substr(start, text_end - start)), start});
+     start = end + 1;
+     end = input.find('\n', start);
+   }
+-  output.push_back(std::string(input.substr(start)));
++  output.push_back({std::string(input.substr(start)), start});
+   return output;
+ }
+ 
+-size_t GlyphWidth(std::string_view input, size_t iter) {
+-  uint32_t ucs = 0;
+-  if (!EatCodePoint(input, iter, &iter, &ucs)) {
+-    return 0;
+-  }
+-  if (IsFullWidth(ucs)) {
+-    return 2;
+-  }
+-  return 1;
++size_t GlyphWidth(std::string_view input, size_t start, size_t end) {
++  return static_cast<size_t>(string_width(input.substr(start, end - start)));
++}
++
++size_t CountGlyphs(const std::vector<size_t>& boundaries, size_t start, size_t end) {
++  return static_cast<size_t>(std::lower_bound(boundaries.begin(), boundaries.end(), end) -
++                             std::lower_bound(boundaries.begin(), boundaries.end(), start));
+ }
+ 
+ bool IsWordCodePoint(uint32_t codepoint) {
+@@ -117,21 +122,18 @@
+     }
+ 
+     Elements elements;
+-    const std::vector<std::string> lines = SplitLines(*content);
+-
+-    cursor_position() = util::clamp(cursor_position(), 0, (int)content->size());
++    const auto lines = SplitLines(*content);
++    const auto boundaries = GlyphBoundaries(content());
++    NormalizeCursor(boundaries);
+ 
+     // Find the line and index of the cursor.
+     int cursor_line = 0;
+     int cursor_char_index = cursor_position();
+-    for (const auto& line : lines) {
+-      if (cursor_char_index <= (int)line.size()) {
+-        break;
+-      }
+-
+-      cursor_char_index -= static_cast<int>(line.size() + 1);
+-      cursor_line++;
++    while (cursor_line + 1 < (int)lines.size() &&
++           lines[cursor_line + 1].offset <= (size_t)cursor_position()) {
++      ++cursor_line;
+     }
++    cursor_char_index -= static_cast<int>(lines[cursor_line].offset);
+ 
+     if (lines.empty()) {
+       elements.push_back(text("") | focused);
+@@ -139,11 +141,11 @@
+ 
+     elements.reserve(lines.size());
+     for (size_t i = 0; i < lines.size(); ++i) {
+-      const std::string& line = lines[i];
++      const std::string& line = lines[i].text;
+ 
+       // This is not the cursor line.
+       if (int(i) != cursor_line) {
+-        elements.push_back(Text(line));
++        elements.push_back(Text(line, boundaries, lines[i].offset));
+         continue;
+       }
+ 
+@@ -152,7 +154,7 @@
+       if (cursor_char_index >= (int)line.size()) {
+         elements.push_back(
+             hbox({
+-                Text(line),
++                Text(line, boundaries, lines[i].offset),
+                 text(cursor_cell) | focused | reflect(cursor_box_),
+             }) |
+             xflex);
+@@ -161,15 +163,16 @@
+ 
+       // The cursor is on this line.
+       const int glyph_start = cursor_char_index;
+-      const int glyph_end = static_cast<int>(GlyphNext(line, glyph_start));
++      const int glyph_end = static_cast<int>(*std::upper_bound(
++          boundaries.begin(), boundaries.end(), cursor_position()) - lines[i].offset);
+       const std::string part_before_cursor = line.substr(0, glyph_start);
+       const std::string part_at_cursor =
+           line.substr(glyph_start, glyph_end - glyph_start);
+       const std::string part_after_cursor = line.substr(glyph_end);
+       auto element = hbox({
+-                         Text(part_before_cursor),
+-                         Text(part_at_cursor) | focused | reflect(cursor_box_),
+-                         Text(part_after_cursor),
++                         Text(part_before_cursor, boundaries, lines[i].offset),
++                         Text(part_at_cursor, boundaries, lines[i].offset + glyph_start) | focused | reflect(cursor_box_),
++                         Text(part_after_cursor, boundaries, lines[i].offset + glyph_end),
+                      }) |
+                      xflex;
+       elements.push_back(element);
+@@ -183,12 +186,12 @@
+            xflex | reflect(box_);
+   }
+ 
+-  Element Text(const std::string& input) {
++  Element Text(const std::string& input, const std::vector<size_t>& boundaries, size_t offset) {
+     if (!password()) {
+       return text(input);
+     }
+ 
+-    const size_t glyph_count = GlyphCount(input);
++    const size_t glyph_count = CountGlyphs(boundaries, offset, offset + input.size());
+     std::string out;
+     out.reserve(glyph_count * 3);
+     for (size_t i = 0; i < glyph_count; ++i) {
+@@ -197,151 +200,130 @@
+     return text(out);
+   }
+ 
+-  bool HandleBackspace() {
++  bool HandleBackspace(const std::vector<size_t>& boundaries) {
+     if (cursor_position() == 0) {
+       return false;
+     }
+-    const size_t start = GlyphPrevious(content(), cursor_position());
++    const size_t start = *std::prev(std::lower_bound(boundaries.begin(), boundaries.end(), cursor_position()));
+     const size_t end = cursor_position();
+     content->erase(start, end - start);
+     cursor_position() = static_cast<int>(start);
++    NormalizeCursor(GlyphBoundaries(content()));
+     App::PostEventOrExecute(on_change);
+     return true;
+   }
+ 
+-  bool DeleteImpl() {
++  bool DeleteImpl(const std::vector<size_t>& boundaries) {
+     if (cursor_position() == (int)content->size()) {
+       return false;
+     }
+     const size_t start = cursor_position();
+-    const size_t end = GlyphNext(content(), cursor_position());
++    const size_t end = *std::upper_bound(boundaries.begin(), boundaries.end(), cursor_position());
+     content->erase(start, end - start);
+     return true;
+   }
+ 
+-  bool HandleDelete() {
+-    if (DeleteImpl()) {
++  bool HandleDelete(const std::vector<size_t>& boundaries) {
++    if (DeleteImpl(boundaries)) {
++      NormalizeCursor(GlyphBoundaries(content()));
+       App::PostEventOrExecute(on_change);
+       return true;
+     }
+     return false;
+   }
+ 
+-  bool HandleArrowLeft() {
++  bool HandleArrowLeft(const std::vector<size_t>& boundaries) {
+     if (cursor_position() == 0) {
+       return false;
+     }
+ 
+     cursor_position() =
+-        static_cast<int>(GlyphPrevious(content(), cursor_position()));
++        static_cast<int>(*std::prev(std::lower_bound(boundaries.begin(), boundaries.end(), cursor_position())));
+     return true;
+   }
+ 
+-  bool HandleArrowRight() {
++  bool HandleArrowRight(const std::vector<size_t>& boundaries) {
+     if (cursor_position() == (int)content->size()) {
+       return false;
+     }
+ 
+     cursor_position() =
+-        static_cast<int>(GlyphNext(content(), cursor_position()));
++        static_cast<int>(*std::upper_bound(boundaries.begin(), boundaries.end(), cursor_position()));
+     return true;
+   }
+ 
+-  size_t CursorColumn() {
+-    size_t iter = cursor_position();
+-    int width = 0;
+-    while (true) {
+-      if (iter == 0) {
+-        break;
+-      }
+-      iter = GlyphPrevious(content(), iter);
+-      if (content()[iter] == '\n') {
+-        break;
+-      }
+-      if (password()) {
+-        width += 1;
+-      } else {
+-        width += static_cast<int>(GlyphWidth(content(), iter));
+-      }
++  size_t CursorColumn(const std::vector<size_t>& boundaries) {
++    const auto lines = SplitLines(content());
++    size_t line = 0;
++    while (line + 1 < lines.size() &&
++           lines[line + 1].offset <= (size_t)cursor_position()) {
++      ++line;
+     }
+-    return width;
++    const auto prefix = lines[line].text.substr(0, cursor_position() - lines[line].offset);
++    return password() ? CountGlyphs(boundaries, lines[line].offset, cursor_position()) : string_width(prefix);
+   }
+ 
+   // Move the cursor `columns` on the right, if possible.
+-  void MoveCursorColumn(int columns) {
++  void MoveCursorColumn(int columns, const std::vector<size_t>& boundaries) {
++    auto iter = std::lower_bound(boundaries.begin(), boundaries.end(), cursor_position());
+     while (columns > 0) {
+-      if (cursor_position() == (int)content().size() ||
+-          content()[cursor_position()] == '\n') {
++      if (std::next(iter) == boundaries.end() ||
++          content()[*iter] == '\n' ||
++          (content()[*iter] == '\r' &&
++           *iter + 1 < content().size() && content()[*iter + 1] == '\n')) {
+         return;
+       }
+ 
+       if (password()) {
+         columns -= 1;
+       } else {
+-        columns -= static_cast<int>(GlyphWidth(content(), cursor_position()));
++        columns -= static_cast<int>(GlyphWidth(content(), *iter, *std::next(iter)));
+       }
+-      cursor_position() =
+-          static_cast<int>(GlyphNext(content(), cursor_position()));
++      cursor_position() = static_cast<int>(*++iter);
+     }
+   }
+ 
+-  bool HandleArrowUp() {
++  bool HandleArrowUp(const std::vector<size_t>& boundaries) {
+     if (cursor_position() == 0) {
+       return false;
+     }
+ 
+-    const size_t columns = CursorColumn();
++    const size_t columns = CursorColumn(boundaries);
+ 
+-    // Move cursor at the beginning of 2 lines above.
+-    while (true) {
+-      if (cursor_position() == 0) {
+-        return true;
+-      }
+-      const size_t previous = GlyphPrevious(content(), cursor_position());
+-      if (content()[previous] == '\n') {
+-        break;
+-      }
+-      cursor_position() = static_cast<int>(previous);
++    const auto lines = SplitLines(content());
++    size_t line = 0;
++    while (line + 1 < lines.size() &&
++           lines[line + 1].offset <= (size_t)cursor_position()) {
++      ++line;
+     }
+-    cursor_position() =
+-        static_cast<int>(GlyphPrevious(content(), cursor_position()));
+-    while (true) {
+-      if (cursor_position() == 0) {
+-        break;
+-      }
+-      const size_t previous = GlyphPrevious(content(), cursor_position());
+-      if (content()[previous] == '\n') {
+-        break;
+-      }
+-      cursor_position() = static_cast<int>(previous);
++    if (line == 0) {
++      cursor_position() = 0;
++      return true;
+     }
+-
+-    MoveCursorColumn(static_cast<int>(columns));
++    cursor_position() = static_cast<int>(lines[line - 1].offset);
++    MoveCursorColumn(static_cast<int>(columns), boundaries);
+     return true;
+   }
+ 
+-  bool HandleArrowDown() {
++  bool HandleArrowDown(const std::vector<size_t>& boundaries) {
+     if (cursor_position() == (int)content->size()) {
+       return false;
+     }
+ 
+-    const size_t columns = CursorColumn();
++    const size_t columns = CursorColumn(boundaries);
+ 
+-    // Move cursor at the beginning of the next line
+-    while (true) {
+-      if (content()[cursor_position()] == '\n') {
+-        break;
+-      }
+-      cursor_position() =
+-          static_cast<int>(GlyphNext(content(), cursor_position()));
+-      if (cursor_position() == (int)content().size()) {
+-        return true;
+-      }
++    const auto lines = SplitLines(content());
++    size_t line = 0;
++    while (line + 1 < lines.size() &&
++           lines[line + 1].offset <= (size_t)cursor_position()) {
++      ++line;
+     }
+-    cursor_position() =
+-        static_cast<int>(GlyphNext(content(), cursor_position()));
+-
+-    MoveCursorColumn(static_cast<int>(columns));
++    if (line + 1 == lines.size()) {
++      cursor_position() = static_cast<int>(content().size());
++      return true;
++    }
++    cursor_position() = static_cast<int>(lines[line + 1].offset);
++    MoveCursorColumn(static_cast<int>(columns), boundaries);
+     return true;
+   }
+ 
+@@ -355,54 +337,59 @@
+     return true;
+   }
+ 
+-  bool HandleReturn() {
++  bool HandleReturn(const std::vector<size_t>& boundaries) {
+     if (multiline()) {
+-      HandleCharacter("\n");
++      HandleCharacter("\n", boundaries);
+     }
+     App::PostEventOrExecute(on_enter);
+     return true;
+   }
+ 
+-  bool HandleCharacter(const std::string& character) {
++  bool HandleCharacter(const std::string& character, const std::vector<size_t>& boundaries) {
+     if (!insert() && cursor_position() < (int)content->size() &&
+-        content()[cursor_position()] != '\n') {
+-      DeleteImpl();
++        content()[cursor_position()] != '\n' &&
++        !(content()[cursor_position()] == '\r' &&
++          cursor_position() + 1 < (int)content().size() &&
++          content()[cursor_position() + 1] == '\n')) {
++      DeleteImpl(boundaries);
+     }
+     content->insert(cursor_position(), character);
+     cursor_position() += static_cast<int>(character.size());
++    NormalizeCursor(GlyphBoundaries(content()));
+     App::PostEventOrExecute(on_change);
+     return true;
+   }
+ 
+   bool OnEvent(Event event) override {
+-    cursor_position() = util::clamp(cursor_position(), 0, (int)content->size());
++    const auto boundaries = GlyphBoundaries(content());
++    NormalizeCursor(boundaries);
+ 
+     if (event == Event::Return) {
+-      return HandleReturn();
++      return HandleReturn(boundaries);
+     }
+     if (event.is_character()) {
+-      return HandleCharacter(event.character());
++      return HandleCharacter(event.character(), boundaries);
+     }
+     if (event.is_mouse()) {
+-      return HandleMouse(event);
++      return HandleMouse(event, boundaries);
+     }
+     if (event == Event::Backspace) {
+-      return HandleBackspace();
++      return HandleBackspace(boundaries);
+     }
+     if (event == Event::Delete) {
+-      return HandleDelete();
++      return HandleDelete(boundaries);
+     }
+     if (event == Event::ArrowLeft) {
+-      return HandleArrowLeft();
++      return HandleArrowLeft(boundaries);
+     }
+     if (event == Event::ArrowRight) {
+-      return HandleArrowRight();
++      return HandleArrowRight(boundaries);
+     }
+     if (event == Event::ArrowUp) {
+-      return HandleArrowUp();
++      return HandleArrowUp(boundaries);
+     }
+     if (event == Event::ArrowDown) {
+-      return HandleArrowDown();
++      return HandleArrowDown(boundaries);
+     }
+     if (event == Event::Home) {
+       return HandleHome();
+@@ -411,10 +398,10 @@
+       return HandleEnd();
+     }
+     if (event == Event::ArrowLeftCtrl) {
+-      return HandleLeftCtrl();
++      return HandleLeftCtrl(boundaries);
+     }
+     if (event == Event::ArrowRightCtrl) {
+-      return HandleRightCtrl();
++      return HandleRightCtrl(boundaries);
+     }
+     if (event == Event::Insert) {
+       return HandleInsert();
+@@ -422,56 +409,57 @@
+     return false;
+   }
+ 
+-  bool HandleLeftCtrl() {
++  bool HandleLeftCtrl(const std::vector<size_t>& boundaries) {
+     if (cursor_position() == 0) {
+       return false;
+     }
+ 
++    auto iter = std::lower_bound(boundaries.begin(), boundaries.end(), cursor_position());
+     // Move left, as long as left it not a word.
+-    while (cursor_position()) {
+-      const size_t previous = GlyphPrevious(content(), cursor_position());
++    while (iter != boundaries.begin()) {
++      const size_t previous = *std::prev(iter);
+       if (IsWordCharacter(content(), previous)) {
+         break;
+       }
+-      cursor_position() = static_cast<int>(previous);
++      --iter;
+     }
+     // Move left, as long as left is a word character:
+-    while (cursor_position()) {
+-      const size_t previous = GlyphPrevious(content(), cursor_position());
++    while (iter != boundaries.begin()) {
++      const size_t previous = *std::prev(iter);
+       if (!IsWordCharacter(content(), previous)) {
+         break;
+       }
+-      cursor_position() = static_cast<int>(previous);
++      --iter;
+     }
++    cursor_position() = static_cast<int>(*iter);
+     return true;
+   }
+ 
+-  bool HandleRightCtrl() {
++  bool HandleRightCtrl(const std::vector<size_t>& boundaries) {
+     if (cursor_position() == (int)content().size()) {
+       return false;
+     }
+ 
++    auto iter = std::lower_bound(boundaries.begin(), boundaries.end(), cursor_position());
+     // Move right, until entering a word.
+-    while (cursor_position() < (int)content().size()) {
+-      cursor_position() =
+-          static_cast<int>(GlyphNext(content(), cursor_position()));
+-      if (IsWordCharacter(content(), cursor_position())) {
++    while (std::next(iter) != boundaries.end()) {
++      ++iter;
++      if (IsWordCharacter(content(), *iter)) {
+         break;
+       }
+     }
+     // Move right, as long as right is a word character:
+-    while (cursor_position() < (int)content().size()) {
+-      const size_t next = GlyphNext(content(), cursor_position());
+-      if (!IsWordCharacter(content(), cursor_position())) {
++    while (std::next(iter) != boundaries.end()) {
++      if (!IsWordCharacter(content(), *iter)) {
+         break;
+       }
+-      cursor_position() = static_cast<int>(next);
++      ++iter;
+     }
+-
++    cursor_position() = static_cast<int>(*iter);
+     return true;
+   }
+ 
+-  bool HandleMouse(Event event) {
++  bool HandleMouse(Event event, const std::vector<size_t>& boundaries) {
+     hovered_ = box_.Contain(event.mouse().x,  //
+                             event.mouse().y) &&
+                CaptureMouse(event);
+@@ -494,35 +482,33 @@
+     }
+ 
+     // Find the line and index of the cursor.
+-    std::vector<std::string> lines = SplitLines(*content);
++    const auto lines = SplitLines(*content);
+     int cursor_line = 0;
+     int cursor_char_index = cursor_position();
+-    for (const auto& line : lines) {
+-      if (cursor_char_index <= (int)line.size()) {
+-        break;
+-      }
+-
+-      cursor_char_index -= static_cast<int>(line.size() + 1);
+-      cursor_line++;
++    while (cursor_line + 1 < (int)lines.size() &&
++           lines[cursor_line + 1].offset <= (size_t)cursor_position()) {
++      ++cursor_line;
+     }
++    cursor_char_index -= static_cast<int>(lines[cursor_line].offset);
+     const int cursor_column =
+         password()
+-            ? GlyphCount(lines[cursor_line].substr(0, cursor_char_index))
+-            : string_width(lines[cursor_line].substr(0, cursor_char_index));
++            ? CountGlyphs(boundaries, lines[cursor_line].offset, cursor_position())
++            : string_width(lines[cursor_line].text.substr(0, cursor_char_index));
+ 
+     int new_cursor_column = cursor_column + event.mouse().x - cursor_box_.x_min;
+     int new_cursor_line = cursor_line + event.mouse().y - cursor_box_.y_min;
+ 
+     // Fix the new cursor position:
+-    new_cursor_line = std::max(std::min(new_cursor_line, (int)lines.size()), 0);
++    new_cursor_line = std::max(std::min(new_cursor_line, (int)lines.size() - 1), 0);
+ 
+     const std::string empty_string;
+     const std::string& line = new_cursor_line < (int)lines.size()
+-                                  ? lines[new_cursor_line]
++                                  ? lines[new_cursor_line].text
+                                   : empty_string;
+     new_cursor_column =
+         util::clamp(new_cursor_column, 0,
+-                    password() ? GlyphCount(line) : string_width(line));
++                    password() ? static_cast<int>(CountGlyphs(boundaries, lines[new_cursor_line].offset,
++                                                              lines[new_cursor_line].offset + line.size())) : string_width(line));
+ 
+     if (new_cursor_column == cursor_column &&  //
+         new_cursor_line == cursor_line) {
+@@ -530,25 +516,28 @@
+     }
+ 
+     // Convert back the new_cursor_{line,column} toward cursor_position:
+-    cursor_position() = 0;
+-    for (int i = 0; i < new_cursor_line; ++i) {
+-      cursor_position() += static_cast<int>(lines[i].size() + 1);
+-    }
+-    while (new_cursor_column > 0) {
++    cursor_position() = static_cast<int>(lines[new_cursor_line].offset);
++    const int line_end = cursor_position() + static_cast<int>(line.size());
++    auto iter = std::lower_bound(boundaries.begin(), boundaries.end(), cursor_position());
++    while (new_cursor_column > 0 && cursor_position() < line_end) {
+       if (password()) {
+         new_cursor_column -= 1;
+       } else {
+         new_cursor_column -=
+-            static_cast<int>(GlyphWidth(content(), cursor_position()));
++            static_cast<int>(GlyphWidth(content(), *iter, *std::next(iter)));
+       }
+-      cursor_position() =
+-          static_cast<int>(GlyphNext(content(), cursor_position()));
++      cursor_position() = static_cast<int>(*++iter);
+     }
+ 
+     App::PostEventOrExecute(on_change);
+     return true;
+   }
+ 
++  void NormalizeCursor(const std::vector<size_t>& boundaries) {
++    cursor_position() = util::clamp(cursor_position(), 0, (int)content->size());
++    cursor_position() = static_cast<int>(*std::lower_bound(boundaries.begin(), boundaries.end(), cursor_position()));
++  }
++
+   bool HandleInsert() {
+     insert() = !insert();
+     return true;
+--- a/src/ftxui/screen/string_internal.hpp
++++ b/src/ftxui/screen/string_internal.hpp
+@@ -28,6 +28,7 @@
+ FTXUI_EXPORT(SCREEN) bool IsFullWidth(uint32_t ucs);
+ FTXUI_EXPORT(SCREEN) bool IsControl(uint32_t ucs);
+ 
++FTXUI_EXPORT(SCREEN) std::vector<size_t> GlyphBoundaries(std::string_view input);
+ FTXUI_EXPORT(SCREEN) size_t GlyphPrevious(std::string_view input, size_t start);
+ FTXUI_EXPORT(SCREEN) size_t GlyphNext(std::string_view input, size_t start);
+ 

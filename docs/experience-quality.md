@@ -155,7 +155,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q17 | P1 | 历史插入后删除/回复/附件指向另一条消息，已读详情显示另一条消息读者 | 第十六轮四项实测 RED 后修复；永久回归、完整三模式验证与真实双 Qt 通过；搜索复制同类缺陷也已修复 |
 | Q18 | P2 | 回复取消按钮黑底低对比且无动作名称，已读成员默认浅蓝选中；头像/读者刷新丢失当前选择 | 第十七轮修复；公开事件回归、三模式完整验证、四档双 Qt 原图与独立专项复核完成 |
 | Q19 | P2 | 长提及越过气泡右缘；无空格长正文和 URL 无法正确分配换行高度 | 第十八轮统一正文排版，永久 256 组合与完整三模式验证 GREEN；原生专项结果见下文 |
-| T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 真实 DSR 与依赖源码确认；未修复，不计 Unicode 全矩阵通过 |
+| T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 第十九轮字素编辑与宽字组合符附着修复已进入生产；终端 span、裁剪、leading mark 和 shaping 仍未闭环，不计 Unicode 全矩阵通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 
 键盘打开列表、Qt 多行编辑、长公告、长 username、dialog 滚动、selection/focus、
@@ -1073,8 +1073,11 @@ SDK 更新反应和引用，Qt 实际呈现长 quote、末行、时间与读者�
 主代理亲看最终四档原图中的长 token、完整尾标、短行、时间/回执和反应位置，未见 Q19 溢出或重叠。
 独立代理已复看同一最终产品源码的前次 24 张 size/reply/peer 图，未见 Q19 新 material 缺陷；
 本次 final3 的 SDK 二十条正文/提及/反应/引用与读位另逐项核对，
-100/125% 的各四种尺寸和 resize 十张已复看。其余追加审图结果单独记录，
-未看项不算独立 PASS，不把本专项当全页面 fresh review。
+后续独立复看已覆盖本次四档缩放的十六张 size 图、四张 resize、四张 reply、
+四张固定 100% peer-reply，共 28 张，未见本专项溢出或重叠。
+normal、peer-normal 和 input-ready 的另外十六张未计入独立视觉 PASS；
+审图副本在 `/tmp/chat-q19-final3-independent-review.buhPOD`。
+不把本专项当全页面 fresh review。
 原生 emoji 的字体 shaping 仍需独立验收，本阶段不以字节保留声称全部显示策略已完成。
 
 ### T04 的独立边界研究仍不是生产修复
@@ -1095,3 +1098,82 @@ leading combining 的实际渲染仍丢 bytes；终端 span、Screen continuatio
 
 Qt 暂评仍 87、TUI 78；本轮局部修复不替代全页面/参考/无障碍/终端矩阵，
 最终两次独立完整 fresh review 尚未完成。
+
+## 第十九轮：终端输入保留完整字素
+
+从 `a04c91e1fc765ac9e0010ff8159b9bd3ef58432d` 继续。此前 pinned FTXUI 会在
+移动、删除和覆盖中拆开 ZWJ、区域指示符、肤色、Indic 等扩展字素；宽字后的组合符
+还会附着到保留空格而丢失。采用 utf8proc 2.12.0 / Unicode 18 的 stateful UAX29，
+不在应用中维护 Unicode 规则表，不以 ASCII 替代原文。
+
+FTXUI 子模块和所有 gitlink 不变。启用 TUI 时才下载官方固定提交 archive，
+SHA256 校验见 [维护说明](../tui/cmake/README.md)。构建目录从 pristine 源精确应用
+三文件补丁，原 screen/component target 各替换一个 TU，私有头也来自修补目录。
+独立核对 normal/ASan/UBSan 的编译数据库、archive/符号、static export 和许可；
+没有重复实现、库符号覆盖技巧或 `/tmp` fork 依赖。重复配置不改变最终文件 mtime。
+
+Input 的每个 event/render 共用操作内边界，插删后重新分段，回调之后不读取旧边界。
+CRLF 保留原文 byte offset，覆盖不吞换行；password 每个扩展字素显示一个 bullet。
+非法 UTF-8 的原 bytes 不改写，每个非法 byte 独立分界。
+没有持久化边界缓存，也没有新增应用层 Unicode wrapper。
+
+### 永久回归与独立 RED/GREEN
+
+新增 `tui_unicode`，使用原始官方 853 条 GraphemeBreakTest 作为独立边界 oracle；
+逐 byte、正负移动、越界/极值、非法 UTF-8、11 类 Input、合并插删、覆盖/密码、
+鼠标/上下、CRLF、Ctrl-word 和真实回调重入均通过。
+相同永久测试链接原 pin 的真实 String/Input TU 时 actual exit 1，普通断言失败 6531 次，
+极值阶段明确跳过以避免旧实现超长循环；新生产 target actual exit 0。
+这个数是重复断言数，不是 6531 个独立产品缺陷。
+
+独立候选计数还验证真实 Input 单次操作共用边界：256 字符 CtrlRight 从 65536 次
+UTF8 decode 降到 256 次，鼠标从 130560 降到 256 次；不是 viewer/capacity benchmark。
+这些计数不涵盖 DOM 绘制或原生终端 shaping，不用其替代体验验收。
+
+### 完整构建与门禁
+
+最终统一源码串行执行 `tests/verify.sh`，Qt/TUI 均 ON：
+
+| 构建 | build / 全量 CTest | 实际耗时 |
+|---|---|---:|
+| normal Debug | PASS / 21/21 | 104.86 s |
+| ASan | PASS / 21/21 | 136.98 s |
+| UBSan | PASS / 21/21 | 132.55 s |
+
+日志 `/tmp/chat-t04-final-verify.log`；编译告警、sanitizer 报告、sanitizer suppression、
+跳过和 timeout 放宽均为零，新 C 依赖也有 sanitizer 插桩。
+额外全新 Debug `-Werror` build 和全量 21/21 CTest 通过（106.87 s）；
+全新 RelWithDebInfo `-O2 -g -DNDEBUG -Werror` 的 Unicode target/回归通过（0.01 s），
+但该配置的全项目 build 未通过：未修改的 Boost.Capy 分配路径触发 GCC
+`mismatched-new-delete`，既有 PG coroutine 测试触发 `maybe-uninitialized`。
+未压告警、未改第三方或将局部 target GREEN 冒称全量 RelWithDebInfo GREEN。
+
+首次完整验证 normal/ASan 已通过，UBSan Qt UI 与另一次独立 CTest 并行时撞到
+夹具固定端口 18769，失败日志 `/tmp/chat-t04-production-verify.log` 保留。
+核对两个进程均已退出后串行重新执行完整门禁，取得上述最终三套 21/21；不重写失败记录。
+
+### 两真实 TUI 的编辑流程
+
+最终驱动 `/tmp/chat-t04-root-native-editing.py` actual exit 0，证据
+`/tmp/chat-t04-root-native-editing-final2-20261005`。两个真实 TUI 实际 `/proc/PID/exe`
+SHA 均为 `e4e379ef9920198a8a3f67685c26a6677f56177fa78271983c06ae99ab584963`。
+60/80/120 列下，各 11 类字素分别完成 Backspace、Delete、overwrite、Ctrl-word
+后发送，共 132 条流程。每条 SDK 正文精确匹配、消息 ID 唯一，另一 TUI 实际收到；
+66 份 plain/styled capture 保留。此计数是流程数，不是按键数或独立视觉审查数。
+仓库 TUI 导航回归另 actual 11/11，包括多行粘贴、重连草稿、选择目标与退出。
+
+探针首试因用户名 fixture 前缀超过 24 bytes 被拒绝；第二试用旧“消息已发送”状态
+立即查询，未等待此次真实接收而过早清理。只修诊断前缀和等待目标：最终每条都等待
+对端出现本次唯一 marker，再核 SDK。失败目录和日志保留，未改产品发送语义。
+最终及失败的自建库均经 SQL 再核不存在，自有 TUI/服务器/端口均清理；长期服务未动。
+
+### 尚未完成，不能关闭 T04
+
+主代理阅读三档真实 capture：CJK combining bytes 已保留，编辑后正文精确；
+80 列 ZWJ 行仍可见后缀/边界残留，不能给其视觉 PASS。
+UAX29 分界不决定 terminal columns：当前 width/cell mapping 仍逐 scalar，
+leading combining 仍丢 bytes，窄 Text 会裁掉 cluster 内部，Screen 只识别两列 continuation。
+下阶段需将列映射、完整 span、原子裁剪和选择复制在真实 xterm/tmux 中统一验证；
+不能硬编码全部 emoji 两列或以 tmux 虚拟 DSR 冒称外层字体 shaping 正确。
+本轮只交付完整字素编辑基础，保留 T04 和整体品质目标。Qt 暂评 87、TUI 78；
+全页面、参考、无障碍及最终两次独立完整 fresh review 尚未完成。
