@@ -2,6 +2,9 @@
 #include "avatar.hpp"
 #include "message_images.hpp"
 
+#include <QDateTime>
+#include <QStringList>
+
 #include <algorithm>
 #include <iterator>
 #include <utility>
@@ -82,6 +85,37 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             return message.from;
         case timestamp_role:
             return message.timestamp;
+        case Qt::AccessibleTextRole:
+        {
+            QStringList parts{outgoing ? QStringLiteral("你") : message.username};
+            if (message.timestamp > 0)
+            {
+                parts.push_back(QDateTime::fromMSecsSinceEpoch(message.timestamp).toLocalTime()
+                                    .toString(QStringLiteral("yyyy-MM-dd HH:mm")));
+            }
+            if (!message.deleted && message.reply.id > 0)
+            {
+                parts.push_back(QStringLiteral("回复 %1：%2").arg(message.reply.username,
+                    message.reply.deleted ? QStringLiteral("消息已删除") : message.reply.text));
+            }
+            parts.push_back(data(index, text_role).toString());
+            if (!message.deleted)
+            {
+                if (message.edited_at > 0) { parts.push_back(QStringLiteral("已编辑")); }
+                if (data(index, mentioned_role).toBool()) { parts.push_back(QStringLiteral("提及你")); }
+                if (outgoing && data(index, read_role).toBool())
+                {
+                    auto const count = data(index, read_count_role);
+                    parts.push_back(count.isValid() ? QStringLiteral("已读 %1 人").arg(count.toInt())
+                                                    : QStringLiteral("已读"));
+                }
+                for (auto const& reaction : message.reactions)
+                {
+                    parts.push_back(QStringLiteral("反应 %1 %2 人").arg(reaction.emoji).arg(reaction.users.size()));
+                }
+            }
+            return parts.join(QStringLiteral("；"));
+        }
         case Qt::DisplayRole:
         case text_role:
             if (message.deleted)
@@ -309,7 +343,7 @@ bool message_model::set_reactions(qint64 message, qint64 revision, QList<reactio
             {
                 current.reaction_revision = revision;
                 current.reactions = std::move(reactions);
-                emit dataChanged(index(row, 0), index(row, 0), {reactions_role, own_reaction_role});
+                emit dataChanged(index(row, 0), index(row, 0), {reactions_role, own_reaction_role, Qt::AccessibleTextRole});
             }
             return true;
         }
@@ -327,7 +361,7 @@ void message_model::set_read_message(qint64 user, qint64 message)
     read_positions_.insert(user, message);
     if (!messages_.isEmpty())
     {
-        emit dataChanged(index(0, 0), index(messages_.size() - 1, 0), {read_role, read_count_role});
+        emit dataChanged(index(0, 0), index(messages_.size() - 1, 0), {read_role, read_count_role, Qt::AccessibleTextRole});
     }
 }
 
@@ -345,7 +379,7 @@ void message_model::set_read_positions(read_positions positions)
     read_positions_ = std::move(positions);
     if (!messages_.isEmpty())
     {
-        emit dataChanged(index(0, 0), index(messages_.size() - 1, 0), {read_role, read_count_role});
+        emit dataChanged(index(0, 0), index(messages_.size() - 1, 0), {read_role, read_count_role, Qt::AccessibleTextRole});
     }
 }
 
@@ -354,7 +388,7 @@ void message_model::set_members(QList<member_data> members)
     members_ = std::move(members);
     if (!messages_.isEmpty())
     {
-        emit dataChanged(index(0, 0), index(messages_.size() - 1, 0), {read_role, read_count_role});
+        emit dataChanged(index(0, 0), index(messages_.size() - 1, 0), {read_role, read_count_role, Qt::AccessibleTextRole});
     }
 }
 

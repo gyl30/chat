@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QAccessible>
 #include <QBuffer>
 #include <QAction>
 #include <QFrame>
@@ -6,6 +7,7 @@
 #include <QCheckBox>
 #include <QTabWidget>
 #include <QDialogButtonBox>
+#include <QDateTime>
 #include <QFile>
 #include <QFileDialog>
 #include <QImage>
@@ -1319,6 +1321,16 @@ void check_message_search_live_policy()
         { values.push_back(results->model()->index(row, 0).data(message_model::id_role).toLongLong()); }
         return values;
     };
+    auto accessible_name = [&](qint64 id) {
+        QApplication::processEvents();
+        auto const index = index_for(id);
+        check(index.isValid(), "Accessible search context belongs to an actual visible hit");
+        auto* accessible = QAccessible::queryAccessibleInterface(results);
+        check(accessible && accessible->tableInterface(), "Search list exposes the actual Qt accessible table interface");
+        auto* cell = accessible->tableInterface()->cellAt(index.row(), 0);
+        check(cell && cell->role() == QAccessible::ListItem, "Search context is read from an accessible list item");
+        return cell->text(QAccessible::Name);
+    };
     dialog.show(); dialog.activateWindow(); QApplication::processEvents();
     check(count->isHidden() && status->isVisible(), "A new search shows only its input prompt, not an empty loaded-count row");
     check(input->accessibleName() == QStringLiteral("消息搜索关键词") &&
@@ -1327,8 +1339,16 @@ void check_message_search_live_policy()
     start();
     check(count->isHidden() && status->isVisible(), "Initial search loading has one response feedback line");
     dialog.set_results(50, query, 0, {message(100), message(101)}, {}, false, {});
+    auto const initial_name = accessible_name(100);
+    auto const initial_time = QDateTime::fromMSecsSinceEpoch(message(100).timestamp).toLocalTime()
+                                 .toString(QStringLiteral("yyyy-MM-dd HH:mm"));
+    check(initial_name == index_for(100).data(Qt::AccessibleTextRole).toString() &&
+          initial_name.contains(QStringLiteral("朋友")) && initial_name.contains(initial_time) &&
+          initial_name.contains(message(100).text), "Public accessible search item reads canonical author/date/body through its proxy");
     auto edit = message(100); edit.text = QStringLiteral("no longer a current match"); edit.edited_at = 20;
     dialog.update_message(50, edit, {});
+    check(accessible_name(100).contains(edit.text) && accessible_name(100).contains(QStringLiteral("已编辑")) &&
+          !accessible_name(100).contains(message(100).text), "Accessible proxy item follows live edited text without retaining stale body");
     auto matching_edit = message(101); matching_edit.edited_at = 21;
     dialog.update_message(50, matching_edit, {});
     dialog.update_message(50, message(99), {});
@@ -1337,6 +1357,9 @@ void check_message_search_live_policy()
     auto deleted = edit; deleted.deleted = true; deleted.text.clear();
     dialog.update_message(50, deleted, {});
     check(ids() == QList<qint64>{101}, "A live-deleted loaded hit is actually absent, not a counted tombstone");
+    check(index_for(101).data(Qt::AccessibleTextRole).toString().contains(message(101).text) &&
+          !index_for(101).data(Qt::AccessibleTextRole).toString().contains(edit.text),
+          "Accessible remaining model hit does not inherit the deleted target body");
     auto* help = dialog.findChild<QLabel*>("messageSearchHelp");
     check(help && help->isVisible() && help->text().contains(QStringLiteral("正文实时更新")) &&
           help->text().contains(QStringLiteral("重新搜索")) && count && count->text().contains(QStringLiteral("已加载 1")),
@@ -1374,6 +1397,9 @@ void check_message_search_live_policy()
     check(ids() == QList<qint64>{100} && index_for(100).data(message_model::text_role).toString() == edit.text &&
           !merged_reactions.isEmpty() && merged_reactions.front().emoji == QStringLiteral("👍"),
           "Initial late pages reconcile unknown edits, deletion and independent reaction revision");
+    auto const late_name = index_for(100).data(Qt::AccessibleTextRole).toString();
+    check(late_name.contains(edit.text) && late_name.contains(QStringLiteral("反应 👍 1 人")),
+          "Accessible late-page model context consumes canonical live edit and reaction facets");
     more->click();
     auto dead80 = message(80); dead80.deleted = true;
     auto dead81 = message(81); dead81.deleted = true;

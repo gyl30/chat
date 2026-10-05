@@ -158,7 +158,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q20 | P2 | 消息搜索 Tab/Down 已改变当前/选中行，但无任何可见反馈 | 第二十三阶段修复，正式三模式及真实双Qt四档缩放通过 |
 | Q21 | P2 | 搜索正文实时更新后可能不再匹配；删除占位仍计入“找到”数量，与界面说明矛盾 | 第二十四阶段修复，正式三模式、真实双Qt四档与AT-SPI行数/复制/草稿核验通过 |
 | Q22 | P2 | 原生无障碍树中的搜索输入/结果、会话/消息列表和个人资料入口没有动作名称 | 第二十五阶段补九个稳定操作名称，原生四档树、资料/联系人/添加好友实际AT-SPI动作通过；不代表全部屏幕阅读器验收 |
-| Q23 | P2 | 原生消息记录/搜索结果行只有正文名称，没有发送者/时间的可读取上下文 | 第二十五阶段真实树已确认，需从唯一消息model提供上下文并验证live更新与实际原生树 |
+| Q23 | P2 | 原生消息记录/搜索结果行只有正文名称，没有发送者/时间的可读取上下文 | 第二十六阶段从唯一消息model提供上下文，永久RED/GREEN及四档真实原生树/live重建/删除隐私通过；全无障碍矩阵仍开放 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 第十九轮字素编辑与宽字组合符附着修复已进入生产；终端 span、裁剪、leading mark 和 shaping 仍未闭环，不计 Unicode 全矩阵通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 | T06 | P2 | TUI 搜索选中消息之前一项被删除时，只clamp索引，选中目标跳到另一ID | 第二十四阶段修复，永久RED/GREEN、真实双TUI六档选中目标/可复制正文/草稿验证通过 |
@@ -1730,3 +1730,83 @@ T04通用malformed modifier候选隔离研究保留于
 可解决非base前缀/非法插入关联，但合法ZWJ/emoji在不同outer terminal仍有宽度残留。
 候选尚未进入正式构建，不把其临时GREEN记作T04完成。本阶段无server/client/SQL/third
 改动、无migration或push；Qt87/TUI78不提高，完整日常使用和两轮全产品fresh review继续开放。
+
+## 阶段 26：原生消息上下文
+
+基线 `6519e9d3abe4051636a167df5b77bd40dd87802b`。旧原生消息/搜索行的Name只有正文，
+没有发送者和时间子节点。本阶段采用Qt官方
+[AccessibleTextRole](https://doc.qt.io/qt-6/qt.html#ItemDataRole-enum)：从现有message_model
+的消息、引用、附件、mention、reaction和读者roles按需生成可读取上下文，不建立第二份
+无障碍snapshot。自己的发送者为“你”，有效时间含本地日期与分钟；已编辑、提及你、
+自己的已读和反应使用已有事实。正文DisplayRole/text_role、OS复制、动作目标和geometry不变。
+删除后的Name仅保留身份、时间和墓碑，不泄露原文、引用、文件名、提及、反应或编辑标记。
+读者/member/reaction的dataChanged通知同步包含AccessibleTextRole，没有增加状态或wrapper。
+
+### 永久回归与真实bridge的边界
+
+模型新增断言先actual RED1，再GREEN0：发送者/日期/正文、原文复制不变、引用/编辑/
+stale revision、提及、反应、附件、删除隐私、group/direct读者、无timestamp不造1970。
+widgets通过公开QAccessible table/list item验证初次和同model live编辑；late page/reset
+继续核验实际proxy的canonical role，原断言保留。
+日志 `/tmp/chat-q23-model-{red,green}.log` 和
+`/tmp/chat-q23-permanent-final-{model-green,ui-green}.log`。
+
+一次offscreen尝试在model reset后读缓存cell得到空Name，而model role正确；
+`QAccessible::setActive(true)`仍不能建立原生platform bridge，诊断actual1保留。
+实际Qt为6.2.4；[该版本官方源码](https://code.qt.io/cgit/qt/qtbase.git/plain/src/gui/accessible/qaccessible.cpp?h=v6.2.4)
+表明model-change accessibility事件只有active bridge才交给cache。
+最终没有强制active、人工modelChange或删除Qt缓存的产品/测试workaround。
+reset后的真实Name必须由实际AT-SPI补证据，不能用model属性测试替代。
+
+### 双Qt四档原生验证
+
+`/tmp/chat-quality-q23-native-final3-20261006`为同一完整成功轮，driver/bus actualexit0。
+A100/125/150/200%、C100%，五次实际/proc binary SHA均为
+`a97470a36430f75d555aab378559a4cb0dd47bc294414c0ab1b42f5c3d64a6ad`。
+每档在命名的消息记录/搜索结果直接子树定位真实消息，核验sender/date/reply/mention/
+reaction以及自己消息的已读；同dialog重新搜索非空、live编辑后真空再新query真非空，
+重新建立的原生Name仍正确。删除后搜索无行，消息记录墓碑无旧上下文。
+100%另通过SDK真正发送/删除带引用与反应的附件，核验文件名不从墓碑泄露；
+这不是完整附件上传/下载UI验收。Description可为空，完整上下文由原生Name读取。
+OSclipboard逐byte仍为原文/编辑正文；未重贴草稿恢复并真实发送、SDK查询、焦点/操作
+名称及Contacts/AddFriend/profile真实Press均保留严格断言。独立verification actual0。
+
+主代理亲看[100%重新搜索](images/experience/after-qt-message-context-100.png)、
+[200%重新搜索](images/experience/after-qt-message-context-200.png)、150%滚到底的消息区及
+100%附件墓碑原图。可见搜索选择/正文/反应层级未因Name改变而改变；截图不是无障碍证明，
+实际节点和SDK对应记录才是。本专项不宣称Orca语音、动态announce或全页面可访问性通过。
+
+前两完整driver actual1不拼接到成功轮：首轮150% target底部未全滚入，旧CtrlEnd操作
+没有达到viewing_latest；第二轮临时arrival断言误放附件helper，等待已删的普通target。
+最终仅修/tmp驱动，先在实际A消息子树确认目标到达，再公开wheel到底，记录真实scrollbar
+before/after，原15s SDK read-position断言不删除、不延长。各轮driver/reader快照保留。
+三精确自建库SQL count0，各轮记录PID均消失，18901无listener；成功轮source首尾/current
+一致，长期2876288未动。受控Qt SIGTERM不是crash。
+
+### 当前冻结源码完整门禁
+
+Qt三文件与同期TUI十文件共13份source SHA guard一致；以下是此冻结组合的正式门禁，
+Qt和TUI实现没有相互依赖。全新Debug Qt/TUI ON、`-Werror`目录
+`/tmp/chat-context-fresh.U3SIBY`全构建和23/23 CTest通过，109.59s。
+`tests/verify.sh`原runner actualexit0，`CONTEXT_VALIDATION_EXIT=0`：
+
+| 配置 | build / 全量CTest | 实际耗时 | tui_render（原5s） |
+| --- | --- | ---: | ---: |
+| normal Debug | PASS / 23/23 | 104.67s | 0.85s |
+| ASan | PASS / 23/23 | 135.04s | 4.06s |
+| UBSan | PASS / 23/23 | 129.09s | 1.76s |
+
+正式compile command与实际asan/ubsan符号另核。fresh使用-Werror，正式脚本保留原
+-Wall/-Wextra/-Wpedantic；未谎称正式三模式均使用-Werror。日志
+`/tmp/chat-context-final-{validation,verify}.log`无编译告警/sanitizer报告，未skip或放宽超时。
+同期fresh binary真实Qt/X11导航4/4、TUI/tmux导航11/11，各原handle actual0；
+`/tmp/chat-quality-context-{qt,tui}-navigation-20261006`。主只读cleanup checker actual0：
+精确库`chat_qtx11_1006041135_250442`/`chat_nav1006041137_250513`均SQL count0，
+18903/18904无listener，记录driver PID消失、自有DB/log/port关联活进程为空、专用tmux无server。
+未保存historical child PID清单，不冒称逐child核验。
+
+仍需后续核验：可见group消息的已读人数（包括peer和0）与完整无障碍metadata的等价性、
+keyboard-to-latest、Qt复杂emoji font/shaping。新原图仍可见woman/laptop分开，原始UTF8
+正确不等于字形正确。Q23仅关闭已确认的sender/time上下文缺陷；Qt87/TUI78不提高，
+T04、完整参考/全页面/日常使用/动态announce矩阵和连续两轮全产品fresh review仍开放。
+本阶段无server/client/SQL/third改动，无migration或push。

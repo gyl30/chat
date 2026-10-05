@@ -1205,3 +1205,27 @@ live删除归零继续邀请重搜；不保存额外状态，不改变消息或�
 
 Q22操作目的专项收口，Q23消息行sender/time无障碍上下文仍缺失；T04 outer宽度/shaping、
 全页面/完整日常使用/动态announce和连续两轮全产品fresh review未完成。Qt87/TUI78不提高。
+
+## 体验品质审查：原生消息上下文
+
+从 `6519e9d3abe4051636a167df5b77bd40dd87802b` 继续。唯一message_model按需提供
+AccessibleTextRole的身份/日期/正文与现有引用、提及、编辑、反应、自己的已读信息；
+DisplayRole/text_role/复制/geometry不变，墓碑不泄露正文、引用或附件文件名。
+模型永久回归actualRED1→GREEN0，公开QAccessible/widgets和原断言通过。
+offscreen model-reset缓存cell空Name的诊断失败保留；没有强制bridge或人工清缓存，
+真实AT-SPI同dialog非空重建、编辑后重搜、删除必须另行核验。
+
+双Qt最终完整final3 A100/125/150/200%、C100% actual0，五次/proc binary同a97470a3…a6ad，
+Name与真实SDK上下文一致；原文/编辑OSclipboard逐byte、草稿恢复发送、profile等真实动作
+通过。前两driveractual1分别为目标未完全到底、临时attachment arrival条件放错位置，
+没有为测试改产品或放宽read-position断言；三库/记录PID/18901精确清理、长期服务未动。
+主亲看四张原图，专项不是Orca语音/动态announce/全产品a11y验收。
+
+同期13份源码guard一致，fresh Debug Qt/TUI ON -Werror构建及23/23 CTest109.59s；
+正式tests/verify.sh normal/ASan/UBSan各23/23，104.67/135.04/129.09s，原runner actual0。
+fresh与正式编译选项分别核验，未称正式脚本也有-Werror；无告警/sanitizer报告/skip/
+timeout放宽。真实导航Qt4/4、TUI11/11 actual0，主只读cleanup核精确DB/PID/port/socket。
+详见[体验品质审查](experience-quality.md)。无server/client/SQL/third改动或push。
+
+Q23 sender/time上下文专项收口；group可见读者metadata等价性、keyboard-to-latest与
+Qt emoji字体候选仍需处理。Qt87/TUI78不提高，T04和整体品质目标继续推进。

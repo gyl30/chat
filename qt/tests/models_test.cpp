@@ -5,13 +5,87 @@
 #include <chat/text.hpp>
 
 #include <QCoreApplication>
+#include <QDateTime>
 
 #include "conversation_model.hpp"
 #include "message_model.hpp"
 
+bool check_message_accessible_context()
+{
+    message_model model;
+    model.set_self_user(1);
+    model.reset(50, true);
+    message_data incoming;
+    incoming.id = 100;
+    incoming.conversation = 50;
+    incoming.from = 2;
+    incoming.username = QStringLiteral("成员二 中文");
+    incoming.timestamp = 1767323040000LL;
+    incoming.text = QStringLiteral("原文 é 👩‍💻\n第二行");
+    model.add_message(incoming);
+    QList<int> changed_roles;
+    QObject::connect(&model, &QAbstractItemModel::dataChanged, &model,
+        [&](QModelIndex const&, QModelIndex const&, QList<int> const& roles) { changed_roles = roles; });
+    auto const first = model.index(0, 0);
+    auto const date = QDateTime::fromMSecsSinceEpoch(incoming.timestamp).toLocalTime().toString(QStringLiteral("yyyy-MM-dd HH:mm"));
+    auto name = [&] { return first.data(Qt::AccessibleTextRole).toString(); };
+    if (!name().contains(incoming.username) || !name().contains(date) || !name().contains(incoming.text) ||
+        first.data(Qt::DisplayRole).toString() != incoming.text || first.data(message_model::text_role).toString() != incoming.text)
+    {
+        std::cerr << "FAIL message accessible context lacks author/time/body or changes copy/display text\n";
+        return false;
+    }
+    auto edited = incoming;
+    edited.text = QStringLiteral("新正文");
+    edited.edited_at = incoming.timestamp + 1;
+    edited.reply = {90, QStringLiteral("引用作者"), QStringLiteral("引用正文"), 0, false};
+    edited.mentions = {{1, QStringLiteral("self")}};
+    model.update_message(edited);
+    if (!name().contains(edited.text) || name().contains(incoming.text) || !name().contains(QStringLiteral("已编辑")) ||
+        !name().contains(QStringLiteral("引用作者")) || !name().contains(QStringLiteral("引用正文")) ||
+        !name().contains(QStringLiteral("提及你"))) { return false; }
+    model.set_reactions(100, 1, {{QStringLiteral("👍"), {1,2}}});
+    if (!name().contains(QStringLiteral("👍 2")) || !changed_roles.contains(Qt::AccessibleTextRole)) { return false; }
+    auto stale = incoming;
+    model.update_message(stale);
+    if (!name().contains(edited.text) || name().contains(incoming.text)) { return false; }
+    auto quote_deleted = edited;
+    quote_deleted.reply.deleted = true;
+    model.update_message(quote_deleted);
+    if (name().contains(QStringLiteral("引用正文")) || !name().contains(QStringLiteral("消息已删除"))) { return false; }
+    auto deleted = quote_deleted;
+    deleted.deleted = true;
+    model.update_message(deleted);
+    if (!name().contains(incoming.username) || !name().contains(date) || !name().contains(QStringLiteral("消息已删除")) ||
+        name().contains(edited.text) || name().contains(QStringLiteral("引用作者")) || name().contains(QStringLiteral("👍")) ||
+        name().contains(QStringLiteral("提及你")) || name().contains(QStringLiteral("已编辑"))) { return false; }
+    auto own = incoming;
+    own.id = 101;
+    own.from = 1;
+    own.attachment = attachment_data{QStringLiteral("报告.pdf"), QStringLiteral("application/pdf"), 2048};
+    model.add_message(own);
+    auto const second = model.index(1, 0);
+    auto own_name = [&] { return second.data(Qt::AccessibleTextRole).toString(); };
+    if (!own_name().startsWith(QStringLiteral("你；")) || !own_name().contains(QStringLiteral("报告.pdf")) ||
+        own_name().contains(own.text) || own_name().contains(QStringLiteral("已读"))) { return false; }
+    model.set_members({{1,"self",{},{}},{2,"second",{},{}}});
+    if (!changed_roles.contains(Qt::AccessibleTextRole)) { return false; }
+    model.set_read_message(2, 101);
+    if (!own_name().contains(QStringLiteral("已读 1 人")) || !changed_roles.contains(Qt::AccessibleTextRole)) { return false; }
+    model.set_read_positions({{2,101}});
+    if (!changed_roles.contains(Qt::AccessibleTextRole)) { return false; }
+    model.reset(50);
+    own.timestamp = 0;
+    model.add_message(own);
+    model.set_read_message(2, 101);
+    auto const direct = model.index(0, 0).data(Qt::AccessibleTextRole).toString();
+    return direct.contains(QStringLiteral("已读")) && !direct.contains(date) && !direct.contains(QStringLiteral("1970"));
+}
+
 int main(int argc, char** argv)
 {
     QCoreApplication app(argc, argv);
+    if (!check_message_accessible_context()) { return 1; }
     for (auto const& name : std::vector<std::string>{"ASCII", "中文", "normal space", "dot.name", "dash-name", "under_score",
         "r(.*)[z]\\_'", "Alice Bob", "张 三", "Alice\u00a0Bob", "张\u3000三", std::string(64, 'x')})
     {
