@@ -160,6 +160,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q22 | P2 | 原生无障碍树中的搜索输入/结果、会话/消息列表和个人资料入口没有动作名称 | 第二十五阶段补九个稳定操作名称，原生四档树、资料/联系人/添加好友实际AT-SPI动作通过；不代表全部屏幕阅读器验收 |
 | Q23 | P2 | 原生消息记录/搜索结果行只有正文名称，没有发送者/时间的可读取上下文 | 第二十六阶段从唯一消息model提供上下文，永久RED/GREEN及四档真实原生树/live重建/删除隐私通过；全无障碍矩阵仍开放 |
 | Q24 | P2 | 群消息可见已读人数包含peer与0，但原生Name仅描述自己消息的非零已读 | 第二十八阶段复用read_count_role，永久RED/GREEN及四档真实SDK/原生树计数一致；可见截图与完整无障碍验收分别记账 |
+| Q25 | P2 | 主消息列表可通过键盘移动当前消息，但NoSelection同时隐藏了当前行焦点 | 第二十九阶段复用现有焦点轮廓；永久RED/GREEN、四档真实键盘回复/回应/读者详情及三模式门禁通过，完整键盘矩阵仍开放 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 第十九轮字素编辑与宽字组合符附着修复已进入生产；终端 span、裁剪、leading mark 和 shaping 仍未闭环，不计 Unicode 全矩阵通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 | T06 | P2 | TUI 搜索选中消息之前一项被删除时，只clamp索引，选中目标跳到另一ID | 第二十四阶段修复，永久RED/GREEN、真实双TUI六档选中目标/可复制正文/草稿验证通过 |
@@ -1900,7 +1901,7 @@ Qt87/TUI78不提高，完整reference/页面/日常使用/无障碍/terminal lif
 基线 `6318d8653f2516e643f8ac35440cf5d6d103a3d7`。delegate既有read_count_role对群消息
 显示已读人数，包括incoming和0；原AccessibleTextRole仅描述outgoing且read=true，
 两种呈现并不等价。本次直接复用同一read_count_role：valid时描述人数，否则保留单聊
-自己的已读事实。没有新增状态、计数缓存、轨道或server规则，也不改变正文、复制或布局。
+自己的已读事实。没有新增状态、计数缓存或server规则，也不改变正文、复制或布局。
 删除墓碑仍不描述已读/引用/附件等原上下文。
 
 ### 永久回归
@@ -1953,3 +1954,78 @@ guard再次一致。正式编译保留原-Wall/-Wextra/-Wpedantic，实际saniti
 Q24计数上下文专项收口不等于全无障碍验收。主消息列表真实keyboard菜单/可见focus、
 全页面完整日常任务、Orca与动态announce仍缺完整证据；T04合法emoji列/shaping仍开放。
 Qt87/TUI78不提高，最终两轮独立全产品fresh review尚未开始。无push、无third改动。
+
+## 阶段 29：主消息列表的可见键盘目标
+
+基线`660b739025cfa7cb7d5a4fad6e8a5f1131a846d4`。100%两真实Qt探针从focused composer
+公开ShiftTab/Home/Down逐行到SDK原目标ID4，原生focused/showing=true、selected=false，
+原图却没有当前行提示：[before](images/experience/before-qt-main-message-keyboard-focus-100.png)。
+确定问题是NoSelection同时禁止绘制HasFocus，不是键盘不能定位。
+本次仅让HasFocus使用既有绿色轮廓；Selected-only仍遵守NoSelection，未聚焦气泡/正文/
+布局不变，没有加入选择状态、菜单封装或新快捷键。
+
+永久delegate矩阵先actualRED1，再GREEN0；同时保留普通/搜索selected/null-widget、正文
+不变、轮廓不逃出row、宽窄/origin/1x和2x/outgoing与incoming所有旧约束。新增NoSelection
+HasFocus与search同一焦点轮廓，unfocused与Selected-only仍等原plain。widgets实际0。
+一次直接调用ui_test未提供其必需argv，进入main前返回1；随后按真实API --widgets-only
+实际0，未修改产品去迎合错误调用。日志`/tmp/chat-message-focus-{red,green,ui-widgets-green}.log`。
+
+### 原生失败与判定纠正
+
+before`/tmp/chat-quality-message-keyboard-native-20261006`driver actual1：collector未见
+AT-SPI menu items而误判Menu/ShiftF10没打开，原X11图实际有回复/置顶/回应/已读菜单。
+主和独立代理亲看后撤销菜单不可达产品判断，只保留真实focus缺口；不修改chat_widget。
+两SHA4d2…、原target树逐次变化、原图、driver-at-run与失败实际清理证据全部保留。
+
+新正常Qt SHA`303ff6b0986049ca49706b124e9e87b1cdf9903f121190b41eae3c92d76bd63e`，
+[after100原图](images/experience/after-qt-main-message-keyboard-focus-100.png)已有绿色当前行
+轮廓。但首次after driver也actual1：X11窗口matcher把raw
+regex写成双反斜线，真实保存tree上原matcher0项，修单转义后9项且唯一popup尺寸匹配。
+这是/tmp探针错误，不据此修改菜单、删SDK原ID断言或称后续业务已通过。
+
+### 当前验收范围
+
+沿用上一阶段fresh目录增量构建-Werror后全量23/23 CTest实际0，104.81s；不是另一次
+全新配置。原tests/verify.sh actual0，15份source SHA guard首尾一致；无放宽render5s、
+skip或sanitizer workaround。
+
+| 配置 | build / 全量CTest | 实际耗时 | tui_render（原5s） |
+| --- | --- | ---: | ---: |
+| normal Debug | PASS / 23/23 | 109.64s | 0.86s |
+| ASan | PASS / 23/23 | 141.16s | 4.11s |
+| UBSan | PASS / 23/23 | 137.22s | 1.77s |
+
+日志`/tmp/chat-message-focus-{validation,final-verify}.log`，实际marker
+`MESSAGE_FOCUS_VALIDATION_EXIT=0`，严格目录-Werror与正式脚本原warnings分别记账。
+新完整100%`/tmp/chat-quality-message-keyboard-after-native-final3-20261006`driver actual0：
+reply原ID/原draft、👍同原ID、read-details真实S005、后draft原bytes全部同轮严格通过。
+第二次after actual1实际给同目标加了❤️：Right进入submenu时已经选择首项，额外Down移动
+到第二项；原图和SDK一致，属于driver输入错误。仅/tmp改Home明确到首项，再Return，
+没有弱化👍/原ID期待或修改菜单。此前actual1与source-at-run保留，不拼为成功轮。
+
+四轮独立新环境分别为A100/125/150/200%、每轮C100%；实际execution
+35290/5946/84954/7745全部terminal0，八个/proc binary SHA均为303ff6…。
+125/150/200每轮都完整执行公开键盘定位、Menu、reply原ID4/原draft、👍同ID4、真实S005
+读者和后draft精确OSclipboard；随后resize到980×640逻辑尺寸，实际物理尺寸分别为
+1225×800、1470×960、1960×1280，再用公开按键定位同原ID并核draft。
+100%未做这次最小尺寸步骤，不借后三轮替代。Menu实际成功，备用ShiftF10未执行，
+不称两种快捷键都已验证。菜单AT-SPI items不可用，实际owned mapped X11 popup与
+公开按键、SDK原ID是菜单判定依据；剪贴板字节在runtime严格断言，未另外保存raw文件。
+
+主独立checker actual0：`/tmp/chat-message-focus-independent-review-20261006.json`，
+核各轮actual exit、11份源码首尾/current一致、八process SHA、回复/回应/读者原ID与
+15次原生current focused/showing且not-selected；缩放三轮driver snapshot SHA完全一致。
+100%复制的snapshot多一个EOF空行，初次checker因此actual1；实际launcher记录SHA与原
+driver当前SHA一致，精确字节关系为snapshot=original+一个LF，完整diff另存，没有覆盖
+原证据或模糊normalization。只有明确核验此字节关系后checker actual0，不归为产品错误。
+
+四档路径`/tmp/chat-quality-message-keyboard-after-{native-final3,125-native,150-native,200-native}-20261006`；
+汇总`/tmp/chat-message-keyboard-scaled-native-REPORT.md`。主亲看100% current/read/draft、
+125/150 normal/min-current与200% normal/min-current/read原图，轮廓清晰、不越row，
+resize后reply/reaction/draft仍自然换行：[200%最小窗口](images/experience/after-qt-main-message-keyboard-focus-minimum-200.png)。
+独立cleanup actual0：`/tmp/chat-message-keyboard-scaled-cleanup-independent.json`，四精确
+自建库SQL count0、全部记录descendants消失、18905无listener、长期2876288仍在。
+Qt受控-15属于清理，不冒称客户端自然退出0。
+
+本次仅收口主消息当前行可见focus与上述三条键盘任务，不是全页面/完整键盘或Orca验收。
+Qt87/TUI78不提高，T04、全页面/完整日常使用/无障碍与最终两轮fresh review继续开放。

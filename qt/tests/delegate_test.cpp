@@ -87,15 +87,17 @@ bool check_message_selection_raster()
                         std::cerr << "FAIL null-widget message paint ignores standard style states\n";
                         return false;
                     }
-                    for (auto state : {QStyle::State(QStyle::State_Enabled | QStyle::State_Selected),
-                                       QStyle::State(QStyle::State_Enabled | QStyle::State_HasFocus),
-                                       QStyle::State(QStyle::State_Enabled | QStyle::State_Selected | QStyle::State_HasFocus)})
+                    if (paint(&normal, QStyle::State_Enabled) != plain ||
+                        paint(&normal, QStyle::State_Enabled | QStyle::State_Selected) != plain)
                     {
-                        if (paint(&normal, state) != plain)
-                        {
-                            std::cerr << "FAIL NoSelection message changes its existing rendering\n";
-                            return false;
-                        }
+                        std::cerr << "FAIL NoSelection message changes its unfocused rendering\n";
+                        return false;
+                    }
+                    if (paint(&normal, QStyle::State_Enabled | QStyle::State_HasFocus) != focus ||
+                        paint(&normal, QStyle::State_Enabled | QStyle::State_Selected | QStyle::State_HasFocus) != focus)
+                    {
+                        std::cerr << "FAIL current message keyboard focus is invisible without selection\n";
+                        return false;
                     }
                     QRect const inner(qRound((option.rect.left() + 8) * ratio),
                                       qRound((option.rect.top() + 8) * ratio),
@@ -123,7 +125,7 @@ bool check_message_selection_raster()
             }
         }
     }
-    std::cout << "PASS Qt selectable message outlines, null-widget states and unchanged NoSelection rendering\n";
+    std::cout << "PASS Qt message selection and keyboard focus outlines with unchanged unfocused rendering\n";
     return true;
 }
 

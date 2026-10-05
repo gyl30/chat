@@ -573,8 +573,9 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     }
 
     auto const* view = qobject_cast<QAbstractItemView const*>(option.widget);
-    if ((!view || view->selectionMode() != QAbstractItemView::NoSelection) &&
-        (option.state & (QStyle::State_Selected | QStyle::State_HasFocus)))
+    if ((option.state & QStyle::State_HasFocus) ||
+        ((!view || view->selectionMode() != QAbstractItemView::NoSelection) &&
+         (option.state & QStyle::State_Selected)))
     {
         auto const focused = option.state & QStyle::State_HasFocus;
         painter->setPen(QPen(QColor(focused ? QStringLiteral("#547C68") : QStringLiteral("#A9B8B1")),

@@ -1271,3 +1271,26 @@ OSclipboard、草稿真实发送、搜索live编辑/reset/删除/墓碑和原动
 -Werror；原render5s不变，未skip，无新增编译告警/sanitizer报告，不借前阶段门禁。
 详细证据和限制见[体验品质审查](experience-quality.md)。Qt87/TUI78不提高，
 主消息keyboard入口、T04、完整页面/日常使用与最终两轮fresh review仍开放。未push。
+
+## 体验品质审查：主消息键盘焦点
+
+从 `660b739025cfa7cb7d5a4fad6e8a5f1131a846d4` 继续。真实ShiftTab/Home/Down可以定位
+原消息，但主列表NoSelection同时抑制HasFocus轮廓；本次允许HasFocus复用既有绿色
+轮廓，Selected-only仍不绘制，不新增选择状态/快捷键或修改正文、布局、菜单和业务规则。
+永久delegate矩阵actualRED1→GREEN0，widgets actual0，旧搜索/selected/plain/正文/
+origin/宽窄/1x2x约束保留。
+
+同303ff6…binary四轮独立双Qt：A100/125/150/200、C100，全部actualexit0。
+公开按键原ID回复/👍/读者详情与原draft字节严格保持；后三轮resize到980×640逻辑
+尺寸后再次定位原ID、核draft。100%未做该min步骤，不冒称完整矩阵或Orca验证。
+主与独立代理亲看原图，当前行绿色focus清晰，缩小后reply/reaction/草稿换行正常。
+四精确自建库0、记录PIDgone、18905无listener，长期服务未动。初次菜单AT-SPI判定、
+双转义regex、额外Down选❤️与复制snapshot多EOF换行均是临时驱动/证据问题，原失败
+保留；没有改产品迎合probe、放宽SDK目标或把多轮局部结果拼成成功。
+
+上一阶段fresh目录增量-Werror全build和23/23 CTest104.81s，不称另一次全新配置；
+原tests/verify.sh normal/ASan/UBSan各23/23，109.64/141.16/137.22s，runner实际0，
+15份source guard一致，原render5s不变，未skip，无新增编译告警/sanitizer报告。
+正式脚本保留原warnings，只有strict目录单列-Werror。证据和原图见
+[体验品质审查](experience-quality.md)。无third/server/client/SQL修改或push。
+Qt87/TUI78不提高，T04、Qt emoji拆画、完整页面/日常任务/无障碍和最终两轮review继续开放。
