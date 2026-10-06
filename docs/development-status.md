@@ -1520,3 +1520,27 @@ bash后续为readline重新enable不算污染。主/独立亲读9plain/9styled�
 结果未保存完整逐周期/proc原文，不声称可逐值重算。临时scope核验后精确清理。
 此项仅Login态，不替代在线草稿、物理Unicode/完整terminal矩阵、Orca或两端完整日常。
 无新production build/全量三模式门禁。Qt87/TUI78不提高，完整品质目标继续开放，未push。
+
+## 体验品质审查：消息末尾跟随与主动历史阅读
+
+从fc608b15继续。阶段46的新视口问题用两真实Qt和40条多行纯文本复现：旧binary自己
+确认正文只露6px，对方正文未进入视口，预览却已更新。局部Resize恢复只针对原末尾，
+会话/位置变化取消延迟动作；消息追加也增加同类guard，保用户刚发生的上滚。不新增
+follow状态，不改消息、已读或历史恢复规则。两个永久反例先RED后GREEN，新增专项
+覆盖发送/确认、typing、reply、多行、四种窗口尺寸及history保位，原断言/timeout保留。
+
+最终同79c82944…binary两真实Qt100/125/150/200各actual0：own确认、peer到达及三行
+发送后整行完整可读，peer前没有恢复滚轮；history08→09原正文及坐标完全相同。
+物理窗口1180×760/1475×950/1770×1140/2360×1520，非100%以原生窗口读回映射AT-SPI
+逻辑坐标。主亲看七原X11图，独立24项after测量及原bytes核验通过。首批DPI驱动失败、
+旧125%widgets像素采样及xcb focus前置失败均单独记录，不拼接为全HiDPI矩阵通过。
+
+原tests/verify.sh第二轮持久exit0，normal/ASan/UBSan各23/23、110.76/142.69/132.28s；
+107tracked输入首尾SHA一致、Qt/TUI ON、render原5s不变，无新warning/sanitizer报告。
+第一轮SSH255没有持久脚本exit，不借三套分项日志推断actual0。既有独立目录增量
+-Werror全build另actual0；不是新fresh配置，也不额外声称strict CTest。
+详细原图/源/driver/进程/测试摘要及范围见[体验品质审查](experience-quality.md)阶段47。
+
+Qt87/TUI78不提高。Q31已复现的局部缺陷收口；Q27/T04/Q30、全页面/参考/无障碍矩阵
+与最终连续两轮fresh审查仍开放。下一阶段应落地通用Unicode显示政策，而非重复机制
+探针。未修改third/server/SQL/依赖，未push。

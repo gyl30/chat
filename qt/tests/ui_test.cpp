@@ -1932,6 +1932,132 @@ void check_message_composer()
     std::cout << "PASS Qt multiline composer, keyboard, bounded wrapping, offline and input method\n";
 }
 
+void check_message_viewport()
+{
+    chat_widget page;
+    page.setStyleSheet(chat_style_sheet());
+    page.resize(1180, 760);
+    page.set_user(QStringLiteral("本人"), 1);
+    conversation_data direct;
+    direct.id = 50;
+    direct.user = 2;
+    direct.username = QStringLiteral("朋友");
+    direct.can_send = true;
+    page.open_conversation(direct);
+    page.show();
+    QList<message_data> history;
+    for (int i = 1; i <= 40; ++i)
+    {
+        message_data item;
+        item.id = i;
+        item.conversation = direct.id;
+        item.from = 2;
+        item.username = direct.username;
+        item.timestamp = i;
+        item.text = QStringLiteral("历史消息 %1\n可滚动的中文正文").arg(i);
+        history.push_back(std::move(item));
+    }
+    page.set_messages(direct.id, std::move(history), {}, false, false, false);
+    auto* list = page.findChild<QListView*>("messageList");
+    auto* scroll = list->verticalScrollBar();
+    auto* edit = page.findChild<QPlainTextEdit*>("messageEdit");
+    auto* send = page.findChild<QToolButton*>("sendButton");
+    wait([&] { return scroll->maximum() > 200 && scroll->value() == scroll->maximum(); });
+    edit->setPlainText(QStringLiteral("从最新位置发送"));
+    QApplication::processEvents();
+    list->scrollToBottom();
+    send->click();
+    QApplication::processEvents();
+    check(scroll->value() == scroll->maximum(),
+          "Sending feedback preserves the latest-message position in scrollable history");
+    page.finish_message_send(direct.id, 41, 41, edit->toPlainText(), {}, {}, {});
+    wait([&] { return scroll->value() == scroll->maximum(); });
+    page.set_typing(direct.id, 2, direct.username, true);
+    QApplication::processEvents();
+    check(scroll->value() == scroll->maximum(), "Typing feedback keeps the latest message visible");
+    page.set_typing(direct.id, 2, direct.username, false);
+    QApplication::processEvents();
+    check(scroll->value() == scroll->maximum(), "Removing typing feedback keeps the latest position");
+    auto const compact_height = edit->height();
+    edit->setPlainText(QStringLiteral("下一条草稿\n").repeated(5));
+    wait([&] { return edit->height() > compact_height && scroll->value() == scroll->maximum(); });
+    edit->clear();
+    wait([&] { return edit->height() == compact_height && scroll->value() == scroll->maximum(); });
+    for (auto const size : {QSize(980, 640), QSize(1440, 900), QSize(1920, 1080), QSize(1180, 760)})
+    {
+        page.resize(size);
+        wait([&] { return page.size() == size && scroll->value() == scroll->maximum(); });
+    }
+    message_data incoming;
+    incoming.id = 42;
+    incoming.conversation = direct.id;
+    incoming.from = 2;
+    incoming.username = direct.username;
+    incoming.timestamp = 42;
+    incoming.text = QStringLiteral("对方的新消息");
+    page.add_message(direct.id, incoming);
+    auto const latest = list->model()->index(list->model()->rowCount() - 1, 0);
+    wait([&] { return scroll->value() == scroll->maximum() &&
+        list->visualRect(latest).intersects(list->viewport()->rect()); });
+    check(list->visualRect(latest).intersects(list->viewport()->rect()), "The new message is actually in the viewport");
+    auto* cancel_reply = page.findChild<QToolButton*>("cancelReplyButton");
+    for (bool const at_bottom : {true, false})
+    {
+        if (at_bottom) { list->scrollToBottom(); }
+        else { scroll->setValue(scroll->maximum() - 180); }
+        auto const reply_position = scroll->value();
+        auto const target = list->indexAt(QPoint(list->viewport()->width() / 2, list->viewport()->height() / 2));
+        check(target.isValid(), "Reply targets an actually visible message");
+        QTimer::singleShot(0, &page, [] {
+            auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+            check(menu, "Reply uses the actual message menu");
+            auto const actions = menu->actions();
+            auto const action = std::ranges::find_if(actions, [](auto* value) {
+                return value->text() == QStringLiteral("回复");
+            });
+            check(action != actions.cend(), "The visible message can be replied to");
+            menu->setActiveAction(*action);
+            QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+            QApplication::sendEvent(menu, &enter);
+        });
+        list->customContextMenuRequested(list->visualRect(target).intersected(list->viewport()->rect()).center());
+        wait([&] { return cancel_reply->isVisible() && (at_bottom
+            ? scroll->value() == scroll->maximum() : scroll->value() == reply_position); });
+        cancel_reply->click();
+        wait([&] { return !cancel_reply->isVisible() && (at_bottom
+            ? scroll->value() == scroll->maximum() : scroll->value() == reply_position); });
+    }
+    scroll->setValue(scroll->maximum() - 180);
+    auto const history_position = scroll->value();
+    page.set_typing(direct.id, 2, direct.username, true);
+    edit->setPlainText(QStringLiteral("阅读历史时发送"));
+    send->click();
+    QApplication::processEvents();
+    check(scroll->value() == history_position && scroll->value() < scroll->maximum(),
+          "Sending and typing feedback do not pull a history reader to the latest message");
+    page.finish_message_send(direct.id, 43, 43, edit->toPlainText(), {}, {}, {});
+    incoming.id = 44;
+    page.add_message(direct.id, incoming);
+    QApplication::processEvents();
+    check(scroll->value() == history_position, "Confirmed and incoming messages preserve an explicit history position");
+    list->scrollToBottom();
+    page.resize(980, 640);
+    scroll->setValue(scroll->maximum() - 180);
+    auto const interrupted_position = scroll->value();
+    QApplication::processEvents();
+    check(scroll->value() == interrupted_position,
+          "A user scroll after resize cancels pending latest-position restoration");
+    list->scrollToBottom();
+    incoming.id = 45;
+    page.add_message(direct.id, incoming);
+    scroll->setValue(scroll->maximum() - 180);
+    auto const incoming_interrupted_position = scroll->value();
+    QApplication::processEvents();
+    check(scroll->value() == incoming_interrupted_position,
+          "A user scroll after an incoming message cancels pending latest-position restoration");
+    std::cout << "PASS Qt latest-message following and explicit history reading\n";
+}
+
 void check_conversation_drafts()
 {
     chat_widget page;
@@ -2023,7 +2149,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_dialogs(); check_message_composer(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); return 0; }
+        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
@@ -2051,6 +2177,7 @@ int main(int argc, char** argv)
         check_message_action_targets();
         check_message_dialogs();
         check_message_composer();
+        check_message_viewport();
         check_conversation_drafts();
         check_message_search_keyboard_visibility();
         check_message_search_live_policy();

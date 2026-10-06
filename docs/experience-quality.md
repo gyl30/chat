@@ -175,6 +175,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q28 | P2 | 账号注销返回登录后，键盘焦点落在服务器设置，而非主要身份输入 | 第三十二阶段在注销完成且登录控件恢复可用后返回用户名焦点；同一永久测试 RED→GREEN，完整原生流程 before actual1→after actual0，范围与门禁见下文 |
 | Q29 | P2 | 实际 Open/Save 文件选择器的路径、类型框和表头出现黑底深字，近不可读 | 第三十四阶段局部 QFileDialog 主题修复；同永久 fixture RED→GREEN、两个真实 Qt 完整附件 after 和三模式全门禁通过，关闭已复现的 fallback 对比度缺陷，不外推所有平台或四档附件验收 |
 | Q30 | P2 | 125%/150%/200% 真实 Fcitx/IBus 候选窗偏离 composer 光标，缩放越大距离越大 | 第四十二阶段真实双Qt业务通过但定位失败；第四十三阶段不链接Chat的标准编辑器也复现，官方Qt IBus已有匹配修复，当前安装环境尚未修复/复验，不计HiDPI输入法验收通过 |
+| Q31 | P2 | 可滚动历史中，发送/typing/composer 布局变化使末尾读者丢失自动跟随；旧追加回调也可能覆盖刚发生的上滚 | 第四十七阶段修复末尾布局恢复与追加回调的会话/位置守卫；真实双Qt纯文本before反例及四档after、历史保位对照，永久回归与门禁记录见下文；不外推重连恢复历史或图片异步布局 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 第十九轮字素编辑与宽字组合符附着修复已进入生产；终端 span、裁剪、leading mark 和 shaping 仍未闭环，不计 Unicode 全矩阵通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 | T06 | P2 | TUI 搜索选中消息之前一项被删除时，只clamp索引，选中目标跳到另一ID | 第二十四阶段修复，永久RED/GREEN、真实双TUI六档选中目标/可复制正文/草稿验证通过 |
@@ -3162,3 +3163,87 @@ start_ticks仍在。核验后精确删除五轮临时scope、本地复核scope�
 third/submodule不变，没有push。Qt87/TUI78不提高；Q27/T04/Q30、新视口疑点、
 全部页面/尺寸/无障碍矩阵和最终连续两轮fresh审查继续开放。这一完整日常通过只完成
 原目标的一项实际使用验证，不是>=92或P2=0的退出结论。
+
+## 阶段 47：保持最新阅读位置，不打断主动历史阅读
+
+基线fc608b15bbbb84822cd945d949659397283ff66e。阶段46的视口疑点通过40条多行纯文本
+历史和两个真实Qt客户端复现，不依赖图片增高或SDK运行期写消息。旧客户端发送后
+消息42仅在视口底部相交6px，正文不可读；对方消息43没有进入A可见行，sidebar预览
+已经更新。显式滚到底才能看到正文。旧probe的`own_confirm_visible_A=true`使用部分
+相交，不是完整可读的PASS；原记录不改写。
+
+### 最小产品修复与永久反例
+
+发送状态、typing、回复条和多行composer改变消息视口高度。仅在Resize发生前仍在
+底部时，沿既有事件过滤器排入一次恢复；捕获会话和滚动位置，执行前仍相同才滚到
+最新并标记实际可见消息。不新增follow bool、generation、history缓存或第二份状态。
+消息追加的旧无条件延迟回调也增加同样的会话/位置守卫：用户在回调前上滚就取消恢复，
+不因收到新消息被拉走。没有改变恢复历史的`set_messages()`业务时序。
+
+新增永久`check_message_viewport()`覆盖发送状态/确认、typing显隐、五行输入增长/
+清空、980×640/1440×900/1920×1080/1180×760、真实回复菜单显隐和主动历史保位。
+原底部发送反例先RED；另外“消息追加已排队→用户马上上滚”的反例也先RED，再修复。
+旧断言、原timeout和既有14组widgets保持，新15组100%offscreen实际通过。这是widget
+测试，不冒称其QKeyEvent菜单动作是native XTest；正文完整可读由下面原生证据验证。
+
+### 真实双Qt四档专项
+
+各轮建立独立数据库、私有DBus/Xvfb和专用端口。准备阶段SDK建立纯文本历史，运行期
+A/C只用XTest在真实Qt输入与发送；observer只读。为捕捉pending短暂暂停本轮自有server，
+finally恢复，未暂停长期服务。after采用完整行包含视口的严格规则，不能只相交算通过。
+
+| 缩放 | 两端窗口实测物理尺寸 | own确认 / peer到达 / 三行发送后完整可读 | 主动历史阅读 |
+| --- | --- | --- | --- |
+| 100% | 1180×760 | 三项均通过；消息42/43完整进入A视口 | 08→09可见正文及逐行坐标保持 |
+| 125% | 1475×950 | 三项均通过 | 同上 |
+| 150% | 1770×1140 | 三项均通过 | 同上 |
+| 200% | 2360×1520 | 三项均通过 | 同上 |
+
+四轮peer检查之前A没有补救滚轮。Qt6.2 AT-SPI给逻辑矩形，125/150/200的temporary
+driver通过top-frame与xwininfo实测比值映射原生点击；原logical/native矩形均保留。
+标题实际像素高度21/26/34，说明不是只设置环境变量而没有缩放。AT-SPI隐藏的0..0
+scrollbar不是消息滚动条，不作为底部证据。四轮各actual0，但这只是follow-bottom专项，
+不是全页面HiDPI、IME或整个widgets矩阵通过。
+
+原始完整X11截图：
+[before](images/experience/qt-follow-bottom-before.png)、
+[after100](images/experience/qt-follow-bottom-after-100.png)、
+[after125](images/experience/qt-follow-bottom-after-125.png)、
+[after150](images/experience/qt-follow-bottom-after-150.png)、
+[after200](images/experience/qt-follow-bottom-after-200.png)、
+[历史阅读](images/experience/qt-follow-bottom-history.png)、
+[多行确认](images/experience/qt-follow-bottom-multiline.png)。
+主代理亲看原图，独立代理重算整行/视口和历史位置。截图不裁切、不重绘。
+[紧凑实测记录](images/experience/qt-follow-bottom-proof.json)保留事件、来源指纹和范围。
+before运行的是旧冻结936a4464…binary，运行时source pin已经是首版Resize候选，不能
+把那个pin冒充旧binary编译源码；旧binary来源与阶段45/46冻结记录对应。
+最终after四轮binary同79c82944…，production源同987e468d…，测试源7f850518…。
+
+### 驱动失败、门禁与边界
+
+首批125/150 native把逻辑AT-SPI矩形直接当物理点击，没有形成A草稿而timeout；200首轮
+accessibility观测timeout。三轮整体失败不拼接为PASS，修正实测坐标后另起完整fresh轮。
+完整widgets额外125%尝试在旧好友申请焦点像素断言失败：grab图为物理像素、采样为逻辑
+坐标；保留此驱动候选，不在本patch改断言。xcb无WM重开注册timeout、私有i3初始登录
+focus失败同样记账，不把native专项通过冒充这些执行通过。
+
+第一次原tests/verify.sh三模式各23/23，109.19/142.10/133.62s；SSH返回255时远端
+仍运行，随后原进程确实终止。没有持久脚本exit，因此不把这些日志推断成脚本actual0。
+第二轮原脚本使用外层临时driver持久记录终态：actual exit0，107个tracked Qt/TUI/tests/
+CMake输入首尾SHA校验exit0。normal23/23 110.76s、ASan23/23 142.69s、UBSan23/23
+132.28s，Qt/TUI均ON；render分别0.89/4.18/1.82s，保原5s。无新增warning或报告错误
+签名。不改原脚本、不删测试、不改timeout。这是既有目录Debug三模式完整运行，不
+冒称新fresh configure。独立已配置目录的完整增量-Werror build另actual0，不冒称又跑
+一套strict CTest。生产与测试源仍为上述冻结SHA，third/submodule不变，未push。
+
+八轮准确自建库再次只读核pg_database均0，已记录进程身份均退出，18919–22无监听。
+长期服务2876288仍同start_ticks，系统输入法/语音服务未改。永久原图与摘要核验后，
+精确删除八轮native临时scope、两轮门禁/驱动scope、本地复核副本及新增observer pyc，
+不删除源码、依赖或构建目录。清理预检首轮SQL字符串引号在shell传递中丢失而失败，
+没有执行任何删除；只修临时driver后预检及清理actual0。这不是产品或数据库故障。
+仓库仅保上述七原图和紧凑记录，不声称删除后仍能重新读取完整raw日志。
+
+Q31关闭的是已复现的纯文本末尾跟随与用户上滚竞态；显式切会话竞态、图片异步布局和
+重连恢复历史不由本专项推断通过。旧`set_messages()`延迟回调会话守卫、HiDPI测试像素
+采样是下一轮候选，不在本patch夹带。Q27/T04/Q30和全页面/参考/无障碍矩阵仍开放；
+Qt87/TUI78不提高，不宣布>=92、P2=0或连续两轮全产品fresh审查完成。

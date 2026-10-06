@@ -1008,6 +1008,19 @@ bool chat_widget::eventFilter(QObject* object, QEvent* event)
     }
     if (object == messages_view_->viewport() && (event->type() == QEvent::Resize || event->type() == QEvent::Show))
     {
+        auto* scroll = messages_view_->verticalScrollBar();
+        if (event->type() == QEvent::Resize && scroll->value() == scroll->maximum())
+        {
+            auto const position = scroll->value();
+            auto const conversation = active_conversation_;
+            QTimer::singleShot(0, messages_view_, [this, position, conversation] {
+                if (conversation == active_conversation_ && messages_view_->verticalScrollBar()->value() == position)
+                {
+                    messages_view_->scrollToBottom();
+                    mark_visible_messages();
+                }
+            });
+        }
         QTimer::singleShot(0, messages_view_, [this] { load_visible_images(); });
     }
     return QWidget::eventFilter(object, event);
@@ -1334,15 +1347,20 @@ void chat_widget::add_message(qint64 user, message_data message)
         return;
     }
 
-    auto const at_bottom = messages_view_->verticalScrollBar()->value() == messages_view_->verticalScrollBar()->maximum();
+    auto* scroll = messages_view_->verticalScrollBar();
+    auto const position = scroll->value();
+    auto const at_bottom = position == scroll->maximum();
     if (messages_->add_message(std::move(message)))
     {
         set_message_status({});
         if (at_bottom)
         {
-            QTimer::singleShot(0, messages_view_, [this] {
-                messages_view_->scrollToBottom();
-                mark_visible_messages();
+            QTimer::singleShot(0, messages_view_, [this, user, position] {
+                if (user == active_conversation_ && messages_view_->verticalScrollBar()->value() == position)
+                {
+                    messages_view_->scrollToBottom();
+                    mark_visible_messages();
+                }
             });
         }
     }
