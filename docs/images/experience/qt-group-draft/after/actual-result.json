@@ -1,0 +1,14 @@
+{
+  "scope": "Two real managers rename through UI; public AT-SPI entry text and X11 dialog titles, read-only SQL UTF8 title, full PNG; no business SDK after setup.",
+  "binary": "/tmp/chat-q34-native-after.ZdELWYa5/chat_qt.after",
+  "binary_sha256": "4ac6cc4f3c44e31833b59c1d3054f758e804a6e7acc24bdb79859bafef1436f4",
+  "driver_sha256": "18b497bc4d931ad9497dd83f903ca0674b10319e5557163def2b578ab72db654",
+  "shared_smoke_sha256": "afd8a595fa6f0d39ab8655271f6f165d2a5529b67feee86264fc69c188309a0b",
+  "expected_local_draft": "  本地未保存_A_qtx11_195002  ",
+  "actual_A_text": "  本地未保存_A_qtx11_195002  ",
+  "actual_A_save_enabled": true,
+  "authoritative_remote_title": "远端已发布_B_qtx11_195002",
+  "draft_preserved": true,
+  "max_wait_seconds": 15,
+  "no_widget_or_QIM_injection": true
+}

@@ -1,0 +1,2587 @@
+[
+  {
+    "path": [],
+    "role": "application",
+    "name": "chat_qt",
+    "description": "/home/gyl/example/chat/build/qt/chat_qt",
+    "showing": true,
+    "rect": null
+  },
+  {
+    "path": [
+      0
+    ],
+    "role": "frame",
+    "name": "Chat",
+    "description": "",
+    "showing": true,
+    "rect": [
+      0,
+      0,
+      1180,
+      760
+    ]
+  },
+  {
+    "path": [
+      0,
+      0
+    ],
+    "role": "layered pane",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      0,
+      0,
+      1180,
+      760
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      0
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "role": "frame",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "role": "image",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    "role": "label",
+    "name": "Chat",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      0,
+      0,
+      2
+    ],
+    "role": "label",
+    "name": "和朋友，轻松聊。",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      0,
+      0,
+      3
+    ],
+    "role": "text",
+    "name": "服务器地址",
+    "description": "ws://服务器地址:端口/ws",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      0,
+      0,
+      4
+    ],
+    "role": "text",
+    "name": "用户名",
+    "description": "用户名",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      0,
+      0,
+      5
+    ],
+    "role": "password text",
+    "name": "密码",
+    "description": "密码",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      0,
+      0,
+      6
+    ],
+    "role": "label",
+    "name": "用户名",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      0,
+      0,
+      7
+    ],
+    "role": "label",
+    "name": "密码",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      0,
+      0,
+      8
+    ],
+    "role": "label",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      0,
+      0,
+      9
+    ],
+    "role": "push button",
+    "name": "请稍候…",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      0,
+      0,
+      10
+    ],
+    "role": "push button",
+    "name": "创建账号",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      0,
+      0,
+      11
+    ],
+    "role": "check box",
+    "name": "展开或收起服务器设置",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      0,
+      0,
+      1180,
+      760
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      0
+    ],
+    "role": "frame",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      0,
+      0,
+      82,
+      760
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      0,
+      0
+    ],
+    "role": "label",
+    "name": "轻聊",
+    "description": "",
+    "showing": true,
+    "rect": [
+      9,
+      18,
+      64,
+      28
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      0,
+      1
+    ],
+    "role": "push button",
+    "name": "聊天",
+    "description": "",
+    "showing": true,
+    "rect": [
+      9,
+      66,
+      64,
+      64
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      0,
+      2
+    ],
+    "role": "push button",
+    "name": "联系人",
+    "description": "",
+    "showing": true,
+    "rect": [
+      9,
+      136,
+      64,
+      64
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      0,
+      3
+    ],
+    "role": "push button",
+    "name": "我的资料",
+    "description": "导航A_qtx11_194131",
+    "showing": true,
+    "rect": [
+      19,
+      702,
+      44,
+      44
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1
+    ],
+    "role": "frame",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      82,
+      0,
+      332,
+      760
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      0
+    ],
+    "role": "frame",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      82,
+      0,
+      332,
+      56
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      0,
+      0
+    ],
+    "role": "push button",
+    "name": "‹",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      0,
+      1
+    ],
+    "role": "label",
+    "name": "消息",
+    "description": "",
+    "showing": true,
+    "rect": [
+      94,
+      16,
+      40,
+      32
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      0,
+      2
+    ],
+    "role": "push button",
+    "name": "添加好友",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      0,
+      3
+    ],
+    "role": "push button",
+    "name": "聊天操作",
+    "description": "添加好友、发起群聊或加入群聊",
+    "showing": true,
+    "rect": [
+      370,
+      16,
+      32,
+      32
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1
+    ],
+    "role": "layered pane",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      82,
+      56,
+      332,
+      704
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      0
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      82,
+      56,
+      332,
+      704
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      0,
+      0
+    ],
+    "role": "label",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      82,
+      56,
+      332,
+      22
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      0,
+      1
+    ],
+    "role": "list",
+    "name": "会话列表",
+    "description": "",
+    "showing": true,
+    "rect": [
+      82,
+      78,
+      332,
+      682
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      0,
+      1,
+      0
+    ],
+    "role": "list item",
+    "name": "历史B_qtx11_194131",
+    "description": "",
+    "showing": true,
+    "rect": [
+      82,
+      78,
+      332,
+      62
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      0,
+      1,
+      1
+    ],
+    "role": "list item",
+    "name": "导航测试群_qtx11_194131",
+    "description": "",
+    "showing": true,
+    "rect": [
+      82,
+      140,
+      332,
+      62
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      1
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      0
+    ],
+    "role": "push button",
+    "name": "新的朋友  ·  1",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "role": "text",
+    "name": "搜索联系人",
+    "description": "搜索联系人",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      2
+    ],
+    "role": "label",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      3
+    ],
+    "role": "list",
+    "name": "联系人列表",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      3,
+      0
+    ],
+    "role": "list item",
+    "name": "好友C_qtx11_194131",
+    "description": "",
+    "showing": true,
+    "rect": [
+      82,
+      56,
+      314,
+      62
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      3,
+      1
+    ],
+    "role": "list item",
+    "name": "观察S005_qtx11_194131",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      2
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      2,
+      0
+    ],
+    "role": "text",
+    "name": "搜索用户",
+    "description": "搜索用户",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      2,
+      1
+    ],
+    "role": "label",
+    "name": "输入用户名搜索",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      2,
+      2
+    ],
+    "role": "list",
+    "name": "用户搜索结果",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      3
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      3,
+      0
+    ],
+    "role": "label",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      3,
+      1
+    ],
+    "role": "label",
+    "name": "收到的申请 · 1",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      3,
+      2
+    ],
+    "role": "list",
+    "name": "收到的好友申请",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      3,
+      2,
+      0
+    ],
+    "role": "list item",
+    "name": "申请D_qtx11_194131",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      3,
+      3
+    ],
+    "role": "label",
+    "name": "发出的申请 · 1",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      3,
+      4
+    ],
+    "role": "list",
+    "name": "发出的好友申请",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      1,
+      1,
+      3,
+      4,
+      0
+    ],
+    "role": "list item",
+    "name": "等待E_qtx11_194131",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2
+    ],
+    "role": "frame",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      415,
+      0,
+      765,
+      760
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      0
+    ],
+    "role": "frame",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      415,
+      0,
+      765,
+      66
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      0,
+      0
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      431,
+      5,
+      282,
+      56
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      0,
+      0,
+      0
+    ],
+    "role": "push button",
+    "name": "导航测试群_qtx11_194131",
+    "description": "",
+    "showing": true,
+    "rect": [
+      431,
+      5,
+      282,
+      38
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      0,
+      0,
+      1
+    ],
+    "role": "label",
+    "name": "4 名成员 · 点击群名称查看",
+    "description": "",
+    "showing": true,
+    "rect": [
+      431,
+      43,
+      282,
+      18
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      0,
+      0,
+      2
+    ],
+    "role": "label",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      0,
+      1
+    ],
+    "role": "push button",
+    "name": "搜索消息",
+    "description": "",
+    "showing": true,
+    "rect": [
+      1075,
+      14,
+      93,
+      37
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      0,
+      2
+    ],
+    "role": "push button",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      1
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      415,
+      66,
+      765,
+      0
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      1,
+      0
+    ],
+    "role": "push button",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      1,
+      1
+    ],
+    "role": "push button",
+    "name": "取消置顶消息",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      2
+    ],
+    "role": "frame",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      415,
+      66,
+      765,
+      1
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      3
+    ],
+    "role": "label",
+    "name": "暂无消息",
+    "description": "",
+    "showing": true,
+    "rect": [
+      415,
+      67,
+      765,
+      33
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      4
+    ],
+    "role": "list",
+    "name": "消息记录",
+    "description": "",
+    "showing": true,
+    "rect": [
+      415,
+      100,
+      765,
+      603
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      5
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      5,
+      0
+    ],
+    "role": "label",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      5,
+      1
+    ],
+    "role": "push button",
+    "name": "取消回复",
+    "description": "取消回复",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      6
+    ],
+    "role": "frame",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      415,
+      703,
+      765,
+      1
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      7
+    ],
+    "role": "frame",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      415,
+      704,
+      765,
+      56
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      7,
+      0
+    ],
+    "role": "text",
+    "name": "消息输入",
+    "description": "Enter 发送，Shift+Enter 换行",
+    "showing": true,
+    "rect": [
+      427,
+      719,
+      595,
+      36
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      7,
+      0,
+      0
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      431,
+      719,
+      587,
+      36
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      7,
+      0,
+      1
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      7,
+      0,
+      1,
+      0
+    ],
+    "role": "scroll bar",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      7,
+      0,
+      2
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      7,
+      0,
+      2,
+      0
+    ],
+    "role": "scroll bar",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      7,
+      1
+    ],
+    "role": "push button",
+    "name": "文件/图片",
+    "description": "",
+    "showing": true,
+    "rect": [
+      1026,
+      718,
+      98,
+      37
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      2,
+      7,
+      2
+    ],
+    "role": "push button",
+    "name": "发送消息",
+    "description": "发送消息（Enter）",
+    "showing": true,
+    "rect": [
+      1128,
+      709,
+      44,
+      46
+    ]
+  },
+  {
+    "path": [
+      0,
+      0,
+      1,
+      3
+    ],
+    "role": "frame",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      414,
+      0,
+      1,
+      760
+    ]
+  },
+  {
+    "path": [
+      1
+    ],
+    "role": "dialog",
+    "name": "导航测试群_qtx11_194131 · 群资料",
+    "description": "",
+    "showing": true,
+    "rect": [
+      320,
+      0,
+      520,
+      680
+    ]
+  },
+  {
+    "path": [
+      1,
+      0
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      336,
+      16,
+      488,
+      602
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0
+    ],
+    "role": "layered pane",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      336,
+      54,
+      488,
+      564
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      0
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      0,
+      0
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "role": "image",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    "role": "label",
+    "name": "导航测试群_qtx11_194131",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2
+    ],
+    "role": "label",
+    "name": "4 位成员",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      3
+    ],
+    "role": "label",
+    "name": "群公告",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      4
+    ],
+    "role": "label",
+    "name": "暂无公告",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      5
+    ],
+    "role": "push button",
+    "name": "查看完整公告",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      6
+    ],
+    "role": "label",
+    "name": "暂无置顶消息",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      7
+    ],
+    "role": "label",
+    "name": "邀请链接 · 已创建",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      8
+    ],
+    "role": "list",
+    "name": "群成员预览",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      8,
+      0
+    ],
+    "role": "list item",
+    "name": "导航A_qtx11_194131 · 群主 · 你",
+    "description": "",
+    "showing": true,
+    "rect": [
+      360,
+      280,
+      440,
+      62
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      8,
+      1
+    ],
+    "role": "list item",
+    "name": "历史B_qtx11_194131 · 管理员",
+    "description": "",
+    "showing": true,
+    "rect": [
+      360,
+      342,
+      440,
+      62
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      8,
+      2
+    ],
+    "role": "list item",
+    "name": "好友C_qtx11_194131 · 成员",
+    "description": "",
+    "showing": true,
+    "rect": [
+      360,
+      404,
+      440,
+      62
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      9
+    ],
+    "role": "push button",
+    "name": "查看全部成员",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      10
+    ],
+    "role": "push button",
+    "name": "群管理",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      11
+    ],
+    "role": "push button",
+    "name": "退出群聊",
+    "description": "请先将群主转让给一位管理员，再退出群聊。",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      1
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      1,
+      0
+    ],
+    "role": "label",
+    "name": "群主和管理员排列在前；右键查看成员操作。最多 3 名管理员，由群主任免。",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      1,
+      1
+    ],
+    "role": "list",
+    "name": "群成员",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      1,
+      1,
+      0
+    ],
+    "role": "list item",
+    "name": "导航A_qtx11_194131 · 群主 · 你",
+    "description": "",
+    "showing": true,
+    "rect": [
+      336,
+      54,
+      314,
+      62
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      1,
+      1,
+      1
+    ],
+    "role": "list item",
+    "name": "历史B_qtx11_194131 · 管理员",
+    "description": "",
+    "showing": true,
+    "rect": [
+      336,
+      116,
+      314,
+      62
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      1,
+      1,
+      2
+    ],
+    "role": "list item",
+    "name": "好友C_qtx11_194131 · 成员",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      1,
+      1,
+      3
+    ],
+    "role": "list item",
+    "name": "观察S005_qtx11_194131 · 成员",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      1,
+      2
+    ],
+    "role": "push button",
+    "name": "从联系人邀请",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      2
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      2,
+      0
+    ],
+    "role": "label",
+    "name": "暂无待处理申请",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      2,
+      1
+    ],
+    "role": "list",
+    "name": "待处理入群申请",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      2,
+      2
+    ],
+    "role": "push button",
+    "name": "通过申请",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      2,
+      3
+    ],
+    "role": "push button",
+    "name": "拒绝申请",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      2,
+      4
+    ],
+    "role": "push button",
+    "name": "加载更多申请",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      336,
+      54,
+      488,
+      564
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3,
+      0
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      336,
+      54,
+      488,
+      564
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3,
+      0,
+      0
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      336,
+      54,
+      488,
+      564
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3,
+      0,
+      0,
+      0
+    ],
+    "role": "label",
+    "name": "群名称",
+    "description": "",
+    "showing": true,
+    "rect": [
+      360,
+      78,
+      440,
+      19
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3,
+      0,
+      0,
+      1
+    ],
+    "role": "text",
+    "name": "群名称",
+    "description": "群名称",
+    "showing": true,
+    "rect": [
+      360,
+      109,
+      344,
+      40
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3,
+      0,
+      0,
+      2
+    ],
+    "role": "push button",
+    "name": "保存群名",
+    "description": "",
+    "showing": true,
+    "rect": [
+      716,
+      111,
+      84,
+      36
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3,
+      0,
+      0,
+      3
+    ],
+    "role": "label",
+    "name": "群公告 · 纯文本，最多 4 KiB",
+    "description": "",
+    "showing": true,
+    "rect": [
+      360,
+      161,
+      440,
+      19
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3,
+      0,
+      0,
+      4
+    ],
+    "role": "text",
+    "name": "群公告",
+    "description": "",
+    "showing": true,
+    "rect": [
+      360,
+      192,
+      440,
+      112
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3,
+      0,
+      0,
+      4,
+      0
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      369,
+      201,
+      422,
+      94
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3,
+      0,
+      0,
+      4,
+      1
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3,
+      0,
+      0,
+      4,
+      1,
+      0
+    ],
+    "role": "scroll bar",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3,
+      0,
+      0,
+      4,
+      2
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3,
+      0,
+      0,
+      4,
+      2,
+      0
+    ],
+    "role": "scroll bar",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3,
+      0,
+      0,
+      5
+    ],
+    "role": "push button",
+    "name": "保存公告",
+    "description": "",
+    "showing": true,
+    "rect": [
+      622,
+      316,
+      84,
+      36
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3,
+      0,
+      0,
+      6
+    ],
+    "role": "push button",
+    "name": "清空公告",
+    "description": "",
+    "showing": true,
+    "rect": [
+      718,
+      317,
+      82,
+      34
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3,
+      0,
+      0,
+      7
+    ],
+    "role": "filler",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      360,
+      364,
+      440,
+      156
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3,
+      0,
+      0,
+      7,
+      0
+    ],
+    "role": "label",
+    "name": "邀请链接",
+    "description": "",
+    "showing": true,
+    "rect": [
+      360,
+      364,
+      440,
+      19
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3,
+      0,
+      0,
+      7,
+      1
+    ],
+    "role": "check box",
+    "name": "通过邀请链接加入需要审批",
+    "description": "",
+    "showing": true,
+    "rect": [
+      360,
+      396,
+      190,
+      25
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3,
+      0,
+      0,
+      7,
+      2
+    ],
+    "role": "text",
+    "name": "群邀请链接",
+    "description": "尚无邀请链接",
+    "showing": true,
+    "rect": [
+      360,
+      434,
+      440,
+      40
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3,
+      0,
+      0,
+      7,
+      3
+    ],
+    "role": "push button",
+    "name": "创建链接",
+    "description": "",
+    "showing": true,
+    "rect": [
+      530,
+      486,
+      82,
+      34
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3,
+      0,
+      0,
+      7,
+      4
+    ],
+    "role": "push button",
+    "name": "复制链接",
+    "description": "",
+    "showing": true,
+    "rect": [
+      624,
+      486,
+      82,
+      34
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      0,
+      3,
+      0,
+      0,
+      7,
+      5
+    ],
+    "role": "push button",
+    "name": "撤销链接",
+    "description": "",
+    "showing": true,
+    "rect": [
+      718,
+      486,
+      82,
+      34
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      1
+    ],
+    "role": "page tab list",
+    "name": "管理",
+    "description": "",
+    "showing": true,
+    "rect": [
+      336,
+      16,
+      275,
+      38
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      1,
+      0
+    ],
+    "role": "page tab",
+    "name": "群资料",
+    "description": "",
+    "showing": true,
+    "rect": [
+      336,
+      16,
+      66,
+      38
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      1,
+      1
+    ],
+    "role": "page tab",
+    "name": "成员",
+    "description": "",
+    "showing": true,
+    "rect": [
+      402,
+      16,
+      52,
+      38
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      1,
+      2
+    ],
+    "role": "page tab",
+    "name": "入群申请 (0)",
+    "description": "",
+    "showing": true,
+    "rect": [
+      454,
+      16,
+      105,
+      38
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      1,
+      3
+    ],
+    "role": "page tab",
+    "name": "管理",
+    "description": "",
+    "showing": true,
+    "rect": [
+      559,
+      16,
+      52,
+      38
+    ]
+  },
+  {
+    "path": [
+      1,
+      0,
+      1,
+      4
+    ],
+    "role": "push button",
+    "name": "Scroll Left",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      0,
+      1,
+      5
+    ],
+    "role": "push button",
+    "name": "Scroll Right",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      1
+    ],
+    "role": "label",
+    "name": "",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      2
+    ],
+    "role": "push button",
+    "name": "设为管理员",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      3
+    ],
+    "role": "push button",
+    "name": "转让群主",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      4
+    ],
+    "role": "push button",
+    "name": "移除成员",
+    "description": "",
+    "showing": false,
+    "rect": null
+  },
+  {
+    "path": [
+      1,
+      5
+    ],
+    "role": "panel",
+    "name": "",
+    "description": "",
+    "showing": true,
+    "rect": [
+      336,
+      630,
+      488,
+      34
+    ]
+  },
+  {
+    "path": [
+      1,
+      5,
+      0
+    ],
+    "role": "push button",
+    "name": "关闭",
+    "description": "",
+    "showing": true,
+    "rect": [
+      750,
+      630,
+      74,
+      34
+    ]
+  }
+]

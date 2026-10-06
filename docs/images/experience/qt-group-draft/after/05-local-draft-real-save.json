@@ -1,0 +1,32 @@
+{
+  "label": "05-local-draft-real-save",
+  "server_title": "  本地未保存_A_qtx11_195002  ",
+  "expected_draft": "  本地未保存_A_qtx11_195002  ",
+  "actors": {
+    "A": {
+      "pid": 176606,
+      "entry_name": "群名称",
+      "actual_text": "  本地未保存_A_qtx11_195002  ",
+      "save_enabled": false,
+      "rect": [
+        360,
+        109,
+        344,
+        40
+      ]
+    },
+    "B": {
+      "pid": 176866,
+      "entry_name": "群名称",
+      "actual_text": "  本地未保存_A_qtx11_195002  ",
+      "save_enabled": false,
+      "rect": [
+        1560,
+        109,
+        344,
+        40
+      ]
+    }
+  },
+  "whole_png": "/tmp/chat-q34-native-after.ZdELWYa5/run/05-local-draft-real-save-fullscreen.png"
+}

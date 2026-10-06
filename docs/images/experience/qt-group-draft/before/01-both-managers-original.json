@@ -1,0 +1,32 @@
+{
+  "label": "01-both-managers-original",
+  "server_title": "导航测试群_qtx11_194131",
+  "expected_draft": null,
+  "actors": {
+    "A": {
+      "pid": 153159,
+      "entry_name": "群名称",
+      "actual_text": "导航测试群_qtx11_194131",
+      "save_enabled": false,
+      "rect": [
+        360,
+        109,
+        344,
+        40
+      ]
+    },
+    "B": {
+      "pid": 153287,
+      "entry_name": "群名称",
+      "actual_text": "导航测试群_qtx11_194131",
+      "save_enabled": false,
+      "rect": [
+        1560,
+        109,
+        344,
+        40
+      ]
+    }
+  },
+  "whole_png": "/tmp/chat-q34-native-before-attempt2.baTKquGQ/run/01-both-managers-original-fullscreen.png"
+}

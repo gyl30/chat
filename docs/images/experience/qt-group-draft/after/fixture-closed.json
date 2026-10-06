@@ -1,0 +1,27 @@
+{
+  "pid": 176368,
+  "exit": 0,
+  "room": 1,
+  "members": [
+    {
+      "id": 1,
+      "username": "导航A_qtx11_195002",
+      "role": "owner"
+    },
+    {
+      "id": 2,
+      "username": "历史B_qtx11_195002",
+      "role": "admin"
+    },
+    {
+      "id": 3,
+      "username": "好友C_qtx11_195002",
+      "role": "member"
+    },
+    {
+      "id": 6,
+      "username": "观察S005_qtx11_195002",
+      "role": "member"
+    }
+  ]
+}

@@ -661,8 +661,9 @@ void group_dialog::set_conversations(QList<conversation_data> conversations, QSt
     }
     if (title_ != found->username)
     {
+        auto const modified = title_edit_->text() != title_;
         title_ = found->username;
-        title_edit_->setText(title_);
+        if (!modified) { title_edit_->setText(title_); }
         overview_title_->setText(title_);
         overview_avatar_->setPixmap(avatar_icon(title_, 64).pixmap(64));
         setWindowTitle(title_ + QStringLiteral(" · 群资料"));

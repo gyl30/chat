@@ -1,0 +1,5 @@
+{
+  "type": "NotImplementedError",
+  "message": "",
+  "traceback": "Traceback (most recent call last):\n  File \"/tmp/chat-q34-native-before.e8vYGMFs/driver.py\", line 149, in <module>\n    initial=snapshot_titles('01-both-managers-original')\n  File \"/tmp/chat-q34-native-before.e8vYGMFs/driver.py\", line 119, in snapshot_titles\n    facts['actors'][alias]={'pid':clients[alias].pid,'entry_name':node.name,'actual_text':node.queryText().getText(0,-1),'save_enabled':button.getState().contains(pyatspi.STATE_ENABLED),'rect':rect(node)}\n  File \"/usr/lib/python3/dist-packages/pyatspi/Accessibility.py\", line 154, in <lambda>\n    Atspi.Accessible.queryText = lambda x: Text(getInterface(Atspi.Accessible.get_text_iface, x))\n  File \"/usr/lib/python3/dist-packages/pyatspi/Accessibility.py\", line 68, in getInterface\n    raise NotImplementedError\nNotImplementedError\n"
+}

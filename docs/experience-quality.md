@@ -178,6 +178,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q31 | P2 | 可滚动历史中，发送/typing/composer 布局变化使末尾读者丢失自动跟随；旧追加回调也可能覆盖刚发生的上滚 | 第四十七阶段修复末尾布局恢复与追加回调的会话/位置守卫；真实双Qt纯文本before反例及四档after、历史保位对照，永久回归与门禁记录见下文；不外推重连恢复历史或图片异步布局 |
 | Q32 | P2 | 125% 下关闭真实编辑窗口后，消息行下方留下持续的黑色细线 | 第五十阶段完整标准控件公开时序复现，固定私有 Qt6.5.3 对照及正式 Chat 四档真实 after 已消除该局部黑线；不外推系统输入法或全部页面 HiDPI |
 | Q33 | P2 | 群资料、成员和入群申请的画面显示角色、本人或待审批，但实际无障碍行只读用户名 | 第五十七阶段复用现有角色/状态写入 AccessibleTextRole；同永久测试 RED/GREEN、真实 X11/AT-SPI 八行 before/after 和原三模式完整门禁通过；动态 bridge、Orca 与全页面矩阵仍开放 |
+| Q34 | P1 | 另一管理员更新群名后，群资料覆盖当前未保存的本地群名草稿 | 第五十九阶段真实双管理员与SQL复现；复用输入与旧权威值的差异守卫，永久同字节RED/GREEN、双Qt真实保存及完整69项门禁通过；不新增dirty状态 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 字素编辑、完整span及显示列修复已进入生产；第五十五阶段收口modern链复制页旧反白续格，第五十八阶段同modern链黑白两背景七个旧残留点为0。legacy、SSH、其它调色板及Unicode18完整物理矩阵仍未闭环，不计全部终端通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 | T06 | P2 | TUI 搜索选中消息之前一项被删除时，只clamp索引，选中目标跳到另一ID | 第二十四阶段修复，永久RED/GREEN、真实双TUI六档选中目标/可复制正文/草稿验证通过 |
@@ -3933,3 +3934,66 @@ socket确认ECONNREFUSED且自有进程均退出后精确unlink。三个保护�
 不为文档变化虚构新测试运行。Qt87/TUI78继续，Q27/Q30/T04和最终完整品质目标
 仍开放；本阶段不是达到92后的第一/第二轮fresh review。下一步继续真实日常
 交互和剩余页面，发现material问题先复现再修，不以矩阵截图数量替代产品品质。
+
+## 阶段 59：远端群名更新不覆盖本地未保存输入
+
+本阶段基线41208368。两个真实管理员客户端在群资料管理流程中，先验证干净
+输入正常同步，再让A输入未提交群名、B通过实际UI更新远端名称。旧正式Qt
+eee21f3b…的公开AT-SPI文本从带两侧空格的本地草稿变成B的名称，保存按钮失去
+可用状态；SQL及两个实际窗口身份确认远端更新已发生。这个原始RED证明用户
+输入丢失，不是源码猜测，也不是截图坐标问题。
+
+首次driver按同名“群名称”找到QLabel，Text接口失败，尚未进行改名；此失败不是
+产品反例。仅将目标限制为真实ROLE_TEXT后，原15秒不变的driver18b497bc…实际
+到达草稿守卫并退出1。归档脚本首次误以为before scope有冻结binary而失败；真实
+before运行当时正式build/qt/chat_qt，四份runtime记录pin为eee21f3b…。现存Q33
+副本可核对相同字节，但不是此次before启动路径。after才运行冻结4ac6cc4f…副本。
+两项证据管理错误均不解释为产品失败或篡改原结果。
+
+### 最小生产修改与永久回归
+
+群公告已有相同dirty判断。群名在更新唯一权威title_之前比较当前输入与旧title_：
+干净时同步输入，存在差异时保留原文；overview、头像与窗口身份仍正常更新。
+没有新增dirty bool、快照或同步状态，不改服务端名称规则、权限与通知。
+
+同字节最终永久test4039819e…在旧生产编译0/widgets1，Q33原断言已通过后于连续
+远端改名保留Unicode/空格草稿断言RED；最小修复后编译0/widgets0。还覆盖干净
+恢复、非当前会话/失败snapshot、不重复pending提交、确认后变干净和失权禁用
+提交。不手动删除accessible cache、放宽超时或改变权限定义。
+
+### 真实双客户端 after
+
+同一driver在fresh私有数据库、服务、Xvfb/DBus中完整actual0。fixture SDK只在
+登录前设置成员角色并关闭；之后全部改名由真实XTest操作，SQL只读核对UTF8原文。
+A草稿包含两侧空格，B改名后仍精确保留且保存可用；随后A实际保存，SQL/A/B
+原文完全相同，两端保存禁用。四条业务case都为PASS。
+
+| 场景 | 原始证据 |
+| --- | --- |
+| 旧客户端覆盖草稿 | [before完整X11图](images/experience/qt-group-draft/before/04-remote-update-with-local-draft-fullscreen.png) |
+| 远端更新但保留本地输入 | [after完整X11图](images/experience/qt-group-draft/after/04-remote-update-with-local-draft-fullscreen.png) |
+| 本地实际保存并两端同步 | [after保存完整X11图](images/experience/qt-group-draft/after/05-local-draft-real-save-fullscreen.png) |
+
+主代理亲看原图，原执行代理另做[事后逐证复核](images/experience/qt-group-draft-postrun-review.json)，
+并非第三位独立新评审。黑色根窗口外部空区不是Chat空布局；图片保留测试群的
+合成邀请token，隔离数据库已删除，未裁切/模糊原图冒称原证据。
+[原实测、树、SQL和永久RED/GREEN归档](images/experience/qt-group-draft-proof.json)
+记录63个native原资产及12份永久结果/无损日志，包含真实process/maps、完整
+AT-SPI树、同driver和source首尾检查。两个数据库absence、port关闭、自有PIDgone
+及三个保护服务tick/cmdline保持均为true；没有停止既有服务或改依赖。
+
+### 当前输入的完整工程门禁
+
+原tests/verify.sh38d3408e…实际runner/script均0，normal/ASan/UBSan各23/23，
+总115.76/158.37/145.25秒。qt_ui46.18/54.74/51.30秒保原60秒，tui_render
+0.93/4.49/1.87秒保原5秒。Qt/TUI ON、实际-Werror，无skip/suppression。
+205输入、原script、submodule及保护服务首尾相同，编译/CMake warning及
+完整log/三LastTest中的sanitizer签名均0；正式TUI仍dd1a6baa…，没有借旧门禁
+证明新Q34输入。[完整69项原门禁](images/experience/qt-group-draft-original-verify-proof.json)
+与[无损原日志](images/experience/qt-group-draft-original-verify.log.gz)保留真实结果。
+这是既有三独立目录的新配置/编译/CTest，不冒称所有依赖从空目录重建。
+
+此阶段证明100%双管理员的未保存输入、更新和保存；四DPI、所有群操作、Orca
+及全键盘矩阵仍未完成。Qt87/TUI78不提高，Q27/Q30/T04及全产品目标继续开放，
+未开始达到92后的两轮fresh review。新TUI只读候选：Group预览只显示前三人而
+未标记余量；需结合真实All members路径和不同人数继续验证，不能当完整列表。

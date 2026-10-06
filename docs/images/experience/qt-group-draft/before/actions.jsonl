@@ -1,0 +1,11 @@
+{"label": "A open real group", "role": "list item", "name": "导航测试群_qtx11_194131", "description": "", "physical_rect": [82, 140, 332, 62]}
+{"label": "A open group details", "role": "push button", "name": "导航测试群_qtx11_194131", "description": "", "physical_rect": [431, 5, 282, 38]}
+{"label": "A show management", "role": "page tab", "name": "管理", "description": "", "physical_rect": [559, 16, 52, 38]}
+{"label": "B open real group", "role": "list item", "name": "导航测试群_qtx11_194131", "description": "", "physical_rect": [1282, 140, 332, 62]}
+{"label": "B open group details", "role": "push button", "name": "导航测试群_qtx11_194131", "description": "", "physical_rect": [1631, 5, 282, 38]}
+{"label": "B show management", "role": "page tab", "name": "管理", "description": "", "physical_rect": [1759, 16, 52, 38]}
+{"label": "B focus title", "role": "text", "name": "群名称", "description": "群名称", "physical_rect": [1560, 109, 344, 40]}
+{"label": "B save title from UI", "role": "push button", "name": "保存群名", "description": "", "physical_rect": [1916, 111, 84, 36]}
+{"label": "A focus title", "role": "text", "name": "群名称", "description": "群名称", "physical_rect": [360, 109, 344, 40]}
+{"label": "B focus title", "role": "text", "name": "群名称", "description": "群名称", "physical_rect": [1560, 109, 344, 40]}
+{"label": "B save title from UI", "role": "push button", "name": "保存群名", "description": "", "physical_rect": [1916, 111, 84, 36]}

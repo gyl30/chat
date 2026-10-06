@@ -728,6 +728,67 @@ void check_group_detail_layout()
     check(!tabs->isTabVisible(2) && !tabs->isTabVisible(3),
           "Management role loss hides private pages and stale application callbacks cannot restore accessible rows");
     std::cout << "PASS Qt group initial native row names and live role/status models without private stale rows\n";
+    {
+        group_dialog title_dialog(42, 1, QStringLiteral("原群名"), {}, false, nullptr);
+        title_dialog.set_members(42, {{1, "owner", chat::member_role::owner, {}},
+                                      {2, "admin", chat::member_role::admin, {}}}, {});
+        auto* title = title_dialog.findChild<QLineEdit*>("groupTitleEdit");
+        auto* rename = title_dialog.findChild<QPushButton*>("groupRenameButton");
+        auto* overview = title_dialog.findChild<QLabel*>("groupOverviewTitle");
+        conversation_data snapshot;
+        snapshot.id = 42; snapshot.group = true; snapshot.username = QStringLiteral("远端干净更新");
+        title_dialog.set_conversations({snapshot}, {});
+        check(title->text() == snapshot.username && !rename->isEnabled() &&
+              overview->text() == snapshot.username && title_dialog.windowTitle() == snapshot.username + QStringLiteral(" · 群资料"),
+              "A clean group title follows the remote authoritative name and disables redundant saving");
+        auto const draft = QStringLiteral("  本地 群 👩‍💻 é  ");
+        title->setText(draft);
+        for (auto const& remote : {QStringLiteral("另一管理员第一次改名"), QStringLiteral("另一管理员再次改名")})
+        {
+            snapshot.username = remote;
+            title_dialog.set_conversations({snapshot}, {});
+            check(title->text() == draft && rename->isEnabled() && overview->text() == remote &&
+                  title_dialog.windowTitle() == remote + QStringLiteral(" · 群资料"),
+                  "Consecutive remote renames preserve the exact Unicode/spaced local draft while updating authoritative identity");
+        }
+        auto foreign = snapshot; foreign.id = 99; foreign.username = QStringLiteral("其他会话更新");
+        title_dialog.set_conversations({foreign, snapshot}, {});
+        auto failed = snapshot; failed.username = QStringLiteral("失败请求中的群名");
+        title_dialog.set_conversations({failed}, QStringLiteral("无法加载"));
+        check(title->text() == draft && overview->text() == snapshot.username && rename->isEnabled(),
+              "Other conversation data and failed snapshots cannot replace the current group title draft or authority");
+        title->setText(snapshot.username);
+        check(!rename->isEnabled(), "Restoring the latest authoritative name clears the title difference after dirty updates");
+        snapshot.username = QStringLiteral("恢复干净后远端更新");
+        title_dialog.set_conversations({snapshot}, {});
+        check(title->text() == snapshot.username && !rename->isEnabled(),
+              "A title made clean again resumes ordinary remote synchronization");
+        title->setText(draft);
+        int submitted = 0; QString submitted_title;
+        QObject::connect(&title_dialog, &group_dialog::rename_requested, &title_dialog, [&](QString value) {
+            ++submitted; submitted_title = std::move(value);
+        });
+        rename->click(); rename->click();
+        check(submitted == 1 && submitted_title == draft && title->text() == draft &&
+              !title->isEnabled() && !rename->isEnabled(),
+              "Pending rename submits the exact draft once and keeps title editing and repeated saving disabled");
+        snapshot.username = QStringLiteral("等待确认时远端更新");
+        title_dialog.set_conversations({snapshot}, {});
+        check(title->text() == draft && overview->text() == snapshot.username && !rename->isEnabled(),
+              "A remote snapshot cannot erase a submitted draft or permit repeated submission while pending");
+        title_dialog.finish_action(42, false, {});
+        snapshot.username = draft;
+        title_dialog.set_conversations({snapshot}, {});
+        check(title->text() == draft && title->isEnabled() && !rename->isEnabled() && overview->text() == draft,
+              "The successful authoritative acknowledgement makes the saved title clean without changing its original bytes");
+        title->setText(QStringLiteral("失权前未提交群名"));
+        title_dialog.set_members(42, {{1, "owner", chat::member_role::member, {}},
+                                      {2, "admin", chat::member_role::owner, {}}}, {});
+        rename->click();
+        check(!title->isEnabled() && !rename->isEnabled() && submitted == 1,
+              "Losing management permission keeps a title draft from being submitted through disabled controls");
+        std::cout << "PASS Qt exact group title drafts survive remote updates and become clean after successful save\n";
+    }
     std::cout << "PASS Qt group overview live member avatar and bounded details\n";
 }
 

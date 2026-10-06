@@ -1768,3 +1768,25 @@ clear/empty完整PNG相同。原生复制L👩🏽R END、整ZWJ删除后的SQL 
 Qt87/TUI78不提高。legacy/SSH/其它palette、Unicode18、最小尺寸/对话框以及剩余
 262图尚未完成；T04仍开放。这是同生产输入的新runtime证据，阶段57实际完整69项
 门禁仍对应源码，不冒称文档变化另跑门禁，也不计达到92后的两轮fresh review。
+
+## 体验品质审查：远端改名保留未保存群名
+
+从41208368继续。真实双管理员before证实远端通知覆盖本地带两侧空格的未保存
+输入，Save随之禁用；首次driver误选同名QLabel不是产品反例，ROLE_TEXT定位
+修正后原15秒实际RED。生产沿用公告的输入差异守卫，不新增dirty状态；overview
+与窗口身份仍跟随权威群名。最终永久test同字节旧生产build0/widgets1，修复
+后0/0，覆盖连续更新、Unicode、pending、自身确认及失权禁止提交。
+
+新双Qt/X11 after实际0，公开AT-SPI/SQL/完整原PNG确认草稿保留；随后真实保存
+使SQL/A/B原文一致。before实际运行当时正式eee21f3b…而非冻结副本，after才运行
+冻结4ac6cc4f…；证据明确各自launch路径与runtime指纹。两个独立DB删除、私有
+port关闭、自有PIDgone及保护服务三tick/cmdline均保持，原失败保留。
+
+最终输入原tests/verify.sh新完整执行实际0：normal/ASan/UBSan各23/23，总
+115.76/158.37/145.25秒，Qt/TUI ON、实际-Werror，原qt_ui60/render5秒不变。
+205输入/脚本/submodule首尾相同，编译/CMake warning及sanitizer签名0；沿既有
+独立目录新配置/编译/CTest，不冒称所有依赖空目录fresh。原图/树/结果、永久
+RED/GREEN及完整69项门禁见[体验品质审查](experience-quality.md)阶段59。
+
+Qt87/TUI78保持。Q34局部输入丢失修复不代表全群权限/键盘/HiDPI验收；全目标及
+达到92后的两轮fresh review继续开放。下一项TUI群预览余量候选仍须真实核实。

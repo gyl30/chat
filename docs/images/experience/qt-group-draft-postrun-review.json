@@ -1,0 +1,272 @@
+{
+  "schema": "chat-campaign-postrun-evidence-review-v1",
+  "issue": "Q34 group-name local draft overwritten by a remote administrator rename",
+  "reviewed_at_utc": "2026-10-06T12:03:45Z",
+  "reviewer": "/root/chat_qt_next_quality_review",
+  "reviewer_relationship": "This agent also produced the original Q34 implementation and probes. This is a separate read-only post-run recheck, not an independent-person review or a new live rerun.",
+  "remote_host": "gyl@172.20.45.187",
+  "operations_in_this_review": {
+    "changed_chat_source": false,
+    "ran_tests_or_gates": false,
+    "created_new_probe_processes_or_databases": false,
+    "committed": false,
+    "read_original_artifacts": true,
+    "recomputed_artifact_and_runtime_library_hashes": true,
+    "visually_read_original_pngs": true,
+    "extra_read_only_cleanup_checks": true,
+    "local_output_only": "/root/chat-campaign-reviews/2026-10-06-q34-postrun-evidence-review.json"
+  },
+  "verdict": {
+    "before": "Actual production RED: after both native Qt clients processed B's remote rename, A's dirty exact draft was replaced by the authoritative remote title and its save button became disabled.",
+    "after": "Actual focused native GREEN: A retained the exact dirty draft while B and SQL showed the new authoritative remote title; A then saved through the real UI, SQL and both clients converged to that exact draft, and both save buttons became disabled.",
+    "permanent": "Same permanent test source bytes produced RED against the old production source and GREEN against the minimal repaired source; the original Q33 checks remained passing.",
+    "archive_ready_for_this_scope": true,
+    "whole_campaign_or_full_gate_verdict": false
+  },
+  "scopes": {
+    "before": "/tmp/chat-q34-native-before-attempt2.baTKquGQ",
+    "after": "/tmp/chat-q34-native-after.ZdELWYa5",
+    "permanent": "/tmp/chat-q34-permanent.5LztxElM",
+    "new_local_visual_copies": "/tmp/chat-q34-rereview.iG3vB1yE"
+  },
+  "driver_identity": {
+    "sha256_before_and_after": "18b497bc4d931ad9497dd83f903ca0674b10319e5557163def2b578ab72db654",
+    "same_bytes_recomputed": true,
+    "shared_smoke_sha256": "afd8a595fa6f0d39ab8655271f6f165d2a5529b67feee86264fc69c188309a0b",
+    "max_wait_seconds": 15,
+    "expect_argument_behavior": "Read driver source: native.expect is used only in final log metadata; it does not change the draft-retention invariant or permit an after failure to pass.",
+    "entry_lookup": "Public AT-SPI named('群名称', pyatspi.ROLE_TEXT, alias).queryText().getText(0,-1). Static same-named ROLE_LABEL nodes are not selected.",
+    "rename_actions": "XTest/clipboard input and actual save-button click in both real native Qt clients; no widget/QIM injection, no accessibility-cache deletion.",
+    "fixture_boundary": "The business helper created the isolated fixture and assigned B administrator during setup, then closed before the native Qt interaction. Subsequent rename operations were not sent by the helper.",
+    "first_attempt_boundary": "The earlier attempt1 failed in driver node selection before the draft/remote-update assertion and is not the production RED. This review uses attempt2."
+  },
+  "binary_identity": {
+    "before": {
+      "runtime_exe": "/home/gyl/example/chat/build/qt/chat_qt",
+      "sha256": "eee21f3b9446e167d559746d1cdedd301fcd5cb810fd90c3672e97edd422f1ff",
+      "evidence": [
+        "run/actual-result.json",
+        "run/runtime-A-authenticated.json",
+        "run/runtime-B-authenticated.json",
+        "run/runtime-A-after-remote-update.json",
+        "run/runtime-B-after-remote-update.json",
+        "run/artifact-sha256.json"
+      ],
+      "q34_before_frozen_copy_exists": false,
+      "boundary": "Q34 before used the then-current formal build path. That path has since been relinked; do not describe it as running chat_qt.before or a Q33 frozen copy.",
+      "retained_same_bytes_crosscheck": {
+        "path": "/tmp/chat-quality-qt-atspi-after.2K0H7904/chat_qt.after",
+        "recomputed_sha256": "eee21f3b9446e167d559746d1cdedd301fcd5cb810fd90c3672e97edd422f1ff",
+        "meaning": "This separately retained Q33 artifact verifies matching old binary bytes only. It was not the executable path used by Q34 before."
+      }
+    },
+    "after": {
+      "runtime_exe": "/tmp/chat-q34-native-after.ZdELWYa5/chat_qt.after",
+      "sha256": "4ac6cc4f3c44e31833b59c1d3054f758e804a6e7acc24bdb79859bafef1436f4",
+      "frozen_copy_recomputed": true,
+      "frozen_inputs_sha_manifest_matches_formal_build_and_copy": true,
+      "evidence": [
+        "frozen-inputs.sha",
+        "run/actual-result.json",
+        "run/runtime-A-authenticated.json",
+        "run/runtime-B-authenticated.json",
+        "run/runtime-A-after-remote-update.json",
+        "run/runtime-B-after-remote-update.json",
+        "run/artifact-sha256.json"
+      ]
+    },
+    "all_four_runtime_records_per_scope_match_expected_exe_and_hash": true,
+    "loaded_maps": "Both scopes record Qt 6.5.3 and qxcb from /tmp/chat-qt-dependency-compare.dmJWg7/install. Recomputed hashes for recorded loaded libraries match the current retained files, with zero mismatches."
+  },
+  "artifact_integrity": {
+    "before_original_manifest_artifacts_rehashed": 49,
+    "before_mismatches": 0,
+    "after_original_manifest_artifacts_rehashed": 50,
+    "after_mismatches": 0,
+    "source_inputs_start_equal_end_in_each_scope": true,
+    "basis": "Recomputed listed artifact bytes against each run/artifact-sha256.json, not only summaries or current build paths."
+  },
+  "native_semantics": {
+    "sql": {
+      "query": "SELECT encode(convert_to(title,'UTF8'),'hex') FROM conversations WHERE id=<fixture conversation id>",
+      "read_only_enforced": "The shared smoke helper sets PGOPTIONS='-c default_transaction_read_only=on' for SQL observation.",
+      "why_hex": "Preserves exact Unicode and leading/trailing spaces rather than trusting a visual rendering."
+    },
+    "before": {
+      "driver_exit": 1,
+      "failure": "AssertionError for exact local draft preservation after remote rename; not a fixture/driver selection error.",
+      "02_clean_remote_sync": {
+        "sql_title_and_both_fields": "远端干净同步_B_qtx11_194131",
+        "A_save_enabled": false,
+        "B_save_enabled": false
+      },
+      "03_local_unsaved_draft": {
+        "sql_title_and_B_field": "远端干净同步_B_qtx11_194131",
+        "A_field": "  本地未保存_A_qtx11_194131  ",
+        "A_save_enabled": true,
+        "B_save_enabled": false
+      },
+      "04_remote_update": {
+        "sql_title_and_both_fields": "远端已发布_B_qtx11_194131",
+        "A_save_enabled": false,
+        "B_save_enabled": false,
+        "draft_preserved": false
+      },
+      "05_boundary": "No 05 save stage exists in before because the real RED assertion stops that workflow."
+    },
+    "after": {
+      "driver_exit": 0,
+      "02_clean_remote_sync": {
+        "sql_title_and_both_fields": "远端干净同步_B_qtx11_195002",
+        "A_save_enabled": false,
+        "B_save_enabled": false
+      },
+      "03_local_unsaved_draft": {
+        "sql_title_and_B_field": "远端干净同步_B_qtx11_195002",
+        "A_field": "  本地未保存_A_qtx11_195002  ",
+        "A_save_enabled": true,
+        "B_save_enabled": false
+      },
+      "04_remote_update": {
+        "sql_title_and_B_field": "远端已发布_B_qtx11_195002",
+        "A_field": "  本地未保存_A_qtx11_195002  ",
+        "A_save_enabled": true,
+        "B_save_enabled": false,
+        "draft_preserved": true
+      },
+      "05_real_A_save": {
+        "sql_title_and_both_fields": "  本地未保存_A_qtx11_195002  ",
+        "A_save_enabled": false,
+        "B_save_enabled": false
+      }
+    },
+    "remote_processed_before_read": "Driver waits for both actual X11 dialog titles to show B's new remote title before reading the local entry invariant.",
+    "raw_sources": [
+      "run/02-clean-remote-sync.json",
+      "run/03-local-unsaved-draft.json",
+      "run/04-remote-update-with-local-draft.json",
+      "run/05-local-draft-real-save.json (after only)",
+      "run/actual-result.json",
+      "run/actions.jsonl",
+      "run/*-A.atspi.json",
+      "run/*-B.atspi.json"
+    ],
+    "atspi_tree_boundary": "Raw trees retain node names, roles, descriptions, showing flags and rectangles. Exact entry Text is separately recorded in the stage JSON, not in those tree dumps. In each reviewed 03/04 before and 03/04/05 after tree there is exactly one showing text-role 群名称 entry per client."
+  },
+  "permanent_regression": {
+    "scope": "/tmp/chat-q34-permanent.5LztxElM",
+    "same_test_source_sha256_red_and_green": "4039819e5f1ec6ee06fc0052145af9e4e9f5ed8403cb4a6d39a47aa435148ea5",
+    "old_group_dialog_sha256": "0269d86d10ca5bdd09ab540f03b05db5b5b4effae5f32adcca636dd1da7b24ab",
+    "repaired_group_dialog_sha256": "08caa6a4bba627a04befaf7460f3b85e338cd60b6cb6dd64c0ed163c1ebc2724",
+    "green_widgets_binary_sha256": "0c4fc63e78376500dd10e451404164d19f3654999424f90b5f89094534f808e0",
+    "red_build_exit": 0,
+    "red_widgets_exit": 1,
+    "green_build_exit": 0,
+    "green_widgets_exit": 0,
+    "red_failing_assertion": "Consecutive remote renames preserve the exact Unicode/spaced local draft while updating authoritative identity",
+    "green_relevant_log_lines": [
+      "PASS Qt group initial native row names and live role/status models without private stale rows",
+      "PASS Qt exact group title drafts survive remote updates and become clean after successful save"
+    ],
+    "reviewed_test_coverage": [
+      "Clean editor follows a remote authoritative rename.",
+      "Exact Unicode/ZWJ/combining text and two-sided spaces remain dirty across consecutive remote updates.",
+      "Different-conversation snapshot and error response do not overwrite the draft.",
+      "An editor made clean resumes authoritative synchronization.",
+      "Pending submission preserves exact payload, disables the control and prevents duplicate submission.",
+      "A remote update while a request is pending does not overwrite dirty text.",
+      "Own successful acknowledgement makes the editor clean and disables save.",
+      "Losing manager permission cannot submit through the disabled control.",
+      "Existing Q33 accessibility/model/privacy assertions remain present and passing."
+    ],
+    "minimal_production_change": "Before changing title_, compare title_edit_->text() with the old authoritative title_. Always advance title_ and the overview/avatar/window title, but replace editor text only when it was clean. No new independent dirty state.",
+    "raw_evidence": [
+      "q34-red-source.sha",
+      "q34-green-source.sha",
+      "q34-red-build.exit",
+      "q34-red-widgets.exit",
+      "q34-red-widgets.log",
+      "q34-green-build.exit",
+      "q34-green-widgets.exit",
+      "q34-green-widgets.log",
+      "q34-final-source.sha",
+      "q34-final.diff"
+    ],
+    "boundary": "Permanent widgets fixture is offscreen and uses its existing target limit; it is not the native dual-manager, full gate, or live screen-reader result. No permanent timeout was changed."
+  },
+  "fresh_visual_review": {
+    "method": "Freshly downloaded original whole PNGs and viewed at original detail during this review; hashes were integrity checks, not substitutes for looking at images.",
+    "canvas_pixels": [2400, 1000],
+    "requested_qt_scale_factor": "1",
+    "independent_dpr_measurement": false,
+    "before_originals": [
+      {
+        "path": "/tmp/chat-q34-native-before-attempt2.baTKquGQ/run/03-local-unsaved-draft-fullscreen.png",
+        "sha256": "a375871c4ae765481861762882b57c7c84f1b2083498c35054c4b040ad36321e",
+        "observed": "Left A has its distinct local draft and green enabled save; right B still shows the clean remote name with disabled save."
+      },
+      {
+        "path": "/tmp/chat-q34-native-before-attempt2.baTKquGQ/run/04-remote-update-with-local-draft-fullscreen.png",
+        "sha256": "ea7bdc6400df1d5d789cead8b26b90c6e522caf88381c545914bdf20cb7012dd",
+        "observed": "Both editors now show the remote published name with disabled saves: A's visibly distinct draft is gone."
+      }
+    ],
+    "after_originals": [
+      {
+        "path": "/tmp/chat-q34-native-after.ZdELWYa5/run/03-local-unsaved-draft-fullscreen.png",
+        "sha256": "ed1e9e6316ab9f0511046eea899a433bdc365cdcde78b824ee9fb231e84f19c4",
+        "observed": "Left A shows its distinct local draft and enabled green 保存群名; right B still shows the clean authoritative title with disabled save."
+      },
+      {
+        "path": "/tmp/chat-q34-native-after.ZdELWYa5/run/04-remote-update-with-local-draft-fullscreen.png",
+        "sha256": "49cb327fe0c987bc8da5acdf1989afcdc6b288d254060760ad62f257530a53de",
+        "observed": "A's local draft is visibly unchanged and save remains enabled; B shows the new remote published title with save disabled. Underlying group identity advances while A's editor stays dirty."
+      },
+      {
+        "path": "/tmp/chat-q34-native-after.ZdELWYa5/run/05-local-draft-real-save-fullscreen.png",
+        "sha256": "8ba2d47ddef34c1f1a358b7990074bba4dd6f8e9270a13e2841a3e4bedbeb4a8",
+        "observed": "Both editors and group identities show A's saved title; both save buttons are disabled."
+      }
+    ],
+    "focused_layout_observation": "Title entries and adjacent save controls are legible with no new overlap in the reviewed states. Sidebar long group titles remain constrained by the existing narrow area; this review does not certify the entire page layout.",
+    "exact_whitespace_boundary": "Leading/trailing ASCII spaces cannot be proved by the screenshot. Their exact retention and real saved value are supported by public AT-SPI Text and UTF8-hex SQL."
+  },
+  "cleanup": {
+    "original_before_cleanup": {
+      "workflow_exit": 1,
+      "database": "chat_qtx11_1006194127_152711",
+      "database_absent": true,
+      "private_port_closed": true,
+      "all_owned_gone": true,
+      "protected_unchanged": true
+    },
+    "original_after_cleanup": {
+      "workflow_exit": 0,
+      "database": "chat_qtx11_1006194958_176243",
+      "database_absent": true,
+      "private_port_closed": true,
+      "all_owned_gone": true,
+      "protected_unchanged": true
+    },
+    "fresh_read_only_checks": {
+      "matching_database_count": 0,
+      "matching_recorded_descendant_pid_tick_identities_alive": 0,
+      "before_private_port_40003_listening": false,
+      "after_private_port_40009_listening": false,
+      "protected_current_ticks_match": {
+        "2876288": "521400965",
+        "3225": "17583",
+        "29935": "248258"
+      }
+    },
+    "boundary": "The expected before workflow failure is separate from cleanup success. No cleanup operation was performed during this re-review."
+  },
+  "scope_limits": [
+    "Only Q34's focused two-real-administrator group-name workflow, original artifacts and permanent regression are certified here.",
+    "No full 69-item gate was run or re-adjudicated in this review.",
+    "No claim of complete Qt/TUI quality campaign, all pages, four DPI settings, all languages, IME composition, Orca speech output or complete accessibility interaction coverage.",
+    "Native runtime covers the one dirty remote update and the subsequent real save; consecutive updates, error/unrelated snapshots and permission/pending behavior are covered by the permanent fixture, not by the native images.",
+    "Before runtime identity is grounded in archived exe/hash/loadedmaps and the original artifact manifest; a current relinked formal path must not be substituted for those records.",
+    "This same-agent post-run review provides additional evidence checking, not a different-person independent review."
+  ]
+}
