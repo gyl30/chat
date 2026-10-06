@@ -110,8 +110,8 @@ void check_profile_avatar_click(QAbstractItemView* list, QPoint point)
         }
     });
     close_profile.start(0);
-    QMouseEvent press(QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
-    QMouseEvent release(QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QMouseEvent press(QEvent::MouseButtonPress, point, list->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent release(QEvent::MouseButtonRelease, point, list->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
     QApplication::sendEvent(list->viewport(), &press);
     QApplication::sendEvent(list->viewport(), &release);
     close_profile.stop();
@@ -189,8 +189,8 @@ void click_list_body(QAbstractItemView* list, QModelIndex index)
     list->scrollTo(index);
     QApplication::processEvents();
     auto const point = list->visualRect(index).center();
-    QMouseEvent press(QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
-    QMouseEvent release(QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QMouseEvent press(QEvent::MouseButtonPress, point, list->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent release(QEvent::MouseButtonRelease, point, list->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
     QApplication::sendEvent(list->viewport(), &press);
     QApplication::sendEvent(list->viewport(), &release);
 }
@@ -201,6 +201,7 @@ void check_authentication_layout()
     window.show();
     window.activateWindow();
     QApplication::processEvents();
+    wait([&] { return window.isActiveWindow(); });
     auto* card = window.findChild<QFrame*>("loginCard");
     QLineEdit* username = nullptr;
     QLineEdit* password = nullptr;
@@ -543,8 +544,8 @@ void check_group_detail_layout()
         ++profile_requests;
     });
     auto const avatar_point = QPoint(20, preview->visualItemRect(preview->item(2)).center().y());
-    QMouseEvent press(QEvent::MouseButtonPress, avatar_point, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
-    QMouseEvent release(QEvent::MouseButtonRelease, avatar_point, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QMouseEvent press(QEvent::MouseButtonPress, avatar_point, preview->viewport()->mapToGlobal(avatar_point), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent release(QEvent::MouseButtonRelease, avatar_point, preview->viewport()->mapToGlobal(avatar_point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
     QApplication::sendEvent(preview->viewport(), &press);
     QApplication::sendEvent(preview->viewport(), &release);
     check(profile_requests == 1, "One overview avatar click opens one profile rather than two sequential dialogs");
@@ -817,8 +818,9 @@ void check_primary_navigation()
     auto const contact_row = contact_view->visualRect(contact_view->model()->index(0, 0));
     check_profile_avatar_click(contact_view, QPoint(20, contact_row.center().y()));
     check(direct_requests == 0, "Opening a contact avatar profile does not also open its chat after close");
-    QMouseEvent contact_press(QEvent::MouseButtonPress, QPoint(80, contact_row.center().y()), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
-    QMouseEvent contact_release(QEvent::MouseButtonRelease, QPoint(80, contact_row.center().y()), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    auto const contact_point = QPoint(80, contact_row.center().y());
+    QMouseEvent contact_press(QEvent::MouseButtonPress, contact_point, contact_view->viewport()->mapToGlobal(contact_point), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent contact_release(QEvent::MouseButtonRelease, contact_point, contact_view->viewport()->mapToGlobal(contact_point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
     QApplication::sendEvent(contact_view->viewport(), &contact_press);
     QApplication::sendEvent(contact_view->viewport(), &contact_release);
     check(direct_requests == 1, "A contact row body still opens its chat with one click");
@@ -1294,8 +1296,8 @@ void check_reply_and_read_details_controls()
                   list->item(1)->data(Qt::StatusTipRole).toString() == QStringLiteral("已读"),
               "Read details retain long Unicode names and expose their complete tooltip without invented presence");
         auto const mouse_point = list->visualItemRect(list->item(2)).center();
-        QMouseEvent mouse_press(QEvent::MouseButtonPress, mouse_point, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
-        QMouseEvent mouse_release(QEvent::MouseButtonRelease, mouse_point, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        QMouseEvent mouse_press(QEvent::MouseButtonPress, mouse_point, list->viewport()->mapToGlobal(mouse_point), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        QMouseEvent mouse_release(QEvent::MouseButtonRelease, mouse_point, list->viewport()->mapToGlobal(mouse_point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
         QApplication::sendEvent(list->viewport(), &mouse_press);
         QApplication::sendEvent(list->viewport(), &mouse_release);
         check(list->currentItem() && list->currentItem()->data(Qt::UserRole).toLongLong() == 4,
@@ -1343,6 +1345,67 @@ void check_reply_and_read_details_controls()
     inspect.stop(); watchdog.stop();
     check(inspected && !timed_out, "Read-control inspection completed through the real modal dialog");
     std::cout << "PASS Qt reply cancellation and read-member controls\n";
+}
+
+QList<QPair<QString, QString>> unicode_boundary_samples()
+{
+    return {{QStringLiteral("surrogate"), QStringLiteral("🙂")},
+            {QStringLiteral("zwj"), QStringLiteral("👩‍💻")},
+            {QStringLiteral("combining"), QStringLiteral("é")},
+            {QStringLiteral("skin"), QStringLiteral("👍️🏽")},
+            {QStringLiteral("keycap"), QStringLiteral("1️⃣")}};
+}
+
+bool check_pinned_unicode_boundaries(QString const& artifact_directory = {})
+{
+    chat_widget page;
+    page.setStyleSheet(chat_style_sheet());
+    page.resize(1180, 760);
+    page.set_user(QStringLiteral("本人"), 1);
+    page.set_connection_available(true);
+    conversation_data group;
+    group.id = 50; group.group = true; group.can_send = true;
+    group.username = QStringLiteral("置顶边界群");
+    group.pinned_message.id = 7;
+    group.pinned_message.username = QStringLiteral("发布者&本人");
+    page.open_conversation(group);
+    page.show();
+    QApplication::processEvents();
+    auto* button = page.findChild<QPushButton*>("pinnedMessageButton");
+    check(button, "Pinned Unicode contract uses the real pinned-message button");
+    QString query;
+    int searches = 0;
+    QObject::connect(&page, &chat_widget::message_search_requested, &page,
+        [&](qint64 conversation, qint64 user, bool is_group, QString title, QString value) {
+            check(conversation == 50 && user == 1 && is_group && title == group.username,
+                  "Older pinned-message lookup retains its actual conversation and actor");
+            query = std::move(value); ++searches;
+        });
+    bool intact = true;
+    QString const prefix(79, QLatin1Char('x'));
+    QString const summary = QStringLiteral("置顶消息 · 发布者&本人：") + prefix;
+    for (auto const& [name, cluster] : unicode_boundary_samples())
+    {
+        group.pinned_message.text = QStringLiteral("\n  \n") + prefix + cluster + QStringLiteral("尾行\n第二行");
+        page.set_conversations({group});
+        QApplication::processEvents();
+        check(button->isVisible() && page.conversation(50)->pinned_message.text.toUtf8() == group.pinned_message.text.toUtf8(),
+              "Pinned display truncation leaves the complete original multiline Unicode untouched");
+        bool const summary_ok = button->text() == QString(summary).replace(QLatin1Char('&'), QStringLiteral("&&")) &&
+            button->toolTip() == summary + QStringLiteral("\n点击定位；较早的消息通过搜索查看。");
+        if (!artifact_directory.isEmpty())
+        {
+            check(page.grab().save(artifact_directory + QStringLiteral("/qt_pinned_unicode_") + name + QStringLiteral(".png")),
+                  "The real pinned Unicode widget has an original capture");
+        }
+        int const previous_searches = searches;
+        button->click();
+        bool const query_ok = searches == previous_searches + 1 && query == prefix;
+        std::cout << (summary_ok && query_ok ? "PASS" : "RED") << " Qt pinned Unicode " << name.toStdString()
+                  << " summary=" << summary_ok << " first_line=" << query_ok << '\n';
+        intact = intact && summary_ok && query_ok;
+    }
+    return intact;
 }
 
 void check_message_action_targets()
@@ -2320,7 +2383,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); return 0; }
+        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
@@ -3244,11 +3307,12 @@ int main(int argc, char** argv)
             QApplication::processEvents();
             QStyleOptionViewItem search_option;
             search_option.rect = search_view->visualRect(search_view->model()->index(0, 0));
-            QMouseEvent avatar_click(QEvent::MouseButtonRelease,
-                QPointF(search_option.rect.left() + chat_theme::dialog_left + 4,
-                        search_option.rect.top() + chat_theme::dialog_avatar_top + 4),
-                Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
-            QMouseEvent avatar_press(QEvent::MouseButtonPress, avatar_click.position(), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+            auto const search_avatar_point = QPoint(search_option.rect.left() + chat_theme::dialog_left + 4,
+                                                    search_option.rect.top() + chat_theme::dialog_avatar_top + 4);
+            QMouseEvent avatar_click(QEvent::MouseButtonRelease, search_avatar_point,
+                search_view->viewport()->mapToGlobal(search_avatar_point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+            QMouseEvent avatar_press(QEvent::MouseButtonPress, search_avatar_point,
+                search_view->viewport()->mapToGlobal(search_avatar_point), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
             QApplication::sendEvent(search_view->viewport(), &avatar_press);
             check(QApplication::sendEvent(search_view->viewport(), &avatar_click), "Search result avatar opens public profile");
             check(search_profile_opened, "A real search avatar click completes the profile and friendship action flow");
@@ -4672,6 +4736,84 @@ int main(int argc, char** argv)
                 dialog->reject();
             });
             windows[0]->findChild<QPushButton*>("pinnedMessageButton")->click();
+
+            bool const pinned_unicode_ok = check_pinned_unicode_boundaries(QString::fromLocal8Bit(argv[2]));
+            check(!pages[1]->conversation(group)->muted, "Unicode notification fixture uses the existing unmuted group");
+            QModelIndex unicode_receiver_direct;
+            wait([&] {
+                auto* list = windows[1]->findChild<QListView*>("conversationList");
+                for (int row = 0; row < list->model()->rowCount(); ++row)
+                {
+                    auto const index = list->model()->index(row, 0);
+                    if (index.data(conversation_model::id_role).toLongLong() == direct)
+                    { unicode_receiver_direct = index; return true; }
+                }
+                return false;
+            });
+            click_list_body(windows[1]->findChild<QListView*>("conversationList"), unicode_receiver_direct);
+            wait([&] { return pages[1]->active_conversation() == direct && pages[1]->messages_ready(); });
+            select_group(0);
+            bool notification_unicode_ok = true;
+            QString const title_prefix(79, QLatin1Char('x'));
+            QString const body_prefix(119, QLatin1Char('x'));
+            for (auto const& [name, cluster] : unicode_boundary_samples())
+            {
+                QString const full_title = title_prefix + cluster + QStringLiteral("群尾");
+                bool renamed = false, requested = false, rename_timed_out = false;
+                QTimer rename_poll, rename_watchdog;
+                QObject::connect(&rename_poll, &QTimer::timeout, [&] {
+                    auto* dialog = qobject_cast<group_dialog*>(QApplication::activeModalWidget());
+                    if (!dialog) { return; }
+                    auto* input = dialog->findChild<QLineEdit*>("groupTitleEdit");
+                    auto* button = dialog->findChild<QPushButton*>("groupRenameButton");
+                    if (!requested && input->isEnabled())
+                    {
+                        input->setText(full_title);
+                        check(button->isEnabled(), "A legal Unicode boundary group title is accepted by the actual rename control");
+                        requested = true; button->click();
+                    }
+                    else if (requested && pages[0]->conversation(group)->username == full_title)
+                    { renamed = true; rename_poll.stop(); dialog->accept(); }
+                });
+                rename_watchdog.setSingleShot(true);
+                QObject::connect(&rename_watchdog, &QTimer::timeout, [&] {
+                    rename_timed_out = true;
+                    if (auto* dialog = QApplication::activeModalWidget()) { qobject_cast<QDialog*>(dialog)->reject(); }
+                });
+                rename_poll.start(20); rename_watchdog.start(5000);
+                windows[0]->findChild<QPushButton*>("chatHeaderButton")->click();
+                rename_poll.stop(); rename_watchdog.stop();
+                check(renamed && !rename_timed_out, "Notification title fixture is persisted through the real group rename dialog");
+                wait([&] { return pages[1]->conversation(group)->username == full_title; });
+                auto const previous_notices = notifications[1].size();
+                auto const sender_notices_before = notifications[0].size();
+                QString const full_body = body_prefix + cluster + QStringLiteral("正文尾\n第二行");
+                windows[0]->findChild<QPlainTextEdit*>("messageEdit")->setPlainText(full_body);
+                windows[0]->findChild<QToolButton*>("sendButton")->click();
+                wait([&] { return notifications[1].size() == previous_notices + 1; });
+                auto* sender_messages = windows[0]->findChild<QListView*>("messageList");
+                wait([&] {
+                    return sender_messages->model()->rowCount() > 0 && sender_messages->model()
+                        ->index(sender_messages->model()->rowCount() - 1, 0).data(message_model::text_role).toString() == full_body;
+                });
+                check(pages[0]->conversation(group)->username.toUtf8() == full_title.toUtf8() &&
+                          pages[1]->conversation(group)->username.toUtf8() == full_title.toUtf8() &&
+                          sender_messages->model()->index(sender_messages->model()->rowCount() - 1, 0)
+                              .data(message_model::text_role).toString().toUtf8() == full_body.toUtf8() &&
+                          notifications[0].size() == sender_notices_before,
+                      "Notification truncation preserves the complete persisted Unicode title/body and excludes the actual sender");
+                auto const& notice = notifications[1].back();
+                bool const title_ok = notice.title == title_prefix + QStringLiteral(" · ") + names[0];
+                bool const body_ok = notice.summary == body_prefix;
+                check(notice.conversation == group, "Unicode boundary notification retains its real conversation identity");
+                std::cout << (title_ok && body_ok ? "PASS" : "RED") << " Qt real notification Unicode " << name.toStdString()
+                          << " title=" << title_ok << " body=" << body_ok << '\n';
+                notification_unicode_ok = notification_unicode_ok && title_ok && body_ok;
+                check(windows[0]->grab().save(QString::fromLocal8Bit(argv[2]) + QStringLiteral("/qt_notification_unicode_") + name + QStringLiteral(".png")),
+                      "The real sender controls retain an original Unicode notification-fixture capture");
+            }
+            check(pinned_unicode_ok && notification_unicode_ok,
+                  "Pinned controls and real notification arguments omit incomplete boundary clusters without changing original Unicode");
         }
         std::cout << "PASS three real Qt windows: login, contacts group creation, member list, message author, "
                      "realtime, server restart and automatic recovery\n";

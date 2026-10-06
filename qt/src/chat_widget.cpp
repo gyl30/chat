@@ -411,7 +411,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
         QString query;
         for (auto const& line : item->pinned_message.text.split(QLatin1Char('\n')))
         {
-            query = line.trimmed().left(80);
+            query = grapheme_prefix(line.trimmed(), 80);
             if (!query.isEmpty()) { break; }
         }
         emit message_search_requested(active_conversation_, self_user_, true, active_username_, std::move(query));
@@ -1774,7 +1774,7 @@ void chat_widget::update_pinned_message()
     if (visible)
     {
         auto const summary = QStringLiteral("置顶消息 · %1：%2")
-            .arg(item->pinned_message.username, item->pinned_message.text.simplified().left(80));
+            .arg(item->pinned_message.username, grapheme_prefix(item->pinned_message.text.simplified(), 80));
         pinned_message_button_->setText(QString(summary).replace(QLatin1Char('&'), QStringLiteral("&&")));
         pinned_message_button_->setToolTip(summary + QStringLiteral("\n点击定位；较早的消息通过搜索查看。"));
     }

@@ -1,4 +1,5 @@
 #include "main_window.hpp"
+#include "emoji_segments.hpp"
 
 #include <algorithm>
 #include <array>
@@ -915,15 +916,15 @@ void main_window::notify_message(message_data const& message)
     }
     if (conversation->muted) { return; }
     auto const title = conversation->group
-        ? QStringLiteral("%1 · %2").arg(conversation->username.left(80), message.username.left(80))
-        : message.username.left(80);
+        ? QStringLiteral("%1 · %2").arg(grapheme_prefix(conversation->username, 80), grapheme_prefix(message.username, 80))
+        : grapheme_prefix(message.username, 80);
     auto summary = message.text.simplified();
     if (message.attachment)
     {
         summary = (message.attachment->media_type.startsWith(QStringLiteral("image/"))
             ? QStringLiteral("图片：") : QStringLiteral("文件：")) + message.attachment->filename;
     }
-    emit notification_requested(message.conversation, title, summary.left(120));
+    emit notification_requested(message.conversation, title, grapheme_prefix(summary, 120));
 }
 
 void main_window::start_login()

@@ -1,0 +1,509 @@
+{
+  "scope": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa",
+  "no_claim_OS_notification_bubble_pixels": true,
+  "no_full_native_GREEN_claim": true,
+  "unrepaired_visual_observation": "1180-long-pinned-button leading label clipped in natural originalPNG; byte/raw contractGREEN does not approve visualreadability",
+  "cases": [
+    {
+      "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/red-widgets-qll6ksz0",
+      "proof": {
+        "actual_test_exit": 1,
+        "actual_test_elapsed_seconds": 7.980387725867331,
+        "ui_binary_sha256": "6e83ed976abc4fd5803f8d7dbbe05a1a58576f726056a26ca4fb2a277d286a78",
+        "actual_ui_exe_sha256": "6e83ed976abc4fd5803f8d7dbbe05a1a58576f726056a26ca4fb2a277d286a78",
+        "QPA_platform": "offscreen",
+        "source_start": {
+          "qt/src/chat_widget.cpp": "595bd1e7fd8daa689f34bfce1adf853000a05c0ae04336d1849ff5865ccb8378",
+          "qt/src/main_window.cpp": "35a5529d10f84481a5c80358a99b6adc26402cbba7cf478e2e0524a9032fc744",
+          "qt/src/emoji_text.cpp": "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621",
+          "qt/tests/ui_test.cpp": "7774053f29637b65d337eb1d8770d494f8d638b372044c9109438ca9a1163628"
+        },
+        "source_end": {
+          "qt/src/chat_widget.cpp": "595bd1e7fd8daa689f34bfce1adf853000a05c0ae04336d1849ff5865ccb8378",
+          "qt/src/main_window.cpp": "35a5529d10f84481a5c80358a99b6adc26402cbba7cf478e2e0524a9032fc744",
+          "qt/src/emoji_text.cpp": "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621",
+          "qt/tests/ui_test.cpp": "7774053f29637b65d337eb1d8770d494f8d638b372044c9109438ca9a1163628"
+        },
+        "owned_processes": [
+          {
+            "pid": 3405621,
+            "returncode": 0,
+            "gone": true
+          },
+          {
+            "pid": 3405624,
+            "returncode": 1,
+            "gone": true
+          }
+        ],
+        "protected_unchanged": true,
+        "port18769_clear": true,
+        "production_binary_start": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+        "production_binary_end": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+      },
+      "log_sha256": "bf5b72071b37b7f9aeb0447b8b82b486af4d72e01714da18cdb4b76ab0ddcbd0",
+      "new_contract_records": [
+        "RED Qt pinned Unicode surrogate summary=0 first_line=0",
+        "RED Qt pinned Unicode zwj summary=0 first_line=0",
+        "RED Qt pinned Unicode combining summary=0 first_line=0",
+        "RED Qt pinned Unicode skin summary=0 first_line=0",
+        "RED Qt pinned Unicode keycap summary=0 first_line=0"
+      ],
+      "original_pngs": []
+    },
+    {
+      "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/red-full-992sk87m",
+      "proof": {
+        "actual_test_exit": 1,
+        "actual_test_elapsed_seconds": 45.00126942805946,
+        "ui_binary_sha256": "ceac06fe2f7aed0253c05c14d08c6f03767481e1db9d84b46472c598823f4f9f",
+        "actual_ui_exe_sha256": "ceac06fe2f7aed0253c05c14d08c6f03767481e1db9d84b46472c598823f4f9f",
+        "QPA_platform": "offscreen",
+        "source_start": {
+          "qt/src/chat_widget.cpp": "595bd1e7fd8daa689f34bfce1adf853000a05c0ae04336d1849ff5865ccb8378",
+          "qt/src/main_window.cpp": "35a5529d10f84481a5c80358a99b6adc26402cbba7cf478e2e0524a9032fc744",
+          "qt/src/emoji_text.cpp": "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621",
+          "qt/tests/ui_test.cpp": "adc7e3a784ae16655b5a29e6c8b486f1a57e0ae92c0773c63598692562357f09"
+        },
+        "source_end": {
+          "qt/src/chat_widget.cpp": "595bd1e7fd8daa689f34bfce1adf853000a05c0ae04336d1849ff5865ccb8378",
+          "qt/src/main_window.cpp": "35a5529d10f84481a5c80358a99b6adc26402cbba7cf478e2e0524a9032fc744",
+          "qt/src/emoji_text.cpp": "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621",
+          "qt/tests/ui_test.cpp": "adc7e3a784ae16655b5a29e6c8b486f1a57e0ae92c0773c63598692562357f09"
+        },
+        "owned_processes": [
+          {
+            "pid": 3478746,
+            "returncode": 0,
+            "gone": true
+          },
+          {
+            "pid": 3478749,
+            "returncode": 1,
+            "gone": true
+          }
+        ],
+        "owned_database": "chat_safe_display_red_1006153124_3478582",
+        "owned_db_rows_after_original_test_cleanup": {
+          "actual_exit": 0,
+          "counts": "0|0|0"
+        },
+        "owned_db_exists_after_drop": "0",
+        "protected_unchanged": true,
+        "port18769_clear": true,
+        "production_binary_start": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+        "production_binary_end": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+      },
+      "log_sha256": "aeae1f2998cfb9bac5076d20ac8f80fd08b172d342c3744adada2e3f02ad1a3d",
+      "new_contract_records": [
+        "RED Qt pinned Unicode surrogate summary=0 first_line=0",
+        "RED Qt pinned Unicode zwj summary=0 first_line=0",
+        "RED Qt pinned Unicode combining summary=0 first_line=0",
+        "RED Qt pinned Unicode skin summary=0 first_line=0",
+        "RED Qt pinned Unicode keycap summary=0 first_line=0",
+        "RED Qt real notification Unicode surrogate title=0 body=0",
+        "RED Qt real notification Unicode zwj title=0 body=0",
+        "RED Qt real notification Unicode combining title=0 body=0",
+        "RED Qt real notification Unicode skin title=0 body=0",
+        "RED Qt real notification Unicode keycap title=0 body=0"
+      ],
+      "original_pngs": [
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/red-full-992sk87m/qt_notification_unicode_combining.png",
+          "sha256": "f17cc0772940c1a73354026d5f3331786dc837c6b9202e254ecba685811b9424"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/red-full-992sk87m/qt_notification_unicode_keycap.png",
+          "sha256": "3d2e7cb52224e1caf4a1564bd2bc4646923422e6fee2ecb63d938d85a6c83b84"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/red-full-992sk87m/qt_notification_unicode_skin.png",
+          "sha256": "b84b24ce57c6986f99deae3f2028cb827385fa023c19d0fb0173a3b6d1f3df24"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/red-full-992sk87m/qt_notification_unicode_surrogate.png",
+          "sha256": "1c7132c7f3cf1c87867403d83f4736127342470f4317e26000e66734dc711ae0"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/red-full-992sk87m/qt_notification_unicode_zwj.png",
+          "sha256": "033fd0105f2ca466d0eb3c69251ac1d3e96a4a5504907bd619c0d7139303d1ca"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/red-full-992sk87m/qt_pinned_unicode_combining.png",
+          "sha256": "7def5852c586a6784ef6bb60ea8fac260168c7d9807a44468aac75c856e1e3cf"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/red-full-992sk87m/qt_pinned_unicode_keycap.png",
+          "sha256": "712c9c873ce94e9c3e32d32f9a162e9b9d7a7fa271b0272469fb635462e329c0"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/red-full-992sk87m/qt_pinned_unicode_skin.png",
+          "sha256": "a32c9a160a43e10357ca8ec9d417c2fb805929bb3bfc0db6c3baeba51759c14c"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/red-full-992sk87m/qt_pinned_unicode_surrogate.png",
+          "sha256": "a32c9a160a43e10357ca8ec9d417c2fb805929bb3bfc0db6c3baeba51759c14c"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/red-full-992sk87m/qt_pinned_unicode_zwj.png",
+          "sha256": "a32c9a160a43e10357ca8ec9d417c2fb805929bb3bfc0db6c3baeba51759c14c"
+        }
+      ]
+    },
+    {
+      "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-widgets-ziib3wg5",
+      "proof": {
+        "actual_test_exit": 0,
+        "actual_test_elapsed_seconds": 7.424179658293724,
+        "ui_binary_sha256": "e8214d4676121e42266f3ef80c7397d815b99fe62ab3db10b5ca30b9974357bf",
+        "actual_ui_exe_sha256": "e8214d4676121e42266f3ef80c7397d815b99fe62ab3db10b5ca30b9974357bf",
+        "QPA_platform": "offscreen",
+        "source_start": {
+          "qt/src/chat_widget.cpp": "712fb19d28c824516722af92558a8a5257e9df7a08cbdc28463e8ab13f455042",
+          "qt/src/main_window.cpp": "894e00abd6068895cf6a16433dff6cf96457697ad0c563be6d6ddb9822a772ed",
+          "qt/src/emoji_text.cpp": "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621",
+          "qt/tests/ui_test.cpp": "adc7e3a784ae16655b5a29e6c8b486f1a57e0ae92c0773c63598692562357f09"
+        },
+        "source_end": {
+          "qt/src/chat_widget.cpp": "712fb19d28c824516722af92558a8a5257e9df7a08cbdc28463e8ab13f455042",
+          "qt/src/main_window.cpp": "894e00abd6068895cf6a16433dff6cf96457697ad0c563be6d6ddb9822a772ed",
+          "qt/src/emoji_text.cpp": "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621",
+          "qt/tests/ui_test.cpp": "adc7e3a784ae16655b5a29e6c8b486f1a57e0ae92c0773c63598692562357f09"
+        },
+        "owned_processes": [
+          {
+            "pid": 3504249,
+            "returncode": 0,
+            "gone": true
+          },
+          {
+            "pid": 3504317,
+            "returncode": 0,
+            "gone": true
+          }
+        ],
+        "protected_unchanged": true,
+        "port18769_clear": true,
+        "production_binary_start": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+        "production_binary_end": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+      },
+      "log_sha256": "81fb3880a508bd6c2cd556508acfe887fbed4c9a5b004c69bddb48a9bf012053",
+      "new_contract_records": [
+        "PASS Qt pinned Unicode surrogate summary=1 first_line=1",
+        "PASS Qt pinned Unicode zwj summary=1 first_line=1",
+        "PASS Qt pinned Unicode combining summary=1 first_line=1",
+        "PASS Qt pinned Unicode skin summary=1 first_line=1",
+        "PASS Qt pinned Unicode keycap summary=1 first_line=1"
+      ],
+      "original_pngs": []
+    },
+    {
+      "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-i6b8fzzn",
+      "proof": {
+        "actual_test_exit": 0,
+        "actual_test_elapsed_seconds": 46.52984615135938,
+        "ui_binary_sha256": "e8214d4676121e42266f3ef80c7397d815b99fe62ab3db10b5ca30b9974357bf",
+        "actual_ui_exe_sha256": "e8214d4676121e42266f3ef80c7397d815b99fe62ab3db10b5ca30b9974357bf",
+        "QPA_platform": "offscreen",
+        "source_start": {
+          "qt/src/chat_widget.cpp": "712fb19d28c824516722af92558a8a5257e9df7a08cbdc28463e8ab13f455042",
+          "qt/src/main_window.cpp": "894e00abd6068895cf6a16433dff6cf96457697ad0c563be6d6ddb9822a772ed",
+          "qt/src/emoji_text.cpp": "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621",
+          "qt/tests/ui_test.cpp": "adc7e3a784ae16655b5a29e6c8b486f1a57e0ae92c0773c63598692562357f09"
+        },
+        "source_end": {
+          "qt/src/chat_widget.cpp": "712fb19d28c824516722af92558a8a5257e9df7a08cbdc28463e8ab13f455042",
+          "qt/src/main_window.cpp": "894e00abd6068895cf6a16433dff6cf96457697ad0c563be6d6ddb9822a772ed",
+          "qt/src/emoji_text.cpp": "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621",
+          "qt/tests/ui_test.cpp": "adc7e3a784ae16655b5a29e6c8b486f1a57e0ae92c0773c63598692562357f09"
+        },
+        "owned_processes": [
+          {
+            "pid": 3504870,
+            "returncode": 0,
+            "gone": true
+          },
+          {
+            "pid": 3504873,
+            "returncode": 0,
+            "gone": true
+          }
+        ],
+        "owned_database": "chat_safe_display_green_1006153514_3504483",
+        "owned_db_rows_after_original_test_cleanup": {
+          "actual_exit": 0,
+          "counts": "0|0|0"
+        },
+        "owned_db_exists_after_drop": "0",
+        "protected_unchanged": true,
+        "port18769_clear": true,
+        "production_binary_start": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+        "production_binary_end": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+      },
+      "log_sha256": "45916f1508bb502d64aa2289a22ae168752c805ab288f5a5b15e0db18c04bca0",
+      "new_contract_records": [
+        "PASS Qt pinned Unicode surrogate summary=1 first_line=1",
+        "PASS Qt pinned Unicode zwj summary=1 first_line=1",
+        "PASS Qt pinned Unicode combining summary=1 first_line=1",
+        "PASS Qt pinned Unicode skin summary=1 first_line=1",
+        "PASS Qt pinned Unicode keycap summary=1 first_line=1",
+        "PASS Qt real notification Unicode surrogate title=1 body=1",
+        "PASS Qt real notification Unicode zwj title=1 body=1",
+        "PASS Qt real notification Unicode combining title=1 body=1",
+        "PASS Qt real notification Unicode skin title=1 body=1",
+        "PASS Qt real notification Unicode keycap title=1 body=1"
+      ],
+      "original_pngs": [
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-i6b8fzzn/qt_notification_unicode_combining.png",
+          "sha256": "38fdfc8434c2e0d10bfbac0d399b0631a1338779c6a833e5945897a86b8d9416"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-i6b8fzzn/qt_notification_unicode_keycap.png",
+          "sha256": "22ad949a897c4fe99dcb61d420e96651d70cf0231c2aae9828c57e064dc995a9"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-i6b8fzzn/qt_notification_unicode_skin.png",
+          "sha256": "3f118d0db033830212a87ff755e72bf31a897ee235f1326ebb7ba133299d9091"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-i6b8fzzn/qt_notification_unicode_surrogate.png",
+          "sha256": "ce3055f53d1c0f7834420458ef0a3cec7fe71f4924e6f9a344629766e29bd3fa"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-i6b8fzzn/qt_notification_unicode_zwj.png",
+          "sha256": "412b0ffc23a0c02d409d8848ee5b89a52f7a1ae5b4a63cd54e910a0650bd181b"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-i6b8fzzn/qt_pinned_unicode_combining.png",
+          "sha256": "7093b850d498b616a93b1e4e1928e7436c20f63bf426f983fa26eb2bbf43957a"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-i6b8fzzn/qt_pinned_unicode_keycap.png",
+          "sha256": "7093b850d498b616a93b1e4e1928e7436c20f63bf426f983fa26eb2bbf43957a"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-i6b8fzzn/qt_pinned_unicode_skin.png",
+          "sha256": "7093b850d498b616a93b1e4e1928e7436c20f63bf426f983fa26eb2bbf43957a"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-i6b8fzzn/qt_pinned_unicode_surrogate.png",
+          "sha256": "7093b850d498b616a93b1e4e1928e7436c20f63bf426f983fa26eb2bbf43957a"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-i6b8fzzn/qt_pinned_unicode_zwj.png",
+          "sha256": "7093b850d498b616a93b1e4e1928e7436c20f63bf426f983fa26eb2bbf43957a"
+        }
+      ]
+    },
+    {
+      "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-widgets-uifb4gxl",
+      "proof": {
+        "actual_test_exit": 1,
+        "actual_test_elapsed_seconds": 0.1134583754464984,
+        "ui_binary_sha256": "604007d5c25cca950010fca70c029526706c35ea6378603ab223929ca0848f6d",
+        "actual_ui_exe_sha256": "604007d5c25cca950010fca70c029526706c35ea6378603ab223929ca0848f6d",
+        "QPA_platform": "xcb",
+        "source_start": {
+          "qt/src/chat_widget.cpp": "712fb19d28c824516722af92558a8a5257e9df7a08cbdc28463e8ab13f455042",
+          "qt/src/main_window.cpp": "894e00abd6068895cf6a16433dff6cf96457697ad0c563be6d6ddb9822a772ed",
+          "qt/src/emoji_text.cpp": "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621",
+          "qt/tests/ui_test.cpp": "31fd3a42e5e319a216d2c07096bfcb5bf4095e126e44516a47ee2296ebef409c"
+        },
+        "source_end": {
+          "qt/src/chat_widget.cpp": "712fb19d28c824516722af92558a8a5257e9df7a08cbdc28463e8ab13f455042",
+          "qt/src/main_window.cpp": "894e00abd6068895cf6a16433dff6cf96457697ad0c563be6d6ddb9822a772ed",
+          "qt/src/emoji_text.cpp": "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621",
+          "qt/tests/ui_test.cpp": "31fd3a42e5e319a216d2c07096bfcb5bf4095e126e44516a47ee2296ebef409c"
+        },
+        "owned_processes": [
+          {
+            "pid": 3610478,
+            "returncode": 0,
+            "gone": true
+          },
+          {
+            "pid": 3610481,
+            "returncode": 143,
+            "gone": true
+          },
+          {
+            "pid": 3610574,
+            "returncode": 1,
+            "gone": true
+          }
+        ],
+        "protected_unchanged": true,
+        "port18769_clear": true,
+        "production_binary_start": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+        "production_binary_end": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+      },
+      "log_sha256": "468b67b49ac0a3f641187f6b54b2014d17a5a1dcb5949a2aa3b073a45a85282d",
+      "new_contract_records": [],
+      "original_pngs": []
+    },
+    {
+      "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-widgets-zn21o4qf",
+      "proof": {
+        "actual_test_exit": 0,
+        "actual_test_elapsed_seconds": 7.073987317271531,
+        "ui_binary_sha256": "604007d5c25cca950010fca70c029526706c35ea6378603ab223929ca0848f6d",
+        "actual_ui_exe_sha256": "604007d5c25cca950010fca70c029526706c35ea6378603ab223929ca0848f6d",
+        "QPA_platform": "offscreen",
+        "source_start": {
+          "qt/src/chat_widget.cpp": "712fb19d28c824516722af92558a8a5257e9df7a08cbdc28463e8ab13f455042",
+          "qt/src/main_window.cpp": "894e00abd6068895cf6a16433dff6cf96457697ad0c563be6d6ddb9822a772ed",
+          "qt/src/emoji_text.cpp": "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621",
+          "qt/tests/ui_test.cpp": "31fd3a42e5e319a216d2c07096bfcb5bf4095e126e44516a47ee2296ebef409c"
+        },
+        "source_end": {
+          "qt/src/chat_widget.cpp": "712fb19d28c824516722af92558a8a5257e9df7a08cbdc28463e8ab13f455042",
+          "qt/src/main_window.cpp": "894e00abd6068895cf6a16433dff6cf96457697ad0c563be6d6ddb9822a772ed",
+          "qt/src/emoji_text.cpp": "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621",
+          "qt/tests/ui_test.cpp": "31fd3a42e5e319a216d2c07096bfcb5bf4095e126e44516a47ee2296ebef409c"
+        },
+        "owned_processes": [
+          {
+            "pid": 3616759,
+            "returncode": 0,
+            "gone": true
+          },
+          {
+            "pid": 3616762,
+            "returncode": 0,
+            "gone": true
+          }
+        ],
+        "protected_unchanged": true,
+        "port18769_clear": true,
+        "production_binary_start": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+        "production_binary_end": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+      },
+      "log_sha256": "81fb3880a508bd6c2cd556508acfe887fbed4c9a5b004c69bddb48a9bf012053",
+      "new_contract_records": [
+        "PASS Qt pinned Unicode surrogate summary=1 first_line=1",
+        "PASS Qt pinned Unicode zwj summary=1 first_line=1",
+        "PASS Qt pinned Unicode combining summary=1 first_line=1",
+        "PASS Qt pinned Unicode skin summary=1 first_line=1",
+        "PASS Qt pinned Unicode keycap summary=1 first_line=1"
+      ],
+      "schema_count": 0,
+      "original_pngs": []
+    },
+    {
+      "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-qlbyhbf8",
+      "proof": {
+        "actual_test_exit": 0,
+        "actual_test_elapsed_seconds": 46.78051924239844,
+        "ui_binary_sha256": "604007d5c25cca950010fca70c029526706c35ea6378603ab223929ca0848f6d",
+        "actual_ui_exe_sha256": "604007d5c25cca950010fca70c029526706c35ea6378603ab223929ca0848f6d",
+        "QPA_platform": "offscreen",
+        "source_start": {
+          "qt/src/chat_widget.cpp": "712fb19d28c824516722af92558a8a5257e9df7a08cbdc28463e8ab13f455042",
+          "qt/src/main_window.cpp": "894e00abd6068895cf6a16433dff6cf96457697ad0c563be6d6ddb9822a772ed",
+          "qt/src/emoji_text.cpp": "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621",
+          "qt/tests/ui_test.cpp": "31fd3a42e5e319a216d2c07096bfcb5bf4095e126e44516a47ee2296ebef409c"
+        },
+        "source_end": {
+          "qt/src/chat_widget.cpp": "712fb19d28c824516722af92558a8a5257e9df7a08cbdc28463e8ab13f455042",
+          "qt/src/main_window.cpp": "894e00abd6068895cf6a16433dff6cf96457697ad0c563be6d6ddb9822a772ed",
+          "qt/src/emoji_text.cpp": "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621",
+          "qt/tests/ui_test.cpp": "31fd3a42e5e319a216d2c07096bfcb5bf4095e126e44516a47ee2296ebef409c"
+        },
+        "owned_processes": [
+          {
+            "pid": 3617208,
+            "returncode": 0,
+            "gone": true
+          },
+          {
+            "pid": 3617211,
+            "returncode": 0,
+            "gone": true
+          }
+        ],
+        "owned_database": "chat_safe_display_green_1006155301_3616900",
+        "owned_db_rows_after_original_test_cleanup": {
+          "actual_exit": 0,
+          "counts": "0|0|0"
+        },
+        "owned_db_exists_after_drop": "0",
+        "protected_unchanged": true,
+        "port18769_clear": true,
+        "production_binary_start": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+        "production_binary_end": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+      },
+      "log_sha256": "44f2d6eceb6a6d264d281ccdb307f5c01f596b3521db2e9d5ce115b685a8b99c",
+      "new_contract_records": [
+        "PASS Qt pinned Unicode surrogate summary=1 first_line=1",
+        "PASS Qt pinned Unicode zwj summary=1 first_line=1",
+        "PASS Qt pinned Unicode combining summary=1 first_line=1",
+        "PASS Qt pinned Unicode skin summary=1 first_line=1",
+        "PASS Qt pinned Unicode keycap summary=1 first_line=1",
+        "PASS Qt real notification Unicode surrogate title=1 body=1",
+        "PASS Qt real notification Unicode zwj title=1 body=1",
+        "PASS Qt real notification Unicode combining title=1 body=1",
+        "PASS Qt real notification Unicode skin title=1 body=1",
+        "PASS Qt real notification Unicode keycap title=1 body=1"
+      ],
+      "schema_count": 26,
+      "original_pngs": [
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-qlbyhbf8/qt_notification_unicode_combining.png",
+          "sha256": "5fcd58f707c2a44511acc9dae81628825b3ca5adeed44fac8ec5d8b220387a82"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-qlbyhbf8/qt_notification_unicode_keycap.png",
+          "sha256": "dccfc81cb07f612d3e23f42f2dfcbe104135a7eede146075b4491c2aa6acf176"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-qlbyhbf8/qt_notification_unicode_skin.png",
+          "sha256": "784fc3f5b6cd7110f62ecc6ffe3a47e7d29c318f12f069495c51823e2612cc01"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-qlbyhbf8/qt_notification_unicode_surrogate.png",
+          "sha256": "3b4b07382e0eadd3dbda3a64c51b91565ac97512d9c1e2023e062526b1d91071"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-qlbyhbf8/qt_notification_unicode_zwj.png",
+          "sha256": "52310f7440e50929e3f5ca0ba74bd8010ab7775caa52aff7088f4460ce2cf319"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-qlbyhbf8/qt_pinned_unicode_combining.png",
+          "sha256": "7093b850d498b616a93b1e4e1928e7436c20f63bf426f983fa26eb2bbf43957a"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-qlbyhbf8/qt_pinned_unicode_keycap.png",
+          "sha256": "7093b850d498b616a93b1e4e1928e7436c20f63bf426f983fa26eb2bbf43957a"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-qlbyhbf8/qt_pinned_unicode_skin.png",
+          "sha256": "7093b850d498b616a93b1e4e1928e7436c20f63bf426f983fa26eb2bbf43957a"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-qlbyhbf8/qt_pinned_unicode_surrogate.png",
+          "sha256": "7093b850d498b616a93b1e4e1928e7436c20f63bf426f983fa26eb2bbf43957a"
+        },
+        {
+          "path": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-qlbyhbf8/qt_pinned_unicode_zwj.png",
+          "sha256": "7093b850d498b616a93b1e4e1928e7436c20f63bf426f983fa26eb2bbf43957a"
+        }
+      ]
+    }
+  ],
+  "current_final_freeze": {
+    "qt/src/chat_widget.cpp": "712fb19d28c824516722af92558a8a5257e9df7a08cbdc28463e8ab13f455042",
+    "qt/src/main_window.cpp": "894e00abd6068895cf6a16433dff6cf96457697ad0c563be6d6ddb9822a772ed",
+    "qt/tests/ui_test.cpp": "31fd3a42e5e319a216d2c07096bfcb5bf4095e126e44516a47ee2296ebef409c",
+    "qt/src/emoji_text.cpp": "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621",
+    "build/qt/chat_qt": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+  },
+  "byte_RED_GREEN_same_permanent_boundary_source": "Fullred992sk87m/fullgreeni6b8fzzn bothtestsadc7e3; final31fd3a42 adds only12QMouseEventlocal/globalAPI-compatible calls+firstnativeactivewindowreadiness wait, not boundaryoracles,raw guards, timeout or product choices.",
+  "compatibility_diff": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/ui_test.compat.diff",
+  "existing_native_preflight_failures_are_not_product_prefix_counterexamples": [
+    "redwidgets4ejbjv7n/redfulldil_x51m: noWMregistrationreopenfocus",
+    "redfull0yxk8hun: freshDBmissing26schema",
+    "redfullq8hwhg3f: newfixture unnecessarypreference toggle",
+    "greenwidgetsuifb4gxl: currentnativei3firstregistrationfocusnotyetready"
+  ]
+}
