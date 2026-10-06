@@ -3533,3 +3533,96 @@ TUI-only实际独立构建成功，非Qt客户端不依赖这个要求。
 TUI现代WezTerm+私有tmux宽度的独立物理/虚拟测量已一致，但当前产品六组ZWJ输入
 仍让composer边界左移180px，清空后其他栏残影仍在；T04仍是RED。Qt87/TUI78保持，
 没有>=92、P2=0或两轮无material issue的fresh review，不停止完整品质循环。
+
+## 阶段 52：置顶标签的真实可读性与按钮行为
+
+从a74d873继续。置顶摘要字节完整并不等于画面可读：原QPushButton居中绘制长标签，
+会裁去左侧“置顶消息”。局部具体按钮保留标准bevel、pressed位移和focus primitive，
+文字使用既有whole-EGC右侧省略与严格clip；原text、tooltip、搜索、权限及raw不变。
+永久像素oracle独立绘制完整中文前缀，不调用被测paint/elide生成期望：980/1180/1440
+原生产可见41/90/0个位置，共143个ink位置；修复后三档均143/143。
+实际Button accessible role/name、Space定位及disabled不触发行为继续断言。
+
+旧focus诊断actual1也保留：setFocus(TabFocusReason)不等于发生真实Tab事件，Fusion
+尚未进入keyboard-focus绘制。测试补真实Tab事件，原pixel差异断言未删除，最终widgets
+actual0。它不证明整个自然Tab链；真实XTest客户端任务另外验证，不改生产focus状态。
+此前四Qt源冻结的完整ui任务actual0/46.43s、独立DB原cleanup0|0|0且最终存在数0，
+端口18769空、两个自有PIDgone，三个保护进程ticks未变；后续theme修改需新的门禁。
+
+首轮真实双Qt三档after业务actual0，Tab→Space和成员点击都找到50条初始页外的旧pin，
+owner取消置顶同步消失，原图左前缀及右省略清晰。但原图还发现unpin黑底深字低对比，
+不能宣布整个置顶条视觉GREEN。新增真实owner按钮表面/文字颜色反例，旧themeactual1
+后仅将该对象加入既有secondary-action样式和hover/pressed/focus规则，同测试actual0。
+同字节driver再以最终e5f5fa2f…与84生产输入完成三档真实双Qtafter，各六项actualPASS，
+三runner退出0，15自有PID最终不存在、三个独立DB已删除、保护服务ticks不变。
+[真实原图](images/experience/qt-pinned-readable-native-after.png)保留完整窗口，
+[原生键盘focus](images/experience/qt-pinned-readable-native-focus.png)保留真实Tab结果；
+主代理亲看原尺寸980和1440，unpin白底绿字、左前缀完整及右侧省略自然，不互相覆盖。
+[实际运行记录](images/experience/qt-pinned-readable-native-proof.json)嵌入每run实际
+/proc/exe及加载的Qt6.5.3/xcb库指纹、84输入首尾、全部case和21原图SHA。
+[永久反例记录](images/experience/qt-pinned-readable-proof.json)保留原像素RED、focus
+驱动失败、unpin对比RED及各实际GREEN，不用最后PASS覆盖此前失败。
+这些native实际Tab→Space能证明当前任务的自然Tab抵达，但没有独立遍历unpin的
+hover/focus，也不外推所有按钮pressed/disabled外观、系统tooltip整emoji显示或四DPI。
+最终源码的原完整三模式门禁已实际结束0，详见下方共同门禁；不借上一阶段旧输入。
+
+门禁结束后，正式normal二进制3bb090e6…又以同字节driver在980/1180/1440完成三档
+双客户端任务，每档六项全部实际PASS、runner退出0。实际/proc/exe与Qt6.5.3/xcb
+加载库首尾核验，84输入未变；15自有PID不存在、三DB删除，保护服务ticks不变。
+主代理亲看[正式980原图](images/experience/qt-pinned-readable-official-after.png)与
+[正式1440键盘焦点原图](images/experience/qt-pinned-readable-official-focus.png)，
+左前缀完整、右侧省略不覆盖白底绿字unpin，真实Tab焦点清晰。
+[正式运行记录](images/experience/qt-pinned-readable-official-proof.json)保留21原图SHA、
+全部case、真实runtime与cleanup。这是正式产品路径的局部after，不是四DPI全页面
+或所有按钮状态的验收；旧candidate和视觉RED证据分别保留，不覆盖原记录。
+
+## 阶段 53：终端显示字素列分配进入生产路径
+
+不是把整个字符串限制两列：显示载体转换后按显示EGC分段，固定utf8proc scalar
+width逐字累加，每个显示EGC最多两列；ASCII仍用完整长度。非法modifier的replacement
+可以把source EGC拆成显示emoji2+carrier1，因此它仍占3列。四个span0 serializer/Canvas
+fallback共用同一列事实，raw、拷贝、编辑和原Google分词不变。正常CMake零fuzz生成
+patched翻译单元，不用符号覆盖或私改构建生成的CPP，third/submodule未改。
+
+新增literal display/span回归不以DisplayWidth自身生成oracle：旧生产3075断言中152
+失败，最终111 span断言中10失败；生产修复后分别0失败，853官方Unicode边界保留。
+TUI-only真实七targeted原CTestactual0/0.99s，全部5s不变；第一次宽regex误包含未构建
+server_test的tui_integration，实际NotRun/exit8原记录保留，不把它改称全门禁PASS。
+
+[生产实测记录](images/experience/tui-modern-width-proof.json)保存源/正常生成CPP/
+binary指纹、原轨迹和18张原图SHA。WezTerm Unicode9与私有tmux3.6a的VS16 widening
+关闭链中，原实际180px左移的[before](images/experience/tui-modern-width-before.png)
+经生产接入后[after](images/experience/tui-modern-width-after.png)长/clear/short/empty
+四阶段都保持x1594边界；[最终清空](images/experience/tui-modern-width-cleared-after.png)
+与首次清空PNG逐byte相同，无该残影。实际80→160列、完整native selection/copy
+`L👩🏽R END`与中字素Delete后发送SQL `AB❤️C1️⃣D👩🏽E`均保持，driver/childactual0。
+原host/pixel oracle字节未变，原15s未延长；14自有PIDgone、exactDB不存在、40003空，
+死socket核无listener后精确移除，三个保护服务ticks相同。主代理亲看long/empty原尺寸图。
+
+仅关闭这一modern链局部反例，不用DSR逻辑列代替物理像素；旧XTerm、SSH、浅色host、
+RI/VS15与Unicode18新增字符完整矩阵仍未被证明。完整门禁结束后，正式normal TUI
+二进制d8d2b478…沿同字节host/pixel oracle与原15s限制又完成整个原生任务actual0。
+实际/proc/exe确认不是私有candidate；原copy exact `L👩🏽R END`与发送正文保持，
+四阶段边界均为x1594，clear与empty原PNG逐byte相同。主代理亲看
+[正式长输入](images/experience/tui-modern-width-official-after.png)与
+[正式清空](images/experience/tui-modern-width-official-cleared-after.png)，没有旧180px
+左移或残影；[正式原生记录](images/experience/tui-modern-width-official-proof.json)
+保留18原图SHA、独立ASCII-R物理oracle、实际binary/生成源和14自有PID/DB/端口/
+死socket清理结果，保护服务ticks未变。不把这条modern链外推legacy/SSH/light。
+
+### 最终源码的原完整门禁
+
+原 `tests/verify.sh` SHA38d3408e…未修改，实际runner与script均exit0，normal/ASan/
+UBSan各23/23，分别115.53/160.62/146.02s。qt_ui47.26/56.52/49.94s仍保原60s，
+tui_render0.92/4.45/1.85s仍保原5s，原tui_integration也在三个模式中实际PASS。
+Qt/TUI均ON、实际-Werror；沿既有独立目录完整reconfigure/build/CTest，不冒称本次
+重新从空目录建立所有依赖。204实际输入（200tracked+4外部编译文件）、原脚本、
+submodule和保护服务首尾核验均0，三模式生成的TUI翻译单元SHA一致。原完整log及
+三LastTest日志的编译warning/CMake warning/sanitizer签名扫描均0，无skip或timeout
+调整。[完整原门禁记录](images/experience/qt-tui-craft-original-verify-proof.json)保存
+全部69个实际结果、timeout、源码清单、配置、正式binary及Qt加载依赖；
+[无损原日志](images/experience/qt-tui-craft-original-verify.log.gz)解压SHA44052ed8…
+与原始日志相同。私有bus/portal已有环境退出警告不混称编译或产品错误。
+
+Q27/Q30/T04全矩阵仍开放，Qt87/TUI78不提高，完整页面/日常/无障碍和连续两轮
+fresh审查仍必须继续；门禁和两个局部after不能代替完整目标。

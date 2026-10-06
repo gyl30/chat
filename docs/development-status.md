@@ -1628,3 +1628,33 @@ Q27/Q30/T04及完整退出门槛继续开放，未push。
 sanitizer报告签名；无损日志和完整指纹记录已归档。真实截图仍发现长
 置顶按钮的开头被裁掉，这一视觉问题未修；TUI六组ZWJ仍造成180px边界偏移。
 局部EGC/raw GREEN不覆盖这些RED，完整>=92和两轮fresh review条件没有达成。
+
+## 体验品质审查：置顶可读性与终端完整列分配
+
+从a74d873继续。长置顶摘要原标准按钮居中裁掉左前缀，具体按钮保留标准bevel/focus/
+pressed及原text/tooltip/accessibility，只用既有whole-EGC右侧省略绘制正文。三自然
+窗口宽度的独立中文像素oracle原41/90/0→143/143全部可见；真实Tab→Space与成员
+click均能找到50条初始页外的旧消息。另从真实after发现unpin黑底深字，永久反例
+actual1后仅接入既有secondary-action样式，最终actual0。没有把业务绿冒称视觉绿。
+
+TUI显示载体按显示EGC分配列，每EGC上限2而不是整字符串上限2，ASCII完整长度、
+非法modifier显示载体3列、raw/copy/edit保持；span0的serializer/Canvas使用相同列
+事实。literal测试原152与10个失败最终均0，853官方边界保留。生产CMake零fuzz
+应用源码patch，不改third；已提交31f09f0「保持终端显示字素的完整列分配」。
+
+最终原tests/verify.sh actual0，normal/ASan/UBSan各23/23，115.53/160.62/146.02s；
+qt_ui47.26/56.52/49.94s保原60s，render0.92/4.45/1.85s保原5s。Qt/TUI ON，实际
+-Werror，204输入、原script/submodule和保护服务首尾相同，无skip、timeout变更或
+编译warning/sanitizer报告签名。既有独立build完整reconfigure/build/CTest，不冒称
+新建全部目录。原日志无损归档、三模式正式binary与生成源均留指纹。
+
+门禁后正式Qt3bb090e6…三自然宽度各六项原生任务actualPASS/runner0，正式TUI
+d8d2b478…整个80→160原生任务actual0，长/clear/short/empty右边界均x1594，不再
+旧180px左移，两个清空PNG逐byte相同。主代理亲看正式原尺寸图；实际/proc/exe及
+Qt6.5.3/xcb加载依赖验证，所有独立DB/自有PID/端口/socket清理、保护服务未动。
+原candidate、驱动失败及视觉RED均分别保留，未合成通过；证据见
+[体验品质审查](experience-quality.md)阶段52/53。
+
+Qt87/TUI78仍保持。只关闭上述局部反例，系统IME缩放、legacy/SSH/light终端及完整
+页面/无障碍/日常使用矩阵和两轮全产品fresh review未验收，不宣布campaign完成。
+SDK是实际依赖，继续保留；无push，下一步继续这些真实产品缺口。

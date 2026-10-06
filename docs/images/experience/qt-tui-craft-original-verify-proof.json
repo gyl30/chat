@@ -1,0 +1,535 @@
+{
+  "scope": "/tmp/chat-qt-dependency-compare.dmJWg7/run4-product",
+  "private_qt_prefix": "/tmp/chat-qt-dependency-compare.dmJWg7/install",
+  "runner_exit": 0,
+  "original_verify_exit": 0,
+  "original_verify_script_sha256": "38d3408e537d67182689f59d452e9d8e5bf164f38a9b5baaa93fbd8b36eb5f29",
+  "modes": [
+    {
+      "mode": "normal",
+      "tests": [
+        {
+          "name": "migration",
+          "result": "Passed",
+          "seconds": 2.02,
+          "explicit_timeout_seconds": 15
+        },
+        {
+          "name": "client",
+          "result": "Passed",
+          "seconds": 1.05,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "pg_connection",
+          "result": "Passed",
+          "seconds": 0.4,
+          "explicit_timeout_seconds": 15
+        },
+        {
+          "name": "corosio_timeout",
+          "result": "Passed",
+          "seconds": 0.07,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "http_server",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "websocket",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_integration",
+          "result": "Passed",
+          "seconds": 11.33,
+          "explicit_timeout_seconds": 60
+        },
+        {
+          "name": "server",
+          "result": "Passed",
+          "seconds": 36.07,
+          "explicit_timeout_seconds": 60
+        },
+        {
+          "name": "friendship",
+          "result": "Passed",
+          "seconds": 8.17,
+          "explicit_timeout_seconds": 60
+        },
+        {
+          "name": "avatar_image",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "simdjson_reflection",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "online_users",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "bcrypt",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_render",
+          "result": "Passed",
+          "seconds": 0.92,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_unicode",
+          "result": "Passed",
+          "seconds": 0.03,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_display",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_span",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_state",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_inbox",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_file",
+          "result": "Passed",
+          "seconds": 0.02,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "qt_models",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": null
+        },
+        {
+          "name": "qt_delegate",
+          "result": "Passed",
+          "seconds": 8.15,
+          "explicit_timeout_seconds": null
+        },
+        {
+          "name": "qt_ui",
+          "result": "Passed",
+          "seconds": 47.26,
+          "explicit_timeout_seconds": 60
+        }
+      ],
+      "original_summary": "100% tests passed, 0 tests failed out of 23",
+      "total_seconds": 115.53
+    },
+    {
+      "mode": "asan",
+      "tests": [
+        {
+          "name": "migration",
+          "result": "Passed",
+          "seconds": 1.95,
+          "explicit_timeout_seconds": 15
+        },
+        {
+          "name": "client",
+          "result": "Passed",
+          "seconds": 1.08,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "pg_connection",
+          "result": "Passed",
+          "seconds": 0.29,
+          "explicit_timeout_seconds": 15
+        },
+        {
+          "name": "corosio_timeout",
+          "result": "Passed",
+          "seconds": 0.08,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "http_server",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "websocket",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_integration",
+          "result": "Passed",
+          "seconds": 16.48,
+          "explicit_timeout_seconds": 60
+        },
+        {
+          "name": "server",
+          "result": "Passed",
+          "seconds": 54.69,
+          "explicit_timeout_seconds": 60
+        },
+        {
+          "name": "friendship",
+          "result": "Passed",
+          "seconds": 12.21,
+          "explicit_timeout_seconds": 60
+        },
+        {
+          "name": "avatar_image",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "simdjson_reflection",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "online_users",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "bcrypt",
+          "result": "Passed",
+          "seconds": 0.02,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_render",
+          "result": "Passed",
+          "seconds": 4.45,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_unicode",
+          "result": "Passed",
+          "seconds": 0.14,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_display",
+          "result": "Passed",
+          "seconds": 0.06,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_span",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_state",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_inbox",
+          "result": "Passed",
+          "seconds": 0.02,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_file",
+          "result": "Passed",
+          "seconds": 0.02,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "qt_models",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": null
+        },
+        {
+          "name": "qt_delegate",
+          "result": "Passed",
+          "seconds": 12.54,
+          "explicit_timeout_seconds": null
+        },
+        {
+          "name": "qt_ui",
+          "result": "Passed",
+          "seconds": 56.52,
+          "explicit_timeout_seconds": 60
+        }
+      ],
+      "original_summary": "100% tests passed, 0 tests failed out of 23",
+      "total_seconds": 160.62
+    },
+    {
+      "mode": "ubsan",
+      "tests": [
+        {
+          "name": "migration",
+          "result": "Passed",
+          "seconds": 1.8,
+          "explicit_timeout_seconds": 15
+        },
+        {
+          "name": "client",
+          "result": "Passed",
+          "seconds": 1.02,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "pg_connection",
+          "result": "Passed",
+          "seconds": 0.34,
+          "explicit_timeout_seconds": 15
+        },
+        {
+          "name": "corosio_timeout",
+          "result": "Passed",
+          "seconds": 0.07,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "http_server",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "websocket",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_integration",
+          "result": "Passed",
+          "seconds": 15.63,
+          "explicit_timeout_seconds": 60
+        },
+        {
+          "name": "server",
+          "result": "Passed",
+          "seconds": 51,
+          "explicit_timeout_seconds": 60
+        },
+        {
+          "name": "friendship",
+          "result": "Passed",
+          "seconds": 13.22,
+          "explicit_timeout_seconds": 60
+        },
+        {
+          "name": "avatar_image",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "simdjson_reflection",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "online_users",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "bcrypt",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_render",
+          "result": "Passed",
+          "seconds": 1.85,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_unicode",
+          "result": "Passed",
+          "seconds": 0.05,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_display",
+          "result": "Passed",
+          "seconds": 0.03,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_span",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_state",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_inbox",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_file",
+          "result": "Passed",
+          "seconds": 0.02,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "qt_models",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": null
+        },
+        {
+          "name": "qt_delegate",
+          "result": "Passed",
+          "seconds": 11,
+          "explicit_timeout_seconds": null
+        },
+        {
+          "name": "qt_ui",
+          "result": "Passed",
+          "seconds": 49.94,
+          "explicit_timeout_seconds": 60
+        }
+      ],
+      "original_summary": "100% tests passed, 0 tests failed out of 23",
+      "total_seconds": 146.02
+    }
+  ],
+  "source_inputs": {
+    "count": 204,
+    "tracked": 200,
+    "external_pinned_compile_files": 4,
+    "after_check_exit": 0,
+    "proof": "source.before.sha256 + source.after.check",
+    "manifest_full": "9cadf811a4a49229da6af7193b1834120e5e2782f60356fc1ccc220e8db4e7c4  CMakeLists.txt\n82b750f350e3b38d44b7ec0a84f51ea5703ce0da866c844e3fd6db2a63f65895  client/include/chat/attachment.hpp\n0ad3dd1416d4daec4dc5653769f7c35300e100b0fa3376cc978317408cd42736  client/include/chat/avatar.hpp\n7215c66977bb40e4387dc48f8ddfd0f380d909bfb7009e44371ff4daad3242e5  client/include/chat/client.hpp\n228f2615dadf59199eef5935101d7b3e40d25b2ff71fdac2deae6c6df55553a0  client/include/chat/conversation.hpp\nb7ac7b4ea85c65bc1b2548692e7e5529e2f2906402a621a468144a36d03eed76  client/include/chat/detail/base64.hpp\nc764259decf0bcb979e85abec19288446c3f7802add80c724c83a2d580b5fb05  client/include/chat/error.hpp\nb5c5ed77be7649c4bf1b1938874702e545d80e0bddad1e285319c76add04efc5  client/include/chat/friendship.hpp\ndd68fa63cdd6cd95f1ef70d4b688d37627c8527143135f2fd3880377bc168d2f  client/include/chat/member.hpp\n9e6ffb975ab7d31a866b9dee5ce3565258474752215ee58d8deac97759238183  client/include/chat/message.hpp\nb90b2f32b6969fb64fd61d60aca862362d2e66f89431004f3dee7b921a55795c  client/include/chat/presence.hpp\n0453f0cf44765c700b2fa04bbf4f56ba890ecfe3ae638d39b436cb58ada01b4f  client/include/chat/reaction.hpp\nc2f0f54cb60e48c57117b2ee727a3f04e4e5b8ac148e6aa9253b0f8948b7291b  client/include/chat/text.hpp\n079ac2ab0e494f50b37b04b9b0356e825e1cd92571ebdc11b0dae33341766bfd  client/include/chat/typing.hpp\n3b63ead717ee081e3506a33f97ce7bee387fdaf8272be8040c2fc1fbabf65114  client/include/chat/user.hpp\n78d53b36ada1cc735f4693eff47cfd5fecc4e1bc03c089abc32c41b1e8a12b7a  client/src/client.cpp\n16f6e4009ed5bb19100e1a0097867766dfccc363ef64a83ba3071f2f0a940c06  client/src/websocket.cpp\nf79061927c3702af7f168c67d5c41573b30688dcc3311431917b8ccf48f63f72  client/src/websocket.hpp\naaa1b62af6f02a6bc3809b6b5b88df17aeab15227feee923e8614d8a08858a39  client/tests/client_test.cpp\na41e61b01534ed325091979f07dbf3d9f2a22fb864223b8714a264e6cf440809  cmake/README.md\n699f574233a21a19febb7b806dbe0004586ce600240587140559d55356271a5d  cmake/chat_emoji_scanner.cmake\n5f77908665edce2cb57acb51e66a6a1a4d744a677eaf6966140b32939850b532  cmake/chat_unicode.cmake\nfd25dcdfc249077a98ff1e581b6b08ff62006b812c976fccb60853280b761cc5  qt/CMakeLists.txt\nba7f5e0ae2c6fdc057c40bde92b6430bc9b04ffade81e2bcec11cb7ca8563a1c  qt/resources/icons/activity.svg\n99cc9ce9a2bce98cedb8c27e55ca0af3a34ff8380a63fd062b6de8478a0d7bba  qt/resources/icons/bookmark.svg\nc2dbb33c0c690e0f0f496c6c47ddd6b79cdfb73a795918d7ed464964d521df5a  qt/resources/icons/chat.svg\n0403310fe0eecd7764bae3a26f04424b1db68b83752ff0f1f942f10fe128faeb  qt/resources/icons/check.svg\n011f4f8ba45e97413caa445554c2b78237de1561256dff5798fd91746391d502  qt/resources/icons/close.svg\nc1fba8a089013acb6833ea0f2147b73b00c9ea2862ae3b539477f6c257be639b  qt/resources/icons/contacts.svg\n8e6cee084de43d62865a2453a98ba8211d680a384283c066906c85c30126ffa2  qt/resources/icons/copy.svg\ne71991b32a232ca8a29a05aba017645ecddc165f43140a9e587b4bfcbae358b9  qt/resources/icons/groups.svg\n6fb904d778a27fadd538fc4ed50355ca6aacff4341b3475acbac7d53480e92f2  qt/resources/icons/send.svg\nbe6efe87409baef78d698dd181baa624f7a5f2d30b1f8eb6829423fbdeb3061c  qt/src/attachment_dialog.cpp\n63bf3e5a5af9ca6b3dda8a218cfc1e2941c410fac1063f20749428e04bac3f8e  qt/src/attachment_dialog.hpp\n69c959ff08955bbb0f83e72d6e2bc5d8fa604b2ba82731ee686c0da8c3be7c75  qt/src/avatar.cpp\nda53722ed0ca7cc800c51e1877e9285779b299e8e7dc68ccb437fc408749df4c  qt/src/avatar.hpp\n259c6dfd91ba7d07a02c561a98437e4cebb9158ba451404776d9c7ecc804a814  qt/src/chat_widget.cpp\na9bafb158509b5fc521f6b628dac9dc60d0d9b74ccca4d6849cf12708a26410f  qt/src/chat_widget.hpp\n22ad0a231b372dcef5c69cccbe8e006cb195ad29b4f7df034a6f0b9385ee1b98  qt/src/client_bridge.cpp\nb8919d73094d27525f9a85086541f20654275bba2742a112a2d6d08e8cda99f5  qt/src/client_bridge.hpp\n0b42d54e2024cdfa7e00e8a54e2bcad08aae32df3936028c29b5972c2572f39f  qt/src/conversation_data.hpp\nab8f51046f72417e60707ce649d2c1b0f7491805127f44421d99603594165986  qt/src/conversation_delegate.cpp\n9d7253fe79481633c5c16c129c6ca76b643a934d4294d64c038b3f7b498f8279  qt/src/conversation_delegate.hpp\nb2230377b0a299400825fee0180e240f02423421cc760815425f3271faccefb0  qt/src/conversation_model.cpp\n581655f6a9e52076d4087e9493fd5dcdeb09f9923b17c06c8cc83db868b06c7b  qt/src/conversation_model.hpp\n49383c1ad6c5c8d4d820506f36ace7c71b1c44b2fadfc305cf03789921a131f9  qt/src/emoji_segments.cpp\nfcc128e734456ed4e5a5e8ef988c378c0ca89fa46add7e2cbf72647072b38e7a  qt/src/emoji_segments.hpp\n9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621  qt/src/emoji_text.cpp\n664f5ee86dbcf2b6d66f1a96c25876c85c474ceef7efaa7a98c16cc173384e38  qt/src/emoji_text.hpp\n4fe5649b48a7e5260e138fa2cf245eb68cccb2e55ab1789f9cfdcca19aa72203  qt/src/group_dialog.cpp\n34358195aa81ad838d463d43a3913134bc6a512d505ced0ae6c350a8442fb31c  qt/src/group_dialog.hpp\nedbc370115aad8af8038e2823c31a4b73e7811267e1c43d891dcbb3ade0c8495  qt/src/icons.cpp\na4265e4d3225de28d7c3df8af725e89e8b6e1ad719d234569e86a69f076a9c1b  qt/src/icons.hpp\nc94299bdf7aaa4852baded3859ff28a6cab34a22b05f3eb458758a295174ee94  qt/src/main.cpp\n894e00abd6068895cf6a16433dff6cf96457697ad0c563be6d6ddb9822a772ed  qt/src/main_window.cpp\n5547c418d768d3da359946873b47297cf1c5ad6edda9501ba86ca9a8a842318f  qt/src/main_window.hpp\n13f07fdc9a6e95e9b4436b8efa633aa2ed0da648bbd80a2438811a0c8a189052  qt/src/member_data.hpp\nb3c7600abed28ee9670f3c28b0c7f29604c1209844e21a6b8259ff6b8a1729b1  qt/src/message_data.hpp\n56c980410fc7bcc1c0ff419103b0712c7f63b31b5b83183a52200ae9c579b1ce  qt/src/message_delegate.cpp\n59ae44e81a014ad00af82a7467834a7f7df851f190558c2e91c482d5a26eb494  qt/src/message_delegate.hpp\n49205f5eba330812e8814a8aee2706be41a9ad86ab6fa0ba54dcd655696933e6  qt/src/message_images.cpp\n5f9c51258028d2258da54f26df5003880b76fd6e70d0415f747d150c7b08172f  qt/src/message_images.hpp\n91ae09e8d3f990e89e41483ea8deec47a85379ad032f51f941cfabf9cb59f606  qt/src/message_model.cpp\n8d1febaf4cc582a974722550b64f0b89156f54138a9e1082bc31d6aa8b7d3b51  qt/src/message_model.hpp\n0ea73632f099a1e2bf36a4d9b8f1bbca227269fc55d6a88f0fce2b0e6b6743ac  qt/src/message_search_dialog.cpp\n7296830dd0fa14dfcf61e134bd0735fe21501c555ce05bcf3888ba5287301748  qt/src/message_search_dialog.hpp\nfb2dc68a40135ffe4f8b337f26e0c0523e2007de83e5ce72ff8e2c0915ef267f  qt/src/presence.hpp\n5402af74e4f8f99043c7c948076b3876f8c9bd92dfcbb2ac0b566f51c527d37b  qt/src/presence_data.hpp\nb6e531db598b1faa598d2bf78334f9958c8cbb3ca2435439293255314ee76c71  qt/src/theme.cpp\n424018efa972ee93b321c8d3e76020ce25681f384143409dd6ba8504ddca512d  qt/src/theme.hpp\n8fdd19b94718e08f098f6ee23d08b0f2e501df87574ece58452db5cb7c6683b9  qt/src/user_data.hpp\nd7a15dc6079195aada9073b4348a99ace7bc0ebcefa878858c14a99acf654293  qt/src/user_delegate.cpp\nea92268180156a00b5a8b34989d4fb6ca0e1e5d09f65f11b16ed37f92cbeb96a  qt/src/user_delegate.hpp\n2253c4f97622d3bf597c3e669eb081d5346a7da86cd6342b9d4d90807a987ce2  qt/src/user_model.cpp\n32ff238226cf9ed05f2d3f4fe365bb735c7993f62147b25be295d28e58cdb8c0  qt/src/user_model.hpp\n20fd4466ec1942df26087a758935168ae77e137f3be997f84eb7067ac025a8e2  qt/tests/delegate_test.cpp\na1c3b4fb0fe04e959ba2a636275e1264d2f909b377b3cf71059683f13a7a3fe4  qt/tests/models_test.cpp\n6e457eb99b9390ff1cb38c877df5ce8ad1048bcd5079879a40a7f5c2b567b163  qt/tests/ui_test.cpp\nc1c46ce272a8dff9f5f1e9c5e3f7ed569951e8bf24359d694418ffe2d615f441  sql/001_create_users.sql\nf0a83775901cbae3657fcda19ae9f5e5f83071261650d93d3308d20afc714d15  sql/002_create_messages.sql\n4b8466e7ceef513613f50e263db9c39e9055c216c1d7c692fbcaf681da72ddb8  sql/003_add_messages_conversation_index.sql\na0d318a8fd5bb5d1041a5ec367bd7f61f5ace04f6ad52963501f1ba84ebcd03f  sql/004_create_message_read_positions.sql\n0b0b2db21989aae6640d38697d40c38044c85aa77c92566a6557830e280c840b  sql/005_add_messages_recipient_index.sql\nb0da0f7fa8bfc5e4b78a1a16663966345552cbbaff86d7974d9e7c874917d65b  sql/006_create_contacts.sql\na7c9162af53ed403c1f848ea558278837ff5e38758f0f88b36c522f09a5d02ce  sql/007_add_user_last_seen.sql\na6fe9e116110dd4024b8d3c072700f6e97457a4bc6709558fcf6b87049b31b67  sql/008_create_conversations.sql\nb74377121247883c6c7d5bd36e16d0e6670a9fe845521c2a8189445b4edba5ab  sql/009_add_message_replies.sql\nfe9bc939129796b46b405c289d7ca446158d103e417f86d9322b980d6b68bcb2  sql/010_add_message_edits.sql\nf40ad1bc3cf330768de7594df86ce4029fcbcb66611961e01c14106d7d4aebd8  sql/011_add_message_deletion.sql\n762a299f43fd9939b4b8251b6198b1a5e8b066c21119ac632002d5bf6eaed6c7  sql/012_create_message_attachments.sql\nb2245ddb5aecbf543ea5612afbb494e0ef2053f799a9ffeb05a8b3ac2041ce78  sql/013_add_group_roles.sql\n53dd3f81fe323b2b9b9162e2512d629ea135a8be689db62392f86485e6655fba  sql/014_add_member_join_position.sql\nf67c2e513107fbacb3205ced3b82620ef2af62befab10725cd1b523665936eb8  sql/015_create_user_avatars.sql\nb3f04a167a36936d896745426a490da6e2c91412d8a83e996c3c40bb6e5b114b  sql/016_create_message_reactions.sql\n0556f108403498a497e880f321d6766c208a33d60b2d75fc7093f92b5c3064f1  sql/017_add_conversation_mute.sql\n93ad584f2a0ff5aef9f45dd1395de1616f90fdab6ec0a64b9dfff6328b0a3468  sql/018_add_conversation_pin.sql\n71dd84bf9f23c2898744aea03bfb85cec2d38c5da4da529ef6dcadf70068fa0d  sql/019_create_message_mentions.sql\n71b2e5a2f41d45a5d755b71ff20dcedad7f930038bd53e98d1beaa48c4a4d1de  sql/020_add_group_pinned_message.sql\n7d4a8688ea3304e3fbf82615ed4f628827c17bb74ee1b864126ac171771e3afb  sql/021_add_group_announcement.sql\nf0f42123c49e71a6a65aca4626b637a03c3c3fb5623720c01f4f7b8162df7e55  sql/022_add_group_invite.sql\n7dbe4d55d3a13dafb76aa835fc3c474cb2d140ae314188280f602910623db001  sql/023_create_group_join_requests.sql\n008a4f7fe6dff6483871b29dfe71470d4abf5cff5d18a093eb54335e80a3ba4a  sql/024_validate_identity_and_group_title.sql\n6322460a924302bf03acd7c33903336f5c3cf065b5ca8980e550268ff6005880  sql/025_validate_username_edges.sql\na3f65b0816f195944119e71193bd358a9ff947cb96b17dededc1def0ae0c11ba  sql/026_create_friend_requests.sql\n85efeac9b7dace5621a232b3435e2c92a7a881c38fc86fa438556b940db00058  src/attachment_request.cpp\nb6923e9ca364bc87674f9c8e3666fa24ac83eec524587b500815ba825977d98b  src/authenticate_request.cpp\na0a6e9465b25ae7cca06a48d479e136518e2acb5b7d4f99ab32018290f8b23ee  src/avatar_image.cpp\n42a11484ddfe940db7b5f020ef2abc89aff937e77456721b1c04f1e3a54091f5  src/avatar_image.hpp\n70352e2e3ae2a36770e4e1ba791a662b58642317f379495babd882c81a13395e  src/avatar_request.cpp\n09470045214bfccc9ef29948985e067f28d360973b08c110d28c18e29adfc69f  src/chat_session.cpp\n8853d5bbf4dabe8dfb063a5f45d29c971443213fefe20d3e5745adc3a9bc940e  src/chat_session.hpp\na34e7bffb3b4702835b772b28a4f1777836be97aea43ca01f16de07a7ee1de58  src/contact_request.cpp\ne7cf4f9c292e9780ca5ba1b9686659c938bb045bf51060098c64e80a4f64df02  src/conversation_preference_request.cpp\nee49a82da9c82f9c0798daae70e8bb07f0334f44eee417bfb5d2a707b6a9bec1  src/conversation_request.cpp\nf2f6a7081ee355b37f729abffed90d4b9e7bbcf98025561c4d892cbe09c7b957  src/echo_request.cpp\n12bbf9da5f719db342f8086c29aa418b19540563a29bd1f18f3f7ce6b8770ae6  src/get_contacts_request.cpp\n8383099f5540879c6ef1326eeab3e45f8e71e03850315590c288ac3030be68b1  src/get_conversations_request.cpp\n57eb29eadb55369af9ed1e624d9f5668671db1d41e4df561277530ea57be645c  src/get_messages_request.cpp\nea56670a0400e2b75dffd84a8f82d3a12f961f1df27bae45ca41f6dec631cbf5  src/get_presence_request.cpp\n151bc77400389b09880acbe831565ac536a9dfc28ba5f60eb2e902886508d398  src/get_unread_count_request.cpp\n18129f2d50676d631a3caa716b91b7da234b95a687cc3a1bc40bdc1cebc833df  src/group_invite_request.cpp\n6a40ea0b178c3c44abb0c879d18ce007643af914fd0fd7ecc96ad07172563758  src/group_join_request.cpp\n4fa092d2f56e4b6b9387be28afbd962705e4d4cb8539d92c212842cc25aaee5f  src/group_management_request.cpp\n6cc3f37b669b02b83f35dc6251f90b59a3399eca3e24d40edb3fbbb8014180a4  src/json_rpc.cpp\nb0a21f8143014c676ad3be696d66351561a1b7f032e1291bf6a010fa3158487e  src/json_rpc.hpp\nbc0eb7dc5a81a31190fb35cddda4b803bbaf4401458b5ba6bd183379885a31a9  src/main.cpp\n5a9418a06dfb19952c432991b5e90ca4cc589a047a3e6c7888a33a36cdc27615  src/mark_read_request.cpp\nf656f308bcbd481149c826fb1a522e4308ef44cc7186d149268ae4255b173783  src/message_mentions.cpp\nd26821fbe10ea6b2857a80b2da04a800201dc9515b3a8d96ad30edc12f4bda3b  src/message_mentions.hpp\ncda84a4977fafb5c5078215015a179e9cfb0b643038a030b6c5b6e3c97d80a81  src/message_payload.hpp\n1f1a45237cc64576d98ca57316f6b371d57f7d3803eed3a75156bcc7e5e353b4  src/online_users.cpp\nae78f941dd83d5e29ba62bb0704eb2e3836fdb4a07d2e65a879ac503cd4e631b  src/online_users.hpp\n4efb5936900419a55eaa2f1636870fb842bcb2ce4bcd94f0b87226e64d9ccfd2  src/pg_connection.cpp\nc4037a52cbf8db33855452993bc1b7c74a4d0351bceca7b835fcecdc91a81ba9  src/pg_connection.hpp\nbbc6f98e4a0549fdad28fec233452f1edf9a7f525c55c515df35a4db9abce3c8  src/pg_connection_pool.cpp\ned0d501ce227a54f45bc32a53fcffeea60ed4b629341ce4652b2bff44af28a1c  src/pg_connection_pool.hpp\n5b4142fe3601b14ef8df0aa51d221226256ea354da76616f0b3f6daa30bf4b72  src/reaction_request.cpp\n0130d87d10d94759613f2dafcdb4b5e7cd9c295613855cb4db7fa8ad1e858072  src/register_request.cpp\n7475a2aa34088f7f81504902d4ead4e5c9d05f8dbeae8dc93272a4b9fe7759df  src/search_users_request.cpp\n455f8d6f3ada8b4707fe6e7bcaedd58eadca442eb741e7524923a74c374845ea  src/send_message_request.cpp\ne2251da690a65ebb67246e08ef75ae65cf2829fb030d8a97aeda06ffad7047c2  src/server.cpp\nfeed3c7c2b16411a2a764af637719d24d8c0e8d5577b5e179abe81527aef659e  src/server.hpp\n4dc9b968e5a937b363b134e4c4902e54db36015da9b24e9542eec427256c1a7c  src/typing_request.cpp\nf6d6d2d79df81e5934b64269a9c0b6a073eb700c4f3ecc688d2f185bb6ade27f  src/update_message_request.cpp\nbb9a4f5c202ef1c5f4b2bfbcb088e02c92badb7f540e33faecbe0b99078aef1e  src/websocket.cpp\n71d3aac96fd90ca1342cfe10c1eb6e45e250ce724de6c41c92a43ca233b1cf7f  src/websocket.hpp\nbc78ca791e7ddf071353eb6088b2400aec650c6897be38cd9194999604dc4b57  tests/avatar_fixture.hpp\n78652b909ba0d7d5cf0228ee85d78027aceed30512ad0cce920fb549ec993525  tests/avatar_image_test.cpp\nb7e640aef03f2fa08bef97f8049dd2fdda6610a74f15df59b046101b7d92c31b  tests/bcrypt_test.cpp\n4333ef1ca51809e02bb38c285560e84404eef5c75cb27053b2ed6f58df9b8567  tests/conversation_test.cpp\n96d75ac44e82b4db6c7d003120f8722592887e0e547c2fb2b2560272643cb4c6  tests/corosio_timeout_test.cpp\n738070ceb568fdc623a0e1e9370b8fda362ec2cc3fd339f2b61b193086ac83f0  tests/http_server_test.cpp\n606218065ddb19d8d1c8defc6a485b0d30939f1d0480a9391ac9af8a6ba0dac0  tests/migration_test.cpp\nf3a84cf5fe4fcd86433bc63a87906888c627ef2f460bf3b6e053970d8f48c002  tests/online_users_test.cpp\n70713b156fc904925f73a36cfc7a4c6fb4d1b539229f6ff942d31ad350e8fdb8  tests/pg_connection_test.cpp\n167d061185aa4d3d9a66d54e376236a11f8e1cefdd6b40a4cea8729884503a97  tests/qt_navigation_steps.py\nafd8a595fa6f0d39ab8655271f6f165d2a5529b67feee86264fc69c188309a0b  tests/qt_x11_smoke.py\naefc22b864be0ad6559847f2c217d9c582bbfa0aefdbcc0f26d462f2e08f2bc4  tests/server_test.cpp\n09b77182837c43abc3df36ab347e40ff07bfa6856687bfcc1ba7d4043991a0e2  tests/simdjson_reflection_test.cpp\n56b51c8604734934e6be6d9f8ae63a34a7ee2af9785becda10ef979659de5c14  tests/tui_100_member_smoke.py\n310de03e8ad09be4762b31912673570ecc0897761385dd2ebb3a82ae0ed89dcb  tests/tui_100_member_smoke.sh\na7c952536f3d8f796056ab044880ede22aadb83491df5dcf8230a5426711eb58  tests/tui_group_edges_smoke.py\n226cd665bf4052ef2a39ce653d7112436549b3e5085c45155ff59a51b33db595  tests/tui_lifecycle_smoke.py\nc7300a6f3fb96bc93ae05db8d7886ca162e9b63a54ebcf072bc4c8e4db2bd5b4  tests/tui_navigation_smoke.py\n16d76fa0109125708462e45e124bd80ae3404df53960581366b0c5ecdca5bb57  tests/tui_scale_fixture.cpp\nc3c38fc83bbb2131bcab5d97d44193c311e6bc9554339bc2c338151264483ef3  tests/tui_scale_observer.py\n38d3408e537d67182689f59d452e9d8e5bf164f38a9b5baaa93fbd8b36eb5f29  tests/verify.sh\nefd85fbc0a2919dffebfc37fcdce30a05d362fbd366dc9f3ad953a8e56e08d56  tests/websocket_test.cpp\n89bf6a5583f2c1fb93cbc18d36275512fa25c03bfca094cd6f8b36e0f43da306  tui/CMakeLists.txt\n95ff2d9bf0d78500e3d8cfe4c7591b5e12d730b32fa9130774615406e1c11d19  tui/cmake/README.md\n9b10a08430a99075f4e39c9cac9a9ad80c9dc49b8f04d73c453733555794917d  tui/cmake/ftxui-7.0.3-grapheme.patch\ndb00833dda0e5ca53603bcce80d79a0560a53eef7e866900c07c19e078e1e3f2  tui/cmake/ftxui_unicode.cmake\n05862f8fe889199211a7876027934d4af24daeaeec9cc9e34b4ad459752dc068  tui/cmake/generate_emoji_properties.py\ne639af6c65aa3e720c6f9c93d420a76b4bae226bd79a5edfdf22d65c2a687fcc  tui/cmake/unicode/.gitattributes\ne7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96  tui/cmake/unicode/UNICODE-LICENSE.txt\n80d00f8e616a0ef27fd6b8de3b758c06383b5d917e2977709578e68baf733bf1  tui/cmake/unicode/emoji-data-18.0.0.txt\nb200a53eeae768e7e67a2d465936b0cb0e859618cc877b99dac79d454e2e6937  tui/cmake/unicode/emoji_properties_18.inc\n3b510150d34f248a221bb88e1d811238d6c6c18b51231822c42974c39bb07256  tui/cmake/utf8proc-LICENSE.md\n3cfff26307318d1badc870554800cddafe4158866bccbd800db17b66be44db7a  tui/src/app.cpp\n89b9f37259e60109284ff5511322d794fac291f158f3ac5a07cfc53603f3a860  tui/src/app.hpp\ndbe2a40c1a61b75032843ab82fc8dd898f0d0f8ecbfe6cde15fbf528274584f2  tui/src/deadline.hpp\n36628265415a0fbae479eec5c76f122362a7a61de2ee9b32cfa94cf41ad5ef7d  tui/src/file_io.hpp\n3a6c19da31f784377d64112063783f2197a9ea08ff2ded783a245af60ce89c99  tui/src/groups.cpp\n53a0dbb45136c8f1b783b948373658b2897d976944eaff1353624150ec5d1bba  tui/src/inbox.hpp\n05ed5edddc04b9590edeb11db6261a0e0440e32ea54af98a65b6d9afbd79b620  tui/src/main.cpp\nf6c414041e8b17f7f59fad4c29589e3bf7bd45f30fc365b555f9c0c8fd164340  tui/src/messages.cpp\na464531debbf5b4c618d712276fa5d526ba70599cd7a9f26aa490e2003481990  tui/src/profile.cpp\nd8b99d807e119b410bb5a0df2d7c8e84d75ebb326cedf4d9526665038c3fa5ab  tui/src/state.cpp\n32e853f0bce108fd5425351a2f882db9c4e11d074f6e742e33caa347647d531e  tui/src/state.hpp\nb8f06e5b273f7f5df04950e9f9e4fa4c4d041fe1b58995071a81ec2491f3c179  tui/src/ui.cpp\n4fdeb7385b98761ae916db52d23f0d3079c9e90d0f0eb8391409fdfd00a4e62e  tui/src/ui.hpp\nb0cf047ee94485bbdc846de2b902f5f8a815f6b674f9d04223cddadd91c9df31  tui/tests/data/GraphemeBreakTest-18.0.0.txt\ne7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96  tui/tests/data/UNICODE-LICENSE.txt\n77ea73ba0bb37ce358fe856b736beef65e4c6062c2d6326ff53fd75024bb7055  tui/tests/display_test.cpp\n1eab5a99f5589a2fe703ade676cc4a55cf8237cead9888babef5abc3c4473bf9  tui/tests/file_io_test.cpp\n3843e07fd39b2d662da3fceb549f20470c85b299d3f03bbb16fddbd471ed0709  tui/tests/inbox_test.cpp\ne9aed8b5600b62ff46621433466c3d90200ea5cad93fb0418018ee7691c7afbc  tui/tests/render_test.cpp\n5edc4a8110b81cfed7f2c8f27438e215ad56084ae4af51c4718fbfca309409f3  tui/tests/span_test.cpp\n1b91229002314f1964e402b7516d997212afee3b368e4ba3a4d2d927b6728fe5  tui/tests/state_test.cpp\n403e996d61c07de4bd39fb5d0ad217bf3908b7f2babe2e0b2e4d714e1c8cb299  tui/tests/unicode_test.cpp\n08da85e820efaa3613500946c26b2dc427a07f76001ed7c16bc90f298b814c35  /home/gyl/example/chat/build/_deps/utf8proc-src/utf8proc.h\nf38438eb986ba7eedad0f2e820a70fae1aaf05197364ba0381a5e84775099ef8  /home/gyl/example/chat/build/_deps/utf8proc-src/utf8proc.c\nb4911d4162d216afa612317a9b981851e15d672f4d93b25f3a1eb986f8c0aedb  /home/gyl/example/chat/build/_deps/utf8proc-src/utf8proc_data.c\ne41071624cf91187ae26396b3d2b9adda648c5afb4519ff562e7aeb9415c157d  /home/gyl/example/chat/build/_deps/chat_emoji_segmenter-src/emoji_presentation_scanner.c\n",
+    "manifest_sha256": "f5bb32a9dd295f98e00cb1a6e4e58e28fb279a7bd63201169824ab5646098a0e"
+  },
+  "script_after_check_exit": 0,
+  "protected": {
+    "before": "2876288 (chat_server) 521400965\n3225 (fcitx5) 17583\n29935 (speech-dispatch) 248258\n",
+    "after": "2876288 (chat_server) 521400965\n3225 (fcitx5) 17583\n29935 (speech-dispatch) 248258\n",
+    "compare_exit": 0
+  },
+  "official_binary_pins": {
+    "normal": "3bb090e6fb0984b8e957579a0ee3dbcc356331b26a41b6edfa6c3565067f1120  /home/gyl/example/chat/build/qt/chat_qt\n10e422bd66e318c6013f3b7525fd3f996f41c82fc727a4765ff226047fa9842a  /home/gyl/example/chat/build/qt/chat_qt_ui_test\n3e6abcb11a7fb6349ed6c485c5cc5efe620e4628d2f4d50e343c6e4df56b2c9f  /home/gyl/example/chat/build/qt/chat_qt_delegate_test\n10c8dbb2aa83cceb3537fdd66a1f2bf2260a720297af251162ee0677e0a9d54f  /home/gyl/example/chat/build/qt/chat_qt_models_test\n",
+    "asan": "887c1d6efb4a65164d5b53b2d035063b26045eba90e48f0b08f62072260fe1bb  /home/gyl/example/chat/build/asan/qt/chat_qt\n118f9218ec6cdb1349217aac7066f2e74f8e6300a25073db860e16b782214b3f  /home/gyl/example/chat/build/asan/qt/chat_qt_ui_test\n07480dc09bf74b8ca47a72e1051315fbf0235ad7b50125cddff86f57010d233a  /home/gyl/example/chat/build/asan/qt/chat_qt_delegate_test\nfa74c0a084953d7d36c24f657efd6dc84309b1517fb2cbe232f0a58fefe26be1  /home/gyl/example/chat/build/asan/qt/chat_qt_models_test\n",
+    "ubsan": "30e989d49b1de4e4c43fd74ce371062351f71b1a55b5d574363da8255bd02c27  /home/gyl/example/chat/build/ubsan/qt/chat_qt\na221f6acb14ece0415344ef952d9a88c891bb146df02a937b629bed7e9bf467c  /home/gyl/example/chat/build/ubsan/qt/chat_qt_ui_test\n675f576aa499a84ab226617deb110e253b0a079fb12bdb7124a9703a9cd28583  /home/gyl/example/chat/build/ubsan/qt/chat_qt_delegate_test\n074171620ba12aba6ec9069812f4c68451f7f735081b6d94353dd345cdbd5913  /home/gyl/example/chat/build/ubsan/qt/chat_qt_models_test\n"
+  },
+  "private_qt_runtime_pins": "a187d03f0d9c170fa4dcabc8abc89eb99d163e5b82c64c4667674c6f957c63f0  /tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Core.so.6.5.3\n9a89e05fc892b13084e73397c29a10427c9e45ad729c2ae68c4f51bfb9e545ec  /tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Gui.so.6.5.3\n3130aa61288d76303c46b27d1b91db8c456a9caef8d7111c1c61b07278e0ed46  /tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Widgets.so.6.5.3\ne93654ab378624f695e0629d22382a8e298b39141cda1132b757dfa3985afa21  /tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Svg.so.6.5.3\n11304f90d948a59d887c7d54a30b388f8a06bbf0689e9707a62b9bed872c0beb  /tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6DBus.so.6.5.3\ne55dd060aaa4cf90745001a7689e3812047f2b0c14300b3064e6636aaa3b40b8  /tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6XcbQpa.so.6.5.3\n27344b5533a430df9db8d253fb9177dd8ea7e0f28ee3958971cbbd13d87ccc94  /tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforms/libqxcb.so\n1de2e1ad2a771ec43f91efe78d841763bfff0aa42858e59f447b6e70cdfe559c  /tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforminputcontexts/libibusplatforminputcontextplugin.so\n",
+  "runtime_resolution": "ldd-* files guarded all resolved libQt6 under private prefix; native loaded-map proof maintained separately by root",
+  "scans": {
+    "compiler_warning_lines": 0,
+    "compiler_scan_files": [
+      "original-verify.log"
+    ],
+    "sanitizer_signature_lines": 0,
+    "sanitizer_scan_files": [
+      "original-verify.log",
+      "ctest-normal.original.LastTest.log",
+      "ctest-asan.original.LastTest.log",
+      "ctest-ubsan.original.LastTest.log"
+    ],
+    "scan_file_sha256": "scan-files.sha256",
+    "cmake_warning_headers": 0,
+    "file_manifest_full": "44052ed89cf14d5212b556d7198abe4f8e9ff99e12af896dfaba41d0ef600738  original-verify.log\n53a8ac22e45718c2892b8de10a9dcc52be739345648ecb759d0ef58ca1c00dc4  ctest-normal.original.LastTest.log\n5510bd5bde4cf77a2a36a28394518ad21529aedea1b0493ab7b7873ccc78a735  ctest-asan.original.LastTest.log\n60643162518d79e0dcfac0780569d82c53dd239add2046e1adce07af71cd4539  ctest-ubsan.original.LastTest.log\n"
+  },
+  "archive": {
+    "file": "original-verify.log.gz",
+    "original_sha256": "44052ed89cf14d5212b556d7198abe4f8e9ff99e12af896dfaba41d0ef600738",
+    "decompressed_sha256": "44052ed89cf14d5212b556d7198abe4f8e9ff99e12af896dfaba41d0ef600738",
+    "sha_match": true
+  },
+  "no_test_skips_or_timeout_changes": true,
+  "no_credentials_recorded_by_runner": true,
+  "submodule_check_exit": 0,
+  "submodule_manifest": " b2dd252cbcac816658c89fd87b5fa02390202d43 third/capy (heads/develop)\n 54e28fd40cf7ee6cc18365dd81ad5615c38908cc third/corosio (heads/develop)\n f921fad208912747c17d129a8ef75ec7624b6eec third/ftxui (v7.0.3)\n 0c854fc2790968cdf3f117a47b4b90d6a3a1300e third/http (heads/develop)\n 8c512a3227ad322bfcb43c57c71fac67a83b5b8e third/simdjson (v3.1.0-856-g8c512a322)\n 79524ddd08a4ec981b7fea76afd08ee05f83755d third/spdlog (v1.2.1-2548-g79524ddd)\n 0e7d106ff89ad6638090fd811a9b2e4c5dda8d40 third/wslay (release-1.1.1-28-g0e7d106)\n",
+  "mode_configuration": {
+    "normal": {
+      "actual_prime_exit": 0,
+      "actual_flags": "CHAT_BUILD_QT_CLIENT:BOOL=ON\nCHAT_BUILD_TUI_CLIENT:BOOL=ON\nCMAKE_COMPILE_WARNING_AS_ERROR:UNINITIALIZED=ON\nCMAKE_CXX_FLAGS:STRING=\nCMAKE_CXX_FLAGS_DEBUG:STRING=-g\nCMAKE_C_FLAGS:STRING=\nCMAKE_C_FLAGS_DEBUG:STRING=-g\nCMAKE_EXE_LINKER_FLAGS:STRING=\nFETCHCONTENT_FULLY_DISCONNECTED:BOOL=ON\n",
+      "actual_qt_component_paths": "Qt6CoreTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6CoreTools\nQt6Core_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Core\nQt6DBusTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6DBusTools\nQt6DBus_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6DBus\nQt6GuiTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6GuiTools\nQt6Gui_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Gui\nQt6Svg_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Svg\nQt6WidgetsTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6WidgetsTools\nQt6Widgets_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Widgets\nQt6_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6\n"
+    },
+    "asan": {
+      "actual_prime_exit": 0,
+      "actual_flags": "CHAT_BUILD_QT_CLIENT:BOOL=ON\nCHAT_BUILD_TUI_CLIENT:BOOL=ON\nCMAKE_COMPILE_WARNING_AS_ERROR:UNINITIALIZED=ON\nCMAKE_CXX_FLAGS:STRING=-fsanitize=address -fno-omit-frame-pointer\nCMAKE_CXX_FLAGS_DEBUG:STRING=-g1\nCMAKE_C_FLAGS:STRING=-fsanitize=address -fno-omit-frame-pointer\nCMAKE_C_FLAGS_DEBUG:STRING=-g1\nCMAKE_EXE_LINKER_FLAGS:STRING=-fsanitize=address\nFETCHCONTENT_FULLY_DISCONNECTED:BOOL=ON\n",
+      "actual_qt_component_paths": "Qt6CoreTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6CoreTools\nQt6Core_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Core\nQt6DBusTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6DBusTools\nQt6DBus_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6DBus\nQt6GuiTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6GuiTools\nQt6Gui_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Gui\nQt6Svg_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Svg\nQt6WidgetsTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6WidgetsTools\nQt6Widgets_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Widgets\nQt6_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6\n"
+    },
+    "ubsan": {
+      "actual_prime_exit": 0,
+      "actual_flags": "CHAT_BUILD_QT_CLIENT:BOOL=ON\nCHAT_BUILD_TUI_CLIENT:BOOL=ON\nCMAKE_COMPILE_WARNING_AS_ERROR:UNINITIALIZED=ON\nCMAKE_CXX_FLAGS:STRING=-fsanitize=undefined -fno-sanitize-recover=all -fno-omit-frame-pointer\nCMAKE_CXX_FLAGS_DEBUG:STRING=-g1\nCMAKE_C_FLAGS:STRING=-fsanitize=undefined -fno-sanitize-recover=all -fno-omit-frame-pointer\nCMAKE_C_FLAGS_DEBUG:STRING=-g1\nCMAKE_EXE_LINKER_FLAGS:STRING=-fsanitize=undefined\nFETCHCONTENT_FULLY_DISCONNECTED:BOOL=ON\n",
+      "actual_qt_component_paths": "Qt6CoreTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6CoreTools\nQt6Core_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Core\nQt6DBusTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6DBusTools\nQt6DBus_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6DBus\nQt6GuiTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6GuiTools\nQt6Gui_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Gui\nQt6Svg_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Svg\nQt6WidgetsTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6WidgetsTools\nQt6Widgets_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Widgets\nQt6_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6\n"
+    }
+  },
+  "production_generated_tui": {
+    "normal": {
+      "binary_sha256": "d8d2b478c0b383637e98cefcd3ce6298fbd32595c82f5ae45afca2ff705f4f21",
+      "generated_units": {
+        "screen/string.cpp": "80b6ec2beface1bff828543aaeb871533abcd03a13815950a542f4b957c8f383",
+        "screen/screen.cpp": "9cde14a8c652ebff8778b11fdc91748742ff4a430d195694bb38fd8a7cc0c4b2",
+        "dom/canvas.cpp": "7e8a9ba1b383cac8093a2a1ac20b772c97384ef1cd30ac73f3f79e9b6ca641c9"
+      }
+    },
+    "asan": {
+      "binary_sha256": "0db593f637d094ce44492f0b4031ecaef8a75582c81ad3b639106f249065c5f2",
+      "generated_units": {
+        "screen/string.cpp": "80b6ec2beface1bff828543aaeb871533abcd03a13815950a542f4b957c8f383",
+        "screen/screen.cpp": "9cde14a8c652ebff8778b11fdc91748742ff4a430d195694bb38fd8a7cc0c4b2",
+        "dom/canvas.cpp": "7e8a9ba1b383cac8093a2a1ac20b772c97384ef1cd30ac73f3f79e9b6ca641c9"
+      }
+    },
+    "ubsan": {
+      "binary_sha256": "cbc7ca86a5888311212ccb4799147742ba0ce31f8ac300bd5199b7b7b633cd85",
+      "generated_units": {
+        "screen/string.cpp": "80b6ec2beface1bff828543aaeb871533abcd03a13815950a542f4b957c8f383",
+        "screen/screen.cpp": "9cde14a8c652ebff8778b11fdc91748742ff4a430d195694bb38fd8a7cc0c4b2",
+        "dom/canvas.cpp": "7e8a9ba1b383cac8093a2a1ac20b772c97384ef1cd30ac73f3f79e9b6ca641c9"
+      }
+    }
+  }
+}

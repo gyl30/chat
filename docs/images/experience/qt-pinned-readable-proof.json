@@ -1,0 +1,239 @@
+{
+  "purpose": "Long pinned label: independent pixel RED/GREEN, keyboard behavior and secondary action contrast",
+  "scope": "/tmp/chat-qt-dependency-compare.dmJWg7/pinned-visual",
+  "source_sha256": {
+    "qt/src/chat_widget.cpp": "259c6dfd91ba7d07a02c561a98437e4cebb9158ba451404776d9c7ecc804a814",
+    "qt/src/theme.cpp": "b6e531db598b1faa598d2bf78334f9958c8cbb3ca2435439293255314ee76c71",
+    "qt/tests/ui_test.cpp": "6e457eb99b9390ff1cb38c877df5ce8ad1048bcd5079879a40a7f5c2b567b163"
+  },
+  "cases": {
+    "red-widgets": {
+      "actual_exit": 1,
+      "log_sha256": "93e8f34a1a1026fb9e2277caa408bd460eacd171681c6950d125a01b2acb3dd4",
+      "original_selected_lines": [
+        "PASS Qt pinned Unicode surrogate summary=1 first_line=1",
+        "PASS Qt pinned Unicode zwj summary=1 first_line=1",
+        "PASS Qt pinned Unicode combining summary=1 first_line=1",
+        "PASS Qt pinned Unicode skin summary=1 first_line=1",
+        "PASS Qt pinned Unicode keycap summary=1 first_line=1",
+        "RED Qt pinned visible leading label width=980 ink=143 visible=41",
+        "RED Qt pinned visible leading label width=1180 ink=143 visible=90",
+        "RED Qt pinned visible leading label width=1440 ink=143 visible=0",
+        "FAIL Qt assertion: Pinned summaries and older-message queries omit every incomplete boundary cluster"
+      ]
+    },
+    "green-widgets": {
+      "actual_exit": 0,
+      "log_sha256": "a48476e98e5d975c5735b34f0345cac4a8d4c9bb57aaee60a2b42915ac4eac3b",
+      "original_selected_lines": [
+        "PASS Qt pinned Unicode surrogate summary=1 first_line=1",
+        "PASS Qt pinned Unicode zwj summary=1 first_line=1",
+        "PASS Qt pinned Unicode combining summary=1 first_line=1",
+        "PASS Qt pinned Unicode skin summary=1 first_line=1",
+        "PASS Qt pinned Unicode keycap summary=1 first_line=1",
+        "PASS Qt pinned visible leading label width=980 ink=143 visible=143",
+        "PASS Qt pinned visible leading label width=1180 ink=143 visible=143",
+        "PASS Qt pinned visible leading label width=1440 ink=143 visible=143"
+      ]
+    },
+    "final-widgets": {
+      "actual_exit": 1,
+      "log_sha256": "28cb80218b04b4528335438da895e9ef7c7976411e4612b18650fd89fb384797",
+      "original_selected_lines": [
+        "PASS Qt pinned Unicode surrogate summary=1 first_line=1",
+        "PASS Qt pinned Unicode zwj summary=1 first_line=1",
+        "PASS Qt pinned Unicode combining summary=1 first_line=1",
+        "PASS Qt pinned Unicode skin summary=1 first_line=1",
+        "PASS Qt pinned Unicode keycap summary=1 first_line=1",
+        "PASS Qt pinned visible leading label width=980 ink=143 visible=143",
+        "PASS Qt pinned visible leading label width=1180 ink=143 visible=143",
+        "PASS Qt pinned visible leading label width=1440 ink=143 visible=143",
+        "FAIL Qt assertion: The readable pinned label retains a visible keyboard focus indication"
+      ]
+    },
+    "focus-diagnostic": {
+      "actual_exit": 1,
+      "log_sha256": "a0b756ecccea6d3ce528578d67152532db565aff3cf4bd849b52100e64395193",
+      "original_selected_lines": [
+        "PASS Qt pinned Unicode surrogate summary=1 first_line=1",
+        "PASS Qt pinned Unicode zwj summary=1 first_line=1",
+        "PASS Qt pinned Unicode combining summary=1 first_line=1",
+        "PASS Qt pinned Unicode skin summary=1 first_line=1",
+        "PASS Qt pinned Unicode keycap summary=1 first_line=1",
+        "PASS Qt pinned visible leading label width=980 ink=143 visible=143",
+        "PASS Qt pinned visible leading label width=1180 ink=143 visible=143",
+        "PASS Qt pinned visible leading label width=1440 ink=143 visible=143",
+        "Qt pinned focus has_focus=1 pixels_changed=0",
+        "FAIL Qt assertion: The readable pinned label retains a visible keyboard focus indication"
+      ]
+    },
+    "keyboard-widgets": {
+      "actual_exit": 0,
+      "log_sha256": "f097dab619643290f8e35bb4d79877ad1b0b87b433c4702664e3fba17116ddcb",
+      "original_selected_lines": [
+        "PASS Qt pinned Unicode surrogate summary=1 first_line=1",
+        "PASS Qt pinned Unicode zwj summary=1 first_line=1",
+        "PASS Qt pinned Unicode combining summary=1 first_line=1",
+        "PASS Qt pinned Unicode skin summary=1 first_line=1",
+        "PASS Qt pinned Unicode keycap summary=1 first_line=1",
+        "PASS Qt pinned visible leading label width=980 ink=143 visible=143",
+        "PASS Qt pinned visible leading label width=1180 ink=143 visible=143",
+        "PASS Qt pinned visible leading label width=1440 ink=143 visible=143",
+        "Qt pinned focus has_focus=1 pixels_changed=1"
+      ]
+    },
+    "unpin-red-widgets": {
+      "actual_exit": 1,
+      "log_sha256": "d9ebc257f54a99cbce4703da74da11f431bc01c73f1ba0bd4b24b70ca2d7881a",
+      "original_selected_lines": [
+        "PASS Qt pinned Unicode surrogate summary=1 first_line=1",
+        "PASS Qt pinned Unicode zwj summary=1 first_line=1",
+        "PASS Qt pinned Unicode combining summary=1 first_line=1",
+        "PASS Qt pinned Unicode skin summary=1 first_line=1",
+        "PASS Qt pinned Unicode keycap summary=1 first_line=1",
+        "PASS Qt pinned visible leading label width=980 ink=143 visible=143",
+        "PASS Qt pinned visible leading label width=1180 ink=143 visible=143",
+        "PASS Qt pinned visible leading label width=1440 ink=143 visible=143",
+        "Qt pinned focus has_focus=1 pixels_changed=1",
+        "FAIL Qt assertion: The unpin control has a readable cream-surface secondary-action palette"
+      ]
+    },
+    "unpin-green-widgets": {
+      "actual_exit": 0,
+      "log_sha256": "f097dab619643290f8e35bb4d79877ad1b0b87b433c4702664e3fba17116ddcb",
+      "original_selected_lines": [
+        "PASS Qt pinned Unicode surrogate summary=1 first_line=1",
+        "PASS Qt pinned Unicode zwj summary=1 first_line=1",
+        "PASS Qt pinned Unicode combining summary=1 first_line=1",
+        "PASS Qt pinned Unicode skin summary=1 first_line=1",
+        "PASS Qt pinned Unicode keycap summary=1 first_line=1",
+        "PASS Qt pinned visible leading label width=980 ink=143 visible=143",
+        "PASS Qt pinned visible leading label width=1180 ink=143 visible=143",
+        "PASS Qt pinned visible leading label width=1440 ink=143 visible=143",
+        "Qt pinned focus has_focus=1 pixels_changed=1"
+      ]
+    }
+  },
+  "intermediate_complete_ui_task": {
+    "scope": "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-08a1ped5",
+    "phase": "green",
+    "mode": "full",
+    "driver_pid": 3834384,
+    "QPA_platform": "offscreen",
+    "original_CTest_timeout_60_unchanged": true,
+    "wrapper_pid": 3834383,
+    "source_start": {
+      "qt/src/chat_widget.cpp": "259c6dfd91ba7d07a02c561a98437e4cebb9158ba451404776d9c7ecc804a814",
+      "qt/src/main_window.cpp": "894e00abd6068895cf6a16433dff6cf96457697ad0c563be6d6ddb9822a772ed",
+      "qt/src/emoji_text.cpp": "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621",
+      "qt/tests/ui_test.cpp": "e8a74cd42386bee3db940c73a82588921435fd04840bd87fc4724c31f1dd01bf"
+    },
+    "ui_binary": "/tmp/chat-qt-dependency-compare.dmJWg7/chat-build/qt/chat_qt_ui_test",
+    "ui_binary_sha256": "b2033e5071f84c4d1a1d4869222032e02b4a30a6e948a437e4444a5737445a27",
+    "production_binary_start": "3bf8d0c869854f98ff9f5deed9ffa1af9d9e0f57ac74ef08ef821e3d9c8777f2",
+    "frozen_before_binary_sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+    "protected_start": {
+      "2876288": {
+        "startticks": "521400965",
+        "command": "/home/gyl/example/chat/build/chat_server 18080 16 16"
+      },
+      "3225": {
+        "startticks": "17583",
+        "command": "/usr/bin/fcitx5 -d"
+      },
+      "29935": {
+        "startticks": "248258",
+        "command": "/usr/bin/speech-dispatcher -s -t 0"
+      }
+    },
+    "no_global_IME_font_or_service_changes": true,
+    "owned_database": "chat_safe_display_green_1006165933_3834384",
+    "unchanged_schema_migration_inputs": {
+      "/home/gyl/example/chat/sql/001_create_users.sql": "c1c46ce272a8dff9f5f1e9c5e3f7ed569951e8bf24359d694418ffe2d615f441",
+      "/home/gyl/example/chat/sql/002_create_messages.sql": "f0a83775901cbae3657fcda19ae9f5e5f83071261650d93d3308d20afc714d15",
+      "/home/gyl/example/chat/sql/003_add_messages_conversation_index.sql": "4b8466e7ceef513613f50e263db9c39e9055c216c1d7c692fbcaf681da72ddb8",
+      "/home/gyl/example/chat/sql/004_create_message_read_positions.sql": "a0d318a8fd5bb5d1041a5ec367bd7f61f5ace04f6ad52963501f1ba84ebcd03f",
+      "/home/gyl/example/chat/sql/005_add_messages_recipient_index.sql": "0b0b2db21989aae6640d38697d40c38044c85aa77c92566a6557830e280c840b",
+      "/home/gyl/example/chat/sql/006_create_contacts.sql": "b0da0f7fa8bfc5e4b78a1a16663966345552cbbaff86d7974d9e7c874917d65b",
+      "/home/gyl/example/chat/sql/007_add_user_last_seen.sql": "a7c9162af53ed403c1f848ea558278837ff5e38758f0f88b36c522f09a5d02ce",
+      "/home/gyl/example/chat/sql/008_create_conversations.sql": "a6fe9e116110dd4024b8d3c072700f6e97457a4bc6709558fcf6b87049b31b67",
+      "/home/gyl/example/chat/sql/009_add_message_replies.sql": "b74377121247883c6c7d5bd36e16d0e6670a9fe845521c2a8189445b4edba5ab",
+      "/home/gyl/example/chat/sql/010_add_message_edits.sql": "fe9bc939129796b46b405c289d7ca446158d103e417f86d9322b980d6b68bcb2",
+      "/home/gyl/example/chat/sql/011_add_message_deletion.sql": "f40ad1bc3cf330768de7594df86ce4029fcbcb66611961e01c14106d7d4aebd8",
+      "/home/gyl/example/chat/sql/012_create_message_attachments.sql": "762a299f43fd9939b4b8251b6198b1a5e8b066c21119ac632002d5bf6eaed6c7",
+      "/home/gyl/example/chat/sql/013_add_group_roles.sql": "b2245ddb5aecbf543ea5612afbb494e0ef2053f799a9ffeb05a8b3ac2041ce78",
+      "/home/gyl/example/chat/sql/014_add_member_join_position.sql": "53dd3f81fe323b2b9b9162e2512d629ea135a8be689db62392f86485e6655fba",
+      "/home/gyl/example/chat/sql/015_create_user_avatars.sql": "f67c2e513107fbacb3205ced3b82620ef2af62befab10725cd1b523665936eb8",
+      "/home/gyl/example/chat/sql/016_create_message_reactions.sql": "b3f04a167a36936d896745426a490da6e2c91412d8a83e996c3c40bb6e5b114b",
+      "/home/gyl/example/chat/sql/017_add_conversation_mute.sql": "0556f108403498a497e880f321d6766c208a33d60b2d75fc7093f92b5c3064f1",
+      "/home/gyl/example/chat/sql/018_add_conversation_pin.sql": "93ad584f2a0ff5aef9f45dd1395de1616f90fdab6ec0a64b9dfff6328b0a3468",
+      "/home/gyl/example/chat/sql/019_create_message_mentions.sql": "71dd84bf9f23c2898744aea03bfb85cec2d38c5da4da529ef6dcadf70068fa0d",
+      "/home/gyl/example/chat/sql/020_add_group_pinned_message.sql": "71b2e5a2f41d45a5d755b71ff20dcedad7f930038bd53e98d1beaa48c4a4d1de",
+      "/home/gyl/example/chat/sql/021_add_group_announcement.sql": "7d4a8688ea3304e3fbf82615ed4f628827c17bb74ee1b864126ac171771e3afb",
+      "/home/gyl/example/chat/sql/022_add_group_invite.sql": "f0f42123c49e71a6a65aca4626b637a03c3c3fb5623720c01f4f7b8162df7e55",
+      "/home/gyl/example/chat/sql/023_create_group_join_requests.sql": "7dbe4d55d3a13dafb76aa835fc3c474cb2d140ae314188280f602910623db001",
+      "/home/gyl/example/chat/sql/024_validate_identity_and_group_title.sql": "008a4f7fe6dff6483871b29dfe71470d4abf5cff5d18a093eb54335e80a3ba4a",
+      "/home/gyl/example/chat/sql/025_validate_username_edges.sql": "6322460a924302bf03acd7c33903336f5c3cf065b5ca8980e550268ff6005880",
+      "/home/gyl/example/chat/sql/026_create_friend_requests.sql": "a3f65b0816f195944119e71193bd358a9ff947cb96b17dededc1def0ae0c11ba"
+    },
+    "display": ":0",
+    "test_command": [
+      "/tmp/chat-qt-dependency-compare.dmJWg7/chat-build/qt/chat_qt_ui_test",
+      "/home/gyl/example/chat/build/chat_server",
+      "/tmp/chat-emoji-dpi-after.V8ckcw/safe-display.KFYTQa/green-full-08a1ped5"
+    ],
+    "actual_ui_pid": 3834458,
+    "actual_ui_exe": "/proc/3834458/exe",
+    "actual_ui_exe_sha256": "b2033e5071f84c4d1a1d4869222032e02b4a30a6e948a437e4444a5737445a27",
+    "actual_test_exit": 0,
+    "actual_test_elapsed_seconds": 46.42911218944937,
+    "source_end": {
+      "qt/src/chat_widget.cpp": "259c6dfd91ba7d07a02c561a98437e4cebb9158ba451404776d9c7ecc804a814",
+      "qt/src/main_window.cpp": "894e00abd6068895cf6a16433dff6cf96457697ad0c563be6d6ddb9822a772ed",
+      "qt/src/emoji_text.cpp": "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621",
+      "qt/tests/ui_test.cpp": "e8a74cd42386bee3db940c73a82588921435fd04840bd87fc4724c31f1dd01bf"
+    },
+    "owned_processes": [
+      {
+        "pid": 3834453,
+        "returncode": 0,
+        "gone": true
+      },
+      {
+        "pid": 3834458,
+        "returncode": 0,
+        "gone": true
+      }
+    ],
+    "owned_db_rows_after_original_test_cleanup": {
+      "actual_exit": 0,
+      "counts": "0|0|0"
+    },
+    "owned_db_exists_after_drop": "0",
+    "protected_end": {
+      "2876288": {
+        "startticks": "521400965",
+        "command": "/home/gyl/example/chat/build/chat_server 18080 16 16"
+      },
+      "3225": {
+        "startticks": "17583",
+        "command": "/usr/bin/fcitx5 -d"
+      },
+      "29935": {
+        "startticks": "248258",
+        "command": "/usr/bin/speech-dispatcher -s -t 0"
+      }
+    },
+    "protected_unchanged": true,
+    "port18769_clear": true,
+    "production_binary_end": "3bf8d0c869854f98ff9f5deed9ffa1af9d9e0f57ac74ef08ef821e3d9c8777f2"
+  },
+  "evidence_limits": [
+    "Full intermediate UI task predates final unpin theme; final-source full gates recorded separately",
+    "Offscreen button captures are not native X11 full-client evidence",
+    "Permanent Tab event then explicit button focus does not establish the complete natural Tab order",
+    "Space checks the action, not pressed-state intermediate pixels",
+    "Disabled click prohibition is not a disabled-text contrast audit",
+    "No whole-product or full DPI/IME/terminal-matrix claim"
+  ]
+}

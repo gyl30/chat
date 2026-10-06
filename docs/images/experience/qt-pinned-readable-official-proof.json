@@ -1,0 +1,1066 @@
+{
+  "runner_actual_exit": 0,
+  "runner_pid": 3867467,
+  "runner_still_exists": false,
+  "command": "/bin/bash /tmp/chat-pinned-official-after.wMg6cf/run.sh",
+  "driver": {
+    "path": "/tmp/chat-pinned-official-after.wMg6cf/native_pinned.run2.py",
+    "sha256": "58779a5fa313735ab0b250bc171b645621a161bee2712ac8601bda3d50e8ff7b",
+    "byte_identical_to_before": true
+  },
+  "runner": {
+    "path": "/tmp/chat-pinned-official-after.wMg6cf/run.sh",
+    "sha256": "549ce0df5d822595fc6ce7f5e6e5f185c20a9f43f56db8c02a92c944dbbc4197"
+  },
+  "source_manifest_sha256": "3d438fc2caab687f5e1cadc35a257d266019e49e686719dfbbd7494a3d464132",
+  "source_manifest_full": "9cadf811a4a49229da6af7193b1834120e5e2782f60356fc1ccc220e8db4e7c4  CMakeLists.txt\n82b750f350e3b38d44b7ec0a84f51ea5703ce0da866c844e3fd6db2a63f65895  client/include/chat/attachment.hpp\n0ad3dd1416d4daec4dc5653769f7c35300e100b0fa3376cc978317408cd42736  client/include/chat/avatar.hpp\n7215c66977bb40e4387dc48f8ddfd0f380d909bfb7009e44371ff4daad3242e5  client/include/chat/client.hpp\n228f2615dadf59199eef5935101d7b3e40d25b2ff71fdac2deae6c6df55553a0  client/include/chat/conversation.hpp\nb7ac7b4ea85c65bc1b2548692e7e5529e2f2906402a621a468144a36d03eed76  client/include/chat/detail/base64.hpp\nc764259decf0bcb979e85abec19288446c3f7802add80c724c83a2d580b5fb05  client/include/chat/error.hpp\nb5c5ed77be7649c4bf1b1938874702e545d80e0bddad1e285319c76add04efc5  client/include/chat/friendship.hpp\ndd68fa63cdd6cd95f1ef70d4b688d37627c8527143135f2fd3880377bc168d2f  client/include/chat/member.hpp\n9e6ffb975ab7d31a866b9dee5ce3565258474752215ee58d8deac97759238183  client/include/chat/message.hpp\nb90b2f32b6969fb64fd61d60aca862362d2e66f89431004f3dee7b921a55795c  client/include/chat/presence.hpp\n0453f0cf44765c700b2fa04bbf4f56ba890ecfe3ae638d39b436cb58ada01b4f  client/include/chat/reaction.hpp\nc2f0f54cb60e48c57117b2ee727a3f04e4e5b8ac148e6aa9253b0f8948b7291b  client/include/chat/text.hpp\n079ac2ab0e494f50b37b04b9b0356e825e1cd92571ebdc11b0dae33341766bfd  client/include/chat/typing.hpp\n3b63ead717ee081e3506a33f97ce7bee387fdaf8272be8040c2fc1fbabf65114  client/include/chat/user.hpp\n78d53b36ada1cc735f4693eff47cfd5fecc4e1bc03c089abc32c41b1e8a12b7a  client/src/client.cpp\n16f6e4009ed5bb19100e1a0097867766dfccc363ef64a83ba3071f2f0a940c06  client/src/websocket.cpp\nf79061927c3702af7f168c67d5c41573b30688dcc3311431917b8ccf48f63f72  client/src/websocket.hpp\n699f574233a21a19febb7b806dbe0004586ce600240587140559d55356271a5d  cmake/chat_emoji_scanner.cmake\n5f77908665edce2cb57acb51e66a6a1a4d744a677eaf6966140b32939850b532  cmake/chat_unicode.cmake\nfd25dcdfc249077a98ff1e581b6b08ff62006b812c976fccb60853280b761cc5  qt/CMakeLists.txt\nba7f5e0ae2c6fdc057c40bde92b6430bc9b04ffade81e2bcec11cb7ca8563a1c  qt/resources/icons/activity.svg\n99cc9ce9a2bce98cedb8c27e55ca0af3a34ff8380a63fd062b6de8478a0d7bba  qt/resources/icons/bookmark.svg\nc2dbb33c0c690e0f0f496c6c47ddd6b79cdfb73a795918d7ed464964d521df5a  qt/resources/icons/chat.svg\n0403310fe0eecd7764bae3a26f04424b1db68b83752ff0f1f942f10fe128faeb  qt/resources/icons/check.svg\n011f4f8ba45e97413caa445554c2b78237de1561256dff5798fd91746391d502  qt/resources/icons/close.svg\nc1fba8a089013acb6833ea0f2147b73b00c9ea2862ae3b539477f6c257be639b  qt/resources/icons/contacts.svg\n8e6cee084de43d62865a2453a98ba8211d680a384283c066906c85c30126ffa2  qt/resources/icons/copy.svg\ne71991b32a232ca8a29a05aba017645ecddc165f43140a9e587b4bfcbae358b9  qt/resources/icons/groups.svg\n6fb904d778a27fadd538fc4ed50355ca6aacff4341b3475acbac7d53480e92f2  qt/resources/icons/send.svg\nbe6efe87409baef78d698dd181baa624f7a5f2d30b1f8eb6829423fbdeb3061c  qt/src/attachment_dialog.cpp\n63bf3e5a5af9ca6b3dda8a218cfc1e2941c410fac1063f20749428e04bac3f8e  qt/src/attachment_dialog.hpp\n69c959ff08955bbb0f83e72d6e2bc5d8fa604b2ba82731ee686c0da8c3be7c75  qt/src/avatar.cpp\nda53722ed0ca7cc800c51e1877e9285779b299e8e7dc68ccb437fc408749df4c  qt/src/avatar.hpp\n259c6dfd91ba7d07a02c561a98437e4cebb9158ba451404776d9c7ecc804a814  qt/src/chat_widget.cpp\na9bafb158509b5fc521f6b628dac9dc60d0d9b74ccca4d6849cf12708a26410f  qt/src/chat_widget.hpp\n22ad0a231b372dcef5c69cccbe8e006cb195ad29b4f7df034a6f0b9385ee1b98  qt/src/client_bridge.cpp\nb8919d73094d27525f9a85086541f20654275bba2742a112a2d6d08e8cda99f5  qt/src/client_bridge.hpp\n0b42d54e2024cdfa7e00e8a54e2bcad08aae32df3936028c29b5972c2572f39f  qt/src/conversation_data.hpp\nab8f51046f72417e60707ce649d2c1b0f7491805127f44421d99603594165986  qt/src/conversation_delegate.cpp\n9d7253fe79481633c5c16c129c6ca76b643a934d4294d64c038b3f7b498f8279  qt/src/conversation_delegate.hpp\nb2230377b0a299400825fee0180e240f02423421cc760815425f3271faccefb0  qt/src/conversation_model.cpp\n581655f6a9e52076d4087e9493fd5dcdeb09f9923b17c06c8cc83db868b06c7b  qt/src/conversation_model.hpp\n49383c1ad6c5c8d4d820506f36ace7c71b1c44b2fadfc305cf03789921a131f9  qt/src/emoji_segments.cpp\nfcc128e734456ed4e5a5e8ef988c378c0ca89fa46add7e2cbf72647072b38e7a  qt/src/emoji_segments.hpp\n9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621  qt/src/emoji_text.cpp\n664f5ee86dbcf2b6d66f1a96c25876c85c474ceef7efaa7a98c16cc173384e38  qt/src/emoji_text.hpp\n4fe5649b48a7e5260e138fa2cf245eb68cccb2e55ab1789f9cfdcca19aa72203  qt/src/group_dialog.cpp\n34358195aa81ad838d463d43a3913134bc6a512d505ced0ae6c350a8442fb31c  qt/src/group_dialog.hpp\nedbc370115aad8af8038e2823c31a4b73e7811267e1c43d891dcbb3ade0c8495  qt/src/icons.cpp\na4265e4d3225de28d7c3df8af725e89e8b6e1ad719d234569e86a69f076a9c1b  qt/src/icons.hpp\nc94299bdf7aaa4852baded3859ff28a6cab34a22b05f3eb458758a295174ee94  qt/src/main.cpp\n894e00abd6068895cf6a16433dff6cf96457697ad0c563be6d6ddb9822a772ed  qt/src/main_window.cpp\n5547c418d768d3da359946873b47297cf1c5ad6edda9501ba86ca9a8a842318f  qt/src/main_window.hpp\n13f07fdc9a6e95e9b4436b8efa633aa2ed0da648bbd80a2438811a0c8a189052  qt/src/member_data.hpp\nb3c7600abed28ee9670f3c28b0c7f29604c1209844e21a6b8259ff6b8a1729b1  qt/src/message_data.hpp\n56c980410fc7bcc1c0ff419103b0712c7f63b31b5b83183a52200ae9c579b1ce  qt/src/message_delegate.cpp\n59ae44e81a014ad00af82a7467834a7f7df851f190558c2e91c482d5a26eb494  qt/src/message_delegate.hpp\n49205f5eba330812e8814a8aee2706be41a9ad86ab6fa0ba54dcd655696933e6  qt/src/message_images.cpp\n5f9c51258028d2258da54f26df5003880b76fd6e70d0415f747d150c7b08172f  qt/src/message_images.hpp\n91ae09e8d3f990e89e41483ea8deec47a85379ad032f51f941cfabf9cb59f606  qt/src/message_model.cpp\n8d1febaf4cc582a974722550b64f0b89156f54138a9e1082bc31d6aa8b7d3b51  qt/src/message_model.hpp\n0ea73632f099a1e2bf36a4d9b8f1bbca227269fc55d6a88f0fce2b0e6b6743ac  qt/src/message_search_dialog.cpp\n7296830dd0fa14dfcf61e134bd0735fe21501c555ce05bcf3888ba5287301748  qt/src/message_search_dialog.hpp\nfb2dc68a40135ffe4f8b337f26e0c0523e2007de83e5ce72ff8e2c0915ef267f  qt/src/presence.hpp\n5402af74e4f8f99043c7c948076b3876f8c9bd92dfcbb2ac0b566f51c527d37b  qt/src/presence_data.hpp\nb6e531db598b1faa598d2bf78334f9958c8cbb3ca2435439293255314ee76c71  qt/src/theme.cpp\n424018efa972ee93b321c8d3e76020ce25681f384143409dd6ba8504ddca512d  qt/src/theme.hpp\n8fdd19b94718e08f098f6ee23d08b0f2e501df87574ece58452db5cb7c6683b9  qt/src/user_data.hpp\nd7a15dc6079195aada9073b4348a99ace7bc0ebcefa878858c14a99acf654293  qt/src/user_delegate.cpp\nea92268180156a00b5a8b34989d4fb6ca0e1e5d09f65f11b16ed37f92cbeb96a  qt/src/user_delegate.hpp\n2253c4f97622d3bf597c3e669eb081d5346a7da86cd6342b9d4d90807a987ce2  qt/src/user_model.cpp\n32ff238226cf9ed05f2d3f4fe365bb735c7993f62147b25be295d28e58cdb8c0  qt/src/user_model.hpp\ne639af6c65aa3e720c6f9c93d420a76b4bae226bd79a5edfdf22d65c2a687fcc  tui/cmake/unicode/.gitattributes\ne7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96  tui/cmake/unicode/UNICODE-LICENSE.txt\n80d00f8e616a0ef27fd6b8de3b758c06383b5d917e2977709578e68baf733bf1  tui/cmake/unicode/emoji-data-18.0.0.txt\nb200a53eeae768e7e67a2d465936b0cb0e859618cc877b99dac79d454e2e6937  tui/cmake/unicode/emoji_properties_18.inc\n08da85e820efaa3613500946c26b2dc427a07f76001ed7c16bc90f298b814c35  build/_deps/utf8proc-src/utf8proc.h\nf38438eb986ba7eedad0f2e820a70fae1aaf05197364ba0381a5e84775099ef8  build/_deps/utf8proc-src/utf8proc.c\nb4911d4162d216afa612317a9b981851e15d672f4d93b25f3a1eb986f8c0aedb  build/_deps/utf8proc-src/utf8proc_data.c\ne41071624cf91187ae26396b3d2b9adda648c5afb4519ff562e7aeb9415c157d  build/_deps/chat_emoji_segmenter-src/emoji_presentation_scanner.c\ncfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30  build/_deps/chat_emoji_segmenter-src/LICENSE\nf2c9288cbc32817183e399e72a4a3af8e45adfdfbd54435af43aae86da36bf5b  build/chat_server\nb624a131f2170164bd4f9b2c9ac2cc732fd6b62c23819f3a8b9d7fc0b4d021fe  build/chat_tui_scale_fixture\n",
+  "runs": [
+    {
+      "width": 980,
+      "path": "/tmp/chat-pinned-official-after.wMg6cf/w980-171922",
+      "actual_exit": 0,
+      "result": {
+        "status": "PASS",
+        "width": 980,
+        "scope": "Pinned label accessibility/native focus, Space/click actual older-message search and owner unpin; full original PNGs require human visual review.",
+        "binary": "/home/gyl/example/chat/build/qt/chat_qt",
+        "binary_sha256": "3bb090e6fb0984b8e957579a0ee3dbcc356331b26a41b6edfa6c3565067f1120",
+        "source_pins_sha256": "3d438fc2caab687f5e1cadc35a257d266019e49e686719dfbbd7494a3d464132",
+        "helper_sha256": "afd8a595fa6f0d39ab8655271f6f165d2a5529b67feee86264fc69c188309a0b",
+        "driver_sha256": "58779a5fa313735ab0b250bc171b645621a161bee2712ac8601bda3d50e8ff7b",
+        "display": ":0",
+        "canvas": [
+          2000,
+          1000
+        ],
+        "no_postlogin_resize_or_repaint": true,
+        "max_wait_seconds": 15
+      },
+      "cleanup": {
+        "database_removed": true,
+        "database": "chat_qtx11_1006171922_3867470",
+        "owned": [
+          {
+            "pid": 3867776,
+            "exit": 0
+          },
+          {
+            "pid": 3867777,
+            "exit": 0
+          },
+          {
+            "pid": 3868025,
+            "exit": 0
+          },
+          {
+            "pid": 3868136,
+            "exit": -15
+          },
+          {
+            "pid": 3868210,
+            "exit": -15
+          }
+        ],
+        "protected_unchanged": true,
+        "workflow_exit": 0
+      },
+      "owned_pids_still_exist": [],
+      "source_check_before": "CMakeLists.txt: 成功\nclient/include/chat/attachment.hpp: 成功\nclient/include/chat/avatar.hpp: 成功\nclient/include/chat/client.hpp: 成功\nclient/include/chat/conversation.hpp: 成功\nclient/include/chat/detail/base64.hpp: 成功\nclient/include/chat/error.hpp: 成功\nclient/include/chat/friendship.hpp: 成功\nclient/include/chat/member.hpp: 成功\nclient/include/chat/message.hpp: 成功\nclient/include/chat/presence.hpp: 成功\nclient/include/chat/reaction.hpp: 成功\nclient/include/chat/text.hpp: 成功\nclient/include/chat/typing.hpp: 成功\nclient/include/chat/user.hpp: 成功\nclient/src/client.cpp: 成功\nclient/src/websocket.cpp: 成功\nclient/src/websocket.hpp: 成功\ncmake/chat_emoji_scanner.cmake: 成功\ncmake/chat_unicode.cmake: 成功\nqt/CMakeLists.txt: 成功\nqt/resources/icons/activity.svg: 成功\nqt/resources/icons/bookmark.svg: 成功\nqt/resources/icons/chat.svg: 成功\nqt/resources/icons/check.svg: 成功\nqt/resources/icons/close.svg: 成功\nqt/resources/icons/contacts.svg: 成功\nqt/resources/icons/copy.svg: 成功\nqt/resources/icons/groups.svg: 成功\nqt/resources/icons/send.svg: 成功\nqt/src/attachment_dialog.cpp: 成功\nqt/src/attachment_dialog.hpp: 成功\nqt/src/avatar.cpp: 成功\nqt/src/avatar.hpp: 成功\nqt/src/chat_widget.cpp: 成功\nqt/src/chat_widget.hpp: 成功\nqt/src/client_bridge.cpp: 成功\nqt/src/client_bridge.hpp: 成功\nqt/src/conversation_data.hpp: 成功\nqt/src/conversation_delegate.cpp: 成功\nqt/src/conversation_delegate.hpp: 成功\nqt/src/conversation_model.cpp: 成功\nqt/src/conversation_model.hpp: 成功\nqt/src/emoji_segments.cpp: 成功\nqt/src/emoji_segments.hpp: 成功\nqt/src/emoji_text.cpp: 成功\nqt/src/emoji_text.hpp: 成功\nqt/src/group_dialog.cpp: 成功\nqt/src/group_dialog.hpp: 成功\nqt/src/icons.cpp: 成功\nqt/src/icons.hpp: 成功\nqt/src/main.cpp: 成功\nqt/src/main_window.cpp: 成功\nqt/src/main_window.hpp: 成功\nqt/src/member_data.hpp: 成功\nqt/src/message_data.hpp: 成功\nqt/src/message_delegate.cpp: 成功\nqt/src/message_delegate.hpp: 成功\nqt/src/message_images.cpp: 成功\nqt/src/message_images.hpp: 成功\nqt/src/message_model.cpp: 成功\nqt/src/message_model.hpp: 成功\nqt/src/message_search_dialog.cpp: 成功\nqt/src/message_search_dialog.hpp: 成功\nqt/src/presence.hpp: 成功\nqt/src/presence_data.hpp: 成功\nqt/src/theme.cpp: 成功\nqt/src/theme.hpp: 成功\nqt/src/user_data.hpp: 成功\nqt/src/user_delegate.cpp: 成功\nqt/src/user_delegate.hpp: 成功\nqt/src/user_model.cpp: 成功\nqt/src/user_model.hpp: 成功\ntui/cmake/unicode/.gitattributes: 成功\ntui/cmake/unicode/UNICODE-LICENSE.txt: 成功\ntui/cmake/unicode/emoji-data-18.0.0.txt: 成功\ntui/cmake/unicode/emoji_properties_18.inc: 成功\nbuild/_deps/utf8proc-src/utf8proc.h: 成功\nbuild/_deps/utf8proc-src/utf8proc.c: 成功\nbuild/_deps/utf8proc-src/utf8proc_data.c: 成功\nbuild/_deps/chat_emoji_segmenter-src/emoji_presentation_scanner.c: 成功\nbuild/_deps/chat_emoji_segmenter-src/LICENSE: 成功\nbuild/chat_server: 成功\nbuild/chat_tui_scale_fixture: 成功\n",
+      "source_check_after": "CMakeLists.txt: 成功\nclient/include/chat/attachment.hpp: 成功\nclient/include/chat/avatar.hpp: 成功\nclient/include/chat/client.hpp: 成功\nclient/include/chat/conversation.hpp: 成功\nclient/include/chat/detail/base64.hpp: 成功\nclient/include/chat/error.hpp: 成功\nclient/include/chat/friendship.hpp: 成功\nclient/include/chat/member.hpp: 成功\nclient/include/chat/message.hpp: 成功\nclient/include/chat/presence.hpp: 成功\nclient/include/chat/reaction.hpp: 成功\nclient/include/chat/text.hpp: 成功\nclient/include/chat/typing.hpp: 成功\nclient/include/chat/user.hpp: 成功\nclient/src/client.cpp: 成功\nclient/src/websocket.cpp: 成功\nclient/src/websocket.hpp: 成功\ncmake/chat_emoji_scanner.cmake: 成功\ncmake/chat_unicode.cmake: 成功\nqt/CMakeLists.txt: 成功\nqt/resources/icons/activity.svg: 成功\nqt/resources/icons/bookmark.svg: 成功\nqt/resources/icons/chat.svg: 成功\nqt/resources/icons/check.svg: 成功\nqt/resources/icons/close.svg: 成功\nqt/resources/icons/contacts.svg: 成功\nqt/resources/icons/copy.svg: 成功\nqt/resources/icons/groups.svg: 成功\nqt/resources/icons/send.svg: 成功\nqt/src/attachment_dialog.cpp: 成功\nqt/src/attachment_dialog.hpp: 成功\nqt/src/avatar.cpp: 成功\nqt/src/avatar.hpp: 成功\nqt/src/chat_widget.cpp: 成功\nqt/src/chat_widget.hpp: 成功\nqt/src/client_bridge.cpp: 成功\nqt/src/client_bridge.hpp: 成功\nqt/src/conversation_data.hpp: 成功\nqt/src/conversation_delegate.cpp: 成功\nqt/src/conversation_delegate.hpp: 成功\nqt/src/conversation_model.cpp: 成功\nqt/src/conversation_model.hpp: 成功\nqt/src/emoji_segments.cpp: 成功\nqt/src/emoji_segments.hpp: 成功\nqt/src/emoji_text.cpp: 成功\nqt/src/emoji_text.hpp: 成功\nqt/src/group_dialog.cpp: 成功\nqt/src/group_dialog.hpp: 成功\nqt/src/icons.cpp: 成功\nqt/src/icons.hpp: 成功\nqt/src/main.cpp: 成功\nqt/src/main_window.cpp: 成功\nqt/src/main_window.hpp: 成功\nqt/src/member_data.hpp: 成功\nqt/src/message_data.hpp: 成功\nqt/src/message_delegate.cpp: 成功\nqt/src/message_delegate.hpp: 成功\nqt/src/message_images.cpp: 成功\nqt/src/message_images.hpp: 成功\nqt/src/message_model.cpp: 成功\nqt/src/message_model.hpp: 成功\nqt/src/message_search_dialog.cpp: 成功\nqt/src/message_search_dialog.hpp: 成功\nqt/src/presence.hpp: 成功\nqt/src/presence_data.hpp: 成功\nqt/src/theme.cpp: 成功\nqt/src/theme.hpp: 成功\nqt/src/user_data.hpp: 成功\nqt/src/user_delegate.cpp: 成功\nqt/src/user_delegate.hpp: 成功\nqt/src/user_model.cpp: 成功\nqt/src/user_model.hpp: 成功\ntui/cmake/unicode/.gitattributes: 成功\ntui/cmake/unicode/UNICODE-LICENSE.txt: 成功\ntui/cmake/unicode/emoji-data-18.0.0.txt: 成功\ntui/cmake/unicode/emoji_properties_18.inc: 成功\nbuild/_deps/utf8proc-src/utf8proc.h: 成功\nbuild/_deps/utf8proc-src/utf8proc.c: 成功\nbuild/_deps/utf8proc-src/utf8proc_data.c: 成功\nbuild/_deps/chat_emoji_segmenter-src/emoji_presentation_scanner.c: 成功\nbuild/_deps/chat_emoji_segmenter-src/LICENSE: 成功\nbuild/chat_server: 成功\nbuild/chat_tui_scale_fixture: 成功\n",
+      "actual_runtime_before": [
+        {
+          "alias": "A",
+          "pid": 3868136,
+          "exe": "/home/gyl/example/chat/build/qt/chat_qt",
+          "sha256": "3bb090e6fb0984b8e957579a0ee3dbcc356331b26a41b6edfa6c3565067f1120",
+          "loaded_qt": [
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Core.so.6.5.3",
+              "sha256": "a187d03f0d9c170fa4dcabc8abc89eb99d163e5b82c64c4667674c6f957c63f0"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6DBus.so.6.5.3",
+              "sha256": "11304f90d948a59d887c7d54a30b388f8a06bbf0689e9707a62b9bed872c0beb"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Gui.so.6.5.3",
+              "sha256": "9a89e05fc892b13084e73397c29a10427c9e45ad729c2ae68c4f51bfb9e545ec"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Svg.so.6.5.3",
+              "sha256": "e93654ab378624f695e0629d22382a8e298b39141cda1132b757dfa3985afa21"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Widgets.so.6.5.3",
+              "sha256": "3130aa61288d76303c46b27d1b91db8c456a9caef8d7111c1c61b07278e0ed46"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6XcbQpa.so.6.5.3",
+              "sha256": "e55dd060aaa4cf90745001a7689e3812047f2b0c14300b3064e6636aaa3b40b8"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so",
+              "sha256": "86f9de45c5f2a27bf22d58810f40dddb01e2d8529d41a024ea90aeb34036530c"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforms/libqxcb.so",
+              "sha256": "27344b5533a430df9db8d253fb9177dd8ea7e0f28ee3958971cbbd13d87ccc94"
+            }
+          ]
+        },
+        {
+          "alias": "C",
+          "pid": 3868210,
+          "exe": "/home/gyl/example/chat/build/qt/chat_qt",
+          "sha256": "3bb090e6fb0984b8e957579a0ee3dbcc356331b26a41b6edfa6c3565067f1120",
+          "loaded_qt": [
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Core.so.6.5.3",
+              "sha256": "a187d03f0d9c170fa4dcabc8abc89eb99d163e5b82c64c4667674c6f957c63f0"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6DBus.so.6.5.3",
+              "sha256": "11304f90d948a59d887c7d54a30b388f8a06bbf0689e9707a62b9bed872c0beb"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Gui.so.6.5.3",
+              "sha256": "9a89e05fc892b13084e73397c29a10427c9e45ad729c2ae68c4f51bfb9e545ec"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Svg.so.6.5.3",
+              "sha256": "e93654ab378624f695e0629d22382a8e298b39141cda1132b757dfa3985afa21"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Widgets.so.6.5.3",
+              "sha256": "3130aa61288d76303c46b27d1b91db8c456a9caef8d7111c1c61b07278e0ed46"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6XcbQpa.so.6.5.3",
+              "sha256": "e55dd060aaa4cf90745001a7689e3812047f2b0c14300b3064e6636aaa3b40b8"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so",
+              "sha256": "86f9de45c5f2a27bf22d58810f40dddb01e2d8529d41a024ea90aeb34036530c"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforms/libqxcb.so",
+              "sha256": "27344b5533a430df9db8d253fb9177dd8ea7e0f28ee3958971cbbd13d87ccc94"
+            }
+          ]
+        }
+      ],
+      "actual_runtime_after": [
+        {
+          "alias": "A",
+          "pid": 3868136,
+          "exe": "/home/gyl/example/chat/build/qt/chat_qt",
+          "sha256": "3bb090e6fb0984b8e957579a0ee3dbcc356331b26a41b6edfa6c3565067f1120",
+          "loaded_qt": [
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Core.so.6.5.3",
+              "sha256": "a187d03f0d9c170fa4dcabc8abc89eb99d163e5b82c64c4667674c6f957c63f0"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6DBus.so.6.5.3",
+              "sha256": "11304f90d948a59d887c7d54a30b388f8a06bbf0689e9707a62b9bed872c0beb"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Gui.so.6.5.3",
+              "sha256": "9a89e05fc892b13084e73397c29a10427c9e45ad729c2ae68c4f51bfb9e545ec"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Svg.so.6.5.3",
+              "sha256": "e93654ab378624f695e0629d22382a8e298b39141cda1132b757dfa3985afa21"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Widgets.so.6.5.3",
+              "sha256": "3130aa61288d76303c46b27d1b91db8c456a9caef8d7111c1c61b07278e0ed46"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6XcbQpa.so.6.5.3",
+              "sha256": "e55dd060aaa4cf90745001a7689e3812047f2b0c14300b3064e6636aaa3b40b8"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so",
+              "sha256": "86f9de45c5f2a27bf22d58810f40dddb01e2d8529d41a024ea90aeb34036530c"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforms/libqxcb.so",
+              "sha256": "27344b5533a430df9db8d253fb9177dd8ea7e0f28ee3958971cbbd13d87ccc94"
+            }
+          ]
+        },
+        {
+          "alias": "C",
+          "pid": 3868210,
+          "exe": "/home/gyl/example/chat/build/qt/chat_qt",
+          "sha256": "3bb090e6fb0984b8e957579a0ee3dbcc356331b26a41b6edfa6c3565067f1120",
+          "loaded_qt": [
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Core.so.6.5.3",
+              "sha256": "a187d03f0d9c170fa4dcabc8abc89eb99d163e5b82c64c4667674c6f957c63f0"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6DBus.so.6.5.3",
+              "sha256": "11304f90d948a59d887c7d54a30b388f8a06bbf0689e9707a62b9bed872c0beb"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Gui.so.6.5.3",
+              "sha256": "9a89e05fc892b13084e73397c29a10427c9e45ad729c2ae68c4f51bfb9e545ec"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Svg.so.6.5.3",
+              "sha256": "e93654ab378624f695e0629d22382a8e298b39141cda1132b757dfa3985afa21"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Widgets.so.6.5.3",
+              "sha256": "3130aa61288d76303c46b27d1b91db8c456a9caef8d7111c1c61b07278e0ed46"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6XcbQpa.so.6.5.3",
+              "sha256": "e55dd060aaa4cf90745001a7689e3812047f2b0c14300b3064e6636aaa3b40b8"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so",
+              "sha256": "86f9de45c5f2a27bf22d58810f40dddb01e2d8529d41a024ea90aeb34036530c"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforms/libqxcb.so",
+              "sha256": "27344b5533a430df9db8d253fb9177dd8ea7e0f28ee3958971cbbd13d87ccc94"
+            }
+          ]
+        }
+      ],
+      "cases": [
+        {
+          "case": "accessible-pinned-A",
+          "status": "PASS",
+          "evidence": {
+            "name": "置顶消息 · 导航A_qtx11_171923：原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻",
+            "description": "置顶消息 · 导航A_qtx11_171923：原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻\n点击定位；较早的消息通过搜索查看。",
+            "role": "push button",
+            "physical_rect": [
+              431.0,
+              66.0,
+              410.0,
+              37.0
+            ],
+            "actual_frame": [
+              0,
+              0,
+              980,
+              760
+            ]
+          }
+        },
+        {
+          "case": "accessible-pinned-C",
+          "status": "PASS",
+          "evidence": {
+            "name": "置顶消息 · 导航A_qtx11_171923：原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻",
+            "description": "置顶消息 · 导航A_qtx11_171923：原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻\n点击定位；较早的消息通过搜索查看。",
+            "role": "push button",
+            "physical_rect": [
+              1431.0,
+              66.0,
+              537.0,
+              29.0
+            ],
+            "actual_frame": [
+              1000,
+              0,
+              980,
+              760
+            ]
+          }
+        },
+        {
+          "case": "actual-keyboard-focus-visible",
+          "status": "PASS",
+          "evidence": {
+            "tabs": 9,
+            "physical_rect": [
+              431.0,
+              66.0,
+              410.0,
+              37.0
+            ],
+            "unfocused": "/tmp/chat-pinned-official-after.wMg6cf/w980-171922/02-original-unfocused-pinned.png",
+            "focused": "/tmp/chat-pinned-official-after.wMg6cf/w980-171922/03-original-keyboard-focused-pinned.png"
+          }
+        },
+        {
+          "case": "04-original-Space-actual-search",
+          "status": "PASS",
+          "evidence": {
+            "query": "原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻",
+            "result_name": "你；2026-10-06 17:19；原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻👍🏽长长长长长长长👨‍👩‍👧‍👦尾字\n保留原始正文与尾行；已读",
+            "pinned_id": 2
+          }
+        },
+        {
+          "case": "05-original-click-actual-search",
+          "status": "PASS",
+          "evidence": {
+            "query": "原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻",
+            "result_name": "导航A_qtx11_171923；2026-10-06 17:19；原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻👍🏽长长长长长长长👨‍👩‍👧‍👦尾字\n保留原始正文与尾行",
+            "pinned_id": 2
+          }
+        },
+        {
+          "case": "actual-owner-unpin",
+          "status": "PASS",
+          "evidence": {
+            "room": 1,
+            "both_clients_hidden": true,
+            "read_only_sql_null": true
+          }
+        }
+      ],
+      "original_pngs": [
+        {
+          "path": "/tmp/chat-pinned-official-after.wMg6cf/w980-171922/01-original-two-native-pinned-natural-width.png",
+          "sha256": "9d66dcee50b26d28e11d1c3a23a76a3b98e9c886dd188d7c507eb835478d3674"
+        },
+        {
+          "path": "/tmp/chat-pinned-official-after.wMg6cf/w980-171922/02-original-unfocused-pinned.png",
+          "sha256": "ff6b5e014395606d8bb4360f535cb49b371606cf2af4e6e540aff223192bea61"
+        },
+        {
+          "path": "/tmp/chat-pinned-official-after.wMg6cf/w980-171922/03-original-keyboard-focused-pinned.png",
+          "sha256": "4adbda3dc909311835143f99a74f20839f23312da97b08ccd98c889d496988c8"
+        },
+        {
+          "path": "/tmp/chat-pinned-official-after.wMg6cf/w980-171922/04-original-Space-actual-search.png",
+          "sha256": "63bc3b0105b8a43f15570f6e00caa8739e623471fa18aab16c050e3e2648fbf1"
+        },
+        {
+          "path": "/tmp/chat-pinned-official-after.wMg6cf/w980-171922/05-original-click-actual-search.png",
+          "sha256": "740d17d27bed34a37a95a0d7da2a2ab96be59f2c85229cf10985f82d5a35e72f"
+        },
+        {
+          "path": "/tmp/chat-pinned-official-after.wMg6cf/w980-171922/06-original-hover-tooltip-optional.png",
+          "sha256": "8a7ae8c6bc6d9d0c373626a87a0db115307b84665b1f97083d03fdf1dbf71fe9"
+        },
+        {
+          "path": "/tmp/chat-pinned-official-after.wMg6cf/w980-171922/07-original-native-unpin-reflected.png",
+          "sha256": "3c12f872b32ec762668fdfa7babe1a472cdbd30c453041765873235adf98e313"
+        }
+      ]
+    },
+    {
+      "width": 1180,
+      "path": "/tmp/chat-pinned-official-after.wMg6cf/w1180-171938",
+      "actual_exit": 0,
+      "result": {
+        "status": "PASS",
+        "width": 1180,
+        "scope": "Pinned label accessibility/native focus, Space/click actual older-message search and owner unpin; full original PNGs require human visual review.",
+        "binary": "/home/gyl/example/chat/build/qt/chat_qt",
+        "binary_sha256": "3bb090e6fb0984b8e957579a0ee3dbcc356331b26a41b6edfa6c3565067f1120",
+        "source_pins_sha256": "3d438fc2caab687f5e1cadc35a257d266019e49e686719dfbbd7494a3d464132",
+        "helper_sha256": "afd8a595fa6f0d39ab8655271f6f165d2a5529b67feee86264fc69c188309a0b",
+        "driver_sha256": "58779a5fa313735ab0b250bc171b645621a161bee2712ac8601bda3d50e8ff7b",
+        "display": ":0",
+        "canvas": [
+          2400,
+          1000
+        ],
+        "no_postlogin_resize_or_repaint": true,
+        "max_wait_seconds": 15
+      },
+      "cleanup": {
+        "database_removed": true,
+        "database": "chat_qtx11_1006171938_3868589",
+        "owned": [
+          {
+            "pid": 3868620,
+            "exit": 0
+          },
+          {
+            "pid": 3868621,
+            "exit": 0
+          },
+          {
+            "pid": 3868796,
+            "exit": 0
+          },
+          {
+            "pid": 3868940,
+            "exit": -15
+          },
+          {
+            "pid": 3869013,
+            "exit": -15
+          }
+        ],
+        "protected_unchanged": true,
+        "workflow_exit": 0
+      },
+      "owned_pids_still_exist": [],
+      "source_check_before": "CMakeLists.txt: 成功\nclient/include/chat/attachment.hpp: 成功\nclient/include/chat/avatar.hpp: 成功\nclient/include/chat/client.hpp: 成功\nclient/include/chat/conversation.hpp: 成功\nclient/include/chat/detail/base64.hpp: 成功\nclient/include/chat/error.hpp: 成功\nclient/include/chat/friendship.hpp: 成功\nclient/include/chat/member.hpp: 成功\nclient/include/chat/message.hpp: 成功\nclient/include/chat/presence.hpp: 成功\nclient/include/chat/reaction.hpp: 成功\nclient/include/chat/text.hpp: 成功\nclient/include/chat/typing.hpp: 成功\nclient/include/chat/user.hpp: 成功\nclient/src/client.cpp: 成功\nclient/src/websocket.cpp: 成功\nclient/src/websocket.hpp: 成功\ncmake/chat_emoji_scanner.cmake: 成功\ncmake/chat_unicode.cmake: 成功\nqt/CMakeLists.txt: 成功\nqt/resources/icons/activity.svg: 成功\nqt/resources/icons/bookmark.svg: 成功\nqt/resources/icons/chat.svg: 成功\nqt/resources/icons/check.svg: 成功\nqt/resources/icons/close.svg: 成功\nqt/resources/icons/contacts.svg: 成功\nqt/resources/icons/copy.svg: 成功\nqt/resources/icons/groups.svg: 成功\nqt/resources/icons/send.svg: 成功\nqt/src/attachment_dialog.cpp: 成功\nqt/src/attachment_dialog.hpp: 成功\nqt/src/avatar.cpp: 成功\nqt/src/avatar.hpp: 成功\nqt/src/chat_widget.cpp: 成功\nqt/src/chat_widget.hpp: 成功\nqt/src/client_bridge.cpp: 成功\nqt/src/client_bridge.hpp: 成功\nqt/src/conversation_data.hpp: 成功\nqt/src/conversation_delegate.cpp: 成功\nqt/src/conversation_delegate.hpp: 成功\nqt/src/conversation_model.cpp: 成功\nqt/src/conversation_model.hpp: 成功\nqt/src/emoji_segments.cpp: 成功\nqt/src/emoji_segments.hpp: 成功\nqt/src/emoji_text.cpp: 成功\nqt/src/emoji_text.hpp: 成功\nqt/src/group_dialog.cpp: 成功\nqt/src/group_dialog.hpp: 成功\nqt/src/icons.cpp: 成功\nqt/src/icons.hpp: 成功\nqt/src/main.cpp: 成功\nqt/src/main_window.cpp: 成功\nqt/src/main_window.hpp: 成功\nqt/src/member_data.hpp: 成功\nqt/src/message_data.hpp: 成功\nqt/src/message_delegate.cpp: 成功\nqt/src/message_delegate.hpp: 成功\nqt/src/message_images.cpp: 成功\nqt/src/message_images.hpp: 成功\nqt/src/message_model.cpp: 成功\nqt/src/message_model.hpp: 成功\nqt/src/message_search_dialog.cpp: 成功\nqt/src/message_search_dialog.hpp: 成功\nqt/src/presence.hpp: 成功\nqt/src/presence_data.hpp: 成功\nqt/src/theme.cpp: 成功\nqt/src/theme.hpp: 成功\nqt/src/user_data.hpp: 成功\nqt/src/user_delegate.cpp: 成功\nqt/src/user_delegate.hpp: 成功\nqt/src/user_model.cpp: 成功\nqt/src/user_model.hpp: 成功\ntui/cmake/unicode/.gitattributes: 成功\ntui/cmake/unicode/UNICODE-LICENSE.txt: 成功\ntui/cmake/unicode/emoji-data-18.0.0.txt: 成功\ntui/cmake/unicode/emoji_properties_18.inc: 成功\nbuild/_deps/utf8proc-src/utf8proc.h: 成功\nbuild/_deps/utf8proc-src/utf8proc.c: 成功\nbuild/_deps/utf8proc-src/utf8proc_data.c: 成功\nbuild/_deps/chat_emoji_segmenter-src/emoji_presentation_scanner.c: 成功\nbuild/_deps/chat_emoji_segmenter-src/LICENSE: 成功\nbuild/chat_server: 成功\nbuild/chat_tui_scale_fixture: 成功\n",
+      "source_check_after": "CMakeLists.txt: 成功\nclient/include/chat/attachment.hpp: 成功\nclient/include/chat/avatar.hpp: 成功\nclient/include/chat/client.hpp: 成功\nclient/include/chat/conversation.hpp: 成功\nclient/include/chat/detail/base64.hpp: 成功\nclient/include/chat/error.hpp: 成功\nclient/include/chat/friendship.hpp: 成功\nclient/include/chat/member.hpp: 成功\nclient/include/chat/message.hpp: 成功\nclient/include/chat/presence.hpp: 成功\nclient/include/chat/reaction.hpp: 成功\nclient/include/chat/text.hpp: 成功\nclient/include/chat/typing.hpp: 成功\nclient/include/chat/user.hpp: 成功\nclient/src/client.cpp: 成功\nclient/src/websocket.cpp: 成功\nclient/src/websocket.hpp: 成功\ncmake/chat_emoji_scanner.cmake: 成功\ncmake/chat_unicode.cmake: 成功\nqt/CMakeLists.txt: 成功\nqt/resources/icons/activity.svg: 成功\nqt/resources/icons/bookmark.svg: 成功\nqt/resources/icons/chat.svg: 成功\nqt/resources/icons/check.svg: 成功\nqt/resources/icons/close.svg: 成功\nqt/resources/icons/contacts.svg: 成功\nqt/resources/icons/copy.svg: 成功\nqt/resources/icons/groups.svg: 成功\nqt/resources/icons/send.svg: 成功\nqt/src/attachment_dialog.cpp: 成功\nqt/src/attachment_dialog.hpp: 成功\nqt/src/avatar.cpp: 成功\nqt/src/avatar.hpp: 成功\nqt/src/chat_widget.cpp: 成功\nqt/src/chat_widget.hpp: 成功\nqt/src/client_bridge.cpp: 成功\nqt/src/client_bridge.hpp: 成功\nqt/src/conversation_data.hpp: 成功\nqt/src/conversation_delegate.cpp: 成功\nqt/src/conversation_delegate.hpp: 成功\nqt/src/conversation_model.cpp: 成功\nqt/src/conversation_model.hpp: 成功\nqt/src/emoji_segments.cpp: 成功\nqt/src/emoji_segments.hpp: 成功\nqt/src/emoji_text.cpp: 成功\nqt/src/emoji_text.hpp: 成功\nqt/src/group_dialog.cpp: 成功\nqt/src/group_dialog.hpp: 成功\nqt/src/icons.cpp: 成功\nqt/src/icons.hpp: 成功\nqt/src/main.cpp: 成功\nqt/src/main_window.cpp: 成功\nqt/src/main_window.hpp: 成功\nqt/src/member_data.hpp: 成功\nqt/src/message_data.hpp: 成功\nqt/src/message_delegate.cpp: 成功\nqt/src/message_delegate.hpp: 成功\nqt/src/message_images.cpp: 成功\nqt/src/message_images.hpp: 成功\nqt/src/message_model.cpp: 成功\nqt/src/message_model.hpp: 成功\nqt/src/message_search_dialog.cpp: 成功\nqt/src/message_search_dialog.hpp: 成功\nqt/src/presence.hpp: 成功\nqt/src/presence_data.hpp: 成功\nqt/src/theme.cpp: 成功\nqt/src/theme.hpp: 成功\nqt/src/user_data.hpp: 成功\nqt/src/user_delegate.cpp: 成功\nqt/src/user_delegate.hpp: 成功\nqt/src/user_model.cpp: 成功\nqt/src/user_model.hpp: 成功\ntui/cmake/unicode/.gitattributes: 成功\ntui/cmake/unicode/UNICODE-LICENSE.txt: 成功\ntui/cmake/unicode/emoji-data-18.0.0.txt: 成功\ntui/cmake/unicode/emoji_properties_18.inc: 成功\nbuild/_deps/utf8proc-src/utf8proc.h: 成功\nbuild/_deps/utf8proc-src/utf8proc.c: 成功\nbuild/_deps/utf8proc-src/utf8proc_data.c: 成功\nbuild/_deps/chat_emoji_segmenter-src/emoji_presentation_scanner.c: 成功\nbuild/_deps/chat_emoji_segmenter-src/LICENSE: 成功\nbuild/chat_server: 成功\nbuild/chat_tui_scale_fixture: 成功\n",
+      "actual_runtime_before": [
+        {
+          "alias": "A",
+          "pid": 3868940,
+          "exe": "/home/gyl/example/chat/build/qt/chat_qt",
+          "sha256": "3bb090e6fb0984b8e957579a0ee3dbcc356331b26a41b6edfa6c3565067f1120",
+          "loaded_qt": [
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Core.so.6.5.3",
+              "sha256": "a187d03f0d9c170fa4dcabc8abc89eb99d163e5b82c64c4667674c6f957c63f0"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6DBus.so.6.5.3",
+              "sha256": "11304f90d948a59d887c7d54a30b388f8a06bbf0689e9707a62b9bed872c0beb"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Gui.so.6.5.3",
+              "sha256": "9a89e05fc892b13084e73397c29a10427c9e45ad729c2ae68c4f51bfb9e545ec"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Svg.so.6.5.3",
+              "sha256": "e93654ab378624f695e0629d22382a8e298b39141cda1132b757dfa3985afa21"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Widgets.so.6.5.3",
+              "sha256": "3130aa61288d76303c46b27d1b91db8c456a9caef8d7111c1c61b07278e0ed46"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6XcbQpa.so.6.5.3",
+              "sha256": "e55dd060aaa4cf90745001a7689e3812047f2b0c14300b3064e6636aaa3b40b8"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so",
+              "sha256": "86f9de45c5f2a27bf22d58810f40dddb01e2d8529d41a024ea90aeb34036530c"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforms/libqxcb.so",
+              "sha256": "27344b5533a430df9db8d253fb9177dd8ea7e0f28ee3958971cbbd13d87ccc94"
+            }
+          ]
+        },
+        {
+          "alias": "C",
+          "pid": 3869013,
+          "exe": "/home/gyl/example/chat/build/qt/chat_qt",
+          "sha256": "3bb090e6fb0984b8e957579a0ee3dbcc356331b26a41b6edfa6c3565067f1120",
+          "loaded_qt": [
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Core.so.6.5.3",
+              "sha256": "a187d03f0d9c170fa4dcabc8abc89eb99d163e5b82c64c4667674c6f957c63f0"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6DBus.so.6.5.3",
+              "sha256": "11304f90d948a59d887c7d54a30b388f8a06bbf0689e9707a62b9bed872c0beb"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Gui.so.6.5.3",
+              "sha256": "9a89e05fc892b13084e73397c29a10427c9e45ad729c2ae68c4f51bfb9e545ec"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Svg.so.6.5.3",
+              "sha256": "e93654ab378624f695e0629d22382a8e298b39141cda1132b757dfa3985afa21"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Widgets.so.6.5.3",
+              "sha256": "3130aa61288d76303c46b27d1b91db8c456a9caef8d7111c1c61b07278e0ed46"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6XcbQpa.so.6.5.3",
+              "sha256": "e55dd060aaa4cf90745001a7689e3812047f2b0c14300b3064e6636aaa3b40b8"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so",
+              "sha256": "86f9de45c5f2a27bf22d58810f40dddb01e2d8529d41a024ea90aeb34036530c"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforms/libqxcb.so",
+              "sha256": "27344b5533a430df9db8d253fb9177dd8ea7e0f28ee3958971cbbd13d87ccc94"
+            }
+          ]
+        }
+      ],
+      "actual_runtime_after": [
+        {
+          "alias": "A",
+          "pid": 3868940,
+          "exe": "/home/gyl/example/chat/build/qt/chat_qt",
+          "sha256": "3bb090e6fb0984b8e957579a0ee3dbcc356331b26a41b6edfa6c3565067f1120",
+          "loaded_qt": [
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Core.so.6.5.3",
+              "sha256": "a187d03f0d9c170fa4dcabc8abc89eb99d163e5b82c64c4667674c6f957c63f0"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6DBus.so.6.5.3",
+              "sha256": "11304f90d948a59d887c7d54a30b388f8a06bbf0689e9707a62b9bed872c0beb"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Gui.so.6.5.3",
+              "sha256": "9a89e05fc892b13084e73397c29a10427c9e45ad729c2ae68c4f51bfb9e545ec"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Svg.so.6.5.3",
+              "sha256": "e93654ab378624f695e0629d22382a8e298b39141cda1132b757dfa3985afa21"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Widgets.so.6.5.3",
+              "sha256": "3130aa61288d76303c46b27d1b91db8c456a9caef8d7111c1c61b07278e0ed46"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6XcbQpa.so.6.5.3",
+              "sha256": "e55dd060aaa4cf90745001a7689e3812047f2b0c14300b3064e6636aaa3b40b8"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so",
+              "sha256": "86f9de45c5f2a27bf22d58810f40dddb01e2d8529d41a024ea90aeb34036530c"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforms/libqxcb.so",
+              "sha256": "27344b5533a430df9db8d253fb9177dd8ea7e0f28ee3958971cbbd13d87ccc94"
+            }
+          ]
+        },
+        {
+          "alias": "C",
+          "pid": 3869013,
+          "exe": "/home/gyl/example/chat/build/qt/chat_qt",
+          "sha256": "3bb090e6fb0984b8e957579a0ee3dbcc356331b26a41b6edfa6c3565067f1120",
+          "loaded_qt": [
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Core.so.6.5.3",
+              "sha256": "a187d03f0d9c170fa4dcabc8abc89eb99d163e5b82c64c4667674c6f957c63f0"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6DBus.so.6.5.3",
+              "sha256": "11304f90d948a59d887c7d54a30b388f8a06bbf0689e9707a62b9bed872c0beb"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Gui.so.6.5.3",
+              "sha256": "9a89e05fc892b13084e73397c29a10427c9e45ad729c2ae68c4f51bfb9e545ec"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Svg.so.6.5.3",
+              "sha256": "e93654ab378624f695e0629d22382a8e298b39141cda1132b757dfa3985afa21"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Widgets.so.6.5.3",
+              "sha256": "3130aa61288d76303c46b27d1b91db8c456a9caef8d7111c1c61b07278e0ed46"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6XcbQpa.so.6.5.3",
+              "sha256": "e55dd060aaa4cf90745001a7689e3812047f2b0c14300b3064e6636aaa3b40b8"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so",
+              "sha256": "86f9de45c5f2a27bf22d58810f40dddb01e2d8529d41a024ea90aeb34036530c"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforms/libqxcb.so",
+              "sha256": "27344b5533a430df9db8d253fb9177dd8ea7e0f28ee3958971cbbd13d87ccc94"
+            }
+          ]
+        }
+      ],
+      "cases": [
+        {
+          "case": "accessible-pinned-A",
+          "status": "PASS",
+          "evidence": {
+            "name": "置顶消息 · 导航A_qtx11_171939：原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻",
+            "description": "置顶消息 · 导航A_qtx11_171939：原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻\n点击定位；较早的消息通过搜索查看。",
+            "role": "push button",
+            "physical_rect": [
+              431.0,
+              66.0,
+              610.0,
+              37.0
+            ],
+            "actual_frame": [
+              0,
+              0,
+              1180,
+              760
+            ]
+          }
+        },
+        {
+          "case": "accessible-pinned-C",
+          "status": "PASS",
+          "evidence": {
+            "name": "置顶消息 · 导航A_qtx11_171939：原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻",
+            "description": "置顶消息 · 导航A_qtx11_171939：原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻\n点击定位；较早的消息通过搜索查看。",
+            "role": "push button",
+            "physical_rect": [
+              1631.0,
+              66.0,
+              737.0,
+              29.0
+            ],
+            "actual_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ]
+          }
+        },
+        {
+          "case": "actual-keyboard-focus-visible",
+          "status": "PASS",
+          "evidence": {
+            "tabs": 9,
+            "physical_rect": [
+              431.0,
+              66.0,
+              610.0,
+              37.0
+            ],
+            "unfocused": "/tmp/chat-pinned-official-after.wMg6cf/w1180-171938/02-original-unfocused-pinned.png",
+            "focused": "/tmp/chat-pinned-official-after.wMg6cf/w1180-171938/03-original-keyboard-focused-pinned.png"
+          }
+        },
+        {
+          "case": "04-original-Space-actual-search",
+          "status": "PASS",
+          "evidence": {
+            "query": "原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻",
+            "result_name": "你；2026-10-06 17:19；原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻👍🏽长长长长长长长👨‍👩‍👧‍👦尾字\n保留原始正文与尾行；已读",
+            "pinned_id": 2
+          }
+        },
+        {
+          "case": "05-original-click-actual-search",
+          "status": "PASS",
+          "evidence": {
+            "query": "原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻",
+            "result_name": "导航A_qtx11_171939；2026-10-06 17:19；原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻👍🏽长长长长长长长👨‍👩‍👧‍👦尾字\n保留原始正文与尾行",
+            "pinned_id": 2
+          }
+        },
+        {
+          "case": "actual-owner-unpin",
+          "status": "PASS",
+          "evidence": {
+            "room": 1,
+            "both_clients_hidden": true,
+            "read_only_sql_null": true
+          }
+        }
+      ],
+      "original_pngs": [
+        {
+          "path": "/tmp/chat-pinned-official-after.wMg6cf/w1180-171938/01-original-two-native-pinned-natural-width.png",
+          "sha256": "8e5696747cb78829d7f6ff419ac0044358d4a66ccd207fb139eef6a00ef225bf"
+        },
+        {
+          "path": "/tmp/chat-pinned-official-after.wMg6cf/w1180-171938/02-original-unfocused-pinned.png",
+          "sha256": "a58bc0b28fefe6b83dcc45edc4229499d34dd5c5154a8c4d1d0e98135f4835cc"
+        },
+        {
+          "path": "/tmp/chat-pinned-official-after.wMg6cf/w1180-171938/03-original-keyboard-focused-pinned.png",
+          "sha256": "126417c63dec27bb35bff73f6c42493ac6a86326bb4a4fbd3e0b9ce0aad735e8"
+        },
+        {
+          "path": "/tmp/chat-pinned-official-after.wMg6cf/w1180-171938/04-original-Space-actual-search.png",
+          "sha256": "3f2eaffe1235f39aec0407c99cac926c26ac1aaeb02869113046751bb00a63dc"
+        },
+        {
+          "path": "/tmp/chat-pinned-official-after.wMg6cf/w1180-171938/05-original-click-actual-search.png",
+          "sha256": "5ed730a2eb7a3e8cb70e13cd399ac4dbbf06e19f327b582eeb01912502b4c574"
+        },
+        {
+          "path": "/tmp/chat-pinned-official-after.wMg6cf/w1180-171938/06-original-hover-tooltip-optional.png",
+          "sha256": "dc9707b72593368e07ffa33b76da59418c9a34a1552eaaee118d8b0836bccdd6"
+        },
+        {
+          "path": "/tmp/chat-pinned-official-after.wMg6cf/w1180-171938/07-original-native-unpin-reflected.png",
+          "sha256": "da6c77cc9b41befcc177a194623e5f18dd770487fb0e3465b609d2016a069b83"
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "path": "/tmp/chat-pinned-official-after.wMg6cf/w1440-171955",
+      "actual_exit": 0,
+      "result": {
+        "status": "PASS",
+        "width": 1440,
+        "scope": "Pinned label accessibility/native focus, Space/click actual older-message search and owner unpin; full original PNGs require human visual review.",
+        "binary": "/home/gyl/example/chat/build/qt/chat_qt",
+        "binary_sha256": "3bb090e6fb0984b8e957579a0ee3dbcc356331b26a41b6edfa6c3565067f1120",
+        "source_pins_sha256": "3d438fc2caab687f5e1cadc35a257d266019e49e686719dfbbd7494a3d464132",
+        "helper_sha256": "afd8a595fa6f0d39ab8655271f6f165d2a5529b67feee86264fc69c188309a0b",
+        "driver_sha256": "58779a5fa313735ab0b250bc171b645621a161bee2712ac8601bda3d50e8ff7b",
+        "display": ":0",
+        "canvas": [
+          2920,
+          1000
+        ],
+        "no_postlogin_resize_or_repaint": true,
+        "max_wait_seconds": 15
+      },
+      "cleanup": {
+        "database_removed": true,
+        "database": "chat_qtx11_1006171955_3869208",
+        "owned": [
+          {
+            "pid": 3869237,
+            "exit": 0
+          },
+          {
+            "pid": 3869238,
+            "exit": 0
+          },
+          {
+            "pid": 3869370,
+            "exit": 0
+          },
+          {
+            "pid": 3869471,
+            "exit": -15
+          },
+          {
+            "pid": 3869543,
+            "exit": -15
+          }
+        ],
+        "protected_unchanged": true,
+        "workflow_exit": 0
+      },
+      "owned_pids_still_exist": [],
+      "source_check_before": "CMakeLists.txt: 成功\nclient/include/chat/attachment.hpp: 成功\nclient/include/chat/avatar.hpp: 成功\nclient/include/chat/client.hpp: 成功\nclient/include/chat/conversation.hpp: 成功\nclient/include/chat/detail/base64.hpp: 成功\nclient/include/chat/error.hpp: 成功\nclient/include/chat/friendship.hpp: 成功\nclient/include/chat/member.hpp: 成功\nclient/include/chat/message.hpp: 成功\nclient/include/chat/presence.hpp: 成功\nclient/include/chat/reaction.hpp: 成功\nclient/include/chat/text.hpp: 成功\nclient/include/chat/typing.hpp: 成功\nclient/include/chat/user.hpp: 成功\nclient/src/client.cpp: 成功\nclient/src/websocket.cpp: 成功\nclient/src/websocket.hpp: 成功\ncmake/chat_emoji_scanner.cmake: 成功\ncmake/chat_unicode.cmake: 成功\nqt/CMakeLists.txt: 成功\nqt/resources/icons/activity.svg: 成功\nqt/resources/icons/bookmark.svg: 成功\nqt/resources/icons/chat.svg: 成功\nqt/resources/icons/check.svg: 成功\nqt/resources/icons/close.svg: 成功\nqt/resources/icons/contacts.svg: 成功\nqt/resources/icons/copy.svg: 成功\nqt/resources/icons/groups.svg: 成功\nqt/resources/icons/send.svg: 成功\nqt/src/attachment_dialog.cpp: 成功\nqt/src/attachment_dialog.hpp: 成功\nqt/src/avatar.cpp: 成功\nqt/src/avatar.hpp: 成功\nqt/src/chat_widget.cpp: 成功\nqt/src/chat_widget.hpp: 成功\nqt/src/client_bridge.cpp: 成功\nqt/src/client_bridge.hpp: 成功\nqt/src/conversation_data.hpp: 成功\nqt/src/conversation_delegate.cpp: 成功\nqt/src/conversation_delegate.hpp: 成功\nqt/src/conversation_model.cpp: 成功\nqt/src/conversation_model.hpp: 成功\nqt/src/emoji_segments.cpp: 成功\nqt/src/emoji_segments.hpp: 成功\nqt/src/emoji_text.cpp: 成功\nqt/src/emoji_text.hpp: 成功\nqt/src/group_dialog.cpp: 成功\nqt/src/group_dialog.hpp: 成功\nqt/src/icons.cpp: 成功\nqt/src/icons.hpp: 成功\nqt/src/main.cpp: 成功\nqt/src/main_window.cpp: 成功\nqt/src/main_window.hpp: 成功\nqt/src/member_data.hpp: 成功\nqt/src/message_data.hpp: 成功\nqt/src/message_delegate.cpp: 成功\nqt/src/message_delegate.hpp: 成功\nqt/src/message_images.cpp: 成功\nqt/src/message_images.hpp: 成功\nqt/src/message_model.cpp: 成功\nqt/src/message_model.hpp: 成功\nqt/src/message_search_dialog.cpp: 成功\nqt/src/message_search_dialog.hpp: 成功\nqt/src/presence.hpp: 成功\nqt/src/presence_data.hpp: 成功\nqt/src/theme.cpp: 成功\nqt/src/theme.hpp: 成功\nqt/src/user_data.hpp: 成功\nqt/src/user_delegate.cpp: 成功\nqt/src/user_delegate.hpp: 成功\nqt/src/user_model.cpp: 成功\nqt/src/user_model.hpp: 成功\ntui/cmake/unicode/.gitattributes: 成功\ntui/cmake/unicode/UNICODE-LICENSE.txt: 成功\ntui/cmake/unicode/emoji-data-18.0.0.txt: 成功\ntui/cmake/unicode/emoji_properties_18.inc: 成功\nbuild/_deps/utf8proc-src/utf8proc.h: 成功\nbuild/_deps/utf8proc-src/utf8proc.c: 成功\nbuild/_deps/utf8proc-src/utf8proc_data.c: 成功\nbuild/_deps/chat_emoji_segmenter-src/emoji_presentation_scanner.c: 成功\nbuild/_deps/chat_emoji_segmenter-src/LICENSE: 成功\nbuild/chat_server: 成功\nbuild/chat_tui_scale_fixture: 成功\n",
+      "source_check_after": "CMakeLists.txt: 成功\nclient/include/chat/attachment.hpp: 成功\nclient/include/chat/avatar.hpp: 成功\nclient/include/chat/client.hpp: 成功\nclient/include/chat/conversation.hpp: 成功\nclient/include/chat/detail/base64.hpp: 成功\nclient/include/chat/error.hpp: 成功\nclient/include/chat/friendship.hpp: 成功\nclient/include/chat/member.hpp: 成功\nclient/include/chat/message.hpp: 成功\nclient/include/chat/presence.hpp: 成功\nclient/include/chat/reaction.hpp: 成功\nclient/include/chat/text.hpp: 成功\nclient/include/chat/typing.hpp: 成功\nclient/include/chat/user.hpp: 成功\nclient/src/client.cpp: 成功\nclient/src/websocket.cpp: 成功\nclient/src/websocket.hpp: 成功\ncmake/chat_emoji_scanner.cmake: 成功\ncmake/chat_unicode.cmake: 成功\nqt/CMakeLists.txt: 成功\nqt/resources/icons/activity.svg: 成功\nqt/resources/icons/bookmark.svg: 成功\nqt/resources/icons/chat.svg: 成功\nqt/resources/icons/check.svg: 成功\nqt/resources/icons/close.svg: 成功\nqt/resources/icons/contacts.svg: 成功\nqt/resources/icons/copy.svg: 成功\nqt/resources/icons/groups.svg: 成功\nqt/resources/icons/send.svg: 成功\nqt/src/attachment_dialog.cpp: 成功\nqt/src/attachment_dialog.hpp: 成功\nqt/src/avatar.cpp: 成功\nqt/src/avatar.hpp: 成功\nqt/src/chat_widget.cpp: 成功\nqt/src/chat_widget.hpp: 成功\nqt/src/client_bridge.cpp: 成功\nqt/src/client_bridge.hpp: 成功\nqt/src/conversation_data.hpp: 成功\nqt/src/conversation_delegate.cpp: 成功\nqt/src/conversation_delegate.hpp: 成功\nqt/src/conversation_model.cpp: 成功\nqt/src/conversation_model.hpp: 成功\nqt/src/emoji_segments.cpp: 成功\nqt/src/emoji_segments.hpp: 成功\nqt/src/emoji_text.cpp: 成功\nqt/src/emoji_text.hpp: 成功\nqt/src/group_dialog.cpp: 成功\nqt/src/group_dialog.hpp: 成功\nqt/src/icons.cpp: 成功\nqt/src/icons.hpp: 成功\nqt/src/main.cpp: 成功\nqt/src/main_window.cpp: 成功\nqt/src/main_window.hpp: 成功\nqt/src/member_data.hpp: 成功\nqt/src/message_data.hpp: 成功\nqt/src/message_delegate.cpp: 成功\nqt/src/message_delegate.hpp: 成功\nqt/src/message_images.cpp: 成功\nqt/src/message_images.hpp: 成功\nqt/src/message_model.cpp: 成功\nqt/src/message_model.hpp: 成功\nqt/src/message_search_dialog.cpp: 成功\nqt/src/message_search_dialog.hpp: 成功\nqt/src/presence.hpp: 成功\nqt/src/presence_data.hpp: 成功\nqt/src/theme.cpp: 成功\nqt/src/theme.hpp: 成功\nqt/src/user_data.hpp: 成功\nqt/src/user_delegate.cpp: 成功\nqt/src/user_delegate.hpp: 成功\nqt/src/user_model.cpp: 成功\nqt/src/user_model.hpp: 成功\ntui/cmake/unicode/.gitattributes: 成功\ntui/cmake/unicode/UNICODE-LICENSE.txt: 成功\ntui/cmake/unicode/emoji-data-18.0.0.txt: 成功\ntui/cmake/unicode/emoji_properties_18.inc: 成功\nbuild/_deps/utf8proc-src/utf8proc.h: 成功\nbuild/_deps/utf8proc-src/utf8proc.c: 成功\nbuild/_deps/utf8proc-src/utf8proc_data.c: 成功\nbuild/_deps/chat_emoji_segmenter-src/emoji_presentation_scanner.c: 成功\nbuild/_deps/chat_emoji_segmenter-src/LICENSE: 成功\nbuild/chat_server: 成功\nbuild/chat_tui_scale_fixture: 成功\n",
+      "actual_runtime_before": [
+        {
+          "alias": "A",
+          "pid": 3869471,
+          "exe": "/home/gyl/example/chat/build/qt/chat_qt",
+          "sha256": "3bb090e6fb0984b8e957579a0ee3dbcc356331b26a41b6edfa6c3565067f1120",
+          "loaded_qt": [
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Core.so.6.5.3",
+              "sha256": "a187d03f0d9c170fa4dcabc8abc89eb99d163e5b82c64c4667674c6f957c63f0"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6DBus.so.6.5.3",
+              "sha256": "11304f90d948a59d887c7d54a30b388f8a06bbf0689e9707a62b9bed872c0beb"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Gui.so.6.5.3",
+              "sha256": "9a89e05fc892b13084e73397c29a10427c9e45ad729c2ae68c4f51bfb9e545ec"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Svg.so.6.5.3",
+              "sha256": "e93654ab378624f695e0629d22382a8e298b39141cda1132b757dfa3985afa21"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Widgets.so.6.5.3",
+              "sha256": "3130aa61288d76303c46b27d1b91db8c456a9caef8d7111c1c61b07278e0ed46"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6XcbQpa.so.6.5.3",
+              "sha256": "e55dd060aaa4cf90745001a7689e3812047f2b0c14300b3064e6636aaa3b40b8"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so",
+              "sha256": "86f9de45c5f2a27bf22d58810f40dddb01e2d8529d41a024ea90aeb34036530c"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforms/libqxcb.so",
+              "sha256": "27344b5533a430df9db8d253fb9177dd8ea7e0f28ee3958971cbbd13d87ccc94"
+            }
+          ]
+        },
+        {
+          "alias": "C",
+          "pid": 3869543,
+          "exe": "/home/gyl/example/chat/build/qt/chat_qt",
+          "sha256": "3bb090e6fb0984b8e957579a0ee3dbcc356331b26a41b6edfa6c3565067f1120",
+          "loaded_qt": [
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Core.so.6.5.3",
+              "sha256": "a187d03f0d9c170fa4dcabc8abc89eb99d163e5b82c64c4667674c6f957c63f0"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6DBus.so.6.5.3",
+              "sha256": "11304f90d948a59d887c7d54a30b388f8a06bbf0689e9707a62b9bed872c0beb"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Gui.so.6.5.3",
+              "sha256": "9a89e05fc892b13084e73397c29a10427c9e45ad729c2ae68c4f51bfb9e545ec"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Svg.so.6.5.3",
+              "sha256": "e93654ab378624f695e0629d22382a8e298b39141cda1132b757dfa3985afa21"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Widgets.so.6.5.3",
+              "sha256": "3130aa61288d76303c46b27d1b91db8c456a9caef8d7111c1c61b07278e0ed46"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6XcbQpa.so.6.5.3",
+              "sha256": "e55dd060aaa4cf90745001a7689e3812047f2b0c14300b3064e6636aaa3b40b8"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so",
+              "sha256": "86f9de45c5f2a27bf22d58810f40dddb01e2d8529d41a024ea90aeb34036530c"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforms/libqxcb.so",
+              "sha256": "27344b5533a430df9db8d253fb9177dd8ea7e0f28ee3958971cbbd13d87ccc94"
+            }
+          ]
+        }
+      ],
+      "actual_runtime_after": [
+        {
+          "alias": "A",
+          "pid": 3869471,
+          "exe": "/home/gyl/example/chat/build/qt/chat_qt",
+          "sha256": "3bb090e6fb0984b8e957579a0ee3dbcc356331b26a41b6edfa6c3565067f1120",
+          "loaded_qt": [
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Core.so.6.5.3",
+              "sha256": "a187d03f0d9c170fa4dcabc8abc89eb99d163e5b82c64c4667674c6f957c63f0"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6DBus.so.6.5.3",
+              "sha256": "11304f90d948a59d887c7d54a30b388f8a06bbf0689e9707a62b9bed872c0beb"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Gui.so.6.5.3",
+              "sha256": "9a89e05fc892b13084e73397c29a10427c9e45ad729c2ae68c4f51bfb9e545ec"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Svg.so.6.5.3",
+              "sha256": "e93654ab378624f695e0629d22382a8e298b39141cda1132b757dfa3985afa21"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Widgets.so.6.5.3",
+              "sha256": "3130aa61288d76303c46b27d1b91db8c456a9caef8d7111c1c61b07278e0ed46"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6XcbQpa.so.6.5.3",
+              "sha256": "e55dd060aaa4cf90745001a7689e3812047f2b0c14300b3064e6636aaa3b40b8"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so",
+              "sha256": "86f9de45c5f2a27bf22d58810f40dddb01e2d8529d41a024ea90aeb34036530c"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforms/libqxcb.so",
+              "sha256": "27344b5533a430df9db8d253fb9177dd8ea7e0f28ee3958971cbbd13d87ccc94"
+            }
+          ]
+        },
+        {
+          "alias": "C",
+          "pid": 3869543,
+          "exe": "/home/gyl/example/chat/build/qt/chat_qt",
+          "sha256": "3bb090e6fb0984b8e957579a0ee3dbcc356331b26a41b6edfa6c3565067f1120",
+          "loaded_qt": [
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Core.so.6.5.3",
+              "sha256": "a187d03f0d9c170fa4dcabc8abc89eb99d163e5b82c64c4667674c6f957c63f0"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6DBus.so.6.5.3",
+              "sha256": "11304f90d948a59d887c7d54a30b388f8a06bbf0689e9707a62b9bed872c0beb"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Gui.so.6.5.3",
+              "sha256": "9a89e05fc892b13084e73397c29a10427c9e45ad729c2ae68c4f51bfb9e545ec"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Svg.so.6.5.3",
+              "sha256": "e93654ab378624f695e0629d22382a8e298b39141cda1132b757dfa3985afa21"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Widgets.so.6.5.3",
+              "sha256": "3130aa61288d76303c46b27d1b91db8c456a9caef8d7111c1c61b07278e0ed46"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6XcbQpa.so.6.5.3",
+              "sha256": "e55dd060aaa4cf90745001a7689e3812047f2b0c14300b3064e6636aaa3b40b8"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so",
+              "sha256": "86f9de45c5f2a27bf22d58810f40dddb01e2d8529d41a024ea90aeb34036530c"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforms/libqxcb.so",
+              "sha256": "27344b5533a430df9db8d253fb9177dd8ea7e0f28ee3958971cbbd13d87ccc94"
+            }
+          ]
+        }
+      ],
+      "cases": [
+        {
+          "case": "accessible-pinned-A",
+          "status": "PASS",
+          "evidence": {
+            "name": "置顶消息 · 导航A_qtx11_171956：原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻",
+            "description": "置顶消息 · 导航A_qtx11_171956：原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻\n点击定位；较早的消息通过搜索查看。",
+            "role": "push button",
+            "physical_rect": [
+              431.0,
+              66.0,
+              870.0,
+              37.0
+            ],
+            "actual_frame": [
+              0,
+              0,
+              1440,
+              760
+            ]
+          }
+        },
+        {
+          "case": "accessible-pinned-C",
+          "status": "PASS",
+          "evidence": {
+            "name": "置顶消息 · 导航A_qtx11_171956：原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻",
+            "description": "置顶消息 · 导航A_qtx11_171956：原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻\n点击定位；较早的消息通过搜索查看。",
+            "role": "push button",
+            "physical_rect": [
+              1891.0,
+              66.0,
+              997.0,
+              29.0
+            ],
+            "actual_frame": [
+              1460,
+              0,
+              1440,
+              760
+            ]
+          }
+        },
+        {
+          "case": "actual-keyboard-focus-visible",
+          "status": "PASS",
+          "evidence": {
+            "tabs": 9,
+            "physical_rect": [
+              431.0,
+              66.0,
+              870.0,
+              37.0
+            ],
+            "unfocused": "/tmp/chat-pinned-official-after.wMg6cf/w1440-171955/02-original-unfocused-pinned.png",
+            "focused": "/tmp/chat-pinned-official-after.wMg6cf/w1440-171955/03-original-keyboard-focused-pinned.png"
+          }
+        },
+        {
+          "case": "04-original-Space-actual-search",
+          "status": "PASS",
+          "evidence": {
+            "query": "原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻",
+            "result_name": "你；2026-10-06 17:20；原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻👍🏽长长长长长长长👨‍👩‍👧‍👦尾字\n保留原始正文与尾行；已读",
+            "pinned_id": 2
+          }
+        },
+        {
+          "case": "05-original-click-actual-search",
+          "status": "PASS",
+          "evidence": {
+            "query": "原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻",
+            "result_name": "导航A_qtx11_171956；2026-10-06 17:20；原生置顶诊断&长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长é❤️1️⃣👩‍💻👍🏽长长长长长长长👨‍👩‍👧‍👦尾字\n保留原始正文与尾行",
+            "pinned_id": 2
+          }
+        },
+        {
+          "case": "actual-owner-unpin",
+          "status": "PASS",
+          "evidence": {
+            "room": 1,
+            "both_clients_hidden": true,
+            "read_only_sql_null": true
+          }
+        }
+      ],
+      "original_pngs": [
+        {
+          "path": "/tmp/chat-pinned-official-after.wMg6cf/w1440-171955/01-original-two-native-pinned-natural-width.png",
+          "sha256": "a2e621cb1084428c233de8e8774c84cb7f91e8626a8b6cd54017532626b6977e"
+        },
+        {
+          "path": "/tmp/chat-pinned-official-after.wMg6cf/w1440-171955/02-original-unfocused-pinned.png",
+          "sha256": "95b63eacac6de66a266f007e891316b422f368fb0215dbce3c554d7661adf166"
+        },
+        {
+          "path": "/tmp/chat-pinned-official-after.wMg6cf/w1440-171955/03-original-keyboard-focused-pinned.png",
+          "sha256": "b4a1aca63c7c49b155d1d69a90a0586b066f9f89b991083098c5f9dc513cd73d"
+        },
+        {
+          "path": "/tmp/chat-pinned-official-after.wMg6cf/w1440-171955/04-original-Space-actual-search.png",
+          "sha256": "f86dca2e569faa014d69635372fba98c64571dd8c0af885e411fd26bb0d8b9fc"
+        },
+        {
+          "path": "/tmp/chat-pinned-official-after.wMg6cf/w1440-171955/05-original-click-actual-search.png",
+          "sha256": "cfe594f02f27544c6984569f1d5d461d63f5a0a4bf75f74a473d86812e8bac48"
+        },
+        {
+          "path": "/tmp/chat-pinned-official-after.wMg6cf/w1440-171955/06-original-hover-tooltip-optional.png",
+          "sha256": "7adc4920c9b08de079e0e117c727a07760d280611e8b10ef469ba40b7798c483"
+        },
+        {
+          "path": "/tmp/chat-pinned-official-after.wMg6cf/w1440-171955/07-original-native-unpin-reflected.png",
+          "sha256": "a06635523340a3ce001a1b21d0d24ae2db661ebd595a119b0ac6d0f635e28627"
+        }
+      ]
+    }
+  ],
+  "visual_review": {
+    "reviewed_original_full_pngs": [
+      "/tmp/chat-pinned-official-after.wMg6cf/w980-171922/01-original-two-native-pinned-natural-width.png",
+      "/tmp/chat-pinned-official-after.wMg6cf/w1180-171938/01-original-two-native-pinned-natural-width.png",
+      "/tmp/chat-pinned-official-after.wMg6cf/w1440-171955/01-original-two-native-pinned-natural-width.png"
+    ],
+    "pinned_leading_label": "visible at all three natural widths",
+    "right_ellipsis": "visible at all three natural widths",
+    "unpin_overlap": "no overlap, real owner action succeeded",
+    "unpin_background_and_label": "white secondary-action background and clear dark-green label at all three widths; previous black background is absent",
+    "keyboard_focus_scope": "Native real Tab focus is for the pinned summary button, each width with changed pixels and actual Space search. This unchanged driver does not independently traverse unpin hover/focus states.",
+    "tooltip_scope": "Full accessible tooltip and naturally captured native tooltip; no claim about Qt standard tooltip whole-EGC rendering."
+  },
+  "before_proof": {
+    "path": "/tmp/chat-pinned-button-native.Y5MkL7/native-pinned-actual-proof.json",
+    "sha256": "4a3362ccff21aca03da52ed847e1729de65fc9eb61687dcbf12e370e07875c0a",
+    "history_retained": true,
+    "unpin_before_visual": "black background with low contrast dark label; driver functional actual0 was NOT claimed full visual GREEN"
+  },
+  "launch_wrapper_pid": 3867423,
+  "official_binary": true,
+  "head_before": "31f09f0ca6d22118f8953b0eb0088e954fdf0ddc",
+  "head_after": "31f09f0ca6d22118f8953b0eb0088e954fdf0ddc",
+  "private_candidate_after_proof": {
+    "path": "/tmp/chat-pinned-button-after.yhxMyL/native-pinned-after-actual-proof.json",
+    "sha256": "0ce492ca17be400c82f094374fb09f55dd7a9d75eb0f649f6efdd035da39953b"
+  },
+  "protected_after_observed": [
+    {
+      "pid": 2876288,
+      "actual_start_ticks": "521400965",
+      "expected_start_ticks": "521400965",
+      "cmdline_hex": "2f686f6d652f67796c2f6578616d706c652f636861742f6275696c642f636861745f73657276657200313830383000313600313600"
+    },
+    {
+      "pid": 3225,
+      "actual_start_ticks": "17583",
+      "expected_start_ticks": "17583",
+      "cmdline_hex": "2f7573722f62696e2f666369747835002d6400"
+    },
+    {
+      "pid": 29935,
+      "actual_start_ticks": "248258",
+      "expected_start_ticks": "248258",
+      "cmdline_hex": "2f7573722f62696e2f7370656563682d64697370617463686572002d73002d74003000"
+    }
+  ],
+  "protected_before_guard": "Unchanged driver asserts the three expected ticks before launch, holds cmdline bytes in memory and checks ticks plus bytes again after cleanup; per-run cleanup protected_unchanged true."
+}

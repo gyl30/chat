@@ -1,0 +1,717 @@
+{
+  "purpose": "Final official production Chat TUI native verification after actual original full gates; fixed modern chain only",
+  "scope": "/tmp/chat-t04-official-native.wJWXFQ6v/native",
+  "head": "31f09f0ca6d22118f8953b0eb0088e954fdf0ddc",
+  "binary": {
+    "path": "/home/gyl/example/chat/build/chat_tui",
+    "sha256": "d8d2b478c0b383637e98cefcd3ce6298fbd32595c82f5ae45afca2ff705f4f21",
+    "actually_executed_proc_snapshot": {
+      "pid": 3868438,
+      "alive": true,
+      "state": "S",
+      "executable": "/home/gyl/example/chat/build/chat_tui",
+      "start_ticks": 547098207,
+      "cpu_seconds": 0.09,
+      "rss_kib": 12144,
+      "peak_rss_kib": 12144,
+      "threads": 4,
+      "fds": 7
+    },
+    "manifest_sha256": "c8ee149674ad219f0b1924c640d37a9aecf81768d36d046e6d1c03571e936e8a"
+  },
+  "source_generated_sha256": {
+    "build/chat_tui": "d8d2b478c0b383637e98cefcd3ce6298fbd32595c82f5ae45afca2ff705f4f21",
+    "build/chat_server": "f2c9288cbc32817183e399e72a4a3af8e45adfdfbd54435af43aae86da36bf5b",
+    "build/chat_tui_scale_fixture": "b624a131f2170164bd4f9b2c9ac2cc732fd6b62c23819f3a8b9d7fc0b4d021fe",
+    "tui/cmake/ftxui-7.0.3-grapheme.patch": "9b10a08430a99075f4e39c9cac9a9ad80c9dc49b8f04d73c453733555794917d",
+    "tui/tests/display_test.cpp": "77ea73ba0bb37ce358fe856b736beef65e4c6062c2d6326ff53fd75024bb7055",
+    "tui/tests/span_test.cpp": "5edc4a8110b81cfed7f2c8f27438e215ad56084ae4af51c4718fbfca309409f3",
+    "build/tui/ftxui-patched/src/ftxui/screen/string.cpp": "80b6ec2beface1bff828543aaeb871533abcd03a13815950a542f4b957c8f383",
+    "build/tui/ftxui-patched/src/ftxui/screen/screen.cpp": "9cde14a8c652ebff8778b11fdc91748742ff4a430d195694bb38fd8a7cc0c4b2",
+    "build/tui/ftxui-patched/src/ftxui/dom/canvas.cpp": "7e8a9ba1b383cac8093a2a1ac20b772c97384ef1cd30ac73f3f79e9b6ca641c9",
+    "tests/verify.sh": "38d3408e537d67182689f59d452e9d8e5bf164f38a9b5baaa93fbd8b36eb5f29",
+    "tui/src/app.cpp": "3cfff26307318d1badc870554800cddafe4158866bccbd800db17b66be44db7a",
+    "tui/src/app.hpp": "89b9f37259e60109284ff5511322d794fac291f158f3ac5a07cfc53603f3a860",
+    "tui/src/deadline.hpp": "dbe2a40c1a61b75032843ab82fc8dd898f0d0f8ecbfe6cde15fbf528274584f2",
+    "tui/src/file_io.hpp": "36628265415a0fbae479eec5c76f122362a7a61de2ee9b32cfa94cf41ad5ef7d",
+    "tui/src/groups.cpp": "3a6c19da31f784377d64112063783f2197a9ea08ff2ded783a245af60ce89c99",
+    "tui/src/inbox.hpp": "53a0dbb45136c8f1b783b948373658b2897d976944eaff1353624150ec5d1bba",
+    "tui/src/main.cpp": "05ed5edddc04b9590edeb11db6261a0e0440e32ea54af98a65b6d9afbd79b620",
+    "tui/src/messages.cpp": "f6c414041e8b17f7f59fad4c29589e3bf7bd45f30fc365b555f9c0c8fd164340",
+    "tui/src/profile.cpp": "a464531debbf5b4c618d712276fa5d526ba70599cd7a9f26aa490e2003481990",
+    "tui/src/state.cpp": "d8b99d807e119b410bb5a0df2d7c8e84d75ebb326cedf4d9526665038c3fa5ab",
+    "tui/src/state.hpp": "32e853f0bce108fd5425351a2f882db9c4e11d074f6e742e33caa347647d531e",
+    "tui/src/ui.cpp": "b8f06e5b273f7f5df04950e9f9e4fa4c4d041fe1b58995071a81ec2491f3c179",
+    "tui/src/ui.hpp": "4fdeb7385b98761ae916db52d23f0d3079c9e90d0f0eb8391409fdfd00a4e62e"
+  },
+  "actual_original_full_gates": {
+    "reference": "docs/images/experience/qt-tui-craft-original-verify-proof.json",
+    "sha256": "ce6d7c90636c0cd04b39e304a7efe1d46a2b7453f99299c6723c7def7c90e523",
+    "runner_exit": 0,
+    "original_verify_exit": 0,
+    "original_verify_script_sha256": "38d3408e537d67182689f59d452e9d8e5bf164f38a9b5baaa93fbd8b36eb5f29",
+    "script_after_check_exit": 0,
+    "no_test_skips_or_timeout_changes": true,
+    "source_inputs": {
+      "count": 204,
+      "tracked": 200,
+      "external_pinned_compile_files": 4,
+      "after_check_exit": 0,
+      "proof": "source.before.sha256 + source.after.check",
+      "manifest_sha256": "f5bb32a9dd295f98e00cb1a6e4e58e28fb279a7bd63201169824ab5646098a0e"
+    },
+    "modes": [
+      {
+        "mode": "normal",
+        "original_summary": "100% tests passed, 0 tests failed out of 23",
+        "total_seconds": 115.53,
+        "tui": [
+          {
+            "name": "tui_integration",
+            "result": "Passed",
+            "seconds": 11.33,
+            "explicit_timeout_seconds": 60
+          },
+          {
+            "name": "tui_render",
+            "result": "Passed",
+            "seconds": 0.92,
+            "explicit_timeout_seconds": 5
+          },
+          {
+            "name": "tui_unicode",
+            "result": "Passed",
+            "seconds": 0.03,
+            "explicit_timeout_seconds": 5
+          },
+          {
+            "name": "tui_display",
+            "result": "Passed",
+            "seconds": 0.01,
+            "explicit_timeout_seconds": 5
+          },
+          {
+            "name": "tui_span",
+            "result": "Passed",
+            "seconds": 0,
+            "explicit_timeout_seconds": 5
+          },
+          {
+            "name": "tui_state",
+            "result": "Passed",
+            "seconds": 0,
+            "explicit_timeout_seconds": 5
+          },
+          {
+            "name": "tui_inbox",
+            "result": "Passed",
+            "seconds": 0,
+            "explicit_timeout_seconds": 5
+          },
+          {
+            "name": "tui_file",
+            "result": "Passed",
+            "seconds": 0.02,
+            "explicit_timeout_seconds": 5
+          }
+        ]
+      },
+      {
+        "mode": "asan",
+        "original_summary": "100% tests passed, 0 tests failed out of 23",
+        "total_seconds": 160.62,
+        "tui": [
+          {
+            "name": "tui_integration",
+            "result": "Passed",
+            "seconds": 16.48,
+            "explicit_timeout_seconds": 60
+          },
+          {
+            "name": "tui_render",
+            "result": "Passed",
+            "seconds": 4.45,
+            "explicit_timeout_seconds": 5
+          },
+          {
+            "name": "tui_unicode",
+            "result": "Passed",
+            "seconds": 0.14,
+            "explicit_timeout_seconds": 5
+          },
+          {
+            "name": "tui_display",
+            "result": "Passed",
+            "seconds": 0.06,
+            "explicit_timeout_seconds": 5
+          },
+          {
+            "name": "tui_span",
+            "result": "Passed",
+            "seconds": 0.01,
+            "explicit_timeout_seconds": 5
+          },
+          {
+            "name": "tui_state",
+            "result": "Passed",
+            "seconds": 0.01,
+            "explicit_timeout_seconds": 5
+          },
+          {
+            "name": "tui_inbox",
+            "result": "Passed",
+            "seconds": 0.02,
+            "explicit_timeout_seconds": 5
+          },
+          {
+            "name": "tui_file",
+            "result": "Passed",
+            "seconds": 0.02,
+            "explicit_timeout_seconds": 5
+          }
+        ]
+      },
+      {
+        "mode": "ubsan",
+        "original_summary": "100% tests passed, 0 tests failed out of 23",
+        "total_seconds": 146.02,
+        "tui": [
+          {
+            "name": "tui_integration",
+            "result": "Passed",
+            "seconds": 15.63,
+            "explicit_timeout_seconds": 60
+          },
+          {
+            "name": "tui_render",
+            "result": "Passed",
+            "seconds": 1.85,
+            "explicit_timeout_seconds": 5
+          },
+          {
+            "name": "tui_unicode",
+            "result": "Passed",
+            "seconds": 0.05,
+            "explicit_timeout_seconds": 5
+          },
+          {
+            "name": "tui_display",
+            "result": "Passed",
+            "seconds": 0.03,
+            "explicit_timeout_seconds": 5
+          },
+          {
+            "name": "tui_span",
+            "result": "Passed",
+            "seconds": 0,
+            "explicit_timeout_seconds": 5
+          },
+          {
+            "name": "tui_state",
+            "result": "Passed",
+            "seconds": 0,
+            "explicit_timeout_seconds": 5
+          },
+          {
+            "name": "tui_inbox",
+            "result": "Passed",
+            "seconds": 0,
+            "explicit_timeout_seconds": 5
+          },
+          {
+            "name": "tui_file",
+            "result": "Passed",
+            "seconds": 0.02,
+            "explicit_timeout_seconds": 5
+          }
+        ]
+      }
+    ],
+    "production_generated_tui": {
+      "normal": {
+        "binary_sha256": "d8d2b478c0b383637e98cefcd3ce6298fbd32595c82f5ae45afca2ff705f4f21",
+        "generated_units": {
+          "screen/string.cpp": "80b6ec2beface1bff828543aaeb871533abcd03a13815950a542f4b957c8f383",
+          "screen/screen.cpp": "9cde14a8c652ebff8778b11fdc91748742ff4a430d195694bb38fd8a7cc0c4b2",
+          "dom/canvas.cpp": "7e8a9ba1b383cac8093a2a1ac20b772c97384ef1cd30ac73f3f79e9b6ca641c9"
+        }
+      },
+      "asan": {
+        "binary_sha256": "0db593f637d094ce44492f0b4031ecaef8a75582c81ad3b639106f249065c5f2",
+        "generated_units": {
+          "screen/string.cpp": "80b6ec2beface1bff828543aaeb871533abcd03a13815950a542f4b957c8f383",
+          "screen/screen.cpp": "9cde14a8c652ebff8778b11fdc91748742ff4a430d195694bb38fd8a7cc0c4b2",
+          "dom/canvas.cpp": "7e8a9ba1b383cac8093a2a1ac20b772c97384ef1cd30ac73f3f79e9b6ca641c9"
+        }
+      },
+      "ubsan": {
+        "binary_sha256": "cbc7ca86a5888311212ccb4799147742ba0ce31f8ac300bd5199b7b7b633cd85",
+        "generated_units": {
+          "screen/string.cpp": "80b6ec2beface1bff828543aaeb871533abcd03a13815950a542f4b957c8f383",
+          "screen/screen.cpp": "9cde14a8c652ebff8778b11fdc91748742ff4a430d195694bb38fd8a7cc0c4b2",
+          "dom/canvas.cpp": "7e8a9ba1b383cac8093a2a1ac20b772c97384ef1cd30ac73f3f79e9b6ca641c9"
+        }
+      }
+    }
+  },
+  "native": {
+    "driver_actual_exit": 0,
+    "native_child_actual_exit": {
+      "actual_exit": 0
+    },
+    "wezterm_actual_exit": 0,
+    "helper_exit": 0,
+    "sdk_closed_before_login": true,
+    "native_copy": {
+      "actual_exit": 0,
+      "text": "L👩🏽R END",
+      "expected": "L👩🏽R END",
+      "exact_after_rstrip": true
+    },
+    "native_send_expected": "AB❤️C1️⃣D👩🏽E",
+    "read_only_sql_contains_sent_body": true,
+    "raw_contains_generated_password": false,
+    "captures": [
+      {
+        "file": "00-outer9-oracle.png",
+        "sha256": "97b9d98dfee502c5023a14a25872ab4fd754158ea42bad451203ff88e468f33f",
+        "tty_rows_cols": null
+      },
+      {
+        "file": "01-mux9-off-oracle.png",
+        "sha256": "37c3ca6796f18508c05481b86175fedcdc503116065c7f4900ea1a9006a8e2f8",
+        "tty_rows_cols": null
+      },
+      {
+        "file": "02-login80.png",
+        "sha256": "6f33c6ff2136758232dc2590ef5f5ed5f1558de2558d528d9d155cfb87352909",
+        "tty_rows_cols": [
+          30,
+          80
+        ]
+      },
+      {
+        "file": "03-chats80.png",
+        "sha256": "41aea42a8403bee05450eb64b2cc8b09d7047cfae0e4027f5e22beb1f209028c",
+        "tty_rows_cols": [
+          30,
+          80
+        ]
+      },
+      {
+        "file": "04-selected80.png",
+        "sha256": "94e698037545cf5ee9d22e138c78e93585908a676b24681b03ea6062bb8294e4",
+        "tty_rows_cols": [
+          30,
+          80
+        ]
+      },
+      {
+        "file": "05-copyable80.png",
+        "sha256": "5cb1204de88e41b6fecbe5d861ef54d9e7a758c82256d7932ae92f8bc1c45e7d",
+        "tty_rows_cols": [
+          30,
+          80
+        ]
+      },
+      {
+        "file": "05b-native-selected-copy80.png",
+        "sha256": "530f684944f4897bc5c8896d2e7bc4869430469c715de57c55f83de621e656e1",
+        "tty_rows_cols": [
+          30,
+          80
+        ]
+      },
+      {
+        "file": "06-composer80.png",
+        "sha256": "e1ea274b5cbaf436972aac7f06b6429044c9f9dfb1eda25e908e8a2ceead7d67",
+        "tty_rows_cols": [
+          30,
+          80
+        ]
+      },
+      {
+        "file": "07-composer-midedit80.png",
+        "sha256": "b326b8474b2e056af2e35c84f27a71e09efa7cd70dc5018d7bee368844facb93",
+        "tty_rows_cols": [
+          30,
+          80
+        ]
+      },
+      {
+        "file": "08-sent80.png",
+        "sha256": "871362de674e9009285e97f3417657ff70a4644d0771b21a04fa9d4ca616e572",
+        "tty_rows_cols": [
+          30,
+          80
+        ]
+      },
+      {
+        "file": "09-selected160.png",
+        "sha256": "8933b91ea35bda792eed7e99fe97b32cc9921fb85108a94c44622cb33095cbd6",
+        "tty_rows_cols": [
+          30,
+          160
+        ]
+      },
+      {
+        "file": "10-copyable160.png",
+        "sha256": "665e8fca3d3f2570e1c6ff1490f241870e05888e2ac69d9f624e0855b2ace66b",
+        "tty_rows_cols": [
+          30,
+          160
+        ]
+      },
+      {
+        "file": "11-long160.png",
+        "sha256": "044281de2f54b9e2f59fb6117fd1b0534c81e36a09b41199fb854f26c986b7d6",
+        "tty_rows_cols": [
+          30,
+          160
+        ]
+      },
+      {
+        "file": "12-cleared160.png",
+        "sha256": "f13cc8ddf2e6d9c37f700398367279704db4d2d1aac797589bf074454ba84a50",
+        "tty_rows_cols": [
+          30,
+          160
+        ]
+      },
+      {
+        "file": "13-short160.png",
+        "sha256": "0b2582677c45d57d1637f4eaa1dabd4b1ee623847fd60a2700d688c2a974d581",
+        "tty_rows_cols": [
+          30,
+          160
+        ]
+      },
+      {
+        "file": "14-empty160.png",
+        "sha256": "f13cc8ddf2e6d9c37f700398367279704db4d2d1aac797589bf074454ba84a50",
+        "tty_rows_cols": [
+          30,
+          160
+        ]
+      },
+      {
+        "file": "15-chats160.png",
+        "sha256": "4e91e73a83419a7d262b6f3c5662a959d5350d342a4951e01c840853c5a10223",
+        "tty_rows_cols": [
+          30,
+          160
+        ]
+      },
+      {
+        "file": "16-after-test9-oracle.png",
+        "sha256": "5330c8829e70c7c92f8c44dd13af6bbeb96ccae00fce6617576b35052e438a22",
+        "tty_rows_cols": null
+      }
+    ],
+    "trajectory": "Original prelogin SDK seed; actual native login/selected/copyable/mouse Copy/composer Home Right Delete/send/80x30->160x30/selected/copyable/six-ZWJ long draft/53 Deletes/empty/LR short/empty/Chats/Ctrl+C exit",
+    "wait_seconds": 15,
+    "driver_changes": "Scope, official binary path and fresh binary/source/HEAD manifest guards only; no expected/wait/navigation or oracle changes",
+    "script_sha256": {
+      "driver.py": "dce83cfc056ad75a44de8e55b8977038c4d039130e514545769b8d333866fa6e",
+      "host.py": "e7b26d261d595df4ba64225b6aede7a7d8f82c6a256574c0ace57609bc475157",
+      "pixels.py": "3dc8c2d5233e39b2716b56b030aa2adbb1f9a2faf7177c5519897ce1fe8d10b9",
+      "wezterm.lua": "b28272d5198c1d74b4769f214d377c2ac6c67228611e950541cedb045899aab2",
+      "tmux.conf": "4377c1b796857515944f843cff0ab182bc5151acf33234af63be140bdb6e05fa"
+    },
+    "outer": {
+      "pid": 3868365,
+      "tty": "/dev/pts/17",
+      "TERM": "xterm-256color",
+      "TERM_PROGRAM": "WezTerm",
+      "TERM_PROGRAM_VERSION": "20221119-145034-49b9839f"
+    },
+    "inner": {
+      "pid": 3868438,
+      "tty": "/dev/pts/21",
+      "TERM": "tmux-256color",
+      "TERM_PROGRAM": "tmux",
+      "TERM_PROGRAM_VERSION": "3.6a",
+      "inside_tmux": true,
+      "tmux_server_pid": 3868437,
+      "variation_selector_always_wide": "off",
+      "allow_passthrough": "",
+      "clients": [
+        "xterm-256color|WezTerm 20221119-145034-49b9839f|bpaste,ccolour,clipboard,cstyle,focus,RGB,sixel,title"
+      ]
+    },
+    "wezterm_version": "wezterm 20221119-145034-49b9839f",
+    "tmux_version": "tmux 3.6a",
+    "host_config": "Scope-local Wez Unicode9 Software96dpi12pt zero padding, DejaVu/Lily Han/Noto Emoji; private tmux VS16 always-wide off"
+  },
+  "physical": {
+    "basis": "Raw full X11 PNG; ASCII 10-digit pixel repeat and ASCII R mask only. No DSR, DisplayWidth, wcwidth, tmux cursor or font-width API.",
+    "cell_pitch_px": 10,
+    "row_pitch_px": 19,
+    "ascii_repeat_px": 100,
+    "host_oracle_fields": [
+      "R_x_px",
+      "body_columns",
+      "missing_R_ink",
+      "extra_neighbor_ink"
+    ],
+    "host_oracles": {
+      "00-outer9-oracle.png": {
+        "sha256": "97b9d98dfee502c5023a14a25872ab4fd754158ea42bad451203ff88e468f33f",
+        "observed": {
+          "AB": [
+            30,
+            2,
+            0,
+            0
+          ],
+          "woman_zwj_laptop": [
+            30,
+            2,
+            0,
+            0
+          ],
+          "keycap": [
+            20,
+            1,
+            0,
+            2
+          ],
+          "heart_VS16": [
+            20,
+            1,
+            0,
+            0
+          ],
+          "woman_skin": [
+            30,
+            2,
+            0,
+            0
+          ],
+          "woman_zwj_laptop_replacement": [
+            40,
+            3,
+            0,
+            0
+          ],
+          "CJK_combining": [
+            30,
+            2,
+            0,
+            6
+          ]
+        }
+      },
+      "01-mux9-off-oracle.png": {
+        "sha256": "37c3ca6796f18508c05481b86175fedcdc503116065c7f4900ea1a9006a8e2f8",
+        "observed": {
+          "AB": [
+            30,
+            2,
+            0,
+            0
+          ],
+          "woman_zwj_laptop": [
+            30,
+            2,
+            0,
+            0
+          ],
+          "keycap": [
+            20,
+            1,
+            0,
+            2
+          ],
+          "heart_VS16": [
+            20,
+            1,
+            0,
+            0
+          ],
+          "woman_skin": [
+            30,
+            2,
+            0,
+            0
+          ],
+          "woman_zwj_laptop_replacement": [
+            40,
+            3,
+            0,
+            0
+          ],
+          "CJK_combining": [
+            30,
+            2,
+            0,
+            6
+          ]
+        }
+      },
+      "16-after-test9-oracle.png": {
+        "sha256": "5330c8829e70c7c92f8c44dd13af6bbeb96ccae00fce6617576b35052e438a22",
+        "observed": {
+          "AB": [
+            30,
+            2,
+            0,
+            0
+          ],
+          "woman_zwj_laptop": [
+            30,
+            2,
+            0,
+            0
+          ],
+          "keycap": [
+            20,
+            1,
+            0,
+            2
+          ],
+          "heart_VS16": [
+            20,
+            1,
+            0,
+            0
+          ],
+          "woman_skin": [
+            30,
+            2,
+            0,
+            0
+          ],
+          "woman_zwj_laptop_replacement": [
+            40,
+            3,
+            0,
+            0
+          ],
+          "CJK_combining": [
+            30,
+            2,
+            0,
+            6
+          ]
+        }
+      }
+    },
+    "long_short_empty_row26": {
+      "11-long160.png": {
+        "row": 26,
+        "reference_blank_row_right_px": 1594,
+        "full_height_white_x": [
+          1594
+        ],
+        "delta_px": [
+          0
+        ]
+      },
+      "12-cleared160.png": {
+        "row": 26,
+        "reference_blank_row_right_px": 1594,
+        "full_height_white_x": [
+          1594
+        ],
+        "delta_px": [
+          0
+        ]
+      },
+      "13-short160.png": {
+        "row": 26,
+        "reference_blank_row_right_px": 1594,
+        "full_height_white_x": [
+          1594
+        ],
+        "delta_px": [
+          0
+        ]
+      },
+      "14-empty160.png": {
+        "row": 26,
+        "reference_blank_row_right_px": 1594,
+        "full_height_white_x": [
+          1594
+        ],
+        "delta_px": [
+          0
+        ]
+      }
+    },
+    "cleared_and_empty_png_byte_identical": true,
+    "cleared_empty_sha256": "f13cc8ddf2e6d9c37f700398367279704db4d2d1aac797589bf074454ba84a50",
+    "tmux_cursor": "Separate virtual observation; never used for physical expected",
+    "original_json": "/tmp/chat-t04-official-native-local.43DF4RLT/native/physical-oracle.json"
+  },
+  "cleanup": {
+    "all_owned_gone": true,
+    "owned_pids": [
+      "3867962",
+      "3867997",
+      "3867998",
+      "3868352",
+      "3868355",
+      "3868365",
+      "3868433",
+      "3868437",
+      "3868438",
+      "3868456",
+      "3868457",
+      "3868580",
+      "3868648",
+      "3869011"
+    ],
+    "database": "chat_t04_candidate_mux_1006171926_3867962",
+    "database_absent": true,
+    "private_port": 40003,
+    "private_port_closed": true,
+    "socket": {
+      "existed": true,
+      "removed_dead_inode": true,
+      "listener": false,
+      "errno": 111,
+      "absent_after": true
+    },
+    "wezterm_gui_socket": {
+      "existed": true,
+      "removed_dead_inode": true,
+      "listener": false,
+      "errno": 111,
+      "absent_after": true
+    },
+    "protected_unchanged": true,
+    "protected_start_ticks": {
+      "3225": 17583,
+      "29935": 248258,
+      "2876288": 521400965
+    },
+    "tui_source_unchanged": true
+  },
+  "retained_before_red": {
+    "reference": "docs/images/experience/tui-modern-width-proof.json",
+    "original_official_tui_sha256": "f785a631d0d340298c34ce318aed150715449227375df99815b7dfae0702b1d0",
+    "long_composer_row26_px": [
+      1414,
+      1594
+    ],
+    "shift_px": -180,
+    "old_literal_display_failures": 152,
+    "old_literal_span_failures": 10,
+    "original_targeted_broad_regex_NotRun_actual_exit": 8,
+    "note": "Original failures retained; later actual full gates now include built tui_integration, not retrospectively relabelling old NotRun"
+  },
+  "archive": {
+    "local_path": "/tmp/chat-t04-official-native-local.43DF4RLT/evidence.tar.gz",
+    "remote_path": "/tmp/chat-t04-official-native.wJWXFQ6v/evidence.tar.gz",
+    "sha256": "b903f9d24caead2bb08b5896578aeedfa2850e6d1db4914a9a20dd515b2eb1cb"
+  },
+  "not_claimed": [
+    "Legacy XTerm372/tmux4-vs2 repair",
+    "automatic SSH/terminal-chain negotiation",
+    "light-theme native pass",
+    "Unicode18/new emoji host shaping",
+    "RI/VS15 native pass",
+    "T04 or entire quality-goal closure"
+  ]
+}

@@ -39,6 +39,8 @@
 #include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QStyle>
+#include <QStylePainter>
+#include <QStyleOptionButton>
 #include <QTimer>
 #include <QTextDocument>
 #include <QTextBlock>
@@ -63,6 +65,40 @@
 
 namespace
 {
+
+class pinned_message_button final : public QPushButton
+{
+public:
+    using QPushButton::QPushButton;
+
+protected:
+    void paintEvent(QPaintEvent*) override
+    {
+        QStyleOptionButton option;
+        initStyleOption(&option);
+        QStylePainter painter(this);
+        painter.drawControl(QStyle::CE_PushButtonBevel, option);
+        auto contents = style()->subElementRect(QStyle::SE_PushButtonContents, &option, this);
+        if (option.state & (QStyle::State_Sunken | QStyle::State_On))
+        {
+            contents.translate(style()->pixelMetric(QStyle::PM_ButtonShiftHorizontal, &option, this),
+                               style()->pixelMetric(QStyle::PM_ButtonShiftVertical, &option, this));
+        }
+        auto displayed = text();
+        displayed.replace(QStringLiteral("&&"), QStringLiteral("&"));
+        paint_emoji_line(painter, contents, displayed, font(),
+                         option.palette.color(isEnabled() ? QPalette::Active : QPalette::Disabled,
+                                              QPalette::ButtonText));
+        if (option.state & QStyle::State_HasFocus)
+        {
+            QStyleOptionFocusRect focus;
+            focus.QStyleOption::operator=(option);
+            focus.rect = style()->subElementRect(QStyle::SE_PushButtonFocusRect, &option, this);
+            focus.backgroundColor = option.palette.color(QPalette::Button);
+            painter.drawPrimitive(QStyle::PE_FrameFocusRect, focus);
+        }
+    }
+};
 
 QToolButton* make_navigation_button(
     QString text, QStringView icon, QWidget* parent, bool selected, bool enabled)
@@ -385,7 +421,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     auto* pinned_row = new QWidget(chat_panel);
     auto* pinned_layout = new QHBoxLayout(pinned_row);
     pinned_layout->setContentsMargins(16, 0, 12, 0);
-    pinned_message_button_ = new QPushButton(pinned_row);
+    pinned_message_button_ = new pinned_message_button(pinned_row);
     pinned_message_button_->setObjectName(QStringLiteral("pinnedMessageButton"));
     pinned_message_button_->setFlat(true);
     pinned_message_button_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);

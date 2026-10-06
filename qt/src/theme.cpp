@@ -218,7 +218,7 @@ QString chat_style_sheet()
         QPlainTextEdit#groupAnnouncementEdit:focus, QPlainTextEdit#editMessageText:focus {
             border-color: #547C68;
         }
-        QDialog QPushButton, QPushButton#newFriendsButton, QToolButton#messageSearchButton, QToolButton#sendAttachmentButton {
+        QDialog QPushButton, QPushButton#newFriendsButton, QToolButton#messageSearchButton, QToolButton#sendAttachmentButton, QToolButton#unpinMessageButton {
             min-height: 32px;
             padding: 0 12px;
             background: #FFFFFF;
@@ -226,9 +226,18 @@ QString chat_style_sheet()
             border: 1px solid #AFC0B8;
             border-radius: 8px;
         }
-        QDialog QPushButton:disabled, QPushButton#newFriendsButton:disabled, QToolButton#messageSearchButton:disabled, QToolButton#sendAttachmentButton:disabled {
+        QDialog QPushButton:disabled, QPushButton#newFriendsButton:disabled, QToolButton#messageSearchButton:disabled, QToolButton#sendAttachmentButton:disabled, QToolButton#unpinMessageButton:disabled {
             color: #96A29C;
             border-color: #D7DDD9;
+        }
+        QToolButton#unpinMessageButton:hover {
+            background: #F0F4F1;
+        }
+        QToolButton#unpinMessageButton:pressed {
+            background: #E7EEE9;
+        }
+        QToolButton#unpinMessageButton:focus {
+            border-color: #547C68;
         }
         QDialog#createGroupDialog QPushButton:hover, QDialog#joinGroupDialog QPushButton:hover,
         QDialog#groupInviteDialog QPushButton:hover, QDialog#confirmationDialog QPushButton:hover,

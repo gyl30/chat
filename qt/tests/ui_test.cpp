@@ -14,6 +14,7 @@
 #include <QFontDatabase>
 #include <QHeaderView>
 #include <QImage>
+#include <QPainter>
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
@@ -35,6 +36,8 @@
 #include <QScrollBar>
 #include <QScrollArea>
 #include <QSystemTrayIcon>
+#include <QStyle>
+#include <QStyleOptionButton>
 #include <QTextBlock>
 #include <QTextCharFormat>
 #include <QTextDocument>
@@ -1405,6 +1408,90 @@ bool check_pinned_unicode_boundaries(QString const& artifact_directory = {})
                   << " summary=" << summary_ok << " first_line=" << query_ok << '\n';
         intact = intact && summary_ok && query_ok;
     }
+    for (auto const width : {980, 1180, 1440})
+    {
+        page.resize(width, 760);
+        QApplication::processEvents();
+        QStyleOptionButton option;
+        option.initFrom(button);
+        option.features = QStyleOptionButton::Flat;
+        auto const contents = button->style()->subElementRect(QStyle::SE_PushButtonContents, &option, button);
+        auto const actual = button->grab().toImage();
+        QImage prefix(actual.size(), QImage::Format_ARGB32_Premultiplied);
+        prefix.setDevicePixelRatio(actual.devicePixelRatio());
+        prefix.fill(Qt::transparent);
+        QTextLayout layout(QStringLiteral("置顶消息"), button->font());
+        layout.beginLayout();
+        auto line = layout.createLine();
+        line.setLineWidth(contents.width());
+        layout.endLayout();
+        QPainter painter(&prefix);
+        painter.setPen(Qt::black);
+        layout.draw(&painter, QPointF(contents.left(), contents.top() + (contents.height() - line.height()) / 2));
+        painter.end();
+        auto const background = actual.pixelColor(actual.width() / 2, 0);
+        int ink = 0, visible = 0;
+        for (int y = 0; y < prefix.height(); ++y)
+        {
+            for (int x = 0; x < prefix.width(); ++x)
+            {
+                if (prefix.pixelColor(x, y).alpha() < 230) { continue; }
+                ++ink;
+                auto const pixel = actual.pixelColor(x, y);
+                if (std::abs(pixel.red() - background.red()) + std::abs(pixel.green() - background.green()) +
+                    std::abs(pixel.blue() - background.blue()) > 80)
+                { ++visible; }
+            }
+        }
+        bool const prefix_visible = ink >= 30 && visible * 100 >= ink * 95;
+        std::cout << (prefix_visible ? "PASS" : "RED") << " Qt pinned visible leading label width=" << width
+                  << " ink=" << ink << " visible=" << visible << '\n';
+        intact = intact && prefix_visible;
+        if (!artifact_directory.isEmpty())
+        {
+            check(page.grab().save(artifact_directory + QStringLiteral("/qt_pinned_visible_%1.png").arg(width)),
+                  "The natural-width pinned control retains an original complete capture");
+        }
+    }
+    page.activateWindow();
+    wait([&] { return page.isActiveWindow(); });
+    button->clearFocus();
+    QApplication::processEvents();
+    auto const unfocused = button->grab().toImage();
+    QKeyEvent tab(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier);
+    QApplication::sendEvent(&page, &tab);
+    button->setFocus(Qt::TabFocusReason);
+    QApplication::processEvents();
+    std::cout << "Qt pinned focus has_focus=" << button->hasFocus()
+              << " pixels_changed=" << (button->grab().toImage() != unfocused) << '\n';
+    check(button->hasFocus() && button->grab().toImage() != unfocused,
+          "The readable pinned label retains a visible keyboard focus indication");
+    auto const* accessible = QAccessible::queryAccessibleInterface(button);
+    check(accessible && accessible->role() == QAccessible::Button &&
+              accessible->text(QAccessible::Name).startsWith(QStringLiteral("置顶消息")),
+          "Pinned elision retains the actual button accessibility role and leading name");
+    int const before_keyboard = searches;
+    QKeyEvent press(QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier);
+    QKeyEvent release(QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier);
+    QApplication::sendEvent(button, &press);
+    QApplication::sendEvent(button, &release);
+    check(searches == before_keyboard + 1 && query == prefix,
+          "The elided pinned button still locates the actual older message with Space");
+    button->setEnabled(false);
+    button->click();
+    check(searches == before_keyboard + 1, "A disabled pinned button cannot invoke its location action");
+    member_data owner;
+    owner.id = 1;
+    owner.username = QStringLiteral("本人");
+    owner.role = chat::member_role::owner;
+    page.set_members(50, {owner}, {});
+    QApplication::processEvents();
+    auto* unpin = page.findChild<QToolButton*>("unpinMessageButton");
+    check(unpin && unpin->isVisible(), "The actual group owner can see the unpin control");
+    auto const unpin_image = unpin->grab().toImage();
+    check(logical_pixel(unpin_image, QPoint(5, unpin->height() / 2)).lightness() >= 230 &&
+              unpin->palette().color(QPalette::ButtonText) == QColor("#315A4B"),
+          "The unpin control has a readable cream-surface secondary-action palette");
     return intact;
 }
 
