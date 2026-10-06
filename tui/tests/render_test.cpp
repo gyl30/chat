@@ -1,14 +1,19 @@
 #include "ui.hpp"
 #include "app.hpp"
 #include <ftxui/component/event.hpp>
+#include <ftxui/component/app.hpp>
+#include <ftxui/component/component.hpp>
+#include <ftxui/component/loop.hpp>
 
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <ftxui/dom/elements.hpp>
 #include <ftxui/dom/node.hpp>
 #include <ftxui/screen/screen.hpp>
 #include <ftxui/screen/string.hpp>
+#include <ftxui/screen/terminal.hpp>
 
 namespace
 {
@@ -22,6 +27,103 @@ std::string draw(chat::tui::state const& data, int columns, int rows, int line =
     ftxui::Screen screen(columns, rows);
     ftxui::Render(screen, chat::tui::render(data, columns, rows, line));
     return screen.ToString();
+}
+
+bool has_erase_character(std::string const& wire)
+{
+    for (std::size_t i = 0; (i = wire.find("\x1b[", i)) != std::string::npos; ++i)
+    {
+        auto end = wire.find_first_not_of("0123456789;", i + 2);
+        if (end != std::string::npos && wire[end] == 'X') { return true; }
+    }
+    return false;
+}
+
+// Capture the public loop's real output, not a private Draw hook or serializer substitute.
+bool check_blank_preerase(ftxui::App screen, bool check_resize = false)
+{
+    using namespace ftxui;
+    screen.HandlePipedInput(false);
+    screen.TrackMouse(false);
+    // Keep a 6x2 first frame with both literal spaces and untouched default cells.
+    Element frame = vbox({text("AB CD "), text("UV")});
+    auto component = Renderer([&] { return frame; });
+    std::ostringstream output;
+    struct RestoreOutput
+    {
+        std::streambuf* previous;
+        ~RestoreOutput() { std::cout.rdbuf(previous); }
+    } restore{std::cout.rdbuf(output.rdbuf())};
+    bool ok = true;
+    {
+        Loop loop(&screen, component);
+        loop.RunOnce();
+        ok &= expect(!has_erase_character(output.str()), "First allocation must not pre-erase an unestablished inline area");
+        auto next = [&](Element value)
+        {
+            auto begin = output.str().size();
+            frame = std::move(value);
+            screen.PostEvent(Event::Custom);
+            loop.RunOnce();
+            return output.str().substr(begin);
+        };
+        if (check_resize)
+        {
+            auto wire = next(vbox({text("A  B "), text("UVWXY")}));
+            ok &= expect(!has_erase_character(wire), "A resized frame uses its existing allocation path, not blank pre-erasure");
+            wire = next(vbox({text("A  B "), text("UVWXY")}));
+            ok &= expect(wire.find("\x1b[0m\x1b[1C\x1b[2X\x1b[3C\x1b[1X\rA  B ") != std::string::npos,
+                         "The following same-size inline frame erases only its allocated default blanks");
+        }
+        else
+        {
+            auto wire = next(vbox({text("A  B  "), text("  C  D")}));
+            // Row 0: [1,3), [4,6); row 1: [0,2), [3,5). Return to the same top-left origin.
+            auto const prefix = "\x1b[0m\x1b[1C\x1b[2X\x1b[3C\x1b[2X\r\x1b[1B\x1b[2X\x1b[3C\x1b[2X\r\x1b[1A";
+            ok &= expect(wire.find(std::string(prefix) + "A  B  \r\n  C  D") != std::string::npos,
+                         "Real Draw pre-erases bounded blank runs and restores its relative inline/fullscreen origin");
+            wire = next(vbox({text("ABCDE "), text("UVWXYZ")}));
+            ok &= expect(wire.find("\x1b[0m\x1b[5C\x1b[1X\rABCDE ") != std::string::npos,
+                         "Last-column ECH never advances beyond the allocated last column");
+            wire = next(vbox({text("      "), text("UVWXYZ")}));
+            ok &= expect(wire.find("\x1b[0m\x1b[6X\r      ") != std::string::npos,
+                         "An entirely default blank row is erased within its existing allocation");
+            wire = next(vbox({text("中  R "), text("UVWXYZ")}));
+            ok &= expect(wire.find("\x1b[0m\x1b[2C\x1b[2X\x1b[3C\x1b[1X\r中  R ") != std::string::npos,
+                         "Wide glyph heads and negative continuation cells are never erased");
+            for (auto const& style : std::vector<Decorator>{bold, dim, italic, inverted, underlined,
+                    underlinedDouble, blink, strikethrough, automerge, color(Color::Red),
+                    bgcolor(Color::Blue), hyperlink("https://example.invalid/blank")})
+            {
+                wire = next(vbox({hbox({text("A"), text(" ") | style, text(" "), text("B"),
+                                       text(" ") | style, text("C")}), text("UVWXYZ")}));
+                ok &= expect(wire.find("\x1b[0m\x1b[2C\x1b[1X\r") != std::string::npos &&
+                             wire.find("\x1b[2X") == std::string::npos,
+                             "Every style flag, foreground, background and hyperlink excludes neighboring blanks from ECH");
+            }
+            wire = next(vbox({text("ABCDEF"), text("UVWXYZ")}));
+            ok &= expect(!has_erase_character(wire), "A frame without eligible blank runs emits no pre-erasure");
+        }
+    }
+    return ok;
+}
+
+bool check_real_draw_blank_preerase()
+{
+    auto fallback = ftxui::Terminal::Size();
+    ftxui::Terminal::SetFallbackSize({6, 2});
+    bool ok = check_blank_preerase(ftxui::App::FixedSize(6, 2));
+    ok &= check_blank_preerase(ftxui::App::Fullscreen());
+    ok &= check_blank_preerase(ftxui::App::FitComponent(), true);
+    ftxui::Terminal::SetFallbackSize(fallback);
+    // The text/dump contract remains literal, including default empty cells.
+    ftxui::Screen literal(6, 2);
+    ftxui::Render(literal, ftxui::vbox({ftxui::text("A  B  "), ftxui::text("  C  D")}));
+    ok &= expect(literal.ToString() == "A  B  \r\n  C  D", "Screen::ToString retains its exact literal blank contract");
+    ftxui::Screen empty_cells(6, 2);
+    ok &= expect(empty_cells.ToString() == "      \r\n      ",
+                 "Screen::ToString serializes untouched default empty cells as literal spaces");
+    return ok;
 }
 }
 
@@ -758,5 +860,6 @@ int main()
     ok &= expect(safe_message.find("\x1b[2J") == std::string::npos, "paragraph does not emit clear-screen escapes");
     ok &= expect(safe_message.find('\a') == std::string::npos, "paragraph filters BEL");
     ok &= expect(safe_message.find("\xc2\x9b") == std::string::npos, "paragraph filters C1 control");
+    ok &= check_real_draw_blank_preerase();
     return ok ? 0 : 1;
 }

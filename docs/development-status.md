@@ -1680,3 +1680,29 @@ Tab focus反例继续PASS。它是offscreen控件验证，不代替系统输入�
 
 当前Qt87/TUI78不提高，Q27/Q30/T04及两轮全产品fresh review仍开放。原69项门禁
 仍对应未变的生产输入，本阶段没有伪称重新全量验证；未push。
+
+## 体验品质审查：终端默认空白的真实擦除
+
+从9afec19继续，把阶段54已复现的tmux旧反白续格修进正常构建输出。公有App/Loop
+永久回归在旧生产库先RED（编译0/测试1，非超时）；同尺寸后续帧仅有界ECH清默认
+空白，原serializer、列分配、编辑/复制不变，首次/resize与styled/hyperlink/宽字续格
+不侵入。22个pristine SHA pins与零fuzz正常stage，third不改，不做符号覆盖。
+
+fresh独立TUI-only -Werror八target build0，原七CTest7/7、总1.00秒，render0.94秒保
+原5秒。正式normal增量build/render0，dd1a6baa…真实/proc/exe沿完整modern原生流程
+actual0；80/160复制页的7旧白块物理像素全0，原copy和中字素Delete后SQL原文保持。
+长/clear/short/empty边界x1594，clear与empty PNG逐byte相同。主与独立代理亲看原图，
+原RED不覆盖；14own PIDgone、独立DB删除/port关闭、保护3ticks相同。原图/指纹与
+范围见[体验品质审查](experience-quality.md)阶段55。
+
+这不是legacy/SSH/light/Unicode18完整矩阵或所有inline物理验收。当前Qt87/TUI78不
+提高，完整目标与两轮全产品fresh review继续开放，不以局部修复宣布完成。未push。
+
+独立复核发现首帧旧回归无空白而不能验证首次skip，已加强为含literal/default Cell
+的首帧并补未赋值Screen的精确输出。最终测试源257d1c76…的独立完整原门禁实际0：
+normal/ASan/UBSan各23/23、114.64/156.57/146.07秒，render0.93/4.63/1.87保原5秒，
+qt_ui46.69/53.36/51.19保原60秒。Qt/TUI ON、实际-Werror，205输入、原script/
+submodule和保护服务首尾一致，编译warning/CMake warning/sanitizer签名扫描0。
+既有独立目录新reconfigure/build/CTest，不冒称空目录重建全部依赖。完整69项/
+指纹与原日志无损副本已归档；旧native记录的测试源码pin是当时输入，生产TUI仍
+同dd1a6baa…，未借旧TUI binary或candidate支持当前生产结论。

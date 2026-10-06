@@ -9,6 +9,7 @@ set(ftxui_sources
     include/ftxui/screen/cell.hpp
     include/ftxui/screen/string.hpp
     include/ftxui/screen/surface.hpp
+    src/ftxui/component/app.cpp
     src/ftxui/component/input.cpp
     src/ftxui/dom/border.cpp
     src/ftxui/dom/canvas.cpp
@@ -32,6 +33,7 @@ set(ftxui_source_hashes
     07cb6ac81fd63acb24c42a7cf9c1d1d3032ea7c46115b2b4b09d117035c4fd38
     d0e324f820d8c2d363e9e1aaf60609b9f29877686a8d311d0670fe4865538681
     c4767859f2f201084d660692e3b91a9955184ac2cc5ab64df5ae82b1fb7ec9e9
+    fb2692a29e8b2c6b4862d34ccf8f876c1c8273928aa2faf2acac0a7d938b7f0e
     1d14f449393ffefa926a3bd6fb9080b0870fa8433b3bce0147080caa5d4991d3
     4d351ffb550d64e12be57c750099c663eb571af0ec128fd7b44daa30263ebf42
     585ec7711a32f8d04bb4fc414f4e8e7695b49996e19c1d4dc27a74af690475b3

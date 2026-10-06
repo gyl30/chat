@@ -177,7 +177,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q30 | P2 | 125%/150%/200% 真实 Fcitx/IBus 候选窗偏离 composer 光标，缩放越大距离越大 | 第四十二阶段真实双Qt业务通过但定位失败；第四十三阶段标准编辑器也复现。当前正式客户端已使用私有 Qt6.5.3，但四档系统输入法实际定位尚未验收；第五十四阶段的新探针前置失败不能证明产品通过 |
 | Q31 | P2 | 可滚动历史中，发送/typing/composer 布局变化使末尾读者丢失自动跟随；旧追加回调也可能覆盖刚发生的上滚 | 第四十七阶段修复末尾布局恢复与追加回调的会话/位置守卫；真实双Qt纯文本before反例及四档after、历史保位对照，永久回归与门禁记录见下文；不外推重连恢复历史或图片异步布局 |
 | Q32 | P2 | 125% 下关闭真实编辑窗口后，消息行下方留下持续的黑色细线 | 第五十阶段完整标准控件公开时序复现，固定私有 Qt6.5.3 对照及正式 Chat 四档真实 after 已消除该局部黑线；不外推系统输入法或全部页面 HiDPI |
-| T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 第十九轮字素编辑与宽字组合符附着修复已进入生产；终端 span、裁剪、leading mark 和 shaping 仍未闭环，不计 Unicode 全矩阵通过 |
+| T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 字素编辑、完整span及显示列修复已进入生产；第五十五阶段收口modern链复制页旧反白续格。legacy、SSH、浅色及Unicode18物理矩阵仍未闭环，不计全部终端通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 | T06 | P2 | TUI 搜索选中消息之前一项被删除时，只clamp索引，选中目标跳到另一ID | 第二十四阶段修复，永久RED/GREEN、真实双TUI六档选中目标/可复制正文/草稿验证通过 |
 | T07 | P3 | TUI 无草稿时输入提示仍显示悬空的 `i: compose ·` | 第三十六阶段只在非空草稿前保留分隔符，六宽永久 RED→GREEN、两个真实 TUI 完整附件流程和三模式门禁通过 |
@@ -3673,3 +3673,66 @@ Q30的新系统Fcitx/IBus探针首次实际启动后，在读/proc/net/unix时�
 本阶段不冒称重跑完整三模式门禁；当前生产源码不变，上阶段完整69项实际结果仍
 对应这些输入。Qt87/TUI78不提高，复制页视觉缺陷、Q27/Q30/T04全矩阵以及两轮
 全产品fresh审查继续开放。下一步交付并验证有界空白擦除，不以诊断或文档代替修复。
+
+## 阶段 55：默认空白擦除进入真实终端输出
+
+从9afec19继续。旧生产静态库上的新公有App/Loop回归先实际RED：编译0、测试1，
+不是原5秒超时。最小修复在同尺寸后续帧的既有可见区域内，用有界ECH先清默认
+空白，再由未改的serializer输出完整帧。首次/resize仍走原分配路径，relative
+CR/CUD/CUU最终恢复帧原点，不用全屏erase或CUP掩盖列宽。styled、hyperlink和宽字
+negative continuation均排除，不改变raw、selection、Input编辑或ToString字面空格。
+
+正常CMake增加App原始SHA pin，22个pristine文件在构建目录零fuzz修补，不改third，
+不以额外对象覆盖archive符号。永久回归覆盖固定/全屏/inline、首次/resize、两行
+独立literal范围、末列、全空/无空、宽字续格及全部style/color/hyperlink排除。
+独立fresh TUI-only -Werror八target构建0，原七项CTest7/7、总1.00秒；render0.94秒，
+原5秒不变。正式normal增量构建与render实际0，并不是借用私有candidate的结果。
+
+正式dd1a6baa…binary的新完整WezTerm Unicode9→tmux3.6a VS16-off流程actual0，
+真实/proc/exe确认是build/chat_tui；80列三个、160列四个旧残留续格均为0非背景像素。
+[80列复制页](images/experience/tui-default-blank-copyable80-after.png) /
+[160列复制页](images/experience/tui-default-blank-copyable160-after.png)与阶段54原RED
+分别保留。原native selection复制仍为`L👩🏽R END`；Home/Right/Delete整ZWJ后唯一发送
+SQL为`AB❤️C1️⃣D👩🏽E`。长/clear/short/empty边界保持x1594，clear与empty完整PNG
+逐byte相同。主与独立代理亲看原尺寸窗口，复制页无白块、长输入和清空无旧残留。
+[实际生产记录](images/experience/tui-default-blank-proof.json)包含原RED/GREEN日志、
+正式binary/生成源/driver指纹、18原图SHA、literal像素oracle与实际清理：14自有PID
+gone，独立DB不存在、私有port关闭、dead socket确认无listener后移除，三保护服务
+ticks不变。selected bubble与scrollbar内侧white是正常内容，不能误用库存所有非零
+delta判边界RED；Copyable两页右边界为794/1594，不借DSR或DisplayWidth作物理oracle。
+
+这里收口modern链复制页的确定残留，不代表legacy终端、SSH、浅色、Unicode18全矩阵
+或物理inline全部验收。T04与整体品质目标仍开放，Qt87/TUI78不提高；原完整三模式
+门禁采用本次冻结输入重新执行，实际结果单独记录，不借上阶段旧二进制。
+
+### 独立复核与测试加强
+
+独立复核没有发现本次生产补丁的阻断性错误，但指出首帧回归最初没有eligible blank，
+所以“无ECH”不足以检验首次跳过条件。最终首帧改为含字面空格及未赋值Cell的6×2
+场景，并增加真实未赋值Screen的精确literal输出断言。定向normal build/CTest均0，
+render0.93秒，原5秒保持；最终测试源码SHA257d1c76…，生产patch/生成App/正式TUI
+binary未变。之前native记录中的旧测试源码指纹是当时的真实输入，不冒称最终测试
+已参与那次原生运行。最终原门禁另建独立scope重跑，旧69项结果不覆盖。
+
+没有把未测的TerminalOutput、超终端尺寸、用户光标shape/visibility、非顶部inline
+物理原点或SSH高延迟表现称作永久测试覆盖；现有相对原点恢复字节与源码检查不替代
+这些实际验证。后续矩阵继续覆盖，不以库返回数字或复制/SQL正确代替字形和重绘审查。
+
+### 最终冻结输入的完整门禁
+
+加强首帧与empty Cell断言后，另建`/tmp/chat-quality-round55-final.dXx6JgJy`从头执行
+原`tests/verify.sh`，runner/script实际退出均0。normal/ASan/UBSan各23/23，总耗时
+114.64/156.57/146.07秒；render0.93/4.63/1.87秒保原5秒，qt_ui46.69/53.36/51.19秒
+保原60秒。Qt/TUI ON、实际-Werror；沿既有三独立build目录完整reconfigure/build/
+CTest，不宣称依赖从空目录fresh重建。205个输入（201 tracked及4个外部编译文件）、
+原script、submodule、三个保护服务首尾检查均0；生成App三模式SHA相同，正式normal
+TUI仍为dd1a6baa…，原native业务/像素after对应的生产binary未变。
+
+编译warning/CMake warning和原完整log及三LastTest的sanitizer签名扫描均0，没有
+skip、suppression或timeout调整。[最终原门禁记录](images/experience/tui-default-blank-original-verify-proof.json)
+保留完整205输入、69项实际结果/timeout、配置、三模式TUI/Qt及生成App指纹；
+[无损原日志](images/experience/tui-default-blank-original-verify.log.gz)解压SHA
+b9689d39…与原字节相同。此前未加强测试的69项全绿结果仍独立保留，不替代此最终门禁。
+
+这里只关闭已经复现的modern复制页白块，不宣称T04或整个campaign完成；完整页面、
+参考、日常使用、无障碍、terminal矩阵和达到92后的两轮全产品fresh审查仍须继续。

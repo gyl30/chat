@@ -1,0 +1,4448 @@
+{
+  "baseline_head": "9afec191724985b9c9ca10430714bd8753798de3",
+  "scope": "Production bounded-default-blank pre-erasure; the same real modern WezTerm Unicode9 / tmux 3.6a chain. Not the whole T04 matrix or campaign completion.",
+  "targeted_red_green": {
+    "head": "9afec191724985b9c9ca10430714bd8753798de3",
+    "scope": "/tmp/chat-t04-blank-prod.38zJkkPj",
+    "change": "same-size allocated-frame default-blank ECH prepass in real App::Internal::Draw; Screen::ToString unchanged",
+    "source_sha256": {
+      "tui/cmake/ftxui-7.0.3-grapheme.patch": "1e4bf334b12a9d4cd0876f68a0c096717f6ee8070e113f01fdc73b1e6595e56d",
+      "tui/cmake/ftxui_unicode.cmake": "8828fe88987a4bae9d3cde8de32fcdb8e66774412784f4471b66c4be8e75a122",
+      "tui/tests/render_test.cpp": "9d3781d8f3734791fe209c0566c2b41bc689087ca1a45b2dc4f347a0f5fc5054",
+      "third/ftxui/src/ftxui/component/app.cpp_pristine_unchanged": "fb2692a29e8b2c6b4862d34ccf8f876c1c8273928aa2faf2acac0a7d938b7f0e"
+    },
+    "generated_app_sha256": "77099ce01fbf350b0ef82817dea97caa4389054975e143f1346878622b61280e",
+    "old_production_library_red": {
+      "description": "new permanent public App/Loop test first compiled and linked against existing unchanged production static libraries before patch/module edits",
+      "binary": "old-render-test",
+      "binary_sha256": "37085644a07ccaec36b20d5c04581392f95e402b76290301417cb9dd59774c34",
+      "build_exit": 0,
+      "test_exit": 1,
+      "timeout_seconds": 5,
+      "timed_out": false,
+      "test_log": "red-test.log",
+      "test_log_sha256": "5342e3766d9c7c6e9230e5f95705a2b850d5841610dc47022e96702b2d54bee7"
+    },
+    "integrated_green": {
+      "configure_exit": 0,
+      "configure": "normal Debug; CMAKE_CXX_FLAGS=-Werror; QT client OFF; pinned local utf8proc source",
+      "staging": "22 pristine SHA pins; original zero-fuzz patch staging",
+      "build_exit": 0,
+      "jobs": 2,
+      "targets": [
+        "chat_tui",
+        "chat_tui_render_test",
+        "chat_tui_unicode_test",
+        "chat_tui_display_test",
+        "chat_tui_span_test",
+        "chat_tui_state_test",
+        "chat_tui_inbox_test",
+        "chat_tui_file_test"
+      ],
+      "binary": "build/chat_tui",
+      "binary_sha256": "3fb00e6f9b625ade1ca0c6d36b33ed9a7eabd8db183bfccfd4a76ed9a73c5f1e",
+      "render_test_sha256": "7daf965a43e8e3d76ae0e6cb6148dc5b8a0d209128a982b10cc5a65fbea4532e",
+      "ctest_exit": 0,
+      "ctest_regex": "^tui_(render|unicode|display|span|state|inbox|file)$",
+      "passed": 7,
+      "failed": 0,
+      "total_seconds": 1.0,
+      "render_seconds": 0.94,
+      "original_timeout_seconds": 5,
+      "log": "green-ctest.log",
+      "log_sha256": "70fd529276f71127aa0f36ccdaaf466e75c16addd0f5c4eb4dbb63ed1e792e23"
+    },
+    "permanent_independent_oracle": "literal ANSI bytes/ranges and literal ToString output; public FixedSize/Fullscreen/FitComponent plus Loop::RunOnce; no private hook or tested-function expected generation",
+    "coverage": [
+      "first/resized skip",
+      "same-size two-row bounded ranges and relative origin restore",
+      "last column without cursor overflow",
+      "whole blank row",
+      "no eligible run",
+      "wide head/negative continuation exclusion",
+      "all style flags/colors/hyperlinks exclusion",
+      "unchanged exact Screen::ToString blank literal"
+    ],
+    "owned_operation_handles": {
+      "build_tool_session": 47016,
+      "build_shell_pid": 3957737,
+      "ctest_tool_session": 80564,
+      "ctest_shell_pid": 3962542,
+      "terminal": true,
+      "both_shell_proc_missing": true
+    },
+    "protected_pid_startticks_unchanged": {
+      "2876288": 521400965,
+      "3225": 17583,
+      "29935": 248258
+    },
+    "limits": "No native product after run, no fullverify, no commit, no third/Qt edits by this agent. Local source gates do not establish physical product redraw GREEN or legacy/SSH/light/U18 campaign completion. Root-owned README and official binary updates are separate."
+  },
+  "red_actual_log": "Real Draw pre-erases bounded blank runs and restores its relative inline/fullscreen origin\nLast-column ECH never advances beyond the allocated last column\nAn entirely default blank row is erased within its existing allocation\nWide glyph heads and negative continuation cells are never erased\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nReal Draw pre-erases bounded blank runs and restores its relative inline/fullscreen origin\nLast-column ECH never advances beyond the allocated last column\nAn entirely default blank row is erased within its existing allocation\nWide glyph heads and negative continuation cells are never erased\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nEvery style flag, foreground, background and hyperlink excludes neighboring blanks from ECH\nThe following same-size inline frame erases only its allocated default blanks\n",
+  "green_actual_log": "Internal ctest changing into directory: /tmp/chat-t04-blank-prod.38zJkkPj/build\nTest project /tmp/chat-t04-blank-prod.38zJkkPj/build\n    Start 14: tui_render\n1/7 Test #14: tui_render .......................   Passed    0.94 sec\n    Start 15: tui_unicode\n2/7 Test #15: tui_unicode ......................   Passed    0.03 sec\n    Start 16: tui_display\n3/7 Test #16: tui_display ......................   Passed    0.01 sec\n    Start 17: tui_span\n4/7 Test #17: tui_span .........................   Passed    0.00 sec\n    Start 18: tui_state\n5/7 Test #18: tui_state ........................   Passed    0.00 sec\n    Start 19: tui_inbox\n6/7 Test #19: tui_inbox ........................   Passed    0.00 sec\n    Start 20: tui_file\n7/7 Test #20: tui_file .........................   Passed    0.01 sec\n\n100% tests passed, 0 tests failed out of 7\n\nTotal Test time (real) =   1.00 sec\n",
+  "production_manifest": {
+    "scope": "/tmp/chat-t04-erase-after.peFyBTYr",
+    "method": "Current normal binary after bounded-blank App staging build; no completed new full-gate claim.",
+    "production_head": "9afec191724985b9c9ca10430714bd8753798de3",
+    "candidate_binary": "/home/gyl/example/chat/build/chat_tui",
+    "candidate_binary_sha256": "dd1a6baab6d19759f0d8cf5e88133130eecf45412bed90360728476e926a11a0",
+    "tui_source_sha256": {
+      "tui/cmake/ftxui-7.0.3-grapheme.patch": "1e4bf334b12a9d4cd0876f68a0c096717f6ee8070e113f01fdc73b1e6595e56d",
+      "tui/src/app.cpp": "3cfff26307318d1badc870554800cddafe4158866bccbd800db17b66be44db7a",
+      "tui/src/app.hpp": "89b9f37259e60109284ff5511322d794fac291f158f3ac5a07cfc53603f3a860",
+      "tui/src/deadline.hpp": "dbe2a40c1a61b75032843ab82fc8dd898f0d0f8ecbfe6cde15fbf528274584f2",
+      "tui/src/file_io.hpp": "36628265415a0fbae479eec5c76f122362a7a61de2ee9b32cfa94cf41ad5ef7d",
+      "tui/src/groups.cpp": "3a6c19da31f784377d64112063783f2197a9ea08ff2ded783a245af60ce89c99",
+      "tui/src/inbox.hpp": "53a0dbb45136c8f1b783b948373658b2897d976944eaff1353624150ec5d1bba",
+      "tui/src/main.cpp": "05ed5edddc04b9590edeb11db6261a0e0440e32ea54af98a65b6d9afbd79b620",
+      "tui/src/messages.cpp": "f6c414041e8b17f7f59fad4c29589e3bf7bd45f30fc365b555f9c0c8fd164340",
+      "tui/src/profile.cpp": "a464531debbf5b4c618d712276fa5d526ba70599cd7a9f26aa490e2003481990",
+      "tui/src/state.cpp": "d8b99d807e119b410bb5a0df2d7c8e84d75ebb326cedf4d9526665038c3fa5ab",
+      "tui/src/state.hpp": "32e853f0bce108fd5425351a2f882db9c4e11d074f6e742e33caa347647d531e",
+      "tui/src/ui.cpp": "b8f06e5b273f7f5df04950e9f9e4fa4c4d041fe1b58995071a81ec2491f3c179",
+      "tui/src/ui.hpp": "4fdeb7385b98761ae916db52d23f0d3079c9e90d0f0eb8391409fdfd00a4e62e"
+    },
+    "additional_inputs": {
+      "tui/cmake/ftxui_unicode.cmake": "8828fe88987a4bae9d3cde8de32fcdb8e66774412784f4471b66c4be8e75a122",
+      "tui/tests/render_test.cpp": "9d3781d8f3734791fe209c0566c2b41bc689087ca1a45b2dc4f347a0f5fc5054",
+      "build/tui/ftxui-patched/src/ftxui/component/app.cpp": "77099ce01fbf350b0ef82817dea97caa4389054975e143f1346878622b61280e",
+      "tests/verify.sh": "38d3408e537d67182689f59d452e9d8e5bf164f38a9b5baaa93fbd8b36eb5f29"
+    }
+  },
+  "native_runner_actual_exit": 0,
+  "native_actual_live_binary": {
+    "pid": 3965714,
+    "start_ticks": 547494712,
+    "path": "/home/gyl/example/chat/build/chat_tui",
+    "sha256": "dd1a6baab6d19759f0d8cf5e88133130eecf45412bed90360728476e926a11a0"
+  },
+  "native_copy": {
+    "actual_exit": 0,
+    "text": "L👩🏽R END",
+    "expected": "L👩🏽R END",
+    "exact_after_rstrip": true
+  },
+  "native_send_expected": "AB❤️C1️⃣D👩🏽E",
+  "native_sql_after": [
+    [
+      "1",
+      "2",
+      "1",
+      "readonly_history_u14_182532_3965081"
+    ],
+    [
+      "2",
+      "1",
+      "2",
+      "LABR END"
+    ],
+    [
+      "3",
+      "1",
+      "2",
+      "L中́R END"
+    ],
+    [
+      "4",
+      "1",
+      "2",
+      "L👩‍💻R END"
+    ],
+    [
+      "5",
+      "1",
+      "2",
+      "L1️⃣R END"
+    ],
+    [
+      "6",
+      "1",
+      "2",
+      "L❤️R END"
+    ],
+    [
+      "7",
+      "1",
+      "2",
+      "L👩🏽R END"
+    ],
+    [
+      "8",
+      "1",
+      "1",
+      "AB❤️C1️⃣D👩🏽E"
+    ]
+  ],
+  "blank_pixel_checks": {
+    "status": "PASS",
+    "scope": "Seven literal prior residual cells on real same-width selected-to-copyable transitions; not all terminal profiles or Unicode.",
+    "actual_binary": {
+      "pid": 3965714,
+      "start_ticks": 547494712,
+      "path": "/home/gyl/example/chat/build/chat_tui",
+      "sha256": "dd1a6baab6d19759f0d8cf5e88133130eecf45412bed90360728476e926a11a0"
+    },
+    "native_copy": {
+      "actual_exit": 0,
+      "text": "L👩🏽R END",
+      "expected": "L👩🏽R END",
+      "exact_after_rstrip": true
+    },
+    "native_send_expected": "AB❤️C1️⃣D👩🏽E",
+    "checks": [
+      {
+        "original_file": "05-copyable80.png",
+        "column": 2,
+        "row": 21,
+        "pixel_box": [
+          20,
+          399,
+          30,
+          418
+        ],
+        "nonbackground_pixels": 0
+      },
+      {
+        "original_file": "05-copyable80.png",
+        "column": 4,
+        "row": 21,
+        "pixel_box": [
+          40,
+          399,
+          50,
+          418
+        ],
+        "nonbackground_pixels": 0
+      },
+      {
+        "original_file": "05-copyable80.png",
+        "column": 3,
+        "row": 22,
+        "pixel_box": [
+          30,
+          418,
+          40,
+          437
+        ],
+        "nonbackground_pixels": 0
+      },
+      {
+        "original_file": "10-copyable160.png",
+        "column": 150,
+        "row": 22,
+        "pixel_box": [
+          1500,
+          418,
+          1510,
+          437
+        ],
+        "nonbackground_pixels": 0
+      },
+      {
+        "original_file": "10-copyable160.png",
+        "column": 144,
+        "row": 23,
+        "pixel_box": [
+          1440,
+          437,
+          1450,
+          456
+        ],
+        "nonbackground_pixels": 0
+      },
+      {
+        "original_file": "10-copyable160.png",
+        "column": 146,
+        "row": 23,
+        "pixel_box": [
+          1460,
+          437,
+          1470,
+          456
+        ],
+        "nonbackground_pixels": 0
+      },
+      {
+        "original_file": "10-copyable160.png",
+        "column": 151,
+        "row": 23,
+        "pixel_box": [
+          1510,
+          437,
+          1520,
+          456
+        ],
+        "nonbackground_pixels": 0
+      }
+    ],
+    "physical_oracle_sha256": "d4946e0a7158291155c7799fe011c846b3a1b20c37e9857ce14cbd9b90e2ff30",
+    "original_result_sha256": "bc266d1de3968813c10d468eb2f981c3d70f6e52ead8545dcd75348ee48c5f92"
+  },
+  "unchanged_raw_contract": {
+    "raw_contains_password": false,
+    "clear_and_empty_png_identical": true
+  },
+  "physical_reference": {
+    "cell_pitch_px": 10,
+    "row_pitch_px": 19,
+    "basis": "Raw full X11 PNG; ASCII 10-digit pixel repeat and ASCII R mask only. No DSR, DisplayWidth, wcwidth, tmux cursor or font-width API."
+  },
+  "composer_page_inventories": {
+    "11-long160.png": {
+      "reference_blank_row": 20,
+      "reference_white_border_pixels": [
+        1583,
+        1584,
+        1585,
+        1594
+      ],
+      "rows": [
+        {
+          "row": 0,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [],
+          "delta_px": []
+        },
+        {
+          "row": 1,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 2,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 3,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 4,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 5,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 6,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 7,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 8,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 9,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 10,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 11,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 12,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 13,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 14,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 15,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 16,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 17,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 18,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 19,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 20,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 21,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1430,
+            1438,
+            1439,
+            1440,
+            1449,
+            1450,
+            1454,
+            1455,
+            1458,
+            1459,
+            1460,
+            1461,
+            1462,
+            1463,
+            1464,
+            1465,
+            1466,
+            1467,
+            1468,
+            1469,
+            1470,
+            1471,
+            1476,
+            1477,
+            1478,
+            1479,
+            1480,
+            1489,
+            1490,
+            1491,
+            1492,
+            1493,
+            1494,
+            1495,
+            1496,
+            1497,
+            1498,
+            1499,
+            1500,
+            1509,
+            1510,
+            1519,
+            1520,
+            1521,
+            1522,
+            1523,
+            1524,
+            1525,
+            1526,
+            1527,
+            1528,
+            1529,
+            1530,
+            1531,
+            1536,
+            1537,
+            1538,
+            1539,
+            1540,
+            1548,
+            1549,
+            1550,
+            1551,
+            1552,
+            1553,
+            1556,
+            1557,
+            1558,
+            1559,
+            1560,
+            1568,
+            1569,
+            1570,
+            1571,
+            1578,
+            1579,
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -164,
+            -156,
+            -155,
+            -154,
+            -145,
+            -144,
+            -140,
+            -139,
+            -136,
+            -135,
+            -134,
+            -133,
+            -132,
+            -131,
+            -130,
+            -129,
+            -128,
+            -127,
+            -126,
+            -125,
+            -124,
+            -123,
+            -118,
+            -117,
+            -116,
+            -115,
+            -114,
+            -105,
+            -104,
+            -103,
+            -102,
+            -101,
+            -100,
+            -99,
+            -98,
+            -97,
+            -96,
+            -95,
+            -94,
+            -85,
+            -84,
+            -75,
+            -74,
+            -73,
+            -72,
+            -71,
+            -70,
+            -69,
+            -68,
+            -67,
+            -66,
+            -65,
+            -64,
+            -63,
+            -58,
+            -57,
+            -56,
+            -55,
+            -54,
+            -46,
+            -45,
+            -44,
+            -43,
+            -42,
+            -41,
+            -38,
+            -37,
+            -36,
+            -35,
+            -34,
+            -26,
+            -25,
+            -24,
+            -23,
+            -16,
+            -15,
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 22,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1430,
+            1439,
+            1440,
+            1449,
+            1463,
+            1464,
+            1465,
+            1466,
+            1468,
+            1469,
+            1470,
+            1471,
+            1472,
+            1473,
+            1475,
+            1476,
+            1477,
+            1478,
+            1479,
+            1483,
+            1484,
+            1489,
+            1505,
+            1506,
+            1507,
+            1508,
+            1509,
+            1510,
+            1511,
+            1518,
+            1519,
+            1520,
+            1521,
+            1522,
+            1523,
+            1524,
+            1525,
+            1526,
+            1527,
+            1528,
+            1529,
+            1530,
+            1531,
+            1532,
+            1533,
+            1534,
+            1535,
+            1536,
+            1537,
+            1538,
+            1539,
+            1540,
+            1541,
+            1542,
+            1543,
+            1544,
+            1545,
+            1546,
+            1547,
+            1548,
+            1549,
+            1550,
+            1551,
+            1552,
+            1553,
+            1554,
+            1555,
+            1556,
+            1557,
+            1558,
+            1559,
+            1560,
+            1561,
+            1562,
+            1563,
+            1564,
+            1565,
+            1566,
+            1567,
+            1568,
+            1569,
+            1570,
+            1571,
+            1572,
+            1573,
+            1574,
+            1575,
+            1576,
+            1577,
+            1578,
+            1579,
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -164,
+            -155,
+            -154,
+            -145,
+            -131,
+            -130,
+            -129,
+            -128,
+            -126,
+            -125,
+            -124,
+            -123,
+            -122,
+            -121,
+            -119,
+            -118,
+            -117,
+            -116,
+            -115,
+            -111,
+            -110,
+            -105,
+            -89,
+            -88,
+            -87,
+            -86,
+            -85,
+            -84,
+            -83,
+            -76,
+            -75,
+            -74,
+            -73,
+            -72,
+            -71,
+            -70,
+            -69,
+            -68,
+            -67,
+            -66,
+            -65,
+            -64,
+            -63,
+            -62,
+            -61,
+            -60,
+            -59,
+            -58,
+            -57,
+            -56,
+            -55,
+            -54,
+            -53,
+            -52,
+            -51,
+            -50,
+            -49,
+            -48,
+            -47,
+            -46,
+            -45,
+            -44,
+            -43,
+            -42,
+            -41,
+            -40,
+            -39,
+            -38,
+            -37,
+            -36,
+            -35,
+            -34,
+            -33,
+            -32,
+            -31,
+            -30,
+            -29,
+            -28,
+            -27,
+            -26,
+            -25,
+            -24,
+            -23,
+            -22,
+            -21,
+            -20,
+            -19,
+            -18,
+            -17,
+            -16,
+            -15,
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 23,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1430,
+            1431,
+            1443,
+            1445,
+            1446,
+            1447,
+            1448,
+            1449,
+            1450,
+            1451,
+            1454,
+            1455,
+            1465,
+            1466,
+            1467,
+            1468,
+            1469,
+            1470,
+            1471,
+            1472,
+            1473,
+            1474,
+            1475,
+            1476,
+            1477,
+            1478,
+            1479,
+            1480,
+            1489,
+            1490,
+            1491,
+            1492,
+            1493,
+            1494,
+            1495,
+            1496,
+            1497,
+            1498,
+            1499,
+            1500,
+            1501,
+            1502,
+            1503,
+            1504,
+            1510,
+            1511,
+            1512,
+            1513,
+            1514,
+            1515,
+            1516,
+            1517,
+            1518,
+            1519,
+            1520,
+            1521,
+            1522,
+            1523,
+            1524,
+            1525,
+            1526,
+            1527,
+            1528,
+            1529,
+            1530,
+            1531,
+            1532,
+            1533,
+            1534,
+            1535,
+            1536,
+            1537,
+            1538,
+            1539,
+            1540,
+            1541,
+            1542,
+            1543,
+            1544,
+            1545,
+            1546,
+            1547,
+            1548,
+            1549,
+            1550,
+            1551,
+            1552,
+            1553,
+            1554,
+            1555,
+            1556,
+            1557,
+            1558,
+            1559,
+            1560,
+            1561,
+            1562,
+            1563,
+            1564,
+            1565,
+            1566,
+            1567,
+            1568,
+            1569,
+            1570,
+            1571,
+            1572,
+            1573,
+            1574,
+            1575,
+            1576,
+            1577,
+            1578,
+            1579,
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -164,
+            -163,
+            -151,
+            -149,
+            -148,
+            -147,
+            -146,
+            -145,
+            -144,
+            -143,
+            -140,
+            -139,
+            -129,
+            -128,
+            -127,
+            -126,
+            -125,
+            -124,
+            -123,
+            -122,
+            -121,
+            -120,
+            -119,
+            -118,
+            -117,
+            -116,
+            -115,
+            -114,
+            -105,
+            -104,
+            -103,
+            -102,
+            -101,
+            -100,
+            -99,
+            -98,
+            -97,
+            -96,
+            -95,
+            -94,
+            -93,
+            -92,
+            -91,
+            -90,
+            -84,
+            -83,
+            -82,
+            -81,
+            -80,
+            -79,
+            -78,
+            -77,
+            -76,
+            -75,
+            -74,
+            -73,
+            -72,
+            -71,
+            -70,
+            -69,
+            -68,
+            -67,
+            -66,
+            -65,
+            -64,
+            -63,
+            -62,
+            -61,
+            -60,
+            -59,
+            -58,
+            -57,
+            -56,
+            -55,
+            -54,
+            -53,
+            -52,
+            -51,
+            -50,
+            -49,
+            -48,
+            -47,
+            -46,
+            -45,
+            -44,
+            -43,
+            -42,
+            -41,
+            -40,
+            -39,
+            -38,
+            -37,
+            -36,
+            -35,
+            -34,
+            -33,
+            -32,
+            -31,
+            -30,
+            -29,
+            -28,
+            -27,
+            -26,
+            -25,
+            -24,
+            -23,
+            -22,
+            -21,
+            -20,
+            -19,
+            -18,
+            -17,
+            -16,
+            -15,
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 24,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 25,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 26,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 27,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 28,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 29,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [],
+          "delta_px": []
+        }
+      ]
+    },
+    "12-cleared160.png": {
+      "reference_blank_row": 20,
+      "reference_white_border_pixels": [
+        1583,
+        1584,
+        1585,
+        1594
+      ],
+      "rows": [
+        {
+          "row": 0,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [],
+          "delta_px": []
+        },
+        {
+          "row": 1,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 2,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 3,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 4,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 5,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 6,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 7,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 8,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 9,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 10,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 11,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 12,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 13,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 14,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 15,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 16,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 17,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 18,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 19,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 20,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 21,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1430,
+            1438,
+            1439,
+            1440,
+            1449,
+            1450,
+            1454,
+            1455,
+            1458,
+            1459,
+            1460,
+            1461,
+            1462,
+            1463,
+            1464,
+            1465,
+            1466,
+            1467,
+            1468,
+            1469,
+            1470,
+            1471,
+            1476,
+            1477,
+            1478,
+            1479,
+            1480,
+            1489,
+            1490,
+            1491,
+            1492,
+            1493,
+            1494,
+            1495,
+            1496,
+            1497,
+            1498,
+            1499,
+            1500,
+            1509,
+            1510,
+            1519,
+            1520,
+            1521,
+            1522,
+            1523,
+            1524,
+            1525,
+            1526,
+            1527,
+            1528,
+            1529,
+            1530,
+            1531,
+            1536,
+            1537,
+            1538,
+            1539,
+            1540,
+            1548,
+            1549,
+            1550,
+            1551,
+            1552,
+            1553,
+            1556,
+            1557,
+            1558,
+            1559,
+            1560,
+            1568,
+            1569,
+            1570,
+            1571,
+            1578,
+            1579,
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -164,
+            -156,
+            -155,
+            -154,
+            -145,
+            -144,
+            -140,
+            -139,
+            -136,
+            -135,
+            -134,
+            -133,
+            -132,
+            -131,
+            -130,
+            -129,
+            -128,
+            -127,
+            -126,
+            -125,
+            -124,
+            -123,
+            -118,
+            -117,
+            -116,
+            -115,
+            -114,
+            -105,
+            -104,
+            -103,
+            -102,
+            -101,
+            -100,
+            -99,
+            -98,
+            -97,
+            -96,
+            -95,
+            -94,
+            -85,
+            -84,
+            -75,
+            -74,
+            -73,
+            -72,
+            -71,
+            -70,
+            -69,
+            -68,
+            -67,
+            -66,
+            -65,
+            -64,
+            -63,
+            -58,
+            -57,
+            -56,
+            -55,
+            -54,
+            -46,
+            -45,
+            -44,
+            -43,
+            -42,
+            -41,
+            -38,
+            -37,
+            -36,
+            -35,
+            -34,
+            -26,
+            -25,
+            -24,
+            -23,
+            -16,
+            -15,
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 22,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1430,
+            1439,
+            1440,
+            1449,
+            1463,
+            1464,
+            1465,
+            1466,
+            1468,
+            1469,
+            1470,
+            1471,
+            1472,
+            1473,
+            1475,
+            1476,
+            1477,
+            1478,
+            1479,
+            1483,
+            1484,
+            1489,
+            1505,
+            1506,
+            1507,
+            1508,
+            1509,
+            1510,
+            1511,
+            1518,
+            1519,
+            1520,
+            1521,
+            1522,
+            1523,
+            1524,
+            1525,
+            1526,
+            1527,
+            1528,
+            1529,
+            1530,
+            1531,
+            1532,
+            1533,
+            1534,
+            1535,
+            1536,
+            1537,
+            1538,
+            1539,
+            1540,
+            1541,
+            1542,
+            1543,
+            1544,
+            1545,
+            1546,
+            1547,
+            1548,
+            1549,
+            1550,
+            1551,
+            1552,
+            1553,
+            1554,
+            1555,
+            1556,
+            1557,
+            1558,
+            1559,
+            1560,
+            1561,
+            1562,
+            1563,
+            1564,
+            1565,
+            1566,
+            1567,
+            1568,
+            1569,
+            1570,
+            1571,
+            1572,
+            1573,
+            1574,
+            1575,
+            1576,
+            1577,
+            1578,
+            1579,
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -164,
+            -155,
+            -154,
+            -145,
+            -131,
+            -130,
+            -129,
+            -128,
+            -126,
+            -125,
+            -124,
+            -123,
+            -122,
+            -121,
+            -119,
+            -118,
+            -117,
+            -116,
+            -115,
+            -111,
+            -110,
+            -105,
+            -89,
+            -88,
+            -87,
+            -86,
+            -85,
+            -84,
+            -83,
+            -76,
+            -75,
+            -74,
+            -73,
+            -72,
+            -71,
+            -70,
+            -69,
+            -68,
+            -67,
+            -66,
+            -65,
+            -64,
+            -63,
+            -62,
+            -61,
+            -60,
+            -59,
+            -58,
+            -57,
+            -56,
+            -55,
+            -54,
+            -53,
+            -52,
+            -51,
+            -50,
+            -49,
+            -48,
+            -47,
+            -46,
+            -45,
+            -44,
+            -43,
+            -42,
+            -41,
+            -40,
+            -39,
+            -38,
+            -37,
+            -36,
+            -35,
+            -34,
+            -33,
+            -32,
+            -31,
+            -30,
+            -29,
+            -28,
+            -27,
+            -26,
+            -25,
+            -24,
+            -23,
+            -22,
+            -21,
+            -20,
+            -19,
+            -18,
+            -17,
+            -16,
+            -15,
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 23,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1430,
+            1431,
+            1443,
+            1445,
+            1446,
+            1447,
+            1448,
+            1449,
+            1450,
+            1451,
+            1454,
+            1455,
+            1465,
+            1466,
+            1467,
+            1468,
+            1469,
+            1470,
+            1471,
+            1472,
+            1473,
+            1474,
+            1475,
+            1476,
+            1477,
+            1478,
+            1479,
+            1480,
+            1489,
+            1490,
+            1491,
+            1492,
+            1493,
+            1494,
+            1495,
+            1496,
+            1497,
+            1498,
+            1499,
+            1500,
+            1501,
+            1502,
+            1503,
+            1504,
+            1510,
+            1511,
+            1512,
+            1513,
+            1514,
+            1515,
+            1516,
+            1517,
+            1518,
+            1519,
+            1520,
+            1521,
+            1522,
+            1523,
+            1524,
+            1525,
+            1526,
+            1527,
+            1528,
+            1529,
+            1530,
+            1531,
+            1532,
+            1533,
+            1534,
+            1535,
+            1536,
+            1537,
+            1538,
+            1539,
+            1540,
+            1541,
+            1542,
+            1543,
+            1544,
+            1545,
+            1546,
+            1547,
+            1548,
+            1549,
+            1550,
+            1551,
+            1552,
+            1553,
+            1554,
+            1555,
+            1556,
+            1557,
+            1558,
+            1559,
+            1560,
+            1561,
+            1562,
+            1563,
+            1564,
+            1565,
+            1566,
+            1567,
+            1568,
+            1569,
+            1570,
+            1571,
+            1572,
+            1573,
+            1574,
+            1575,
+            1576,
+            1577,
+            1578,
+            1579,
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -164,
+            -163,
+            -151,
+            -149,
+            -148,
+            -147,
+            -146,
+            -145,
+            -144,
+            -143,
+            -140,
+            -139,
+            -129,
+            -128,
+            -127,
+            -126,
+            -125,
+            -124,
+            -123,
+            -122,
+            -121,
+            -120,
+            -119,
+            -118,
+            -117,
+            -116,
+            -115,
+            -114,
+            -105,
+            -104,
+            -103,
+            -102,
+            -101,
+            -100,
+            -99,
+            -98,
+            -97,
+            -96,
+            -95,
+            -94,
+            -93,
+            -92,
+            -91,
+            -90,
+            -84,
+            -83,
+            -82,
+            -81,
+            -80,
+            -79,
+            -78,
+            -77,
+            -76,
+            -75,
+            -74,
+            -73,
+            -72,
+            -71,
+            -70,
+            -69,
+            -68,
+            -67,
+            -66,
+            -65,
+            -64,
+            -63,
+            -62,
+            -61,
+            -60,
+            -59,
+            -58,
+            -57,
+            -56,
+            -55,
+            -54,
+            -53,
+            -52,
+            -51,
+            -50,
+            -49,
+            -48,
+            -47,
+            -46,
+            -45,
+            -44,
+            -43,
+            -42,
+            -41,
+            -40,
+            -39,
+            -38,
+            -37,
+            -36,
+            -35,
+            -34,
+            -33,
+            -32,
+            -31,
+            -30,
+            -29,
+            -28,
+            -27,
+            -26,
+            -25,
+            -24,
+            -23,
+            -22,
+            -21,
+            -20,
+            -19,
+            -18,
+            -17,
+            -16,
+            -15,
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 24,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 25,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 26,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 27,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 28,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 29,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [],
+          "delta_px": []
+        }
+      ]
+    },
+    "13-short160.png": {
+      "reference_blank_row": 20,
+      "reference_white_border_pixels": [
+        1583,
+        1584,
+        1585,
+        1594
+      ],
+      "rows": [
+        {
+          "row": 0,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [],
+          "delta_px": []
+        },
+        {
+          "row": 1,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 2,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 3,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 4,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 5,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 6,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 7,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 8,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 9,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 10,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 11,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 12,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 13,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 14,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 15,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 16,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 17,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 18,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 19,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 20,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 21,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1430,
+            1438,
+            1439,
+            1440,
+            1449,
+            1450,
+            1454,
+            1455,
+            1458,
+            1459,
+            1460,
+            1461,
+            1462,
+            1463,
+            1464,
+            1465,
+            1466,
+            1467,
+            1468,
+            1469,
+            1470,
+            1471,
+            1476,
+            1477,
+            1478,
+            1479,
+            1480,
+            1489,
+            1490,
+            1491,
+            1492,
+            1493,
+            1494,
+            1495,
+            1496,
+            1497,
+            1498,
+            1499,
+            1500,
+            1509,
+            1510,
+            1519,
+            1520,
+            1521,
+            1522,
+            1523,
+            1524,
+            1525,
+            1526,
+            1527,
+            1528,
+            1529,
+            1530,
+            1531,
+            1536,
+            1537,
+            1538,
+            1539,
+            1540,
+            1548,
+            1549,
+            1550,
+            1551,
+            1552,
+            1553,
+            1556,
+            1557,
+            1558,
+            1559,
+            1560,
+            1568,
+            1569,
+            1570,
+            1571,
+            1578,
+            1579,
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -164,
+            -156,
+            -155,
+            -154,
+            -145,
+            -144,
+            -140,
+            -139,
+            -136,
+            -135,
+            -134,
+            -133,
+            -132,
+            -131,
+            -130,
+            -129,
+            -128,
+            -127,
+            -126,
+            -125,
+            -124,
+            -123,
+            -118,
+            -117,
+            -116,
+            -115,
+            -114,
+            -105,
+            -104,
+            -103,
+            -102,
+            -101,
+            -100,
+            -99,
+            -98,
+            -97,
+            -96,
+            -95,
+            -94,
+            -85,
+            -84,
+            -75,
+            -74,
+            -73,
+            -72,
+            -71,
+            -70,
+            -69,
+            -68,
+            -67,
+            -66,
+            -65,
+            -64,
+            -63,
+            -58,
+            -57,
+            -56,
+            -55,
+            -54,
+            -46,
+            -45,
+            -44,
+            -43,
+            -42,
+            -41,
+            -38,
+            -37,
+            -36,
+            -35,
+            -34,
+            -26,
+            -25,
+            -24,
+            -23,
+            -16,
+            -15,
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 22,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1430,
+            1439,
+            1440,
+            1449,
+            1463,
+            1464,
+            1465,
+            1466,
+            1468,
+            1469,
+            1470,
+            1471,
+            1472,
+            1473,
+            1475,
+            1476,
+            1477,
+            1478,
+            1479,
+            1483,
+            1484,
+            1489,
+            1505,
+            1506,
+            1507,
+            1508,
+            1509,
+            1510,
+            1511,
+            1518,
+            1519,
+            1520,
+            1521,
+            1522,
+            1523,
+            1524,
+            1525,
+            1526,
+            1527,
+            1528,
+            1529,
+            1530,
+            1531,
+            1532,
+            1533,
+            1534,
+            1535,
+            1536,
+            1537,
+            1538,
+            1539,
+            1540,
+            1541,
+            1542,
+            1543,
+            1544,
+            1545,
+            1546,
+            1547,
+            1548,
+            1549,
+            1550,
+            1551,
+            1552,
+            1553,
+            1554,
+            1555,
+            1556,
+            1557,
+            1558,
+            1559,
+            1560,
+            1561,
+            1562,
+            1563,
+            1564,
+            1565,
+            1566,
+            1567,
+            1568,
+            1569,
+            1570,
+            1571,
+            1572,
+            1573,
+            1574,
+            1575,
+            1576,
+            1577,
+            1578,
+            1579,
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -164,
+            -155,
+            -154,
+            -145,
+            -131,
+            -130,
+            -129,
+            -128,
+            -126,
+            -125,
+            -124,
+            -123,
+            -122,
+            -121,
+            -119,
+            -118,
+            -117,
+            -116,
+            -115,
+            -111,
+            -110,
+            -105,
+            -89,
+            -88,
+            -87,
+            -86,
+            -85,
+            -84,
+            -83,
+            -76,
+            -75,
+            -74,
+            -73,
+            -72,
+            -71,
+            -70,
+            -69,
+            -68,
+            -67,
+            -66,
+            -65,
+            -64,
+            -63,
+            -62,
+            -61,
+            -60,
+            -59,
+            -58,
+            -57,
+            -56,
+            -55,
+            -54,
+            -53,
+            -52,
+            -51,
+            -50,
+            -49,
+            -48,
+            -47,
+            -46,
+            -45,
+            -44,
+            -43,
+            -42,
+            -41,
+            -40,
+            -39,
+            -38,
+            -37,
+            -36,
+            -35,
+            -34,
+            -33,
+            -32,
+            -31,
+            -30,
+            -29,
+            -28,
+            -27,
+            -26,
+            -25,
+            -24,
+            -23,
+            -22,
+            -21,
+            -20,
+            -19,
+            -18,
+            -17,
+            -16,
+            -15,
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 23,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1430,
+            1431,
+            1443,
+            1445,
+            1446,
+            1447,
+            1448,
+            1449,
+            1450,
+            1451,
+            1454,
+            1455,
+            1465,
+            1466,
+            1467,
+            1468,
+            1469,
+            1470,
+            1471,
+            1472,
+            1473,
+            1474,
+            1475,
+            1476,
+            1477,
+            1478,
+            1479,
+            1480,
+            1489,
+            1490,
+            1491,
+            1492,
+            1493,
+            1494,
+            1495,
+            1496,
+            1497,
+            1498,
+            1499,
+            1500,
+            1501,
+            1502,
+            1503,
+            1504,
+            1510,
+            1511,
+            1512,
+            1513,
+            1514,
+            1515,
+            1516,
+            1517,
+            1518,
+            1519,
+            1520,
+            1521,
+            1522,
+            1523,
+            1524,
+            1525,
+            1526,
+            1527,
+            1528,
+            1529,
+            1530,
+            1531,
+            1532,
+            1533,
+            1534,
+            1535,
+            1536,
+            1537,
+            1538,
+            1539,
+            1540,
+            1541,
+            1542,
+            1543,
+            1544,
+            1545,
+            1546,
+            1547,
+            1548,
+            1549,
+            1550,
+            1551,
+            1552,
+            1553,
+            1554,
+            1555,
+            1556,
+            1557,
+            1558,
+            1559,
+            1560,
+            1561,
+            1562,
+            1563,
+            1564,
+            1565,
+            1566,
+            1567,
+            1568,
+            1569,
+            1570,
+            1571,
+            1572,
+            1573,
+            1574,
+            1575,
+            1576,
+            1577,
+            1578,
+            1579,
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -164,
+            -163,
+            -151,
+            -149,
+            -148,
+            -147,
+            -146,
+            -145,
+            -144,
+            -143,
+            -140,
+            -139,
+            -129,
+            -128,
+            -127,
+            -126,
+            -125,
+            -124,
+            -123,
+            -122,
+            -121,
+            -120,
+            -119,
+            -118,
+            -117,
+            -116,
+            -115,
+            -114,
+            -105,
+            -104,
+            -103,
+            -102,
+            -101,
+            -100,
+            -99,
+            -98,
+            -97,
+            -96,
+            -95,
+            -94,
+            -93,
+            -92,
+            -91,
+            -90,
+            -84,
+            -83,
+            -82,
+            -81,
+            -80,
+            -79,
+            -78,
+            -77,
+            -76,
+            -75,
+            -74,
+            -73,
+            -72,
+            -71,
+            -70,
+            -69,
+            -68,
+            -67,
+            -66,
+            -65,
+            -64,
+            -63,
+            -62,
+            -61,
+            -60,
+            -59,
+            -58,
+            -57,
+            -56,
+            -55,
+            -54,
+            -53,
+            -52,
+            -51,
+            -50,
+            -49,
+            -48,
+            -47,
+            -46,
+            -45,
+            -44,
+            -43,
+            -42,
+            -41,
+            -40,
+            -39,
+            -38,
+            -37,
+            -36,
+            -35,
+            -34,
+            -33,
+            -32,
+            -31,
+            -30,
+            -29,
+            -28,
+            -27,
+            -26,
+            -25,
+            -24,
+            -23,
+            -22,
+            -21,
+            -20,
+            -19,
+            -18,
+            -17,
+            -16,
+            -15,
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 24,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 25,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 26,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 27,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 28,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 29,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [],
+          "delta_px": []
+        }
+      ]
+    },
+    "14-empty160.png": {
+      "reference_blank_row": 20,
+      "reference_white_border_pixels": [
+        1583,
+        1584,
+        1585,
+        1594
+      ],
+      "rows": [
+        {
+          "row": 0,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [],
+          "delta_px": []
+        },
+        {
+          "row": 1,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 2,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 3,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 4,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 5,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 6,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 7,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 8,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 9,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 10,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 11,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 12,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 13,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 14,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 15,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 16,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 17,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 18,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 19,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 20,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 21,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1430,
+            1438,
+            1439,
+            1440,
+            1449,
+            1450,
+            1454,
+            1455,
+            1458,
+            1459,
+            1460,
+            1461,
+            1462,
+            1463,
+            1464,
+            1465,
+            1466,
+            1467,
+            1468,
+            1469,
+            1470,
+            1471,
+            1476,
+            1477,
+            1478,
+            1479,
+            1480,
+            1489,
+            1490,
+            1491,
+            1492,
+            1493,
+            1494,
+            1495,
+            1496,
+            1497,
+            1498,
+            1499,
+            1500,
+            1509,
+            1510,
+            1519,
+            1520,
+            1521,
+            1522,
+            1523,
+            1524,
+            1525,
+            1526,
+            1527,
+            1528,
+            1529,
+            1530,
+            1531,
+            1536,
+            1537,
+            1538,
+            1539,
+            1540,
+            1548,
+            1549,
+            1550,
+            1551,
+            1552,
+            1553,
+            1556,
+            1557,
+            1558,
+            1559,
+            1560,
+            1568,
+            1569,
+            1570,
+            1571,
+            1578,
+            1579,
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -164,
+            -156,
+            -155,
+            -154,
+            -145,
+            -144,
+            -140,
+            -139,
+            -136,
+            -135,
+            -134,
+            -133,
+            -132,
+            -131,
+            -130,
+            -129,
+            -128,
+            -127,
+            -126,
+            -125,
+            -124,
+            -123,
+            -118,
+            -117,
+            -116,
+            -115,
+            -114,
+            -105,
+            -104,
+            -103,
+            -102,
+            -101,
+            -100,
+            -99,
+            -98,
+            -97,
+            -96,
+            -95,
+            -94,
+            -85,
+            -84,
+            -75,
+            -74,
+            -73,
+            -72,
+            -71,
+            -70,
+            -69,
+            -68,
+            -67,
+            -66,
+            -65,
+            -64,
+            -63,
+            -58,
+            -57,
+            -56,
+            -55,
+            -54,
+            -46,
+            -45,
+            -44,
+            -43,
+            -42,
+            -41,
+            -38,
+            -37,
+            -36,
+            -35,
+            -34,
+            -26,
+            -25,
+            -24,
+            -23,
+            -16,
+            -15,
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 22,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1430,
+            1439,
+            1440,
+            1449,
+            1463,
+            1464,
+            1465,
+            1466,
+            1468,
+            1469,
+            1470,
+            1471,
+            1472,
+            1473,
+            1475,
+            1476,
+            1477,
+            1478,
+            1479,
+            1483,
+            1484,
+            1489,
+            1505,
+            1506,
+            1507,
+            1508,
+            1509,
+            1510,
+            1511,
+            1518,
+            1519,
+            1520,
+            1521,
+            1522,
+            1523,
+            1524,
+            1525,
+            1526,
+            1527,
+            1528,
+            1529,
+            1530,
+            1531,
+            1532,
+            1533,
+            1534,
+            1535,
+            1536,
+            1537,
+            1538,
+            1539,
+            1540,
+            1541,
+            1542,
+            1543,
+            1544,
+            1545,
+            1546,
+            1547,
+            1548,
+            1549,
+            1550,
+            1551,
+            1552,
+            1553,
+            1554,
+            1555,
+            1556,
+            1557,
+            1558,
+            1559,
+            1560,
+            1561,
+            1562,
+            1563,
+            1564,
+            1565,
+            1566,
+            1567,
+            1568,
+            1569,
+            1570,
+            1571,
+            1572,
+            1573,
+            1574,
+            1575,
+            1576,
+            1577,
+            1578,
+            1579,
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -164,
+            -155,
+            -154,
+            -145,
+            -131,
+            -130,
+            -129,
+            -128,
+            -126,
+            -125,
+            -124,
+            -123,
+            -122,
+            -121,
+            -119,
+            -118,
+            -117,
+            -116,
+            -115,
+            -111,
+            -110,
+            -105,
+            -89,
+            -88,
+            -87,
+            -86,
+            -85,
+            -84,
+            -83,
+            -76,
+            -75,
+            -74,
+            -73,
+            -72,
+            -71,
+            -70,
+            -69,
+            -68,
+            -67,
+            -66,
+            -65,
+            -64,
+            -63,
+            -62,
+            -61,
+            -60,
+            -59,
+            -58,
+            -57,
+            -56,
+            -55,
+            -54,
+            -53,
+            -52,
+            -51,
+            -50,
+            -49,
+            -48,
+            -47,
+            -46,
+            -45,
+            -44,
+            -43,
+            -42,
+            -41,
+            -40,
+            -39,
+            -38,
+            -37,
+            -36,
+            -35,
+            -34,
+            -33,
+            -32,
+            -31,
+            -30,
+            -29,
+            -28,
+            -27,
+            -26,
+            -25,
+            -24,
+            -23,
+            -22,
+            -21,
+            -20,
+            -19,
+            -18,
+            -17,
+            -16,
+            -15,
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 23,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1430,
+            1431,
+            1443,
+            1445,
+            1446,
+            1447,
+            1448,
+            1449,
+            1450,
+            1451,
+            1454,
+            1455,
+            1465,
+            1466,
+            1467,
+            1468,
+            1469,
+            1470,
+            1471,
+            1472,
+            1473,
+            1474,
+            1475,
+            1476,
+            1477,
+            1478,
+            1479,
+            1480,
+            1489,
+            1490,
+            1491,
+            1492,
+            1493,
+            1494,
+            1495,
+            1496,
+            1497,
+            1498,
+            1499,
+            1500,
+            1501,
+            1502,
+            1503,
+            1504,
+            1510,
+            1511,
+            1512,
+            1513,
+            1514,
+            1515,
+            1516,
+            1517,
+            1518,
+            1519,
+            1520,
+            1521,
+            1522,
+            1523,
+            1524,
+            1525,
+            1526,
+            1527,
+            1528,
+            1529,
+            1530,
+            1531,
+            1532,
+            1533,
+            1534,
+            1535,
+            1536,
+            1537,
+            1538,
+            1539,
+            1540,
+            1541,
+            1542,
+            1543,
+            1544,
+            1545,
+            1546,
+            1547,
+            1548,
+            1549,
+            1550,
+            1551,
+            1552,
+            1553,
+            1554,
+            1555,
+            1556,
+            1557,
+            1558,
+            1559,
+            1560,
+            1561,
+            1562,
+            1563,
+            1564,
+            1565,
+            1566,
+            1567,
+            1568,
+            1569,
+            1570,
+            1571,
+            1572,
+            1573,
+            1574,
+            1575,
+            1576,
+            1577,
+            1578,
+            1579,
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -164,
+            -163,
+            -151,
+            -149,
+            -148,
+            -147,
+            -146,
+            -145,
+            -144,
+            -143,
+            -140,
+            -139,
+            -129,
+            -128,
+            -127,
+            -126,
+            -125,
+            -124,
+            -123,
+            -122,
+            -121,
+            -120,
+            -119,
+            -118,
+            -117,
+            -116,
+            -115,
+            -114,
+            -105,
+            -104,
+            -103,
+            -102,
+            -101,
+            -100,
+            -99,
+            -98,
+            -97,
+            -96,
+            -95,
+            -94,
+            -93,
+            -92,
+            -91,
+            -90,
+            -84,
+            -83,
+            -82,
+            -81,
+            -80,
+            -79,
+            -78,
+            -77,
+            -76,
+            -75,
+            -74,
+            -73,
+            -72,
+            -71,
+            -70,
+            -69,
+            -68,
+            -67,
+            -66,
+            -65,
+            -64,
+            -63,
+            -62,
+            -61,
+            -60,
+            -59,
+            -58,
+            -57,
+            -56,
+            -55,
+            -54,
+            -53,
+            -52,
+            -51,
+            -50,
+            -49,
+            -48,
+            -47,
+            -46,
+            -45,
+            -44,
+            -43,
+            -42,
+            -41,
+            -40,
+            -39,
+            -38,
+            -37,
+            -36,
+            -35,
+            -34,
+            -33,
+            -32,
+            -31,
+            -30,
+            -29,
+            -28,
+            -27,
+            -26,
+            -25,
+            -24,
+            -23,
+            -22,
+            -21,
+            -20,
+            -19,
+            -18,
+            -17,
+            -16,
+            -15,
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 24,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1583,
+            1584,
+            1585,
+            1594
+          ],
+          "delta_px": [
+            -11,
+            -10,
+            -9,
+            0
+          ]
+        },
+        {
+          "row": 25,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 26,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 27,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 28,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        {
+          "row": 29,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [],
+          "delta_px": []
+        }
+      ]
+    }
+  },
+  "cleanup": {
+    "scope": "/tmp/chat-t04-erase-after.peFyBTYr/native",
+    "owned_pids": {
+      "3965081": {
+        "pid": 3965081,
+        "alive": false,
+        "error": "FileNotFoundError"
+      },
+      "3965112": {
+        "pid": 3965112,
+        "alive": false,
+        "error": "FileNotFoundError"
+      },
+      "3965113": {
+        "pid": 3965113,
+        "alive": false,
+        "error": "FileNotFoundError"
+      },
+      "3965633": {
+        "pid": 3965633,
+        "alive": false,
+        "error": "FileNotFoundError"
+      },
+      "3965636": {
+        "pid": 3965636,
+        "alive": false,
+        "error": "FileNotFoundError"
+      },
+      "3965646": {
+        "pid": 3965646,
+        "alive": false,
+        "error": "FileNotFoundError"
+      },
+      "3965709": {
+        "pid": 3965709,
+        "alive": false,
+        "error": "FileNotFoundError"
+      },
+      "3965713": {
+        "pid": 3965713,
+        "alive": false,
+        "error": "FileNotFoundError"
+      },
+      "3965714": {
+        "pid": 3965714,
+        "alive": false,
+        "error": "FileNotFoundError"
+      },
+      "3965915": {
+        "pid": 3965915,
+        "alive": false,
+        "error": "FileNotFoundError"
+      },
+      "3965916": {
+        "pid": 3965916,
+        "alive": false,
+        "error": "FileNotFoundError"
+      },
+      "3966027": {
+        "pid": 3966027,
+        "alive": false,
+        "error": "FileNotFoundError"
+      },
+      "3966154": {
+        "pid": 3966154,
+        "alive": false,
+        "error": "FileNotFoundError"
+      },
+      "3966516": {
+        "pid": 3966516,
+        "alive": false,
+        "error": "FileNotFoundError"
+      }
+    },
+    "all_owned_gone": true,
+    "database": "chat_t04_candidate_mux_1006182529_3965081",
+    "database_absent": true,
+    "private_port": 40003,
+    "private_port_closed": true,
+    "socket": {
+      "existed": true,
+      "removed_dead_inode": true,
+      "listener": false,
+      "errno": 111,
+      "absent_after": true
+    },
+    "wezterm_gui_socket": {
+      "existed": true,
+      "removed_dead_inode": true,
+      "listener": false,
+      "errno": 111,
+      "absent_after": true
+    },
+    "protected": {
+      "2876288": {
+        "pid": 2876288,
+        "alive": true,
+        "state": "S",
+        "executable": "/home/gyl/example/chat/build/chat_server (deleted)",
+        "start_ticks": 521400965,
+        "cpu_seconds": 0.98,
+        "rss_kib": 17108,
+        "peak_rss_kib": 17108,
+        "threads": 25,
+        "fds": 41
+      },
+      "3225": {
+        "pid": 3225,
+        "alive": true,
+        "state": "S",
+        "executable": "/usr/bin/fcitx5",
+        "start_ticks": 17583,
+        "cpu_seconds": 6052.4,
+        "rss_kib": 61320,
+        "peak_rss_kib": 285108,
+        "threads": 3,
+        "fds": 62
+      },
+      "29935": {
+        "pid": 29935,
+        "alive": true,
+        "state": "S",
+        "executable": "/usr/bin/speech-dispatcher",
+        "start_ticks": 248258,
+        "cpu_seconds": 4.85,
+        "rss_kib": 6476,
+        "peak_rss_kib": 7872,
+        "threads": 5,
+        "fds": 24
+      }
+    },
+    "protected_unchanged": true,
+    "driver_actual_exit": 0,
+    "native_child_actual_exit": {
+      "actual_exit": 0
+    },
+    "tui_source_unchanged": true,
+    "binary_sha": {
+      "chat_tui": "dd1a6baab6d19759f0d8cf5e88133130eecf45412bed90360728476e926a11a0",
+      "chat_server": "f2c9288cbc32817183e399e72a4a3af8e45adfdfbd54435af43aae86da36bf5b",
+      "chat_tui_scale_fixture": "b624a131f2170164bd4f9b2c9ac2cc732fd6b62c23819f3a8b9d7fc0b4d021fe"
+    }
+  },
+  "original_pngs": [
+    {
+      "file": "00-outer9-oracle.png",
+      "sha": "97b9d98dfee502c5023a14a25872ab4fd754158ea42bad451203ff88e468f33f",
+      "raw_offset": 0,
+      "tty_rows_cols": null
+    },
+    {
+      "file": "01-mux9-off-oracle.png",
+      "sha": "37c3ca6796f18508c05481b86175fedcdc503116065c7f4900ea1a9006a8e2f8",
+      "raw_offset": 1393,
+      "tty_rows_cols": null
+    },
+    {
+      "file": "02-login80.png",
+      "sha": "af43deaee362e3f37139dfcfd78f057894d3893472a5e89a019fc10c570bad5a",
+      "raw_offset": 2272,
+      "tty_rows_cols": [
+        30,
+        80
+      ]
+    },
+    {
+      "file": "03-chats80.png",
+      "sha": "40e346799f0f22ca17363acb3361d8a8feeb13b669b735b6709ae6462a523500",
+      "raw_offset": 20987,
+      "tty_rows_cols": [
+        30,
+        80
+      ]
+    },
+    {
+      "file": "04-selected80.png",
+      "sha": "b7c5c1fa1b2043f9ec73895cd8d040f7265f48221a3e3251bcf805f7e62090d5",
+      "raw_offset": 32660,
+      "tty_rows_cols": [
+        30,
+        80
+      ]
+    },
+    {
+      "file": "05-copyable80.png",
+      "sha": "1813c64f907b2519863629f92badf5e26e4940a673c888e4fc7311bfacefc34d",
+      "raw_offset": 36207,
+      "tty_rows_cols": [
+        30,
+        80
+      ]
+    },
+    {
+      "file": "05b-native-selected-copy80.png",
+      "sha": "2ecf2a971522550797580063b3870462beba1cb3a1bba4fc96113f457b9a9f7f",
+      "raw_offset": 36207,
+      "tty_rows_cols": [
+        30,
+        80
+      ]
+    },
+    {
+      "file": "06-composer80.png",
+      "sha": "9ee509142eb2edc3ff7a2938b2e01c002e54873f825bd1c1335a3c537bf375de",
+      "raw_offset": 55858,
+      "tty_rows_cols": [
+        30,
+        80
+      ]
+    },
+    {
+      "file": "07-composer-midedit80.png",
+      "sha": "f99e86c74adf7eb3e86761b506a94f93030b4a051e209d2fc120a2500862af3a",
+      "raw_offset": 67688,
+      "tty_rows_cols": [
+        30,
+        80
+      ]
+    },
+    {
+      "file": "08-sent80.png",
+      "sha": "ad6f6d3be07a79ce926912bd0bc13b6fcdd2258a98209eb7e2a6c43550296331",
+      "raw_offset": 83500,
+      "tty_rows_cols": [
+        30,
+        80
+      ]
+    },
+    {
+      "file": "09-selected160.png",
+      "sha": "7c77dd2a3926f6403d4d13d5fa2e97b4ea35c1a67533e3d33e07ffeea3d27269",
+      "raw_offset": 97027,
+      "tty_rows_cols": [
+        30,
+        160
+      ]
+    },
+    {
+      "file": "10-copyable160.png",
+      "sha": "ff73a5c0d16c6fedbf5d27f43f250aa6506d8b2fe100be5cf4cf6a056abcce2b",
+      "raw_offset": 103600,
+      "tty_rows_cols": [
+        30,
+        160
+      ]
+    },
+    {
+      "file": "11-long160.png",
+      "sha": "1e154fa105f90b96e754f588b99c046d05b1cbbe5e8fe3b94716e8b3f6ddf343",
+      "raw_offset": 141511,
+      "tty_rows_cols": [
+        30,
+        160
+      ]
+    },
+    {
+      "file": "12-cleared160.png",
+      "sha": "3db2c043be46adb847fac26caa5c69fb85bb5171e886569caaad0fe7606347b6",
+      "raw_offset": 573933,
+      "tty_rows_cols": [
+        30,
+        160
+      ]
+    },
+    {
+      "file": "13-short160.png",
+      "sha": "25f81d5618c3983586a3b47958ac3564a41ffe6f5478bca34205d1d548f54ee4",
+      "raw_offset": 588871,
+      "tty_rows_cols": [
+        30,
+        160
+      ]
+    },
+    {
+      "file": "14-empty160.png",
+      "sha": "3db2c043be46adb847fac26caa5c69fb85bb5171e886569caaad0fe7606347b6",
+      "raw_offset": 603808,
+      "tty_rows_cols": [
+        30,
+        160
+      ]
+    },
+    {
+      "file": "15-chats160.png",
+      "sha": "d937520a2783805b329bd2e09efd478f6f517e0f011f4aabd38db492abd1009b",
+      "raw_offset": 618752,
+      "tty_rows_cols": [
+        30,
+        160
+      ]
+    },
+    {
+      "file": "16-after-test9-oracle.png",
+      "sha": "5330c8829e70c7c92f8c44dd13af6bbeb96ccae00fce6617576b35052e438a22",
+      "raw_offset": 626781,
+      "tty_rows_cols": null
+    }
+  ],
+  "original_artifacts": {
+    "result.json": "bc266d1de3968813c10d468eb2f981c3d70f6e52ead8545dcd75348ee48c5f92",
+    "session.raw": "ae3907eea8fb09bd647248bb01e678be412ddfcf66e34501e56b3f63144cf663",
+    "physical-oracle.json": "d4946e0a7158291155c7799fe011c846b3a1b20c37e9857ce14cbd9b90e2ff30",
+    "blank-audit.json": "6993a69f729d269130c04d82acdeb3d044fd11b927a2cd34dd6ff9d347540e4a",
+    "cleanup-audit.json": "f79819bcb864518ebeb8cffa0b7fe35eb2643d426d4504bbd86ef469ebcd3222",
+    "driver.py": "ee97889aea22028de3d8576f03fe901162d079e8718c7c91bc9697cff7ab6e74",
+    "host.py": "e7b26d261d595df4ba64225b6aede7a7d8f82c6a256574c0ace57609bc475157",
+    "pixels.py": "3dc8c2d5233e39b2716b56b030aa2adbb1f9a2faf7177c5519897ce1fe8d10b9",
+    "wezterm.lua": "b28272d5198c1d74b4769f214d377c2ac6c67228611e950541cedb045899aab2",
+    "tmux.conf": "4377c1b796857515944f843cff0ab182bc5151acf33234af63be140bdb6e05fa"
+  },
+  "unchanged_third": true,
+  "limits": "No full-screen erase, cursor-home rewrite, DisplayWidth changes, cancellation of selection, timestamp restart, resize/repaint recovery, or timeout relaxation. Legacy terminals, light profiles, SSH and full Unicode18 matrix remain open."
+}

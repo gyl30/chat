@@ -2066,3 +2066,68 @@
  /// @brief Access a cell (Cell) at a given position, without stencil check.
  /// @param x The cell position along the x-axis.
  /// @param y The cell position along the y-axis.
+--- a/src/ftxui/component/app.cpp
++++ b/src/ftxui/component/app.cpp
+@@ -1091,6 +1091,62 @@
+     }
+   }
+ 
++  // Repeated, same-size frames already have a visible area and a column-zero
++  // origin. Explicitly erase default blanks so a terminal multiplexer cannot
++  // skip old wide-character padding merely because its virtual cell is blank.
++  // The first/resized frame keeps the existing allocation/clear path.
++  if (!resized && public_->dimx_ > 0 && public_->dimy_ > 0 &&
++      public_->dimx_ <= terminal.dimx && public_->dimy_ <= terminal.dimy) {
++    const auto is_default_blank = [](const Cell& cell) {
++      return cell.span >= 0 && cell.span <= 1 &&
++             (cell.character.empty() || cell.character == " ") &&
++             !cell.blink && !cell.bold && !cell.dim && !cell.italic &&
++             !cell.inverted && !cell.underlined && !cell.underlined_double &&
++             !cell.strikethrough && !cell.automerge && cell.hyperlink == 0 &&
++             cell.background_color == Color::Default &&
++             cell.foreground_color == Color::Default;
++    };
++    std::string erase;
++    int row = 0;
++    int column = 0;
++    for (int y = 0; y < public_->dimy_; ++y) {
++      for (int x = 0; x < public_->dimx_;) {
++        if (!is_default_blank(public_->CellAt(x, y))) {
++          ++x;
++          continue;
++        }
++        const int start = x;
++        while (x < public_->dimx_ &&
++               is_default_blank(public_->CellAt(x, y))) {
++          ++x;
++        }
++        if (erase.empty()) {
++          erase += "\x1B[0m";
++        }
++        if (y != row) {
++          erase += '\r';
++          erase += "\x1B[" + std::to_string(y - row) + "B";
++          row = y;
++          column = 0;
++        }
++        if (start != column) {
++          erase += "\x1B[" + std::to_string(start - column) + "C";
++        }
++        erase += "\x1B[" + std::to_string(x - start) + "X";
++        // ECH does not move the cursor. In particular, never advance one past
++        // the last column of a full-width frame.
++        column = start;
++      }
++    }
++    if (!erase.empty()) {
++      erase += '\r';
++      if (row != 0) {
++        erase += "\x1B[" + std::to_string(row) + "A";
++      }
++      TerminalSend(erase);
++    }
++  }
++
+   public_->ToString(output_buffer);
+   TerminalSend(set_cursor_position_);
+   TerminalFlush();

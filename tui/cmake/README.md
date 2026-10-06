@@ -38,7 +38,7 @@ Mn、VS15、ZWJ、第二个 VS16 或前一个 modifier 均断开这条局部关�
 RGI modifier sequence 集合不是这一结构关系的等价白名单：Unicode18 RGI 有 675 pairs，
 属性结构有 680 pairs（差集是 FAMILY × 5 个 modifier）。
 
-`ftxui_unicode.cmake` 校验全部 21 个原始文件的 SHA256，然后从 pristine 副本在构建目录
+`ftxui_unicode.cmake` 校验全部 22 个原始文件的 SHA256，然后从 pristine 副本在构建目录
 精确应用 `ftxui-7.0.3-grapheme.patch`（零 fuzz），不修改子模块。
 原 `screen`、`dom` 和 `component` target 替换对应翻译单元，公有与内部声明均来自修补目录；
 不靠额外对象覆盖静态 archive 的符号。重配置先恢复 pristine 源，生成文件内容不变时不重编。
@@ -87,6 +87,13 @@ scalar width，并将每个显示 EGC 限制在两列以内。格式和组合字
 这一分配已在 WezTerm Unicode9 与 tmux 3.6a 的 VS16 widening 关闭链中验证，
 不代表所有终端支持同一种字素宽度。旧 XTerm、SSH、浅色终端及更新 Unicode 字符
 仍需独立的物理列和重绘验证；不能仅凭永久回归通过关闭 T04。
+
+同尺寸后续帧在既有可见区域内先用有界 ECH 擦除默认空白，再输出原始完整帧。
+这防止 tmux 将宽字续格后的空格优化成 cursor-forward，留下外层终端旧反白背景。
+只处理无样式、无 hyperlink 的默认空白，不擦除宽字 continuation；首次与 resize
+仍走原分配路径。相对移动始终恢复当前帧原点，不做全屏清除、不改变显示列或
+`Screen::ToString()` 的字面空格契约。永久回归捕获公有 App/Loop 的实际输出，
+覆盖固定、全屏及 inline 区域、首次/resize、末列和样式排除。
 
 FTXUI 补丁保留原 MIT 版权声明。utf8proc 的完整版权及许可证见
 `utf8proc-LICENSE.md`，分发静态链接二进制时也必须携带该声明。
