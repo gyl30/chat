@@ -9,6 +9,7 @@
 #include "ftxui/screen/string.hpp"
 #include <iostream>
 #include <string>
+#include <utility>
 #include <vector>
 namespace {
 using namespace ftxui;
@@ -125,17 +126,25 @@ int main() {
         {"interrupted-hand-mark", {{"👋\u0301🏽", "👋\u0301" + replacement, 3}, {"Z", "Z"}}},
         {"interrupted-hand-VS15", {{"👋\ufe0e🏽", "👋\ufe0e" + replacement, 3}, {"Z", "Z"}}},
         {"interrupted-hand-two-VS16", {{"👋\ufe0f\ufe0f🏽", "👋\ufe0f\ufe0f" + replacement, 3}, {"Z", "Z"}}},
-        {"normal-woman-ZWJ", {{"👩‍💻", "👩‍💻", 5}, {"Z", "Z"}}},
-        {"local-ZWJ-first-valid-last-malformed", {{"👩🏽‍💻🏽", "👩🏽‍💻" + replacement, 6}, {"Z", "Z"}}},
-        {"local-ZWJ-earlier-base-not-enough", {{"👩‍💻🏽", "👩‍💻" + replacement, 6}, {"Z", "Z"}}},
-        {"local-ZWJ-last-valid", {{"👩‍👩🏽", "👩‍👩🏽", 5}, {"Z", "Z"}}},
-        {"local-ZWJ-both-valid", {{"👩🏽‍👩🏽", "👩🏽‍👩🏽", 5}, {"Z", "Z"}}},
+        // Width2 is the literal original-X11 R-distance expectation for the
+        // measured modern host, not a DisplayWidth-derived expectation.
+        {"normal-woman-ZWJ", {{"👩‍💻", "👩‍💻", 2}, {"Z", "Z"}}},
+        // Replacements break the display into emoji EGC2 + carrier EGC1.
+        {"local-ZWJ-first-valid-last-malformed", {{"👩🏽‍💻🏽", "👩🏽‍💻" + replacement, 3}, {"Z", "Z"}}},
+        {"local-ZWJ-earlier-base-not-enough", {{"👩‍💻🏽", "👩‍💻" + replacement, 3}, {"Z", "Z"}}},
+        {"local-ZWJ-last-valid", {{"👩‍👩🏽", "👩‍👩🏽", 2}, {"Z", "Z"}}},
+        {"local-ZWJ-both-valid", {{"👩🏽‍👩🏽", "👩🏽‍👩🏽", 2}, {"Z", "Z"}}},
         {"second-modifier-unattached", {{"👋🏽🏾", "👋🏽" + replacement, 3}, {"Z", "Z"}}},
         // Structural ED13 membership is not the narrower RGI sequence set.
         {"modifier-base-family-non-RGI", {{"👪🏽", "👪🏽", 2}, {"Z", "Z"}}},
-        // Unicode18 data includes this base; retain the old intrinsic width
-        // policy (1), without pretending it is a native terminal width oracle.
-        {"Unicode18-modifier-base", {{"\U0001faf9🏽", "\U0001faf9🏽", 1}, {"Z", "Z"}}},
+        // Pinned Unicode18 property allocation, not a measured old-host claim.
+        // Old terminal Unicode-version compatibility still needs native proof.
+        {"Unicode18-modifier-base", {{"\U0001faf9🏽", "\U0001faf9🏽", 2}, {"Z", "Z"}}},
+        // Policy-only extended cases: no new native pass is claimed for these.
+        {"regional-indicator-pair", {{"🇨🇳", "🇨🇳", 2}, {"R", "R"}}},
+        {"heart-VS15", {{"❤\ufe0e", "❤\ufe0e", 1}, {"R", "R"}}},
+        {"heart-VS16", {{"❤️", "❤️", 1}, {"R", "R"}}},
+        {"keycap-VS16", {{"1️⃣", "1️⃣", 1}, {"R", "R"}}},
         // Native DSR measured dotted circle + orphan Mc U0903 as two columns,
         // so the one-cell orphan policy renders replacement, not that carrier.
         // Raw U0903 stays exact in copy/edit checks; base+Mc shaping is not certified.
@@ -175,7 +184,15 @@ int main() {
               f.name + " Text display columns");
         expect_row(s, f, f.name + " Text");
         const std::string terminal_bytes = s.ToString();
+        std::string literal_display;
+        for (const auto &g : f.glyphs)
+            literal_display += g.display;
+        check(terminal_bytes.find(literal_display) != std::string::npos,
+              f.name + " serializer keeps literal complete display adjacency");
         for (const auto &g : f.glyphs) {
+            if (g.display == g.raw)
+                check(terminal_bytes.find(g.raw) != std::string::npos,
+                      f.name + " serializer preserves complete legal bytes");
             if (g.display == replacement) {
                 // Serializer-generated ANSI is legitimate; reject the user
                 // ESC+A payload rather than rejecting every serializer ESC
@@ -271,6 +288,35 @@ int main() {
           "intrinsic zero-only marks remain zero");
     check(string_width("e\u0301") == 1 && string_width("界") == 2,
           "intrinsic existing normal/CJK width policy unchanged");
+    check(DisplayWidth("") == 0 && DisplayWidth("0123456789") == 10 &&
+              DisplayWidth(std::string(80, 'A')) == 80,
+          "ASCII all_of fast path is string length, never capped at2");
+    // Literal widths from the independent original ASCII-R physical evidence,
+    // to be archived as docs/images/experience/tui-modern-width-proof.json.
+    // This implementation is not the oracle; this is not a full host matrix.
+    const std::vector<std::pair<std::string, int>> native_cases = {
+        {"AB", 2}, {"👩‍💻", 2}, {"1️⃣", 1}, {"❤️", 1},
+        {"👩🏽", 2}, {"👩‍💻�", 3}, {"中\u0301", 2}};
+    for (const auto &[body, columns] : native_cases) {
+        const std::string source = "L" + body + "R END";
+        auto node = text(source);
+        Screen s(14, 1);
+        Render(s, node);
+        check(s.CellAt(1 + columns, 0).character == "R",
+              "native literal neighboring R column raw=" + hex(body));
+        check(s.ToString().find(source) != std::string::npos,
+              "native row serializes exact raw EGC and adjacent ASCII");
+        Selection selected(0, 0, columns + 5, 0);
+        node->Select(selected);
+        check(selected.GetParts() == source, "native row copy exact raw bytes");
+    }
+    // The old mutable-cell compatibility fallback must not resurrect width5.
+    Screen fallback(5, 1);
+    fallback.CellAt(0, 0).character = "👩‍💻";
+    fallback.CellAt(1, 0).character.clear();
+    fallback.CellAt(2, 0).character = "R";
+    check(fallback.ToString().find("👩‍💻R") != std::string::npos,
+          "span0 serializer fallback uses display width2, raw bytes unchanged");
     // Clipped wide groups must not be partially displayed or copied; unrelated
     // zero-carrier source must stay exactly selectable at nonzero origin.
     for (bool clip_left : {false, true}) {

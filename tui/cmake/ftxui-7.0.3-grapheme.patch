@@ -925,7 +925,7 @@
 -  cell.type = CellType::kCell;
 -  cell.content = p;
 +  const Cell content = p;
-+  const int columns = content.span > 0 ? content.span : std::max(1, string_width(content.character));
++  const int columns = content.span > 0 ? content.span : std::max(1, DisplayWidth(content.character));
 +  const bool complete = IsIn(x, y) && IsIn(x + 2 * (columns - 1), y);
 +  for (int offset = 0; offset < columns; ++offset) {
 +    const int at = x + 2 * offset;
@@ -977,7 +977,7 @@
 +        DrawCell(2 * (x + dx), 4 * (y + dy), blank);
 +        continue;
 +      }
-+      const int columns = cell.span > 0 ? cell.span : std::max(1, string_width(cell.character));
++      const int columns = cell.span > 0 ? cell.span : std::max(1, DisplayWidth(cell.character));
 +      bool complete = columns <= image.dimx() - dx &&
 +          image.stencil.Contain(dx + columns - 1, dy);
 +      for (int offset = 1; complete && offset < columns; ++offset) {
@@ -1017,7 +1017,7 @@
 +        if (cell.span < 0) {
 +          continue;
 +        }
-+        const int columns = cell.span > 0 ? cell.span : std::max(1, string_width(cell.character));
++        const int columns = cell.span > 0 ? cell.span : std::max(1, DisplayWidth(cell.character));
 +        const int at = box_.x_min + x;
 +        const int row = box_.y_min + y;
 +        if (at < visible.x_min || at + columns - 1 > visible.x_max ||
@@ -1572,7 +1572,7 @@
 -          } else {
 -            ss += cell.character;
 -          }
-+        const int columns = cell.span > 0 ? cell.span : std::max(1, string_width(cell.character));
++        const int columns = cell.span > 0 ? cell.span : std::max(1, DisplayWidth(cell.character));
 +        bool complete = columns <= line_end - it;
 +        for (int offset = 1; complete && offset < columns; ++offset) {
 +          const auto& continuation = it[offset];
@@ -1620,7 +1620,7 @@
  // As of Unicode 13.0.0
  constexpr std::array<Interval, 116> g_full_width_characters = {{
      {0x01100, 0x0115f}, {0x0231a, 0x0231b}, {0x02329, 0x0232a},
-@@ -1387,177 +1392,194 @@
+@@ -1387,177 +1392,229 @@
  std::vector<std::string> Utf8ToGlyphs(std::string_view input) {
    std::vector<std::string> out;
    out.reserve(input.size());
@@ -1734,6 +1734,38 @@
 -      out.emplace_back(append);
 -      out.emplace_back("");
 -      continue;
++namespace {
++
++// Allocate complete displayed EGCs from the pinned scalar-width properties.
++// Format and combining scalars contribute zero; allocation is bounded per
++// displayed EGC, never per source EGC or per complete string. Keep bytes exact.
++int ModernDisplayColumns(std::string_view display) {
++  int columns = 0;
++  const auto boundaries = GlyphBoundaries(display);
++  for (size_t i = 1; i < boundaries.size(); ++i) {
++    const auto cluster = display.substr(boundaries[i - 1],
++                                        boundaries[i] - boundaries[i - 1]);
++    int cluster_columns = 0;
++    for (size_t offset = 0; offset < cluster.size();) {
++      utf8proc_int32_t codepoint = 0;
++      const auto count = utf8proc_iterate(
++          reinterpret_cast<const utf8proc_uint8_t*>(cluster.data() + offset),
++          static_cast<utf8proc_ssize_t>(cluster.size() - offset), &codepoint);
++      // The only caller supplies GlyphDisplayText's validated UTF-8 output.
++      offset += static_cast<size_t>(count);
++      // The pinned maintained property provides scalar widths, including
++      // zero-width format/combining scalars. VS16 does not force widening in
++      // the display allocation policy; do not invent an emoji whitelist.
++      cluster_columns = std::min(
++          2, cluster_columns + std::max(0, utf8proc_charwidth(codepoint)));
++    }
++    columns += cluster_columns;
++  }
++  return columns;
++}
++
++}  // namespace
++
 +int DisplayWidth(std::string_view input) {
 +  if (std::all_of(input.begin(), input.end(), [](unsigned char c) {
 +        return c >= 32 && c < 127;
@@ -1745,7 +1777,10 @@
 +  for (size_t i = 1; i < boundaries.size(); ++i) {
 +    const auto glyph = input.substr(boundaries[i - 1], boundaries[i] - boundaries[i - 1]);
 +    if (glyph != "\n" && glyph != "\r\n") {
-+      columns += string_width(GlyphDisplayText(glyph));
++      // A display replacement can split the source EGC (emoji + replacement
++      // carrier, for example), so measure the resulting display EGCs instead
++      // of clamping the complete source EGC or the whole input string.
++      columns += ModernDisplayColumns(GlyphDisplayText(glyph));
      }
 -
 -    // Normal characters:

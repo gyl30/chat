@@ -1,0 +1,539 @@
+{
+  "purpose": "T04 fixed modern allocation: production-integrated whole-app before/after evidence; not full goal/matrix closure",
+  "repository": "/home/gyl/example/chat",
+  "head": "a74d873d846e66ebf7e32c6bbe3f4fd143700f73",
+  "frozen_tui_source_sha256": {
+    "tui/cmake/ftxui-7.0.3-grapheme.patch": "9b10a08430a99075f4e39c9cac9a9ad80c9dc49b8f04d73c453733555794917d",
+    "tui/tests/display_test.cpp": "77ea73ba0bb37ce358fe856b736beef65e4c6062c2d6326ff53fd75024bb7055",
+    "tui/tests/span_test.cpp": "5edc4a8110b81cfed7f2c8f27438e215ad56084ae4af51c4718fbfca309409f3"
+  },
+  "production_generated": {
+    "method": "Unmodified normal production CMake target source-generation; no post-configure private CPP replacement or symbol override",
+    "binary": {
+      "path": "/tmp/chat-t04-production-integrated.ZuQkYWVe/build/chat_tui",
+      "sha256": "47a39c0dd6ebd29562d9eba9049001fb772d7df219c4430667e1b1683063e234"
+    },
+    "units": {
+      "/tmp/chat-t04-production-integrated.ZuQkYWVe/build/tui/ftxui-patched/src/ftxui/screen/string.cpp": "80b6ec2beface1bff828543aaeb871533abcd03a13815950a542f4b957c8f383",
+      "/tmp/chat-t04-production-integrated.ZuQkYWVe/build/tui/ftxui-patched/src/ftxui/screen/screen.cpp": "9cde14a8c652ebff8778b11fdc91748742ff4a430d195694bb38fd8a7cc0c4b2",
+      "/tmp/chat-t04-production-integrated.ZuQkYWVe/build/tui/ftxui-patched/src/ftxui/dom/canvas.cpp": "7e8a9ba1b383cac8093a2a1ac20b772c97384ef1cd30ac73f3f79e9b6ca641c9"
+    },
+    "compile_commands_sha256": "b4a34328bf15ccf6f89e621e9562661043407414d6a922e13ba5896428ed12dd",
+    "official_tui_before_and_after_sha256": "f785a631d0d340298c34ce318aed150715449227375df99815b7dfae0702b1d0"
+  },
+  "static_review": {
+    "files": 3,
+    "blocking_findings": 0,
+    "legal_utf8_only_helper_input": true,
+    "raw_display_transform_unchanged": true,
+    "span0_fallbacks_unified": 4,
+    "no_terminal_negotiation_added": true,
+    "no_placeholder_or_joiner_removal_added": true,
+    "third_unchanged": true
+  },
+  "tests": {
+    "before_literal_display": {
+      "assertions": 3075,
+      "failures": 152,
+      "actual_exit": 1,
+      "scope": "/tmp/chat-t04-production-integrated.ZuQkYWVe/before-display.stdout"
+    },
+    "before_literal_span_final": {
+      "assertions": 111,
+      "failures": 10,
+      "actual_exit": 1,
+      "scope": "/tmp/chat-t04-production-integrated.ZuQkYWVe/before-span-final.stdout",
+      "sha256": "3be51d28476cfae567825c4d85e8e474b6a6507907b088f9fed02fdb54575646"
+    },
+    "after_display": {
+      "assertions": 3075,
+      "failures": 0
+    },
+    "after_span": {
+      "assertions": 111,
+      "failures": 0
+    },
+    "after_unicode_official_cases": 853,
+    "targeted_ctest": {
+      "names": [
+        "tui_render",
+        "tui_unicode",
+        "tui_display",
+        "tui_span",
+        "tui_state",
+        "tui_inbox",
+        "tui_file"
+      ],
+      "passed": 7,
+      "actual_exit": 0,
+      "seconds": 0.99,
+      "each_timeout_seconds": 5
+    },
+    "retained_failure": {
+      "command_regex": "^tui_",
+      "actual_exit": 8,
+      "tui_integration": "NotRun: server_test target was not built in TUI-only build",
+      "local_seven_passed": true,
+      "not_relabelled_green": true
+    },
+    "full_verify_for_new_sources": "NOT_RUN"
+  },
+  "chain": {
+    "wezterm_version": "wezterm 20221119-145034-49b9839f",
+    "wezterm_unicode_version": 9,
+    "wezterm_config": "scope-only; Software/96dpi/12pt/zero padding; DejaVu Sans Mono/Lily Han Sans HW SC/Noto Color Emoji",
+    "outer": {
+      "pid": 3825880,
+      "tty": "/dev/pts/17",
+      "TERM": "xterm-256color",
+      "TERM_PROGRAM": "WezTerm",
+      "TERM_PROGRAM_VERSION": "20221119-145034-49b9839f"
+    },
+    "inner": {
+      "pid": 3825948,
+      "tty": "/dev/pts/21",
+      "TERM": "tmux-256color",
+      "TERM_PROGRAM": "tmux",
+      "TERM_PROGRAM_VERSION": "3.6a",
+      "inside_tmux": true,
+      "tmux_server_pid": 3825947,
+      "variation_selector_always_wide": "off",
+      "allow_passthrough": "",
+      "clients": [
+        "xterm-256color|WezTerm 20221119-145034-49b9839f|bpaste,ccolour,clipboard,cstyle,focus,RGB,sixel,title"
+      ]
+    },
+    "tmux_version": "tmux 3.6a",
+    "settings_scope": "private socket/config only; no global settings changed"
+  },
+  "native": {
+    "before": {
+      "scope": "/tmp/chat-t04-u9-off-native.JnT1XoOf",
+      "binary_sha256": "f785a631d0d340298c34ce318aed150715449227375df99815b7dfae0702b1d0",
+      "driver_actual_exit": 0,
+      "native_child_actual_exit": {
+        "actual_exit": 0
+      },
+      "visual_result": "RED",
+      "long_composer_row26": {
+        "row": 26,
+        "reference_blank_row_right_px": 1594,
+        "full_height_white_x": [
+          1414,
+          1594
+        ],
+        "delta_px": [
+          -180,
+          0
+        ]
+      },
+      "png": {
+        "path": "/tmp/chat-t04-u9-off-native.JnT1XoOf/11-long160.png",
+        "sha256": "83cfc5fecf5af0c495b0be3b3e2c6ecda51a716b21b5a36e2e2d9910aeed96a2"
+      }
+    },
+    "after": {
+      "scope": "/tmp/chat-t04-production-integrated.ZuQkYWVe/native",
+      "driver_actual_exit": 0,
+      "native_child_actual_exit": {
+        "actual_exit": 0
+      },
+      "wezterm_actual_exit": 0,
+      "helper_exit": 0,
+      "sdk_closed_before_login": true,
+      "native_copy": {
+        "actual_exit": 0,
+        "text": "L👩🏽R END",
+        "expected": "L👩🏽R END",
+        "exact_after_rstrip": true
+      },
+      "native_edited_send_exact": "AB❤️C1️⃣D👩🏽E",
+      "read_only_sql_contains_sent_body": true,
+      "captures": [
+        {
+          "file": "00-outer9-oracle.png",
+          "sha256": "97b9d98dfee502c5023a14a25872ab4fd754158ea42bad451203ff88e468f33f",
+          "tty_rows_cols": null
+        },
+        {
+          "file": "01-mux9-off-oracle.png",
+          "sha256": "37c3ca6796f18508c05481b86175fedcdc503116065c7f4900ea1a9006a8e2f8",
+          "tty_rows_cols": null
+        },
+        {
+          "file": "02-login80.png",
+          "sha256": "59cad27f3951f083ef7e3786b1a544dd938af076e5a6d16412902053c655e8a3",
+          "tty_rows_cols": [
+            30,
+            80
+          ]
+        },
+        {
+          "file": "03-chats80.png",
+          "sha256": "8d88d89862337cacf4bd58ceb3bdc66e4fe17d49b8ac1781a8898f8f6c9fc211",
+          "tty_rows_cols": [
+            30,
+            80
+          ]
+        },
+        {
+          "file": "04-selected80.png",
+          "sha256": "51a6a6a00caf35038edc0f7b061961ca72e9ab4836f25f32325bb529cb16c0f3",
+          "tty_rows_cols": [
+            30,
+            80
+          ]
+        },
+        {
+          "file": "05-copyable80.png",
+          "sha256": "8d390c3bf98c54141793643aaeaca211a6de192469ab1b71e3e9bf0f141b62a5",
+          "tty_rows_cols": [
+            30,
+            80
+          ]
+        },
+        {
+          "file": "05b-native-selected-copy80.png",
+          "sha256": "cb954db2efa30a16bbd1788d7bec49ee967347d5654e1f52fdfd3498361e662c",
+          "tty_rows_cols": [
+            30,
+            80
+          ]
+        },
+        {
+          "file": "06-composer80.png",
+          "sha256": "40bbeae1aa04b5475596e82c662f06e9ec94f1209c2437d7c9192f4f03757146",
+          "tty_rows_cols": [
+            30,
+            80
+          ]
+        },
+        {
+          "file": "07-composer-midedit80.png",
+          "sha256": "ffc1f68104dd8e6b3447283b3ba98ab7e0ef9e59e657f12e7c76afd5ea557bcd",
+          "tty_rows_cols": [
+            30,
+            80
+          ]
+        },
+        {
+          "file": "08-sent80.png",
+          "sha256": "7edb2c1d86bc544e5c9860cb266191068e130608a747ee66271a948200b378fb",
+          "tty_rows_cols": [
+            30,
+            80
+          ]
+        },
+        {
+          "file": "09-selected160.png",
+          "sha256": "6834dd610f3b57444f863f4fe6b0f93273025b6f746f616614a5870d9d84fe7d",
+          "tty_rows_cols": [
+            30,
+            160
+          ]
+        },
+        {
+          "file": "10-copyable160.png",
+          "sha256": "4a8ab541d48ad32c346b417b37a0004d4c7707e1c56ab13e6bcd1b428c190e01",
+          "tty_rows_cols": [
+            30,
+            160
+          ]
+        },
+        {
+          "file": "11-long160.png",
+          "sha256": "c81e63d52b545bb590c531e351978e00646e51876af1e13cf158ad1f97c00e92",
+          "tty_rows_cols": [
+            30,
+            160
+          ]
+        },
+        {
+          "file": "12-cleared160.png",
+          "sha256": "2df419254e45e8e56f670be37ac63cd14f8c411a5ac4c0a79a905e87abc2104b",
+          "tty_rows_cols": [
+            30,
+            160
+          ]
+        },
+        {
+          "file": "13-short160.png",
+          "sha256": "2c010de1d1faf6a303c28f2ee154e3c5e913f1d07590c7b2a1c7249bb4790aac",
+          "tty_rows_cols": [
+            30,
+            160
+          ]
+        },
+        {
+          "file": "14-empty160.png",
+          "sha256": "2df419254e45e8e56f670be37ac63cd14f8c411a5ac4c0a79a905e87abc2104b",
+          "tty_rows_cols": [
+            30,
+            160
+          ]
+        },
+        {
+          "file": "15-chats160.png",
+          "sha256": "c4b075845a6fb3621a12795253f3a8ff4babc90fd161367d6961ec56fc9032f4",
+          "tty_rows_cols": [
+            30,
+            160
+          ]
+        },
+        {
+          "file": "16-after-test9-oracle.png",
+          "sha256": "5330c8829e70c7c92f8c44dd13af6bbeb96ccae00fce6617576b35052e438a22",
+          "tty_rows_cols": null
+        }
+      ],
+      "long_short_empty_row26": {
+        "11-long160.png": {
+          "row": 26,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        "12-cleared160.png": {
+          "row": 26,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        "13-short160.png": {
+          "row": 26,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        },
+        "14-empty160.png": {
+          "row": 26,
+          "reference_blank_row_right_px": 1594,
+          "full_height_white_x": [
+            1594
+          ],
+          "delta_px": [
+            0
+          ]
+        }
+      },
+      "cleared_and_empty_png_byte_identical": true,
+      "raw_contains_generated_password": false
+    },
+    "trajectory": "Original prelogin SDK seed then native login/selected/copyable/native mouse Copy/composer Home Right Delete/send/80x30->160x30/selected/copyable/six-ZWJ long draft/53 Deletes/empty/LR short/empty/Chats/Ctrl+C exit; all original waits15s",
+    "driver_provenance": {
+      "before_sha256": "deaa9e30735ef35ebd899aca51c0391155665c98764b8eab1fe58f67c15b6ec9",
+      "after_sha256": "19a2155166b8ca68991ae25081f88281a2027a0ba21e21fdcf8680227b86c0e7",
+      "changes": "scope/database prefix/candidate binary path plus manifest SHA guard only; trajectory/waits/copy/send/oracles unchanged",
+      "host_py_identical_sha256": "e7b26d261d595df4ba64225b6aede7a7d8f82c6a256574c0ace57609bc475157",
+      "pixels_py_identical_sha256": "3dc8c2d5233e39b2716b56b030aa2adbb1f9a2faf7177c5519897ce1fe8d10b9"
+    }
+  },
+  "physical": {
+    "basis": "Raw full X11 PNG; ASCII 10-digit pixel repeat and ASCII R mask only. No DSR, DisplayWidth, wcwidth, tmux cursor or font-width API.",
+    "cell_pitch_px": 10,
+    "row_pitch_px": 19,
+    "ascii_repeat_px": 100,
+    "host_oracles": {
+      "00-outer9-oracle.png": {
+        "sha256": "97b9d98dfee502c5023a14a25872ab4fd754158ea42bad451203ff88e468f33f",
+        "observed": {
+          "AB": [
+            30,
+            2,
+            0,
+            0
+          ],
+          "woman_zwj_laptop": [
+            30,
+            2,
+            0,
+            0
+          ],
+          "keycap": [
+            20,
+            1,
+            0,
+            2
+          ],
+          "heart_VS16": [
+            20,
+            1,
+            0,
+            0
+          ],
+          "woman_skin": [
+            30,
+            2,
+            0,
+            0
+          ],
+          "woman_zwj_laptop_replacement": [
+            40,
+            3,
+            0,
+            0
+          ],
+          "CJK_combining": [
+            30,
+            2,
+            0,
+            6
+          ]
+        }
+      },
+      "01-mux9-off-oracle.png": {
+        "sha256": "37c3ca6796f18508c05481b86175fedcdc503116065c7f4900ea1a9006a8e2f8",
+        "observed": {
+          "AB": [
+            30,
+            2,
+            0,
+            0
+          ],
+          "woman_zwj_laptop": [
+            30,
+            2,
+            0,
+            0
+          ],
+          "keycap": [
+            20,
+            1,
+            0,
+            2
+          ],
+          "heart_VS16": [
+            20,
+            1,
+            0,
+            0
+          ],
+          "woman_skin": [
+            30,
+            2,
+            0,
+            0
+          ],
+          "woman_zwj_laptop_replacement": [
+            40,
+            3,
+            0,
+            0
+          ],
+          "CJK_combining": [
+            30,
+            2,
+            0,
+            6
+          ]
+        }
+      },
+      "16-after-test9-oracle.png": {
+        "sha256": "5330c8829e70c7c92f8c44dd13af6bbeb96ccae00fce6617576b35052e438a22",
+        "observed": {
+          "AB": [
+            30,
+            2,
+            0,
+            0
+          ],
+          "woman_zwj_laptop": [
+            30,
+            2,
+            0,
+            0
+          ],
+          "keycap": [
+            20,
+            1,
+            0,
+            2
+          ],
+          "heart_VS16": [
+            20,
+            1,
+            0,
+            0
+          ],
+          "woman_skin": [
+            30,
+            2,
+            0,
+            0
+          ],
+          "woman_zwj_laptop_replacement": [
+            40,
+            3,
+            0,
+            0
+          ],
+          "CJK_combining": [
+            30,
+            2,
+            0,
+            6
+          ]
+        }
+      }
+    },
+    "tmux_virtual_cursor": "Recorded separate observation, not physical expected",
+    "host_oracle_fields": [
+      "R_x_px",
+      "body_columns",
+      "missing_R_ink",
+      "extra_neighbor_ink"
+    ],
+    "original_full_json": "/tmp/chat-t04-production-integration.VudNxspt/evidence/native/physical-oracle.json"
+  },
+  "cleanup": {
+    "all_owned_gone": true,
+    "owned_count": 14,
+    "database": "chat_t04_candidate_mux_1006165341_3825561",
+    "database_absent": true,
+    "private_port": 40003,
+    "private_port_closed": true,
+    "protected_unchanged": true,
+    "protected_start_ticks": {
+      "3225": 17583,
+      "29935": 248258,
+      "2876288": 521400965
+    },
+    "source_unchanged": true
+  },
+  "archive": {
+    "path": "/tmp/chat-t04-production-integration.VudNxspt/evidence.tar.gz",
+    "sha256": "47d2363d491c00cfd743d42f5a6d1682208d5e94bedd95a1d209e84de8063503",
+    "note": "Original full archive retained; final before-span-final.stdout collected separately alongside proof"
+  },
+  "png_export_mapping": {
+    "before": "/tmp/chat-t04-u9-off-local.0PQBnfUt/11-long160.png",
+    "after": "/tmp/chat-t04-production-integration.VudNxspt/evidence/native/11-long160.png",
+    "cleared": "/tmp/chat-t04-production-integration.VudNxspt/evidence/native/14-empty160.png",
+    "intended_docs_names": [
+      "tui-modern-width-before.png",
+      "tui-modern-width-after.png",
+      "tui-modern-width-cleared-after.png"
+    ]
+  },
+  "not_claimed": [
+    "legacy XTerm372/tmux4-vs2 repair",
+    "automatic SSH/terminal-chain detection or negotiation",
+    "light theme native pass",
+    "Unicode18/new emoji host shaping",
+    "RI/VS15 native pass",
+    "full new-source normal/ASan/UBSan verify",
+    "T04 or entire quality goal completion"
+  ]
+}

@@ -247,6 +247,88 @@ void canvas_spans() {
     check(draw(canvas(full), 1, 1) == " ", "Canvas DOM viewport does not serialize a half glyph");
 }
 
+void modern_emoji_spans() {
+    using namespace ftxui;
+    // Literal allocation from the measured Wez Unicode9 / tmux VS16-off
+    // contract. These are not universal terminal widths or helper oracles.
+    for (const std::string_view cluster : {"👩‍💻", "👩🏽"}) {
+        Screen full(3, 1);
+        auto node = text(std::string(cluster) + "R");
+        Render(full, node);
+        check(full.ToString() == std::string(cluster) + "R" &&
+                  full.CellAt(0, 0).span == 2 && full.CellAt(1, 0).span == -1 &&
+                  full.CellAt(2, 0).character == "R", "modern emoji has complete two-cell span and literal R neighbour");
+        check(draw(text(cluster), 1, 1) == " ", "modern emoji clips as a whole, never partial raw bytes");
+        for (int selected_cell : {0, 1}) {
+            Screen selected_screen(2, 1);
+            Selection selected(selected_cell, 0, selected_cell, 0);
+            auto selected_node = text(cluster);
+            Render(selected_screen, selected_node.get(), selected);
+            check(selected.GetParts() == cluster && selected_screen.CellAt(0, 0).inverted &&
+                      selected_screen.CellAt(1, 0).inverted, "modern emoji partial-cell selection copies raw EGC and styles whole span");
+        }
+        check(full.SetGlyph(1, 0, "X", 1) && full.ToString() == " XR",
+              "modern emoji continuation overwrite clears whole old glyph without eating R");
+        full.Clear();
+        check(full.ToString() == "   ", "modern emoji clear leaves no stale raw glyph or span");
+    }
+
+    const std::array<std::string_view, 2> bodies{"👩‍💻", "👩‍💻�"};
+    const std::array<int, 2> columns{2, 3};
+    for (std::size_t i = 0; i < bodies.size(); ++i) {
+        const std::string body(bodies[i]);
+        const int width = columns[i];
+        Cell raw;
+        raw.character = body;  // Legacy mutable-cell compatibility: span0.
+        Canvas cells(2 * (width + 1), 4);
+        cells.DrawCell(0, 0, raw);
+        cells.DrawText(2 * width, 0, "R");
+        check(draw_canvas(cells, width + 1) == body + "R",
+              "Canvas DrawCell span0 keeps literal full display and adjacent R");
+        // Synthetic legacy mutable-cell fixture: no typed span metadata,
+        // including no stale negative continuations. Uses the public API,
+        // not a production test hook.
+        for (int x = 0; x < width; ++x)
+            cells.Style(2 * x, 0, [](Cell& cell) { cell.span = 0; });
+        check(draw_canvas(cells, width + 1) == body + "R",
+              "Canvas node span0 fallback uses the same literal display allocation");
+        check(draw(canvas(cells), width - 1, 1) == std::string(width - 1, ' '),
+              "Canvas node clips the complete fallback span at its viewport");
+        Canvas typed(2 * (width + 1), 4);
+        typed.DrawCell(0, 0, raw);
+        typed.DrawText(2 * width, 0, "R");
+        typed.DrawText(0, 0, "X");
+        check(draw_canvas(typed, width + 1) == "X" + std::string(width - 1, ' ') + "R",
+              "Canvas wide-to-short redraw clears old tails and preserves R");
+        for (int x = 1; x < width; ++x)
+            check(typed.GetCell(x, 0).span >= 0,
+                  "Canvas wide-to-short clears negative continuation metadata");
+        typed.DrawText(2, 0, "Y");
+        check(draw_canvas(typed, width + 1) == "XY" + std::string(width - 2, ' ') + "R",
+              "Canvas subsequent tail write never clears the new short head");
+
+        Canvas edge(2 * (width - 1), 4);
+        edge.DrawCell(0, 0, raw);
+        check(draw_canvas(edge, width - 1) == std::string(width - 1, ' '),
+              "Canvas DrawCell rejects a partial span0 glyph at the last column");
+
+        Surface source(width + 1, 1);
+        source.CellAt(0, 0).character = body;
+        for (int x = 1; x < width; ++x) source.CellAt(x, 0).character.clear();
+        source.CellAt(width, 0).character = "R";
+        Canvas imported(2 * (width + 1), 4);
+        imported.DrawSurface(0, 0, source);
+        check(draw_canvas(imported, width + 1) == body + "R",
+              "Canvas DrawSurface span0 preserves complete display and literal R position");
+        source.stencil = {0, width - 2, 0, 0};
+        Canvas stencil(2 * (width + 1), 4);
+        stencil.DrawText(0, 0, std::string(width + 1, 'X'));
+        stencil.DrawSurface(0, 0, source);
+        check(draw_canvas(stencil, width + 1) == std::string(width - 1, ' ') + "XX",
+              "Canvas DrawSurface clips a whole span0 glyph to its source stencil");
+    }
+}
+
 void sibling_writers() {
     using namespace ftxui;
     for (int at : {0, 1}) {
@@ -293,6 +375,7 @@ int main() {
     frame_selection();
     single_cell_decorators();
     canvas_spans();
+    modern_emoji_spans();
     sibling_writers();
     std::cout << "SPAN_ASSERTIONS=" << assertions << " SPAN_FAILURES=" << failures << '\n';
     return failures ? 1 : 0;

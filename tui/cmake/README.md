@@ -78,8 +78,15 @@ Text 选择、Input 编辑和发送保持原始字素；密码仍按原字素数
 没有可观察变化，不能自动解释成擦除请求。Canvas 导入尊重源 stencil，不导入半组。
 自定义 separator/border 是单格装饰，只接受一个显示列的完整字素，其余值为空格。
 
-这是编辑、显示载体与整字裁剪的实现，不是完整终端列或字体 shaping 政策。
-复合 emoji 的旧列数与真实 XTerm/tmux 仍可能不同，不能仅凭永久回归通过关闭 T04。
+显示列由固定 utf8proc 属性分配：在显示载体转换后重新分段，逐显示 EGC 累加
+scalar width，并将每个显示 EGC 限制在两列以内。格式和组合字符不另占列；
+显示替代字符可能把原始 EGC 分成多个显示 EGC，因此不对整个原始字素或字符串
+统一限制两列。ASCII 快路径仍使用完整长度，合法 raw bytes、选择及复制不变。
+旧 mutable-cell span0 的 serializer/Canvas fallback 也使用这份显示列事实。
+
+这一分配已在 WezTerm Unicode9 与 tmux 3.6a 的 VS16 widening 关闭链中验证，
+不代表所有终端支持同一种字素宽度。旧 XTerm、SSH、浅色终端及更新 Unicode 字符
+仍需独立的物理列和重绘验证；不能仅凭永久回归通过关闭 T04。
 
 FTXUI 补丁保留原 MIT 版权声明。utf8proc 的完整版权及许可证见
 `utf8proc-LICENSE.md`，分发静态链接二进制时也必须携带该声明。
