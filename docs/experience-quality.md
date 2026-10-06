@@ -5,6 +5,15 @@
 内部评分是本项目的审查工具，不代表任何奖项的官方评分或获奖承诺。
 本文件持续记录真实证据、取舍和审查结果；当前尚未达到退出品质循环的条件。
 
+### 临时证据清理说明（2026-10-06）
+
+依用户要求，此前测试临时目录、独立探针/日志/截图副本及历史隔离测试数据库已清理。
+本文阶段38–42及更早阶段的 `/tmp` 路径是当时实际运行位置，不是仍可访问的证据档案；
+“原日志保留”等表述描述当时核验状态，不能据此声称现在仍可从原目录重审。
+仓库内明确链接的原始截图、无损ANSI及审查摘要保留，不以这些子集替代已删除的完整raw。
+失败结论、范围限制及未关闭问题不因删除临时数据而改成通过。后续临时探针核验后也清理，
+需要重新验证时重新建立独立环境，不借旧目录缓存宣布fresh验证。
+
 ## 参考审查（2026-10-04）
 
 ### 证据强度
@@ -165,10 +174,13 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q27 | P2 | 当前 Qt 字体回退将复合 emoji 拆成独立图形，正文、回复和 composer 都可见 | 第三十一阶段保留真实拆画与被拒绝的 broad Noto 键帽退化；第三十四/三十五阶段整明确序列格式在 Qt6.2 layout 和标准编辑器有新证据，但通用 policy、Chat 各控件/IME/四档未闭环，不计完成 |
 | Q28 | P2 | 账号注销返回登录后，键盘焦点落在服务器设置，而非主要身份输入 | 第三十二阶段在注销完成且登录控件恢复可用后返回用户名焦点；同一永久测试 RED→GREEN，完整原生流程 before actual1→after actual0，范围与门禁见下文 |
 | Q29 | P2 | 实际 Open/Save 文件选择器的路径、类型框和表头出现黑底深字，近不可读 | 第三十四阶段局部 QFileDialog 主题修复；同永久 fixture RED→GREEN、两个真实 Qt 完整附件 after 和三模式全门禁通过，关闭已复现的 fallback 对比度缺陷，不外推所有平台或四档附件验收 |
+| Q30 | P2 | 125%/150%/200% 真实 Fcitx/IBus 候选窗偏离 composer 光标，缩放越大距离越大 | 第四十二阶段真实双Qt业务通过但定位失败；第四十三阶段不链接Chat的标准编辑器也复现，官方Qt IBus已有匹配修复，当前安装环境尚未修复/复验，不计HiDPI输入法验收通过 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 第十九轮字素编辑与宽字组合符附着修复已进入生产；终端 span、裁剪、leading mark 和 shaping 仍未闭环，不计 Unicode 全矩阵通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 | T06 | P2 | TUI 搜索选中消息之前一项被删除时，只clamp索引，选中目标跳到另一ID | 第二十四阶段修复，永久RED/GREEN、真实双TUI六档选中目标/可复制正文/草稿验证通过 |
 | T07 | P3 | TUI 无草稿时输入提示仍显示悬空的 `i: compose ·` | 第三十六阶段只在非空草稿前保留分隔符，六宽永久 RED→GREEN、两个真实 TUI 完整附件流程和三模式门禁通过 |
+| T08 | P3 | 创建群选人后仍显示旧的“请至少选择一位联系人”错误 | 第三十九阶段只在成功改变选择后清旧输入反馈；六宽永久与两个真实TUI同完整流程核验 |
+| T09 | P3 | 资料页独立在线状态前仍带用于拼接身份的分隔符 | 第三十九阶段presence事实与拼接标点分开，online/offline/last-seen永久回归及原生资料页复核 |
 
 键盘打开列表、Qt 多行编辑、长公告、长 username、dialog 滚动、selection/focus、
 terminal light/dark、combining、SSH 和 suspend/restore 仍需进一步实际核验。
@@ -2596,3 +2608,343 @@ ownsocket不存在、保护PID2876288在，无DB/业务服务/全局配置变更
 本阶段只提交研究边界与原图，没有新的production build或全量门禁；阶段36当前冻结
 源的strict与原normal/ASan/UBSan23/23仍按原范围有效。Qt87/TUI78不提高，Q27/T04、
 完整参考/全页面/真实日常/无障碍矩阵和最终连续两轮fresh审查继续开放，未push。
+
+## 阶段 38：通用候选的实际字体结果与真实系统输入法
+
+本阶段不是生产 Unicode 修复，也不关闭 Q27。分类、字体覆盖、字形成形和输入法
+分开记账，不能由一个工具退出 0 推出整个 Chat 体验通过。
+
+### 分类范围进入实际字体排版
+
+`/tmp/chat-emoji-context-font-assessment-20261006.V36BZc` 唯一授权运行实际退出 0，
+Qt6.2.4/xcb 公共 QTextLayout 使用阶段37维护数据推导的完整 EGC/UTF16 范围。
+102输入、三种字体尺寸/字重共612核心测量，另12缺失字体诊断；306成对排版保留在
+8张原始 QImage 中。主与独立代理均亲看全部8页。这些是实际字体机制图，不是 Chat
+窗口截图或四档 DPI 验收。未替换 Qt、原始 scanner、维护属性或生产排版。
+
+| 实际观察 | 结论与边界 |
+| --- | --- |
+| canonical键帽、woman ZWJ、单VS16肤色关系 | Noto完整范围+NoFontMerging得到完整键帽或组合人物，普通CJK/组合文字/VS15保持普通字体 |
+| 全部raw与UTF16合法光标位置相同，156无格式成对结果像素/run相同 | 证明当前实验没有改原文或给拒绝范围强制字体，不等于真实 Chat clipboard/IME 已验收 |
+| Unicode18新增两个base的20关系×三style全部含glyph0 | 共60例仍缺基字；不能直接上线这个字体候选或称支持完整Unicode18 |
+| 任意tag字母/数字显示问号旗glyph1474，而England是1919 | 零glyph0不证明序列支持；问号missing提示也不能自动判为显示缺陷 |
+| 非RGI结构对照保留多个组件 | 单glyph不是通用成功条件，不能要求标准未承诺的合字 |
+| Noto实际存在；缺失requested-family诊断使用真实替代字体并出现glyph0 | 不是成功fallback，也不是实际Noto缺失环境覆盖 |
+
+Annex C 的准确解释：既有官方 UTS#51 revision31 缓存明确要求对 invalid/unsupported
+tag 提供 missing-emoji 提示以减少伪装风险。不能为消除问号盲目回退成黑旗；也不能
+把不在三个 RGI tag 中的所有输入都判非法，完整validity还依赖CLDR约束。
+原字体结果保留，后续解释由此收口；没有声称零glyph或一glyph证明GSUB支持。
+[官方tag规则](https://www.unicode.org/reports/tr51/tr51-31.html#valid-emoji-tag-sequences)
+与[modifier规则](https://www.unicode.org/reports/tr51/tr51-31.html#Diversity)分别处理。
+
+结果JSON SHA `3e76f0d8cd2751a660302bda5dbe103fd0e71bf5bbbe6858267862f84d400bd4`；
+实际probe/live/current为e8868ef6…，QtGui首尾与当前均f7608581…，维护数据/archive
+pins一致。own Xvfb1080060/probe1080063均gone，保护PID在，无业务服务/DB/字体配置修改。
+后续仅准备whole-EGC覆盖guard，不把glyph0检测包装成通用序列支持判断。
+
+### 系统拼音机制实际连通
+
+`/tmp/chat-native-ime-mechanism-final3-20261006.kjOgAt` 实际退出 0：私有DBus/Xvfb
+启动系统Fcitx5/Pinyin，以Qt6.2.4的实际IBus frontend连接；XTest物理按键输入
+`zhongwen`时公共QPlainTextEdit收到真实`zhong wen`预编辑且raw为空，Space提交后
+raw为`中文`、UTF8为e4b8ade69687、预编辑为空。主亲看提交前候选窗口及提交后原X11图。
+6执行断言全真；只记录真实inputMethodEvent再交给base，没有注入输入法事件。
+
+早期编译把第三方Qt header当普通include触发-Werror，未启动runtime；改为正确
+system include后第一次activation失败。第二次驱动尚未等Fcitx导出且误用session
+bus地址也actual1。三份失败原始证据保留；最终驱动等真实Fcitx服务与实际私有
+ibus/bus地址再从头运行，不拼接早期片段。没有改产品、系统输入法配置或guard。
+实际probe08d0a697…，源码/driver/profile首尾一致；own三记录PID均gone、保护PID在。
+
+这只证明当前环境可进行真实系统IME测试，不是两个 Chat 的Enter预编辑防误发、
+commit后发送、font policy、四档缩放或Orca验收。下一步应在真正Chat composer中
+验证完整输入/发送，不用公共编辑器的成功替代该项要求。
+
+Qt87/TUI78不提高。Q27/T04、全部页面/参考/日常与无障碍、最终两轮fresh审查仍开放。
+本阶段机制源与结果无生产变更，无新全量门禁声明，未push。
+
+## 阶段 39：真实群聊任务中的反馈与资料细节
+
+本次实际基线c8d7355。两个真实TUI在100×30从公开登录到双端注销完整走通，
+原15s等待及全部业务oracle保持；不是由SDK代替界面操作。只有S005观察账号认证，
+26个SDK业务调用全为get_*只读；SQL仅用于隔离库的既有migration。
+
+### 同一完整任务的before / after
+
+before `/tmp/chat-quality-tui-group-daily-native-final2-20261006` actual0，
+两个实际90b14933…客户端、25pins首尾一致、独立31/31核验。业务正确但原画面复现
+T08/T09：Selected:1仍有旧“至少一位”错误，独立资料presence行是` · online`。
+首final1的C pane尚未exec到TUI即检查SHA，实际看到bash而失败；原日志保留。
+final2只修驱动启动观察时点，原15s内仍要求同PID/真实Login/精确TUI SHA，不改产品。
+
+生产仅两处变化：成功toggle后清旧输入反馈，invalid/self/already-member早退不清；
+presence_label返回纯事实，三个拼接身份的caller只在非空presence前添加分隔符，
+资料页直接显示事实。没有新状态，不改好友隐私、选择身份或群创建时序。
+永久测试同fixture旧源actual8、26项失败，修复后actual0/0.89s；60/70/80/100/120/160
+六宽覆盖online/offline/last-seen、拼接标签、成功选人/取消选择及无效动作保反馈。
+
+after `/tmp/chat-quality-tui-group-daily-native-final3-20261006` 唯一launcher实际0，
+两个实际f785a631…客户端。完整原task只增加两条严格真实frame断言，检查原错误已消失
+以及资料presence仍在且无前导标点；未删原动作、原文、身份、取消或超时oracle。
+主与独立代理亲读before/after原plain及styled ANSI，新增两项展示问题修复。
+独立33/33核验全真，25pins/三imports/task/wrapper/launcher首尾与当时当前源一致；
+这是带两处候选修改的实际构建，不冒称未修改HEAD的二进制。
+
+四份完整styled原文以gzip无损保留（含样式与30行末尾）：
+[选人before](images/experience/group-daily-final2-picked-only-observer-A.ansi.gz) /
+[after](images/experience/group-daily-final3-picked-only-observer-A.ansi.gz)，
+[资料before](images/experience/group-daily-final2-member-profile-C.ansi.gz) /
+[after](images/experience/group-daily-final3-member-profile-C.ansi.gz)。
+逐份解压SHA与原capture相同，不把ANSI当成physical终端字体/格宽图。
+
+### 真正完成的业务路径
+
+公开New/Create：空选错误、filter取消、选S005、名称/确认取消、空白名称重试、真正建群。
+A创建实际新group3，成员A1(owner)+S0056；公开群菜单生成真实新邀请，C3无效输入/取消
+不改成员，随后真实Join成为普通member。C通过Members进入A资料，不暴露owner动作。
+C原消息2；A回复3引用原2，edit取消保原正文，正确编辑改变同ID3；C非法回应不修改，
+重试精确👍/users[3]。A搜索实际编辑正文并打开Copyable text；终端可选择文字不等于
+OSclipboard验收。A原多行/double-space/CJK草稿切会话后真正发4，C原草稿在leave取消
+后真正发5，均reply=null。最终history恰好{2,3,4,5}；确认leave只移除C，双端logout
+取消后再显式确认回Login，S005观察到两端offline。五原bin与服务端正文逐byte相同。
+
+before exact库chat_gd1006083530_1092031与after库chat_gd1006084919_1175818均SQL0，
+各5记录PIDgone、精确自有tmux socket无文件/无listener、18913空、保护PID在。
+没有清未知资源。新group刚重新打开的瞬时空history不据单帧判丢消息；实际后续history
+及发送证据保留。附件、好友申请、reconnect、physical Unicode、IME/Orca和完整日常
+矩阵仍须分别验收，不借一次群聊流程宣布§38或最终两轮fresh review完成。
+
+### 正式门禁与环境失败的区分
+
+既有fresh目录 `/tmp/chat-read-context-fresh.JwLH7s` 增量strict-Werror完整build通过，
+23/23 CTest为108.13s。未改的tests/verify.sh实际进程28205最终退出0，Qt/TUI ON：
+
+| 配置 | 完整CTest | 总耗时 | tui_render（原5s） |
+| --- | --- | ---: | ---: |
+| normal Debug | 23/23 | 107.69s | 0.89s |
+| ASan | 23/23 | 144.01s | 4.17s |
+| UBSan | 23/23 | 136.30s | 1.83s |
+
+107个tracked Qt/TUI/tests/CMake文件首尾SHA相同；无skip、改timeout、新编译warning或
+sanitizer报告。strict实际-g/-Werror；正式三模式使用原warnings与各自插桩参数，
+不声称正式三模式也有-Werror。本次是既有fresh构建目录增量，不是新fresh configure。
+日志 `/tmp/chat-group-craft-{strict-build,strict-ctest-env,final-verify-env}.log`。
+
+首strict/verify未载入既有测试env，6项数据库相关测试连接不存在的本地PG socket，
+实际exit8原日志保留。加载`/tmp/chat-goal-test-env.sh`后依次完整重跑strict及原三模式，
+不并发改同一测试库，不修改产品、SQL、测试或失败断言以制造通过。
+Qt87/TUI78暂评不提高，Q27/T04和完整目标继续开放，未push。
+
+## 阶段 40：完整字素字体覆盖与输入法 Enter 校准
+
+### 两个真实字体环境的覆盖 guard
+
+`/tmp/chat-emoji-coverage-guard-20261006.wZhdll` 以公共 Qt6.2.4/xcb API 实际运行，
+不链接生产组件、不改变字体或系统配置。沿用原102输入、三种字体尺寸/字重与维护数据
+确定的完整EGC范围。正常环境及仅自有child使用的私有FontConfig拒绝Noto环境，各
+612记录/306成对结果与8张原QImage；主代理亲看全部16页。
+
+guard只对预选完整EGC检查实际字体身份和glyph0；不把覆盖完整冒称GSUB/语义合字
+支持。原文/UTF16合法光标位置不变，全部1224排版记录right_clip=false。
+
+| 实际环境 | 结果 | 限制 |
+| --- | --- | --- |
+| Noto存在 | probe与reader各exit0；216无格式成对结果与baseline逐像素/run相同；60个新增base/style组合全部退回baseline | 新增基字仍缺字体支持，不能称支持Unicode18或关闭Q27 |
+| 私有环境真实Noto inventory缺失 | probe与reader各exit0；306对全部无特殊格式且与该环境自己的baseline逐像素/run相同 | 不是在安装字体的环境中伪造缺失bool；普通fallback依然不能凭空提供组合emoji支持 |
+
+正常环境canonical键帽、woman-ZWJ、单VS16肤色关系仍使用实际Noto完整范围；未知tag
+问号提示glyph1474保留，不以黑旗掩盖unsupported/invalid indication。所有拒绝EGC
+整组不设特殊字体，没有半字素替换或改原文。零glyph0不是合字成功oracle。
+
+原结果SHA分别`7993b5e5f1adf59b5c4930a8902e5148098562f9b494050ebdc99692a82a3788`
+与`6c09ee1c99acd58d9675bae61bea2a0a4593a1a8ab2b2c4130bffe1eebc6075b`。
+实际probe10d327de…，QtGui首尾f7608581…，冻结源码/输入与系统FontConfig首尾相同。
+own Xvfb1291579/normal1291582/noNoto1291724全部gone，保护PID在，没有DB或业务服务。
+
+整体runner实际exit1，原因是原证据总量11,602,135bytes超过事先8,000,000bytes预算。
+这个预算失败保留，不提高限额、删除不利记录或重跑制造green。上述测量exit0只描述
+对应测量，不将整体执行改记通过。未来证据规模需要在运行前正确估算。
+独立只读checker实际0，另亲看16原页并逐像素核对全部612对原PNG区域；两环境字体
+inventory只差Noto Color Emoji，222个系统FontConfig hash与全部输入/准备pins相同。
+独立预算复核：两原结果JSON5,808,740bytes加16原PNG4,301,634bytes，单这两类已
+10,110,374bytes；不是删除cache就能让原计划正确。原execution/result/reader均未改。
+这些是字体排版机制图，不是Chat窗口、四档DPI、真实编辑/IME或全部文字surface验收。
+
+### Enter的真实输入法契约
+
+真实Chat首轮`/tmp/chat-quality-system-ime-final1-20261006` actual1，固定预期“首Enter
+提交中文”不成立：原composer提交的是prefix+`zhongwen`。驱动在该等待失败，后续
+SDK不增ID检查未执行；不能据草稿仍在或此前的只读history宣称防误发已通过。
+独立17项证据/清理核验通过，失败原图/原始观察/严格oracle保留，不修改产品去迎合驱动。
+
+独立公共Qt编辑器校准`/tmp/chat-native-ime-enter-calibration-20261006.tRK1rT` actual0：
+同一系统Fcitx5/Pinyin、真实IBus frontend、XTest实体按键，`zhongwen`进入预编辑后
+raw为空；Return提交exact `zhongwen`、UTF8 `7a686f6e6777656e`，真实QInputMethodEvent
+记录相同commit且预编辑清空。6项执行断言真，主代理亲看原候选/提交后两张X11图。
+这是原08d0a697…公共probe，仅Space改Return的独立校准，不注入事件，不替代真实Chat。
+此前Space提交exact“中文”的机制证据仍独立保留。
+
+校准四文件首尾相同，own Xvfb1292891/Fcitx1292894/probe1292908全gone，保护PID在。
+本阶段据此决定从头分别验证Latin-Enter提交再发送和中文Space选候选再发送，首提交
+必须实际检查服务端ID不增；阶段41记录随后完成的独立实际运行，不拼接失败轮的片段。
+
+本阶段未修改生产代码，无新增完整build/gate声明。阶段39冻结源三模式23/23仍按原
+范围有效。Qt87/TUI78不提高，Q27/T04、四档DPI/完整日常/无障碍与最终连续两轮fresh
+审查继续开放，未push。
+
+## 阶段 41：两个真实 Chat 的系统输入法提交与发送
+
+独立校准后另建全新 `/tmp/chat-quality-system-ime-final2-20261006`，实际进程75768
+退出0，`SYSTEM_IME_ACTUAL_EXIT=0`。不是从失败final1拼接结果；旧失败与严格oracle
+不改。实际基线5d9ac11，两个公开登录的Qt客户端/proc SHA均dd287c64…，私有DBus/
+Xvfb/i3/Fcitx5/Pinyin及真实IBus地址，1280×800物理窗口、100%缩放。没有注入QIM事件、
+调用产品私有模型/信号或用SDK代替界面发送。
+
+| 流程 | 当前原始证据 |
+| --- | --- |
+| C先公开发送参考消息 | group1，C3发送id2；A真实消息列表收到原正文 |
+| A拼音预编辑 | 原CJK/é/双空格prefix仍是文档raw；真实Fcitx候选映射，服务端只有id2 |
+| 首Enter | 提交exact prefix+zhongwen；公共Ctrl+A/C的OSclipboard逐byte相同；当场及随后10次quiet只读history仍只有id2 |
+| 第二Enter | 仅新增A1的id3，reply=null；C可见消息列表子节点收到完全相同正文 |
+| 另一独立中文流程 | 清空已确认发送的composer，新prefix进入真实拼音预编辑；Space提交exact prefix+中文，SDK仍只有2/3；Enter仅新增A1的id4，C实际收到 |
+
+实际最终history严格为{2,3,4}，没有草稿残片或重复发送。Latin与中文原bin/观察文档/
+四份真实OSclipboard分别核对，两个发送正文SHA为f911fff3…与ad285eff…；引用角色、
+group、作者与reply=null均检查。只读SDK的24份原history及10次quiet观察保留，这个
+有限时间窗不声称证明任意未来异步时刻。所有原等待仍15s，没用“任意非空”oracle。
+
+主与独立代理亲看六张原窗口图和两张完整X11预编辑图。窗口crop会裁到在窗口底缘外
+的Fcitx候选，完整屏幕原图证明候选未被整个屏幕截断；不将crop缺少部分候选判产品bug。
+公开界面中首次提交后草稿仍在，C随后分别看到Latin与中文完整消息，品牌/层级保持。
+原图无重绘入库：[真实预编辑全屏](images/experience/chat-system-ime-preedit-x11.png)、
+[Enter提交后未发送](images/experience/chat-system-ime-enter-commit.png)、
+[另一端实际收到](images/experience/chat-system-ime-peer-received.png)。
+
+独立30/30证据核验通过；58pins首尾/当时当前源一致，10个helper/calibration快照与
+原来源相同。exact库chat_qtx11_1006091454_1331069已删除且SQL0，36记录descendants、
+7core及3AT-SPI PIDgone，18914无listener，保护PID2876288仍在。无system配置/生产/
+依赖修改，原Qt输入法行为已满足这两条实际流程，不为旧驱动错误预期修改产品。
+
+这只覆盖当前系统Fcitx/IBus的Latin-Enter与中文Space选择，再Enter发送。尚未覆盖
+KPEnter、ShiftEnter、其它输入法/OS、四档DPI或Orca，也不据此完成整个日常任务/§38。
+阶段39当前冻结源strict及原normal/ASan/UBSan23/23依原范围有效，没有新全量门禁
+声明。Qt87/TUI78不提高；Q27/T04、完整页面/日常/无障碍与连续两轮fresh评审仍开放。
+
+## 阶段 42：三档真实输入法流程与候选窗定位反例
+
+同一冻结Qt dd287c64…及5d9ac11基线，另准备完整双流程驱动92a71262…、launcher
+ee87f85d…与58pins。主代理完整审读源、bootstrap、helper、无障碍reader及两diff后，
+顺序唯一执行三次，每次全新隔离DB/server、私有DBus/Xvfb/i3/Fcitx与两个真实Chat。
+不是改变已有100%证据、借用其片段或只检查平台编辑器。
+
+| A实际缩放 | 主窗口物理尺寸 | 原进程实际退出 | 首Enter quiet只读history | exactDB（均SQL0） |
+| --- | --- | ---: | ---: | --- |
+| 125% | 1600×1000 | 42641：0 | 6次，仍只有参考id2 | chat_qtx11_1006092703_1402629 |
+| 150% | 1920×1200 | 51554：0 | 6次，仍只有参考id2 | chat_qtx11_1006092848_1412916 |
+| 200% | 2560×1600 | 62820：0 | 9次，仍只有参考id2 | chat_qtx11_1006093004_1420680 |
+
+各scope完整执行公开C参考发送、A预编辑、首Return提交exact Latin且不发、第二Return
+只新增A-id3；再用独立中文prefix预编辑、Space提交exact中文且不发、Return只新增A-id4，
+C实际收到两正文。三scope最终history都是{2,3,4}，原文/combining/double-space与
+公共OSclipboard保持；quiet数量取实际1秒窗口，不把先前100%的10次当新轮固定次数。
+原15s等待不延长，无QIM注入或SDK界面替代。C各轮保持独立进程100%/1280×800。
+
+主代理核对三scope58pins首尾/实际当前相同，7core/3bus及33/29/29记录descendants全gone，
+独立审查也逐轮30/30核验通过；这只描述来源/业务/清理核验，不取代下面的视觉失败。
+18914无listener，三个exactDB已删除且SQL0，保护PID2876288在。原输出目录分别
+`/tmp/chat-quality-system-ime-scaled{125,150,200}-final1-20261006`。
+证据目录原大小分别2,676,791/2,927,372/3,297,645bytes；顺序运行前检查剩余磁盘，
+不删旧证据或未知文件，无磁盘写入错误。这不是新构建或正式三模式门禁。
+
+### 业务通过不能替代视觉验收
+
+主代理亲看每轮六张原window crop及两张原预编辑全屏，共24张。三个scale的输入法
+候选物理坐标却都约[623,786,308,31]，另一中文流程约[618,786,308,31]；A输入区随
+缩放正确下移。在125%下，accessible composer逻辑[427,757,695,38]按实际窗口比例
+映射约物理[534,946,869,48]；候选bottom817，甚至位于输入区top946上方129px，
+明显不靠近真实预编辑光标。150%/200%偏离更大，200%横向也进入sidebar区域。
+这些距离基于窗口/控件原geometry，不将目测caret坐标冒作精确API测量。
+
+原反例无重绘入库：[125%候选偏移](images/experience/chat-system-ime-scaled125-candidate.png)、
+[200%候选偏移](images/experience/chat-system-ime-scaled200-candidate.png)。
+完整屏幕证明并非crop造成定位错觉；候选仍可见但脱离输入位置，列为Q30/P2。
+当前证据尚不能区分Chat、Qt6.2/IBus或Fcitx的坐标责任；下一步是独立公共Qt编辑器
+与真实系统输入法对照，而不是在产品中硬乘DPR或注入候选坐标。
+
+这三次执行业务与原文断言通过，不记整项HiDPI输入法PASS。四档已有指定双流程证据，
+不等于全页面/所有输入法/ShiftEnter/KPEnter/Orca/完整日常验收。Qt87/TUI78保持暂评，
+Q27/T04/Q30及完整目标仍开放，未push。
+
+## 阶段 43：候选定位的标准 Qt 对照与官方修复依据
+
+基线5d9ac11。新独立公共Qt6.2.4程序仅链接Widgets/Gui/Core；底部标准QPlainTextEdit
+不链接Chat，不重写inputMethodQuery或注入QInputMethodEvent，仅观察真实输入事件并
+调用base。私有DBus/Xvfb3600×1800/Fcitx5/Pinyin与XTest按键依次验证四档应用缩放。
+这是机制对照，不冒称两个真实Chat、系统硬件DPI或全部输入法验收。
+
+首次执行实际exit1：驱动错误地向session bus询问IBus地址，激活了独立ibus-daemon，
+未取得Fcitx自己的私有地址；没有启动Qt，因此不是产品输入法失败或定位反例。
+第二次驱动从自有config/ibus/bus文件取得地址并核对应Fcitx PID；不以session bus
+地址代替IBus地址。第二次完整执行实际exit0，四档都收到真实`zhong wen`预编辑，
+此时raw仍为`probe 123 `；Space分别提交exact`probe 123 中文`和真实中文commit事件。
+没有向Chat或服务器写数据，无SDK、测试数据库或业务服务。首失败独立记账，不拼接成功。
+
+### 原生几何与原图
+
+| 应用缩放 | 原X11窗口尺寸 / 左上角 | 编辑器光标参考物理点 | Fcitx候选原物理矩形 |
+| --- | --- | --- | --- |
+| 100% | 800×480 / 40,40 | 121,444 | 120,457,308,31 |
+| 125% | 1000×600 / 50,50 | 151.25,555 | 120,457,308,31 |
+| 150% | 1200×720 / 60,60 | 181.5,666 | 120,457,308,31 |
+| 200% | 1600×960 / 80,80 | 242,888 | 120,457,308,31 |
+
+参考点由标准编辑器cursorRect、viewport.mapToGlobal的逻辑[121,444]及实际X11比例
+转换，不冒作逐像素caret测量。QInputMethod记录的逻辑矩形约[80.078125,403,1,14]，
+window.mapToGlobal约[120.078125,443]；四档均相同，实际window DPR为1/1.25/1.5/2。
+候选却不随原窗口缩放。100%靠近输入区；后三档原图明确偏离，200%处于编辑器远上方。
+主及独立代理亲看四张原始X11截图；独立重新读取源、四jsonl、window/tree及加载日志。
+原图无重绘保留：[100%](images/experience/qt-standard-ime-platform-100.png)、
+[125%](images/experience/qt-standard-ime-platform-125.png)、
+[150%](images/experience/qt-standard-ime-platform-150.png)、
+[200%](images/experience/qt-standard-ime-platform-200.png)。
+
+因此同类问题不需要Chat专有布局、业务或Enter处理即可复现；不应在composer中
+盲目乘DPR或改返回坐标。这个对照仍不是平台修复后的产品GREEN。
+
+### 官方实现与修复路线
+
+当前实际加载系统`libibusplatforminputcontextplugin.so`，SHA
+`4ec30a1f1b7e3974c64f3717c2013f9318857f682afafd451d44bdadfa9af4c8`；
+包为qt6-qpa-plugins6.2.4+dfsg-2ubuntu1.1，系统Fcitx5为5.0.14-1。
+[Qt6.2.4官方源码](https://github.com/qt/qtbase/blob/v6.2.4/src/plugins/platforminputcontexts/ibus/qibusplatforminputcontext.cpp)
+248–263行将逻辑cursorRectangle经window.mapToGlobal直接传给SetCursorLocation。
+[同版本QWindow实现](https://github.com/qt/qtbase/blob/v6.2.4/src/gui/kernel/qwindow.cpp)
+2730–2759行在HiDPI路径返回device-independent global坐标，并非native物理坐标。
+这是官方tag实现对照，不将tag源码直接宣称为已安装发行版插件的逐字源码。
+
+[官方修复3790821](https://github.com/qt/qtbase/commit/3790821b220ff6ab3c51a5c0b35581c00bc4e84d)
+于2023-01-03提交，Fixes QTBUG-103393。其xcb路径以screen origin为基准，将相对
+坐标和矩形大小转换到native，再调用SetCursorLocation；不能简单将整个global坐标
+乘DPR而忽略多屏origin。Pick-to包含6.5/6.4/6.2/5.15，不等于当前6.2.4发行版已回移。
+实际读取的v6.5.0源码及固定dev f127f11fc11d3578fdfaa8d4a7597397a30cd1d6也含此转换；
+修复不要求必须Qt6.9，也不借upstream作者的测试记录宣称我们after通过。
+
+标准编辑器实测与该官方缺陷吻合，下一步应验证匹配版本/ABI的平台插件回移，或经
+确认使用包含修复的Qt版本；不能混用6.5插件与6.2.4库，也不在Chat中建立坐标旁路。
+尚未追踪当前已装插件的实际SetCursorLocation数字或测试修复后的Qt，不把责任边界
+过度扩展为所有平台/Fcitx配置。未改系统、Qt库、平台插件、依赖版本或生产代码。
+
+### 构建、身份与清理边界
+
+临时标准程序fresh RelWithDebInfo实际含-O2/-g/-DNDEBUG/-Wall/-Wextra/-Werror，
+编译/链接成功。源码SHA为eaed70c6…3e215，实际构建binary为affefbe9…79df，
+run2驱动为f40b758b…a820；当前artifact和单一启动路径核验吻合。原运行未记录逐PID
+exeSHA或起止hash，不能事后补称这项已证；自有Fcitx运行时正常重写自己的profile，
+也不宣称该runtime配置字节首尾冻结。四档Qt日志都确认加载同系统IBus插件。
+finally记录自有Popen全部reaped；独立现态检查无probe/Xvfb/私有Fcitx/ibus-daemon，
+首次session bus/Fcitx/ibus-daemon PID也已gone，长期服务2876288及系统Fcitx3225在。
+核验后精确清理本次探针、官方源码缓存和本地截图副本；只保上述永久原图与审查摘要。
+
+阶段39的三模式23/23是此前冻结源的历史结果，本次没有修改生产或重新执行全量门禁。
+Qt87/TUI78不提高，Q27/T04/Q30、完整日常/页面/无障碍与连续两轮fresh审查继续开放。

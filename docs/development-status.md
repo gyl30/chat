@@ -1485,3 +1485,27 @@ normal/ASan/UBSan各23/23，107.69/144.01/136.30s；render0.89/4.17/1.83s保原5
 不是新fresh configure，正式与strict flags分记。详细范围见[体验品质审查](experience-quality.md)。
 Qt87/TUI78不提高，Q27/T04、全页面/完整日常/无障碍和最终两轮fresh审查继续开放。
 无third/server/client/SQL/依赖改动，未push。
+
+## 体验品质审查：真实输入法提交与缩放定位边界
+
+5d9ac11基线的两个真实Qt先完成100%系统Fcitx/IBus完整Latin-Enter/中文Space流程：
+首提交不发送，第二Enter只新增对应一条精确正文，另一端实际收到；独立30/30。
+随后125%/150%/200%三次独立完整任务业务实际0、各独立30/30，但原图证明候选窗
+没有随composer缩放定位，新增Q30/P2，不能把业务通过记作HiDPI输入法验收通过。
+
+本次另用不链接Chat的标准Qt6.2.4编辑器对照。fresh小程序RelWithDebInfo含
+-O2/-g/-DNDEBUG/-Wall/-Wextra/-Werror，真实四档预编辑及Space精确提交实际0；
+候选物理位置始终120,457，实际编辑器随四档缩放。主/独立代理亲看四原图，确认
+同类问题不需要Chat代码即可复现。官方Qt commit3790821修复IBus native坐标转换，
+已实际读其patch和6.2.4/6.5.0官方源码；未改产品坐标、系统插件或Qt依赖。
+当前安装版本的修复及真实Chat after仍待验证，不关闭Q30。
+
+字体whole-EGC正常/真实无Noto两环境各612测量均actual0，但原整体runner超过
+预定8MB证据预算actual1；失败保留为结论，不为green改预算。它不是生产Q27修复。
+详情与持久原图见[体验品质审查](experience-quality.md)阶段38–43。
+
+按用户要求，此前历史测试临时目录/数据已清理；文档旧/tmp路径不再代表可访问raw。
+本次标准编辑器与官方源码缓存也核验后精确清理。永久原图/ANSI/摘要保留，不冒称
+它们替代完整原始证据。未改生产/测试/third/server/client/SQL/CMake或依赖，本次没有
+新执行全产品三模式门禁，阶段39三模式23/23仅按原冻结源和历史范围记账。
+Qt87/TUI78不提高；Q27/T04/Q30、完整日常/页面/无障碍及最终两轮fresh审查继续开放。
