@@ -148,9 +148,34 @@ void check_authentication_layout()
     QApplication::processEvents();
     check(server->isHidden() && username->hasFocus() && username->text() == QStringLiteral("张 三") &&
           server->text() == QStringLiteral("ws://localhost:18769/ws"), "Collapsing settings preserves identity and connection address");
+    auto* login_focus = QApplication::focusWidget();
     window.findChild<QPushButton*>("loginButton")->click();
     check(card->findChild<QLabel*>("subtleText")->text().contains(QStringLiteral("密码")),
           "Missing credentials produce inline feedback without connecting");
+    auto* login_feedback = card->findChild<QLabel*>("subtleText");
+    auto* login_label_accessible = QAccessible::queryAccessibleInterface(login_feedback);
+    check(login_label_accessible && login_label_accessible->role() == QAccessible::StaticText,
+          "The visible login feedback retains ordinary label semantics");
+    auto* login_notification = login_feedback->findChild<QObject*>("feedbackNotification");
+    auto* login_accessible = QAccessible::queryAccessibleInterface(login_notification);
+    check(login_accessible && login_accessible->role() == QAccessible::Notification &&
+          login_accessible->text(QAccessible::Name) == login_feedback->text(),
+          "Authentication errors expose their current text as an accessible notification");
+    check(QApplication::focusWidget() == login_focus, "Login feedback preserves the current keyboard focus");
+    auto const login_error = login_feedback->text();
+    window.findChild<QPushButton*>("loginButton")->click();
+    check(login_feedback->text() == login_error && login_accessible->text(QAccessible::Name) == login_error &&
+          QApplication::focusWidget() == login_focus,
+          "Repeating an invalid login preserves its current feedback and keyboard focus");
+    login_feedback->clear();
+    check(login_accessible->text(QAccessible::Name).isEmpty(), "Clearing login feedback clears its accessible name");
+    login_feedback->setText(QStringLiteral("正在连接…"));
+    check(login_accessible->text(QAccessible::Name) == login_feedback->text() &&
+          login_accessible->text(QAccessible::Name) != login_error,
+          "The same accessible interface reads current status instead of caching an old login error");
+    window.findChild<QPushButton*>("loginButton")->click();
+    check(login_accessible->text(QAccessible::Name) == login_error && QApplication::focusWidget() == login_focus,
+          "A new login rejection restores the current error without moving keyboard focus");
     for (auto const size : {QSize(980, 640), QSize(1180, 760), QSize(1280, 800), QSize(1440, 900), QSize(1920, 1080)})
     {
         window.resize(size);
@@ -173,11 +198,49 @@ void check_authentication_layout()
     check(registration->isVisible() && registration->width() == card->width(), "Registration shares the login card geometry");
     auto* registration_username = registration->findChild<QLineEdit*>("registrationUsernameEdit");
     check(registration_username && registration_username->hasFocus(), "Registration starts at username");
+    auto* registration_focus = QApplication::focusWidget();
     registration->findChild<QPushButton*>("registrationSubmitButton")->click();
     check(registration->findChild<QLabel*>("subtleText")->text().contains(QStringLiteral("用户名")),
           "Empty registration remains actionable with inline feedback");
+    auto* registration_feedback = registration->findChild<QLabel*>("subtleText");
+    auto* registration_label_accessible = QAccessible::queryAccessibleInterface(registration_feedback);
+    check(registration_label_accessible && registration_label_accessible->role() == QAccessible::StaticText,
+          "The visible registration feedback retains ordinary label semantics");
+    auto* registration_notification = registration_feedback->findChild<QObject*>("feedbackNotification");
+    auto* registration_accessible = QAccessible::queryAccessibleInterface(registration_notification);
+    check(registration_accessible && registration_accessible->role() == QAccessible::Notification &&
+          registration_accessible->text(QAccessible::Name) == registration_feedback->text(),
+          "Registration errors share the accessible feedback semantics");
+    check(QApplication::focusWidget() == registration_focus, "Registration feedback preserves the current keyboard focus");
+    auto const registration_error = registration_feedback->text();
+    registration->findChild<QPushButton*>("registrationSubmitButton")->click();
+    check(registration_feedback->text() == registration_error &&
+          registration_accessible->text(QAccessible::Name) == registration_error &&
+          QApplication::focusWidget() == registration_focus,
+          "Repeating an invalid registration preserves its current feedback and keyboard focus");
+    registration_username->setText(QStringLiteral("probe_user"));
+    for (auto* field : registration->findChildren<QLineEdit*>())
+    {
+        if (field->accessibleName() == QStringLiteral("密码")) { field->setText(QStringLiteral("one")); }
+        if (field->accessibleName() == QStringLiteral("确认密码")) { field->setText(QStringLiteral("two")); }
+    }
+    registration->findChild<QPushButton*>("registrationSubmitButton")->click();
+    check(registration_feedback->text() == QStringLiteral("两次输入的密码不一致") &&
+          registration_accessible->text(QAccessible::Name) == registration_feedback->text() &&
+          QApplication::focusWidget() == registration_focus,
+          "A changed registration error updates the same accessible name without moving keyboard focus");
     registration->findChild<QPushButton*>("registrationCancelButton")->click();
     check(!registration->isVisible(), "Cancel returns to the login page");
+    window.activateWindow();
+    QApplication::processEvents();
+    window.findChild<QPushButton*>("registerButton")->click();
+    registration->activateWindow();
+    QApplication::processEvents();
+    wait([&] { return registration_username->hasFocus(); });
+    check(registration->isVisible() && registration_username->hasFocus() && registration_feedback->text().isEmpty() &&
+          registration_accessible->text(QAccessible::Name).isEmpty(),
+          "Reopening registration resets focus to username and clears the previous accessible error");
+    registration->findChild<QPushButton*>("registrationCancelButton")->click();
     std::cout << "PASS Qt authentication hierarchy, keyboard focus and responsive settings\n";
 }
 

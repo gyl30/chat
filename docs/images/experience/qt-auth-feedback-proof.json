@@ -1,0 +1,281 @@
+{
+  "scope": "Linux X11 Qt 6.2.4 / Orca 42 / private Speech Dispatcher 0.11.1 / eSpeak-ng with ALSA null; speech text only, no audible assessment",
+  "binary_sha256": "936a4464a564fcb8d267e5e7eae338892024eda8b1d137ed6c4e4eb2fc532fed",
+  "live_exe_sha256": "936a4464a564fcb8d267e5e7eae338892024eda8b1d137ed6c4e4eb2fc532fed",
+  "driver_sha256": "a7b4ce808cbf14603ed18a809ed5fc73e5089440fa4fa676a33372557234d317",
+  "source_manifest_sha256": "3ddc881dbb27b98dabbc040821cdc9acad4237f7443388cc0b9b2dff5364592f",
+  "source_file_count": 148,
+  "phases": [
+    {
+      "name": "login-empty",
+      "expected": "请输入用户名和密码",
+      "spoken": [
+        "登录 按钮.",
+        "通知 请输入用户名和密码."
+      ],
+      "ssml": [
+        "|<speak><mark name=\"0:2\"/>登录 <mark name=\"3:6\"/>按钮.</speak>",
+        "|<speak><mark name=\"0:2\"/>通知 <mark name=\"3:13\"/>请输入用户名和密码.</speak>"
+      ],
+      "focus": [
+        [
+          "登录",
+          "push button"
+        ]
+      ],
+      "announced": true,
+      "forbidden_spoken": false
+    },
+    {
+      "name": "login-repeat",
+      "expected": "请输入用户名和密码",
+      "spoken": [
+        "通知 请输入用户名和密码."
+      ],
+      "ssml": [
+        "|<speak><mark name=\"0:2\"/>通知 <mark name=\"3:13\"/>请输入用户名和密码.</speak>"
+      ],
+      "focus": [
+        [
+          "登录",
+          "push button"
+        ]
+      ],
+      "announced": true,
+      "forbidden_spoken": false
+    },
+    {
+      "name": "login-enter",
+      "expected": "请输入用户名和密码",
+      "spoken": [
+        "通知 请输入用户名和密码."
+      ],
+      "ssml": [
+        "|<speak><mark name=\"0:2\"/>通知 <mark name=\"3:13\"/>请输入用户名和密码.</speak>"
+      ],
+      "focus": [
+        [
+          "密码",
+          "password text"
+        ]
+      ],
+      "announced": true,
+      "forbidden_spoken": false
+    },
+    {
+      "name": "registration-open",
+      "expected": null,
+      "spoken": [
+        "注册 对话框.",
+        "用户名 文本."
+      ],
+      "ssml": [
+        "|<speak><mark name=\"0:2\"/>注册 <mark name=\"3:7\"/>对话框.</speak>",
+        "|<speak><mark name=\"0:3\"/>用户名 <mark name=\"4:7\"/>文本.</speak>"
+      ],
+      "focus": [
+        [
+          "用户名",
+          "text"
+        ]
+      ],
+      "announced": false,
+      "forbidden_spoken": false
+    },
+    {
+      "name": "registration-empty",
+      "expected": "用户名和密码不能为空",
+      "spoken": [
+        "创建账号 按钮.",
+        "通知 用户名和密码不能为空."
+      ],
+      "ssml": [
+        "|<speak><mark name=\"0:4\"/>创建账号 <mark name=\"5:8\"/>按钮.</speak>",
+        "|<speak><mark name=\"0:2\"/>通知 <mark name=\"3:14\"/>用户名和密码不能为空.</speak>"
+      ],
+      "focus": [
+        [
+          "创建账号",
+          "push button"
+        ]
+      ],
+      "announced": true,
+      "forbidden_spoken": false
+    },
+    {
+      "name": "registration-close",
+      "expected": null,
+      "spoken": [
+        "Chat 框架.",
+        "布局面板",
+        "创建账号 按钮."
+      ],
+      "ssml": [
+        "|<speak><mark name=\"0:4\"/>Chat <mark name=\"5:8\"/>框架.</speak>",
+        "|<speak><mark name=\"0:4\"/>布局面板</speak>",
+        "|<speak><mark name=\"0:4\"/>创建账号 <mark name=\"5:8\"/>按钮.</speak>"
+      ],
+      "focus": [
+        [
+          "创建账号",
+          "push button"
+        ]
+      ],
+      "announced": false,
+      "forbidden_spoken": false
+    },
+    {
+      "name": "registration-reopen",
+      "expected": null,
+      "spoken": [
+        "注册 对话框.",
+        "用户名 文本."
+      ],
+      "ssml": [
+        "|<speak><mark name=\"0:2\"/>注册 <mark name=\"3:7\"/>对话框.</speak>",
+        "|<speak><mark name=\"0:3\"/>用户名 <mark name=\"4:7\"/>文本.</speak>"
+      ],
+      "focus": [
+        [
+          "用户名",
+          "text"
+        ]
+      ],
+      "announced": false,
+      "forbidden_spoken": false
+    },
+    {
+      "name": "registration-mismatch",
+      "expected": "两次输入的密码不一致",
+      "spoken": [
+        "已从剪贴板粘贴内容。",
+        "创建账号 按钮.",
+        "通知 两次输入的密码不一致."
+      ],
+      "ssml": [
+        "|<speak><mark name=\"0:10\"/>已从剪贴板粘贴内容。</speak>",
+        "|<speak><mark name=\"0:4\"/>创建账号 <mark name=\"5:8\"/>按钮.</speak>",
+        "|<speak><mark name=\"0:2\"/>通知 <mark name=\"3:14\"/>两次输入的密码不一致.</speak>"
+      ],
+      "focus": [
+        [
+          "创建账号",
+          "push button"
+        ]
+      ],
+      "announced": true,
+      "forbidden_spoken": false
+    },
+    {
+      "name": "registration-mismatch-repeat",
+      "expected": "两次输入的密码不一致",
+      "spoken": [
+        "通知 两次输入的密码不一致."
+      ],
+      "ssml": [
+        "|<speak><mark name=\"0:2\"/>通知 <mark name=\"3:14\"/>两次输入的密码不一致.</speak>"
+      ],
+      "focus": [
+        [
+          "创建账号",
+          "push button"
+        ]
+      ],
+      "announced": true,
+      "forbidden_spoken": false
+    },
+    {
+      "name": "registration-mismatch-enter",
+      "expected": "两次输入的密码不一致",
+      "spoken": [
+        "通知 两次输入的密码不一致."
+      ],
+      "ssml": [
+        "|<speak><mark name=\"0:2\"/>通知 <mark name=\"3:14\"/>两次输入的密码不一致.</speak>"
+      ],
+      "focus": [
+        [
+          "确认密码",
+          "password text"
+        ]
+      ],
+      "announced": true,
+      "forbidden_spoken": false
+    },
+    {
+      "name": "registration-invalid-username",
+      "expected": "用户名须为 1–64 UTF-8 字节，首尾不能有空白，且不能含 @ 或控制字符",
+      "spoken": [
+        "已从剪贴板粘贴内容。",
+        "创建账号 按钮.",
+        "通知 用户名须为 1–64 UTF-8 字节，首尾不能有空白，且不能含 @ 或控制字符."
+      ],
+      "ssml": [
+        "|<speak><mark name=\"0:10\"/>已从剪贴板粘贴内容。</speak>",
+        "|<speak><mark name=\"0:4\"/>创建账号 <mark name=\"5:8\"/>按钮.</speak>",
+        "|<speak><mark name=\"0:2\"/>通知 <mark name=\"3:8\"/>用户名须为 <mark name=\"9:13\"/>1–64 <mark name=\"14:19\"/>UTF-8 <mark name=\"20:35\"/>字节，首尾不能有空白，且不能含 <mark name=\"36:37\"/>@ <mark name=\"38:44\"/>或控制字符.</speak>"
+      ],
+      "focus": [
+        [
+          "创建账号",
+          "push button"
+        ]
+      ],
+      "announced": true,
+      "forbidden_spoken": false
+    },
+    {
+      "name": "registration-close-again",
+      "expected": null,
+      "spoken": [
+        "Chat 框架.",
+        "已从剪贴板粘贴内容。",
+        "布局面板",
+        "创建账号 按钮."
+      ],
+      "ssml": [
+        "|<speak><mark name=\"0:4\"/>Chat <mark name=\"5:8\"/>框架.</speak>",
+        "|<speak><mark name=\"0:10\"/>已从剪贴板粘贴内容。</speak>",
+        "|<speak><mark name=\"0:4\"/>布局面板</speak>",
+        "|<speak><mark name=\"0:4\"/>创建账号 <mark name=\"5:8\"/>按钮.</speak>"
+      ],
+      "focus": [
+        [
+          "创建账号",
+          "push button"
+        ]
+      ],
+      "announced": false,
+      "forbidden_spoken": false
+    },
+    {
+      "name": "connection-refused",
+      "expected": "连接被拒绝",
+      "spoken": [
+        "展开或收起服务器设置 复选框 未勾选.",
+        "通知 连接被拒绝."
+      ],
+      "ssml": [
+        "|<speak><mark name=\"0:10\"/>展开或收起服务器设置 <mark name=\"11:14\"/>复选框 <mark name=\"15:19\"/>未勾选.</speak>",
+        "|<speak><mark name=\"0:2\"/>通知 <mark name=\"3:9\"/>连接被拒绝.</speak>"
+      ],
+      "focus": [
+        [
+          "展开或收起服务器设置",
+          "check box"
+        ]
+      ],
+      "announced": true,
+      "forbidden_spoken": false
+    }
+  ],
+  "owned_terminal": true,
+  "source_binary_unchanged": true,
+  "claims_not_made": [
+    "audible Chinese pronunciation",
+    "all Qt error paths",
+    "all screen readers or platforms",
+    "complete daily workflow",
+    "award-caliber exit"
+  ]
+}

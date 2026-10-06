@@ -2992,5 +2992,88 @@ result保存执行检查与baseline termios，但未保存每周期/proc原文�
 自有TUI/socket已不存在，长期服务2876288保留。没有生产/测试/third/SQL/依赖变更。
 
 未新执行全量三模式门禁；阶段39历史23/23仍仅按原范围记录。下一步须将暂停/恢复
-扩到两真实在线TUI、多行草稿与业务事件；Orca当前未安装，不能宣称语音验收。
+扩到两真实在线TUI、多行草稿与业务事件；当时未执行Orca验证，不能宣称语音验收。
+阶段45后续确认原包入口被改名为`orca_bak`，并非未安装；不追溯改写本阶段验收。
 Qt87/TUI78不提高；Q27/T04/Q30、全部页面/完整日常/无障碍与最终两轮fresh审查仍开放。
+
+## 阶段 45：登录与注册错误的真实读屏反馈
+
+基线01c21cf4d4014d72f4c8d6db2e532f5a029e8ce7。原登录、注册内联错误在视觉上
+正常，却只有普通QLabel文本变化；保持输入/提交焦点时，真实Orca没有播报。
+本次不是用offscreen accessible Name或注入事件handler冒充语音验收。
+
+### 产品修复与取舍
+
+两个现有反馈位置使用`feedback_label`。可导航的视觉控件仍是StaticText；其拥有
+一个纯QObject通知节点，Name直接读取当前label正文，没有第二份文案/错误状态。
+仅`show_error()`在可见且非空时发送Notification的ObjectShow；普通loading、clear、
+dialog显隐不发送通知。现有同步校验与异步登录/注册失败共用原错误入口，不改认证
+规则、服务器或协议。Notification的无障碍parent为application，避免Orca额外朗读
+整个窗口的错误上下文；这是事件型节点，不冒称可枚举、互反的应用子树。
+
+真实运行拒绝了几种看似更简单的候选：永久把QLabel设为Notification会在关闭注册时
+重读旧错误、重开时发空通知；动态切换role会受AT-SPI初始角色缓存影响；通知以label
+或window为parent会重复读正文，长用户名错误尤其明确。最终方案保持正常标签树与
+独立事件通知，不抢焦点，不加timer、补偿事件或缓存旧Name。相同错误重复提交仍可
+再次通知，不依赖文案改变；同一个节点更换长错误或连接拒绝也不读取旧缓存。
+
+### 真实 X11 / Orca 验证
+
+机器实际安装Qt6.2.4、Orca42.0、Speech Dispatcher0.11.1。`/usr/bin/orca_bak`的MD5
+与dpkg原`/usr/bin/orca`相同；没有安装/替换包或改系统配置。使用隔离DBus、Xvfb、
+i3、Orca用户目录及私有Speech Dispatcher/eSpeak-ng；ALSA输出为null。因此证据是
+真实Orca生成并送到语音模块的文本与SPEAK/BEGIN/END，不宣称做过可听中文发音评估。
+没有测试数据库、新业务服务或用户凭据。
+
+旧正式UBSan客户端副本的串行before实测5次错误全部未播，Orca确实活跃。它不是
+本轮重新构建的同模式baseline，不冒称所有9个after情景都有对应before。
+最终冻结客户端从头执行13个阶段，9次错误各有且只有一条准确通知：
+
+| 场景 | 实际结果 |
+| --- | --- |
+| 登录空输入、重复提交、密码框Enter | 3次正确错误通知；鼠标停留按钮，Enter保持密码焦点 |
+| 注册空输入 | 正确通知；仍可继续编辑 |
+| 密码不一致、重复提交、确认密码框Enter | 3次正确通知；Enter保持确认密码焦点 |
+| 非法用户名的长说明 | 完整正文只播一次，没有窗口上下文重复或旧错误 |
+| 异步连接拒绝 | 播报实际中文“连接被拒绝”；不播“正在连接” |
+| 注册打开、关闭、重开、再次关闭 | 4阶段均无旧错误或空通知；重开用户名获得焦点 |
+
+连接失败时原busy禁用逻辑会将焦点移到服务器设置；没有把同步校验的焦点结论扩展到
+全部异步错误。现有断线/返回登录的其它直接setText入口也没有全部迁移，不声明所有
+认证、恢复状态、平台或读屏器已覆盖。
+
+主代理查看原始X11截图，标签、长错误及返回按钮未新增裁切或布局跳变：
+[登录before](images/experience/qt-auth-feedback-before-login.png)、
+[登录after](images/experience/qt-auth-feedback-after-login.png)、
+[注册before](images/experience/qt-auth-feedback-before-registration.png)、
+[注册after](images/experience/qt-auth-feedback-after-registration.png)。保留的是原始
+截图，没有重绘或构造页面；hover捕获状态不同，不宣称像素完全一致。
+[紧凑实测记录](images/experience/qt-auth-feedback-proof.json)包含13阶段、原SSML、
+解码文本、焦点、live exe SHA及来源指纹，不以该JSON代替原运行。
+独立代理从原SpeechD日志再次核算：全程9条通知，五种正文次数3/1/3/1/1，全部准确。
+
+### 测试、驱动失败与冻结来源
+
+永久Qt测试继续检查标签/通知角色、Name实时读取、重复/更换/清空错误、焦点及注册
+重开，不安装事件handler、不放宽旧断言。offscreen重开最初失败是窗口没有激活，
+驱动改为先激活owner再激活dialog并使用原wait；没有修改产品焦点行为或延长等待。
+原widgets-only14组实际通过。
+
+原生驱动的早期失败也独立记账：同时启动两个Orca触发进程单实例约束；原始SSML
+的mark拆开长文案导致错误字符串匹配；等待英文Connection refused而产品实际显示
+中文。修正驱动的串行执行、SSML解析和locale预期后从头重跑，不拼接失败片段。
+候选生产实现的重复/空播报则是真问题，已经按上节修复，不归咎于驱动。
+
+最终binary/live exe SHA为936a4464…32fed，148个源码pin首尾一致；manifest与完整
+driver SHA见实测记录。第一次完整门禁虽然通过，但其间通知parent仍在改动，不作为
+最终冻结源的证明。第二次执行原`tests/verify.sh`完整终态exit0：normal23/23
+107.60s、ASan23/23 138.57s、UBSan23/23 130.39s，Qt/TUI均ON，无报告错误签名。
+这是原脚本Debug三模式，不额外声称fresh目录或可听语音ASan验证。`git diff --check`
+通过，third/submodule不变；没有push。
+
+最终原生探针五个自有进程均退出；全量门禁已终止。核验后精确删除本次两个临时scope
+及失败候选原输出，仅保上述永久before/after与紧凑实测记录。长期服务2876288、系统
+Fcitx及系统Speech Dispatcher保留，没有删除开发数据库或干扰其它会话。
+
+这是一项真实错误反馈修复，不是整项无障碍、完整四客户端日常或奖项级退出验收。
+Qt87/TUI78不提高；Q27/T04/Q30、全页面/日常与连续两轮fresh评审继续开放。

@@ -8,7 +8,7 @@
 #include "message_data.hpp"
 
 class QDialog;
-class QLabel;
+class feedback_label;
 class QLineEdit;
 class QPushButton;
 class QStackedWidget;
@@ -69,14 +69,14 @@ class main_window final : public QMainWindow
     QLineEdit* password_edit_ = nullptr;
     QPushButton* login_button_ = nullptr;
     QPushButton* register_button_ = nullptr;
-    QLabel* status_label_ = nullptr;
+    feedback_label* status_label_ = nullptr;
     QDialog* registration_dialog_ = nullptr;
     QLineEdit* registration_username_edit_ = nullptr;
     QLineEdit* registration_password_edit_ = nullptr;
     QLineEdit* registration_password_confirm_edit_ = nullptr;
     QPushButton* registration_submit_button_ = nullptr;
     QPushButton* registration_cancel_button_ = nullptr;
-    QLabel* registration_status_label_ = nullptr;
+    feedback_label* registration_status_label_ = nullptr;
     QTimer* reconnect_timer_ = nullptr;
     QTimer* reconnect_countdown_timer_ = nullptr;
     QTimer* reconnect_notice_timer_ = nullptr;

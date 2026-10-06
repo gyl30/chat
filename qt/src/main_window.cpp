@@ -98,7 +98,7 @@ main_window::main_window(QString server_url, QWidget* parent)
     form->addRow(QStringLiteral("密码"), password_edit_);
     login_layout->addLayout(form);
 
-    status_label_ = new QLabel(login_card);
+    status_label_ = new feedback_label(login_card);
     status_label_->setObjectName(QStringLiteral("subtleText"));
     status_label_->setWordWrap(true);
     login_layout->addWidget(status_label_);
@@ -175,7 +175,7 @@ main_window::main_window(QString server_url, QWidget* parent)
     registration_form->addRow(QStringLiteral("确认密码"), registration_password_confirm_edit_);
     registration_layout->addLayout(registration_form);
 
-    registration_status_label_ = new QLabel(registration_dialog_);
+    registration_status_label_ = new feedback_label(registration_dialog_);
     registration_status_label_->setObjectName(QStringLiteral("subtleText"));
     registration_status_label_->setWordWrap(true);
     registration_layout->addWidget(registration_status_label_);
@@ -934,12 +934,12 @@ void main_window::start_login()
 
     if (server.isEmpty())
     {
-        status_label_->setText(QStringLiteral("请在服务器设置中填写连接地址"));
+        show_login_error(QStringLiteral("请在服务器设置中填写连接地址"));
         return;
     }
     if (username.isEmpty() || password.isEmpty())
     {
-        status_label_->setText(QStringLiteral("请输入用户名和密码"));
+        show_login_error(QStringLiteral("请输入用户名和密码"));
         return;
     }
 
@@ -978,22 +978,22 @@ void main_window::start_registration()
 
     if (server.isEmpty())
     {
-        registration_status_label_->setText(QStringLiteral("请先在登录页的服务器设置中填写连接地址"));
+        show_registration_error(QStringLiteral("请先在登录页的服务器设置中填写连接地址"));
         return;
     }
     if (username.isEmpty() || password.isEmpty() || password_confirm.isEmpty())
     {
-        registration_status_label_->setText(QStringLiteral("用户名和密码不能为空"));
+        show_registration_error(QStringLiteral("用户名和密码不能为空"));
         return;
     }
     if (!chat::valid_username(username.toUtf8().toStdString()))
     {
-        registration_status_label_->setText(QStringLiteral("用户名须为 1–64 UTF-8 字节，首尾不能有空白，且不能含 @ 或控制字符"));
+        show_registration_error(QStringLiteral("用户名须为 1–64 UTF-8 字节，首尾不能有空白，且不能含 @ 或控制字符"));
         return;
     }
     if (password != password_confirm)
     {
-        registration_status_label_->setText(QStringLiteral("两次输入的密码不一致"));
+        show_registration_error(QStringLiteral("两次输入的密码不一致"));
         return;
     }
 
@@ -1088,17 +1088,17 @@ void main_window::show_login_error(QString message)
 {
     pending_action_ = pending_action::none;
     pending_password_.clear();
-    status_label_->setText(std::move(message));
     set_login_busy(false);
+    status_label_->show_error(std::move(message));
 }
 
 void main_window::show_registration_error(QString message)
 {
     pending_action_ = pending_action::none;
     pending_password_.clear();
-    registration_status_label_->setText(std::move(message));
     set_registration_busy(false);
     set_login_busy(false);
+    registration_status_label_->show_error(std::move(message));
 }
 
 void main_window::show_authenticated_page(qint64 user)

@@ -2,8 +2,20 @@
 #define CHAT_QT_SRC_THEME_HPP
 
 #include <QString>
+#include <QLabel>
 
 class QWidget;
+
+class feedback_label final : public QLabel
+{
+    Q_OBJECT
+   public:
+    explicit feedback_label(QWidget* parent = nullptr);
+    void show_error(QString message);
+
+   private:
+    QObject notification_;
+};
 
 namespace chat_theme
 {
