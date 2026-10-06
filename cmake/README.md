@@ -1,5 +1,12 @@
 # Shared Unicode dependencies
 
+The Qt client requires Qt 6.5 or newer, including Svg and Widgets. Older Qt
+versions reproduce fractional-scale repaint clipping after a modal editor is
+closed and predate the IBus native cursor-coordinate correction. The build
+uses the supplied Qt package; it does not install Qt or patch around those
+toolkit defects. Use CMAKE_PREFIX_PATH or Qt6_DIR for a separately installed SDK.
+This requirement applies only when CHAT_BUILD_QT_CLIENT is enabled.
+
 chat_unicode.cmake is enabled only when the Qt or TUI client is enabled. It
 fetches utf8proc 2.12.0 / Unicode 18 once, with the original archive and offline
 source pins. Qt does not run the FTXUI patch module; TUI does not find Qt.

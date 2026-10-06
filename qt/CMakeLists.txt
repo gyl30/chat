@@ -1,4 +1,4 @@
-find_package(Qt6 6.2 REQUIRED COMPONENTS Svg Widgets)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Svg Widgets)
 include("${PROJECT_SOURCE_DIR}/cmake/chat_emoji_scanner.cmake")
 
 add_library(chat_qt_widgets OBJECT

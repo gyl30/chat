@@ -3396,8 +3396,9 @@ VS15及未知/非法组合的baseline保持；仅覆盖这些样本，非全部�
 
 125%最终after仍有Q32：C编辑窗口关闭后原图稳定出现黑色1px段x2021..2549,y312，
 立即截图、1秒后及A回复条视角均存在，后续C布局变化才消失。旧before追加诊断也
-持续复现，原生resize/restore能清掉，但不以主动重绘伪装修复。独立Qt6.2.4标准
-delegate及简单primitives同窗口/dialog/row几何、背景对照未复现；这不足以归因Xvfb。
+持续复现，原生resize/restore能清掉，但不以主动重绘伪装修复。当时独立Qt6.2.4标准
+delegate及简单primitives对照未复现，但未覆盖相同的菜单、焦点与模态退出时序；
+后续完整公开操作对照已复现，详见下一阶段。这不足以归因Xvfb。
 [最终原生反例](images/experience/qt-unicode-125-expose-red.png)仍记视觉RED，业务exit0
 不等于125%视觉整体通过。新candidate的原图不覆盖旧反例。
 
@@ -3427,3 +3428,108 @@ oracle，产品验收仍以上述永久测试及真实输入法流程为准。
 Q27剩余矩阵、Q30缩放系统IME定位、T04终端物理列/重绘及Q32仍开放。
 Qt87/TUI78暂评不提高，没有达到>=92/P2=0或连续两轮全产品fresh review条件。
 下一步继续实际显示与终端体验缺口，不把本阶段局部修复改称整个campaign完成。
+
+## 阶段 50：分离 125% 模态退出黑线的实现依赖
+
+957640f 基线保持正式 Qt binary 8b3699ef…不变。原黑线仍是视觉 RED，既有 33 项
+IME、四档普通 Unicode 业务检查和完整门禁 PASS 不用于关闭它。此次对照只定位
+Q32 的必要条件，不是新的全页面验收，也不冒称 Qt 版本升级已经修复产品。
+
+先保留实际 Chat model/自然 sizeHint，改为标准 QStyledItemDelegate paint，透明与
+不透明背景均复现；因此 Chat 的 emoji paint 不是必要条件。随后彻底去掉 Chat
+实现链接，仅 Qt Widgets/Gui/Core、QStandardItemModel、标准 delegate，沿用原图
+记录的样式、文本、字体、三个 row 尺寸 761×99/39/45。两个独立进程均实际完成
+右键菜单→编辑→聚焦→Escape 的公开时序；1475×950 主窗口、650×411 对话框、
+actual DPR 1.25、xcb/Fusion 均核验，未用主动重绘或 resize 作为 after。
+
+两轮立即与 1 秒后原图均出现同一黑段 x521..1049,y312。主代理亲看
+[标准 Qt 原生反例](images/experience/qt-fractional-standard-125-red.png)，
+[原实测记录](images/experience/qt-fractional-standard-proof.json)保留两轮各六张
+原图 SHA、dirty region、实际进程与编译输入。该程序的导出数据工具不是运行依赖，
+实际二进制不存在 Chat implementation symbols；本次不把标准控件的字体外观作为
+Chat 的 Unicode after。原来简化控件未复现的阴性结果不能否定本次完整时序的阳性。
+
+Qt 官方提交
+[423b650：fractional scaling clipping](https://code.qt.io/cgit/qt/qtbase.git/commit/?id=423b6509382c3bcc36eca78ced0254bfb463d017)
+修改 QRegion 缩放及矩形边界舍入，Qt 6.5.3 包含该实现。私有、版本固定的 QtBase/
+QtSvg 6.5.3 已真实配置、构建及安装成功；依赖仅下载匹配系统版本的开发包并解包到
+独立前缀，没有安装系统包。xcb、DBus、IBus 与 xkbcommon 的实际构建结果已检查，
+完整 SDK 库和插件不与系统 Qt 混用。
+
+同一 probe 源码、同字节 driver、文本、窗口/row/dialog 几何和公开操作，再分别运行
+两轮 Qt 6.2.4 与 6.5.3：旧版本的四张立即/1 秒后原图均保留 x521..1049,y312 黑线；
+私有 6.5.3 的四张对应原图均没有该黑段。
+[旧版成对原记录](images/experience/qt-fractional-standard-624-paired-proof.json)、
+[新版成对原记录](images/experience/qt-fractional-standard-653-proof.json)及
+[新版标准控件原图](images/experience/qt-fractional-standard-653-after.png)保存来源。
+主代理亲看两个新版原尺寸 after，实际
+/proc/exe、Qt library/xcb plugin SHA、DPR 和保护进程首尾均核验。该版本成对证据
+证明标准控件对照的行为差异，不是单独隔离官方提交的因果证明。
+
+随后同一私有Qt6.5.3的真实Chat客户端8ce5bee174bc…实际完成两客户端100/125/150/
+200四档公开流程，每档原13项均PASS，125%另有首次完整运行也PASS。原生窗口与
+AT-SPI比率逐窗口读回，原文双向收发、复制/撤销、实际编辑与reply都保留。所有运行
+记录实际/proc/exe及Qt库/插件SHA，110个编译输入首尾相同，没有编辑退出后强制
+重绘或resize。主代理亲看125/150/200原图；两次125%关闭编辑窗口立即与1秒后原
+x2021..2549,y312区域均为(247,245,239)，黑像素计数0。旧6.2.4原视觉RED仍保留。
+[真实Chat 125% after](images/experience/qt-fractional-chat-125-after.png)、
+[1秒后](images/experience/qt-fractional-chat-125-after-1sec.png)、
+[150%](images/experience/qt-fractional-chat-150-after.png)、
+[200%](images/experience/qt-fractional-chat-200-after.png)及
+[实际九轮原记录](images/experience/qt-fractional-chat-653-proof.json)保留来源。
+
+原全量三模式门禁完成后，正式normal binary3bf8d0c86985…又完整执行四档原生流程，
+各13项实际PASS，wrapper实际0；实际/proc/exe首尾与binary一致，新的110个编译输入
+首尾核验。这里精选after原图来自该正式binary，不再只依赖私有candidate。
+125%立即及1秒后原黑线区均为背景色(247,245,239)，黑像素0，未主动repaint或resize。
+
+九轮各自独立数据库最终存在数0，自有进程已退出，三保护进程startticks未变。
+这些是普通Unicode公开操作，不是系统IME四档定位验收；实际compose inputcontext
+不能冒称IBus/Fcitx。Qt构建要求提高为6.5，使用调用者提供的SDK，不安装系统Qt，
+不删已验证的preedit格式恢复，也不为旧toolkit加主动repaint兼容补丁。
+
+本次未改变SQL、原测试脚本、系统Qt或submodule；长期server、系统Fcitx和语音服务
+保持。Q32局部反例已获得真实产品after，仍不把它升为全产品HiDPI通过。Q27/Q30/
+T04仍开放，Qt87/TUI78不提高，完整目标和连续两轮fresh review未完成。未push。
+
+## 阶段 51：置顶与通知不截断 Unicode 字素
+
+当前实际基线957640f，既有whole-EGC前缀应用到置顶摘要、较早置顶消息的搜索词、
+通知群名/作者及正文。仅改变显示/查询前缀，不改完整message、identity、SQL或协议。
+五类永久反例分别把surrogate、ZWJ、combining、VS16skin、keycap放在79/119个ASCII
+后跨越原80/120 UTF-16上限，literal期望值不调用被测helper生成。置顶使用实际按钮
+text/tooltip及点击查询；通知使用真实server群改名、三窗口收发和实际通知signal，
+保完整persisted UTF8及真实sender不通知断言，不冒称系统notification气泡外观。
+
+旧生产完整测试实际1/45.00s，原业务flow已通过，新10项均RED；新生产同测试实际
+0/46.53s，新10项均PASS。新Qt -Werror暴露12个已废弃QMouseEvent构造调用，改为
+实际接收viewport的mapToGlobal，位置/断言不变；首登录等待实际窗口激活，保原5秒
+上限与focus断言。最终31fd测试源码在旧Qt独立widgets/full又实际0/7.07和46.78s。
+新Qt6.5.3四目标构建实际0，旧deprecated失败完整保留，不把局部增量build当全门禁。
+[实测记录](images/experience/qt-pinned-notification-unicode-proof.json)保存原exit、
+首尾SHA、10项记录与30个PNG的原SHA，原full cleanup0|0|0、独立库删除后存在数0。
+[置顶before](images/experience/qt-pinned-unicode-keycap-before.png) /
+[after](images/experience/qt-pinned-unicode-keycap-after.png)、
+[真实通知fixture控件](images/experience/qt-notification-unicode-keycap-controls.png)保留。
+
+主代理视觉复审仍发现长置顶QPushButton居中绘制会裁掉“置顶消息”的开头。字节
+边界GREEN不证明按钮可读，该问题必须另行修复，不扩大窗口或截坏raw掩盖。
+旧native i3 fixture的registration首次激活focus断言失败也保留；本次没有把offscreen
+完整PASS写成整个native UI测试GREEN。
+
+原tests/verify.sh在真实repo新Qt6.5.3配置下完整退出0，normal/ASan/UBSan各23/23，
+分别113.03/159.35/147.64s。qt_ui为45.47/54.33/50.27s，原60s不变；render为
+0.90/4.23/1.83s，原5s不变。Qt/TUI均ON，全部target实际-Werror构建；114输入
+（110tracked及4实际外部编译文件）和原脚本SHA首尾检查0，无skip或timeout变更。
+原完整日志及三份LastTest日志的编译warning、CMake warning、sanitizer签名扫描均0，
+不把自有native私有bus的portal退出警告混称编译/产品错误，也不声称环境零warning。
+[本阶段原门禁无损日志](images/experience/qt-fractional-original-verify.log.gz)解压
+SHA6220debb80eb…与102741字节原log相同；
+[完整门禁实测记录](images/experience/qt-fractional-original-verify-proof.json)保存逐项
+实际result、timeout、源/库/插件/binary指纹及三保护进程首尾。SDK仍是实际构建和
+运行依赖，不能当临时测试数据删除。Qt6.2.4新配置被6.5最低版本要求明确拒绝，
+TUI-only实际独立构建成功，非Qt客户端不依赖这个要求。
+
+TUI现代WezTerm+私有tmux宽度的独立物理/虚拟测量已一致，但当前产品六组ZWJ输入
+仍让composer边界左移180px，清空后其他栏残影仍在；T04仍是RED。Qt87/TUI78保持，
+没有>=92、P2=0或两轮无material issue的fresh review，不停止完整品质循环。

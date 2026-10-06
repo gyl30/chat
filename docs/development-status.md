@@ -1583,7 +1583,8 @@ edit/reply及raw复制/undo保持。该系统IME结论限定100%；不宣称Q30�
 四档普通Unicode公开客户端流程各actual0/统一13项，窗口与AT-SPI比率实际读回。
 测试图像logical→device采样收口后，四档widgets15组/delegate7组均actual0，旧assert/
 颜色/timeout不变。125%关闭edit后的持续黑细线仍实际RED，新增Q32，不能用业务
-PASS覆盖；标准Qt同几何对照未复现，尚未归因。
+PASS覆盖；当时简化标准Qt对照未复现，尚未归因。后续完整菜单/焦点/模态退出
+时序的纯Qt标准控件已实际复现，阴性结论的适用范围已更正，见阶段50。
 
 本轮新建独立Debug/-Werror目录，完整及最终增量build actual0、完整CTest23/23
 109.63s、输入首尾一致。最终原tests/verify.sh实际0，normal/ASan/UBSan各23/23、
@@ -1591,3 +1592,39 @@ PASS覆盖；标准Qt同几何对照未复现，尚未归因。
 正式binary首尾一致，脚本未改，无skip/新增warning/sanitizer报告签名。原图、无损
 门禁日志与范围见[体验品质审查](experience-quality.md)阶段49；125%视觉RED未掩盖。
 Qt87/TUI78不提高；Q27/Q30/T04/Q32及全页面/两轮fresh审查仍开放，不宣布完成。
+
+## 体验品质审查：125% 黑线的标准控件对照
+
+957640f 正式binary未变。实际Chat model/自然sizeHint配标准paint仍复现黑段；
+进一步仅链接Qt Widgets/Gui/Core的QStandardItemModel/标准delegate，两独立进程
+同公开菜单→编辑→焦点→Escape时序立即及1秒后仍出现x521..1049,y312。原row
+尺寸、窗口、dialog、DPR1.25与xcb/Fusion均核验，无Chat implementation链接，
+主亲看原像素图。早前简化标准控件阴性没有覆盖这段时序，不能继续当排除证据。
+
+官方fractional clipping修复提供版本对照依据。私有QtBase/QtSvg6.5.3实际配置、
+构建、安装成功，系统包清单未改；同源码/driver/几何两轮成对原生对照中，6.2.4
+四帧均保留黑线，6.5.3四帧均无黑线，实际库/插件与进程SHA已核验，主亲看after。
+这不是隔离单个官方提交的因果证明。随后真实Chat的100/125/150/200四档双客户端
+流程各实际0，125%又重复完整流程；关闭编辑窗口立即及1秒后的原黑线区均恢复为
+背景像素，未插入主动重绘/resize。实际加载私有Qt6.5.3，原文收发/复制/undo/reply
+与自建数据库/进程清理保持。Qt构建最低要求现为6.5，不给6.2保留缺陷兼容路径。
+原全量门禁完成后，正式3bf8d0c8…binary又执行四档原生双客户端流程，各13项实际
+PASS；125%立即及1秒后黑像素计数仍为0。九轮实测原记录与正式after原图已保留。
+纯对照无数据库，自有进程退出，保护服务未动；不把普通compose流程当系统IME。
+原图与实测范围见[体验品质审查](experience-quality.md)阶段50。Qt87/TUI78保持，
+Q27/Q30/T04及完整退出门槛继续开放，未push。
+
+## 体验品质审查：置顶与通知的完整 Unicode 边界
+
+置顶摘要/旧消息搜索和通知标题/正文改为既有whole-EGC prefix，不在80/120 UTF-16
+边界留下半个surrogate、ZWJ、combining、skin或keycap。永久反例先完整RED再GREEN，
+原文、真实群名/消息persist及自发消息不通知的规则不变；不把通知参数验证冒称OS
+通知气泡像素验证。12个旧QMouseEvent使用实际viewport globalPos，支持新Qt -Werror。
+
+最终旧Qt独立widgets/full实际0，7.07/46.78s；新Qt四目标-Werror增量build也实际0。
+原tests/verify.sh在新Qt下实际exit0，normal/ASan/UBSan各23/23，113.03/159.35/
+147.64s；qt_ui45.47/54.33/50.27s保原60s，render0.90/4.23/1.83s保原5s。
+114输入及原脚本首尾一致，Qt/TUI ON、全构建-Werror，没有skip、编译warning或
+sanitizer报告签名；无损日志和完整指纹记录已归档。真实截图仍发现长
+置顶按钮的开头被裁掉，这一视觉问题未修；TUI六组ZWJ仍造成180px边界偏移。
+局部EGC/raw GREEN不覆盖这些RED，完整>=92和两轮fresh review条件没有达成。

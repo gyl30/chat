@@ -1,0 +1,365 @@
+{
+  "wrapper_pid": 3460638,
+  "driver_pid": 3460639,
+  "theme_sha256": "e8133c65555eeedc7a121ecb860d89fbb50ed13104df0702a90609d3c63311c8",
+  "probe_source_sha256": "9d553f6436a02180c3dccd49747f44bd4a48bcea4e1382c7be765f3db9a8c497",
+  "probe_binary_sha256": "47ef16f605f7e4afe45b0f467baae55d077adb134099a5f5d765042e70f80d42",
+  "host_software_packages_not_private_Qt_version": "libqt6core6:amd64\t6.2.4+dfsg-2ubuntu1.1\nlibqt6widgets6:amd64\t6.2.4+dfsg-2ubuntu1.1\nxvfb\t2:21.1.4-2ubuntu1.7~22.04.16\n",
+  "protected_start": {
+    "2876288": {
+      "ticks": "521400965",
+      "command": "/home/gyl/example/chat/build/chat_server 18080 16 16"
+    },
+    "3225": {
+      "ticks": "17583",
+      "command": "/usr/bin/fcitx5 -d"
+    },
+    "29935": {
+      "ticks": "248258",
+      "command": "/usr/bin/speech-dispatcher -s -t 0"
+    }
+  },
+  "variants": [
+    {
+      "variant": "pure-standard",
+      "repeat": 1,
+      "owned_pid": 3460654,
+      "recorded_row_geometry_control": [
+        [
+          417,
+          67,
+          761,
+          99
+        ],
+        [
+          417,
+          166,
+          761,
+          39
+        ],
+        [
+          417,
+          205,
+          761,
+          45
+        ]
+      ],
+      "palette_and_viewport": {
+        "autoFillBackground": false,
+        "backgroundRole": 9,
+        "baseColour": "#ff000000",
+        "opaquePaintEvent": false,
+        "styledBackground": true,
+        "windowColour": "#00000000"
+      },
+      "native_main": [
+        0,
+        0,
+        1475,
+        950
+      ],
+      "native_dialog": [
+        400,
+        220,
+        650,
+        411
+      ],
+      "native_final_before_termination": [
+        0,
+        0,
+        1475,
+        950
+      ],
+      "runtime_Qt_libraries": [
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/libQt6Core.so.6.2.4",
+          "sha256": "1a31b98c8c8c05f6cd94836c77cc5cc4fa321d2d7458f0427a40d032266bf9bc"
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/libQt6DBus.so.6.2.4",
+          "sha256": "f434f01a7554ad22ec1a1e341789ac45747076f1eef8e89bcc83fad807528cba"
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/libQt6Gui.so.6.2.4",
+          "sha256": "f7608581911f2c0e5cbe59fe141df29c511eb1c5c856d5d678e78f9306b54771"
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/libQt6Widgets.so.6.2.4",
+          "sha256": "2cdfeb48346e2d7c0f8b07991e32d9a41b6df31dd4a2200f8d8d78a6fb275de4"
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/libQt6XcbQpa.so.6.2.4",
+          "sha256": "a6647cabe4e127de6baf3aeb473c565901d9a9b1890c50cb919138c24c2e6be7"
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/qt6/plugins/platforms/libqxcb.so",
+          "sha256": "a12034e45fac9597cd8f0a0ea0f314c24b0d72786f39c8525b95d06c610e2137"
+        }
+      ],
+      "screenshots": [
+        {
+          "monotonic_ns": 5464322491994105,
+          "path": "/tmp/chat-qt-dependency-compare.dmJWg7/cross-624-paired-_5erfw63/pure-standard-1-01-before-dialog.png",
+          "long_black_pixels_at_original_row_boundary": [],
+          "same_chat_panel_background_sample": [
+            247,
+            245,
+            239
+          ]
+        },
+        {
+          "monotonic_ns": 5464322892139004,
+          "path": "/tmp/chat-qt-dependency-compare.dmJWg7/cross-624-paired-_5erfw63/pure-standard-1-02-selected-public-edit-menu.png",
+          "long_black_pixels_at_original_row_boundary": [],
+          "same_chat_panel_background_sample": [
+            247,
+            245,
+            239
+          ]
+        },
+        {
+          "monotonic_ns": 5464323178410950,
+          "path": "/tmp/chat-qt-dependency-compare.dmJWg7/cross-624-paired-_5erfw63/pure-standard-1-03-dialog.png",
+          "long_black_pixels_at_original_row_boundary": [],
+          "same_chat_panel_background_sample": [
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "monotonic_ns": 5464323459744299,
+          "path": "/tmp/chat-qt-dependency-compare.dmJWg7/cross-624-paired-_5erfw63/pure-standard-1-04-dismiss-immediate.png",
+          "long_black_pixels_at_original_row_boundary": [
+            [
+              521,
+              1049,
+              312
+            ]
+          ],
+          "same_chat_panel_background_sample": [
+            247,
+            245,
+            239
+          ]
+        },
+        {
+          "monotonic_ns": 5464324689407460,
+          "path": "/tmp/chat-qt-dependency-compare.dmJWg7/cross-624-paired-_5erfw63/pure-standard-1-05-dismiss-1sec.png",
+          "long_black_pixels_at_original_row_boundary": [
+            [
+              521,
+              1049,
+              312
+            ]
+          ],
+          "same_chat_panel_background_sample": [
+            247,
+            245,
+            239
+          ]
+        }
+      ],
+      "qt_geometry_and_software": "/tmp/chat-qt-dependency-compare.dmJWg7/cross-624-paired-_5erfw63/pure-standard-1.jsonl",
+      "actual_child_returncode": -15
+    },
+    {
+      "variant": "pure-standard",
+      "repeat": 2,
+      "owned_pid": 3461227,
+      "recorded_row_geometry_control": [
+        [
+          417,
+          67,
+          761,
+          99
+        ],
+        [
+          417,
+          166,
+          761,
+          39
+        ],
+        [
+          417,
+          205,
+          761,
+          45
+        ]
+      ],
+      "palette_and_viewport": {
+        "autoFillBackground": false,
+        "backgroundRole": 9,
+        "baseColour": "#ff000000",
+        "opaquePaintEvent": false,
+        "styledBackground": true,
+        "windowColour": "#00000000"
+      },
+      "native_main": [
+        0,
+        0,
+        1475,
+        950
+      ],
+      "native_dialog": [
+        400,
+        220,
+        650,
+        411
+      ],
+      "native_final_before_termination": [
+        0,
+        0,
+        1475,
+        950
+      ],
+      "runtime_Qt_libraries": [
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/libQt6Core.so.6.2.4",
+          "sha256": "1a31b98c8c8c05f6cd94836c77cc5cc4fa321d2d7458f0427a40d032266bf9bc"
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/libQt6DBus.so.6.2.4",
+          "sha256": "f434f01a7554ad22ec1a1e341789ac45747076f1eef8e89bcc83fad807528cba"
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/libQt6Gui.so.6.2.4",
+          "sha256": "f7608581911f2c0e5cbe59fe141df29c511eb1c5c856d5d678e78f9306b54771"
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/libQt6Widgets.so.6.2.4",
+          "sha256": "2cdfeb48346e2d7c0f8b07991e32d9a41b6df31dd4a2200f8d8d78a6fb275de4"
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/libQt6XcbQpa.so.6.2.4",
+          "sha256": "a6647cabe4e127de6baf3aeb473c565901d9a9b1890c50cb919138c24c2e6be7"
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/qt6/plugins/platforms/libqxcb.so",
+          "sha256": "a12034e45fac9597cd8f0a0ea0f314c24b0d72786f39c8525b95d06c610e2137"
+        }
+      ],
+      "screenshots": [
+        {
+          "monotonic_ns": 5464324982017838,
+          "path": "/tmp/chat-qt-dependency-compare.dmJWg7/cross-624-paired-_5erfw63/pure-standard-2-01-before-dialog.png",
+          "long_black_pixels_at_original_row_boundary": [],
+          "same_chat_panel_background_sample": [
+            247,
+            245,
+            239
+          ]
+        },
+        {
+          "monotonic_ns": 5464325376441866,
+          "path": "/tmp/chat-qt-dependency-compare.dmJWg7/cross-624-paired-_5erfw63/pure-standard-2-02-selected-public-edit-menu.png",
+          "long_black_pixels_at_original_row_boundary": [],
+          "same_chat_panel_background_sample": [
+            247,
+            245,
+            239
+          ]
+        },
+        {
+          "monotonic_ns": 5464325662785024,
+          "path": "/tmp/chat-qt-dependency-compare.dmJWg7/cross-624-paired-_5erfw63/pure-standard-2-03-dialog.png",
+          "long_black_pixels_at_original_row_boundary": [],
+          "same_chat_panel_background_sample": [
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "monotonic_ns": 5464325945747711,
+          "path": "/tmp/chat-qt-dependency-compare.dmJWg7/cross-624-paired-_5erfw63/pure-standard-2-04-dismiss-immediate.png",
+          "long_black_pixels_at_original_row_boundary": [
+            [
+              521,
+              1049,
+              312
+            ]
+          ],
+          "same_chat_panel_background_sample": [
+            247,
+            245,
+            239
+          ]
+        },
+        {
+          "monotonic_ns": 5464327175272888,
+          "path": "/tmp/chat-qt-dependency-compare.dmJWg7/cross-624-paired-_5erfw63/pure-standard-2-05-dismiss-1sec.png",
+          "long_black_pixels_at_original_row_boundary": [
+            [
+              521,
+              1049,
+              312
+            ]
+          ],
+          "same_chat_panel_background_sample": [
+            247,
+            245,
+            239
+          ]
+        }
+      ],
+      "qt_geometry_and_software": "/tmp/chat-qt-dependency-compare.dmJWg7/cross-624-paired-_5erfw63/pure-standard-2.jsonl",
+      "actual_child_returncode": -15
+    }
+  ],
+  "no_database": true,
+  "no_Chat_TU_linked_to_probe": true,
+  "scope": "Cross-version pure Qt QStandardItemModel/SizeHintRole recorded geometry/QStyledItemDelegate exact public context/focus/editor data path; no Chat TU linked to executable; not public Chat acceptance.",
+  "qt_label": "624-paired",
+  "expected_Qt_version": "6.2.4",
+  "driver_sha256": "28766e6c9af0f2ccb6c7ca9e3f7c62c7c853718ff1747caad3d5e4bef079f6ae",
+  "recorded_input_sha256": "1e6d54f2dc6d5757119d1d3e5b67860d52c3ea0f3dab29cb00e736cd962f66b8",
+  "probe_path": "/tmp/chat-emoji-dpi-after.V8ckcw/pure-qt-focus-expose.qfRrFL/probe",
+  "runtime_library_dir": "/usr/lib/x86_64-linux-gnu",
+  "runtime_plugin_dir": "/usr/lib/x86_64-linux-gnu/qt6/plugins",
+  "no_post_dismiss_resize_or_repaint": true,
+  "ldd": "\tlinux-vdso.so.1 (0x00007ffc6b3a9000)\n\tlibQt6Widgets.so.6 => /usr/lib/x86_64-linux-gnu/libQt6Widgets.so.6 (0x00007b25c8c00000)\n\tlibQt6Gui.so.6 => /usr/lib/x86_64-linux-gnu/libQt6Gui.so.6 (0x00007b25c8400000)\n\tlibQt6Core.so.6 => /usr/lib/x86_64-linux-gnu/libQt6Core.so.6 (0x00007b25c7e00000)\n\tlibstdc++.so.6 => /usr/lib/x86_64-linux-gnu/libstdc++.so.6 (0x00007b25c7a00000)\n\tlibgcc_s.so.1 => /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00007b25c9368000)\n\tlibc.so.6 => /usr/lib/x86_64-linux-gnu/libc.so.6 (0x00007b25c7600000)\n\tlibm.so.6 => /usr/lib/x86_64-linux-gnu/libm.so.6 (0x00007b25c7d19000)\n\tlibEGL.so.1 => /usr/lib/x86_64-linux-gnu/libEGL.so.1 (0x00007b25c8bed000)\n\tlibfontconfig.so.1 => /usr/lib/x86_64-linux-gnu/libfontconfig.so.1 (0x00007b25c8ba3000)\n\tlibX11.so.6 => /usr/lib/x86_64-linux-gnu/libX11.so.6 (0x00007b25c78c0000)\n\tlibglib-2.0.so.0 => /usr/lib/x86_64-linux-gnu/libglib-2.0.so.0 (0x00007b25c74c5000)\n\tlibQt6DBus.so.6 => /usr/lib/x86_64-linux-gnu/libQt6DBus.so.6 (0x00007b25c73ed000)\n\tlibxkbcommon.so.0 => /usr/lib/x86_64-linux-gnu/libxkbcommon.so.0 (0x00007b25c83b9000)\n\tlibGLX.so.0 => /usr/lib/x86_64-linux-gnu/libGLX.so.0 (0x00007b25c8385000)\n\tlibOpenGL.so.0 => /usr/lib/x86_64-linux-gnu/libOpenGL.so.0 (0x00007b25c8359000)\n\tlibpng16.so.16 => /usr/lib/x86_64-linux-gnu/libpng16.so.16 (0x00007b25c7cde000)\n\tlibharfbuzz.so.0 => /usr/lib/x86_64-linux-gnu/libharfbuzz.so.0 (0x00007b25c731e000)\n\tlibmd4c.so.0 => /usr/lib/x86_64-linux-gnu/libmd4c.so.0 (0x00007b25c8b8d000)\n\tlibfreetype.so.6 => /usr/lib/x86_64-linux-gnu/libfreetype.so.6 (0x00007b25c7256000)\n\tlibz.so.1 => /usr/lib/x86_64-linux-gnu/libz.so.1 (0x00007b25c833d000)\n\tlibicui18n.so.70 => /usr/lib/x86_64-linux-gnu/libicui18n.so.70 (0x00007b25c6e00000)\n\tlibicuuc.so.70 => /usr/lib/x86_64-linux-gnu/libicuuc.so.70 (0x00007b25c6c05000)\n\tlibzstd.so.1 => /usr/lib/x86_64-linux-gnu/libzstd.so.1 (0x00007b25c7187000)\n\tlibdouble-conversion.so.3 => /usr/lib/x86_64-linux-gnu/libdouble-conversion.so.3 (0x00007b25c7cc9000)\n\tlibb2.so.1 => /usr/lib/x86_64-linux-gnu/libb2.so.1 (0x00007b25c7cab000)\n\tlibpcre2-16.so.0 => /usr/lib/x86_64-linux-gnu/libpcre2-16.so.0 (0x00007b25c7836000)\n\t/lib64/ld-linux-x86-64.so.2 (0x00007b25c93b3000)\n\tlibGLdispatch.so.0 => /usr/lib/x86_64-linux-gnu/libGLdispatch.so.0 (0x00007b25c6b4d000)\n\tlibexpat.so.1 => /usr/lib/x86_64-linux-gnu/libexpat.so.1 (0x00007b25c7156000)\n\tlibuuid.so.1 => /usr/lib/x86_64-linux-gnu/libuuid.so.1 (0x00007b25c8330000)\n\tlibxcb.so.1 => /usr/lib/x86_64-linux-gnu/libxcb.so.1 (0x00007b25c6b23000)\n\tlibpcre.so.3 => /usr/lib/x86_64-linux-gnu/libpcre.so.3 (0x00007b25c6aad000)\n\tlibdbus-1.so.3 => /usr/lib/x86_64-linux-gnu/libdbus-1.so.3 (0x00007b25c6a5f000)\n\tlibgraphite2.so.3 => /usr/lib/x86_64-linux-gnu/libgraphite2.so.3 (0x00007b25c6a37000)\n\tlibbrotlidec.so.1 => /usr/lib/x86_64-linux-gnu/libbrotlidec.so.1 (0x00007b25c7148000)\n\tlibicudata.so.70 => /usr/lib/x86_64-linux-gnu/libicudata.so.70 (0x00007b25c4e00000)\n\tlibgomp.so.1 => /usr/lib/x86_64-linux-gnu/libgomp.so.1 (0x00007b25c4da1000)\n\tlibXau.so.6 => /usr/lib/x86_64-linux-gnu/libXau.so.6 (0x00007b25c7ca5000)\n\tlibXdmcp.so.6 => /usr/lib/x86_64-linux-gnu/libXdmcp.so.6 (0x00007b25c782e000)\n\tlibsystemd.so.0 => /usr/lib/x86_64-linux-gnu/libsystemd.so.0 (0x00007b25c4cda000)\n\tlibbrotlicommon.so.1 => /usr/lib/x86_64-linux-gnu/libbrotlicommon.so.1 (0x00007b25c4cb7000)\n\tlibbsd.so.0 => /usr/lib/x86_64-linux-gnu/libbsd.so.0 (0x00007b25c7130000)\n\tliblzma.so.5 => /usr/lib/x86_64-linux-gnu/liblzma.so.5 (0x00007b25c4c8c000)\n\tliblz4.so.1 => /usr/lib/x86_64-linux-gnu/liblz4.so.1 (0x00007b25c4c6c000)\n\tlibcap.so.2 => /usr/lib/x86_64-linux-gnu/libcap.so.2 (0x00007b25c6a2c000)\n\tlibgcrypt.so.20 => /usr/lib/x86_64-linux-gnu/libgcrypt.so.20 (0x00007b25c4b2e000)\n\tlibmd.so.0 => /usr/lib/x86_64-linux-gnu/libmd.so.0 (0x00007b25c6a1f000)\n\tlibgpg-error.so.0 => /usr/lib/x86_64-linux-gnu/libgpg-error.so.0 (0x00007b25c4b08000)\n",
+  "display": ":0",
+  "canvas": [
+    2000,
+    1200
+  ],
+  "owned_xvfb_pid": 3460651,
+  "original_6_2_4_compiled_provenance_reference": {
+    "control_link_command": [
+      "g++",
+      "-std=c++20",
+      "-fPIC",
+      "-I/usr/include/x86_64-linux-gnu/qt6",
+      "-I/usr/include/x86_64-linux-gnu/qt6/QtCore",
+      "-I/usr/include/x86_64-linux-gnu/qt6/QtGui",
+      "-I/usr/include/x86_64-linux-gnu/qt6/QtWidgets",
+      "probe.cpp",
+      "-o",
+      "probe",
+      "-lQt6Widgets",
+      "-lQt6Gui",
+      "-lQt6Core"
+    ],
+    "no_Chat_TU_static_library_or_boost_linked_to_control": true,
+    "recorded_input_assets": "recorded-inputs.json: exact final chat_style_sheet QString data and observed editor font/range data, exported once through separate export-data helper; this helper is neither called nor linked by the standalone control.",
+    "geometry_role": "QStandardItemModel Qt::SizeHintRole QSize761x99,761x39,761x45 records native observation geometry only; no production sizing algorithm.",
+    "production_binary": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+  },
+  "actual_driver_exit": 0,
+  "owned_processes": [
+    {
+      "pid": 3460651,
+      "returncode": 0
+    },
+    {
+      "pid": 3460654,
+      "returncode": -15
+    },
+    {
+      "pid": 3461227,
+      "returncode": -15
+    }
+  ],
+  "protected_unchanged": true
+}
