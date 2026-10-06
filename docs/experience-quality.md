@@ -3997,3 +3997,27 @@ AT-SPI树、同driver和source首尾检查。两个数据库absence、port关闭
 及全键盘矩阵仍未完成。Qt87/TUI78不提高，Q27/Q30/T04及全产品目标继续开放，
 未开始达到92后的两轮fresh review。新TUI只读候选：Group预览只显示前三人而
 未标记余量；需结合真实All members路径和不同人数继续验证，不能当完整列表。
+
+## 阶段 60：完成300张默认明暗终端原图的逐项审查
+
+补完阶段58的其余262张，全300原PNG已逐张以original detail亲看，dark/light各
+150；旧38项和中间272项记录不覆盖。新的[完整逐项审查](images/experience/tui-default-colors-independent-300-review.json)
+保存每张path、SHA、具体观察和限制，未审0。主代理重核300个仓库原图字节与
+这份记录相同；不以文件名、页名、拼图或hash核验替代独立代理的真实视觉审查。
+
+两默认背景下未新增整体不可读页面，selected/inverted边界可读，但不作定量
+对比度认证。复制/输入的边界sentinel仍可见，部分emoji有outline/fallback，不能
+因此宣布全EGC字形正确。Help的初始24行视口缺下部命令与summary，60/70×40
+summary尾部仍在视口外；80×40命令到quit，但Clipboard说明不在视口内，100/
+120/160×40才完整出现说明。这是初始视口的真实边界，不等于可滚动内容丢失，
+需要独立真实键盘滚到底并Esc返回，不能凭永久render测试当runtime证明。
+
+Group预览在dark/light的120/160×24/40共8张图里完整显示三人而总数为四，没有
+余量提示；对应Members页确实四人完整，All members仍可见。主代理也亲看120×24
+原图确认该候选不是文字被右边截掉。下一步核实不同人数的摘要标示，不改成员
+业务/分页或权限，不将摘要当完整列表。正常空聊天/联系人/申请、其它terminal/
+font/palette、256-color/truecolor、legacy/SSH及Unicode18仍未由本fixture覆盖。
+
+本阶段只有新审查证据归档，没有改生产或重跑产品。阶段59原完整69项门禁对应
+当前同一编译输入，不冒称图片审查又产生新门禁。Qt87/TUI78不提高；完整品质
+目标继续开放，不计达到92后的连续两轮fresh review。
