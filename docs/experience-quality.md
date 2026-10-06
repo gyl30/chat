@@ -168,6 +168,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 第十九轮字素编辑与宽字组合符附着修复已进入生产；终端 span、裁剪、leading mark 和 shaping 仍未闭环，不计 Unicode 全矩阵通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 | T06 | P2 | TUI 搜索选中消息之前一项被删除时，只clamp索引，选中目标跳到另一ID | 第二十四阶段修复，永久RED/GREEN、真实双TUI六档选中目标/可复制正文/草稿验证通过 |
+| T07 | P3 | TUI 无草稿时输入提示仍显示悬空的 `i: compose ·` | 第三十六阶段只在非空草稿前保留分隔符，六宽永久 RED→GREEN、两个真实 TUI 完整附件流程和三模式门禁通过 |
 
 键盘打开列表、Qt 多行编辑、长公告、长 username、dialog 滚动、selection/focus、
 terminal light/dark、combining、SSH 和 suspend/restore 仍需进一步实际核验。
@@ -2472,3 +2473,47 @@ normal/ASan/UBSan23/23仍按冻结源与原范围记账。Qt87/TUI78不提高；
 参考/全页面/日常/无障碍矩阵和最终连续两轮全产品fresh review继续开放。
 下一步分开验证维护的通用presentation分词与终端logical-column重锚定边界，不用
 ANSI/字节成功代替physical shaping。未改third/server/client/SQL/依赖，未push。
+
+## 阶段 36：空草稿提示不留下悬空分隔符
+
+从 `de3d559e20c3c1f288bfe0117f2d54ae1155219c` 继续。实际附件任务的空历史原帧
+仍有 `i: compose ·`，分隔符后没有内容。只在非空草稿前保留该分隔符；输入控件、
+compose 模式、reply/edit、草稿原文和业务动作不变，不新增状态或 helper。
+
+现有 render_test 在60/70/80/100/120/160列同时核空提示和非空中文草稿。
+同一 fixture 旧源 CTest actual8、六处空提示失败；仅恢复这一行修复后 actual0，
+0.91s。最初直接执行错误的 binary 路径返回127，保留日志，不能当产品 RED。
+真正 RED/GREEN 日志为 `/tmp/chat-empty-composer-{red,green}-ctest.log`。
+
+[真实 before 样式](images/experience/before-tui-empty-composer.ansi.gz)与
+[真实 after 样式](images/experience/after-tui-empty-composer.ansi.gz)均为 tmux 原 ANSI
+无损 gzip，解压逐 byte 与原 capture 相等。主亲读两原帧；独立代理核两端空提示
+没有悬空 `·`，原非空草稿仍保留分隔符。不是重新画图或物理字体、列宽、IME 验收。
+
+`/tmp/chat-quality-tui-attachment-empty-composer-after1-20261006` 整次原公开附件
+流程 actual0，工具97313终态0；两个实际 TUI SHA90b14933…，80×30。
+只更新原 driver 的 binary pin 并增加空提示条件，原15s及全部原ID/原文断言保留。
+原C消息id2；上传取消保原reply与58byte多行草稿；96byte文件上传id3/reply2；
+另一端取消保存再真正保存，与原文件和认证S005下载逐byte一致，SHA c4145090…；
+原草稿最终发id4/reply=null并被另一端接收。A/C均真实public键盘操作，SDK不替代它们。
+
+主24、独立代理21检查全真，9项源和driver84f41fdb…首尾一致。
+精确库 `chat_ta1006080721_877417` SQL0，5记录core PID gone，18912无listener，
+保护2876288在。tmux退出后同样遗留自有socket文件，精确核Unixsocket/UID1000/
+记录PIDgone/无listener后仅删除该路径；清理证据另存，未重跑任务。
+
+既有 fresh 目录增量 strict -Werror 全build与23/23 CTest actual0，104.72s；
+不是新fresh configure。原 `tests/verify.sh` 未修改，工具10634实际0，
+`EMPTY_COMPOSER_FORMAL_ACTUAL_EXIT=0`，20项冻结源核验0，Qt/TUI ON。
+
+| 配置 | build / 全量CTest | 实际耗时 | tui_render（原5s） |
+| --- | --- | ---: | ---: |
+| normal Debug | PASS / 23/23 | 104.17s | 0.90s |
+| ASan | PASS / 23/23 | 145.71s | 4.09s |
+| UBSan | PASS / 23/23 | 130.36s | 1.78s |
+
+日志 `/tmp/chat-empty-composer-{strict-build,strict-ctest,final-verify}.log`。
+strict实际-g/-Werror，正式三模式原warnings/插桩分别核验，不称它们也有-Werror。
+未skip或放宽timeout，无新增编译warning/sanitizer报告。T07仅为小型craft修复，
+Qt87/TUI78不提高；Q27/T04、完整页面/参考/日常/无障碍与连续两轮fresh审查仍开放。
+无third/server/client/SQL/依赖改动，未push。

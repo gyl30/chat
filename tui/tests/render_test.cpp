@@ -208,6 +208,22 @@ int main()
     group.member_count = 3;
     group.can_send = true;
     group.announcement = "开发公告";
+    {
+        auto composer = s;
+        for (int columns : {60, 70, 80, 100, 120, 160})
+        {
+            auto empty = draw(composer, columns, 30);
+            ok &= expect(empty.find("i: compose") != std::string::npos &&
+                         empty.find("i: compose ·") == std::string::npos,
+                         "An empty composer hint has no dangling draft separator");
+            composer.draft = "未发送 draft";
+            auto retained = draw(composer, columns, 30);
+            ok &= expect(retained.find("i: compose · 未发送 draft") != std::string::npos &&
+                         composer.draft == "未发送 draft",
+                         "A retained draft stays distinct from its compose hint without changing its text");
+            composer.draft.clear();
+        }
+    }
     chat::message message;
     message.id = 1;
     message.conversation = 10;

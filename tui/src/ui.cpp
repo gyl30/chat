@@ -338,7 +338,7 @@ Element conversation_view(state const& s, Element input, std::string typing, int
     {
         if (s.reply) { items.push_back(preview_text("Reply " + s.reply->username + ": " + s.reply->text, width) | dim); }
         if (s.editing) { items.push_back(text("Editing message · Esc: keep draft") | dim); }
-        items.push_back(input ? input | size(HEIGHT, EQUAL, 1) : preview_text(s.composing ? "> " + s.draft : "i: compose · " + s.draft, width));
+        items.push_back(input ? input | size(HEIGHT, EQUAL, 1) : preview_text(s.composing ? "> " + s.draft : s.draft.empty() ? "i: compose" : "i: compose · " + s.draft, width));
     }
     return vbox(std::move(items)) | flex;
 }

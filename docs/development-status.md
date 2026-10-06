@@ -1432,3 +1432,18 @@ SQL0、5core gone、18912空；最初遗留自有tmux socket已精确核无服�
 这是原真实使用与机制证据提交，不冒称新build/gate；阶段34冻结源三模式23/23按原
 范围有效。Qt87/TUI78不提高；Q27/T04、全页面/参考/日常/无障碍与连续两轮fresh审查
 仍开放，继续推进通用分词与终端重绘实证。未push。
+
+## 体验品质审查：空草稿输入提示
+
+de3d基线真实TUI无草稿时仍有悬空 `i: compose ·`；只在草稿非空时保留分隔符，
+不新增状态、不动输入控件或reply/edit/原文。原六宽render永久同fixture旧源actual8
+六fail→修复actual0；两个真实80×30 TUI完整附件after actual0，原15s/ID/58byte草稿/
+96byte文件严格保持，两端空提示正常。主24、独立21核验全真，9源/driver/实际90b14933…
+一致，exact库SQL0/5core gone/18912空；自有遗留socket核无服务后精确清理，保护PID未动。
+原ANSI before/after无损保留，不冒称physical字体/Unicode宽度或IME验证。
+
+既有fresh目录增量strict-Werror build/23CTest104.72s；原tests/verify.sh实际0，
+normal/ASan/UBSan各23/23，104.17/145.71/130.36s，render0.90/4.09/1.78s保原5s；
+20源冻结核验0，无skip/新warning/sanitizer报告，正式与strict选项分记。
+详细原文、RED/GREEN与范围见[体验品质审查](experience-quality.md)阶段36。
+Qt87/TUI78不提高，Q27/T04与最终完整品质目标继续开放。未push。
