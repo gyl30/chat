@@ -1,0 +1,3014 @@
+{
+  "original_proof_sha256": "feb814f0431192b526e7a4b067b2369516cb37442d018b166ef693f5f4c2e15a",
+  "scope": "/tmp/chat-quality-light-native3.yps3I19m",
+  "archive": {
+    "path": "docs/images/experience/tui-default-colors-captures.tar.gz",
+    "sha256": "4de964fee0d54e6cee5e5254708ce4ea1040c14e741c27f421abe396c5911a8e",
+    "files": 600,
+    "bytes": 86562
+  },
+  "plain_and_real_styled_captures": [
+    {
+      "path": "dark/00-outer9-oracle.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "dark/00-outer9-oracle.ansi",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "dark/01-mux9-off-oracle.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "dark/01-mux9-off-oracle.ansi",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "dark/02-login80.txt",
+      "sha256": "825553e6ed7c586ec08aa3649b4ced506064a4eb9cc1c31ff5b6f2a92104853e",
+      "bytes": 373
+    },
+    {
+      "path": "dark/02-login80.ansi",
+      "sha256": "068f48010b83283c91cfaa8d06a35df6122bbb27a90d111bde4943d72237ffcc",
+      "bytes": 569
+    },
+    {
+      "path": "dark/03-chats80.txt",
+      "sha256": "2f06be940556beae5b1bebe0d3770f7ad732c82ebb8388f56461545039d3797f",
+      "bytes": 3371
+    },
+    {
+      "path": "dark/03-chats80.ansi",
+      "sha256": "9da77be40b72a9650e73cbb40d7825cb3749c40607b00e3e83e9c566964bc126",
+      "bytes": 3429
+    },
+    {
+      "path": "dark/04-selected80.txt",
+      "sha256": "238425bf335fa27fe77b59dcdeba72389a637109c5a615ee0677e8c9972946e7",
+      "bytes": 3560
+    },
+    {
+      "path": "dark/04-selected80.ansi",
+      "sha256": "4eed5debda50db1ee4746676582fca1427d54f9adaa495fe8d289363562b0f07",
+      "bytes": 3656
+    },
+    {
+      "path": "dark/05-copyable80.txt",
+      "sha256": "1be34ac86f3a5dff9386be9811bebef8c39c0e37182189ed401a803009692c89",
+      "bytes": 3343
+    },
+    {
+      "path": "dark/05-copyable80.ansi",
+      "sha256": "d3d8ff39ffb2ac379d3af36985a1861edc9a9943d34af8d9a60ccd144192261a",
+      "bytes": 3383
+    },
+    {
+      "path": "dark/05b-native-selected-copy80.txt",
+      "sha256": "1be34ac86f3a5dff9386be9811bebef8c39c0e37182189ed401a803009692c89",
+      "bytes": 3343
+    },
+    {
+      "path": "dark/05b-native-selected-copy80.ansi",
+      "sha256": "d3d8ff39ffb2ac379d3af36985a1861edc9a9943d34af8d9a60ccd144192261a",
+      "bytes": 3383
+    },
+    {
+      "path": "dark/06-composer80.txt",
+      "sha256": "7d317d6b86f0a5790f6b9b2f8de3a227e49f8e426454bcc207fd1f2077095504",
+      "bytes": 3586
+    },
+    {
+      "path": "dark/06-composer80.ansi",
+      "sha256": "2f956e298282346398719c88217440676b05dd07058590d858fbf199c2162b81",
+      "bytes": 3682
+    },
+    {
+      "path": "dark/07-composer-midedit80.txt",
+      "sha256": "7d072fccc6b26990de6507145783f0d0eb3dafa7dfa54365f06459d90c34b88a",
+      "bytes": 3577
+    },
+    {
+      "path": "dark/07-composer-midedit80.ansi",
+      "sha256": "cdc670e8a9d2000d82bda1781f17abb9f899a72fab38c3b4a74ad35be9a63f9c",
+      "bytes": 3673
+    },
+    {
+      "path": "dark/08-sent80.txt",
+      "sha256": "9ae29c05f454acd1443f3941137a463a92652de7198b7f66466b5ea6307c893d",
+      "bytes": 3616
+    },
+    {
+      "path": "dark/08-sent80.ansi",
+      "sha256": "cf62d9f0d754ccb35fd005df678256f2633232bd8639ec310abfb2ed455d6c23",
+      "bytes": 3730
+    },
+    {
+      "path": "dark/09-selected160.txt",
+      "sha256": "75f15424f71bcfd0a28cfa6246a61f5a20095346cc46a6b3c719cb7c07c99793",
+      "bytes": 7004
+    },
+    {
+      "path": "dark/09-selected160.ansi",
+      "sha256": "b6c0be19f1b2b33e6c2ce6f7baa29874b441571f2dcdbfbb49f5352a091eeb35",
+      "bytes": 7134
+    },
+    {
+      "path": "dark/10-copyable160.txt",
+      "sha256": "b4c22fed84689d2bebf0c6dbcf031963c79a6a5bc1c3d1c3b3ba335e46cbf45c",
+      "bytes": 6556
+    },
+    {
+      "path": "dark/10-copyable160.ansi",
+      "sha256": "cd752cbfce4f4c74dbb58be948eee0efe6bf96910170a13966fc554d38019e69",
+      "bytes": 6596
+    },
+    {
+      "path": "dark/11-long160.txt",
+      "sha256": "92ed34adc2d123cd117fa4d14c619b770ed32b539dadc62f392f327e202d817d",
+      "bytes": 7058
+    },
+    {
+      "path": "dark/11-long160.ansi",
+      "sha256": "c906fff64dbc0475fa91411ffbde966187518808d7ad9e730d8be6913006f3c7",
+      "bytes": 7188
+    },
+    {
+      "path": "dark/12-cleared160.txt",
+      "sha256": "ff38b320b364fe0990c7ff8e6dd06a67c9369255fe20a435b2cf11983f2e51c1",
+      "bytes": 7006
+    },
+    {
+      "path": "dark/12-cleared160.ansi",
+      "sha256": "836663662dea38b945f20175d5fb4adeb19b41fa84a315d352f089830676b7b4",
+      "bytes": 7144
+    },
+    {
+      "path": "dark/13-short160.txt",
+      "sha256": "2c7951ae5d50a46832a8acf0e360839717f633ca6b849cb09162db2089d6089c",
+      "bytes": 7004
+    },
+    {
+      "path": "dark/13-short160.ansi",
+      "sha256": "610847deeb4ab7b9d07d1feb463749db2cae19f773444a2293e19b637ab00822",
+      "bytes": 7134
+    },
+    {
+      "path": "dark/14-empty160.txt",
+      "sha256": "ff38b320b364fe0990c7ff8e6dd06a67c9369255fe20a435b2cf11983f2e51c1",
+      "bytes": 7006
+    },
+    {
+      "path": "dark/14-empty160.ansi",
+      "sha256": "836663662dea38b945f20175d5fb4adeb19b41fa84a315d352f089830676b7b4",
+      "bytes": 7144
+    },
+    {
+      "path": "dark/15-chats160.txt",
+      "sha256": "75f15424f71bcfd0a28cfa6246a61f5a20095346cc46a6b3c719cb7c07c99793",
+      "bytes": 7004
+    },
+    {
+      "path": "dark/15-chats160.ansi",
+      "sha256": "2c49902038bbe009e2b4b111225c4c01e6d9852942620f77c5d348040492b241",
+      "bytes": 7132
+    },
+    {
+      "path": "dark/matrix-60x24-chats.txt",
+      "sha256": "5c95a9ec6878bda005f3c727956ab648d9effcf81c459a048783a81fe15a780a",
+      "bytes": 2194
+    },
+    {
+      "path": "dark/matrix-60x24-chats.ansi",
+      "sha256": "fa4e689627f564db61aa21e820332b931b2a672463d4caa314e3de42f71654af",
+      "bytes": 2252
+    },
+    {
+      "path": "dark/matrix-60x24-conversation.txt",
+      "sha256": "38ac2d1a3bcc1fab983d034c135cd1a8aac72127dbf413b3d40891f41e2b4d5d",
+      "bytes": 2350
+    },
+    {
+      "path": "dark/matrix-60x24-conversation.ansi",
+      "sha256": "10976979a0dfa821575aec094e7bdf073fe0103f412d8d98f96d6740bcab3efc",
+      "bytes": 2440
+    },
+    {
+      "path": "dark/matrix-60x24-copy.txt",
+      "sha256": "33fe3fa4b05b68fe8d88ded28c1ed94981d48d2d8ac4cc3ec09b8f0caf3e6cca",
+      "bytes": 2166
+    },
+    {
+      "path": "dark/matrix-60x24-copy.ansi",
+      "sha256": "40a402522dee2dfd6b78c07df25c5ffd793f1846c45d39078ec0f9686dbe62c0",
+      "bytes": 2206
+    },
+    {
+      "path": "dark/matrix-60x24-composer.txt",
+      "sha256": "ddd6146f06c08e550aadec4956f571dcb0218c411e26646a4a3a79e56c43cd1d",
+      "bytes": 2369
+    },
+    {
+      "path": "dark/matrix-60x24-composer.ansi",
+      "sha256": "01ae78e49784724383eeaf4475d58af975e61257f7d995b2f58db348476684f5",
+      "bytes": 2459
+    },
+    {
+      "path": "dark/matrix-60x24-contacts.txt",
+      "sha256": "b95162473e35ffef6b8a61fa600430c9e506391c8cdbd02558729dd33519dd5d",
+      "bytes": 2273
+    },
+    {
+      "path": "dark/matrix-60x24-contacts.ansi",
+      "sha256": "ecb20220a2685e196e2cc485ba16a8c8dad51e4b425302d2e6e101bed6e73b0c",
+      "bytes": 2321
+    },
+    {
+      "path": "dark/matrix-60x24-requests.txt",
+      "sha256": "88f3698384e390d154763f2af4efb61c59633f497511dab2dcb11ccfa8acb684",
+      "bytes": 2155
+    },
+    {
+      "path": "dark/matrix-60x24-requests.ansi",
+      "sha256": "d5357217db4099d52220f9396fb2ade859315bd1472964bdc997b51eb8daaddc",
+      "bytes": 2203
+    },
+    {
+      "path": "dark/matrix-60x24-account.txt",
+      "sha256": "95a5b0ea20e9c33f8e1955490de55ea268d88de62066ac116dd856b4c2c7406a",
+      "bytes": 2266
+    },
+    {
+      "path": "dark/matrix-60x24-account.ansi",
+      "sha256": "6fe5a59ed263a78a989c9b4b30a0b2cbbec1f605b46508a8be3d2a7dde674d6d",
+      "bytes": 2306
+    },
+    {
+      "path": "dark/matrix-60x24-new.txt",
+      "sha256": "704df7334dc831361eff5b98cf1f8e5ed443d19af6124c96b00baafe1fecd371",
+      "bytes": 2148
+    },
+    {
+      "path": "dark/matrix-60x24-new.ansi",
+      "sha256": "0771b571e578bc3c59e94a9ca46ce6aae0fa2d0f43ac6d87d388242141473de0",
+      "bytes": 2188
+    },
+    {
+      "path": "dark/matrix-60x24-group.txt",
+      "sha256": "bfcf124ec5b7a5462e118c5fc37b8e5008b6f3fd8e76e97d6125da19c017a2c8",
+      "bytes": 2298
+    },
+    {
+      "path": "dark/matrix-60x24-group.ansi",
+      "sha256": "467d88228be1e83c04b1a2fb4b542d4dfd0cd310138cdaded8531e51cbd1dfc1",
+      "bytes": 2338
+    },
+    {
+      "path": "dark/matrix-60x24-members.txt",
+      "sha256": "d126277a3d076b1d42e78a53665b20de1d16654a60a20fc2243ef11b632a3deb",
+      "bytes": 2166
+    },
+    {
+      "path": "dark/matrix-60x24-members.ansi",
+      "sha256": "0f54e3dbb4626ca2cafb5852c91500b82e85a6e1413253f6353595c844c2b35c",
+      "bytes": 2242
+    },
+    {
+      "path": "dark/matrix-60x24-help.txt",
+      "sha256": "50b2940c7c95e2804c12c0e32fdee9ac20d6b5705d36646450837d7d73f30892",
+      "bytes": 2161
+    },
+    {
+      "path": "dark/matrix-60x24-help.ansi",
+      "sha256": "2b7ab23cb5b14bc37b371e8a506d048bcfea8fb58542273633f8e83b8b14f073",
+      "bytes": 2201
+    },
+    {
+      "path": "dark/matrix-70x24-chats.txt",
+      "sha256": "ed4b2cbddd0b64db0222b2779efadfbfb5c51db662472f5d532a74dfeb9a6572",
+      "bytes": 2534
+    },
+    {
+      "path": "dark/matrix-70x24-chats.ansi",
+      "sha256": "48ad0e20e407aa1257618926cbe4e78f075c931ffdbd54388343a6bd613caa59",
+      "bytes": 2592
+    },
+    {
+      "path": "dark/matrix-70x24-conversation.txt",
+      "sha256": "f8e4f57b00a5bc0894cdb1341a54e2c25743a7660a195486b958d61af9a53fd1",
+      "bytes": 2730
+    },
+    {
+      "path": "dark/matrix-70x24-conversation.ansi",
+      "sha256": "d959fac603a685c467f01fd71ea1a00eb77b880f8b1d72e3932e2dab7fcea7ed",
+      "bytes": 2820
+    },
+    {
+      "path": "dark/matrix-70x24-copy.txt",
+      "sha256": "a822b56d3499c8102f0d0e56f3f04b1b6b25512b9ae4b98b057e45a810edc179",
+      "bytes": 2506
+    },
+    {
+      "path": "dark/matrix-70x24-copy.ansi",
+      "sha256": "a616e034b87dce20ffbd5210a921a5b36447f1e2d48d10660bc324b439a50157",
+      "bytes": 2546
+    },
+    {
+      "path": "dark/matrix-70x24-composer.txt",
+      "sha256": "f69cc48ab0942ac2bb45dfbc587725471d66b548726a481801513e2ad2c56010",
+      "bytes": 2729
+    },
+    {
+      "path": "dark/matrix-70x24-composer.ansi",
+      "sha256": "787d16ba668cf23a9b13c9691df01252afff9842b6eafebd7e5af68eda5594eb",
+      "bytes": 2819
+    },
+    {
+      "path": "dark/matrix-70x24-contacts.txt",
+      "sha256": "1a13b18bf4c7a5944b544d45aee1355b6b89f035e29ef79e58aefab8e51351aa",
+      "bytes": 2633
+    },
+    {
+      "path": "dark/matrix-70x24-contacts.ansi",
+      "sha256": "9bf26753755268395c7acb231e470158967a9e0ea3cc44abc534611cb09ccee6",
+      "bytes": 2681
+    },
+    {
+      "path": "dark/matrix-70x24-requests.txt",
+      "sha256": "4da8a3992965439829ca9f9863202d616c55df7000f2e51762635010edd128bf",
+      "bytes": 2495
+    },
+    {
+      "path": "dark/matrix-70x24-requests.ansi",
+      "sha256": "3130628d433a998f81cc1c7103e16d04b0f0db246dd6c49252a6fa0ff7b3189c",
+      "bytes": 2543
+    },
+    {
+      "path": "dark/matrix-70x24-account.txt",
+      "sha256": "5a3bbd22865ccda75cf5768f84e02b65fbbae4e72a97e93cec160f7d5adee36c",
+      "bytes": 2626
+    },
+    {
+      "path": "dark/matrix-70x24-account.ansi",
+      "sha256": "1f8b9f4f96aecb591d552d30eb871ab66ad27a5f9b970862e7e0109d4e5c7444",
+      "bytes": 2666
+    },
+    {
+      "path": "dark/matrix-70x24-new.txt",
+      "sha256": "710583b39d361f46a5e43072df25f62089fa9aa40159ad567ccfed9b51a8aade",
+      "bytes": 2488
+    },
+    {
+      "path": "dark/matrix-70x24-new.ansi",
+      "sha256": "77cc78c41bd682261ef1cb58b9335541348d9a03b8e32eebe6d6ab1252253470",
+      "bytes": 2528
+    },
+    {
+      "path": "dark/matrix-70x24-group.txt",
+      "sha256": "14d3247b29eff0970e49d4282129aed1a0cda69e30087e0739fe6a4105a6e006",
+      "bytes": 2658
+    },
+    {
+      "path": "dark/matrix-70x24-group.ansi",
+      "sha256": "b3d33052615cef69272e6116e83bf565ed9e283553886e2106cdf07d23465671",
+      "bytes": 2698
+    },
+    {
+      "path": "dark/matrix-70x24-members.txt",
+      "sha256": "0fbb6e7f919cc47a031a86a967590601cb6ffa8ac4190e595a2c7b09a654f8ab",
+      "bytes": 2506
+    },
+    {
+      "path": "dark/matrix-70x24-members.ansi",
+      "sha256": "7ec499d941fb4f0f5a14b8cfe9b0990f0f914f12990231bc3d84f08424bb2a24",
+      "bytes": 2582
+    },
+    {
+      "path": "dark/matrix-70x24-help.txt",
+      "sha256": "efd6a833a17854cfd4de6071f4766069e0d67b77a19a7e6e81c80762e6b82e4c",
+      "bytes": 2503
+    },
+    {
+      "path": "dark/matrix-70x24-help.ansi",
+      "sha256": "aec2f66487568ab4e0a6de7167e113ff7d31120918e71754269a46303760c0d4",
+      "bytes": 2543
+    },
+    {
+      "path": "dark/matrix-80x24-chats.txt",
+      "sha256": "2f8e9e5cf2467117da5c69ca50ef89542b794b89f2d6b9ac9223e66c2d1c147f",
+      "bytes": 2874
+    },
+    {
+      "path": "dark/matrix-80x24-chats.ansi",
+      "sha256": "ac0367ad18f601e02c5bca2e703a6ac2b9c9434fff79f527bbdc976b7a448e83",
+      "bytes": 2932
+    },
+    {
+      "path": "dark/matrix-80x24-conversation.txt",
+      "sha256": "b35b3f2b5d7ebf5684a68b1de8910143cc2773245643df67b479361e32014d3f",
+      "bytes": 3090
+    },
+    {
+      "path": "dark/matrix-80x24-conversation.ansi",
+      "sha256": "f406dbd8842efc20674205de927a89abb9acd8b3a8fa1b65ff65b2f241c48cd3",
+      "bytes": 3180
+    },
+    {
+      "path": "dark/matrix-80x24-copy.txt",
+      "sha256": "f562cdd8efc427aee6b16d6eb71d90c14a94d4e956b52af61fa91a7c8f5092a6",
+      "bytes": 2846
+    },
+    {
+      "path": "dark/matrix-80x24-copy.ansi",
+      "sha256": "e9200f753796dea0e7aeb496bfe963cbbe347b106d2febe370edae181c2b50a5",
+      "bytes": 2886
+    },
+    {
+      "path": "dark/matrix-80x24-composer.txt",
+      "sha256": "63d49db00fa3145a01ec2bd5d6e0f538276c2c90d8d115e6e5eb3f0a26e87a8a",
+      "bytes": 3089
+    },
+    {
+      "path": "dark/matrix-80x24-composer.ansi",
+      "sha256": "e64c1a3467531636378aa0ac7b1c25d5b9e1850639030adfd75758168320ac46",
+      "bytes": 3179
+    },
+    {
+      "path": "dark/matrix-80x24-contacts.txt",
+      "sha256": "9d4bc6712e7614fa366cd6f5a31d239b2f0c49f31d14c64195cdfbf09aa44898",
+      "bytes": 2993
+    },
+    {
+      "path": "dark/matrix-80x24-contacts.ansi",
+      "sha256": "b0bba82394ef7c6f0e117685be264074d5bd59a526afec39181dd9b5e6c2b85d",
+      "bytes": 3041
+    },
+    {
+      "path": "dark/matrix-80x24-requests.txt",
+      "sha256": "87950b613debf354e99064898b1fc50444a3dc1d7034186f55c8e95dd18cc78e",
+      "bytes": 2835
+    },
+    {
+      "path": "dark/matrix-80x24-requests.ansi",
+      "sha256": "dba316c9c05d1fd158fe21ea0cd4572a870e6ab4629cd7bdfd53895c2d41484e",
+      "bytes": 2883
+    },
+    {
+      "path": "dark/matrix-80x24-account.txt",
+      "sha256": "769d40298e73825565883c128a6df3b79b7e44a187991f69f2a442271ba8d3c2",
+      "bytes": 2986
+    },
+    {
+      "path": "dark/matrix-80x24-account.ansi",
+      "sha256": "41a1f71d2664947aff2e867d6902ec061ba34c03372da526444a64b4ff8a194f",
+      "bytes": 3026
+    },
+    {
+      "path": "dark/matrix-80x24-new.txt",
+      "sha256": "dd7da22e96d6102f380e01c1b3e245a06460392e89abb0633ab8e42a14f4940e",
+      "bytes": 2828
+    },
+    {
+      "path": "dark/matrix-80x24-new.ansi",
+      "sha256": "25852ffc9aca5283f22acadcfe04fbc298fbf430a0e617f8782ae09e5b7993e0",
+      "bytes": 2868
+    },
+    {
+      "path": "dark/matrix-80x24-group.txt",
+      "sha256": "8af151b754a565fe42690494166ba87c5d2320a1c72bdcd807ac9f528a17551f",
+      "bytes": 3018
+    },
+    {
+      "path": "dark/matrix-80x24-group.ansi",
+      "sha256": "f0818bff7a56da94fa173d1811b71d0c1ca87a20a0c7b88336c2667118065e05",
+      "bytes": 3058
+    },
+    {
+      "path": "dark/matrix-80x24-members.txt",
+      "sha256": "55e28eb54c0ef52dbd6675ca50b0739d67f52e0021e9536872d27d2813b120ee",
+      "bytes": 2846
+    },
+    {
+      "path": "dark/matrix-80x24-members.ansi",
+      "sha256": "42a1e2b9b9d5860b6c63c6046bc1ffc4f646e804c72d4e6842f9653634d519f8",
+      "bytes": 2922
+    },
+    {
+      "path": "dark/matrix-80x24-help.txt",
+      "sha256": "b42b49f26e6029524ad6077378291e1bc63cbb2ab734a0fe28a7a5af24223dd9",
+      "bytes": 2843
+    },
+    {
+      "path": "dark/matrix-80x24-help.ansi",
+      "sha256": "d65ac2d6f0a1e5fe9b118b37df192deb5abc89298b15f325ca6ac07030897405",
+      "bytes": 2883
+    },
+    {
+      "path": "dark/matrix-100x24-chats.txt",
+      "sha256": "2b6a139b8c73d64a9a6f98608003e3555ff60a4054ffaddece1ac1d80836f940",
+      "bytes": 3828
+    },
+    {
+      "path": "dark/matrix-100x24-chats.ansi",
+      "sha256": "1d669a2382d14e012f2ea37d87c93a6b99aa0e1f82b7d9220b556ce7ec4bc255",
+      "bytes": 3940
+    },
+    {
+      "path": "dark/matrix-100x24-conversation.txt",
+      "sha256": "2b6a139b8c73d64a9a6f98608003e3555ff60a4054ffaddece1ac1d80836f940",
+      "bytes": 3828
+    },
+    {
+      "path": "dark/matrix-100x24-conversation.ansi",
+      "sha256": "8c9f7e50b779ac3ccb51256fef5cb68f970f1f6bf11127603a50276d10f0c843",
+      "bytes": 3942
+    },
+    {
+      "path": "dark/matrix-100x24-copy.txt",
+      "sha256": "1bfd37113e539083ca689757bcbaee5d945b5937e1d6ffabebb8035911484225",
+      "bytes": 3526
+    },
+    {
+      "path": "dark/matrix-100x24-copy.ansi",
+      "sha256": "92f1a66c2dbf870b6d0a3ab40a95a980c75faabe7bd6277c52e225ff6c9065ed",
+      "bytes": 3566
+    },
+    {
+      "path": "dark/matrix-100x24-composer.txt",
+      "sha256": "6ea40957c9c7c1c956e60e445384445c4060aa8badb636e965543f9f7c149c12",
+      "bytes": 3827
+    },
+    {
+      "path": "dark/matrix-100x24-composer.ansi",
+      "sha256": "3570ed48d014e0989405774bd81b145f44bce2e218544a8caffa0cf193eda295",
+      "bytes": 3941
+    },
+    {
+      "path": "dark/matrix-100x24-contacts.txt",
+      "sha256": "49f748b195819d9510c123ea3cd80a675e8ebdafb38498fd28d11aa403527ef2",
+      "bytes": 3713
+    },
+    {
+      "path": "dark/matrix-100x24-contacts.ansi",
+      "sha256": "d3f163b48625bc07bd3f4b6f55fb9cde4a1412d54ecff1436fc2ea8d1d0e768a",
+      "bytes": 3761
+    },
+    {
+      "path": "dark/matrix-100x24-requests.txt",
+      "sha256": "03962f9f6bcfef43dc8c53598ff3838d51639a190d9e65b06951e433caf82b26",
+      "bytes": 3515
+    },
+    {
+      "path": "dark/matrix-100x24-requests.ansi",
+      "sha256": "cea6316d34d675cd9bb9ac0867193d049282f3f2aff2967f858cb13459b37e14",
+      "bytes": 3563
+    },
+    {
+      "path": "dark/matrix-100x24-account.txt",
+      "sha256": "62f7df1329d2945c9e48d00b94d3a8d5fe84baf16a8ac8f9699e087406350721",
+      "bytes": 3706
+    },
+    {
+      "path": "dark/matrix-100x24-account.ansi",
+      "sha256": "3798b6c6286a1442b51936b2c12a9ee6e2964badb5aec889a2b9257e0d8f7dba",
+      "bytes": 3746
+    },
+    {
+      "path": "dark/matrix-100x24-new.txt",
+      "sha256": "588f7a76c6fcae254112384d23790a8753bc4abcfe428fd23429a361c61265a5",
+      "bytes": 3508
+    },
+    {
+      "path": "dark/matrix-100x24-new.ansi",
+      "sha256": "90e3f130b4bb2a7e2332ae01765f73e180afd27502c9da11080fb61793ee2ee2",
+      "bytes": 3548
+    },
+    {
+      "path": "dark/matrix-100x24-group.txt",
+      "sha256": "d06c17228dda1697b6e26392da28a20366ae56b29b9636c3c69df9aa5a4e0892",
+      "bytes": 3740
+    },
+    {
+      "path": "dark/matrix-100x24-group.ansi",
+      "sha256": "76324fef7e3c58ddea9a2bc6703a9ed95bd98a37ba81243db1643c61856f98fe",
+      "bytes": 3780
+    },
+    {
+      "path": "dark/matrix-100x24-members.txt",
+      "sha256": "fc343ab0aceb971a16a5f66c072a63e12647fd3aa2e0202bf213dc519941c96b",
+      "bytes": 3526
+    },
+    {
+      "path": "dark/matrix-100x24-members.ansi",
+      "sha256": "82086aed1125b5945b7f87c9a1385c77f69d4aa6f24b67d5b12f49741bff0885",
+      "bytes": 3602
+    },
+    {
+      "path": "dark/matrix-100x24-help.txt",
+      "sha256": "d065ff5f8ae643b529a3ac6e00a03978f55b61b6977dddf823a235c21475d961",
+      "bytes": 3523
+    },
+    {
+      "path": "dark/matrix-100x24-help.ansi",
+      "sha256": "75a437b615a2bb362891aa7f04ef4a8af6b8b767020ebe38c677ea69ad3825d8",
+      "bytes": 3563
+    },
+    {
+      "path": "dark/matrix-120x24-chats.txt",
+      "sha256": "ff6844b0f235eb5c087cfe6b8a0b84f9f3df52e8984089edf334e6848181b077",
+      "bytes": 4548
+    },
+    {
+      "path": "dark/matrix-120x24-chats.ansi",
+      "sha256": "5df25df44b609576ddeb833a6a1f822efc31f3a04ffbe5bba8b662543b6f0177",
+      "bytes": 4660
+    },
+    {
+      "path": "dark/matrix-120x24-conversation.txt",
+      "sha256": "ff6844b0f235eb5c087cfe6b8a0b84f9f3df52e8984089edf334e6848181b077",
+      "bytes": 4548
+    },
+    {
+      "path": "dark/matrix-120x24-conversation.ansi",
+      "sha256": "22a2eff5f2d1ad7c3c340200d31fae7abb0c0d470eacc0f7027e692e6b44245f",
+      "bytes": 4662
+    },
+    {
+      "path": "dark/matrix-120x24-copy.txt",
+      "sha256": "7fbd370c1d91d091736133e4bc45e5baaf84acb07e11946da14dd82ca8b94c62",
+      "bytes": 4206
+    },
+    {
+      "path": "dark/matrix-120x24-copy.ansi",
+      "sha256": "3032da91887e013bbb348dcca6b0902d0c75317142f98486018f462ce6eb5f56",
+      "bytes": 4246
+    },
+    {
+      "path": "dark/matrix-120x24-composer.txt",
+      "sha256": "45f566c99d2807bedca258796289696632a9d2761312aa91c09eefaf898e74a0",
+      "bytes": 4547
+    },
+    {
+      "path": "dark/matrix-120x24-composer.ansi",
+      "sha256": "1b9b8a0a7c2d14f65aedff385315865b5b280f4391e3068737de94ffc514bf32",
+      "bytes": 4661
+    },
+    {
+      "path": "dark/matrix-120x24-contacts.txt",
+      "sha256": "69e33d78b4133825d70d70faf6af0facc6fc355077e0922696b9b94316e692fb",
+      "bytes": 4433
+    },
+    {
+      "path": "dark/matrix-120x24-contacts.ansi",
+      "sha256": "d0636264a191134da2a2bf3e1233b31b8cd9d6931bf99876d8e06968b13d8463",
+      "bytes": 4481
+    },
+    {
+      "path": "dark/matrix-120x24-requests.txt",
+      "sha256": "ecd53730e47ad2a7223da1863d3a7ccd49630b6a2cad9d63514c9967a8bc6df0",
+      "bytes": 4195
+    },
+    {
+      "path": "dark/matrix-120x24-requests.ansi",
+      "sha256": "886dc6f9ee40fd4dbcefe6fc98f5ff803a16542799ab8b09230e8eca0a554b9c",
+      "bytes": 4243
+    },
+    {
+      "path": "dark/matrix-120x24-account.txt",
+      "sha256": "cfbb0d84cb9141b148941d6005d0c0335bc6941547b694cb7756f84fbbdc1545",
+      "bytes": 4426
+    },
+    {
+      "path": "dark/matrix-120x24-account.ansi",
+      "sha256": "91daf837c6f2c13fa6f5921d0162707de560d72573d680fdc6de92fb0084a8e4",
+      "bytes": 4466
+    },
+    {
+      "path": "dark/matrix-120x24-new.txt",
+      "sha256": "b1cd7b008544e56faf0b6837119dbe98692987b384295f66dadaba35dede71f7",
+      "bytes": 4188
+    },
+    {
+      "path": "dark/matrix-120x24-new.ansi",
+      "sha256": "2ce314ffdac3f900ecae5fab09b41390c47f39e61ced0587ab48a380c0422fc5",
+      "bytes": 4228
+    },
+    {
+      "path": "dark/matrix-120x24-group.txt",
+      "sha256": "706ec3a7e0bb796eff86030adc0a1484a1df199cf2336f6f0466c852a5778b0c",
+      "bytes": 4458
+    },
+    {
+      "path": "dark/matrix-120x24-group.ansi",
+      "sha256": "a7416499ea1827169aec7dcb5d063bc32ce918be6acf27be4309a8e1f3a9c27c",
+      "bytes": 4498
+    },
+    {
+      "path": "dark/matrix-120x24-members.txt",
+      "sha256": "f4748f559afc4be5f5bcf110d6efc21aaa3dd670e1666353bfb324012ac208cb",
+      "bytes": 4206
+    },
+    {
+      "path": "dark/matrix-120x24-members.ansi",
+      "sha256": "64965ae6f684a6e4a1f1c47d2ef036813cdc8301b0b857f44005f618f7249996",
+      "bytes": 4282
+    },
+    {
+      "path": "dark/matrix-120x24-help.txt",
+      "sha256": "3a037fd4b7971c0d3c10efcbcdfae141f84e1ed939bb7b3b7f10c61c539e515b",
+      "bytes": 4203
+    },
+    {
+      "path": "dark/matrix-120x24-help.ansi",
+      "sha256": "2635134e4d0025530664818111ef7af8395e3c2c9fb2bbc94178418164618a91",
+      "bytes": 4243
+    },
+    {
+      "path": "dark/matrix-160x24-chats.txt",
+      "sha256": "7223f67d7fe76336d43af0bdcadf83055df74b6bffc4ad4552b908b6dd951a6b",
+      "bytes": 5988
+    },
+    {
+      "path": "dark/matrix-160x24-chats.ansi",
+      "sha256": "495c30e3745c1bcfa5b883c786ac366d2c45d67a827a78691f69e73fedf62d97",
+      "bytes": 6100
+    },
+    {
+      "path": "dark/matrix-160x24-conversation.txt",
+      "sha256": "7223f67d7fe76336d43af0bdcadf83055df74b6bffc4ad4552b908b6dd951a6b",
+      "bytes": 5988
+    },
+    {
+      "path": "dark/matrix-160x24-conversation.ansi",
+      "sha256": "a4d0245c535c4cf15042542784cbfa69c955841aae1d6fba56268c96834d3580",
+      "bytes": 6102
+    },
+    {
+      "path": "dark/matrix-160x24-copy.txt",
+      "sha256": "913ec9fd624d809bd13bca336439596acbbd535e364f92e73bb40318c4cdb576",
+      "bytes": 5566
+    },
+    {
+      "path": "dark/matrix-160x24-copy.ansi",
+      "sha256": "0b24b4bd032dc1a1e56f4a12bdbae9c7757ddbf7aa7df15ef869da6d3a22f515",
+      "bytes": 5606
+    },
+    {
+      "path": "dark/matrix-160x24-composer.txt",
+      "sha256": "c23f765cb0411878eb334819c05b696ef2837635ecfa78f612a38cf750ca7161",
+      "bytes": 5987
+    },
+    {
+      "path": "dark/matrix-160x24-composer.ansi",
+      "sha256": "202a88a429f4f7f49ba6def4cc03d28571410995e17fb370eb4273c229c7b715",
+      "bytes": 6101
+    },
+    {
+      "path": "dark/matrix-160x24-contacts.txt",
+      "sha256": "00f4d5fa81bdc77fbbd12ebd685100e5969dd6b8967a0b46258e6239424be0fe",
+      "bytes": 5873
+    },
+    {
+      "path": "dark/matrix-160x24-contacts.ansi",
+      "sha256": "ffec5121fbb236e04b29ea50909e4e39721a8f16972a733b34d8c48838e0148f",
+      "bytes": 5921
+    },
+    {
+      "path": "dark/matrix-160x24-requests.txt",
+      "sha256": "5ea4a1de9afacf6411116e2c752e7878897339aac755775cac80cc1f46f781ab",
+      "bytes": 5555
+    },
+    {
+      "path": "dark/matrix-160x24-requests.ansi",
+      "sha256": "ac7bd4305a8bd45060ced55f58ecb8aa9e7de2342f6d7f2d118f44bd5355f03c",
+      "bytes": 5603
+    },
+    {
+      "path": "dark/matrix-160x24-account.txt",
+      "sha256": "c6d3e9db925aabd103d4396634cb917b3df2a7adba8b5ad25b9f9e878ef37a14",
+      "bytes": 5866
+    },
+    {
+      "path": "dark/matrix-160x24-account.ansi",
+      "sha256": "8472bb8fbb0fc76900b10f2b2d412ef3076e6ee6679ce3e6fc9fbc9d0fe3501c",
+      "bytes": 5906
+    },
+    {
+      "path": "dark/matrix-160x24-new.txt",
+      "sha256": "19261755dc67f1dc15065038442f6bff63ba544cbffaab31c9b8789b5a1ad9c9",
+      "bytes": 5548
+    },
+    {
+      "path": "dark/matrix-160x24-new.ansi",
+      "sha256": "796801b40f4141cd4b8b2b8c9053320ae0523dc8ff368e2dbbea117810d3d8cf",
+      "bytes": 5588
+    },
+    {
+      "path": "dark/matrix-160x24-group.txt",
+      "sha256": "ca3b6c773ce971678744217284557b281625ed036dea8f1fda78c0c8c692bbc8",
+      "bytes": 5898
+    },
+    {
+      "path": "dark/matrix-160x24-group.ansi",
+      "sha256": "02f79848a67992fd2ea9917c1ce7c9f38118875033412ae77c374bd8ebc70a6e",
+      "bytes": 5938
+    },
+    {
+      "path": "dark/matrix-160x24-members.txt",
+      "sha256": "2b37ca3b3c04415363b46207a3ce703c5bf686716c0af7b4e9bfc4f00f58a113",
+      "bytes": 5566
+    },
+    {
+      "path": "dark/matrix-160x24-members.ansi",
+      "sha256": "047a1b1390a8c7d1db72491ffc57a2c8804b6b61c7214ef45e3725d8df876256",
+      "bytes": 5642
+    },
+    {
+      "path": "dark/matrix-160x24-help.txt",
+      "sha256": "34c288f314eb41e694ec4faa141697ded60e4c6f0f6fba5a007b1fe364065af8",
+      "bytes": 5563
+    },
+    {
+      "path": "dark/matrix-160x24-help.ansi",
+      "sha256": "258e5407cccd7951cfe815a3dbc86703c6a20406ba9f97f252a66a5b747cc3b3",
+      "bytes": 5603
+    },
+    {
+      "path": "dark/matrix-60x40-chats.txt",
+      "sha256": "f30b2fea73cf397e3ca22600c6ac8c79d47722d0a282ca45bfbc4fbccddb76ab",
+      "bytes": 3234
+    },
+    {
+      "path": "dark/matrix-60x40-chats.ansi",
+      "sha256": "18a053dcc6814cdee25be0d1dbf6c2c026e1e85d9bd44e8f325898a3fa1ab8aa",
+      "bytes": 3292
+    },
+    {
+      "path": "dark/matrix-60x40-conversation.txt",
+      "sha256": "122737d2460bff422c09319dee1e2c018972b995db9d995cc453b8c6684bb03f",
+      "bytes": 3412
+    },
+    {
+      "path": "dark/matrix-60x40-conversation.ansi",
+      "sha256": "8f80581d500b255e0b81fa1901550af67437ddfef06f205aa9c0ab1b41357cf5",
+      "bytes": 3526
+    },
+    {
+      "path": "dark/matrix-60x40-copy.txt",
+      "sha256": "e30c586a60930efe4b85b9fd32cd97872f312d255ec680091bdf4ec22d24e638",
+      "bytes": 3206
+    },
+    {
+      "path": "dark/matrix-60x40-copy.ansi",
+      "sha256": "c5d686ed77ca24a41deafd6a395f7c540fbd5f1859609758385f41f797d10403",
+      "bytes": 3246
+    },
+    {
+      "path": "dark/matrix-60x40-composer.txt",
+      "sha256": "198142d882a7a8ba5784beb9231de8ecd44e477ddd548255fa03a04fbbceafec",
+      "bytes": 3411
+    },
+    {
+      "path": "dark/matrix-60x40-composer.ansi",
+      "sha256": "42ec5cfbd7249e2ddf80e37405e6a430f96ac561a196a31bf42ca1f631ae712a",
+      "bytes": 3525
+    },
+    {
+      "path": "dark/matrix-60x40-contacts.txt",
+      "sha256": "c98c92f07f32284d55547ad3f7baaca525bc65949a7c30edd2fe4a3980499231",
+      "bytes": 3313
+    },
+    {
+      "path": "dark/matrix-60x40-contacts.ansi",
+      "sha256": "8e3e6c659a6e690430a57828bd44f6a0c716d6316c3ec8160d07ad2f75dd4c7f",
+      "bytes": 3361
+    },
+    {
+      "path": "dark/matrix-60x40-requests.txt",
+      "sha256": "00bdf11eb8f4df107ce1d11d65b185cbc2201bf2bfcf73bbb9ba4d2af6a4881b",
+      "bytes": 3195
+    },
+    {
+      "path": "dark/matrix-60x40-requests.ansi",
+      "sha256": "fccb04f94fc0ccc8768c59c4e1ea0ba944ca5326acd1cd77f11d4bd78c73c39a",
+      "bytes": 3243
+    },
+    {
+      "path": "dark/matrix-60x40-account.txt",
+      "sha256": "09635a6f3f63a651a7aaf856e348135f2b1bcdd29176702851e5f42e026556cd",
+      "bytes": 3306
+    },
+    {
+      "path": "dark/matrix-60x40-account.ansi",
+      "sha256": "4072ade90aaaff304bfbb86e90ad4043afadebe9f6e8c070d111f1863ab5a13b",
+      "bytes": 3346
+    },
+    {
+      "path": "dark/matrix-60x40-new.txt",
+      "sha256": "9ab571953ad23b29baf174abfbd7ffbe476c93d258af349b7bd93d2f8cdc5fe4",
+      "bytes": 3188
+    },
+    {
+      "path": "dark/matrix-60x40-new.ansi",
+      "sha256": "230be4324d848b4a009d325ed422c6101ac53084f75bac6b010d3137cc19d282",
+      "bytes": 3228
+    },
+    {
+      "path": "dark/matrix-60x40-group.txt",
+      "sha256": "a967e22fd2eb204c5bbb21ed726fb0b1d62998414f2d182e1392c2f6af80ccc9",
+      "bytes": 3338
+    },
+    {
+      "path": "dark/matrix-60x40-group.ansi",
+      "sha256": "e8e07535616b14c689fc7eff1178e9a12f6b1f1e75b42923127cc194a14b7b29",
+      "bytes": 3378
+    },
+    {
+      "path": "dark/matrix-60x40-members.txt",
+      "sha256": "002debd58a410ef68742e6bd4adb189dc4a1455bd98ddf6af6a1c5f3fe511df5",
+      "bytes": 3206
+    },
+    {
+      "path": "dark/matrix-60x40-members.ansi",
+      "sha256": "4c45517a348ffca46ed8a5be1223588ac2751eef60fc58b5c076b7b5aab883eb",
+      "bytes": 3282
+    },
+    {
+      "path": "dark/matrix-60x40-help.txt",
+      "sha256": "178193998d92016339640204b245016fa357e8b3dbcf7b9d7aaea74e520ad16d",
+      "bytes": 3355
+    },
+    {
+      "path": "dark/matrix-60x40-help.ansi",
+      "sha256": "ec8f6bfb76dcee9dbe2fd27cbfa243374e02da8b3d42c557d1f66ab0e9381f44",
+      "bytes": 3395
+    },
+    {
+      "path": "dark/matrix-70x40-chats.txt",
+      "sha256": "c7fde78c0be13aede4a6e19716a2d6380f888757ff2e29c1f693695d40d087c9",
+      "bytes": 3734
+    },
+    {
+      "path": "dark/matrix-70x40-chats.ansi",
+      "sha256": "d4f3f97b536494cc8e921f9259cf9bd959b50469bf589dce5f5fb2e5929bf7ed",
+      "bytes": 3792
+    },
+    {
+      "path": "dark/matrix-70x40-conversation.txt",
+      "sha256": "ef6c9f69846ec7b231af503fd657f5e960d8f7962d0454d8172a978031fa5ea5",
+      "bytes": 3932
+    },
+    {
+      "path": "dark/matrix-70x40-conversation.ansi",
+      "sha256": "e00507abfce141abd5831900423b9a30d8e5fb62d7f8fa2354c80757bcae96a7",
+      "bytes": 4046
+    },
+    {
+      "path": "dark/matrix-70x40-copy.txt",
+      "sha256": "503d3c3e81aa133839ca37b17fc31e6ffb86b5746e174c060b6417916b9eb1a9",
+      "bytes": 3706
+    },
+    {
+      "path": "dark/matrix-70x40-copy.ansi",
+      "sha256": "421524bc57a9fde491f32073c633d08c32d4c451ad54e21902606108264f065f",
+      "bytes": 3746
+    },
+    {
+      "path": "dark/matrix-70x40-composer.txt",
+      "sha256": "d7cc9bcb4868391e39e559d86beb4bcf3852b6b36fc5380ca4e024d1f16d7fb2",
+      "bytes": 3931
+    },
+    {
+      "path": "dark/matrix-70x40-composer.ansi",
+      "sha256": "ca2e848ad574ab8b14bbd6c8c38a5c113c327b3a18959a057eb7a9e3b37c857b",
+      "bytes": 4045
+    },
+    {
+      "path": "dark/matrix-70x40-contacts.txt",
+      "sha256": "cc29867570f0a56d2351d618fe5633e47fc97ed5540cca16f2ba9ea67183b9e4",
+      "bytes": 3833
+    },
+    {
+      "path": "dark/matrix-70x40-contacts.ansi",
+      "sha256": "79ad194ea9fb89ec61cbe1cf6c16d22fba6c90b4bf293a88027115df7fa6b2e2",
+      "bytes": 3881
+    },
+    {
+      "path": "dark/matrix-70x40-requests.txt",
+      "sha256": "e8587369720c3cca4bedfce3b7f841be63dad17a3550634d50ebfae7a272ac6a",
+      "bytes": 3695
+    },
+    {
+      "path": "dark/matrix-70x40-requests.ansi",
+      "sha256": "d66e82ecebfcd8a4f7517a585bf61d69800b4085457d8894a6028de63f47b9e8",
+      "bytes": 3743
+    },
+    {
+      "path": "dark/matrix-70x40-account.txt",
+      "sha256": "7233eca12e57bc742948a78acb26cffcf1ce64bba314d1400dd0ad2ea70e0d40",
+      "bytes": 3826
+    },
+    {
+      "path": "dark/matrix-70x40-account.ansi",
+      "sha256": "8754805614d2a5051050cde772c6ce501ea06d5af69a4e882463c72b5f33fe82",
+      "bytes": 3866
+    },
+    {
+      "path": "dark/matrix-70x40-new.txt",
+      "sha256": "23cf0849f50372a20460a2bcab2d98bab77201cca53706b4e960665466606d47",
+      "bytes": 3688
+    },
+    {
+      "path": "dark/matrix-70x40-new.ansi",
+      "sha256": "943f262292414631cefb78deb4e14e8c95e761e1b6be5e8087edf896df236bd9",
+      "bytes": 3728
+    },
+    {
+      "path": "dark/matrix-70x40-group.txt",
+      "sha256": "1d59bf9ff55bb0e559677d7f735007459cb1f477cc0e7880a1e2031a0ce13668",
+      "bytes": 3858
+    },
+    {
+      "path": "dark/matrix-70x40-group.ansi",
+      "sha256": "6c8752fa3802e1f7497ee6515cf28b536e803c9a3285b7074bf4259a2413a9b6",
+      "bytes": 3898
+    },
+    {
+      "path": "dark/matrix-70x40-members.txt",
+      "sha256": "a1062efae1ecd2b77aa0a0dbdf3dd90b267e7c188c03eae4497b18ea026f4a73",
+      "bytes": 3706
+    },
+    {
+      "path": "dark/matrix-70x40-members.ansi",
+      "sha256": "3fcacc9ebad253151cebffeee4a2166aa543b120a4ced714cf96d66993a0c027",
+      "bytes": 3782
+    },
+    {
+      "path": "dark/matrix-70x40-help.txt",
+      "sha256": "6d3e435711436ef41a56c3c84002c1458fbaa2add75e6b6295af653dce551b41",
+      "bytes": 3881
+    },
+    {
+      "path": "dark/matrix-70x40-help.ansi",
+      "sha256": "735984c3cebb7f45bb9e43301e27393e0177f64f9106ec43053c791222eac8bb",
+      "bytes": 3921
+    },
+    {
+      "path": "dark/matrix-80x40-chats.txt",
+      "sha256": "d6bf60335aa85391a87318f0a73311bb4b25779ec378c919906338203ceff25a",
+      "bytes": 4234
+    },
+    {
+      "path": "dark/matrix-80x40-chats.ansi",
+      "sha256": "fda36742d45255dd9d3dba4cd3f8ac9a408e327f5ab8f4d536b49aab30a3a57e",
+      "bytes": 4292
+    },
+    {
+      "path": "dark/matrix-80x40-conversation.txt",
+      "sha256": "8bb53e3b9e763e43da6eb9708fc8018c846aa1c82cc98111d53cf2343221cbe5",
+      "bytes": 4452
+    },
+    {
+      "path": "dark/matrix-80x40-conversation.ansi",
+      "sha256": "116569bba6c7b3fd5c502d3ad82b1ed06b1b0946a7c90576431e4f4d8f9232f8",
+      "bytes": 4566
+    },
+    {
+      "path": "dark/matrix-80x40-copy.txt",
+      "sha256": "31890666b8d9dd7dad833300f51acdab46cc726e9a88a3073952d13b3d3c94d1",
+      "bytes": 4206
+    },
+    {
+      "path": "dark/matrix-80x40-copy.ansi",
+      "sha256": "c0b5b059d6bd3f3df84c47fed0850a92f7c0dc7b5186c8dc5b7a59bc734a1faa",
+      "bytes": 4246
+    },
+    {
+      "path": "dark/matrix-80x40-composer.txt",
+      "sha256": "2b23a635c4ce9da9d6706e9c0a8fa45a05f11c6b998539e2112e9cebd87e2153",
+      "bytes": 4451
+    },
+    {
+      "path": "dark/matrix-80x40-composer.ansi",
+      "sha256": "5e279db94a6a98c5d62be42092c073055a5c8801c01f69dc1ed6869875c1ef1e",
+      "bytes": 4565
+    },
+    {
+      "path": "dark/matrix-80x40-contacts.txt",
+      "sha256": "2fca686603bf038ceb8bbcfe1e29d6a72da2c3443bfe40a3d4730a56ecf6ee78",
+      "bytes": 4353
+    },
+    {
+      "path": "dark/matrix-80x40-contacts.ansi",
+      "sha256": "ce9bce778acf1ac2f619753a7bb99763176d88adcf74e5ad3f860dbb736ccf94",
+      "bytes": 4401
+    },
+    {
+      "path": "dark/matrix-80x40-requests.txt",
+      "sha256": "a2c4f557ad91176874d1f95d60258b6db4d57c959836c68a3a4bb1e29e55897d",
+      "bytes": 4195
+    },
+    {
+      "path": "dark/matrix-80x40-requests.ansi",
+      "sha256": "8679aae69c1ba5ee45bb6689abd5d1dcae59dbe86f38daf127cb297f880e6c51",
+      "bytes": 4243
+    },
+    {
+      "path": "dark/matrix-80x40-account.txt",
+      "sha256": "0ea37982854581b759d17bfa884b578d81dfd8429767e70083a7dc89d7c20c60",
+      "bytes": 4346
+    },
+    {
+      "path": "dark/matrix-80x40-account.ansi",
+      "sha256": "357fbb513eb124f2c1444b85e6419f393435856c91660de47e58bd09f728a289",
+      "bytes": 4386
+    },
+    {
+      "path": "dark/matrix-80x40-new.txt",
+      "sha256": "c2f2b20cc26f70d007b833000e588071930e0f69ad9d83ce29d3cada2e4a1322",
+      "bytes": 4188
+    },
+    {
+      "path": "dark/matrix-80x40-new.ansi",
+      "sha256": "5ee9da35c7c8610ad39355d3fe33b61cc12ae9d76e47005c49bb993e99270251",
+      "bytes": 4228
+    },
+    {
+      "path": "dark/matrix-80x40-group.txt",
+      "sha256": "b2e7f584c762364bab385f72f836f3bd9fd95bef57dbd4d04fbee5be6dac8f6c",
+      "bytes": 4378
+    },
+    {
+      "path": "dark/matrix-80x40-group.ansi",
+      "sha256": "87b3bc51f64869e7d804e10aa950bfcb04289508070b18e05f3dab03f0197dcf",
+      "bytes": 4418
+    },
+    {
+      "path": "dark/matrix-80x40-members.txt",
+      "sha256": "41e29ca8e20324811088fff94f32de752cd6c667f8250a7dacf819018c8f1894",
+      "bytes": 4206
+    },
+    {
+      "path": "dark/matrix-80x40-members.ansi",
+      "sha256": "3f532d6f6b12c7ea98413ee1daa572b21b1ab6048c34a3a2888b72610842eee9",
+      "bytes": 4282
+    },
+    {
+      "path": "dark/matrix-80x40-help.txt",
+      "sha256": "9933c723e11122a3fd7424451ea931db3e575a24cc6a3b9024378ab82bab2f02",
+      "bytes": 4403
+    },
+    {
+      "path": "dark/matrix-80x40-help.ansi",
+      "sha256": "8643329a17fe687e7840ea3ddaa4ba0fff24cc1d7ed06d1965a430b9da6a0d76",
+      "bytes": 4443
+    },
+    {
+      "path": "dark/matrix-100x40-chats.txt",
+      "sha256": "cd3dae4fed7c08d287448a33620fc4d98b8b7eb8ade787950f1b1f2ced6349cc",
+      "bytes": 5542
+    },
+    {
+      "path": "dark/matrix-100x40-chats.ansi",
+      "sha256": "01b228afe5db3e84baa4819914a55a08752c38e652cab4d50a8b8fc1c0ca7d03",
+      "bytes": 5678
+    },
+    {
+      "path": "dark/matrix-100x40-conversation.txt",
+      "sha256": "cd3dae4fed7c08d287448a33620fc4d98b8b7eb8ade787950f1b1f2ced6349cc",
+      "bytes": 5542
+    },
+    {
+      "path": "dark/matrix-100x40-conversation.ansi",
+      "sha256": "a53887b26fce6d5b379a9d4fb3e9f9393dc6953b3990fa78417f35599fec431f",
+      "bytes": 5680
+    },
+    {
+      "path": "dark/matrix-100x40-copy.txt",
+      "sha256": "22fe6adf161514d4b210c08f751617b3f57c06ab74cc448cdab54462b7bfebdb",
+      "bytes": 5206
+    },
+    {
+      "path": "dark/matrix-100x40-copy.ansi",
+      "sha256": "0719de749bed2207933141a821ca2cc49c8e9f850fa8d875767a07d6b8cc4ddb",
+      "bytes": 5246
+    },
+    {
+      "path": "dark/matrix-100x40-composer.txt",
+      "sha256": "0d43180347fd727406b33ed18b23698e373d894d8f7b30b750d671c137843c50",
+      "bytes": 5541
+    },
+    {
+      "path": "dark/matrix-100x40-composer.ansi",
+      "sha256": "a647166240fae2625f7a80bb1974417a21e9301b44c0ff3d0a57e2ecf4651f1c",
+      "bytes": 5679
+    },
+    {
+      "path": "dark/matrix-100x40-contacts.txt",
+      "sha256": "5256210423257496b01e7db73f2d3608f022e1cdb086e3870823703a0f564933",
+      "bytes": 5393
+    },
+    {
+      "path": "dark/matrix-100x40-contacts.ansi",
+      "sha256": "bb2cfa05b5a28031363f1f72dd32f84e74eba4ac77e1fea00489ad79a5cfb597",
+      "bytes": 5441
+    },
+    {
+      "path": "dark/matrix-100x40-requests.txt",
+      "sha256": "2f8228b6c8c0a306ebc93fe057e8c0dc203993e2350f9c5116183c2fc6cb7f28",
+      "bytes": 5195
+    },
+    {
+      "path": "dark/matrix-100x40-requests.ansi",
+      "sha256": "120d4eefdc47c9903728d248b1c004ef70c92af723bed1d596e37a6041ba2062",
+      "bytes": 5243
+    },
+    {
+      "path": "dark/matrix-100x40-account.txt",
+      "sha256": "87e0841215b9d743e35a687d1bc2d2a5a790aff9d6b688cb13a660a93d79f21e",
+      "bytes": 5386
+    },
+    {
+      "path": "dark/matrix-100x40-account.ansi",
+      "sha256": "6a2fdeeef773c23b4b795a50208a43069227ebd039118c0300ac377e81736c6d",
+      "bytes": 5426
+    },
+    {
+      "path": "dark/matrix-100x40-new.txt",
+      "sha256": "f63516ea733de27b22cb76dae2daac66cd0bb8c12bbd39c5b736b966cb7d1e95",
+      "bytes": 5188
+    },
+    {
+      "path": "dark/matrix-100x40-new.ansi",
+      "sha256": "4d4a1cdf1ded6e9cd850f13b36b6309c6a20f17dd488675f04d07f38e5001983",
+      "bytes": 5228
+    },
+    {
+      "path": "dark/matrix-100x40-group.txt",
+      "sha256": "bfbee1664b491cfd60be544f8a5eb73584b82a86f7e385e557060366f62c1759",
+      "bytes": 5420
+    },
+    {
+      "path": "dark/matrix-100x40-group.ansi",
+      "sha256": "76a048d89086feaeff7ba1ee63eba63e907fa579dc4d5d3562b42a7370640263",
+      "bytes": 5460
+    },
+    {
+      "path": "dark/matrix-100x40-members.txt",
+      "sha256": "7af61d4ab740dfea1c037579a4b232aa24d04d8ac9d9f643ea26ea3ec1b132c3",
+      "bytes": 5206
+    },
+    {
+      "path": "dark/matrix-100x40-members.ansi",
+      "sha256": "211ddd73d3903cfae0ed58bec779f552f36a9cdffc93d108b82228685588c253",
+      "bytes": 5282
+    },
+    {
+      "path": "dark/matrix-100x40-help.txt",
+      "sha256": "0846e62759d4de131b82f4cfba4ccd569e0c8f74a713fa157540fa63f037df67",
+      "bytes": 5383
+    },
+    {
+      "path": "dark/matrix-100x40-help.ansi",
+      "sha256": "40ab38f114bcbf634c1ed2aca3a4a677cc500602e67c0b6b3d390f447c117ce9",
+      "bytes": 5423
+    },
+    {
+      "path": "dark/matrix-120x40-chats.txt",
+      "sha256": "3f876c6d84d91fa937a0d79514cbe9b4e96aced5308120f8cd8587fee7f8c14e",
+      "bytes": 6582
+    },
+    {
+      "path": "dark/matrix-120x40-chats.ansi",
+      "sha256": "023c20148a23729cd853f1480ee1c52486bb80fb7f652605efbf1e983b8a9ac6",
+      "bytes": 6718
+    },
+    {
+      "path": "dark/matrix-120x40-conversation.txt",
+      "sha256": "3f876c6d84d91fa937a0d79514cbe9b4e96aced5308120f8cd8587fee7f8c14e",
+      "bytes": 6582
+    },
+    {
+      "path": "dark/matrix-120x40-conversation.ansi",
+      "sha256": "38a53639a4a2baef999989513cdf3cb4c879273aacbde3c93ab9dd32d7e18ca0",
+      "bytes": 6720
+    },
+    {
+      "path": "dark/matrix-120x40-copy.txt",
+      "sha256": "f49d7580f5ab2c04ffd118a4abea033d5912b8b1e038ea2dbe21228ce7cc74b3",
+      "bytes": 6206
+    },
+    {
+      "path": "dark/matrix-120x40-copy.ansi",
+      "sha256": "8d433c062652ecb13adb64143af7d0a79ce068f32d1f0caf29da6525fbae779f",
+      "bytes": 6246
+    },
+    {
+      "path": "dark/matrix-120x40-composer.txt",
+      "sha256": "b46ca48cbc1fd2f29f520fd1e8b8d30c8caeb8a415778544e2b510fc6f95790c",
+      "bytes": 6581
+    },
+    {
+      "path": "dark/matrix-120x40-composer.ansi",
+      "sha256": "731c92915a22f1dccc27fbad7f350f0685e944a9b66e810341cf9eca53a18384",
+      "bytes": 6719
+    },
+    {
+      "path": "dark/matrix-120x40-contacts.txt",
+      "sha256": "62f918ccd89e0419a01335d12434090c1fc0cc4636df679bd46648bd86c15f28",
+      "bytes": 6433
+    },
+    {
+      "path": "dark/matrix-120x40-contacts.ansi",
+      "sha256": "8c4b4fa41b71b35fbf96add9568339487ba86f13de3b38453ef7b2f8e2c82b8d",
+      "bytes": 6481
+    },
+    {
+      "path": "dark/matrix-120x40-requests.txt",
+      "sha256": "8ed739c2a232c4a56ccf257aadacd370c140cbf0bc2cdc403fe7463e94fc174b",
+      "bytes": 6195
+    },
+    {
+      "path": "dark/matrix-120x40-requests.ansi",
+      "sha256": "0cdba73fb24bea1b0c4f773f8553b91d45c9a3d06f05fa65b90efa2347da157a",
+      "bytes": 6243
+    },
+    {
+      "path": "dark/matrix-120x40-account.txt",
+      "sha256": "18ce329dbca3c3aaa9a2a5ecbf78ceeef183d2ce2f2a9d9383d4825893409cb9",
+      "bytes": 6426
+    },
+    {
+      "path": "dark/matrix-120x40-account.ansi",
+      "sha256": "ff97b791c5ac37df61e5b3513c9d7a68f9cce5cc8983ea042baf286623a96e9c",
+      "bytes": 6466
+    },
+    {
+      "path": "dark/matrix-120x40-new.txt",
+      "sha256": "b75ae2771cba876a2a7ba19eb345b72ff1668ad0ab1cbfd55a9efbbc41b64005",
+      "bytes": 6188
+    },
+    {
+      "path": "dark/matrix-120x40-new.ansi",
+      "sha256": "c3d7152303d97c7ddd6b9d8cec57a96f06cb3ba5e5b62e348042819be54c450e",
+      "bytes": 6228
+    },
+    {
+      "path": "dark/matrix-120x40-group.txt",
+      "sha256": "757151933bbea23e56d38977f83d3b492eeb4603d2865bd4b95d65f713c125b0",
+      "bytes": 6458
+    },
+    {
+      "path": "dark/matrix-120x40-group.ansi",
+      "sha256": "c1a74145e0f86353613a5c393a1aaafa8ecf14ad51e35e19d0fb236f906c25ce",
+      "bytes": 6498
+    },
+    {
+      "path": "dark/matrix-120x40-members.txt",
+      "sha256": "c5428f7b1cb944555d96c73df88557e5840c30c59867ccc1544c6ef8b6003b07",
+      "bytes": 6206
+    },
+    {
+      "path": "dark/matrix-120x40-members.ansi",
+      "sha256": "0cf9fcc6da70f31a979b5948e37cdcb3e252269d601b7537c99b488f35aec8b3",
+      "bytes": 6282
+    },
+    {
+      "path": "dark/matrix-120x40-help.txt",
+      "sha256": "5aec31b2b485bf3c69b36eb238fb07a9d5bb4bc130141ba5ed008db247cbf0f8",
+      "bytes": 6423
+    },
+    {
+      "path": "dark/matrix-120x40-help.ansi",
+      "sha256": "a7a7b57605e51db4a6ed34469a4038e0e8fdbf76fc7a38bbc52d7bde080ba4f6",
+      "bytes": 6463
+    },
+    {
+      "path": "dark/matrix-160x40-chats.txt",
+      "sha256": "a90123f4e39ad77d3c4b74aa60a70da4b3787b64647bd65f40982d0d2a9e4745",
+      "bytes": 8662
+    },
+    {
+      "path": "dark/matrix-160x40-chats.ansi",
+      "sha256": "6cc7c1bc9ab1ade94fc823d35fb260540a13399685071ae79eb14ac274a36666",
+      "bytes": 8798
+    },
+    {
+      "path": "dark/matrix-160x40-conversation.txt",
+      "sha256": "a90123f4e39ad77d3c4b74aa60a70da4b3787b64647bd65f40982d0d2a9e4745",
+      "bytes": 8662
+    },
+    {
+      "path": "dark/matrix-160x40-conversation.ansi",
+      "sha256": "da9c50806a0665fd979da93cf45a4759a73632524de6992e2bc21099e540c1b4",
+      "bytes": 8800
+    },
+    {
+      "path": "dark/matrix-160x40-copy.txt",
+      "sha256": "6b7085bf8b6ab36571601f9b3a1741260ce8b8c90bbf885e01d6a165cf45733e",
+      "bytes": 8206
+    },
+    {
+      "path": "dark/matrix-160x40-copy.ansi",
+      "sha256": "ac8cc4055b9b5ae3de1d37e885963373941649c7b8eeceeb218f6f0c09d52cdd",
+      "bytes": 8246
+    },
+    {
+      "path": "dark/matrix-160x40-composer.txt",
+      "sha256": "9597f1315ce2804db3ebd06c013a5e3aafc52ee256912b426124b6a15f88e551",
+      "bytes": 8661
+    },
+    {
+      "path": "dark/matrix-160x40-composer.ansi",
+      "sha256": "7a0079db7dc1d887d7edba66c14524b0b8f5ad29e5014a8739d78149509e1963",
+      "bytes": 8799
+    },
+    {
+      "path": "dark/matrix-160x40-contacts.txt",
+      "sha256": "affe4f1b8f666e40550c9022861f863493506f0c9ba22f0b98d0bb744edfcf87",
+      "bytes": 8513
+    },
+    {
+      "path": "dark/matrix-160x40-contacts.ansi",
+      "sha256": "9f41880673e50de85335ff828fdc59cf511e1cf5361839421332281513448045",
+      "bytes": 8561
+    },
+    {
+      "path": "dark/matrix-160x40-requests.txt",
+      "sha256": "e4290285f756686176e97bedb27b6faf3ba39b5c7c706fb1ef4c4fcd30c55bbe",
+      "bytes": 8195
+    },
+    {
+      "path": "dark/matrix-160x40-requests.ansi",
+      "sha256": "5926b7c28db7942d5f50cafb4455cf934847f119171c8c06a061d315fe1b9481",
+      "bytes": 8243
+    },
+    {
+      "path": "dark/matrix-160x40-account.txt",
+      "sha256": "953608d00bae41bc467cac5864e9accc9e2d1459f113a55ddb9d18c119515444",
+      "bytes": 8506
+    },
+    {
+      "path": "dark/matrix-160x40-account.ansi",
+      "sha256": "d62b02d33398e9b7e7e95e1dcf4f8d221097ff0880a6e5cc09c3e5f7da01f279",
+      "bytes": 8546
+    },
+    {
+      "path": "dark/matrix-160x40-new.txt",
+      "sha256": "e6269ae7d1edafd199e6c8d66a20a3e15321394ea5e760dbcabfa7e590cc02f4",
+      "bytes": 8188
+    },
+    {
+      "path": "dark/matrix-160x40-new.ansi",
+      "sha256": "d3b5b809534ceda3f1e14662e8b861fced1c0466725b0125280298bf8009afaf",
+      "bytes": 8228
+    },
+    {
+      "path": "dark/matrix-160x40-group.txt",
+      "sha256": "27961a04d32d6143e092a0353db38f956049fdfa3bf3b3a0d61e762815d40567",
+      "bytes": 8538
+    },
+    {
+      "path": "dark/matrix-160x40-group.ansi",
+      "sha256": "5276705cb2ae52c151d546a491142510d79101f0274bc8002fb42c7e7a4f70b2",
+      "bytes": 8578
+    },
+    {
+      "path": "dark/matrix-160x40-members.txt",
+      "sha256": "9403cb01e55cefd9e6877cbfeb437070c68b7fe47fbde24a42e827a210778480",
+      "bytes": 8206
+    },
+    {
+      "path": "dark/matrix-160x40-members.ansi",
+      "sha256": "c97720581b87973bf5fcb01713c5787cc70c5483e43fdc4794eb2faa961c0452",
+      "bytes": 8282
+    },
+    {
+      "path": "dark/matrix-160x40-help.txt",
+      "sha256": "b143583133145b3bb67b1b4a42ea757637bb40800b17e162768020c74a076094",
+      "bytes": 8503
+    },
+    {
+      "path": "dark/matrix-160x40-help.ansi",
+      "sha256": "d6bd611f51d3d0746c70da5bfc4fd9d9e6b0f11a56ea2571753e59c90f1fd323",
+      "bytes": 8543
+    },
+    {
+      "path": "dark/16-after-test9-oracle.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "dark/16-after-test9-oracle.ansi",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "light/00-outer9-oracle.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "light/00-outer9-oracle.ansi",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "light/01-mux9-off-oracle.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "light/01-mux9-off-oracle.ansi",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "light/02-login80.txt",
+      "sha256": "825553e6ed7c586ec08aa3649b4ced506064a4eb9cc1c31ff5b6f2a92104853e",
+      "bytes": 373
+    },
+    {
+      "path": "light/02-login80.ansi",
+      "sha256": "068f48010b83283c91cfaa8d06a35df6122bbb27a90d111bde4943d72237ffcc",
+      "bytes": 569
+    },
+    {
+      "path": "light/03-chats80.txt",
+      "sha256": "30265114428849686073ba993542385758884ca0d5c8a498cdc683218c719920",
+      "bytes": 3371
+    },
+    {
+      "path": "light/03-chats80.ansi",
+      "sha256": "8edec774c59cc6d7273421391133c2afbd7d3168e17435ea231a8b46c0763e38",
+      "bytes": 3429
+    },
+    {
+      "path": "light/04-selected80.txt",
+      "sha256": "44f849e00bc72f719c10b85286c638735c6c63e016ef32e1297a790d2e02aea7",
+      "bytes": 3560
+    },
+    {
+      "path": "light/04-selected80.ansi",
+      "sha256": "1424eda8153d36776010cef95b5f248d52d33b42f4dcc8095377215431f04ea1",
+      "bytes": 3656
+    },
+    {
+      "path": "light/05-copyable80.txt",
+      "sha256": "c6df2e81f1a803d2ffcb485a7ce606f7e5f94fe11a3fc75cea5bb7d7597a1bd6",
+      "bytes": 3343
+    },
+    {
+      "path": "light/05-copyable80.ansi",
+      "sha256": "7e19bcbc75264c0e3795fe35a353d2455bf64b6e777aaaa7fb264f5bbb62c2e6",
+      "bytes": 3383
+    },
+    {
+      "path": "light/05b-native-selected-copy80.txt",
+      "sha256": "c6df2e81f1a803d2ffcb485a7ce606f7e5f94fe11a3fc75cea5bb7d7597a1bd6",
+      "bytes": 3343
+    },
+    {
+      "path": "light/05b-native-selected-copy80.ansi",
+      "sha256": "7e19bcbc75264c0e3795fe35a353d2455bf64b6e777aaaa7fb264f5bbb62c2e6",
+      "bytes": 3383
+    },
+    {
+      "path": "light/06-composer80.txt",
+      "sha256": "28443cf2381a899180ea36729f170000203156d03132cf747e9b7f35d5cded9e",
+      "bytes": 3586
+    },
+    {
+      "path": "light/06-composer80.ansi",
+      "sha256": "233b3f267659ee5e11cf226d0bfb5109589231999195b497e729ef830740d77a",
+      "bytes": 3682
+    },
+    {
+      "path": "light/07-composer-midedit80.txt",
+      "sha256": "62deeba68d20addf920f80047fa0643394bfa79150a10754c30d6536a4dfd80c",
+      "bytes": 3577
+    },
+    {
+      "path": "light/07-composer-midedit80.ansi",
+      "sha256": "cb94452476131474fab0cf11ed76d2d49915dff0d22a73bb1b174a014362d83a",
+      "bytes": 3673
+    },
+    {
+      "path": "light/08-sent80.txt",
+      "sha256": "1cf737e691ddc115091c4f2172db039991236080c68391c2e5cca43a86b46b87",
+      "bytes": 3616
+    },
+    {
+      "path": "light/08-sent80.ansi",
+      "sha256": "71ad3ab4100666629d33e878d4195ab45b24d37b060b3aae6a2b17da8d7aa94b",
+      "bytes": 3730
+    },
+    {
+      "path": "light/09-selected160.txt",
+      "sha256": "0090f4d554a6ded9c77c341922958a460a144a48504a921410257fb039692fc3",
+      "bytes": 7004
+    },
+    {
+      "path": "light/09-selected160.ansi",
+      "sha256": "75310e892ae5d9568737e313afccdc461eb404e91d89bc22dbfe323cc8dd6bfe",
+      "bytes": 7134
+    },
+    {
+      "path": "light/10-copyable160.txt",
+      "sha256": "837cc5f1c71b78b7ab599f1f0abc924053378afaee981501678adb4ece78ecdd",
+      "bytes": 6556
+    },
+    {
+      "path": "light/10-copyable160.ansi",
+      "sha256": "2be49ea30f19471c459a48d7e854d08d0ce41385f6f2644ccc9004dd4be8cc6d",
+      "bytes": 6596
+    },
+    {
+      "path": "light/11-long160.txt",
+      "sha256": "be96d1eeec81e92914911f5a5a4b1490182d636a17bac8e38031e9b45b8edbc0",
+      "bytes": 7058
+    },
+    {
+      "path": "light/11-long160.ansi",
+      "sha256": "471fbdb3035b8ac2c7ba7d1aaf96cde67d37f7d933a859e535faac01d1b4983f",
+      "bytes": 7188
+    },
+    {
+      "path": "light/12-cleared160.txt",
+      "sha256": "f3fc9432f27042f0436daf427c64954f06a98a4407739e6fb277433bc79d752e",
+      "bytes": 7006
+    },
+    {
+      "path": "light/12-cleared160.ansi",
+      "sha256": "b795384a2ba9aab924490c57c7eea16b547fa89b498cf79213f907a8b4c59b6c",
+      "bytes": 7144
+    },
+    {
+      "path": "light/13-short160.txt",
+      "sha256": "ba60d57ce088e915055cc205e8b370e7fb75092bbd33b6582520856016605167",
+      "bytes": 7004
+    },
+    {
+      "path": "light/13-short160.ansi",
+      "sha256": "b39b3e70f7006e956f6a10d11b5a26aa934c2ada24bc3f08f0f1f8ba0d21eeb7",
+      "bytes": 7134
+    },
+    {
+      "path": "light/14-empty160.txt",
+      "sha256": "f3fc9432f27042f0436daf427c64954f06a98a4407739e6fb277433bc79d752e",
+      "bytes": 7006
+    },
+    {
+      "path": "light/14-empty160.ansi",
+      "sha256": "b795384a2ba9aab924490c57c7eea16b547fa89b498cf79213f907a8b4c59b6c",
+      "bytes": 7144
+    },
+    {
+      "path": "light/15-chats160.txt",
+      "sha256": "0090f4d554a6ded9c77c341922958a460a144a48504a921410257fb039692fc3",
+      "bytes": 7004
+    },
+    {
+      "path": "light/15-chats160.ansi",
+      "sha256": "0fb7f2d888db9bc77a98d612e8c61ca7f747da12d001fea6a6b2432d3a197398",
+      "bytes": 7132
+    },
+    {
+      "path": "light/matrix-60x24-chats.txt",
+      "sha256": "776575851fbbef01f26c2765f2d82ca0a0248dd4ff616f4e1154aef17c4c7470",
+      "bytes": 2194
+    },
+    {
+      "path": "light/matrix-60x24-chats.ansi",
+      "sha256": "b954e09e9c2d61c5de572878231513cda30efc1dca46d6c33d251b952fb103d7",
+      "bytes": 2252
+    },
+    {
+      "path": "light/matrix-60x24-conversation.txt",
+      "sha256": "707223d3b58fb14932fc65e970dac5186a5f3e5489a4d7dc0f5ddd2fcd815144",
+      "bytes": 2350
+    },
+    {
+      "path": "light/matrix-60x24-conversation.ansi",
+      "sha256": "340be78c581bc7981450ce7b73cd2a8be7a41afc7d18fc743bde884eeba8f99c",
+      "bytes": 2440
+    },
+    {
+      "path": "light/matrix-60x24-copy.txt",
+      "sha256": "4fdbc40cecfcc603133809a6d0366665ef3e8ff8d3995b58a07c79e3be7ba270",
+      "bytes": 2166
+    },
+    {
+      "path": "light/matrix-60x24-copy.ansi",
+      "sha256": "8df3dbf17154deb6a4273eb06628090713595a03bdc79f6751dc887562fcb3c8",
+      "bytes": 2206
+    },
+    {
+      "path": "light/matrix-60x24-composer.txt",
+      "sha256": "377eb822e0827d436e5bbddd4ce0b984410008a380c71abe1e6ab8f5379e0444",
+      "bytes": 2369
+    },
+    {
+      "path": "light/matrix-60x24-composer.ansi",
+      "sha256": "f99d025a110b77916c886ee050f4868e92e678e277a18cdedf1ee1fdda49fe9a",
+      "bytes": 2459
+    },
+    {
+      "path": "light/matrix-60x24-contacts.txt",
+      "sha256": "9848ee4f8358a8c7d855d09f676ecf7b5edc55d9b2abe1e73dcbdd7996404f3f",
+      "bytes": 2273
+    },
+    {
+      "path": "light/matrix-60x24-contacts.ansi",
+      "sha256": "b580dca9f5bc8cce38ba39a9219aa9c598a2d4f76faf68546ef83be8caa13342",
+      "bytes": 2321
+    },
+    {
+      "path": "light/matrix-60x24-requests.txt",
+      "sha256": "d1473bbff52207f96243c620ed6e9bb729dce4ecdd00119715b02178430f4065",
+      "bytes": 2155
+    },
+    {
+      "path": "light/matrix-60x24-requests.ansi",
+      "sha256": "ec7fc1c209ec8431416c65f14fbbbcde8cd563a99b783671569b77a5ccf60e9b",
+      "bytes": 2203
+    },
+    {
+      "path": "light/matrix-60x24-account.txt",
+      "sha256": "2f667581304ab747c0dbd35855de3a00f1098da18748e7edfff2db66626b6ef7",
+      "bytes": 2266
+    },
+    {
+      "path": "light/matrix-60x24-account.ansi",
+      "sha256": "acc399040d33e66304c786566a91b7192aed6f5e83bf77d186679d5ce1e4f563",
+      "bytes": 2306
+    },
+    {
+      "path": "light/matrix-60x24-new.txt",
+      "sha256": "bb24922f7df5f0a6ae484409cc793707086b0a23506db41555c4fc0c33829766",
+      "bytes": 2148
+    },
+    {
+      "path": "light/matrix-60x24-new.ansi",
+      "sha256": "5bc3f70b2d3678cc5b7b407b34212e4f686bf9a2b4adc793eb2767920541cdfd",
+      "bytes": 2188
+    },
+    {
+      "path": "light/matrix-60x24-group.txt",
+      "sha256": "35f56c28e1cb15ef1a87132fa7b81dc152d1c235c97c414708a0c8c8cba4bf0a",
+      "bytes": 2298
+    },
+    {
+      "path": "light/matrix-60x24-group.ansi",
+      "sha256": "ab374afd17c16000eedb8d9bce9b4d2d5ecf37f6301d2b8ada68f368ac645c0e",
+      "bytes": 2338
+    },
+    {
+      "path": "light/matrix-60x24-members.txt",
+      "sha256": "5624c7a5b5540d45e490e7bec33e4d14fd03e3283eef043ec7bc2bcef25ced58",
+      "bytes": 2166
+    },
+    {
+      "path": "light/matrix-60x24-members.ansi",
+      "sha256": "52fbfa95d88f410499db37b8e60826adb2c5743311913bfc01f562f18bd0c30c",
+      "bytes": 2242
+    },
+    {
+      "path": "light/matrix-60x24-help.txt",
+      "sha256": "729705048c8d41d1b4cb87ad6fc26a3f381fd5baf5bb7ff6a6432f0cf6406613",
+      "bytes": 2161
+    },
+    {
+      "path": "light/matrix-60x24-help.ansi",
+      "sha256": "8a889a121e07822c6ac83ef5d50fcbe7c890f090c26ff417a75464e0d2e550af",
+      "bytes": 2201
+    },
+    {
+      "path": "light/matrix-70x24-chats.txt",
+      "sha256": "7d2c301e92c51e4db060ec665e283b25e4636f5ad9a81c4143265362b3d6bbe4",
+      "bytes": 2534
+    },
+    {
+      "path": "light/matrix-70x24-chats.ansi",
+      "sha256": "5e82e57c2017e1b7b248a68cb5fd700216693cdbb4621395fcfdd613ad6804a3",
+      "bytes": 2592
+    },
+    {
+      "path": "light/matrix-70x24-conversation.txt",
+      "sha256": "0c9181c8d337d2fed2cea06acf9d9497ca8024201ede6605b1db484b7d2a7413",
+      "bytes": 2730
+    },
+    {
+      "path": "light/matrix-70x24-conversation.ansi",
+      "sha256": "ab24b8ee051a45d6ae11bf0dc016255e3e829794d6b4cd4b71f033ea625215b2",
+      "bytes": 2820
+    },
+    {
+      "path": "light/matrix-70x24-copy.txt",
+      "sha256": "ac5000efbabcaed48e43fe2b0d70b8e8605324c9d66b337290c2c1f5a41873c2",
+      "bytes": 2506
+    },
+    {
+      "path": "light/matrix-70x24-copy.ansi",
+      "sha256": "ea9e42c9cd76288c3a74efe62918ce46f4a46d43df19e7d54c7f17a80835a9a8",
+      "bytes": 2546
+    },
+    {
+      "path": "light/matrix-70x24-composer.txt",
+      "sha256": "497aee03ab0c7c2f3ac1fc20328d0f5bc0bcd494d4c58402982e86be91988309",
+      "bytes": 2729
+    },
+    {
+      "path": "light/matrix-70x24-composer.ansi",
+      "sha256": "8b903fa7ae351dd5a9017ee372b73185d8a7a468357a404871fdfd057bbd9ed9",
+      "bytes": 2819
+    },
+    {
+      "path": "light/matrix-70x24-contacts.txt",
+      "sha256": "d1cb7ce6fc3fdce9a3f9083009fbeb7e876fb43f34e34f0f87e951474227c91c",
+      "bytes": 2633
+    },
+    {
+      "path": "light/matrix-70x24-contacts.ansi",
+      "sha256": "e1c8cb302d28e9df009f255bd8bc1b4043e4d0895ad298081bbaa4b85e15980a",
+      "bytes": 2681
+    },
+    {
+      "path": "light/matrix-70x24-requests.txt",
+      "sha256": "7bac543796db123623ada344316709aaa37f1d71fb8eeacb91c5270c7b05744b",
+      "bytes": 2495
+    },
+    {
+      "path": "light/matrix-70x24-requests.ansi",
+      "sha256": "7c23738ed1baa3ab72c82c61885a0542ab706f69cc2e7ace23fbd8eed6ae3a0c",
+      "bytes": 2543
+    },
+    {
+      "path": "light/matrix-70x24-account.txt",
+      "sha256": "1c55741c82617c6c0afc74a5238f44dd8904755e967c5fe612822a495181be26",
+      "bytes": 2626
+    },
+    {
+      "path": "light/matrix-70x24-account.ansi",
+      "sha256": "f57164763795fd01ea70d0a30a57fd49cb452427d13279f576b5c2a010a7e229",
+      "bytes": 2666
+    },
+    {
+      "path": "light/matrix-70x24-new.txt",
+      "sha256": "7b9ced735cf27c6cb73803cd1a962e777764b5338e07db85cfd25e302aeacf1f",
+      "bytes": 2488
+    },
+    {
+      "path": "light/matrix-70x24-new.ansi",
+      "sha256": "016f9bbb5cea5ce36ca7dd63900667a24a1e0a9b4d6badbc7bc9e9447c8e502b",
+      "bytes": 2528
+    },
+    {
+      "path": "light/matrix-70x24-group.txt",
+      "sha256": "c67900c1cb91df22693eb71d773c52faef27b1d127efe758711b24303ad46312",
+      "bytes": 2658
+    },
+    {
+      "path": "light/matrix-70x24-group.ansi",
+      "sha256": "83d27667c7db17e210f639799ef16250d943cb28c0296499499741725d24bdc7",
+      "bytes": 2698
+    },
+    {
+      "path": "light/matrix-70x24-members.txt",
+      "sha256": "0dfe64fa4e7cfb61493090606e8d1c6bed204ed25d98b2e33febec026a1d47f6",
+      "bytes": 2506
+    },
+    {
+      "path": "light/matrix-70x24-members.ansi",
+      "sha256": "786bd23c894fe1de5063989d19854b66831928f117c6f8799fa005771da99039",
+      "bytes": 2582
+    },
+    {
+      "path": "light/matrix-70x24-help.txt",
+      "sha256": "128a75728fc6fb2fd364ff8af7966241974069aa1cad0e86529bb484832cf1e4",
+      "bytes": 2503
+    },
+    {
+      "path": "light/matrix-70x24-help.ansi",
+      "sha256": "406f074ab17949e8f810697379a5b6c0a65000f5866e117598bba52e92696c0d",
+      "bytes": 2543
+    },
+    {
+      "path": "light/matrix-80x24-chats.txt",
+      "sha256": "93cd7444ed40e8979df919d7a230de02e5dbf46807026639d9e92857aca52517",
+      "bytes": 2874
+    },
+    {
+      "path": "light/matrix-80x24-chats.ansi",
+      "sha256": "9dd6f40863665e026036588049b825f432edf60e692000044ec5e06aac3560ae",
+      "bytes": 2932
+    },
+    {
+      "path": "light/matrix-80x24-conversation.txt",
+      "sha256": "95e7bc4db75bd62ada3a6e9e381439475a9ed782950214d9b40b60f713d9f478",
+      "bytes": 3090
+    },
+    {
+      "path": "light/matrix-80x24-conversation.ansi",
+      "sha256": "999972bc688c8b7f7d70ce01543e73e07c15122877a3bb1091ea5223274154d4",
+      "bytes": 3180
+    },
+    {
+      "path": "light/matrix-80x24-copy.txt",
+      "sha256": "cfef6983ddbf73d588aab20fa3d0b44e9a93af19bfeeab962f28db30fa0eac1d",
+      "bytes": 2846
+    },
+    {
+      "path": "light/matrix-80x24-copy.ansi",
+      "sha256": "7b1d1e8de3fe9b74e3ba4431a653c304c4de5ada3c19300766d7a2d3d49983e6",
+      "bytes": 2886
+    },
+    {
+      "path": "light/matrix-80x24-composer.txt",
+      "sha256": "b9fdf725f8d98eadecd24ea916635dd1ece6603cb30ac2d83960f7bead92a8b9",
+      "bytes": 3089
+    },
+    {
+      "path": "light/matrix-80x24-composer.ansi",
+      "sha256": "e42d1a274c4ddd8e28ac22013cc3539ce4a93bb2b18beab6195ea21033980784",
+      "bytes": 3179
+    },
+    {
+      "path": "light/matrix-80x24-contacts.txt",
+      "sha256": "ece7d524407224537c3095b9e93b0ffec2e937e30cc15333b42e8ea1174f7eea",
+      "bytes": 2993
+    },
+    {
+      "path": "light/matrix-80x24-contacts.ansi",
+      "sha256": "6a311f90a702bef4f4b7401f37f85b3801e5fe112ae3b3a07dcfeb490d3c6cfe",
+      "bytes": 3041
+    },
+    {
+      "path": "light/matrix-80x24-requests.txt",
+      "sha256": "4067538c875c2ae2c6eea49a2d9a951738ee455a77c1b27ce1006c7498ad0f04",
+      "bytes": 2835
+    },
+    {
+      "path": "light/matrix-80x24-requests.ansi",
+      "sha256": "ea9c7d5c17d684a1fb982965364044fb2a77d70c568271d78b78752e9419c0b0",
+      "bytes": 2883
+    },
+    {
+      "path": "light/matrix-80x24-account.txt",
+      "sha256": "0365becab4f4826304f17d5817fe7bb3010e48c8f338f7f11e5ec496076554f7",
+      "bytes": 2986
+    },
+    {
+      "path": "light/matrix-80x24-account.ansi",
+      "sha256": "46260d1b6e681a4d02d95dab4de2f0c948e87094dd00b459f008bf9c40c9af21",
+      "bytes": 3026
+    },
+    {
+      "path": "light/matrix-80x24-new.txt",
+      "sha256": "42eadc2494c10cd2f6714bdb6da02dff092899759bd31cee1011adf364e0ea1e",
+      "bytes": 2828
+    },
+    {
+      "path": "light/matrix-80x24-new.ansi",
+      "sha256": "caddb13c0e892f2d63ede9a004600ef3326e08cd813d8fb4f70b5cb0712e31b5",
+      "bytes": 2868
+    },
+    {
+      "path": "light/matrix-80x24-group.txt",
+      "sha256": "36c764e6aa118bd1101c26dd9597e39d6abc8c0b712bbc46427626ab6c2c3a26",
+      "bytes": 3018
+    },
+    {
+      "path": "light/matrix-80x24-group.ansi",
+      "sha256": "f84096e4fcf31bb70d0a9f5e832ba85f915846e72e0053b51d92226ad5fee70c",
+      "bytes": 3058
+    },
+    {
+      "path": "light/matrix-80x24-members.txt",
+      "sha256": "1ae3c5c6da9b702a59ce0bc2b3816d84eff6fefd4a4fda909923c756cde86fbd",
+      "bytes": 2846
+    },
+    {
+      "path": "light/matrix-80x24-members.ansi",
+      "sha256": "0b4ac312d484b8325a43bcb3b4bdd976aa97af276a85d18acb3aaa6bfcaddbdd",
+      "bytes": 2922
+    },
+    {
+      "path": "light/matrix-80x24-help.txt",
+      "sha256": "c55df87bcd4074585e142f574a5a14eff245c64c5919985b4507826d72f8837b",
+      "bytes": 2843
+    },
+    {
+      "path": "light/matrix-80x24-help.ansi",
+      "sha256": "ab5cbe39a687140435e045e913bbf55329270a43c242cf385fb8d9d32ab59f86",
+      "bytes": 2883
+    },
+    {
+      "path": "light/matrix-100x24-chats.txt",
+      "sha256": "65fec35697db79bb3e5835d9b785a2e22568c1423cee3c3dff7ddb4e70cf00f4",
+      "bytes": 3828
+    },
+    {
+      "path": "light/matrix-100x24-chats.ansi",
+      "sha256": "37d399c6ede2238bf9a6140cb7d885900c2f378270e25f0b10c17473387a608f",
+      "bytes": 3940
+    },
+    {
+      "path": "light/matrix-100x24-conversation.txt",
+      "sha256": "65fec35697db79bb3e5835d9b785a2e22568c1423cee3c3dff7ddb4e70cf00f4",
+      "bytes": 3828
+    },
+    {
+      "path": "light/matrix-100x24-conversation.ansi",
+      "sha256": "123bc561d12788e18bd0f6bff22e625c0aa07752f6200d484a5a0b60a2cb267a",
+      "bytes": 3942
+    },
+    {
+      "path": "light/matrix-100x24-copy.txt",
+      "sha256": "6bb9237c6dd1ed88e112cec6f5e83d54efd760c9694763a5bf64811252f35443",
+      "bytes": 3526
+    },
+    {
+      "path": "light/matrix-100x24-copy.ansi",
+      "sha256": "4997e31a282f9bc288f5b366068f6aff435b58b02d3fd7a3a051f9fcd68b73a6",
+      "bytes": 3566
+    },
+    {
+      "path": "light/matrix-100x24-composer.txt",
+      "sha256": "b1ecc2c64c1c7eb8408ed43e17f4e17f4bbcdd5cc3207e49eb992146d51a1d72",
+      "bytes": 3827
+    },
+    {
+      "path": "light/matrix-100x24-composer.ansi",
+      "sha256": "7be078a7630b2345c1f1739c35bba010716b0256d42856115d9c37375fe8b7d5",
+      "bytes": 3941
+    },
+    {
+      "path": "light/matrix-100x24-contacts.txt",
+      "sha256": "c647b9933acb9958e04e9e9ff70c849bd3f943a0c78c50d03fa249a42e637dcd",
+      "bytes": 3713
+    },
+    {
+      "path": "light/matrix-100x24-contacts.ansi",
+      "sha256": "b75b48ad6e95370ccd71b72e1fb602d6b9b78caa7a9ede48b12dbc7d21c4b861",
+      "bytes": 3761
+    },
+    {
+      "path": "light/matrix-100x24-requests.txt",
+      "sha256": "a825e8d84ca5d67e18db52a6f21b747d12d8e08509ca620864188ac26a9692d8",
+      "bytes": 3515
+    },
+    {
+      "path": "light/matrix-100x24-requests.ansi",
+      "sha256": "2ce0871b0b7e1ee60506a15081f7cdf50f4d555d9f8f8633a07759ba50422db4",
+      "bytes": 3563
+    },
+    {
+      "path": "light/matrix-100x24-account.txt",
+      "sha256": "71875c9024a15580d174094806af84d9c7e37ed80ca8dae295f97e02d2af03f3",
+      "bytes": 3706
+    },
+    {
+      "path": "light/matrix-100x24-account.ansi",
+      "sha256": "64a27d30e25ec420ad1a7e330d24c2d1d5868feb38ab027e348ca858b5caffd5",
+      "bytes": 3746
+    },
+    {
+      "path": "light/matrix-100x24-new.txt",
+      "sha256": "c29ca9d50f0c351203859446affd7fb18f487c3bb5966634614ac696cb6934ae",
+      "bytes": 3508
+    },
+    {
+      "path": "light/matrix-100x24-new.ansi",
+      "sha256": "28f4b202f8c3037dab32a22c8741f2a7aa4f1088dbdca4f46c5d5bbf276dfa10",
+      "bytes": 3548
+    },
+    {
+      "path": "light/matrix-100x24-group.txt",
+      "sha256": "2c825b2752db02c519b74cda4217a11629f93875c3982c3997341891c789cd64",
+      "bytes": 3740
+    },
+    {
+      "path": "light/matrix-100x24-group.ansi",
+      "sha256": "0a6097af9e8f4806da1b64164e288dcb5f8ed65878ed3903e02cdfc015764c6d",
+      "bytes": 3780
+    },
+    {
+      "path": "light/matrix-100x24-members.txt",
+      "sha256": "646c0110a3b8018e4ed27e33a758390d0ec69ee4d987ca9925d97289ba0b4201",
+      "bytes": 3526
+    },
+    {
+      "path": "light/matrix-100x24-members.ansi",
+      "sha256": "51dba69dd9da2cf2a1c3921c1592ab645ff89dbc053a81f9496720df4e551f5b",
+      "bytes": 3602
+    },
+    {
+      "path": "light/matrix-100x24-help.txt",
+      "sha256": "3b72717f0b83012aabcb5e9bc12741fd62c72b73de3fc9fdc0d4076d19db4683",
+      "bytes": 3523
+    },
+    {
+      "path": "light/matrix-100x24-help.ansi",
+      "sha256": "5d50c7a026a2b9a142c58a5dff227ed545fdd08103e305df3a73542641923e41",
+      "bytes": 3563
+    },
+    {
+      "path": "light/matrix-120x24-chats.txt",
+      "sha256": "18376651594f90ab60c11f2ec9b7044b01153ad42b26108e5892d68f8fa8d639",
+      "bytes": 4548
+    },
+    {
+      "path": "light/matrix-120x24-chats.ansi",
+      "sha256": "315ba2f82be10962e2c2b745c561d16cd9b6060da576c055e502188300dce1f2",
+      "bytes": 4660
+    },
+    {
+      "path": "light/matrix-120x24-conversation.txt",
+      "sha256": "18376651594f90ab60c11f2ec9b7044b01153ad42b26108e5892d68f8fa8d639",
+      "bytes": 4548
+    },
+    {
+      "path": "light/matrix-120x24-conversation.ansi",
+      "sha256": "bb6b51d77abc18edde13fb0e2c6240e661a22e9346df3f3e09782a2b8334a5dd",
+      "bytes": 4662
+    },
+    {
+      "path": "light/matrix-120x24-copy.txt",
+      "sha256": "b222175b95ff3189e7150198c097c2a893eed0feb5227ecaa467e81dae6a3aaf",
+      "bytes": 4206
+    },
+    {
+      "path": "light/matrix-120x24-copy.ansi",
+      "sha256": "a8ba7d757c4d0c5b3fcc847c2a0c59db46bf396f4bd2c92c0dd6140d52d6b67e",
+      "bytes": 4246
+    },
+    {
+      "path": "light/matrix-120x24-composer.txt",
+      "sha256": "57bc03cfd55658a901a8e69b9ffad29c5abc6ddb8c744931a73eb0abb1651d10",
+      "bytes": 4547
+    },
+    {
+      "path": "light/matrix-120x24-composer.ansi",
+      "sha256": "a0e5a130ea23aeda9559bc016e10d88416a4d1618bcbffd3abf8bff9f08fc777",
+      "bytes": 4661
+    },
+    {
+      "path": "light/matrix-120x24-contacts.txt",
+      "sha256": "f7ade5ad3c6a9a1e8073ddb943484a071fe87797b7c2f558aa29e5dcc4bce3f2",
+      "bytes": 4433
+    },
+    {
+      "path": "light/matrix-120x24-contacts.ansi",
+      "sha256": "a10e9e89b83d76d9a69966baaa9ab1869c57efdb0d569e05aa193a5d45107a99",
+      "bytes": 4481
+    },
+    {
+      "path": "light/matrix-120x24-requests.txt",
+      "sha256": "a824ddc059d25410c866b4412fc353556575bfd28d0a031aa4233618bbf534df",
+      "bytes": 4195
+    },
+    {
+      "path": "light/matrix-120x24-requests.ansi",
+      "sha256": "45dc0cf00db2f196908d5c84a6b1ea1377a2bb45aa393d36c43acaf07a4d77e4",
+      "bytes": 4243
+    },
+    {
+      "path": "light/matrix-120x24-account.txt",
+      "sha256": "cc49218c8d191bc5305c343e4665c292e5d1972596ea6fa135dddcaca366659e",
+      "bytes": 4426
+    },
+    {
+      "path": "light/matrix-120x24-account.ansi",
+      "sha256": "3a90ed01113a6b7a88fb3fd2d8b3a69c23ad881f2e69128276b881abd9f35719",
+      "bytes": 4466
+    },
+    {
+      "path": "light/matrix-120x24-new.txt",
+      "sha256": "9bd94c513512d467660b674f4a83c5e54360ecd1ade4cf001788ad498fc5ab77",
+      "bytes": 4188
+    },
+    {
+      "path": "light/matrix-120x24-new.ansi",
+      "sha256": "0e14ff7cd09ab0a9693a242b0ec9216e28eb6b3392518a2da7a608def4397ed0",
+      "bytes": 4228
+    },
+    {
+      "path": "light/matrix-120x24-group.txt",
+      "sha256": "515c3ca49fa7b36c797a72d41aa3a77ecfff05553e1ba3f03b793fe2c110d638",
+      "bytes": 4458
+    },
+    {
+      "path": "light/matrix-120x24-group.ansi",
+      "sha256": "6ffeb57b8f31d0f4cb66cc258ca55375e6c0fec185b2c944c76790c22a7904fd",
+      "bytes": 4498
+    },
+    {
+      "path": "light/matrix-120x24-members.txt",
+      "sha256": "a5f4fb2e209e488d002f34949c41497a55d0a65984fc8d423f47a375976fac3f",
+      "bytes": 4206
+    },
+    {
+      "path": "light/matrix-120x24-members.ansi",
+      "sha256": "5b9d10fae01dd2ce75daaed3ef1a1fd66ce37fe639aa7a7237d6bdf6e7b64573",
+      "bytes": 4282
+    },
+    {
+      "path": "light/matrix-120x24-help.txt",
+      "sha256": "e755dba8880579d28285b2dcaa9087600b92cfc4c5d105786fc4f342adeca24b",
+      "bytes": 4203
+    },
+    {
+      "path": "light/matrix-120x24-help.ansi",
+      "sha256": "65a5494b9d2140d952d9dbae040a8f37b33383c8746548f99f6963ec9c53e7c1",
+      "bytes": 4243
+    },
+    {
+      "path": "light/matrix-160x24-chats.txt",
+      "sha256": "e64b3d87fff08ccc84326a47d1fb37769112d992169adba82837b0a21da5f5db",
+      "bytes": 5988
+    },
+    {
+      "path": "light/matrix-160x24-chats.ansi",
+      "sha256": "85997ced3155b748518f8d085c2e61bdfb8606defe01f72dfe9d4a606ebe76a2",
+      "bytes": 6100
+    },
+    {
+      "path": "light/matrix-160x24-conversation.txt",
+      "sha256": "e64b3d87fff08ccc84326a47d1fb37769112d992169adba82837b0a21da5f5db",
+      "bytes": 5988
+    },
+    {
+      "path": "light/matrix-160x24-conversation.ansi",
+      "sha256": "f6e896c4fee6585e67da51b21fe4b9343944f42b1308d3640fc8ad2fa861bc08",
+      "bytes": 6102
+    },
+    {
+      "path": "light/matrix-160x24-copy.txt",
+      "sha256": "aefb07be1d84df69bfa51544389579188cbab71af538f444858490953d82c4ef",
+      "bytes": 5566
+    },
+    {
+      "path": "light/matrix-160x24-copy.ansi",
+      "sha256": "5d4d2c2706063eba715c1371efa566ed745980491a033d5a369949350999ffe3",
+      "bytes": 5606
+    },
+    {
+      "path": "light/matrix-160x24-composer.txt",
+      "sha256": "7448e03f71aa9eb83729379e9ceb0d2b2ce65b8dcfeb369a3515068bb8da2f35",
+      "bytes": 5987
+    },
+    {
+      "path": "light/matrix-160x24-composer.ansi",
+      "sha256": "4660a562f12f308339d7ba6f9d86fe228013745d682a356024e6945d5c5700b3",
+      "bytes": 6101
+    },
+    {
+      "path": "light/matrix-160x24-contacts.txt",
+      "sha256": "566faccbc1b9328dade0534e63988a5d8ef6262cefd360692f8b6200e0dab929",
+      "bytes": 5873
+    },
+    {
+      "path": "light/matrix-160x24-contacts.ansi",
+      "sha256": "26a59335bdbaf82023b1d921eb4ee762bd5a29ebe4646ceac240738fe7ee6e18",
+      "bytes": 5921
+    },
+    {
+      "path": "light/matrix-160x24-requests.txt",
+      "sha256": "6ff93f1c52694a883c22db385ebb48c0940f5a4570e239c61c4282d0986d051b",
+      "bytes": 5555
+    },
+    {
+      "path": "light/matrix-160x24-requests.ansi",
+      "sha256": "76ae937e0fd63d91856380364f19fc5ad49cfa30675e40130db5d041c088339d",
+      "bytes": 5603
+    },
+    {
+      "path": "light/matrix-160x24-account.txt",
+      "sha256": "24113e5e9ca62ecf53fe3f3005cdeab23966ba89c1579d477f9137326cadaf5b",
+      "bytes": 5866
+    },
+    {
+      "path": "light/matrix-160x24-account.ansi",
+      "sha256": "73546d21ec0b172aa2a95cb451a8198bcc49686b638c4e0453f773c683e79c1b",
+      "bytes": 5906
+    },
+    {
+      "path": "light/matrix-160x24-new.txt",
+      "sha256": "2d3c9f5a2589647b59798f75f38196dcabb071958587ff187e98ba014680d77d",
+      "bytes": 5548
+    },
+    {
+      "path": "light/matrix-160x24-new.ansi",
+      "sha256": "d31557d308f7545c7f7ac5db42ef05ae7812124479e2bc51343d619f19659a8e",
+      "bytes": 5588
+    },
+    {
+      "path": "light/matrix-160x24-group.txt",
+      "sha256": "40d24038ca1ee2348a439d817a6e50c28fffd9fd5afda4a6b317f5bff03fca3f",
+      "bytes": 5898
+    },
+    {
+      "path": "light/matrix-160x24-group.ansi",
+      "sha256": "e7eaf3e2e965e880963048138ec5abd696ffdcf4d4a5eaae20b5e87839d8e566",
+      "bytes": 5938
+    },
+    {
+      "path": "light/matrix-160x24-members.txt",
+      "sha256": "e7e14272d54574d83237f9772f537bf3a4b2c1b46152d9e98746f11a840f4925",
+      "bytes": 5566
+    },
+    {
+      "path": "light/matrix-160x24-members.ansi",
+      "sha256": "379ed3a4135fc63c577a00a911f7e92561d76dee7469d8404f58fb477e97a030",
+      "bytes": 5642
+    },
+    {
+      "path": "light/matrix-160x24-help.txt",
+      "sha256": "59ae8ab6f87bb82b773b0c0557961182e0913c386851ad7c00943b5b5fc235c6",
+      "bytes": 5563
+    },
+    {
+      "path": "light/matrix-160x24-help.ansi",
+      "sha256": "76ff469b54ad157b9b10140c14eed4b34ffe92c6da4212470d45d5ecb5179c7a",
+      "bytes": 5603
+    },
+    {
+      "path": "light/matrix-60x40-chats.txt",
+      "sha256": "c6e5078dee85c9910bce5d40c105add86064e2d6d6cfe36d78f2f5c06e87fd2f",
+      "bytes": 3234
+    },
+    {
+      "path": "light/matrix-60x40-chats.ansi",
+      "sha256": "a384b1759da2f4a6a309243af53be110dd6300853a8004c46b3ec02488f0c0bc",
+      "bytes": 3292
+    },
+    {
+      "path": "light/matrix-60x40-conversation.txt",
+      "sha256": "f6541bbdae5326d802a3f7c92d78183384b2bb2eae9cdbc13e1da49e77ed6164",
+      "bytes": 3412
+    },
+    {
+      "path": "light/matrix-60x40-conversation.ansi",
+      "sha256": "d6486550d9d822f3fc95c943d9e65e9d7a619a85791fe27d71dbdaa785b3934b",
+      "bytes": 3526
+    },
+    {
+      "path": "light/matrix-60x40-copy.txt",
+      "sha256": "da74526b6e18789e11142763fd6665418d9f77de1707ef29f273655b95579b21",
+      "bytes": 3206
+    },
+    {
+      "path": "light/matrix-60x40-copy.ansi",
+      "sha256": "3de6a70739095fcf83ae9a4045f92df36dfaa015532482f387f82f8075a290e0",
+      "bytes": 3246
+    },
+    {
+      "path": "light/matrix-60x40-composer.txt",
+      "sha256": "e19d0f89135cc792cbf482575ce3a279f9a38975514e663ce022db1a0fce24cf",
+      "bytes": 3411
+    },
+    {
+      "path": "light/matrix-60x40-composer.ansi",
+      "sha256": "ebb458d2e636ac154308402d1cd1326bd02ff573d88c625e8b6d39c032dd829c",
+      "bytes": 3525
+    },
+    {
+      "path": "light/matrix-60x40-contacts.txt",
+      "sha256": "4e2155794fcbb9a276d455f948f9f0544ebe5d6057e655df8214a3f06eb89acd",
+      "bytes": 3313
+    },
+    {
+      "path": "light/matrix-60x40-contacts.ansi",
+      "sha256": "236380125dd35f65e58bff27c62ae07915cadb0b1f9093eeab30a8d3703baa70",
+      "bytes": 3361
+    },
+    {
+      "path": "light/matrix-60x40-requests.txt",
+      "sha256": "1596a1ea52a634c73f847d485178ee1c37c7e7ceda866317b5513e7c292f4680",
+      "bytes": 3195
+    },
+    {
+      "path": "light/matrix-60x40-requests.ansi",
+      "sha256": "3dbc3179e847c6575a9e67758fb58f0f3cb2eaa7d5593740e640881732a0fc8c",
+      "bytes": 3243
+    },
+    {
+      "path": "light/matrix-60x40-account.txt",
+      "sha256": "a965b41bb8bd0d123d32a4c670f2d41bb18b92dd296fb3cc05765e5b3ee1002e",
+      "bytes": 3306
+    },
+    {
+      "path": "light/matrix-60x40-account.ansi",
+      "sha256": "c8832f67153c292eb11501a6c3b102304196e6a4352f74fd94d9d1a4b1de43ba",
+      "bytes": 3346
+    },
+    {
+      "path": "light/matrix-60x40-new.txt",
+      "sha256": "80520bdbbe65b2cc08b9eac450ea6bf434dc343b1a1c168f859913477452837e",
+      "bytes": 3188
+    },
+    {
+      "path": "light/matrix-60x40-new.ansi",
+      "sha256": "ccbfc768d01fdba1b8e5b95e28323a66656ed2edb1fa1962b4f960c6c90573b0",
+      "bytes": 3228
+    },
+    {
+      "path": "light/matrix-60x40-group.txt",
+      "sha256": "61eabaab5d6113cef8cde54cac5580a3f518c8537d44344852ff6751eb1c61b8",
+      "bytes": 3338
+    },
+    {
+      "path": "light/matrix-60x40-group.ansi",
+      "sha256": "f09a68e74021fd91d0ea30b04ba02fa839418707a2add19a1a912f20438ee6be",
+      "bytes": 3378
+    },
+    {
+      "path": "light/matrix-60x40-members.txt",
+      "sha256": "f125b87ff32a32fdd765155ff1e4c9a7c012fae003e7934c942285b355a2b62a",
+      "bytes": 3206
+    },
+    {
+      "path": "light/matrix-60x40-members.ansi",
+      "sha256": "3d4bb13a9e9b27438a3e1917f15e57742a55dfbddc3bc5b8f9c52aa48486d8e4",
+      "bytes": 3282
+    },
+    {
+      "path": "light/matrix-60x40-help.txt",
+      "sha256": "fbace807915a8d25d3d4ba4fb1a7985aab72fb6c9ce91e1ab611e81d47efb7c8",
+      "bytes": 3355
+    },
+    {
+      "path": "light/matrix-60x40-help.ansi",
+      "sha256": "9cfed35d4e5d55e3a06590c2b61675fb4654e9db2a546cd8a2a7ddea7a05c51e",
+      "bytes": 3395
+    },
+    {
+      "path": "light/matrix-70x40-chats.txt",
+      "sha256": "c0adab26cd36b584eacb8684257599f1b88434b8ca5f8463bd1c95d893b871c4",
+      "bytes": 3734
+    },
+    {
+      "path": "light/matrix-70x40-chats.ansi",
+      "sha256": "9854f0854e704d3234ebdc7cd1a6f801f4f4d8b8776d65b47d44539a5ef26a75",
+      "bytes": 3792
+    },
+    {
+      "path": "light/matrix-70x40-conversation.txt",
+      "sha256": "530191387c1724eb918e3e580c6de22a64f324fa3f5c1f90b7801940b32b7438",
+      "bytes": 3932
+    },
+    {
+      "path": "light/matrix-70x40-conversation.ansi",
+      "sha256": "2645c7181dee32bf128fc2ff1769b56494057e7ccb2dd032af7cd2289fa5f420",
+      "bytes": 4046
+    },
+    {
+      "path": "light/matrix-70x40-copy.txt",
+      "sha256": "db09d5e9945f580e10e40ec667667a2454b543aee2212128e960947f819dfd3c",
+      "bytes": 3706
+    },
+    {
+      "path": "light/matrix-70x40-copy.ansi",
+      "sha256": "7af71d73306809f7e0b81f36eea2c7b4dc5e01d7f302285b7523d0a4382ee263",
+      "bytes": 3746
+    },
+    {
+      "path": "light/matrix-70x40-composer.txt",
+      "sha256": "66cd4ee24ba389e54a37f7b2483b262f0348fd32f703219a052a4277c524a6d8",
+      "bytes": 3931
+    },
+    {
+      "path": "light/matrix-70x40-composer.ansi",
+      "sha256": "3ff4105f236a1337a53445cbdc6b0c292ffb9745b5ee8f8fd2dff02731596455",
+      "bytes": 4045
+    },
+    {
+      "path": "light/matrix-70x40-contacts.txt",
+      "sha256": "eadcffb8fd61ef7001b8a66af36f1901a1815807a1db387f5ebb7f549e4ee3af",
+      "bytes": 3833
+    },
+    {
+      "path": "light/matrix-70x40-contacts.ansi",
+      "sha256": "0dd2911e51bfb91b34e52d098b8ec7c59c2f7de59b5cb54a0472168443b1fa47",
+      "bytes": 3881
+    },
+    {
+      "path": "light/matrix-70x40-requests.txt",
+      "sha256": "db2fd9a7a5cf92131b1868eeeb2dc7210e35ef0492598430fdac4c5dab313cbe",
+      "bytes": 3695
+    },
+    {
+      "path": "light/matrix-70x40-requests.ansi",
+      "sha256": "e21d64a626b7c06edc99600f711c7559a9fc7d8a4bbfb881296594ed58d4ffca",
+      "bytes": 3743
+    },
+    {
+      "path": "light/matrix-70x40-account.txt",
+      "sha256": "264dd034389f97f3fdfa4d58b0f96ae9582119af36f541bcbd643bbe2bfa0bdb",
+      "bytes": 3826
+    },
+    {
+      "path": "light/matrix-70x40-account.ansi",
+      "sha256": "4262d06d81b1dab19a417e60a96525b1647a417c6256538b0ec6438282aee89c",
+      "bytes": 3866
+    },
+    {
+      "path": "light/matrix-70x40-new.txt",
+      "sha256": "7d2ef8f077c55f6bc87f7ed0c2429b84bb0a4de831c14d3f48dab0dd16e79746",
+      "bytes": 3688
+    },
+    {
+      "path": "light/matrix-70x40-new.ansi",
+      "sha256": "1de2d34f282fea92ae8c78002de3aa11497bded1e653812213f0b6eff33ad281",
+      "bytes": 3728
+    },
+    {
+      "path": "light/matrix-70x40-group.txt",
+      "sha256": "da030133806af89fa9de915459ff3c7ccfd4b07e71d493d32b06f311e27e62fc",
+      "bytes": 3858
+    },
+    {
+      "path": "light/matrix-70x40-group.ansi",
+      "sha256": "b8989650f881d776520a9c3558c018d00042dc10fc53b37c41f800e24778fa91",
+      "bytes": 3898
+    },
+    {
+      "path": "light/matrix-70x40-members.txt",
+      "sha256": "08ad6b81fee0b3cb1382888bc039461ba5c44d6ac501551bfebc63d3216d45a8",
+      "bytes": 3706
+    },
+    {
+      "path": "light/matrix-70x40-members.ansi",
+      "sha256": "1cde0cf0c05768bfc60812b551062090e1b4aed01b60eebd3dc1c0397a10c556",
+      "bytes": 3782
+    },
+    {
+      "path": "light/matrix-70x40-help.txt",
+      "sha256": "af275ba5664a7fc0a7f28541ea042914e9b78ce52e3f54a5b1bc0d568b104e96",
+      "bytes": 3881
+    },
+    {
+      "path": "light/matrix-70x40-help.ansi",
+      "sha256": "e65d6b19a0f130bdb49f0cce9267cf8e45a1601483e228fbeb13cc2645f2dd28",
+      "bytes": 3921
+    },
+    {
+      "path": "light/matrix-80x40-chats.txt",
+      "sha256": "79635ce6fb9e3b44c738ebdc36146da77a00b8ce3c12de7a43990684dc22af7c",
+      "bytes": 4234
+    },
+    {
+      "path": "light/matrix-80x40-chats.ansi",
+      "sha256": "6f456fc166f2c7ce159540db53b7152a903a495f5ba621c805a4c826028f9aed",
+      "bytes": 4292
+    },
+    {
+      "path": "light/matrix-80x40-conversation.txt",
+      "sha256": "1cc259c1e589a62842aafe844dfd0787314b1bb51adc5c39982a0e92c1dc0609",
+      "bytes": 4452
+    },
+    {
+      "path": "light/matrix-80x40-conversation.ansi",
+      "sha256": "8dbc4a76ea336f530069b9ef3fbcdffcbec8b18fd19a84162e06d2cf7b27dc58",
+      "bytes": 4566
+    },
+    {
+      "path": "light/matrix-80x40-copy.txt",
+      "sha256": "d4615569eda04fd5a5bb2d4374d27cce8f66b476528dcb988622ead72d572e6d",
+      "bytes": 4206
+    },
+    {
+      "path": "light/matrix-80x40-copy.ansi",
+      "sha256": "064d2023e2b294f2219c4e20d6ea5e0b2a59bf320ffb37d4f74b38882c26458c",
+      "bytes": 4246
+    },
+    {
+      "path": "light/matrix-80x40-composer.txt",
+      "sha256": "cc8e8902b821a3fe84c2cda48677a6949f5b32c09a30ba7aafa9ec38ef8dd0e2",
+      "bytes": 4451
+    },
+    {
+      "path": "light/matrix-80x40-composer.ansi",
+      "sha256": "d7db0b636a4de447911bf21e50f5e1c8dbcad2d32e2f2cc0f53e297177bc2b20",
+      "bytes": 4565
+    },
+    {
+      "path": "light/matrix-80x40-contacts.txt",
+      "sha256": "902404a16df9ff6205add3eb6de04969adc217b02fd6ff273a86687cbf8d3665",
+      "bytes": 4353
+    },
+    {
+      "path": "light/matrix-80x40-contacts.ansi",
+      "sha256": "96810c4f5c35065cb7cd082526f1b20f3026347945f074ca8b610cc841f499b8",
+      "bytes": 4401
+    },
+    {
+      "path": "light/matrix-80x40-requests.txt",
+      "sha256": "0a43c29165dac3f3a61b194c98d1d5273d8bbf76c94ebe022a47b60297dd370c",
+      "bytes": 4195
+    },
+    {
+      "path": "light/matrix-80x40-requests.ansi",
+      "sha256": "51c2c2c1928da6eb5727245a7cdd7673f4c7ec2171bf7c5d2f9985cfaec79f1b",
+      "bytes": 4243
+    },
+    {
+      "path": "light/matrix-80x40-account.txt",
+      "sha256": "6519d5b406dbfbae4f1be4b70cedf9519414d185aa003a366a1ad0dda4f5bf2e",
+      "bytes": 4346
+    },
+    {
+      "path": "light/matrix-80x40-account.ansi",
+      "sha256": "887520662f4f93674db3a196682c829d7d2b9ba9e068a51b9364b5b81fd853ed",
+      "bytes": 4386
+    },
+    {
+      "path": "light/matrix-80x40-new.txt",
+      "sha256": "08a492a1368e1f8884647e3992614bf37c206c5e007857c55a258331d68a7daf",
+      "bytes": 4188
+    },
+    {
+      "path": "light/matrix-80x40-new.ansi",
+      "sha256": "e86a9eaa5cbef356f8edaf0740d77f2c226bc1c66a503d9c3a3050638026642d",
+      "bytes": 4228
+    },
+    {
+      "path": "light/matrix-80x40-group.txt",
+      "sha256": "798ff13ff0560d9a265f766808477cf6a789b845444ffc35fe1d942b74daf75f",
+      "bytes": 4378
+    },
+    {
+      "path": "light/matrix-80x40-group.ansi",
+      "sha256": "2db768defded37cbc0b147d391e53cd164d9e55e25f681556ca473b00592dd48",
+      "bytes": 4418
+    },
+    {
+      "path": "light/matrix-80x40-members.txt",
+      "sha256": "17e03a617b96752c57b5ff6580bc871340cf4c32a4794a79fa8f2c4b7b4be880",
+      "bytes": 4206
+    },
+    {
+      "path": "light/matrix-80x40-members.ansi",
+      "sha256": "d64e5e55674aa6d82592f551d8da5c8fd9ff585826ce0407e6f33e83dc1eb3c5",
+      "bytes": 4282
+    },
+    {
+      "path": "light/matrix-80x40-help.txt",
+      "sha256": "589721d2551547725dfaca1f1a67a6e8c0f70f450fece3912ac138eb0406698b",
+      "bytes": 4403
+    },
+    {
+      "path": "light/matrix-80x40-help.ansi",
+      "sha256": "e9d2eeda86c313be09b3cb0a36e2ac9e51b0604deca300d13037d39e34bc9589",
+      "bytes": 4443
+    },
+    {
+      "path": "light/matrix-100x40-chats.txt",
+      "sha256": "a969d02c1a0ba39fb2b6143227237e1a7cdb7eb93018fe8957c08b2a6eba884c",
+      "bytes": 5542
+    },
+    {
+      "path": "light/matrix-100x40-chats.ansi",
+      "sha256": "9efeb1e2ad371e0f130a9b18522e799323eedbf6aaa913a4897ef5ca1c002575",
+      "bytes": 5678
+    },
+    {
+      "path": "light/matrix-100x40-conversation.txt",
+      "sha256": "a969d02c1a0ba39fb2b6143227237e1a7cdb7eb93018fe8957c08b2a6eba884c",
+      "bytes": 5542
+    },
+    {
+      "path": "light/matrix-100x40-conversation.ansi",
+      "sha256": "02c755402a11ca3b663be85641da707054df97617c8ba15aa81347571cddf02a",
+      "bytes": 5680
+    },
+    {
+      "path": "light/matrix-100x40-copy.txt",
+      "sha256": "c1257c9cb8064b00bef532936a7e561ba17a1b95247284daf4dc0685677c0f31",
+      "bytes": 5206
+    },
+    {
+      "path": "light/matrix-100x40-copy.ansi",
+      "sha256": "e2a88040b99c725abe14365fc9d44f39562c7d2416354cd5db5eb4663f4d20ce",
+      "bytes": 5246
+    },
+    {
+      "path": "light/matrix-100x40-composer.txt",
+      "sha256": "2e21e30b4015bf2ca0981bbc26fe7b7aa5511454b433ac98810f47f2955e5424",
+      "bytes": 5541
+    },
+    {
+      "path": "light/matrix-100x40-composer.ansi",
+      "sha256": "fc078588948a346d6cc6fc5c8e42d695a2e3cefb7d75469644d076a1e185f4b8",
+      "bytes": 5679
+    },
+    {
+      "path": "light/matrix-100x40-contacts.txt",
+      "sha256": "b44355e20f6d52f1ed4e3de891e4b6911cb8940af27e27a385cd2cbf2612ae14",
+      "bytes": 5393
+    },
+    {
+      "path": "light/matrix-100x40-contacts.ansi",
+      "sha256": "aba3bb889011384f56d05d132a71f57d7c648c80fe4cfe0e84a55bebd9ca7bd5",
+      "bytes": 5441
+    },
+    {
+      "path": "light/matrix-100x40-requests.txt",
+      "sha256": "b419d1e2b3c6140799aa4d143df4f9019344d11bdbe3eab8e9553e687f9016a3",
+      "bytes": 5195
+    },
+    {
+      "path": "light/matrix-100x40-requests.ansi",
+      "sha256": "163c4be8bbf7a4c37f1dd4e1fad7529a369bb92ad915f1477f874f0001795280",
+      "bytes": 5243
+    },
+    {
+      "path": "light/matrix-100x40-account.txt",
+      "sha256": "7496dc481888f80e5fd254aeea52a1cf25ecd96eeceb598c7f38e1bf3a57ce48",
+      "bytes": 5386
+    },
+    {
+      "path": "light/matrix-100x40-account.ansi",
+      "sha256": "220217178d996f7cb68977fca0baa909660523701653a3b9ecb4641d633632d2",
+      "bytes": 5426
+    },
+    {
+      "path": "light/matrix-100x40-new.txt",
+      "sha256": "4cc2a56a07a0d3be8a4fd62a1a6a86aa3409fc92f417373573e34ed0c5a9544b",
+      "bytes": 5188
+    },
+    {
+      "path": "light/matrix-100x40-new.ansi",
+      "sha256": "8ef1ed3e57a9dc2671a1477bb255b8dc2fcc66d9e5275c3185456f30ce75d28e",
+      "bytes": 5228
+    },
+    {
+      "path": "light/matrix-100x40-group.txt",
+      "sha256": "ed77da3fabd7a861b5ac7e8dd9fe5975e2833ed655799045400312f22b2b8a89",
+      "bytes": 5420
+    },
+    {
+      "path": "light/matrix-100x40-group.ansi",
+      "sha256": "29aa127da3a6705c375b0353c77f9ac8525421e959f4f47ab9f0140459817b7f",
+      "bytes": 5460
+    },
+    {
+      "path": "light/matrix-100x40-members.txt",
+      "sha256": "74b351de7eb378750e859e168bbb35d3661bb527d21db3d8849bfcd119e07320",
+      "bytes": 5206
+    },
+    {
+      "path": "light/matrix-100x40-members.ansi",
+      "sha256": "d4a27d20464281ee75ba84e1e47b456f0a779f1069bde51f0e4045514491f473",
+      "bytes": 5282
+    },
+    {
+      "path": "light/matrix-100x40-help.txt",
+      "sha256": "6c208c6e3b5d351ef3e2fdc4a8d91bcc01f26c733b1debf6d7b964759dba055f",
+      "bytes": 5383
+    },
+    {
+      "path": "light/matrix-100x40-help.ansi",
+      "sha256": "2a312a658c81db8dfb6d0f51b92b5c1a0c80ec5a5fdfabed96b2958dad792191",
+      "bytes": 5423
+    },
+    {
+      "path": "light/matrix-120x40-chats.txt",
+      "sha256": "696a9cbe39f101ed08dad8643b87c5aa058b103ccb8b5b5b46940ed2a9e8c58f",
+      "bytes": 6582
+    },
+    {
+      "path": "light/matrix-120x40-chats.ansi",
+      "sha256": "1d229ad8c786c1071ad1a7b5dc8a018513e1c51560ed278b738fbe11b448adaa",
+      "bytes": 6718
+    },
+    {
+      "path": "light/matrix-120x40-conversation.txt",
+      "sha256": "696a9cbe39f101ed08dad8643b87c5aa058b103ccb8b5b5b46940ed2a9e8c58f",
+      "bytes": 6582
+    },
+    {
+      "path": "light/matrix-120x40-conversation.ansi",
+      "sha256": "27aa79c18dd1bbbe5a528e08086babf284a0ec4c8215d0c38dbc7f34ef8cf739",
+      "bytes": 6720
+    },
+    {
+      "path": "light/matrix-120x40-copy.txt",
+      "sha256": "dadc9e99730542fe5ede53cfc9405ba581bca66fac8fb78fb7ba8763fa75c901",
+      "bytes": 6206
+    },
+    {
+      "path": "light/matrix-120x40-copy.ansi",
+      "sha256": "53cf0c8f593066bccfef19f0ece203619fa2a1b24afedabd3f3974de3fd095eb",
+      "bytes": 6246
+    },
+    {
+      "path": "light/matrix-120x40-composer.txt",
+      "sha256": "c7285eec303b946a5f47beb4f01b5970ead8f7d4294b47bf114ccb0997f13312",
+      "bytes": 6581
+    },
+    {
+      "path": "light/matrix-120x40-composer.ansi",
+      "sha256": "4608bfc2c52280389dc8a6bcfd119d76bca549e09c5d12b5f68ced85c5327575",
+      "bytes": 6719
+    },
+    {
+      "path": "light/matrix-120x40-contacts.txt",
+      "sha256": "21ade715a8541deee055cf4eb5b30281fe010247bb395a4a118b39b6e445494d",
+      "bytes": 6433
+    },
+    {
+      "path": "light/matrix-120x40-contacts.ansi",
+      "sha256": "35ba091fdb0dcf08fe6da4a00bde3cb8f92ae39dc67dca57ec45bb576201b1a5",
+      "bytes": 6481
+    },
+    {
+      "path": "light/matrix-120x40-requests.txt",
+      "sha256": "ab56364242b2278dcd1f4a4141b46eb20a54b5b30633abdda5541631ba8acfc9",
+      "bytes": 6195
+    },
+    {
+      "path": "light/matrix-120x40-requests.ansi",
+      "sha256": "4c0a3b78f35f3127b06dd33afcffbdb92a5ea710a3e66db9ecd6dd0703bf1675",
+      "bytes": 6243
+    },
+    {
+      "path": "light/matrix-120x40-account.txt",
+      "sha256": "34469580437dd1300181db594e44eb4d5ae5c98e893473871e10ccfae65328d2",
+      "bytes": 6426
+    },
+    {
+      "path": "light/matrix-120x40-account.ansi",
+      "sha256": "552ae7ac8b5dbd3a6a8b08a1a9ff8e334735b3d1ccff07bf0f3782a571350289",
+      "bytes": 6466
+    },
+    {
+      "path": "light/matrix-120x40-new.txt",
+      "sha256": "f9a90eeb67413726631d9f81d349c0d46151691c8356419003fb8e5e0790cc63",
+      "bytes": 6188
+    },
+    {
+      "path": "light/matrix-120x40-new.ansi",
+      "sha256": "57209c6a598510463edd5d8bb8f4fd47d9b9418c754b923db33e38df66c59a40",
+      "bytes": 6228
+    },
+    {
+      "path": "light/matrix-120x40-group.txt",
+      "sha256": "f0b67cadc803d0692a9d89f4a0b6f0286d875872167b29cd0406359c948b63f7",
+      "bytes": 6458
+    },
+    {
+      "path": "light/matrix-120x40-group.ansi",
+      "sha256": "2e4ad6b505790ca1b91fd207c8acde4c59d1d3221bb66331ed655940cb9b2e4c",
+      "bytes": 6498
+    },
+    {
+      "path": "light/matrix-120x40-members.txt",
+      "sha256": "73319a53b95293ee1e6fc892839873447fdb61f19a1b2f66d18ff9dff91892c7",
+      "bytes": 6206
+    },
+    {
+      "path": "light/matrix-120x40-members.ansi",
+      "sha256": "f3c283c4ef1c317d4b34e839dde1f9c102d7a2a603f926750b56ae67997291fd",
+      "bytes": 6282
+    },
+    {
+      "path": "light/matrix-120x40-help.txt",
+      "sha256": "34823202e7822c5c821f46000b06995d1cfaef9385eace6ff6e8e323e2fc5a98",
+      "bytes": 6423
+    },
+    {
+      "path": "light/matrix-120x40-help.ansi",
+      "sha256": "8817fc031d27040522e033e46216bdc6a3b64cb41e3d0d4d20e5a92439d023b3",
+      "bytes": 6463
+    },
+    {
+      "path": "light/matrix-160x40-chats.txt",
+      "sha256": "943671e857b6282dcc42f89c9fc5574cb0ec39494ab6cb1cc4cb269c2133ff8d",
+      "bytes": 8662
+    },
+    {
+      "path": "light/matrix-160x40-chats.ansi",
+      "sha256": "c5844c9773781e4ff90f9a0d0c57b6599510bafd21e606aacab84fb96a4dfef7",
+      "bytes": 8798
+    },
+    {
+      "path": "light/matrix-160x40-conversation.txt",
+      "sha256": "943671e857b6282dcc42f89c9fc5574cb0ec39494ab6cb1cc4cb269c2133ff8d",
+      "bytes": 8662
+    },
+    {
+      "path": "light/matrix-160x40-conversation.ansi",
+      "sha256": "f4ad2b1560163f98b4bfa679438ba2809a7c9987d5d42d12779e60d87c3f70d6",
+      "bytes": 8800
+    },
+    {
+      "path": "light/matrix-160x40-copy.txt",
+      "sha256": "2d2974424419ccf27fb5b9dc9d9c8dc5054b96a1f42703340f653843185488a0",
+      "bytes": 8206
+    },
+    {
+      "path": "light/matrix-160x40-copy.ansi",
+      "sha256": "7fab82bde92b40f70584c070b58c25bdae267408bfb1140acf9aec35b8c3ec3d",
+      "bytes": 8246
+    },
+    {
+      "path": "light/matrix-160x40-composer.txt",
+      "sha256": "c9be6778d02ea0fec286fbe5f1c1f79dd3b66bb3e2509ff336127eb57877a862",
+      "bytes": 8661
+    },
+    {
+      "path": "light/matrix-160x40-composer.ansi",
+      "sha256": "196548907e9074bb835d17133ac1a9d9a731a7aef6a6f23455794d195d0d3038",
+      "bytes": 8799
+    },
+    {
+      "path": "light/matrix-160x40-contacts.txt",
+      "sha256": "322f9ed349efaef84348d951f7fec00acfadd61a77172142f0dcb71220e8e7c7",
+      "bytes": 8513
+    },
+    {
+      "path": "light/matrix-160x40-contacts.ansi",
+      "sha256": "2186033de996a2bcf059415d4840e6640edffed714c2805fb974950fa22408d6",
+      "bytes": 8561
+    },
+    {
+      "path": "light/matrix-160x40-requests.txt",
+      "sha256": "587689f5501e7bcad5bba21c04847d5942257e03da91df7552404da18fa69021",
+      "bytes": 8195
+    },
+    {
+      "path": "light/matrix-160x40-requests.ansi",
+      "sha256": "3f295d4b7d45837bbea64937999aeeda77eb7409bd937620886ce42e83692bbf",
+      "bytes": 8243
+    },
+    {
+      "path": "light/matrix-160x40-account.txt",
+      "sha256": "76e1e28580bf52650fbf0157f24208ccc1f2f992ff435f653b7914f86e8be99b",
+      "bytes": 8506
+    },
+    {
+      "path": "light/matrix-160x40-account.ansi",
+      "sha256": "e5dca0cfd3e72d0c80fd8af00be8870b403aae2f54f8ee5f0ef5fc86c8015458",
+      "bytes": 8546
+    },
+    {
+      "path": "light/matrix-160x40-new.txt",
+      "sha256": "6ed0e43f61370b9e24b307874728a8bbe8d83e5c21c306f34b11bf93fdbc7e31",
+      "bytes": 8188
+    },
+    {
+      "path": "light/matrix-160x40-new.ansi",
+      "sha256": "07e2005e619ee6144895c5e865e8b5b1c165271a8e0a9a9257a3090c177deed1",
+      "bytes": 8228
+    },
+    {
+      "path": "light/matrix-160x40-group.txt",
+      "sha256": "22e7d07de850a2e64421593d65421648bdd69c925a43faf9a57bf0fd313077d8",
+      "bytes": 8538
+    },
+    {
+      "path": "light/matrix-160x40-group.ansi",
+      "sha256": "aa83f313a8ae5bd7e35a7f11519fdbf1448eb938407b477595739ea7df4d1f25",
+      "bytes": 8578
+    },
+    {
+      "path": "light/matrix-160x40-members.txt",
+      "sha256": "1eddc0e22dcb206c2f3fdfe29a86d584b388e6897de23bcadf516b2399db48f8",
+      "bytes": 8206
+    },
+    {
+      "path": "light/matrix-160x40-members.ansi",
+      "sha256": "44aebd659de6288e701e4cd26367fce9df797aa82a8a8e3edbb251517b246533",
+      "bytes": 8282
+    },
+    {
+      "path": "light/matrix-160x40-help.txt",
+      "sha256": "24ed58f43a965f6554c6dbabf22ffd0bc9c4e6e417acbd7412b679e58d2ea9bf",
+      "bytes": 8503
+    },
+    {
+      "path": "light/matrix-160x40-help.ansi",
+      "sha256": "b16e8a04b6c9a1ac5c195b280105c0b1b7c1f298222c2ab904afdcb0211587b0",
+      "bytes": 8543
+    },
+    {
+      "path": "light/16-after-test9-oracle.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "light/16-after-test9-oracle.ansi",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    }
+  ],
+  "decompressed_file_hashes_match_original": true,
+  "limits": "Six widths and two heights on one WezTerm Unicode9/tmux3.6a VS16-off default dark/light chain. Archive preserves actual tmux plain/styled byte streams; it is not a raster preview, a whole-matrix visual PASS, another terminal or Unicode18 evidence."
+}

@@ -178,7 +178,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q31 | P2 | 可滚动历史中，发送/typing/composer 布局变化使末尾读者丢失自动跟随；旧追加回调也可能覆盖刚发生的上滚 | 第四十七阶段修复末尾布局恢复与追加回调的会话/位置守卫；真实双Qt纯文本before反例及四档after、历史保位对照，永久回归与门禁记录见下文；不外推重连恢复历史或图片异步布局 |
 | Q32 | P2 | 125% 下关闭真实编辑窗口后，消息行下方留下持续的黑色细线 | 第五十阶段完整标准控件公开时序复现，固定私有 Qt6.5.3 对照及正式 Chat 四档真实 after 已消除该局部黑线；不外推系统输入法或全部页面 HiDPI |
 | Q33 | P2 | 群资料、成员和入群申请的画面显示角色、本人或待审批，但实际无障碍行只读用户名 | 第五十七阶段复用现有角色/状态写入 AccessibleTextRole；同永久测试 RED/GREEN、真实 X11/AT-SPI 八行 before/after 和原三模式完整门禁通过；动态 bridge、Orca 与全页面矩阵仍开放 |
-| T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 字素编辑、完整span及显示列修复已进入生产；第五十五阶段收口modern链复制页旧反白续格。legacy、SSH、浅色及Unicode18物理矩阵仍未闭环，不计全部终端通过 |
+| T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 字素编辑、完整span及显示列修复已进入生产；第五十五阶段收口modern链复制页旧反白续格，第五十八阶段同modern链黑白两背景七个旧残留点为0。legacy、SSH、其它调色板及Unicode18完整物理矩阵仍未闭环，不计全部终端通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 | T06 | P2 | TUI 搜索选中消息之前一项被删除时，只clamp索引，选中目标跳到另一ID | 第二十四阶段修复，永久RED/GREEN、真实双TUI六档选中目标/可复制正文/草稿验证通过 |
 | T07 | P3 | TUI 无草稿时输入提示仍显示悬空的 `i: compose ·` | 第三十六阶段只在非空草稿前保留分隔符，六宽永久 RED→GREEN、两个真实 TUI 完整附件流程和三模式门禁通过 |
@@ -3873,3 +3873,63 @@ Qt87/TUI78不提高。Q33已复现的初始行遗漏收口；Q27/Q30/T04、完�
 矩阵及达到92后的连续两轮fresh review仍开放。新只读候选：群名远端更新似乎会
 覆盖未保存本地草稿，公告已有dirty guard；尚未真实运行复现，不将其定为产品bug。
 下一步先用两个真实管理员客户端验证，而不是只补model用例。
+
+## 阶段 58：两种默认背景的六宽两高真实页面证据
+
+当前正式TUI仍dd1a6baa…，未修改生产源码。先只读审查实际ui.cpp与FTXUI默认
+Input：业务主要使用terminal默认前/背景、dim与inverted，未启用vendor动画中的
+固定Black/GrayLight色值。不能猜测浅色问题来自固定palette，再为不存在的问题
+改颜色。用同一正式binary、真实WezTerm20221119 Unicode9→tmux3.6a VS16-off，
+只将默认FG/BG分别设为white/black和black/white，建立两套独立环境。
+
+每套完整实际登录、原生选择/复制、中字素编辑发送、resize与退出后，再经真实
+XTest导航采集60/70/80/100/120/160列×24/40行的11页：Chats、Conversation、
+Copy、Composer、Contacts、Incoming requests、Account、New、Group、Members、
+Help。TTY TIOCGWINSZ逐项确认实际尺寸，不只读取配置；每次矩阵转换都在当前
+私有tmux pane里等实际页名。保持同一份跨导航草稿，未重复append，不用注入
+状态、hardcoded widget数据或截图拼接制造页面。
+
+最终fresh scope `/tmp/chat-quality-light-native3.yps3I19m` 的runner和dark/light
+driver各actual0，native child亦0，各150张完整原PNG。早期attempt1在tmux尚未
+建立时capture-pane失败；attempt2完成dark页面，但最后app已正常退出仍查死pane
+而driver1。两者不计PASS。最终从头重跑，存活app才读pane，退出图按实际空pane
+记录，原15秒未延长，没有因此修改产品。
+
+### 原始像素、样式与业务结果
+
+独立audit从本次ASCII oracle测出10×19物理pitch与真实BG（dark0/light255），
+不是DisplayWidth/DSR的自证。两背景80列三个、160列四个旧反白续格，各自非背景
+像素全0；clear与empty两个完整PNG逐byte相同。native终端复制精确为
+`L👩🏽R END`，Home/Right/Delete整个ZWJ后发送SQL精确为`AB❤️C1️⃣D👩🏽E`，
+不把正文正确外推所有glyph/Unicode18正确。
+
+[原实测记录](images/experience/tui-default-colors-proof.json)原byte/SHAfeb814f0…
+未改，保留两次实际exe/首尾TUI源码、24组尺寸/264次页转换、300个原图与plain/
+styled SHA、七个旧点像素、SQL及清理事实。PNG全部原字节保存在
+[dark聊天60×24](images/experience/tui-default-colors/dark/matrix-60x24-conversation.png)、
+[light聊天60×24](images/experience/tui-default-colors/light/matrix-60x24-conversation.png)
+所在的dark/light目录，没有重绘、裁切或调色。
+[600份实际plain/styled原文](images/experience/tui-default-colors-captures.tar.gz)
+无损归档，每张截图各一份txt/ansi；[归档检查](images/experience/tui-default-colors-capture-archive-proof.json)
+逐项核对原record SHA，并解包重算600项一致，archive SHA4de964fe…。
+这是实际tmux styling，不是由文字重新绘制的PNG预览。
+
+主代理亲看light窄页与wide composer的原图；
+[独立逐图审查](images/experience/native-visual-atspi-independent-review.json)
+重开38/300张TUI及六张Qt原全屏图，逐图保存SHA、观察和限制。TUI覆盖两背景
+六宽×24会话，以及40行的Help/Members/Group/Contacts/Requests/Account和login/
+copy/native selection/composer/new子集；未见文字消失、边界越位或旧残片。light
+的dim和正文区别较弱，仍可读；30列sidebar ellipsis是摘要，不由此判正文丢失。
+仅38张独立视觉审查，不把全部300张采集或11个页名就绪称作全矩阵视觉PASS。
+其它262张、最小40×12附近、对话框/picker、其它palette、256-color/truecolor、
+legacy/SSH及Unicode18物理验收仍需继续。
+
+两个独立DB精确absence为0，自有PIDgone、私有port无listener；死tmux/WezTerm
+socket确认ECONNREFUSED且自有进程均退出后精确unlink。三个保护服务ticks不变。
+没有停止既有服务、安装/替换terminal或改third。此前阶段55的七点dark局部after
+保留，本次增加同正式TUI的独立light与尺寸覆盖，不宣称全terminal兼容性已完成。
+
+这次只有证据/审查归档，没有新编译输入；阶段57完整69项门禁包含同正式TUI，
+不为文档变化虚构新测试运行。Qt87/TUI78继续，Q27/Q30/T04和最终完整品质目标
+仍开放；本阶段不是达到92后的第一/第二轮fresh review。下一步继续真实日常
+交互和剩余页面，发现material问题先复现再修，不以矩阵截图数量替代产品品质。

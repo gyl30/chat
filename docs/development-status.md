@@ -1750,3 +1750,21 @@ per-check exit文件。48owned/36descendant PID均gone，4DB精确重查0、1893
 Qt87/TUI78保持。Q33初始状态遗漏收口，live角色/权限通知、Orca、全键盘/HiDPI和
 Q27/Q30/T04完整矩阵仍开放；没有开始达到92后的连续两轮fresh review。下一项先
 真实双管理员验证群名远端更新与未保存本地草稿的交互，不把源码风险当运行实证。
+
+## 体验品质审查：终端默认明暗背景与页面尺寸
+
+正式TUI dd1a6baa…未改。WezTerm Unicode9→tmux3.6a VS16-off、默认white/black与
+black/white两套独立真实流程各actual0；六宽60/70/80/100/120/160×24/40行×11页，
+TTY读回24组实际尺寸，共300张原全屏PNG与600份真实plain/styled capture归档。
+两次前置driver失败独立保留，最终从头执行，不拼接、不放宽原15秒、不改产品。
+
+独立ASCII像素oracle测10×19及本次背景，两背景七个旧反白续格非背景像素均0，
+clear/empty完整PNG相同。原生复制L👩🏽R END、整ZWJ删除后的SQL AB❤️C1️⃣D👩🏽E
+仍精确；两个DB删除、port关闭、自有PID退出，保护3服务ticks不变。600份原文
+解压逐SHA一致，原proof feb814f0…未改。主/独立亲看原PNG，独立明确38/300视觉
+抽查，没有把300采集或页名就绪算全视觉PASS。详见[体验品质审查](experience-quality.md)
+阶段58及原图、styled archive、独立逐图审查链接。
+
+Qt87/TUI78不提高。legacy/SSH/其它palette、Unicode18、最小尺寸/对话框以及剩余
+262图尚未完成；T04仍开放。这是同生产输入的新runtime证据，阶段57实际完整69项
+门禁仍对应源码，不冒称文档变化另跑门禁，也不计达到92后的两轮fresh review。

@@ -1,0 +1,1037 @@
+{
+  "schema_version": 1,
+  "review_date_local": "2026-10-06 Asia/Shanghai",
+  "reviewer": "chat_tui_light_audit",
+  "evidence_host": "gyl@172.20.45.187",
+  "method": "Read-only reinspection of existing evidence. Personally reopened all 44 listed unedited full PNGs at original detail. Local image hashes match remote originals; TUI hashes also match actual-proof capture hashes. No new product run, gate, source edit or commit.",
+  "summary": "Qt 8 sampled rows: visible status omitted from before Name/Description, included in after Name; Description empty both runs. TUI sampled 38/300 frames: no observed unreadable text or border overflow; not a whole-matrix visual PASS.",
+  "limit_definitions": {
+    "TUI_SAMPLE": "Single captured frame only; 38/300 TUI PNGs reviewed, not full-matrix visual PASS or interaction coverage.",
+    "TUI_CONTRAST": "Visual readability only; no quantitative contrast certification or alternate-palette guarantee.",
+    "TUI_UNICODE": "One WezTerm Unicode9 -> tmux 3.6a VS16-off chain; glyph fallback does not prove Unicode18 correctness.",
+    "QT_SCOPE": "Real-product row-level public AT-SPI only; full *.atspi.json dumps contain a root error and no usable tree.",
+    "QT_RENDER": "Original full X11 2400x1000 PNG with product window in upper-left; one scale and fixture, not all windows or themes.",
+    "QT_BEFORE": "Before driver's PASS means successful proof of missing accessible statuses, not accessibility PASS.",
+    "QT_AFTER": "Statuses are exposed in Name; Description remains empty. No actual screen-reader speech was captured.",
+    "SOURCE": "Source snapshots are associated metadata, not independent compiled-source causality; qt/tests/ui_test.cpp hash was sampled after the run."
+  },
+  "qt": {
+    "driver_byte_identical": true,
+    "cmp_exit": 0,
+    "driver_sha256": "57b98eae76d762548e62f1bf4cf2a420e3bdcb427d5ca167b663669255d3dced",
+    "source_manifest": {
+      "path": "/tmp/chat-quality-qt-atspi-after.2K0H7904/source-manifest.json",
+      "sha256": "742a4f9b2de63982ce69591f309070a365fa98a30125a27a6e0e4b7f6f2fcdfd",
+      "limits": [
+        "SOURCE"
+      ]
+    },
+    "runs": {
+      "before": {
+        "scope": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv",
+        "binary": {
+          "path": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv/chat_qt.before",
+          "sha256": "3bb090e6fb0984b8e957579a0ee3dbcc356331b26a41b6edfa6c3565067f1120",
+          "recorded_process": {
+            "pid": 4168091,
+            "tick": "547809233",
+            "cmdline_hex": "2f746d702f636861742d7175616c6974792d71742d61747370692d6265666f72652e427066425a494a762f636861745f71742e6265666f72650077733a2f2f3132372e302e302e313a34303030352f777300",
+            "exe": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv/chat_qt.before",
+            "state": "S"
+          },
+          "loaded_qt": [
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Core.so.6.5.3",
+              "sha256": "a187d03f0d9c170fa4dcabc8abc89eb99d163e5b82c64c4667674c6f957c63f0"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6DBus.so.6.5.3",
+              "sha256": "11304f90d948a59d887c7d54a30b388f8a06bbf0689e9707a62b9bed872c0beb"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Gui.so.6.5.3",
+              "sha256": "9a89e05fc892b13084e73397c29a10427c9e45ad729c2ae68c4f51bfb9e545ec"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Svg.so.6.5.3",
+              "sha256": "e93654ab378624f695e0629d22382a8e298b39141cda1132b757dfa3985afa21"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Widgets.so.6.5.3",
+              "sha256": "3130aa61288d76303c46b27d1b91db8c456a9caef8d7111c1c61b07278e0ed46"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6XcbQpa.so.6.5.3",
+              "sha256": "e55dd060aaa4cf90745001a7689e3812047f2b0c14300b3064e6636aaa3b40b8"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so",
+              "sha256": "86f9de45c5f2a27bf22d58810f40dddb01e2d8529d41a024ea90aeb34036530c"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforms/libqxcb.so",
+              "sha256": "27344b5533a430df9db8d253fb9177dd8ea7e0f28ee3958971cbbd13d87ccc94"
+            }
+          ]
+        },
+        "actual_driver_exit_previously_observed": 0,
+        "persisted_workflow_exit": 0,
+        "exit_verification_limit": "No fresh run; persisted cleanup records workflow_exit=0 and unchanged driver ends sys.exit(workflow_exit). Shell exit 0 was observed in original campaign execution.",
+        "cleanup": {
+          "database_absent": true,
+          "private_port_closed": true,
+          "all_owned_gone": true,
+          "protected_unchanged": true,
+          "protected_ticks": {
+            "3225": "17583",
+            "29935": "248258",
+            "2876288": "521400965"
+          }
+        },
+        "sampled_rows": 8,
+        "status_exposed_rows": 0,
+        "descriptions_empty": true,
+        "metadata": {
+          "result.json": {
+            "path": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv/run/result.json",
+            "sha256": "790a2e25763dee8ea567aa1e35015f0704e27ae64e3ad45208f7745f4c8c16c3"
+          },
+          "cleanup.json": {
+            "path": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv/run/cleanup.json",
+            "sha256": "ac2008e5a65dd6ba16e00063c56374b9959cf2cbb805e63550ac3c2c9b7a70fc"
+          },
+          "runtime-captured.json": {
+            "path": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv/run/runtime-captured.json",
+            "sha256": "f07199edc2db3639e1cfb14db16c717ef2eabb4a6ca84dd244362b2efa4b9410"
+          },
+          "artifact-sha256.json": {
+            "path": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv/run/artifact-sha256.json",
+            "sha256": "b6b2e33f2d26293820d4d583f2a36d1e1fe118bf09305a35d76840a541f14bc1"
+          },
+          "before-after-comparison.json": {
+            "path": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv/run/before-after-comparison.json",
+            "sha256": "f66fc50253e25c6217b6acc5a49f2bf1979c360d587b4ccead3f4d8660677d67"
+          }
+        },
+        "images": [
+          {
+            "path": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv/run/02-group-overview-fullscreen.png",
+            "sha256": "3571549644d2785422f5e9e3919323515e29f1d4a088f213e6f2da5d17f4ae37",
+            "observation": "Visible owner/self, administrator and member subtitles remain readable in the three-row group overview. Public row Names omit these subtitles and Descriptions are empty.",
+            "public_rows": {
+              "path": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv/run/02-group-overview.rows.json",
+              "sha256": "6ddffbe8961113c16e5ea4340b1754d683095f07f6676af3160c17812889905b",
+              "count": 3,
+              "names": [
+                "导航A_qtx11_191756",
+                "历史B_qtx11_191756",
+                "好友C_qtx11_191756"
+              ],
+              "descriptions": [
+                "",
+                "",
+                ""
+              ],
+              "all_showing": true
+            },
+            "failed_tree_dump": {
+              "path": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv/run/02-group-overview.atspi.json",
+              "sha256": "6ab01d77945860528934feb6c2c15663642cdbba8797173bfe807a93e4cbbcd3",
+              "contents": [
+                {
+                  "path": [],
+                  "error": ""
+                }
+              ]
+            },
+            "limits": [
+              "QT_SCOPE",
+              "QT_RENDER",
+              "QT_BEFORE"
+            ]
+          },
+          {
+            "path": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv/run/03-group-members-fullscreen.png",
+            "sha256": "01b8259264db3dff43f320acc29e7e905a3fa6c2f5788a3797007fe30694b570",
+            "observation": "All four member rows visibly show owner/self, administrator or member; selected first row and dialog controls are bounded. Public row Names omit these subtitles and Descriptions are empty.",
+            "public_rows": {
+              "path": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv/run/03-group-members.rows.json",
+              "sha256": "203cd741f1e6c9fc7e1d59e99eea62c98ca010fae7965c56ec73324463124cfb",
+              "count": 4,
+              "names": [
+                "导航A_qtx11_191756",
+                "历史B_qtx11_191756",
+                "好友C_qtx11_191756",
+                "观察S005_qtx11_191756"
+              ],
+              "descriptions": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "all_showing": true
+            },
+            "failed_tree_dump": {
+              "path": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv/run/03-group-members.atspi.json",
+              "sha256": "6ab01d77945860528934feb6c2c15663642cdbba8797173bfe807a93e4cbbcd3",
+              "contents": [
+                {
+                  "path": [],
+                  "error": ""
+                }
+              ]
+            },
+            "limits": [
+              "QT_SCOPE",
+              "QT_RENDER",
+              "QT_BEFORE"
+            ]
+          },
+          {
+            "path": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv/run/04-group-requests-fullscreen.png",
+            "sha256": "3ab5b9eadb6ae9f9de2ce96253a9daceff2844b2a0b5b915f245803e55cb0fde",
+            "observation": "Pending-request subtitle and accept/reject buttons are visibly readable; one request row is shown. Public row Names omit these subtitles and Descriptions are empty.",
+            "public_rows": {
+              "path": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv/run/04-group-requests.rows.json",
+              "sha256": "b8ddd82c008bec4071330057c19493d8cf4f1740d09ab6baeb54fe609c0069eb",
+              "count": 1,
+              "names": [
+                "申请D_qtx11_191756"
+              ],
+              "descriptions": [
+                ""
+              ],
+              "all_showing": true
+            },
+            "failed_tree_dump": {
+              "path": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv/run/04-group-requests.atspi.json",
+              "sha256": "6ab01d77945860528934feb6c2c15663642cdbba8797173bfe807a93e4cbbcd3",
+              "contents": [
+                {
+                  "path": [],
+                  "error": ""
+                }
+              ]
+            },
+            "limits": [
+              "QT_SCOPE",
+              "QT_RENDER",
+              "QT_BEFORE"
+            ]
+          }
+        ]
+      },
+      "after": {
+        "scope": "/tmp/chat-quality-qt-atspi-after.2K0H7904",
+        "binary": {
+          "path": "/tmp/chat-quality-qt-atspi-after.2K0H7904/chat_qt.after",
+          "sha256": "eee21f3b9446e167d559746d1cdedd301fcd5cb810fd90c3672e97edd422f1ff",
+          "recorded_process": {
+            "pid": 39036,
+            "tick": "547841553",
+            "cmdline_hex": "2f746d702f636861742d7175616c6974792d71742d61747370692d61667465722e324b3048373930342f636861745f71742e61667465720077733a2f2f3132372e302e302e313a34383331312f777300",
+            "exe": "/tmp/chat-quality-qt-atspi-after.2K0H7904/chat_qt.after",
+            "state": "S"
+          },
+          "loaded_qt": [
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Core.so.6.5.3",
+              "sha256": "a187d03f0d9c170fa4dcabc8abc89eb99d163e5b82c64c4667674c6f957c63f0"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6DBus.so.6.5.3",
+              "sha256": "11304f90d948a59d887c7d54a30b388f8a06bbf0689e9707a62b9bed872c0beb"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Gui.so.6.5.3",
+              "sha256": "9a89e05fc892b13084e73397c29a10427c9e45ad729c2ae68c4f51bfb9e545ec"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Svg.so.6.5.3",
+              "sha256": "e93654ab378624f695e0629d22382a8e298b39141cda1132b757dfa3985afa21"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Widgets.so.6.5.3",
+              "sha256": "3130aa61288d76303c46b27d1b91db8c456a9caef8d7111c1c61b07278e0ed46"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6XcbQpa.so.6.5.3",
+              "sha256": "e55dd060aaa4cf90745001a7689e3812047f2b0c14300b3064e6636aaa3b40b8"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so",
+              "sha256": "86f9de45c5f2a27bf22d58810f40dddb01e2d8529d41a024ea90aeb34036530c"
+            },
+            {
+              "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforms/libqxcb.so",
+              "sha256": "27344b5533a430df9db8d253fb9177dd8ea7e0f28ee3958971cbbd13d87ccc94"
+            }
+          ]
+        },
+        "actual_driver_exit_previously_observed": 0,
+        "persisted_workflow_exit": 0,
+        "exit_verification_limit": "No fresh run; persisted cleanup records workflow_exit=0 and unchanged driver ends sys.exit(workflow_exit). Shell exit 0 was observed in original campaign execution.",
+        "cleanup": {
+          "database_absent": true,
+          "private_port_closed": true,
+          "all_owned_gone": true,
+          "protected_unchanged": true,
+          "protected_ticks": {
+            "3225": "17583",
+            "29935": "248258",
+            "2876288": "521400965"
+          }
+        },
+        "sampled_rows": 8,
+        "status_exposed_rows": 8,
+        "descriptions_empty": true,
+        "metadata": {
+          "result.json": {
+            "path": "/tmp/chat-quality-qt-atspi-after.2K0H7904/run/result.json",
+            "sha256": "651bca9b7476ba9da8479fc0f309923160e1a867216b81f8c5ca6641c92504a5"
+          },
+          "cleanup.json": {
+            "path": "/tmp/chat-quality-qt-atspi-after.2K0H7904/run/cleanup.json",
+            "sha256": "40c43733a35bb3e1bee57bc85a1fcd5de05b30aec1d10b3d2f33c4d75ad44285"
+          },
+          "runtime-captured.json": {
+            "path": "/tmp/chat-quality-qt-atspi-after.2K0H7904/run/runtime-captured.json",
+            "sha256": "f2569f89b8a6907df27bad9280bd866eb279feb24c5630fa4357343209fb6fb2"
+          },
+          "artifact-sha256.json": {
+            "path": "/tmp/chat-quality-qt-atspi-after.2K0H7904/run/artifact-sha256.json",
+            "sha256": "d42c15dec246b4f3e0799c4eea58557a4d7e9a6b377006dc0e00eda284c945da"
+          },
+          "before-after-comparison.json": {
+            "path": "/tmp/chat-quality-qt-atspi-after.2K0H7904/run/before-after-comparison.json",
+            "sha256": "222ee6fdda22967f984b3e2382a2c08c58f333860206fef33687f8e265852640"
+          }
+        },
+        "images": [
+          {
+            "path": "/tmp/chat-quality-qt-atspi-after.2K0H7904/run/02-group-overview-fullscreen.png",
+            "sha256": "bf5fc0b4f61ddcf8dd6fe57e14dae928b62070f9867a4805cda742b328367e33",
+            "observation": "Visible owner/self, administrator and member subtitles remain readable in the three-row group overview. Public row Names include these subtitles; Descriptions remain empty. No obvious visual regression versus before.",
+            "public_rows": {
+              "path": "/tmp/chat-quality-qt-atspi-after.2K0H7904/run/02-group-overview.rows.json",
+              "sha256": "cc313fc6b4cb167c729c60aaa6db90fb3c068b1cb5158d17b62079746f95ac2f",
+              "count": 3,
+              "names": [
+                "导航A_qtx11_192321 · 群主 · 你",
+                "历史B_qtx11_192321 · 管理员",
+                "好友C_qtx11_192321 · 成员"
+              ],
+              "descriptions": [
+                "",
+                "",
+                ""
+              ],
+              "all_showing": true
+            },
+            "failed_tree_dump": {
+              "path": "/tmp/chat-quality-qt-atspi-after.2K0H7904/run/02-group-overview.atspi.json",
+              "sha256": "6ab01d77945860528934feb6c2c15663642cdbba8797173bfe807a93e4cbbcd3",
+              "contents": [
+                {
+                  "path": [],
+                  "error": ""
+                }
+              ]
+            },
+            "limits": [
+              "QT_SCOPE",
+              "QT_RENDER",
+              "QT_AFTER"
+            ]
+          },
+          {
+            "path": "/tmp/chat-quality-qt-atspi-after.2K0H7904/run/03-group-members-fullscreen.png",
+            "sha256": "9ea15dd19d11c2bee4a2fb07b57e86a2df07072a9b444cffa4e078946ea3d671",
+            "observation": "All four member rows visibly show owner/self, administrator or member; selected first row and dialog controls are bounded. Public row Names include these subtitles; Descriptions remain empty. No obvious visual regression versus before.",
+            "public_rows": {
+              "path": "/tmp/chat-quality-qt-atspi-after.2K0H7904/run/03-group-members.rows.json",
+              "sha256": "26f89d8a2bd3a1f2483bccaec19524e71966a2ae98e1e6f746f562138b646b49",
+              "count": 4,
+              "names": [
+                "导航A_qtx11_192321 · 群主 · 你",
+                "历史B_qtx11_192321 · 管理员",
+                "好友C_qtx11_192321 · 成员",
+                "观察S005_qtx11_192321 · 成员"
+              ],
+              "descriptions": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "all_showing": true
+            },
+            "failed_tree_dump": {
+              "path": "/tmp/chat-quality-qt-atspi-after.2K0H7904/run/03-group-members.atspi.json",
+              "sha256": "6ab01d77945860528934feb6c2c15663642cdbba8797173bfe807a93e4cbbcd3",
+              "contents": [
+                {
+                  "path": [],
+                  "error": ""
+                }
+              ]
+            },
+            "limits": [
+              "QT_SCOPE",
+              "QT_RENDER",
+              "QT_AFTER"
+            ]
+          },
+          {
+            "path": "/tmp/chat-quality-qt-atspi-after.2K0H7904/run/04-group-requests-fullscreen.png",
+            "sha256": "3d8e47472c62a1808eac4cd2f7e809b66a9ffbdc9cf13f6f304b245571483756",
+            "observation": "Pending-request subtitle and accept/reject buttons are visibly readable; one request row is shown. Public row Names include these subtitles; Descriptions remain empty. No obvious visual regression versus before.",
+            "public_rows": {
+              "path": "/tmp/chat-quality-qt-atspi-after.2K0H7904/run/04-group-requests.rows.json",
+              "sha256": "914a49bfca35b289bbc75ef31976c8f69736897bea0c8f9967188e571af8c620",
+              "count": 1,
+              "names": [
+                "申请D_qtx11_192321 · 待审批"
+              ],
+              "descriptions": [
+                ""
+              ],
+              "all_showing": true
+            },
+            "failed_tree_dump": {
+              "path": "/tmp/chat-quality-qt-atspi-after.2K0H7904/run/04-group-requests.atspi.json",
+              "sha256": "6ab01d77945860528934feb6c2c15663642cdbba8797173bfe807a93e4cbbcd3",
+              "contents": [
+                {
+                  "path": [],
+                  "error": ""
+                }
+              ]
+            },
+            "limits": [
+              "QT_SCOPE",
+              "QT_RENDER",
+              "QT_AFTER"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "tui": {
+    "scope": "/tmp/chat-quality-light-native3.yps3I19m",
+    "proof": {
+      "path": "/tmp/chat-quality-light-native3.yps3I19m/actual-proof.json",
+      "sha256": "feb814f0431192b526e7a4b067b2369516cb37442d018b166ef693f5f4c2e15a"
+    },
+    "total_captures": 300,
+    "visually_reviewed": 38,
+    "all_reviewed_hashes_match_proof": true,
+    "recorded_profile_checks": {
+      "dark": {
+        "actual_driver_exit": 0,
+        "actual_binary": {
+          "pid": 4146103,
+          "start_ticks": 547798455,
+          "path": "/home/gyl/example/chat/build/chat_tui",
+          "sha256": "dd1a6baab6d19759f0d8cf5e88133130eecf45412bed90360728476e926a11a0"
+        },
+        "capture_count": 150,
+        "sizes": [
+          [
+            60,
+            24
+          ],
+          [
+            70,
+            24
+          ],
+          [
+            80,
+            24
+          ],
+          [
+            100,
+            24
+          ],
+          [
+            120,
+            24
+          ],
+          [
+            160,
+            24
+          ],
+          [
+            60,
+            40
+          ],
+          [
+            70,
+            40
+          ],
+          [
+            80,
+            40
+          ],
+          [
+            100,
+            40
+          ],
+          [
+            120,
+            40
+          ],
+          [
+            160,
+            40
+          ]
+        ],
+        "pages_per_size": 11,
+        "measured_background": [
+          0,
+          0,
+          0
+        ],
+        "physical_ascii_pitch": [
+          10,
+          19
+        ],
+        "seven_prior_cells_all_background": true,
+        "cleared_and_empty_identical": true,
+        "native_copy_exact": true,
+        "native_send_expected": "AB❤️C1️⃣D👩🏽E",
+        "database_absent": true,
+        "private_port_closed": true,
+        "all_owned_recorded_gone": true,
+        "protected_unchanged": true
+      },
+      "light": {
+        "actual_driver_exit": 0,
+        "actual_binary": {
+          "pid": 4146109,
+          "start_ticks": 547798457,
+          "path": "/home/gyl/example/chat/build/chat_tui",
+          "sha256": "dd1a6baab6d19759f0d8cf5e88133130eecf45412bed90360728476e926a11a0"
+        },
+        "capture_count": 150,
+        "sizes": [
+          [
+            60,
+            24
+          ],
+          [
+            70,
+            24
+          ],
+          [
+            80,
+            24
+          ],
+          [
+            100,
+            24
+          ],
+          [
+            120,
+            24
+          ],
+          [
+            160,
+            24
+          ],
+          [
+            60,
+            40
+          ],
+          [
+            70,
+            40
+          ],
+          [
+            80,
+            40
+          ],
+          [
+            100,
+            40
+          ],
+          [
+            120,
+            40
+          ],
+          [
+            160,
+            40
+          ]
+        ],
+        "pages_per_size": 11,
+        "measured_background": [
+          255,
+          255,
+          255
+        ],
+        "physical_ascii_pitch": [
+          10,
+          19
+        ],
+        "seven_prior_cells_all_background": true,
+        "cleared_and_empty_identical": true,
+        "native_copy_exact": true,
+        "native_send_expected": "AB❤️C1️⃣D👩🏽E",
+        "database_absent": true,
+        "private_port_closed": true,
+        "all_owned_recorded_gone": true,
+        "protected_unchanged": true
+      }
+    },
+    "images": [
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/dark/matrix-60x24-conversation.png",
+        "sha256": "be443eb34eb9bd0cf9ba06364d081ea31516fc93b15c2ddae8f2029b72241373",
+        "profile": "dark",
+        "observation": "Conversation header, message text, selected/inverted bubble and footer are readable; borders remain inside viewport. Dim grey hint text is visibly readable.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/dark/matrix-70x24-conversation.png",
+        "sha256": "b6349c4dd97acf99f730828c068580fb7ad57579c2ca5ec3cefe6c033bd0c149",
+        "profile": "dark",
+        "observation": "Conversation header, message text, selected/inverted bubble and footer are readable; borders remain inside viewport. Dim grey hint text is visibly readable.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/dark/matrix-80x24-conversation.png",
+        "sha256": "e38cd0f9fc64f9b71d09808970c2e228bc73361e415fb52fc16a884573ef8d71",
+        "profile": "dark",
+        "observation": "Conversation header, message text, selected/inverted bubble and footer are readable; borders remain inside viewport. Dim grey hint text is visibly readable.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/dark/matrix-100x24-conversation.png",
+        "sha256": "856c20706a9bfd6b1d6fb2535ea64b4b2902d22648c7eacd5adabc54f1a0fa84",
+        "profile": "dark",
+        "observation": "Conversation header, message text, selected/inverted bubble and footer are readable; borders remain inside viewport. Fixed-width Chats sidebar truncates long fixture previews with ellipsis. Dim grey hint text is visibly readable.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/dark/matrix-120x24-conversation.png",
+        "sha256": "1d00eda78260ec885f79f940c15f2ead40ee74f3a31b2667350164a8ca4b3280",
+        "profile": "dark",
+        "observation": "Conversation header, message text, selected/inverted bubble and footer are readable; borders remain inside viewport. Fixed-width Chats sidebar truncates long fixture previews with ellipsis. Dim grey hint text is visibly readable.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/dark/matrix-160x24-conversation.png",
+        "sha256": "cf2c6f9df3547e5fcd8fa4a829d7a393edd83636441d2a2150f2bb7eb5ac334c",
+        "profile": "dark",
+        "observation": "Conversation header, message text, selected/inverted bubble and footer are readable; borders remain inside viewport. Fixed-width Chats sidebar truncates long fixture previews with ellipsis. Dim grey hint text is visibly readable.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/dark/matrix-60x40-help.png",
+        "sha256": "6720983e3ecfc3eadfec0061c01347983b2a45b08386ddf50c53e9454522b40c",
+        "profile": "dark",
+        "observation": "Help text wraps inside viewport; scroll indicator is visible. Bottom command list is incomplete in this frame. Dim grey hint text is visibly readable.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/dark/matrix-70x40-members.png",
+        "sha256": "5023cf894d4380476a7bb81bce25745d12e2caadddeeef7901e34e2d9720c935",
+        "profile": "dark",
+        "observation": "Four member rows and owner (you) / member labels are readable; selected row and footer remain bounded. Dim grey hint text is visibly readable.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/dark/matrix-80x40-group.png",
+        "sha256": "513832f173384ddaadae2bd24de65fcb6ae1d33bd636c8dd4fe8fdd30aa23294",
+        "profile": "dark",
+        "observation": "Owner summary, member preview and group action list are readable; long member preview ends in ellipsis within bounds. Dim grey hint text is visibly readable.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/dark/matrix-100x40-contacts.png",
+        "sha256": "f0d29855452898046a958db220a5b1e1330dbbdbd9a8656f895746138a9f016a",
+        "profile": "dark",
+        "observation": "Contact names, last-seen text, selected New friends row and footer are readable. Dim grey hint text is visibly readable.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/dark/matrix-120x40-requests.png",
+        "sha256": "d730beb4e9bdfab0c10c4b628ec59ab9058cdfd6e35e32abbde96ab711261807",
+        "profile": "dark",
+        "observation": "Incoming request row and accept/reject/profile hints are readable; selected row remains bounded. Dim grey hint text is visibly readable.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/dark/matrix-160x40-account.png",
+        "sha256": "72349b503a0b744fef6cdd478f3fa6f0509939e50357db4af23d1689b3c9228c",
+        "profile": "dark",
+        "observation": "Account heading, selected copy-username action and remaining action labels are readable; footer remains bounded. Dim grey hint text is visibly readable.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/dark/02-login80.png",
+        "sha256": "f945d23dc7773db99a3ea2ce64ef465fc44d5193bbc73a5f830b0bbd33aa9f24",
+        "profile": "dark",
+        "observation": "Username/password labels, focused placeholder, login choices and keyboard hint are readable. Dim grey hint text is visibly readable.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/dark/05-copyable80.png",
+        "sha256": "e60577f48e94cff8932b5854202c7379905f3c8b8e8409c06bf97d7fb521dfd8",
+        "profile": "dark",
+        "observation": "Copyable message and terminal-selection/back hints are readable; surrounding blank area shows no obvious fragment. Dim grey hint text is visibly readable.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/dark/05b-native-selected-copy80.png",
+        "sha256": "f084a2c17408a587e844c79956fb99f4e5c0a512120e1722d93c80def3ec88ac",
+        "profile": "dark",
+        "observation": "Native purple terminal selection and selected copy text are readable; surrounding blank area shows no obvious fragment. Dim grey hint text is visibly readable.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/dark/06-composer80.png",
+        "sha256": "42c3ee55a8774d2cc9b0b94e321cddc1f1a732bcbe1fb4cc2b5e2c8ff05967ae",
+        "profile": "dark",
+        "observation": "Composer text, selected message, header and footer are readable and bounded. Dim grey hint text is visibly readable.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/dark/matrix-60x24-new.png",
+        "sha256": "9782cb464caadc6dd800f3c024aa5a5d50511411f11c62d151e205738aebdcd0",
+        "profile": "dark",
+        "observation": "New-page action labels, inverted selection and footer are readable and bounded. Dim grey hint text is visibly readable.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/dark/matrix-60x24-copy.png",
+        "sha256": "adff0d4a8eb77755b571f6f68f2e4a3d95d608e6c055dc3c9e707a6d20eb002a",
+        "profile": "dark",
+        "observation": "Copyable message and terminal-selection/back hints are readable; surrounding blank area shows no obvious fragment. Dim grey hint text is visibly readable.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/dark/matrix-60x24-composer.png",
+        "sha256": "89c6f60f5f1d30976b16e635e7be80f83aebbeaeb71222e5c80e35c146bdf3b8",
+        "profile": "dark",
+        "observation": "Composer text, selected message, header and footer are readable and bounded. Dim grey hint text is visibly readable.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/light/matrix-60x24-conversation.png",
+        "sha256": "1abc8acaa00bb0e5be3d5e2cb18ec024c3bc76af908b9318c65f04528e2d164a",
+        "profile": "light",
+        "observation": "Conversation header, message text, selected/inverted bubble and footer are readable; borders remain inside viewport. Light dim/default text has weaker emphasis distinction than dark, but no unreadable black/white collision observed.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/light/matrix-70x24-conversation.png",
+        "sha256": "b6505b027f8dbf8bd1bc1956fc138c0181e7be51c6daa8ff0bf04595c2735cfe",
+        "profile": "light",
+        "observation": "Conversation header, message text, selected/inverted bubble and footer are readable; borders remain inside viewport. Light dim/default text has weaker emphasis distinction than dark, but no unreadable black/white collision observed.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/light/matrix-80x24-conversation.png",
+        "sha256": "561aebe1788cd82823313edac407f7b8892f03dbd71bd378e775d2ab3de56c1a",
+        "profile": "light",
+        "observation": "Conversation header, message text, selected/inverted bubble and footer are readable; borders remain inside viewport. Light dim/default text has weaker emphasis distinction than dark, but no unreadable black/white collision observed.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/light/matrix-100x24-conversation.png",
+        "sha256": "47f6fe297e440e79042ffc68603a7e581f19b5db4f6d1ab499b84d2e4f8e9661",
+        "profile": "light",
+        "observation": "Conversation header, message text, selected/inverted bubble and footer are readable; borders remain inside viewport. Fixed-width Chats sidebar truncates long fixture previews with ellipsis. Light dim/default text has weaker emphasis distinction than dark, but no unreadable black/white collision observed.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/light/matrix-120x24-conversation.png",
+        "sha256": "8ba38c5d0ba5b16861cc6c0537810649e7f496c43615e6795ff942d21ecab2e2",
+        "profile": "light",
+        "observation": "Conversation header, message text, selected/inverted bubble and footer are readable; borders remain inside viewport. Fixed-width Chats sidebar truncates long fixture previews with ellipsis. Light dim/default text has weaker emphasis distinction than dark, but no unreadable black/white collision observed.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/light/matrix-160x24-conversation.png",
+        "sha256": "f5d3c4c3f0c9f1cf163c60f82e2efd07202c6505afcb62a48d4e37ba408bc834",
+        "profile": "light",
+        "observation": "Conversation header, message text, selected/inverted bubble and footer are readable; borders remain inside viewport. Fixed-width Chats sidebar truncates long fixture previews with ellipsis. Light dim/default text has weaker emphasis distinction than dark, but no unreadable black/white collision observed.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/light/matrix-60x40-help.png",
+        "sha256": "2ebda5d9ce737a29fea9a4f32b6bd06674788ecaac48ded6b980b7a4da9006b4",
+        "profile": "light",
+        "observation": "Help text wraps inside viewport; scroll indicator is visible. Bottom command list is incomplete in this frame. Light dim/default text has weaker emphasis distinction than dark, but no unreadable black/white collision observed.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/light/matrix-70x40-members.png",
+        "sha256": "1fed846e4fb82307d6e1a50cfea62d9fb289aaf98b312487587d62c2b83a0b59",
+        "profile": "light",
+        "observation": "Four member rows and owner (you) / member labels are readable; selected row and footer remain bounded. Light dim/default text has weaker emphasis distinction than dark, but no unreadable black/white collision observed.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/light/matrix-80x40-group.png",
+        "sha256": "f6e299dc5abb1bf82a1a5114d95afc138c10c554be374d1b00524d2e72ea3cfa",
+        "profile": "light",
+        "observation": "Owner summary, member preview and group action list are readable; long member preview ends in ellipsis within bounds. Light dim/default text has weaker emphasis distinction than dark, but no unreadable black/white collision observed.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/light/matrix-100x40-contacts.png",
+        "sha256": "b015dbb4991409ac61aaa153bf875610b90d84ad7e4157a0cc714d7517f6f4f1",
+        "profile": "light",
+        "observation": "Contact names, last-seen text, selected New friends row and footer are readable. Light dim/default text has weaker emphasis distinction than dark, but no unreadable black/white collision observed.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/light/matrix-120x40-requests.png",
+        "sha256": "d51767125ed3e256c6d2cb8f464d28fb9f83ba18a9420bd9c2b6087d942b34f6",
+        "profile": "light",
+        "observation": "Incoming request row and accept/reject/profile hints are readable; selected row remains bounded. Light dim/default text has weaker emphasis distinction than dark, but no unreadable black/white collision observed.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/light/matrix-160x40-account.png",
+        "sha256": "91692cf7dc405009e32481f9e5e9cdea9657f778a0a1ffe630459da91fe3ab7a",
+        "profile": "light",
+        "observation": "Account heading, selected copy-username action and remaining action labels are readable; footer remains bounded. Light dim/default text has weaker emphasis distinction than dark, but no unreadable black/white collision observed.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/light/02-login80.png",
+        "sha256": "9c67a079127938b62a37a1324c7fe94b9eb6ed27f6038e66c9605e1691ea5b49",
+        "profile": "light",
+        "observation": "Username/password labels, focused placeholder, login choices and keyboard hint are readable. Light dim/default text has weaker emphasis distinction than dark, but no unreadable black/white collision observed.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/light/05-copyable80.png",
+        "sha256": "4ecc8d33e710dd1d1129261126933db8f0f402885763c249b55e9c9d8e7efff8",
+        "profile": "light",
+        "observation": "Copyable message and terminal-selection/back hints are readable; surrounding blank area shows no obvious fragment. Light dim/default text has weaker emphasis distinction than dark, but no unreadable black/white collision observed.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/light/05b-native-selected-copy80.png",
+        "sha256": "f0d40f653e9b31b79dfd3a60c41e32abac51a7fb33917836e408a6aca49360ab",
+        "profile": "light",
+        "observation": "Native purple terminal selection and selected copy text are readable; surrounding blank area shows no obvious fragment. Light dim/default text has weaker emphasis distinction than dark, but no unreadable black/white collision observed.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/light/06-composer80.png",
+        "sha256": "8173db64163710dab751302e3c0ee9a8a85c6af37498472a0fa7ae028286d61c",
+        "profile": "light",
+        "observation": "Composer text, selected message, header and footer are readable and bounded. Light dim/default text has weaker emphasis distinction than dark, but no unreadable black/white collision observed.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/light/matrix-60x24-new.png",
+        "sha256": "60071d5dcf4947d03b7a353a61c5c5033487994ced1524060ce50ca540e23143",
+        "profile": "light",
+        "observation": "New-page action labels, inverted selection and footer are readable and bounded. Light dim/default text has weaker emphasis distinction than dark, but no unreadable black/white collision observed.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/light/matrix-60x24-copy.png",
+        "sha256": "0cded00bba69eb089270a69a49b513725409128e0143f7d2fb259cc1acc482a2",
+        "profile": "light",
+        "observation": "Copyable message and terminal-selection/back hints are readable; surrounding blank area shows no obvious fragment. Light dim/default text has weaker emphasis distinction than dark, but no unreadable black/white collision observed.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      },
+      {
+        "path": "/tmp/chat-quality-light-native3.yps3I19m/light/matrix-60x24-composer.png",
+        "sha256": "a5cec331996611979c563bdd0eea98956598c1bd10e938c2b3f7e3cb4811a737",
+        "profile": "light",
+        "observation": "Composer text, selected message, header and footer are readable and bounded. Light dim/default text has weaker emphasis distinction than dark, but no unreadable black/white collision observed.",
+        "limits": [
+          "TUI_SAMPLE",
+          "TUI_CONTRAST",
+          "TUI_UNICODE"
+        ]
+      }
+    ],
+    "unreviewed": "262 original PNGs, dialogs/prompts, minimum40x12/too-small39x11, alternate palettes/emulators and Unicode18-wide correctness are not certified."
+  },
+  "independent_next_audit_candidates": [
+    {
+      "priority": 1,
+      "scope": "Qt full public AT-SPI tree and actual screen-reader navigation",
+      "reason": "Current full tree dump fails at application root; retain valid row proof, but separately capture per-field errors with robust traversal and real spoken/focus output. Do not retroactively label existing dump complete.",
+      "needs_new_product_run": true
+    },
+    {
+      "priority": 2,
+      "scope": "TUI unreviewed page/size captures",
+      "reason": "Read-only review of remaining262 PNGs with per-image observations, especially 24-row nonconversation pages and 40-row conversation/composer; can use existing evidence.",
+      "needs_new_product_run": false
+    },
+    {
+      "priority": 3,
+      "scope": "TUI minimum-size boundary and prompts/dialogs",
+      "reason": "Fresh native 40x12 and39x11 plus destructive-confirmation/search/edit/reaction prompts in both profiles; independent per-profile foreground/background/ASCII calibration and original full screenshots.",
+      "needs_new_product_run": true
+    },
+    {
+      "priority": 4,
+      "scope": "Theme-dependent dim/inverted contrast",
+      "reason": "Light dim text loses emphasis differentiation; separately test non-black/white palette, selection/focus and disabled states using physical pixels. Current black/white samples are not universal contrast proof.",
+      "needs_new_product_run": true
+    }
+  ]
+}
