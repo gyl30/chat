@@ -1464,3 +1464,24 @@ hand邻格/清屏残留。候选不落地，32原窗口亲看；首轮ss解码dr
 详见[体验品质审查](experience-quality.md)阶段37及两原X11诊断图（不是Chat界面）。
 本次仅证据，不冒称新build/gate；阶段36冻结源三模式23/23按原范围有效。
 Qt87/TUI78不提高，Q27/T04、完整日常/页面/无障碍与连续两轮fresh审查仍未完成。未push。
+
+## 体验品质审查：群聊反馈与独立资料状态
+
+c8d7355基线两真实TUI100×30完整公开群聊任务actual0，但原画面确认两处P3：选人后
+旧“至少选择一位联系人”错误仍在、资料页presence有前导拼接标点。仅成功toggle后清
+旧输入反馈，presence返回纯事实而由三个append caller加非空分隔符；隐私/身份/协议
+不变。永久同fixture旧源actual8/26fail→修复actual0，六宽覆盖状态及无效动作。
+
+新f785a631…两TUI完整after actual0，原15s/业务oracle保持且增加两strict真实frame
+断言。公开建群/邀请/加入/普通成员资料、reply同IDedit/精确👍、搜索、两个多行原草稿
+切换或退群取消后真正发送、leave与双logout闭环。主及独立33/33核验，25pins/三imports/
+实际SHA首尾一致；exact库SQL0/5记录PIDgone/精确socket无listener/18913空/保护PID在。
+四原styled ANSI before/after无损入库，不冒称physical列宽或完整日常/IME验收。
+
+既有fresh目录增量strict-Werror build/23CTest108.13s；原tests/verify.sh实际0，
+normal/ASan/UBSan各23/23，107.69/144.01/136.30s；render0.89/4.17/1.83s保原5s，
+107tracked Qt/TUI/tests/CMake源首尾一致，无skip/新warning/sanitizer报告。首轮未加载
+测试env导致localPGsocket六fail原日志保留，正确env后串行完整重跑，不改代码掩盖。
+不是新fresh configure，正式与strict flags分记。详细范围见[体验品质审查](experience-quality.md)。
+Qt87/TUI78不提高，Q27/T04、全页面/完整日常/无障碍和最终两轮fresh审查继续开放。
+无third/server/client/SQL/依赖改动，未push。

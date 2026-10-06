@@ -35,6 +35,66 @@ int main()
     s.self = {1, "Alice", {}};
     s.link = connection::online;
     {
+        auto contact = s;
+        contact.contacts = {{2, "Bob", {}}};
+        contact.profile = contact.contacts.front();
+        contact.presences.emplace(2, chat::presence{2, true, 0});
+        chat::conversation conversation;
+        conversation.id = 11; conversation.user = 2; conversation.username = "Bob";
+        contact.conversations = {conversation};
+        contact.select_conversation(conversation.id);
+        for (int columns : {60, 70, 80, 100, 120, 160})
+        {
+            contact.view = page::profile;
+            auto output = draw(contact, columns, 30);
+            ok &= expect(output.find("online") != std::string::npos && output.find(" · online") == std::string::npos,
+                         "Standalone profile presence has no leading append separator");
+            contact.presences.at(2).online = false;
+            output = draw(contact, columns, 30);
+            ok &= expect(output.find("offline") != std::string::npos && output.find(" · offline") == std::string::npos,
+                         "Standalone offline presence has no leading append separator");
+            contact.presences.at(2).last_seen = 1700000000000;
+            output = draw(contact, columns, 30);
+            ok &= expect(output.find("last seen ") != std::string::npos && output.find(" · last seen ") == std::string::npos,
+                         "Standalone last-seen presence has no leading append separator");
+            contact.presences.at(2) = {2, true, 0};
+            for (auto view : {page::conversations, page::contacts, page::conversation})
+            {
+                contact.view = view;
+                ok &= expect(draw(contact, columns, 30).find(" · online") != std::string::npos,
+                             "Appended presence remains separated from identity");
+            }
+        }
+    }
+    {
+        app application([]{});
+        application.data.self = {1, "Alice", {}};
+        application.data.link = connection::online;
+        application.data.contacts = {{2, "Bob", {}}};
+        application.data.view = page::pick_contacts;
+        application.data.status = "请至少选择一位联系人创建群聊";
+        auto component = make_ui(application, []{});
+        component->OnEvent(ftxui::Event::Character(' '));
+        ok &= expect(application.data.picked_contacts == std::vector<std::int64_t>{2} && application.data.status.empty(),
+                     "Selecting a contact resolves stale picker input feedback");
+        for (int columns : {60, 70, 80, 100, 120, 160})
+        {
+            auto output = draw(application.data, columns, 30);
+            ok &= expect(output.find("Selected: 1") != std::string::npos &&
+                         output.find("请至少选择一位联系人创建群聊") == std::string::npos,
+                         "A valid selection does not display the former empty-selection error");
+        }
+        application.data.status = "previous input feedback";
+        component->OnEvent(ftxui::Event::Character(' '));
+        ok &= expect(application.data.picked_contacts.empty() && application.data.status.empty(),
+                     "Changing a selection clears feedback for its previous input");
+        application.data.selected = -1;
+        application.data.status = "unchanged feedback";
+        application.toggle_pick();
+        ok &= expect(application.data.picked_contacts.empty() && application.data.status == "unchanged feedback",
+                     "An invalid picker action does not clear feedback without changing input");
+    }
+    {
         auto long_account = s;
         long_account.self.username = std::string(64, 'A');
         ftxui::Screen screen(60, 24);

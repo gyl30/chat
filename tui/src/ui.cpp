@@ -189,8 +189,8 @@ std::string presence_label(state const& s, std::int64_t id)
     if (!s.is_contact(id)) { return {}; }
     auto p = s.presences.find(id);
     if (p == s.presences.end()) { return {}; }
-    if (p->second.online) { return " · online"; }
-    return p->second.last_seen ? " · last seen " + timestamp(p->second.last_seen) : " · offline";
+    if (p->second.online) { return "online"; }
+    return p->second.last_seen ? "last seen " + timestamp(p->second.last_seen) : "offline";
 }
 std::string role_label(member_role role)
 {
@@ -229,7 +229,11 @@ Element conversation_list(state const& s, int width)
     {
         auto const& c = s.conversations[i];
         auto label = user_label(c.username);
-        if (c.kind == conversation_kind::direct) { label += presence_label(s, c.user); }
+        if (c.kind == conversation_kind::direct)
+        {
+            auto presence = presence_label(s, c.user);
+            if (!presence.empty()) { label += " · " + presence; }
+        }
         auto unread = c.unread ? " (" + std::to_string(c.unread) + ")" : std::string{};
         std::string flags;
         if (c.pinned) { flags += " [pin]"; }
@@ -316,6 +320,7 @@ Element conversation_view(state const& s, Element input, std::string typing, int
     auto c = s.active_conversation();
     if (!c) { return text("Select a conversation and press Enter") | center | flex; }
     auto detail = c->kind == conversation_kind::group ? " · " + std::to_string(c->member_count) + " members" : presence_label(s, c->user);
+    if (c->kind == conversation_kind::direct && !detail.empty()) { detail = " · " + detail; }
     Elements items{hbox({preview_text(c->username, width - DisplayWidth(detail)) | bold | flex, text(detail) | dim})};
     if (c->pinned_message) { items.push_back(preview_text("Pinned: " + (c->pinned_message->deleted ? "消息已删除" : c->pinned_message->text), width) | dim); }
     if (!c->announcement.empty()) { items.push_back(preview_text("公告: " + c->announcement, width) | dim); }
@@ -394,7 +399,10 @@ Element secondary(state const& s, int width, int message_scroll)
                 {
                     auto const& value = s.view == page::users ? s.users[i] : *contacts[i];
                     auto offset = s.view == page::contacts ? 1 : 0;
-                    rows.push_back(selected(text(user_label(value.username) + presence_label(s, value.id)), s.selected == static_cast<int>(i) + offset));
+                    auto label = user_label(value.username);
+                    auto presence = presence_label(s, value.id);
+                    if (!presence.empty()) { label += " · " + presence; }
+                    rows.push_back(selected(text(label), s.selected == static_cast<int>(i) + offset));
                 }
             }
             if (s.view == page::contacts)

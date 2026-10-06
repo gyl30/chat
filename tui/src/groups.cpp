@@ -107,6 +107,7 @@ void app::toggle_pick()
     auto found = std::ranges::find(data.picked_contacts, id);
     if (found == data.picked_contacts.end()) { data.picked_contacts.push_back(id); }
     else { data.picked_contacts.erase(found); }
+    data.status.clear();
 }
 
 void app::finish_pick()
