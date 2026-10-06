@@ -1,4 +1,5 @@
 find_package(Qt6 6.2 REQUIRED COMPONENTS Svg Widgets)
+include("${PROJECT_SOURCE_DIR}/cmake/chat_emoji_scanner.cmake")
 
 add_library(chat_qt_widgets OBJECT
     src/avatar.cpp
@@ -14,6 +15,10 @@ add_library(chat_qt_widgets OBJECT
     src/conversation_delegate.hpp
     src/conversation_model.cpp
     src/conversation_model.hpp
+    src/emoji_segments.cpp
+    src/emoji_segments.hpp
+    src/emoji_text.cpp
+    src/emoji_text.hpp
     src/group_dialog.cpp
     src/group_dialog.hpp
     src/member_data.hpp
@@ -57,12 +62,16 @@ qt_add_resources(chat_qt_widgets chat_icons
 )
 
 set_target_properties(chat_qt_widgets PROPERTIES AUTOMOC ON)
+target_include_directories(chat_qt_widgets PRIVATE "${chat_unicode_include}")
 
 target_link_libraries(chat_qt_widgets
     PUBLIC
         chat_client
         Qt6::Svg
         Qt6::Widgets
+    PRIVATE
+        utf8proc::utf8proc
+        chat_emoji_scanner
 )
 
 add_executable(chat_qt_models_test tests/models_test.cpp)

@@ -2,17 +2,21 @@
 
 #include <QApplication>
 #include <QBuffer>
+#include <QClipboard>
+#include <QFontDatabase>
 #include <QFontMetrics>
 #include <QImage>
 #include <QListView>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPlainTextEdit>
 #include <QStyleOptionViewItem>
 #include <QTextLayout>
 #include <QtMath>
 #include <chat/attachment.hpp>
 
 #include "message_delegate.hpp"
+#include "emoji_text.hpp"
 #include "avatar.hpp"
 #include "user_model.hpp"
 #include "user_delegate.hpp"
@@ -23,6 +27,146 @@
 #include "theme.hpp"
 #include "message_images.hpp"
 #include "icons.hpp"
+
+bool check_emoji_display_policy()
+{
+    QList<QString> const candidates{
+        QStringLiteral("🙂"), QStringLiteral("1️⃣"), QStringLiteral("7️⃣"),
+        QStringLiteral("#️⃣"), QStringLiteral("*️⃣"), QStringLiteral("👩‍💻"),
+        QStringLiteral("👨‍👩‍👧‍👦"), QStringLiteral("👍🏽"), QStringLiteral("👍\uFE0F🏽"),
+        QStringLiteral("🇨🇳"), QStringLiteral("☺\uFE0F")
+    };
+    QList<QString> const text_only{
+        QStringLiteral("1234567890#*"), QStringLiteral("中文 é"), QStringLiteral("☺\uFE0E"),
+        QStringLiteral("1\uFE0E\u20E3"), QStringLiteral("🙂\uFE0E"),
+        QStringLiteral("🙂\u0350"), QStringLiteral("中🏽"), QStringLiteral("😀🏽"),
+        QStringLiteral("👍\uFE0F\uFE0F🏽"), QStringLiteral("1\uFE0F\u200D7\uFE0F")
+    };
+    for (auto const& value : candidates)
+    {
+        if (emoji_segments(value) != QList<QPair<int, int>>{{0, static_cast<int>(value.size())}} ||
+            grapheme_ends(value) != QList<int>{static_cast<int>(value.size())})
+        {
+            std::cerr << "FAIL complete original emoji cluster: " << value.toStdString() << '\n';
+            return false;
+        }
+        for (qsizetype limit = 0; limit < value.size(); ++limit)
+        {
+            if (!grapheme_prefix(value, limit).isEmpty())
+            {
+                std::cerr << "FAIL display prefix splits an emoji cluster\n";
+                return false;
+            }
+        }
+        auto const mixed = QStringLiteral("中é ") + value + QStringLiteral(" 17");
+        if (emoji_segments(mixed) != QList<QPair<int, int>>{{4, static_cast<int>(value.size())}} ||
+            grapheme_prefix(mixed, 4 + value.size() - 1) != QStringLiteral("中é "))
+        {
+            std::cerr << "FAIL emoji ranges preserve original UTF-16 offsets\n";
+            return false;
+        }
+    }
+    for (auto const& value : text_only)
+    {
+        if (!emoji_segments(value).isEmpty())
+        {
+            std::cerr << "FAIL text or incomplete cluster forces an emoji font: " << value.toStdString() << '\n';
+            return false;
+        }
+    }
+    auto const combined = QStringLiteral("é");
+    if (grapheme_prefix(combined, 1) != QString{} || grapheme_prefix(combined, 2) != combined) { return false; }
+    QString unpaired(QChar(0xD83D));
+    unpaired += QStringLiteral("🙂");
+    if (emoji_segments(unpaired) != QList<QPair<int, int>>{{1, 2}} || grapheme_prefix(unpaired, 2) != unpaired.left(1))
+    {
+        std::cerr << "FAIL display classifier rewrites an unpaired original code unit\n";
+        return false;
+    }
+    QFont font = QApplication::font();
+    font.setPixelSize(14);
+    for (auto const& value : text_only)
+    {
+        if (!emoji_formats(value, font).isEmpty()) { return false; }
+    }
+    auto const have_font = QFontDatabase::families().contains(QStringLiteral("Noto Color Emoji"));
+    for (auto const& value : candidates)
+    {
+        auto const ranges = emoji_formats(value, font);
+        if (!have_font && !ranges.isEmpty()) { return false; }
+        if (have_font && (ranges.size() != 1 || ranges[0].start != 0 || ranges[0].length != value.size() ||
+                         ranges[0].format.font().family() != QStringLiteral("Noto Color Emoji")))
+        {
+            std::cerr << "FAIL supported whole cluster does not use the emoji font: " << value.toStdString() << '\n';
+            return false;
+        }
+    }
+    if (!emoji_formats(QStringLiteral("🙂‍🙂"), font).isEmpty())
+    {
+        std::cerr << "FAIL an unsupported ZWJ sequence forces split emoji components\n";
+        return false;
+    }
+    QPlainTextEdit editor;
+    emoji_highlighter highlighter(&editor);
+    auto const raw = QStringLiteral("原文 17 中文 é ☺\uFE0E 1️⃣ 👩‍💻 👍\uFE0F🏽");
+    editor.setPlainText(raw);
+    highlighter.rehighlight();
+    if (editor.toPlainText() != raw || editor.document()->isUndoAvailable()) { return false; }
+    editor.selectAll();
+    editor.copy();
+    if (QApplication::clipboard()->text().toUtf8() != raw.toUtf8()) { return false; }
+    editor.moveCursor(QTextCursor::End);
+    editor.insertPlainText(QStringLiteral(" 尾行"));
+    highlighter.rehighlight();
+    editor.undo();
+    if (editor.toPlainText() != raw) { return false; }
+    editor.redo();
+    if (editor.toPlainText() != raw + QStringLiteral(" 尾行")) { return false; }
+    for (qreal ratio : {1.0, 1.25, 1.5, 2.0})
+    {
+        for (int width : {1, 18, 40, 180, 420})
+        {
+            QImage image(QSize(qCeil(440 * ratio), qCeil(50 * ratio)), QImage::Format_ARGB32_Premultiplied);
+            image.setDevicePixelRatio(ratio);
+            image.fill(Qt::white);
+            QPainter painter(&image);
+            paint_emoji_line(painter, QRect(10, 10, width, 30), raw, font, Qt::black);
+            painter.end();
+            if (image.pixelColor(0, 25) != Qt::white || image.pixelColor(qCeil((width + 10) * ratio), 25) != Qt::white)
+            {
+                std::cerr << "FAIL single-line Unicode paint escapes its horizontal allocation\n";
+                return false;
+            }
+        }
+    }
+    for (int pixels : {13, 14, 18, 24})
+    {
+        font.setPixelSize(pixels);
+        for (auto const& value : {QStringLiteral("中文 ASCII é 17"), QStringLiteral("👩‍💻 1️⃣ 👍\uFE0F🏽 🇨🇳"),
+                                  QStringLiteral("回复 名称：👨‍👩‍👧‍👦"), QStringLiteral("🙂‍🙂 ☺\uFE0E 中文")})
+        {
+            QRect const allocation(30, 55, 250, QFontMetrics(font).height());
+            QImage image(QSize(320, 160), QImage::Format_ARGB32_Premultiplied);
+            image.fill(Qt::white);
+            QPainter painter(&image);
+            paint_emoji_line(painter, allocation, value, font, Qt::black);
+            painter.end();
+            for (int y = 0; y < image.height(); ++y)
+            {
+                for (int x = 0; x < image.width(); ++x)
+                {
+                    if (!allocation.contains(x, y) && image.pixelColor(x, y) != Qt::white)
+                    {
+                        std::cerr << "FAIL Unicode ink escapes its exact vertical or horizontal slot\n";
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    std::cout << "PASS whole-grapheme emoji display, original offsets, copy/undo and bounded HiDPI paint\n";
+    return true;
+}
 
 bool check_message_selection_raster()
 {
@@ -132,6 +276,7 @@ bool check_message_selection_raster()
 int main(int argc, char** argv)
 {
     QApplication app(argc, argv);
+    if (!check_emoji_display_policy()) { return 1; }
     if (!check_message_selection_raster()) { return 1; }
     auto const chat_icon = svg_icon(QStringLiteral("chat"), QColor(QStringLiteral("#315A4B")));
     for (qreal ratio : {1.0, 1.25, 1.5, 2.0})
@@ -381,12 +526,14 @@ int main(int argc, char** argv)
                         QTextOption text_option;
                         text_option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
                         reference_layout.setTextOption(text_option);
+                        auto reference_formats = emoji_formats(text, long_option.font);
                         if (!long_message.mentions.isEmpty())
                         {
                             QTextCharFormat format;
                             format.setForeground(QColor(QStringLiteral("#277399")));
-                            reference_layout.setFormats({{static_cast<int>(body_start), static_cast<int>(long_message.text.size()), format}});
+                            reference_formats.push_back({static_cast<int>(body_start), static_cast<int>(long_message.text.size()), format});
                         }
+                        reference_layout.setFormats(reference_formats);
                         reference_layout.beginLayout();
                         int text_height = 0;
                         int text_width = 1;
@@ -565,10 +712,11 @@ int main(int argc, char** argv)
     if (rendered == unmuted_rendering) { std::cerr << "FAIL conversation pin indicator\n"; return 1; }
     conversations.set_pinned(direct.id, false);
     auto mentioned = message;
-    mentioned.text = QStringLiteral("@自己\n多行 ") + QStringLiteral("正文 ").repeated(70);
+    mentioned.text = QStringLiteral("👩‍💻 é @自己 1️⃣ 👍\uFE0F🏽\n多行 ") + QStringLiteral("正文 ").repeated(70);
     mentioned.mentions = {{1, QStringLiteral("自己")}};
     mentioned.edited_at = 200;
     messages.update_message(mentioned);
+    if (messages.index(0, 0).data(message_model::text_role).toString().toUtf8() != mentioned.text.toUtf8()) { return 1; }
     rendered.fill(QColor(QStringLiteral("#F7F5EF")));
     QPainter mention_painter(&rendered);
     delegate.paint(&mention_painter, option, messages.index(0, 0));

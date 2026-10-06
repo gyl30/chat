@@ -11,6 +11,7 @@
 
 #include "avatar.hpp"
 #include "conversation_model.hpp"
+#include "emoji_text.hpp"
 #include "theme.hpp"
 
 namespace
@@ -116,8 +117,9 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     }
     QRect username_rect(content_left, rect.top() + chat_theme::dialog_name_top,
                         std::max(0, name_right - content_left), QFontMetrics(username_font).height());
-    painter->drawText(username_rect, Qt::AlignLeft | Qt::AlignVCenter,
-                      QFontMetrics(username_font).elidedText(username, Qt::ElideRight, username_rect.width()));
+    auto const name_padding = std::max(0, (chat_theme::dialog_preview_top - chat_theme::dialog_name_top - username_rect.height()) / 2);
+    username_rect.adjust(0, -name_padding, 0, name_padding);
+    paint_emoji_line(*painter, username_rect, username, username_font, QColor(QStringLiteral("#25332D")));
 
     QFont preview_font = option.font;
     preview_font.setPixelSize(13);
@@ -139,8 +141,10 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     auto const preview_right = content_right - (badge_width > 0 ? badge_width + 8 : 0);
     QRect preview_rect(content_left, rect.top() + chat_theme::dialog_preview_top,
                        std::max(0, preview_right - content_left), QFontMetrics(preview_font).height());
-    painter->drawText(preview_rect, Qt::AlignLeft | Qt::AlignVCenter,
-                      QFontMetrics(preview_font).elidedText(last_text, Qt::ElideRight, preview_rect.width()));
+    auto const preview_padding = std::max(0, (chat_theme::dialog_row_height - chat_theme::dialog_preview_top -
+                                             chat_theme::dialog_avatar_top - preview_rect.height()) / 2);
+    preview_rect.adjust(0, -preview_padding, 0, preview_padding);
+    paint_emoji_line(*painter, preview_rect, last_text, preview_font, QColor(QStringLiteral("#858D88")));
 
     if (unread > 0)
     {

@@ -1,5 +1,6 @@
 #include "message_model.hpp"
 #include "avatar.hpp"
+#include "emoji_segments.hpp"
 #include "message_images.hpp"
 
 #include <QDateTime>
@@ -20,7 +21,7 @@ void merge_reply(quoted_message_data& reply, QList<message_data> const& messages
     });
     if (target != messages.cend() && (target->deleted || target->edited_at > reply.edited_at))
     {
-        reply = {target->id, target->username, target->text.left(160), target->edited_at, target->deleted};
+        reply = {target->id, target->username, grapheme_prefix(target->text, 160), target->edited_at, target->deleted};
     }
 }
 
@@ -325,7 +326,7 @@ void message_model::update_message(message_data const& message)
         if (current.reply.id == message.id && !current.reply.deleted &&
             (message.deleted || message.edited_at > current.reply.edited_at))
         {
-            current.reply = {message.id, message.username, message.text.left(160), message.edited_at, message.deleted};
+            current.reply = {message.id, message.username, grapheme_prefix(message.text, 160), message.edited_at, message.deleted};
             changed = true;
         }
         if (changed)

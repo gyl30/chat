@@ -9,7 +9,9 @@ ZWJ、区域指示符、肤色修饰符、Indic 等扩展字素。此补丁使�
 
 - 源：`https://codeload.github.com/JuliaStrings/utf8proc/tar.gz/79cdd5ab40c79afa559f689ffc13b76812dee1ac`。
 - archive SHA256：`e8fadfcd531d65525cbef157b866c5408e2e3f0d7c0f3aefb0bce01a7a08e35d`。
-- 默认静态链接；TUI OFF 不下载此依赖。首次配置需要网络，后续使用该构建目录的下载缓存。
+- 默认静态链接；Qt/TUI 任一启用时共享此依赖，两个客户端均 OFF 时不下载。
+  Qt-only 不执行 FTXUI 补丁模块，TUI-only 不查找 Qt；共享配置见根目录 cmake/README.md。
+  首次配置需要网络，后续使用该构建目录的下载缓存。
 - 离线配置可使用 CMake 标准的 `FETCHCONTENT_SOURCE_DIR_UTF8PROC` 指向该提交的解压源码。
   配置也核验该源码的 header、实现和 Unicode 数据 SHA256，避免离线 override 绕过固定版本；
   永久 Unicode 测试核验运行时 API 2.12.0 与 Unicode 18.0.0。

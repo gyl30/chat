@@ -52,6 +52,7 @@
 #include "avatar.hpp"
 #include "conversation_delegate.hpp"
 #include "conversation_model.hpp"
+#include "emoji_text.hpp"
 #include "icons.hpp"
 #include "message_delegate.hpp"
 #include "message_model.hpp"
@@ -458,7 +459,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
 
     reply_bar_ = new QWidget(chat_panel);
     auto* reply_layout = new QHBoxLayout(reply_bar_);
-    reply_preview_ = new QLabel(reply_bar_);
+    reply_preview_ = new emoji_label(reply_bar_);
     reply_preview_->setObjectName(QStringLiteral("replyPreview"));
     auto* cancel_reply = new QToolButton(reply_bar_);
     cancel_reply->setObjectName(QStringLiteral("cancelReplyButton"));
@@ -584,6 +585,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                     editor->setTabChangesFocus(true);
                     editor->style()->unpolish(editor);
                     editor->style()->polish(editor);
+                    new emoji_highlighter(editor);
                     auto* buttons = dialog.findChild<QDialogButtonBox*>();
                     buttons->button(QDialogButtonBox::Ok)->setObjectName(QStringLiteral("editMessageButton"));
                     for (auto* button : buttons->buttons())
@@ -606,7 +608,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                 }
                 reply_to_ = message_id;
                 reply_preview_->setText(QStringLiteral("回复 %1：%2")
-                                            .arg(sender_name, message_text.left(80)));
+                                            .arg(sender_name, grapheme_prefix(message_text, 80)));
                 reply_bar_->show();
                 message_edit_->setFocus();
             });
@@ -632,6 +634,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     message_edit_->setFixedHeight(chat_theme::compose_field_min_height);
     message_edit_->installEventFilter(this);
     message_edit_->setEnabled(false);
+    new emoji_highlighter(message_edit_);
     input_layout->addWidget(message_edit_, 1, Qt::AlignBottom);
     auto const resize_composer = [this] {
         auto* document = message_edit_->document();
@@ -1382,7 +1385,7 @@ void chat_widget::update_message(message_data message)
         }
         else
         {
-            reply_preview_->setText(QStringLiteral("回复 %1：%2").arg(message.username, message.text.left(80)));
+            reply_preview_->setText(QStringLiteral("回复 %1：%2").arg(message.username, grapheme_prefix(message.text, 80)));
         }
     }
 }

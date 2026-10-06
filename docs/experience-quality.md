@@ -171,7 +171,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q24 | P2 | 群消息可见已读人数包含peer与0，但原生Name仅描述自己消息的非零已读 | 第二十八阶段复用read_count_role，永久RED/GREEN及四档真实SDK/原生树计数一致；可见截图与完整无障碍验收分别记账 |
 | Q25 | P2 | 主消息列表可通过键盘移动当前消息，但NoSelection同时隐藏了当前行焦点 | 第二十九阶段复用现有焦点轮廓；永久RED/GREEN、四档真实键盘回复/回应/读者详情及三模式门禁通过，完整键盘矩阵仍开放 |
 | Q26 | P2 | 会话、联系人和用户搜索列表有键盘当前行，但Enter不执行对应动作 | 第三十阶段复用原生activated与现有业务动作；永久Return/小键盘Enter、真实双Qt三条Return任务及三模式完整门禁通过，完整键盘矩阵仍开放 |
-| Q27 | P2 | 当前 Qt 字体回退将复合 emoji 拆成独立图形，正文、回复和 composer 都可见 | 第三十一阶段保留真实拆画与被拒绝的 broad Noto 键帽退化；第三十四/三十五阶段整明确序列格式在 Qt6.2 layout 和标准编辑器有新证据，但通用 policy、Chat 各控件/IME/四档未闭环，不计完成 |
+| Q27 | P2 | Qt 复合 emoji 的完整显示、原文编辑和字体回退仍须全矩阵闭环 | 第四十八阶段通用完整 EGC 分类与实际字体 shaping 检查已接入正文/sidebar/reply/composer/edit；真实双Qt100%样本和缺失字体反例通过，真实IME/四档完整矩阵尚未闭环，不计整体完成 |
 | Q28 | P2 | 账号注销返回登录后，键盘焦点落在服务器设置，而非主要身份输入 | 第三十二阶段在注销完成且登录控件恢复可用后返回用户名焦点；同一永久测试 RED→GREEN，完整原生流程 before actual1→after actual0，范围与门禁见下文 |
 | Q29 | P2 | 实际 Open/Save 文件选择器的路径、类型框和表头出现黑底深字，近不可读 | 第三十四阶段局部 QFileDialog 主题修复；同永久 fixture RED→GREEN、两个真实 Qt 完整附件 after 和三模式全门禁通过，关闭已复现的 fallback 对比度缺陷，不外推所有平台或四档附件验收 |
 | Q30 | P2 | 125%/150%/200% 真实 Fcitx/IBus 候选窗偏离 composer 光标，缩放越大距离越大 | 第四十二阶段真实双Qt业务通过但定位失败；第四十三阶段不链接Chat的标准编辑器也复现，官方Qt IBus已有匹配修复，当前安装环境尚未修复/复验，不计HiDPI输入法验收通过 |
@@ -3247,3 +3247,95 @@ Q31关闭的是已复现的纯文本末尾跟随与用户上滚竞态；显式�
 重连恢复历史不由本专项推断通过。旧`set_messages()`延迟回调会话守卫、HiDPI测试像素
 采样是下一轮候选，不在本patch夹带。Q27/T04/Q30和全页面/参考/无障碍矩阵仍开放；
 Qt87/TUI78不提高，不宣布>=92、P2=0或连续两轮全产品fresh审查完成。
+
+## 阶段 48：完整 Unicode 消息的显示与编辑进入真实客户端
+
+基线c333784d97a080efff46c14b8624ecea79196ec1。本阶段把已验证的机制真正接入Qt，
+不再用标准编辑器或独立layout探针代替产品修复。正文、sidebar名称/预览、回复条、
+composer与真实编辑dialog共用display-only政策，消息、草稿、复制与网络正文不重写。
+
+### 分类、字体与原文各自的权威来源
+
+共享现有pinned utf8proc2.12 / Unicode18提供完整EGC边界；Google官方emoji-segmenter
+0.4.0原scanner不修改，分类属性从现有reviewed Unicode18数据确定生成，不维护手写
+emoji白名单。仅classification适配恰好一个VS16夹在ModifierBase和Modifier之间的
+官方兼容关系，所有结果映回原QString UTF16偏移。扫描token必须覆盖完整EGC；
+VS15、未知组合符、非法modifier关系或跨EGC token不强制Noto字体。
+
+每个候选完整EGC再由实际QTextLayout shaping验证：font必须确为Noto Color Emoji、
+glyph不能为0、且非空ink glyph恰好一个。覆盖存在本身不足以证明ZWJ组合；
+`🙂‍🙂`不会因两个emoji各有glyph就被强制字体。这是保守显示检查，不宣称一个ink
+glyph等价于全部RGI语义或任意未知序列正确。字体不存在/覆盖不足时保原baseline，
+不替换原文。普通数字、中文、combining与VS15不走broad emoji font。
+
+QSyntaxHighlighter只设置display format，不插入正文或undo步骤。IME事件不吞掉、
+不主动commit；真实preedit期间不强制字体，事件处理后按block重新高亮。永久widget
+测试覆盖emoji preedit/commit及原中文流程；这不是系统Fcitx/IBus四档真实after验收。
+回复80/160 UTF16上限和single-line省略改为完整EGC边界，仅作用于显示数据。server
+SQL现有`left(body,160)`仍可能截远端引用，不能声称远端quote全链已修复。
+
+### 独立反例改变了最终实现
+
+首候选原三模式各23/23、持久exit0，仍被独立真实xcb抓图发现：14/18px普通fallback
+与24pxfamily等四例有最底一行墨点越过分配槽位；其中三例12像素、一例22像素。
+保留RED，不用测试全绿掩盖。最终helper严格clip到caller的rect，sidebar使用已有
+62px行内真实name/preview空隙对称扩槽，保持原垂直中心，不改行高/字体/日期/badge。
+原fixture16例xcb DPR1全部outside_x/y=0，永久测试增加同一原边界反例。
+
+严格clip只是防越界，不单独证明任意caller完整glyph；真实侧栏和回复的完整显示还须
+下面原图亲看。另按真实sidebar槽位对8个14px name/13px preview样本与不设clip的
+同QTextLayout/emoji_formats实际xcb栅格逐像素比较，pixel_delta全0、槽外墨点全0，
+不是简单裁掉有问题的glyph便宣布完整。独立私有Fontconfig实际normal327families/Noto1、noNoto326/Noto0；
+两个环境offscreen/xcb各完整delegate7组通过。inventory原程序用exit1表示Noto存在，
+exit0表示缺失，不把这个预期1伪装成0。未改系统字体或用户配置。
+
+### 两个真实Qt，before与最终after均从头完成
+
+before-131240使用上一正式79c82944…binary；HEAD Qt源码与阶段47正式compiled-source
+pins逐项匹配。after-132249使用最终e24a899a…binary，首尾一致；113个Qt/TUI/tests/CMake
+输入首尾核验一致。两轮各actual0，原15s不延长：A/C公开会话、两端composer真实
+paste/copy/undo、双向发送、真实编辑dialog copy/undo和原文回复均完成。运行期不调用
+QAction::trigger或隐藏模型写入；SDK仅登录前seed，最终SQL只读核原body bytes与reply id。
+
+主亲看完整原X11和未缩放同视角裁剪：旧keycap方框、woman-laptop/family拆画及
+thumb+独立skin圆点，最终在正文、composer、editor和reply中为完整组合；普通数字、
+CJK、combining、VS15黑heart仍baseline，未知U1FAFF和A+skin仍原fallback。sidebar
+正常预览与省略不越槽。此结论限定本平台Qt6.2.4、100%与这些实际样本，不外推全部
+emoji、所有字体、全页面四档或Orca。原图不是重新构造UI：
+[before正文](images/experience/qt-unicode-before-body.png)、
+[after正文](images/experience/qt-unicode-after-body.png)、
+[before输入](images/experience/qt-unicode-before-composer.png)、
+[after输入](images/experience/qt-unicode-after-composer.png)、
+[before编辑](images/experience/qt-unicode-before-editor.png)、
+[after编辑](images/experience/qt-unicode-after-editor.png)、
+[before回复](images/experience/qt-unicode-before-reply.png)、
+[after回复](images/experience/qt-unicode-after-reply.png)。
+[紧凑实测记录](images/experience/qt-unicode-proof.json)保存原病例、原文、源/binary pins与范围。
+
+早期原生驱动错误独立保留：accessible row被普通refresh销毁、菜单在AT-SPI不暴露、
+Home/End不能选择末项、同名label误作editor等；只修公共定位/真实Down顺序和clipboard
+sentinel后完整另跑，不拼接失败片段，不把驱动错误当产品问题。
+
+### 门禁与剩余品质边界
+
+最终原tests/verify.sh持久actual0，normal/ASan/UBSan各23/23，113.38/153.03/140.21s；
+114个tracked与新增Qt/TUI/tests/CMake输入首尾SHA校验actual0，Qt/TUI均ON，render
+0.89/4.17/1.82s保原5s、qt_ui保原60s。无新增编译warning或sanitizer报告签名；
+不改原脚本、不删测试、不改timeout。这是既有目录Debug三模式，不冒称新fresh全build。
+原门禁stdout/stderr另有[无损压缩日志](images/experience/qt-unicode-original-verify.log.gz)，
+解压SHA与原日志完全相同；完整输入pins与脚本持久exit见实测记录。
+最终7组delegate、15组widgets-only另持久actual0；首候选结果没有代替最终源。
+独立既有fresh目录最终完整增量-Werror build已actual0，不额外声称strict CTest。
+四种Qt-only/TUI-only/both/off fresh配置均通过；只是配置，不冒称四种独立全build。
+Qt-only不执行FTXUIpatch、TUI-only不findQt/Google、both-off不下载utf8proc；源码/许可
+和offline override均有pin检查。新增依赖分发声明见cmake/README.md。未修改third。
+
+两轮准确自建库独立只读count0、已记录自有PIDgone、18927无监听；长期server、Fcitx
+和Speech Dispatcher仍原进程。核对后清理本轮native、字体/bounds、依赖configure和
+两轮verify的临时scope，只保上述精选原图、门禁压缩日志与紧凑记录；不删除当前build内生产依赖、
+源码或用户数据，不声称删除后仍可重读所有raw日志。
+
+Q27当前100%局部修复已进入产品，整体仍开放；Q30系统IME缩放定位与T04真实终端
+列宽/重绘也未关闭。Qt87/TUI78不提高，未满足>=92/P2=0或连续两轮全产品fresh review。
+下一步应验证新政策的真实IME与四档完整控件矩阵，再继续terminal实际物理列与重绘。
+不把这项修复缩成整个campaign的完成条件。没有push。

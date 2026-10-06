@@ -1544,3 +1544,28 @@ follow状态，不改消息、已读或历史恢复规则。两个永久反例�
 Qt87/TUI78不提高。Q31已复现的局部缺陷收口；Q27/T04/Q30、全页面/参考/无障碍矩阵
 与最终连续两轮fresh审查仍开放。下一阶段应落地通用Unicode显示政策，而非重复机制
 探针。未修改third/server/SQL/依赖，未push。
+
+## 体验品质审查：完整 Unicode 显示进入真实控件
+
+c333基线通用whole-EGC显示政策接入真实Qt正文、sidebar、reply、composer与edit，
+共享pinned utf8proc2.12/Unicode18和原Google0.4scanner。实际完整cluster font/shaping
+检查才允许Noto，不把普通数字/CJK/combining/VS15整段换字体；display格式不改raw或
+undo。80/160本地预览不拆EGC，server SQL远端quote截断仍开放。IME永久测试保原
+preedit/commit/Enter语义，不冒称系统Fcitx/IBus四档真实after验证。
+
+候选门禁全绿后独立xcb仍抓到四个一行ink越界反例；最终严格clip与真实sidebar lane
+修正后原16例全0，8槽位与unclipped同布局逐像素一致，非裁坏glyph换GREEN。
+normal/noNoto真实inventory分别327/326families、Noto1/0；offscreen/xcb四套delegate
+各7PASS。最终100%两真实Qt完整before/after均actual0，原15s未延长；主亲看正文/
+输入/edit/reply原图，键帽、ZWJ和VS16skin完整，普通/未知fallback与原文复制/undo保留。
+e24a899a…binary首尾一致，native113pins、最终门禁114输入首尾一致。
+
+原tests/verify.sh最终actual0，normal/ASan/UBSan各23/23，113.38/153.03/140.21s；
+render0.89/4.17/1.82s保原5s，无新warning/sanitizer报告。既有fresh目录全增量-Werror
+build另actual0，不冒称新的strict CTest；四种Qt/TUI开关fresh configure不是四全build。
+新增依赖pin/offline/许可见cmake/README.md，third/submodules不改。准确自建库/进程/
+端口已清理，临时scope核验后移除；精选原图与实测记录见[体验品质审查](experience-quality.md)。
+
+Q27当前100%局部问题修复，但真实IME/四档完整矩阵仍需复验；Q30与T04继续开放，
+Qt87/TUI78不提高，不宣称>=92/P2=0或连续两轮全产品fresh review完成。下一步继续
+实际缩放/IME与terminal物理列/重绘，不回到独立机制probe代替产品交付。没有push。

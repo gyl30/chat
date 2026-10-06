@@ -33,6 +33,10 @@
 #include <QScrollBar>
 #include <QScrollArea>
 #include <QSystemTrayIcon>
+#include <QTextBlock>
+#include <QTextCharFormat>
+#include <QTextDocument>
+#include <QTextLayout>
 #include <source_location>
 #include <QTimer>
 #include <QToolButton>
@@ -952,7 +956,7 @@ void check_message_editor()
     page.open_conversation(direct);
     message_data message;
     message.id = 7; message.conversation = direct.id; message.from = 1; message.username = QStringLiteral("本人");
-    message.text = QStringLiteral("原始中文 🙂 é 与长内容\n").repeated(24);
+    message.text = QStringLiteral("原始中文 0123456789 é ❤︎ ❤️ 1️⃣7️⃣#️⃣*️⃣ 👩‍💻 👨‍👩‍👧‍👦 👍️🏽 \U0001faff A🏽\n").repeated(24);
     page.set_messages(direct.id, {message}, {}, false, false, false);
     page.show();
     QApplication::processEvents();
@@ -1012,6 +1016,29 @@ void check_message_editor()
                   "Message editing retains its unfocused input boundary");
             if (choice == 0)
             {
+                editor->setFocus();
+                QApplication::processEvents();
+                check(!editor->document()->isUndoAvailable(),
+                      "Display highlighting does not create an initial message-edit undo command");
+                editor->selectAll();
+                editor->copy();
+                check(QApplication::clipboard()->text().toUtf8() == message.text.toUtf8(),
+                      "Copying from the real message editor preserves exact Unicode UTF-8");
+                editor->moveCursor(QTextCursor::End);
+                QString const suffix = QStringLiteral("追加 é 👍️🏽");
+                QApplication::clipboard()->setText(suffix);
+                editor->paste();
+                QApplication::processEvents();
+                check(editor->toPlainText().toUtf8() == (message.text + suffix).toUtf8(),
+                      "Message-edit insertion changes only the exact pasted body");
+                editor->undo();
+                QApplication::processEvents();
+                check(editor->toPlainText().toUtf8() == message.text.toUtf8() && !editor->document()->isUndoAvailable(),
+                      "One message-edit undo restores the original body without a display-format undo step");
+                editor->redo();
+                check(editor->toPlainText().toUtf8() == (message.text + suffix).toUtf8(),
+                      "Message-edit redo restores exact pasted Unicode");
+                editor->undo();
                 QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
                 QApplication::sendEvent(dialog, &escape);
             }
@@ -1076,7 +1103,8 @@ void check_reply_and_read_details_controls()
     page.open_conversation(conversation);
     message_data message;
     message.id = 7; message.conversation = 50; message.from = 1;
-    message.username = QStringLiteral("本人"); message.text = QStringLiteral("原消息中文 🙂");
+    message.username = QStringLiteral("本人");
+    message.text = QString(79, QLatin1Char('x')) + QStringLiteral("👩‍💻尾行");
     read_positions positions;
     QList<member_data> members;
     member_data self; self.id = 1; self.username = QStringLiteral("本人"); members.push_back(self);
@@ -1113,6 +1141,25 @@ void check_reply_and_read_details_controls()
     QString const draft = QStringLiteral("保留草稿 中文 é 👩‍💻\n第二行");
     editor->setPlainText(draft);
     QApplication::processEvents();
+    auto* reply_preview = page.findChild<QLabel*>("replyPreview");
+    auto const prefix = QString(79, QLatin1Char('x'));
+    check(reply_preview && reply_preview->text() == QStringLiteral("回复 本人：") + prefix &&
+              reply_preview->textFormat() == Qt::PlainText,
+          "The real reply label retains plain text and never splits a ZWJ cluster at the 80-unit limit");
+    for (auto const& cluster : {QStringLiteral("é"), QStringLiteral("👍️🏽"), QStringLiteral("👨‍👩‍👧‍👦")})
+    {
+        message.text = prefix + cluster + QStringLiteral("尾行");
+        ++message.edited_at;
+        page.update_message(message);
+        check(reply_preview->text() == QStringLiteral("回复 本人：") + prefix && editor->toPlainText() == draft &&
+                  view->model()->index(0, 0).data(message_model::text_role).toString().toUtf8() == message.text.toUtf8(),
+              "Updated reply previews omit an entire boundary cluster while retaining the complete body and draft");
+    }
+    message.text = QString(78, QLatin1Char('x')) + QStringLiteral("é尾行");
+    ++message.edited_at;
+    page.update_message(message);
+    check(reply_preview->text() == QStringLiteral("回复 本人：") + QString(78, QLatin1Char('x')) + QStringLiteral("é"),
+          "A complete combining cluster ending exactly at the reply limit remains visible");
     check(cancel->isVisible() && cancel->size() == QSize(36, 36) && !cancel->icon().isNull(),
           "Reply cancellation has the shared close icon and a usable hit box");
     check(cancel->accessibleName() == QStringLiteral("取消回复") && cancel->toolTip() == QStringLiteral("取消回复"),
@@ -1876,7 +1923,7 @@ void check_message_composer()
             sent_text = std::move(text);
         });
     edit->setFocus();
-    auto const text = QStringLiteral("第一行 中文\n第二行 emoji 🙂\n第三行");
+    auto const text = QStringLiteral("第一行 中文 0123456789 é\n第二行 ❤︎ ❤️ 1️⃣7️⃣#️⃣*️⃣\n第三行 👩‍💻 👨‍👩‍👧‍👦 👍️🏽 \U0001faff A🏽");
     QApplication::clipboard()->setText(text);
     QKeyEvent paste(QEvent::KeyPress, Qt::Key_V, Qt::ControlModifier, "v");
     QApplication::sendEvent(edit, &paste);
@@ -1884,6 +1931,26 @@ void check_message_composer()
     wait([&] { return edit->height() > compact_height; });
     check(edit->verticalScrollBar()->maximum() == 0, "Short Chinese and emoji drafts show all lines without scrolling");
     check(sent == 0 && send->isEnabled(), "Pasting only edits the draft");
+    edit->selectAll();
+    edit->copy();
+    check(QApplication::clipboard()->text().toUtf8() == text.toUtf8(),
+          "Composer copying preserves exact Unicode UTF-8 including selectors, keycaps and unknown text");
+    edit->moveCursor(QTextCursor::End);
+    QString const suffix = QStringLiteral("追加 é 👍️🏽");
+    QApplication::clipboard()->setText(suffix);
+    QApplication::sendEvent(edit, &paste);
+    QApplication::processEvents();
+    check(edit->toPlainText().toUtf8() == (text + suffix).toUtf8(),
+          "Composer pasting preserves exact extended Unicode sequences");
+    edit->undo();
+    QApplication::processEvents();
+    check(edit->toPlainText().toUtf8() == text.toUtf8(),
+          "Composer undo removes only the last paste despite display highlighting");
+    edit->redo();
+    check(edit->toPlainText().toUtf8() == (text + suffix).toUtf8(),
+          "Composer redo restores the exact pasted Unicode body");
+    edit->undo();
+    edit->moveCursor(QTextCursor::End);
     QKeyEvent newline(QEvent::KeyPress, Qt::Key_Return, Qt::ShiftModifier, "\n");
     QApplication::sendEvent(edit, &newline);
     edit->insertPlainText(QStringLiteral("尾行"));
@@ -1919,6 +1986,32 @@ void check_message_composer()
           "Offline composer preserves the draft and refuses sending");
     page.set_connection_available(true);
     edit->setPlainText(QStringLiteral("准备 "));
+    edit->moveCursor(QTextCursor::End);
+    QApplication::processEvents();
+    QString const before_preedit = edit->toPlainText();
+    QString const emoji_preedit = QStringLiteral("👩‍💻 é 👍️🏽");
+    QTextCharFormat composition_format;
+    composition_format.setUnderlineStyle(QTextCharFormat::SingleUnderline);
+    QInputMethodEvent composing(emoji_preedit, {
+        QInputMethodEvent::Attribute(QInputMethodEvent::TextFormat, 0, static_cast<int>(emoji_preedit.size()), composition_format)});
+    QApplication::sendEvent(edit, &composing);
+    QApplication::processEvents();
+    check(edit->toPlainText().toUtf8() == before_preedit.toUtf8() && !edit->document()->isUndoAvailable() &&
+              edit->textCursor().block().layout()->preeditAreaText() == emoji_preedit,
+          "Unicode preedit remains a display composition without raw-text or undo mutations");
+    QApplication::sendEvent(edit, &enter);
+    check(sent == 1, "Enter cannot send an uncommitted Unicode composition");
+    QInputMethodEvent emoji_commit;
+    emoji_commit.setCommitString(emoji_preedit);
+    QApplication::sendEvent(edit, &emoji_commit);
+    QApplication::processEvents();
+    check(edit->toPlainText().toUtf8() == (before_preedit + emoji_preedit).toUtf8() &&
+              edit->textCursor().block().layout()->preeditAreaText().isEmpty(),
+          "Input-method commit preserves exact Unicode UTF-8 and clears display preedit");
+    edit->undo();
+    QApplication::processEvents();
+    check(edit->toPlainText().toUtf8() == before_preedit.toUtf8() && !edit->document()->isUndoAvailable(),
+          "One composition undo restores the original draft without a highlighting undo step");
     edit->moveCursor(QTextCursor::End);
     QInputMethodEvent preedit(QStringLiteral("zhong"), {});
     QApplication::sendEvent(edit, &preedit);

@@ -15,6 +15,7 @@
 #include <QtMath>
 
 #include "avatar.hpp"
+#include "emoji_text.hpp"
 #include "message_model.hpp"
 #include "theme.hpp"
 
@@ -228,10 +229,10 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     QTextOption text_option;
     text_option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
     result.text_layout->setTextOption(text_option);
+    auto formats = emoji_formats(text, option.font);
     auto const mentions = index.data(message_model::mentions_role).value<QList<mention_data>>();
     if (!mentions.isEmpty())
     {
-        QList<QTextLayout::FormatRange> formats;
         auto const body_start = result.text.size() - index.data(message_model::text_role).toString().size();
         for (auto const& mention : mentions)
         {
@@ -246,8 +247,8 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
                 formats.push_back({static_cast<int>(match.capturedStart()), static_cast<int>(match.capturedLength()), format});
             }
         }
-        result.text_layout->setFormats(formats);
     }
+    result.text_layout->setFormats(formats);
     result.text_layout->beginLayout();
     result.text_width = 1;
     while (true)

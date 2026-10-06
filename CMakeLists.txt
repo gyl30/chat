@@ -95,11 +95,14 @@ add_compile_options(
 enable_testing()
 
 option(CHAT_BUILD_TUI_CLIENT "Build FTXUI terminal client" OFF)
+option(CHAT_BUILD_QT_CLIENT "Build Qt Widgets client" OFF)
+if(CHAT_BUILD_TUI_CLIENT OR CHAT_BUILD_QT_CLIENT)
+    include(cmake/chat_unicode.cmake)
+endif()
 if(CHAT_BUILD_TUI_CLIENT)
     add_subdirectory(tui)
 endif()
 
-option(CHAT_BUILD_QT_CLIENT "Build Qt Widgets client" OFF)
 if(CHAT_BUILD_QT_CLIENT)
     add_subdirectory(qt)
 endif()
