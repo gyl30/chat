@@ -174,9 +174,9 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q27 | P2 | Qt 复合 emoji 的完整显示、原文编辑和字体回退仍须全矩阵闭环 | 第四十九阶段修复真实预编辑期间已提交 emoji 拆画；100%系统输入法完整流程与四档普通 Unicode 控件/原文流程通过，缩放系统输入法与全页面矩阵仍开放，不计整体完成 |
 | Q28 | P2 | 账号注销返回登录后，键盘焦点落在服务器设置，而非主要身份输入 | 第三十二阶段在注销完成且登录控件恢复可用后返回用户名焦点；同一永久测试 RED→GREEN，完整原生流程 before actual1→after actual0，范围与门禁见下文 |
 | Q29 | P2 | 实际 Open/Save 文件选择器的路径、类型框和表头出现黑底深字，近不可读 | 第三十四阶段局部 QFileDialog 主题修复；同永久 fixture RED→GREEN、两个真实 Qt 完整附件 after 和三模式全门禁通过，关闭已复现的 fallback 对比度缺陷，不外推所有平台或四档附件验收 |
-| Q30 | P2 | 125%/150%/200% 真实 Fcitx/IBus 候选窗偏离 composer 光标，缩放越大距离越大 | 第四十二阶段真实双Qt业务通过但定位失败；第四十三阶段不链接Chat的标准编辑器也复现，官方Qt IBus已有匹配修复，当前安装环境尚未修复/复验，不计HiDPI输入法验收通过 |
+| Q30 | P2 | 125%/150%/200% 真实 Fcitx/IBus 候选窗偏离 composer 光标，缩放越大距离越大 | 第四十二阶段真实双Qt业务通过但定位失败；第四十三阶段标准编辑器也复现。当前正式客户端已使用私有 Qt6.5.3，但四档系统输入法实际定位尚未验收；第五十四阶段的新探针前置失败不能证明产品通过 |
 | Q31 | P2 | 可滚动历史中，发送/typing/composer 布局变化使末尾读者丢失自动跟随；旧追加回调也可能覆盖刚发生的上滚 | 第四十七阶段修复末尾布局恢复与追加回调的会话/位置守卫；真实双Qt纯文本before反例及四档after、历史保位对照，永久回归与门禁记录见下文；不外推重连恢复历史或图片异步布局 |
-| Q32 | P2 | 125% 下关闭真实编辑窗口后，消息行下方留下持续的黑色细线 | 第四十九阶段原始 before/最终 after 均复现；普通 Qt 同几何对照未复现，尚未归因，不以业务检查通过或主动重绘关闭问题 |
+| Q32 | P2 | 125% 下关闭真实编辑窗口后，消息行下方留下持续的黑色细线 | 第五十阶段完整标准控件公开时序复现，固定私有 Qt6.5.3 对照及正式 Chat 四档真实 after 已消除该局部黑线；不外推系统输入法或全部页面 HiDPI |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 第十九轮字素编辑与宽字组合符附着修复已进入生产；终端 span、裁剪、leading mark 和 shaping 仍未闭环，不计 Unicode 全矩阵通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 | T06 | P2 | TUI 搜索选中消息之前一项被删除时，只clamp索引，选中目标跳到另一ID | 第二十四阶段修复，永久RED/GREEN、真实双TUI六档选中目标/可复制正文/草稿验证通过 |
@@ -3626,3 +3626,50 @@ submodule和保护服务首尾核验均0，三模式生成的TUI翻译单元SHA�
 
 Q27/Q30/T04全矩阵仍开放，Qt87/TUI78不提高，完整页面/日常/无障碍和连续两轮
 fresh审查仍必须继续；门禁和两个局部after不能代替完整目标。
+
+## 阶段 54：保留终端复制页的真实反白残留
+
+当前基线8f491db，Qt/TUI生产源码没有变化。正式Qt的永久widgets-only与delegate
+分别在1/1.25/1.5/2四档请求缩放实际运行，八个退出码和runner均为0，五个源码/测试
+二进制输入首尾检查0。中文置顶前缀在980/1180/1440三宽度各自完整：四档ink/visible
+分别143/143、222/222、401/401、853/853；真实Tab事件的控件focus像素反例仍通过。
+[八次原记录](images/experience/qt-pinned-four-dpi-proof.json)与
+[无损原日志](images/experience/qt-pinned-four-dpi.log.gz)保留原PASS组及指纹。
+这些是offscreen控件回归，不是系统输入法、真实窗口或全部页面四DPI验收。
+
+重新亲看上阶段正式TUI的selected→copyable原图，发现业务runner0未捕获的视觉RED：
+80列有三个旧宽字续格，160列有四个白块。其余long/clear/short/empty的x1594边界和
+原字节正确结论继续成立，但不能据此宣布复制页或整个终端重绘无残留。
+[正式tmux复制页原反例](images/experience/tui-copyable-tmux-red.png)保留160列完整窗口。
+使用同一d8d2b478…正式二进制的新direct原生完整流程actual0，复制、中字素编辑与
+发送SQL仍保持，源码首尾相同、数据库删除、自有进程退出、三个保护服务ticks不变。
+[同二进制direct原图](images/experience/tui-copyable-direct-after.png)没有对应白块。
+这两条是实际产品路径对照，不是把机制探针称作产品修复。
+
+真实renderer的同Screen.Clear后快照中，七个旧续格均已是span0、非反白、空字符；
+serializer输出普通空格。因此残留不是内存保留旧选择或新DisplayWidth又错。
+原ANSI路径进一步确认tmux在宽字覆盖后将默认空格优化为cursor-forward，未清除
+外层终端原反白背景。独立物理对照保留完全相同的原始EGC和左右两个竖线：direct
+七行普通空格与有界ECH+CUF均清零；tmux普通空格中ZWJ、肤色、非法组合和CJK组合
+各留下190像素（10×19整续格），对应ECH+CUF七行均为0，邻接竖线28处像素不变。
+[物理成对原图](images/experience/tui-copyable-erase-pair.png)保留左右分支，
+[实际两产品/两极小对照记录](images/experience/tui-copyable-background-proof.json)
+含全部原图SHA、原字节资产SHA、实际PID及清理结果；runner0与视觉RED分开保存。
+这里只有initial背景设置，转场未全屏擦除，未用CUP、改变宽度或取消selection掩盖缺陷。
+有界ECH是下一修复的机制证据，尚未接入正式产品，T04仍开放。
+
+另纠正终端依赖来源：本次真实tmux是`/usr/bin/tmux`，版本3.6a、SHAbaa7e6be…；
+此前提到的`/tmp/chat-t04-tmux36a.YYzMNVEk/bin/tmux`实际不存在。私有配置/socket不能
+作为私有二进制的证据。本次没有安装/替换系统tmux或修改third/submodule。
+旧direct驱动extra dbus-run-session的窗口识别失败也保留：最小配对中无私有bus分支
+actual0，额外bus分支actual1且窗口没有WM_CLASS。新完整direct去掉这个不必要包装，
+原15秒、WM_CLASS、host/pixel oracle与业务断言不变，不为驱动错误修改产品。
+
+Q30的新系统Fcitx/IBus探针首次实际启动后，在读/proc/net/unix时遇到非UTF-8 socket
+名称，Chat尚未启动；actual1与独立DB/自有子进程清理保留，不算输入法产品失败或
+通过。仅临时驱动改为按原bytes解析socket名字与inode，新attempt另存，不覆盖旧结果。
+四档系统IME尚未得到全部产品结果，Q30仍不关闭。
+
+本阶段不冒称重跑完整三模式门禁；当前生产源码不变，上阶段完整69项实际结果仍
+对应这些输入。Qt87/TUI78不提高，复制页视觉缺陷、Q27/Q30/T04全矩阵以及两轮
+全产品fresh审查继续开放。下一步交付并验证有界空白擦除，不以诊断或文档代替修复。

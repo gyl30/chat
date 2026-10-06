@@ -1,0 +1,1751 @@
+{
+  "scope": "Same official product executable, direct versus tmux; minimal original-byte physical erase pair. Runner exit 0 does not close visual RED or overall T04.",
+  "tmux_actual_binary": "/usr/bin/tmux",
+  "previous_private_prefix_not_present": "/tmp/chat-t04-tmux36a.YYzMNVEk/bin/tmux",
+  "old_source_screen_snapshot": "/tmp/chat-t04-remnant-readonly.RvwY8RNg/render-probe.log",
+  "product_runs": [
+    {
+      "original_result_path": "/tmp/chat-t04-official-native.wJWXFQ6v/native/result.json",
+      "original_result_sha256": "50e0ff2481c9ea56308009b4981fbe1104d6ca528478d5a58b35337641d374d8",
+      "actual_result": {
+        "scope": "/tmp/chat-t04-official-native.wJWXFQ6v/native",
+        "mode": "mux",
+        "driver_process": {
+          "pid": 3867962,
+          "alive": true,
+          "state": "R",
+          "executable": "/usr/bin/python3.10",
+          "start_ticks": 547097497,
+          "cpu_seconds": 0.03,
+          "rss_kib": 22260,
+          "peak_rss_kib": 22260,
+          "threads": 1,
+          "fds": 4
+        },
+        "driver_exit": 0,
+        "captures": [
+          {
+            "file": "00-outer9-oracle.png",
+            "sha": "97b9d98dfee502c5023a14a25872ab4fd754158ea42bad451203ff88e468f33f",
+            "raw_offset": 0,
+            "tty_rows_cols": null
+          },
+          {
+            "file": "01-mux9-off-oracle.png",
+            "sha": "37c3ca6796f18508c05481b86175fedcdc503116065c7f4900ea1a9006a8e2f8",
+            "raw_offset": 1393,
+            "tty_rows_cols": null
+          },
+          {
+            "file": "02-login80.png",
+            "sha": "6f33c6ff2136758232dc2590ef5f5ed5f1558de2558d528d9d155cfb87352909",
+            "raw_offset": 2270,
+            "tty_rows_cols": [
+              30,
+              80
+            ]
+          },
+          {
+            "file": "03-chats80.png",
+            "sha": "41aea42a8403bee05450eb64b2cc8b09d7047cfae0e4027f5e22beb1f209028c",
+            "raw_offset": 13873,
+            "tty_rows_cols": [
+              30,
+              80
+            ]
+          },
+          {
+            "file": "04-selected80.png",
+            "sha": "94e698037545cf5ee9d22e138c78e93585908a676b24681b03ea6062bb8294e4",
+            "raw_offset": 21511,
+            "tty_rows_cols": [
+              30,
+              80
+            ]
+          },
+          {
+            "file": "05-copyable80.png",
+            "sha": "5cb1204de88e41b6fecbe5d861ef54d9e7a758c82256d7932ae92f8bc1c45e7d",
+            "raw_offset": 23872,
+            "tty_rows_cols": [
+              30,
+              80
+            ]
+          },
+          {
+            "file": "05b-native-selected-copy80.png",
+            "sha": "530f684944f4897bc5c8896d2e7bc4869430469c715de57c55f83de621e656e1",
+            "raw_offset": 23872,
+            "tty_rows_cols": [
+              30,
+              80
+            ]
+          },
+          {
+            "file": "06-composer80.png",
+            "sha": "e1ea274b5cbaf436972aac7f06b6429044c9f9dfb1eda25e908e8a2ceead7d67",
+            "raw_offset": 39547,
+            "tty_rows_cols": [
+              30,
+              80
+            ]
+          },
+          {
+            "file": "07-composer-midedit80.png",
+            "sha": "b326b8474b2e056af2e35c84f27a71e09efa7cd70dc5018d7bee368844facb93",
+            "raw_offset": 47366,
+            "tty_rows_cols": [
+              30,
+              80
+            ]
+          },
+          {
+            "file": "08-sent80.png",
+            "sha": "871362de674e9009285e97f3417657ff70a4644d0771b21a04fa9d4ca616e572",
+            "raw_offset": 58175,
+            "tty_rows_cols": [
+              30,
+              80
+            ]
+          },
+          {
+            "file": "09-selected160.png",
+            "sha": "8933b91ea35bda792eed7e99fe97b32cc9921fb85108a94c44622cb33095cbd6",
+            "raw_offset": 70432,
+            "tty_rows_cols": [
+              30,
+              160
+            ]
+          },
+          {
+            "file": "10-copyable160.png",
+            "sha": "665e8fca3d3f2570e1c6ff1490f241870e05888e2ac69d9f624e0855b2ace66b",
+            "raw_offset": 76337,
+            "tty_rows_cols": [
+              30,
+              160
+            ]
+          },
+          {
+            "file": "11-long160.png",
+            "sha": "044281de2f54b9e2f59fb6117fd1b0534c81e36a09b41199fb854f26c986b7d6",
+            "raw_offset": 102425,
+            "tty_rows_cols": [
+              30,
+              160
+            ]
+          },
+          {
+            "file": "12-cleared160.png",
+            "sha": "f13cc8ddf2e6d9c37f700398367279704db4d2d1aac797589bf074454ba84a50",
+            "raw_offset": 349158,
+            "tty_rows_cols": [
+              30,
+              160
+            ]
+          },
+          {
+            "file": "13-short160.png",
+            "sha": "0b2582677c45d57d1637f4eaa1dabd4b1ee623847fd60a2700d688c2a974d581",
+            "raw_offset": 357736,
+            "tty_rows_cols": [
+              30,
+              160
+            ]
+          },
+          {
+            "file": "14-empty160.png",
+            "sha": "f13cc8ddf2e6d9c37f700398367279704db4d2d1aac797589bf074454ba84a50",
+            "raw_offset": 366332,
+            "tty_rows_cols": [
+              30,
+              160
+            ]
+          },
+          {
+            "file": "15-chats160.png",
+            "sha": "4e91e73a83419a7d262b6f3c5662a959d5350d342a4951e01c840853c5a10223",
+            "raw_offset": 374952,
+            "tty_rows_cols": [
+              30,
+              160
+            ]
+          },
+          {
+            "file": "16-after-test9-oracle.png",
+            "sha": "5330c8829e70c7c92f8c44dd13af6bbeb96ccae00fce6617576b35052e438a22",
+            "raw_offset": 379788,
+            "tty_rows_cols": null
+          }
+        ],
+        "actions": [],
+        "protected_before": {
+          "2876288": {
+            "pid": 2876288,
+            "alive": true,
+            "state": "S",
+            "executable": "/home/gyl/example/chat/build/chat_server (deleted)",
+            "start_ticks": 521400965,
+            "cpu_seconds": 0.98,
+            "rss_kib": 17108,
+            "peak_rss_kib": 17108,
+            "threads": 25,
+            "fds": 41
+          },
+          "3225": {
+            "pid": 3225,
+            "alive": true,
+            "state": "S",
+            "executable": "/usr/bin/fcitx5",
+            "start_ticks": 17583,
+            "cpu_seconds": 6052.2,
+            "rss_kib": 61320,
+            "peak_rss_kib": 285108,
+            "threads": 3,
+            "fds": 62
+          },
+          "29935": {
+            "pid": 29935,
+            "alive": true,
+            "state": "S",
+            "executable": "/usr/bin/speech-dispatcher",
+            "start_ticks": 248258,
+            "cpu_seconds": 4.85,
+            "rss_kib": 6476,
+            "peak_rss_kib": 7872,
+            "threads": 5,
+            "fds": 24
+          }
+        },
+        "head": "31f09f0ca6d22118f8953b0eb0088e954fdf0ddc",
+        "tui_source_before": {
+          "tui/cmake/ftxui-7.0.3-grapheme.patch": "9b10a08430a99075f4e39c9cac9a9ad80c9dc49b8f04d73c453733555794917d",
+          "tui/src/app.cpp": "3cfff26307318d1badc870554800cddafe4158866bccbd800db17b66be44db7a",
+          "tui/src/app.hpp": "89b9f37259e60109284ff5511322d794fac291f158f3ac5a07cfc53603f3a860",
+          "tui/src/deadline.hpp": "dbe2a40c1a61b75032843ab82fc8dd898f0d0f8ecbfe6cde15fbf528274584f2",
+          "tui/src/file_io.hpp": "36628265415a0fbae479eec5c76f122362a7a61de2ee9b32cfa94cf41ad5ef7d",
+          "tui/src/groups.cpp": "3a6c19da31f784377d64112063783f2197a9ea08ff2ded783a245af60ce89c99",
+          "tui/src/inbox.hpp": "53a0dbb45136c8f1b783b948373658b2897d976944eaff1353624150ec5d1bba",
+          "tui/src/main.cpp": "05ed5edddc04b9590edeb11db6261a0e0440e32ea54af98a65b6d9afbd79b620",
+          "tui/src/messages.cpp": "f6c414041e8b17f7f59fad4c29589e3bf7bd45f30fc365b555f9c0c8fd164340",
+          "tui/src/profile.cpp": "a464531debbf5b4c618d712276fa5d526ba70599cd7a9f26aa490e2003481990",
+          "tui/src/state.cpp": "d8b99d807e119b410bb5a0df2d7c8e84d75ebb326cedf4d9526665038c3fa5ab",
+          "tui/src/state.hpp": "32e853f0bce108fd5425351a2f882db9c4e11d074f6e742e33caa347647d531e",
+          "tui/src/ui.cpp": "b8f06e5b273f7f5df04950e9f9e4fa4c4d041fe1b58995071a81ec2491f3c179",
+          "tui/src/ui.hpp": "4fdeb7385b98761ae916db52d23f0d3079c9e90d0f0eb8391409fdfd00a4e62e"
+        },
+        "binary_sha": {
+          "chat_tui": "d8d2b478c0b383637e98cefcd3ce6298fbd32595c82f5ae45afca2ff705f4f21",
+          "chat_server": "f2c9288cbc32817183e399e72a4a3af8e45adfdfbd54435af43aae86da36bf5b",
+          "chat_tui_scale_fixture": "b624a131f2170164bd4f9b2c9ac2cc732fd6b62c23819f3a8b9d7fc0b4d021fe"
+        },
+        "candidate_binary": {
+          "path": "/home/gyl/example/chat/build/chat_tui",
+          "sha256": "d8d2b478c0b383637e98cefcd3ce6298fbd32595c82f5ae45afca2ff705f4f21"
+        },
+        "candidate_manifest_sha256": "c8ee149674ad219f0b1924c640d37a9aecf81768d36d046e6d1c03571e936e8a",
+        "wezterm_version": "wezterm 20221119-145034-49b9839f",
+        "tmux_version": "tmux 3.6a",
+        "database": "chat_t04_candidate_mux_1006171926_3867962",
+        "port": 40003,
+        "processes": {
+          "server": {
+            "pid": 3867997,
+            "alive": true,
+            "state": "R",
+            "executable": "/home/gyl/example/chat/build/chat_server",
+            "start_ticks": 547097608,
+            "cpu_seconds": 0.0,
+            "rss_kib": 312,
+            "peak_rss_kib": 312,
+            "threads": 1,
+            "fds": 3
+          },
+          "wezterm": {
+            "pid": 3868355,
+            "alive": true,
+            "state": "R",
+            "executable": "/usr/bin/wezterm",
+            "start_ticks": 547098170,
+            "cpu_seconds": 0.0,
+            "rss_kib": 184,
+            "peak_rss_kib": 184,
+            "threads": 1,
+            "fds": 4
+          }
+        },
+        "helper_exit": 0,
+        "prelogin_seed": {
+          "title": "HDR L👩‍💻R ❤️ 1️⃣ 👩🏽 END",
+          "cases": [
+            "LABR END",
+            "L中́R END",
+            "L👩‍💻R END",
+            "L1️⃣R END",
+            "L❤️R END",
+            "L👩🏽R END"
+          ],
+          "sql": [
+            [
+              "1",
+              "2",
+              "1",
+              "readonly_history_u14_171927_3867962"
+            ],
+            [
+              "2",
+              "1",
+              "2",
+              "LABR END"
+            ],
+            [
+              "3",
+              "1",
+              "2",
+              "L中́R END"
+            ],
+            [
+              "4",
+              "1",
+              "2",
+              "L👩‍💻R END"
+            ],
+            [
+              "5",
+              "1",
+              "2",
+              "L1️⃣R END"
+            ],
+            [
+              "6",
+              "1",
+              "2",
+              "L❤️R END"
+            ],
+            [
+              "7",
+              "1",
+              "2",
+              "L👩🏽R END"
+            ]
+          ],
+          "sdk_closed_before_login": true
+        },
+        "inside": {
+          "pid": 3868438,
+          "tty": "/dev/pts/21",
+          "TERM": "tmux-256color",
+          "TERM_PROGRAM": "tmux",
+          "TERM_PROGRAM_VERSION": "3.6a",
+          "inside_tmux": true,
+          "tmux_server_pid": 3868437,
+          "variation_selector_always_wide": "off",
+          "allow_passthrough": "",
+          "clients": [
+            "xterm-256color|WezTerm 20221119-145034-49b9839f|bpaste,ccolour,clipboard,cstyle,focus,RGB,sixel,title"
+          ]
+        },
+        "outer": {
+          "pid": 3868365,
+          "tty": "/dev/pts/17",
+          "TERM": "xterm-256color",
+          "TERM_PROGRAM": "WezTerm",
+          "TERM_PROGRAM_VERSION": "20221119-145034-49b9839f"
+        },
+        "copyable_ASCII_pixel_reference": {
+          "path": "/tmp/chat-t04-u14-native.UxeOg9xi/direct/05-copyable80.png",
+          "area": [
+            10,
+            76,
+            150,
+            95
+          ],
+          "sha": "f191d88c946bce656490761ec89972dc193873dd994b40d9e436cf05b57ae36d"
+        },
+        "native_copy": {
+          "actual_exit": 0,
+          "text": "L👩🏽R END",
+          "expected": "L👩🏽R END",
+          "exact_after_rstrip": true
+        },
+        "native_send_expected": "AB❤️C1️⃣D👩🏽E",
+        "sql_after": [
+          [
+            "1",
+            "2",
+            "1",
+            "readonly_history_u14_171927_3867962"
+          ],
+          [
+            "2",
+            "1",
+            "2",
+            "LABR END"
+          ],
+          [
+            "3",
+            "1",
+            "2",
+            "L中́R END"
+          ],
+          [
+            "4",
+            "1",
+            "2",
+            "L👩‍💻R END"
+          ],
+          [
+            "5",
+            "1",
+            "2",
+            "L1️⃣R END"
+          ],
+          [
+            "6",
+            "1",
+            "2",
+            "L❤️R END"
+          ],
+          [
+            "7",
+            "1",
+            "2",
+            "L👩🏽R END"
+          ],
+          [
+            "8",
+            "1",
+            "1",
+            "AB❤️C1️⃣D👩🏽E"
+          ]
+        ],
+        "raw_contains_password": false,
+        "native_actual_exit": {
+          "actual_exit": 0
+        },
+        "wezterm_exit": 0,
+        "cleanup_exits": {
+          "clipboard": [
+            {
+              "pid": 3869011,
+              "actual_exit": -15,
+              "gone": true
+            },
+            {
+              "pid": 3868648,
+              "actual_exit": 0,
+              "gone": true
+            },
+            {
+              "pid": 3868580,
+              "actual_exit": 0,
+              "gone": true
+            },
+            {
+              "pid": 3868457,
+              "actual_exit": 0,
+              "gone": true
+            },
+            {
+              "pid": 3868456,
+              "actual_exit": 0,
+              "gone": true
+            }
+          ],
+          "wezterm": [
+            {
+              "pid": 3868355,
+              "actual_exit": 0,
+              "gone": true
+            }
+          ],
+          "xvfb": [
+            {
+              "pid": 3868352,
+              "actual_exit": 0,
+              "gone": true
+            }
+          ],
+          "helper": [
+            {
+              "pid": 3867998,
+              "actual_exit": 0,
+              "gone": true
+            }
+          ],
+          "server": [
+            {
+              "pid": 3867997,
+              "actual_exit": 0,
+              "gone": true
+            }
+          ]
+        },
+        "app_gone": true,
+        "tmux_gone": true,
+        "dropdb_exit": 0,
+        "database_absent": true,
+        "protected_after": {
+          "2876288": {
+            "pid": 2876288,
+            "alive": true,
+            "state": "S",
+            "executable": "/home/gyl/example/chat/build/chat_server (deleted)",
+            "start_ticks": 521400965,
+            "cpu_seconds": 0.98,
+            "rss_kib": 17108,
+            "peak_rss_kib": 17108,
+            "threads": 25,
+            "fds": 41
+          },
+          "3225": {
+            "pid": 3225,
+            "alive": true,
+            "state": "S",
+            "executable": "/usr/bin/fcitx5",
+            "start_ticks": 17583,
+            "cpu_seconds": 6052.21,
+            "rss_kib": 61320,
+            "peak_rss_kib": 285108,
+            "threads": 3,
+            "fds": 62
+          },
+          "29935": {
+            "pid": 29935,
+            "alive": true,
+            "state": "S",
+            "executable": "/usr/bin/speech-dispatcher",
+            "start_ticks": 248258,
+            "cpu_seconds": 4.85,
+            "rss_kib": 6476,
+            "peak_rss_kib": 7872,
+            "threads": 5,
+            "fds": 24
+          }
+        },
+        "protected_unchanged": true,
+        "tui_source_after": {
+          "tui/cmake/ftxui-7.0.3-grapheme.patch": "9b10a08430a99075f4e39c9cac9a9ad80c9dc49b8f04d73c453733555794917d",
+          "tui/src/app.cpp": "3cfff26307318d1badc870554800cddafe4158866bccbd800db17b66be44db7a",
+          "tui/src/app.hpp": "89b9f37259e60109284ff5511322d794fac291f158f3ac5a07cfc53603f3a860",
+          "tui/src/deadline.hpp": "dbe2a40c1a61b75032843ab82fc8dd898f0d0f8ecbfe6cde15fbf528274584f2",
+          "tui/src/file_io.hpp": "36628265415a0fbae479eec5c76f122362a7a61de2ee9b32cfa94cf41ad5ef7d",
+          "tui/src/groups.cpp": "3a6c19da31f784377d64112063783f2197a9ea08ff2ded783a245af60ce89c99",
+          "tui/src/inbox.hpp": "53a0dbb45136c8f1b783b948373658b2897d976944eaff1353624150ec5d1bba",
+          "tui/src/main.cpp": "05ed5edddc04b9590edeb11db6261a0e0440e32ea54af98a65b6d9afbd79b620",
+          "tui/src/messages.cpp": "f6c414041e8b17f7f59fad4c29589e3bf7bd45f30fc365b555f9c0c8fd164340",
+          "tui/src/profile.cpp": "a464531debbf5b4c618d712276fa5d526ba70599cd7a9f26aa490e2003481990",
+          "tui/src/state.cpp": "d8b99d807e119b410bb5a0df2d7c8e84d75ebb326cedf4d9526665038c3fa5ab",
+          "tui/src/state.hpp": "32e853f0bce108fd5425351a2f882db9c4e11d074f6e742e33caa347647d531e",
+          "tui/src/ui.cpp": "b8f06e5b273f7f5df04950e9f9e4fa4c4d041fe1b58995071a81ec2491f3c179",
+          "tui/src/ui.hpp": "4fdeb7385b98761ae916db52d23f0d3079c9e90d0f0eb8391409fdfd00a4e62e"
+        },
+        "tui_source_unchanged": true
+      },
+      "visual_copyable_160": "RED: four old reverse-video continuation cells remain"
+    },
+    {
+      "original_result_path": "/tmp/chat-t04-direct-current.R1jCbYoN/native/result.json",
+      "original_result_sha256": "0ad6c529a25ca72d9c65443c49938665b8c42f615636c24978555202e38dd08b",
+      "actual_result": {
+        "scope": "/tmp/chat-t04-direct-current.R1jCbYoN/native",
+        "mode": "direct",
+        "driver_process": {
+          "pid": 3915228,
+          "alive": true,
+          "state": "R",
+          "executable": "/usr/bin/python3.10",
+          "start_ticks": 547296038,
+          "cpu_seconds": 0.03,
+          "rss_kib": 22196,
+          "peak_rss_kib": 22196,
+          "threads": 1,
+          "fds": 4
+        },
+        "driver_exit": 0,
+        "captures": [
+          {
+            "file": "00-outer9-oracle.png",
+            "sha": "97b9d98dfee502c5023a14a25872ab4fd754158ea42bad451203ff88e468f33f",
+            "raw_offset": 0,
+            "tty_rows_cols": null
+          },
+          {
+            "file": "02-login80.png",
+            "sha": "6f33c6ff2136758232dc2590ef5f5ed5f1558de2558d528d9d155cfb87352909",
+            "raw_offset": 2751,
+            "tty_rows_cols": [
+              30,
+              80
+            ]
+          },
+          {
+            "file": "03-chats80.png",
+            "sha": "74ba853df658cc90a1d38f77840398d25c06bdb691f8726daf36971e17d8e07a",
+            "raw_offset": 29931,
+            "tty_rows_cols": [
+              30,
+              80
+            ]
+          },
+          {
+            "file": "04-selected80.png",
+            "sha": "f8a458e82f93b93198932573d3dda9d7c0d86b467ecb6f166e069f1cf298d0fe",
+            "raw_offset": 44870,
+            "tty_rows_cols": [
+              30,
+              80
+            ]
+          },
+          {
+            "file": "05-copyable80.png",
+            "sha": "801b9cf027ed7c78741271d98668823b098296d48e6e681ebfe1db2dff4707e3",
+            "raw_offset": 48347,
+            "tty_rows_cols": [
+              30,
+              80
+            ]
+          },
+          {
+            "file": "05b-native-selected-copy80.png",
+            "sha": "25bc77948064da52caecd38dd9cd07ad7d81fb64327fd2b9cdf9787381974a95",
+            "raw_offset": 48347,
+            "tty_rows_cols": [
+              30,
+              80
+            ]
+          },
+          {
+            "file": "06-composer80.png",
+            "sha": "666be3a32f29de4a35bd5cb23db8ca76e290d43a72d6c96ed98a7bc61dc299db",
+            "raw_offset": 67247,
+            "tty_rows_cols": [
+              30,
+              80
+            ]
+          },
+          {
+            "file": "07-composer-midedit80.png",
+            "sha": "448e55eb80e4284094d3dcaf434e3a968251367443c3c75b75011c6bd5a7a3b6",
+            "raw_offset": 78611,
+            "tty_rows_cols": [
+              30,
+              80
+            ]
+          },
+          {
+            "file": "08-sent80.png",
+            "sha": "3050b360c215f1c6ff3d22b83f86917ee6de610471d9209306c6cdc4558151e9",
+            "raw_offset": 93937,
+            "tty_rows_cols": [
+              30,
+              80
+            ]
+          },
+          {
+            "file": "09-selected160.png",
+            "sha": "b6434663b14348b4e07633409c700d2385e6be7ced1d6267d4a9faa24ccf8b1b",
+            "raw_offset": 105261,
+            "tty_rows_cols": [
+              30,
+              160
+            ]
+          },
+          {
+            "file": "10-copyable160.png",
+            "sha": "97f805f77118d21b81bffd2e991d2e6b553cfbe9df40c82009a92858bf0f6c80",
+            "raw_offset": 111954,
+            "tty_rows_cols": [
+              30,
+              160
+            ]
+          },
+          {
+            "file": "11-long160.png",
+            "sha": "8fa8e0d6dc503e782300c77af3841162a3bc7f5dc70881a5b8cd9206e1b87776",
+            "raw_offset": 148374,
+            "tty_rows_cols": [
+              30,
+              160
+            ]
+          },
+          {
+            "file": "12-cleared160.png",
+            "sha": "7f9b8548f8da5976b2e02f7487929be48e09961322660ee78c8512a709935385",
+            "raw_offset": 563630,
+            "tty_rows_cols": [
+              30,
+              160
+            ]
+          },
+          {
+            "file": "13-short160.png",
+            "sha": "b39acf5b2d273d96451a382d8876fa51414c126fae16f5567698fe81e0590ac9",
+            "raw_offset": 578146,
+            "tty_rows_cols": [
+              30,
+              160
+            ]
+          },
+          {
+            "file": "14-empty160.png",
+            "sha": "7f9b8548f8da5976b2e02f7487929be48e09961322660ee78c8512a709935385",
+            "raw_offset": 592673,
+            "tty_rows_cols": [
+              30,
+              160
+            ]
+          },
+          {
+            "file": "15-chats160.png",
+            "sha": "392701dddc54edfbbd96b5ef4aa94b48933ea61b5741420a4f9f2a48eaad0710",
+            "raw_offset": 607180,
+            "tty_rows_cols": [
+              30,
+              160
+            ]
+          },
+          {
+            "file": "16-after-test9-oracle.png",
+            "sha": "5330c8829e70c7c92f8c44dd13af6bbeb96ccae00fce6617576b35052e438a22",
+            "raw_offset": 614540,
+            "tty_rows_cols": null
+          }
+        ],
+        "actions": [],
+        "protected_before": {
+          "2876288": {
+            "pid": 2876288,
+            "alive": true,
+            "state": "S",
+            "executable": "/home/gyl/example/chat/build/chat_server (deleted)",
+            "start_ticks": 521400965,
+            "cpu_seconds": 0.98,
+            "rss_kib": 17108,
+            "peak_rss_kib": 17108,
+            "threads": 25,
+            "fds": 41
+          },
+          "3225": {
+            "pid": 3225,
+            "alive": true,
+            "state": "S",
+            "executable": "/usr/bin/fcitx5",
+            "start_ticks": 17583,
+            "cpu_seconds": 6052.29,
+            "rss_kib": 61320,
+            "peak_rss_kib": 285108,
+            "threads": 3,
+            "fds": 62
+          },
+          "29935": {
+            "pid": 29935,
+            "alive": true,
+            "state": "S",
+            "executable": "/usr/bin/speech-dispatcher",
+            "start_ticks": 248258,
+            "cpu_seconds": 4.85,
+            "rss_kib": 6476,
+            "peak_rss_kib": 7872,
+            "threads": 5,
+            "fds": 24
+          }
+        },
+        "head": "8f491db70307e79d81dc42669382ec1e68b127ec",
+        "tui_source_before": {
+          "tui/cmake/ftxui-7.0.3-grapheme.patch": "9b10a08430a99075f4e39c9cac9a9ad80c9dc49b8f04d73c453733555794917d",
+          "tui/src/app.cpp": "3cfff26307318d1badc870554800cddafe4158866bccbd800db17b66be44db7a",
+          "tui/src/app.hpp": "89b9f37259e60109284ff5511322d794fac291f158f3ac5a07cfc53603f3a860",
+          "tui/src/deadline.hpp": "dbe2a40c1a61b75032843ab82fc8dd898f0d0f8ecbfe6cde15fbf528274584f2",
+          "tui/src/file_io.hpp": "36628265415a0fbae479eec5c76f122362a7a61de2ee9b32cfa94cf41ad5ef7d",
+          "tui/src/groups.cpp": "3a6c19da31f784377d64112063783f2197a9ea08ff2ded783a245af60ce89c99",
+          "tui/src/inbox.hpp": "53a0dbb45136c8f1b783b948373658b2897d976944eaff1353624150ec5d1bba",
+          "tui/src/main.cpp": "05ed5edddc04b9590edeb11db6261a0e0440e32ea54af98a65b6d9afbd79b620",
+          "tui/src/messages.cpp": "f6c414041e8b17f7f59fad4c29589e3bf7bd45f30fc365b555f9c0c8fd164340",
+          "tui/src/profile.cpp": "a464531debbf5b4c618d712276fa5d526ba70599cd7a9f26aa490e2003481990",
+          "tui/src/state.cpp": "d8b99d807e119b410bb5a0df2d7c8e84d75ebb326cedf4d9526665038c3fa5ab",
+          "tui/src/state.hpp": "32e853f0bce108fd5425351a2f882db9c4e11d074f6e742e33caa347647d531e",
+          "tui/src/ui.cpp": "b8f06e5b273f7f5df04950e9f9e4fa4c4d041fe1b58995071a81ec2491f3c179",
+          "tui/src/ui.hpp": "4fdeb7385b98761ae916db52d23f0d3079c9e90d0f0eb8391409fdfd00a4e62e"
+        },
+        "binary_sha": {
+          "chat_tui": "d8d2b478c0b383637e98cefcd3ce6298fbd32595c82f5ae45afca2ff705f4f21",
+          "chat_server": "f2c9288cbc32817183e399e72a4a3af8e45adfdfbd54435af43aae86da36bf5b",
+          "chat_tui_scale_fixture": "b624a131f2170164bd4f9b2c9ac2cc732fd6b62c23819f3a8b9d7fc0b4d021fe"
+        },
+        "candidate_binary": {
+          "path": "/home/gyl/example/chat/build/chat_tui",
+          "sha256": "d8d2b478c0b383637e98cefcd3ce6298fbd32595c82f5ae45afca2ff705f4f21"
+        },
+        "candidate_manifest_sha256": "eedc107cc13d942e9ed494d099a447f78df78014a9fe11bfb8a188397ac1fa79",
+        "wezterm_version": "wezterm 20221119-145034-49b9839f",
+        "tmux_version": "tmux 3.6a",
+        "database": "chat_t04_candidate_direct_1006175231_3915228",
+        "port": 42003,
+        "processes": {
+          "server": {
+            "pid": 3915352,
+            "alive": true,
+            "state": "R",
+            "executable": "/home/gyl/example/chat/build/chat_server",
+            "start_ticks": 547296183,
+            "cpu_seconds": 0.0,
+            "rss_kib": 204,
+            "peak_rss_kib": 204,
+            "threads": 1,
+            "fds": 3
+          },
+          "wezterm": {
+            "pid": 3915546,
+            "alive": true,
+            "state": "R",
+            "executable": "/usr/bin/wezterm",
+            "start_ticks": 547296697,
+            "cpu_seconds": 0.0,
+            "rss_kib": 188,
+            "peak_rss_kib": 188,
+            "threads": 1,
+            "fds": 3
+          }
+        },
+        "helper_exit": 0,
+        "prelogin_seed": {
+          "title": "HDR L👩‍💻R ❤️ 1️⃣ 👩🏽 END",
+          "cases": [
+            "LABR END",
+            "L中́R END",
+            "L👩‍💻R END",
+            "L1️⃣R END",
+            "L❤️R END",
+            "L👩🏽R END"
+          ],
+          "sql": [
+            [
+              "1",
+              "2",
+              "1",
+              "readonly_history_u14_175233_3915228"
+            ],
+            [
+              "2",
+              "1",
+              "2",
+              "LABR END"
+            ],
+            [
+              "3",
+              "1",
+              "2",
+              "L中́R END"
+            ],
+            [
+              "4",
+              "1",
+              "2",
+              "L👩‍💻R END"
+            ],
+            [
+              "5",
+              "1",
+              "2",
+              "L1️⃣R END"
+            ],
+            [
+              "6",
+              "1",
+              "2",
+              "L❤️R END"
+            ],
+            [
+              "7",
+              "1",
+              "2",
+              "L👩🏽R END"
+            ]
+          ],
+          "sdk_closed_before_login": true
+        },
+        "inside": {
+          "pid": 3915620,
+          "tty": "/dev/pts/20",
+          "TERM": "xterm-256color",
+          "TERM_PROGRAM": "WezTerm",
+          "TERM_PROGRAM_VERSION": "20221119-145034-49b9839f",
+          "inside_tmux": false
+        },
+        "outer": {
+          "pid": 3915556,
+          "tty": "/dev/pts/17",
+          "TERM": "xterm-256color",
+          "TERM_PROGRAM": "WezTerm",
+          "TERM_PROGRAM_VERSION": "20221119-145034-49b9839f"
+        },
+        "native_copy": {
+          "actual_exit": 0,
+          "text": "L👩🏽R END",
+          "expected": "L👩🏽R END",
+          "exact_after_rstrip": true
+        },
+        "native_send_expected": "AB❤️C1️⃣D👩🏽E",
+        "sql_after": [
+          [
+            "1",
+            "2",
+            "1",
+            "readonly_history_u14_175233_3915228"
+          ],
+          [
+            "2",
+            "1",
+            "2",
+            "LABR END"
+          ],
+          [
+            "3",
+            "1",
+            "2",
+            "L中́R END"
+          ],
+          [
+            "4",
+            "1",
+            "2",
+            "L👩‍💻R END"
+          ],
+          [
+            "5",
+            "1",
+            "2",
+            "L1️⃣R END"
+          ],
+          [
+            "6",
+            "1",
+            "2",
+            "L❤️R END"
+          ],
+          [
+            "7",
+            "1",
+            "2",
+            "L👩🏽R END"
+          ],
+          [
+            "8",
+            "1",
+            "1",
+            "AB❤️C1️⃣D👩🏽E"
+          ]
+        ],
+        "raw_contains_password": false,
+        "native_actual_exit": {
+          "actual_exit": 0
+        },
+        "wezterm_exit": 0,
+        "cleanup_exits": {
+          "clipboard": [
+            {
+              "pid": 3915862,
+              "actual_exit": -15,
+              "gone": true
+            },
+            {
+              "pid": 3915723,
+              "actual_exit": 0,
+              "gone": true
+            },
+            {
+              "pid": 3915627,
+              "actual_exit": 0,
+              "gone": true
+            },
+            {
+              "pid": 3915623,
+              "actual_exit": 0,
+              "gone": true
+            },
+            {
+              "pid": 3915622,
+              "actual_exit": 0,
+              "gone": true
+            }
+          ],
+          "wezterm": [
+            {
+              "pid": 3915546,
+              "actual_exit": 0,
+              "gone": true
+            }
+          ],
+          "xvfb": [
+            {
+              "pid": 3915543,
+              "actual_exit": 0,
+              "gone": true
+            }
+          ],
+          "helper": [
+            {
+              "pid": 3915353,
+              "actual_exit": 0,
+              "gone": true
+            }
+          ],
+          "server": [
+            {
+              "pid": 3915352,
+              "actual_exit": 0,
+              "gone": true
+            }
+          ]
+        },
+        "app_gone": true,
+        "dropdb_exit": 0,
+        "database_absent": true,
+        "protected_after": {
+          "2876288": {
+            "pid": 2876288,
+            "alive": true,
+            "state": "S",
+            "executable": "/home/gyl/example/chat/build/chat_server (deleted)",
+            "start_ticks": 521400965,
+            "cpu_seconds": 0.98,
+            "rss_kib": 17108,
+            "peak_rss_kib": 17108,
+            "threads": 25,
+            "fds": 41
+          },
+          "3225": {
+            "pid": 3225,
+            "alive": true,
+            "state": "S",
+            "executable": "/usr/bin/fcitx5",
+            "start_ticks": 17583,
+            "cpu_seconds": 6052.3,
+            "rss_kib": 61320,
+            "peak_rss_kib": 285108,
+            "threads": 3,
+            "fds": 62
+          },
+          "29935": {
+            "pid": 29935,
+            "alive": true,
+            "state": "S",
+            "executable": "/usr/bin/speech-dispatcher",
+            "start_ticks": 248258,
+            "cpu_seconds": 4.85,
+            "rss_kib": 6476,
+            "peak_rss_kib": 7872,
+            "threads": 5,
+            "fds": 24
+          }
+        },
+        "protected_unchanged": true,
+        "tui_source_after": {
+          "tui/cmake/ftxui-7.0.3-grapheme.patch": "9b10a08430a99075f4e39c9cac9a9ad80c9dc49b8f04d73c453733555794917d",
+          "tui/src/app.cpp": "3cfff26307318d1badc870554800cddafe4158866bccbd800db17b66be44db7a",
+          "tui/src/app.hpp": "89b9f37259e60109284ff5511322d794fac291f158f3ac5a07cfc53603f3a860",
+          "tui/src/deadline.hpp": "dbe2a40c1a61b75032843ab82fc8dd898f0d0f8ecbfe6cde15fbf528274584f2",
+          "tui/src/file_io.hpp": "36628265415a0fbae479eec5c76f122362a7a61de2ee9b32cfa94cf41ad5ef7d",
+          "tui/src/groups.cpp": "3a6c19da31f784377d64112063783f2197a9ea08ff2ded783a245af60ce89c99",
+          "tui/src/inbox.hpp": "53a0dbb45136c8f1b783b948373658b2897d976944eaff1353624150ec5d1bba",
+          "tui/src/main.cpp": "05ed5edddc04b9590edeb11db6261a0e0440e32ea54af98a65b6d9afbd79b620",
+          "tui/src/messages.cpp": "f6c414041e8b17f7f59fad4c29589e3bf7bd45f30fc365b555f9c0c8fd164340",
+          "tui/src/profile.cpp": "a464531debbf5b4c618d712276fa5d526ba70599cd7a9f26aa490e2003481990",
+          "tui/src/state.cpp": "d8b99d807e119b410bb5a0df2d7c8e84d75ebb326cedf4d9526665038c3fa5ab",
+          "tui/src/state.hpp": "32e853f0bce108fd5425351a2f882db9c4e11d074f6e742e33caa347647d531e",
+          "tui/src/ui.cpp": "b8f06e5b273f7f5df04950e9f9e4fa4c4d041fe1b58995071a81ec2491f3c179",
+          "tui/src/ui.hpp": "4fdeb7385b98761ae916db52d23f0d3079c9e90d0f0eb8391409fdfd00a4e62e"
+        },
+        "tui_source_unchanged": true
+      },
+      "visual_copyable_160": "No matching residual blocks in reviewed original frame"
+    }
+  ],
+  "physical_pairs": [
+    {
+      "original_result_path": "/tmp/chat-t04-remnant-pair.ZknLDxQ1/result.json",
+      "original_result_sha256": "9a647b4cb5cc5d3b23eb4f7fdd68d6fd1201abc735ef3c066a21ad9130a82110",
+      "actual_result": {
+        "scope": "/tmp/chat-t04-remnant-pair.ZknLDxQ1",
+        "mode": "direct",
+        "actual_exit": 0,
+        "captures": [
+          {
+            "path": "/tmp/chat-t04-remnant-pair.ZknLDxQ1/00-outer9-oracle.png",
+            "sha256": "97b9d98dfee502c5023a14a25872ab4fd754158ea42bad451203ff88e468f33f"
+          },
+          {
+            "path": "/tmp/chat-t04-remnant-pair.ZknLDxQ1/02-old-styled.png",
+            "sha256": "04a2400f309e9dbb2281023a4285d033521e31b5987bbce3157f61ef6e40046b"
+          },
+          {
+            "path": "/tmp/chat-t04-remnant-pair.ZknLDxQ1/03-default-clear.png",
+            "sha256": "00dc5c3520adea81f01d6bf7af11e51022a810f2eb2c70b834dea59cdec2f5ae"
+          }
+        ],
+        "basis": "Original ASCII-X11 R/digit oracle unchanged; blank interior original pixels, not DSR/DisplayWidth.",
+        "timeout_seconds": 15,
+        "no_chat_server_sdk_db": true,
+        "no_dbus_wrapper": true,
+        "driver_process": {
+          "pid": 3917822,
+          "start_ticks": 547305314,
+          "state": "R",
+          "alive": true
+        },
+        "protected_before": {
+          "2876288": {
+            "pid": 2876288,
+            "start_ticks": 521400965,
+            "state": "S",
+            "alive": true
+          },
+          "3225": {
+            "pid": 3225,
+            "start_ticks": 17583,
+            "state": "S",
+            "alive": true
+          },
+          "29935": {
+            "pid": 29935,
+            "start_ticks": 248258,
+            "state": "S",
+            "alive": true
+          }
+        },
+        "assets_sha256": {
+          "wezterm.lua": "b28272d5198c1d74b4769f214d377c2ac6c67228611e950541cedb045899aab2",
+          "tmux.conf": "4377c1b796857515944f843cff0ab182bc5151acf33234af63be140bdb6e05fa",
+          "pixels.py": "3dc8c2d5233e39b2716b56b030aa2adbb1f9a2faf7177c5519897ce1fe8d10b9",
+          "paired_bytes.py": "0bdc6c21aca8b5431517b12c4edcc99ee36a41c993036ba491d8b089df239543"
+        },
+        "wezterm_version": "wezterm 20221119-145034-49b9839f",
+        "tmux_version": "tmux 3.6a",
+        "tmux_binary": {
+          "path": "/usr/bin/tmux",
+          "sha256": "baa7e6be444a751339bb52de4006fb192187d40b9d17548a9fcb60c8ed7ad495"
+        },
+        "owned_initial_pids": [
+          3917825,
+          3917828
+        ],
+        "display": ":0",
+        "owned_pid_start_ticks": {
+          "3917825": 547305317,
+          "3917828": 547305320,
+          "3917838": 547305322,
+          "3917895": 547305355,
+          "3917896": 547305355
+        },
+        "cell_pitch_px": 10,
+        "row_pitch_px": 19,
+        "blank_interiors": [
+          {
+            "row": 12,
+            "variant": "spaces",
+            "box": [
+              10,
+              228,
+              210,
+              247
+            ],
+            "old_nonblack_pixels": 3733,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 12,
+            "variant": "ECH_CUF",
+            "box": [
+              310,
+              228,
+              510,
+              247
+            ],
+            "old_nonblack_pixels": 3733,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 13,
+            "variant": "spaces",
+            "box": [
+              10,
+              247,
+              210,
+              266
+            ],
+            "old_nonblack_pixels": 3733,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 13,
+            "variant": "ECH_CUF",
+            "box": [
+              310,
+              247,
+              510,
+              266
+            ],
+            "old_nonblack_pixels": 3733,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 14,
+            "variant": "spaces",
+            "box": [
+              10,
+              266,
+              210,
+              285
+            ],
+            "old_nonblack_pixels": 3733,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 14,
+            "variant": "ECH_CUF",
+            "box": [
+              310,
+              266,
+              510,
+              285
+            ],
+            "old_nonblack_pixels": 3733,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 15,
+            "variant": "spaces",
+            "box": [
+              10,
+              285,
+              210,
+              304
+            ],
+            "old_nonblack_pixels": 3733,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 15,
+            "variant": "ECH_CUF",
+            "box": [
+              310,
+              285,
+              510,
+              304
+            ],
+            "old_nonblack_pixels": 3733,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 16,
+            "variant": "spaces",
+            "box": [
+              10,
+              304,
+              210,
+              323
+            ],
+            "old_nonblack_pixels": 3693,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 16,
+            "variant": "ECH_CUF",
+            "box": [
+              310,
+              304,
+              510,
+              323
+            ],
+            "old_nonblack_pixels": 3693,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 17,
+            "variant": "spaces",
+            "box": [
+              10,
+              323,
+              210,
+              342
+            ],
+            "old_nonblack_pixels": 3707,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 17,
+            "variant": "ECH_CUF",
+            "box": [
+              310,
+              323,
+              510,
+              342
+            ],
+            "old_nonblack_pixels": 3707,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 18,
+            "variant": "spaces",
+            "box": [
+              10,
+              342,
+              210,
+              361
+            ],
+            "old_nonblack_pixels": 3709,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 18,
+            "variant": "ECH_CUF",
+            "box": [
+              310,
+              342,
+              510,
+              361
+            ],
+            "old_nonblack_pixels": 3709,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          }
+        ],
+        "wezterm_exit": 0,
+        "native_child_exit": {
+          "actual_exit": 0
+        },
+        "inside": {
+          "pid": 3917896,
+          "tty": "/dev/pts/20",
+          "TERM": "xterm-256color",
+          "TERM_PROGRAM": "WezTerm",
+          "TERM_PROGRAM_VERSION": "20221119-145034-49b9839f"
+        },
+        "cleanup_exits": [
+          {
+            "pid": 3917828,
+            "actual_exit": 0,
+            "gone": true
+          },
+          {
+            "pid": 3917825,
+            "actual_exit": 0,
+            "gone": true
+          }
+        ],
+        "owned_cleanup": {
+          "3917825": {
+            "pid": 3917825,
+            "alive": false
+          },
+          "3917828": {
+            "pid": 3917828,
+            "alive": false
+          },
+          "3917838": {
+            "pid": 3917838,
+            "alive": false
+          },
+          "3917895": {
+            "pid": 3917895,
+            "alive": false
+          },
+          "3917896": {
+            "pid": 3917896,
+            "alive": false
+          }
+        },
+        "all_owned_gone": true,
+        "protected_after": {
+          "2876288": {
+            "pid": 2876288,
+            "start_ticks": 521400965,
+            "state": "S",
+            "alive": true
+          },
+          "3225": {
+            "pid": 3225,
+            "start_ticks": 17583,
+            "state": "S",
+            "alive": true
+          },
+          "29935": {
+            "pid": 29935,
+            "start_ticks": 248258,
+            "state": "S",
+            "alive": true
+          }
+        },
+        "protected_unchanged": true
+      }
+    },
+    {
+      "original_result_path": "/tmp/chat-t04-remnant-pair.nY4r90hE/result.json",
+      "original_result_sha256": "20f4a2f3b7b375cf1e6808eb776a79b8ec11f893f28ea01cfc2db32bd1b617e2",
+      "actual_result": {
+        "scope": "/tmp/chat-t04-remnant-pair.nY4r90hE",
+        "mode": "mux",
+        "actual_exit": 0,
+        "captures": [
+          {
+            "path": "/tmp/chat-t04-remnant-pair.nY4r90hE/00-outer9-oracle.png",
+            "sha256": "97b9d98dfee502c5023a14a25872ab4fd754158ea42bad451203ff88e468f33f"
+          },
+          {
+            "path": "/tmp/chat-t04-remnant-pair.nY4r90hE/01-mux9-off-oracle.png",
+            "sha256": "37c3ca6796f18508c05481b86175fedcdc503116065c7f4900ea1a9006a8e2f8"
+          },
+          {
+            "path": "/tmp/chat-t04-remnant-pair.nY4r90hE/02-old-styled.png",
+            "sha256": "04a2400f309e9dbb2281023a4285d033521e31b5987bbce3157f61ef6e40046b"
+          },
+          {
+            "path": "/tmp/chat-t04-remnant-pair.nY4r90hE/03-default-clear.png",
+            "sha256": "6535d1905e9a9a53b238fbdb9005cc0f853ff7de8eab4903c23260ab2bf9d78c"
+          }
+        ],
+        "basis": "Original ASCII-X11 R/digit oracle unchanged; blank interior original pixels, not DSR/DisplayWidth.",
+        "timeout_seconds": 15,
+        "no_chat_server_sdk_db": true,
+        "no_dbus_wrapper": true,
+        "driver_process": {
+          "pid": 3917938,
+          "start_ticks": 547305430,
+          "state": "R",
+          "alive": true
+        },
+        "protected_before": {
+          "2876288": {
+            "pid": 2876288,
+            "start_ticks": 521400965,
+            "state": "S",
+            "alive": true
+          },
+          "3225": {
+            "pid": 3225,
+            "start_ticks": 17583,
+            "state": "S",
+            "alive": true
+          },
+          "29935": {
+            "pid": 29935,
+            "start_ticks": 248258,
+            "state": "S",
+            "alive": true
+          }
+        },
+        "assets_sha256": {
+          "wezterm.lua": "b28272d5198c1d74b4769f214d377c2ac6c67228611e950541cedb045899aab2",
+          "tmux.conf": "4377c1b796857515944f843cff0ab182bc5151acf33234af63be140bdb6e05fa",
+          "pixels.py": "3dc8c2d5233e39b2716b56b030aa2adbb1f9a2faf7177c5519897ce1fe8d10b9",
+          "paired_bytes.py": "0bdc6c21aca8b5431517b12c4edcc99ee36a41c993036ba491d8b089df239543"
+        },
+        "wezterm_version": "wezterm 20221119-145034-49b9839f",
+        "tmux_version": "tmux 3.6a",
+        "tmux_binary": {
+          "path": "/usr/bin/tmux",
+          "sha256": "baa7e6be444a751339bb52de4006fb192187d40b9d17548a9fcb60c8ed7ad495"
+        },
+        "owned_initial_pids": [
+          3917941,
+          3917944
+        ],
+        "display": ":2",
+        "owned_pid_start_ticks": {
+          "3917941": 547305433,
+          "3917944": 547305436,
+          "3917954": 547305438,
+          "3918011": 547305471,
+          "3918012": 547305471,
+          "3918015": 547305472,
+          "3918016": 547305473
+        },
+        "cell_pitch_px": 10,
+        "row_pitch_px": 19,
+        "blank_interiors": [
+          {
+            "row": 12,
+            "variant": "spaces",
+            "box": [
+              10,
+              228,
+              210,
+              247
+            ],
+            "old_nonblack_pixels": 3733,
+            "after_nonblack_pixels": 190,
+            "after_full_white_cells": [
+              2
+            ]
+          },
+          {
+            "row": 12,
+            "variant": "ECH_CUF",
+            "box": [
+              310,
+              228,
+              510,
+              247
+            ],
+            "old_nonblack_pixels": 3733,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 13,
+            "variant": "spaces",
+            "box": [
+              10,
+              247,
+              210,
+              266
+            ],
+            "old_nonblack_pixels": 3733,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 13,
+            "variant": "ECH_CUF",
+            "box": [
+              310,
+              247,
+              510,
+              266
+            ],
+            "old_nonblack_pixels": 3733,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 14,
+            "variant": "spaces",
+            "box": [
+              10,
+              266,
+              210,
+              285
+            ],
+            "old_nonblack_pixels": 3733,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 14,
+            "variant": "ECH_CUF",
+            "box": [
+              310,
+              266,
+              510,
+              285
+            ],
+            "old_nonblack_pixels": 3733,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 15,
+            "variant": "spaces",
+            "box": [
+              10,
+              285,
+              210,
+              304
+            ],
+            "old_nonblack_pixels": 3733,
+            "after_nonblack_pixels": 190,
+            "after_full_white_cells": [
+              2
+            ]
+          },
+          {
+            "row": 15,
+            "variant": "ECH_CUF",
+            "box": [
+              310,
+              285,
+              510,
+              304
+            ],
+            "old_nonblack_pixels": 3733,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 16,
+            "variant": "spaces",
+            "box": [
+              10,
+              304,
+              210,
+              323
+            ],
+            "old_nonblack_pixels": 3693,
+            "after_nonblack_pixels": 190,
+            "after_full_white_cells": [
+              2
+            ]
+          },
+          {
+            "row": 16,
+            "variant": "ECH_CUF",
+            "box": [
+              310,
+              304,
+              510,
+              323
+            ],
+            "old_nonblack_pixels": 3693,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 17,
+            "variant": "spaces",
+            "box": [
+              10,
+              323,
+              210,
+              342
+            ],
+            "old_nonblack_pixels": 3707,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 17,
+            "variant": "ECH_CUF",
+            "box": [
+              310,
+              323,
+              510,
+              342
+            ],
+            "old_nonblack_pixels": 3707,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          },
+          {
+            "row": 18,
+            "variant": "spaces",
+            "box": [
+              10,
+              342,
+              210,
+              361
+            ],
+            "old_nonblack_pixels": 3709,
+            "after_nonblack_pixels": 190,
+            "after_full_white_cells": [
+              2
+            ]
+          },
+          {
+            "row": 18,
+            "variant": "ECH_CUF",
+            "box": [
+              310,
+              342,
+              510,
+              361
+            ],
+            "old_nonblack_pixels": 3709,
+            "after_nonblack_pixels": 0,
+            "after_full_white_cells": []
+          }
+        ],
+        "wezterm_exit": 0,
+        "native_child_exit": {
+          "actual_exit": 0
+        },
+        "inside": {
+          "pid": 3918016,
+          "tty": "/dev/pts/20",
+          "TERM": "tmux-256color",
+          "TERM_PROGRAM": "tmux",
+          "TERM_PROGRAM_VERSION": "3.6a",
+          "tmux_server_pid": 3918015,
+          "variation_selector_always_wide": "off"
+        },
+        "cleanup_exits": [
+          {
+            "pid": 3917944,
+            "actual_exit": 0,
+            "gone": true
+          },
+          {
+            "pid": 3917941,
+            "actual_exit": 0,
+            "gone": true
+          }
+        ],
+        "owned_cleanup": {
+          "3917941": {
+            "pid": 3917941,
+            "alive": false
+          },
+          "3917944": {
+            "pid": 3917944,
+            "alive": false
+          },
+          "3917954": {
+            "pid": 3917954,
+            "alive": false
+          },
+          "3918011": {
+            "pid": 3918011,
+            "alive": false
+          },
+          "3918012": {
+            "pid": 3918012,
+            "alive": false
+          },
+          "3918015": {
+            "pid": 3918015,
+            "alive": false
+          },
+          "3918016": {
+            "pid": 3918016,
+            "alive": false
+          }
+        },
+        "all_owned_gone": true,
+        "protected_after": {
+          "2876288": {
+            "pid": 2876288,
+            "start_ticks": 521400965,
+            "state": "S",
+            "alive": true
+          },
+          "3225": {
+            "pid": 3225,
+            "start_ticks": 17583,
+            "state": "S",
+            "alive": true
+          },
+          "29935": {
+            "pid": 29935,
+            "start_ticks": 248258,
+            "state": "S",
+            "alive": true
+          }
+        },
+        "protected_unchanged": true
+      }
+    }
+  ]
+}

@@ -1658,3 +1658,25 @@ Qt6.5.3/xcb加载依赖验证，所有独立DB/自有PID/端口/socket清理、�
 Qt87/TUI78仍保持。只关闭上述局部反例，系统IME缩放、legacy/SSH/light终端及完整
 页面/无障碍/日常使用矩阵和两轮全产品fresh review未验收，不宣布campaign完成。
 SDK是实际依赖，继续保留；无push，下一步继续这些真实产品缺口。
+
+## 体验品质审查：复制页反白残留与缩放控件补证据
+
+8f491db生产源码未变，正式Qt永久widgets-only/delegate四请求缩放1/1.25/1.5/2，
+八次actual0，五输入首尾一致；三个宽度的中文前缀可见像素分别完整143/222/401/853，
+Tab focus反例继续PASS。它是offscreen控件验证，不代替系统输入法或真实全页面四DPI。
+
+上阶段正式TUI的copyable160原图仍有四个旧反白续格，copyable80有三个；原runner0
+不能覆盖这个视觉RED。同正式binary的新direct完整任务actual0且对应原图无白块。
+真实renderer已清掉旧续格，独立字节/物理配对进一步定位tmux默认空格差分路径：
+七行中四行留190白像素，有界ECH+CUF七行均0，28个邻接竖线保持。详细原图、指纹、
+清理和范围见[体验品质审查](experience-quality.md)阶段54；这不是生产修复，下一步
+应将最小有界擦除接入真实terminal输出并保原serializer、复制和width契约。
+
+实际tmux路径为/usr/bin/tmux（3.6a、baa7e6be…），此前所谓私有binary prefix不存在，
+不把私有配置/socket当成私有binary。旧direct额外DBus包装造成WM_CLASS缺失的驱动
+失败单独保留，去掉包装后原15秒/oracle/业务检查不变。
+新的系统IME首次启动在读取非UTF8 Unix socket列表时失败，尚未启动Chat；仅临时
+驱动修bytes解析，独立数据库和自有进程已清理，未改产品或输入法系统服务。
+
+当前Qt87/TUI78不提高，Q27/Q30/T04及两轮全产品fresh review仍开放。原69项门禁
+仍对应未变的生产输入，本阶段没有伪称重新全量验证；未push。
