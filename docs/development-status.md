@@ -1802,3 +1802,18 @@ Qt87/TUI78保持。Q34局部输入丢失修复不代表全群权限/键盘/HiDPI
 
 未改生产输入，阶段59完整69项门禁仍对应当前代码；不重复虚构构建/产品运行。
 Qt87/TUI78保持，下一步先核Help滚动和成员摘要，完整目标仍未完成，未push。
+
+## 体验品质审查：窄终端 Help 的真实键盘可达性
+
+阶段60的Help下部内容候选已完成真实j/Esc核验，无需改产品。正式TUI
+dd1a6baa…在60/70×24和70/80×40、dark/light八组合，两次新私有环境均可见
+命令摘要末尾quit、完整Clipboard说明和footer，并实际Esc返回Chats。首次只
+按五次j的driver把未变视口当作末尾，另有footer空格谓词错误；原局限保留，
+不把进程0当可达性PASS。成功以实际屏幕及plain/styled正文为据，不以125/200
+按键数为据。
+
+主代理亲看三张完整原图，独立代理亲看两次48张；原PNG、ANSI/plain、结果及
+审查见[体验品质审查](experience-quality.md)阶段61。自有PID/DB/端口清理，
+保护服务ticks和正式源码首尾一致。仅这一terminal链的四尺寸向下滚动/Esc
+返回，不是全Help命令、reverse-scroll或terminalMatrix验收。未改生产，未
+虚构新完整门禁；Qt87/TUI78保持，全目标与达到92后的两轮fresh审查仍开放。

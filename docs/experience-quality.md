@@ -4021,3 +4021,30 @@ font/palette、256-color/truecolor、legacy/SSH及Unicode18仍未由本fixture�
 本阶段只有新审查证据归档，没有改生产或重跑产品。阶段59原完整69项门禁对应
 当前同一编译输入，不冒称图片审查又产生新门禁。Qt87/TUI78不提高；完整品质
 目标继续开放，不计达到92后的连续两轮fresh review。
+
+## 阶段 61：真实键盘核实窄终端 Help 的完整可达性
+
+阶段60的Help初始视口候选现经真实键盘验证，不需要生产修改。沿正式TUI
+dd1a6baa…冻结字节，分别建立新的私有服务/数据库、Xvfb、WezTerm及tmux链，
+实际登录后打开Help。60×24、70×24、70×40和80×40两默认明暗背景共八组合，
+真实j滚动后可见命令摘要末尾quit、完整Clipboard说明与footer，真实Esc返回
+Chats。另一次独立环境执行相同八组合也达到这些可见结果；125和200是两次
+driver的实际按键数，不是产品必须按这么多次的要求，也不是靠按键数判PASS。
+
+首次driver只按五次j，在焦点尚能在可见区域内移动时，就把未变像素当成底部；
+footer谓词也误写为没有空格的Esc:back。它的进程退出0不证明内容可达，原结果
+保留为驱动局限，而不是产品RED或Help完整PASS。后两次以原屏幕和实际plain/
+styled正文确认末尾，不修改产品、注入状态或放宽原15秒等待来制造成功。
+
+主代理亲看dark60×24末尾、light80×40末尾及light60×24返回的完整1900×900
+原图；独立代理逐张亲看两次共48张top/bottom/Esc原PNG，记录每图SHA和边界。
+根窗口的黑色外部区域不当作TUI内容空白。原图、ANSI/plain、原结果和失败范围
+见[归档核验](images/experience/tui-help-reachability-proof.json)及
+[逐图审查](images/experience/tui-help-reachability-review.json)。runner、两背景
+driver、实际TUI及WezTerm均实际0，自有进程gone、两个scope各自数据库删除、
+私有端口关闭；保护服务三个tick/cmdline和TUI源码首尾保持。
+
+本阶段仅证明这一WezTerm/tmux链和四种尺寸的Help向下可达及Esc返回，未验证
+k/Home向上滚动、全部Help命令执行、其它终端/palette或全键盘矩阵。没有改生产
+输入，不把证据归档说成另一次完整工程门禁。Qt87/TUI78保持，完整目标、成员
+摘要候选及达到92后的两轮fresh review仍开放；未push。

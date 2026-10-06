@@ -1,0 +1,3420 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/chat_tui_light_audit",
+  "date": "2026-10-06",
+  "subject": "Focused real-terminal Help reachability on official dd1a6baa TUI",
+  "production_edits": false,
+  "full_gate_run": false,
+  "commit": false,
+  "conclusion": "Four requested TTY sizes in dark/light reach the final command-summary quit and complete Clipboard explanation through real j keys; actual Esc returns to Chats. Confirmed in fresh125 and fresh200 scopes. First5-j scope is a driver limitation, not a product failure.",
+  "success_basis": [
+    "Actual original full-resolution PNG visual review",
+    "Public tmux plain/styled terminal capture",
+    "Actual TTY ioctl size and X11 window geometry",
+    "Live /proc/PID/exe SHA matching frozen official binary",
+    "Final command summary quit + full Clipboard explanation + status/Esc footer + real Esc return, NOT driver exit or repeated pixels alone"
+  ],
+  "limits": [
+    "Single WezTerm 20221119-145034-49b9839f / tmux3.6a chain, unicode_version9, tmux variation-selector-always-wide off, DejaVu/LilyHan/Noto fallback. Not all-terminalMatrix completion.",
+    "Sizes only60x24,70x24,70x40,80x40; monochrome terminal default dark/light, not all themes or palette contrast certification.",
+    "Help opened from real Chats after real SDK fixture seed/login. No app state injection, no fake product controls, no synthetic screenshot content.",
+    "Esc back was exercised, not k/Home reverse-scroll or interactive execution of every documented command.",
+    "CLI safe exit used real Ctrl+C, not :quit business command execution.",
+    "Only Help reachability focused here; no EGC clipboard/atomicity, Unicode18, all business pages or genuine empty-state assertion.",
+    "125 and200 are actual recorded key counts, not a product-required count. First five unchanged frames were insufficient to locate bottom because selection can move within viewport.",
+    "Old300-image visual report remains immutable; this is a supplemental runtime audit, not a relabel of whole300 matrix PASS."
+  ],
+  "preserved_limitation_scope": {
+    "remote_scope": "/tmp/chat-help-scroll-native.EAUbGlgM",
+    "local_scope": "/tmp/chat-help-focused-driver-local/artifacts",
+    "runner_exit": 0,
+    "profiles": {
+      "dark": {
+        "driver_exit": 0,
+        "native_actual_exit": {
+          "actual_exit": 0
+        },
+        "wezterm_exit": 0,
+        "app_gone": true,
+        "tmux_gone": true,
+        "database_absent": true,
+        "protected_unchanged": true,
+        "tui_source_unchanged": true,
+        "own_port_closed": true,
+        "result_sha256": "6fca9f6a9ac1d0a2ee6a77d19ca3904d8ab2fd509de0b44ebe256f762cb65762",
+        "driver_sha256": "c8d3d7158771cf6d2a8299e1fa92c423f8597fe2e9c802c6475ad16b26f498ec"
+      },
+      "light": {
+        "driver_exit": 0,
+        "native_actual_exit": {
+          "actual_exit": 0
+        },
+        "wezterm_exit": 0,
+        "app_gone": true,
+        "tmux_gone": true,
+        "database_absent": true,
+        "protected_unchanged": true,
+        "tui_source_unchanged": true,
+        "own_port_closed": true,
+        "result_sha256": "6356c4c2cae974c5a1ecddf2e5f41c1f0725ac0e955241217b20e8f85fffc714",
+        "driver_sha256": "c8d3d7158771cf6d2a8299e1fa92c423f8597fe2e9c802c6475ad16b26f498ec"
+      }
+    }
+  },
+  "runs": [
+    {
+      "remote_scope": "/tmp/chat-help-scroll-native2.SSyBFAjQ",
+      "local_scope": "/tmp/chat-help-focused-driver-local/artifacts2",
+      "runner_exit": 0,
+      "manifest_sha256": "0f5785a602fd19b5967a4de6f5b79cdc039207c00a5fe27e0addb37186904fe6",
+      "profiles": {
+        "dark": {
+          "driver_exit": 0,
+          "native_actual_exit": {
+            "actual_exit": 0
+          },
+          "wezterm_exit": 0,
+          "helper_exit": 0,
+          "actual_live_binary": {
+            "pid": 241125,
+            "start_ticks": 548151259,
+            "path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/chat_tui-dd1a6baa",
+            "sha256": "dd1a6baab6d19759f0d8cf5e88133130eecf45412bed90360728476e926a11a0"
+          },
+          "database": "chat_t04_candidate_mux_1006201456_240530",
+          "port": 47581,
+          "cleanup_exits": {
+            "clipboard": [
+              {
+                "pid": 244331,
+                "actual_exit": -15,
+                "gone": true
+              },
+              {
+                "pid": 244325,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 243358,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 243352,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 242378,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 242372,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 241275,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 241269,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 241257,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 241255,
+                "actual_exit": 0,
+                "gone": true
+              }
+            ],
+            "wezterm": [
+              {
+                "pid": 240970,
+                "actual_exit": 0,
+                "gone": true
+              }
+            ],
+            "xvfb": [
+              {
+                "pid": 240964,
+                "actual_exit": 0,
+                "gone": true
+              }
+            ],
+            "helper": [
+              {
+                "pid": 240621,
+                "actual_exit": 0,
+                "gone": true
+              }
+            ],
+            "server": [
+              {
+                "pid": 240593,
+                "actual_exit": 0,
+                "gone": true
+              }
+            ]
+          },
+          "app_gone": true,
+          "tmux_gone": true,
+          "dropdb_exit": 0,
+          "database_absent": true,
+          "own_port_closed": true,
+          "protected_before": {
+            "3225": {
+              "pid": 3225,
+              "alive": true,
+              "state": "S",
+              "executable": "/usr/bin/fcitx5",
+              "start_ticks": 17583,
+              "cpu_seconds": 6052.74,
+              "rss_kib": 61320,
+              "peak_rss_kib": 285108,
+              "threads": 3,
+              "fds": 62
+            },
+            "29935": {
+              "pid": 29935,
+              "alive": true,
+              "state": "S",
+              "executable": "/usr/bin/speech-dispatcher",
+              "start_ticks": 248258,
+              "cpu_seconds": 4.85,
+              "rss_kib": 6476,
+              "peak_rss_kib": 7872,
+              "threads": 5,
+              "fds": 24
+            },
+            "2876288": {
+              "pid": 2876288,
+              "alive": true,
+              "state": "S",
+              "executable": "/home/gyl/example/chat/build/chat_server (deleted)",
+              "start_ticks": 521400965,
+              "cpu_seconds": 0.98,
+              "rss_kib": 17108,
+              "peak_rss_kib": 17108,
+              "threads": 25,
+              "fds": 41
+            }
+          },
+          "protected_after": {
+            "3225": {
+              "pid": 3225,
+              "alive": true,
+              "state": "S",
+              "executable": "/usr/bin/fcitx5",
+              "start_ticks": 17583,
+              "cpu_seconds": 6052.74,
+              "rss_kib": 61320,
+              "peak_rss_kib": 285108,
+              "threads": 3,
+              "fds": 62
+            },
+            "29935": {
+              "pid": 29935,
+              "alive": true,
+              "state": "S",
+              "executable": "/usr/bin/speech-dispatcher",
+              "start_ticks": 248258,
+              "cpu_seconds": 4.85,
+              "rss_kib": 6476,
+              "peak_rss_kib": 7872,
+              "threads": 5,
+              "fds": 24
+            },
+            "2876288": {
+              "pid": 2876288,
+              "alive": true,
+              "state": "S",
+              "executable": "/home/gyl/example/chat/build/chat_server (deleted)",
+              "start_ticks": 521400965,
+              "cpu_seconds": 0.98,
+              "rss_kib": 17108,
+              "peak_rss_kib": 17108,
+              "threads": 25,
+              "fds": 41
+            }
+          },
+          "protected_unchanged": true,
+          "tui_source_unchanged": true,
+          "wezterm_version": "wezterm 20221119-145034-49b9839f",
+          "tmux_version": "tmux 3.6a",
+          "inside": {
+            "pid": 241125,
+            "tty": "/dev/pts/26",
+            "TERM": "tmux-256color",
+            "TERM_PROGRAM": "tmux",
+            "TERM_PROGRAM_VERSION": "3.6a",
+            "inside_tmux": true,
+            "tmux_server_pid": 241123,
+            "variation_selector_always_wide": "off",
+            "allow_passthrough": "",
+            "clients": [
+              "xterm-256color|WezTerm 20221119-145034-49b9839f|bpaste,ccolour,clipboard,cstyle,focus,RGB,sixel,title"
+            ]
+          },
+          "outer": {
+            "pid": 240994,
+            "tty": "/dev/pts/22",
+            "TERM": "xterm-256color",
+            "TERM_PROGRAM": "WezTerm",
+            "TERM_PROGRAM_VERSION": "20221119-145034-49b9839f"
+          },
+          "row_pitch": 19,
+          "result_sha256": "63b53c58ec5bc298e16792fdf4f076f699beb856d8a250a808863d4c16b9b8ba",
+          "driver_sha256": "b8973f20df746cac4bdcdd6efe3a1641ebffddde87e9e0928ef83b0ef42bdcd4",
+          "host_sha256": "e7b26d261d595df4ba64225b6aede7a7d8f82c6a256574c0ace57609bc475157",
+          "cases": [
+            {
+              "width": 60,
+              "height": 24,
+              "actual_rows_cols": [
+                24,
+                60
+              ],
+              "actual_j_keypresses": 125,
+              "unchanged_last_frames": 97,
+              "top_plain_sha256": "dbb980a64f6d5e26d1bf51b207928e861667afa766ef521aff589ed17bccda05",
+              "bottom_plain_sha256": "a6051fd2422295f82d7d9dfe98d921d14a3de964d4d58f2b90453c2b236f1454",
+              "quit_visible": true,
+              "clipboard_visible": true,
+              "clipboard_terminal_text_visible": true,
+              "esc_footer_visible": true,
+              "product_observation_only": true,
+              "actual_esc_return_to_chats": true
+            },
+            {
+              "width": 70,
+              "height": 24,
+              "actual_rows_cols": [
+                24,
+                70
+              ],
+              "actual_j_keypresses": 125,
+              "unchanged_last_frames": 101,
+              "top_plain_sha256": "a1f7b738961d94808ba7b5cb76cfb37f351fa4a4bb5ae0597a3cf88de18c43c0",
+              "bottom_plain_sha256": "8793811b1167dfc51957663fe849f0d6b96bd8b4323ba44708edb2cf97c990a8",
+              "quit_visible": true,
+              "clipboard_visible": true,
+              "clipboard_terminal_text_visible": true,
+              "esc_footer_visible": true,
+              "product_observation_only": true,
+              "actual_esc_return_to_chats": true
+            },
+            {
+              "width": 70,
+              "height": 40,
+              "actual_rows_cols": [
+                40,
+                70
+              ],
+              "actual_j_keypresses": 125,
+              "unchanged_last_frames": 109,
+              "top_plain_sha256": "75be2fb138b13894551640daa21b2cc518fe980a398a66f9146f78b9078a8d1a",
+              "bottom_plain_sha256": "4601defff4794b87b9c6d7e33f1a0f8316048c3cab9ce2375b3f1e87630a0271",
+              "quit_visible": true,
+              "clipboard_visible": true,
+              "clipboard_terminal_text_visible": true,
+              "esc_footer_visible": true,
+              "product_observation_only": true,
+              "actual_esc_return_to_chats": true
+            },
+            {
+              "width": 80,
+              "height": 40,
+              "actual_rows_cols": [
+                40,
+                80
+              ],
+              "actual_j_keypresses": 125,
+              "unchanged_last_frames": 110,
+              "top_plain_sha256": "f26424dc594217853ec7665c064e844e5bd8f654f23e5d92f31000475942f4e0",
+              "bottom_plain_sha256": "9abdf6ada0db12615d253b9d2ccd6c999f62a83dc6277bd1ed54af4510d599b3",
+              "quit_visible": true,
+              "clipboard_visible": true,
+              "clipboard_terminal_text_visible": true,
+              "esc_footer_visible": true,
+              "product_observation_only": true,
+              "actual_esc_return_to_chats": true
+            }
+          ],
+          "captures": [
+            {
+              "file": "help-60x24-top.png",
+              "sha": "bd4ff6a9d5a5a4ad2260d11ea5d60e1735b350cdb8b341c1cc090b1051ba21f0",
+              "raw_offset": 43982,
+              "tty_rows_cols": [
+                24,
+                60
+              ],
+              "plain_sha": "dbb980a64f6d5e26d1bf51b207928e861667afa766ef521aff589ed17bccda05",
+              "styled_sha": "af0437c624d594e0fc392497dac5e5f5111e87db9004f34bb2ee4bfb842fbd3f",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-60x24-top.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-60x24-top.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-60x24-top.png"
+            },
+            {
+              "file": "help-60x24-bottom.png",
+              "sha": "117af365a7ac8bed476216c353b08675c4c82a752fce21bc2262e22befea3f89",
+              "raw_offset": 418159,
+              "tty_rows_cols": [
+                24,
+                60
+              ],
+              "plain_sha": "a6051fd2422295f82d7d9dfe98d921d14a3de964d4d58f2b90453c2b236f1454",
+              "styled_sha": "2b1083880d187a3667dc9cc1fc88ab9b603a05f9f6d756249b0332a33960c8a1",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-60x24-bottom.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-60x24-bottom.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-60x24-bottom.png"
+            },
+            {
+              "file": "help-60x24-esc.png",
+              "sha": "2f679893482b6b9991639dc86f04c048fb3d90152d288c1c0df00c4c89058277",
+              "raw_offset": 420581,
+              "tty_rows_cols": [
+                24,
+                60
+              ],
+              "plain_sha": "55d5295a5606eaa3da79651dbf1e3566021683da4770575120318aeb68172398",
+              "styled_sha": "b044720a54e2e93e86ebd5bc2b3ad91e4c4045903a6941cd5735ed29806dc50c",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-60x24-esc.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-60x24-esc.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-60x24-esc.png"
+            },
+            {
+              "file": "help-70x24-top.png",
+              "sha": "cadd24da38b7965aa3333070c5557edd4ad621f1561ab98e4588c4357ee6d7cb",
+              "raw_offset": 441751,
+              "tty_rows_cols": [
+                24,
+                70
+              ],
+              "plain_sha": "a1f7b738961d94808ba7b5cb76cfb37f351fa4a4bb5ae0597a3cf88de18c43c0",
+              "styled_sha": "ee894b0e9d3061d4cb2ea5425b9b4a14a8a2d9a5841f0c4be684255185920b03",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x24-top.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-70x24-top.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-70x24-top.png"
+            },
+            {
+              "file": "help-70x24-bottom.png",
+              "sha": "bfb579f5077556dfb643212eb631a5317ea463eac0b1cd30e8ce7857e08684d6",
+              "raw_offset": 868912,
+              "tty_rows_cols": [
+                24,
+                70
+              ],
+              "plain_sha": "8793811b1167dfc51957663fe849f0d6b96bd8b4323ba44708edb2cf97c990a8",
+              "styled_sha": "b0c9cfae9589a92e36039be7072bf34037aca67d75de04567a8f8ea90f07df95",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x24-bottom.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-70x24-bottom.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-70x24-bottom.png"
+            },
+            {
+              "file": "help-70x24-esc.png",
+              "sha": "9752ff8f893a01b28777bf39c6dcb88b2e0e61808643560e03e4b0afec1d81ee",
+              "raw_offset": 871644,
+              "tty_rows_cols": [
+                24,
+                70
+              ],
+              "plain_sha": "9243d116f1f04e6c2531ed6a1791f4d8387237ec20f6c92757b53629d899de1d",
+              "styled_sha": "ca9c2f83f55494d159e8b08134cd7762d43ae8abd756d69bed88eaeffe337f41",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x24-esc.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-70x24-esc.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-70x24-esc.png"
+            },
+            {
+              "file": "help-70x40-top.png",
+              "sha": "ca5f758b785441e54d911140b4401fff010d7b39b40c3dddc7f23dab86ef5e95",
+              "raw_offset": 899871,
+              "tty_rows_cols": [
+                40,
+                70
+              ],
+              "plain_sha": "75be2fb138b13894551640daa21b2cc518fe980a398a66f9146f78b9078a8d1a",
+              "styled_sha": "a4d2609051efcb96ee309b2472f86a05d562f23fea6d1d124b82139b55351eee",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x40-top.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-70x40-top.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-70x40-top.png"
+            },
+            {
+              "file": "help-70x40-bottom.png",
+              "sha": "44188242afa4b115fb43236dcab22b0f5239bc8d68f67adadd94f259b9a5a415",
+              "raw_offset": 1601689,
+              "tty_rows_cols": [
+                40,
+                70
+              ],
+              "plain_sha": "4601defff4794b87b9c6d7e33f1a0f8316048c3cab9ce2375b3f1e87630a0271",
+              "styled_sha": "bebdc7774cddf1199cf22e457ce48a572fc0dd2f2390deaa0806331477d87df1",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x40-bottom.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-70x40-bottom.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-70x40-bottom.png"
+            },
+            {
+              "file": "help-70x40-esc.png",
+              "sha": "661ed7e27e4c4cd4e61d5e36f3faeea4476e2df8646ac6beef6126382dc47609",
+              "raw_offset": 1605813,
+              "tty_rows_cols": [
+                40,
+                70
+              ],
+              "plain_sha": "a9be70df1fc9a81a1c5e32a221b8ca2bcedb072bf16e256ddec8da163e4c166e",
+              "styled_sha": "bc8eb29f8ed5d68d745546aff894769b002e2f8541a3965bbdf167350847b89c",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x40-esc.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-70x40-esc.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-70x40-esc.png"
+            },
+            {
+              "file": "help-80x40-top.png",
+              "sha": "c6ca99c63cb499d9c8705c83f01a902acb9d0bca4a27dea19efc3bce1ebd4a9a",
+              "raw_offset": 1641060,
+              "tty_rows_cols": [
+                40,
+                80
+              ],
+              "plain_sha": "f26424dc594217853ec7665c064e844e5bd8f654f23e5d92f31000475942f4e0",
+              "styled_sha": "ec7f6eabd8d97d61d03541c6ae2fcad931109872544b21212f26728a119fb36b",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-80x40-top.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-80x40-top.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-80x40-top.png"
+            },
+            {
+              "file": "help-80x40-bottom.png",
+              "sha": "80bc41e218d9af3947bbdd209b6b9ccb0792c0911dfe80e984a8713f9718b7c3",
+              "raw_offset": 2403804,
+              "tty_rows_cols": [
+                40,
+                80
+              ],
+              "plain_sha": "9abdf6ada0db12615d253b9d2ccd6c999f62a83dc6277bd1ed54af4510d599b3",
+              "styled_sha": "8ac5b29f33b6075ca54e83c078cf6b34d4ef98aa1678bb798c5232b8a9dc5964",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-80x40-bottom.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-80x40-bottom.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-80x40-bottom.png"
+            },
+            {
+              "file": "help-80x40-esc.png",
+              "sha": "ee668b75876e6f069fe9858d688fb4b4e6b1ba9d5dbe1a836f6709b5b32937b4",
+              "raw_offset": 2408398,
+              "tty_rows_cols": [
+                40,
+                80
+              ],
+              "plain_sha": "ea52de8aae855962483c611059746e28177185e17f638d82f9fdc128deaa27dd",
+              "styled_sha": "1bae29621bf01eb67996907ed1876856ac2a91d06cf59f4c9bdb41749f22cd22",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-80x40-esc.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-80x40-esc.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-80x40-esc.png"
+            }
+          ]
+        },
+        "light": {
+          "driver_exit": 0,
+          "native_actual_exit": {
+            "actual_exit": 0
+          },
+          "wezterm_exit": 0,
+          "helper_exit": 0,
+          "actual_live_binary": {
+            "pid": 241124,
+            "start_ticks": 548151258,
+            "path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/chat_tui-dd1a6baa",
+            "sha256": "dd1a6baab6d19759f0d8cf5e88133130eecf45412bed90360728476e926a11a0"
+          },
+          "database": "chat_t04_candidate_mux_1006201456_240531",
+          "port": 40003,
+          "cleanup_exits": {
+            "clipboard": [
+              {
+                "pid": 244332,
+                "actual_exit": -15,
+                "gone": true
+              },
+              {
+                "pid": 244326,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 243357,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 243351,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 242377,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 242371,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 241274,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 241268,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 241256,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 241251,
+                "actual_exit": 0,
+                "gone": true
+              }
+            ],
+            "wezterm": [
+              {
+                "pid": 240969,
+                "actual_exit": 0,
+                "gone": true
+              }
+            ],
+            "xvfb": [
+              {
+                "pid": 240963,
+                "actual_exit": 0,
+                "gone": true
+              }
+            ],
+            "helper": [
+              {
+                "pid": 240594,
+                "actual_exit": 0,
+                "gone": true
+              }
+            ],
+            "server": [
+              {
+                "pid": 240592,
+                "actual_exit": 0,
+                "gone": true
+              }
+            ]
+          },
+          "app_gone": true,
+          "tmux_gone": true,
+          "dropdb_exit": 0,
+          "database_absent": true,
+          "own_port_closed": true,
+          "protected_before": {
+            "3225": {
+              "pid": 3225,
+              "alive": true,
+              "state": "S",
+              "executable": "/usr/bin/fcitx5",
+              "start_ticks": 17583,
+              "cpu_seconds": 6052.74,
+              "rss_kib": 61320,
+              "peak_rss_kib": 285108,
+              "threads": 3,
+              "fds": 62
+            },
+            "29935": {
+              "pid": 29935,
+              "alive": true,
+              "state": "S",
+              "executable": "/usr/bin/speech-dispatcher",
+              "start_ticks": 248258,
+              "cpu_seconds": 4.85,
+              "rss_kib": 6476,
+              "peak_rss_kib": 7872,
+              "threads": 5,
+              "fds": 24
+            },
+            "2876288": {
+              "pid": 2876288,
+              "alive": true,
+              "state": "S",
+              "executable": "/home/gyl/example/chat/build/chat_server (deleted)",
+              "start_ticks": 521400965,
+              "cpu_seconds": 0.98,
+              "rss_kib": 17108,
+              "peak_rss_kib": 17108,
+              "threads": 25,
+              "fds": 41
+            }
+          },
+          "protected_after": {
+            "3225": {
+              "pid": 3225,
+              "alive": true,
+              "state": "S",
+              "executable": "/usr/bin/fcitx5",
+              "start_ticks": 17583,
+              "cpu_seconds": 6052.74,
+              "rss_kib": 61320,
+              "peak_rss_kib": 285108,
+              "threads": 3,
+              "fds": 62
+            },
+            "29935": {
+              "pid": 29935,
+              "alive": true,
+              "state": "S",
+              "executable": "/usr/bin/speech-dispatcher",
+              "start_ticks": 248258,
+              "cpu_seconds": 4.85,
+              "rss_kib": 6476,
+              "peak_rss_kib": 7872,
+              "threads": 5,
+              "fds": 24
+            },
+            "2876288": {
+              "pid": 2876288,
+              "alive": true,
+              "state": "S",
+              "executable": "/home/gyl/example/chat/build/chat_server (deleted)",
+              "start_ticks": 521400965,
+              "cpu_seconds": 0.98,
+              "rss_kib": 17108,
+              "peak_rss_kib": 17108,
+              "threads": 25,
+              "fds": 41
+            }
+          },
+          "protected_unchanged": true,
+          "tui_source_unchanged": true,
+          "wezterm_version": "wezterm 20221119-145034-49b9839f",
+          "tmux_version": "tmux 3.6a",
+          "inside": {
+            "pid": 241124,
+            "tty": "/dev/pts/25",
+            "TERM": "tmux-256color",
+            "TERM_PROGRAM": "tmux",
+            "TERM_PROGRAM_VERSION": "3.6a",
+            "inside_tmux": true,
+            "tmux_server_pid": 241117,
+            "variation_selector_always_wide": "off",
+            "allow_passthrough": "",
+            "clients": [
+              "xterm-256color|WezTerm 20221119-145034-49b9839f|bpaste,ccolour,clipboard,cstyle,focus,RGB,sixel,title"
+            ]
+          },
+          "outer": {
+            "pid": 240988,
+            "tty": "/dev/pts/21",
+            "TERM": "xterm-256color",
+            "TERM_PROGRAM": "WezTerm",
+            "TERM_PROGRAM_VERSION": "20221119-145034-49b9839f"
+          },
+          "row_pitch": 19,
+          "result_sha256": "5feff4c7bddf775d4c0315eb5a40f6a458fa858b98931bc5087261f872c90692",
+          "driver_sha256": "b8973f20df746cac4bdcdd6efe3a1641ebffddde87e9e0928ef83b0ef42bdcd4",
+          "host_sha256": "e7b26d261d595df4ba64225b6aede7a7d8f82c6a256574c0ace57609bc475157",
+          "cases": [
+            {
+              "width": 60,
+              "height": 24,
+              "actual_rows_cols": [
+                24,
+                60
+              ],
+              "actual_j_keypresses": 125,
+              "unchanged_last_frames": 97,
+              "top_plain_sha256": "da2428aa813d54bc5be51da848be848fe36c98a2e5e3eb766f3f82eab81b7019",
+              "bottom_plain_sha256": "203057ecc12260c1016775d88a65d64b9dfe5cf2efcb007479dad88429a8951a",
+              "quit_visible": true,
+              "clipboard_visible": true,
+              "clipboard_terminal_text_visible": true,
+              "esc_footer_visible": true,
+              "product_observation_only": true,
+              "actual_esc_return_to_chats": true
+            },
+            {
+              "width": 70,
+              "height": 24,
+              "actual_rows_cols": [
+                24,
+                70
+              ],
+              "actual_j_keypresses": 125,
+              "unchanged_last_frames": 101,
+              "top_plain_sha256": "b4e16337dd4000a93264a41fa370be952bb322e238f718911b320591cdcd316c",
+              "bottom_plain_sha256": "9d698e8827b3517d4c32e3c9aea62222ce71c84ce9c7dae057a132fd7c74d2ee",
+              "quit_visible": true,
+              "clipboard_visible": true,
+              "clipboard_terminal_text_visible": true,
+              "esc_footer_visible": true,
+              "product_observation_only": true,
+              "actual_esc_return_to_chats": true
+            },
+            {
+              "width": 70,
+              "height": 40,
+              "actual_rows_cols": [
+                40,
+                70
+              ],
+              "actual_j_keypresses": 125,
+              "unchanged_last_frames": 109,
+              "top_plain_sha256": "7a21a799a3b08a6e0bd1ec972bbace0ab32e3dd11ca228714e99e7b987027162",
+              "bottom_plain_sha256": "eea0f87b9fc8777cfa5be5766d9e64885e3ec507f8944bb138873e7b02ce2229",
+              "quit_visible": true,
+              "clipboard_visible": true,
+              "clipboard_terminal_text_visible": true,
+              "esc_footer_visible": true,
+              "product_observation_only": true,
+              "actual_esc_return_to_chats": true
+            },
+            {
+              "width": 80,
+              "height": 40,
+              "actual_rows_cols": [
+                40,
+                80
+              ],
+              "actual_j_keypresses": 125,
+              "unchanged_last_frames": 110,
+              "top_plain_sha256": "9ad8a2e183ca122be4a667ecfd5e0925fb58aedc3f38c77a53810726b183d23c",
+              "bottom_plain_sha256": "6f1f286b42ee30cf218a6017db341c6648b3e7d38a06118e17f61e392ebfdaa8",
+              "quit_visible": true,
+              "clipboard_visible": true,
+              "clipboard_terminal_text_visible": true,
+              "esc_footer_visible": true,
+              "product_observation_only": true,
+              "actual_esc_return_to_chats": true
+            }
+          ],
+          "captures": [
+            {
+              "file": "help-60x24-top.png",
+              "sha": "a05083b25d13a55875ea8353d9b6e7bc3d605190a6a5948af9a4998975bc6236",
+              "raw_offset": 43966,
+              "tty_rows_cols": [
+                24,
+                60
+              ],
+              "plain_sha": "da2428aa813d54bc5be51da848be848fe36c98a2e5e3eb766f3f82eab81b7019",
+              "styled_sha": "083116969ec6674fc4930f36358500b7735cddb197c91810e97dd121fc52f7a3",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-60x24-top.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-60x24-top.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-60x24-top.png"
+            },
+            {
+              "file": "help-60x24-bottom.png",
+              "sha": "3d370648f151a48d141b45dbf56b269ebc262693d79401db20ec97cc98859673",
+              "raw_offset": 418139,
+              "tty_rows_cols": [
+                24,
+                60
+              ],
+              "plain_sha": "203057ecc12260c1016775d88a65d64b9dfe5cf2efcb007479dad88429a8951a",
+              "styled_sha": "e0ac2be0ddc0c46433a316d1527925105645158cf321a450b7ca5331a027da6a",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-60x24-bottom.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-60x24-bottom.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-60x24-bottom.png"
+            },
+            {
+              "file": "help-60x24-esc.png",
+              "sha": "7a788e18ad2d8e972e1867ab89a593e6c28f05e3d76e3b970f9cf3d4566e17e2",
+              "raw_offset": 420561,
+              "tty_rows_cols": [
+                24,
+                60
+              ],
+              "plain_sha": "a5b8d94e4292adfcb9cf34f20e05117ed5f5d6eff805564bdd26382450ac36c5",
+              "styled_sha": "36e5e6a25a58f42f7a7e0a1ad4aa8ba7f6e74da208f098c041e84bbb332b2749",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-60x24-esc.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-60x24-esc.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-60x24-esc.png"
+            },
+            {
+              "file": "help-70x24-top.png",
+              "sha": "88b8c1fd99e5370078ac2dadc64aa5714ed38cf8a5b78a1cae5f46622e426390",
+              "raw_offset": 441731,
+              "tty_rows_cols": [
+                24,
+                70
+              ],
+              "plain_sha": "b4e16337dd4000a93264a41fa370be952bb322e238f718911b320591cdcd316c",
+              "styled_sha": "3e07fe73990c1648a46512a5c05cf5621d6283b3c0e6814c1c47badbef216dc7",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x24-top.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-70x24-top.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-70x24-top.png"
+            },
+            {
+              "file": "help-70x24-bottom.png",
+              "sha": "fb0edd88122300b9726fb64e0c921d41876d5c157129f45cbf2417f277cf0690",
+              "raw_offset": 868902,
+              "tty_rows_cols": [
+                24,
+                70
+              ],
+              "plain_sha": "9d698e8827b3517d4c32e3c9aea62222ce71c84ce9c7dae057a132fd7c74d2ee",
+              "styled_sha": "0b10b04f4de48446f2f44507c70b50736ca0ad5e38571b8082a42fc11950a19b",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x24-bottom.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-70x24-bottom.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-70x24-bottom.png"
+            },
+            {
+              "file": "help-70x24-esc.png",
+              "sha": "f10a76bed6105df0e5d3eae69a7efa5cf8b284183642c3cea9c2950a954df09c",
+              "raw_offset": 871634,
+              "tty_rows_cols": [
+                24,
+                70
+              ],
+              "plain_sha": "fd5fc646d9b643dc302f38f3ad71f0597ac750577c6cb067bcd98894920d4872",
+              "styled_sha": "51a5335d5ae41fd644f1116e1f387794b407f52d8cde9d1a1792fb7c440a2820",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x24-esc.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-70x24-esc.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-70x24-esc.png"
+            },
+            {
+              "file": "help-70x40-top.png",
+              "sha": "892634da5ee95d858adc65fc5dc83423e589f2374a75da207115de8c51e8d7b5",
+              "raw_offset": 899861,
+              "tty_rows_cols": [
+                40,
+                70
+              ],
+              "plain_sha": "7a21a799a3b08a6e0bd1ec972bbace0ab32e3dd11ca228714e99e7b987027162",
+              "styled_sha": "51efa93c67cf42ac16f2b95b7b4862b58d558dc2e9bd1a925dea271e41afea65",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x40-top.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-70x40-top.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-70x40-top.png"
+            },
+            {
+              "file": "help-70x40-bottom.png",
+              "sha": "74a27daecef2dd14a6d590a1f8d1e5afd75e758cf4fb30dc4cc3327d41e51768",
+              "raw_offset": 1601699,
+              "tty_rows_cols": [
+                40,
+                70
+              ],
+              "plain_sha": "eea0f87b9fc8777cfa5be5766d9e64885e3ec507f8944bb138873e7b02ce2229",
+              "styled_sha": "96365bb813c313da5ee54d05e3c2df0fdfcc95b3584f5081ebbfbc0cf60849e3",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x40-bottom.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-70x40-bottom.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-70x40-bottom.png"
+            },
+            {
+              "file": "help-70x40-esc.png",
+              "sha": "ce71de157defa5664301410c0ea428168845357b441c71c5c1be7519079423ca",
+              "raw_offset": 1605823,
+              "tty_rows_cols": [
+                40,
+                70
+              ],
+              "plain_sha": "efc8ba3d896a879058ded0833df350b603c4fdb93a05ce4e9997d4e86899815b",
+              "styled_sha": "447cbcbf95d87de253f6b45e3141e4a8b24c5c8f10e3fa5a081b56f6144e501d",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x40-esc.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-70x40-esc.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-70x40-esc.png"
+            },
+            {
+              "file": "help-80x40-top.png",
+              "sha": "6b051536bc593b8512910f089d66a47e73d7a8c2ac003e418c9ff1a5224f27c1",
+              "raw_offset": 1641066,
+              "tty_rows_cols": [
+                40,
+                80
+              ],
+              "plain_sha": "9ad8a2e183ca122be4a667ecfd5e0925fb58aedc3f38c77a53810726b183d23c",
+              "styled_sha": "b98e24ba821f75c43b307915a4077ccf211aa034733ae3e6296357d5f110a64e",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-80x40-top.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-80x40-top.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-80x40-top.png"
+            },
+            {
+              "file": "help-80x40-bottom.png",
+              "sha": "539da609eae1a348756bf3c3635926f71d1eb5f3f8ed0b278dcd06a3f7e291ff",
+              "raw_offset": 2403799,
+              "tty_rows_cols": [
+                40,
+                80
+              ],
+              "plain_sha": "6f1f286b42ee30cf218a6017db341c6648b3e7d38a06118e17f61e392ebfdaa8",
+              "styled_sha": "37e1e27614d2fe83fe90a3d01a9f09697eb8cbaf847bd9a9e24dfb349a9c2c6b",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-80x40-bottom.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-80x40-bottom.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-80x40-bottom.png"
+            },
+            {
+              "file": "help-80x40-esc.png",
+              "sha": "ad219303ee00b5873e54e69b9ca09d7e9791b096acc609b9e45eaf032e1a3b48",
+              "raw_offset": 2408393,
+              "tty_rows_cols": [
+                40,
+                80
+              ],
+              "plain_sha": "a1d840d27c5b04a5daa39928cb78c7ac7658fec1b6362c62453ca13ecffbf660",
+              "styled_sha": "33adec4af65953c3ac44776ef9c85512356dbc86f01db4070b12986b7db90dc4",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-80x40-esc.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-80x40-esc.png",
+              "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-80x40-esc.png"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "remote_scope": "/tmp/chat-help-scroll-native3.VuO9LtSJ",
+      "local_scope": "/tmp/chat-help-focused-driver-local/artifacts3",
+      "runner_exit": 0,
+      "manifest_sha256": "5d537559160013feb1f2bf786daead6d1993b8ec40958379426273852dc05ec4",
+      "profiles": {
+        "dark": {
+          "driver_exit": 0,
+          "native_actual_exit": {
+            "actual_exit": 0
+          },
+          "wezterm_exit": 0,
+          "helper_exit": 0,
+          "actual_live_binary": {
+            "pid": 246345,
+            "start_ticks": 548159996,
+            "path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/chat_tui-dd1a6baa",
+            "sha256": "dd1a6baab6d19759f0d8cf5e88133130eecf45412bed90360728476e926a11a0"
+          },
+          "database": "chat_t04_candidate_mux_1006201623_245756",
+          "port": 41519,
+          "cleanup_exits": {
+            "clipboard": [
+              {
+                "pid": 251556,
+                "actual_exit": -15,
+                "gone": true
+              },
+              {
+                "pid": 251550,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 250095,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 250089,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 248326,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 248266,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 246494,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 246488,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 246383,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 246381,
+                "actual_exit": 0,
+                "gone": true
+              }
+            ],
+            "wezterm": [
+              {
+                "pid": 246206,
+                "actual_exit": 0,
+                "gone": true
+              }
+            ],
+            "xvfb": [
+              {
+                "pid": 246188,
+                "actual_exit": 0,
+                "gone": true
+              }
+            ],
+            "helper": [
+              {
+                "pid": 245913,
+                "actual_exit": 0,
+                "gone": true
+              }
+            ],
+            "server": [
+              {
+                "pid": 245911,
+                "actual_exit": 0,
+                "gone": true
+              }
+            ]
+          },
+          "app_gone": true,
+          "tmux_gone": true,
+          "dropdb_exit": 0,
+          "database_absent": true,
+          "own_port_closed": true,
+          "protected_before": {
+            "3225": {
+              "pid": 3225,
+              "alive": true,
+              "state": "S",
+              "executable": "/usr/bin/fcitx5",
+              "start_ticks": 17583,
+              "cpu_seconds": 6052.74,
+              "rss_kib": 61320,
+              "peak_rss_kib": 285108,
+              "threads": 3,
+              "fds": 62
+            },
+            "29935": {
+              "pid": 29935,
+              "alive": true,
+              "state": "S",
+              "executable": "/usr/bin/speech-dispatcher",
+              "start_ticks": 248258,
+              "cpu_seconds": 4.85,
+              "rss_kib": 6476,
+              "peak_rss_kib": 7872,
+              "threads": 5,
+              "fds": 24
+            },
+            "2876288": {
+              "pid": 2876288,
+              "alive": true,
+              "state": "S",
+              "executable": "/home/gyl/example/chat/build/chat_server (deleted)",
+              "start_ticks": 521400965,
+              "cpu_seconds": 0.98,
+              "rss_kib": 17108,
+              "peak_rss_kib": 17108,
+              "threads": 25,
+              "fds": 41
+            }
+          },
+          "protected_after": {
+            "3225": {
+              "pid": 3225,
+              "alive": true,
+              "state": "S",
+              "executable": "/usr/bin/fcitx5",
+              "start_ticks": 17583,
+              "cpu_seconds": 6052.75,
+              "rss_kib": 61320,
+              "peak_rss_kib": 285108,
+              "threads": 3,
+              "fds": 62
+            },
+            "29935": {
+              "pid": 29935,
+              "alive": true,
+              "state": "S",
+              "executable": "/usr/bin/speech-dispatcher",
+              "start_ticks": 248258,
+              "cpu_seconds": 4.85,
+              "rss_kib": 6476,
+              "peak_rss_kib": 7872,
+              "threads": 5,
+              "fds": 24
+            },
+            "2876288": {
+              "pid": 2876288,
+              "alive": true,
+              "state": "S",
+              "executable": "/home/gyl/example/chat/build/chat_server (deleted)",
+              "start_ticks": 521400965,
+              "cpu_seconds": 0.98,
+              "rss_kib": 17108,
+              "peak_rss_kib": 17108,
+              "threads": 25,
+              "fds": 41
+            }
+          },
+          "protected_unchanged": true,
+          "tui_source_unchanged": true,
+          "wezterm_version": "wezterm 20221119-145034-49b9839f",
+          "tmux_version": "tmux 3.6a",
+          "inside": {
+            "pid": 246345,
+            "tty": "/dev/pts/26",
+            "TERM": "tmux-256color",
+            "TERM_PROGRAM": "tmux",
+            "TERM_PROGRAM_VERSION": "3.6a",
+            "inside_tmux": true,
+            "tmux_server_pid": 246344,
+            "variation_selector_always_wide": "off",
+            "allow_passthrough": "",
+            "clients": [
+              "xterm-256color|WezTerm 20221119-145034-49b9839f|bpaste,ccolour,clipboard,cstyle,focus,RGB,sixel,title"
+            ]
+          },
+          "outer": {
+            "pid": 246218,
+            "tty": "/dev/pts/22",
+            "TERM": "xterm-256color",
+            "TERM_PROGRAM": "WezTerm",
+            "TERM_PROGRAM_VERSION": "20221119-145034-49b9839f"
+          },
+          "row_pitch": 19,
+          "focused_reachability_contract_met": true,
+          "result_sha256": "cf9e2c0d1451c1ac60c8f8a4014bebfad7a905df84e3b1cd2375be8a393a7c37",
+          "driver_sha256": "7bf8402587dc88f5d14fa24524104354440d70d4cfe306f188a8acdb82e9d0e1",
+          "host_sha256": "e7b26d261d595df4ba64225b6aede7a7d8f82c6a256574c0ace57609bc475157",
+          "cases": [
+            {
+              "width": 60,
+              "height": 24,
+              "actual_rows_cols": [
+                24,
+                60
+              ],
+              "actual_j_keypresses": 200,
+              "unchanged_last_frames": 172,
+              "top_plain_sha256": "22863dc3eb72ccd6865bff99c30391be7a06675796a8d0ce8f7338d3e9e7d2bb",
+              "bottom_plain_sha256": "ef896875a5d2a5294aa976fad9a019cd0ffad51fec8c04a7ceb648f947f48f7d",
+              "quit_visible": true,
+              "clipboard_visible": true,
+              "clipboard_terminal_text_visible": true,
+              "esc_footer_visible": true,
+              "product_observation_only": true,
+              "final_command_summary_quit_visible": true,
+              "full_clipboard_explanation_visible": true,
+              "actual_footer_visible": true,
+              "success_oracle": "Final command-summary quit + complete Clipboard explanation + bottom status/Esc footer, not repeated pixels",
+              "actual_esc_return_to_chats": true
+            },
+            {
+              "width": 70,
+              "height": 24,
+              "actual_rows_cols": [
+                24,
+                70
+              ],
+              "actual_j_keypresses": 200,
+              "unchanged_last_frames": 176,
+              "top_plain_sha256": "2ee4a460b9080148b5405f5c527967bc6e98f312af1bb22b7cb0e992df030bb6",
+              "bottom_plain_sha256": "b629ff9155a7b7384792563663f4a8150e3fc8cce792d35aaf3d6861397dc3b1",
+              "quit_visible": true,
+              "clipboard_visible": true,
+              "clipboard_terminal_text_visible": true,
+              "esc_footer_visible": true,
+              "product_observation_only": true,
+              "final_command_summary_quit_visible": true,
+              "full_clipboard_explanation_visible": true,
+              "actual_footer_visible": true,
+              "success_oracle": "Final command-summary quit + complete Clipboard explanation + bottom status/Esc footer, not repeated pixels",
+              "actual_esc_return_to_chats": true
+            },
+            {
+              "width": 70,
+              "height": 40,
+              "actual_rows_cols": [
+                40,
+                70
+              ],
+              "actual_j_keypresses": 200,
+              "unchanged_last_frames": 184,
+              "top_plain_sha256": "e760e9260e991ea2d66ea3905cb87589a9e0baad3bdff02cb7658d380dc563cf",
+              "bottom_plain_sha256": "5b8b37c74432d1a6375371528dbb019905252f2a80a1f487fe9043a212205bea",
+              "quit_visible": true,
+              "clipboard_visible": true,
+              "clipboard_terminal_text_visible": true,
+              "esc_footer_visible": true,
+              "product_observation_only": true,
+              "final_command_summary_quit_visible": true,
+              "full_clipboard_explanation_visible": true,
+              "actual_footer_visible": true,
+              "success_oracle": "Final command-summary quit + complete Clipboard explanation + bottom status/Esc footer, not repeated pixels",
+              "actual_esc_return_to_chats": true
+            },
+            {
+              "width": 80,
+              "height": 40,
+              "actual_rows_cols": [
+                40,
+                80
+              ],
+              "actual_j_keypresses": 200,
+              "unchanged_last_frames": 185,
+              "top_plain_sha256": "bab82553154196f7afc38f352541f76a5e6fa9c6a883b3af9c0650948297979d",
+              "bottom_plain_sha256": "1c4077c08e7ba3870cb2ce4ff8621c3cdf8701c3bcedaa4ff5a8f52c39fa6762",
+              "quit_visible": true,
+              "clipboard_visible": true,
+              "clipboard_terminal_text_visible": true,
+              "esc_footer_visible": true,
+              "product_observation_only": true,
+              "final_command_summary_quit_visible": true,
+              "full_clipboard_explanation_visible": true,
+              "actual_footer_visible": true,
+              "success_oracle": "Final command-summary quit + complete Clipboard explanation + bottom status/Esc footer, not repeated pixels",
+              "actual_esc_return_to_chats": true
+            }
+          ],
+          "captures": [
+            {
+              "file": "help-60x24-top.png",
+              "sha": "5b9955cdf581007ec5615acf2721ca45ae75b44ae7ddae6bc3a49b5889722b75",
+              "raw_offset": 43999,
+              "tty_rows_cols": [
+                24,
+                60
+              ],
+              "plain_sha": "22863dc3eb72ccd6865bff99c30391be7a06675796a8d0ce8f7338d3e9e7d2bb",
+              "styled_sha": "85ab89f5e9efafa2664b1d71867f88215a8b3feb2fd2e11a8c69c0f8004687be",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-60x24-top.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-60x24-top.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-60x24-top.png",
+              "window_actual_pixels": [
+                600,
+                456
+              ]
+            },
+            {
+              "file": "help-60x24-bottom.png",
+              "sha": "91ddf2c8ea45a2e32eb19697adfc4c754cc8e462e592cc8c0e6543fe54e8c5d5",
+              "raw_offset": 641986,
+              "tty_rows_cols": [
+                24,
+                60
+              ],
+              "plain_sha": "ef896875a5d2a5294aa976fad9a019cd0ffad51fec8c04a7ceb648f947f48f7d",
+              "styled_sha": "954f7129114c255f0fa61c08d2d63c5f36de8c35be3e4e7cc420ed51cc986ae8",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-60x24-bottom.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-60x24-bottom.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-60x24-bottom.png",
+              "window_actual_pixels": [
+                600,
+                456
+              ]
+            },
+            {
+              "file": "help-60x24-esc.png",
+              "sha": "b3ddfb5bae5ba55374630710fbfa513de973400168555b14648030c129923feb",
+              "raw_offset": 644408,
+              "tty_rows_cols": [
+                24,
+                60
+              ],
+              "plain_sha": "523b5c693c3e80029262d6d5c15b614575c7b91594a3ff920671b485be4b0885",
+              "styled_sha": "bf03a6eac5471e3125040442422a005e95e921dc3f5602b4c0851fe3ef3160c3",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-60x24-esc.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-60x24-esc.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-60x24-esc.png",
+              "window_actual_pixels": [
+                600,
+                456
+              ]
+            },
+            {
+              "file": "help-70x24-top.png",
+              "sha": "3e92dfdb807cc448f22bd45dd81f430ef219a9499e3893b3add3b91d745d4172",
+              "raw_offset": 665603,
+              "tty_rows_cols": [
+                24,
+                70
+              ],
+              "plain_sha": "2ee4a460b9080148b5405f5c527967bc6e98f312af1bb22b7cb0e992df030bb6",
+              "styled_sha": "0f1d8a7e878c73e9c37a5cb740fd88164bf250993bc7a09b03f15a2588c637f0",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x24-top.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-70x24-top.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-70x24-top.png",
+              "window_actual_pixels": [
+                700,
+                456
+              ]
+            },
+            {
+              "file": "help-70x24-bottom.png",
+              "sha": "a7dc32e5faad111adb05509b23d2eae2d30eab999d15384733a4183dc89802d9",
+              "raw_offset": 1348293,
+              "tty_rows_cols": [
+                24,
+                70
+              ],
+              "plain_sha": "b629ff9155a7b7384792563663f4a8150e3fc8cce792d35aaf3d6861397dc3b1",
+              "styled_sha": "6dbbdbeaadc59195f5546edcceddaaec2a9ec5a463568dce5c2f7f7ee2f6b7cf",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x24-bottom.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-70x24-bottom.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-70x24-bottom.png",
+              "window_actual_pixels": [
+                700,
+                456
+              ]
+            },
+            {
+              "file": "help-70x24-esc.png",
+              "sha": "199ef55ba045ded2c95aa8893b4629f05581daf02bcb77fb81a5383b210eec4a",
+              "raw_offset": 1351025,
+              "tty_rows_cols": [
+                24,
+                70
+              ],
+              "plain_sha": "37a419d8bcb945f5e02e7b0378a445162bb6527773872487d398b06c782d652e",
+              "styled_sha": "31666b7413254b69fd5a1ab4884aa4932bf926be76ba74b1b5f354f3eb91745f",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x24-esc.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-70x24-esc.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-70x24-esc.png",
+              "window_actual_pixels": [
+                700,
+                456
+              ]
+            },
+            {
+              "file": "help-70x40-top.png",
+              "sha": "ce627386254cc6c8328575a2d005ceafc9837990090558585a1949a1a24ce2ce",
+              "raw_offset": 1379234,
+              "tty_rows_cols": [
+                40,
+                70
+              ],
+              "plain_sha": "e760e9260e991ea2d66ea3905cb87589a9e0baad3bdff02cb7658d380dc563cf",
+              "styled_sha": "39c72dc2f249df99a001f78ce5f1f9fbc6acdedf425d83378cdb37d791a45d3c",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x40-top.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-70x40-top.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-70x40-top.png",
+              "window_actual_pixels": [
+                700,
+                760
+              ]
+            },
+            {
+              "file": "help-70x40-bottom.png",
+              "sha": "83b97b2b1456ec94709c9432796fef92a50f6f6cbff5edf654cb3447a757c7da",
+              "raw_offset": 2502020,
+              "tty_rows_cols": [
+                40,
+                70
+              ],
+              "plain_sha": "5b8b37c74432d1a6375371528dbb019905252f2a80a1f487fe9043a212205bea",
+              "styled_sha": "66c3e352aae0a99d8d23ccb22d8550b28f42c059c8d44270643356d72722c1ea",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x40-bottom.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-70x40-bottom.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-70x40-bottom.png",
+              "window_actual_pixels": [
+                700,
+                760
+              ]
+            },
+            {
+              "file": "help-70x40-esc.png",
+              "sha": "5fb576b2201699e32f18637482e63ae88d495b7bab8a05506498d5c945b1ccdb",
+              "raw_offset": 2506144,
+              "tty_rows_cols": [
+                40,
+                70
+              ],
+              "plain_sha": "07ed2b738372894aeff3db5fcc657707cb86a675268dd8009daa60b4b3fea4e1",
+              "styled_sha": "266b5ae80eba82d545f7f05d2d573923c8477328e4a9569d874de0f68d53dea3",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x40-esc.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-70x40-esc.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-70x40-esc.png",
+              "window_actual_pixels": [
+                700,
+                760
+              ]
+            },
+            {
+              "file": "help-80x40-top.png",
+              "sha": "c4c9007c8e0ec665c3f2e04c7032affc507166ee9eb73202d109862b38b70be8",
+              "raw_offset": 2541410,
+              "tty_rows_cols": [
+                40,
+                80
+              ],
+              "plain_sha": "bab82553154196f7afc38f352541f76a5e6fa9c6a883b3af9c0650948297979d",
+              "styled_sha": "aec7b4a2e47aa1d06f47809555af4f5764e5dc75127cc2a8076a60d20049afcc",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-80x40-top.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-80x40-top.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-80x40-top.png",
+              "window_actual_pixels": [
+                800,
+                760
+              ]
+            },
+            {
+              "file": "help-80x40-bottom.png",
+              "sha": "a6fa5e21fdcccd359b2c487a4cfcc616a5f5d1b57dd37455ae2e2b7a144ad568",
+              "raw_offset": 3761653,
+              "tty_rows_cols": [
+                40,
+                80
+              ],
+              "plain_sha": "1c4077c08e7ba3870cb2ce4ff8621c3cdf8701c3bcedaa4ff5a8f52c39fa6762",
+              "styled_sha": "788d623ac1e5f473ad61eedb242c784a21ee03042aaadae2022a36154e4d80c5",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-80x40-bottom.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-80x40-bottom.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-80x40-bottom.png",
+              "window_actual_pixels": [
+                800,
+                760
+              ]
+            },
+            {
+              "file": "help-80x40-esc.png",
+              "sha": "c97c831b7a78041db6ad6e65cb43ca6d8f12ed3cf1bd473e1ae6a0b91eb71bf8",
+              "raw_offset": 3766247,
+              "tty_rows_cols": [
+                40,
+                80
+              ],
+              "plain_sha": "0c6ff8414f8491eaa14b9a76f4520450561dc6a7817c4a767cccf1e56ac36819",
+              "styled_sha": "b4e0da73d559f7e49b104d3781c708d737f1c9d44ae0db3cc13f3c9cdb0a9c8c",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-80x40-esc.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-80x40-esc.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-80x40-esc.png",
+              "window_actual_pixels": [
+                800,
+                760
+              ]
+            }
+          ]
+        },
+        "light": {
+          "driver_exit": 0,
+          "native_actual_exit": {
+            "actual_exit": 0
+          },
+          "wezterm_exit": 0,
+          "helper_exit": 0,
+          "actual_live_binary": {
+            "pid": 246338,
+            "start_ticks": 548159995,
+            "path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/chat_tui-dd1a6baa",
+            "sha256": "dd1a6baab6d19759f0d8cf5e88133130eecf45412bed90360728476e926a11a0"
+          },
+          "database": "chat_t04_candidate_mux_1006201623_245757",
+          "port": 40003,
+          "cleanup_exits": {
+            "clipboard": [
+              {
+                "pid": 251555,
+                "actual_exit": -15,
+                "gone": true
+              },
+              {
+                "pid": 251549,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 250094,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 250088,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 248325,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 248265,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 246493,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 246487,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 246382,
+                "actual_exit": 0,
+                "gone": true
+              },
+              {
+                "pid": 246377,
+                "actual_exit": 0,
+                "gone": true
+              }
+            ],
+            "wezterm": [
+              {
+                "pid": 246189,
+                "actual_exit": 0,
+                "gone": true
+              }
+            ],
+            "xvfb": [
+              {
+                "pid": 246185,
+                "actual_exit": 0,
+                "gone": true
+              }
+            ],
+            "helper": [
+              {
+                "pid": 245912,
+                "actual_exit": 0,
+                "gone": true
+              }
+            ],
+            "server": [
+              {
+                "pid": 245910,
+                "actual_exit": 0,
+                "gone": true
+              }
+            ]
+          },
+          "app_gone": true,
+          "tmux_gone": true,
+          "dropdb_exit": 0,
+          "database_absent": true,
+          "own_port_closed": true,
+          "protected_before": {
+            "3225": {
+              "pid": 3225,
+              "alive": true,
+              "state": "S",
+              "executable": "/usr/bin/fcitx5",
+              "start_ticks": 17583,
+              "cpu_seconds": 6052.74,
+              "rss_kib": 61320,
+              "peak_rss_kib": 285108,
+              "threads": 3,
+              "fds": 62
+            },
+            "29935": {
+              "pid": 29935,
+              "alive": true,
+              "state": "S",
+              "executable": "/usr/bin/speech-dispatcher",
+              "start_ticks": 248258,
+              "cpu_seconds": 4.85,
+              "rss_kib": 6476,
+              "peak_rss_kib": 7872,
+              "threads": 5,
+              "fds": 24
+            },
+            "2876288": {
+              "pid": 2876288,
+              "alive": true,
+              "state": "S",
+              "executable": "/home/gyl/example/chat/build/chat_server (deleted)",
+              "start_ticks": 521400965,
+              "cpu_seconds": 0.98,
+              "rss_kib": 17108,
+              "peak_rss_kib": 17108,
+              "threads": 25,
+              "fds": 41
+            }
+          },
+          "protected_after": {
+            "3225": {
+              "pid": 3225,
+              "alive": true,
+              "state": "S",
+              "executable": "/usr/bin/fcitx5",
+              "start_ticks": 17583,
+              "cpu_seconds": 6052.75,
+              "rss_kib": 61320,
+              "peak_rss_kib": 285108,
+              "threads": 3,
+              "fds": 62
+            },
+            "29935": {
+              "pid": 29935,
+              "alive": true,
+              "state": "S",
+              "executable": "/usr/bin/speech-dispatcher",
+              "start_ticks": 248258,
+              "cpu_seconds": 4.85,
+              "rss_kib": 6476,
+              "peak_rss_kib": 7872,
+              "threads": 5,
+              "fds": 24
+            },
+            "2876288": {
+              "pid": 2876288,
+              "alive": true,
+              "state": "S",
+              "executable": "/home/gyl/example/chat/build/chat_server (deleted)",
+              "start_ticks": 521400965,
+              "cpu_seconds": 0.98,
+              "rss_kib": 17108,
+              "peak_rss_kib": 17108,
+              "threads": 25,
+              "fds": 41
+            }
+          },
+          "protected_unchanged": true,
+          "tui_source_unchanged": true,
+          "wezterm_version": "wezterm 20221119-145034-49b9839f",
+          "tmux_version": "tmux 3.6a",
+          "inside": {
+            "pid": 246338,
+            "tty": "/dev/pts/24",
+            "TERM": "tmux-256color",
+            "TERM_PROGRAM": "tmux",
+            "TERM_PROGRAM_VERSION": "3.6a",
+            "inside_tmux": true,
+            "tmux_server_pid": 246337,
+            "variation_selector_always_wide": "off",
+            "allow_passthrough": "",
+            "clients": [
+              "xterm-256color|WezTerm 20221119-145034-49b9839f|bpaste,ccolour,clipboard,cstyle,focus,RGB,sixel,title"
+            ]
+          },
+          "outer": {
+            "pid": 246201,
+            "tty": "/dev/pts/21",
+            "TERM": "xterm-256color",
+            "TERM_PROGRAM": "WezTerm",
+            "TERM_PROGRAM_VERSION": "20221119-145034-49b9839f"
+          },
+          "row_pitch": 19,
+          "focused_reachability_contract_met": true,
+          "result_sha256": "1612599187fd132c4b80387277f26b8e0340666db37f0defb4276b879129af29",
+          "driver_sha256": "7bf8402587dc88f5d14fa24524104354440d70d4cfe306f188a8acdb82e9d0e1",
+          "host_sha256": "e7b26d261d595df4ba64225b6aede7a7d8f82c6a256574c0ace57609bc475157",
+          "cases": [
+            {
+              "width": 60,
+              "height": 24,
+              "actual_rows_cols": [
+                24,
+                60
+              ],
+              "actual_j_keypresses": 200,
+              "unchanged_last_frames": 172,
+              "top_plain_sha256": "3c88530ea38fb118cc701155b8a41e5d555ec8f425580c4fa77d7963e62ce0e6",
+              "bottom_plain_sha256": "40502fbdca57afab48af327bb467096028e843e6a31d8fc364f24e173e878ed1",
+              "quit_visible": true,
+              "clipboard_visible": true,
+              "clipboard_terminal_text_visible": true,
+              "esc_footer_visible": true,
+              "product_observation_only": true,
+              "final_command_summary_quit_visible": true,
+              "full_clipboard_explanation_visible": true,
+              "actual_footer_visible": true,
+              "success_oracle": "Final command-summary quit + complete Clipboard explanation + bottom status/Esc footer, not repeated pixels",
+              "actual_esc_return_to_chats": true
+            },
+            {
+              "width": 70,
+              "height": 24,
+              "actual_rows_cols": [
+                24,
+                70
+              ],
+              "actual_j_keypresses": 200,
+              "unchanged_last_frames": 176,
+              "top_plain_sha256": "caf4387190e19e2fec89ef1036e9ec052bf2a3d1c4aab20e62eb527c8588328e",
+              "bottom_plain_sha256": "bee2c096dbd6f76e493a14a0f21acb80fa806300a08a70108ef91523c0d971df",
+              "quit_visible": true,
+              "clipboard_visible": true,
+              "clipboard_terminal_text_visible": true,
+              "esc_footer_visible": true,
+              "product_observation_only": true,
+              "final_command_summary_quit_visible": true,
+              "full_clipboard_explanation_visible": true,
+              "actual_footer_visible": true,
+              "success_oracle": "Final command-summary quit + complete Clipboard explanation + bottom status/Esc footer, not repeated pixels",
+              "actual_esc_return_to_chats": true
+            },
+            {
+              "width": 70,
+              "height": 40,
+              "actual_rows_cols": [
+                40,
+                70
+              ],
+              "actual_j_keypresses": 200,
+              "unchanged_last_frames": 184,
+              "top_plain_sha256": "18bf87cd8ba9ca3e0744ca39b2c7c5611ab53967380c6204296de84baf807510",
+              "bottom_plain_sha256": "9c8428a7a7cdb8e2bcf975cccb1ee115b5459b98fb210a7a0474109d6b0b58ee",
+              "quit_visible": true,
+              "clipboard_visible": true,
+              "clipboard_terminal_text_visible": true,
+              "esc_footer_visible": true,
+              "product_observation_only": true,
+              "final_command_summary_quit_visible": true,
+              "full_clipboard_explanation_visible": true,
+              "actual_footer_visible": true,
+              "success_oracle": "Final command-summary quit + complete Clipboard explanation + bottom status/Esc footer, not repeated pixels",
+              "actual_esc_return_to_chats": true
+            },
+            {
+              "width": 80,
+              "height": 40,
+              "actual_rows_cols": [
+                40,
+                80
+              ],
+              "actual_j_keypresses": 200,
+              "unchanged_last_frames": 185,
+              "top_plain_sha256": "3aecdb573293ac507e2d6d82f74cc20fe966b06c31d61170df1620867aef350c",
+              "bottom_plain_sha256": "dcc9154d4d30fca5191e7285095c57bb101ea165c8c221bf76c5a1a310a8d11c",
+              "quit_visible": true,
+              "clipboard_visible": true,
+              "clipboard_terminal_text_visible": true,
+              "esc_footer_visible": true,
+              "product_observation_only": true,
+              "final_command_summary_quit_visible": true,
+              "full_clipboard_explanation_visible": true,
+              "actual_footer_visible": true,
+              "success_oracle": "Final command-summary quit + complete Clipboard explanation + bottom status/Esc footer, not repeated pixels",
+              "actual_esc_return_to_chats": true
+            }
+          ],
+          "captures": [
+            {
+              "file": "help-60x24-top.png",
+              "sha": "e7ddd247bb44ffae65f56679d10f8b1d82d71f66b5cc9e8e3b91fa367751c2a4",
+              "raw_offset": 43967,
+              "tty_rows_cols": [
+                24,
+                60
+              ],
+              "plain_sha": "3c88530ea38fb118cc701155b8a41e5d555ec8f425580c4fa77d7963e62ce0e6",
+              "styled_sha": "1ce919736e81018245dfcba24cba5fc61890322a6ba48c9af1f7f662f4f32323",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-60x24-top.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-60x24-top.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-60x24-top.png",
+              "window_actual_pixels": [
+                600,
+                456
+              ]
+            },
+            {
+              "file": "help-60x24-bottom.png",
+              "sha": "ab19b81d27923239bbe65977446e64b7a35743a2804fc3c229f4a7638f3a530a",
+              "raw_offset": 641960,
+              "tty_rows_cols": [
+                24,
+                60
+              ],
+              "plain_sha": "40502fbdca57afab48af327bb467096028e843e6a31d8fc364f24e173e878ed1",
+              "styled_sha": "dcad156d66539f526f57eaa4ee9099325abbdbd8a4cb4b553425ff6a1600c475",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-60x24-bottom.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-60x24-bottom.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-60x24-bottom.png",
+              "window_actual_pixels": [
+                600,
+                456
+              ]
+            },
+            {
+              "file": "help-60x24-esc.png",
+              "sha": "09115a0b24a91f62bab3e848aad005e632dec1e5a76cc50d31b9179ddb3b3be4",
+              "raw_offset": 644382,
+              "tty_rows_cols": [
+                24,
+                60
+              ],
+              "plain_sha": "8f548bdec1da9318aadc5b896f8e01906d7b2beae6015c28a6bef396d308be2f",
+              "styled_sha": "fe793a87c0c65b5914adc4a208ef553199d224a07d929db8befb8e0102f2fe18",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-60x24-esc.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-60x24-esc.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-60x24-esc.png",
+              "window_actual_pixels": [
+                600,
+                456
+              ]
+            },
+            {
+              "file": "help-70x24-top.png",
+              "sha": "e2e392d8cf93c468b686c8dfe454bdac59606b8e91469ab7b351471a63d84a51",
+              "raw_offset": 665573,
+              "tty_rows_cols": [
+                24,
+                70
+              ],
+              "plain_sha": "caf4387190e19e2fec89ef1036e9ec052bf2a3d1c4aab20e62eb527c8588328e",
+              "styled_sha": "111c1b8e0e550adeacf7736741b135097fd4f9bfde6d5cebb5622ca757aec5be",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x24-top.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-70x24-top.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-70x24-top.png",
+              "window_actual_pixels": [
+                700,
+                456
+              ]
+            },
+            {
+              "file": "help-70x24-bottom.png",
+              "sha": "32834f9bb967cc7329f058a92247c22c3b17e932faa594a5b51a547f791e731e",
+              "raw_offset": 1348270,
+              "tty_rows_cols": [
+                24,
+                70
+              ],
+              "plain_sha": "bee2c096dbd6f76e493a14a0f21acb80fa806300a08a70108ef91523c0d971df",
+              "styled_sha": "95bf85b50ca4652d524c77c90f7637a91593a62c3e2aca7a0c61d721195d10b9",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x24-bottom.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-70x24-bottom.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-70x24-bottom.png",
+              "window_actual_pixels": [
+                700,
+                456
+              ]
+            },
+            {
+              "file": "help-70x24-esc.png",
+              "sha": "247c4e4f33f2e0e58113cc02ac99f6c454b96d2a562c7bf2caf736b3a8410bac",
+              "raw_offset": 1351002,
+              "tty_rows_cols": [
+                24,
+                70
+              ],
+              "plain_sha": "912bbcf388d59548d7a3ab4f25b3fc32ae55b1712b0be90aadeb7d7615b5abf9",
+              "styled_sha": "945bbba513045e8f16af0f7cb1aa989bd1f19d0d3175f7c941ae3c6b6874486f",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x24-esc.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-70x24-esc.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-70x24-esc.png",
+              "window_actual_pixels": [
+                700,
+                456
+              ]
+            },
+            {
+              "file": "help-70x40-top.png",
+              "sha": "8b045be697281a898f96bb3d429b34773d4e8e3fa88e04c0eacfae6e3b8dae45",
+              "raw_offset": 1379215,
+              "tty_rows_cols": [
+                40,
+                70
+              ],
+              "plain_sha": "18bf87cd8ba9ca3e0744ca39b2c7c5611ab53967380c6204296de84baf807510",
+              "styled_sha": "2b43141d6d7596b5ffe9ba5d8a19029f2cd0b4a8f8cf9315f427a0153bfc4fd8",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x40-top.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-70x40-top.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-70x40-top.png",
+              "window_actual_pixels": [
+                700,
+                760
+              ]
+            },
+            {
+              "file": "help-70x40-bottom.png",
+              "sha": "a754e393dfea0d681f4885ae1a94a45250fecdd758ba12d2f3678be6ab6586a2",
+              "raw_offset": 2502005,
+              "tty_rows_cols": [
+                40,
+                70
+              ],
+              "plain_sha": "9c8428a7a7cdb8e2bcf975cccb1ee115b5459b98fb210a7a0474109d6b0b58ee",
+              "styled_sha": "67161d552dbd2f84ddd57e47a8b8fd709422ebd66bb7a7db48c944f884e16463",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x40-bottom.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-70x40-bottom.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-70x40-bottom.png",
+              "window_actual_pixels": [
+                700,
+                760
+              ]
+            },
+            {
+              "file": "help-70x40-esc.png",
+              "sha": "352786864c4b9437df530b6abbf75fe35678ba696cc1e5b30fe4edd62630af88",
+              "raw_offset": 2506129,
+              "tty_rows_cols": [
+                40,
+                70
+              ],
+              "plain_sha": "543400248184cc5f77e6486d9bc9b2985d3e3674683246e6c8f50bf55f87d8ab",
+              "styled_sha": "a27878ccb7b6eb888f4bc9fb30e62d67fc0d72dcb353df50a2e2e075131a61ab",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-70x40-esc.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-70x40-esc.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-70x40-esc.png",
+              "window_actual_pixels": [
+                700,
+                760
+              ]
+            },
+            {
+              "file": "help-80x40-top.png",
+              "sha": "247552f24f9bda48da65db2d090edef24f2e717af1e10adc488cd2d63d82253d",
+              "raw_offset": 2541388,
+              "tty_rows_cols": [
+                40,
+                80
+              ],
+              "plain_sha": "3aecdb573293ac507e2d6d82f74cc20fe966b06c31d61170df1620867aef350c",
+              "styled_sha": "eef270b421eafe3392d81f57f26f3edfd0fecb0bf17b8c66f4772d8ec9937795",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-80x40-top.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-80x40-top.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-80x40-top.png",
+              "window_actual_pixels": [
+                800,
+                760
+              ]
+            },
+            {
+              "file": "help-80x40-bottom.png",
+              "sha": "06c7a09a1a6f5173170521ec8b36c540205e33754dec94e8599246b0ad052219",
+              "raw_offset": 3761634,
+              "tty_rows_cols": [
+                40,
+                80
+              ],
+              "plain_sha": "dcc9154d4d30fca5191e7285095c57bb101ea165c8c221bf76c5a1a310a8d11c",
+              "styled_sha": "5776a71cacdd76a623105380d3110aa2caf57a0c6d5bc22bf39b0a755f32c5cb",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-80x40-bottom.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-80x40-bottom.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-80x40-bottom.png",
+              "window_actual_pixels": [
+                800,
+                760
+              ]
+            },
+            {
+              "file": "help-80x40-esc.png",
+              "sha": "432df3ae6e4af006d6e00311a56912562f70b2cfc8f4c44f4ae0cba815b0eed1",
+              "raw_offset": 3766230,
+              "tty_rows_cols": [
+                40,
+                80
+              ],
+              "plain_sha": "0df78c2c5935fb4eb3753c0f9d35e3d9aaa4851114ff8e14aba7ae08df162233",
+              "styled_sha": "664f71a14712f30310e883b92bd410283d35467f629ab40a78c3f9207ab5fe6e",
+              "full_image_pixels": [
+                1900,
+                900
+              ],
+              "window_geometry_file": "help-80x40-esc.window.txt",
+              "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-80x40-esc.png",
+              "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-80x40-esc.png",
+              "window_actual_pixels": [
+                800,
+                760
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "visual_review": {
+    "opened_originals": 48,
+    "full_resolution": true,
+    "montage": false,
+    "crop": false,
+    "entries": [
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-60x24-top.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-60x24-top.png",
+        "sha256": "bd4ff6a9d5a5a4ad2260d11ea5d60e1735b350cdb8b341c1cc090b1051ba21f0",
+        "tty_rows_cols": [
+          24,
+          60
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          600,
+          456
+        ],
+        "plain_sha256": "dbb980a64f6d5e26d1bf51b207928e861667afa766ef521aff589ed17bccda05",
+        "styled_sha256": "af0437c624d594e0fc392497dac5e5f5111e87db9004f34bb2ee4bfb842fbd3f",
+        "personally_opened_original": true,
+        "observation": "dark 60x24: initial Help shows first j/Down k/Up shortcut and fixed j/k: scroll · Esc: back hint; body visible through m / p Mute / personal pin; Tab input focus wraps onto a continuation line. Footer 已连接 / Esc: back remains readable. Initial offscreen tail is a scroll viewport observation, not inaccessible content.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-60x24-bottom.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-60x24-bottom.png",
+        "sha256": "117af365a7ac8bed476216c353b08675c4c82a752fce21bc2262e22befea3f89",
+        "tty_rows_cols": [
+          24,
+          60
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          600,
+          456
+        ],
+        "plain_sha256": "a6051fd2422295f82d7d9dfe98d921d14a3de964d4d58f2b90453c2b236f1454",
+        "styled_sha256": "2b1083880d187a3667dc9cc1fc88ab9b603a05f9f6d756249b0332a33960c8a1",
+        "personally_opened_original": true,
+        "observation": "dark 60x24: after actual 125 j keys, body begins at Space / Enter (contacts picker), with selection on a second line. Complete Commands summary ends in avatar, avatar-clear, logout, quit; complete Clipboard sentence is readable, including terminal and final period. Keyboard help title/hint remain fixed, scroll thumb is at lower end; 已连接 and Esc: back footer are readable. No overlap between last Clipboard line and footer border observed.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-60x24-esc.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-60x24-esc.png",
+        "sha256": "2f679893482b6b9991639dc86f04c048fb3d90152d288c1c0df00c4c89058277",
+        "tty_rows_cols": [
+          24,
+          60
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          600,
+          456
+        ],
+        "plain_sha256": "55d5295a5606eaa3da79651dbf1e3566021683da4770575120318aeb68172398",
+        "styled_sha256": "b044720a54e2e93e86ebd5bc2b3ad91e4c4045903a6941cd5735ed29806dc50c",
+        "personally_opened_original": true,
+        "observation": "dark 60x24: actual Escape returns to Chats; Keyboard help content is absent. Selected HDR group with (6), readonly_history direct-chat preview, connected header, 已连接 / Esc: back footer remain readable. No residual Help text in blank list area observed. Emoji rendering here is incidental, not an EGC correctness oracle.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-70x24-top.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-70x24-top.png",
+        "sha256": "cadd24da38b7965aa3333070c5557edd4ad621f1561ab98e4588c4357ee6d7cb",
+        "tty_rows_cols": [
+          24,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          456
+        ],
+        "plain_sha256": "a1f7b738961d94808ba7b5cb76cfb37f351fa4a4bb5ae0597a3cf88de18c43c0",
+        "styled_sha256": "ee894b0e9d3061d4cb2ea5425b9b4a14a8a2d9a5841f0c4be684255185920b03",
+        "personally_opened_original": true,
+        "observation": "dark 70x24: initial Help shows first j/Down k/Up shortcut and fixed j/k: scroll · Esc: back hint; body visible through h / c / u Chats / Contacts / Account. Footer 已连接 / Esc: back remains readable. Initial offscreen tail is a scroll viewport observation, not inaccessible content.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-70x24-bottom.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-70x24-bottom.png",
+        "sha256": "bfb579f5077556dfb643212eb631a5317ea463eac0b1cd30e8ce7857e08684d6",
+        "tty_rows_cols": [
+          24,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          456
+        ],
+        "plain_sha256": "8793811b1167dfc51957663fe849f0d6b96bd8b4323ba44708edb2cf97c990a8",
+        "styled_sha256": "b0c9cfae9589a92e36039be7072bf34037aca67d75de04567a8f8ea90f07df95",
+        "personally_opened_original": true,
+        "observation": "dark 70x24: after actual 125 j keys, body begins at Tab (new friends) switch incoming/outgoing requests. Complete Commands summary ends in avatar, avatar-clear, logout, quit; complete Clipboard sentence is readable, including terminal and final period. Keyboard help title/hint remain fixed, scroll thumb is at lower end; 已连接 and Esc: back footer are readable. No overlap between last Clipboard line and footer border observed.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-70x24-esc.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-70x24-esc.png",
+        "sha256": "9752ff8f893a01b28777bf39c6dcb88b2e0e61808643560e03e4b0afec1d81ee",
+        "tty_rows_cols": [
+          24,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          456
+        ],
+        "plain_sha256": "9243d116f1f04e6c2531ed6a1791f4d8387237ec20f6c92757b53629d899de1d",
+        "styled_sha256": "ca9c2f83f55494d159e8b08134cd7762d43ae8abd756d69bed88eaeffe337f41",
+        "personally_opened_original": true,
+        "observation": "dark 70x24: actual Escape returns to Chats; Keyboard help content is absent. Selected HDR group with (6), readonly_history direct-chat preview, connected header, 已连接 / Esc: back footer remain readable. No residual Help text in blank list area observed. Emoji rendering here is incidental, not an EGC correctness oracle.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-70x40-top.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-70x40-top.png",
+        "sha256": "ca5f758b785441e54d911140b4401fff010d7b39b40c3dddc7f23dab86ef5e95",
+        "tty_rows_cols": [
+          40,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          760
+        ],
+        "plain_sha256": "75be2fb138b13894551640daa21b2cc518fe980a398a66f9146f78b9078a8d1a",
+        "styled_sha256": "a4d2609051efcb96ee309b2472f86a05d562f23fea6d1d124b82139b55351eee",
+        "personally_opened_original": true,
+        "observation": "dark 70x40: initial Help shows first j/Down k/Up shortcut and fixed j/k: scroll · Esc: back hint; body visible through command-summary fragment through approval, requests; final avatar/logout/quit and Clipboard are below viewport. Footer 已连接 / Esc: back remains readable. Initial offscreen tail is a scroll viewport observation, not inaccessible content.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-70x40-bottom.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-70x40-bottom.png",
+        "sha256": "44188242afa4b115fb43236dcab22b0f5239bc8d68f67adadd94f259b9a5a415",
+        "tty_rows_cols": [
+          40,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          760
+        ],
+        "plain_sha256": "4601defff4794b87b9c6d7e33f1a0f8316048c3cab9ce2375b3f1e87630a0271",
+        "styled_sha256": "bebdc7774cddf1199cf22e457ce48a572fc0dd2f2390deaa0806331477d87df1",
+        "personally_opened_original": true,
+        "observation": "dark 70x40: after actual 125 j keys, body begins at Esc Back / close prompt / keep draft. Complete Commands summary ends in avatar, avatar-clear, logout, quit; complete Clipboard sentence is readable, including terminal and final period. Keyboard help title/hint remain fixed, scroll thumb is at lower end; 已连接 and Esc: back footer are readable. No overlap between last Clipboard line and footer border observed.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-70x40-esc.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-70x40-esc.png",
+        "sha256": "661ed7e27e4c4cd4e61d5e36f3faeea4476e2df8646ac6beef6126382dc47609",
+        "tty_rows_cols": [
+          40,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          760
+        ],
+        "plain_sha256": "a9be70df1fc9a81a1c5e32a221b8ca2bcedb072bf16e256ddec8da163e4c166e",
+        "styled_sha256": "bc8eb29f8ed5d68d745546aff894769b002e2f8541a3965bbdf167350847b89c",
+        "personally_opened_original": true,
+        "observation": "dark 70x40: actual Escape returns to Chats; Keyboard help content is absent. Selected HDR group with (6), readonly_history direct-chat preview, connected header, 已连接 / Esc: back footer remain readable. No residual Help text in blank list area observed. Emoji rendering here is incidental, not an EGC correctness oracle.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-80x40-top.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-80x40-top.png",
+        "sha256": "c6ca99c63cb499d9c8705c83f01a902acb9d0bca4a27dea19efc3bce1ebd4a9a",
+        "tty_rows_cols": [
+          40,
+          80
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          800,
+          760
+        ],
+        "plain_sha256": "f26424dc594217853ec7665c064e844e5bd8f654f23e5d92f31000475942f4e0",
+        "styled_sha256": "ec7f6eabd8d97d61d03541c6ae2fcad931109872544b21212f26728a119fb36b",
+        "personally_opened_original": true,
+        "observation": "dark 80x40: initial Help shows first j/Down k/Up shortcut and fixed j/k: scroll · Esc: back hint; body visible through command summary through final quit; Clipboard is below viewport. Footer 已连接 / Esc: back remains readable. Initial offscreen tail is a scroll viewport observation, not inaccessible content.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-80x40-bottom.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-80x40-bottom.png",
+        "sha256": "80bc41e218d9af3947bbdd209b6b9ccb0792c0911dfe80e984a8713f9718b7c3",
+        "tty_rows_cols": [
+          40,
+          80
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          800,
+          760
+        ],
+        "plain_sha256": "9abdf6ada0db12615d253b9d2ccd6c999f62a83dc6277bd1ed54af4510d599b3",
+        "styled_sha256": "8ac5b29f33b6075ca54e83c078cf6b34d4ef98aa1678bb798c5232b8a9dc5964",
+        "personally_opened_original": true,
+        "observation": "dark 80x40: after actual 125 j keys, body begins at Enter Open selected item / confirm. Complete Commands summary ends in avatar, avatar-clear, logout, quit; complete Clipboard sentence is readable, including terminal and final period. Keyboard help title/hint remain fixed, scroll thumb is at lower end; 已连接 and Esc: back footer are readable. No overlap between last Clipboard line and footer border observed.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/dark/help-80x40-esc.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/dark/help-80x40-esc.png",
+        "sha256": "ee668b75876e6f069fe9858d688fb4b4e6b1ba9d5dbe1a836f6709b5b32937b4",
+        "tty_rows_cols": [
+          40,
+          80
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          800,
+          760
+        ],
+        "plain_sha256": "ea52de8aae855962483c611059746e28177185e17f638d82f9fdc128deaa27dd",
+        "styled_sha256": "1bae29621bf01eb67996907ed1876856ac2a91d06cf59f4c9bdb41749f22cd22",
+        "personally_opened_original": true,
+        "observation": "dark 80x40: actual Escape returns to Chats; Keyboard help content is absent. Selected HDR group with (6), readonly_history direct-chat preview, connected header, 已连接 / Esc: back footer remain readable. No residual Help text in blank list area observed. Emoji rendering here is incidental, not an EGC correctness oracle.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-60x24-top.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-60x24-top.png",
+        "sha256": "a05083b25d13a55875ea8353d9b6e7bc3d605190a6a5948af9a4998975bc6236",
+        "tty_rows_cols": [
+          24,
+          60
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          600,
+          456
+        ],
+        "plain_sha256": "da2428aa813d54bc5be51da848be848fe36c98a2e5e3eb766f3f82eab81b7019",
+        "styled_sha256": "083116969ec6674fc4930f36358500b7735cddb197c91810e97dd121fc52f7a3",
+        "personally_opened_original": true,
+        "observation": "light 60x24: initial Help shows first j/Down k/Up shortcut and fixed j/k: scroll · Esc: back hint; body visible through m / p Mute / personal pin; Tab input focus wraps onto a continuation line. Footer 已连接 / Esc: back remains readable. Initial offscreen tail is a scroll viewport observation, not inaccessible content.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-60x24-bottom.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-60x24-bottom.png",
+        "sha256": "3d370648f151a48d141b45dbf56b269ebc262693d79401db20ec97cc98859673",
+        "tty_rows_cols": [
+          24,
+          60
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          600,
+          456
+        ],
+        "plain_sha256": "203057ecc12260c1016775d88a65d64b9dfe5cf2efcb007479dad88429a8951a",
+        "styled_sha256": "e0ac2be0ddc0c46433a316d1527925105645158cf321a450b7ca5331a027da6a",
+        "personally_opened_original": true,
+        "observation": "light 60x24: after actual 125 j keys, body begins at Space / Enter (contacts picker), with selection on a second line. Complete Commands summary ends in avatar, avatar-clear, logout, quit; complete Clipboard sentence is readable, including terminal and final period. Keyboard help title/hint remain fixed, scroll thumb is at lower end; 已连接 and Esc: back footer are readable. No overlap between last Clipboard line and footer border observed.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-60x24-esc.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-60x24-esc.png",
+        "sha256": "7a788e18ad2d8e972e1867ab89a593e6c28f05e3d76e3b970f9cf3d4566e17e2",
+        "tty_rows_cols": [
+          24,
+          60
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          600,
+          456
+        ],
+        "plain_sha256": "a5b8d94e4292adfcb9cf34f20e05117ed5f5d6eff805564bdd26382450ac36c5",
+        "styled_sha256": "36e5e6a25a58f42f7a7e0a1ad4aa8ba7f6e74da208f098c041e84bbb332b2749",
+        "personally_opened_original": true,
+        "observation": "light 60x24: actual Escape returns to Chats; Keyboard help content is absent. Selected HDR group with (6), readonly_history direct-chat preview, connected header, 已连接 / Esc: back footer remain readable. No residual Help text in blank list area observed. Emoji rendering here is incidental, not an EGC correctness oracle.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-70x24-top.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-70x24-top.png",
+        "sha256": "88b8c1fd99e5370078ac2dadc64aa5714ed38cf8a5b78a1cae5f46622e426390",
+        "tty_rows_cols": [
+          24,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          456
+        ],
+        "plain_sha256": "b4e16337dd4000a93264a41fa370be952bb322e238f718911b320591cdcd316c",
+        "styled_sha256": "3e07fe73990c1648a46512a5c05cf5621d6283b3c0e6814c1c47badbef216dc7",
+        "personally_opened_original": true,
+        "observation": "light 70x24: initial Help shows first j/Down k/Up shortcut and fixed j/k: scroll · Esc: back hint; body visible through h / c / u Chats / Contacts / Account. Footer 已连接 / Esc: back remains readable. Initial offscreen tail is a scroll viewport observation, not inaccessible content.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-70x24-bottom.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-70x24-bottom.png",
+        "sha256": "fb0edd88122300b9726fb64e0c921d41876d5c157129f45cbf2417f277cf0690",
+        "tty_rows_cols": [
+          24,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          456
+        ],
+        "plain_sha256": "9d698e8827b3517d4c32e3c9aea62222ce71c84ce9c7dae057a132fd7c74d2ee",
+        "styled_sha256": "0b10b04f4de48446f2f44507c70b50736ca0ad5e38571b8082a42fc11950a19b",
+        "personally_opened_original": true,
+        "observation": "light 70x24: after actual 125 j keys, body begins at Tab (new friends) switch incoming/outgoing requests. Complete Commands summary ends in avatar, avatar-clear, logout, quit; complete Clipboard sentence is readable, including terminal and final period. Keyboard help title/hint remain fixed, scroll thumb is at lower end; 已连接 and Esc: back footer are readable. No overlap between last Clipboard line and footer border observed.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-70x24-esc.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-70x24-esc.png",
+        "sha256": "f10a76bed6105df0e5d3eae69a7efa5cf8b284183642c3cea9c2950a954df09c",
+        "tty_rows_cols": [
+          24,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          456
+        ],
+        "plain_sha256": "fd5fc646d9b643dc302f38f3ad71f0597ac750577c6cb067bcd98894920d4872",
+        "styled_sha256": "51a5335d5ae41fd644f1116e1f387794b407f52d8cde9d1a1792fb7c440a2820",
+        "personally_opened_original": true,
+        "observation": "light 70x24: actual Escape returns to Chats; Keyboard help content is absent. Selected HDR group with (6), readonly_history direct-chat preview, connected header, 已连接 / Esc: back footer remain readable. No residual Help text in blank list area observed. Emoji rendering here is incidental, not an EGC correctness oracle.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-70x40-top.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-70x40-top.png",
+        "sha256": "892634da5ee95d858adc65fc5dc83423e589f2374a75da207115de8c51e8d7b5",
+        "tty_rows_cols": [
+          40,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          760
+        ],
+        "plain_sha256": "7a21a799a3b08a6e0bd1ec972bbace0ab32e3dd11ca228714e99e7b987027162",
+        "styled_sha256": "51efa93c67cf42ac16f2b95b7b4862b58d558dc2e9bd1a925dea271e41afea65",
+        "personally_opened_original": true,
+        "observation": "light 70x40: initial Help shows first j/Down k/Up shortcut and fixed j/k: scroll · Esc: back hint; body visible through command-summary fragment through approval, requests; final avatar/logout/quit and Clipboard are below viewport. Footer 已连接 / Esc: back remains readable. Initial offscreen tail is a scroll viewport observation, not inaccessible content.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-70x40-bottom.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-70x40-bottom.png",
+        "sha256": "74a27daecef2dd14a6d590a1f8d1e5afd75e758cf4fb30dc4cc3327d41e51768",
+        "tty_rows_cols": [
+          40,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          760
+        ],
+        "plain_sha256": "eea0f87b9fc8777cfa5be5766d9e64885e3ec507f8944bb138873e7b02ce2229",
+        "styled_sha256": "96365bb813c313da5ee54d05e3c2df0fdfcc95b3584f5081ebbfbc0cf60849e3",
+        "personally_opened_original": true,
+        "observation": "light 70x40: after actual 125 j keys, body begins at Esc Back / close prompt / keep draft. Complete Commands summary ends in avatar, avatar-clear, logout, quit; complete Clipboard sentence is readable, including terminal and final period. Keyboard help title/hint remain fixed, scroll thumb is at lower end; 已连接 and Esc: back footer are readable. No overlap between last Clipboard line and footer border observed.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-70x40-esc.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-70x40-esc.png",
+        "sha256": "ce71de157defa5664301410c0ea428168845357b441c71c5c1be7519079423ca",
+        "tty_rows_cols": [
+          40,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          760
+        ],
+        "plain_sha256": "efc8ba3d896a879058ded0833df350b603c4fdb93a05ce4e9997d4e86899815b",
+        "styled_sha256": "447cbcbf95d87de253f6b45e3141e4a8b24c5c8f10e3fa5a081b56f6144e501d",
+        "personally_opened_original": true,
+        "observation": "light 70x40: actual Escape returns to Chats; Keyboard help content is absent. Selected HDR group with (6), readonly_history direct-chat preview, connected header, 已连接 / Esc: back footer remain readable. No residual Help text in blank list area observed. Emoji rendering here is incidental, not an EGC correctness oracle.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-80x40-top.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-80x40-top.png",
+        "sha256": "6b051536bc593b8512910f089d66a47e73d7a8c2ac003e418c9ff1a5224f27c1",
+        "tty_rows_cols": [
+          40,
+          80
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          800,
+          760
+        ],
+        "plain_sha256": "9ad8a2e183ca122be4a667ecfd5e0925fb58aedc3f38c77a53810726b183d23c",
+        "styled_sha256": "b98e24ba821f75c43b307915a4077ccf211aa034733ae3e6296357d5f110a64e",
+        "personally_opened_original": true,
+        "observation": "light 80x40: initial Help shows first j/Down k/Up shortcut and fixed j/k: scroll · Esc: back hint; body visible through command summary through final quit; Clipboard is below viewport. Footer 已连接 / Esc: back remains readable. Initial offscreen tail is a scroll viewport observation, not inaccessible content.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-80x40-bottom.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-80x40-bottom.png",
+        "sha256": "539da609eae1a348756bf3c3635926f71d1eb5f3f8ed0b278dcd06a3f7e291ff",
+        "tty_rows_cols": [
+          40,
+          80
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          800,
+          760
+        ],
+        "plain_sha256": "6f1f286b42ee30cf218a6017db341c6648b3e7d38a06118e17f61e392ebfdaa8",
+        "styled_sha256": "37e1e27614d2fe83fe90a3d01a9f09697eb8cbaf847bd9a9e24dfb349a9c2c6b",
+        "personally_opened_original": true,
+        "observation": "light 80x40: after actual 125 j keys, body begins at Enter Open selected item / confirm. Complete Commands summary ends in avatar, avatar-clear, logout, quit; complete Clipboard sentence is readable, including terminal and final period. Keyboard help title/hint remain fixed, scroll thumb is at lower end; 已连接 and Esc: back footer are readable. No overlap between last Clipboard line and footer border observed.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native2.SSyBFAjQ/light/help-80x40-esc.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts2/light/help-80x40-esc.png",
+        "sha256": "ad219303ee00b5873e54e69b9ca09d7e9791b096acc609b9e45eaf032e1a3b48",
+        "tty_rows_cols": [
+          40,
+          80
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          800,
+          760
+        ],
+        "plain_sha256": "a1d840d27c5b04a5daa39928cb78c7ac7658fec1b6362c62453ca13ecffbf660",
+        "styled_sha256": "33adec4af65953c3ac44776ef9c85512356dbc86f01db4070b12986b7db90dc4",
+        "personally_opened_original": true,
+        "observation": "light 80x40: actual Escape returns to Chats; Keyboard help content is absent. Selected HDR group with (6), readonly_history direct-chat preview, connected header, 已连接 / Esc: back footer remain readable. No residual Help text in blank list area observed. Emoji rendering here is incidental, not an EGC correctness oracle.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-60x24-top.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-60x24-top.png",
+        "sha256": "5b9955cdf581007ec5615acf2721ca45ae75b44ae7ddae6bc3a49b5889722b75",
+        "tty_rows_cols": [
+          24,
+          60
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          600,
+          456
+        ],
+        "plain_sha256": "22863dc3eb72ccd6865bff99c30391be7a06675796a8d0ce8f7338d3e9e7d2bb",
+        "styled_sha256": "85ab89f5e9efafa2664b1d71867f88215a8b3feb2fd2e11a8c69c0f8004687be",
+        "personally_opened_original": true,
+        "observation": "dark 60x24: initial Help shows first j/Down k/Up shortcut and fixed j/k: scroll · Esc: back hint; body visible through m / p Mute / personal pin; Tab input focus wraps onto a continuation line. Footer 已连接 / Esc: back remains readable. Initial offscreen tail is a scroll viewport observation, not inaccessible content.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-60x24-bottom.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-60x24-bottom.png",
+        "sha256": "91ddf2c8ea45a2e32eb19697adfc4c754cc8e462e592cc8c0e6543fe54e8c5d5",
+        "tty_rows_cols": [
+          24,
+          60
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          600,
+          456
+        ],
+        "plain_sha256": "ef896875a5d2a5294aa976fad9a019cd0ffad51fec8c04a7ceb648f947f48f7d",
+        "styled_sha256": "954f7129114c255f0fa61c08d2d63c5f36de8c35be3e4e7cc420ed51cc986ae8",
+        "personally_opened_original": true,
+        "observation": "dark 60x24: after actual 200 j keys, body begins at Space / Enter (contacts picker), with selection on a second line. Complete Commands summary ends in avatar, avatar-clear, logout, quit; complete Clipboard sentence is readable, including terminal and final period. Keyboard help title/hint remain fixed, scroll thumb is at lower end; 已连接 and Esc: back footer are readable. No overlap between last Clipboard line and footer border observed.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-60x24-esc.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-60x24-esc.png",
+        "sha256": "b3ddfb5bae5ba55374630710fbfa513de973400168555b14648030c129923feb",
+        "tty_rows_cols": [
+          24,
+          60
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          600,
+          456
+        ],
+        "plain_sha256": "523b5c693c3e80029262d6d5c15b614575c7b91594a3ff920671b485be4b0885",
+        "styled_sha256": "bf03a6eac5471e3125040442422a005e95e921dc3f5602b4c0851fe3ef3160c3",
+        "personally_opened_original": true,
+        "observation": "dark 60x24: actual Escape returns to Chats; Keyboard help content is absent. Selected HDR group with (6), readonly_history direct-chat preview, connected header, 已连接 / Esc: back footer remain readable. No residual Help text in blank list area observed. Emoji rendering here is incidental, not an EGC correctness oracle.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-70x24-top.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-70x24-top.png",
+        "sha256": "3e92dfdb807cc448f22bd45dd81f430ef219a9499e3893b3add3b91d745d4172",
+        "tty_rows_cols": [
+          24,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          456
+        ],
+        "plain_sha256": "2ee4a460b9080148b5405f5c527967bc6e98f312af1bb22b7cb0e992df030bb6",
+        "styled_sha256": "0f1d8a7e878c73e9c37a5cb740fd88164bf250993bc7a09b03f15a2588c637f0",
+        "personally_opened_original": true,
+        "observation": "dark 70x24: initial Help shows first j/Down k/Up shortcut and fixed j/k: scroll · Esc: back hint; body visible through h / c / u Chats / Contacts / Account. Footer 已连接 / Esc: back remains readable. Initial offscreen tail is a scroll viewport observation, not inaccessible content.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-70x24-bottom.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-70x24-bottom.png",
+        "sha256": "a7dc32e5faad111adb05509b23d2eae2d30eab999d15384733a4183dc89802d9",
+        "tty_rows_cols": [
+          24,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          456
+        ],
+        "plain_sha256": "b629ff9155a7b7384792563663f4a8150e3fc8cce792d35aaf3d6861397dc3b1",
+        "styled_sha256": "6dbbdbeaadc59195f5546edcceddaaec2a9ec5a463568dce5c2f7f7ee2f6b7cf",
+        "personally_opened_original": true,
+        "observation": "dark 70x24: after actual 200 j keys, body begins at Tab (new friends) switch incoming/outgoing requests. Complete Commands summary ends in avatar, avatar-clear, logout, quit; complete Clipboard sentence is readable, including terminal and final period. Keyboard help title/hint remain fixed, scroll thumb is at lower end; 已连接 and Esc: back footer are readable. No overlap between last Clipboard line and footer border observed.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-70x24-esc.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-70x24-esc.png",
+        "sha256": "199ef55ba045ded2c95aa8893b4629f05581daf02bcb77fb81a5383b210eec4a",
+        "tty_rows_cols": [
+          24,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          456
+        ],
+        "plain_sha256": "37a419d8bcb945f5e02e7b0378a445162bb6527773872487d398b06c782d652e",
+        "styled_sha256": "31666b7413254b69fd5a1ab4884aa4932bf926be76ba74b1b5f354f3eb91745f",
+        "personally_opened_original": true,
+        "observation": "dark 70x24: actual Escape returns to Chats; Keyboard help content is absent. Selected HDR group with (6), readonly_history direct-chat preview, connected header, 已连接 / Esc: back footer remain readable. No residual Help text in blank list area observed. Emoji rendering here is incidental, not an EGC correctness oracle.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-70x40-top.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-70x40-top.png",
+        "sha256": "ce627386254cc6c8328575a2d005ceafc9837990090558585a1949a1a24ce2ce",
+        "tty_rows_cols": [
+          40,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          760
+        ],
+        "plain_sha256": "e760e9260e991ea2d66ea3905cb87589a9e0baad3bdff02cb7658d380dc563cf",
+        "styled_sha256": "39c72dc2f249df99a001f78ce5f1f9fbc6acdedf425d83378cdb37d791a45d3c",
+        "personally_opened_original": true,
+        "observation": "dark 70x40: initial Help shows first j/Down k/Up shortcut and fixed j/k: scroll · Esc: back hint; body visible through command-summary fragment through approval, requests; final avatar/logout/quit and Clipboard are below viewport. Footer 已连接 / Esc: back remains readable. Initial offscreen tail is a scroll viewport observation, not inaccessible content.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-70x40-bottom.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-70x40-bottom.png",
+        "sha256": "83b97b2b1456ec94709c9432796fef92a50f6f6cbff5edf654cb3447a757c7da",
+        "tty_rows_cols": [
+          40,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          760
+        ],
+        "plain_sha256": "5b8b37c74432d1a6375371528dbb019905252f2a80a1f487fe9043a212205bea",
+        "styled_sha256": "66c3e352aae0a99d8d23ccb22d8550b28f42c059c8d44270643356d72722c1ea",
+        "personally_opened_original": true,
+        "observation": "dark 70x40: after actual 200 j keys, body begins at Esc Back / close prompt / keep draft. Complete Commands summary ends in avatar, avatar-clear, logout, quit; complete Clipboard sentence is readable, including terminal and final period. Keyboard help title/hint remain fixed, scroll thumb is at lower end; 已连接 and Esc: back footer are readable. No overlap between last Clipboard line and footer border observed.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-70x40-esc.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-70x40-esc.png",
+        "sha256": "5fb576b2201699e32f18637482e63ae88d495b7bab8a05506498d5c945b1ccdb",
+        "tty_rows_cols": [
+          40,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          760
+        ],
+        "plain_sha256": "07ed2b738372894aeff3db5fcc657707cb86a675268dd8009daa60b4b3fea4e1",
+        "styled_sha256": "266b5ae80eba82d545f7f05d2d573923c8477328e4a9569d874de0f68d53dea3",
+        "personally_opened_original": true,
+        "observation": "dark 70x40: actual Escape returns to Chats; Keyboard help content is absent. Selected HDR group with (6), readonly_history direct-chat preview, connected header, 已连接 / Esc: back footer remain readable. No residual Help text in blank list area observed. Emoji rendering here is incidental, not an EGC correctness oracle.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-80x40-top.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-80x40-top.png",
+        "sha256": "c4c9007c8e0ec665c3f2e04c7032affc507166ee9eb73202d109862b38b70be8",
+        "tty_rows_cols": [
+          40,
+          80
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          800,
+          760
+        ],
+        "plain_sha256": "bab82553154196f7afc38f352541f76a5e6fa9c6a883b3af9c0650948297979d",
+        "styled_sha256": "aec7b4a2e47aa1d06f47809555af4f5764e5dc75127cc2a8076a60d20049afcc",
+        "personally_opened_original": true,
+        "observation": "dark 80x40: initial Help shows first j/Down k/Up shortcut and fixed j/k: scroll · Esc: back hint; body visible through command summary through final quit; Clipboard is below viewport. Footer 已连接 / Esc: back remains readable. Initial offscreen tail is a scroll viewport observation, not inaccessible content.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-80x40-bottom.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-80x40-bottom.png",
+        "sha256": "a6fa5e21fdcccd359b2c487a4cfcc616a5f5d1b57dd37455ae2e2b7a144ad568",
+        "tty_rows_cols": [
+          40,
+          80
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          800,
+          760
+        ],
+        "plain_sha256": "1c4077c08e7ba3870cb2ce4ff8621c3cdf8701c3bcedaa4ff5a8f52c39fa6762",
+        "styled_sha256": "788d623ac1e5f473ad61eedb242c784a21ee03042aaadae2022a36154e4d80c5",
+        "personally_opened_original": true,
+        "observation": "dark 80x40: after actual 200 j keys, body begins at Enter Open selected item / confirm. Complete Commands summary ends in avatar, avatar-clear, logout, quit; complete Clipboard sentence is readable, including terminal and final period. Keyboard help title/hint remain fixed, scroll thumb is at lower end; 已连接 and Esc: back footer are readable. No overlap between last Clipboard line and footer border observed.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/dark/help-80x40-esc.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/dark/help-80x40-esc.png",
+        "sha256": "c97c831b7a78041db6ad6e65cb43ca6d8f12ed3cf1bd473e1ae6a0b91eb71bf8",
+        "tty_rows_cols": [
+          40,
+          80
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          800,
+          760
+        ],
+        "plain_sha256": "0c6ff8414f8491eaa14b9a76f4520450561dc6a7817c4a767cccf1e56ac36819",
+        "styled_sha256": "b4e0da73d559f7e49b104d3781c708d737f1c9d44ae0db3cc13f3c9cdb0a9c8c",
+        "personally_opened_original": true,
+        "observation": "dark 80x40: actual Escape returns to Chats; Keyboard help content is absent. Selected HDR group with (6), readonly_history direct-chat preview, connected header, 已连接 / Esc: back footer remain readable. No residual Help text in blank list area observed. Emoji rendering here is incidental, not an EGC correctness oracle.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-60x24-top.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-60x24-top.png",
+        "sha256": "e7ddd247bb44ffae65f56679d10f8b1d82d71f66b5cc9e8e3b91fa367751c2a4",
+        "tty_rows_cols": [
+          24,
+          60
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          600,
+          456
+        ],
+        "plain_sha256": "3c88530ea38fb118cc701155b8a41e5d555ec8f425580c4fa77d7963e62ce0e6",
+        "styled_sha256": "1ce919736e81018245dfcba24cba5fc61890322a6ba48c9af1f7f662f4f32323",
+        "personally_opened_original": true,
+        "observation": "light 60x24: initial Help shows first j/Down k/Up shortcut and fixed j/k: scroll · Esc: back hint; body visible through m / p Mute / personal pin; Tab input focus wraps onto a continuation line. Footer 已连接 / Esc: back remains readable. Initial offscreen tail is a scroll viewport observation, not inaccessible content.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-60x24-bottom.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-60x24-bottom.png",
+        "sha256": "ab19b81d27923239bbe65977446e64b7a35743a2804fc3c229f4a7638f3a530a",
+        "tty_rows_cols": [
+          24,
+          60
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          600,
+          456
+        ],
+        "plain_sha256": "40502fbdca57afab48af327bb467096028e843e6a31d8fc364f24e173e878ed1",
+        "styled_sha256": "dcad156d66539f526f57eaa4ee9099325abbdbd8a4cb4b553425ff6a1600c475",
+        "personally_opened_original": true,
+        "observation": "light 60x24: after actual 200 j keys, body begins at Space / Enter (contacts picker), with selection on a second line. Complete Commands summary ends in avatar, avatar-clear, logout, quit; complete Clipboard sentence is readable, including terminal and final period. Keyboard help title/hint remain fixed, scroll thumb is at lower end; 已连接 and Esc: back footer are readable. No overlap between last Clipboard line and footer border observed.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-60x24-esc.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-60x24-esc.png",
+        "sha256": "09115a0b24a91f62bab3e848aad005e632dec1e5a76cc50d31b9179ddb3b3be4",
+        "tty_rows_cols": [
+          24,
+          60
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          600,
+          456
+        ],
+        "plain_sha256": "8f548bdec1da9318aadc5b896f8e01906d7b2beae6015c28a6bef396d308be2f",
+        "styled_sha256": "fe793a87c0c65b5914adc4a208ef553199d224a07d929db8befb8e0102f2fe18",
+        "personally_opened_original": true,
+        "observation": "light 60x24: actual Escape returns to Chats; Keyboard help content is absent. Selected HDR group with (6), readonly_history direct-chat preview, connected header, 已连接 / Esc: back footer remain readable. No residual Help text in blank list area observed. Emoji rendering here is incidental, not an EGC correctness oracle.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-70x24-top.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-70x24-top.png",
+        "sha256": "e2e392d8cf93c468b686c8dfe454bdac59606b8e91469ab7b351471a63d84a51",
+        "tty_rows_cols": [
+          24,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          456
+        ],
+        "plain_sha256": "caf4387190e19e2fec89ef1036e9ec052bf2a3d1c4aab20e62eb527c8588328e",
+        "styled_sha256": "111c1b8e0e550adeacf7736741b135097fd4f9bfde6d5cebb5622ca757aec5be",
+        "personally_opened_original": true,
+        "observation": "light 70x24: initial Help shows first j/Down k/Up shortcut and fixed j/k: scroll · Esc: back hint; body visible through h / c / u Chats / Contacts / Account. Footer 已连接 / Esc: back remains readable. Initial offscreen tail is a scroll viewport observation, not inaccessible content.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-70x24-bottom.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-70x24-bottom.png",
+        "sha256": "32834f9bb967cc7329f058a92247c22c3b17e932faa594a5b51a547f791e731e",
+        "tty_rows_cols": [
+          24,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          456
+        ],
+        "plain_sha256": "bee2c096dbd6f76e493a14a0f21acb80fa806300a08a70108ef91523c0d971df",
+        "styled_sha256": "95bf85b50ca4652d524c77c90f7637a91593a62c3e2aca7a0c61d721195d10b9",
+        "personally_opened_original": true,
+        "observation": "light 70x24: after actual 200 j keys, body begins at Tab (new friends) switch incoming/outgoing requests. Complete Commands summary ends in avatar, avatar-clear, logout, quit; complete Clipboard sentence is readable, including terminal and final period. Keyboard help title/hint remain fixed, scroll thumb is at lower end; 已连接 and Esc: back footer are readable. No overlap between last Clipboard line and footer border observed.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-70x24-esc.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-70x24-esc.png",
+        "sha256": "247c4e4f33f2e0e58113cc02ac99f6c454b96d2a562c7bf2caf736b3a8410bac",
+        "tty_rows_cols": [
+          24,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          456
+        ],
+        "plain_sha256": "912bbcf388d59548d7a3ab4f25b3fc32ae55b1712b0be90aadeb7d7615b5abf9",
+        "styled_sha256": "945bbba513045e8f16af0f7cb1aa989bd1f19d0d3175f7c941ae3c6b6874486f",
+        "personally_opened_original": true,
+        "observation": "light 70x24: actual Escape returns to Chats; Keyboard help content is absent. Selected HDR group with (6), readonly_history direct-chat preview, connected header, 已连接 / Esc: back footer remain readable. No residual Help text in blank list area observed. Emoji rendering here is incidental, not an EGC correctness oracle.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-70x40-top.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-70x40-top.png",
+        "sha256": "8b045be697281a898f96bb3d429b34773d4e8e3fa88e04c0eacfae6e3b8dae45",
+        "tty_rows_cols": [
+          40,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          760
+        ],
+        "plain_sha256": "18bf87cd8ba9ca3e0744ca39b2c7c5611ab53967380c6204296de84baf807510",
+        "styled_sha256": "2b43141d6d7596b5ffe9ba5d8a19029f2cd0b4a8f8cf9315f427a0153bfc4fd8",
+        "personally_opened_original": true,
+        "observation": "light 70x40: initial Help shows first j/Down k/Up shortcut and fixed j/k: scroll · Esc: back hint; body visible through command-summary fragment through approval, requests; final avatar/logout/quit and Clipboard are below viewport. Footer 已连接 / Esc: back remains readable. Initial offscreen tail is a scroll viewport observation, not inaccessible content.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-70x40-bottom.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-70x40-bottom.png",
+        "sha256": "a754e393dfea0d681f4885ae1a94a45250fecdd758ba12d2f3678be6ab6586a2",
+        "tty_rows_cols": [
+          40,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          760
+        ],
+        "plain_sha256": "9c8428a7a7cdb8e2bcf975cccb1ee115b5459b98fb210a7a0474109d6b0b58ee",
+        "styled_sha256": "67161d552dbd2f84ddd57e47a8b8fd709422ebd66bb7a7db48c944f884e16463",
+        "personally_opened_original": true,
+        "observation": "light 70x40: after actual 200 j keys, body begins at Esc Back / close prompt / keep draft. Complete Commands summary ends in avatar, avatar-clear, logout, quit; complete Clipboard sentence is readable, including terminal and final period. Keyboard help title/hint remain fixed, scroll thumb is at lower end; 已连接 and Esc: back footer are readable. No overlap between last Clipboard line and footer border observed.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-70x40-esc.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-70x40-esc.png",
+        "sha256": "352786864c4b9437df530b6abbf75fe35678ba696cc1e5b30fe4edd62630af88",
+        "tty_rows_cols": [
+          40,
+          70
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          700,
+          760
+        ],
+        "plain_sha256": "543400248184cc5f77e6486d9bc9b2985d3e3674683246e6c8f50bf55f87d8ab",
+        "styled_sha256": "a27878ccb7b6eb888f4bc9fb30e62d67fc0d72dcb353df50a2e2e075131a61ab",
+        "personally_opened_original": true,
+        "observation": "light 70x40: actual Escape returns to Chats; Keyboard help content is absent. Selected HDR group with (6), readonly_history direct-chat preview, connected header, 已连接 / Esc: back footer remain readable. No residual Help text in blank list area observed. Emoji rendering here is incidental, not an EGC correctness oracle.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-80x40-top.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-80x40-top.png",
+        "sha256": "247552f24f9bda48da65db2d090edef24f2e717af1e10adc488cd2d63d82253d",
+        "tty_rows_cols": [
+          40,
+          80
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          800,
+          760
+        ],
+        "plain_sha256": "3aecdb573293ac507e2d6d82f74cc20fe966b06c31d61170df1620867aef350c",
+        "styled_sha256": "eef270b421eafe3392d81f57f26f3edfd0fecb0bf17b8c66f4772d8ec9937795",
+        "personally_opened_original": true,
+        "observation": "light 80x40: initial Help shows first j/Down k/Up shortcut and fixed j/k: scroll · Esc: back hint; body visible through command summary through final quit; Clipboard is below viewport. Footer 已连接 / Esc: back remains readable. Initial offscreen tail is a scroll viewport observation, not inaccessible content.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-80x40-bottom.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-80x40-bottom.png",
+        "sha256": "06c7a09a1a6f5173170521ec8b36c540205e33754dec94e8599246b0ad052219",
+        "tty_rows_cols": [
+          40,
+          80
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          800,
+          760
+        ],
+        "plain_sha256": "dcc9154d4d30fca5191e7285095c57bb101ea165c8c221bf76c5a1a310a8d11c",
+        "styled_sha256": "5776a71cacdd76a623105380d3110aa2caf57a0c6d5bc22bf39b0a755f32c5cb",
+        "personally_opened_original": true,
+        "observation": "light 80x40: after actual 200 j keys, body begins at Enter Open selected item / confirm. Complete Commands summary ends in avatar, avatar-clear, logout, quit; complete Clipboard sentence is readable, including terminal and final period. Keyboard help title/hint remain fixed, scroll thumb is at lower end; 已连接 and Esc: back footer are readable. No overlap between last Clipboard line and footer border observed.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      },
+      {
+        "remote_path": "/tmp/chat-help-scroll-native3.VuO9LtSJ/light/help-80x40-esc.png",
+        "local_path": "/tmp/chat-help-focused-driver-local/artifacts3/light/help-80x40-esc.png",
+        "sha256": "432df3ae6e4af006d6e00311a56912562f70b2cfc8f4c44f4ae0cba815b0eed1",
+        "tty_rows_cols": [
+          40,
+          80
+        ],
+        "full_image_pixels": [
+          1900,
+          900
+        ],
+        "window_actual_pixels": [
+          800,
+          760
+        ],
+        "plain_sha256": "0df78c2c5935fb4eb3753c0f9d35e3d9aaa4851114ff8e14aba7ae08df162233",
+        "styled_sha256": "664f71a14712f30310e883b92bd410283d35467f629ab40a78c3f9207ab5fe6e",
+        "personally_opened_original": true,
+        "observation": "light 80x40: actual Escape returns to Chats; Keyboard help content is absent. Selected HDR group with (6), readonly_history direct-chat preview, connected header, 已连接 / Esc: back footer remain readable. No residual Help text in blank list area observed. Emoji rendering here is incidental, not an EGC correctness oracle.",
+        "limits": [
+          "A single captured state, not every intermediate scroll position.",
+          "Readability judged visually; no numeric WCAG contrast certification."
+        ]
+      }
+    ]
+  }
+}

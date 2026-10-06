@@ -1,0 +1,837 @@
+{
+  "scope": "/tmp/chat-help-scroll-native.EAUbGlgM/light",
+  "mode": "mux",
+  "driver_process": {
+    "pid": 234805,
+    "alive": true,
+    "state": "R",
+    "executable": "/usr/bin/python3.10",
+    "start_ticks": 548138452,
+    "cpu_seconds": 0.03,
+    "rss_kib": 22144,
+    "peak_rss_kib": 22144,
+    "threads": 1,
+    "fds": 4
+  },
+  "driver_exit": 0,
+  "captures": [
+    {
+      "file": "00-outer9-oracle.png",
+      "sha": "209d0c36afa1f355ec65fd3475c67a85a3f825d44c8f5e83cdf538e857ff55d9",
+      "raw_offset": 0,
+      "tty_rows_cols": null,
+      "plain_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "styled_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "00-outer9-oracle.window.txt"
+    },
+    {
+      "file": "01-mux9-off-oracle.png",
+      "sha": "f2db0e3193d7891936bdbceed5f9ef855342047e50067e6310c95a640eb32b41",
+      "raw_offset": 1393,
+      "tty_rows_cols": null,
+      "plain_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "styled_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "01-mux9-off-oracle.window.txt"
+    },
+    {
+      "file": "02-login80.png",
+      "sha": "f4e832e9d4f462455e6b92a6720de99a627bd44c1480c356872634b6cfce4432",
+      "raw_offset": 2295,
+      "tty_rows_cols": [
+        30,
+        80
+      ],
+      "plain_sha": "825553e6ed7c586ec08aa3649b4ced506064a4eb9cc1c31ff5b6f2a92104853e",
+      "styled_sha": "068f48010b83283c91cfaa8d06a35df6122bbb27a90d111bde4943d72237ffcc",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "02-login80.window.txt"
+    },
+    {
+      "file": "03-chats80.png",
+      "sha": "0e4dd49dd0dc079f41e1b919bb07774a433ce83c1e367625c1b6c8b08d560a4b",
+      "raw_offset": 21005,
+      "tty_rows_cols": [
+        30,
+        80
+      ],
+      "plain_sha": "4817f0130f380a74dc1b42e162496354b2a3764bdc3e5528b299310572d58d10",
+      "styled_sha": "6a0a7dc5c5ab95f12d48174b1bdf71bdf43c4c5dd6b762b7abdd7edf0c4dcae8",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "03-chats80.window.txt"
+    },
+    {
+      "file": "help-60x24-top.png",
+      "sha": "20b87f93c1e363017b5c94718fbce73b60ce10a70e5d1bb4acc875b37db16f72",
+      "raw_offset": 44008,
+      "tty_rows_cols": [
+        24,
+        60
+      ],
+      "plain_sha": "6ac640076a69460e3d4c28d31936c7fe11805cf55e470fd7113b6757d2a1ebe8",
+      "styled_sha": "10da08a104b8e92cf92158237b50ada626c521e2a6e7f866431af22cde7039dd",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "help-60x24-top.window.txt"
+    },
+    {
+      "file": "help-60x24-bottom.png",
+      "sha": "20b87f93c1e363017b5c94718fbce73b60ce10a70e5d1bb4acc875b37db16f72",
+      "raw_offset": 58948,
+      "tty_rows_cols": [
+        24,
+        60
+      ],
+      "plain_sha": "6ac640076a69460e3d4c28d31936c7fe11805cf55e470fd7113b6757d2a1ebe8",
+      "styled_sha": "10da08a104b8e92cf92158237b50ada626c521e2a6e7f866431af22cde7039dd",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "help-60x24-bottom.window.txt"
+    },
+    {
+      "file": "help-60x24-esc.png",
+      "sha": "bb3dc92a60d11f2a7e5e90c03ef3ace14111426ce8fb8236a22b562f03ff6b93",
+      "raw_offset": 61370,
+      "tty_rows_cols": [
+        24,
+        60
+      ],
+      "plain_sha": "e678763c79bfc93a440d5569ffda26a4cfdde491535676414b1bfcb0d8a855ef",
+      "styled_sha": "b9a0ee84f5ceafea04a24e0ec0d88240ee16bdfae9bbfbeb1a425572049dc318",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "help-60x24-esc.window.txt"
+    },
+    {
+      "file": "help-70x24-top.png",
+      "sha": "31df2535a0e3853e39264796ee53fc30c0adf74e852cae5e96688b57371904e9",
+      "raw_offset": 82545,
+      "tty_rows_cols": [
+        24,
+        70
+      ],
+      "plain_sha": "415323af46a7db47f434bb7a8f30eec51b7bd71e639ebf4a8151f094657820e6",
+      "styled_sha": "13fb8c3e87d935d2da7fd4bd467b7da9ab7f298077a31f6aca65f1e72158b106",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "help-70x24-top.window.txt"
+    },
+    {
+      "file": "help-70x24-bottom.png",
+      "sha": "31df2535a0e3853e39264796ee53fc30c0adf74e852cae5e96688b57371904e9",
+      "raw_offset": 99582,
+      "tty_rows_cols": [
+        24,
+        70
+      ],
+      "plain_sha": "415323af46a7db47f434bb7a8f30eec51b7bd71e639ebf4a8151f094657820e6",
+      "styled_sha": "13fb8c3e87d935d2da7fd4bd467b7da9ab7f298077a31f6aca65f1e72158b106",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "help-70x24-bottom.window.txt"
+    },
+    {
+      "file": "help-70x24-esc.png",
+      "sha": "b27883a65789beabc26e8cd8149bb28e3018b7d43ad9234b0d265d59ade7721e",
+      "raw_offset": 102314,
+      "tty_rows_cols": [
+        24,
+        70
+      ],
+      "plain_sha": "3e637d423e0077170c601be137bf936ca35772666333aef2260a4da7228cddea",
+      "styled_sha": "6e430c6727a0d904851514a196ccf0479eb3619e98fc8d930eb296e06623cb5b",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "help-70x24-esc.window.txt"
+    },
+    {
+      "file": "help-70x40-top.png",
+      "sha": "a6d8b755e3edee53d3cd73138c722aadb90be5b8a5cb22a09e9c57d284f7a4d1",
+      "raw_offset": 130525,
+      "tty_rows_cols": [
+        40,
+        70
+      ],
+      "plain_sha": "9715016dfbddc67693efe74b6576cdb2eb7c0965575c372a5bf70be5d370ae59",
+      "styled_sha": "d5bcd9dfc3321c5934b1aabd3abf70c56bc807ac39c2dfb113d4ce72d0c87ae5",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "help-70x40-top.window.txt"
+    },
+    {
+      "file": "help-70x40-bottom.png",
+      "sha": "a6d8b755e3edee53d3cd73138c722aadb90be5b8a5cb22a09e9c57d284f7a4d1",
+      "raw_offset": 158465,
+      "tty_rows_cols": [
+        40,
+        70
+      ],
+      "plain_sha": "9715016dfbddc67693efe74b6576cdb2eb7c0965575c372a5bf70be5d370ae59",
+      "styled_sha": "d5bcd9dfc3321c5934b1aabd3abf70c56bc807ac39c2dfb113d4ce72d0c87ae5",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "help-70x40-bottom.window.txt"
+    },
+    {
+      "file": "help-70x40-esc.png",
+      "sha": "86e970c0811d00ee2de9f560bab03b9ddd0f7c1a8dc21122d033386b761c8afb",
+      "raw_offset": 162589,
+      "tty_rows_cols": [
+        40,
+        70
+      ],
+      "plain_sha": "da9b1c5ae7e8864e65286b04fae1f31bbf69a80400a9309f09e8c593970747cb",
+      "styled_sha": "cad72cf004630792004a3dc4641c11edb2ad03b218361a2325efa2cde3477355",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "help-70x40-esc.window.txt"
+    },
+    {
+      "file": "help-80x40-top.png",
+      "sha": "c0bb3d3a11effeb1b409bd8703a4d0eb7d97e14bc5ae8f9837a016c6724ebbba",
+      "raw_offset": 197843,
+      "tty_rows_cols": [
+        40,
+        80
+      ],
+      "plain_sha": "d15cabbbefdf47a68e990deac350c87f508452389c88bb8ea7dbf49aa2d01d51",
+      "styled_sha": "eb1e198c22b6e59576b875a79922374714d5c1669a345565a37e0af5dfc9fa3e",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "help-80x40-top.window.txt"
+    },
+    {
+      "file": "help-80x40-bottom.png",
+      "sha": "c0bb3d3a11effeb1b409bd8703a4d0eb7d97e14bc5ae8f9837a016c6724ebbba",
+      "raw_offset": 228300,
+      "tty_rows_cols": [
+        40,
+        80
+      ],
+      "plain_sha": "d15cabbbefdf47a68e990deac350c87f508452389c88bb8ea7dbf49aa2d01d51",
+      "styled_sha": "eb1e198c22b6e59576b875a79922374714d5c1669a345565a37e0af5dfc9fa3e",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "help-80x40-bottom.window.txt"
+    },
+    {
+      "file": "help-80x40-esc.png",
+      "sha": "5d8ccbf2a6c83048c81de7cfb445f838d627a188838acfa898ac212cf7480156",
+      "raw_offset": 232894,
+      "tty_rows_cols": [
+        40,
+        80
+      ],
+      "plain_sha": "e85c71b98c51d9872ee891438211897300acb33809d867589dbe9e67f220337f",
+      "styled_sha": "10a8ed4d0c8112338f4fcb4727c4d6267b83353036d36f685ed60aa40d5e3d3d",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "help-80x40-esc.window.txt"
+    },
+    {
+      "file": "16-after-test9-oracle.png",
+      "sha": "5de9f9f3831aab2e845999054c6fc133a603e32fe53af33aac26b0e7f3fa4c9c",
+      "raw_offset": 237928,
+      "tty_rows_cols": null,
+      "plain_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "styled_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "16-after-test9-oracle.window.txt"
+    }
+  ],
+  "actions": [],
+  "protected_before": {
+    "2876288": {
+      "pid": 2876288,
+      "alive": true,
+      "state": "S",
+      "executable": "/home/gyl/example/chat/build/chat_server (deleted)",
+      "start_ticks": 521400965,
+      "cpu_seconds": 0.98,
+      "rss_kib": 17108,
+      "peak_rss_kib": 17108,
+      "threads": 25,
+      "fds": 41
+    },
+    "3225": {
+      "pid": 3225,
+      "alive": true,
+      "state": "S",
+      "executable": "/usr/bin/fcitx5",
+      "start_ticks": 17583,
+      "cpu_seconds": 6052.73,
+      "rss_kib": 61320,
+      "peak_rss_kib": 285108,
+      "threads": 3,
+      "fds": 62
+    },
+    "29935": {
+      "pid": 29935,
+      "alive": true,
+      "state": "S",
+      "executable": "/usr/bin/speech-dispatcher",
+      "start_ticks": 248258,
+      "cpu_seconds": 4.85,
+      "rss_kib": 6476,
+      "peak_rss_kib": 7872,
+      "threads": 5,
+      "fds": 24
+    }
+  },
+  "head": "a8529a18c95a3b6550efe4553d0ebad86cf3eedf",
+  "tui_source_before": {
+    "tui/cmake/ftxui-7.0.3-grapheme.patch": "1e4bf334b12a9d4cd0876f68a0c096717f6ee8070e113f01fdc73b1e6595e56d",
+    "tui/src/app.cpp": "3cfff26307318d1badc870554800cddafe4158866bccbd800db17b66be44db7a",
+    "tui/src/app.hpp": "89b9f37259e60109284ff5511322d794fac291f158f3ac5a07cfc53603f3a860",
+    "tui/src/deadline.hpp": "dbe2a40c1a61b75032843ab82fc8dd898f0d0f8ecbfe6cde15fbf528274584f2",
+    "tui/src/file_io.hpp": "36628265415a0fbae479eec5c76f122362a7a61de2ee9b32cfa94cf41ad5ef7d",
+    "tui/src/groups.cpp": "3a6c19da31f784377d64112063783f2197a9ea08ff2ded783a245af60ce89c99",
+    "tui/src/inbox.hpp": "53a0dbb45136c8f1b783b948373658b2897d976944eaff1353624150ec5d1bba",
+    "tui/src/main.cpp": "05ed5edddc04b9590edeb11db6261a0e0440e32ea54af98a65b6d9afbd79b620",
+    "tui/src/messages.cpp": "f6c414041e8b17f7f59fad4c29589e3bf7bd45f30fc365b555f9c0c8fd164340",
+    "tui/src/profile.cpp": "a464531debbf5b4c618d712276fa5d526ba70599cd7a9f26aa490e2003481990",
+    "tui/src/state.cpp": "d8b99d807e119b410bb5a0df2d7c8e84d75ebb326cedf4d9526665038c3fa5ab",
+    "tui/src/state.hpp": "32e853f0bce108fd5425351a2f882db9c4e11d074f6e742e33caa347647d531e",
+    "tui/src/ui.cpp": "b8f06e5b273f7f5df04950e9f9e4fa4c4d041fe1b58995071a81ec2491f3c179",
+    "tui/src/ui.hpp": "4fdeb7385b98761ae916db52d23f0d3079c9e90d0f0eb8391409fdfd00a4e62e"
+  },
+  "binary_sha": {
+    "chat_tui": "dd1a6baab6d19759f0d8cf5e88133130eecf45412bed90360728476e926a11a0",
+    "chat_server": "f2c9288cbc32817183e399e72a4a3af8e45adfdfbd54435af43aae86da36bf5b",
+    "chat_tui_scale_fixture": "b624a131f2170164bd4f9b2c9ac2cc732fd6b62c23819f3a8b9d7fc0b4d021fe"
+  },
+  "candidate_binary": {
+    "path": "/tmp/chat-help-scroll-native.EAUbGlgM/chat_tui-dd1a6baa",
+    "sha256": "dd1a6baab6d19759f0d8cf5e88133130eecf45412bed90360728476e926a11a0"
+  },
+  "candidate_manifest_sha256": "26c1dda44980ee3f84279fd3ba039e5220a705b0c4cef400cb92e4b65cb75f50",
+  "wezterm_version": "wezterm 20221119-145034-49b9839f",
+  "tmux_version": "tmux 3.6a",
+  "database": "chat_t04_candidate_mux_1006201255_234805",
+  "port": 40003,
+  "processes": {
+    "server": {
+      "pid": 234867,
+      "alive": true,
+      "state": "R",
+      "executable": "/home/gyl/example/chat/build/chat_server",
+      "start_ticks": 548138570,
+      "cpu_seconds": 0.0,
+      "rss_kib": 360,
+      "peak_rss_kib": 360,
+      "threads": 1,
+      "fds": 4
+    },
+    "wezterm": {
+      "pid": 235148,
+      "alive": true,
+      "state": "R",
+      "executable": "/usr/bin/wezterm",
+      "start_ticks": 548139170,
+      "cpu_seconds": 0.0,
+      "rss_kib": 380,
+      "peak_rss_kib": 380,
+      "threads": 1,
+      "fds": 4
+    }
+  },
+  "helper_exit": 0,
+  "prelogin_seed": {
+    "title": "HDR L👩‍💻R ❤️ 1️⃣ 👩🏽 END",
+    "cases": [
+      "LABR END",
+      "L中́R END",
+      "L👩‍💻R END",
+      "L1️⃣R END",
+      "L❤️R END",
+      "L👩🏽R END"
+    ],
+    "sql": [
+      [
+        "1",
+        "2",
+        "1",
+        "readonly_history_u14_201257_234805"
+      ],
+      [
+        "2",
+        "1",
+        "2",
+        "LABR END"
+      ],
+      [
+        "3",
+        "1",
+        "2",
+        "L中́R END"
+      ],
+      [
+        "4",
+        "1",
+        "2",
+        "L👩‍💻R END"
+      ],
+      [
+        "5",
+        "1",
+        "2",
+        "L1️⃣R END"
+      ],
+      [
+        "6",
+        "1",
+        "2",
+        "L❤️R END"
+      ],
+      [
+        "7",
+        "1",
+        "2",
+        "L👩🏽R END"
+      ]
+    ],
+    "sdk_closed_before_login": true
+  },
+  "inside": {
+    "pid": 235396,
+    "tty": "/dev/pts/25",
+    "TERM": "tmux-256color",
+    "TERM_PROGRAM": "tmux",
+    "TERM_PROGRAM_VERSION": "3.6a",
+    "inside_tmux": true,
+    "tmux_server_pid": 235389,
+    "variation_selector_always_wide": "off",
+    "allow_passthrough": "",
+    "clients": [
+      "xterm-256color|WezTerm 20221119-145034-49b9839f|bpaste,ccolour,clipboard,cstyle,focus,RGB,sixel,title"
+    ]
+  },
+  "outer": {
+    "pid": 235167,
+    "tty": "/dev/pts/21",
+    "TERM": "xterm-256color",
+    "TERM_PROGRAM": "WezTerm",
+    "TERM_PROGRAM_VERSION": "20221119-145034-49b9839f"
+  },
+  "actual_live_binary": {
+    "pid": 235396,
+    "start_ticks": 548139206,
+    "path": "/tmp/chat-help-scroll-native.EAUbGlgM/chat_tui-dd1a6baa",
+    "sha256": "dd1a6baab6d19759f0d8cf5e88133130eecf45412bed90360728476e926a11a0"
+  },
+  "row_pitch": 19,
+  "focused_cases": [
+    {
+      "width": 60,
+      "height": 24,
+      "actual_rows_cols": [
+        24,
+        60
+      ],
+      "actual_j_keypresses": 5,
+      "unchanged_last_frames": 5,
+      "scroll_samples": [
+        {
+          "j": 1,
+          "plain_sha256": "6ac640076a69460e3d4c28d31936c7fe11805cf55e470fd7113b6757d2a1ebe8",
+          "changed": false
+        },
+        {
+          "j": 2,
+          "plain_sha256": "6ac640076a69460e3d4c28d31936c7fe11805cf55e470fd7113b6757d2a1ebe8",
+          "changed": false
+        },
+        {
+          "j": 3,
+          "plain_sha256": "6ac640076a69460e3d4c28d31936c7fe11805cf55e470fd7113b6757d2a1ebe8",
+          "changed": false
+        },
+        {
+          "j": 4,
+          "plain_sha256": "6ac640076a69460e3d4c28d31936c7fe11805cf55e470fd7113b6757d2a1ebe8",
+          "changed": false
+        },
+        {
+          "j": 5,
+          "plain_sha256": "6ac640076a69460e3d4c28d31936c7fe11805cf55e470fd7113b6757d2a1ebe8",
+          "changed": false
+        }
+      ],
+      "top_plain_sha256": "6ac640076a69460e3d4c28d31936c7fe11805cf55e470fd7113b6757d2a1ebe8",
+      "bottom_plain_sha256": "6ac640076a69460e3d4c28d31936c7fe11805cf55e470fd7113b6757d2a1ebe8",
+      "quit_visible": false,
+      "clipboard_visible": false,
+      "clipboard_terminal_text_visible": false,
+      "esc_footer_visible": false,
+      "product_observation_only": true,
+      "actual_esc_return_to_chats": true
+    },
+    {
+      "width": 70,
+      "height": 24,
+      "actual_rows_cols": [
+        24,
+        70
+      ],
+      "actual_j_keypresses": 5,
+      "unchanged_last_frames": 5,
+      "scroll_samples": [
+        {
+          "j": 1,
+          "plain_sha256": "415323af46a7db47f434bb7a8f30eec51b7bd71e639ebf4a8151f094657820e6",
+          "changed": false
+        },
+        {
+          "j": 2,
+          "plain_sha256": "415323af46a7db47f434bb7a8f30eec51b7bd71e639ebf4a8151f094657820e6",
+          "changed": false
+        },
+        {
+          "j": 3,
+          "plain_sha256": "415323af46a7db47f434bb7a8f30eec51b7bd71e639ebf4a8151f094657820e6",
+          "changed": false
+        },
+        {
+          "j": 4,
+          "plain_sha256": "415323af46a7db47f434bb7a8f30eec51b7bd71e639ebf4a8151f094657820e6",
+          "changed": false
+        },
+        {
+          "j": 5,
+          "plain_sha256": "415323af46a7db47f434bb7a8f30eec51b7bd71e639ebf4a8151f094657820e6",
+          "changed": false
+        }
+      ],
+      "top_plain_sha256": "415323af46a7db47f434bb7a8f30eec51b7bd71e639ebf4a8151f094657820e6",
+      "bottom_plain_sha256": "415323af46a7db47f434bb7a8f30eec51b7bd71e639ebf4a8151f094657820e6",
+      "quit_visible": false,
+      "clipboard_visible": false,
+      "clipboard_terminal_text_visible": false,
+      "esc_footer_visible": false,
+      "product_observation_only": true,
+      "actual_esc_return_to_chats": true
+    },
+    {
+      "width": 70,
+      "height": 40,
+      "actual_rows_cols": [
+        40,
+        70
+      ],
+      "actual_j_keypresses": 5,
+      "unchanged_last_frames": 5,
+      "scroll_samples": [
+        {
+          "j": 1,
+          "plain_sha256": "9715016dfbddc67693efe74b6576cdb2eb7c0965575c372a5bf70be5d370ae59",
+          "changed": false
+        },
+        {
+          "j": 2,
+          "plain_sha256": "9715016dfbddc67693efe74b6576cdb2eb7c0965575c372a5bf70be5d370ae59",
+          "changed": false
+        },
+        {
+          "j": 3,
+          "plain_sha256": "9715016dfbddc67693efe74b6576cdb2eb7c0965575c372a5bf70be5d370ae59",
+          "changed": false
+        },
+        {
+          "j": 4,
+          "plain_sha256": "9715016dfbddc67693efe74b6576cdb2eb7c0965575c372a5bf70be5d370ae59",
+          "changed": false
+        },
+        {
+          "j": 5,
+          "plain_sha256": "9715016dfbddc67693efe74b6576cdb2eb7c0965575c372a5bf70be5d370ae59",
+          "changed": false
+        }
+      ],
+      "top_plain_sha256": "9715016dfbddc67693efe74b6576cdb2eb7c0965575c372a5bf70be5d370ae59",
+      "bottom_plain_sha256": "9715016dfbddc67693efe74b6576cdb2eb7c0965575c372a5bf70be5d370ae59",
+      "quit_visible": true,
+      "clipboard_visible": false,
+      "clipboard_terminal_text_visible": false,
+      "esc_footer_visible": false,
+      "product_observation_only": true,
+      "actual_esc_return_to_chats": true
+    },
+    {
+      "width": 80,
+      "height": 40,
+      "actual_rows_cols": [
+        40,
+        80
+      ],
+      "actual_j_keypresses": 5,
+      "unchanged_last_frames": 5,
+      "scroll_samples": [
+        {
+          "j": 1,
+          "plain_sha256": "d15cabbbefdf47a68e990deac350c87f508452389c88bb8ea7dbf49aa2d01d51",
+          "changed": false
+        },
+        {
+          "j": 2,
+          "plain_sha256": "d15cabbbefdf47a68e990deac350c87f508452389c88bb8ea7dbf49aa2d01d51",
+          "changed": false
+        },
+        {
+          "j": 3,
+          "plain_sha256": "d15cabbbefdf47a68e990deac350c87f508452389c88bb8ea7dbf49aa2d01d51",
+          "changed": false
+        },
+        {
+          "j": 4,
+          "plain_sha256": "d15cabbbefdf47a68e990deac350c87f508452389c88bb8ea7dbf49aa2d01d51",
+          "changed": false
+        },
+        {
+          "j": 5,
+          "plain_sha256": "d15cabbbefdf47a68e990deac350c87f508452389c88bb8ea7dbf49aa2d01d51",
+          "changed": false
+        }
+      ],
+      "top_plain_sha256": "d15cabbbefdf47a68e990deac350c87f508452389c88bb8ea7dbf49aa2d01d51",
+      "bottom_plain_sha256": "d15cabbbefdf47a68e990deac350c87f508452389c88bb8ea7dbf49aa2d01d51",
+      "quit_visible": true,
+      "clipboard_visible": false,
+      "clipboard_terminal_text_visible": false,
+      "esc_footer_visible": false,
+      "product_observation_only": true,
+      "actual_esc_return_to_chats": true
+    }
+  ],
+  "sql_after": [
+    [
+      "1",
+      "2",
+      "1",
+      "readonly_history_u14_201257_234805"
+    ],
+    [
+      "2",
+      "1",
+      "2",
+      "LABR END"
+    ],
+    [
+      "3",
+      "1",
+      "2",
+      "L中́R END"
+    ],
+    [
+      "4",
+      "1",
+      "2",
+      "L👩‍💻R END"
+    ],
+    [
+      "5",
+      "1",
+      "2",
+      "L1️⃣R END"
+    ],
+    [
+      "6",
+      "1",
+      "2",
+      "L❤️R END"
+    ],
+    [
+      "7",
+      "1",
+      "2",
+      "L👩🏽R END"
+    ]
+  ],
+  "raw_contains_password": false,
+  "native_actual_exit": {
+    "actual_exit": 0
+  },
+  "wezterm_exit": 0,
+  "cleanup_exits": {
+    "clipboard": [
+      {
+        "pid": 236041,
+        "actual_exit": -15,
+        "gone": true
+      },
+      {
+        "pid": 235996,
+        "actual_exit": 0,
+        "gone": true
+      },
+      {
+        "pid": 235862,
+        "actual_exit": 0,
+        "gone": true
+      },
+      {
+        "pid": 235857,
+        "actual_exit": 0,
+        "gone": true
+      },
+      {
+        "pid": 235725,
+        "actual_exit": 0,
+        "gone": true
+      },
+      {
+        "pid": 235719,
+        "actual_exit": 0,
+        "gone": true
+      },
+      {
+        "pid": 235586,
+        "actual_exit": 0,
+        "gone": true
+      },
+      {
+        "pid": 235580,
+        "actual_exit": 0,
+        "gone": true
+      },
+      {
+        "pid": 235528,
+        "actual_exit": 0,
+        "gone": true
+      },
+      {
+        "pid": 235432,
+        "actual_exit": 0,
+        "gone": true
+      }
+    ],
+    "wezterm": [
+      {
+        "pid": 235148,
+        "actual_exit": 0,
+        "gone": true
+      }
+    ],
+    "xvfb": [
+      {
+        "pid": 235142,
+        "actual_exit": 0,
+        "gone": true
+      }
+    ],
+    "helper": [
+      {
+        "pid": 234871,
+        "actual_exit": 0,
+        "gone": true
+      }
+    ],
+    "server": [
+      {
+        "pid": 234867,
+        "actual_exit": 0,
+        "gone": true
+      }
+    ]
+  },
+  "app_gone": true,
+  "tmux_gone": true,
+  "dropdb_exit": 0,
+  "database_absent": true,
+  "protected_after": {
+    "2876288": {
+      "pid": 2876288,
+      "alive": true,
+      "state": "S",
+      "executable": "/home/gyl/example/chat/build/chat_server (deleted)",
+      "start_ticks": 521400965,
+      "cpu_seconds": 0.98,
+      "rss_kib": 17108,
+      "peak_rss_kib": 17108,
+      "threads": 25,
+      "fds": 41
+    },
+    "3225": {
+      "pid": 3225,
+      "alive": true,
+      "state": "S",
+      "executable": "/usr/bin/fcitx5",
+      "start_ticks": 17583,
+      "cpu_seconds": 6052.73,
+      "rss_kib": 61320,
+      "peak_rss_kib": 285108,
+      "threads": 3,
+      "fds": 62
+    },
+    "29935": {
+      "pid": 29935,
+      "alive": true,
+      "state": "S",
+      "executable": "/usr/bin/speech-dispatcher",
+      "start_ticks": 248258,
+      "cpu_seconds": 4.85,
+      "rss_kib": 6476,
+      "peak_rss_kib": 7872,
+      "threads": 5,
+      "fds": 24
+    }
+  },
+  "protected_unchanged": true,
+  "tui_source_after": {
+    "tui/cmake/ftxui-7.0.3-grapheme.patch": "1e4bf334b12a9d4cd0876f68a0c096717f6ee8070e113f01fdc73b1e6595e56d",
+    "tui/src/app.cpp": "3cfff26307318d1badc870554800cddafe4158866bccbd800db17b66be44db7a",
+    "tui/src/app.hpp": "89b9f37259e60109284ff5511322d794fac291f158f3ac5a07cfc53603f3a860",
+    "tui/src/deadline.hpp": "dbe2a40c1a61b75032843ab82fc8dd898f0d0f8ecbfe6cde15fbf528274584f2",
+    "tui/src/file_io.hpp": "36628265415a0fbae479eec5c76f122362a7a61de2ee9b32cfa94cf41ad5ef7d",
+    "tui/src/groups.cpp": "3a6c19da31f784377d64112063783f2197a9ea08ff2ded783a245af60ce89c99",
+    "tui/src/inbox.hpp": "53a0dbb45136c8f1b783b948373658b2897d976944eaff1353624150ec5d1bba",
+    "tui/src/main.cpp": "05ed5edddc04b9590edeb11db6261a0e0440e32ea54af98a65b6d9afbd79b620",
+    "tui/src/messages.cpp": "f6c414041e8b17f7f59fad4c29589e3bf7bd45f30fc365b555f9c0c8fd164340",
+    "tui/src/profile.cpp": "a464531debbf5b4c618d712276fa5d526ba70599cd7a9f26aa490e2003481990",
+    "tui/src/state.cpp": "d8b99d807e119b410bb5a0df2d7c8e84d75ebb326cedf4d9526665038c3fa5ab",
+    "tui/src/state.hpp": "32e853f0bce108fd5425351a2f882db9c4e11d074f6e742e33caa347647d531e",
+    "tui/src/ui.cpp": "b8f06e5b273f7f5df04950e9f9e4fa4c4d041fe1b58995071a81ec2491f3c179",
+    "tui/src/ui.hpp": "4fdeb7385b98761ae916db52d23f0d3079c9e90d0f0eb8391409fdfd00a4e62e"
+  },
+  "tui_source_unchanged": true,
+  "own_port_closed": true
+}
