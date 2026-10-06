@@ -1509,3 +1509,14 @@ Qt87/TUI78不提高，Q27/T04、全页面/完整日常/无障碍和最终两轮f
 它们替代完整原始证据。未改生产/测试/third/server/client/SQL/CMake或依赖，本次没有
 新执行全产品三模式门禁，阶段39三模式23/23仅按原冻结源和历史范围记账。
 Qt87/TUI78不提高；Q27/T04/Q30、完整日常/页面/无障碍及最终两轮fresh审查继续开放。
+
+## 体验品质审查：真实终端暂停与恢复
+
+acf6e49基线、当前真实TUI f785a631…，自有SSH/tmux Login任务完整actual0/25项检查。
+同PID两次Ctrl+Z→fg，原用户名保留，80×24/160×40实际重绘后仍能输入；Ctrl+C最终
+返回0，shell前台/termios/main-screen/visible-cursor恢复。原2004控制在app返回前disable，
+bash后续为readline重新enable不算污染。主/独立亲读9plain/9styled，三原ANSI无损保留。
+五次早期失败均是驱动问题，最终从头执行，不拼接、不改产品或延长15s等待。
+结果未保存完整逐周期/proc原文，不声称可逐值重算。临时scope核验后精确清理。
+此项仅Login态，不替代在线草稿、物理Unicode/完整terminal矩阵、Orca或两端完整日常。
+无新production build/全量三模式门禁。Qt87/TUI78不提高，完整品质目标继续开放，未push。

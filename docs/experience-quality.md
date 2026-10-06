@@ -2948,3 +2948,49 @@ finally记录自有Popen全部reaped；独立现态检查无probe/Xvfb/私有Fci
 
 阶段39的三模式23/23是此前冻结源的历史结果，本次没有修改生产或重新执行全量门禁。
 Qt87/TUI78不提高，Q27/T04/Q30、完整日常/页面/无障碍与连续两轮fresh审查继续开放。
+
+## 阶段 44：真实 TUI 的暂停、恢复与 shell 归还
+
+基线acf6e49。通过SSH在自有tmux3.6a/socket和交互bash运行当前真实Chat TUI，
+不创建数据库、不登录、不接触业务服务。此次只补目标§24中Login态的Ctrl+Z/fg与
+退出恢复证据，不用此前暂停server的SIGCONT测试替代暂停Chat自身。
+
+`/tmp/chat-tui-suspend-review.JJdKu0/run6`完整执行actual0，25项执行检查全真。
+实际进程1795027，live/proc exe SHA与冻结binary f785a631…b1d0一致。五个相关源码、
+驱动及binary共7pins首尾一致；不是新build，也不冒称已冻结整个产品的所有文件。
+
+| 实际动作 | 执行时核验 |
+| --- | --- |
+| 100×30 Login输入固定用户名 | 公开键盘输入`suspend_probe_ascii`，不是注入Input状态 |
+| 两次真实Ctrl+Z | /proc状态T；shell重获前台进程组，termios与初始值相同，main screen/visible cursor恢复 |
+| 两次shell命令fg | 同PID/同binary恢复，TUI重获前台，原用户名仍在 |
+| 依次resize到80×24与160×40 | 真实pane尺寸及重绘核实，原输入不丢；第二次恢复后仍可追加`_resumed` |
+| 实际Ctrl+C | TUI消失；shell独立输出行APP_EXIT=0，不把首次暂停返回值当最终退出码 |
+| shell再次输入命令 | 独立SHELL_KEYBOARD_OK输出行，termios和alternate-screen/cursor与初始shell一致 |
+
+原始terminal输出在APP_EXIT=0之前最后一条2004控制为disable；随后bash readline
+重新enable是shell自身正常行为，不记作Chat污染。这个观察不等于真实多行粘贴、
+外层物理光标或所有终端模式的验收。无observed runtime failure signature。
+
+主与独立代理亲读全部9份plain及9份styled ANSI；独立复核源、25checks、7pins及
+实际raw控制序列。保留三份原始styled capture的gzip无损副本，解压SHA与原文相同：
+[运行中](images/experience/tui-suspend-running.ansi.gz)、
+[恢复后](images/experience/tui-suspend-resumed.ansi.gz)、
+[最终shell](images/experience/tui-suspend-shell-restored.ansi.gz)。
+这是原tmux样式文本，不冒作物理终端截图或Unicode成形/列宽证明。
+
+前五次驱动actual1均独立记账：首次shell未采用预期提示符，Chat尚未启动；清理又
+遇tmux退出窗口。第二次在外部进程对非自身controlling tty调用tcgetpgrp触发ENOTTY。
+第三至第五次仅附加shell报表检查硬编码英文Stopped，而真实报告是中文“已停止”；
+进程T、前台和termios检查已执行通过，不据这些片段宣布完整PASS。最终从头运行，
+改用/proc stat的tpgid、准确的中/英文job report及真实fg最终返回值；15s等待不延长，
+权威进程/termios断言不放宽，没有为驱动问题修改产品。
+
+result保存执行检查与baseline termios，但未保存每周期/proc原文及实际pgid/tpgid数值，
+不能宣称已保留可逐值重算的完整进程轨迹。核验后精确清理整个自有探针scope，失败
+结论保留在本记录，不借永久ANSI子集替代已删除的全部raw；不重跑terminal成功任务。
+自有TUI/socket已不存在，长期服务2876288保留。没有生产/测试/third/SQL/依赖变更。
+
+未新执行全量三模式门禁；阶段39历史23/23仍仅按原范围记录。下一步须将暂停/恢复
+扩到两真实在线TUI、多行草稿与业务事件；Orca当前未安装，不能宣称语音验收。
+Qt87/TUI78不提高；Q27/T04/Q30、全部页面/完整日常/无障碍与最终两轮fresh审查仍开放。
