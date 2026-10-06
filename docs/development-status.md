@@ -1447,3 +1447,20 @@ normal/ASan/UBSan各23/23，104.17/145.71/130.36s，render0.90/4.09/1.78s保原5
 20源冻结核验0，无skip/新warning/sanitizer报告，正式与strict选项分记。
 详细原文、RED/GREEN与范围见[体验品质审查](experience-quality.md)阶段36。
 Qt87/TUI78不提高，Q27/T04与最终完整品质目标继续开放。未push。
+
+## 体验品质审查：Unicode机制与终端反例
+
+原Google0.4 scanner46例实际0仍有范围缺口；pinned utf8proc2.12/Unicode18正常链接
+59例实际0证明EGC与emoji presentation独立，普通/VS15/非法modifier关系也能是单EGC。
+另按官方单VS16兼容规则，仅classification虚拟unit做通用ModifierBase属性关系adapter，
+原scanner/raw都不改：1442例/2884子调用全0、14assert真、raw/UTF16/pins独立核真。
+1360direct/VS16属性关系通过，19negative拒wholeEGC，canonical键帽保留；仅候选范围，
+未font/GSUB测试或生产移植，不是字节正确就算Qt native修复。
+
+已知frame-origin重锚四terminal×两origin×四phase完整actual0，32scene/64原PNG；
+56DSR logical归位却仍physical错误：tmux键帽消失/pipe左移、ZWJ蓝底gap、XTerm
+hand邻格/清屏残留。候选不落地，32原窗口亲看；首轮ss解码driver actual1另存，
+只修bytes-safe诊断后新完整轮，不拼接。所有own资源清理，保护PID未动。
+详见[体验品质审查](experience-quality.md)阶段37及两原X11诊断图（不是Chat界面）。
+本次仅证据，不冒称新build/gate；阶段36冻结源三模式23/23按原范围有效。
+Qt87/TUI78不提高，Q27/T04、完整日常/页面/无障碍与连续两轮fresh审查仍未完成。未push。

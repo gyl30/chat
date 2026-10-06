@@ -2517,3 +2517,82 @@ strict实际-g/-Werror，正式三模式原warnings/插桩分别核验，不称�
 未skip或放宽timeout，无新增编译warning/sanitizer报告。T07仅为小型craft修复，
 Qt87/TUI78不提高；Q27/T04、完整页面/参考/日常/无障碍与连续两轮fresh审查仍开放。
 无third/server/client/SQL/依赖改动，未push。
+
+## 阶段 37：字素边界、呈现分类与终端重绘分别验收
+
+以下均为隔离机制证据，不是 Chat 的 Unicode 修复。生产 theme、字体、FTXUI kernel
+和 App writer 未改变；Q27/T04 不关闭，也不把 driver exit0 当成形 PASS。
+
+### Q27：原 scanner 与维护中的字素边界
+
+`/tmp/chat-emoji-policy-scanner-20261006.cVgeJg` 使用未改的 Google0.4 scanner，
+实际46例执行0；单VS16插在modifier base与肤色之间、emoji后附Mn、无VS16键帽等
+仍有完整字体范围缺口，不手工合并text token掩盖结果。
+
+随后 `/tmp/chat-emoji-egc-overlap-20261006.IHumGR` 正常链接现有固定utf8proc archive，
+实际读回2.12.0/Unicode18.0.0，59次调用均0。原46例token完全重现，另核原13个
+modifier-context fixture：每个确实一个EGC，但普通space/A+skin、VS15、额外modifier
+也会落在同一EGC内。主独立核原bytes/UTF16偏移与pins；不能将“是一个EGC”当成
+“整个都应使用emoji字体”。四原缺口准确为三个mixed与一个all-text，不是四个mixed。
+
+### Q27：有标准依据的局部分类候选
+
+[UTS#51 revision31 的 Diversity 规则](https://www.unicode.org/reports/tr51/tr51-31.html#Diversity)
+允许支持旧数据的modifier base与modifier之间单个emoji presentation selector。
+在线重新读取失败；主与独立代理实际阅读既有官方HTML缓存，SHA a12a8c98…。
+这不是任意Extend字符都可忽略的规则，也不改变原文。
+
+`/tmp/chat-emoji-context-adapter-20261006.mqixGb` 仅给classification建立虚拟unit：
+维护属性中的base+单VS16合为一个BASE分类unit，原modifier仍是下一unit；原scanner
+不修改，返回边界映回完整原UTF8/UTF16范围。原token、候选token和pinned EGC分别保留；
+完整EGC须全emoji、无VS15、无text余项且token不跨边界，才成为字体实验候选。
+既不删除raw selector，也不自动font union，更不使用fixture字符串白名单。
+
+实际工具45425终态0，1442例、2884个同步子调用全0：680直接base×modifier、680单VS16
+关系、原59例、19新增负对照和4个局部ZWJ结构对照。14执行断言全真；主另独立核
+全部raw、偏移、pins、负对照与候选结果。136×5属性关系不是全部RGI/字体支持承诺。
+
+| 原始关系 | 实际候选结果 | 仍不能据此证明 |
+| --- | --- | --- |
+| base + single VS16 + modifier | 完整原范围成为candidate，两原valid mixed缺口消失 | Noto/其他字体实际GSUB、ink、未知字体回退 |
+| 同一局部关系处于ZWJ内部 | 映回完整原UTF16序列，原scanner保持未改 | 每一种ZWJ都支持单图，或结构对照均为RGI |
+| Mn、双VS16、VS15、nonbase、额外modifier | 19新增negative全拒绝whole-input，原13仅valid control6可接受 | 拒绝candidate不等于该原文非法或应被丢弃 |
+| 无VS16键帽、emoji后附Mn | 前者保持text，后者保持mixed拒绝 | Unicode要求所有平台都只能这样显示 |
+
+原59例只有四例candidate token改变，emoji EGC26→30；canonical1/7/#/*键帽保持。
+结果JSON SHA41c65b32…，1,310,865bytes；原scanner/property/archive首尾pins相等。
+这些是分类与raw-offset证据，不是新的Qt剪贴板/IME证明。字体不存在、missing glyph、
+未知序列、mentions、label/delegate/composer、四档native与Qt-only/TUI OFF依赖边界
+仍须验证，未生产移植，也未升级Qt。
+
+### T04：重锚不能取代物理成形与重绘
+
+`/tmp/chat-t04-frame-origin-native-final2-20261006` 工具79907actual0，四链各actualexit0：
+XTerm372 direct/tmux3.6a，WezTerm20221119 direct/tmux3.6a。Wez使用自有明确Unicode9/
+Software/font配置，不冒称所有默认版本。实际PTY110×32，origin(0,0)/(5,4)，
+baseline/reanchor/long-to-short/clear共32scene、64原PNG；主与独立核pins/资源，
+独立代理亲看全部32窗口图，主亲看三个窗口及以下两个完整原X11图：
+[原writer baseline](images/experience/audit-t04-frame-origin-baseline.png)、
+[仅probe重锚后的反例](images/experience/audit-t04-frame-origin-reanchor.png)。
+两图是公开Render/archive诊断窗口，不是 Chat 主界面或成功after。
+
+probe每EGC发一次原token，再CUP到已知下一logical列；没有改width kernel。
+56组before-R与frame-end DSR均吻合logical声明，但原像素仍反证：
+
+- tmux键帽在reanchor后消失，蓝底消失，实际R/tail向左一列；repeat/clear仍留错位pipe。
+- Wez woman-ZWJ实际glyph占2列而声明5，重锚虽定位R，却在body后留下未填蓝的空隙。
+- XTerm tmux hand行DSR为31而physical R为33，clear仍有残留R及受损ENDN；字体图形缺失另记。
+
+实际ASCII像素独立核10px列距，XTerm20px/Wez19px行距，不用DSR推physical列。
+23项独立核验只是artifact/source/cleanup，不是23形状PASS；所有原图与失败保留。
+该候选被拒绝直接移植：partial CUP还没有App fullscreen/relativeIME/ResetPosition
+契约，逐group SGR reset也不是生产原writer。没有用正确终pipe覆盖style/art/邻格问题。
+
+final1工具61397actual1仅完成两XTerm，原因是临时cleanup脚本解码`ss`中其它非UTF8
+socket失败；保primary/原图，精确核own socket无listener后清理。final2只改bytes-safe
+socket比对，独立从头跑四链，不借final1拼成功。记录terminal/inside/tmux/Xvfb均gone、
+ownsocket不存在、保护PID2876288在，无DB/业务服务/全局配置变更。
+
+本阶段只提交研究边界与原图，没有新的production build或全量门禁；阶段36当前冻结
+源的strict与原normal/ASan/UBSan23/23仍按原范围有效。Qt87/TUI78不提高，Q27/T04、
+完整参考/全页面/真实日常/无障碍矩阵和最终连续两轮fresh审查继续开放，未push。
