@@ -171,10 +171,10 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q24 | P2 | 群消息可见已读人数包含peer与0，但原生Name仅描述自己消息的非零已读 | 第二十八阶段复用read_count_role，永久RED/GREEN及四档真实SDK/原生树计数一致；可见截图与完整无障碍验收分别记账 |
 | Q25 | P2 | 主消息列表可通过键盘移动当前消息，但NoSelection同时隐藏了当前行焦点 | 第二十九阶段复用现有焦点轮廓；永久RED/GREEN、四档真实键盘回复/回应/读者详情及三模式门禁通过，完整键盘矩阵仍开放 |
 | Q26 | P2 | 会话、联系人和用户搜索列表有键盘当前行，但Enter不执行对应动作 | 第三十阶段复用原生activated与现有业务动作；永久Return/小键盘Enter、真实双Qt三条Return任务及三模式完整门禁通过，完整键盘矩阵仍开放 |
-| Q27 | P2 | Qt 复合 emoji 的完整显示、原文编辑和字体回退仍须全矩阵闭环 | 第四十九阶段修复真实预编辑期间已提交 emoji 拆画；100%系统输入法完整流程与四档普通 Unicode 控件/原文流程通过，缩放系统输入法与全页面矩阵仍开放，不计整体完成 |
+| Q27 | P2 | Qt 复合 emoji 的完整显示、原文编辑和字体回退仍须全矩阵闭环 | 第四十九阶段修复真实预编辑期间已提交 emoji 拆画；第五十六阶段四档真实系统IME提交/发送通过，原文一致。全部EGC独立像素、字体回退和全页面矩阵仍开放，不计整体完成 |
 | Q28 | P2 | 账号注销返回登录后，键盘焦点落在服务器设置，而非主要身份输入 | 第三十二阶段在注销完成且登录控件恢复可用后返回用户名焦点；同一永久测试 RED→GREEN，完整原生流程 before actual1→after actual0，范围与门禁见下文 |
 | Q29 | P2 | 实际 Open/Save 文件选择器的路径、类型框和表头出现黑底深字，近不可读 | 第三十四阶段局部 QFileDialog 主题修复；同永久 fixture RED→GREEN、两个真实 Qt 完整附件 after 和三模式全门禁通过，关闭已复现的 fallback 对比度缺陷，不外推所有平台或四档附件验收 |
-| Q30 | P2 | 125%/150%/200% 真实 Fcitx/IBus 候选窗偏离 composer 光标，缩放越大距离越大 | 第四十二阶段真实双Qt业务通过但定位失败；第四十三阶段标准编辑器也复现。当前正式客户端已使用私有 Qt6.5.3，但四档系统输入法实际定位尚未验收；第五十四阶段的新探针前置失败不能证明产品通过 |
+| Q30 | P2 | 125%/150%/200% 真实 Fcitx/IBus 候选窗偏离 composer 光标，缩放越大距离越大 | 旧Qt反例保留；第五十六阶段当前正式Qt6.5.3四档真实Fcitx/IBus近邻after及32项业务检查通过，局部偏离不再复现。其它IME/OS、精确preedit caret与全控件矩阵未验收 |
 | Q31 | P2 | 可滚动历史中，发送/typing/composer 布局变化使末尾读者丢失自动跟随；旧追加回调也可能覆盖刚发生的上滚 | 第四十七阶段修复末尾布局恢复与追加回调的会话/位置守卫；真实双Qt纯文本before反例及四档after、历史保位对照，永久回归与门禁记录见下文；不外推重连恢复历史或图片异步布局 |
 | Q32 | P2 | 125% 下关闭真实编辑窗口后，消息行下方留下持续的黑色细线 | 第五十阶段完整标准控件公开时序复现，固定私有 Qt6.5.3 对照及正式 Chat 四档真实 after 已消除该局部黑线；不外推系统输入法或全部页面 HiDPI |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 字素编辑、完整span及显示列修复已进入生产；第五十五阶段收口modern链复制页旧反白续格。legacy、SSH、浅色及Unicode18物理矩阵仍未闭环，不计全部终端通过 |
@@ -3736,3 +3736,78 @@ b9689d39…与原字节相同。此前未加强测试的69项全绿结果仍独�
 
 这里只关闭已经复现的modern复制页白块，不宣称T04或整个campaign完成；完整页面、
 参考、日常使用、无障碍、terminal矩阵和达到92后的两轮全产品fresh审查仍须继续。
+
+## 阶段 56：四档真实系统输入法的正式客户端验证
+
+本次没有新Qt生产修改。当前正式`build/qt/chat_qt`仍为3bb090e6…，实际进程exe及
+加载maps指向已验证的私有Qt6.5.3库、qxcb与IBus插件。阶段42/43旧Qt6.2.4的真实
+候选定位RED保留；本次不是消失旧driver的逐byte重跑，也不把依赖升级提交重复称作
+新产品修复。当前正式客户端的两个实际输入法流程在四个应用DPR下获得独立after。
+
+### 先修正探针的真实契约
+
+此前attempt1在读取非UTF8 Unix socket名时失败，Chat尚未启动；attempt2已修bytes
+解析，但错误要求Fcitx持有IBus listener，仍在Chat启动前失败。独立diagnostic3记录
+证明listener属于自有DBus，Fcitx持有已连接socket和服务身份。三个actual1均保留，
+不是产品输入法失败，也不拼接为成功。
+
+主代理读取实际Qt6.5.3 IBus源码：插件从`IBUS_ADDRESS_FILE`或默认命名文件读取
+地址，不直接使用环境`IBUS_ADDRESS`。新driver显式指向已验证自有原文件，不复制或
+改写文件；解析transport/socket/GUID仅忽略附加的fcitx随机字段，与自有session bus
+逐项核对。exact listener inode属于身份冻结的自有DBus，IBus/Fcitx两服务的unique
+owner PID均对应身份冻结的自有Fcitx，文件daemon PID也吻合。没有为驱动错误改产品，
+没有新QInputMethodEvent注入、强制repaint、post-login resize或放宽原15秒等待。
+
+每个Qt子进程明确设置私有SDK的加载环境与IBus地址文件；系统Fcitx/私有DBus不加载
+这份SDK。原record里`system_qt_loader_not_overridden`不能解释成Qt子进程未设置
+LD_LIBRARY_PATH/QT_PLUGIN_PATH，或使用系统stock Qt。本次不安装/替换系统包、库、
+插件或长期服务；归档审查注释纠正这个解释，但原结果和原文件SHA不改。
+
+### 四档实际结果
+
+`/tmp/chat-system-ime-attempt4.por6g1`的新完整runner与四档native均actual0。
+每档两个真实Qt客户端，A请求1/1.25/1.5/2，peer为1；窗口native尺寸/AT-SPI比例
+实际读回1280×800/1、1600×1000/1.25、1920×1200/1.5、2560×1600/2，不能仅以环境
+请求值证明缩放。两条流程包含已提交ZWJ、keycap、VS16/skin和combining前缀：
+
+| 流程 | 首次commit动作 | 首次commit后 | 后续动作 | 观察窗口内结果 |
+| --- | --- | --- | --- | --- |
+| Latin | 真实拼音preedit后Return | exact Latin提交，未发送 | 再Return | 一份exact发送，对端与SQL匹配 |
+| Chinese | 真实拼音preedit后Space | exact中文提交，未发送 | Return | 一份exact发送，对端与SQL匹配 |
+
+每档原8项均PASS，共32项。每组只读原SQL为fixture及两份业务消息三行；UTF8 hex
+各恰好一次。有限观察窗口内的唯一性不外推任意长时间运行，也不把raw正确升级为
+所有emoji字形/whole-EGC像素正确。预编辑期间公开caret UTF16索引Latin35/Chinese37
+与各自原始前缀一致，但这不是逐像素caret定位证明。
+
+八份独立候选近邻检查全真：参考来自公开AT-SPI最后已提交ASCII字符范围，再按
+实际native比例映射。横向允许八个已输入拼音键宽度，纵向允许一行高度；实际候选顶
+到参考行底距离依次9/11.25/14.5/18px，limit16/20/24/32px。参考不调用产品的emoji
+宽度算法，不把逻辑坐标或DPR请求当物理结果；仍不是精确preedit glyph/caret oracle。
+主与独立代理复核原资产；主代理亲看四档原尺寸原图：
+[100%](images/experience/qt-system-ime-four-dpi-100-after.png)、
+[125%](images/experience/qt-system-ime-four-dpi-125-after.png)、
+[150%](images/experience/qt-system-ime-four-dpi-150-after.png)、
+[200%](images/experience/qt-system-ime-four-dpi-200-after.png)。
+候选在输入行下方附近，不再出现旧Qt随缩放扩大而远离composer的反例。
+
+### 身份、资产和清理
+
+[四档原实测及审查注释](images/experience/qt-system-ime-four-dpi-proof.json)保留32项、
+八份近邻几何、28张原图SHA、113输入完整清单、原实际runtime/服务/socket身份、
+失败attempt及清理。raw scope proof原SHA为aa51731e…，归档仅新增解释注释，不改
+其原结果；driver SHA f7ba2331…，各次binary均3bb090e6…。
+独立复核196个限定scope/project文件的现存SHA/size全部匹配；另20项SDK依赖引用
+未由该代理独立重读，不冒称其复核覆盖这些文件。正式门禁另保留SDK实际hash。
+
+12份prelaunch/before/after原日志各113条成功，driver的check=True使失败直接终止；
+没有独立per-check exit文件，不虚构这些文件。当前113输入重查actual0；48owned与
+36descendant PID、runner均gone，私有18934无listener，三个保护PID当前ticks及
+完整cmdline与原记录逐字相同。四个独立DB原只读absence均exit0/count0，主代理又
+精确只读重查四库名合计0，没有删除或重建任何既有身份。
+
+这份结果证明当前Qt6.5.3/X11/Fcitx Pinyin、四个应用DPR下的两条系统IME业务流程
+与候选近邻。硬件/OS DPI、其它IME、全部控件、精确preedit caret、whole-EGC字形及
+全部页面仍未验收，Q27/Q30全矩阵继续开放。生产Qt/测试脚本/SQL/server/client/
+third均未变化，阶段55最终69项原门禁仍对应相同编译输入；不为文档变化重复宣称
+新构建。Qt87/TUI78保持，完整日常/无障碍及达到92后的两轮fresh review仍须继续。

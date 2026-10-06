@@ -1706,3 +1706,24 @@ submodule和保护服务首尾一致，编译warning/CMake warning/sanitizer签�
 既有独立目录新reconfigure/build/CTest，不冒称空目录重建全部依赖。完整69项/
 指纹与原日志无损副本已归档；旧native记录的测试源码pin是当时输入，生产TUI仍
 同dd1a6baa…，未借旧TUI binary或candidate支持当前生产结论。
+
+## 体验品质审查：系统输入法四档实际after
+
+当前正式Qt3bb090e6…与私有Qt6.5.3依赖未新增生产修改。新的真实Fcitx/Pinyin经
+IBus插件在1/1.25/1.5/2应用DPR，各8项共32PASS、四native及runneractual0。Latin
+Return提交后不发送、下一Return发送；Chinese Space提交后不发送、Return发送，
+观察窗口中对端及SQL exact原文均匹配。实际窗口/AT-SPI比例核验，不仅读取环境值。
+八候选近邻检查全真，纵向9/11.25/14.5/18px在16/20/24/32px一行limit内；主代理
+亲看四档原图。它不是精确preedit glyph/caret或所有EGC像素、所有IME/OS DPI验收。
+
+旧探针失败来自非UTF8 socket解析和错误listener ownership假设，Chat尚未启动，原
+失败保留。实际listener属自有DBus，IBus/Fcitx服务属自有Fcitx；Qt6.5.3读取地址文件，
+新driver仅显式指向自有已验证IBUS_ADDRESS_FILE，不改产品/系统、不注入QIM或放宽
+15秒。Qt子进程确实设置私有SDK加载环境，原record的system loader字段不得解释为
+未设置环境或使用stock Qt；归档注释明确纠正。
+
+独立复核196scope/project资产哈希（含28原图）、113当前输入和12首尾日志；未虚构
+per-check exit文件。48owned/36descendant PID均gone，4DB精确重查0、18934空、保护
+3PID ticks/cmdline不变。原proof和4原图已归档，详见[体验品质审查](experience-quality.md)
+阶段56。Q27/Q30全矩阵继续开放，Qt87/TUI78不提高；全页面/日常/无障碍与两轮
+达到92后的fresh审查仍须继续。没有新生产输入，不将文档归档冒称一次新门禁。未push。
