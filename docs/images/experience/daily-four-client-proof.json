@@ -1,0 +1,1114 @@
+{
+  "base_head": "4f7c9d5a3c6f8967587ee0c99b91433e5749f213",
+  "scope": "/tmp/chat-daily-ACss0wpo",
+  "attempt": 5,
+  "result": {
+    "status": "PASS",
+    "completed": [
+      "login",
+      "contacts",
+      "direct",
+      "group",
+      "drafts",
+      "actions",
+      "attachments",
+      "profile",
+      "reconnect",
+      "logout"
+    ],
+    "missing": [],
+    "failure": null,
+    "original_driver_exit": 0,
+    "one_continuous_run": true,
+    "reused_prior_evidence": false
+  },
+  "initial_clients": {
+    "A": {
+      "pid": 2075999,
+      "alive": true,
+      "state": "S",
+      "executable": "/home/gyl/example/chat/build/qt/chat_qt",
+      "start_ticks": 545190811,
+      "cpu_seconds": 0.06,
+      "rss_kib": 107928,
+      "peak_rss_kib": 107928,
+      "threads": 4,
+      "fds": 11,
+      "live_sha256": "936a4464a564fcb8d267e5e7eae338892024eda8b1d137ed6c4e4eb2fc532fed"
+    },
+    "D": {
+      "pid": 2076006,
+      "alive": true,
+      "state": "S",
+      "executable": "/home/gyl/example/chat/build/qt/chat_qt",
+      "start_ticks": 545190835,
+      "cpu_seconds": 0.07,
+      "rss_kib": 107948,
+      "peak_rss_kib": 107948,
+      "threads": 4,
+      "fds": 11,
+      "live_sha256": "936a4464a564fcb8d267e5e7eae338892024eda8b1d137ed6c4e4eb2fc532fed"
+    },
+    "B": {
+      "pid": 2075985,
+      "alive": true,
+      "state": "S",
+      "executable": "/home/gyl/example/chat/build/chat_tui",
+      "start_ticks": 545190790,
+      "cpu_seconds": 0.0,
+      "rss_kib": 8460,
+      "peak_rss_kib": 8640,
+      "threads": 2,
+      "fds": 3,
+      "live_sha256": "f785a631d0d340298c34ce318aed150715449227375df99815b7dfae0702b1d0"
+    },
+    "C": {
+      "pid": 2075992,
+      "alive": true,
+      "state": "S",
+      "executable": "/home/gyl/example/chat/build/chat_tui",
+      "start_ticks": 545190800,
+      "cpu_seconds": 0.0,
+      "rss_kib": 8436,
+      "peak_rss_kib": 8448,
+      "threads": 2,
+      "fds": 3,
+      "live_sha256": "f785a631d0d340298c34ce318aed150715449227375df99815b7dfae0702b1d0"
+    }
+  },
+  "captures_same_pid_start_ticks_binary": 34,
+  "phase_events": [
+    {
+      "time": 1791259300.0833235,
+      "phase": "login",
+      "kind": "phase-start",
+      "value": {}
+    },
+    {
+      "time": 1791259306.6341724,
+      "phase": "login",
+      "kind": "phase-complete",
+      "value": {}
+    },
+    {
+      "time": 1791259306.6926067,
+      "phase": "contacts",
+      "kind": "phase-start",
+      "value": {}
+    },
+    {
+      "time": 1791259313.2213013,
+      "phase": "contacts",
+      "kind": "phase-complete",
+      "value": {}
+    },
+    {
+      "time": 1791259313.2802663,
+      "phase": "direct",
+      "kind": "phase-start",
+      "value": {}
+    },
+    {
+      "time": 1791259319.4540377,
+      "phase": "direct",
+      "kind": "phase-complete",
+      "value": {}
+    },
+    {
+      "time": 1791259319.511982,
+      "phase": "group",
+      "kind": "phase-start",
+      "value": {}
+    },
+    {
+      "time": 1791259326.937646,
+      "phase": "group",
+      "kind": "phase-complete",
+      "value": {}
+    },
+    {
+      "time": 1791259326.9968317,
+      "phase": "drafts",
+      "kind": "phase-start",
+      "value": {}
+    },
+    {
+      "time": 1791259345.0954542,
+      "phase": "drafts",
+      "kind": "phase-complete",
+      "value": {}
+    },
+    {
+      "time": 1791259345.1531827,
+      "phase": "actions",
+      "kind": "phase-start",
+      "value": {}
+    },
+    {
+      "time": 1791259354.0335882,
+      "phase": "actions",
+      "kind": "phase-complete",
+      "value": {}
+    },
+    {
+      "time": 1791259354.0953531,
+      "phase": "attachments",
+      "kind": "phase-start",
+      "value": {}
+    },
+    {
+      "time": 1791259358.7761562,
+      "phase": "attachments",
+      "kind": "phase-complete",
+      "value": {}
+    },
+    {
+      "time": 1791259358.8348548,
+      "phase": "profile",
+      "kind": "phase-start",
+      "value": {}
+    },
+    {
+      "time": 1791259366.2443354,
+      "phase": "profile",
+      "kind": "phase-complete",
+      "value": {}
+    },
+    {
+      "time": 1791259366.3047047,
+      "phase": "reconnect",
+      "kind": "phase-start",
+      "value": {}
+    },
+    {
+      "time": 1791259371.7598016,
+      "phase": "reconnect",
+      "kind": "phase-complete",
+      "value": {}
+    },
+    {
+      "time": 1791259371.817878,
+      "phase": "logout",
+      "kind": "phase-start",
+      "value": {}
+    },
+    {
+      "time": 1791259376.9967744,
+      "phase": "logout",
+      "kind": "phase-complete",
+      "value": {}
+    }
+  ],
+  "sql_facts": [
+    {
+      "time": 1791259308.0676618,
+      "phase": "contacts",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT owner_id,contact_id FROM contacts WHERE (owner_id=1 AND contact_id=4) OR (owner_id=4 AND contact_id=1)",
+        "rows": [
+          [
+            "1",
+            "4"
+          ],
+          [
+            "4",
+            "1"
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259310.203273,
+      "phase": "contacts",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT owner_id,contact_id FROM contacts WHERE (owner_id=1 AND contact_id=2) OR (owner_id=2 AND contact_id=1)",
+        "rows": [
+          [
+            "1",
+            "2"
+          ],
+          [
+            "2",
+            "1"
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259312.5518758,
+      "phase": "contacts",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT owner_id,contact_id FROM contacts WHERE (owner_id=3 AND contact_id=4) OR (owner_id=4 AND contact_id=3)",
+        "rows": [
+          [
+            "3",
+            "4"
+          ],
+          [
+            "4",
+            "3"
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259315.0588608,
+      "phase": "direct",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id FROM conversations WHERE kind='direct' AND direct_user_low=1 AND direct_user_high=2",
+        "rows": [
+          [
+            "2"
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259315.6665287,
+      "phase": "direct",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id,sender_id,conversation_id,body,reply_to_id,edited_at FROM messages WHERE body='A_direct_day1006120133_c87991_中文' AND conversation_id=2",
+        "rows": [
+          [
+            "2",
+            "1",
+            "2",
+            "A_direct_day1006120133_c87991_中文",
+            "",
+            ""
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259316.1296031,
+      "phase": "direct",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id,sender_id,conversation_id,body,reply_to_id,edited_at FROM messages WHERE body='B_direct_day1006120133_c87991_中文' AND conversation_id=2",
+        "rows": [
+          [
+            "3",
+            "2",
+            "2",
+            "B_direct_day1006120133_c87991_中文",
+            "",
+            ""
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259318.1593444,
+      "phase": "direct",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id FROM conversations WHERE kind='direct' AND direct_user_low=3 AND direct_user_high=4",
+        "rows": [
+          [
+            "5"
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259318.7741218,
+      "phase": "direct",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id,sender_id,conversation_id,body,reply_to_id,edited_at FROM messages WHERE body='D_direct_day1006120133_c87991_中文' AND conversation_id=5",
+        "rows": [
+          [
+            "4",
+            "4",
+            "5",
+            "D_direct_day1006120133_c87991_中文",
+            "",
+            ""
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259319.2818441,
+      "phase": "direct",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id,sender_id,conversation_id,body,reply_to_id,edited_at FROM messages WHERE body='C_direct_day1006120133_c87991_中文' AND conversation_id=5",
+        "rows": [
+          [
+            "5",
+            "3",
+            "5",
+            "C_direct_day1006120133_c87991_中文",
+            "",
+            ""
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259321.9231644,
+      "phase": "group",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id FROM conversations WHERE title='连续日常_day1006120133_c87991'",
+        "rows": [
+          [
+            "7"
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259321.9549916,
+      "phase": "group",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT user_id FROM conversation_members WHERE conversation_id=7 ORDER BY user_id",
+        "rows": [
+          [
+            "1"
+          ],
+          [
+            "2"
+          ],
+          [
+            "3"
+          ],
+          [
+            "4"
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259325.23997,
+      "phase": "group",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id,sender_id,conversation_id,body,reply_to_id,edited_at FROM messages WHERE body='A_group_day1006120133_c87991_收到' AND conversation_id=7",
+        "rows": [
+          [
+            "6",
+            "1",
+            "7",
+            "A_group_day1006120133_c87991_收到",
+            "",
+            ""
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259325.7975347,
+      "phase": "group",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id,sender_id,conversation_id,body,reply_to_id,edited_at FROM messages WHERE body='B_group_day1006120133_c87991_收到' AND conversation_id=7",
+        "rows": [
+          [
+            "7",
+            "2",
+            "7",
+            "B_group_day1006120133_c87991_收到",
+            "",
+            ""
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259326.2774127,
+      "phase": "group",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id,sender_id,conversation_id,body,reply_to_id,edited_at FROM messages WHERE body='C_group_day1006120133_c87991_收到' AND conversation_id=7",
+        "rows": [
+          [
+            "8",
+            "3",
+            "7",
+            "C_group_day1006120133_c87991_收到",
+            "",
+            ""
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259326.758154,
+      "phase": "group",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id,sender_id,conversation_id,body,reply_to_id,edited_at FROM messages WHERE body='D_group_day1006120133_c87991_收到' AND conversation_id=7",
+        "rows": [
+          [
+            "9",
+            "4",
+            "7",
+            "D_group_day1006120133_c87991_收到",
+            "",
+            ""
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259330.2540822,
+      "phase": "drafts",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id FROM messages WHERE body IN ('A_direct_draft_day1006120133_c87991','A_group_draft_day1006120133_c87991')",
+        "rows": []
+      }
+    },
+    {
+      "time": 1791259335.8490684,
+      "phase": "drafts",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id FROM messages WHERE body IN ('B_direct_draft_day1006120133_c87991','B_group_draft_day1006120133_c87991')",
+        "rows": []
+      }
+    },
+    {
+      "time": 1791259341.4165123,
+      "phase": "drafts",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id FROM messages WHERE body IN ('C_direct_draft_day1006120133_c87991','C_group_draft_day1006120133_c87991')",
+        "rows": []
+      }
+    },
+    {
+      "time": 1791259344.9015765,
+      "phase": "drafts",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id FROM messages WHERE body IN ('D_direct_draft_day1006120133_c87991','D_group_draft_day1006120133_c87991')",
+        "rows": []
+      }
+    },
+    {
+      "time": 1791259345.6348627,
+      "phase": "actions",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id,sender_id,conversation_id,body,reply_to_id,edited_at FROM messages WHERE body='action_target_day1006120133_c87991' AND conversation_id=7",
+        "rows": [
+          [
+            "10",
+            "2",
+            "7",
+            "action_target_day1006120133_c87991",
+            "",
+            ""
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259348.5669153,
+      "phase": "actions",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id,sender_id,conversation_id,body,reply_to_id,edited_at FROM messages WHERE body='qt_reply_day1006120133_c87991' AND conversation_id=7",
+        "rows": [
+          [
+            "11",
+            "1",
+            "7",
+            "qt_reply_day1006120133_c87991",
+            "10",
+            ""
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259350.0650425,
+      "phase": "actions",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id,sender_id,conversation_id,body,reply_to_id,edited_at FROM messages WHERE body='qt_reply_day1006120133_c87991_edited' AND conversation_id=7",
+        "rows": [
+          [
+            "11",
+            "1",
+            "7",
+            "qt_reply_day1006120133_c87991_edited",
+            "10",
+            "2026-10-06 04:02:29.823759+00"
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259351.5083818,
+      "phase": "actions",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT user_id FROM message_reactions WHERE message_id=10 AND user_id=1 AND emoji='👍'",
+        "rows": []
+      }
+    },
+    {
+      "time": 1791259351.7243178,
+      "phase": "actions",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT user_id FROM message_reactions WHERE message_id=10 AND user_id=1 AND emoji='👍'",
+        "rows": [
+          [
+            "1"
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259352.3035452,
+      "phase": "actions",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id,sender_id,conversation_id,body,reply_to_id,edited_at FROM messages WHERE body='tui_reply_day1006120133_c87991' AND conversation_id=7",
+        "rows": [
+          [
+            "12",
+            "3",
+            "7",
+            "tui_reply_day1006120133_c87991",
+            "10",
+            ""
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259353.1559806,
+      "phase": "actions",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id,sender_id,conversation_id,body,reply_to_id,edited_at FROM messages WHERE body='tui_reply_day1006120133_c87991_edited' AND conversation_id=7",
+        "rows": [
+          [
+            "12",
+            "3",
+            "7",
+            "tui_reply_day1006120133_c87991_edited",
+            "10",
+            "2026-10-06 04:02:32.997005+00"
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259353.7019167,
+      "phase": "actions",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT user_id FROM message_reactions WHERE message_id=10 AND user_id=3 AND emoji='❤️'",
+        "rows": [
+          [
+            "3"
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259356.549955,
+      "phase": "attachments",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT m.id,m.sender_id,a.filename,a.size FROM messages m JOIN message_attachments a ON a.message_id=m.id WHERE m.conversation_id=7 AND a.filename='中文 文本.txt'",
+        "rows": [
+          [
+            "13",
+            "1",
+            "中文 文本.txt",
+            "38"
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259358.5148692,
+      "phase": "attachments",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT m.id,m.sender_id,a.filename,a.size FROM messages m JOIN message_attachments a ON a.message_id=m.id WHERE m.conversation_id=7 AND a.filename='图像_png.png'",
+        "rows": [
+          [
+            "14",
+            "3",
+            "图像_png.png",
+            "69"
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259369.9878106,
+      "phase": "reconnect",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id FROM messages WHERE body='A_reconnect_day1006120133_c87991'",
+        "rows": []
+      }
+    },
+    {
+      "time": 1791259370.5000887,
+      "phase": "reconnect",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id,sender_id,conversation_id,body,reply_to_id,edited_at FROM messages WHERE body='A_reconnect_day1006120133_c87991' AND conversation_id=7",
+        "rows": [
+          [
+            "15",
+            "1",
+            "7",
+            "A_reconnect_day1006120133_c87991",
+            "",
+            ""
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259370.5311146,
+      "phase": "reconnect",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id FROM messages WHERE body='B_reconnect_day1006120133_c87991'",
+        "rows": []
+      }
+    },
+    {
+      "time": 1791259370.750082,
+      "phase": "reconnect",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id,sender_id,conversation_id,body,reply_to_id,edited_at FROM messages WHERE body='B_reconnect_day1006120133_c87991' AND conversation_id=7",
+        "rows": [
+          [
+            "16",
+            "2",
+            "7",
+            "B_reconnect_day1006120133_c87991",
+            "",
+            ""
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259370.7828865,
+      "phase": "reconnect",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id FROM messages WHERE body='C_reconnect_day1006120133_c87991'",
+        "rows": []
+      }
+    },
+    {
+      "time": 1791259371.001821,
+      "phase": "reconnect",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id,sender_id,conversation_id,body,reply_to_id,edited_at FROM messages WHERE body='C_reconnect_day1006120133_c87991' AND conversation_id=7",
+        "rows": [
+          [
+            "17",
+            "3",
+            "7",
+            "C_reconnect_day1006120133_c87991",
+            "",
+            ""
+          ]
+        ]
+      }
+    },
+    {
+      "time": 1791259371.0337348,
+      "phase": "reconnect",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id FROM messages WHERE body='D_reconnect_day1006120133_c87991'",
+        "rows": []
+      }
+    },
+    {
+      "time": 1791259371.5450487,
+      "phase": "reconnect",
+      "kind": "sql-fact",
+      "value": {
+        "statement": "SELECT id,sender_id,conversation_id,body,reply_to_id,edited_at FROM messages WHERE body='D_reconnect_day1006120133_c87991' AND conversation_id=7",
+        "rows": [
+          [
+            "18",
+            "4",
+            "7",
+            "D_reconnect_day1006120133_c87991",
+            "",
+            ""
+          ]
+        ]
+      }
+    }
+  ],
+  "attachment_hashes": [
+    {
+      "time": 1791259358.7760513,
+      "phase": "attachments",
+      "kind": "attachment-sha",
+      "value": {
+        "text": "0756a0ccc641607c39834e098a53df14bc5c231f880092139bcf1abca260c498",
+        "png": "64abf93fb4c16b4258aa6eff5660a6b97b013a1b9c0cc877fcceb14c6764680f"
+      }
+    }
+  ],
+  "terminal_exits": [
+    {
+      "time": 1791259376.8701618,
+      "phase": "logout",
+      "kind": "terminal-exit",
+      "value": {
+        "actor": "B",
+        "dead": true,
+        "status": "0",
+        "signal": ""
+      }
+    },
+    {
+      "time": 1791259376.9954212,
+      "phase": "logout",
+      "kind": "terminal-exit",
+      "value": {
+        "actor": "C",
+        "dead": true,
+        "status": "0",
+        "signal": ""
+      }
+    }
+  ],
+  "explicit_read_latest": [
+    {
+      "time": 1791259370.2982655,
+      "phase": "reconnect",
+      "kind": "explicit-read-latest",
+      "value": {
+        "actor": "A",
+        "marker": "A_reconnect_day1006120133_c87991",
+        "method": "real X11 wheel"
+      }
+    },
+    {
+      "time": 1791259370.4391913,
+      "phase": "reconnect",
+      "kind": "explicit-read-latest",
+      "value": {
+        "actor": "D",
+        "marker": "A_reconnect_day1006120133_c87991",
+        "method": "real X11 wheel"
+      }
+    },
+    {
+      "time": 1791259370.6838706,
+      "phase": "reconnect",
+      "kind": "explicit-read-latest",
+      "value": {
+        "actor": "A",
+        "marker": "B_reconnect_day1006120133_c87991",
+        "method": "real X11 wheel"
+      }
+    },
+    {
+      "time": 1791259370.7009509,
+      "phase": "reconnect",
+      "kind": "explicit-read-latest",
+      "value": {
+        "actor": "D",
+        "marker": "B_reconnect_day1006120133_c87991",
+        "method": "real X11 wheel"
+      }
+    },
+    {
+      "time": 1791259370.9357772,
+      "phase": "reconnect",
+      "kind": "explicit-read-latest",
+      "value": {
+        "actor": "A",
+        "marker": "C_reconnect_day1006120133_c87991",
+        "method": "real X11 wheel"
+      }
+    },
+    {
+      "time": 1791259370.9529157,
+      "phase": "reconnect",
+      "kind": "explicit-read-latest",
+      "value": {
+        "actor": "D",
+        "marker": "C_reconnect_day1006120133_c87991",
+        "method": "real X11 wheel"
+      }
+    },
+    {
+      "time": 1791259371.3444257,
+      "phase": "reconnect",
+      "kind": "explicit-read-latest",
+      "value": {
+        "actor": "A",
+        "marker": "D_reconnect_day1006120133_c87991",
+        "method": "real X11 wheel"
+      }
+    },
+    {
+      "time": 1791259371.493247,
+      "phase": "reconnect",
+      "kind": "explicit-read-latest",
+      "value": {
+        "actor": "D",
+        "marker": "D_reconnect_day1006120133_c87991",
+        "method": "real X11 wheel"
+      }
+    }
+  ],
+  "runtime_scanned": 152,
+  "runtime_hits": [],
+  "cleanup": {
+    "checks": {
+      "protected_same": true,
+      "recorded_processes_gone": true,
+      "private_children_gone": true,
+      "exact_socket_gone": true,
+      "source_same": true,
+      "exact_database_gone": true,
+      "owned_port_clear": true
+    },
+    "protected": {
+      "pid": 2876288,
+      "alive": true,
+      "state": "S",
+      "executable": "/home/gyl/example/chat/build/chat_server (deleted)",
+      "start_ticks": 521400965,
+      "cpu_seconds": 0.98,
+      "rss_kib": 17108,
+      "peak_rss_kib": 17108,
+      "threads": 25,
+      "fds": 41
+    }
+  },
+  "pins": {
+    "head": "4f7c9d5a3c6f8967587ee0c99b91433e5749f213",
+    "sources": {
+      "CMakeLists.txt": "842c7f4a4f19ba00542b55b66dfac3e27beddebce23ae735f27261dc2bd61d08",
+      "client/include/chat/attachment.hpp": "82b750f350e3b38d44b7ec0a84f51ea5703ce0da866c844e3fd6db2a63f65895",
+      "client/include/chat/avatar.hpp": "0ad3dd1416d4daec4dc5653769f7c35300e100b0fa3376cc978317408cd42736",
+      "client/include/chat/client.hpp": "7215c66977bb40e4387dc48f8ddfd0f380d909bfb7009e44371ff4daad3242e5",
+      "client/include/chat/conversation.hpp": "228f2615dadf59199eef5935101d7b3e40d25b2ff71fdac2deae6c6df55553a0",
+      "client/include/chat/detail/base64.hpp": "b7ac7b4ea85c65bc1b2548692e7e5529e2f2906402a621a468144a36d03eed76",
+      "client/include/chat/error.hpp": "c764259decf0bcb979e85abec19288446c3f7802add80c724c83a2d580b5fb05",
+      "client/include/chat/friendship.hpp": "b5c5ed77be7649c4bf1b1938874702e545d80e0bddad1e285319c76add04efc5",
+      "client/include/chat/member.hpp": "dd68fa63cdd6cd95f1ef70d4b688d37627c8527143135f2fd3880377bc168d2f",
+      "client/include/chat/message.hpp": "9e6ffb975ab7d31a866b9dee5ce3565258474752215ee58d8deac97759238183",
+      "client/include/chat/presence.hpp": "b90b2f32b6969fb64fd61d60aca862362d2e66f89431004f3dee7b921a55795c",
+      "client/include/chat/reaction.hpp": "0453f0cf44765c700b2fa04bbf4f56ba890ecfe3ae638d39b436cb58ada01b4f",
+      "client/include/chat/text.hpp": "c2f0f54cb60e48c57117b2ee727a3f04e4e5b8ac148e6aa9253b0f8948b7291b",
+      "client/include/chat/typing.hpp": "079ac2ab0e494f50b37b04b9b0356e825e1cd92571ebdc11b0dae33341766bfd",
+      "client/include/chat/user.hpp": "3b63ead717ee081e3506a33f97ce7bee387fdaf8272be8040c2fc1fbabf65114",
+      "client/src/client.cpp": "78d53b36ada1cc735f4693eff47cfd5fecc4e1bc03c089abc32c41b1e8a12b7a",
+      "client/src/websocket.cpp": "16f6e4009ed5bb19100e1a0097867766dfccc363ef64a83ba3071f2f0a940c06",
+      "client/src/websocket.hpp": "f79061927c3702af7f168c67d5c41573b30688dcc3311431917b8ccf48f63f72",
+      "client/tests/client_test.cpp": "aaa1b62af6f02a6bc3809b6b5b88df17aeab15227feee923e8614d8a08858a39",
+      "qt/src/attachment_dialog.cpp": "be6efe87409baef78d698dd181baa624f7a5f2d30b1f8eb6829423fbdeb3061c",
+      "qt/src/attachment_dialog.hpp": "63bf3e5a5af9ca6b3dda8a218cfc1e2941c410fac1063f20749428e04bac3f8e",
+      "qt/src/avatar.cpp": "69c959ff08955bbb0f83e72d6e2bc5d8fa604b2ba82731ee686c0da8c3be7c75",
+      "qt/src/avatar.hpp": "da53722ed0ca7cc800c51e1877e9285779b299e8e7dc68ccb437fc408749df4c",
+      "qt/src/chat_widget.cpp": "9366fa3d9c0e1859db972bbac34f78e232d9e03d1ac11fe77b768b5c37265342",
+      "qt/src/chat_widget.hpp": "a9bafb158509b5fc521f6b628dac9dc60d0d9b74ccca4d6849cf12708a26410f",
+      "qt/src/client_bridge.cpp": "22ad0a231b372dcef5c69cccbe8e006cb195ad29b4f7df034a6f0b9385ee1b98",
+      "qt/src/client_bridge.hpp": "b8919d73094d27525f9a85086541f20654275bba2742a112a2d6d08e8cda99f5",
+      "qt/src/conversation_data.hpp": "0b42d54e2024cdfa7e00e8a54e2bcad08aae32df3936028c29b5972c2572f39f",
+      "qt/src/conversation_delegate.cpp": "8837f82a222d890a35264b5dd7df813c72137ebabc4cad8754f6f6c1665e4324",
+      "qt/src/conversation_delegate.hpp": "9d7253fe79481633c5c16c129c6ca76b643a934d4294d64c038b3f7b498f8279",
+      "qt/src/conversation_model.cpp": "b2230377b0a299400825fee0180e240f02423421cc760815425f3271faccefb0",
+      "qt/src/conversation_model.hpp": "581655f6a9e52076d4087e9493fd5dcdeb09f9923b17c06c8cc83db868b06c7b",
+      "qt/src/group_dialog.cpp": "4fe5649b48a7e5260e138fa2cf245eb68cccb2e55ab1789f9cfdcca19aa72203",
+      "qt/src/group_dialog.hpp": "34358195aa81ad838d463d43a3913134bc6a512d505ced0ae6c350a8442fb31c",
+      "qt/src/icons.cpp": "edbc370115aad8af8038e2823c31a4b73e7811267e1c43d891dcbb3ade0c8495",
+      "qt/src/icons.hpp": "a4265e4d3225de28d7c3df8af725e89e8b6e1ad719d234569e86a69f076a9c1b",
+      "qt/src/main.cpp": "c94299bdf7aaa4852baded3859ff28a6cab34a22b05f3eb458758a295174ee94",
+      "qt/src/main_window.cpp": "35a5529d10f84481a5c80358a99b6adc26402cbba7cf478e2e0524a9032fc744",
+      "qt/src/main_window.hpp": "5547c418d768d3da359946873b47297cf1c5ad6edda9501ba86ca9a8a842318f",
+      "qt/src/member_data.hpp": "13f07fdc9a6e95e9b4436b8efa633aa2ed0da648bbd80a2438811a0c8a189052",
+      "qt/src/message_data.hpp": "b3c7600abed28ee9670f3c28b0c7f29604c1209844e21a6b8259ff6b8a1729b1",
+      "qt/src/message_delegate.cpp": "f828dcb2b7e49ec5bbd45d19d2a634ab731cf46e33f55c7d3a07921d09c61995",
+      "qt/src/message_delegate.hpp": "59ae44e81a014ad00af82a7467834a7f7df851f190558c2e91c482d5a26eb494",
+      "qt/src/message_images.cpp": "49205f5eba330812e8814a8aee2706be41a9ad86ab6fa0ba54dcd655696933e6",
+      "qt/src/message_images.hpp": "5f9c51258028d2258da54f26df5003880b76fd6e70d0415f747d150c7b08172f",
+      "qt/src/message_model.cpp": "6fd6ca81a7fd76e4ef39e253594d5cafbac61c678da51654b84b6d6d6de6504c",
+      "qt/src/message_model.hpp": "8d1febaf4cc582a974722550b64f0b89156f54138a9e1082bc31d6aa8b7d3b51",
+      "qt/src/message_search_dialog.cpp": "0ea73632f099a1e2bf36a4d9b8f1bbca227269fc55d6a88f0fce2b0e6b6743ac",
+      "qt/src/message_search_dialog.hpp": "7296830dd0fa14dfcf61e134bd0735fe21501c555ce05bcf3888ba5287301748",
+      "qt/src/presence.hpp": "fb2dc68a40135ffe4f8b337f26e0c0523e2007de83e5ce72ff8e2c0915ef267f",
+      "qt/src/presence_data.hpp": "5402af74e4f8f99043c7c948076b3876f8c9bd92dfcbb2ac0b566f51c527d37b",
+      "qt/src/theme.cpp": "e8133c65555eeedc7a121ecb860d89fbb50ed13104df0702a90609d3c63311c8",
+      "qt/src/theme.hpp": "424018efa972ee93b321c8d3e76020ce25681f384143409dd6ba8504ddca512d",
+      "qt/src/user_data.hpp": "8fdd19b94718e08f098f6ee23d08b0f2e501df87574ece58452db5cb7c6683b9",
+      "qt/src/user_delegate.cpp": "d7a15dc6079195aada9073b4348a99ace7bc0ebcefa878858c14a99acf654293",
+      "qt/src/user_delegate.hpp": "ea92268180156a00b5a8b34989d4fb6ca0e1e5d09f65f11b16ed37f92cbeb96a",
+      "qt/src/user_model.cpp": "2253c4f97622d3bf597c3e669eb081d5346a7da86cd6342b9d4d90807a987ce2",
+      "qt/src/user_model.hpp": "32ff238226cf9ed05f2d3f4fe365bb735c7993f62147b25be295d28e58cdb8c0",
+      "sql/001_create_users.sql": "c1c46ce272a8dff9f5f1e9c5e3f7ed569951e8bf24359d694418ffe2d615f441",
+      "sql/002_create_messages.sql": "f0a83775901cbae3657fcda19ae9f5e5f83071261650d93d3308d20afc714d15",
+      "sql/003_add_messages_conversation_index.sql": "4b8466e7ceef513613f50e263db9c39e9055c216c1d7c692fbcaf681da72ddb8",
+      "sql/004_create_message_read_positions.sql": "a0d318a8fd5bb5d1041a5ec367bd7f61f5ace04f6ad52963501f1ba84ebcd03f",
+      "sql/005_add_messages_recipient_index.sql": "0b0b2db21989aae6640d38697d40c38044c85aa77c92566a6557830e280c840b",
+      "sql/006_create_contacts.sql": "b0da0f7fa8bfc5e4b78a1a16663966345552cbbaff86d7974d9e7c874917d65b",
+      "sql/007_add_user_last_seen.sql": "a7c9162af53ed403c1f848ea558278837ff5e38758f0f88b36c522f09a5d02ce",
+      "sql/008_create_conversations.sql": "a6fe9e116110dd4024b8d3c072700f6e97457a4bc6709558fcf6b87049b31b67",
+      "sql/009_add_message_replies.sql": "b74377121247883c6c7d5bd36e16d0e6670a9fe845521c2a8189445b4edba5ab",
+      "sql/010_add_message_edits.sql": "fe9bc939129796b46b405c289d7ca446158d103e417f86d9322b980d6b68bcb2",
+      "sql/011_add_message_deletion.sql": "f40ad1bc3cf330768de7594df86ce4029fcbcb66611961e01c14106d7d4aebd8",
+      "sql/012_create_message_attachments.sql": "762a299f43fd9939b4b8251b6198b1a5e8b066c21119ac632002d5bf6eaed6c7",
+      "sql/013_add_group_roles.sql": "b2245ddb5aecbf543ea5612afbb494e0ef2053f799a9ffeb05a8b3ac2041ce78",
+      "sql/014_add_member_join_position.sql": "53dd3f81fe323b2b9b9162e2512d629ea135a8be689db62392f86485e6655fba",
+      "sql/015_create_user_avatars.sql": "f67c2e513107fbacb3205ced3b82620ef2af62befab10725cd1b523665936eb8",
+      "sql/016_create_message_reactions.sql": "b3f04a167a36936d896745426a490da6e2c91412d8a83e996c3c40bb6e5b114b",
+      "sql/017_add_conversation_mute.sql": "0556f108403498a497e880f321d6766c208a33d60b2d75fc7093f92b5c3064f1",
+      "sql/018_add_conversation_pin.sql": "93ad584f2a0ff5aef9f45dd1395de1616f90fdab6ec0a64b9dfff6328b0a3468",
+      "sql/019_create_message_mentions.sql": "71dd84bf9f23c2898744aea03bfb85cec2d38c5da4da529ef6dcadf70068fa0d",
+      "sql/020_add_group_pinned_message.sql": "71b2e5a2f41d45a5d755b71ff20dcedad7f930038bd53e98d1beaa48c4a4d1de",
+      "sql/021_add_group_announcement.sql": "7d4a8688ea3304e3fbf82615ed4f628827c17bb74ee1b864126ac171771e3afb",
+      "sql/022_add_group_invite.sql": "f0f42123c49e71a6a65aca4626b637a03c3c3fb5623720c01f4f7b8162df7e55",
+      "sql/023_create_group_join_requests.sql": "7dbe4d55d3a13dafb76aa835fc3c474cb2d140ae314188280f602910623db001",
+      "sql/024_validate_identity_and_group_title.sql": "008a4f7fe6dff6483871b29dfe71470d4abf5cff5d18a093eb54335e80a3ba4a",
+      "sql/025_validate_username_edges.sql": "6322460a924302bf03acd7c33903336f5c3cf065b5ca8980e550268ff6005880",
+      "sql/026_create_friend_requests.sql": "a3f65b0816f195944119e71193bd358a9ff947cb96b17dededc1def0ae0c11ba",
+      "tests/avatar_fixture.hpp": "bc78ca791e7ddf071353eb6088b2400aec650c6897be38cd9194999604dc4b57",
+      "tests/avatar_image_test.cpp": "78652b909ba0d7d5cf0228ee85d78027aceed30512ad0cce920fb549ec993525",
+      "tests/bcrypt_test.cpp": "b7e640aef03f2fa08bef97f8049dd2fdda6610a74f15df59b046101b7d92c31b",
+      "tests/conversation_test.cpp": "4333ef1ca51809e02bb38c285560e84404eef5c75cb27053b2ed6f58df9b8567",
+      "tests/corosio_timeout_test.cpp": "96d75ac44e82b4db6c7d003120f8722592887e0e547c2fb2b2560272643cb4c6",
+      "tests/http_server_test.cpp": "738070ceb568fdc623a0e1e9370b8fda362ec2cc3fd339f2b61b193086ac83f0",
+      "tests/migration_test.cpp": "606218065ddb19d8d1c8defc6a485b0d30939f1d0480a9391ac9af8a6ba0dac0",
+      "tests/online_users_test.cpp": "f3a84cf5fe4fcd86433bc63a87906888c627ef2f460bf3b6e053970d8f48c002",
+      "tests/pg_connection_test.cpp": "70713b156fc904925f73a36cfc7a4c6fb4d1b539229f6ff942d31ad350e8fdb8",
+      "tests/qt_navigation_steps.py": "167d061185aa4d3d9a66d54e376236a11f8e1cefdd6b40a4cea8729884503a97",
+      "tests/qt_x11_smoke.py": "afd8a595fa6f0d39ab8655271f6f165d2a5529b67feee86264fc69c188309a0b",
+      "tests/server_test.cpp": "aefc22b864be0ad6559847f2c217d9c582bbfa0aefdbcc0f26d462f2e08f2bc4",
+      "tests/simdjson_reflection_test.cpp": "09b77182837c43abc3df36ab347e40ff07bfa6856687bfcc1ba7d4043991a0e2",
+      "tests/tui_100_member_smoke.py": "56b51c8604734934e6be6d9f8ae63a34a7ee2af9785becda10ef979659de5c14",
+      "tests/tui_100_member_smoke.sh": "310de03e8ad09be4762b31912673570ecc0897761385dd2ebb3a82ae0ed89dcb",
+      "tests/tui_group_edges_smoke.py": "a7c952536f3d8f796056ab044880ede22aadb83491df5dcf8230a5426711eb58",
+      "tests/tui_lifecycle_smoke.py": "226cd665bf4052ef2a39ce653d7112436549b3e5085c45155ff59a51b33db595",
+      "tests/tui_navigation_smoke.py": "c7300a6f3fb96bc93ae05db8d7886ca162e9b63a54ebcf072bc4c8e4db2bd5b4",
+      "tests/tui_scale_fixture.cpp": "16d76fa0109125708462e45e124bd80ae3404df53960581366b0c5ecdca5bb57",
+      "tests/tui_scale_observer.py": "c3c38fc83bbb2131bcab5d97d44193c311e6bc9554339bc2c338151264483ef3",
+      "tests/verify.sh": "38d3408e537d67182689f59d452e9d8e5bf164f38a9b5baaa93fbd8b36eb5f29",
+      "tests/websocket_test.cpp": "efd85fbc0a2919dffebfc37fcdce30a05d362fbd366dc9f3ad953a8e56e08d56",
+      "tui/src/app.cpp": "3cfff26307318d1badc870554800cddafe4158866bccbd800db17b66be44db7a",
+      "tui/src/app.hpp": "89b9f37259e60109284ff5511322d794fac291f158f3ac5a07cfc53603f3a860",
+      "tui/src/deadline.hpp": "dbe2a40c1a61b75032843ab82fc8dd898f0d0f8ecbfe6cde15fbf528274584f2",
+      "tui/src/file_io.hpp": "36628265415a0fbae479eec5c76f122362a7a61de2ee9b32cfa94cf41ad5ef7d",
+      "tui/src/groups.cpp": "3a6c19da31f784377d64112063783f2197a9ea08ff2ded783a245af60ce89c99",
+      "tui/src/inbox.hpp": "53a0dbb45136c8f1b783b948373658b2897d976944eaff1353624150ec5d1bba",
+      "tui/src/main.cpp": "05ed5edddc04b9590edeb11db6261a0e0440e32ea54af98a65b6d9afbd79b620",
+      "tui/src/messages.cpp": "f6c414041e8b17f7f59fad4c29589e3bf7bd45f30fc365b555f9c0c8fd164340",
+      "tui/src/profile.cpp": "a464531debbf5b4c618d712276fa5d526ba70599cd7a9f26aa490e2003481990",
+      "tui/src/state.cpp": "d8b99d807e119b410bb5a0df2d7c8e84d75ebb326cedf4d9526665038c3fa5ab",
+      "tui/src/state.hpp": "32e853f0bce108fd5425351a2f882db9c4e11d074f6e742e33caa347647d531e",
+      "tui/src/ui.cpp": "b8f06e5b273f7f5df04950e9f9e4fa4c4d041fe1b58995071a81ec2491f3c179",
+      "tui/src/ui.hpp": "4fdeb7385b98761ae916db52d23f0d3079c9e90d0f0eb8391409fdfd00a4e62e"
+    },
+    "driver": {
+      "daily.py": "41c9bb5b97bb636b8cee6b7f2cb98b6074574bb3e728aaa8184739c28bd1593f",
+      "run.sh": "848fb522e849923f6d6ef4b3891b2409d677cf6dc80003cb94af4a45257057ba",
+      "i3.conf": "140ac3e0ee7fa1a325aa839cd614090209c46dc6e70dbd3f42b19e4aed2beee1"
+    },
+    "binaries": {
+      "chat_server": "f2c9288cbc32817183e399e72a4a3af8e45adfdfbd54435af43aae86da36bf5b",
+      "chat_tui": "f785a631d0d340298c34ce318aed150715449227375df99815b7dfae0702b1d0",
+      "chat_tui_scale_fixture": "b624a131f2170164bd4f9b2c9ac2cc732fd6b62c23819f3a8b9d7fc0b4d021fe",
+      "qt/chat_qt": "936a4464a564fcb8d267e5e7eae338892024eda8b1d137ed6c4e4eb2fc532fed"
+    }
+  },
+  "retained_artifacts": {
+    "daily-four-client-group.png": {
+      "sha256": "7157544d034f8e4cedfdfa332d7a6cb4e70ac73dc6b86f77d2ccb84e1c23bcd2",
+      "source": "007-group-four-member-group-chat.png",
+      "attempt": 5
+    },
+    "daily-four-client-actions.png": {
+      "sha256": "cc75bcf2ae0d1b6dd5faef08fe13471c777eefac0a2e250ef299929e11e2c99b",
+      "source": "018-actions-cross-interface-actions.png",
+      "attempt": 5
+    },
+    "daily-four-client-attachments.png": {
+      "sha256": "1b8bd831aa6f7c2a864d589ac4e5de4e33b5d7c14c6d2a162b9282f04fe60e7a",
+      "source": "021-attachments-two-direction-attachments.png",
+      "attempt": 5
+    },
+    "daily-four-client-offline.png": {
+      "sha256": "78104e32d3f85a1df460c8cb1974d5522110e3748fea8b2d87cff13c96253b4a",
+      "source": "028-reconnect-offline-same-clients.png",
+      "attempt": 5
+    },
+    "daily-four-client-reconnected.png": {
+      "sha256": "6ad2eabff7fc624a14ba6fae245a21737bff8d853a801921a2bba6d33cd98492",
+      "source": "030-reconnect-manual-send-once-after-reconnect.png",
+      "attempt": 5
+    },
+    "daily-four-client-logout.png": {
+      "sha256": "b2692e2557d64ce9ee157979f52e33ca4cca525e4aed8e3f9de2596aa0aad32c",
+      "source": "034-logout-C-logout-login.png",
+      "attempt": 5
+    },
+    "daily-four-client-viewport-failure.png": {
+      "sha256": "34fca3ff4f3e5f9bf16b7a0ec92f982720ef1071bfc3e12ab7a1a14f266a59a2",
+      "source": "030-reconnect-failure.png",
+      "attempt": 4
+    },
+    "daily-007-group-four-member-group-chat-B.ansi.gz": {
+      "sha256": "04eace955a86f3ca810c58e13e91af18bb1f318fcfe6eb2e7fa5e2015c82c69d",
+      "original_sha256": "3684e2131e41529df4607c228fd974870a21131347a0ca427577be8b761dc4f3",
+      "attempt": 5
+    },
+    "daily-007-group-four-member-group-chat-C.ansi.gz": {
+      "sha256": "c9e23ebcb39202e7653eb62ad1daa6191637e024f472e3d50e507ce080f8bedd",
+      "original_sha256": "4fc879a51e9e9b4d55d86a3a76fb449c102f62efc3485d4b95a7f06550ee36a1",
+      "attempt": 5
+    },
+    "daily-030-reconnect-manual-send-once-after-reconnect-B.ansi.gz": {
+      "sha256": "c0051308ff697eea0b7d4edfe996b714959ba7c5405c3d1963dd55c754fc9a39",
+      "original_sha256": "f30873fc0f1311f9ecc91ee122c940b6817c17d580c3af2b86e6ccf2da186ddd",
+      "attempt": 5
+    },
+    "daily-030-reconnect-manual-send-once-after-reconnect-C.ansi.gz": {
+      "sha256": "b0564bade18546fb80c541ed13675aa54a423f9f9160ec0857176e970f32dad5",
+      "original_sha256": "bd41e20a89818687111d1c58518c90fb4e6394bd153addb67ffb82688a5fd04d",
+      "attempt": 5
+    },
+    "daily-034-logout-C-logout-login-B.ansi.gz": {
+      "sha256": "e24009ed5339157014b3a54a35dc98264e224b4c9d560b17955c2675fd3d6a9d",
+      "original_sha256": "83a3bf32990cf22af321a0026ddb8e03c7a20e44dc4b200a62b5e1e48827753c",
+      "attempt": 5
+    },
+    "daily-034-logout-C-logout-login-C.ansi.gz": {
+      "sha256": "1b174fdb3a4cd9bcedaeb7662fa67742c3bef5e0faf8946a62e068f9211c5e12",
+      "original_sha256": "159eff8bdf0174b29530f72ef34dee8c4a6a1946f08c664a346514b357f31fb7",
+      "attempt": 5
+    }
+  },
+  "limits": [
+    "Not an award-level exit review",
+    "Explicit X11 wheel reading during reconnect does not prove automatic follow-bottom",
+    "No new production change or full three-mode gate in this slice",
+    "Only selected original captures retained; full temporary raw data deleted after review"
+  ]
+}

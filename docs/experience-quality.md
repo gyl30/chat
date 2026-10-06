@@ -3077,3 +3077,88 @@ Fcitx及系统Speech Dispatcher保留，没有删除开发数据库或干扰其�
 
 这是一项真实错误反馈修复，不是整项无障碍、完整四客户端日常或奖项级退出验收。
 Qt87/TUI78不提高；Q27/T04/Q30、全页面/日常与连续两轮fresh评审继续开放。
+
+## 阶段 46：同一批四客户端的完整日常流程与新视口疑点
+
+基线4f7c9d5a3c6f8967587ee0c99b91433e5749f213。本次没有生产、测试框架、SQL、
+third或依赖改动。使用新建隔离数据库、专用18917端口、私有DBus/Xvfb/i3，持续运行
+两个真实Qt客户端A/D和两个真实tmux TUI客户端B/C。操作来自XTest鼠标/键盘输入、
+系统文件选择器、公开TUI键位/命令，不调用QAction::trigger或模型写入后门。
+SDK仅在登录前建立fixture；运行期S005只观察presence/search/contacts，业务写操作
+全部来自四个真实客户端。新日常群不含observer；消息、成员、回应事实通过只读SQL核对。
+
+### 独立失败轮没有拼接成成功
+
+第一轮前三阶段完成，菜单“发起群聊”实际可见，但驱动过滤后的AT-SPI树没有该项。
+第二轮误用Home/End校准菜单；Qt6.2.4普通非滚动QMenu并不以这两个键选择首尾项，
+实际打开了“添加好友”。第三轮限定POPUP_MENU/PID寻找native popup也未找到窗口；
+没有保存完整窗口属性，不能反推具体是哪一属性不匹配。三轮均actual1，不记建群通过。
+同时修正私有i3配置被误认作v3、窗口被自动平铺的问题；这不是Chat布局修复。
+
+第四轮通过正常Qt菜单键盘流程，完成登录、好友申请、双向单聊、四人群、草稿、
+搜索/回复/编辑/回应、附件和资料共八阶段；重连后A的可见正文检查失败，仍整体INCOMPLETE。
+B的新消息已经在D/B/C可见，A的会话preview也更新；A消息视口停在图片附近，新消息
+在视口以下。主与独立代理亲看[原失败截图](images/experience/daily-four-client-viewport-failure.png)。
+这反证“B未发送/网络没有恢复”，却不能证明A的自动跟随行为正确，更不能归结为纯驱动问题。
+
+最终第五轮从头建立全新fixture，采用鼠标移出菜单后真实Down/Up/Right/Return；
+实际校验选中三位好友、四个成员及后续业务结果。消息定位排除引用正文，剪贴板owner
+由驱动精确持有/替换/退出，不因TARGETS请求提前失效。重连阶段明确用真实滚轮读到
+消息列表末尾，再核对正文；不是忽略可见性，不用隐藏模型数据冒充阅读，也不宣称
+此动作修好了自动跟随。一次性驱动没有提交或新增测试框架。
+
+### 最终实际结果
+
+最终唯一scope为chat-daily-ACss0wpo，run_id为day1006120133_c87991；driver、wrapper
+及cleanup审计均actual0。十阶段依次完成，没有缺项或借用前四轮的通过片段：
+
+| 阶段 | 本次实际证据 |
+| --- | --- |
+| 登录/联系人 | 四端持续登录；Qt接受D、B申请A、D申请C，双向contacts事实分别为1↔4、1↔2、3↔4 |
+| direct/group | A↔B、D↔C中文双向消息；A真实两步创建群7，成员恰为1/2/3/4；四端各发送并收到群消息 |
+| 切会话/草稿 | 四端direct和group的独立未发送草稿切回仍在，SQL没有这些正文 |
+| 搜索/回复/编辑/回应 | Qt与TUI均搜索；target10来自B，Qt回复11与TUI回复12均引用10，编辑保持原id；A👍与C❤️的actor事实正确 |
+| 附件 | Qt真实Open→TUI保存38字节文本；TUI发送69字节PNG→Qt真实Save；两方向SHA256逐字节一致；取消Open不丢草稿 |
+| profile | 四端账号资料、Qt/TUI对方资料实际打开并返回聊天 |
+| reconnect | 仅停止/重启本轮自有server；原四PID自动重新认证，未发草稿保留、未自动发送；手动发送各唯一一条id15–18，四端主动滚动后实际可见 |
+| logout | Qt确认默认取消/显式退出及TUI取消/确认均实际执行；四端原进程返回登录；两个TUI随后Ctrl+C正常exit0、无signal |
+
+四客户端始终A2075999、D2076006、B2075985、C2075992；34次capture逐次核对
+PID/start_ticks/live binary SHA不变。Qt SHA936a4464…32fed，TUI f785a631…2b1d0。
+119个本驱动所记录源码pin首尾一致，独立重新读取当前源亦一致；这不是全仓119文件
+的宣称。152份原文本扫描runtime/sanitizer failure签名，hits为空；并非本次跑过
+ASan/UBSan日常矩阵。原阶段45冻结源完整tests/verify.sh三模式23/23仍按该阶段范围
+有效，本阶段没有新执行三模式门禁，不用它替代本次真实业务运行。
+
+保留原始完整X11图，不裁成重新构造的UI：
+[四人群](images/experience/daily-four-client-group.png)、
+[回复/编辑/回应](images/experience/daily-four-client-actions.png)、
+[双向附件](images/experience/daily-four-client-attachments.png)、
+[断线](images/experience/daily-four-client-offline.png)、
+[重连后主动阅读](images/experience/daily-four-client-reconnected.png)、
+[四端退出](images/experience/daily-four-client-logout.png)。主亲看关键原图，独立代理
+复核消息/成员/附件/进程证据及最后两张原图。另保留群、重连、退出的B/C原始styled
+tmux capture gzip无损副本，解压SHA与原文相同；不冒称ANSI本身证明物理字形或列宽。
+[紧凑实测记录](images/experience/daily-four-client-proof.json)保存原phase事件、SQL
+事实、源/driver/binary pins、连续性、退出和清理结论，只是原运行摘要，不代替原始运行。
+
+### 没有因为daily通过而关闭品质问题
+
+新增Qt P2候选：可滚动历史中发送/typing布局变化后可能丢失自动跟随最新。
+源码中“正在发送…”占据消息布局高度；add_message在隐藏状态前，用value==maximum
+判断跟随。图片行固定预留248高度，“图片刚加载才增高”解释缺少支持。下一步须在
+真实可滚动历史中，从人工滚到底开始，对比发送前/确认后/对方消息到达，记录滚动条，
+同时做纯文本对照；目前不把推断写成已经定位或修复的根因。
+
+断线原图还显示TUI历史短暂为空与物理残留字符，需要与既有T04重绘/恢复问题一起
+复审。暂不凭一个截图改变backend或历史权限；正常恢复后的完整消息和草稿已实际核对。
+Q27下一步应把既有完整EGC分类/字体覆盖机制移入真实Qt正文、composer、reply与preview，
+并覆盖Qt-only依赖、缺失字体及真实编辑/IME；不再重复机制probe充当生产修复。
+
+最终自有进程、私有bus子进程、tmux socket及18917监听均已消失；准确自建数据库
+已drop，主另通过实际配置只读查询pg_database确认count0。长期服务2876288同
+start_ticks仍在。核验后精确删除五轮临时scope、本地复核scope及驱动，仅保本节
+目标要求的精选原图、styled capture和摘要；不宣称已保留删除后的全部原日志。
+third/submodule不变，没有push。Qt87/TUI78不提高；Q27/T04/Q30、新视口疑点、
+全部页面/尺寸/无障碍矩阵和最终连续两轮fresh审查继续开放。这一完整日常通过只完成
+原目标的一项实际使用验证，不是>=92或P2=0的退出结论。
