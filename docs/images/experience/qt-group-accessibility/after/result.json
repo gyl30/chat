@@ -1,0 +1,80 @@
+{
+  "status": "PASS",
+  "expect": "after",
+  "scope": "Real production Chat login, group overview, all members and actual pending join request; XTest only, public AT-SPI row name and description, original full X11 PNG.",
+  "binary": "/tmp/chat-quality-qt-atspi-after.2K0H7904/chat_qt.after",
+  "binary_sha256": "eee21f3b9446e167d559746d1cdedd301fcd5cb810fd90c3672e97edd422f1ff",
+  "driver_sha256": "57b98eae76d762548e62f1bf4cf2a420e3bdcb427d5ca167b663669255d3dced",
+  "shared_smoke_sha256": "afd8a595fa6f0d39ab8655271f6f165d2a5529b67feee86264fc69c188309a0b",
+  "members_rows": 4,
+  "preview_rows": 3,
+  "request_rows": 1,
+  "comparisons": [
+    {
+      "page": "overview",
+      "username": "导航A_qtx11_192321",
+      "visible_expected_status": "群主 · 你",
+      "public_name": "导航A_qtx11_192321 · 群主 · 你",
+      "public_description": "",
+      "status_exposed": true
+    },
+    {
+      "page": "overview",
+      "username": "历史B_qtx11_192321",
+      "visible_expected_status": "管理员",
+      "public_name": "历史B_qtx11_192321 · 管理员",
+      "public_description": "",
+      "status_exposed": true
+    },
+    {
+      "page": "overview",
+      "username": "好友C_qtx11_192321",
+      "visible_expected_status": "成员",
+      "public_name": "好友C_qtx11_192321 · 成员",
+      "public_description": "",
+      "status_exposed": true
+    },
+    {
+      "page": "members",
+      "username": "导航A_qtx11_192321",
+      "visible_expected_status": "群主 · 你",
+      "public_name": "导航A_qtx11_192321 · 群主 · 你",
+      "public_description": "",
+      "status_exposed": true
+    },
+    {
+      "page": "members",
+      "username": "历史B_qtx11_192321",
+      "visible_expected_status": "管理员",
+      "public_name": "历史B_qtx11_192321 · 管理员",
+      "public_description": "",
+      "status_exposed": true
+    },
+    {
+      "page": "members",
+      "username": "好友C_qtx11_192321",
+      "visible_expected_status": "成员",
+      "public_name": "好友C_qtx11_192321 · 成员",
+      "public_description": "",
+      "status_exposed": true
+    },
+    {
+      "page": "members",
+      "username": "观察S005_qtx11_192321",
+      "visible_expected_status": "成员",
+      "public_name": "观察S005_qtx11_192321 · 成员",
+      "public_description": "",
+      "status_exposed": true
+    },
+    {
+      "page": "requests",
+      "username": "申请D_qtx11_192321",
+      "visible_expected_status": "待审批",
+      "public_name": "申请D_qtx11_192321 · 待审批",
+      "public_description": "",
+      "status_exposed": true
+    }
+  ],
+  "max_wait_seconds": 15,
+  "no_widget_or_QIM_injection": true
+}

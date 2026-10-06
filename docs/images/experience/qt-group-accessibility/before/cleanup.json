@@ -1,0 +1,94 @@
+{
+  "workflow_exit": 0,
+  "database": "chat_qtx11_1006191754_4166250",
+  "database_absent": true,
+  "private_port_closed": true,
+  "all_owned_gone": true,
+  "owned": [
+    {
+      "pid": 4166252,
+      "exit": 0
+    },
+    {
+      "pid": 4166671,
+      "exit": 0
+    },
+    {
+      "pid": 4166674,
+      "exit": 0
+    },
+    {
+      "pid": 4167884,
+      "exit": 0
+    },
+    {
+      "pid": 4168091,
+      "exit": -15
+    },
+    {
+      "pid": 4168215,
+      "exit": -15
+    }
+  ],
+  "descendants": [
+    {
+      "pid": 4166252,
+      "tick": "547808360",
+      "cmdline_hex": "2f7573722f62696e2f646275732d6461656d6f6e002d2d73657373696f6e002d2d6e6f666f726b002d2d7072696e742d616464726573733d31002d2d6e6f7379736c6f6700",
+      "exe": "/usr/bin/dbus-daemon",
+      "state": "S"
+    },
+    {
+      "pid": 4167884,
+      "tick": "547809121",
+      "cmdline_hex": "58766662002d646973706c617966640031002d73637265656e003000323430307831303030783234002d6e6f6c697374656e0074637000",
+      "exe": "/usr/bin/Xvfb",
+      "state": "S"
+    },
+    {
+      "pid": 4166671,
+      "tick": "547808544",
+      "cmdline_hex": "2f686f6d652f67796c2f6578616d706c652f636861742f6275696c642f636861745f7365727665720034303030350032353600313600",
+      "exe": "/home/gyl/example/chat/build/chat_server",
+      "state": "S"
+    },
+    {
+      "pid": 4168215,
+      "tick": "547809256",
+      "cmdline_hex": "2f7573722f62696e2f78636c6970002d7175696574002d73656c656374696f6e00636c6970626f617264002d696e00",
+      "exe": "/usr/bin/xclip",
+      "state": "S"
+    },
+    {
+      "pid": 4168091,
+      "tick": "547809233",
+      "cmdline_hex": "2f746d702f636861742d7175616c6974792d71742d61747370692d6265666f72652e427066425a494a762f636861745f71742e6265666f72650077733a2f2f3132372e302e302e313a34303030352f777300",
+      "exe": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv/chat_qt.before",
+      "state": "S"
+    }
+  ],
+  "protected_expected_and_unchanged": {
+    "2876288": {
+      "pid": 2876288,
+      "tick": "521400965",
+      "cmdline_hex": "2f686f6d652f67796c2f6578616d706c652f636861742f6275696c642f636861745f73657276657200313830383000313600313600",
+      "exe": "/home/gyl/example/chat/build/chat_server (deleted)",
+      "state": "S"
+    },
+    "3225": {
+      "pid": 3225,
+      "tick": "17583",
+      "cmdline_hex": "2f7573722f62696e2f666369747835002d6400",
+      "exe": "/usr/bin/fcitx5",
+      "state": "S"
+    },
+    "29935": {
+      "pid": 29935,
+      "tick": "248258",
+      "cmdline_hex": "2f7573722f62696e2f7370656563682d64697370617463686572002d73002d74003000",
+      "exe": "/usr/bin/speech-dispatcher",
+      "state": "S"
+    }
+  },
+  "protected_unchanged": true
+}

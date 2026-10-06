@@ -1,0 +1,1414 @@
+{
+  "scope": "/tmp/chat-quality-group-gate.iFxCaS9M",
+  "private_qt_prefix": "/tmp/chat-qt-dependency-compare.dmJWg7/install",
+  "runner_exit": 0,
+  "original_verify_exit": 0,
+  "original_verify_script_sha256": "38d3408e537d67182689f59d452e9d8e5bf164f38a9b5baaa93fbd8b36eb5f29",
+  "modes": [
+    {
+      "mode": "normal",
+      "tests": [
+        {
+          "name": "migration",
+          "result": "Passed",
+          "seconds": 0.65,
+          "explicit_timeout_seconds": 15
+        },
+        {
+          "name": "client",
+          "result": "Passed",
+          "seconds": 1.04,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "pg_connection",
+          "result": "Passed",
+          "seconds": 0.29,
+          "explicit_timeout_seconds": 15
+        },
+        {
+          "name": "corosio_timeout",
+          "result": "Passed",
+          "seconds": 0.07,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "http_server",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "websocket",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_integration",
+          "result": "Passed",
+          "seconds": 13.24,
+          "explicit_timeout_seconds": 60
+        },
+        {
+          "name": "server",
+          "result": "Passed",
+          "seconds": 35.45,
+          "explicit_timeout_seconds": 60
+        },
+        {
+          "name": "friendship",
+          "result": "Passed",
+          "seconds": 9.45,
+          "explicit_timeout_seconds": 60
+        },
+        {
+          "name": "avatar_image",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "simdjson_reflection",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "online_users",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "bcrypt",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_render",
+          "result": "Passed",
+          "seconds": 0.94,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_unicode",
+          "result": "Passed",
+          "seconds": 0.03,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_display",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_span",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_state",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_inbox",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_file",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "qt_models",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": null
+        },
+        {
+          "name": "qt_delegate",
+          "result": "Passed",
+          "seconds": 8.33,
+          "explicit_timeout_seconds": null
+        },
+        {
+          "name": "qt_ui",
+          "result": "Passed",
+          "seconds": 46.33,
+          "explicit_timeout_seconds": 60
+        }
+      ],
+      "original_summary": "100% tests passed, 0 tests failed out of 23",
+      "total_seconds": 115.87
+    },
+    {
+      "mode": "asan",
+      "tests": [
+        {
+          "name": "migration",
+          "result": "Passed",
+          "seconds": 0.7,
+          "explicit_timeout_seconds": 15
+        },
+        {
+          "name": "client",
+          "result": "Passed",
+          "seconds": 1.08,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "pg_connection",
+          "result": "Passed",
+          "seconds": 0.34,
+          "explicit_timeout_seconds": 15
+        },
+        {
+          "name": "corosio_timeout",
+          "result": "Passed",
+          "seconds": 0.08,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "http_server",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "websocket",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_integration",
+          "result": "Passed",
+          "seconds": 17.54,
+          "explicit_timeout_seconds": 60
+        },
+        {
+          "name": "server",
+          "result": "Passed",
+          "seconds": 54.2,
+          "explicit_timeout_seconds": 60
+        },
+        {
+          "name": "friendship",
+          "result": "Passed",
+          "seconds": 13.8,
+          "explicit_timeout_seconds": 60
+        },
+        {
+          "name": "avatar_image",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "simdjson_reflection",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "online_users",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "bcrypt",
+          "result": "Passed",
+          "seconds": 0.02,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_render",
+          "result": "Passed",
+          "seconds": 4.61,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_unicode",
+          "result": "Passed",
+          "seconds": 0.14,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_display",
+          "result": "Passed",
+          "seconds": 0.06,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_span",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_state",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_inbox",
+          "result": "Passed",
+          "seconds": 0.02,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_file",
+          "result": "Passed",
+          "seconds": 0.02,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "qt_models",
+          "result": "Passed",
+          "seconds": 0.02,
+          "explicit_timeout_seconds": null
+        },
+        {
+          "name": "qt_delegate",
+          "result": "Passed",
+          "seconds": 12.7,
+          "explicit_timeout_seconds": null
+        },
+        {
+          "name": "qt_ui",
+          "result": "Passed",
+          "seconds": 54.45,
+          "explicit_timeout_seconds": 60
+        }
+      ],
+      "original_summary": "100% tests passed, 0 tests failed out of 23",
+      "total_seconds": 159.86
+    },
+    {
+      "mode": "ubsan",
+      "tests": [
+        {
+          "name": "migration",
+          "result": "Passed",
+          "seconds": 0.72,
+          "explicit_timeout_seconds": 15
+        },
+        {
+          "name": "client",
+          "result": "Passed",
+          "seconds": 1.02,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "pg_connection",
+          "result": "Passed",
+          "seconds": 0.55,
+          "explicit_timeout_seconds": 15
+        },
+        {
+          "name": "corosio_timeout",
+          "result": "Passed",
+          "seconds": 0.07,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "http_server",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "websocket",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_integration",
+          "result": "Passed",
+          "seconds": 15.76,
+          "explicit_timeout_seconds": 60
+        },
+        {
+          "name": "server",
+          "result": "Passed",
+          "seconds": 50.73,
+          "explicit_timeout_seconds": 60
+        },
+        {
+          "name": "friendship",
+          "result": "Passed",
+          "seconds": 13.52,
+          "explicit_timeout_seconds": 60
+        },
+        {
+          "name": "avatar_image",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "simdjson_reflection",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "online_users",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "bcrypt",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_render",
+          "result": "Passed",
+          "seconds": 1.88,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_unicode",
+          "result": "Passed",
+          "seconds": 0.05,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_display",
+          "result": "Passed",
+          "seconds": 0.03,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_span",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_state",
+          "result": "Passed",
+          "seconds": 0,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_inbox",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "tui_file",
+          "result": "Passed",
+          "seconds": 0.02,
+          "explicit_timeout_seconds": 5
+        },
+        {
+          "name": "qt_models",
+          "result": "Passed",
+          "seconds": 0.01,
+          "explicit_timeout_seconds": null
+        },
+        {
+          "name": "qt_delegate",
+          "result": "Passed",
+          "seconds": 10.92,
+          "explicit_timeout_seconds": null
+        },
+        {
+          "name": "qt_ui",
+          "result": "Passed",
+          "seconds": 51.4,
+          "explicit_timeout_seconds": 60
+        }
+      ],
+      "original_summary": "100% tests passed, 0 tests failed out of 23",
+      "total_seconds": 146.74
+    }
+  ],
+  "source_inputs": {
+    "count": 205,
+    "external_pinned_compile_files": 4,
+    "after_check_exit": 0,
+    "proof": "source.before.sha256 + source.after.check"
+  },
+  "script_after_check_exit": 0,
+  "protected": {
+    "before": "2876288 (chat_server) 521400965\n3225 (fcitx5) 17583\n29935 (speech-dispatch) 248258\n",
+    "after": "2876288 (chat_server) 521400965\n3225 (fcitx5) 17583\n29935 (speech-dispatch) 248258\n",
+    "compare_exit": 0
+  },
+  "official_binary_pins": {
+    "normal": "eee21f3b9446e167d559746d1cdedd301fcd5cb810fd90c3672e97edd422f1ff  /home/gyl/example/chat/build/qt/chat_qt\naf1cf304458dc8619bbdce4468de4898fb99beacfbf0e0cae3bf1078fdfe2716  /home/gyl/example/chat/build/qt/chat_qt_ui_test\n47a469028776ac236e2544ae79b6a4643de03ddec65064dcda06c74487000ad4  /home/gyl/example/chat/build/qt/chat_qt_delegate_test\n79dc854a5361a399208d67d8abe79a1f4e0019b740fb5fc57044c2b95912828c  /home/gyl/example/chat/build/qt/chat_qt_models_test\n",
+    "asan": "997200aed7338ca4e0170b7f341ef99045355f0ee223c01199504dcab1df41bc  /home/gyl/example/chat/build/asan/qt/chat_qt\n1ea667628a4948b0034a02600ab90a8684d86f55e87ea28d3d56c51315047d5c  /home/gyl/example/chat/build/asan/qt/chat_qt_ui_test\ne3b8d191cf4e1c0229957dd7dc1f2a02a60e0de75a2c14a4b25ec8d79bb0dac5  /home/gyl/example/chat/build/asan/qt/chat_qt_delegate_test\n86414df8c729d6bf114035855cf43af7cd1bd2fea33a1f6b330e6a6bcf658c3e  /home/gyl/example/chat/build/asan/qt/chat_qt_models_test\n",
+    "ubsan": "18ca331ca307076be0b314136bce3293adc001ee38e5a5a5ea72549f82c409d1  /home/gyl/example/chat/build/ubsan/qt/chat_qt\na7700c08994a9cef788a503343385b5ee718cab7af6d8902a6cba483bac7230e  /home/gyl/example/chat/build/ubsan/qt/chat_qt_ui_test\n99bd2a16382a53d1768a76161f24c5b8c06799df3ac345b2a69108fd07943977  /home/gyl/example/chat/build/ubsan/qt/chat_qt_delegate_test\nddd312f6cc9eebb4e294f275520d55b7f4343cd2155cbe1a719770e152222787  /home/gyl/example/chat/build/ubsan/qt/chat_qt_models_test\n"
+  },
+  "private_qt_runtime_pins": "a187d03f0d9c170fa4dcabc8abc89eb99d163e5b82c64c4667674c6f957c63f0  /tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Core.so.6.5.3\n9a89e05fc892b13084e73397c29a10427c9e45ad729c2ae68c4f51bfb9e545ec  /tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Gui.so.6.5.3\n3130aa61288d76303c46b27d1b91db8c456a9caef8d7111c1c61b07278e0ed46  /tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Widgets.so.6.5.3\ne93654ab378624f695e0629d22382a8e298b39141cda1132b757dfa3985afa21  /tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Svg.so.6.5.3\n11304f90d948a59d887c7d54a30b388f8a06bbf0689e9707a62b9bed872c0beb  /tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6DBus.so.6.5.3\ne55dd060aaa4cf90745001a7689e3812047f2b0c14300b3064e6636aaa3b40b8  /tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6XcbQpa.so.6.5.3\n27344b5533a430df9db8d253fb9177dd8ea7e0f28ee3958971cbbd13d87ccc94  /tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforms/libqxcb.so\n1de2e1ad2a771ec43f91efe78d841763bfff0aa42858e59f447b6e70cdfe559c  /tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforminputcontexts/libibusplatforminputcontextplugin.so\n",
+  "runtime_resolution": "ldd-* files guarded all resolved libQt6 under private prefix; native loaded-map proof maintained separately by root",
+  "scans": {
+    "compiler_warning_lines": 0,
+    "compiler_scan_files": [
+      "original-verify.log"
+    ],
+    "sanitizer_signature_lines": 0,
+    "sanitizer_scan_files": [
+      "original-verify.log",
+      "ctest-normal.original.LastTest.log",
+      "ctest-asan.original.LastTest.log",
+      "ctest-ubsan.original.LastTest.log"
+    ],
+    "scan_file_sha256": "scan-files.sha256",
+    "cmake_warning_headers": 0
+  },
+  "archive": {
+    "file": "original-verify.log.gz",
+    "original_sha256": "655f73cfa4ebf92bde2d65c41243c42d1ef41d4d37d59f1503b450eeb833fb99",
+    "decompressed_sha256": "655f73cfa4ebf92bde2d65c41243c42d1ef41d4d37d59f1503b450eeb833fb99",
+    "sha_match": true
+  },
+  "no_test_skips_or_timeout_changes": true,
+  "no_credentials_recorded_by_runner": true,
+  "source_manifest_full": [
+    {
+      "path": ".gitmodules",
+      "sha256": "72e5936b393ee5ba2bdc59eb4782f7cfd39d6e701a6bb5ab557cab1b337e72e2"
+    },
+    {
+      "path": "CMakeLists.txt",
+      "sha256": "9cadf811a4a49229da6af7193b1834120e5e2782f60356fc1ccc220e8db4e7c4"
+    },
+    {
+      "path": "client/include/chat/attachment.hpp",
+      "sha256": "82b750f350e3b38d44b7ec0a84f51ea5703ce0da866c844e3fd6db2a63f65895"
+    },
+    {
+      "path": "client/include/chat/avatar.hpp",
+      "sha256": "0ad3dd1416d4daec4dc5653769f7c35300e100b0fa3376cc978317408cd42736"
+    },
+    {
+      "path": "client/include/chat/client.hpp",
+      "sha256": "7215c66977bb40e4387dc48f8ddfd0f380d909bfb7009e44371ff4daad3242e5"
+    },
+    {
+      "path": "client/include/chat/conversation.hpp",
+      "sha256": "228f2615dadf59199eef5935101d7b3e40d25b2ff71fdac2deae6c6df55553a0"
+    },
+    {
+      "path": "client/include/chat/detail/base64.hpp",
+      "sha256": "b7ac7b4ea85c65bc1b2548692e7e5529e2f2906402a621a468144a36d03eed76"
+    },
+    {
+      "path": "client/include/chat/error.hpp",
+      "sha256": "c764259decf0bcb979e85abec19288446c3f7802add80c724c83a2d580b5fb05"
+    },
+    {
+      "path": "client/include/chat/friendship.hpp",
+      "sha256": "b5c5ed77be7649c4bf1b1938874702e545d80e0bddad1e285319c76add04efc5"
+    },
+    {
+      "path": "client/include/chat/member.hpp",
+      "sha256": "dd68fa63cdd6cd95f1ef70d4b688d37627c8527143135f2fd3880377bc168d2f"
+    },
+    {
+      "path": "client/include/chat/message.hpp",
+      "sha256": "9e6ffb975ab7d31a866b9dee5ce3565258474752215ee58d8deac97759238183"
+    },
+    {
+      "path": "client/include/chat/presence.hpp",
+      "sha256": "b90b2f32b6969fb64fd61d60aca862362d2e66f89431004f3dee7b921a55795c"
+    },
+    {
+      "path": "client/include/chat/reaction.hpp",
+      "sha256": "0453f0cf44765c700b2fa04bbf4f56ba890ecfe3ae638d39b436cb58ada01b4f"
+    },
+    {
+      "path": "client/include/chat/text.hpp",
+      "sha256": "c2f0f54cb60e48c57117b2ee727a3f04e4e5b8ac148e6aa9253b0f8948b7291b"
+    },
+    {
+      "path": "client/include/chat/typing.hpp",
+      "sha256": "079ac2ab0e494f50b37b04b9b0356e825e1cd92571ebdc11b0dae33341766bfd"
+    },
+    {
+      "path": "client/include/chat/user.hpp",
+      "sha256": "3b63ead717ee081e3506a33f97ce7bee387fdaf8272be8040c2fc1fbabf65114"
+    },
+    {
+      "path": "client/src/client.cpp",
+      "sha256": "78d53b36ada1cc735f4693eff47cfd5fecc4e1bc03c089abc32c41b1e8a12b7a"
+    },
+    {
+      "path": "client/src/websocket.cpp",
+      "sha256": "16f6e4009ed5bb19100e1a0097867766dfccc363ef64a83ba3071f2f0a940c06"
+    },
+    {
+      "path": "client/src/websocket.hpp",
+      "sha256": "f79061927c3702af7f168c67d5c41573b30688dcc3311431917b8ccf48f63f72"
+    },
+    {
+      "path": "client/tests/client_test.cpp",
+      "sha256": "aaa1b62af6f02a6bc3809b6b5b88df17aeab15227feee923e8614d8a08858a39"
+    },
+    {
+      "path": "cmake/README.md",
+      "sha256": "a41e61b01534ed325091979f07dbf3d9f2a22fb864223b8714a264e6cf440809"
+    },
+    {
+      "path": "cmake/chat_emoji_scanner.cmake",
+      "sha256": "699f574233a21a19febb7b806dbe0004586ce600240587140559d55356271a5d"
+    },
+    {
+      "path": "cmake/chat_unicode.cmake",
+      "sha256": "5f77908665edce2cb57acb51e66a6a1a4d744a677eaf6966140b32939850b532"
+    },
+    {
+      "path": "qt/CMakeLists.txt",
+      "sha256": "fd25dcdfc249077a98ff1e581b6b08ff62006b812c976fccb60853280b761cc5"
+    },
+    {
+      "path": "qt/resources/icons/activity.svg",
+      "sha256": "ba7f5e0ae2c6fdc057c40bde92b6430bc9b04ffade81e2bcec11cb7ca8563a1c"
+    },
+    {
+      "path": "qt/resources/icons/bookmark.svg",
+      "sha256": "99cc9ce9a2bce98cedb8c27e55ca0af3a34ff8380a63fd062b6de8478a0d7bba"
+    },
+    {
+      "path": "qt/resources/icons/chat.svg",
+      "sha256": "c2dbb33c0c690e0f0f496c6c47ddd6b79cdfb73a795918d7ed464964d521df5a"
+    },
+    {
+      "path": "qt/resources/icons/check.svg",
+      "sha256": "0403310fe0eecd7764bae3a26f04424b1db68b83752ff0f1f942f10fe128faeb"
+    },
+    {
+      "path": "qt/resources/icons/close.svg",
+      "sha256": "011f4f8ba45e97413caa445554c2b78237de1561256dff5798fd91746391d502"
+    },
+    {
+      "path": "qt/resources/icons/contacts.svg",
+      "sha256": "c1fba8a089013acb6833ea0f2147b73b00c9ea2862ae3b539477f6c257be639b"
+    },
+    {
+      "path": "qt/resources/icons/copy.svg",
+      "sha256": "8e6cee084de43d62865a2453a98ba8211d680a384283c066906c85c30126ffa2"
+    },
+    {
+      "path": "qt/resources/icons/groups.svg",
+      "sha256": "e71991b32a232ca8a29a05aba017645ecddc165f43140a9e587b4bfcbae358b9"
+    },
+    {
+      "path": "qt/resources/icons/send.svg",
+      "sha256": "6fb904d778a27fadd538fc4ed50355ca6aacff4341b3475acbac7d53480e92f2"
+    },
+    {
+      "path": "qt/src/attachment_dialog.cpp",
+      "sha256": "be6efe87409baef78d698dd181baa624f7a5f2d30b1f8eb6829423fbdeb3061c"
+    },
+    {
+      "path": "qt/src/attachment_dialog.hpp",
+      "sha256": "63bf3e5a5af9ca6b3dda8a218cfc1e2941c410fac1063f20749428e04bac3f8e"
+    },
+    {
+      "path": "qt/src/avatar.cpp",
+      "sha256": "69c959ff08955bbb0f83e72d6e2bc5d8fa604b2ba82731ee686c0da8c3be7c75"
+    },
+    {
+      "path": "qt/src/avatar.hpp",
+      "sha256": "da53722ed0ca7cc800c51e1877e9285779b299e8e7dc68ccb437fc408749df4c"
+    },
+    {
+      "path": "qt/src/chat_widget.cpp",
+      "sha256": "259c6dfd91ba7d07a02c561a98437e4cebb9158ba451404776d9c7ecc804a814"
+    },
+    {
+      "path": "qt/src/chat_widget.hpp",
+      "sha256": "a9bafb158509b5fc521f6b628dac9dc60d0d9b74ccca4d6849cf12708a26410f"
+    },
+    {
+      "path": "qt/src/client_bridge.cpp",
+      "sha256": "22ad0a231b372dcef5c69cccbe8e006cb195ad29b4f7df034a6f0b9385ee1b98"
+    },
+    {
+      "path": "qt/src/client_bridge.hpp",
+      "sha256": "b8919d73094d27525f9a85086541f20654275bba2742a112a2d6d08e8cda99f5"
+    },
+    {
+      "path": "qt/src/conversation_data.hpp",
+      "sha256": "0b42d54e2024cdfa7e00e8a54e2bcad08aae32df3936028c29b5972c2572f39f"
+    },
+    {
+      "path": "qt/src/conversation_delegate.cpp",
+      "sha256": "ab8f51046f72417e60707ce649d2c1b0f7491805127f44421d99603594165986"
+    },
+    {
+      "path": "qt/src/conversation_delegate.hpp",
+      "sha256": "9d7253fe79481633c5c16c129c6ca76b643a934d4294d64c038b3f7b498f8279"
+    },
+    {
+      "path": "qt/src/conversation_model.cpp",
+      "sha256": "b2230377b0a299400825fee0180e240f02423421cc760815425f3271faccefb0"
+    },
+    {
+      "path": "qt/src/conversation_model.hpp",
+      "sha256": "581655f6a9e52076d4087e9493fd5dcdeb09f9923b17c06c8cc83db868b06c7b"
+    },
+    {
+      "path": "qt/src/emoji_segments.cpp",
+      "sha256": "49383c1ad6c5c8d4d820506f36ace7c71b1c44b2fadfc305cf03789921a131f9"
+    },
+    {
+      "path": "qt/src/emoji_segments.hpp",
+      "sha256": "fcc128e734456ed4e5a5e8ef988c378c0ca89fa46add7e2cbf72647072b38e7a"
+    },
+    {
+      "path": "qt/src/emoji_text.cpp",
+      "sha256": "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621"
+    },
+    {
+      "path": "qt/src/emoji_text.hpp",
+      "sha256": "664f5ee86dbcf2b6d66f1a96c25876c85c474ceef7efaa7a98c16cc173384e38"
+    },
+    {
+      "path": "qt/src/group_dialog.cpp",
+      "sha256": "0269d86d10ca5bdd09ab540f03b05db5b5b4effae5f32adcca636dd1da7b24ab"
+    },
+    {
+      "path": "qt/src/group_dialog.hpp",
+      "sha256": "34358195aa81ad838d463d43a3913134bc6a512d505ced0ae6c350a8442fb31c"
+    },
+    {
+      "path": "qt/src/icons.cpp",
+      "sha256": "edbc370115aad8af8038e2823c31a4b73e7811267e1c43d891dcbb3ade0c8495"
+    },
+    {
+      "path": "qt/src/icons.hpp",
+      "sha256": "a4265e4d3225de28d7c3df8af725e89e8b6e1ad719d234569e86a69f076a9c1b"
+    },
+    {
+      "path": "qt/src/main.cpp",
+      "sha256": "c94299bdf7aaa4852baded3859ff28a6cab34a22b05f3eb458758a295174ee94"
+    },
+    {
+      "path": "qt/src/main_window.cpp",
+      "sha256": "894e00abd6068895cf6a16433dff6cf96457697ad0c563be6d6ddb9822a772ed"
+    },
+    {
+      "path": "qt/src/main_window.hpp",
+      "sha256": "5547c418d768d3da359946873b47297cf1c5ad6edda9501ba86ca9a8a842318f"
+    },
+    {
+      "path": "qt/src/member_data.hpp",
+      "sha256": "13f07fdc9a6e95e9b4436b8efa633aa2ed0da648bbd80a2438811a0c8a189052"
+    },
+    {
+      "path": "qt/src/message_data.hpp",
+      "sha256": "b3c7600abed28ee9670f3c28b0c7f29604c1209844e21a6b8259ff6b8a1729b1"
+    },
+    {
+      "path": "qt/src/message_delegate.cpp",
+      "sha256": "56c980410fc7bcc1c0ff419103b0712c7f63b31b5b83183a52200ae9c579b1ce"
+    },
+    {
+      "path": "qt/src/message_delegate.hpp",
+      "sha256": "59ae44e81a014ad00af82a7467834a7f7df851f190558c2e91c482d5a26eb494"
+    },
+    {
+      "path": "qt/src/message_images.cpp",
+      "sha256": "49205f5eba330812e8814a8aee2706be41a9ad86ab6fa0ba54dcd655696933e6"
+    },
+    {
+      "path": "qt/src/message_images.hpp",
+      "sha256": "5f9c51258028d2258da54f26df5003880b76fd6e70d0415f747d150c7b08172f"
+    },
+    {
+      "path": "qt/src/message_model.cpp",
+      "sha256": "91ae09e8d3f990e89e41483ea8deec47a85379ad032f51f941cfabf9cb59f606"
+    },
+    {
+      "path": "qt/src/message_model.hpp",
+      "sha256": "8d1febaf4cc582a974722550b64f0b89156f54138a9e1082bc31d6aa8b7d3b51"
+    },
+    {
+      "path": "qt/src/message_search_dialog.cpp",
+      "sha256": "0ea73632f099a1e2bf36a4d9b8f1bbca227269fc55d6a88f0fce2b0e6b6743ac"
+    },
+    {
+      "path": "qt/src/message_search_dialog.hpp",
+      "sha256": "7296830dd0fa14dfcf61e134bd0735fe21501c555ce05bcf3888ba5287301748"
+    },
+    {
+      "path": "qt/src/presence.hpp",
+      "sha256": "fb2dc68a40135ffe4f8b337f26e0c0523e2007de83e5ce72ff8e2c0915ef267f"
+    },
+    {
+      "path": "qt/src/presence_data.hpp",
+      "sha256": "5402af74e4f8f99043c7c948076b3876f8c9bd92dfcbb2ac0b566f51c527d37b"
+    },
+    {
+      "path": "qt/src/theme.cpp",
+      "sha256": "b6e531db598b1faa598d2bf78334f9958c8cbb3ca2435439293255314ee76c71"
+    },
+    {
+      "path": "qt/src/theme.hpp",
+      "sha256": "424018efa972ee93b321c8d3e76020ce25681f384143409dd6ba8504ddca512d"
+    },
+    {
+      "path": "qt/src/user_data.hpp",
+      "sha256": "8fdd19b94718e08f098f6ee23d08b0f2e501df87574ece58452db5cb7c6683b9"
+    },
+    {
+      "path": "qt/src/user_delegate.cpp",
+      "sha256": "d7a15dc6079195aada9073b4348a99ace7bc0ebcefa878858c14a99acf654293"
+    },
+    {
+      "path": "qt/src/user_delegate.hpp",
+      "sha256": "ea92268180156a00b5a8b34989d4fb6ca0e1e5d09f65f11b16ed37f92cbeb96a"
+    },
+    {
+      "path": "qt/src/user_model.cpp",
+      "sha256": "2253c4f97622d3bf597c3e669eb081d5346a7da86cd6342b9d4d90807a987ce2"
+    },
+    {
+      "path": "qt/src/user_model.hpp",
+      "sha256": "32ff238226cf9ed05f2d3f4fe365bb735c7993f62147b25be295d28e58cdb8c0"
+    },
+    {
+      "path": "qt/tests/delegate_test.cpp",
+      "sha256": "20fd4466ec1942df26087a758935168ae77e137f3be997f84eb7067ac025a8e2"
+    },
+    {
+      "path": "qt/tests/models_test.cpp",
+      "sha256": "a1c3b4fb0fe04e959ba2a636275e1264d2f909b377b3cf71059683f13a7a3fe4"
+    },
+    {
+      "path": "qt/tests/ui_test.cpp",
+      "sha256": "995179ed132925d23a299019984806f215d5235575a073cb004793cb57685234"
+    },
+    {
+      "path": "sql/001_create_users.sql",
+      "sha256": "c1c46ce272a8dff9f5f1e9c5e3f7ed569951e8bf24359d694418ffe2d615f441"
+    },
+    {
+      "path": "sql/002_create_messages.sql",
+      "sha256": "f0a83775901cbae3657fcda19ae9f5e5f83071261650d93d3308d20afc714d15"
+    },
+    {
+      "path": "sql/003_add_messages_conversation_index.sql",
+      "sha256": "4b8466e7ceef513613f50e263db9c39e9055c216c1d7c692fbcaf681da72ddb8"
+    },
+    {
+      "path": "sql/004_create_message_read_positions.sql",
+      "sha256": "a0d318a8fd5bb5d1041a5ec367bd7f61f5ace04f6ad52963501f1ba84ebcd03f"
+    },
+    {
+      "path": "sql/005_add_messages_recipient_index.sql",
+      "sha256": "0b0b2db21989aae6640d38697d40c38044c85aa77c92566a6557830e280c840b"
+    },
+    {
+      "path": "sql/006_create_contacts.sql",
+      "sha256": "b0da0f7fa8bfc5e4b78a1a16663966345552cbbaff86d7974d9e7c874917d65b"
+    },
+    {
+      "path": "sql/007_add_user_last_seen.sql",
+      "sha256": "a7c9162af53ed403c1f848ea558278837ff5e38758f0f88b36c522f09a5d02ce"
+    },
+    {
+      "path": "sql/008_create_conversations.sql",
+      "sha256": "a6fe9e116110dd4024b8d3c072700f6e97457a4bc6709558fcf6b87049b31b67"
+    },
+    {
+      "path": "sql/009_add_message_replies.sql",
+      "sha256": "b74377121247883c6c7d5bd36e16d0e6670a9fe845521c2a8189445b4edba5ab"
+    },
+    {
+      "path": "sql/010_add_message_edits.sql",
+      "sha256": "fe9bc939129796b46b405c289d7ca446158d103e417f86d9322b980d6b68bcb2"
+    },
+    {
+      "path": "sql/011_add_message_deletion.sql",
+      "sha256": "f40ad1bc3cf330768de7594df86ce4029fcbcb66611961e01c14106d7d4aebd8"
+    },
+    {
+      "path": "sql/012_create_message_attachments.sql",
+      "sha256": "762a299f43fd9939b4b8251b6198b1a5e8b066c21119ac632002d5bf6eaed6c7"
+    },
+    {
+      "path": "sql/013_add_group_roles.sql",
+      "sha256": "b2245ddb5aecbf543ea5612afbb494e0ef2053f799a9ffeb05a8b3ac2041ce78"
+    },
+    {
+      "path": "sql/014_add_member_join_position.sql",
+      "sha256": "53dd3f81fe323b2b9b9162e2512d629ea135a8be689db62392f86485e6655fba"
+    },
+    {
+      "path": "sql/015_create_user_avatars.sql",
+      "sha256": "f67c2e513107fbacb3205ced3b82620ef2af62befab10725cd1b523665936eb8"
+    },
+    {
+      "path": "sql/016_create_message_reactions.sql",
+      "sha256": "b3f04a167a36936d896745426a490da6e2c91412d8a83e996c3c40bb6e5b114b"
+    },
+    {
+      "path": "sql/017_add_conversation_mute.sql",
+      "sha256": "0556f108403498a497e880f321d6766c208a33d60b2d75fc7093f92b5c3064f1"
+    },
+    {
+      "path": "sql/018_add_conversation_pin.sql",
+      "sha256": "93ad584f2a0ff5aef9f45dd1395de1616f90fdab6ec0a64b9dfff6328b0a3468"
+    },
+    {
+      "path": "sql/019_create_message_mentions.sql",
+      "sha256": "71dd84bf9f23c2898744aea03bfb85cec2d38c5da4da529ef6dcadf70068fa0d"
+    },
+    {
+      "path": "sql/020_add_group_pinned_message.sql",
+      "sha256": "71b2e5a2f41d45a5d755b71ff20dcedad7f930038bd53e98d1beaa48c4a4d1de"
+    },
+    {
+      "path": "sql/021_add_group_announcement.sql",
+      "sha256": "7d4a8688ea3304e3fbf82615ed4f628827c17bb74ee1b864126ac171771e3afb"
+    },
+    {
+      "path": "sql/022_add_group_invite.sql",
+      "sha256": "f0f42123c49e71a6a65aca4626b637a03c3c3fb5623720c01f4f7b8162df7e55"
+    },
+    {
+      "path": "sql/023_create_group_join_requests.sql",
+      "sha256": "7dbe4d55d3a13dafb76aa835fc3c474cb2d140ae314188280f602910623db001"
+    },
+    {
+      "path": "sql/024_validate_identity_and_group_title.sql",
+      "sha256": "008a4f7fe6dff6483871b29dfe71470d4abf5cff5d18a093eb54335e80a3ba4a"
+    },
+    {
+      "path": "sql/025_validate_username_edges.sql",
+      "sha256": "6322460a924302bf03acd7c33903336f5c3cf065b5ca8980e550268ff6005880"
+    },
+    {
+      "path": "sql/026_create_friend_requests.sql",
+      "sha256": "a3f65b0816f195944119e71193bd358a9ff947cb96b17dededc1def0ae0c11ba"
+    },
+    {
+      "path": "src/attachment_request.cpp",
+      "sha256": "85efeac9b7dace5621a232b3435e2c92a7a881c38fc86fa438556b940db00058"
+    },
+    {
+      "path": "src/authenticate_request.cpp",
+      "sha256": "b6923e9ca364bc87674f9c8e3666fa24ac83eec524587b500815ba825977d98b"
+    },
+    {
+      "path": "src/avatar_image.cpp",
+      "sha256": "a0a6e9465b25ae7cca06a48d479e136518e2acb5b7d4f99ab32018290f8b23ee"
+    },
+    {
+      "path": "src/avatar_image.hpp",
+      "sha256": "42a11484ddfe940db7b5f020ef2abc89aff937e77456721b1c04f1e3a54091f5"
+    },
+    {
+      "path": "src/avatar_request.cpp",
+      "sha256": "70352e2e3ae2a36770e4e1ba791a662b58642317f379495babd882c81a13395e"
+    },
+    {
+      "path": "src/chat_session.cpp",
+      "sha256": "09470045214bfccc9ef29948985e067f28d360973b08c110d28c18e29adfc69f"
+    },
+    {
+      "path": "src/chat_session.hpp",
+      "sha256": "8853d5bbf4dabe8dfb063a5f45d29c971443213fefe20d3e5745adc3a9bc940e"
+    },
+    {
+      "path": "src/contact_request.cpp",
+      "sha256": "a34e7bffb3b4702835b772b28a4f1777836be97aea43ca01f16de07a7ee1de58"
+    },
+    {
+      "path": "src/conversation_preference_request.cpp",
+      "sha256": "e7cf4f9c292e9780ca5ba1b9686659c938bb045bf51060098c64e80a4f64df02"
+    },
+    {
+      "path": "src/conversation_request.cpp",
+      "sha256": "ee49a82da9c82f9c0798daae70e8bb07f0334f44eee417bfb5d2a707b6a9bec1"
+    },
+    {
+      "path": "src/echo_request.cpp",
+      "sha256": "f2f6a7081ee355b37f729abffed90d4b9e7bbcf98025561c4d892cbe09c7b957"
+    },
+    {
+      "path": "src/get_contacts_request.cpp",
+      "sha256": "12bbf9da5f719db342f8086c29aa418b19540563a29bd1f18f3f7ce6b8770ae6"
+    },
+    {
+      "path": "src/get_conversations_request.cpp",
+      "sha256": "8383099f5540879c6ef1326eeab3e45f8e71e03850315590c288ac3030be68b1"
+    },
+    {
+      "path": "src/get_messages_request.cpp",
+      "sha256": "57eb29eadb55369af9ed1e624d9f5668671db1d41e4df561277530ea57be645c"
+    },
+    {
+      "path": "src/get_presence_request.cpp",
+      "sha256": "ea56670a0400e2b75dffd84a8f82d3a12f961f1df27bae45ca41f6dec631cbf5"
+    },
+    {
+      "path": "src/get_unread_count_request.cpp",
+      "sha256": "151bc77400389b09880acbe831565ac536a9dfc28ba5f60eb2e902886508d398"
+    },
+    {
+      "path": "src/group_invite_request.cpp",
+      "sha256": "18129f2d50676d631a3caa716b91b7da234b95a687cc3a1bc40bdc1cebc833df"
+    },
+    {
+      "path": "src/group_join_request.cpp",
+      "sha256": "6a40ea0b178c3c44abb0c879d18ce007643af914fd0fd7ecc96ad07172563758"
+    },
+    {
+      "path": "src/group_management_request.cpp",
+      "sha256": "4fa092d2f56e4b6b9387be28afbd962705e4d4cb8539d92c212842cc25aaee5f"
+    },
+    {
+      "path": "src/json_rpc.cpp",
+      "sha256": "6cc3f37b669b02b83f35dc6251f90b59a3399eca3e24d40edb3fbbb8014180a4"
+    },
+    {
+      "path": "src/json_rpc.hpp",
+      "sha256": "b0a21f8143014c676ad3be696d66351561a1b7f032e1291bf6a010fa3158487e"
+    },
+    {
+      "path": "src/main.cpp",
+      "sha256": "bc0eb7dc5a81a31190fb35cddda4b803bbaf4401458b5ba6bd183379885a31a9"
+    },
+    {
+      "path": "src/mark_read_request.cpp",
+      "sha256": "5a9418a06dfb19952c432991b5e90ca4cc589a047a3e6c7888a33a36cdc27615"
+    },
+    {
+      "path": "src/message_mentions.cpp",
+      "sha256": "f656f308bcbd481149c826fb1a522e4308ef44cc7186d149268ae4255b173783"
+    },
+    {
+      "path": "src/message_mentions.hpp",
+      "sha256": "d26821fbe10ea6b2857a80b2da04a800201dc9515b3a8d96ad30edc12f4bda3b"
+    },
+    {
+      "path": "src/message_payload.hpp",
+      "sha256": "cda84a4977fafb5c5078215015a179e9cfb0b643038a030b6c5b6e3c97d80a81"
+    },
+    {
+      "path": "src/online_users.cpp",
+      "sha256": "1f1a45237cc64576d98ca57316f6b371d57f7d3803eed3a75156bcc7e5e353b4"
+    },
+    {
+      "path": "src/online_users.hpp",
+      "sha256": "ae78f941dd83d5e29ba62bb0704eb2e3836fdb4a07d2e65a879ac503cd4e631b"
+    },
+    {
+      "path": "src/pg_connection.cpp",
+      "sha256": "4efb5936900419a55eaa2f1636870fb842bcb2ce4bcd94f0b87226e64d9ccfd2"
+    },
+    {
+      "path": "src/pg_connection.hpp",
+      "sha256": "c4037a52cbf8db33855452993bc1b7c74a4d0351bceca7b835fcecdc91a81ba9"
+    },
+    {
+      "path": "src/pg_connection_pool.cpp",
+      "sha256": "bbc6f98e4a0549fdad28fec233452f1edf9a7f525c55c515df35a4db9abce3c8"
+    },
+    {
+      "path": "src/pg_connection_pool.hpp",
+      "sha256": "ed0d501ce227a54f45bc32a53fcffeea60ed4b629341ce4652b2bff44af28a1c"
+    },
+    {
+      "path": "src/reaction_request.cpp",
+      "sha256": "5b4142fe3601b14ef8df0aa51d221226256ea354da76616f0b3f6daa30bf4b72"
+    },
+    {
+      "path": "src/register_request.cpp",
+      "sha256": "0130d87d10d94759613f2dafcdb4b5e7cd9c295613855cb4db7fa8ad1e858072"
+    },
+    {
+      "path": "src/search_users_request.cpp",
+      "sha256": "7475a2aa34088f7f81504902d4ead4e5c9d05f8dbeae8dc93272a4b9fe7759df"
+    },
+    {
+      "path": "src/send_message_request.cpp",
+      "sha256": "455f8d6f3ada8b4707fe6e7bcaedd58eadca442eb741e7524923a74c374845ea"
+    },
+    {
+      "path": "src/server.cpp",
+      "sha256": "e2251da690a65ebb67246e08ef75ae65cf2829fb030d8a97aeda06ffad7047c2"
+    },
+    {
+      "path": "src/server.hpp",
+      "sha256": "feed3c7c2b16411a2a764af637719d24d8c0e8d5577b5e179abe81527aef659e"
+    },
+    {
+      "path": "src/typing_request.cpp",
+      "sha256": "4dc9b968e5a937b363b134e4c4902e54db36015da9b24e9542eec427256c1a7c"
+    },
+    {
+      "path": "src/update_message_request.cpp",
+      "sha256": "f6d6d2d79df81e5934b64269a9c0b6a073eb700c4f3ecc688d2f185bb6ade27f"
+    },
+    {
+      "path": "src/websocket.cpp",
+      "sha256": "bb9a4f5c202ef1c5f4b2bfbcb088e02c92badb7f540e33faecbe0b99078aef1e"
+    },
+    {
+      "path": "src/websocket.hpp",
+      "sha256": "71d3aac96fd90ca1342cfe10c1eb6e45e250ce724de6c41c92a43ca233b1cf7f"
+    },
+    {
+      "path": "tests/avatar_fixture.hpp",
+      "sha256": "bc78ca791e7ddf071353eb6088b2400aec650c6897be38cd9194999604dc4b57"
+    },
+    {
+      "path": "tests/avatar_image_test.cpp",
+      "sha256": "78652b909ba0d7d5cf0228ee85d78027aceed30512ad0cce920fb549ec993525"
+    },
+    {
+      "path": "tests/bcrypt_test.cpp",
+      "sha256": "b7e640aef03f2fa08bef97f8049dd2fdda6610a74f15df59b046101b7d92c31b"
+    },
+    {
+      "path": "tests/conversation_test.cpp",
+      "sha256": "4333ef1ca51809e02bb38c285560e84404eef5c75cb27053b2ed6f58df9b8567"
+    },
+    {
+      "path": "tests/corosio_timeout_test.cpp",
+      "sha256": "96d75ac44e82b4db6c7d003120f8722592887e0e547c2fb2b2560272643cb4c6"
+    },
+    {
+      "path": "tests/http_server_test.cpp",
+      "sha256": "738070ceb568fdc623a0e1e9370b8fda362ec2cc3fd339f2b61b193086ac83f0"
+    },
+    {
+      "path": "tests/migration_test.cpp",
+      "sha256": "606218065ddb19d8d1c8defc6a485b0d30939f1d0480a9391ac9af8a6ba0dac0"
+    },
+    {
+      "path": "tests/online_users_test.cpp",
+      "sha256": "f3a84cf5fe4fcd86433bc63a87906888c627ef2f460bf3b6e053970d8f48c002"
+    },
+    {
+      "path": "tests/pg_connection_test.cpp",
+      "sha256": "70713b156fc904925f73a36cfc7a4c6fb4d1b539229f6ff942d31ad350e8fdb8"
+    },
+    {
+      "path": "tests/qt_navigation_steps.py",
+      "sha256": "167d061185aa4d3d9a66d54e376236a11f8e1cefdd6b40a4cea8729884503a97"
+    },
+    {
+      "path": "tests/qt_x11_smoke.py",
+      "sha256": "afd8a595fa6f0d39ab8655271f6f165d2a5529b67feee86264fc69c188309a0b"
+    },
+    {
+      "path": "tests/server_test.cpp",
+      "sha256": "aefc22b864be0ad6559847f2c217d9c582bbfa0aefdbcc0f26d462f2e08f2bc4"
+    },
+    {
+      "path": "tests/simdjson_reflection_test.cpp",
+      "sha256": "09b77182837c43abc3df36ab347e40ff07bfa6856687bfcc1ba7d4043991a0e2"
+    },
+    {
+      "path": "tests/tui_100_member_smoke.py",
+      "sha256": "56b51c8604734934e6be6d9f8ae63a34a7ee2af9785becda10ef979659de5c14"
+    },
+    {
+      "path": "tests/tui_100_member_smoke.sh",
+      "sha256": "310de03e8ad09be4762b31912673570ecc0897761385dd2ebb3a82ae0ed89dcb"
+    },
+    {
+      "path": "tests/tui_group_edges_smoke.py",
+      "sha256": "a7c952536f3d8f796056ab044880ede22aadb83491df5dcf8230a5426711eb58"
+    },
+    {
+      "path": "tests/tui_lifecycle_smoke.py",
+      "sha256": "226cd665bf4052ef2a39ce653d7112436549b3e5085c45155ff59a51b33db595"
+    },
+    {
+      "path": "tests/tui_navigation_smoke.py",
+      "sha256": "c7300a6f3fb96bc93ae05db8d7886ca162e9b63a54ebcf072bc4c8e4db2bd5b4"
+    },
+    {
+      "path": "tests/tui_scale_fixture.cpp",
+      "sha256": "16d76fa0109125708462e45e124bd80ae3404df53960581366b0c5ecdca5bb57"
+    },
+    {
+      "path": "tests/tui_scale_observer.py",
+      "sha256": "c3c38fc83bbb2131bcab5d97d44193c311e6bc9554339bc2c338151264483ef3"
+    },
+    {
+      "path": "tests/verify.sh",
+      "sha256": "38d3408e537d67182689f59d452e9d8e5bf164f38a9b5baaa93fbd8b36eb5f29"
+    },
+    {
+      "path": "tests/websocket_test.cpp",
+      "sha256": "efd85fbc0a2919dffebfc37fcdce30a05d362fbd366dc9f3ad953a8e56e08d56"
+    },
+    {
+      "path": "tui/CMakeLists.txt",
+      "sha256": "89bf6a5583f2c1fb93cbc18d36275512fa25c03bfca094cd6f8b36e0f43da306"
+    },
+    {
+      "path": "tui/cmake/README.md",
+      "sha256": "f6e7a738652b4d29a792f30ad5ece913bd6b72210aa16468b232710bf4607916"
+    },
+    {
+      "path": "tui/cmake/ftxui-7.0.3-grapheme.patch",
+      "sha256": "1e4bf334b12a9d4cd0876f68a0c096717f6ee8070e113f01fdc73b1e6595e56d"
+    },
+    {
+      "path": "tui/cmake/ftxui_unicode.cmake",
+      "sha256": "8828fe88987a4bae9d3cde8de32fcdb8e66774412784f4471b66c4be8e75a122"
+    },
+    {
+      "path": "tui/cmake/generate_emoji_properties.py",
+      "sha256": "05862f8fe889199211a7876027934d4af24daeaeec9cc9e34b4ad459752dc068"
+    },
+    {
+      "path": "tui/cmake/unicode/.gitattributes",
+      "sha256": "e639af6c65aa3e720c6f9c93d420a76b4bae226bd79a5edfdf22d65c2a687fcc"
+    },
+    {
+      "path": "tui/cmake/unicode/UNICODE-LICENSE.txt",
+      "sha256": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+    },
+    {
+      "path": "tui/cmake/unicode/emoji-data-18.0.0.txt",
+      "sha256": "80d00f8e616a0ef27fd6b8de3b758c06383b5d917e2977709578e68baf733bf1"
+    },
+    {
+      "path": "tui/cmake/unicode/emoji_properties_18.inc",
+      "sha256": "b200a53eeae768e7e67a2d465936b0cb0e859618cc877b99dac79d454e2e6937"
+    },
+    {
+      "path": "tui/cmake/utf8proc-LICENSE.md",
+      "sha256": "3b510150d34f248a221bb88e1d811238d6c6c18b51231822c42974c39bb07256"
+    },
+    {
+      "path": "tui/src/app.cpp",
+      "sha256": "3cfff26307318d1badc870554800cddafe4158866bccbd800db17b66be44db7a"
+    },
+    {
+      "path": "tui/src/app.hpp",
+      "sha256": "89b9f37259e60109284ff5511322d794fac291f158f3ac5a07cfc53603f3a860"
+    },
+    {
+      "path": "tui/src/deadline.hpp",
+      "sha256": "dbe2a40c1a61b75032843ab82fc8dd898f0d0f8ecbfe6cde15fbf528274584f2"
+    },
+    {
+      "path": "tui/src/file_io.hpp",
+      "sha256": "36628265415a0fbae479eec5c76f122362a7a61de2ee9b32cfa94cf41ad5ef7d"
+    },
+    {
+      "path": "tui/src/groups.cpp",
+      "sha256": "3a6c19da31f784377d64112063783f2197a9ea08ff2ded783a245af60ce89c99"
+    },
+    {
+      "path": "tui/src/inbox.hpp",
+      "sha256": "53a0dbb45136c8f1b783b948373658b2897d976944eaff1353624150ec5d1bba"
+    },
+    {
+      "path": "tui/src/main.cpp",
+      "sha256": "05ed5edddc04b9590edeb11db6261a0e0440e32ea54af98a65b6d9afbd79b620"
+    },
+    {
+      "path": "tui/src/messages.cpp",
+      "sha256": "f6c414041e8b17f7f59fad4c29589e3bf7bd45f30fc365b555f9c0c8fd164340"
+    },
+    {
+      "path": "tui/src/profile.cpp",
+      "sha256": "a464531debbf5b4c618d712276fa5d526ba70599cd7a9f26aa490e2003481990"
+    },
+    {
+      "path": "tui/src/state.cpp",
+      "sha256": "d8b99d807e119b410bb5a0df2d7c8e84d75ebb326cedf4d9526665038c3fa5ab"
+    },
+    {
+      "path": "tui/src/state.hpp",
+      "sha256": "32e853f0bce108fd5425351a2f882db9c4e11d074f6e742e33caa347647d531e"
+    },
+    {
+      "path": "tui/src/ui.cpp",
+      "sha256": "b8f06e5b273f7f5df04950e9f9e4fa4c4d041fe1b58995071a81ec2491f3c179"
+    },
+    {
+      "path": "tui/src/ui.hpp",
+      "sha256": "4fdeb7385b98761ae916db52d23f0d3079c9e90d0f0eb8391409fdfd00a4e62e"
+    },
+    {
+      "path": "tui/tests/data/GraphemeBreakTest-18.0.0.txt",
+      "sha256": "b0cf047ee94485bbdc846de2b902f5f8a815f6b674f9d04223cddadd91c9df31"
+    },
+    {
+      "path": "tui/tests/data/UNICODE-LICENSE.txt",
+      "sha256": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+    },
+    {
+      "path": "tui/tests/display_test.cpp",
+      "sha256": "77ea73ba0bb37ce358fe856b736beef65e4c6062c2d6326ff53fd75024bb7055"
+    },
+    {
+      "path": "tui/tests/file_io_test.cpp",
+      "sha256": "1eab5a99f5589a2fe703ade676cc4a55cf8237cead9888babef5abc3c4473bf9"
+    },
+    {
+      "path": "tui/tests/inbox_test.cpp",
+      "sha256": "3843e07fd39b2d662da3fceb549f20470c85b299d3f03bbb16fddbd471ed0709"
+    },
+    {
+      "path": "tui/tests/render_test.cpp",
+      "sha256": "257d1c762d02b3fe4c3b7b286ddfe34c2457b6d2c6121f9b678cd28008bb19fb"
+    },
+    {
+      "path": "tui/tests/span_test.cpp",
+      "sha256": "5edc4a8110b81cfed7f2c8f27438e215ad56084ae4af51c4718fbfca309409f3"
+    },
+    {
+      "path": "tui/tests/state_test.cpp",
+      "sha256": "1b91229002314f1964e402b7516d997212afee3b368e4ba3a4d2d927b6728fe5"
+    },
+    {
+      "path": "tui/tests/unicode_test.cpp",
+      "sha256": "403e996d61c07de4bd39fb5d0ad217bf3908b7f2babe2e0b2e4d714e1c8cb299"
+    },
+    {
+      "path": "/home/gyl/example/chat/build/_deps/utf8proc-src/utf8proc.h",
+      "sha256": "08da85e820efaa3613500946c26b2dc427a07f76001ed7c16bc90f298b814c35"
+    },
+    {
+      "path": "/home/gyl/example/chat/build/_deps/utf8proc-src/utf8proc.c",
+      "sha256": "f38438eb986ba7eedad0f2e820a70fae1aaf05197364ba0381a5e84775099ef8"
+    },
+    {
+      "path": "/home/gyl/example/chat/build/_deps/utf8proc-src/utf8proc_data.c",
+      "sha256": "b4911d4162d216afa612317a9b981851e15d672f4d93b25f3a1eb986f8c0aedb"
+    },
+    {
+      "path": "/home/gyl/example/chat/build/_deps/chat_emoji_segmenter-src/emoji_presentation_scanner.c",
+      "sha256": "e41071624cf91187ae26396b3d2b9adda648c5afb4519ff562e7aeb9415c157d"
+    }
+  ],
+  "source_head_before": "1e3c035b6d7acd22f1f3fa5681e2be9a19aea833",
+  "source_status_before": " M qt/src/group_dialog.cpp\n M qt/tests/ui_test.cpp\n?? docs/images/experience/tui-default-colors-proof.json\n?? docs/images/experience/tui-default-colors/\n",
+  "submodules": {
+    "before": " b2dd252cbcac816658c89fd87b5fa02390202d43 third/capy (heads/develop)\n 54e28fd40cf7ee6cc18365dd81ad5615c38908cc third/corosio (heads/develop)\n f921fad208912747c17d129a8ef75ec7624b6eec third/ftxui (v7.0.3)\n 0c854fc2790968cdf3f117a47b4b90d6a3a1300e third/http (heads/develop)\n 8c512a3227ad322bfcb43c57c71fac67a83b5b8e third/simdjson (v3.1.0-856-g8c512a322)\n 79524ddd08a4ec981b7fea76afd08ee05f83755d third/spdlog (v1.2.1-2548-g79524ddd)\n 0e7d106ff89ad6638090fd811a9b2e4c5dda8d40 third/wslay (release-1.1.1-28-g0e7d106)\n",
+    "after": " b2dd252cbcac816658c89fd87b5fa02390202d43 third/capy (heads/develop)\n 54e28fd40cf7ee6cc18365dd81ad5615c38908cc third/corosio (heads/develop)\n f921fad208912747c17d129a8ef75ec7624b6eec third/ftxui (v7.0.3)\n 0c854fc2790968cdf3f117a47b4b90d6a3a1300e third/http (heads/develop)\n 8c512a3227ad322bfcb43c57c71fac67a83b5b8e third/simdjson (v3.1.0-856-g8c512a322)\n 79524ddd08a4ec981b7fea76afd08ee05f83755d third/spdlog (v1.2.1-2548-g79524ddd)\n 0e7d106ff89ad6638090fd811a9b2e4c5dda8d40 third/wslay (release-1.1.1-28-g0e7d106)\n",
+    "compare_exit": 0
+  },
+  "build_scope": "The unchanged original tests/verify.sh reconfigured, built and ran all tests in the existing independent normal/ASan/UBSan directories. This is a new full gate execution, not a claim that all dependencies were rebuilt from empty directories.",
+  "tui_current_binary_and_generated_inputs": {
+    "normal": {
+      "chat_tui": "dd1a6baab6d19759f0d8cf5e88133130eecf45412bed90360728476e926a11a0",
+      "tui/chat_tui_render_test": "e03a69dad97af13f5da498e22abfd4c372b3dcbc5bcf81322a19a03cd92d179c",
+      "tui/ftxui-patched/src/ftxui/component/app.cpp": "77099ce01fbf350b0ef82817dea97caa4389054975e143f1346878622b61280e"
+    },
+    "asan": {
+      "chat_tui": "93b5cb5993f4d3d7bd494b1f29d749f8a3657c67b54c642181ce9819afc601b7",
+      "tui/chat_tui_render_test": "fa43c295541aa8f1af79ec74a8ee3f644c4c8244a4624260a293b12f606f0adb",
+      "tui/ftxui-patched/src/ftxui/component/app.cpp": "77099ce01fbf350b0ef82817dea97caa4389054975e143f1346878622b61280e"
+    },
+    "ubsan": {
+      "chat_tui": "19b6021e5ab05097f55ecda968643ed3b9987ad56c430fbac125974b95823dec",
+      "tui/chat_tui_render_test": "8d2ba1eb9634ddd2197950288cb1a71b6fbfc7e56d0a27326c7786dbc7171585",
+      "tui/ftxui-patched/src/ftxui/component/app.cpp": "77099ce01fbf350b0ef82817dea97caa4389054975e143f1346878622b61280e"
+    }
+  },
+  "configurations": {
+    "normal": {
+      "prime_actual_exit": 0,
+      "prime_flags": "CHAT_BUILD_QT_CLIENT:BOOL=ON\nCHAT_BUILD_TUI_CLIENT:BOOL=ON\nCMAKE_COMPILE_WARNING_AS_ERROR:UNINITIALIZED=ON\nCMAKE_CXX_FLAGS:STRING=\nCMAKE_CXX_FLAGS_DEBUG:STRING=-g\nCMAKE_C_FLAGS:STRING=\nCMAKE_C_FLAGS_DEBUG:STRING=-g\nCMAKE_EXE_LINKER_FLAGS:STRING=\nFETCHCONTENT_FULLY_DISCONNECTED:BOOL=ON\n",
+      "qt_package_paths": "Qt6CoreTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6CoreTools\nQt6Core_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Core\nQt6DBusTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6DBusTools\nQt6DBus_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6DBus\nQt6GuiTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6GuiTools\nQt6Gui_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Gui\nQt6Svg_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Svg\nQt6WidgetsTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6WidgetsTools\nQt6Widgets_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Widgets\nQt6_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6\n",
+      "generated_app_compile_command": "/usr/bin/c++ -DIS_FTXUI_COMPONENT_IMPL=1 -I/home/gyl/example/chat/build/tui/ftxui-patched/src -I/home/gyl/example/chat/build/tui/ftxui-patched/include -I/home/gyl/example/chat/third/ftxui/src -isystem /home/gyl/example/chat/third/ftxui/include -g -std=c++26 -fPIC -Wall -Wextra -Wpedantic -Werror -o CMakeFiles/component.dir/__/__/tui/ftxui-patched/src/ftxui/component/app.cpp.o -c /home/gyl/example/chat/build/tui/ftxui-patched/src/ftxui/component/app.cpp"
+    },
+    "asan": {
+      "prime_actual_exit": 0,
+      "prime_flags": "CHAT_BUILD_QT_CLIENT:BOOL=ON\nCHAT_BUILD_TUI_CLIENT:BOOL=ON\nCMAKE_COMPILE_WARNING_AS_ERROR:UNINITIALIZED=ON\nCMAKE_CXX_FLAGS:STRING=-fsanitize=address -fno-omit-frame-pointer\nCMAKE_CXX_FLAGS_DEBUG:STRING=-g1\nCMAKE_C_FLAGS:STRING=-fsanitize=address -fno-omit-frame-pointer\nCMAKE_C_FLAGS_DEBUG:STRING=-g1\nCMAKE_EXE_LINKER_FLAGS:STRING=-fsanitize=address\nFETCHCONTENT_FULLY_DISCONNECTED:BOOL=ON\n",
+      "qt_package_paths": "Qt6CoreTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6CoreTools\nQt6Core_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Core\nQt6DBusTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6DBusTools\nQt6DBus_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6DBus\nQt6GuiTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6GuiTools\nQt6Gui_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Gui\nQt6Svg_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Svg\nQt6WidgetsTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6WidgetsTools\nQt6Widgets_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Widgets\nQt6_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6\n",
+      "generated_app_compile_command": "/usr/bin/c++ -DIS_FTXUI_COMPONENT_IMPL=1 -I/home/gyl/example/chat/build/asan/tui/ftxui-patched/src -I/home/gyl/example/chat/build/asan/tui/ftxui-patched/include -I/home/gyl/example/chat/third/ftxui/src -isystem /home/gyl/example/chat/third/ftxui/include -fsanitize=address -fno-omit-frame-pointer -g1 -std=c++26 -fPIC -Wall -Wextra -Wpedantic -Werror -o CMakeFiles/component.dir/__/__/tui/ftxui-patched/src/ftxui/component/app.cpp.o -c /home/gyl/example/chat/build/asan/tui/ftxui-patched/src/ftxui/component/app.cpp"
+    },
+    "ubsan": {
+      "prime_actual_exit": 0,
+      "prime_flags": "CHAT_BUILD_QT_CLIENT:BOOL=ON\nCHAT_BUILD_TUI_CLIENT:BOOL=ON\nCMAKE_COMPILE_WARNING_AS_ERROR:UNINITIALIZED=ON\nCMAKE_CXX_FLAGS:STRING=-fsanitize=undefined -fno-sanitize-recover=all -fno-omit-frame-pointer\nCMAKE_CXX_FLAGS_DEBUG:STRING=-g1\nCMAKE_C_FLAGS:STRING=-fsanitize=undefined -fno-sanitize-recover=all -fno-omit-frame-pointer\nCMAKE_C_FLAGS_DEBUG:STRING=-g1\nCMAKE_EXE_LINKER_FLAGS:STRING=-fsanitize=undefined\nFETCHCONTENT_FULLY_DISCONNECTED:BOOL=ON\n",
+      "qt_package_paths": "Qt6CoreTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6CoreTools\nQt6Core_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Core\nQt6DBusTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6DBusTools\nQt6DBus_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6DBus\nQt6GuiTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6GuiTools\nQt6Gui_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Gui\nQt6Svg_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Svg\nQt6WidgetsTools_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6WidgetsTools\nQt6Widgets_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6Widgets\nQt6_DIR:PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/cmake/Qt6\n",
+      "generated_app_compile_command": "/usr/bin/c++ -DIS_FTXUI_COMPONENT_IMPL=1 -I/home/gyl/example/chat/build/ubsan/tui/ftxui-patched/src -I/home/gyl/example/chat/build/ubsan/tui/ftxui-patched/include -I/home/gyl/example/chat/third/ftxui/src -isystem /home/gyl/example/chat/third/ftxui/include -fsanitize=undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -g1 -std=c++26 -fPIC -Wall -Wextra -Wpedantic -Werror -o CMakeFiles/component.dir/__/__/tui/ftxui-patched/src/ftxui/component/app.cpp.o -c /home/gyl/example/chat/build/ubsan/tui/ftxui-patched/src/ftxui/component/app.cpp"
+    }
+  },
+  "third_unchanged": true,
+  "original_artifacts": {
+    "private-qt-runtime.sha256": "9c4b65d01e76c01bb938e4b6087de03acc0749322807731b36778e9389b2fa53",
+    "ldd-asan-chat_qt.txt": "dae05eae5f6114a15a94bf5b3d2a81d12f346a3f2f092a79bc96f799010ae11d",
+    "verify-script.before.sha256": "0764d7ca13ad5597ac44af836477ce5f3817a544c14a43e0e3e813967bffdc69",
+    "source-head.before.txt": "be11a7aa711e17325a8644ed06d0ea306379d90bca5eff54bd458e87dace693c",
+    "prime-ubsan.log": "81c6f4283f558af88651973730af8855e91bc322fce5c8e7ae44f9dde5193feb",
+    "prime-asan.exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "prime-asan-flags.txt": "e259a76e8126f125453c58fab483cb0498bb9148548dea46cafc4391fb9a7787",
+    "original-verify.decompressed.sha256": "4ab63ba1f96a0b404987e4f3e7ef825e734da90f64d24b9815da841007623223",
+    "source.before.sha256": "d9ed5349dde5f3eb94df272adaad08eed08cb4c6fa6d6fba7ec871f8da0f63ac",
+    "sanitizer.matches.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "scan-files.sha256": "6ffe5c7b59a2b43c3ea45470b8ce65c36020cc0683ad7bb41fb2a9cc69e153b7",
+    "prime-ubsan.exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "ldd-asan-chat_qt_ui_test.txt": "24eeac190b861d3c3dea2c266db32d0b838443c4b78aca25227a6c7ed0c1a076",
+    "source-status.before.txt": "677c8e6da440858280ebbdbb6cc14caca1ef0156db8c7b85714a7039217a5eb7",
+    "original-verify.log.gz": "a1ac3f027b51e2af75496f3fbb3c61a1ae1985bf4e00c22bf5276c761ad7899b",
+    "ldd-normal-chat_qt_ui_test.txt": "8156474088d93158348cef5b2b6b43f1ba48b13a40f36b97d11bcf62c4700d86",
+    "ctest-results-with-timeouts.json": "630ed93d023784ea6c406284e681b66ca6d1926497d6acd77c9286e7af8f6a69",
+    "binaries-normal.sha256": "c82b203dd392182c070b4e4206567a846d5c9165f03491041040e82d6a51bf05",
+    "prime-ubsan-qt-paths.txt": "a2cb5949f3cf09f4964a047f4694891a7043bfd65af5f96019c23f9a836115d3",
+    "verify-script.after.check": "07b94ee9a6cd718ee784c280a36937f552e9cad0e586d3665295e5ae6095a15e",
+    "prime-asan.log": "3f7a305fbfc4fd300582d49452b9eee8bd0e2d0355e3b637c53e6593a947352b",
+    "submodules.after.txt": "ad5399a0fdb88d0d2cbaa1903ed5a3d5c92b9b18c79c2c1f6dcee98d8082f5a0",
+    "protected-processes.after.exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "ldd-ubsan-chat_qt.txt": "89468be5ea09e3dff688b801f2cbb23834a7ad05a605b4742ee6aef3b51db89d",
+    "ctest-asan.original.LastTest.log": "7db68671f2a6065a26d638fedf4724c486a611d5b2c06b6ada56d8b9e5005428",
+    "runner.exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "protected-processes.after.txt": "38d1a90e60feef29bc0e322e0656acba6627d2458e7be038432c51fc5f261ede",
+    "ldd-ubsan-chat_qt_models_test.txt": "fe5fb3de2fa35e72842053ef99e996c81c63387f1c7c4c7e11266248151af843",
+    "ldd-asan-chat_qt_models_test.txt": "edd0cc1ee275a4533c56af9dccfdcfd052fbb5574408507a0ae26813f003f605",
+    "ldd-asan-chat_qt_delegate_test.txt": "b21fbde11d2b2d9eb8045ec8223143c5fbc897deea3e569d79fa16009d55fce7",
+    "original-verify.exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "original-verify.log.sha256": "3b8dc5db6cc695a390da190c6e31a8b027ac8a67650e97ff36fcc2a95adcefd2",
+    "prime-normal.exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "submodules.after.exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "submodules.before.txt": "ad5399a0fdb88d0d2cbaa1903ed5a3d5c92b9b18c79c2c1f6dcee98d8082f5a0",
+    "ctest-normal.original.LastTest.log": "de143c63d688c63e06b0fd18dc6b93dd014baa1e6c1f3176066d10648070e001",
+    "runner.log": "5ae2bee57f7d4a7f9d892f3a8b80976eaab5fa9e55e35682724e78aeb58b9b20",
+    "ldd-normal-chat_qt_models_test.txt": "f0d4513753fc448da4f8d85c086cfda3cdb374c27a0fe24194c2797be691aa7f",
+    "prime-normal-flags.txt": "0b6ecb3474584bdfb99c40b5e14e490a9327ed60f05c79a32a09d217c3610794",
+    "original-verify.log": "655f73cfa4ebf92bde2d65c41243c42d1ef41d4d37d59f1503b450eeb833fb99",
+    "compiler-warnings.matches.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "protected-processes.before.txt": "38d1a90e60feef29bc0e322e0656acba6627d2458e7be038432c51fc5f261ede",
+    "prime-normal.log": "de617c2acfd1de722145b9c18ae6149fc1659594e1e73464fc088822d23e747a",
+    "cmake-warning-headers.matches.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "prime-ubsan-flags.txt": "7868137b5db4891be9daf97e28023355f3d687f4d11d56d76ef9399b8ca3fe91",
+    "ldd-ubsan-chat_qt_ui_test.txt": "e142c942d7b19fe124dde8775e2c1402b6b83cec5091ae698626dcd97aa7ee09",
+    "binaries-asan.sha256": "cb429c7802dee162790dc167f832e6dcd6919d797ec84824996302c1e4798dfc",
+    "binaries-ubsan.sha256": "90a003a27008def8e7075b0cb88f80bce5a03f23265eb5aa962bde66c82b209c",
+    "ldd-normal-chat_qt.txt": "4a800df197d938919e79455a52d73ceb6790a3e33eb94cb6c8b0130629ac1ef7",
+    "ctest-ubsan.original.LastTest.log": "01fb84572b9345a3544246054d34a5175a3640f63bd214633c23c06dbdab460f",
+    "source.after.exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "prime-normal-qt-paths.txt": "a2cb5949f3cf09f4964a047f4694891a7043bfd65af5f96019c23f9a836115d3",
+    "ldd-ubsan-chat_qt_delegate_test.txt": "e42ee69a3f2ba867a6c6e5f5be2d40546ee10ceb31a4134cd1ba5b09e799ba7f",
+    "prime-asan-qt-paths.txt": "a2cb5949f3cf09f4964a047f4694891a7043bfd65af5f96019c23f9a836115d3",
+    "source.after.check": "61ae5c3bda430b1d45c7c7ae835914a6e4d8fa117192805217e6d518be69631e",
+    "verify-script.after.exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "ldd-normal-chat_qt_delegate_test.txt": "79a0b26d703be87dd3a536362e2c46a8ba16947cf9262b207df4a0b66d511ee6"
+  },
+  "evidence_limits": "A full engineering gate does not establish all-page visual quality, real system IME, terminal compatibility or the required >=92 score and two full fresh reviews. Native evidence is archived independently. No timeout was relaxed."
+}

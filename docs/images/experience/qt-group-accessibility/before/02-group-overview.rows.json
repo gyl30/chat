@@ -1,0 +1,38 @@
+[
+  {
+    "name": "导航A_qtx11_191756",
+    "description": "",
+    "role": "list item",
+    "rect": [
+      360,
+      280,
+      440,
+      62
+    ],
+    "showing": true
+  },
+  {
+    "name": "历史B_qtx11_191756",
+    "description": "",
+    "role": "list item",
+    "rect": [
+      360,
+      342,
+      440,
+      62
+    ],
+    "showing": true
+  },
+  {
+    "name": "好友C_qtx11_191756",
+    "description": "",
+    "role": "list item",
+    "rect": [
+      360,
+      404,
+      440,
+      62
+    ],
+    "showing": true
+  }
+]

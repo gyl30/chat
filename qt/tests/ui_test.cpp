@@ -538,6 +538,48 @@ void check_group_detail_layout()
     avatars.receive(3, {1, true}, bytes);
     QApplication::processEvents();
     auto* preview = dialog.findChild<QListWidget*>("groupMemberPreview");
+    auto* member_rows = dialog.findChild<QListWidget*>("groupMembersList");
+    auto check_accessible_rows = [](QListWidget* list, QStringList const& expected, bool native_snapshot = false) {
+        QApplication::processEvents();
+        // An offscreen bridge is inactive and does not receive model reset events.
+        // Read actual cells at initialization; later snapshots inspect canonical
+        // model roles. Live bridge delivery is verified by the native AT-SPI task.
+        auto* accessible = native_snapshot ? QAccessible::queryAccessibleInterface(list) : nullptr;
+        if (native_snapshot)
+        { check(accessible && accessible->tableInterface(), "Group user rows expose the public Qt accessible table interface"); }
+        auto* table = accessible ? accessible->tableInterface() : nullptr;
+        check(list->model()->rowCount() == expected.size() && (!table || table->rowCount() == expected.size()),
+              "Accessible group row count follows the actual visible data, including private row removal");
+        for (int row = 0; row < expected.size(); ++row)
+        {
+            if (table)
+            {
+                auto* cell = table->cellAt(row, 0);
+                check(cell && cell->role() == QAccessible::ListItem,
+                      "Group user context belongs to the actual accessible list item");
+                if (cell->text(QAccessible::Name) != expected[row])
+                {
+                    std::cerr << "Group accessible row " << row << " expected [" << expected[row].toStdString()
+                              << "] actual [" << cell->text(QAccessible::Name).toStdString() << "]\n";
+                }
+                check(cell->text(QAccessible::Name) == expected[row],
+                      "Accessible group user names include canonical username, current role/self or application status");
+            }
+            auto const index = list->model()->index(row, 0);
+            check(index.data(Qt::AccessibleTextRole).toString() == expected[row] &&
+                  index.data(Qt::AccessibleTextRole).toString() ==
+                      index.data(Qt::DisplayRole).toString() + QStringLiteral(" · ") + index.data(Qt::StatusTipRole).toString(),
+                  "Live accessible model context matches literal role/status and the actual displayed username/status");
+        }
+    };
+    auto const initial_names = QStringList{QStringLiteral("owner · 群主 · 你"),
+                                          QStringLiteral("admin · 管理员"),
+                                          QStringLiteral("member · 成员")};
+    check_accessible_rows(member_rows, initial_names, true);
+    check_accessible_rows(preview, initial_names, true);
+    check(member_rows->item(0)->text() == QStringLiteral("owner") &&
+          member_rows->item(0)->data(Qt::UserRole).toLongLong() == 1,
+          "Accessible member context preserves the original display username and action identity");
     auto const image = preview->viewport()->grab().toImage();
     check(logical_pixel(image, QPoint(20, preview->visualItemRect(preview->item(2)).center().y())) == color,
           "A downloaded member avatar refreshes the visible group overview without reopening it");
@@ -588,10 +630,13 @@ void check_group_detail_layout()
           "A completed empty request list explains its state without an unavailable pagination action");
     auto* requests = dialog.findChild<QListWidget*>("groupJoinRequestsList");
     dialog.set_requests(1, {{10, "first", false, 0, {}}, {11, "selected", false, 0, {}}}, 0, false, {});
+    check_accessible_rows(requests, {QStringLiteral("first · 待审批"), QStringLiteral("selected · 待审批")}, true);
     requests->setCurrentRow(1);
     dialog.set_requests(1, {{12, "new", false, 0, {}}, {10, "first", false, 0, {}}, {11, "selected", false, 0, {}}}, 0, false, {});
     check(requests->currentItem() && requests->currentItem()->data(Qt::UserRole).toLongLong() == 11,
           "An unrelated new join request preserves the applicant being reviewed");
+    check_accessible_rows(requests, {QStringLiteral("new · 待审批"), QStringLiteral("first · 待审批"),
+                                    QStringLiteral("selected · 待审批")});
     qint64 opened_user = 0;
     QString opened_name;
     QObject::connect(&dialog, &group_dialog::user_requested, &dialog, [&](qint64 user, QString name) {
@@ -655,6 +700,34 @@ void check_group_detail_layout()
     QApplication::processEvents();
     check(members->hasFocus() && members->viewport()->rect().contains(members->visualItemRect(members->currentItem())),
           "Resizing a focused member list keeps the selected member visible");
+    dialog.set_members(1, {{1, "owner", chat::member_role::admin, {}},
+                           {2, "admin", chat::member_role::owner, {}},
+                           {3, "member", chat::member_role::member, {}}}, {});
+    auto const promoted_names = QStringList{QStringLiteral("admin · 群主"),
+                                           QStringLiteral("owner · 管理员 · 你"),
+                                           QStringLiteral("member · 成员")};
+    check_accessible_rows(members, promoted_names);
+    check_accessible_rows(preview, promoted_names);
+    members->setCurrentRow(1);
+    dialog.set_requests(1, {{10, "first", false, 0, {}}}, 10, false, {});
+    dialog.set_requests(1, {{11, "older", false, 0, {}}}, 0, true, {});
+    check_accessible_rows(requests, {QStringLiteral("first · 待审批"), QStringLiteral("older · 待审批")});
+    dialog.set_members(1, {{1, "owner", chat::member_role::member, {}},
+                           {2, "admin", chat::member_role::owner, {}},
+                           {3, "member", chat::member_role::member, {}}}, {});
+    auto const downgraded_names = QStringList{QStringLiteral("admin · 群主"),
+                                             QStringLiteral("owner · 成员 · 你"),
+                                             QStringLiteral("member · 成员")};
+    check_accessible_rows(members, downgraded_names);
+    check_accessible_rows(preview, downgraded_names);
+    check(members->currentItem() && members->currentItem()->data(Qt::UserRole).toLongLong() == 1,
+          "A live role change preserves the selected member identity while updating accessible context");
+    check_accessible_rows(requests, {});
+    dialog.set_requests(1, {{12, "private stale applicant", false, 0, {}}}, 0, false, {});
+    check_accessible_rows(requests, {});
+    check(!tabs->isTabVisible(2) && !tabs->isTabVisible(3),
+          "Management role loss hides private pages and stale application callbacks cannot restore accessible rows");
+    std::cout << "PASS Qt group initial native row names and live role/status models without private stale rows\n";
     std::cout << "PASS Qt group overview live member avatar and bounded details\n";
 }
 

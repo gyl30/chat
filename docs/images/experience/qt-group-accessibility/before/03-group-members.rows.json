@@ -1,0 +1,50 @@
+[
+  {
+    "name": "导航A_qtx11_191756",
+    "description": "",
+    "role": "list item",
+    "rect": [
+      336,
+      128,
+      488,
+      62
+    ],
+    "showing": true
+  },
+  {
+    "name": "历史B_qtx11_191756",
+    "description": "",
+    "role": "list item",
+    "rect": [
+      336,
+      190,
+      488,
+      62
+    ],
+    "showing": true
+  },
+  {
+    "name": "好友C_qtx11_191756",
+    "description": "",
+    "role": "list item",
+    "rect": [
+      336,
+      252,
+      488,
+      62
+    ],
+    "showing": true
+  },
+  {
+    "name": "观察S005_qtx11_191756",
+    "description": "",
+    "role": "list item",
+    "rect": [
+      336,
+      314,
+      488,
+      62
+    ],
+    "showing": true
+  }
+]

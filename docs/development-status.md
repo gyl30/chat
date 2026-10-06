@@ -1727,3 +1727,26 @@ per-check exit文件。48owned/36descendant PID均gone，4DB精确重查0、1893
 3PID ticks/cmdline不变。原proof和4原图已归档，详见[体验品质审查](experience-quality.md)
 阶段56。Q27/Q30全矩阵继续开放，Qt87/TUI78不提高；全页面/日常/无障碍与两轮
 达到92后的fresh审查仍须继续。没有新生产输入，不将文档归档冒称一次新门禁。未push。
+
+## 体验品质审查：群成员与申请的可读取状态
+
+1e3c035b基线的真实Qt/X11/AT-SPI八行before只含username，画面已有角色、自身标记
+和待审批。生产复用原状态写AccessibleTextRole，preview clone继承，不改变显示名、
+操作identity、delegate或权限。同字节最终永久fixture旧生产build0/widgets1，修复
+后build0/widgets0；首次读原生accessible cell，后续角色/分页/降权读实际model角色，
+不手删cache或强制active，不外推inactive offscreen为live bridge完整验证。
+
+同字节native driver对冻结旧3bb090e6…/新eee21f3b…客户端分别完整actual0：before
+八行状态全缺失，after八行Name全包含角色/本人或待审批。主与独立亲看六张原X11
+图，可见布局与动作保持。原rows.json成功采集，*.atspi.json的整树采集是失败占位，
+不声称完整树。两独立DB删除、端口关闭、自有PID退出、保护服务ticks/cmdline未变。
+
+最终输入的原tests/verify.sh实际runner/script0：normal/ASan/UBSan各23/23，
+115.87/159.86/146.74秒；原qt_ui60秒、render5秒不变，Qt/TUI ON、实际-Werror。
+205输入、脚本、submodule和保护进程首尾相同，编译/CMake warning与sanitizer签名0。
+既有独立目录新配置/构建/CTest，不冒称依赖空目录重建；原日志无损SHA655f73cf…。
+详见[体验品质审查](experience-quality.md)阶段57及链接的原图、行记录和门禁资产。
+
+Qt87/TUI78保持。Q33初始状态遗漏收口，live角色/权限通知、Orca、全键盘/HiDPI和
+Q27/Q30/T04完整矩阵仍开放；没有开始达到92后的连续两轮fresh review。下一项先
+真实双管理员验证群名远端更新与未保存本地草稿的交互，不把源码风险当运行实证。

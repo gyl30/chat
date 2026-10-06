@@ -1,0 +1,708 @@
+{
+  "scope": "Real production Qt/X11 login and group overview/members/requests with XTest and public AT-SPI, plus permanent offscreen RED/GREEN.",
+  "native": {
+    "before": {
+      "original_scope": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv",
+      "result": {
+        "status": "PASS",
+        "expect": "before",
+        "scope": "Real production Chat login, group overview, all members and actual pending join request; XTest only, public AT-SPI row name and description, original full X11 PNG.",
+        "binary": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv/chat_qt.before",
+        "binary_sha256": "3bb090e6fb0984b8e957579a0ee3dbcc356331b26a41b6edfa6c3565067f1120",
+        "driver_sha256": "57b98eae76d762548e62f1bf4cf2a420e3bdcb427d5ca167b663669255d3dced",
+        "shared_smoke_sha256": "afd8a595fa6f0d39ab8655271f6f165d2a5529b67feee86264fc69c188309a0b",
+        "members_rows": 4,
+        "preview_rows": 3,
+        "request_rows": 1,
+        "comparisons": [
+          {
+            "page": "overview",
+            "username": "导航A_qtx11_191756",
+            "visible_expected_status": "群主 · 你",
+            "public_name": "导航A_qtx11_191756",
+            "public_description": "",
+            "status_exposed": false
+          },
+          {
+            "page": "overview",
+            "username": "历史B_qtx11_191756",
+            "visible_expected_status": "管理员",
+            "public_name": "历史B_qtx11_191756",
+            "public_description": "",
+            "status_exposed": false
+          },
+          {
+            "page": "overview",
+            "username": "好友C_qtx11_191756",
+            "visible_expected_status": "成员",
+            "public_name": "好友C_qtx11_191756",
+            "public_description": "",
+            "status_exposed": false
+          },
+          {
+            "page": "members",
+            "username": "导航A_qtx11_191756",
+            "visible_expected_status": "群主 · 你",
+            "public_name": "导航A_qtx11_191756",
+            "public_description": "",
+            "status_exposed": false
+          },
+          {
+            "page": "members",
+            "username": "历史B_qtx11_191756",
+            "visible_expected_status": "管理员",
+            "public_name": "历史B_qtx11_191756",
+            "public_description": "",
+            "status_exposed": false
+          },
+          {
+            "page": "members",
+            "username": "好友C_qtx11_191756",
+            "visible_expected_status": "成员",
+            "public_name": "好友C_qtx11_191756",
+            "public_description": "",
+            "status_exposed": false
+          },
+          {
+            "page": "members",
+            "username": "观察S005_qtx11_191756",
+            "visible_expected_status": "成员",
+            "public_name": "观察S005_qtx11_191756",
+            "public_description": "",
+            "status_exposed": false
+          },
+          {
+            "page": "requests",
+            "username": "申请D_qtx11_191756",
+            "visible_expected_status": "待审批",
+            "public_name": "申请D_qtx11_191756",
+            "public_description": "",
+            "status_exposed": false
+          }
+        ],
+        "max_wait_seconds": 15,
+        "no_widget_or_QIM_injection": true
+      },
+      "cleanup": {
+        "workflow_exit": 0,
+        "database": "chat_qtx11_1006191754_4166250",
+        "database_absent": true,
+        "private_port_closed": true,
+        "all_owned_gone": true,
+        "owned": [
+          {
+            "pid": 4166252,
+            "exit": 0
+          },
+          {
+            "pid": 4166671,
+            "exit": 0
+          },
+          {
+            "pid": 4166674,
+            "exit": 0
+          },
+          {
+            "pid": 4167884,
+            "exit": 0
+          },
+          {
+            "pid": 4168091,
+            "exit": -15
+          },
+          {
+            "pid": 4168215,
+            "exit": -15
+          }
+        ],
+        "descendants": [
+          {
+            "pid": 4166252,
+            "tick": "547808360",
+            "cmdline_hex": "2f7573722f62696e2f646275732d6461656d6f6e002d2d73657373696f6e002d2d6e6f666f726b002d2d7072696e742d616464726573733d31002d2d6e6f7379736c6f6700",
+            "exe": "/usr/bin/dbus-daemon",
+            "state": "S"
+          },
+          {
+            "pid": 4167884,
+            "tick": "547809121",
+            "cmdline_hex": "58766662002d646973706c617966640031002d73637265656e003000323430307831303030783234002d6e6f6c697374656e0074637000",
+            "exe": "/usr/bin/Xvfb",
+            "state": "S"
+          },
+          {
+            "pid": 4166671,
+            "tick": "547808544",
+            "cmdline_hex": "2f686f6d652f67796c2f6578616d706c652f636861742f6275696c642f636861745f7365727665720034303030350032353600313600",
+            "exe": "/home/gyl/example/chat/build/chat_server",
+            "state": "S"
+          },
+          {
+            "pid": 4168215,
+            "tick": "547809256",
+            "cmdline_hex": "2f7573722f62696e2f78636c6970002d7175696574002d73656c656374696f6e00636c6970626f617264002d696e00",
+            "exe": "/usr/bin/xclip",
+            "state": "S"
+          },
+          {
+            "pid": 4168091,
+            "tick": "547809233",
+            "cmdline_hex": "2f746d702f636861742d7175616c6974792d71742d61747370692d6265666f72652e427066425a494a762f636861745f71742e6265666f72650077733a2f2f3132372e302e302e313a34303030352f777300",
+            "exe": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv/chat_qt.before",
+            "state": "S"
+          }
+        ],
+        "protected_expected_and_unchanged": {
+          "2876288": {
+            "pid": 2876288,
+            "tick": "521400965",
+            "cmdline_hex": "2f686f6d652f67796c2f6578616d706c652f636861742f6275696c642f636861745f73657276657200313830383000313600313600",
+            "exe": "/home/gyl/example/chat/build/chat_server (deleted)",
+            "state": "S"
+          },
+          "3225": {
+            "pid": 3225,
+            "tick": "17583",
+            "cmdline_hex": "2f7573722f62696e2f666369747835002d6400",
+            "exe": "/usr/bin/fcitx5",
+            "state": "S"
+          },
+          "29935": {
+            "pid": 29935,
+            "tick": "248258",
+            "cmdline_hex": "2f7573722f62696e2f7370656563682d64697370617463686572002d73002d74003000",
+            "exe": "/usr/bin/speech-dispatcher",
+            "state": "S"
+          }
+        },
+        "protected_unchanged": true
+      },
+      "loaded_runtime": {
+        "actual_process": {
+          "pid": 4168091,
+          "tick": "547809233",
+          "cmdline_hex": "2f746d702f636861742d7175616c6974792d71742d61747370692d6265666f72652e427066425a494a762f636861745f71742e6265666f72650077733a2f2f3132372e302e302e313a34303030352f777300",
+          "exe": "/tmp/chat-quality-qt-atspi-before.BpfBZIJv/chat_qt.before",
+          "state": "S"
+        },
+        "binary_sha256": "3bb090e6fb0984b8e957579a0ee3dbcc356331b26a41b6edfa6c3565067f1120",
+        "loaded_qt": [
+          {
+            "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Core.so.6.5.3",
+            "sha256": "a187d03f0d9c170fa4dcabc8abc89eb99d163e5b82c64c4667674c6f957c63f0"
+          },
+          {
+            "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6DBus.so.6.5.3",
+            "sha256": "11304f90d948a59d887c7d54a30b388f8a06bbf0689e9707a62b9bed872c0beb"
+          },
+          {
+            "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Gui.so.6.5.3",
+            "sha256": "9a89e05fc892b13084e73397c29a10427c9e45ad729c2ae68c4f51bfb9e545ec"
+          },
+          {
+            "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Svg.so.6.5.3",
+            "sha256": "e93654ab378624f695e0629d22382a8e298b39141cda1132b757dfa3985afa21"
+          },
+          {
+            "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Widgets.so.6.5.3",
+            "sha256": "3130aa61288d76303c46b27d1b91db8c456a9caef8d7111c1c61b07278e0ed46"
+          },
+          {
+            "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6XcbQpa.so.6.5.3",
+            "sha256": "e55dd060aaa4cf90745001a7689e3812047f2b0c14300b3064e6636aaa3b40b8"
+          },
+          {
+            "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so",
+            "sha256": "86f9de45c5f2a27bf22d58810f40dddb01e2d8529d41a024ea90aeb34036530c"
+          },
+          {
+            "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforms/libqxcb.so",
+            "sha256": "27344b5533a430df9db8d253fb9177dd8ea7e0f28ee3958971cbbd13d87ccc94"
+          }
+        ],
+        "private_bus": {
+          "pid": 4166252,
+          "tick": "547808360",
+          "cmdline_hex": "2f7573722f62696e2f646275732d6461656d6f6e002d2d73657373696f6e002d2d6e6f666f726b002d2d7072696e742d616464726573733d31002d2d6e6f7379736c6f6700",
+          "exe": "/usr/bin/dbus-daemon",
+          "state": "S"
+        },
+        "display": ":3",
+        "qt_child_only_loader": true
+      },
+      "artifacts": [
+        {
+          "path": "docs/images/experience/qt-group-accessibility/before/01-authenticated-fullscreen.png",
+          "sha256": "d0fbe989226f288f8e595abd384f3270dd95214b348f21c1271cafd664308c7f",
+          "bytes": 54847
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/before/02-group-overview-fullscreen.png",
+          "sha256": "3571549644d2785422f5e9e3919323515e29f1d4a088f213e6f2da5d17f4ae37",
+          "bytes": 82133
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/before/02-group-overview.atspi.json",
+          "sha256": "6ab01d77945860528934feb6c2c15663642cdbba8797173bfe807a93e4cbbcd3",
+          "bytes": 43
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/before/02-group-overview.rows.json",
+          "sha256": "6ddffbe8961113c16e5ea4340b1754d683095f07f6676af3160c17812889905b",
+          "bytes": 530
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/before/03-group-members-fullscreen.png",
+          "sha256": "01b8259264db3dff43f320acc29e7e905a3fa6c2f5788a3797007fe30694b570",
+          "bytes": 80624
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/before/03-group-members.atspi.json",
+          "sha256": "6ab01d77945860528934feb6c2c15663642cdbba8797173bfe807a93e4cbbcd3",
+          "bytes": 43
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/before/03-group-members.rows.json",
+          "sha256": "203cd741f1e6c9fc7e1d59e99eea62c98ca010fae7965c56ec73324463124cfb",
+          "bytes": 709
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/before/04-group-requests-fullscreen.png",
+          "sha256": "3ab5b9eadb6ae9f9de2ce96253a9daceff2844b2a0b5b915f245803e55cb0fde",
+          "bytes": 53112
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/before/04-group-requests.atspi.json",
+          "sha256": "6ab01d77945860528934feb6c2c15663642cdbba8797173bfe807a93e4cbbcd3",
+          "bytes": 43
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/before/04-group-requests.rows.json",
+          "sha256": "b8ddd82c008bec4071330057c19493d8cf4f1740d09ab6baeb54fe609c0069eb",
+          "bytes": 177
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/before/artifact-sha256.json",
+          "sha256": "b6b2e33f2d26293820d4d583f2a36d1e1fe118bf09305a35d76840a541f14bc1",
+          "bytes": 3784
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/before/before-after-comparison.json",
+          "sha256": "f66fc50253e25c6217b6acc5a49f2bf1979c360d587b4ccead3f4d8660677d67",
+          "bytes": 1747
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/before/cleanup.json",
+          "sha256": "ac2008e5a65dd6ba16e00063c56374b9959cf2cbb805e63550ac3c2c9b7a70fc",
+          "bytes": 2643
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/before/result.json",
+          "sha256": "790a2e25763dee8ea567aa1e35015f0704e27ae64e3ad45208f7745f4c8c16c3",
+          "bytes": 2585
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/before/runtime-authenticated.json",
+          "sha256": "f07199edc2db3639e1cfb14db16c717ef2eabb4a6ca84dd244362b2efa4b9410",
+          "bytes": 2317
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/before/runtime-captured.json",
+          "sha256": "f07199edc2db3639e1cfb14db16c717ef2eabb4a6ca84dd244362b2efa4b9410",
+          "bytes": 2317
+        }
+      ]
+    },
+    "after": {
+      "original_scope": "/tmp/chat-quality-qt-atspi-after.2K0H7904",
+      "result": {
+        "status": "PASS",
+        "expect": "after",
+        "scope": "Real production Chat login, group overview, all members and actual pending join request; XTest only, public AT-SPI row name and description, original full X11 PNG.",
+        "binary": "/tmp/chat-quality-qt-atspi-after.2K0H7904/chat_qt.after",
+        "binary_sha256": "eee21f3b9446e167d559746d1cdedd301fcd5cb810fd90c3672e97edd422f1ff",
+        "driver_sha256": "57b98eae76d762548e62f1bf4cf2a420e3bdcb427d5ca167b663669255d3dced",
+        "shared_smoke_sha256": "afd8a595fa6f0d39ab8655271f6f165d2a5529b67feee86264fc69c188309a0b",
+        "members_rows": 4,
+        "preview_rows": 3,
+        "request_rows": 1,
+        "comparisons": [
+          {
+            "page": "overview",
+            "username": "导航A_qtx11_192321",
+            "visible_expected_status": "群主 · 你",
+            "public_name": "导航A_qtx11_192321 · 群主 · 你",
+            "public_description": "",
+            "status_exposed": true
+          },
+          {
+            "page": "overview",
+            "username": "历史B_qtx11_192321",
+            "visible_expected_status": "管理员",
+            "public_name": "历史B_qtx11_192321 · 管理员",
+            "public_description": "",
+            "status_exposed": true
+          },
+          {
+            "page": "overview",
+            "username": "好友C_qtx11_192321",
+            "visible_expected_status": "成员",
+            "public_name": "好友C_qtx11_192321 · 成员",
+            "public_description": "",
+            "status_exposed": true
+          },
+          {
+            "page": "members",
+            "username": "导航A_qtx11_192321",
+            "visible_expected_status": "群主 · 你",
+            "public_name": "导航A_qtx11_192321 · 群主 · 你",
+            "public_description": "",
+            "status_exposed": true
+          },
+          {
+            "page": "members",
+            "username": "历史B_qtx11_192321",
+            "visible_expected_status": "管理员",
+            "public_name": "历史B_qtx11_192321 · 管理员",
+            "public_description": "",
+            "status_exposed": true
+          },
+          {
+            "page": "members",
+            "username": "好友C_qtx11_192321",
+            "visible_expected_status": "成员",
+            "public_name": "好友C_qtx11_192321 · 成员",
+            "public_description": "",
+            "status_exposed": true
+          },
+          {
+            "page": "members",
+            "username": "观察S005_qtx11_192321",
+            "visible_expected_status": "成员",
+            "public_name": "观察S005_qtx11_192321 · 成员",
+            "public_description": "",
+            "status_exposed": true
+          },
+          {
+            "page": "requests",
+            "username": "申请D_qtx11_192321",
+            "visible_expected_status": "待审批",
+            "public_name": "申请D_qtx11_192321 · 待审批",
+            "public_description": "",
+            "status_exposed": true
+          }
+        ],
+        "max_wait_seconds": 15,
+        "no_widget_or_QIM_injection": true
+      },
+      "cleanup": {
+        "workflow_exit": 0,
+        "database": "chat_qtx11_1006192319_37247",
+        "database_absent": true,
+        "private_port_closed": true,
+        "all_owned_gone": true,
+        "owned": [
+          {
+            "pid": 37249,
+            "exit": 0
+          },
+          {
+            "pid": 37989,
+            "exit": 0
+          },
+          {
+            "pid": 37990,
+            "exit": 0
+          },
+          {
+            "pid": 38841,
+            "exit": 0
+          },
+          {
+            "pid": 39036,
+            "exit": -15
+          },
+          {
+            "pid": 39342,
+            "exit": -15
+          }
+        ],
+        "descendants": [
+          {
+            "pid": 37249,
+            "tick": "547840852",
+            "cmdline_hex": "2f7573722f62696e2f646275732d6461656d6f6e002d2d73657373696f6e002d2d6e6f666f726b002d2d7072696e742d616464726573733d31002d2d6e6f7379736c6f6700",
+            "exe": "/usr/bin/dbus-daemon",
+            "state": "S"
+          },
+          {
+            "pid": 37989,
+            "tick": "547841026",
+            "cmdline_hex": "2f686f6d652f67796c2f6578616d706c652f636861742f6275696c642f636861745f7365727665720034383331310032353600313600",
+            "exe": "/home/gyl/example/chat/build/chat_server",
+            "state": "S"
+          },
+          {
+            "pid": 39342,
+            "tick": "547841575",
+            "cmdline_hex": "2f7573722f62696e2f78636c6970002d7175696574002d73656c656374696f6e00636c6970626f617264002d696e00",
+            "exe": "/usr/bin/xclip",
+            "state": "S"
+          },
+          {
+            "pid": 38841,
+            "tick": "547841461",
+            "cmdline_hex": "58766662002d646973706c617966640031002d73637265656e003000323430307831303030783234002d6e6f6c697374656e0074637000",
+            "exe": "/usr/bin/Xvfb",
+            "state": "S"
+          },
+          {
+            "pid": 39036,
+            "tick": "547841553",
+            "cmdline_hex": "2f746d702f636861742d7175616c6974792d71742d61747370692d61667465722e324b3048373930342f636861745f71742e61667465720077733a2f2f3132372e302e302e313a34383331312f777300",
+            "exe": "/tmp/chat-quality-qt-atspi-after.2K0H7904/chat_qt.after",
+            "state": "S"
+          }
+        ],
+        "protected_expected_and_unchanged": {
+          "2876288": {
+            "pid": 2876288,
+            "tick": "521400965",
+            "cmdline_hex": "2f686f6d652f67796c2f6578616d706c652f636861742f6275696c642f636861745f73657276657200313830383000313600313600",
+            "exe": "/home/gyl/example/chat/build/chat_server (deleted)",
+            "state": "S"
+          },
+          "3225": {
+            "pid": 3225,
+            "tick": "17583",
+            "cmdline_hex": "2f7573722f62696e2f666369747835002d6400",
+            "exe": "/usr/bin/fcitx5",
+            "state": "S"
+          },
+          "29935": {
+            "pid": 29935,
+            "tick": "248258",
+            "cmdline_hex": "2f7573722f62696e2f7370656563682d64697370617463686572002d73002d74003000",
+            "exe": "/usr/bin/speech-dispatcher",
+            "state": "S"
+          }
+        },
+        "protected_unchanged": true
+      },
+      "loaded_runtime": {
+        "actual_process": {
+          "pid": 39036,
+          "tick": "547841553",
+          "cmdline_hex": "2f746d702f636861742d7175616c6974792d71742d61747370692d61667465722e324b3048373930342f636861745f71742e61667465720077733a2f2f3132372e302e302e313a34383331312f777300",
+          "exe": "/tmp/chat-quality-qt-atspi-after.2K0H7904/chat_qt.after",
+          "state": "S"
+        },
+        "binary_sha256": "eee21f3b9446e167d559746d1cdedd301fcd5cb810fd90c3672e97edd422f1ff",
+        "loaded_qt": [
+          {
+            "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Core.so.6.5.3",
+            "sha256": "a187d03f0d9c170fa4dcabc8abc89eb99d163e5b82c64c4667674c6f957c63f0"
+          },
+          {
+            "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6DBus.so.6.5.3",
+            "sha256": "11304f90d948a59d887c7d54a30b388f8a06bbf0689e9707a62b9bed872c0beb"
+          },
+          {
+            "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Gui.so.6.5.3",
+            "sha256": "9a89e05fc892b13084e73397c29a10427c9e45ad729c2ae68c4f51bfb9e545ec"
+          },
+          {
+            "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Svg.so.6.5.3",
+            "sha256": "e93654ab378624f695e0629d22382a8e298b39141cda1132b757dfa3985afa21"
+          },
+          {
+            "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Widgets.so.6.5.3",
+            "sha256": "3130aa61288d76303c46b27d1b91db8c456a9caef8d7111c1c61b07278e0ed46"
+          },
+          {
+            "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6XcbQpa.so.6.5.3",
+            "sha256": "e55dd060aaa4cf90745001a7689e3812047f2b0c14300b3064e6636aaa3b40b8"
+          },
+          {
+            "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so",
+            "sha256": "86f9de45c5f2a27bf22d58810f40dddb01e2d8529d41a024ea90aeb34036530c"
+          },
+          {
+            "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforms/libqxcb.so",
+            "sha256": "27344b5533a430df9db8d253fb9177dd8ea7e0f28ee3958971cbbd13d87ccc94"
+          }
+        ],
+        "private_bus": {
+          "pid": 37249,
+          "tick": "547840852",
+          "cmdline_hex": "2f7573722f62696e2f646275732d6461656d6f6e002d2d73657373696f6e002d2d6e6f666f726b002d2d7072696e742d616464726573733d31002d2d6e6f7379736c6f6700",
+          "exe": "/usr/bin/dbus-daemon",
+          "state": "S"
+        },
+        "display": ":0",
+        "qt_child_only_loader": true
+      },
+      "artifacts": [
+        {
+          "path": "docs/images/experience/qt-group-accessibility/after/01-authenticated-fullscreen.png",
+          "sha256": "bb560fb9d9135aa35782f7614aedae76ea73240d031a88ba79fd346bcb16c307",
+          "bytes": 55072
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/after/02-group-overview-fullscreen.png",
+          "sha256": "bf5fc0b4f61ddcf8dd6fe57e14dae928b62070f9867a4805cda742b328367e33",
+          "bytes": 82968
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/after/02-group-overview.atspi.json",
+          "sha256": "6ab01d77945860528934feb6c2c15663642cdbba8797173bfe807a93e4cbbcd3",
+          "bytes": 43
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/after/02-group-overview.rows.json",
+          "sha256": "cc313fc6b4cb167c729c60aaa6db90fb3c068b1cb5158d17b62079746f95ac2f",
+          "bytes": 570
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/after/03-group-members-fullscreen.png",
+          "sha256": "9ea15dd19d11c2bee4a2fb07b57e86a2df07072a9b444cffa4e078946ea3d671",
+          "bytes": 81388
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/after/03-group-members.atspi.json",
+          "sha256": "6ab01d77945860528934feb6c2c15663642cdbba8797173bfe807a93e4cbbcd3",
+          "bytes": 43
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/after/03-group-members.rows.json",
+          "sha256": "26f89d8a2bd3a1f2483bccaec19524e71966a2ae98e1e6f746f562138b646b49",
+          "bytes": 759
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/after/04-group-requests-fullscreen.png",
+          "sha256": "3d8e47472c62a1808eac4cd2f7e809b66a9ffbdc9cf13f6f304b245571483756",
+          "bytes": 53471
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/after/04-group-requests.atspi.json",
+          "sha256": "6ab01d77945860528934feb6c2c15663642cdbba8797173bfe807a93e4cbbcd3",
+          "bytes": 43
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/after/04-group-requests.rows.json",
+          "sha256": "914a49bfca35b289bbc75ef31976c8f69736897bea0c8f9967188e571af8c620",
+          "bytes": 190
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/after/artifact-sha256.json",
+          "sha256": "d42c15dec246b4f3e0799c4eea58557a4d7e9a6b377006dc0e00eda284c945da",
+          "bytes": 3784
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/after/before-after-comparison.json",
+          "sha256": "222ee6fdda22967f984b3e2382a2c08c58f333860206fef33687f8e265852640",
+          "bytes": 1842
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/after/cleanup.json",
+          "sha256": "40c43733a35bb3e1bee57bc85a1fcd5de05b30aec1d10b3d2f33c4d75ad44285",
+          "bytes": 2613
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/after/result.json",
+          "sha256": "651bca9b7476ba9da8479fc0f309923160e1a867216b81f8c5ca6641c92504a5",
+          "bytes": 2677
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/after/runtime-authenticated.json",
+          "sha256": "f2569f89b8a6907df27bad9280bd866eb279feb24c5630fa4357343209fb6fb2",
+          "bytes": 2307
+        },
+        {
+          "path": "docs/images/experience/qt-group-accessibility/after/runtime-captured.json",
+          "sha256": "f2569f89b8a6907df27bad9280bd866eb279feb24c5630fa4357343209fb6fb2",
+          "bytes": 2307
+        }
+      ]
+    }
+  },
+  "permanent_regression": {
+    "red": {
+      "build_exit": 0,
+      "widgets_exit": 1,
+      "artifacts": {
+        "source.sha": {
+          "path": "docs/images/experience/qt-group-accessibility/final-red-source.sha",
+          "original_sha256": "12561e843f962f2597dd1b8505f77f9657cacd3e64f84a7641e3a0d12a059b17",
+          "archive_sha256": "12561e843f962f2597dd1b8505f77f9657cacd3e64f84a7641e3a0d12a059b17"
+        },
+        "binary.sha": {
+          "path": "docs/images/experience/qt-group-accessibility/final-red-binary.sha",
+          "original_sha256": "597a4b488e5759c7f44d998910cd4bb9ebddff17fc5c373c7d36ae6a49fe0595",
+          "archive_sha256": "597a4b488e5759c7f44d998910cd4bb9ebddff17fc5c373c7d36ae6a49fe0595"
+        },
+        "build.exit": {
+          "path": "docs/images/experience/qt-group-accessibility/final-red-build.exit",
+          "original_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "archive_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        "widgets.exit": {
+          "path": "docs/images/experience/qt-group-accessibility/final-red-widgets.exit",
+          "original_sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+          "archive_sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+        },
+        "build.log": {
+          "path": "docs/images/experience/qt-group-accessibility/final-red-build.log.gz",
+          "original_sha256": "f2ce6e7995f374959c126b948814ac5b4fcd594fe215dc88f9191bd7d2c06c4d",
+          "archive_sha256": "ad1eac46213e8d985416c66409d5455cc81fe064e2b74490672d91fc8d008dc8"
+        },
+        "widgets.log": {
+          "path": "docs/images/experience/qt-group-accessibility/final-red-widgets.log.gz",
+          "original_sha256": "dde66a19af2be041aaa0856275c89ce7c6bad8dce4320da73346a331edd168da",
+          "archive_sha256": "3d2c66a33d7c09647c3ca8e6679b7a7813447bb98256f412984e80daf0874ed9"
+        }
+      }
+    },
+    "green": {
+      "build_exit": 0,
+      "widgets_exit": 0,
+      "artifacts": {
+        "source.sha": {
+          "path": "docs/images/experience/qt-group-accessibility/final-green-source.sha",
+          "original_sha256": "dd49816d1464f731d2b59fbcdc4694678b5baa11e8647c2a755dab6189b85fc7",
+          "archive_sha256": "dd49816d1464f731d2b59fbcdc4694678b5baa11e8647c2a755dab6189b85fc7"
+        },
+        "binary.sha": {
+          "path": "docs/images/experience/qt-group-accessibility/final-green-binary.sha",
+          "original_sha256": "a11429914be9398c0d63b5b5d21cda18cabd70a590c14ce5b33006a01ef8b428",
+          "archive_sha256": "a11429914be9398c0d63b5b5d21cda18cabd70a590c14ce5b33006a01ef8b428"
+        },
+        "build.exit": {
+          "path": "docs/images/experience/qt-group-accessibility/final-green-build.exit",
+          "original_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "archive_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        "widgets.exit": {
+          "path": "docs/images/experience/qt-group-accessibility/final-green-widgets.exit",
+          "original_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "archive_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        "build.log": {
+          "path": "docs/images/experience/qt-group-accessibility/final-green-build.log.gz",
+          "original_sha256": "3cf9e0ffd59de9d746019625698b0e6f49addea8873589e149e2efe777dc5551",
+          "archive_sha256": "78094fbe5b69bbdef83a2d6bae010c806dafbf2f19885dbcbe18b6491b6be9fe"
+        },
+        "widgets.log": {
+          "path": "docs/images/experience/qt-group-accessibility/final-green-widgets.log.gz",
+          "original_sha256": "7a1b0528a3dcfd757c003dfbf546a92c39d0b6ca1078cb7a460d392dacd167e8",
+          "archive_sha256": "8bd001ad464a98d3f01cfcc89a41d1a15ffb0b7f7cee97292b1e9eb640712ef9"
+        }
+      }
+    }
+  },
+  "final_source": {
+    "qt/src/group_dialog.cpp": "0269d86d10ca5bdd09ab540f03b05db5b5b4effae5f32adcca636dd1da7b24ab",
+    "qt/tests/ui_test.cpp": "995179ed132925d23a299019984806f215d5235575a073cb004793cb57685234"
+  },
+  "limits": "Initial live native rows at one X11 scale; the fixture helper was closed before login. The rows.json files contain real public row Name/Description/rect/showing, but atspi.json files only contain a failed full-tree collection placeholder and do not establish a complete tree capture. No claim of live AT-SPI role-change/permission-revocation delivery, Orca speech, all group keyboard paths or HiDPI coverage. Permanent tests query native accessible cells at initialization and canonical model roles after later updates because an inactive offscreen bridge does not deliver model resets. No cache deletion, forced accessibility activation or timeout relaxation. Source hashes alone are not compilation provenance; the complete original gate has its own manifest."
+}

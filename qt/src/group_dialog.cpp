@@ -593,6 +593,7 @@ void group_dialog::set_members(qint64 conversation, QList<member_data> members, 
         auto* item = new QListWidgetItem(member.username, list_);
         item->setData(Qt::UserRole, member.id);
         item->setData(Qt::StatusTipRole, description);
+        item->setData(Qt::AccessibleTextRole, member.username + QStringLiteral(" · ") + description);
         item->setData(Qt::DecorationRole, avatars_ ? avatars_->image(member.id) : QPixmap{});
         item->setToolTip(member.username + QStringLiteral(" · ") + description);
         if (preview_->count() < 3)
@@ -724,7 +725,9 @@ void group_dialog::set_requests(qint64 conversation, QList<user_data> users, qin
         if (avatars_) { avatars_->observe(user.id, user.avatar); }
         auto* item = new QListWidgetItem(user.username, requests_);
         item->setData(Qt::UserRole, user.id);
-        item->setData(Qt::StatusTipRole, QStringLiteral("待审批"));
+        auto const status = QStringLiteral("待审批");
+        item->setData(Qt::StatusTipRole, status);
+        item->setData(Qt::AccessibleTextRole, user.username + QStringLiteral(" · ") + status);
         item->setData(Qt::DecorationRole, avatars_ ? avatars_->image(user.id) : QPixmap{});
         item->setToolTip(user.username);
         if (user.id == selected) { requests_->setCurrentItem(item); }

@@ -1,0 +1,53 @@
+{
+  "actual_process": {
+    "pid": 39036,
+    "tick": "547841553",
+    "cmdline_hex": "2f746d702f636861742d7175616c6974792d71742d61747370692d61667465722e324b3048373930342f636861745f71742e61667465720077733a2f2f3132372e302e302e313a34383331312f777300",
+    "exe": "/tmp/chat-quality-qt-atspi-after.2K0H7904/chat_qt.after",
+    "state": "S"
+  },
+  "binary_sha256": "eee21f3b9446e167d559746d1cdedd301fcd5cb810fd90c3672e97edd422f1ff",
+  "loaded_qt": [
+    {
+      "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Core.so.6.5.3",
+      "sha256": "a187d03f0d9c170fa4dcabc8abc89eb99d163e5b82c64c4667674c6f957c63f0"
+    },
+    {
+      "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6DBus.so.6.5.3",
+      "sha256": "11304f90d948a59d887c7d54a30b388f8a06bbf0689e9707a62b9bed872c0beb"
+    },
+    {
+      "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Gui.so.6.5.3",
+      "sha256": "9a89e05fc892b13084e73397c29a10427c9e45ad729c2ae68c4f51bfb9e545ec"
+    },
+    {
+      "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Svg.so.6.5.3",
+      "sha256": "e93654ab378624f695e0629d22382a8e298b39141cda1132b757dfa3985afa21"
+    },
+    {
+      "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6Widgets.so.6.5.3",
+      "sha256": "3130aa61288d76303c46b27d1b91db8c456a9caef8d7111c1c61b07278e0ed46"
+    },
+    {
+      "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/lib/libQt6XcbQpa.so.6.5.3",
+      "sha256": "e55dd060aaa4cf90745001a7689e3812047f2b0c14300b3064e6636aaa3b40b8"
+    },
+    {
+      "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so",
+      "sha256": "86f9de45c5f2a27bf22d58810f40dddb01e2d8529d41a024ea90aeb34036530c"
+    },
+    {
+      "path": "/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins/platforms/libqxcb.so",
+      "sha256": "27344b5533a430df9db8d253fb9177dd8ea7e0f28ee3958971cbbd13d87ccc94"
+    }
+  ],
+  "private_bus": {
+    "pid": 37249,
+    "tick": "547840852",
+    "cmdline_hex": "2f7573722f62696e2f646275732d6461656d6f6e002d2d73657373696f6e002d2d6e6f666f726b002d2d7072696e742d616464726573733d31002d2d6e6f7379736c6f6700",
+    "exe": "/usr/bin/dbus-daemon",
+    "state": "S"
+  },
+  "display": ":0",
+  "qt_child_only_loader": true
+}

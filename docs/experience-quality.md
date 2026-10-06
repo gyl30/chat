@@ -177,6 +177,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q30 | P2 | 125%/150%/200% 真实 Fcitx/IBus 候选窗偏离 composer 光标，缩放越大距离越大 | 旧Qt反例保留；第五十六阶段当前正式Qt6.5.3四档真实Fcitx/IBus近邻after及32项业务检查通过，局部偏离不再复现。其它IME/OS、精确preedit caret与全控件矩阵未验收 |
 | Q31 | P2 | 可滚动历史中，发送/typing/composer 布局变化使末尾读者丢失自动跟随；旧追加回调也可能覆盖刚发生的上滚 | 第四十七阶段修复末尾布局恢复与追加回调的会话/位置守卫；真实双Qt纯文本before反例及四档after、历史保位对照，永久回归与门禁记录见下文；不外推重连恢复历史或图片异步布局 |
 | Q32 | P2 | 125% 下关闭真实编辑窗口后，消息行下方留下持续的黑色细线 | 第五十阶段完整标准控件公开时序复现，固定私有 Qt6.5.3 对照及正式 Chat 四档真实 after 已消除该局部黑线；不外推系统输入法或全部页面 HiDPI |
+| Q33 | P2 | 群资料、成员和入群申请的画面显示角色、本人或待审批，但实际无障碍行只读用户名 | 第五十七阶段复用现有角色/状态写入 AccessibleTextRole；同永久测试 RED/GREEN、真实 X11/AT-SPI 八行 before/after 和原三模式完整门禁通过；动态 bridge、Orca 与全页面矩阵仍开放 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 字素编辑、完整span及显示列修复已进入生产；第五十五阶段收口modern链复制页旧反白续格。legacy、SSH、浅色及Unicode18物理矩阵仍未闭环，不计全部终端通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 | T06 | P2 | TUI 搜索选中消息之前一项被删除时，只clamp索引，选中目标跳到另一ID | 第二十四阶段修复，永久RED/GREEN、真实双TUI六档选中目标/可复制正文/草稿验证通过 |
@@ -3811,3 +3812,64 @@ LD_LIBRARY_PATH/QT_PLUGIN_PATH，或使用系统stock Qt。本次不安装/替�
 全部页面仍未验收，Q27/Q30全矩阵继续开放。生产Qt/测试脚本/SQL/server/client/
 third均未变化，阶段55最终69项原门禁仍对应相同编译输入；不为文档变化重复宣称
 新构建。Qt87/TUI78保持，完整日常/无障碍及达到92后的两轮fresh review仍须继续。
+
+## 阶段 57：群成员角色与申请状态进入可读取行
+
+从1e3c035b继续。真实生产Qt/X11的群资料预览、全部成员及入群申请，共八个公开
+AT-SPI行均只有username，Description为空；原图却显示群主/管理员/成员、本人及
+待审批。Qt6.5.3原生itemview以AccessibleTextRole或DisplayRole读取Name，不读取
+StatusTipRole/tooltip。此确定的Q33不能靠画面可见或旧门禁全绿宣布无障碍通过。
+
+生产只复用已生成的角色/self描述及审批状态写入AccessibleTextRole；preview clone
+继承同一事实，不新增角色快照或状态。原DisplayRole用户名、UserRole操作身份、
+delegate绘画和权限不变。永久fixture首先读真正QAccessibleTableInterface/cell
+的Name，再检验实时model角色、自身标记、分页、选中身份以及降权清空私有申请。
+同字节最终测试源995179ed…在旧生产build0/widgets1，修复后build0/widgets0，
+RED来自实际owner名称缺少“群主 · 你”，不是超时。早期inactive offscreen bridge
+的model-reset缓存问题与废弃清缓存尝试独立保留，不计最终GREEN；最终fixture
+不手删缓存或伪造active。初始化cell与后续model检查分别记账，不冒称native live
+角色通知已覆盖。
+
+### 原生 before / after
+
+旧正式Qt3bb090e6…和新正式Qt eee21f3b…各自冻结副本使用同字节driver57b98eae…，
+从全新私有数据库、服务、Xvfb/DBus登录，经真实XTest打开群资料、成员、申请。
+fixture SDK只准备owner/admin/member/申请，登录前已关闭，没有widget/QIM注入。
+两轮workflow actual0；before八行status_exposed全false，after八行全true，Name
+准确含角色/本人或待审批，Description仍为空，不把空Description改成伪成功。
+
+| 页面 | 原始 before | 原始 after |
+| --- | --- | --- |
+| 群资料 | [完整 X11 图](images/experience/qt-group-accessibility/before/02-group-overview-fullscreen.png) | [完整 X11 图](images/experience/qt-group-accessibility/after/02-group-overview-fullscreen.png) |
+| 全部成员 | [完整 X11 图](images/experience/qt-group-accessibility/before/03-group-members-fullscreen.png) | [完整 X11 图](images/experience/qt-group-accessibility/after/03-group-members-fullscreen.png) |
+| 入群申请 | [完整 X11 图](images/experience/qt-group-accessibility/before/04-group-requests-fullscreen.png) | [完整 X11 图](images/experience/qt-group-accessibility/after/04-group-requests-fullscreen.png) |
+
+主与独立代理亲看六张原图，角色层级、可见姓名、焦点及动作没有因可读取名称变化
+而改变。[真实行与永久回归记录](images/experience/qt-group-accessibility-proof.json)
+保留原rows.json的Name/Description/rect/showing、全部八个逐行对比、运行exe/maps、
+同driver指纹、原PNG与RED/GREEN日志SHA及无损副本。原*.atspi.json只有失败的
+整树采集占位，不代表完整无障碍树；这次只证明成功读取的实际行。首个归档脚本
+把source SHA少写一位而assert失败，核对实际source与RED/GREEN原文件后纠正；
+没有修改原结果或重新解释失败。
+
+独立DB不存在、私有port关闭、自有PIDgone、三个保护服务ticks/cmdline未变，
+两轮原cleanup均四项true。此任务仅100%初始状态；fixture在登录前关闭，不能
+证明运行期角色变化或降权在真实active bridge/Orca的通知。全键盘、四DPI、
+其它平台、live权限与屏幕阅读器仍要继续，不把局部八行after外推全无障碍验收。
+
+### 最终源码原完整门禁
+
+原tests/verify.sh SHA38d3408e…保持，独立runner/script均实际exit0：normal/ASan/
+UBSan各23/23，总115.87/159.86/146.74秒。qt_ui46.33/54.45/51.40秒保原60秒，
+tui_render0.94/4.61/1.88秒保原5秒；Qt/TUI ON、实际-Werror、无skip/suppression。
+205输入、原脚本、submodule与三个保护服务首尾一致，生成App三模式SHA一致，
+正式TUI仍dd1a6baa…；编译warning、CMake warning及完整log/三LastTest中的
+sanitizer签名扫描均0。沿既有三独立目录新reconfigure/build/CTest，不宣称所有
+依赖从空目录重建。[完整69项原记录](images/experience/qt-group-accessibility-original-verify-proof.json)
+保留全部实际结果/timeout及输入指纹；[无损日志](images/experience/qt-group-accessibility-original-verify.log.gz)
+解压SHA655f73cf…与原字节一致。
+
+Qt87/TUI78不提高。Q33已复现的初始行遗漏收口；Q27/Q30/T04、完整页面/无障碍
+矩阵及达到92后的连续两轮fresh review仍开放。新只读候选：群名远端更新似乎会
+覆盖未保存本地草稿，公告已有dirty guard；尚未真实运行复现，不将其定为产品bug。
+下一步先用两个真实管理员客户端验证，而不是只补model用例。
