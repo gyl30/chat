@@ -1817,3 +1817,20 @@ dd1a6baa…在60/70×24和70/80×40、dark/light八组合，两次新私有环�
 保护服务ticks和正式源码首尾一致。仅这一terminal链的四尺寸向下滚动/Esc
 返回，不是全Help命令、reverse-scroll或terminalMatrix验收。未改生产，未
 虚构新完整门禁；Qt87/TUI78保持，全目标与达到92后的两轮fresh审查仍开放。
+
+## 体验品质审查：群成员摘要明确预览范围
+
+正式TUI成员摘要收为`Preview (N of T):`，原成员顺序、角色、总数及完整Members
+入口保持。真实dark/light、60/120/160×24/40十二组合经Return进入四人完整列表、
+Esc返回；36focused原PNG逐图审查，12辅助图未外推视觉PASS。218原记录及48PNG、
+146gzip原字节由主代理和独立代理实际复核，见体验审查阶段62。
+
+初版永久test84条label RED→GREEN；首次完整69项通过，但追加ASan第三次在
+原5秒限制下实际5.02秒超时，失败原文已归档。只减少新增fixture的重复完整页
+绘制，保全部72摘要、12长姓名及24完整Members验证；最终test61567680…正常
+1.03秒、ASan原5秒连续4.84/4.94/4.85秒实际通过。最终同字节对象配旧UI库RED
+1.02秒exit1，84条预期label失败、其他0，非timeout。最终冻结组合原完整门禁
+runner0，normal/ASan/UBSan各23/23，116.32/166.22/144.49秒；ASan render4.90、
+qt_ui58.86秒仍接近原5/60秒限制，不外推任意负载稳定。205份输入首尾一致，
+Qt/TUI ON、-Werror、原verify脚本及timeout未变，日志告警/sanitizer报告0；详情及
+无损原记录见体验审查阶段62。Qt87/TUI78仍是历史暂评，完整目标仍开放，未push。

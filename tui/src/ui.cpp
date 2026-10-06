@@ -485,8 +485,9 @@ Element secondary(state const& s, int width, int message_scroll)
             if (c)
             {
                 rows.push_back(text("Members: " + std::to_string(s.members.size()) + " · Your role: " + role_label(s.self_role())));
-                std::string preview = "Members: ";
-                for (std::size_t i = 0; i < std::min<std::size_t>(3, s.members.size()); ++i)
+                auto const preview_count = std::min<std::size_t>(3, s.members.size());
+                std::string preview = "Preview (" + std::to_string(preview_count) + " of " + std::to_string(s.members.size()) + "): ";
+                for (std::size_t i = 0; i < preview_count; ++i)
                 { preview += s.members[i].username + " (" + role_label(s.members[i].role) + ") "; }
                 rows.push_back(preview_text(preview, width));
                 if (c->pinned_message) { rows.push_back(preview_text("Pinned: " + c->pinned_message->text, width)); }

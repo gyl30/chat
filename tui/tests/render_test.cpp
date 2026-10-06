@@ -533,6 +533,83 @@ int main()
     s.conversations.front().pinned_message = chat::quoted_message{1, 2, "张 三", "pinned", {}, false};
     s.members = {{1, "Alice", chat::member_role::member, {}}};
     {
+        // The group summary is a bounded subset, not the complete member list.
+        for (int count : {0, 1, 2, 3, 4, 8})
+        {
+            auto preview = s;
+            preview.selected = 0;
+            preview.status.clear();
+            preview.conversations.front().username = "Subset group";
+            preview.conversations.front().member_count = count;
+            preview.conversations.front().announcement.clear();
+            preview.conversations.front().pinned_message.reset();
+            preview.members.clear();
+            for (int i = 0; i < count; ++i)
+            {
+                preview.members.push_back({i + 1, "P" + std::to_string(i + 1),
+                    i == 0 ? chat::member_role::owner : i == 1 ? chat::member_role::admin : chat::member_role::member, {}});
+            }
+            auto const shown = count < 3 ? count : 3;
+            auto const label = "Preview (" + std::to_string(shown) + " of " + std::to_string(count) + "):";
+            for (int columns : {60, 70, 80, 100, 120, 160})
+            {
+                for (int rows : {24, 40})
+                {
+                    auto output = draw(preview, columns, rows);
+                    ok &= expect(output.find(label) != std::string::npos,
+                                 "Group preview explicitly identifies its bounded subset at every width and height");
+                    ok &= expect(output.find("Members: " + std::to_string(count) + " · Your role:") != std::string::npos &&
+                                 output.find("All members") != std::string::npos,
+                                 "Group preview retains the total count and full-members action");
+                    for (int i = 0; i < count; ++i)
+                    {
+                        auto const role = i == 0 ? "owner" : i == 1 ? "admin" : "member";
+                        auto const identity = "P" + std::to_string(i + 1) + " (" + role + ")";
+                        ok &= expect((output.find(identity) != std::string::npos) == (i < shown),
+                                     "Group preview retains the first members and roles without pretending to list the remainder");
+                    }
+                    if (count > 3)
+                    {
+                        auto full = preview;
+                        full.view = page::members;
+                        output = draw(full, columns, rows);
+                        ok &= expect(output.find("Members (" + std::to_string(count) + ")") != std::string::npos &&
+                                     output.find("Preview (") == std::string::npos,
+                                     "Full members remains a complete list rather than the group preview");
+                        for (int i = 0; i < count; ++i)
+                        {
+                            ok &= expect(output.find("[P] P" + std::to_string(i + 1)) != std::string::npos,
+                                         "Full members includes every member beyond the preview cap");
+                        }
+                    }
+                }
+            }
+        }
+        auto long_preview = s;
+        long_preview.selected = 0;
+        long_preview.status.clear();
+        long_preview.conversations.front().username = "Subset group";
+        long_preview.conversations.front().member_count = 4;
+        long_preview.conversations.front().announcement.clear();
+        long_preview.conversations.front().pinned_message.reset();
+        long_preview.members = {{1, "中文é_" + std::string(200, 'x'), chat::member_role::owner, {}},
+            {2, "P2", chat::member_role::admin, {}}, {3, "P3", chat::member_role::member, {}},
+            {4, "P4", chat::member_role::member, {}}};
+        for (int columns : {60, 70, 80, 100, 120, 160})
+        {
+            for (int rows : {24, 40})
+            {
+                auto output = draw(long_preview, columns, rows);
+                auto const begin = output.find("Preview (3 of 4):");
+                auto const end = output.find("\r\n", begin);
+                auto const line = begin == std::string::npos ? std::string{} : output.substr(begin, end - begin);
+                ok &= expect(line.starts_with("Preview (3 of 4): 中文é_") && line.find("…") != std::string::npos &&
+                             output.find("All members") != std::string::npos,
+                             "Long member clipping keeps the subset label at the start and the full-members action visible");
+            }
+        }
+    }
+    {
         auto long_member = s;
         long_member.view = page::members;
         long_member.members.push_back({2, std::string(60, 'A') + "_END", chat::member_role::admin, {}});

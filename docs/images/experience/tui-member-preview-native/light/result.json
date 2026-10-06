@@ -1,0 +1,1115 @@
+{
+  "scope": "/tmp/chat-member-preview-native.UivDD0NU/light",
+  "mode": "mux",
+  "driver_process": {
+    "pid": 313137,
+    "alive": true,
+    "state": "R",
+    "executable": "/usr/bin/python3.10",
+    "start_ticks": 548307032,
+    "cpu_seconds": 0.02,
+    "rss_kib": 22036,
+    "peak_rss_kib": 22036,
+    "threads": 1,
+    "fds": 4
+  },
+  "driver_exit": 0,
+  "captures": [
+    {
+      "file": "00-outer9-oracle.png",
+      "sha": "209d0c36afa1f355ec65fd3475c67a85a3f825d44c8f5e83cdf538e857ff55d9",
+      "raw_offset": 0,
+      "tty_rows_cols": null,
+      "plain_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "styled_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "00-outer9-oracle.window.txt"
+    },
+    {
+      "file": "01-mux9-off-oracle.png",
+      "sha": "f2db0e3193d7891936bdbceed5f9ef855342047e50067e6310c95a640eb32b41",
+      "raw_offset": 1393,
+      "tty_rows_cols": null,
+      "plain_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "styled_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "01-mux9-off-oracle.window.txt"
+    },
+    {
+      "file": "02-login80.png",
+      "sha": "ef6af3c6ec84460d661aed2441560c2ead2ede456b74c77c9eab6e117ddbe315",
+      "raw_offset": 2288,
+      "tty_rows_cols": [
+        30,
+        80
+      ],
+      "plain_sha": "825553e6ed7c586ec08aa3649b4ced506064a4eb9cc1c31ff5b6f2a92104853e",
+      "styled_sha": "068f48010b83283c91cfaa8d06a35df6122bbb27a90d111bde4943d72237ffcc",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "02-login80.window.txt"
+    },
+    {
+      "file": "03-chats80.png",
+      "sha": "b7c3c3dd7f6fa5cbaca99ceb7095a9dec65ff654e0b53bedd3cd0e9ec1071eeb",
+      "raw_offset": 20993,
+      "tty_rows_cols": [
+        30,
+        80
+      ],
+      "plain_sha": "16dd26a54e4393f6561496eac21adcb2e3fa80bfbd3271d00884ccc66be1d316",
+      "styled_sha": "d222bdb9e3b2971deceb0acab3d808c5ef1ac69cb23cba3d4ebdab0e801806e6",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "03-chats80.window.txt"
+    },
+    {
+      "file": "04-selected-conversation80.png",
+      "sha": "303a1088bd03ce3a6283d83a39b61fdbbcb37f8b8a5b520a50bd0c54c0b02b87",
+      "raw_offset": 32675,
+      "tty_rows_cols": [
+        30,
+        80
+      ],
+      "plain_sha": "ad8571f37c91bc9a9b477f923cc8203517e1f32d3281b4811b54e858e0a679e4",
+      "styled_sha": "f1504f8a1fd16faa9ff15edf070585989c8d3971e917df99f37787266f3f9b86",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "04-selected-conversation80.window.txt"
+    },
+    {
+      "file": "preview-60x24-group.png",
+      "sha": "7005380a89dadae22a3451cab25a0d36d97e742daf90378369ee31cb54ad6de1",
+      "raw_offset": 48624,
+      "tty_rows_cols": [
+        24,
+        60
+      ],
+      "plain_sha": "b6e76e1fedb668f15e5d72de83cc4ddb2aaa1aaefab0c65ee122ab42ad626f87",
+      "styled_sha": "fabb7b6fdbe97765612af294cc7555dda8fcc4a6133deea34a9bd357afc955d2",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "preview-60x24-group.window.txt"
+    },
+    {
+      "file": "preview-60x24-members.png",
+      "sha": "6dc251964bb26e5732386f5c41df7c1dbdfb41b777fc756984b1230310b6ef5c",
+      "raw_offset": 53506,
+      "tty_rows_cols": [
+        24,
+        60
+      ],
+      "plain_sha": "9a5e2e533d4dbb727c6f0804e74aeb7f990605cc66e87d66a6e70af505a19773",
+      "styled_sha": "b7772165fd54e48d1979b11d4bb3dcc842d994a5fe547efdacd1e5790da55941",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "preview-60x24-members.window.txt"
+    },
+    {
+      "file": "preview-60x24-esc-group.png",
+      "sha": "7005380a89dadae22a3451cab25a0d36d97e742daf90378369ee31cb54ad6de1",
+      "raw_offset": 56354,
+      "tty_rows_cols": [
+        24,
+        60
+      ],
+      "plain_sha": "b6e76e1fedb668f15e5d72de83cc4ddb2aaa1aaefab0c65ee122ab42ad626f87",
+      "styled_sha": "fabb7b6fdbe97765612af294cc7555dda8fcc4a6133deea34a9bd357afc955d2",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "preview-60x24-esc-group.window.txt"
+    },
+    {
+      "file": "preview-120x24-group.png",
+      "sha": "888f4af901d2d290f02715e02b3c073b0bab7c146c9c3c77c5ef0a3fc51f4b6a",
+      "raw_offset": 81446,
+      "tty_rows_cols": [
+        24,
+        120
+      ],
+      "plain_sha": "357df7568bbf90ba3f88bc7f851cf6cff007e458e28a2643e871359433463fcd",
+      "styled_sha": "7af20f72b384680f398445392252b5c1b0abf3be3d54654258ada1a208774825",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "preview-120x24-group.window.txt"
+    },
+    {
+      "file": "preview-120x24-members.png",
+      "sha": "9efa19ca28b37b9d320bc2aee0579cddc15eb5f1d648a6a5c43118886d083c10",
+      "raw_offset": 90004,
+      "tty_rows_cols": [
+        24,
+        120
+      ],
+      "plain_sha": "1ea010843d7e39ad579f3944128f783d4381c05c66a5599068108a7544a78f3d",
+      "styled_sha": "0805cc7f77edaaa1db8328125078b4efe626631acb89c36b177f39d02a850f02",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "preview-120x24-members.window.txt"
+    },
+    {
+      "file": "preview-120x24-esc-group.png",
+      "sha": "888f4af901d2d290f02715e02b3c073b0bab7c146c9c3c77c5ef0a3fc51f4b6a",
+      "raw_offset": 94861,
+      "tty_rows_cols": [
+        24,
+        120
+      ],
+      "plain_sha": "357df7568bbf90ba3f88bc7f851cf6cff007e458e28a2643e871359433463fcd",
+      "styled_sha": "7af20f72b384680f398445392252b5c1b0abf3be3d54654258ada1a208774825",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "preview-120x24-esc-group.window.txt"
+    },
+    {
+      "file": "preview-160x24-group.png",
+      "sha": "946a456a7b72ec7961d4b1c00f52980a86b8ef1a2cdc616e9cb725e993fd12d9",
+      "raw_offset": 128348,
+      "tty_rows_cols": [
+        24,
+        160
+      ],
+      "plain_sha": "13b7bd9f61c9e3ed62c86ff716b4ca67112180478cb58847c62c904ef79b2917",
+      "styled_sha": "a8e91ede3f14f946a5ab91ded470c69992cb2c7b3d0f371d1f875171254efee3",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "preview-160x24-group.window.txt"
+    },
+    {
+      "file": "preview-160x24-members.png",
+      "sha": "1326329dd156982db99314f6b6d86ea50f13db9a07828fdc10af2d414808d523",
+      "raw_offset": 139362,
+      "tty_rows_cols": [
+        24,
+        160
+      ],
+      "plain_sha": "5e72cb8f894435607261c613504a5e65bd9b012a398f03ff9baeb4a793ffd09c",
+      "styled_sha": "06142103d44dbbb7350231e44d77a5c1859b6ac21aa5890d7a001c826ea48d59",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "preview-160x24-members.window.txt"
+    },
+    {
+      "file": "preview-160x24-esc-group.png",
+      "sha": "946a456a7b72ec7961d4b1c00f52980a86b8ef1a2cdc616e9cb725e993fd12d9",
+      "raw_offset": 145551,
+      "tty_rows_cols": [
+        24,
+        160
+      ],
+      "plain_sha": "13b7bd9f61c9e3ed62c86ff716b4ca67112180478cb58847c62c904ef79b2917",
+      "styled_sha": "a8e91ede3f14f946a5ab91ded470c69992cb2c7b3d0f371d1f875171254efee3",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "preview-160x24-esc-group.window.txt"
+    },
+    {
+      "file": "preview-60x40-group.png",
+      "sha": "61bcc56fdc4555a2a5a3508f129308ec13af2230b6f7253e4fdb6c21d570a266",
+      "raw_offset": 167057,
+      "tty_rows_cols": [
+        40,
+        60
+      ],
+      "plain_sha": "dac7b6c19b03f45db3dffc30d6bd59eff9afd317c4eb562dc4353c5901bc3a99",
+      "styled_sha": "ff80c40eba91670c0f9286ab13e2580691b75442fcfd9b083f0766d9c140f82d",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "preview-60x40-group.window.txt"
+    },
+    {
+      "file": "preview-60x40-members.png",
+      "sha": "da30ddaa195fc5c441983f381799a463a2a47ddbb8301c54a73c9453c96be7b0",
+      "raw_offset": 174380,
+      "tty_rows_cols": [
+        40,
+        60
+      ],
+      "plain_sha": "ba65d302941f57d823c3ce902b49abca6cced70dd47ff7568a14850407e5efce",
+      "styled_sha": "78f22409cebd667cce553dc90fbcaa9db09b532c14c7f61786f7b7bfbc60bf72",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "preview-60x40-members.window.txt"
+    },
+    {
+      "file": "preview-60x40-esc-group.png",
+      "sha": "61bcc56fdc4555a2a5a3508f129308ec13af2230b6f7253e4fdb6c21d570a266",
+      "raw_offset": 178462,
+      "tty_rows_cols": [
+        40,
+        60
+      ],
+      "plain_sha": "dac7b6c19b03f45db3dffc30d6bd59eff9afd317c4eb562dc4353c5901bc3a99",
+      "styled_sha": "ff80c40eba91670c0f9286ab13e2580691b75442fcfd9b083f0766d9c140f82d",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "preview-60x40-esc-group.window.txt"
+    },
+    {
+      "file": "preview-120x40-group.png",
+      "sha": "13f232a01c0b6d1f7b55932d4ec8a573b30683e1d3b4b6c43978c7f7774aaec3",
+      "raw_offset": 214373,
+      "tty_rows_cols": [
+        40,
+        120
+      ],
+      "plain_sha": "a42c0bc80fa7c7f2034343696a70f468cc0de1173482d69d902cb26c760bc87f",
+      "styled_sha": "a2c2b393d8e7daccb5aa871d3b88536d834f275d57389ac2e3c41227842fda5c",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "preview-120x40-group.window.txt"
+    },
+    {
+      "file": "preview-120x40-members.png",
+      "sha": "6a86f3c7bbf38ebb5091b0c760137ffeeb06a94648171447791816570ddee702",
+      "raw_offset": 227349,
+      "tty_rows_cols": [
+        40,
+        120
+      ],
+      "plain_sha": "11fdb66f5c3ac3b504039a8706fc677f3ad11471357177d9f9994b19b7f98814",
+      "styled_sha": "67febb7bb2f79a234fe7535064647d46dc680bbb28f82ea9e97b1e34bb6c124f",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "preview-120x40-members.window.txt"
+    },
+    {
+      "file": "preview-120x40-esc-group.png",
+      "sha": "13f232a01c0b6d1f7b55932d4ec8a573b30683e1d3b4b6c43978c7f7774aaec3",
+      "raw_offset": 234420,
+      "tty_rows_cols": [
+        40,
+        120
+      ],
+      "plain_sha": "a42c0bc80fa7c7f2034343696a70f468cc0de1173482d69d902cb26c760bc87f",
+      "styled_sha": "a2c2b393d8e7daccb5aa871d3b88536d834f275d57389ac2e3c41227842fda5c",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "preview-120x40-esc-group.window.txt"
+    },
+    {
+      "file": "preview-160x40-group.png",
+      "sha": "6f6b9878074021cc59c5658d0f9369e217a2f1296ced840238611606fbfda7d3",
+      "raw_offset": 282434,
+      "tty_rows_cols": [
+        40,
+        160
+      ],
+      "plain_sha": "64aa2b704a7d52ce84da0823846ff91e275c90034d83f4c2353052af3109b714",
+      "styled_sha": "793e133e879387050153706ce7e443ff7c68fc1f91ab8fec597ae64ecf325dbb",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "preview-160x40-group.window.txt"
+    },
+    {
+      "file": "preview-160x40-members.png",
+      "sha": "613542046aa01a59ba51f217445ed5da24cddb16ccd86c32e30b522aaeed81dd",
+      "raw_offset": 299144,
+      "tty_rows_cols": [
+        40,
+        160
+      ],
+      "plain_sha": "b0cdfc378d12754ae0ac9aa2b4ad011649243d237d09a74f4952e7c5a1f0564d",
+      "styled_sha": "24af8860827d02d9501a83c86db9c9bca4ffa4607b9f093957b1929dffa91f85",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "preview-160x40-members.window.txt"
+    },
+    {
+      "file": "preview-160x40-esc-group.png",
+      "sha": "6f6b9878074021cc59c5658d0f9369e217a2f1296ced840238611606fbfda7d3",
+      "raw_offset": 308197,
+      "tty_rows_cols": [
+        40,
+        160
+      ],
+      "plain_sha": "64aa2b704a7d52ce84da0823846ff91e275c90034d83f4c2353052af3109b714",
+      "styled_sha": "793e133e879387050153706ce7e443ff7c68fc1f91ab8fec597ae64ecf325dbb",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "preview-160x40-esc-group.window.txt"
+    },
+    {
+      "file": "16-after-test9-oracle.png",
+      "sha": "abf9143c0517d223f86297366e1e2df561870c79759d29e943d6cf32e6842b80",
+      "raw_offset": 317603,
+      "tty_rows_cols": null,
+      "plain_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "styled_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "full_image_pixels": [
+        1900,
+        900
+      ],
+      "window_geometry_file": "16-after-test9-oracle.window.txt"
+    }
+  ],
+  "actions": [],
+  "protected_before": {
+    "2876288": {
+      "pid": 2876288,
+      "alive": true,
+      "state": "S",
+      "executable": "/home/gyl/example/chat/build/chat_server (deleted)",
+      "start_ticks": 521400965,
+      "cpu_seconds": 0.98,
+      "rss_kib": 17108,
+      "peak_rss_kib": 17108,
+      "threads": 25,
+      "fds": 41
+    },
+    "3225": {
+      "pid": 3225,
+      "alive": true,
+      "state": "S",
+      "executable": "/usr/bin/fcitx5",
+      "start_ticks": 17583,
+      "cpu_seconds": 6052.83,
+      "rss_kib": 61320,
+      "peak_rss_kib": 285108,
+      "threads": 3,
+      "fds": 62
+    },
+    "29935": {
+      "pid": 29935,
+      "alive": true,
+      "state": "S",
+      "executable": "/usr/bin/speech-dispatcher",
+      "start_ticks": 248258,
+      "cpu_seconds": 4.85,
+      "rss_kib": 6476,
+      "peak_rss_kib": 7872,
+      "threads": 5,
+      "fds": 24
+    }
+  },
+  "head": "a8529a18c95a3b6550efe4553d0ebad86cf3eedf",
+  "tui_source_before": {
+    "tui/cmake/ftxui-7.0.3-grapheme.patch": "1e4bf334b12a9d4cd0876f68a0c096717f6ee8070e113f01fdc73b1e6595e56d",
+    "tui/tests/render_test.cpp": "e3116731f057c7c07d1f71fb1fe4085a8e5d786c3bc1be762b4019d4a211eee4",
+    "tui/src/app.cpp": "3cfff26307318d1badc870554800cddafe4158866bccbd800db17b66be44db7a",
+    "tui/src/app.hpp": "89b9f37259e60109284ff5511322d794fac291f158f3ac5a07cfc53603f3a860",
+    "tui/src/deadline.hpp": "dbe2a40c1a61b75032843ab82fc8dd898f0d0f8ecbfe6cde15fbf528274584f2",
+    "tui/src/file_io.hpp": "36628265415a0fbae479eec5c76f122362a7a61de2ee9b32cfa94cf41ad5ef7d",
+    "tui/src/groups.cpp": "3a6c19da31f784377d64112063783f2197a9ea08ff2ded783a245af60ce89c99",
+    "tui/src/inbox.hpp": "53a0dbb45136c8f1b783b948373658b2897d976944eaff1353624150ec5d1bba",
+    "tui/src/main.cpp": "05ed5edddc04b9590edeb11db6261a0e0440e32ea54af98a65b6d9afbd79b620",
+    "tui/src/messages.cpp": "f6c414041e8b17f7f59fad4c29589e3bf7bd45f30fc365b555f9c0c8fd164340",
+    "tui/src/profile.cpp": "a464531debbf5b4c618d712276fa5d526ba70599cd7a9f26aa490e2003481990",
+    "tui/src/state.cpp": "d8b99d807e119b410bb5a0df2d7c8e84d75ebb326cedf4d9526665038c3fa5ab",
+    "tui/src/state.hpp": "32e853f0bce108fd5425351a2f882db9c4e11d074f6e742e33caa347647d531e",
+    "tui/src/ui.cpp": "203f0e3f0097c5dee6df4c812f9c44abf2ee8375ca9d25eeab2e532564c2ff71",
+    "tui/src/ui.hpp": "4fdeb7385b98761ae916db52d23f0d3079c9e90d0f0eb8391409fdfd00a4e62e"
+  },
+  "binary_sha": {
+    "chat_server": "f2c9288cbc32817183e399e72a4a3af8e45adfdfbd54435af43aae86da36bf5b",
+    "chat_tui_scale_fixture": "b624a131f2170164bd4f9b2c9ac2cc732fd6b62c23819f3a8b9d7fc0b4d021fe",
+    "chat_tui": "1ecdf579af21099c08210e0d14b5383cef97342fc0a5ae0540f8877dac030350"
+  },
+  "candidate_binary": {
+    "path": "/tmp/chat-member-preview-native.UivDD0NU/chat_tui.after",
+    "sha256": "1ecdf579af21099c08210e0d14b5383cef97342fc0a5ae0540f8877dac030350"
+  },
+  "candidate_manifest_sha256": "ce232b450fb7bb9e24c304236ee7849e94ca54509c007c9085d86f59d470c75f",
+  "wezterm_version": "wezterm 20221119-145034-49b9839f",
+  "tmux_version": "tmux 3.6a",
+  "database": "chat_t04_candidate_mux_1006204101_313137",
+  "port": 40003,
+  "processes": {
+    "server": {
+      "pid": 313198,
+      "alive": true,
+      "state": "R",
+      "executable": "/tmp/chat-member-preview-native.UivDD0NU/bin/chat_server",
+      "start_ticks": 548307180,
+      "cpu_seconds": 0.0,
+      "rss_kib": 208,
+      "peak_rss_kib": 208,
+      "threads": 1,
+      "fds": 3
+    },
+    "wezterm": {
+      "pid": 313586,
+      "alive": true,
+      "state": "R",
+      "executable": "/usr/bin/wezterm",
+      "start_ticks": 548307749,
+      "cpu_seconds": 0.0,
+      "rss_kib": 704,
+      "peak_rss_kib": 704,
+      "threads": 1,
+      "fds": 4
+    }
+  },
+  "authoritative_sdk_members": [
+    {
+      "id": 1,
+      "username": "导航A_u14_204103_313137",
+      "role": "owner"
+    },
+    {
+      "id": 2,
+      "username": "历史B_u14_204103_313137",
+      "role": "member"
+    },
+    {
+      "id": 3,
+      "username": "好友C_u14_204103_313137",
+      "role": "member"
+    },
+    {
+      "id": 6,
+      "username": "观察S005_u14_204103_313137",
+      "role": "member"
+    }
+  ],
+  "helper_exit": 0,
+  "prelogin_seed": {
+    "title": "HDR L👩‍💻R ❤️ 1️⃣ 👩🏽 END",
+    "cases": [
+      "LABR END",
+      "L中́R END",
+      "L👩‍💻R END",
+      "L1️⃣R END",
+      "L❤️R END",
+      "L👩🏽R END"
+    ],
+    "sql": [
+      [
+        "1",
+        "2",
+        "1",
+        "readonly_history_u14_204103_313137"
+      ],
+      [
+        "2",
+        "1",
+        "2",
+        "LABR END"
+      ],
+      [
+        "3",
+        "1",
+        "2",
+        "L中́R END"
+      ],
+      [
+        "4",
+        "1",
+        "2",
+        "L👩‍💻R END"
+      ],
+      [
+        "5",
+        "1",
+        "2",
+        "L1️⃣R END"
+      ],
+      [
+        "6",
+        "1",
+        "2",
+        "L❤️R END"
+      ],
+      [
+        "7",
+        "1",
+        "2",
+        "L👩🏽R END"
+      ]
+    ],
+    "sdk_closed_before_login": true
+  },
+  "private_membership_sql_before": [
+    [
+      "1",
+      "1",
+      "导航A_u14_204103_313137",
+      "f",
+      "1"
+    ],
+    [
+      "1",
+      "2",
+      "历史B_u14_204103_313137",
+      "f",
+      "1"
+    ],
+    [
+      "1",
+      "3",
+      "好友C_u14_204103_313137",
+      "f",
+      "1"
+    ],
+    [
+      "1",
+      "6",
+      "观察S005_u14_204103_313137",
+      "f",
+      "1"
+    ]
+  ],
+  "inside": {
+    "pid": 313742,
+    "tty": "/dev/pts/26",
+    "TERM": "tmux-256color",
+    "TERM_PROGRAM": "tmux",
+    "TERM_PROGRAM_VERSION": "3.6a",
+    "inside_tmux": true,
+    "tmux_server_pid": 313740,
+    "variation_selector_always_wide": "off",
+    "allow_passthrough": "",
+    "clients": [
+      "xterm-256color|WezTerm 20221119-145034-49b9839f|bpaste,ccolour,clipboard,cstyle,focus,RGB,sixel,title"
+    ]
+  },
+  "outer": {
+    "pid": 313611,
+    "tty": "/dev/pts/22",
+    "TERM": "xterm-256color",
+    "TERM_PROGRAM": "WezTerm",
+    "TERM_PROGRAM_VERSION": "20221119-145034-49b9839f"
+  },
+  "actual_live_binary": {
+    "pid": 313742,
+    "start_ticks": 548307787,
+    "path": "/tmp/chat-member-preview-native.UivDD0NU/chat_tui.after",
+    "sha256": "1ecdf579af21099c08210e0d14b5383cef97342fc0a5ae0540f8877dac030350"
+  },
+  "row_pitch": 19,
+  "focused_cases": [
+    {
+      "width": 60,
+      "height": 24,
+      "actual_rows_cols": [
+        24,
+        60
+      ],
+      "preview_label_visible": true,
+      "total_members4_visible": true,
+      "owner_role_visible": true,
+      "all_members_action_visible": true,
+      "preview_line": "│Preview (3 of 4): 导航A_u14_204103_313137 (owner) 历史B_… │",
+      "action_method": "Real Return on selected All members, then real Escape to parent Group",
+      "product_observation_only": true,
+      "actual_all_members_enter": true,
+      "full_members_header_visible": true,
+      "full_members_identities_roles": [
+        {
+          "id": 1,
+          "username": "导航A_u14_204103_313137",
+          "role": "owner",
+          "same_row_identity_and_role_visible": true
+        },
+        {
+          "id": 2,
+          "username": "历史B_u14_204103_313137",
+          "role": "member",
+          "same_row_identity_and_role_visible": true
+        },
+        {
+          "id": 3,
+          "username": "好友C_u14_204103_313137",
+          "role": "member",
+          "same_row_identity_and_role_visible": true
+        },
+        {
+          "id": 6,
+          "username": "观察S005_u14_204103_313137",
+          "role": "member",
+          "same_row_identity_and_role_visible": true
+        }
+      ],
+      "no_preview_label_on_full_members": true,
+      "actual_esc_return_to_group": true
+    },
+    {
+      "width": 120,
+      "height": 24,
+      "actual_rows_cols": [
+        24,
+        120
+      ],
+      "preview_label_visible": true,
+      "total_members4_visible": true,
+      "owner_role_visible": true,
+      "all_members_action_visible": true,
+      "preview_line": "│Preview (3 of 4): 导航A_u14_204103_313137 (owner) 历史B_u14_204103_313137 (member) 好友C_u14_204103_313137 (member)   │",
+      "action_method": "Real Return on selected All members, then real Escape to parent Group",
+      "product_observation_only": true,
+      "actual_all_members_enter": true,
+      "full_members_header_visible": true,
+      "full_members_identities_roles": [
+        {
+          "id": 1,
+          "username": "导航A_u14_204103_313137",
+          "role": "owner",
+          "same_row_identity_and_role_visible": true
+        },
+        {
+          "id": 2,
+          "username": "历史B_u14_204103_313137",
+          "role": "member",
+          "same_row_identity_and_role_visible": true
+        },
+        {
+          "id": 3,
+          "username": "好友C_u14_204103_313137",
+          "role": "member",
+          "same_row_identity_and_role_visible": true
+        },
+        {
+          "id": 6,
+          "username": "观察S005_u14_204103_313137",
+          "role": "member",
+          "same_row_identity_and_role_visible": true
+        }
+      ],
+      "no_preview_label_on_full_members": true,
+      "actual_esc_return_to_group": true
+    },
+    {
+      "width": 160,
+      "height": 24,
+      "actual_rows_cols": [
+        24,
+        160
+      ],
+      "preview_label_visible": true,
+      "total_members4_visible": true,
+      "owner_role_visible": true,
+      "all_members_action_visible": true,
+      "preview_line": "│Preview (3 of 4): 导航A_u14_204103_313137 (owner) 历史B_u14_204103_313137 (member) 好友C_u14_204103_313137 (member)                                           │",
+      "action_method": "Real Return on selected All members, then real Escape to parent Group",
+      "product_observation_only": true,
+      "actual_all_members_enter": true,
+      "full_members_header_visible": true,
+      "full_members_identities_roles": [
+        {
+          "id": 1,
+          "username": "导航A_u14_204103_313137",
+          "role": "owner",
+          "same_row_identity_and_role_visible": true
+        },
+        {
+          "id": 2,
+          "username": "历史B_u14_204103_313137",
+          "role": "member",
+          "same_row_identity_and_role_visible": true
+        },
+        {
+          "id": 3,
+          "username": "好友C_u14_204103_313137",
+          "role": "member",
+          "same_row_identity_and_role_visible": true
+        },
+        {
+          "id": 6,
+          "username": "观察S005_u14_204103_313137",
+          "role": "member",
+          "same_row_identity_and_role_visible": true
+        }
+      ],
+      "no_preview_label_on_full_members": true,
+      "actual_esc_return_to_group": true
+    },
+    {
+      "width": 60,
+      "height": 40,
+      "actual_rows_cols": [
+        40,
+        60
+      ],
+      "preview_label_visible": true,
+      "total_members4_visible": true,
+      "owner_role_visible": true,
+      "all_members_action_visible": true,
+      "preview_line": "│Preview (3 of 4): 导航A_u14_204103_313137 (owner) 历史B_… │",
+      "action_method": "Real Return on selected All members, then real Escape to parent Group",
+      "product_observation_only": true,
+      "actual_all_members_enter": true,
+      "full_members_header_visible": true,
+      "full_members_identities_roles": [
+        {
+          "id": 1,
+          "username": "导航A_u14_204103_313137",
+          "role": "owner",
+          "same_row_identity_and_role_visible": true
+        },
+        {
+          "id": 2,
+          "username": "历史B_u14_204103_313137",
+          "role": "member",
+          "same_row_identity_and_role_visible": true
+        },
+        {
+          "id": 3,
+          "username": "好友C_u14_204103_313137",
+          "role": "member",
+          "same_row_identity_and_role_visible": true
+        },
+        {
+          "id": 6,
+          "username": "观察S005_u14_204103_313137",
+          "role": "member",
+          "same_row_identity_and_role_visible": true
+        }
+      ],
+      "no_preview_label_on_full_members": true,
+      "actual_esc_return_to_group": true
+    },
+    {
+      "width": 120,
+      "height": 40,
+      "actual_rows_cols": [
+        40,
+        120
+      ],
+      "preview_label_visible": true,
+      "total_members4_visible": true,
+      "owner_role_visible": true,
+      "all_members_action_visible": true,
+      "preview_line": "│Preview (3 of 4): 导航A_u14_204103_313137 (owner) 历史B_u14_204103_313137 (member) 好友C_u14_204103_313137 (member)   │",
+      "action_method": "Real Return on selected All members, then real Escape to parent Group",
+      "product_observation_only": true,
+      "actual_all_members_enter": true,
+      "full_members_header_visible": true,
+      "full_members_identities_roles": [
+        {
+          "id": 1,
+          "username": "导航A_u14_204103_313137",
+          "role": "owner",
+          "same_row_identity_and_role_visible": true
+        },
+        {
+          "id": 2,
+          "username": "历史B_u14_204103_313137",
+          "role": "member",
+          "same_row_identity_and_role_visible": true
+        },
+        {
+          "id": 3,
+          "username": "好友C_u14_204103_313137",
+          "role": "member",
+          "same_row_identity_and_role_visible": true
+        },
+        {
+          "id": 6,
+          "username": "观察S005_u14_204103_313137",
+          "role": "member",
+          "same_row_identity_and_role_visible": true
+        }
+      ],
+      "no_preview_label_on_full_members": true,
+      "actual_esc_return_to_group": true
+    },
+    {
+      "width": 160,
+      "height": 40,
+      "actual_rows_cols": [
+        40,
+        160
+      ],
+      "preview_label_visible": true,
+      "total_members4_visible": true,
+      "owner_role_visible": true,
+      "all_members_action_visible": true,
+      "preview_line": "│Preview (3 of 4): 导航A_u14_204103_313137 (owner) 历史B_u14_204103_313137 (member) 好友C_u14_204103_313137 (member)                                           │",
+      "action_method": "Real Return on selected All members, then real Escape to parent Group",
+      "product_observation_only": true,
+      "actual_all_members_enter": true,
+      "full_members_header_visible": true,
+      "full_members_identities_roles": [
+        {
+          "id": 1,
+          "username": "导航A_u14_204103_313137",
+          "role": "owner",
+          "same_row_identity_and_role_visible": true
+        },
+        {
+          "id": 2,
+          "username": "历史B_u14_204103_313137",
+          "role": "member",
+          "same_row_identity_and_role_visible": true
+        },
+        {
+          "id": 3,
+          "username": "好友C_u14_204103_313137",
+          "role": "member",
+          "same_row_identity_and_role_visible": true
+        },
+        {
+          "id": 6,
+          "username": "观察S005_u14_204103_313137",
+          "role": "member",
+          "same_row_identity_and_role_visible": true
+        }
+      ],
+      "no_preview_label_on_full_members": true,
+      "actual_esc_return_to_group": true
+    }
+  ],
+  "focused_preview_contract_met": true,
+  "private_membership_sql_after": [
+    [
+      "1",
+      "1",
+      "导航A_u14_204103_313137",
+      "f",
+      "1"
+    ],
+    [
+      "1",
+      "2",
+      "历史B_u14_204103_313137",
+      "f",
+      "1"
+    ],
+    [
+      "1",
+      "3",
+      "好友C_u14_204103_313137",
+      "f",
+      "1"
+    ],
+    [
+      "1",
+      "6",
+      "观察S005_u14_204103_313137",
+      "f",
+      "1"
+    ]
+  ],
+  "private_membership_unchanged": true,
+  "sql_after": [
+    [
+      "1",
+      "2",
+      "1",
+      "readonly_history_u14_204103_313137"
+    ],
+    [
+      "2",
+      "1",
+      "2",
+      "LABR END"
+    ],
+    [
+      "3",
+      "1",
+      "2",
+      "L中́R END"
+    ],
+    [
+      "4",
+      "1",
+      "2",
+      "L👩‍💻R END"
+    ],
+    [
+      "5",
+      "1",
+      "2",
+      "L1️⃣R END"
+    ],
+    [
+      "6",
+      "1",
+      "2",
+      "L❤️R END"
+    ],
+    [
+      "7",
+      "1",
+      "2",
+      "L👩🏽R END"
+    ]
+  ],
+  "raw_contains_password": false,
+  "native_actual_exit": {
+    "actual_exit": 0
+  },
+  "wezterm_exit": 0,
+  "cleanup_exits": {
+    "clipboard": [
+      {
+        "pid": 314557,
+        "actual_exit": -15,
+        "gone": true
+      },
+      {
+        "pid": 314391,
+        "actual_exit": 0,
+        "gone": true
+      },
+      {
+        "pid": 314211,
+        "actual_exit": 0,
+        "gone": true
+      },
+      {
+        "pid": 314167,
+        "actual_exit": 0,
+        "gone": true
+      },
+      {
+        "pid": 314031,
+        "actual_exit": 0,
+        "gone": true
+      },
+      {
+        "pid": 313894,
+        "actual_exit": 0,
+        "gone": true
+      },
+      {
+        "pid": 313872,
+        "actual_exit": 0,
+        "gone": true
+      },
+      {
+        "pid": 313870,
+        "actual_exit": 0,
+        "gone": true
+      }
+    ],
+    "wezterm": [
+      {
+        "pid": 313586,
+        "actual_exit": 0,
+        "gone": true
+      }
+    ],
+    "xvfb": [
+      {
+        "pid": 313581,
+        "actual_exit": 0,
+        "gone": true
+      }
+    ],
+    "helper": [
+      {
+        "pid": 313199,
+        "actual_exit": 0,
+        "gone": true
+      }
+    ],
+    "server": [
+      {
+        "pid": 313198,
+        "actual_exit": 0,
+        "gone": true
+      }
+    ]
+  },
+  "app_gone": true,
+  "tmux_gone": true,
+  "dropdb_exit": 0,
+  "database_absent": true,
+  "protected_after": {
+    "2876288": {
+      "pid": 2876288,
+      "alive": true,
+      "state": "S",
+      "executable": "/home/gyl/example/chat/build/chat_server (deleted)",
+      "start_ticks": 521400965,
+      "cpu_seconds": 0.98,
+      "rss_kib": 17108,
+      "peak_rss_kib": 17108,
+      "threads": 25,
+      "fds": 41
+    },
+    "3225": {
+      "pid": 3225,
+      "alive": true,
+      "state": "S",
+      "executable": "/usr/bin/fcitx5",
+      "start_ticks": 17583,
+      "cpu_seconds": 6052.83,
+      "rss_kib": 61320,
+      "peak_rss_kib": 285108,
+      "threads": 3,
+      "fds": 62
+    },
+    "29935": {
+      "pid": 29935,
+      "alive": true,
+      "state": "S",
+      "executable": "/usr/bin/speech-dispatcher",
+      "start_ticks": 248258,
+      "cpu_seconds": 4.85,
+      "rss_kib": 6476,
+      "peak_rss_kib": 7872,
+      "threads": 5,
+      "fds": 24
+    }
+  },
+  "protected_unchanged": true,
+  "tui_source_after": {
+    "tui/cmake/ftxui-7.0.3-grapheme.patch": "1e4bf334b12a9d4cd0876f68a0c096717f6ee8070e113f01fdc73b1e6595e56d",
+    "tui/tests/render_test.cpp": "e3116731f057c7c07d1f71fb1fe4085a8e5d786c3bc1be762b4019d4a211eee4",
+    "tui/src/app.cpp": "3cfff26307318d1badc870554800cddafe4158866bccbd800db17b66be44db7a",
+    "tui/src/app.hpp": "89b9f37259e60109284ff5511322d794fac291f158f3ac5a07cfc53603f3a860",
+    "tui/src/deadline.hpp": "dbe2a40c1a61b75032843ab82fc8dd898f0d0f8ecbfe6cde15fbf528274584f2",
+    "tui/src/file_io.hpp": "36628265415a0fbae479eec5c76f122362a7a61de2ee9b32cfa94cf41ad5ef7d",
+    "tui/src/groups.cpp": "3a6c19da31f784377d64112063783f2197a9ea08ff2ded783a245af60ce89c99",
+    "tui/src/inbox.hpp": "53a0dbb45136c8f1b783b948373658b2897d976944eaff1353624150ec5d1bba",
+    "tui/src/main.cpp": "05ed5edddc04b9590edeb11db6261a0e0440e32ea54af98a65b6d9afbd79b620",
+    "tui/src/messages.cpp": "f6c414041e8b17f7f59fad4c29589e3bf7bd45f30fc365b555f9c0c8fd164340",
+    "tui/src/profile.cpp": "a464531debbf5b4c618d712276fa5d526ba70599cd7a9f26aa490e2003481990",
+    "tui/src/state.cpp": "d8b99d807e119b410bb5a0df2d7c8e84d75ebb326cedf4d9526665038c3fa5ab",
+    "tui/src/state.hpp": "32e853f0bce108fd5425351a2f882db9c4e11d074f6e742e33caa347647d531e",
+    "tui/src/ui.cpp": "203f0e3f0097c5dee6df4c812f9c44abf2ee8375ca9d25eeab2e532564c2ff71",
+    "tui/src/ui.hpp": "4fdeb7385b98761ae916db52d23f0d3079c9e90d0f0eb8391409fdfd00a4e62e"
+  },
+  "tui_source_unchanged": true,
+  "own_port_closed": true
+}

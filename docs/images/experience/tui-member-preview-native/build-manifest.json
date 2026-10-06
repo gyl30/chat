@@ -1,0 +1,24 @@
+{
+  "scope": "/tmp/chat-member-preview-native.UivDD0NU",
+  "production_head": "a8529a18c95a3b6550efe4553d0ebad86cf3eedf",
+  "candidate_binary": "/tmp/chat-member-preview-native.UivDD0NU/chat_tui.after",
+  "candidate_binary_sha256": "1ecdf579af21099c08210e0d14b5383cef97342fc0a5ae0540f8877dac030350",
+  "tui_source_sha256": {
+    "tui/cmake/ftxui-7.0.3-grapheme.patch": "1e4bf334b12a9d4cd0876f68a0c096717f6ee8070e113f01fdc73b1e6595e56d",
+    "tui/tests/render_test.cpp": "e3116731f057c7c07d1f71fb1fe4085a8e5d786c3bc1be762b4019d4a211eee4",
+    "tui/src/app.cpp": "3cfff26307318d1badc870554800cddafe4158866bccbd800db17b66be44db7a",
+    "tui/src/app.hpp": "89b9f37259e60109284ff5511322d794fac291f158f3ac5a07cfc53603f3a860",
+    "tui/src/deadline.hpp": "dbe2a40c1a61b75032843ab82fc8dd898f0d0f8ecbfe6cde15fbf528274584f2",
+    "tui/src/file_io.hpp": "36628265415a0fbae479eec5c76f122362a7a61de2ee9b32cfa94cf41ad5ef7d",
+    "tui/src/groups.cpp": "3a6c19da31f784377d64112063783f2197a9ea08ff2ded783a245af60ce89c99",
+    "tui/src/inbox.hpp": "53a0dbb45136c8f1b783b948373658b2897d976944eaff1353624150ec5d1bba",
+    "tui/src/main.cpp": "05ed5edddc04b9590edeb11db6261a0e0440e32ea54af98a65b6d9afbd79b620",
+    "tui/src/messages.cpp": "f6c414041e8b17f7f59fad4c29589e3bf7bd45f30fc365b555f9c0c8fd164340",
+    "tui/src/profile.cpp": "a464531debbf5b4c618d712276fa5d526ba70599cd7a9f26aa490e2003481990",
+    "tui/src/state.cpp": "d8b99d807e119b410bb5a0df2d7c8e84d75ebb326cedf4d9526665038c3fa5ab",
+    "tui/src/state.hpp": "32e853f0bce108fd5425351a2f882db9c4e11d074f6e742e33caa347647d531e",
+    "tui/src/ui.cpp": "203f0e3f0097c5dee6df4c812f9c44abf2ee8375ca9d25eeab2e532564c2ff71",
+    "tui/src/ui.hpp": "4fdeb7385b98761ae916db52d23f0d3079c9e90d0f0eb8391409fdfd00a4e62e"
+  },
+  "limits": "Focused actual4member Group Preview label/Enter fullMembers/Esc; 3widths2heights dark/light; not fullcampaign or terminalMatrix."
+}

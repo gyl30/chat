@@ -1,0 +1,1069 @@
+{
+  "schema_version": 1,
+  "kind": "focused native member-preview AFTER independent original-image review",
+  "scope": "/tmp/chat-member-preview-native.UivDD0NU",
+  "binary_sha256": "1ecdf579af21099c08210e0d14b5383cef97342fc0a5ae0540f8877dac030350",
+  "review_method": "Personally opened each of 36 focused full 1900x900 PNGs at original detail; no filename/hash/plain-text substitution for visual inspection.",
+  "visual_review": {
+    "entries": [
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/dark/preview-60x24-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/dark/preview-60x24-group.png",
+        "sha256": "34b712a169ff69a9026effc3aef0f77c77d27ec0831c86e63806b56fbe916202",
+        "profile": "dark",
+        "width": 60,
+        "height": 24,
+        "phase": "group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          24,
+          60
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "Preview tail is visibly ellipsized after the first owner's complete identity/role and the next name prefix 历史B_; this frame does not show all three preview identities in full. The 3-of-4 distinction survives clipping.",
+          "Group content stays inside the pane borders and the selected action is visually distinct.",
+          "All ten Group action rows fit above the footer in this actual 24-row pane.",
+          "Black application background with white/gray text and white selection is readable; dim role/hint text remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/dark/preview-60x24-members.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/dark/preview-60x24-members.png",
+        "sha256": "63695fe99b0dd5bc732d66962a9509f9e3ee96f168b043a58085969307675613",
+        "profile": "dark",
+        "width": 60,
+        "height": 24,
+        "phase": "members",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          24,
+          60
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Members (4) header and four distinct complete seeded usernames are readable; first row is selected and shows owner (you), other three rows show member.",
+          "Identity and role share each visible row; the fourth observer identity is not omitted. Preview label is absent on the full member list.",
+          "A/O/D command hint and Esc: back footer are readable; no row/border overlap is visible.",
+          "Black application background with white/gray text and white selection is readable; dim role/hint text remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/dark/preview-60x24-esc-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/dark/preview-60x24-esc-group.png",
+        "sha256": "34b712a169ff69a9026effc3aef0f77c77d27ec0831c86e63806b56fbe916202",
+        "profile": "dark",
+        "width": 60,
+        "height": 24,
+        "phase": "esc-group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          24,
+          60
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "Preview tail is visibly ellipsized after the first owner's complete identity/role and the next name prefix 历史B_; this frame does not show all three preview identities in full. The 3-of-4 distinction survives clipping.",
+          "After actual Escape the parent Group content and All members selection are restored; no stale member-list rows are visible.",
+          "All ten Group action rows fit above the footer in this actual 24-row pane.",
+          "Black application background with white/gray text and white selection is readable; dim role/hint text remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/dark/preview-120x24-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/dark/preview-120x24-group.png",
+        "sha256": "c5fd09d13c50d0588b06d0ba4de762d6523a994e4b77dcd15bca4884513a5624",
+        "profile": "dark",
+        "width": 120,
+        "height": 24,
+        "phase": "group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          24,
+          120
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "All three preview identities and their owner/member/member roles fit the line; the fourth observer is intentionally outside the labeled preview.",
+          "Group content stays inside the pane borders and the selected action is visually distinct.",
+          "All ten Group action rows fit above the footer in this actual 24-row pane.",
+          "Black application background with white/gray text and white selection is readable; dim role/hint text remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/dark/preview-120x24-members.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/dark/preview-120x24-members.png",
+        "sha256": "d85f8458a504f86af88d11c42a62904ce2f501afac60e6b815b483aa5e1908ef",
+        "profile": "dark",
+        "width": 120,
+        "height": 24,
+        "phase": "members",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          24,
+          120
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Members (4) header and four distinct complete seeded usernames are readable; first row is selected and shows owner (you), other three rows show member.",
+          "Identity and role share each visible row; the fourth observer identity is not omitted. Preview label is absent on the full member list.",
+          "A/O/D command hint and Esc: back footer are readable; no row/border overlap is visible.",
+          "Black application background with white/gray text and white selection is readable; dim role/hint text remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/dark/preview-120x24-esc-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/dark/preview-120x24-esc-group.png",
+        "sha256": "c5fd09d13c50d0588b06d0ba4de762d6523a994e4b77dcd15bca4884513a5624",
+        "profile": "dark",
+        "width": 120,
+        "height": 24,
+        "phase": "esc-group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          24,
+          120
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "All three preview identities and their owner/member/member roles fit the line; the fourth observer is intentionally outside the labeled preview.",
+          "After actual Escape the parent Group content and All members selection are restored; no stale member-list rows are visible.",
+          "All ten Group action rows fit above the footer in this actual 24-row pane.",
+          "Black application background with white/gray text and white selection is readable; dim role/hint text remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/dark/preview-160x24-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/dark/preview-160x24-group.png",
+        "sha256": "7f86076c54f1206e485e990158f40e722a8a3b165fb5958bbc124fc60cefdf9a",
+        "profile": "dark",
+        "width": 160,
+        "height": 24,
+        "phase": "group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          24,
+          160
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "All three preview identities and their owner/member/member roles fit the line; the fourth observer is intentionally outside the labeled preview.",
+          "Group content stays inside the pane borders and the selected action is visually distinct.",
+          "All ten Group action rows fit above the footer in this actual 24-row pane.",
+          "Black application background with white/gray text and white selection is readable; dim role/hint text remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/dark/preview-160x24-members.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/dark/preview-160x24-members.png",
+        "sha256": "b3b4382c75c0dc1918df9a81d24823a1fd497deccca1030c63ff24777f8cbe4c",
+        "profile": "dark",
+        "width": 160,
+        "height": 24,
+        "phase": "members",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          24,
+          160
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Members (4) header and four distinct complete seeded usernames are readable; first row is selected and shows owner (you), other three rows show member.",
+          "Identity and role share each visible row; the fourth observer identity is not omitted. Preview label is absent on the full member list.",
+          "A/O/D command hint and Esc: back footer are readable; no row/border overlap is visible.",
+          "Black application background with white/gray text and white selection is readable; dim role/hint text remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/dark/preview-160x24-esc-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/dark/preview-160x24-esc-group.png",
+        "sha256": "7f86076c54f1206e485e990158f40e722a8a3b165fb5958bbc124fc60cefdf9a",
+        "profile": "dark",
+        "width": 160,
+        "height": 24,
+        "phase": "esc-group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          24,
+          160
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "All three preview identities and their owner/member/member roles fit the line; the fourth observer is intentionally outside the labeled preview.",
+          "After actual Escape the parent Group content and All members selection are restored; no stale member-list rows are visible.",
+          "All ten Group action rows fit above the footer in this actual 24-row pane.",
+          "Black application background with white/gray text and white selection is readable; dim role/hint text remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/dark/preview-60x40-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/dark/preview-60x40-group.png",
+        "sha256": "92a3accdd6a12ff272561bbc735ef0e3d884dc484b4b5bbb8c7cffdc955988c7",
+        "profile": "dark",
+        "width": 60,
+        "height": 40,
+        "phase": "group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          40,
+          60
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "Preview tail is visibly ellipsized after the first owner's complete identity/role and the next name prefix 历史B_; this frame does not show all three preview identities in full. The 3-of-4 distinction survives clipping.",
+          "Group content stays inside the pane borders and the selected action is visually distinct.",
+          "Group actions fit with unused vertical body space above the footer.",
+          "Black application background with white/gray text and white selection is readable; dim role/hint text remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/dark/preview-60x40-members.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/dark/preview-60x40-members.png",
+        "sha256": "8e9f3cc7894cb53c97b4375e3c50884ea0cdb07d4c97aeaeb24d88b8030fa157",
+        "profile": "dark",
+        "width": 60,
+        "height": 40,
+        "phase": "members",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          40,
+          60
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Members (4) header and four distinct complete seeded usernames are readable; first row is selected and shows owner (you), other three rows show member.",
+          "Identity and role share each visible row; the fourth observer identity is not omitted. Preview label is absent on the full member list.",
+          "A/O/D command hint and Esc: back footer are readable; no row/border overlap is visible.",
+          "Black application background with white/gray text and white selection is readable; dim role/hint text remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/dark/preview-60x40-esc-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/dark/preview-60x40-esc-group.png",
+        "sha256": "92a3accdd6a12ff272561bbc735ef0e3d884dc484b4b5bbb8c7cffdc955988c7",
+        "profile": "dark",
+        "width": 60,
+        "height": 40,
+        "phase": "esc-group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          40,
+          60
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "Preview tail is visibly ellipsized after the first owner's complete identity/role and the next name prefix 历史B_; this frame does not show all three preview identities in full. The 3-of-4 distinction survives clipping.",
+          "After actual Escape the parent Group content and All members selection are restored; no stale member-list rows are visible.",
+          "Group actions fit with unused vertical body space above the footer.",
+          "Black application background with white/gray text and white selection is readable; dim role/hint text remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/dark/preview-120x40-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/dark/preview-120x40-group.png",
+        "sha256": "c691477655eb7abf9fef19e5294bc40f1e536b90734201ea5ebb5e8cc1ddec85",
+        "profile": "dark",
+        "width": 120,
+        "height": 40,
+        "phase": "group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          40,
+          120
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "All three preview identities and their owner/member/member roles fit the line; the fourth observer is intentionally outside the labeled preview.",
+          "Group content stays inside the pane borders and the selected action is visually distinct.",
+          "Group actions fit with unused vertical body space above the footer.",
+          "Black application background with white/gray text and white selection is readable; dim role/hint text remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/dark/preview-120x40-members.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/dark/preview-120x40-members.png",
+        "sha256": "28017cd29c80731d57945fafab0cfbe05e33499845be705757b929fb4b874641",
+        "profile": "dark",
+        "width": 120,
+        "height": 40,
+        "phase": "members",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          40,
+          120
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Members (4) header and four distinct complete seeded usernames are readable; first row is selected and shows owner (you), other three rows show member.",
+          "Identity and role share each visible row; the fourth observer identity is not omitted. Preview label is absent on the full member list.",
+          "A/O/D command hint and Esc: back footer are readable; no row/border overlap is visible.",
+          "Black application background with white/gray text and white selection is readable; dim role/hint text remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/dark/preview-120x40-esc-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/dark/preview-120x40-esc-group.png",
+        "sha256": "c691477655eb7abf9fef19e5294bc40f1e536b90734201ea5ebb5e8cc1ddec85",
+        "profile": "dark",
+        "width": 120,
+        "height": 40,
+        "phase": "esc-group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          40,
+          120
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "All three preview identities and their owner/member/member roles fit the line; the fourth observer is intentionally outside the labeled preview.",
+          "After actual Escape the parent Group content and All members selection are restored; no stale member-list rows are visible.",
+          "Group actions fit with unused vertical body space above the footer.",
+          "Black application background with white/gray text and white selection is readable; dim role/hint text remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/dark/preview-160x40-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/dark/preview-160x40-group.png",
+        "sha256": "978047d9457fb48b2e1000110c94c36dd5e34b49cd7c3d9419f2a4573cdc26bc",
+        "profile": "dark",
+        "width": 160,
+        "height": 40,
+        "phase": "group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          40,
+          160
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "All three preview identities and their owner/member/member roles fit the line; the fourth observer is intentionally outside the labeled preview.",
+          "Group content stays inside the pane borders and the selected action is visually distinct.",
+          "Group actions fit with unused vertical body space above the footer.",
+          "Black application background with white/gray text and white selection is readable; dim role/hint text remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/dark/preview-160x40-members.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/dark/preview-160x40-members.png",
+        "sha256": "4b4d696ef5273dd3401689b68776f4180a55bba155a35741be7778b6539a7173",
+        "profile": "dark",
+        "width": 160,
+        "height": 40,
+        "phase": "members",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          40,
+          160
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Members (4) header and four distinct complete seeded usernames are readable; first row is selected and shows owner (you), other three rows show member.",
+          "Identity and role share each visible row; the fourth observer identity is not omitted. Preview label is absent on the full member list.",
+          "A/O/D command hint and Esc: back footer are readable; no row/border overlap is visible.",
+          "Black application background with white/gray text and white selection is readable; dim role/hint text remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/dark/preview-160x40-esc-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/dark/preview-160x40-esc-group.png",
+        "sha256": "978047d9457fb48b2e1000110c94c36dd5e34b49cd7c3d9419f2a4573cdc26bc",
+        "profile": "dark",
+        "width": 160,
+        "height": 40,
+        "phase": "esc-group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          40,
+          160
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "All three preview identities and their owner/member/member roles fit the line; the fourth observer is intentionally outside the labeled preview.",
+          "After actual Escape the parent Group content and All members selection are restored; no stale member-list rows are visible.",
+          "Group actions fit with unused vertical body space above the footer.",
+          "Black application background with white/gray text and white selection is readable; dim role/hint text remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/light/preview-60x24-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/light/preview-60x24-group.png",
+        "sha256": "7005380a89dadae22a3451cab25a0d36d97e742daf90378369ee31cb54ad6de1",
+        "profile": "light",
+        "width": 60,
+        "height": 24,
+        "phase": "group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          24,
+          60
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "Preview tail is visibly ellipsized after the first owner's complete identity/role and the next name prefix 历史B_; this frame does not show all three preview identities in full. The 3-of-4 distinction survives clipping.",
+          "Group content stays inside the pane borders and the selected action is visually distinct.",
+          "All ten Group action rows fit above the footer in this actual 24-row pane.",
+          "White application background with dark text and dark selection is readable; selected role uses gray text but remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/light/preview-60x24-members.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/light/preview-60x24-members.png",
+        "sha256": "6dc251964bb26e5732386f5c41df7c1dbdfb41b777fc756984b1230310b6ef5c",
+        "profile": "light",
+        "width": 60,
+        "height": 24,
+        "phase": "members",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          24,
+          60
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Members (4) header and four distinct complete seeded usernames are readable; first row is selected and shows owner (you), other three rows show member.",
+          "Identity and role share each visible row; the fourth observer identity is not omitted. Preview label is absent on the full member list.",
+          "A/O/D command hint and Esc: back footer are readable; no row/border overlap is visible.",
+          "White application background with dark text and dark selection is readable; selected role uses gray text but remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/light/preview-60x24-esc-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/light/preview-60x24-esc-group.png",
+        "sha256": "7005380a89dadae22a3451cab25a0d36d97e742daf90378369ee31cb54ad6de1",
+        "profile": "light",
+        "width": 60,
+        "height": 24,
+        "phase": "esc-group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          24,
+          60
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "Preview tail is visibly ellipsized after the first owner's complete identity/role and the next name prefix 历史B_; this frame does not show all three preview identities in full. The 3-of-4 distinction survives clipping.",
+          "After actual Escape the parent Group content and All members selection are restored; no stale member-list rows are visible.",
+          "All ten Group action rows fit above the footer in this actual 24-row pane.",
+          "White application background with dark text and dark selection is readable; selected role uses gray text but remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/light/preview-120x24-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/light/preview-120x24-group.png",
+        "sha256": "888f4af901d2d290f02715e02b3c073b0bab7c146c9c3c77c5ef0a3fc51f4b6a",
+        "profile": "light",
+        "width": 120,
+        "height": 24,
+        "phase": "group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          24,
+          120
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "All three preview identities and their owner/member/member roles fit the line; the fourth observer is intentionally outside the labeled preview.",
+          "Group content stays inside the pane borders and the selected action is visually distinct.",
+          "All ten Group action rows fit above the footer in this actual 24-row pane.",
+          "White application background with dark text and dark selection is readable; selected role uses gray text but remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/light/preview-120x24-members.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/light/preview-120x24-members.png",
+        "sha256": "9efa19ca28b37b9d320bc2aee0579cddc15eb5f1d648a6a5c43118886d083c10",
+        "profile": "light",
+        "width": 120,
+        "height": 24,
+        "phase": "members",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          24,
+          120
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Members (4) header and four distinct complete seeded usernames are readable; first row is selected and shows owner (you), other three rows show member.",
+          "Identity and role share each visible row; the fourth observer identity is not omitted. Preview label is absent on the full member list.",
+          "A/O/D command hint and Esc: back footer are readable; no row/border overlap is visible.",
+          "White application background with dark text and dark selection is readable; selected role uses gray text but remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/light/preview-120x24-esc-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/light/preview-120x24-esc-group.png",
+        "sha256": "888f4af901d2d290f02715e02b3c073b0bab7c146c9c3c77c5ef0a3fc51f4b6a",
+        "profile": "light",
+        "width": 120,
+        "height": 24,
+        "phase": "esc-group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          24,
+          120
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "All three preview identities and their owner/member/member roles fit the line; the fourth observer is intentionally outside the labeled preview.",
+          "After actual Escape the parent Group content and All members selection are restored; no stale member-list rows are visible.",
+          "All ten Group action rows fit above the footer in this actual 24-row pane.",
+          "White application background with dark text and dark selection is readable; selected role uses gray text but remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/light/preview-160x24-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/light/preview-160x24-group.png",
+        "sha256": "946a456a7b72ec7961d4b1c00f52980a86b8ef1a2cdc616e9cb725e993fd12d9",
+        "profile": "light",
+        "width": 160,
+        "height": 24,
+        "phase": "group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          24,
+          160
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "All three preview identities and their owner/member/member roles fit the line; the fourth observer is intentionally outside the labeled preview.",
+          "Group content stays inside the pane borders and the selected action is visually distinct.",
+          "All ten Group action rows fit above the footer in this actual 24-row pane.",
+          "White application background with dark text and dark selection is readable; selected role uses gray text but remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/light/preview-160x24-members.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/light/preview-160x24-members.png",
+        "sha256": "1326329dd156982db99314f6b6d86ea50f13db9a07828fdc10af2d414808d523",
+        "profile": "light",
+        "width": 160,
+        "height": 24,
+        "phase": "members",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          24,
+          160
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Members (4) header and four distinct complete seeded usernames are readable; first row is selected and shows owner (you), other three rows show member.",
+          "Identity and role share each visible row; the fourth observer identity is not omitted. Preview label is absent on the full member list.",
+          "A/O/D command hint and Esc: back footer are readable; no row/border overlap is visible.",
+          "White application background with dark text and dark selection is readable; selected role uses gray text but remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/light/preview-160x24-esc-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/light/preview-160x24-esc-group.png",
+        "sha256": "946a456a7b72ec7961d4b1c00f52980a86b8ef1a2cdc616e9cb725e993fd12d9",
+        "profile": "light",
+        "width": 160,
+        "height": 24,
+        "phase": "esc-group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          24,
+          160
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "All three preview identities and their owner/member/member roles fit the line; the fourth observer is intentionally outside the labeled preview.",
+          "After actual Escape the parent Group content and All members selection are restored; no stale member-list rows are visible.",
+          "All ten Group action rows fit above the footer in this actual 24-row pane.",
+          "White application background with dark text and dark selection is readable; selected role uses gray text but remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/light/preview-60x40-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/light/preview-60x40-group.png",
+        "sha256": "61bcc56fdc4555a2a5a3508f129308ec13af2230b6f7253e4fdb6c21d570a266",
+        "profile": "light",
+        "width": 60,
+        "height": 40,
+        "phase": "group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          40,
+          60
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "Preview tail is visibly ellipsized after the first owner's complete identity/role and the next name prefix 历史B_; this frame does not show all three preview identities in full. The 3-of-4 distinction survives clipping.",
+          "Group content stays inside the pane borders and the selected action is visually distinct.",
+          "Group actions fit with unused vertical body space above the footer.",
+          "White application background with dark text and dark selection is readable; selected role uses gray text but remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/light/preview-60x40-members.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/light/preview-60x40-members.png",
+        "sha256": "da30ddaa195fc5c441983f381799a463a2a47ddbb8301c54a73c9453c96be7b0",
+        "profile": "light",
+        "width": 60,
+        "height": 40,
+        "phase": "members",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          40,
+          60
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Members (4) header and four distinct complete seeded usernames are readable; first row is selected and shows owner (you), other three rows show member.",
+          "Identity and role share each visible row; the fourth observer identity is not omitted. Preview label is absent on the full member list.",
+          "A/O/D command hint and Esc: back footer are readable; no row/border overlap is visible.",
+          "White application background with dark text and dark selection is readable; selected role uses gray text but remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/light/preview-60x40-esc-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/light/preview-60x40-esc-group.png",
+        "sha256": "61bcc56fdc4555a2a5a3508f129308ec13af2230b6f7253e4fdb6c21d570a266",
+        "profile": "light",
+        "width": 60,
+        "height": 40,
+        "phase": "esc-group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          40,
+          60
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "Preview tail is visibly ellipsized after the first owner's complete identity/role and the next name prefix 历史B_; this frame does not show all three preview identities in full. The 3-of-4 distinction survives clipping.",
+          "After actual Escape the parent Group content and All members selection are restored; no stale member-list rows are visible.",
+          "Group actions fit with unused vertical body space above the footer.",
+          "White application background with dark text and dark selection is readable; selected role uses gray text but remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/light/preview-120x40-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/light/preview-120x40-group.png",
+        "sha256": "13f232a01c0b6d1f7b55932d4ec8a573b30683e1d3b4b6c43978c7f7774aaec3",
+        "profile": "light",
+        "width": 120,
+        "height": 40,
+        "phase": "group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          40,
+          120
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "All three preview identities and their owner/member/member roles fit the line; the fourth observer is intentionally outside the labeled preview.",
+          "Group content stays inside the pane borders and the selected action is visually distinct.",
+          "Group actions fit with unused vertical body space above the footer.",
+          "White application background with dark text and dark selection is readable; selected role uses gray text but remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/light/preview-120x40-members.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/light/preview-120x40-members.png",
+        "sha256": "6a86f3c7bbf38ebb5091b0c760137ffeeb06a94648171447791816570ddee702",
+        "profile": "light",
+        "width": 120,
+        "height": 40,
+        "phase": "members",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          40,
+          120
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Members (4) header and four distinct complete seeded usernames are readable; first row is selected and shows owner (you), other three rows show member.",
+          "Identity and role share each visible row; the fourth observer identity is not omitted. Preview label is absent on the full member list.",
+          "A/O/D command hint and Esc: back footer are readable; no row/border overlap is visible.",
+          "White application background with dark text and dark selection is readable; selected role uses gray text but remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/light/preview-120x40-esc-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/light/preview-120x40-esc-group.png",
+        "sha256": "13f232a01c0b6d1f7b55932d4ec8a573b30683e1d3b4b6c43978c7f7774aaec3",
+        "profile": "light",
+        "width": 120,
+        "height": 40,
+        "phase": "esc-group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          40,
+          120
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "All three preview identities and their owner/member/member roles fit the line; the fourth observer is intentionally outside the labeled preview.",
+          "After actual Escape the parent Group content and All members selection are restored; no stale member-list rows are visible.",
+          "Group actions fit with unused vertical body space above the footer.",
+          "White application background with dark text and dark selection is readable; selected role uses gray text but remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/light/preview-160x40-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/light/preview-160x40-group.png",
+        "sha256": "6f6b9878074021cc59c5658d0f9369e217a2f1296ced840238611606fbfda7d3",
+        "profile": "light",
+        "width": 160,
+        "height": 40,
+        "phase": "group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          40,
+          160
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "All three preview identities and their owner/member/member roles fit the line; the fourth observer is intentionally outside the labeled preview.",
+          "Group content stays inside the pane borders and the selected action is visually distinct.",
+          "Group actions fit with unused vertical body space above the footer.",
+          "White application background with dark text and dark selection is readable; selected role uses gray text but remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/light/preview-160x40-members.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/light/preview-160x40-members.png",
+        "sha256": "613542046aa01a59ba51f217445ed5da24cddb16ccd86c32e30b522aaeed81dd",
+        "profile": "light",
+        "width": 160,
+        "height": 40,
+        "phase": "members",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          40,
+          160
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Members (4) header and four distinct complete seeded usernames are readable; first row is selected and shows owner (you), other three rows show member.",
+          "Identity and role share each visible row; the fourth observer identity is not omitted. Preview label is absent on the full member list.",
+          "A/O/D command hint and Esc: back footer are readable; no row/border overlap is visible.",
+          "White application background with dark text and dark selection is readable; selected role uses gray text but remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      },
+      {
+        "path": "/tmp/chat-member-preview-native.UivDD0NU/light/preview-160x40-esc-group.png",
+        "local_view_path": "/tmp/chat-member-preview-native-originals/light/preview-160x40-esc-group.png",
+        "sha256": "6f6b9878074021cc59c5658d0f9369e217a2f1296ced840238611606fbfda7d3",
+        "profile": "light",
+        "width": 160,
+        "height": 40,
+        "phase": "esc-group",
+        "full_original_resolution": [
+          1900,
+          900
+        ],
+        "tty_rows_cols": [
+          40,
+          160
+        ],
+        "opened_with": "view_image detail original, full PNG, no crop or montage",
+        "observation": [
+          "Group title, Members: 4 · Your role: owner, complete Preview (3 of 4): prefix, selected All members action and Esc: back footer are readable.",
+          "All three preview identities and their owner/member/member roles fit the line; the fourth observer is intentionally outside the labeled preview.",
+          "After actual Escape the parent Group content and All members selection are restored; no stale member-list rows are visible.",
+          "Group actions fit with unused vertical body space above the footer.",
+          "White application background with dark text and dark selection is readable; selected role uses gray text but remains visually distinguishable."
+        ],
+        "limits": [
+          "Visual readability judgment is not a measured contrast ratio or accessibility certification.",
+          "Single WezTerm/tmux configuration and actual four-member group only."
+        ]
+      }
+    ],
+    "personally_reviewed_original_pngs": 36,
+    "total_pngs": 48,
+    "unreviewed_pngs": 12,
+    "unreviewed": "Per profile six auxiliary frames: outer/mux/login/Chats/selected-conversation/after-test oracle; runtime metadata retained but not labeled visual PASS."
+  },
+  "observed_outcome": "All 12 focused Group → real Return All members → real Escape Group cases preserve the complete Preview (3 of 4) distinction. All four full identities and roles, owner (you), action hints and footer are readable in the 12 Members frames. No material issue observed in these 36 frames.",
+  "native_fixture_actual_members": 4,
+  "permanent_fixture_counts_not_executed_by_this_review": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    8
+  ],
+  "no_full_pass_claim": true,
+  "limits": [
+    "Not the old 300 BEFORE image set; formal old binary SHA dd1a6baa is distinct.",
+    "Only WezTerm 20221119-145034-49b9839f / tmux 3.6a, default dark/light, 60/120/160 by 24/40, cell10 rowpitch19, selector-wide off.",
+    "No member mutation actions A/O/D, no membership-count matrix, no no-tmux or other terminals/font/scale/OS, no screen reader or quantitative contrast audit.",
+    "60-column preview names intentionally clipped; do not assert that three complete preview names fit at narrow width.",
+    "No fullcampaign/fullgate run by this agent."
+  ],
+  "next_audit_candidates": [
+    "Native other member counts and role distributions, especially admin/transferred owner and long usernames.",
+    "Other terminal/font/scale and no-tmux path; contrast measurement and accessibility independently."
+  ]
+}

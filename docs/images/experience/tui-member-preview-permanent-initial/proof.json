@@ -1,0 +1,64 @@
+{
+  "head_before": "a8529a18c95a3b6550efe4553d0ebad86cf3eedf",
+  "scope": "/tmp/chat-member-preview.MMx4Oq",
+  "changed_source_files": ["tui/src/ui.cpp", "tui/tests/render_test.cpp"],
+  "scope_of_fix": "Only the bounded group member preview label becomes Preview (N of T):. Existing member order, roles, preview ellipsis, total count, All members action and SDK behavior remain unchanged.",
+  "source_sha256": {
+    "ui_before": "b8f06e5b273f7f5df04950e9f9e4fa4c4d041fe1b58995071a81ec2491f3c179",
+    "ui_after": "203f0e3f0097c5dee6df4c812f9c44abf2ee8375ca9d25eeab2e532564c2ff71",
+    "render_test_before": "257d1c762d02b3fe4c3b7b286ddfe34c2457b6d2c6121f9b678cd28008bb19fb",
+    "render_test_red_and_green": "e3116731f057c7c07d1f71fb1fe4085a8e5d786c3bc1be762b4019d4a211eee4"
+  },
+  "permanent_cases": {
+    "populations": [0, 1, 2, 3, 4, 8],
+    "widths": [60, 70, 80, 100, 120, 160],
+    "heights": [24, 40],
+    "population_geometry_cells": 72,
+    "preview_and_full_member_draws": 144,
+    "long_CJK_combining_label_draws": 12,
+    "checks": ["Exact N-of-T subset label", "Total count and All members action", "First three identities and roles without hidden remainder", "Full member list includes every member", "Long name clipping retains leftmost label, identity prefix and ellipsis"]
+  },
+  "red": {
+    "build_actual_exit": 0,
+    "ctest_actual_exit": 8,
+    "test_actual_result": "Failed, not timeout",
+    "seconds": 1.05,
+    "failure_count": 84,
+    "failures": {"missing_exact_subset_label": 72, "missing_long_name_subset_label": 12},
+    "old_production_UI_library_sha256_before_and_after": "93276a43a95d7469edb586ddd87c5454529e29c374e4436dd38f1321905e03d3",
+    "new_test_linked_with_old_library_executable_sha256": "209dbe21f4557362e6113ee85de26d12ee4f53ebbff4a08b7c37aa0e515a98a2",
+    "log": "red-test.log",
+    "log_sha256": "53a6346c6677c71594d38e674e6bb45887fb26de708986455f41ea8ee5e85ed9",
+    "inputs": "red-inputs.sha256"
+  },
+  "green": {
+    "build_actual_exit": 0,
+    "ctest_actual_exit": 0,
+    "test_actual_result": "Passed",
+    "seconds": 1.06,
+    "production_UI_library_sha256": "eaa9890e73fea8db8a9561d2a0d75abc3279477c511bd6c92366fe5f00afd971",
+    "test_executable_sha256": "8712877449064221d9505cc5b153099fd5c20088ead32774e0bea3bd961bf794",
+    "log": "green-test.log",
+    "log_sha256": "984aac2def27f35195af04e4531c8a37c1f90270e650487d61e2d81ed9529e0e",
+    "inputs": "green-inputs.sha256",
+    "full_program_log": "green.LastTest.log"
+  },
+  "ctest_command": "ctest --test-dir /home/gyl/example/chat/build -R ^tui_render$ --output-on-failure",
+  "original_ctest_timeout_seconds": 5,
+  "ctest_timeout_unmodified": true,
+  "compiler_warning_or_error_signatures_in_both_build_logs": 0,
+  "formal_TUI": {
+    "path": "/home/gyl/example/chat/build/chat_tui",
+    "frozen_copy": "/tmp/chat-member-preview.MMx4Oq/chat_tui.after",
+    "sha256_both": "1ecdf579af21099c08210e0d14b5383cef97342fc0a5ae0540f8877dac030350",
+    "old_binary_backup": "/tmp/chat-member-preview.MMx4Oq/chat_tui",
+    "old_binary_sha256": "dd1a6baab6d19759f0d8cf5e88133130eecf45412bed90360728476e926a11a0"
+  },
+  "protected_start_ticks_unchanged": {"2876288": "521400965", "3225": "17583", "29935": "248258"},
+  "old_source_and_library_backups": ["ui.cpp", "render_test.cpp", "libchat_tui_ui.a", "chat_tui_render_test", "chat_tui"],
+  "diff": "member-preview.patch",
+  "no_commit": true,
+  "no_backend_or_pagination_or_third_or_docs_or_verify_or_timeout_change": true,
+  "source_frozen_after_green": true,
+  "limits": "Permanent render tests and normal build only. No new full 69-test gate, native terminal visual after run or business operation acceptance is claimed; root can run those against the frozen binary."
+}

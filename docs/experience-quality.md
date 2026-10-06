@@ -185,6 +185,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | T07 | P3 | TUI 无草稿时输入提示仍显示悬空的 `i: compose ·` | 第三十六阶段只在非空草稿前保留分隔符，六宽永久 RED→GREEN、两个真实 TUI 完整附件流程和三模式门禁通过 |
 | T08 | P3 | 创建群选人后仍显示旧的“请至少选择一位联系人”错误 | 第三十九阶段只在成功改变选择后清旧输入反馈；六宽永久与两个真实TUI同完整流程核验 |
 | T09 | P3 | 资料页独立在线状态前仍带用于拼接身份的分隔符 | 第三十九阶段presence事实与拼接标点分开，online/offline/last-seen永久回归及原生资料页复核 |
+| T10 | P3 | 群资料总数为4、摘要只显示3人，但没有明确说明这是有界预览 | 第六十二阶段改为Preview (N of T)，原顺序、角色、总数和完整成员入口保持；最终同字节RED/GREEN、真实十二组合与联合69项门禁通过，保留ASan接近原时限的限制 |
 
 键盘打开列表、Qt 多行编辑、长公告、长 username、dialog 滚动、selection/focus、
 terminal light/dark、combining、SSH 和 suspend/restore 仍需进一步实际核验。
@@ -4048,3 +4049,47 @@ driver、实际TUI及WezTerm均实际0，自有进程gone、两个scope各自数
 k/Home向上滚动、全部Help命令执行、其它终端/palette或全键盘矩阵。没有改生产
 输入，不把证据归档说成另一次完整工程门禁。Qt87/TUI78保持，完整目标、成员
 摘要候选及达到92后的两轮fresh review仍开放；未push。
+
+## 阶段 62：明确群成员摘要的有界范围
+
+阶段60的Group原图显示总数4但只列前三人。摘要本身合理，无需扩成完整成员列表；
+只把前缀改为`Preview (N of T):`，保持成员顺序、角色、ellipsis、总数及All members
+入口。正式TUI冻结`1ecdf579…`，新真实WezTerm/tmux链在dark/light、60/120/160列、
+24/40行共12组合中，经实际Return进入完整四人成员页，Esc回群资料。60列成员
+姓名仍会截断，但摘要范围和完整入口可见；不把窄摘要说成完整姓名展示。
+
+主代理亲看完整原图，独立审查记录36张Group/Members/Esc focused图；另12张辅助
+图没有逐张视觉审查。48原PNG、146份无损压缩记录及原结果见
+[原生归档核验](images/experience/tui-member-preview-native-proof.json)和
+[逐图审查](images/experience/tui-member-preview-native-review.json)。218份原记录、
+归档SHA和全部解压字节经主代理与独立代理实际核对；SQL四成员前后相同，所有
+自有进程、数据库、端口已清理，保护服务和生产输入未变。
+
+初版永久fixture在同字节新test/旧UI库上真实RED：84条摘要label失败、非timeout；
+新UI正常GREEN。随后原`tests/verify.sh`完整69项实际PASS，normal/ASan/UBSan为
+118.52/157.77/146.72秒，见[首次门禁原证据](images/experience/tui-member-preview-first-original-verify-proof.json)。
+但追加同源ASan复跑4.95、4.99秒通过，第三次5.02秒超时；
+[六份原日志及退出值](images/experience/tui-member-preview-first-quiet-asan)完整保留，
+不能把首次69项PASS外推为稳定完成。
+
+因此仅去掉新增fixture里0/1/2/3人的重复完整Members绘制，不减少任何摘要覆盖：
+0/1/2/3/4/8人×六宽×两高72摘要、12长CJK/combining摘要全部保留；4/8人的完整
+Members仍六宽×两高24次，包含每个真实身份。最终test`61567680…`正常1.03秒
+GREEN，原5秒ASan连续三次4.84/4.94/4.85秒actual exit0。生产UI/binary未因此改变。
+最终fixture编译对象与旧UI库独立链接，实际1.02秒exit1：仍为72摘要label及12长
+姓名label共84条预期失败，其他失败0，非timeout；不替换正式生产库。新UI同源
+GREEN及原5秒三次ASan记录见[最终永久回归](images/experience/tui-member-preview-permanent-final/proof.json)；
+[初版永久记录](images/experience/tui-member-preview-permanent-initial/proof.json)独立保留。
+
+包含同期Qt私有标签页修复的最终冻结组合重新执行原`tests/verify.sh`，实际runner0、
+normal/ASan/UBSan各23/23，总时116.32/166.22/144.49秒。三模式tui_render为
+1.06/4.90/2.03秒，qt_ui为45.12/58.86/50.94秒，原5/60秒时限不变；ASan余量
+仍小，不宣称任意负载下稳定。205份输入首尾一致，Qt/TUI均ON、-Werror，原脚本
+SHA不变，没有skip、suppression或新编译告警/sanitizer报告。证据见
+[最终联合门禁](images/experience/member-role-original-verify-proof.json)及
+[原日志无损归档](images/experience/member-role-original-verify.log.gz)。使用各模式既有
+独立构建目录重新configure/build/CTest，不冒称依赖也从空目录重建。
+
+这只是T10局部收口，未替代当前2Qt+2TUI全业务日常、完整页面/平台/IME/无障碍
+矩阵或全产品重评。Qt87/TUI78是历史暂评，不因局部通过提高，也不计达到92后的
+两轮完整fresh review。

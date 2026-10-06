@@ -1,0 +1,13 @@
+Internal ctest changing into directory: /home/gyl/example/chat/build/asan
+Test project /home/gyl/example/chat/build/asan
+    Start 14: tui_render
+1/1 Test #14: tui_render .......................***Timeout   5.02 sec
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   5.02 sec
+
+The following tests FAILED:
+	 14 - tui_render (Timeout)
+Errors while running CTest

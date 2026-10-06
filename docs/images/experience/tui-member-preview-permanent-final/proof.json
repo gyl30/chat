@@ -1,0 +1,66 @@
+{
+  "scope": "/tmp/chat-member-preview-lean.z3hVXl",
+  "date": "2026-10-06",
+  "change_scope": "Only tui/tests/render_test.cpp: skip redundant full-members draws for counts 0/1/2/3. Production UI unchanged; no timeout, CMake, Qt, docs, third-party or commit changes.",
+  "coverage": {
+    "counts": [0, 1, 2, 3, 4, 8],
+    "widths": [60, 70, 80, 100, 120, 160],
+    "heights": [24, 40],
+    "overview_draws": 72,
+    "long_name_overview_draws": 12,
+    "full_members_draws": 24,
+    "full_members_counts": [4, 8],
+    "new_fixture_total_draws": 108,
+    "note": "Overview assertions and geometry coverage unchanged; full pages still verify each identity at every width and height for both truncated overview counts."
+  },
+  "frozen_inputs": {
+    "tui/tests/render_test.cpp": "6156768019b1f60d2a856eee6b552eab0a7afec6ba2c87934b959da12eec7015",
+    "tui/src/ui.cpp": "203f0e3f0097c5dee6df4c812f9c44abf2ee8375ca9d25eeab2e532564c2ff71",
+    "build/chat_tui": "1ecdf579af21099c08210e0d14b5383cef97342fc0a5ae0540f8877dac030350",
+    "tui/CMakeLists.txt": "89bf6a5583f2c1fb93cbc18d36275512fa25c03bfca094cd6f8b36e0f43da306",
+    "tests/verify.sh": "38d3408e537d67182689f59d452e9d8e5bf164f38a9b5baaa93fbd8b36eb5f29"
+  },
+  "original_render_timeout_seconds": 5,
+  "normal": {
+    "build_exit": 0,
+    "ctest_exit": 0,
+    "seconds": 1.03,
+    "log": "normal-green.log",
+    "log_sha256": "026de05ccc0188bbacecc5634b6f9054586692921d54e00afa6f240b02a67e80"
+  },
+  "asan": {
+    "build_exit": 0,
+    "quiet_runs": [
+      {"exit": 0, "seconds": 4.84, "log": "quiet-asan-1.log", "log_sha256": "19fb3c4ce67d2d50a30fa92a4db7d6f3819335d2143289e8e99d9c82e7f62e53"},
+      {"exit": 0, "seconds": 4.94, "log": "quiet-asan-2.log", "log_sha256": "02a559f9e722deddbc6ed0310c1db5fcd8231861ebb4880e115b862a1b79eb5e"},
+      {"exit": 0, "seconds": 4.85, "log": "quiet-asan-3.log", "log_sha256": "0785b9d2f183f5242ca5ca56af45aadbceaa0f5034c5e71b8afcc2cd894ee13e"}
+    ],
+    "limitation": "Three measured quiet runs passed the unchanged five-second limit. 4.94 seconds is close to that limit; this is not a guarantee under arbitrary load."
+  },
+  "same_final_object_old_ui_red": {
+    "method": "Copied the final normal CMake test object into this scope and independently linked it against the frozen pre-label UI library. No production UI swap or shared rebuild.",
+    "runner": "run-old-ui-red.sh",
+    "final_object_sha256": "b312144964d1c9160f8f112d9cbbc5fc1a030e6cb231b34c49b3f3fa40b7152f",
+    "old_ui_library": "/tmp/chat-member-preview.MMx4Oq/libchat_tui_ui.a",
+    "old_ui_library_sha256": "93276a43a95d7469edb586ddd87c5454529e29c374e4436dd38f1321905e03d3",
+    "red_binary_sha256": "0cab3aa6f078365217942d3a66b6611f4f946743ac6e714a2a9fb0c15ee6e8a0",
+    "link_exit": 0,
+    "render_exit": 1,
+    "seconds": 1.02,
+    "timeout_seconds": 5,
+    "timed_out": false,
+    "failure_lines": {"bounded_subset_label": 72, "long_name_subset_label": 12, "other": 0},
+    "log": "red-final.log",
+    "log_sha256": "81d83709bb7015f1984dc3ca82ae71808522f8eba9d28260488a42f92c7c178a",
+    "input_manifest": "red-final-inputs.sha256",
+    "input_manifest_sha256": "efe44617ba2bf53e8218ca056567be49fa214d16e6c2c20971342f902591b2cf"
+  },
+  "preserved_previous_evidence": {
+    "initial_red_green_scope": "/tmp/chat-member-preview.MMx4Oq",
+    "initial_proof_sha256": "3d6f2a536d014e8a7a6d4f068e8f2be555e290fbb256276609f172616401bf97",
+    "initial_full_69_gate_scope": "/tmp/chat-quality-member-preview-gate.yf7W46ek",
+    "initial_quiet_asan": "4.95 PASS / 4.99 PASS / 5.02 TIMEOUT (ctest exit 8); retained unchanged.",
+    "note": "No original proof or log overwritten. Final combined 69-test gate is delegated to root and is not claimed here."
+  },
+  "shared_build_lock": "Released after final normal/ASAN and quiet-three completion; subsequent RED used only independent tmp output."
+}
