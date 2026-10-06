@@ -1569,3 +1569,25 @@ build另actual0，不冒称新的strict CTest；四种Qt/TUI开关fresh configur
 Q27当前100%局部问题修复，但真实IME/四档完整矩阵仍需复验；Q30与T04继续开放，
 Qt87/TUI78不提高，不宣称>=92/P2=0或连续两轮全产品fresh review完成。下一步继续
 实际缩放/IME与terminal物理列/重绘，不回到独立机制probe代替产品交付。没有push。
+
+## 体验品质审查：预编辑期间保持完整显示
+
+从d691da7继续。真实系统Fcitx5/Pinyin业务33项均通过，但原截图发现composer/editor
+在preedit期间把已提交ZWJ、键帽及VS16skin拆开，commit后恢复。局部修复仅恢复
+preedit区域外的完整EGC显示格式，IME自身字体/下划线、raw、undo与提交语义不变。
+独立复核的FontChange同类反例也走同一恢复路径；两个永久反例actual1→GREEN。
+
+最终8b3699ef…binary两真实Qt原33项同字节driveractual0，主和独立代理亲看原尺寸
+before/after，预编辑prefix不再拆画，首commit不发、第二Enter唯一发送、真实中文
+edit/reply及raw复制/undo保持。该系统IME结论限定100%；不宣称Q30已修复。
+四档普通Unicode公开客户端流程各actual0/统一13项，窗口与AT-SPI比率实际读回。
+测试图像logical→device采样收口后，四档widgets15组/delegate7组均actual0，旧assert/
+颜色/timeout不变。125%关闭edit后的持续黑细线仍实际RED，新增Q32，不能用业务
+PASS覆盖；标准Qt同几何对照未复现，尚未归因。
+
+本轮新建独立Debug/-Werror目录，完整及最终增量build actual0、完整CTest23/23
+109.63s、输入首尾一致。最终原tests/verify.sh实际0，normal/ASan/UBSan各23/23、
+112.56/150.74/137.41s，render0.89/4.19/1.83s保原5s、qt_ui保原60s。114输入及
+正式binary首尾一致，脚本未改，无skip/新增warning/sanitizer报告签名。原图、无损
+门禁日志与范围见[体验品质审查](experience-quality.md)阶段49；125%视觉RED未掩盖。
+Qt87/TUI78不提高；Q27/Q30/T04/Q32及全页面/两轮fresh审查仍开放，不宣布完成。

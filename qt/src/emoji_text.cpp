@@ -138,25 +138,39 @@ void emoji_highlighter::highlightBlock(QString const& text)
 
 bool emoji_highlighter::eventFilter(QObject* watched, QEvent* event)
 {
-    if (watched == editor_ && event->type() == QEvent::InputMethod)
+    if (watched == editor_ && (event->type() == QEvent::InputMethod || event->type() == QEvent::FontChange))
     {
         auto const block = editor_->textCursor().block();
-        auto const* input = static_cast<QInputMethodEvent*>(event);
-        if (!input->preeditString().isEmpty())
+        if (event->type() == QEvent::InputMethod &&
+            !static_cast<QInputMethodEvent*>(event)->preeditString().isEmpty())
         {
             // Qt expands display formats through inserted preedit text; never force its font.
             block.layout()->setFormats({});
             document()->markContentsDirty(block.position(), block.length());
         }
-        QTimer::singleShot(0, this, [this, block] {
-            if (block.isValid()) { rehighlightBlock(block); }
+        QTimer::singleShot(0, this, [this, block, font_changed = event->type() == QEvent::FontChange] {
+            if (font_changed) { rehighlight(); }
+            auto const update_block = [this](QTextBlock const& target) {
+                if (!target.isValid()) { return; }
+                rehighlightBlock(target);
+                auto* layout = target.layout();
+                auto const preedit_length = layout->preeditAreaText().size();
+                if (preedit_length == 0) { return; }
+                auto const position = layout->preeditAreaPosition();
+                auto formats = layout->formats();
+                for (auto range : emoji_formats(target.text(), document()->defaultFont()))
+                {
+                    if (range.start >= position) { range.start += preedit_length; }
+                    else if (range.start + range.length > position) { continue; }
+                    formats.push_back(range);
+                }
+                layout->setFormats(formats);
+                document()->markContentsDirty(target.position(), target.length());
+            };
+            update_block(block);
             auto const current = editor_->textCursor().block();
-            if (current != block) { rehighlightBlock(current); }
+            if (current != block) { update_block(current); }
         });
-    }
-    else if (watched == editor_ && event->type() == QEvent::FontChange)
-    {
-        QTimer::singleShot(0, this, [this] { rehighlight(); });
     }
     return QSyntaxHighlighter::eventFilter(watched, event);
 }

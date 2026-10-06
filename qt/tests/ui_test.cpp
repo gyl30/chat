@@ -11,6 +11,7 @@
 #include <QDateTime>
 #include <QFile>
 #include <QFileDialog>
+#include <QFontDatabase>
 #include <QHeaderView>
 #include <QImage>
 #include <QLineEdit>
@@ -19,6 +20,7 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QMenu>
+#include <QtMath>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLayout>
@@ -69,6 +71,13 @@ void check(bool v, char const* text)
         throw std::runtime_error(text);
     }
 }
+QColor logical_pixel(QImage const& image, QPoint point)
+{
+    auto const ratio = image.devicePixelRatio();
+    QPoint const pixel(qFloor(point.x() * ratio), qFloor(point.y() * ratio));
+    check(image.rect().contains(pixel), "A logical widget sample lies inside its device-pixel capture");
+    return image.pixelColor(pixel);
+}
 template <class F> void wait(F f, int attempts = 500, std::source_location location = std::source_location::current())
 {
     for (int i = 0; i < attempts && !f(); ++i)
@@ -107,6 +116,73 @@ void check_profile_avatar_click(QAbstractItemView* list, QPoint point)
     QApplication::sendEvent(list->viewport(), &release);
     close_profile.stop();
     check(opened_profiles == 1, "One avatar click opens one profile rather than reopening after close");
+}
+void check_preedit_display(QPlainTextEdit* editor)
+{
+    auto const original = editor->toPlainText();
+    QString const text = QStringLiteral("👩‍💻1️⃣ left é 👍️🏽 tail 👨‍👩‍👧‍👦");
+    QStringList const clusters{QStringLiteral("👩‍💻"), QStringLiteral("1️⃣"),
+                               QStringLiteral("👍️🏽"), QStringLiteral("👨‍👩‍👧‍👦")};
+    bool const has_emoji_font = QFontDatabase::families().contains(QStringLiteral("Noto Color Emoji"));
+    auto const original_font = editor->font();
+    for (auto const position : {qsizetype(0), clusters[0].size(), text.indexOf(QStringLiteral("tail")), text.size()})
+    {
+        editor->setPlainText(text);
+        auto cursor = editor->textCursor();
+        cursor.setPosition(static_cast<int>(position));
+        editor->setTextCursor(cursor);
+        for (auto const& preedit : {QStringLiteral("nihao"), QStringLiteral("zhongwen")})
+        {
+            QTextCharFormat format;
+            format.setUnderlineStyle(QTextCharFormat::SingleUnderline);
+            QInputMethodEvent input(preedit, {QInputMethodEvent::Attribute(
+                QInputMethodEvent::TextFormat, 0, static_cast<int>(preedit.size()), format)});
+            QApplication::sendEvent(editor, &input);
+            QApplication::processEvents();
+            if (preedit == QStringLiteral("zhongwen"))
+            {
+                auto font = original_font;
+                font.setWeight(font.weight() == QFont::Normal ? QFont::Medium : QFont::Normal);
+                editor->setFont(font);
+                QApplication::processEvents();
+            }
+            auto const* layout = editor->textCursor().block().layout();
+            check(editor->toPlainText() == text && !editor->document()->isUndoAvailable() &&
+                      layout->preeditAreaPosition() == position && layout->preeditAreaText() == preedit,
+                  "Preedit at either side of committed emoji preserves the original draft and undo history");
+            auto const ranges = layout->formats();
+            check(std::ranges::any_of(ranges, [&](auto const& range) {
+                return range.start == position && range.length == preedit.size() &&
+                       range.format.underlineStyle() == QTextCharFormat::SingleUnderline;
+            }), "Input-method underline remains on its own preedit text");
+            for (auto const& range : ranges)
+            {
+                if (range.format.font().family() != QStringLiteral("Noto Color Emoji")) { continue; }
+                check(range.start + range.length <= position || range.start >= position + preedit.size(),
+                      "Committed emoji formatting never expands into the input method's preedit");
+            }
+            for (auto const& cluster : clusters)
+            {
+                auto const start = text.indexOf(cluster);
+                auto const displayed_start = start + (start >= position ? preedit.size() : 0);
+                auto const covered = std::ranges::any_of(ranges, [&](auto const& range) {
+                    return range.format.font().family() == QStringLiteral("Noto Color Emoji") &&
+                           range.start <= displayed_start && range.start + range.length >= displayed_start + cluster.size();
+                });
+                check(covered == has_emoji_font,
+                      "Every committed emoji retains its display font before and after a changing preedit area");
+            }
+            editor->setFont(original_font);
+            QApplication::processEvents();
+        }
+        QInputMethodEvent cancel;
+        QApplication::sendEvent(editor, &cancel);
+        QApplication::processEvents();
+        check(editor->toPlainText() == text && editor->textCursor().block().layout()->preeditAreaText().isEmpty() &&
+                  !editor->document()->isUndoAvailable(), "Cancelling preedit restores display without an undo command");
+    }
+    editor->setPlainText(original);
+    QApplication::processEvents();
 }
 void click_list_body(QAbstractItemView* list, QModelIndex index)
 {
@@ -280,7 +356,7 @@ void check_friend_request_layout()
     page.avatars().receive(200, {1, true}, avatar_bytes);
     QApplication::processEvents();
     auto const request_avatar = incoming->viewport()->grab().toImage();
-    check(request_avatar.pixelColor(20, incoming->visualItemRect(incoming->item(0)).center().y()) == avatar_color,
+    check(logical_pixel(request_avatar, QPoint(20, incoming->visualItemRect(incoming->item(0)).center().y())) == avatar_color,
           "A downloaded request avatar refreshes the visible row without reloading requests");
     for (auto* list : {incoming, outgoing})
     {
@@ -323,8 +399,8 @@ void check_friend_request_layout()
           "Request sections have keyboard focus and accessible names");
     auto const selected_row = incoming->visualItemRect(incoming->currentItem());
     auto const focused = incoming->viewport()->grab().toImage();
-    check(focused.pixelColor(1, selected_row.center().y()).lightness() <
-          focused.pixelColor(incoming->viewport()->width() - 8, selected_row.center().y()).lightness() - 40,
+    check(logical_pixel(focused, QPoint(1, selected_row.center().y())).lightness() <
+          logical_pixel(focused, QPoint(incoming->viewport()->width() - 8, selected_row.center().y())).lightness() - 40,
           "Keyboard focus has a visible outline rather than relying on selection color");
     bool opened = false;
     QTimer::singleShot(0, &page, [&] {
@@ -459,7 +535,7 @@ void check_group_detail_layout()
     QApplication::processEvents();
     auto* preview = dialog.findChild<QListWidget*>("groupMemberPreview");
     auto const image = preview->viewport()->grab().toImage();
-    check(image.pixelColor(20, preview->visualItemRect(preview->item(2)).center().y()) == color,
+    check(logical_pixel(image, QPoint(20, preview->visualItemRect(preview->item(2)).center().y())) == color,
           "A downloaded member avatar refreshes the visible group overview without reopening it");
     int profile_requests = 0;
     auto profile_connection = QObject::connect(&dialog, &group_dialog::user_requested, &dialog, [&](qint64 user, QString const&) {
@@ -693,7 +769,7 @@ void check_primary_navigation()
             {
                 list->item(0)->setCheckState(Qt::Checked);
                 auto const pixels = dialog->grab().toImage();
-                auto const primary = pixels.pixelColor(next->mapTo(dialog, QPoint(next->width() - 12, next->height() / 2)));
+                auto const primary = logical_pixel(pixels, next->mapTo(dialog, QPoint(next->width() - 12, next->height() / 2)));
                 check(primary.lightness() < 100, "Enabled group progression is visibly primary");
                 auto* chips = dialog->findChild<QListWidget*>("groupSelectedContacts");
                 check(chips->count() == 1 && chips->item(0)->text().contains(contacts[0].username), "Long Unicode selection remains intact");
@@ -840,18 +916,18 @@ void check_primary_navigation()
         menu.addAction(QStringLiteral("删除"));
         menu.popup(page.mapToGlobal(QPoint(430, 90)));
         QApplication::processEvents();
-        auto const background = menu.grab().toImage().pixelColor(8, 8);
+        auto const background = logical_pixel(menu.grab().toImage(), QPoint(8, 8));
         check(background.alpha() == 255 && background.lightness() > 200,
               "Popup menu paints an opaque light background instead of transparent black");
         menu.setActiveAction(reply);
         QApplication::processEvents();
         auto const row = menu.actionGeometry(reply);
-        auto const selected = menu.grab().toImage().pixelColor(row.right() - 8, row.center().y());
+        auto const selected = logical_pixel(menu.grab().toImage(), QPoint(row.right() - 8, row.center().y()));
         check(selected.alpha() == 255 && selected.lightness() < 150,
               "Focused popup action has a distinct opaque selection");
         reactions->popup(menu.mapToGlobal(QPoint(menu.width(), 0)));
         QApplication::processEvents();
-        auto const submenu = reactions->grab().toImage().pixelColor(8, 8);
+        auto const submenu = logical_pixel(reactions->grab().toImage(), QPoint(8, 8));
         check(submenu.alpha() == 255 && submenu.lightness() > 200,
               "Reaction submenu shares the readable popup surface");
         reactions->close();
@@ -884,8 +960,8 @@ void check_profile_layout()
         auto* change = dialog->findChild<QPushButton*>("changeAvatarButton");
         auto* logout = dialog->findChild<QPushButton*>("profileLogoutButton");
         auto const profile_pixels = dialog->grab().toImage();
-        auto const change_background = profile_pixels.pixelColor(change->mapTo(dialog, QPoint(change->width() - 12, change->height() / 2)));
-        auto const logout_background = profile_pixels.pixelColor(logout->mapTo(dialog, QPoint(logout->width() - 12, logout->height() / 2)));
+        auto const change_background = logical_pixel(profile_pixels, change->mapTo(dialog, QPoint(change->width() - 12, change->height() / 2)));
+        auto const logout_background = logical_pixel(profile_pixels, logout->mapTo(dialog, QPoint(logout->width() - 12, logout->height() / 2)));
         check(change_background.lightness() < 100 && logout_background.lightness() > 200,
               ("Account action hierarchy: change=" + change_background.name().toStdString() +
                " logout=" + logout_background.name().toStdString()).c_str());
@@ -1001,7 +1077,7 @@ void check_message_editor()
             check(save->text() == QStringLiteral("保存") && buttons->button(QDialogButtonBox::Cancel)->text() == QStringLiteral("取消"),
                   "Message editing names both decisions");
             for (auto* button : buttons->buttons()) { check(button->icon().isNull(), "Message editing has no platform button icons"); }
-            check(save->grab().toImage().pixelColor(save->width() / 2, 4) == QColor("#315A4B"),
+            check(logical_pixel(save->grab().toImage(), QPoint(save->width() / 2, 4)) == QColor("#315A4B"),
                   "Message save is visibly the primary action");
             editor->setFocus();
             auto editor_image = editor->grab().toImage();
@@ -1016,6 +1092,7 @@ void check_message_editor()
                   "Message editing retains its unfocused input boundary");
             if (choice == 0)
             {
+                check_preedit_display(editor);
                 editor->setFocus();
                 QApplication::processEvents();
                 check(!editor->document()->isUndoAvailable(),
@@ -1231,7 +1308,7 @@ void check_reply_and_read_details_controls()
         auto const row_rect = list->visualItemRect(list->currentItem());
         check(row_rect.height() == chat_theme::dialog_row_height, "Read members use shared user row metrics");
         auto const list_image = list->viewport()->grab().toImage();
-        check(list_image.pixelColor(row_rect.right() - 6, row_rect.bottom() - 6) == QColor("#E7EEE9"),
+        check(logical_pixel(list_image, QPoint(row_rect.right() - 6, row_rect.bottom() - 6)) == QColor("#E7EEE9"),
               "The selected read member uses the cream and green user-list palette");
         list->setCurrentRow(13);
         list->verticalScrollBar()->setValue(list->verticalScrollBar()->maximum() / 2);
@@ -1773,7 +1850,7 @@ void check_message_dialogs()
           earlier->mapTo(&dialog, earlier->rect().center()).y() == search_close->mapTo(&dialog, search_close->rect().center()).y(),
           "Search shares detail padding and keeps secondary pagination in the footer");
     check(search_close->text() == QStringLiteral("关闭") && search_close->icon().isNull() &&
-          search_button->grab().toImage().pixelColor(search_button->width()/2, 5) == QColor(49, 90, 75),
+          logical_pixel(search_button->grab().toImage(), QPoint(search_button->width()/2, 5)) == QColor(49, 90, 75),
           "Search has one primary action and a localized secondary close without a platform icon");
     match.text = QStringLiteral("中文关键词 original é 👩‍💻");
     dialog.set_results(50, QStringLiteral("中文关键词"), 0, {match}, {}, true, {});
@@ -1823,7 +1900,7 @@ void check_message_dialogs()
           save_button->mapTo(&preview, save_button->rect().center()).y() == preview_close->mapTo(&preview, preview_close->rect().center()).y() &&
           preview_close->text() == QStringLiteral("关闭") && preview_close->icon().isNull(),
           "Attachment uses shared padding and one compact footer for save and close");
-    check(save_button->grab().toImage().pixelColor(save_button->width()/2, 5) == QColor(49, 90, 75),
+    check(logical_pixel(save_button->grab().toImage(), QPoint(save_button->width()/2, 5)) == QColor(49, 90, 75),
           "Saving the original attachment is the primary dialog action");
     for (auto size : {QSize(420, 360), QSize(700, 600), QSize(500, 440)})
     {
@@ -1855,7 +1932,7 @@ void check_message_dialogs()
             auto* combo = picker.findChild<QComboBox*>(name);
             check(combo && combo->isVisible(), "Open and Save expose their actual location and file-type controls");
             auto const pixels = combo->grab().toImage();
-            check(pixels.pixelColor(pixels.width()/2, 4) == QColor(QStringLiteral("#FFFFFF")) &&
+            check(logical_pixel(pixels, QPoint(combo->width()/2, 4)) == QColor(QStringLiteral("#FFFFFF")) &&
                   combo->palette().color(QPalette::ButtonText) == QColor(QStringLiteral("#27332E")),
                   "File chooser location and file type have readable text on a light surface");
             combo->setFocus();
@@ -1879,7 +1956,7 @@ void check_message_dialogs()
             if (!header->isVisible()) { continue; }
             visible_header = true;
             auto const pixels = header->viewport()->grab().toImage();
-            check(pixels.pixelColor(5, 3) == QColor(QStringLiteral("#F0F4F1")) &&
+            check(logical_pixel(pixels, QPoint(5, 3)) == QColor(QStringLiteral("#F0F4F1")) &&
                   header->palette().color(QPalette::ButtonText) == QColor(QStringLiteral("#27332E")),
                   "File chooser column headings remain readable on their own light surface");
         }
@@ -1887,7 +1964,7 @@ void check_message_dialogs()
         auto* details = picker.findChild<QToolButton*>("detailModeButton");
         check(details && details->isVisible() && details->isDown(), "File chooser exposes its current details mode");
         auto const selected_mode = details->grab().toImage();
-        check(selected_mode.pixelColor(5, selected_mode.height()/2) == QColor(QStringLiteral("#E7EEE9")),
+        check(logical_pixel(selected_mode, QPoint(5, details->height()/2)) == QColor(QStringLiteral("#E7EEE9")),
               "The current file view mode uses the same readable selected surface");
         picker.reject();
     }
@@ -1985,6 +2062,7 @@ void check_message_composer()
     check(sent == 1 && !edit->isEnabled() && !send->isEnabled() && edit->toPlainText() == draft,
           "Offline composer preserves the draft and refuses sending");
     page.set_connection_available(true);
+    check_preedit_display(edit);
     edit->setPlainText(QStringLiteral("准备 "));
     edit->moveCursor(QTextCursor::End);
     QApplication::processEvents();
@@ -2287,7 +2365,7 @@ int main(int argc, char** argv)
             auto* entry = page.findChild<QPushButton*>("newFriendsButton");
             check(entry && entry->isVisible(), "New friends entry is visible above contacts");
             auto const image = entry->grab().toImage();
-            auto const background = image.pixelColor(10, image.height() / 2);
+            auto const background = logical_pixel(image, QPoint(10, entry->height() / 2));
             check(background.alpha() == 255 && background.lightness() > 200,
                 "New friends entry has an opaque light background for readable dark text");
         }

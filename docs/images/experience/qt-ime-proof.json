@@ -1,0 +1,5034 @@
+{
+  "base_head": "d691da7600b4fac8ec69c5176a817c2eb03f706a",
+  "origin_main": "855871bd91df9c0d6ad447c522a0124eb20e06b7",
+  "final_binary_sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+  "source_sha256": {
+    "qt/src/emoji_text.cpp": "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621",
+    "qt/tests/ui_test.cpp": "93b16ec0c899f203d9527b14782f6294fe20a593cca9cb4a67616dd0c213f6a4",
+    "tests/verify.sh": "38d3408e537d67182689f59d452e9d8e5bf164f38a9b5baaa93fbd8b36eb5f29"
+  },
+  "permanent_counterexamples": {
+    "preedit-red": {
+      "actual_exit": 1,
+      "log": "This plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support raise()\nThis plugin does not support grabbing the keyboard\nThis plugin does not support raise()\nThis plugin does not support grabbing the keyboard\nThis plugin does not support grabbing the keyboard\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support raise()\nThis plugin does not support grabbing the keyboard\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nPASS Qt authentication hierarchy, keyboard focus and responsive settings\nPASS Qt friend request row rhythm and empty state\nPASS Qt group overview live member avatar and bounded details\nPASS Qt primary navigation, action menu, accepted contacts and pending history states\nPASS Qt profile identity hierarchy\nPASS Qt named confirmation actions and safe keyboard defaults\nFAIL Qt assertion: Every committed emoji retains its display font before and after a changing preedit area\nQt has caught an exception thrown from an event handler. Throwing\nexceptions from an event handler is not supported in Qt.\nYou must not let any exception whatsoever propagate through Qt code.\nEvery committed emoji retains its display font before and after a changing preedit area\n"
+    },
+    "font-change-red": {
+      "actual_exit": 1,
+      "log": "This plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support raise()\nThis plugin does not support grabbing the keyboard\nThis plugin does not support raise()\nThis plugin does not support grabbing the keyboard\nThis plugin does not support grabbing the keyboard\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nThis plugin does not support raise()\nThis plugin does not support grabbing the keyboard\nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\nPASS Qt authentication hierarchy, keyboard focus and responsive settings\nPASS Qt friend request row rhythm and empty state\nPASS Qt group overview live member avatar and bounded details\nPASS Qt primary navigation, action menu, accepted contacts and pending history states\nPASS Qt profile identity hierarchy\nPASS Qt named confirmation actions and safe keyboard defaults\nFAIL Qt assertion: Every committed emoji retains its display font before and after a changing preedit area\nQt has caught an exception thrown from an event handler. Throwing\nexceptions from an event handler is not supported in Qt.\nYou must not let any exception whatsoever propagate through Qt code.\nEvery committed emoji retains its display font before and after a changing preedit area\n"
+    }
+  },
+  "four_scale_widgets_and_delegate": [
+    {
+      "scale": "1",
+      "group": "widgets",
+      "actual_exit": 0,
+      "passed_groups": [
+        "PASS Qt authentication hierarchy, keyboard focus and responsive settings",
+        "PASS Qt friend request row rhythm and empty state",
+        "PASS Qt group overview live member avatar and bounded details",
+        "PASS Qt primary navigation, action menu, accepted contacts and pending history states",
+        "PASS Qt profile identity hierarchy",
+        "PASS Qt named confirmation actions and safe keyboard defaults",
+        "PASS Qt message edit layout, keyboard and exact body semantics",
+        "PASS Qt reply cancellation and read-member controls",
+        "PASS Qt message action target identity, cancellation and conversation fencing",
+        "PASS Qt message dialog keyboard, footer hierarchy and responsive image preview",
+        "PASS Qt multiline composer, keyboard, bounded wrapping, offline and input method",
+        "PASS Qt latest-message following and explicit history reading",
+        "PASS Qt conversation draft ownership, closure and account isolation",
+        "PASS Qt search results show actual Tab/Down focus and selected identity",
+        "PASS Qt loaded search hits, live reconciliation, raw cursors, status, selection and captured copy"
+      ],
+      "log_sha256": "ae1868bc654200f14def864e3891d60421b2826cebb7ab12b2d5da71d0927022"
+    },
+    {
+      "scale": "1",
+      "group": "delegate",
+      "actual_exit": 0,
+      "passed_groups": [
+        "PASS whole-grapheme emoji display, original offsets, copy/undo and bounded HiDPI paint",
+        "PASS Qt message selection and keyboard focus outlines with unchanged unfocused rendering",
+        "PASS image download deduplication, queue bound, immutable cache, paint, fallback, lifecycle and eviction",
+        "PASS Qt avatar fallback, circular image, one download per revision, ABA/stale protection and retry",
+        "PASS long plain text, URL, mention and reply wrap without clipping",
+        "PASS Qt reaction chip layout, hit target and clear",
+        "PASS Qt edited message renders the entire single-line body"
+      ],
+      "log_sha256": "f45e6984250ee952223ee3f1d935fa3983570afac11e32a6be59ad3313cf4356"
+    },
+    {
+      "scale": "1.25",
+      "group": "widgets",
+      "actual_exit": 0,
+      "passed_groups": [
+        "PASS Qt authentication hierarchy, keyboard focus and responsive settings",
+        "PASS Qt friend request row rhythm and empty state",
+        "PASS Qt group overview live member avatar and bounded details",
+        "PASS Qt primary navigation, action menu, accepted contacts and pending history states",
+        "PASS Qt profile identity hierarchy",
+        "PASS Qt named confirmation actions and safe keyboard defaults",
+        "PASS Qt message edit layout, keyboard and exact body semantics",
+        "PASS Qt reply cancellation and read-member controls",
+        "PASS Qt message action target identity, cancellation and conversation fencing",
+        "PASS Qt message dialog keyboard, footer hierarchy and responsive image preview",
+        "PASS Qt multiline composer, keyboard, bounded wrapping, offline and input method",
+        "PASS Qt latest-message following and explicit history reading",
+        "PASS Qt conversation draft ownership, closure and account isolation",
+        "PASS Qt search results show actual Tab/Down focus and selected identity",
+        "PASS Qt loaded search hits, live reconciliation, raw cursors, status, selection and captured copy"
+      ],
+      "log_sha256": "ae1868bc654200f14def864e3891d60421b2826cebb7ab12b2d5da71d0927022"
+    },
+    {
+      "scale": "1.25",
+      "group": "delegate",
+      "actual_exit": 0,
+      "passed_groups": [
+        "PASS whole-grapheme emoji display, original offsets, copy/undo and bounded HiDPI paint",
+        "PASS Qt message selection and keyboard focus outlines with unchanged unfocused rendering",
+        "PASS image download deduplication, queue bound, immutable cache, paint, fallback, lifecycle and eviction",
+        "PASS Qt avatar fallback, circular image, one download per revision, ABA/stale protection and retry",
+        "PASS long plain text, URL, mention and reply wrap without clipping",
+        "PASS Qt reaction chip layout, hit target and clear",
+        "PASS Qt edited message renders the entire single-line body"
+      ],
+      "log_sha256": "f45e6984250ee952223ee3f1d935fa3983570afac11e32a6be59ad3313cf4356"
+    },
+    {
+      "scale": "1.5",
+      "group": "widgets",
+      "actual_exit": 0,
+      "passed_groups": [
+        "PASS Qt authentication hierarchy, keyboard focus and responsive settings",
+        "PASS Qt friend request row rhythm and empty state",
+        "PASS Qt group overview live member avatar and bounded details",
+        "PASS Qt primary navigation, action menu, accepted contacts and pending history states",
+        "PASS Qt profile identity hierarchy",
+        "PASS Qt named confirmation actions and safe keyboard defaults",
+        "PASS Qt message edit layout, keyboard and exact body semantics",
+        "PASS Qt reply cancellation and read-member controls",
+        "PASS Qt message action target identity, cancellation and conversation fencing",
+        "PASS Qt message dialog keyboard, footer hierarchy and responsive image preview",
+        "PASS Qt multiline composer, keyboard, bounded wrapping, offline and input method",
+        "PASS Qt latest-message following and explicit history reading",
+        "PASS Qt conversation draft ownership, closure and account isolation",
+        "PASS Qt search results show actual Tab/Down focus and selected identity",
+        "PASS Qt loaded search hits, live reconciliation, raw cursors, status, selection and captured copy"
+      ],
+      "log_sha256": "ae1868bc654200f14def864e3891d60421b2826cebb7ab12b2d5da71d0927022"
+    },
+    {
+      "scale": "1.5",
+      "group": "delegate",
+      "actual_exit": 0,
+      "passed_groups": [
+        "PASS whole-grapheme emoji display, original offsets, copy/undo and bounded HiDPI paint",
+        "PASS Qt message selection and keyboard focus outlines with unchanged unfocused rendering",
+        "PASS image download deduplication, queue bound, immutable cache, paint, fallback, lifecycle and eviction",
+        "PASS Qt avatar fallback, circular image, one download per revision, ABA/stale protection and retry",
+        "PASS long plain text, URL, mention and reply wrap without clipping",
+        "PASS Qt reaction chip layout, hit target and clear",
+        "PASS Qt edited message renders the entire single-line body"
+      ],
+      "log_sha256": "f45e6984250ee952223ee3f1d935fa3983570afac11e32a6be59ad3313cf4356"
+    },
+    {
+      "scale": "2",
+      "group": "widgets",
+      "actual_exit": 0,
+      "passed_groups": [
+        "PASS Qt authentication hierarchy, keyboard focus and responsive settings",
+        "PASS Qt friend request row rhythm and empty state",
+        "PASS Qt group overview live member avatar and bounded details",
+        "PASS Qt primary navigation, action menu, accepted contacts and pending history states",
+        "PASS Qt profile identity hierarchy",
+        "PASS Qt named confirmation actions and safe keyboard defaults",
+        "PASS Qt message edit layout, keyboard and exact body semantics",
+        "PASS Qt reply cancellation and read-member controls",
+        "PASS Qt message action target identity, cancellation and conversation fencing",
+        "PASS Qt message dialog keyboard, footer hierarchy and responsive image preview",
+        "PASS Qt multiline composer, keyboard, bounded wrapping, offline and input method",
+        "PASS Qt latest-message following and explicit history reading",
+        "PASS Qt conversation draft ownership, closure and account isolation",
+        "PASS Qt search results show actual Tab/Down focus and selected identity",
+        "PASS Qt loaded search hits, live reconciliation, raw cursors, status, selection and captured copy"
+      ],
+      "log_sha256": "ae1868bc654200f14def864e3891d60421b2826cebb7ab12b2d5da71d0927022"
+    },
+    {
+      "scale": "2",
+      "group": "delegate",
+      "actual_exit": 0,
+      "passed_groups": [
+        "PASS whole-grapheme emoji display, original offsets, copy/undo and bounded HiDPI paint",
+        "PASS Qt message selection and keyboard focus outlines with unchanged unfocused rendering",
+        "PASS image download deduplication, queue bound, immutable cache, paint, fallback, lifecycle and eviction",
+        "PASS Qt avatar fallback, circular image, one download per revision, ABA/stale protection and retry",
+        "PASS long plain text, URL, mention and reply wrap without clipping",
+        "PASS Qt reaction chip layout, hit target and clear",
+        "PASS Qt edited message renders the entire single-line body"
+      ],
+      "log_sha256": "f45e6984250ee952223ee3f1d935fa3983570afac11e32a6be59ad3313cf4356"
+    }
+  ],
+  "real_system_ime_before": {
+    "head": "d691da7600b4fac8ec69c5176a817c2eb03f706a",
+    "scope": "/tmp/chat-system-ime.I4ITA0/run2",
+    "scale": 1,
+    "workflow_actual_exit": 0,
+    "driver_failure_before_qt": {
+      "run": "run1",
+      "actual_exit": 1,
+      "reason": "Driver function declaration ordering; no Qt or Fcitx started."
+    },
+    "actual_executables": {
+      "A": {
+        "pid": 2388570,
+        "binary_sha256": "e24a899a74086a4b35ac50d3011f351337557988012f02e5d01d8d57f8270cdb"
+      },
+      "C": {
+        "pid": 2388603,
+        "binary_sha256": "e24a899a74086a4b35ac50d3011f351337557988012f02e5d01d8d57f8270cdb"
+      }
+    },
+    "private_identity": {
+      "display": ":0",
+      "bus_pid": 2388531,
+      "xvfb_pid": 2388532,
+      "fcitx_pid": 2388537,
+      "wm_pid": 2388536,
+      "config": "/tmp/chat-system-ime.I4ITA0/run2/private/config"
+    },
+    "input_path": "Public XTest physical key events -> private Fcitx5/Pinyin -> private IBus frontend -> production Chat Qt6.2.4 composer/editor. No synthetic QInputMethodEvent or product hooks.",
+    "cases": [
+      {
+        "case": "nihao-Return-prefix-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20",
+          "sha256": "f1ff70f42f321abb10132c144824b6f021cccce737c7f442951d0eebb4d11762"
+        }
+      },
+      {
+        "case": "nihao-Return-actual-native-preedit",
+        "status": "PASS",
+        "evidence": {
+          "candidates": [
+            {
+              "window": "0x400002",
+              "rect": [
+                675,
+                961,
+                308,
+                31
+              ],
+              "line": "     0x400002 \"Fcitx5 Input Window\": (\"fcitx\" \"fcitx\")  308x31+675+961  +675+961"
+            }
+          ],
+          "raw_utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20"
+        }
+      },
+      {
+        "case": "nihao-Return-commit-not-send",
+        "status": "PASS",
+        "evidence": {
+          "samples": 6,
+          "exact_history": "2|1|7072697661746520494d452066697874757265207265616479|0"
+        }
+      },
+      {
+        "case": "nihao-Return-commit-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e206e6968616f",
+          "sha256": "de518b85c1926f68940d503d3e8d0c75aaef0be68ba92d12eade0bbdfcb6088e"
+        }
+      },
+      {
+        "case": "nihao-Return-undo-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e206e6968616f",
+          "sha256": "de518b85c1926f68940d503d3e8d0c75aaef0be68ba92d12eade0bbdfcb6088e"
+        }
+      },
+      {
+        "case": "nihao-Return-exact-send-peer-received",
+        "status": "PASS",
+        "evidence": {
+          "id": 3,
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e206e6968616f",
+          "reply": null
+        }
+      },
+      {
+        "case": "nihao-space-prefix-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20",
+          "sha256": "f1ff70f42f321abb10132c144824b6f021cccce737c7f442951d0eebb4d11762"
+        }
+      },
+      {
+        "case": "nihao-space-actual-native-preedit",
+        "status": "PASS",
+        "evidence": {
+          "candidates": [
+            {
+              "window": "0x400002",
+              "rect": [
+                675,
+                961,
+                308,
+                31
+              ],
+              "line": "     0x400002 \"Fcitx5 Input Window\": (\"fcitx\" \"fcitx\")  308x31+675+961  +675+961"
+            }
+          ],
+          "raw_utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20"
+        }
+      },
+      {
+        "case": "nihao-space-commit-not-send",
+        "status": "PASS",
+        "evidence": {
+          "samples": 7,
+          "exact_history": "2|1|7072697661746520494d452066697874757265207265616479|0\n3|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e206e6968616f|0"
+        }
+      },
+      {
+        "case": "nihao-space-commit-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4bda0e5a5bd",
+          "sha256": "9a5009a4be19d5abef2d47bea8eaf5bac874b0d5344f160799ad55a1c7de6a83"
+        }
+      },
+      {
+        "case": "nihao-space-undo-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4bda0e5a5bd",
+          "sha256": "9a5009a4be19d5abef2d47bea8eaf5bac874b0d5344f160799ad55a1c7de6a83"
+        }
+      },
+      {
+        "case": "nihao-space-exact-send-peer-received",
+        "status": "PASS",
+        "evidence": {
+          "id": 4,
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4bda0e5a5bd",
+          "reply": null
+        }
+      },
+      {
+        "case": "zhongwen-Return-prefix-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20",
+          "sha256": "f1ff70f42f321abb10132c144824b6f021cccce737c7f442951d0eebb4d11762"
+        }
+      },
+      {
+        "case": "zhongwen-Return-actual-native-preedit",
+        "status": "PASS",
+        "evidence": {
+          "candidates": [
+            {
+              "window": "0x400002",
+              "rect": [
+                675,
+                961,
+                308,
+                31
+              ],
+              "line": "     0x400002 \"Fcitx5 Input Window\": (\"fcitx\" \"fcitx\")  308x31+675+961  +675+961"
+            }
+          ],
+          "raw_utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20"
+        }
+      },
+      {
+        "case": "zhongwen-Return-commit-not-send",
+        "status": "PASS",
+        "evidence": {
+          "samples": 8,
+          "exact_history": "2|1|7072697661746520494d452066697874757265207265616479|0\n3|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e206e6968616f|0\n4|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4bda0e5a5bd|0"
+        }
+      },
+      {
+        "case": "zhongwen-Return-commit-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e207a686f6e6777656e",
+          "sha256": "5383ddb034acd1fdf9cc0c433e30cf06ffb86dbc8300c88ea2e0dfeb8ced1bc6"
+        }
+      },
+      {
+        "case": "zhongwen-Return-undo-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e207a686f6e6777656e",
+          "sha256": "5383ddb034acd1fdf9cc0c433e30cf06ffb86dbc8300c88ea2e0dfeb8ced1bc6"
+        }
+      },
+      {
+        "case": "zhongwen-Return-exact-send-peer-received",
+        "status": "PASS",
+        "evidence": {
+          "id": 5,
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e207a686f6e6777656e",
+          "reply": null
+        }
+      },
+      {
+        "case": "zhongwen-space-prefix-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20",
+          "sha256": "f1ff70f42f321abb10132c144824b6f021cccce737c7f442951d0eebb4d11762"
+        }
+      },
+      {
+        "case": "zhongwen-space-actual-native-preedit",
+        "status": "PASS",
+        "evidence": {
+          "candidates": [
+            {
+              "window": "0x400002",
+              "rect": [
+                675,
+                961,
+                308,
+                31
+              ],
+              "line": "     0x400002 \"Fcitx5 Input Window\": (\"fcitx\" \"fcitx\")  308x31+675+961  +675+961"
+            }
+          ],
+          "raw_utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20"
+        }
+      },
+      {
+        "case": "zhongwen-space-commit-not-send",
+        "status": "PASS",
+        "evidence": {
+          "samples": 4,
+          "exact_history": "2|1|7072697661746520494d452066697874757265207265616479|0\n3|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e206e6968616f|0\n4|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4bda0e5a5bd|0\n5|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e207a686f6e6777656e|0"
+        }
+      },
+      {
+        "case": "zhongwen-space-commit-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4b8ade69687",
+          "sha256": "62d5744af832bf31070e6df7fabc30fd5212390772a80e0b78b5ac2a5a069a18"
+        }
+      },
+      {
+        "case": "zhongwen-space-undo-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4b8ade69687",
+          "sha256": "62d5744af832bf31070e6df7fabc30fd5212390772a80e0b78b5ac2a5a069a18"
+        }
+      },
+      {
+        "case": "zhongwen-space-exact-send-peer-received",
+        "status": "PASS",
+        "evidence": {
+          "id": 6,
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4b8ade69687",
+          "reply": null
+        }
+      },
+      {
+        "case": "editor-original-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4b8ade69687",
+          "sha256": "62d5744af832bf31070e6df7fabc30fd5212390772a80e0b78b5ac2a5a069a18"
+        }
+      },
+      {
+        "case": "editor-original-undo-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4b8ade69687",
+          "sha256": "62d5744af832bf31070e6df7fabc30fd5212390772a80e0b78b5ac2a5a069a18"
+        }
+      },
+      {
+        "case": "editor-nihao-actual-native-preedit",
+        "status": "PASS",
+        "evidence": {
+          "candidates": [
+            {
+              "window": "0x400002",
+              "rect": [
+                676,
+                376,
+                308,
+                31
+              ],
+              "line": "     0x400002 \"Fcitx5 Input Window\": (\"fcitx\" \"fcitx\")  308x31+676+376  +676+376"
+            }
+          ],
+          "raw_utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4b8ade69687"
+        }
+      },
+      {
+        "case": "editor-committed-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4b8ade69687e4bda0e5a5bd",
+          "sha256": "dff75b7aea4bc10217618004d4db4e5a5ff142964ebf4e90348a69f8d2022334"
+        }
+      },
+      {
+        "case": "reply-prefix-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e59b9ee5a48d2065cc8120f09f91a9e2808df09f92bb20",
+          "sha256": "2b454e479cdf3991c985e786446ea9acdcb301e0647adc725cc1c25b77b522e1"
+        }
+      },
+      {
+        "case": "reply-space-commit-not-send",
+        "status": "PASS",
+        "evidence": {
+          "samples": 7,
+          "exact_history": "2|1|7072697661746520494d452066697874757265207265616479|0\n3|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e206e6968616f|0\n4|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4bda0e5a5bd|0\n5|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e207a686f6e6777656e|0\n6|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4b8ade69687e4bda0e5a5bd|0"
+        }
+      },
+      {
+        "case": "reply-commit-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e59b9ee5a48d2065cc8120f09f91a9e2808df09f92bb20e4b8ade69687",
+          "sha256": "0e6fac6f7c7b8f453cf70eabb5172ae8868b6b53eab88d47de1c3deb726d92fd"
+        }
+      },
+      {
+        "case": "reply-undo-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e59b9ee5a48d2065cc8120f09f91a9e2808df09f92bb20e4b8ade69687",
+          "sha256": "0e6fac6f7c7b8f453cf70eabb5172ae8868b6b53eab88d47de1c3deb726d92fd"
+        }
+      },
+      {
+        "case": "production-freeze-before-after",
+        "status": "PASS",
+        "evidence": {
+          "/home/gyl/example/chat/build/qt/chat_qt": "e24a899a74086a4b35ac50d3011f351337557988012f02e5d01d8d57f8270cdb",
+          "/home/gyl/example/chat/build/chat_server": "f2c9288cbc32817183e399e72a4a3af8e45adfdfbd54435af43aae86da36bf5b",
+          "/home/gyl/example/chat/qt/src/emoji_text.cpp": "6f256eff2c52b55a0b7601a27bdb9df8b281002b54d763575ba9af5acdcc26d0",
+          "/home/gyl/example/chat/qt/src/chat_widget.cpp": "595bd1e7fd8daa689f34bfce1adf853000a05c0ae04336d1849ff5865ccb8378",
+          "/home/gyl/example/chat/qt/src/emoji_segments.cpp": "49383c1ad6c5c8d4d820506f36ace7c71b1c44b2fadfc305cf03789921a131f9"
+        }
+      }
+    ],
+    "sent": [
+      {
+        "id": 3,
+        "text": "中文 é  双空格 👩‍💻 1️⃣ 👍️🏽 🙂‍🙂 ☺︎ nihao"
+      },
+      {
+        "id": 4,
+        "text": "中文 é  双空格 👩‍💻 1️⃣ 👍️🏽 🙂‍🙂 ☺︎ 你好"
+      },
+      {
+        "id": 5,
+        "text": "中文 é  双空格 👩‍💻 1️⃣ 👍️🏽 🙂‍🙂 ☺︎ zhongwen"
+      },
+      {
+        "id": 6,
+        "text": "中文 é  双空格 👩‍💻 1️⃣ 👍️🏽 🙂‍🙂 ☺︎ 中文"
+      }
+    ],
+    "edited_id": 6,
+    "reply_id": 7,
+    "exact_history": "2|1|7072697661746520494d452066697874757265207265616479|0\n3|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e206e6968616f|0\n4|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4bda0e5a5bd|0\n5|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e207a686f6e6777656e|0\n6|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4b8ade69687e4bda0e5a5bd|0\n7|3|e59b9ee5a48d2065cc8120f09f91a9e2808df09f92bb20e4b8ade69687|6\n",
+    "quiet_observations": {
+      "nihao-space-quiet-history.json": 7,
+      "nihao-Return-quiet-history.json": 6,
+      "reply-space-quiet-history.json": 7,
+      "zhongwen-Return-quiet-history.json": 8,
+      "zhongwen-space-quiet-history.json": 4
+    },
+    "native_candidates": {
+      "nihao-Return-candidate.json": [
+        {
+          "window": "0x400002",
+          "rect": [
+            675,
+            961,
+            308,
+            31
+          ],
+          "line": "     0x400002 \"Fcitx5 Input Window\": (\"fcitx\" \"fcitx\")  308x31+675+961  +675+961"
+        }
+      ],
+      "zhongwen-Return-candidate.json": [
+        {
+          "window": "0x400002",
+          "rect": [
+            675,
+            961,
+            308,
+            31
+          ],
+          "line": "     0x400002 \"Fcitx5 Input Window\": (\"fcitx\" \"fcitx\")  308x31+675+961  +675+961"
+        }
+      ],
+      "nihao-space-candidate.json": [
+        {
+          "window": "0x400002",
+          "rect": [
+            675,
+            961,
+            308,
+            31
+          ],
+          "line": "     0x400002 \"Fcitx5 Input Window\": (\"fcitx\" \"fcitx\")  308x31+675+961  +675+961"
+        }
+      ],
+      "zhongwen-space-candidate.json": [
+        {
+          "window": "0x400002",
+          "rect": [
+            675,
+            961,
+            308,
+            31
+          ],
+          "line": "     0x400002 \"Fcitx5 Input Window\": (\"fcitx\" \"fcitx\")  308x31+675+961  +675+961"
+        }
+      ],
+      "editor-nihao-candidate.json": [
+        {
+          "window": "0x400002",
+          "rect": [
+            676,
+            376,
+            308,
+            31
+          ],
+          "line": "     0x400002 \"Fcitx5 Input Window\": (\"fcitx\" \"fcitx\")  308x31+676+376  +676+376"
+        }
+      ]
+    },
+    "source_binary_pins_start_final": {
+      "/home/gyl/example/chat/build/qt/chat_qt": "e24a899a74086a4b35ac50d3011f351337557988012f02e5d01d8d57f8270cdb",
+      "/home/gyl/example/chat/build/chat_server": "f2c9288cbc32817183e399e72a4a3af8e45adfdfbd54435af43aae86da36bf5b",
+      "/home/gyl/example/chat/qt/src/emoji_text.cpp": "6f256eff2c52b55a0b7601a27bdb9df8b281002b54d763575ba9af5acdcc26d0",
+      "/home/gyl/example/chat/qt/src/chat_widget.cpp": "595bd1e7fd8daa689f34bfce1adf853000a05c0ae04336d1849ff5865ccb8378",
+      "/home/gyl/example/chat/qt/src/emoji_segments.cpp": "49383c1ad6c5c8d4d820506f36ace7c71b1c44b2fadfc305cf03789921a131f9"
+    },
+    "artifact_sha256": {
+      "01-two-real-clients-private-ime.png": "1d22481869c1fc1fb6db8e217c2de349243d3774fc73bfb92d7ca180d8505f0d",
+      "editor-nihao-preedit-full-x11.png": "08d71c0c033aab457977bb34931c1eaae963ecc95e64bac64234dbd9f7a398c4",
+      "final-edited-body-and-real-ime-reply.png": "7590e98dea111eda9a6f86ed719a7edd0428352ecd7427645e71ac68145b7c3b",
+      "reply-native-zhongwen-preedit-full-x11.png": "e73199955185d93cdfcc08b32e5f16e28c58d0c38e22ea65d4698d11f43e358f",
+      "reply-bar-actual-product.png": "10e6fe11b82affeec40d1a551226f20f5b6a8a856819a673c4467e1e0ffcafb1",
+      "zhongwen-Return-committed-not-sent.png": "a46189b96253e76d46e248db7c0aa2f2f9f4d2a30fd977417cb3935f50850fd9",
+      "nihao-space-preedit-full-x11.png": "3eb113200915cadc9ec53ab1ac21f574520bb46509c7625679710a30bf351b93",
+      "zhongwen-space-preedit-full-x11.png": "d5833d21c128d090eb501ec0e27bdd883a48fbc41fb333ab18488478b2bdb6fa",
+      "nihao-Return-preedit-full-x11.png": "7c343f8f29fd12c471740d1c425831abc400aed65f1defdbfb9a98ab2534781e",
+      "zhongwen-space-committed-not-sent.png": "a182cf020c531d4de7d03b30835efe33fc01dbd13c1716614c400ba4b58e31ca",
+      "nihao-Return-peer-received.png": "11b81bc7a1d42221f7457601e45ff482c34f75effe2917cd8fdd3a11390a4055",
+      "reply-public-selected-menu.png": "2c1505f26c2448353368663d4e9661763a47e0177045900054fc5b192cbe9cff",
+      "edit-public-selected-menu.png": "2afd92c0b80970345bc5523343463ce54e6d5c3ed957bd8fbe58921762b0f826",
+      "zhongwen-Return-peer-received.png": "e6ebfee8d47878a667b4ff784fcae7701e35cf2a09d8e62655136e873825c5d1",
+      "nihao-Return-committed-not-sent.png": "19b57cb7855a49b4a2f7617d83d61020c8427983b44ea24de776110af809bb9f",
+      "zhongwen-Return-preedit-full-x11.png": "91192f98eeff1074cf39267e2794f27dd9e5aa7afb8644504cc9e0ed2013f009",
+      "nihao-space-committed-not-sent.png": "1215dc5477b1b69d3a7632172a3ea5b7cfb1d935a6a478af5176d83e1919cccd",
+      "editor-native-chinese-commit.png": "230fac00915069f05c1830fbd09aaa93ef40b6ad3368cd4be3cd2a0d0e32e347",
+      "zhongwen-space-peer-received.png": "dc20b29ec491f39710298f864f264cedc6fbd15365f9765694e2aaeaa46b31c2",
+      "nihao-space-peer-received.png": "eeb34538f1579b36619512fa3a7e0ba672a1fba163aa49360010ccd34cff436f"
+    },
+    "driver_sha256": "8870e75f898cc11ec8a21ea775ae9d19c9fae979f590707eb6c2b560e6b2a6ab",
+    "cleanup": {
+      "owned_databases": [
+        "chat_qtx11_1006135017_2385743",
+        "chat_qtx11_1006135106_2388087"
+      ],
+      "database_count": 0,
+      "owned_pids_gone": {
+        "2388158": true,
+        "2388163": true,
+        "2388531": true,
+        "2388532": true,
+        "2388536": true,
+        "2388537": true,
+        "2388570": true,
+        "2388603": true
+      },
+      "protected_same_start_ticks": true,
+      "activation_descendants": []
+    },
+    "limits": [
+      "100% current Qt6.2.4/Linux/X11/Fcitx5/Pinyin only; no four-DPI IME candidate-position repair claim.",
+      "i3 interpreted the temporary minimal config as v3; actual two native frames are 1296x953 and measured physical/logical ratios are 1.0, not the requested 1280x800.",
+      "First-commit no-send observation is a measured one-second finite window, not an unbounded future guarantee.",
+      "Physical/native preedit and document raw are observed; runtime loaded Qt plugin maps and internal QInputMethodEvent logs were not separately captured.",
+      "Existing external Qt6.2.4 HiDPI candidate coordinate limitation Q30 remains open.",
+      "Original PNGs require human visual review; no blanket visual PASS inferred from functional tests."
+    ]
+  },
+  "real_system_ime_after": {
+    "scope": "/tmp/chat-system-ime-final.F6txz4/run",
+    "original_driver_sha256": "8870e75f898cc11ec8a21ea775ae9d19c9fae979f590707eb6c2b560e6b2a6ab",
+    "same_original_33_checks": true,
+    "cases": [
+      {
+        "case": "nihao-Return-prefix-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20",
+          "sha256": "f1ff70f42f321abb10132c144824b6f021cccce737c7f442951d0eebb4d11762"
+        }
+      },
+      {
+        "case": "nihao-Return-actual-native-preedit",
+        "status": "PASS",
+        "evidence": {
+          "candidates": [
+            {
+              "window": "0x400002",
+              "rect": [
+                675,
+                961,
+                308,
+                31
+              ],
+              "line": "     0x400002 \"Fcitx5 Input Window\": (\"fcitx\" \"fcitx\")  308x31+675+961  +675+961"
+            }
+          ],
+          "raw_utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20"
+        }
+      },
+      {
+        "case": "nihao-Return-commit-not-send",
+        "status": "PASS",
+        "evidence": {
+          "samples": 4,
+          "exact_history": "2|1|7072697661746520494d452066697874757265207265616479|0"
+        }
+      },
+      {
+        "case": "nihao-Return-commit-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e206e6968616f",
+          "sha256": "de518b85c1926f68940d503d3e8d0c75aaef0be68ba92d12eade0bbdfcb6088e"
+        }
+      },
+      {
+        "case": "nihao-Return-undo-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e206e6968616f",
+          "sha256": "de518b85c1926f68940d503d3e8d0c75aaef0be68ba92d12eade0bbdfcb6088e"
+        }
+      },
+      {
+        "case": "nihao-Return-exact-send-peer-received",
+        "status": "PASS",
+        "evidence": {
+          "id": 3,
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e206e6968616f",
+          "reply": null
+        }
+      },
+      {
+        "case": "nihao-space-prefix-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20",
+          "sha256": "f1ff70f42f321abb10132c144824b6f021cccce737c7f442951d0eebb4d11762"
+        }
+      },
+      {
+        "case": "nihao-space-actual-native-preedit",
+        "status": "PASS",
+        "evidence": {
+          "candidates": [
+            {
+              "window": "0x400002",
+              "rect": [
+                675,
+                961,
+                308,
+                31
+              ],
+              "line": "     0x400002 \"Fcitx5 Input Window\": (\"fcitx\" \"fcitx\")  308x31+675+961  +675+961"
+            }
+          ],
+          "raw_utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20"
+        }
+      },
+      {
+        "case": "nihao-space-commit-not-send",
+        "status": "PASS",
+        "evidence": {
+          "samples": 5,
+          "exact_history": "2|1|7072697661746520494d452066697874757265207265616479|0\n3|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e206e6968616f|0"
+        }
+      },
+      {
+        "case": "nihao-space-commit-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4bda0e5a5bd",
+          "sha256": "9a5009a4be19d5abef2d47bea8eaf5bac874b0d5344f160799ad55a1c7de6a83"
+        }
+      },
+      {
+        "case": "nihao-space-undo-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4bda0e5a5bd",
+          "sha256": "9a5009a4be19d5abef2d47bea8eaf5bac874b0d5344f160799ad55a1c7de6a83"
+        }
+      },
+      {
+        "case": "nihao-space-exact-send-peer-received",
+        "status": "PASS",
+        "evidence": {
+          "id": 4,
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4bda0e5a5bd",
+          "reply": null
+        }
+      },
+      {
+        "case": "zhongwen-Return-prefix-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20",
+          "sha256": "f1ff70f42f321abb10132c144824b6f021cccce737c7f442951d0eebb4d11762"
+        }
+      },
+      {
+        "case": "zhongwen-Return-actual-native-preedit",
+        "status": "PASS",
+        "evidence": {
+          "candidates": [
+            {
+              "window": "0x400002",
+              "rect": [
+                675,
+                961,
+                308,
+                31
+              ],
+              "line": "     0x400002 \"Fcitx5 Input Window\": (\"fcitx\" \"fcitx\")  308x31+675+961  +675+961"
+            }
+          ],
+          "raw_utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20"
+        }
+      },
+      {
+        "case": "zhongwen-Return-commit-not-send",
+        "status": "PASS",
+        "evidence": {
+          "samples": 5,
+          "exact_history": "2|1|7072697661746520494d452066697874757265207265616479|0\n3|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e206e6968616f|0\n4|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4bda0e5a5bd|0"
+        }
+      },
+      {
+        "case": "zhongwen-Return-commit-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e207a686f6e6777656e",
+          "sha256": "5383ddb034acd1fdf9cc0c433e30cf06ffb86dbc8300c88ea2e0dfeb8ced1bc6"
+        }
+      },
+      {
+        "case": "zhongwen-Return-undo-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e207a686f6e6777656e",
+          "sha256": "5383ddb034acd1fdf9cc0c433e30cf06ffb86dbc8300c88ea2e0dfeb8ced1bc6"
+        }
+      },
+      {
+        "case": "zhongwen-Return-exact-send-peer-received",
+        "status": "PASS",
+        "evidence": {
+          "id": 5,
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e207a686f6e6777656e",
+          "reply": null
+        }
+      },
+      {
+        "case": "zhongwen-space-prefix-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20",
+          "sha256": "f1ff70f42f321abb10132c144824b6f021cccce737c7f442951d0eebb4d11762"
+        }
+      },
+      {
+        "case": "zhongwen-space-actual-native-preedit",
+        "status": "PASS",
+        "evidence": {
+          "candidates": [
+            {
+              "window": "0x400002",
+              "rect": [
+                675,
+                961,
+                308,
+                31
+              ],
+              "line": "     0x400002 \"Fcitx5 Input Window\": (\"fcitx\" \"fcitx\")  308x31+675+961  +675+961"
+            }
+          ],
+          "raw_utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20"
+        }
+      },
+      {
+        "case": "zhongwen-space-commit-not-send",
+        "status": "PASS",
+        "evidence": {
+          "samples": 6,
+          "exact_history": "2|1|7072697661746520494d452066697874757265207265616479|0\n3|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e206e6968616f|0\n4|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4bda0e5a5bd|0\n5|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e207a686f6e6777656e|0"
+        }
+      },
+      {
+        "case": "zhongwen-space-commit-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4b8ade69687",
+          "sha256": "62d5744af832bf31070e6df7fabc30fd5212390772a80e0b78b5ac2a5a069a18"
+        }
+      },
+      {
+        "case": "zhongwen-space-undo-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4b8ade69687",
+          "sha256": "62d5744af832bf31070e6df7fabc30fd5212390772a80e0b78b5ac2a5a069a18"
+        }
+      },
+      {
+        "case": "zhongwen-space-exact-send-peer-received",
+        "status": "PASS",
+        "evidence": {
+          "id": 6,
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4b8ade69687",
+          "reply": null
+        }
+      },
+      {
+        "case": "editor-original-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4b8ade69687",
+          "sha256": "62d5744af832bf31070e6df7fabc30fd5212390772a80e0b78b5ac2a5a069a18"
+        }
+      },
+      {
+        "case": "editor-original-undo-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4b8ade69687",
+          "sha256": "62d5744af832bf31070e6df7fabc30fd5212390772a80e0b78b5ac2a5a069a18"
+        }
+      },
+      {
+        "case": "editor-nihao-actual-native-preedit",
+        "status": "PASS",
+        "evidence": {
+          "candidates": [
+            {
+              "window": "0x400002",
+              "rect": [
+                676,
+                376,
+                308,
+                31
+              ],
+              "line": "     0x400002 \"Fcitx5 Input Window\": (\"fcitx\" \"fcitx\")  308x31+676+376  +676+376"
+            }
+          ],
+          "raw_utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4b8ade69687"
+        }
+      },
+      {
+        "case": "editor-committed-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4b8ade69687e4bda0e5a5bd",
+          "sha256": "dff75b7aea4bc10217618004d4db4e5a5ff142964ebf4e90348a69f8d2022334"
+        }
+      },
+      {
+        "case": "reply-prefix-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e59b9ee5a48d2065cc8120f09f91a9e2808df09f92bb20",
+          "sha256": "2b454e479cdf3991c985e786446ea9acdcb301e0647adc725cc1c25b77b522e1"
+        }
+      },
+      {
+        "case": "reply-space-commit-not-send",
+        "status": "PASS",
+        "evidence": {
+          "samples": 5,
+          "exact_history": "2|1|7072697661746520494d452066697874757265207265616479|0\n3|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e206e6968616f|0\n4|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4bda0e5a5bd|0\n5|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e207a686f6e6777656e|0\n6|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4b8ade69687e4bda0e5a5bd|0"
+        }
+      },
+      {
+        "case": "reply-commit-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e59b9ee5a48d2065cc8120f09f91a9e2808df09f92bb20e4b8ade69687",
+          "sha256": "0e6fac6f7c7b8f453cf70eabb5172ae8868b6b53eab88d47de1c3deb726d92fd"
+        }
+      },
+      {
+        "case": "reply-undo-copy",
+        "status": "PASS",
+        "evidence": {
+          "utf8_hex": "e59b9ee5a48d2065cc8120f09f91a9e2808df09f92bb20e4b8ade69687",
+          "sha256": "0e6fac6f7c7b8f453cf70eabb5172ae8868b6b53eab88d47de1c3deb726d92fd"
+        }
+      },
+      {
+        "case": "production-freeze-before-after",
+        "status": "PASS",
+        "evidence": {
+          "/home/gyl/example/chat/build/qt/chat_qt": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+          "/home/gyl/example/chat/build/chat_server": "f2c9288cbc32817183e399e72a4a3af8e45adfdfbd54435af43aae86da36bf5b",
+          "/home/gyl/example/chat/qt/src/emoji_text.cpp": "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621",
+          "/home/gyl/example/chat/qt/src/chat_widget.cpp": "595bd1e7fd8daa689f34bfce1adf853000a05c0ae04336d1849ff5865ccb8378",
+          "/home/gyl/example/chat/qt/src/emoji_segments.cpp": "49383c1ad6c5c8d4d820506f36ace7c71b1c44b2fadfc305cf03789921a131f9"
+        }
+      }
+    ],
+    "workflow_actual_exit": 0,
+    "launcher_actual_exit": 0,
+    "binary_guards": {
+      "expected": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+      "before": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+      "after": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+      "actual_executables": {
+        "A": {
+          "pid": 2623506,
+          "binary_sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+        },
+        "C": {
+          "pid": 2623705,
+          "binary_sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+        }
+      },
+      "driver_sha256": "8870e75f898cc11ec8a21ea775ae9d19c9fae979f590707eb6c2b560e6b2a6ab"
+    },
+    "source_binary_pins_start_final": {
+      "/home/gyl/example/chat/build/qt/chat_qt": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+      "/home/gyl/example/chat/build/chat_server": "f2c9288cbc32817183e399e72a4a3af8e45adfdfbd54435af43aae86da36bf5b",
+      "/home/gyl/example/chat/qt/src/emoji_text.cpp": "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621",
+      "/home/gyl/example/chat/qt/src/chat_widget.cpp": "595bd1e7fd8daa689f34bfce1adf853000a05c0ae04336d1849ff5865ccb8378",
+      "/home/gyl/example/chat/qt/src/emoji_segments.cpp": "49383c1ad6c5c8d4d820506f36ace7c71b1c44b2fadfc305cf03789921a131f9"
+    },
+    "quiet_observations": {
+      "nihao-space-quiet-history.json": 5,
+      "nihao-Return-quiet-history.json": 4,
+      "reply-space-quiet-history.json": 5,
+      "zhongwen-Return-quiet-history.json": 5,
+      "zhongwen-space-quiet-history.json": 6
+    },
+    "result": {
+      "status": "PASS",
+      "database": "chat_qtx11_1006141351_2622288",
+      "room": 3,
+      "head": "d691da7600b4fac8ec69c5176a817c2eb03f706a",
+      "cases": 4,
+      "sent": [
+        {
+          "id": 3,
+          "text": "中文 é  双空格 👩‍💻 1️⃣ 👍️🏽 🙂‍🙂 ☺︎ nihao"
+        },
+        {
+          "id": 4,
+          "text": "中文 é  双空格 👩‍💻 1️⃣ 👍️🏽 🙂‍🙂 ☺︎ 你好"
+        },
+        {
+          "id": 5,
+          "text": "中文 é  双空格 👩‍💻 1️⃣ 👍️🏽 🙂‍🙂 ☺︎ zhongwen"
+        },
+        {
+          "id": 6,
+          "text": "中文 é  双空格 👩‍💻 1️⃣ 👍️🏽 🙂‍🙂 ☺︎ 中文"
+        }
+      ],
+      "edited_id": 6,
+      "reply_id": 7,
+      "scale": 1,
+      "scope": "Actual production Chat private Fcitx/Pinyin IBus frontend XTest flow; not all four-DPI IME or candidate-position repair"
+    },
+    "exact_history": "2|1|7072697661746520494d452066697874757265207265616479|0\n3|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e206e6968616f|0\n4|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4bda0e5a5bd|0\n5|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e207a686f6e6777656e|0\n6|1|e4b8ade696872065cc812020e58f8ce7a9bae6a0bc20f09f91a9e2808df09f92bb2031efb88fe283a320f09f918defb88ff09f8fbd20f09f9982e2808df09f998220e298baefb88e20e4b8ade69687e4bda0e5a5bd|0\n7|3|e59b9ee5a48d2065cc8120f09f91a9e2808df09f92bb20e4b8ade69687|6\n",
+    "artifact_sha256": {
+      "01-two-real-clients-private-ime.png": "79180ef92e4903b6a274d6fd89490b47b965ee9fd358eee770c7a6815d64fd63",
+      "edit-public-selected-menu.png": "53ff5c62f13d571c310376678cec8cae41a3e678cd282c011192237028cbc7c4",
+      "editor-native-chinese-commit.png": "6e439927158378f20383d7e201c4125f1577a69219fc065c3f64d6d375a01589",
+      "editor-nihao-preedit-full-x11.png": "79c1b9afb7960645f222948b676f662285cbae7888a2e4fad8b37cebc5dd0452",
+      "final-edited-body-and-real-ime-reply.png": "012e0ade2e96822de1b063bb0d9a75975b0b56c41d7e82a661ac3d30b41ab13f",
+      "nihao-Return-committed-not-sent.png": "73e05f28402f93a236277c0ce616e79f7040a4323dd054139f58daaaf38eb33f",
+      "nihao-Return-peer-received.png": "64521d87c8d7d4280475f00b7e30e2451b8002e4d62a5bbfb3fb93804f96a711",
+      "nihao-Return-preedit-full-x11.png": "f6631d7f5c41d0155ec281fbd5f3cbbe7112190b731d2b2c58c140a8efcc330e",
+      "nihao-space-committed-not-sent.png": "70a9d33ad31427923b47354228e3eb5a32affcab40b60f7a8394b3e83b7d6d30",
+      "nihao-space-peer-received.png": "4ae994f4c6eadaf9e195dca9794723c1dbf9a914263dfda3d1305f05bada4669",
+      "nihao-space-preedit-full-x11.png": "d1a6e90d65b32a9790c22730c580bd6691e4200d8baa68e9265adbef453e1796",
+      "reply-bar-actual-product.png": "4fa2f0cfe122b3ab6dd01d234b42df102da55a342c8fd7a8c6039dca27c638f5",
+      "reply-native-zhongwen-preedit-full-x11.png": "03aa0972684df5fe61578d451b11cb8437833fbefcaf3cc04109f22fe613e44a",
+      "reply-public-selected-menu.png": "3537cbb047ad588c4b2fab5d9f83f3a68d44e8780b5451b60f542890c5a49af7",
+      "zhongwen-Return-committed-not-sent.png": "163a36d4ba7f5aa7b77ab03d69b61b186f3e4682ddc01286a154eecd862e7a03",
+      "zhongwen-Return-peer-received.png": "0fd27796b7ea2f759e0ca790559b08b5b2b29ba6d3acd9494f007469d4a7e0ef",
+      "zhongwen-Return-preedit-full-x11.png": "fc7f2b92d9ddab33ba851023996fc345b7dfdf858b03d66af5d4115f973186a3",
+      "zhongwen-space-committed-not-sent.png": "431496c5467b7b02baf60073c746b47b509e1494199c0423f0ea0a982aec7278",
+      "zhongwen-space-peer-received.png": "d7881373013045c2f08c3f65afb4e5bd0d85801f91e95d171a3731f171a88b3a",
+      "zhongwen-space-preedit-full-x11.png": "034dba1d4ce17c11f5180e1da619dbc070442872aedc5bb0e8579076c2283789"
+    },
+    "native_candidates": {
+      "nihao-Return-candidate.json": [
+        {
+          "window": "0x400002",
+          "rect": [
+            675,
+            961,
+            308,
+            31
+          ],
+          "line": "     0x400002 \"Fcitx5 Input Window\": (\"fcitx\" \"fcitx\")  308x31+675+961  +675+961"
+        }
+      ],
+      "zhongwen-Return-candidate.json": [
+        {
+          "window": "0x400002",
+          "rect": [
+            675,
+            961,
+            308,
+            31
+          ],
+          "line": "     0x400002 \"Fcitx5 Input Window\": (\"fcitx\" \"fcitx\")  308x31+675+961  +675+961"
+        }
+      ],
+      "nihao-space-candidate.json": [
+        {
+          "window": "0x400002",
+          "rect": [
+            675,
+            961,
+            308,
+            31
+          ],
+          "line": "     0x400002 \"Fcitx5 Input Window\": (\"fcitx\" \"fcitx\")  308x31+675+961  +675+961"
+        }
+      ],
+      "zhongwen-space-candidate.json": [
+        {
+          "window": "0x400002",
+          "rect": [
+            675,
+            961,
+            308,
+            31
+          ],
+          "line": "     0x400002 \"Fcitx5 Input Window\": (\"fcitx\" \"fcitx\")  308x31+675+961  +675+961"
+        }
+      ],
+      "editor-nihao-candidate.json": [
+        {
+          "window": "0x400002",
+          "rect": [
+            676,
+            376,
+            308,
+            31
+          ],
+          "line": "     0x400002 \"Fcitx5 Input Window\": (\"fcitx\" \"fcitx\")  308x31+676+376  +676+376"
+        }
+      ]
+    },
+    "native_crop_provenance": "/tmp/chat-system-ime-final.F6txz4/native-comparison/provenance.json",
+    "cleanup": {
+      "database": "chat_qtx11_1006141351_2622288",
+      "database_count": 0,
+      "owned_pids_gone": {
+        "2622502": true,
+        "2622503": true,
+        "2623474": true,
+        "2623475": true,
+        "2623478": true,
+        "2623479": true,
+        "2623506": true,
+        "2623705": true
+      },
+      "protected_same_start_ticks": true
+    },
+    "visual_review": "Pending independent and main-agent inspection of original native crops; business PASS is not display PASS.",
+    "limits": [
+      "100% actual Qt6.2.4/X11/private Fcitx5 Pinyin only; no four-DPI candidate-position repair claim.",
+      "Original private i3 setup retained; actual native frame geometry must be read from controls-physical.jsonl.",
+      "One-second first-commit quiet observation is a finite window; original waits remain 15 seconds.",
+      "Actual Qt plugin maps/internal QInputMethodEvent logs were not separately captured."
+    ]
+  },
+  "crop_provenance": [
+    {
+      "phase": "before",
+      "source": "/tmp/chat-system-ime.I4ITA0/run2/nihao-Return-preedit-full-x11.png",
+      "source_sha256": "7c343f8f29fd12c471740d1c425831abc400aed65f1defdbfb9a98ab2534781e",
+      "source_dimensions": [
+        2600,
+        1000
+      ],
+      "box": [
+        429,
+        932,
+        1140,
+        994
+      ],
+      "output": "/tmp/chat-system-ime-final.F6txz4/native-comparison/before-nihao-Return-preedit-native.png",
+      "output_sha256": "ca04e551c8713def8bd691e85f59b2b5537b398b1f8ce8906a1033b0347d4d6a",
+      "method": "1:1 original-pixel crop only; no resizing or redrawing"
+    },
+    {
+      "phase": "before",
+      "source": "/tmp/chat-system-ime.I4ITA0/run2/nihao-space-preedit-full-x11.png",
+      "source_sha256": "3eb113200915cadc9ec53ab1ac21f574520bb46509c7625679710a30bf351b93",
+      "source_dimensions": [
+        2600,
+        1000
+      ],
+      "box": [
+        429,
+        932,
+        1140,
+        994
+      ],
+      "output": "/tmp/chat-system-ime-final.F6txz4/native-comparison/before-nihao-space-preedit-native.png",
+      "output_sha256": "ed29634e6e464603f95f4d4984dcb425402b701aa3fb534d9893abcdd4cbf64a",
+      "method": "1:1 original-pixel crop only; no resizing or redrawing"
+    },
+    {
+      "phase": "before",
+      "source": "/tmp/chat-system-ime.I4ITA0/run2/zhongwen-Return-preedit-full-x11.png",
+      "source_sha256": "91192f98eeff1074cf39267e2794f27dd9e5aa7afb8644504cc9e0ed2013f009",
+      "source_dimensions": [
+        2600,
+        1000
+      ],
+      "box": [
+        429,
+        932,
+        1140,
+        994
+      ],
+      "output": "/tmp/chat-system-ime-final.F6txz4/native-comparison/before-zhongwen-Return-preedit-native.png",
+      "output_sha256": "2e2825caa07460dea8071404d4cbe2b08d8f86def7b3bd6263af65f81938a91d",
+      "method": "1:1 original-pixel crop only; no resizing or redrawing"
+    },
+    {
+      "phase": "before",
+      "source": "/tmp/chat-system-ime.I4ITA0/run2/zhongwen-space-preedit-full-x11.png",
+      "source_sha256": "d5833d21c128d090eb501ec0e27bdd883a48fbc41fb333ab18488478b2bdb6fa",
+      "source_dimensions": [
+        2600,
+        1000
+      ],
+      "box": [
+        429,
+        932,
+        1140,
+        994
+      ],
+      "output": "/tmp/chat-system-ime-final.F6txz4/native-comparison/before-zhongwen-space-preedit-native.png",
+      "output_sha256": "2e2825caa07460dea8071404d4cbe2b08d8f86def7b3bd6263af65f81938a91d",
+      "method": "1:1 original-pixel crop only; no resizing or redrawing"
+    },
+    {
+      "phase": "before",
+      "source": "/tmp/chat-system-ime.I4ITA0/run2/editor-nihao-preedit-full-x11.png",
+      "source_sha256": "08d71c0c033aab457977bb34931c1eaae963ecc95e64bac64234dbd9f7a398c4",
+      "source_dimensions": [
+        2600,
+        1000
+      ],
+      "box": [
+        404,
+        350,
+        1000,
+        414
+      ],
+      "output": "/tmp/chat-system-ime-final.F6txz4/native-comparison/before-editor-nihao-preedit-native.png",
+      "output_sha256": "dd06f76cd9d03d0563ef045f133f2eae96cedf407563e422351a978615a34dd3",
+      "method": "1:1 original-pixel crop only; no resizing or redrawing"
+    },
+    {
+      "phase": "before",
+      "source": "/tmp/chat-system-ime.I4ITA0/run2/editor-native-chinese-commit.png",
+      "source_sha256": "230fac00915069f05c1830fbd09aaa93ef40b6ad3368cd4be3cd2a0d0e32e347",
+      "source_dimensions": [
+        2600,
+        1000
+      ],
+      "box": [
+        404,
+        350,
+        1000,
+        414
+      ],
+      "output": "/tmp/chat-system-ime-final.F6txz4/native-comparison/before-editor-chinese-committed-native.png",
+      "output_sha256": "2d105e641652c36cda8af5e712dfde3e29dc16e752ee075737b88f172b9aa6e2",
+      "method": "1:1 original-pixel crop only; no resizing or redrawing"
+    },
+    {
+      "phase": "before",
+      "source": "/tmp/chat-system-ime.I4ITA0/run2/reply-native-zhongwen-preedit-full-x11.png",
+      "source_sha256": "e73199955185d93cdfcc08b32e5f16e28c58d0c38e22ea65d4698d11f43e358f",
+      "source_dimensions": [
+        2600,
+        1000
+      ],
+      "box": [
+        1729,
+        912,
+        2440,
+        994
+      ],
+      "output": "/tmp/chat-system-ime-final.F6txz4/native-comparison/before-reply-zhongwen-preedit-native.png",
+      "output_sha256": "36a0dca8b9ec33e43361c0e44a21644f05f10c0069d96f2aab7831e751644092",
+      "method": "1:1 original-pixel crop only; no resizing or redrawing"
+    },
+    {
+      "phase": "before",
+      "source": "/tmp/chat-system-ime.I4ITA0/run2/nihao-space-committed-not-sent.png",
+      "source_sha256": "1215dc5477b1b69d3a7632172a3ea5b7cfb1d935a6a478af5176d83e1919cccd",
+      "source_dimensions": [
+        2600,
+        1000
+      ],
+      "box": [
+        429,
+        932,
+        1140,
+        994
+      ],
+      "output": "/tmp/chat-system-ime-final.F6txz4/native-comparison/before-nihao-space-committed-native.png",
+      "output_sha256": "85d12dce677090ff7c57ff093194705f4a5fc7b7cfe630d04f2c0f9a3d3fadbf",
+      "method": "1:1 original-pixel crop only; no resizing or redrawing"
+    },
+    {
+      "phase": "before",
+      "source": "/tmp/chat-system-ime.I4ITA0/run2/zhongwen-Return-committed-not-sent.png",
+      "source_sha256": "a46189b96253e76d46e248db7c0aa2f2f9f4d2a30fd977417cb3935f50850fd9",
+      "source_dimensions": [
+        2600,
+        1000
+      ],
+      "box": [
+        429,
+        932,
+        1140,
+        994
+      ],
+      "output": "/tmp/chat-system-ime-final.F6txz4/native-comparison/before-zhongwen-Return-committed-native.png",
+      "output_sha256": "f289748e8a988379d05b1cab6e8d6535817e3429265673062532b875c059e31c",
+      "method": "1:1 original-pixel crop only; no resizing or redrawing"
+    },
+    {
+      "phase": "after",
+      "source": "/tmp/chat-system-ime-final.F6txz4/run/nihao-Return-preedit-full-x11.png",
+      "source_sha256": "f6631d7f5c41d0155ec281fbd5f3cbbe7112190b731d2b2c58c140a8efcc330e",
+      "source_dimensions": [
+        2600,
+        1000
+      ],
+      "box": [
+        429,
+        932,
+        1140,
+        994
+      ],
+      "output": "/tmp/chat-system-ime-final.F6txz4/native-comparison/after-nihao-Return-preedit-native.png",
+      "output_sha256": "5c2b9731a847198680cddd5ec1df5761bb7b7c6ec2d6b515cbea306938fc6f8b",
+      "method": "1:1 original-pixel crop only; no resizing or redrawing"
+    },
+    {
+      "phase": "after",
+      "source": "/tmp/chat-system-ime-final.F6txz4/run/nihao-space-preedit-full-x11.png",
+      "source_sha256": "d1a6e90d65b32a9790c22730c580bd6691e4200d8baa68e9265adbef453e1796",
+      "source_dimensions": [
+        2600,
+        1000
+      ],
+      "box": [
+        429,
+        932,
+        1140,
+        994
+      ],
+      "output": "/tmp/chat-system-ime-final.F6txz4/native-comparison/after-nihao-space-preedit-native.png",
+      "output_sha256": "5c2b9731a847198680cddd5ec1df5761bb7b7c6ec2d6b515cbea306938fc6f8b",
+      "method": "1:1 original-pixel crop only; no resizing or redrawing"
+    },
+    {
+      "phase": "after",
+      "source": "/tmp/chat-system-ime-final.F6txz4/run/zhongwen-Return-preedit-full-x11.png",
+      "source_sha256": "fc7f2b92d9ddab33ba851023996fc345b7dfdf858b03d66af5d4115f973186a3",
+      "source_dimensions": [
+        2600,
+        1000
+      ],
+      "box": [
+        429,
+        932,
+        1140,
+        994
+      ],
+      "output": "/tmp/chat-system-ime-final.F6txz4/native-comparison/after-zhongwen-Return-preedit-native.png",
+      "output_sha256": "0bb8cefe85c7f0c5c678bf75a96ea2dd884077464fe21469646301a35419b942",
+      "method": "1:1 original-pixel crop only; no resizing or redrawing"
+    },
+    {
+      "phase": "after",
+      "source": "/tmp/chat-system-ime-final.F6txz4/run/zhongwen-space-preedit-full-x11.png",
+      "source_sha256": "034dba1d4ce17c11f5180e1da619dbc070442872aedc5bb0e8579076c2283789",
+      "source_dimensions": [
+        2600,
+        1000
+      ],
+      "box": [
+        429,
+        932,
+        1140,
+        994
+      ],
+      "output": "/tmp/chat-system-ime-final.F6txz4/native-comparison/after-zhongwen-space-preedit-native.png",
+      "output_sha256": "0bb8cefe85c7f0c5c678bf75a96ea2dd884077464fe21469646301a35419b942",
+      "method": "1:1 original-pixel crop only; no resizing or redrawing"
+    },
+    {
+      "phase": "after",
+      "source": "/tmp/chat-system-ime-final.F6txz4/run/editor-nihao-preedit-full-x11.png",
+      "source_sha256": "79c1b9afb7960645f222948b676f662285cbae7888a2e4fad8b37cebc5dd0452",
+      "source_dimensions": [
+        2600,
+        1000
+      ],
+      "box": [
+        404,
+        350,
+        1000,
+        414
+      ],
+      "output": "/tmp/chat-system-ime-final.F6txz4/native-comparison/after-editor-nihao-preedit-native.png",
+      "output_sha256": "afd07b0f34db3c864fef209dca5abeea9fe0f0be13d55ecf7bfc04bda5a21dc8",
+      "method": "1:1 original-pixel crop only; no resizing or redrawing"
+    },
+    {
+      "phase": "after",
+      "source": "/tmp/chat-system-ime-final.F6txz4/run/editor-native-chinese-commit.png",
+      "source_sha256": "6e439927158378f20383d7e201c4125f1577a69219fc065c3f64d6d375a01589",
+      "source_dimensions": [
+        2600,
+        1000
+      ],
+      "box": [
+        404,
+        350,
+        1000,
+        414
+      ],
+      "output": "/tmp/chat-system-ime-final.F6txz4/native-comparison/after-editor-chinese-committed-native.png",
+      "output_sha256": "ec913f6590e1e999794606faf6f75494123e64de584d1919dae0bf40542724bd",
+      "method": "1:1 original-pixel crop only; no resizing or redrawing"
+    },
+    {
+      "phase": "after",
+      "source": "/tmp/chat-system-ime-final.F6txz4/run/reply-native-zhongwen-preedit-full-x11.png",
+      "source_sha256": "03aa0972684df5fe61578d451b11cb8437833fbefcaf3cc04109f22fe613e44a",
+      "source_dimensions": [
+        2600,
+        1000
+      ],
+      "box": [
+        1729,
+        912,
+        2440,
+        994
+      ],
+      "output": "/tmp/chat-system-ime-final.F6txz4/native-comparison/after-reply-zhongwen-preedit-native.png",
+      "output_sha256": "93f2486563dc731e363527409a4be317e66d195408e75dba856ad34062249a57",
+      "method": "1:1 original-pixel crop only; no resizing or redrawing"
+    },
+    {
+      "phase": "after",
+      "source": "/tmp/chat-system-ime-final.F6txz4/run/nihao-space-committed-not-sent.png",
+      "source_sha256": "70a9d33ad31427923b47354228e3eb5a32affcab40b60f7a8394b3e83b7d6d30",
+      "source_dimensions": [
+        2600,
+        1000
+      ],
+      "box": [
+        429,
+        932,
+        1140,
+        994
+      ],
+      "output": "/tmp/chat-system-ime-final.F6txz4/native-comparison/after-nihao-space-committed-native.png",
+      "output_sha256": "cdfaf0a6903eda475f09776224ad44cad1b15e5c4de8a222d1b2b39207c4bd4d",
+      "method": "1:1 original-pixel crop only; no resizing or redrawing"
+    },
+    {
+      "phase": "after",
+      "source": "/tmp/chat-system-ime-final.F6txz4/run/zhongwen-Return-committed-not-sent.png",
+      "source_sha256": "163a36d4ba7f5aa7b77ab03d69b61b186f3e4682ddc01286a154eecd862e7a03",
+      "source_dimensions": [
+        2600,
+        1000
+      ],
+      "box": [
+        429,
+        932,
+        1140,
+        994
+      ],
+      "output": "/tmp/chat-system-ime-final.F6txz4/native-comparison/after-zhongwen-Return-committed-native.png",
+      "output_sha256": "f289748e8a988379d05b1cab6e8d6535817e3429265673062532b875c059e31c",
+      "method": "1:1 original-pixel crop only; no resizing or redrawing"
+    }
+  ],
+  "independent_original_visual_review": {
+    "reviewed_binary_sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+    "status": "PASS for the original 100% real-system committed-prefix preedit counterexample",
+    "method": "Independent direct inspection of original-pixel BEFORE and final AFTER native crops. Source PNG SHA, original 2600x1000 dimensions, crop boxes and derived SHA are pinned in native-comparison/provenance.json. No resizing or drawing.",
+    "observations": [
+      "All four composer preedit samples (nihao/zhongwen, Return/Space flows) retain complete committed woman-technologist, colored keycap and thumbs-up-plus-modifier glyphs. The original BEFORE split glyphs and detached skin dot are absent.",
+      "Editor nihao preedit retains the committed emoji prefix; Space commit appends exact Chinese while the composed glyphs remain intact.",
+      "Reply composer zhongwen preedit retains the previously committed woman-technologist glyph.",
+      "Space-committed nihao and Return-committed zhongwen screenshots retain the same completed emoji prefix and show the expected distinct committed Chinese/Latin text.",
+      "Native Latin preedit remains visibly separate from the formatted committed prefix. Ordinary CJK/combining and rejected fallback sequences are not claimed to receive forced emoji formatting."
+    ],
+    "functional_scope": "The original driver is byte-identical (8870e75f898cc11ec8a21ea775ae9d19c9fae979f590707eb6c2b560e6b2a6ab), and the original 33 public-UI/raw/SQL checks have the same names and order. Functional PASS is independent of this visual inspection.",
+    "remaining_limits": [
+      "100% current Qt6.2.4/X11/private Fcitx5 Pinyin only; no full-product or four-DPI IME candidate-position repair/Q30 closure claim.",
+      "This real-system flow does not change the font during active preedit; the FontChange-specific permanent widget regression is a separate validation scope.",
+      "First-commit no-send observations remain a finite one-second quiet window; original business waits remain 15 seconds."
+    ]
+  },
+  "four_scale_native_unicode": {
+    "scope": "/tmp/chat-emoji-dpi-after.V8ckcw",
+    "binary_frozen_sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+    "binary_production_sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+    "production_source_pins_sha256": "2a93575850e3056907c895938219a3b77391905581c90bea087757b85e90f4a1",
+    "head": "d691da7600b4fac8ec69c5176a817c2eb03f706a",
+    "runs": [
+      {
+        "path": "/tmp/chat-emoji-dpi-after.V8ckcw/s100-141516",
+        "actual_shell_exit": 0,
+        "workflow_exit": 0,
+        "database": "chat_qtx11_1006141516_2639525",
+        "database_count_now": 0,
+        "owned_pids": [
+          2639518,
+          2639524,
+          2639525,
+          2639739,
+          2639922,
+          2640570,
+          2640763,
+          2640775,
+          2640979
+        ],
+        "owned_pids_present_now": [],
+        "protected": {
+          "2876288": {
+            "start_ticks": "521400965",
+            "command": "/home/gyl/example/chat/build/chat_server 18080 16 16"
+          },
+          "3225": {
+            "start_ticks": "17583",
+            "command": "/usr/bin/fcitx5 -d"
+          },
+          "29935": {
+            "start_ticks": "248258",
+            "command": "/usr/bin/speech-dispatcher -s -t 0"
+          }
+        },
+        "scale": 1.0,
+        "canvas": [
+          2400,
+          1000
+        ],
+        "public_pass_records": 13,
+        "measured_ratios": [
+          [
+            1.0,
+            1.0
+          ]
+        ],
+        "controls_physical_path": "/tmp/chat-emoji-dpi-after.V8ckcw/s100-141516/controls-physical.jsonl",
+        "controls_physical_complete": [
+          {
+            "label": "A conversation C",
+            "pid": 2640763,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              82,
+              78,
+              332,
+              62
+            ],
+            "measured_ratio": [
+              1.0,
+              1.0
+            ],
+            "physical_control": [
+              82.0,
+              78.0,
+              332.0,
+              62.0
+            ]
+          },
+          {
+            "label": "A composer preflight",
+            "pid": 2640763,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              427,
+              719,
+              595,
+              36
+            ],
+            "measured_ratio": [
+              1.0,
+              1.0
+            ],
+            "physical_control": [
+              427.0,
+              719.0,
+              595.0,
+              36.0
+            ]
+          },
+          {
+            "label": "A body viewport preflight",
+            "pid": 2640763,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              415,
+              67,
+              765,
+              636
+            ],
+            "measured_ratio": [
+              1.0,
+              1.0
+            ],
+            "physical_control": [
+              415.0,
+              67.0,
+              765.0,
+              636.0
+            ]
+          },
+          {
+            "label": "C conversation A",
+            "pid": 2640775,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1282,
+              78,
+              332,
+              62
+            ],
+            "measured_ratio": [
+              1.0,
+              1.0
+            ],
+            "physical_control": [
+              1282.0,
+              78.0,
+              332.0,
+              62.0
+            ]
+          },
+          {
+            "label": "C composer preflight",
+            "pid": 2640775,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1627,
+              719,
+              595,
+              36
+            ],
+            "measured_ratio": [
+              1.0,
+              1.0
+            ],
+            "physical_control": [
+              1627.0,
+              719.0,
+              595.0,
+              36.0
+            ]
+          },
+          {
+            "label": "C body viewport preflight",
+            "pid": 2640775,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1615,
+              67,
+              765,
+              636
+            ],
+            "measured_ratio": [
+              1.0,
+              1.0
+            ],
+            "physical_control": [
+              1615.0,
+              67.0,
+              765.0,
+              636.0
+            ]
+          },
+          {
+            "label": "A 消息输入",
+            "pid": 2640763,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              427,
+              719,
+              595,
+              36
+            ],
+            "measured_ratio": [
+              1.0,
+              1.0
+            ],
+            "physical_control": [
+              427.0,
+              719.0,
+              595.0,
+              36.0
+            ]
+          },
+          {
+            "label": "A own full body",
+            "pid": 2640763,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              417,
+              148,
+              761,
+              39
+            ],
+            "measured_ratio": [
+              1.0,
+              1.0
+            ],
+            "physical_control": [
+              417.0,
+              148.0,
+              761.0,
+              39.0
+            ]
+          },
+          {
+            "label": "C 消息输入",
+            "pid": 2640775,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1627,
+              719,
+              595,
+              36
+            ],
+            "measured_ratio": [
+              1.0,
+              1.0
+            ],
+            "physical_control": [
+              1627.0,
+              719.0,
+              595.0,
+              36.0
+            ]
+          },
+          {
+            "label": "C own full body",
+            "pid": 2640775,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1617,
+              205,
+              761,
+              45
+            ],
+            "measured_ratio": [
+              1.0,
+              1.0
+            ],
+            "physical_control": [
+              1617.0,
+              205.0,
+              761.0,
+              45.0
+            ]
+          },
+          {
+            "label": "A message context",
+            "pid": 2640763,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              417,
+              148,
+              761,
+              39
+            ],
+            "measured_ratio": [
+              1.0,
+              1.0
+            ],
+            "physical_control": [
+              417.0,
+              148.0,
+              761.0,
+              39.0
+            ]
+          },
+          {
+            "label": "A 消息内容",
+            "pid": 2640763,
+            "frame_title": "编辑消息",
+            "window_id": "0x40001a",
+            "native_frame": [
+              320,
+              176,
+              520,
+              329
+            ],
+            "atspi_frame": [
+              320,
+              176,
+              520,
+              329
+            ],
+            "atspi_control": [
+              344,
+              233,
+              472,
+              200
+            ],
+            "measured_ratio": [
+              1.0,
+              1.0
+            ],
+            "physical_control": [
+              344.0,
+              233.0,
+              472.0,
+              200.0
+            ]
+          },
+          {
+            "label": "C message context",
+            "pid": 2640775,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1617,
+              205,
+              761,
+              45
+            ],
+            "measured_ratio": [
+              1.0,
+              1.0
+            ],
+            "physical_control": [
+              1617.0,
+              205.0,
+              761.0,
+              45.0
+            ]
+          },
+          {
+            "label": "C 消息内容",
+            "pid": 2640775,
+            "frame_title": "编辑消息",
+            "window_id": "0x80001a",
+            "native_frame": [
+              1520,
+              176,
+              520,
+              329
+            ],
+            "atspi_frame": [
+              1520,
+              176,
+              520,
+              329
+            ],
+            "atspi_control": [
+              1544,
+              233,
+              472,
+              200
+            ],
+            "measured_ratio": [
+              1.0,
+              1.0
+            ],
+            "physical_control": [
+              1544.0,
+              233.0,
+              472.0,
+              200.0
+            ]
+          },
+          {
+            "label": "C original row after editor dismiss",
+            "pid": 2640775,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1617,
+              205,
+              761,
+              45
+            ],
+            "measured_ratio": [
+              1.0,
+              1.0
+            ],
+            "physical_control": [
+              1617.0,
+              205.0,
+              761.0,
+              45.0
+            ]
+          },
+          {
+            "label": "A message context",
+            "pid": 2640763,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              417,
+              148,
+              761,
+              39
+            ],
+            "measured_ratio": [
+              1.0,
+              1.0
+            ],
+            "physical_control": [
+              417.0,
+              148.0,
+              761.0,
+              39.0
+            ]
+          },
+          {
+            "label": "A full reply label",
+            "pid": 2640763,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              424,
+              658,
+              705,
+              36
+            ],
+            "measured_ratio": [
+              1.0,
+              1.0
+            ],
+            "physical_control": [
+              424.0,
+              658.0,
+              705.0,
+              36.0
+            ]
+          },
+          {
+            "label": "C message context",
+            "pid": 2640775,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1617,
+              166,
+              761,
+              39
+            ],
+            "measured_ratio": [
+              1.0,
+              1.0
+            ],
+            "physical_control": [
+              1617.0,
+              166.0,
+              761.0,
+              39.0
+            ]
+          },
+          {
+            "label": "C full reply label",
+            "pid": 2640775,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1624,
+              658,
+              705,
+              36
+            ],
+            "measured_ratio": [
+              1.0,
+              1.0
+            ],
+            "physical_control": [
+              1624.0,
+              658.0,
+              705.0,
+              36.0
+            ]
+          },
+          {
+            "label": "C 消息输入",
+            "pid": 2640775,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1627,
+              719,
+              595,
+              36
+            ],
+            "measured_ratio": [
+              1.0,
+              1.0
+            ],
+            "physical_control": [
+              1627.0,
+              719.0,
+              595.0,
+              36.0
+            ]
+          }
+        ],
+        "actual_proc_exe_start": [
+          {
+            "alias": "A",
+            "pid": 2640763,
+            "proc_exe": "/tmp/chat-emoji-dpi-after.V8ckcw/chat_qt.frozen",
+            "sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+          },
+          {
+            "alias": "C",
+            "pid": 2640775,
+            "proc_exe": "/tmp/chat-emoji-dpi-after.V8ckcw/chat_qt.frozen",
+            "sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+          }
+        ],
+        "actual_proc_exe_final": [
+          {
+            "alias": "A",
+            "pid": 2640763,
+            "proc_exe": "/tmp/chat-emoji-dpi-after.V8ckcw/chat_qt.frozen",
+            "sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+          },
+          {
+            "alias": "C",
+            "pid": 2640775,
+            "proc_exe": "/tmp/chat-emoji-dpi-after.V8ckcw/chat_qt.frozen",
+            "sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+          }
+        ],
+        "driver_sha256": "cea4db3646bfe5a5be219c2239fa50916f09e3bd4aa30f19d5abe011dbb83d0f",
+        "visual_status": "Await human original PNG review; no equivalent long black boundary segment found by narrow pixel observation",
+        "binary_start": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+        "binary_final": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+        "source_checks_start_final": true,
+        "sql_original_utf8_hex": "2|6e617469766520556e69636f64652066697874757265207265616479|\n3|e4b8ade6968720303132333435363738392065cc8120e29da4efb88e20e29da4efb88f2031efb88fe283a337efb88fe283a323efb88fe283a32aefb88fe283a320f09f91a9e2808df09f92bb20f09f91a8e2808df09f91a9e2808df09f91a7e2808df09f91a620f09f918defb88ff09f8fbd2058f09fabbf2041f09f8fbd|\n4|e4b8ade6968720303132333435363738392065cc8120e29da4efb88e20e29da4efb88f2031efb88fe283a337efb88fe283a323efb88fe283a32aefb88fe283a320f09f91a9e2808df09f92bb20f09f91a8e2808df09f91a9e2808df09f91a7e2808df09f91a620f09f918defb88ff09f8fbd2058f09fabbf2041f09f8fbd|\n5|e585ace5bc80e59b9ee5a48de4b8ade6968720f09f9982|3\n",
+        "png_names": [
+          "01-preflight-two-real-native-clients.png",
+          "02-composer-A.png",
+          "02-composer-C.png",
+          "03-bidirectional-body-sidebar.png",
+          "04-selected-edit-A.png",
+          "04-selected-edit-C.png",
+          "05-edit-A.png",
+          "05-edit-C.png",
+          "06-selected-reply-A.png",
+          "06-selected-reply-C.png",
+          "07-reply-bar-A.png",
+          "07-reply-bar-C.png",
+          "08-reply-body-sidebar.png",
+          "09-original-after-editor-dismiss-A.png",
+          "09-original-after-editor-dismiss-C.png",
+          "10-original-after-editor-dismiss-C-1sec.png"
+        ]
+      },
+      {
+        "path": "/tmp/chat-emoji-dpi-after.V8ckcw/s125-141551",
+        "actual_shell_exit": 0,
+        "workflow_exit": 0,
+        "database": "chat_qtx11_1006141551_2646701",
+        "database_count_now": 0,
+        "owned_pids": [
+          2646694,
+          2646700,
+          2646701,
+          2646918,
+          2646919,
+          2647932,
+          2647940,
+          2648137,
+          2648340
+        ],
+        "owned_pids_present_now": [],
+        "protected": {
+          "2876288": {
+            "start_ticks": "521400965",
+            "command": "/home/gyl/example/chat/build/chat_server 18080 16 16"
+          },
+          "3225": {
+            "start_ticks": "17583",
+            "command": "/usr/bin/fcitx5 -d"
+          },
+          "29935": {
+            "start_ticks": "248258",
+            "command": "/usr/bin/speech-dispatcher -s -t 0"
+          }
+        },
+        "scale": 1.25,
+        "canvas": [
+          3000,
+          1250
+        ],
+        "public_pass_records": 13,
+        "measured_ratios": [
+          [
+            1.25,
+            1.249240121580547
+          ],
+          [
+            1.25,
+            1.25
+          ]
+        ],
+        "controls_physical_path": "/tmp/chat-emoji-dpi-after.V8ckcw/s125-141551/controls-physical.jsonl",
+        "controls_physical_complete": [
+          {
+            "label": "A conversation C",
+            "pid": 2647940,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1475,
+              950
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              82,
+              78,
+              332,
+              62
+            ],
+            "measured_ratio": [
+              1.25,
+              1.25
+            ],
+            "physical_control": [
+              102.5,
+              97.5,
+              415.0,
+              77.5
+            ]
+          },
+          {
+            "label": "A composer preflight",
+            "pid": 2647940,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1475,
+              950
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              427,
+              719,
+              595,
+              36
+            ],
+            "measured_ratio": [
+              1.25,
+              1.25
+            ],
+            "physical_control": [
+              533.75,
+              898.75,
+              743.75,
+              45.0
+            ]
+          },
+          {
+            "label": "A body viewport preflight",
+            "pid": 2647940,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1475,
+              950
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              415,
+              67,
+              765,
+              636
+            ],
+            "measured_ratio": [
+              1.25,
+              1.25
+            ],
+            "physical_control": [
+              518.75,
+              83.75,
+              956.25,
+              795.0
+            ]
+          },
+          {
+            "label": "C conversation A",
+            "pid": 2648137,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1500,
+              0,
+              1475,
+              950
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1282,
+              78,
+              332,
+              62
+            ],
+            "measured_ratio": [
+              1.25,
+              1.25
+            ],
+            "physical_control": [
+              1602.5,
+              97.5,
+              415.0,
+              77.5
+            ]
+          },
+          {
+            "label": "C composer preflight",
+            "pid": 2648137,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1500,
+              0,
+              1475,
+              950
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1627,
+              719,
+              595,
+              36
+            ],
+            "measured_ratio": [
+              1.25,
+              1.25
+            ],
+            "physical_control": [
+              2033.75,
+              898.75,
+              743.75,
+              45.0
+            ]
+          },
+          {
+            "label": "C body viewport preflight",
+            "pid": 2648137,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1500,
+              0,
+              1475,
+              950
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1615,
+              67,
+              765,
+              636
+            ],
+            "measured_ratio": [
+              1.25,
+              1.25
+            ],
+            "physical_control": [
+              2018.75,
+              83.75,
+              956.25,
+              795.0
+            ]
+          },
+          {
+            "label": "A 消息输入",
+            "pid": 2647940,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1475,
+              950
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              427,
+              719,
+              595,
+              36
+            ],
+            "measured_ratio": [
+              1.25,
+              1.25
+            ],
+            "physical_control": [
+              533.75,
+              898.75,
+              743.75,
+              45.0
+            ]
+          },
+          {
+            "label": "A own full body",
+            "pid": 2647940,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1475,
+              950
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              417,
+              148,
+              761,
+              39
+            ],
+            "measured_ratio": [
+              1.25,
+              1.25
+            ],
+            "physical_control": [
+              521.25,
+              185.0,
+              951.25,
+              48.75
+            ]
+          },
+          {
+            "label": "C 消息输入",
+            "pid": 2648137,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1500,
+              0,
+              1475,
+              950
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1627,
+              719,
+              595,
+              36
+            ],
+            "measured_ratio": [
+              1.25,
+              1.25
+            ],
+            "physical_control": [
+              2033.75,
+              898.75,
+              743.75,
+              45.0
+            ]
+          },
+          {
+            "label": "C own full body",
+            "pid": 2648137,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1500,
+              0,
+              1475,
+              950
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1617,
+              205,
+              761,
+              45
+            ],
+            "measured_ratio": [
+              1.25,
+              1.25
+            ],
+            "physical_control": [
+              2021.25,
+              256.25,
+              951.25,
+              56.25
+            ]
+          },
+          {
+            "label": "A message context",
+            "pid": 2647940,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1475,
+              950
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              417,
+              148,
+              761,
+              39
+            ],
+            "measured_ratio": [
+              1.25,
+              1.25
+            ],
+            "physical_control": [
+              521.25,
+              185.0,
+              951.25,
+              48.75
+            ]
+          },
+          {
+            "label": "A 消息内容",
+            "pid": 2647940,
+            "frame_title": "编辑消息",
+            "window_id": "0x40001a",
+            "native_frame": [
+              400,
+              220,
+              650,
+              411
+            ],
+            "atspi_frame": [
+              320,
+              176,
+              520,
+              329
+            ],
+            "atspi_control": [
+              344,
+              233,
+              472,
+              200
+            ],
+            "measured_ratio": [
+              1.25,
+              1.249240121580547
+            ],
+            "physical_control": [
+              430.0,
+              291.20668693009117,
+              590.0,
+              249.84802431610942
+            ]
+          },
+          {
+            "label": "C message context",
+            "pid": 2648137,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1500,
+              0,
+              1475,
+              950
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1617,
+              205,
+              761,
+              45
+            ],
+            "measured_ratio": [
+              1.25,
+              1.25
+            ],
+            "physical_control": [
+              2021.25,
+              256.25,
+              951.25,
+              56.25
+            ]
+          },
+          {
+            "label": "C 消息内容",
+            "pid": 2648137,
+            "frame_title": "编辑消息",
+            "window_id": "0x80001a",
+            "native_frame": [
+              1900,
+              220,
+              650,
+              411
+            ],
+            "atspi_frame": [
+              1520,
+              176,
+              520,
+              329
+            ],
+            "atspi_control": [
+              1544,
+              233,
+              472,
+              200
+            ],
+            "measured_ratio": [
+              1.25,
+              1.249240121580547
+            ],
+            "physical_control": [
+              1930.0,
+              291.20668693009117,
+              590.0,
+              249.84802431610942
+            ]
+          },
+          {
+            "label": "C original row after editor dismiss",
+            "pid": 2648137,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1500,
+              0,
+              1475,
+              950
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1617,
+              205,
+              761,
+              45
+            ],
+            "measured_ratio": [
+              1.25,
+              1.25
+            ],
+            "physical_control": [
+              2021.25,
+              256.25,
+              951.25,
+              56.25
+            ]
+          },
+          {
+            "label": "A message context",
+            "pid": 2647940,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1475,
+              950
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              417,
+              148,
+              761,
+              39
+            ],
+            "measured_ratio": [
+              1.25,
+              1.25
+            ],
+            "physical_control": [
+              521.25,
+              185.0,
+              951.25,
+              48.75
+            ]
+          },
+          {
+            "label": "A full reply label",
+            "pid": 2647940,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1475,
+              950
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              424,
+              658,
+              705,
+              36
+            ],
+            "measured_ratio": [
+              1.25,
+              1.25
+            ],
+            "physical_control": [
+              530.0,
+              822.5,
+              881.25,
+              45.0
+            ]
+          },
+          {
+            "label": "C message context",
+            "pid": 2648137,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1500,
+              0,
+              1475,
+              950
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1617,
+              166,
+              761,
+              39
+            ],
+            "measured_ratio": [
+              1.25,
+              1.25
+            ],
+            "physical_control": [
+              2021.25,
+              207.5,
+              951.25,
+              48.75
+            ]
+          },
+          {
+            "label": "C full reply label",
+            "pid": 2648137,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1500,
+              0,
+              1475,
+              950
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1624,
+              658,
+              705,
+              36
+            ],
+            "measured_ratio": [
+              1.25,
+              1.25
+            ],
+            "physical_control": [
+              2030.0,
+              822.5,
+              881.25,
+              45.0
+            ]
+          },
+          {
+            "label": "C 消息输入",
+            "pid": 2648137,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1500,
+              0,
+              1475,
+              950
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1627,
+              719,
+              595,
+              36
+            ],
+            "measured_ratio": [
+              1.25,
+              1.25
+            ],
+            "physical_control": [
+              2033.75,
+              898.75,
+              743.75,
+              45.0
+            ]
+          }
+        ],
+        "actual_proc_exe_start": [
+          {
+            "alias": "A",
+            "pid": 2647940,
+            "proc_exe": "/tmp/chat-emoji-dpi-after.V8ckcw/chat_qt.frozen",
+            "sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+          },
+          {
+            "alias": "C",
+            "pid": 2648137,
+            "proc_exe": "/tmp/chat-emoji-dpi-after.V8ckcw/chat_qt.frozen",
+            "sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+          }
+        ],
+        "actual_proc_exe_final": [
+          {
+            "alias": "A",
+            "pid": 2647940,
+            "proc_exe": "/tmp/chat-emoji-dpi-after.V8ckcw/chat_qt.frozen",
+            "sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+          },
+          {
+            "alias": "C",
+            "pid": 2648137,
+            "proc_exe": "/tmp/chat-emoji-dpi-after.V8ckcw/chat_qt.frozen",
+            "sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+          }
+        ],
+        "driver_sha256": "cea4db3646bfe5a5be219c2239fa50916f09e3bd4aa30f19d5abe011dbb83d0f",
+        "visual_status": "RED: stable 1px black residual",
+        "binary_start": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+        "binary_final": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+        "source_checks_start_final": true,
+        "sql_original_utf8_hex": "2|6e617469766520556e69636f64652066697874757265207265616479|\n3|e4b8ade6968720303132333435363738392065cc8120e29da4efb88e20e29da4efb88f2031efb88fe283a337efb88fe283a323efb88fe283a32aefb88fe283a320f09f91a9e2808df09f92bb20f09f91a8e2808df09f91a9e2808df09f91a7e2808df09f91a620f09f918defb88ff09f8fbd2058f09fabbf2041f09f8fbd|\n4|e4b8ade6968720303132333435363738392065cc8120e29da4efb88e20e29da4efb88f2031efb88fe283a337efb88fe283a323efb88fe283a32aefb88fe283a320f09f91a9e2808df09f92bb20f09f91a8e2808df09f91a9e2808df09f91a7e2808df09f91a620f09f918defb88ff09f8fbd2058f09fabbf2041f09f8fbd|\n5|e585ace5bc80e59b9ee5a48de4b8ade6968720f09f9982|3\n",
+        "png_names": [
+          "01-preflight-two-real-native-clients.png",
+          "02-composer-A.png",
+          "02-composer-C.png",
+          "03-bidirectional-body-sidebar.png",
+          "04-selected-edit-A.png",
+          "04-selected-edit-C.png",
+          "05-edit-A.png",
+          "05-edit-C.png",
+          "06-selected-reply-A.png",
+          "06-selected-reply-C.png",
+          "07-reply-bar-A.png",
+          "07-reply-bar-C.png",
+          "08-reply-body-sidebar.png",
+          "09-original-after-editor-dismiss-A.png",
+          "09-original-after-editor-dismiss-C.png",
+          "10-original-after-editor-dismiss-C-1sec.png"
+        ]
+      },
+      {
+        "path": "/tmp/chat-emoji-dpi-after.V8ckcw/s150-141647",
+        "actual_shell_exit": 0,
+        "workflow_exit": 0,
+        "database": "chat_qtx11_1006141647_2657780",
+        "database_count_now": 0,
+        "owned_pids": [
+          2657773,
+          2657779,
+          2657780,
+          2658220,
+          2658221,
+          2659041,
+          2659234,
+          2659482,
+          2659500
+        ],
+        "owned_pids_present_now": [],
+        "protected": {
+          "2876288": {
+            "start_ticks": "521400965",
+            "command": "/home/gyl/example/chat/build/chat_server 18080 16 16"
+          },
+          "3225": {
+            "start_ticks": "17583",
+            "command": "/usr/bin/fcitx5 -d"
+          },
+          "29935": {
+            "start_ticks": "248258",
+            "command": "/usr/bin/speech-dispatcher -s -t 0"
+          }
+        },
+        "scale": 1.5,
+        "canvas": [
+          3600,
+          1500
+        ],
+        "public_pass_records": 13,
+        "measured_ratios": [
+          [
+            1.5,
+            1.5
+          ],
+          [
+            1.5,
+            1.5015197568389058
+          ]
+        ],
+        "controls_physical_path": "/tmp/chat-emoji-dpi-after.V8ckcw/s150-141647/controls-physical.jsonl",
+        "controls_physical_complete": [
+          {
+            "label": "A conversation C",
+            "pid": 2659234,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1770,
+              1140
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              82,
+              78,
+              332,
+              62
+            ],
+            "measured_ratio": [
+              1.5,
+              1.5
+            ],
+            "physical_control": [
+              123.0,
+              117.0,
+              498.0,
+              93.0
+            ]
+          },
+          {
+            "label": "A composer preflight",
+            "pid": 2659234,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1770,
+              1140
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              427,
+              719,
+              595,
+              36
+            ],
+            "measured_ratio": [
+              1.5,
+              1.5
+            ],
+            "physical_control": [
+              640.5,
+              1078.5,
+              892.5,
+              54.0
+            ]
+          },
+          {
+            "label": "A body viewport preflight",
+            "pid": 2659234,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1770,
+              1140
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              415,
+              67,
+              765,
+              636
+            ],
+            "measured_ratio": [
+              1.5,
+              1.5
+            ],
+            "physical_control": [
+              622.5,
+              100.5,
+              1147.5,
+              954.0
+            ]
+          },
+          {
+            "label": "C conversation A",
+            "pid": 2659482,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1800,
+              0,
+              1770,
+              1140
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1282,
+              78,
+              332,
+              62
+            ],
+            "measured_ratio": [
+              1.5,
+              1.5
+            ],
+            "physical_control": [
+              1923.0,
+              117.0,
+              498.0,
+              93.0
+            ]
+          },
+          {
+            "label": "C composer preflight",
+            "pid": 2659482,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1800,
+              0,
+              1770,
+              1140
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1627,
+              719,
+              595,
+              36
+            ],
+            "measured_ratio": [
+              1.5,
+              1.5
+            ],
+            "physical_control": [
+              2440.5,
+              1078.5,
+              892.5,
+              54.0
+            ]
+          },
+          {
+            "label": "C body viewport preflight",
+            "pid": 2659482,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1800,
+              0,
+              1770,
+              1140
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1615,
+              67,
+              765,
+              636
+            ],
+            "measured_ratio": [
+              1.5,
+              1.5
+            ],
+            "physical_control": [
+              2422.5,
+              100.5,
+              1147.5,
+              954.0
+            ]
+          },
+          {
+            "label": "A 消息输入",
+            "pid": 2659234,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1770,
+              1140
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              427,
+              719,
+              595,
+              36
+            ],
+            "measured_ratio": [
+              1.5,
+              1.5
+            ],
+            "physical_control": [
+              640.5,
+              1078.5,
+              892.5,
+              54.0
+            ]
+          },
+          {
+            "label": "A own full body",
+            "pid": 2659234,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1770,
+              1140
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              417,
+              148,
+              761,
+              39
+            ],
+            "measured_ratio": [
+              1.5,
+              1.5
+            ],
+            "physical_control": [
+              625.5,
+              222.0,
+              1141.5,
+              58.5
+            ]
+          },
+          {
+            "label": "C 消息输入",
+            "pid": 2659482,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1800,
+              0,
+              1770,
+              1140
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1627,
+              719,
+              595,
+              36
+            ],
+            "measured_ratio": [
+              1.5,
+              1.5
+            ],
+            "physical_control": [
+              2440.5,
+              1078.5,
+              892.5,
+              54.0
+            ]
+          },
+          {
+            "label": "C own full body",
+            "pid": 2659482,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1800,
+              0,
+              1770,
+              1140
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1617,
+              205,
+              761,
+              45
+            ],
+            "measured_ratio": [
+              1.5,
+              1.5
+            ],
+            "physical_control": [
+              2425.5,
+              307.5,
+              1141.5,
+              67.5
+            ]
+          },
+          {
+            "label": "A message context",
+            "pid": 2659234,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1770,
+              1140
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              417,
+              148,
+              761,
+              39
+            ],
+            "measured_ratio": [
+              1.5,
+              1.5
+            ],
+            "physical_control": [
+              625.5,
+              222.0,
+              1141.5,
+              58.5
+            ]
+          },
+          {
+            "label": "A 消息内容",
+            "pid": 2659234,
+            "frame_title": "编辑消息",
+            "window_id": "0x40001a",
+            "native_frame": [
+              480,
+              264,
+              780,
+              494
+            ],
+            "atspi_frame": [
+              320,
+              176,
+              520,
+              329
+            ],
+            "atspi_control": [
+              344,
+              233,
+              472,
+              200
+            ],
+            "measured_ratio": [
+              1.5,
+              1.5015197568389058
+            ],
+            "physical_control": [
+              516.0,
+              349.5866261398176,
+              708.0,
+              300.30395136778117
+            ]
+          },
+          {
+            "label": "C message context",
+            "pid": 2659482,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1800,
+              0,
+              1770,
+              1140
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1617,
+              205,
+              761,
+              45
+            ],
+            "measured_ratio": [
+              1.5,
+              1.5
+            ],
+            "physical_control": [
+              2425.5,
+              307.5,
+              1141.5,
+              67.5
+            ]
+          },
+          {
+            "label": "C 消息内容",
+            "pid": 2659482,
+            "frame_title": "编辑消息",
+            "window_id": "0x80001a",
+            "native_frame": [
+              2280,
+              264,
+              780,
+              494
+            ],
+            "atspi_frame": [
+              1520,
+              176,
+              520,
+              329
+            ],
+            "atspi_control": [
+              1544,
+              233,
+              472,
+              200
+            ],
+            "measured_ratio": [
+              1.5,
+              1.5015197568389058
+            ],
+            "physical_control": [
+              2316.0,
+              349.5866261398176,
+              708.0,
+              300.30395136778117
+            ]
+          },
+          {
+            "label": "C original row after editor dismiss",
+            "pid": 2659482,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1800,
+              0,
+              1770,
+              1140
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1617,
+              205,
+              761,
+              45
+            ],
+            "measured_ratio": [
+              1.5,
+              1.5
+            ],
+            "physical_control": [
+              2425.5,
+              307.5,
+              1141.5,
+              67.5
+            ]
+          },
+          {
+            "label": "A message context",
+            "pid": 2659234,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1770,
+              1140
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              417,
+              148,
+              761,
+              39
+            ],
+            "measured_ratio": [
+              1.5,
+              1.5
+            ],
+            "physical_control": [
+              625.5,
+              222.0,
+              1141.5,
+              58.5
+            ]
+          },
+          {
+            "label": "A full reply label",
+            "pid": 2659234,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              1770,
+              1140
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              424,
+              658,
+              705,
+              36
+            ],
+            "measured_ratio": [
+              1.5,
+              1.5
+            ],
+            "physical_control": [
+              636.0,
+              987.0,
+              1057.5,
+              54.0
+            ]
+          },
+          {
+            "label": "C message context",
+            "pid": 2659482,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1800,
+              0,
+              1770,
+              1140
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1617,
+              166,
+              761,
+              39
+            ],
+            "measured_ratio": [
+              1.5,
+              1.5
+            ],
+            "physical_control": [
+              2425.5,
+              249.0,
+              1141.5,
+              58.5
+            ]
+          },
+          {
+            "label": "C full reply label",
+            "pid": 2659482,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1800,
+              0,
+              1770,
+              1140
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1624,
+              658,
+              705,
+              36
+            ],
+            "measured_ratio": [
+              1.5,
+              1.5
+            ],
+            "physical_control": [
+              2436.0,
+              987.0,
+              1057.5,
+              54.0
+            ]
+          },
+          {
+            "label": "C 消息输入",
+            "pid": 2659482,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              1800,
+              0,
+              1770,
+              1140
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1627,
+              719,
+              595,
+              36
+            ],
+            "measured_ratio": [
+              1.5,
+              1.5
+            ],
+            "physical_control": [
+              2440.5,
+              1078.5,
+              892.5,
+              54.0
+            ]
+          }
+        ],
+        "actual_proc_exe_start": [
+          {
+            "alias": "A",
+            "pid": 2659234,
+            "proc_exe": "/tmp/chat-emoji-dpi-after.V8ckcw/chat_qt.frozen",
+            "sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+          },
+          {
+            "alias": "C",
+            "pid": 2659482,
+            "proc_exe": "/tmp/chat-emoji-dpi-after.V8ckcw/chat_qt.frozen",
+            "sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+          }
+        ],
+        "actual_proc_exe_final": [
+          {
+            "alias": "A",
+            "pid": 2659234,
+            "proc_exe": "/tmp/chat-emoji-dpi-after.V8ckcw/chat_qt.frozen",
+            "sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+          },
+          {
+            "alias": "C",
+            "pid": 2659482,
+            "proc_exe": "/tmp/chat-emoji-dpi-after.V8ckcw/chat_qt.frozen",
+            "sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+          }
+        ],
+        "driver_sha256": "cea4db3646bfe5a5be219c2239fa50916f09e3bd4aa30f19d5abe011dbb83d0f",
+        "visual_status": "Await human original PNG review; no equivalent long black boundary segment found by narrow pixel observation",
+        "binary_start": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+        "binary_final": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+        "source_checks_start_final": true,
+        "sql_original_utf8_hex": "2|6e617469766520556e69636f64652066697874757265207265616479|\n3|e4b8ade6968720303132333435363738392065cc8120e29da4efb88e20e29da4efb88f2031efb88fe283a337efb88fe283a323efb88fe283a32aefb88fe283a320f09f91a9e2808df09f92bb20f09f91a8e2808df09f91a9e2808df09f91a7e2808df09f91a620f09f918defb88ff09f8fbd2058f09fabbf2041f09f8fbd|\n4|e4b8ade6968720303132333435363738392065cc8120e29da4efb88e20e29da4efb88f2031efb88fe283a337efb88fe283a323efb88fe283a32aefb88fe283a320f09f91a9e2808df09f92bb20f09f91a8e2808df09f91a9e2808df09f91a7e2808df09f91a620f09f918defb88ff09f8fbd2058f09fabbf2041f09f8fbd|\n5|e585ace5bc80e59b9ee5a48de4b8ade6968720f09f9982|3\n",
+        "png_names": [
+          "01-preflight-two-real-native-clients.png",
+          "02-composer-A.png",
+          "02-composer-C.png",
+          "03-bidirectional-body-sidebar.png",
+          "04-selected-edit-A.png",
+          "04-selected-edit-C.png",
+          "05-edit-A.png",
+          "05-edit-C.png",
+          "06-selected-reply-A.png",
+          "06-selected-reply-C.png",
+          "07-reply-bar-A.png",
+          "07-reply-bar-C.png",
+          "08-reply-body-sidebar.png",
+          "09-original-after-editor-dismiss-A.png",
+          "09-original-after-editor-dismiss-C.png",
+          "10-original-after-editor-dismiss-C-1sec.png"
+        ]
+      },
+      {
+        "path": "/tmp/chat-emoji-dpi-after.V8ckcw/s200-141740",
+        "actual_shell_exit": 0,
+        "workflow_exit": 0,
+        "database": "chat_qtx11_1006141740_2668760",
+        "database_count_now": 0,
+        "owned_pids": [
+          2668753,
+          2668759,
+          2668760,
+          2668976,
+          2668977,
+          2669944,
+          2670138,
+          2670334,
+          2670352
+        ],
+        "owned_pids_present_now": [],
+        "protected": {
+          "2876288": {
+            "start_ticks": "521400965",
+            "command": "/home/gyl/example/chat/build/chat_server 18080 16 16"
+          },
+          "3225": {
+            "start_ticks": "17583",
+            "command": "/usr/bin/fcitx5 -d"
+          },
+          "29935": {
+            "start_ticks": "248258",
+            "command": "/usr/bin/speech-dispatcher -s -t 0"
+          }
+        },
+        "scale": 2.0,
+        "canvas": [
+          4800,
+          2000
+        ],
+        "public_pass_records": 13,
+        "measured_ratios": [
+          [
+            2.0,
+            2.0
+          ]
+        ],
+        "controls_physical_path": "/tmp/chat-emoji-dpi-after.V8ckcw/s200-141740/controls-physical.jsonl",
+        "controls_physical_complete": [
+          {
+            "label": "A conversation C",
+            "pid": 2670138,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              2360,
+              1520
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              82,
+              78,
+              332,
+              62
+            ],
+            "measured_ratio": [
+              2.0,
+              2.0
+            ],
+            "physical_control": [
+              164.0,
+              156.0,
+              664.0,
+              124.0
+            ]
+          },
+          {
+            "label": "A composer preflight",
+            "pid": 2670138,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              2360,
+              1520
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              427,
+              719,
+              595,
+              36
+            ],
+            "measured_ratio": [
+              2.0,
+              2.0
+            ],
+            "physical_control": [
+              854.0,
+              1438.0,
+              1190.0,
+              72.0
+            ]
+          },
+          {
+            "label": "A body viewport preflight",
+            "pid": 2670138,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              2360,
+              1520
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              415,
+              67,
+              765,
+              636
+            ],
+            "measured_ratio": [
+              2.0,
+              2.0
+            ],
+            "physical_control": [
+              830.0,
+              134.0,
+              1530.0,
+              1272.0
+            ]
+          },
+          {
+            "label": "C conversation A",
+            "pid": 2670334,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              2400,
+              0,
+              2360,
+              1520
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1282,
+              78,
+              332,
+              62
+            ],
+            "measured_ratio": [
+              2.0,
+              2.0
+            ],
+            "physical_control": [
+              2564.0,
+              156.0,
+              664.0,
+              124.0
+            ]
+          },
+          {
+            "label": "C composer preflight",
+            "pid": 2670334,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              2400,
+              0,
+              2360,
+              1520
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1627,
+              719,
+              595,
+              36
+            ],
+            "measured_ratio": [
+              2.0,
+              2.0
+            ],
+            "physical_control": [
+              3254.0,
+              1438.0,
+              1190.0,
+              72.0
+            ]
+          },
+          {
+            "label": "C body viewport preflight",
+            "pid": 2670334,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              2400,
+              0,
+              2360,
+              1520
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1615,
+              67,
+              765,
+              636
+            ],
+            "measured_ratio": [
+              2.0,
+              2.0
+            ],
+            "physical_control": [
+              3230.0,
+              134.0,
+              1530.0,
+              1272.0
+            ]
+          },
+          {
+            "label": "A 消息输入",
+            "pid": 2670138,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              2360,
+              1520
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              427,
+              719,
+              595,
+              36
+            ],
+            "measured_ratio": [
+              2.0,
+              2.0
+            ],
+            "physical_control": [
+              854.0,
+              1438.0,
+              1190.0,
+              72.0
+            ]
+          },
+          {
+            "label": "A own full body",
+            "pid": 2670138,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              2360,
+              1520
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              417,
+              148,
+              761,
+              39
+            ],
+            "measured_ratio": [
+              2.0,
+              2.0
+            ],
+            "physical_control": [
+              834.0,
+              296.0,
+              1522.0,
+              78.0
+            ]
+          },
+          {
+            "label": "C 消息输入",
+            "pid": 2670334,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              2400,
+              0,
+              2360,
+              1520
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1627,
+              719,
+              595,
+              36
+            ],
+            "measured_ratio": [
+              2.0,
+              2.0
+            ],
+            "physical_control": [
+              3254.0,
+              1438.0,
+              1190.0,
+              72.0
+            ]
+          },
+          {
+            "label": "C own full body",
+            "pid": 2670334,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              2400,
+              0,
+              2360,
+              1520
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1617,
+              205,
+              761,
+              45
+            ],
+            "measured_ratio": [
+              2.0,
+              2.0
+            ],
+            "physical_control": [
+              3234.0,
+              410.0,
+              1522.0,
+              90.0
+            ]
+          },
+          {
+            "label": "A message context",
+            "pid": 2670138,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              2360,
+              1520
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              417,
+              148,
+              761,
+              39
+            ],
+            "measured_ratio": [
+              2.0,
+              2.0
+            ],
+            "physical_control": [
+              834.0,
+              296.0,
+              1522.0,
+              78.0
+            ]
+          },
+          {
+            "label": "A 消息内容",
+            "pid": 2670138,
+            "frame_title": "编辑消息",
+            "window_id": "0x40001a",
+            "native_frame": [
+              640,
+              352,
+              1040,
+              658
+            ],
+            "atspi_frame": [
+              320,
+              176,
+              520,
+              329
+            ],
+            "atspi_control": [
+              344,
+              233,
+              472,
+              200
+            ],
+            "measured_ratio": [
+              2.0,
+              2.0
+            ],
+            "physical_control": [
+              688.0,
+              466.0,
+              944.0,
+              400.0
+            ]
+          },
+          {
+            "label": "C message context",
+            "pid": 2670334,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              2400,
+              0,
+              2360,
+              1520
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1617,
+              205,
+              761,
+              45
+            ],
+            "measured_ratio": [
+              2.0,
+              2.0
+            ],
+            "physical_control": [
+              3234.0,
+              410.0,
+              1522.0,
+              90.0
+            ]
+          },
+          {
+            "label": "C 消息内容",
+            "pid": 2670334,
+            "frame_title": "编辑消息",
+            "window_id": "0x80001a",
+            "native_frame": [
+              3040,
+              352,
+              1040,
+              658
+            ],
+            "atspi_frame": [
+              1520,
+              176,
+              520,
+              329
+            ],
+            "atspi_control": [
+              1544,
+              233,
+              472,
+              200
+            ],
+            "measured_ratio": [
+              2.0,
+              2.0
+            ],
+            "physical_control": [
+              3088.0,
+              466.0,
+              944.0,
+              400.0
+            ]
+          },
+          {
+            "label": "C original row after editor dismiss",
+            "pid": 2670334,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              2400,
+              0,
+              2360,
+              1520
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1617,
+              205,
+              761,
+              45
+            ],
+            "measured_ratio": [
+              2.0,
+              2.0
+            ],
+            "physical_control": [
+              3234.0,
+              410.0,
+              1522.0,
+              90.0
+            ]
+          },
+          {
+            "label": "A message context",
+            "pid": 2670138,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              2360,
+              1520
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              417,
+              148,
+              761,
+              39
+            ],
+            "measured_ratio": [
+              2.0,
+              2.0
+            ],
+            "physical_control": [
+              834.0,
+              296.0,
+              1522.0,
+              78.0
+            ]
+          },
+          {
+            "label": "A full reply label",
+            "pid": 2670138,
+            "frame_title": "Chat",
+            "window_id": "0x400006",
+            "native_frame": [
+              0,
+              0,
+              2360,
+              1520
+            ],
+            "atspi_frame": [
+              0,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              424,
+              658,
+              705,
+              36
+            ],
+            "measured_ratio": [
+              2.0,
+              2.0
+            ],
+            "physical_control": [
+              848.0,
+              1316.0,
+              1410.0,
+              72.0
+            ]
+          },
+          {
+            "label": "C message context",
+            "pid": 2670334,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              2400,
+              0,
+              2360,
+              1520
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1617,
+              166,
+              761,
+              39
+            ],
+            "measured_ratio": [
+              2.0,
+              2.0
+            ],
+            "physical_control": [
+              3234.0,
+              332.0,
+              1522.0,
+              78.0
+            ]
+          },
+          {
+            "label": "C full reply label",
+            "pid": 2670334,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              2400,
+              0,
+              2360,
+              1520
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1624,
+              658,
+              705,
+              36
+            ],
+            "measured_ratio": [
+              2.0,
+              2.0
+            ],
+            "physical_control": [
+              3248.0,
+              1316.0,
+              1410.0,
+              72.0
+            ]
+          },
+          {
+            "label": "C 消息输入",
+            "pid": 2670334,
+            "frame_title": "Chat",
+            "window_id": "0x800006",
+            "native_frame": [
+              2400,
+              0,
+              2360,
+              1520
+            ],
+            "atspi_frame": [
+              1200,
+              0,
+              1180,
+              760
+            ],
+            "atspi_control": [
+              1627,
+              719,
+              595,
+              36
+            ],
+            "measured_ratio": [
+              2.0,
+              2.0
+            ],
+            "physical_control": [
+              3254.0,
+              1438.0,
+              1190.0,
+              72.0
+            ]
+          }
+        ],
+        "actual_proc_exe_start": [
+          {
+            "alias": "A",
+            "pid": 2670138,
+            "proc_exe": "/tmp/chat-emoji-dpi-after.V8ckcw/chat_qt.frozen",
+            "sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+          },
+          {
+            "alias": "C",
+            "pid": 2670334,
+            "proc_exe": "/tmp/chat-emoji-dpi-after.V8ckcw/chat_qt.frozen",
+            "sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+          }
+        ],
+        "actual_proc_exe_final": [
+          {
+            "alias": "A",
+            "pid": 2670138,
+            "proc_exe": "/tmp/chat-emoji-dpi-after.V8ckcw/chat_qt.frozen",
+            "sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+          },
+          {
+            "alias": "C",
+            "pid": 2670334,
+            "proc_exe": "/tmp/chat-emoji-dpi-after.V8ckcw/chat_qt.frozen",
+            "sha256": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9"
+          }
+        ],
+        "driver_sha256": "cea4db3646bfe5a5be219c2239fa50916f09e3bd4aa30f19d5abe011dbb83d0f",
+        "visual_status": "Await human original PNG review; no equivalent long black boundary segment found by narrow pixel observation",
+        "binary_start": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+        "binary_final": "8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9",
+        "source_checks_start_final": true,
+        "sql_original_utf8_hex": "2|6e617469766520556e69636f64652066697874757265207265616479|\n3|e4b8ade6968720303132333435363738392065cc8120e29da4efb88e20e29da4efb88f2031efb88fe283a337efb88fe283a323efb88fe283a32aefb88fe283a320f09f91a9e2808df09f92bb20f09f91a8e2808df09f91a9e2808df09f91a7e2808df09f91a620f09f918defb88ff09f8fbd2058f09fabbf2041f09f8fbd|\n4|e4b8ade6968720303132333435363738392065cc8120e29da4efb88e20e29da4efb88f2031efb88fe283a337efb88fe283a323efb88fe283a32aefb88fe283a320f09f91a9e2808df09f92bb20f09f91a8e2808df09f91a9e2808df09f91a7e2808df09f91a620f09f918defb88ff09f8fbd2058f09fabbf2041f09f8fbd|\n5|e585ace5bc80e59b9ee5a48de4b8ade6968720f09f9982|3\n",
+        "png_names": [
+          "01-preflight-two-real-native-clients.png",
+          "02-composer-A.png",
+          "02-composer-C.png",
+          "03-bidirectional-body-sidebar.png",
+          "04-selected-edit-A.png",
+          "04-selected-edit-C.png",
+          "05-edit-A.png",
+          "05-edit-C.png",
+          "06-selected-reply-A.png",
+          "06-selected-reply-C.png",
+          "07-reply-bar-A.png",
+          "07-reply-bar-C.png",
+          "08-reply-body-sidebar.png",
+          "09-original-after-editor-dismiss-A.png",
+          "09-original-after-editor-dismiss-C.png",
+          "10-original-after-editor-dismiss-C-1sec.png"
+        ]
+      }
+    ],
+    "claim": "Final 8b binary public Unicode sample controls only. Business/raw exit0 is not visual approval. Original 125% AFTER still exposes a stable 1px black row-boundary residual after C editor dismissal: visual RED, not fixed. No after repaint/resize workaround used.",
+    "owned_port_18928_clear_now": true,
+    "observed_blackline_original_pixels": [
+      {
+        "original_png": "/tmp/chat-emoji-dpi-after.V8ckcw/s125-141551/06-selected-reply-A.png",
+        "long_pure_black_segments": [
+          [
+            2021,
+            2549,
+            312
+          ]
+        ]
+      },
+      {
+        "original_png": "/tmp/chat-emoji-dpi-after.V8ckcw/s125-141551/07-reply-bar-A.png",
+        "long_pure_black_segments": [
+          [
+            2021,
+            2549,
+            312
+          ]
+        ]
+      },
+      {
+        "original_png": "/tmp/chat-emoji-dpi-after.V8ckcw/s125-141551/09-original-after-editor-dismiss-C.png",
+        "long_pure_black_segments": [
+          [
+            2021,
+            2549,
+            312
+          ]
+        ]
+      },
+      {
+        "original_png": "/tmp/chat-emoji-dpi-after.V8ckcw/s125-141551/10-original-after-editor-dismiss-C-1sec.png",
+        "long_pure_black_segments": [
+          [
+            2021,
+            2549,
+            312
+          ]
+        ]
+      }
+    ]
+  },
+  "gates": {
+    "original_script_unmodified": true,
+    "actual_exits": {
+      "original-verify-final": 0,
+      "gate-final-source": 0,
+      "gate-final-binary": 0,
+      "fresh-final-ctest": 0,
+      "fresh-final-build": 0,
+      "fresh-configure": 0,
+      "fresh-build": 0,
+      "fresh-final-source": 0
+    },
+    "modes": [
+      {
+        "mode": "normal",
+        "passed": 23,
+        "failed": 0,
+        "seconds": 112.56
+      },
+      {
+        "mode": "address",
+        "passed": 23,
+        "failed": 0,
+        "seconds": 150.74
+      },
+      {
+        "mode": "undefined",
+        "passed": 23,
+        "failed": 0,
+        "seconds": 137.41
+      }
+    ],
+    "tui_render_seconds": [
+      0.89,
+      4.19,
+      1.83
+    ],
+    "qt_ui_seconds": [
+      45.15,
+      53.63,
+      48.83
+    ],
+    "original_timeouts_seconds": {
+      "tui_render": 5,
+      "qt_ui": 60
+    },
+    "input_pins_before": [
+      "9cadf811a4a49229da6af7193b1834120e5e2782f60356fc1ccc220e8db4e7c4  CMakeLists.txt",
+      "92c1571c66eda2aead4e7fa61902c8b041875aa7d9c7da1ae994b59bba38d273  cmake/README.md",
+      "699f574233a21a19febb7b806dbe0004586ce600240587140559d55356271a5d  cmake/chat_emoji_scanner.cmake",
+      "5f77908665edce2cb57acb51e66a6a1a4d744a677eaf6966140b32939850b532  cmake/chat_unicode.cmake",
+      "95e736720ffcf60d0765ed85e519ae0b5de4127320c88d820fb8216b1d9cc7e1  qt/CMakeLists.txt",
+      "ba7f5e0ae2c6fdc057c40bde92b6430bc9b04ffade81e2bcec11cb7ca8563a1c  qt/resources/icons/activity.svg",
+      "99cc9ce9a2bce98cedb8c27e55ca0af3a34ff8380a63fd062b6de8478a0d7bba  qt/resources/icons/bookmark.svg",
+      "c2dbb33c0c690e0f0f496c6c47ddd6b79cdfb73a795918d7ed464964d521df5a  qt/resources/icons/chat.svg",
+      "0403310fe0eecd7764bae3a26f04424b1db68b83752ff0f1f942f10fe128faeb  qt/resources/icons/check.svg",
+      "011f4f8ba45e97413caa445554c2b78237de1561256dff5798fd91746391d502  qt/resources/icons/close.svg",
+      "c1fba8a089013acb6833ea0f2147b73b00c9ea2862ae3b539477f6c257be639b  qt/resources/icons/contacts.svg",
+      "8e6cee084de43d62865a2453a98ba8211d680a384283c066906c85c30126ffa2  qt/resources/icons/copy.svg",
+      "e71991b32a232ca8a29a05aba017645ecddc165f43140a9e587b4bfcbae358b9  qt/resources/icons/groups.svg",
+      "6fb904d778a27fadd538fc4ed50355ca6aacff4341b3475acbac7d53480e92f2  qt/resources/icons/send.svg",
+      "be6efe87409baef78d698dd181baa624f7a5f2d30b1f8eb6829423fbdeb3061c  qt/src/attachment_dialog.cpp",
+      "63bf3e5a5af9ca6b3dda8a218cfc1e2941c410fac1063f20749428e04bac3f8e  qt/src/attachment_dialog.hpp",
+      "69c959ff08955bbb0f83e72d6e2bc5d8fa604b2ba82731ee686c0da8c3be7c75  qt/src/avatar.cpp",
+      "da53722ed0ca7cc800c51e1877e9285779b299e8e7dc68ccb437fc408749df4c  qt/src/avatar.hpp",
+      "595bd1e7fd8daa689f34bfce1adf853000a05c0ae04336d1849ff5865ccb8378  qt/src/chat_widget.cpp",
+      "a9bafb158509b5fc521f6b628dac9dc60d0d9b74ccca4d6849cf12708a26410f  qt/src/chat_widget.hpp",
+      "22ad0a231b372dcef5c69cccbe8e006cb195ad29b4f7df034a6f0b9385ee1b98  qt/src/client_bridge.cpp",
+      "b8919d73094d27525f9a85086541f20654275bba2742a112a2d6d08e8cda99f5  qt/src/client_bridge.hpp",
+      "0b42d54e2024cdfa7e00e8a54e2bcad08aae32df3936028c29b5972c2572f39f  qt/src/conversation_data.hpp",
+      "ab8f51046f72417e60707ce649d2c1b0f7491805127f44421d99603594165986  qt/src/conversation_delegate.cpp",
+      "9d7253fe79481633c5c16c129c6ca76b643a934d4294d64c038b3f7b498f8279  qt/src/conversation_delegate.hpp",
+      "b2230377b0a299400825fee0180e240f02423421cc760815425f3271faccefb0  qt/src/conversation_model.cpp",
+      "581655f6a9e52076d4087e9493fd5dcdeb09f9923b17c06c8cc83db868b06c7b  qt/src/conversation_model.hpp",
+      "49383c1ad6c5c8d4d820506f36ace7c71b1c44b2fadfc305cf03789921a131f9  qt/src/emoji_segments.cpp",
+      "fcc128e734456ed4e5a5e8ef988c378c0ca89fa46add7e2cbf72647072b38e7a  qt/src/emoji_segments.hpp",
+      "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621  qt/src/emoji_text.cpp",
+      "664f5ee86dbcf2b6d66f1a96c25876c85c474ceef7efaa7a98c16cc173384e38  qt/src/emoji_text.hpp",
+      "4fe5649b48a7e5260e138fa2cf245eb68cccb2e55ab1789f9cfdcca19aa72203  qt/src/group_dialog.cpp",
+      "34358195aa81ad838d463d43a3913134bc6a512d505ced0ae6c350a8442fb31c  qt/src/group_dialog.hpp",
+      "edbc370115aad8af8038e2823c31a4b73e7811267e1c43d891dcbb3ade0c8495  qt/src/icons.cpp",
+      "a4265e4d3225de28d7c3df8af725e89e8b6e1ad719d234569e86a69f076a9c1b  qt/src/icons.hpp",
+      "c94299bdf7aaa4852baded3859ff28a6cab34a22b05f3eb458758a295174ee94  qt/src/main.cpp",
+      "35a5529d10f84481a5c80358a99b6adc26402cbba7cf478e2e0524a9032fc744  qt/src/main_window.cpp",
+      "5547c418d768d3da359946873b47297cf1c5ad6edda9501ba86ca9a8a842318f  qt/src/main_window.hpp",
+      "13f07fdc9a6e95e9b4436b8efa633aa2ed0da648bbd80a2438811a0c8a189052  qt/src/member_data.hpp",
+      "b3c7600abed28ee9670f3c28b0c7f29604c1209844e21a6b8259ff6b8a1729b1  qt/src/message_data.hpp",
+      "56c980410fc7bcc1c0ff419103b0712c7f63b31b5b83183a52200ae9c579b1ce  qt/src/message_delegate.cpp",
+      "59ae44e81a014ad00af82a7467834a7f7df851f190558c2e91c482d5a26eb494  qt/src/message_delegate.hpp",
+      "49205f5eba330812e8814a8aee2706be41a9ad86ab6fa0ba54dcd655696933e6  qt/src/message_images.cpp",
+      "5f9c51258028d2258da54f26df5003880b76fd6e70d0415f747d150c7b08172f  qt/src/message_images.hpp",
+      "91ae09e8d3f990e89e41483ea8deec47a85379ad032f51f941cfabf9cb59f606  qt/src/message_model.cpp",
+      "8d1febaf4cc582a974722550b64f0b89156f54138a9e1082bc31d6aa8b7d3b51  qt/src/message_model.hpp",
+      "0ea73632f099a1e2bf36a4d9b8f1bbca227269fc55d6a88f0fce2b0e6b6743ac  qt/src/message_search_dialog.cpp",
+      "7296830dd0fa14dfcf61e134bd0735fe21501c555ce05bcf3888ba5287301748  qt/src/message_search_dialog.hpp",
+      "fb2dc68a40135ffe4f8b337f26e0c0523e2007de83e5ce72ff8e2c0915ef267f  qt/src/presence.hpp",
+      "5402af74e4f8f99043c7c948076b3876f8c9bd92dfcbb2ac0b566f51c527d37b  qt/src/presence_data.hpp",
+      "e8133c65555eeedc7a121ecb860d89fbb50ed13104df0702a90609d3c63311c8  qt/src/theme.cpp",
+      "424018efa972ee93b321c8d3e76020ce25681f384143409dd6ba8504ddca512d  qt/src/theme.hpp",
+      "8fdd19b94718e08f098f6ee23d08b0f2e501df87574ece58452db5cb7c6683b9  qt/src/user_data.hpp",
+      "d7a15dc6079195aada9073b4348a99ace7bc0ebcefa878858c14a99acf654293  qt/src/user_delegate.cpp",
+      "ea92268180156a00b5a8b34989d4fb6ca0e1e5d09f65f11b16ed37f92cbeb96a  qt/src/user_delegate.hpp",
+      "2253c4f97622d3bf597c3e669eb081d5346a7da86cd6342b9d4d90807a987ce2  qt/src/user_model.cpp",
+      "32ff238226cf9ed05f2d3f4fe365bb735c7993f62147b25be295d28e58cdb8c0  qt/src/user_model.hpp",
+      "20fd4466ec1942df26087a758935168ae77e137f3be997f84eb7067ac025a8e2  qt/tests/delegate_test.cpp",
+      "a1c3b4fb0fe04e959ba2a636275e1264d2f909b377b3cf71059683f13a7a3fe4  qt/tests/models_test.cpp",
+      "93b16ec0c899f203d9527b14782f6294fe20a593cca9cb4a67616dd0c213f6a4  qt/tests/ui_test.cpp",
+      "bc78ca791e7ddf071353eb6088b2400aec650c6897be38cd9194999604dc4b57  tests/avatar_fixture.hpp",
+      "78652b909ba0d7d5cf0228ee85d78027aceed30512ad0cce920fb549ec993525  tests/avatar_image_test.cpp",
+      "b7e640aef03f2fa08bef97f8049dd2fdda6610a74f15df59b046101b7d92c31b  tests/bcrypt_test.cpp",
+      "4333ef1ca51809e02bb38c285560e84404eef5c75cb27053b2ed6f58df9b8567  tests/conversation_test.cpp",
+      "96d75ac44e82b4db6c7d003120f8722592887e0e547c2fb2b2560272643cb4c6  tests/corosio_timeout_test.cpp",
+      "738070ceb568fdc623a0e1e9370b8fda362ec2cc3fd339f2b61b193086ac83f0  tests/http_server_test.cpp",
+      "606218065ddb19d8d1c8defc6a485b0d30939f1d0480a9391ac9af8a6ba0dac0  tests/migration_test.cpp",
+      "f3a84cf5fe4fcd86433bc63a87906888c627ef2f460bf3b6e053970d8f48c002  tests/online_users_test.cpp",
+      "70713b156fc904925f73a36cfc7a4c6fb4d1b539229f6ff942d31ad350e8fdb8  tests/pg_connection_test.cpp",
+      "167d061185aa4d3d9a66d54e376236a11f8e1cefdd6b40a4cea8729884503a97  tests/qt_navigation_steps.py",
+      "afd8a595fa6f0d39ab8655271f6f165d2a5529b67feee86264fc69c188309a0b  tests/qt_x11_smoke.py",
+      "aefc22b864be0ad6559847f2c217d9c582bbfa0aefdbcc0f26d462f2e08f2bc4  tests/server_test.cpp",
+      "09b77182837c43abc3df36ab347e40ff07bfa6856687bfcc1ba7d4043991a0e2  tests/simdjson_reflection_test.cpp",
+      "56b51c8604734934e6be6d9f8ae63a34a7ee2af9785becda10ef979659de5c14  tests/tui_100_member_smoke.py",
+      "310de03e8ad09be4762b31912673570ecc0897761385dd2ebb3a82ae0ed89dcb  tests/tui_100_member_smoke.sh",
+      "a7c952536f3d8f796056ab044880ede22aadb83491df5dcf8230a5426711eb58  tests/tui_group_edges_smoke.py",
+      "226cd665bf4052ef2a39ce653d7112436549b3e5085c45155ff59a51b33db595  tests/tui_lifecycle_smoke.py",
+      "c7300a6f3fb96bc93ae05db8d7886ca162e9b63a54ebcf072bc4c8e4db2bd5b4  tests/tui_navigation_smoke.py",
+      "16d76fa0109125708462e45e124bd80ae3404df53960581366b0c5ecdca5bb57  tests/tui_scale_fixture.cpp",
+      "c3c38fc83bbb2131bcab5d97d44193c311e6bc9554339bc2c338151264483ef3  tests/tui_scale_observer.py",
+      "38d3408e537d67182689f59d452e9d8e5bf164f38a9b5baaa93fbd8b36eb5f29  tests/verify.sh",
+      "efd85fbc0a2919dffebfc37fcdce30a05d362fbd366dc9f3ad953a8e56e08d56  tests/websocket_test.cpp",
+      "89bf6a5583f2c1fb93cbc18d36275512fa25c03bfca094cd6f8b36e0f43da306  tui/CMakeLists.txt",
+      "fb7cba67663b1a68f36d8762614ca59b39b302ac538d6e2e0f44cac6938e91a0  tui/cmake/README.md",
+      "3044aeb7f7c9daf71a4fbdce51bfef2a5f941407e38cb00fde6b95b6f9b53ee1  tui/cmake/ftxui-7.0.3-grapheme.patch",
+      "db00833dda0e5ca53603bcce80d79a0560a53eef7e866900c07c19e078e1e3f2  tui/cmake/ftxui_unicode.cmake",
+      "05862f8fe889199211a7876027934d4af24daeaeec9cc9e34b4ad459752dc068  tui/cmake/generate_emoji_properties.py",
+      "e639af6c65aa3e720c6f9c93d420a76b4bae226bd79a5edfdf22d65c2a687fcc  tui/cmake/unicode/.gitattributes",
+      "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96  tui/cmake/unicode/UNICODE-LICENSE.txt",
+      "80d00f8e616a0ef27fd6b8de3b758c06383b5d917e2977709578e68baf733bf1  tui/cmake/unicode/emoji-data-18.0.0.txt",
+      "b200a53eeae768e7e67a2d465936b0cb0e859618cc877b99dac79d454e2e6937  tui/cmake/unicode/emoji_properties_18.inc",
+      "3b510150d34f248a221bb88e1d811238d6c6c18b51231822c42974c39bb07256  tui/cmake/utf8proc-LICENSE.md",
+      "3cfff26307318d1badc870554800cddafe4158866bccbd800db17b66be44db7a  tui/src/app.cpp",
+      "89b9f37259e60109284ff5511322d794fac291f158f3ac5a07cfc53603f3a860  tui/src/app.hpp",
+      "dbe2a40c1a61b75032843ab82fc8dd898f0d0f8ecbfe6cde15fbf528274584f2  tui/src/deadline.hpp",
+      "36628265415a0fbae479eec5c76f122362a7a61de2ee9b32cfa94cf41ad5ef7d  tui/src/file_io.hpp",
+      "3a6c19da31f784377d64112063783f2197a9ea08ff2ded783a245af60ce89c99  tui/src/groups.cpp",
+      "53a0dbb45136c8f1b783b948373658b2897d976944eaff1353624150ec5d1bba  tui/src/inbox.hpp",
+      "05ed5edddc04b9590edeb11db6261a0e0440e32ea54af98a65b6d9afbd79b620  tui/src/main.cpp",
+      "f6c414041e8b17f7f59fad4c29589e3bf7bd45f30fc365b555f9c0c8fd164340  tui/src/messages.cpp",
+      "a464531debbf5b4c618d712276fa5d526ba70599cd7a9f26aa490e2003481990  tui/src/profile.cpp",
+      "d8b99d807e119b410bb5a0df2d7c8e84d75ebb326cedf4d9526665038c3fa5ab  tui/src/state.cpp",
+      "32e853f0bce108fd5425351a2f882db9c4e11d074f6e742e33caa347647d531e  tui/src/state.hpp",
+      "b8f06e5b273f7f5df04950e9f9e4fa4c4d041fe1b58995071a81ec2491f3c179  tui/src/ui.cpp",
+      "4fdeb7385b98761ae916db52d23f0d3079c9e90d0f0eb8391409fdfd00a4e62e  tui/src/ui.hpp",
+      "b0cf047ee94485bbdc846de2b902f5f8a815f6b674f9d04223cddadd91c9df31  tui/tests/data/GraphemeBreakTest-18.0.0.txt",
+      "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96  tui/tests/data/UNICODE-LICENSE.txt",
+      "0cd76723cff23779e360dbb4cc5dc5023f2c815dbf8c357d7261aab8c471b25b  tui/tests/display_test.cpp",
+      "1eab5a99f5589a2fe703ade676cc4a55cf8237cead9888babef5abc3c4473bf9  tui/tests/file_io_test.cpp",
+      "3843e07fd39b2d662da3fceb549f20470c85b299d3f03bbb16fddbd471ed0709  tui/tests/inbox_test.cpp",
+      "e9aed8b5600b62ff46621433466c3d90200ea5cad93fb0418018ee7691c7afbc  tui/tests/render_test.cpp",
+      "a5bb7fa1436d464cb7fc12d5bd4d3dc9841400d32ba38f41192691785f28677d  tui/tests/span_test.cpp",
+      "1b91229002314f1964e402b7516d997212afee3b368e4ba3a4d2d927b6728fe5  tui/tests/state_test.cpp",
+      "403e996d61c07de4bd39fb5d0ad217bf3908b7f2babe2e0b2e4d714e1c8cb299  tui/tests/unicode_test.cpp"
+    ],
+    "input_pins_after_identical": true,
+    "input_pins_sha256": "e129247dc13dd654e7b81f104784f7727e1ec974b428b1b9157fc8ecc9c231bd",
+    "binary_before": "38d3408e537d67182689f59d452e9d8e5bf164f38a9b5baaa93fbd8b36eb5f29  tests/verify.sh\n8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9  build/qt/chat_qt",
+    "binary_after": "38d3408e537d67182689f59d452e9d8e5bf164f38a9b5baaa93fbd8b36eb5f29  tests/verify.sh\n8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9  build/qt/chat_qt",
+    "raw_original_log_sha256": "9585d187eb7d60d6b246a494d9f3081f9d1a76856ec54093e5e851984b5f9ad2",
+    "raw_fresh_ctest_log_sha256": "a4016950a9e2a8673bf085773e9df0e9b7d5d17b212f2988f43145004c776f36",
+    "fresh_directory": "/tmp/chat-qt-scale-validation.DI37bx/fresh-debug",
+    "fresh_scope": "New independent Debug directory compiled initial candidate, then rebuilt final changed sources; final full CTest 23/23, not four separate client-option builds.",
+    "fresh_compile_flags": "-Werror -g -std=c++26 -Wall -Wextra -Wpedantic -fPIC",
+    "fresh_final_ctest_seconds": 109.63,
+    "fresh_input_pins_after_identical": true,
+    "fresh_input_pins": [
+      "9cadf811a4a49229da6af7193b1834120e5e2782f60356fc1ccc220e8db4e7c4  CMakeLists.txt",
+      "92c1571c66eda2aead4e7fa61902c8b041875aa7d9c7da1ae994b59bba38d273  cmake/README.md",
+      "699f574233a21a19febb7b806dbe0004586ce600240587140559d55356271a5d  cmake/chat_emoji_scanner.cmake",
+      "5f77908665edce2cb57acb51e66a6a1a4d744a677eaf6966140b32939850b532  cmake/chat_unicode.cmake",
+      "95e736720ffcf60d0765ed85e519ae0b5de4127320c88d820fb8216b1d9cc7e1  qt/CMakeLists.txt",
+      "ba7f5e0ae2c6fdc057c40bde92b6430bc9b04ffade81e2bcec11cb7ca8563a1c  qt/resources/icons/activity.svg",
+      "99cc9ce9a2bce98cedb8c27e55ca0af3a34ff8380a63fd062b6de8478a0d7bba  qt/resources/icons/bookmark.svg",
+      "c2dbb33c0c690e0f0f496c6c47ddd6b79cdfb73a795918d7ed464964d521df5a  qt/resources/icons/chat.svg",
+      "0403310fe0eecd7764bae3a26f04424b1db68b83752ff0f1f942f10fe128faeb  qt/resources/icons/check.svg",
+      "011f4f8ba45e97413caa445554c2b78237de1561256dff5798fd91746391d502  qt/resources/icons/close.svg",
+      "c1fba8a089013acb6833ea0f2147b73b00c9ea2862ae3b539477f6c257be639b  qt/resources/icons/contacts.svg",
+      "8e6cee084de43d62865a2453a98ba8211d680a384283c066906c85c30126ffa2  qt/resources/icons/copy.svg",
+      "e71991b32a232ca8a29a05aba017645ecddc165f43140a9e587b4bfcbae358b9  qt/resources/icons/groups.svg",
+      "6fb904d778a27fadd538fc4ed50355ca6aacff4341b3475acbac7d53480e92f2  qt/resources/icons/send.svg",
+      "be6efe87409baef78d698dd181baa624f7a5f2d30b1f8eb6829423fbdeb3061c  qt/src/attachment_dialog.cpp",
+      "63bf3e5a5af9ca6b3dda8a218cfc1e2941c410fac1063f20749428e04bac3f8e  qt/src/attachment_dialog.hpp",
+      "69c959ff08955bbb0f83e72d6e2bc5d8fa604b2ba82731ee686c0da8c3be7c75  qt/src/avatar.cpp",
+      "da53722ed0ca7cc800c51e1877e9285779b299e8e7dc68ccb437fc408749df4c  qt/src/avatar.hpp",
+      "595bd1e7fd8daa689f34bfce1adf853000a05c0ae04336d1849ff5865ccb8378  qt/src/chat_widget.cpp",
+      "a9bafb158509b5fc521f6b628dac9dc60d0d9b74ccca4d6849cf12708a26410f  qt/src/chat_widget.hpp",
+      "22ad0a231b372dcef5c69cccbe8e006cb195ad29b4f7df034a6f0b9385ee1b98  qt/src/client_bridge.cpp",
+      "b8919d73094d27525f9a85086541f20654275bba2742a112a2d6d08e8cda99f5  qt/src/client_bridge.hpp",
+      "0b42d54e2024cdfa7e00e8a54e2bcad08aae32df3936028c29b5972c2572f39f  qt/src/conversation_data.hpp",
+      "ab8f51046f72417e60707ce649d2c1b0f7491805127f44421d99603594165986  qt/src/conversation_delegate.cpp",
+      "9d7253fe79481633c5c16c129c6ca76b643a934d4294d64c038b3f7b498f8279  qt/src/conversation_delegate.hpp",
+      "b2230377b0a299400825fee0180e240f02423421cc760815425f3271faccefb0  qt/src/conversation_model.cpp",
+      "581655f6a9e52076d4087e9493fd5dcdeb09f9923b17c06c8cc83db868b06c7b  qt/src/conversation_model.hpp",
+      "49383c1ad6c5c8d4d820506f36ace7c71b1c44b2fadfc305cf03789921a131f9  qt/src/emoji_segments.cpp",
+      "fcc128e734456ed4e5a5e8ef988c378c0ca89fa46add7e2cbf72647072b38e7a  qt/src/emoji_segments.hpp",
+      "9c3a63f77ec0a8508ed3815cdd55b4eb71cd91a6be86a84e088f9d4dbccd7621  qt/src/emoji_text.cpp",
+      "664f5ee86dbcf2b6d66f1a96c25876c85c474ceef7efaa7a98c16cc173384e38  qt/src/emoji_text.hpp",
+      "4fe5649b48a7e5260e138fa2cf245eb68cccb2e55ab1789f9cfdcca19aa72203  qt/src/group_dialog.cpp",
+      "34358195aa81ad838d463d43a3913134bc6a512d505ced0ae6c350a8442fb31c  qt/src/group_dialog.hpp",
+      "edbc370115aad8af8038e2823c31a4b73e7811267e1c43d891dcbb3ade0c8495  qt/src/icons.cpp",
+      "a4265e4d3225de28d7c3df8af725e89e8b6e1ad719d234569e86a69f076a9c1b  qt/src/icons.hpp",
+      "c94299bdf7aaa4852baded3859ff28a6cab34a22b05f3eb458758a295174ee94  qt/src/main.cpp",
+      "35a5529d10f84481a5c80358a99b6adc26402cbba7cf478e2e0524a9032fc744  qt/src/main_window.cpp",
+      "5547c418d768d3da359946873b47297cf1c5ad6edda9501ba86ca9a8a842318f  qt/src/main_window.hpp",
+      "13f07fdc9a6e95e9b4436b8efa633aa2ed0da648bbd80a2438811a0c8a189052  qt/src/member_data.hpp",
+      "b3c7600abed28ee9670f3c28b0c7f29604c1209844e21a6b8259ff6b8a1729b1  qt/src/message_data.hpp",
+      "56c980410fc7bcc1c0ff419103b0712c7f63b31b5b83183a52200ae9c579b1ce  qt/src/message_delegate.cpp",
+      "59ae44e81a014ad00af82a7467834a7f7df851f190558c2e91c482d5a26eb494  qt/src/message_delegate.hpp",
+      "49205f5eba330812e8814a8aee2706be41a9ad86ab6fa0ba54dcd655696933e6  qt/src/message_images.cpp",
+      "5f9c51258028d2258da54f26df5003880b76fd6e70d0415f747d150c7b08172f  qt/src/message_images.hpp",
+      "91ae09e8d3f990e89e41483ea8deec47a85379ad032f51f941cfabf9cb59f606  qt/src/message_model.cpp",
+      "8d1febaf4cc582a974722550b64f0b89156f54138a9e1082bc31d6aa8b7d3b51  qt/src/message_model.hpp",
+      "0ea73632f099a1e2bf36a4d9b8f1bbca227269fc55d6a88f0fce2b0e6b6743ac  qt/src/message_search_dialog.cpp",
+      "7296830dd0fa14dfcf61e134bd0735fe21501c555ce05bcf3888ba5287301748  qt/src/message_search_dialog.hpp",
+      "fb2dc68a40135ffe4f8b337f26e0c0523e2007de83e5ce72ff8e2c0915ef267f  qt/src/presence.hpp",
+      "5402af74e4f8f99043c7c948076b3876f8c9bd92dfcbb2ac0b566f51c527d37b  qt/src/presence_data.hpp",
+      "e8133c65555eeedc7a121ecb860d89fbb50ed13104df0702a90609d3c63311c8  qt/src/theme.cpp",
+      "424018efa972ee93b321c8d3e76020ce25681f384143409dd6ba8504ddca512d  qt/src/theme.hpp",
+      "8fdd19b94718e08f098f6ee23d08b0f2e501df87574ece58452db5cb7c6683b9  qt/src/user_data.hpp",
+      "d7a15dc6079195aada9073b4348a99ace7bc0ebcefa878858c14a99acf654293  qt/src/user_delegate.cpp",
+      "ea92268180156a00b5a8b34989d4fb6ca0e1e5d09f65f11b16ed37f92cbeb96a  qt/src/user_delegate.hpp",
+      "2253c4f97622d3bf597c3e669eb081d5346a7da86cd6342b9d4d90807a987ce2  qt/src/user_model.cpp",
+      "32ff238226cf9ed05f2d3f4fe365bb735c7993f62147b25be295d28e58cdb8c0  qt/src/user_model.hpp",
+      "20fd4466ec1942df26087a758935168ae77e137f3be997f84eb7067ac025a8e2  qt/tests/delegate_test.cpp",
+      "a1c3b4fb0fe04e959ba2a636275e1264d2f909b377b3cf71059683f13a7a3fe4  qt/tests/models_test.cpp",
+      "93b16ec0c899f203d9527b14782f6294fe20a593cca9cb4a67616dd0c213f6a4  qt/tests/ui_test.cpp",
+      "bc78ca791e7ddf071353eb6088b2400aec650c6897be38cd9194999604dc4b57  tests/avatar_fixture.hpp",
+      "78652b909ba0d7d5cf0228ee85d78027aceed30512ad0cce920fb549ec993525  tests/avatar_image_test.cpp",
+      "b7e640aef03f2fa08bef97f8049dd2fdda6610a74f15df59b046101b7d92c31b  tests/bcrypt_test.cpp",
+      "4333ef1ca51809e02bb38c285560e84404eef5c75cb27053b2ed6f58df9b8567  tests/conversation_test.cpp",
+      "96d75ac44e82b4db6c7d003120f8722592887e0e547c2fb2b2560272643cb4c6  tests/corosio_timeout_test.cpp",
+      "738070ceb568fdc623a0e1e9370b8fda362ec2cc3fd339f2b61b193086ac83f0  tests/http_server_test.cpp",
+      "606218065ddb19d8d1c8defc6a485b0d30939f1d0480a9391ac9af8a6ba0dac0  tests/migration_test.cpp",
+      "f3a84cf5fe4fcd86433bc63a87906888c627ef2f460bf3b6e053970d8f48c002  tests/online_users_test.cpp",
+      "70713b156fc904925f73a36cfc7a4c6fb4d1b539229f6ff942d31ad350e8fdb8  tests/pg_connection_test.cpp",
+      "167d061185aa4d3d9a66d54e376236a11f8e1cefdd6b40a4cea8729884503a97  tests/qt_navigation_steps.py",
+      "afd8a595fa6f0d39ab8655271f6f165d2a5529b67feee86264fc69c188309a0b  tests/qt_x11_smoke.py",
+      "aefc22b864be0ad6559847f2c217d9c582bbfa0aefdbcc0f26d462f2e08f2bc4  tests/server_test.cpp",
+      "09b77182837c43abc3df36ab347e40ff07bfa6856687bfcc1ba7d4043991a0e2  tests/simdjson_reflection_test.cpp",
+      "56b51c8604734934e6be6d9f8ae63a34a7ee2af9785becda10ef979659de5c14  tests/tui_100_member_smoke.py",
+      "310de03e8ad09be4762b31912673570ecc0897761385dd2ebb3a82ae0ed89dcb  tests/tui_100_member_smoke.sh",
+      "a7c952536f3d8f796056ab044880ede22aadb83491df5dcf8230a5426711eb58  tests/tui_group_edges_smoke.py",
+      "226cd665bf4052ef2a39ce653d7112436549b3e5085c45155ff59a51b33db595  tests/tui_lifecycle_smoke.py",
+      "c7300a6f3fb96bc93ae05db8d7886ca162e9b63a54ebcf072bc4c8e4db2bd5b4  tests/tui_navigation_smoke.py",
+      "16d76fa0109125708462e45e124bd80ae3404df53960581366b0c5ecdca5bb57  tests/tui_scale_fixture.cpp",
+      "c3c38fc83bbb2131bcab5d97d44193c311e6bc9554339bc2c338151264483ef3  tests/tui_scale_observer.py",
+      "38d3408e537d67182689f59d452e9d8e5bf164f38a9b5baaa93fbd8b36eb5f29  tests/verify.sh",
+      "efd85fbc0a2919dffebfc37fcdce30a05d362fbd366dc9f3ad953a8e56e08d56  tests/websocket_test.cpp",
+      "89bf6a5583f2c1fb93cbc18d36275512fa25c03bfca094cd6f8b36e0f43da306  tui/CMakeLists.txt",
+      "fb7cba67663b1a68f36d8762614ca59b39b302ac538d6e2e0f44cac6938e91a0  tui/cmake/README.md",
+      "3044aeb7f7c9daf71a4fbdce51bfef2a5f941407e38cb00fde6b95b6f9b53ee1  tui/cmake/ftxui-7.0.3-grapheme.patch",
+      "db00833dda0e5ca53603bcce80d79a0560a53eef7e866900c07c19e078e1e3f2  tui/cmake/ftxui_unicode.cmake",
+      "05862f8fe889199211a7876027934d4af24daeaeec9cc9e34b4ad459752dc068  tui/cmake/generate_emoji_properties.py",
+      "e639af6c65aa3e720c6f9c93d420a76b4bae226bd79a5edfdf22d65c2a687fcc  tui/cmake/unicode/.gitattributes",
+      "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96  tui/cmake/unicode/UNICODE-LICENSE.txt",
+      "80d00f8e616a0ef27fd6b8de3b758c06383b5d917e2977709578e68baf733bf1  tui/cmake/unicode/emoji-data-18.0.0.txt",
+      "b200a53eeae768e7e67a2d465936b0cb0e859618cc877b99dac79d454e2e6937  tui/cmake/unicode/emoji_properties_18.inc",
+      "3b510150d34f248a221bb88e1d811238d6c6c18b51231822c42974c39bb07256  tui/cmake/utf8proc-LICENSE.md",
+      "3cfff26307318d1badc870554800cddafe4158866bccbd800db17b66be44db7a  tui/src/app.cpp",
+      "89b9f37259e60109284ff5511322d794fac291f158f3ac5a07cfc53603f3a860  tui/src/app.hpp",
+      "dbe2a40c1a61b75032843ab82fc8dd898f0d0f8ecbfe6cde15fbf528274584f2  tui/src/deadline.hpp",
+      "36628265415a0fbae479eec5c76f122362a7a61de2ee9b32cfa94cf41ad5ef7d  tui/src/file_io.hpp",
+      "3a6c19da31f784377d64112063783f2197a9ea08ff2ded783a245af60ce89c99  tui/src/groups.cpp",
+      "53a0dbb45136c8f1b783b948373658b2897d976944eaff1353624150ec5d1bba  tui/src/inbox.hpp",
+      "05ed5edddc04b9590edeb11db6261a0e0440e32ea54af98a65b6d9afbd79b620  tui/src/main.cpp",
+      "f6c414041e8b17f7f59fad4c29589e3bf7bd45f30fc365b555f9c0c8fd164340  tui/src/messages.cpp",
+      "a464531debbf5b4c618d712276fa5d526ba70599cd7a9f26aa490e2003481990  tui/src/profile.cpp",
+      "d8b99d807e119b410bb5a0df2d7c8e84d75ebb326cedf4d9526665038c3fa5ab  tui/src/state.cpp",
+      "32e853f0bce108fd5425351a2f882db9c4e11d074f6e742e33caa347647d531e  tui/src/state.hpp",
+      "b8f06e5b273f7f5df04950e9f9e4fa4c4d041fe1b58995071a81ec2491f3c179  tui/src/ui.cpp",
+      "4fdeb7385b98761ae916db52d23f0d3079c9e90d0f0eb8391409fdfd00a4e62e  tui/src/ui.hpp",
+      "b0cf047ee94485bbdc846de2b902f5f8a815f6b674f9d04223cddadd91c9df31  tui/tests/data/GraphemeBreakTest-18.0.0.txt",
+      "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96  tui/tests/data/UNICODE-LICENSE.txt",
+      "0cd76723cff23779e360dbb4cc5dc5023f2c815dbf8c357d7261aab8c471b25b  tui/tests/display_test.cpp",
+      "1eab5a99f5589a2fe703ade676cc4a55cf8237cead9888babef5abc3c4473bf9  tui/tests/file_io_test.cpp",
+      "3843e07fd39b2d662da3fceb549f20470c85b299d3f03bbb16fddbd471ed0709  tui/tests/inbox_test.cpp",
+      "e9aed8b5600b62ff46621433466c3d90200ea5cad93fb0418018ee7691c7afbc  tui/tests/render_test.cpp",
+      "a5bb7fa1436d464cb7fc12d5bd4d3dc9841400d32ba38f41192691785f28677d  tui/tests/span_test.cpp",
+      "1b91229002314f1964e402b7516d997212afee3b368e4ba3a4d2d927b6728fe5  tui/tests/state_test.cpp",
+      "403e996d61c07de4bd39fb5d0ad217bf3908b7f2babe2e0b2e4d714e1c8cb299  tui/tests/unicode_test.cpp"
+    ],
+    "diagnostic_signatures_found": []
+  },
+  "claim_limits": [
+    "System Fcitx/Pinyin before/after is 100% only; it does not fix Q30 scaled candidate positioning.",
+    "Native four-scale workflow raw/business exits are all zero; original 125% image remains Q32 visual RED.",
+    "Q27 complete page/font matrix, Q30, T04 and Q32 remain open; Qt87/TUI78 scores unchanged.",
+    "Selected original pixels and compact records do not replace every temporary raw artifact.",
+    "No backend, SQL, submodule, dependency or system IME configuration changes. No push."
+  ],
+  "archived_original_assets": {
+    "qt-ime-emoji-before-composer.png": {
+      "sha256": "ed29634e6e464603f95f4d4984dcb425402b701aa3fb534d9893abcdd4cbf64a",
+      "bytes": 9857
+    },
+    "qt-ime-emoji-after-composer.png": {
+      "sha256": "5c2b9731a847198680cddd5ec1df5761bb7b7c6ec2d6b515cbea306938fc6f8b",
+      "bytes": 9444
+    },
+    "qt-ime-emoji-before-editor.png": {
+      "sha256": "dd06f76cd9d03d0563ef045f133f2eae96cedf407563e422351a978615a34dd3",
+      "bytes": 10721
+    },
+    "qt-ime-emoji-after-editor.png": {
+      "sha256": "afd07b0f34db3c864fef209dca5abeea9fe0f0be13d55ecf7bfc04bda5a21dc8",
+      "bytes": 10369
+    },
+    "qt-unicode-125-expose-red.png": {
+      "sha256": "8c029716363151f6080080b092da7246a9d4f8b8e59dbe5b37605bd5c5cae65c",
+      "bytes": 158467
+    },
+    "qt-ime-original-verify.log.gz": {
+      "sha256": "0259e4fb0c42bf0cb0c6e9eedc9e5e810195355d065258fc03910ba2d8984712",
+      "bytes": 1937
+    },
+    "qt-ime-fresh-ctest.log.gz": {
+      "sha256": "19bc2c93f285167de5caed4a111432f75c0aa90d63724581667b19c0ee171486",
+      "bytes": 647
+    }
+  }
+}

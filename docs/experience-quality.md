@@ -171,11 +171,12 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q24 | P2 | 群消息可见已读人数包含peer与0，但原生Name仅描述自己消息的非零已读 | 第二十八阶段复用read_count_role，永久RED/GREEN及四档真实SDK/原生树计数一致；可见截图与完整无障碍验收分别记账 |
 | Q25 | P2 | 主消息列表可通过键盘移动当前消息，但NoSelection同时隐藏了当前行焦点 | 第二十九阶段复用现有焦点轮廓；永久RED/GREEN、四档真实键盘回复/回应/读者详情及三模式门禁通过，完整键盘矩阵仍开放 |
 | Q26 | P2 | 会话、联系人和用户搜索列表有键盘当前行，但Enter不执行对应动作 | 第三十阶段复用原生activated与现有业务动作；永久Return/小键盘Enter、真实双Qt三条Return任务及三模式完整门禁通过，完整键盘矩阵仍开放 |
-| Q27 | P2 | Qt 复合 emoji 的完整显示、原文编辑和字体回退仍须全矩阵闭环 | 第四十八阶段通用完整 EGC 分类与实际字体 shaping 检查已接入正文/sidebar/reply/composer/edit；真实双Qt100%样本和缺失字体反例通过，真实IME/四档完整矩阵尚未闭环，不计整体完成 |
+| Q27 | P2 | Qt 复合 emoji 的完整显示、原文编辑和字体回退仍须全矩阵闭环 | 第四十九阶段修复真实预编辑期间已提交 emoji 拆画；100%系统输入法完整流程与四档普通 Unicode 控件/原文流程通过，缩放系统输入法与全页面矩阵仍开放，不计整体完成 |
 | Q28 | P2 | 账号注销返回登录后，键盘焦点落在服务器设置，而非主要身份输入 | 第三十二阶段在注销完成且登录控件恢复可用后返回用户名焦点；同一永久测试 RED→GREEN，完整原生流程 before actual1→after actual0，范围与门禁见下文 |
 | Q29 | P2 | 实际 Open/Save 文件选择器的路径、类型框和表头出现黑底深字，近不可读 | 第三十四阶段局部 QFileDialog 主题修复；同永久 fixture RED→GREEN、两个真实 Qt 完整附件 after 和三模式全门禁通过，关闭已复现的 fallback 对比度缺陷，不外推所有平台或四档附件验收 |
 | Q30 | P2 | 125%/150%/200% 真实 Fcitx/IBus 候选窗偏离 composer 光标，缩放越大距离越大 | 第四十二阶段真实双Qt业务通过但定位失败；第四十三阶段不链接Chat的标准编辑器也复现，官方Qt IBus已有匹配修复，当前安装环境尚未修复/复验，不计HiDPI输入法验收通过 |
 | Q31 | P2 | 可滚动历史中，发送/typing/composer 布局变化使末尾读者丢失自动跟随；旧追加回调也可能覆盖刚发生的上滚 | 第四十七阶段修复末尾布局恢复与追加回调的会话/位置守卫；真实双Qt纯文本before反例及四档after、历史保位对照，永久回归与门禁记录见下文；不外推重连恢复历史或图片异步布局 |
+| Q32 | P2 | 125% 下关闭真实编辑窗口后，消息行下方留下持续的黑色细线 | 第四十九阶段原始 before/最终 after 均复现；普通 Qt 同几何对照未复现，尚未归因，不以业务检查通过或主动重绘关闭问题 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 第十九轮字素编辑与宽字组合符附着修复已进入生产；终端 span、裁剪、leading mark 和 shaping 仍未闭环，不计 Unicode 全矩阵通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 | T06 | P2 | TUI 搜索选中消息之前一项被删除时，只clamp索引，选中目标跳到另一ID | 第二十四阶段修复，永久RED/GREEN、真实双TUI六档选中目标/可复制正文/草稿验证通过 |
@@ -3339,3 +3340,90 @@ Q27当前100%局部修复已进入产品，整体仍开放；Q30系统IME缩放�
 列宽/重绘也未关闭。Qt87/TUI78不提高，未满足>=92/P2=0或连续两轮全产品fresh review。
 下一步应验证新政策的真实IME与四档完整控件矩阵，再继续terminal实际物理列与重绘。
 不把这项修复缩成整个campaign的完成条件。没有push。
+
+## 阶段 49：预编辑期间保持已提交文本的完整显示
+
+本阶段实际 BASE_HEAD 为 d691da7600b4fac8ec69c5176a817c2eb03f706a，origin/main 仍为
+855871bd91df9c0d6ad447c522a0124eb20e06b7。开始时只有上一段执行留下的测试采样改动；
+不回退本地33个未推送提交，不修改媒体服务器、后端、SQL或third。
+
+### 原生反例而非业务检查的假阳性
+
+两个真实 Qt 在独立 X11/DBus/Fcitx5 Pinyin 环境完成原33项提交、复制、撤销、编辑、
+回复检查，actual0，却在 composer 和真实编辑窗口的原像素截图中发现已提交 prefix
+的 `👩‍💻`、`1️⃣`、`👍️🏽` 只在预编辑期间拆画；Space提交后又恢复。不能以33项
+业务通过抹掉显示 RED。首次驱动因actor符号缺失在Qt/输入法启动前退出1，另开完整
+before后才取得真实反例；不拼接失败片段为通过。
+
+Qt6.2.4 的 [QSyntaxHighlighter实际格式处理](https://code.qt.io/cgit/qt/qtbase.git/tree/src/gui/text/qsyntaxhighlighter.cpp?h=6.2.4)
+会让跨越插入点的格式扩入preedit。旧代码为避免强制IME字体而清空整block，并在
+highlightBlock遇到preedit时直接返回，于是也丢掉已提交emoji的显示格式。
+最终仍让Qt管理IME自身格式；事件处理后，按
+[QTextLayout公开preedit坐标契约](https://doc.qt.io/qt-6/qtextlayout.html#setFormats)
+仅恢复插入区域外的完整已提交EGC，后方范围按当前preedit长度移位，不把范围扩入
+IME，不改原文、cursor、提交或undo。跨越preedit插入点的EGC暂不强制字体。
+
+独立复核又实际发现FontChange仅rehighlight也会再次删除外部格式。共同恢复路径因此
+也覆盖字体变化，不用另一份状态缓存补救。两个永久反例均先actual1后GREEN：原生
+composer/editor中的四个插入位置、两种preedit长度、真实字体变化、IME下划线、
+格式不跨IME、取消与raw/undo保持；原有断言和timeout不变。
+
+最终唯一正式binary为8b3699ef2308bc7c0645722fbe7f2358d688d79b282b1755486f23d8365484b9。
+原byte-identical driver完整再跑，33项名称和次序相同、实际exit0；两个实际/proc/exe及
+运行前后SHA均相同。nihao/zhongwen各Return与Space首commit都未发送，quiet分别采样
+4/5/5/6次；第二Enter才唯一新增消息。真实编辑为exact中文、对端收到，reply指向真实
+被编辑id；reply首Space quiet5次也未发送。主和独立代理亲看原尺寸before/after：
+[composer before](images/experience/qt-ime-emoji-before-composer.png) /
+[after](images/experience/qt-ime-emoji-after-composer.png)，
+[editor before](images/experience/qt-ime-emoji-before-editor.png) /
+[after](images/experience/qt-ime-emoji-after-editor.png)。
+preedit Latin与下划线仍由输入法显示，已提交emoji不再拆成woman/laptop或独立skin圆点。
+这是当前100%系统输入法原反例的收口，不冒称缩放候选窗Q30已修复。
+
+### 四档控件与真实客户端分别验收
+
+旧125% widgets像素oracle把逻辑坐标直接当设备像素，实际exit1。测试改为使用图像
+自身DPR换算，原颜色、对比度阈值、断言与timeout不变；真实物理像素边界检查仍保留。
+最终100/125/150/200四档各完整15组widgets与7组delegate全部actual0，包含上述永久
+preedit与FontChange反例。无测试跳过，不把这一offscreen检查当系统IME四档运行。
+
+同一正式binary的两真实Qt四档普通Unicode流程各actual0、统一driver各13项；实际
+窗口分别1180×760/1475×950/1770×1140/2360×1520，以每个原生窗口的实际origin与
+AT-SPI/native读回比率映射，编辑dialog单独读回，不盲乘环境scale。公开paste/copy/
+undo、双向body、sidebar、真实编辑及reply、只读SQL原UTF8核验均完成。
+主亲看150/200的完整原图，键帽、ZWJ及VS16skin仍完整，普通数字/CJK/combining、
+VS15及未知/非法组合的baseline保持；仅覆盖这些样本，非全部页面或全部字体。
+
+125%最终after仍有Q32：C编辑窗口关闭后原图稳定出现黑色1px段x2021..2549,y312，
+立即截图、1秒后及A回复条视角均存在，后续C布局变化才消失。旧before追加诊断也
+持续复现，原生resize/restore能清掉，但不以主动重绘伪装修复。独立Qt6.2.4标准
+delegate及简单primitives同窗口/dialog/row几何、背景对照未复现；这不足以归因Xvfb。
+[最终原生反例](images/experience/qt-unicode-125-expose-red.png)仍记视觉RED，业务exit0
+不等于125%视觉整体通过。新candidate的原图不覆盖旧反例。
+
+### 验证与完整目标的边界
+
+本轮新建独立Debug目录，C++实际flags含-Werror/-g/-std=c++26/-Wall/-Wextra/-Wpedantic，
+Qt/TUI均ON，pinned依赖使用已核验的offline源码；完整build和最终源码增量build均
+actual0，完整CTest23/23、109.63s、actual0，114输入首尾相同。此处不冒称四种client
+开关各自完整构建；独立机制探针也不代替真实运行。
+
+最终原 `tests/verify.sh` 实际退出0；normal/ASan/UBSan各23/23，分别112.56/150.74/
+137.41s。render为0.89/4.19/1.83s，原5s上限不变；qt_ui为45.15/53.63/48.83s，
+原60s上限不变。114个tracked输入及正式binary首尾完全一致，脚本未修改，Qt/TUI
+均ON；完整日志未出现编译warning、ASan/UBSan/LeakSanitizer报告签名，不加skip或
+延长等待。[原门禁无损日志](images/experience/qt-ime-original-verify.log.gz)与
+[独立目录完整CTest日志](images/experience/qt-ime-fresh-ctest.log.gz)解压SHA均与原始
+日志相同。[紧凑实测记录](images/experience/qt-ime-proof.json)保存源/binary pins、
+两个永久RED、四档控件原PASS组名、33项真实IME原业务记录、裁剪原像素来源和四档
+原生流程；它明确保留125%视觉RED，不将测试actual0升级为整体视觉通过。
+
+独立代码复核确认logical_pixel只修逻辑到设备像素坐标，原阈值/断言不降低；context-
+bound timer在highlighter析构时取消，不捕获QEvent，旧block失效时不访问layout。
+另一个不接入客户端的fresh Qt6.2.4 probe也实际编译/运行0，FontChange后的IME
+下划线与三个完整已提交emoji范围均保留，raw/undo不变；该打印诊断不是完整assert
+oracle，产品验收仍以上述永久测试及真实输入法流程为准。
+
+Q27剩余矩阵、Q30缩放系统IME定位、T04终端物理列/重绘及Q32仍开放。
+Qt87/TUI78暂评不提高，没有达到>=92/P2=0或连续两轮全产品fresh review条件。
+下一步继续实际显示与终端体验缺口，不把本阶段局部修复改称整个campaign完成。
