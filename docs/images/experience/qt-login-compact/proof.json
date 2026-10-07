@@ -1,0 +1,35 @@
+{
+  "base_head": "1b1fbe80b91003aa61a955b6cccfa72b0ed28010",
+  "qt_binary_sha256": "3f171e52073b910b3deac61e95e9c2e8683fa0c6300f4fc879e8194099c04eb2",
+  "source_sha256": {
+    "qt/src/main_window.cpp": "9b988ebf0f41237f2571dc6181216e8f084891a0c8885837416d9d858ff01472",
+    "qt/src/theme.cpp": "8ddaa3480139759520f61560d0ab0c212404138b4ab29fcbc25da7b948c22f70",
+    "qt/tests/ui_test.cpp": "2fc38cc525bec173ac71caf3108745a313eb89dcb9accdaf714593cb8c8c0c0e",
+    "qt/CMakeLists.txt": "98feac1dd34119563c2500d433745755f72446c415991c291ac971470ddbb5c0",
+    "qt/resources/icons/settings.svg": "44cb2cf89b22de5cffac3a636ab83c0cd9f23fd9121d5739ffe4e28db9017245"
+  },
+  "normal_ctest": {
+    "exit": 0,
+    "passed": 23,
+    "total": 23,
+    "total_seconds": 116.15,
+    "qt_ui_seconds": 45.50,
+    "timeouts_changed": false,
+    "build_type": "Debug",
+    "build_scope": "existing normal build, changed targets rebuilt",
+    "asan_ubsan_rerun": false
+  },
+  "native": {
+    "driver_exit": 0,
+    "platform": "xcb",
+    "screen": "private Xvfb 2400x1600x24",
+    "logical_window": [460, 600],
+    "scales": [1, 1.25, 1.5, 2],
+    "physical_windows": [[460, 600], [575, 750], [690, 900], [920, 1200]],
+    "settings_click": "XTest actual mouse at scale 1",
+    "business_backend": "none; login layout only, no network login",
+    "screenshots": "original full client-window crops plus original desktop captures",
+    "reviews": "root and independent agent viewed all four login images and the settings-click image",
+    "limits": ["not all states at all scales", "no active AT-SPI or Orca probe", "maximized-to-login branch not separately exercised", "not a complete four-client daily workflow"]
+  }
+}

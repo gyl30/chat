@@ -36,8 +36,8 @@ main_window::main_window(QString server_url, QWidget* parent)
     : QMainWindow(parent), client_(std::make_unique<client_bridge>())
 {
     setWindowTitle(QStringLiteral("Chat"));
-    resize(1180, 760);
-    setMinimumSize(980, 640);
+    resize(460, 600);
+    setMinimumSize(460, 600);
     setStyleSheet(chat_style_sheet());
 
     pages_ = new QStackedWidget(this);
@@ -46,7 +46,7 @@ main_window::main_window(QString server_url, QWidget* parent)
     login_page_ = new QWidget(pages_);
     login_page_->setObjectName(QStringLiteral("loginPage"));
     auto* login_outer = new QVBoxLayout(login_page_);
-    login_outer->setContentsMargins(32, 32, 32, 32);
+    login_outer->setContentsMargins(20, 12, 20, 12);
     login_outer->addStretch();
 
     auto* login_card = new QFrame(login_page_);
@@ -57,23 +57,38 @@ main_window::main_window(QString server_url, QWidget* parent)
                                     chat_theme::auth_padding, chat_theme::auth_padding);
     login_layout->setSpacing(chat_theme::auth_spacing);
 
-    auto* brand = new QHBoxLayout;
+    auto* server_settings = new QToolButton(login_card);
+    server_settings->setObjectName(QStringLiteral("serverSettingsButton"));
+    server_settings->setIcon(svg_icon(u"settings", QColor(QStringLiteral("#5D6C64"))));
+    server_settings->setToolTip(QStringLiteral("服务器设置"));
+    server_settings->setAccessibleName(QStringLiteral("服务器设置"));
+    server_settings->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    server_settings->setFixedSize(36, 36);
+    server_settings->setCheckable(true);
+    auto* settings_bar = new QHBoxLayout;
+    settings_bar->addStretch();
+    settings_bar->addWidget(server_settings);
+    login_layout->addLayout(settings_bar);
+
+    auto* brand = new QVBoxLayout;
     brand->setSpacing(chat_theme::auth_spacing);
     auto* mark = new QLabel(login_card);
     mark->setObjectName(QStringLiteral("authMark"));
-    mark->setFixedSize(48, 48);
+    mark->setFixedSize(64, 64);
     mark->setAlignment(Qt::AlignCenter);
-    mark->setPixmap(svg_icon(u"chat", Qt::white, QSize(28, 28)).pixmap(28, 28));
-    brand->addWidget(mark);
+    mark->setPixmap(svg_icon(u"chat", Qt::white, QSize(36, 36)).pixmap(36, 36));
+    brand->addWidget(mark, 0, Qt::AlignHCenter);
     auto* identity = new QVBoxLayout;
     identity->setSpacing(4);
     auto* title = new QLabel(QStringLiteral("Chat"), login_card);
     title->setObjectName(QStringLiteral("loginTitle"));
+    title->setAlignment(Qt::AlignCenter);
     identity->addWidget(title);
     auto* subtitle = new QLabel(QStringLiteral("和朋友，轻松聊。"), login_card);
     subtitle->setObjectName(QStringLiteral("authSubtitle"));
+    subtitle->setAlignment(Qt::AlignCenter);
     identity->addWidget(subtitle);
-    brand->addLayout(identity, 1);
+    brand->addLayout(identity);
     login_layout->addLayout(brand);
     login_layout->addSpacing(8);
 
@@ -95,8 +110,8 @@ main_window::main_window(QString server_url, QWidget* parent)
     username_edit_->setPlaceholderText(QStringLiteral("用户名"));
     password_edit_->setPlaceholderText(QStringLiteral("密码"));
 
-    form->addRow(QStringLiteral("用户名"), username_edit_);
-    form->addRow(QStringLiteral("密码"), password_edit_);
+    form->addRow(username_edit_);
+    form->addRow(password_edit_);
     login_layout->addLayout(form);
 
     status_label_ = new feedback_label(login_card);
@@ -112,19 +127,10 @@ main_window::main_window(QString server_url, QWidget* parent)
     register_button_->setObjectName(QStringLiteral("registerButton"));
     login_layout->addWidget(register_button_);
 
-    auto* server_settings = new QToolButton(login_card);
-    server_settings->setObjectName(QStringLiteral("serverSettingsButton"));
-    server_settings->setText(QStringLiteral("服务器设置"));
-    server_settings->setAccessibleName(QStringLiteral("展开或收起服务器设置"));
-    server_settings->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    server_settings->setArrowType(Qt::RightArrow);
-    server_settings->setCheckable(true);
-    login_layout->addWidget(server_settings, 0, Qt::AlignLeft);
     login_layout->addWidget(server_edit_);
     server_edit_->hide();
-    connect(server_settings, &QToolButton::toggled, this, [this, server_settings](bool expanded) {
+    connect(server_settings, &QToolButton::toggled, this, [this](bool expanded) {
         server_edit_->setVisible(expanded);
-        server_settings->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
         if (expanded) { server_edit_->setFocus(); }
         else { username_edit_->setFocus(); }
     });
@@ -194,6 +200,7 @@ main_window::main_window(QString server_url, QWidget* parent)
     setTabOrder(registration_submit_button_, registration_cancel_button_);
 
     chat_page_ = new chat_widget(pages_);
+    chat_page_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
 
     tray_ = new QSystemTrayIcon(svg_icon(u"chat", QColor(QStringLiteral("#365E4B")), QSize(32, 32)), this);
     tray_->setObjectName(QStringLiteral("notificationTray"));
@@ -249,6 +256,14 @@ main_window::main_window(QString server_url, QWidget* parent)
 
     pages_->addWidget(login_page_);
     pages_->addWidget(chat_page_);
+    connect(pages_, &QStackedWidget::currentChanged, this, [this] {
+        auto const chatting = pages_->currentWidget() == chat_page_;
+        auto const policy = chatting ? QSizePolicy::Preferred : QSizePolicy::Ignored;
+        chat_page_->setSizePolicy(policy, policy);
+        setMinimumSize(chatting ? QSize(980, 640) : QSize(460, 600));
+        if (!chatting && isMaximized()) { showNormal(); }
+        resize(chatting ? QSize(1180, 760) : QSize(460, 600));
+    });
 
     connect(login_button_, &QPushButton::clicked, this, [this] { start_login(); });
     connect(register_button_, &QPushButton::clicked, this, [this] { show_registration_dialog(); });

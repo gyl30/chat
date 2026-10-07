@@ -200,11 +200,14 @@ void click_list_body(QAbstractItemView* list, QModelIndex index)
 void check_authentication_layout()
 {
     main_window window(QStringLiteral("ws://127.0.0.1:18769/ws"));
-    window.resize(980, 640);
+    check(window.size() == QSize(460, 600) && window.minimumSize() == QSize(460, 600),
+          "Login opens as a compact window rather than the chat workspace");
     window.show();
     window.activateWindow();
     QApplication::processEvents();
     wait([&] { return window.isActiveWindow(); });
+    check(window.size() == QSize(460, 600) && window.minimumSize() == QSize(460, 600),
+          "The hidden chat workspace does not enlarge the visible login window");
     auto* card = window.findChild<QFrame*>("loginCard");
     QLineEdit* username = nullptr;
     QLineEdit* password = nullptr;
@@ -217,6 +220,13 @@ void check_authentication_layout()
     auto* server = card->findChild<QLineEdit*>("serverUrlEdit");
     auto* settings = card->findChild<QToolButton*>("serverSettingsButton");
     check(server && settings && server->isHidden(), "Server address is available through progressive settings");
+    check(settings && !settings->icon().isNull() && settings->text().isEmpty() &&
+          settings->toolButtonStyle() == Qt::ToolButtonIconOnly &&
+          settings->accessibleName() == QStringLiteral("服务器设置") && !settings->toolTip().isEmpty(),
+          "Server settings uses a named, keyboard-accessible gear icon instead of a text row");
+    check(settings->mapTo(card, QPoint(0, 0)).x() > card->width() / 2 &&
+          settings->mapTo(card, QPoint(0, 0)).y() < username->mapTo(card, QPoint(0, 0)).y(),
+          "The settings gear is above the form at the upper right");
     check(!username->accessibleName().isEmpty() && !password->accessibleName().isEmpty() &&
           !server->accessibleName().isEmpty(), "Authentication fields have accessible names");
     check(password->echoMode() == QLineEdit::Password, "Login password stays masked");
@@ -260,13 +270,14 @@ void check_authentication_layout()
     window.findChild<QPushButton*>("loginButton")->click();
     check(login_accessible->text(QAccessible::Name) == login_error && QApplication::focusWidget() == login_focus,
           "A new login rejection restores the current error without moving keyboard focus");
-    for (auto const size : {QSize(980, 640), QSize(1180, 760), QSize(1280, 800), QSize(1440, 900), QSize(1920, 1080)})
+    for (auto const size : {QSize(460, 600), QSize(980, 640), QSize(1180, 760), QSize(1280, 800), QSize(1440, 900), QSize(1920, 1080)})
     {
         window.resize(size);
         for (int expanded = 0; expanded < 2; ++expanded)
         {
             settings->setChecked(expanded);
             QApplication::processEvents();
+            check(window.size() == size, "Expanded settings fit without enlarging the requested login window");
             auto* page = card->parentWidget();
             check(page->rect().contains(card->geometry()), "Authentication card fits every supported desktop size");
             for (auto* field : card->findChildren<QLineEdit*>())
@@ -2975,6 +2986,8 @@ int main(int argc, char** argv)
                 w->findChild<QPushButton*>("loginButton")->click();
                 auto* page = w->findChild<chat_widget*>();
                 wait([&] { return page->isVisible(); });
+                check(w->size() == QSize(1180, 760) && w->minimumSize() == QSize(980, 640),
+                      "Authentication expands the compact login window into the chat workspace");
                 pages.push_back(page);
                 windows.push_back(std::move(w));
             }
@@ -5009,6 +5022,8 @@ int main(int argc, char** argv)
             wait([&] { return !pages[0]->isVisible() && windows[0]->findChild<QPushButton*>("loginButton")->isEnabled(); });
             windows[0]->activateWindow();
             QApplication::processEvents();
+            check(windows[0]->size() == QSize(460, 600) && windows[0]->minimumSize() == QSize(460, 600),
+                  "Logout restores the compact login window");
             check(windows[0]->findChild<QLineEdit*>("loginUsernameEdit")->hasFocus(),
                   "Confirmed logout returns keyboard focus to the login identity field");
             check(pages[0]->avatars().image(ids[0]).isNull(), "Logout clears current account cache");
@@ -5021,6 +5036,8 @@ int main(int argc, char** argv)
             windows[0]->findChild<QPushButton*>("loginButton")->click();
             wait([&] { return pages[0]->isVisible() && pages[0]->avatars().state(ids[0]) == chat::avatar_state{4, true} &&
                 !pages[0]->avatars().image(ids[0]).isNull(); });
+            check(windows[0]->size() == QSize(1180, 760) && windows[0]->minimumSize() == QSize(980, 640),
+                  "Signing in again restores the chat workspace size");
             check(windows[0]->findChild<QToolButton*>("profileAvatar")->icon().pixmap(44, 44).toImage() ==
                 avatar_icon(names[0], 44, pages[0]->avatars().image(ids[0])).pixmap(44, 44).toImage(), "Authentication restores own avatar after login");
             auto seed = "INSERT INTO messages(sender_id,conversation_id,body) VALUES(" + std::to_string(ids[1]) + "," +

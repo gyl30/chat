@@ -59,6 +59,7 @@ qt_add_resources(chat_qt_widgets chat_icons
         resources/icons/copy.svg
         resources/icons/groups.svg
         resources/icons/send.svg
+        resources/icons/settings.svg
 )
 
 set_target_properties(chat_qt_widgets PROPERTIES AUTOMOC ON)

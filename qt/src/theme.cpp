@@ -466,8 +466,7 @@ QString chat_style_sheet()
             color: #294B3E;
         }
         QToolButton#serverSettingsButton {
-            min-height: 28px;
-            padding: 0 8px;
+            padding: 0;
             background: transparent;
             color: #5D6C64;
             border: 2px solid transparent;
@@ -476,6 +475,9 @@ QString chat_style_sheet()
         }
         QToolButton#serverSettingsButton:hover {
             background: #F0F4F1;
+        }
+        QToolButton#serverSettingsButton:checked, QToolButton#serverSettingsButton:pressed {
+            background: #E7EEE9;
         }
         QToolButton#serverSettingsButton:focus {
             border-color: #547C68;
