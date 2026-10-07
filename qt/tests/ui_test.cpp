@@ -988,14 +988,14 @@ void check_primary_navigation()
     auto* incoming = page.findChild<QListWidget*>("incomingFriendRequests");
     auto* outgoing = page.findChild<QListWidget*>("outgoingFriendRequests");
     QList<user_data> contacts;
-    for (int count : {0, 1, 20})
+    for (int count : {0, 1, 3, 20})
     {
         contacts.clear();
         for (int i = 0; i < count; ++i)
         { contacts.push_back({10+i, QStringLiteral("张 三😀").repeated(4) + QString::number(i), false, 0, {}}); }
         page.set_contacts(contacts);
         page.set_friend_requests({{200, QStringLiteral("收到 申请"), false, 0, {}}}, {{201, QStringLiteral("发出 申请"), false, 0, {}}}, {});
-        check(contact_view->model()->rowCount() == count, "Only accepted contacts appear at 0/1/20 counts");
+        check(contact_view->model()->rowCount() == count, "Only accepted contacts appear at 0/1/3/20 counts");
         check(incoming->count() == 1 && outgoing->count() == 1, "Pending requests remain separate from accepted contacts");
         QTimer::singleShot(0, [&] {
             auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
@@ -1016,22 +1016,57 @@ void check_primary_navigation()
                 check(primary.lightness() < 100, "Enabled group progression is visibly primary");
                 auto* chips = dialog->findChild<QListWidget*>("groupSelectedContacts");
                 check(chips->count() == 1 && chips->item(0)->text().contains(contacts[0].username), "Long Unicode selection remains intact");
-                if (count == 20)
+                if (count >= 3)
                 { for (int row = 1; row < list->count(); ++row) { list->item(row)->setCheckState(Qt::Checked); } }
                 next->click();
                 QApplication::processEvents();
                 check(dialog->findChild<QLineEdit*>("newGroupTitleEdit")->isVisible(), "Selected friends precede group title step");
-                check(dialog->height() <= 380, "Naming one selected friend does not retain the tall picker canvas");
-                check(dialog->findChild<QLineEdit*>("newGroupTitleEdit")->hasFocus(), "Naming starts at the title input");
+                check(dialog->height() <= 380, "Naming selected friends keeps a compact bounded canvas");
+                auto* group_title = dialog->findChild<QLineEdit*>("newGroupTitleEdit");
+                auto* members = dialog->findChild<QListWidget*>("groupNamingMembers");
+                check(group_title->hasFocus(), "Naming starts at the title input");
+                check(members->count() == count, "The naming step retains every selected friend");
+                if (count <= 3)
+                {
+                    for (int row = 0; row < members->count(); ++row)
+                    { check(members->viewport()->rect().contains(members->visualItemRect(members->item(row))),
+                            "Small group confirmation shows every selected friend without scrolling"); }
+                }
+                QKeyEvent tab(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier);
+                QApplication::sendEvent(group_title, &tab);
+                QApplication::processEvents();
+                check(members->hasFocus(), "Keyboard users can focus the selected member summary");
+                if (count <= 3)
+                {
+                    for (int row = 0; row < members->count(); ++row)
+                    { check(members->viewport()->rect().contains(members->visualItemRect(members->item(row))),
+                            "Focus styling does not clip small group confirmation rows"); }
+                }
                 if (count == 20)
                 {
-                    QKeyEvent tab(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier);
-                    QApplication::sendEvent(dialog->findChild<QLineEdit*>("newGroupTitleEdit"), &tab);
-                    auto* members = dialog->findChild<QListWidget*>("groupNamingMembers");
-                    check(members->hasFocus() && members->count() == 20, "Keyboard users can reach all selected group members");
                     QKeyEvent end(QEvent::KeyPress, Qt::Key_End, Qt::NoModifier);
                     QApplication::sendEvent(members, &end);
                     check(members->verticalScrollBar()->value() > 0, "The bounded member summary can scroll by keyboard");
+                    check(members->viewport()->rect().contains(members->visualItemRect(members->item(count - 1))),
+                          "Keyboard scrolling reveals the complete final selected member");
+                }
+                auto const group_name = QStringLiteral("新群 中文 é 🙂");
+                group_title->setText(group_name);
+                dialog->findChild<QPushButton*>("groupPreviousButton")->click();
+                QApplication::processEvents();
+                check(list->isVisible() && dialog->findChild<QLineEdit*>("groupContactSearch")->hasFocus(),
+                      "Previous returns to the member picker and its search input");
+                for (int row = 0; row < list->count(); ++row)
+                { check(list->item(row)->checkState() == Qt::Checked, "Previous keeps all selected members"); }
+                next->click();
+                QApplication::processEvents();
+                check(group_title->isVisible() && group_title->text() == group_name && members->count() == count,
+                      "Returning to naming preserves the exact title and selected members");
+                if (count <= 3)
+                {
+                    for (int row = 0; row < members->count(); ++row)
+                    { check(members->viewport()->rect().contains(members->visualItemRect(members->item(row))),
+                            "Returning to confirmation still shows all small group members"); }
                 }
             }
             dialog->reject();

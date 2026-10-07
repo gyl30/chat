@@ -1,0 +1,9 @@
+{
+  "database_name": "chat_daily_d0cc8e6eb4e3af97",
+  "pre_delete_connections": 0,
+  "dropdb_actual_exit": 0,
+  "post_delete_matching_pg_database_count": 0,
+  "port_18962_listeners": 0,
+  "original_cleanup_file": "Retained with its historical database_retained=true result",
+  "user_database_or_dependency_deleted": false
+}

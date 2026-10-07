@@ -1,0 +1,300 @@
+{
+  "status": "LIMITED_FOCUSED_NATIVE_REVIEW_PASS_NOT_FULL_CAMPAIGN",
+  "date": "2026-10-07",
+  "remote_scope": "/tmp/chat-daily-native-group-after.C03BPbKp",
+  "local_originals": "/tmp/chat-group-after-review.3zVR2KFN/chat-daily-native-group-after.C03BPbKp",
+  "reviewer": "independent audit_gb_first_media; read-only inspection, no product launched",
+  "scope": "One Qt current 370a group-confirmation viewport, keyboard focus and previous/next retention; not a four-client rerun",
+  "actual_exit": {
+    "value": 0,
+    "provenance": "Parent observed session13901 actual completion; operations finish and full cleanup independently read"
+  },
+  "driver_sha256": "9e40014c3bd9c2f572dde5012e84f22a35d31a1a7413e20124b8fb1f7b89cf93",
+  "base_head": "c86b0936b2dbeb82ff3730e9225baf1d9e4614fa",
+  "source_manifest_sha256": "f9117596a0bce255529041b0989845a1efc4b6e0bb8a353c4a076f5068c43dc8",
+  "source_count": 206,
+  "expected_dirty": [
+    "qt/src/chat_widget.cpp",
+    "qt/tests/ui_test.cpp"
+  ],
+  "qt_binary_sha256": "370a68ae9448916c86e3085f1a459e9b1ea0f2d292cf18113c842de96a1b24a4",
+  "source_file_hash_differences": [],
+  "binary_hash_differences": [],
+  "qt_runtime_file_hash_differences": [],
+  "copy": {
+    "scp_actual_exit": 1,
+    "excluded_non_regular": [
+      "runtime/at-spi2-THG2W3/socket"
+    ],
+    "regular_files": 56,
+    "remote_local_sha256_differences": []
+  },
+  "captures": 12,
+  "total_pngs": 13,
+  "material_not_visual_review": "tui-image.png",
+  "personally_viewed_whole_original_png": [
+    {
+      "path": "000-compact-login-A.png",
+      "sha256": "82f0686d116f180b5c603e4dd9c1c88c31c7da92244fb07ae1d3c7b2e332bcd1",
+      "original_dimensions": [
+        2400,
+        1600
+      ]
+    },
+    {
+      "path": "001-login.png",
+      "sha256": "79474f112b1aef21624f8b5c2afc627bc9125401c22307e5b2fd447c52c2cfec",
+      "original_dimensions": [
+        2400,
+        1600
+      ]
+    },
+    {
+      "path": "002-group-actions.png",
+      "sha256": "d6134a4e2eb014fd808507825c59fef454f7fdabf926fcf951ff38fe7ef5d670",
+      "original_dimensions": [
+        2400,
+        1600
+      ]
+    },
+    {
+      "path": "003-group-picker.png",
+      "sha256": "522ec2330e3428565cfb98546bbca9f6842fe2385e5eabfa0f8191ffedcff880",
+      "original_dimensions": [
+        2400,
+        1600
+      ]
+    },
+    {
+      "path": "004-three-selected.png",
+      "sha256": "3ca811b947274d5fbe4b1ba23e77e90b29d2e533a540d1b16ef994056637e4e3",
+      "original_dimensions": [
+        2400,
+        1600
+      ]
+    },
+    {
+      "path": "005-three-naming.png",
+      "sha256": "a169f165b2796723bd43a4d7a5efc6983d0bd93e0fdb0854079b9895dfb8d885",
+      "original_dimensions": [
+        2400,
+        1600
+      ]
+    },
+    {
+      "path": "006-three-naming-keyboard.png",
+      "sha256": "649e37d43f9fbeafdfd684582ea58028b00a95e69ac4b572dcc8ba3fefe51fc9",
+      "original_dimensions": [
+        2400,
+        1600
+      ]
+    },
+    {
+      "path": "007-previous-keeps-three.png",
+      "sha256": "a6c4d493e251c851009d5cfa5038284ed4253c510b5e35551870793328c817ea",
+      "original_dimensions": [
+        2400,
+        1600
+      ]
+    },
+    {
+      "path": "008-return-keeps-three.png",
+      "sha256": "0aafa721aac2eb2c23ae556811a0c7cf80126b4965bb81f60a890e428c100c2d",
+      "original_dimensions": [
+        2400,
+        1600
+      ]
+    },
+    {
+      "path": "009-created-group.png",
+      "sha256": "b1f4e1ebdd35204cecb5eab5cc732c166b20931f48af34e454ea818aeb1a9b2f",
+      "original_dimensions": [
+        2400,
+        1600
+      ]
+    },
+    {
+      "path": "010-created-confirmed.png",
+      "sha256": "b1f4e1ebdd35204cecb5eab5cc732c166b20931f48af34e454ea818aeb1a9b2f",
+      "original_dimensions": [
+        2400,
+        1600
+      ]
+    },
+    {
+      "path": "011-handoff.png",
+      "sha256": "b1f4e1ebdd35204cecb5eab5cc732c166b20931f48af34e454ea818aeb1a9b2f",
+      "original_dimensions": [
+        2400,
+        1600
+      ]
+    }
+  ],
+  "capture_png_hash_differences": [],
+  "capture_identity": {
+    "unique_identities": 1,
+    "actor": "A",
+    "pid": 2005711,
+    "ticks": "555725213",
+    "exe": "/home/gyl/example/chat/build/qt/chat_qt",
+    "sha256": "370a68ae9448916c86e3085f1a459e9b1ea0f2d292cf18113c842de96a1b24a4"
+  },
+  "operations": {
+    "recorded_successful": 28,
+    "operation_failure_captures": 0,
+    "claim": "No operation-failure capture in this focused scope; this does not erase six driving corrections in the historical four-client run"
+  },
+  "setup": {
+    "seed": "SDK navigation fixture then prelogin A connects, accepts D, observes precisely C/D/S005 contacts, disconnects and closes exit0 before Qt launch",
+    "sdk_pid": 2005478,
+    "runtime_sdk": false,
+    "friend_acceptance_ui_proven_in_this_scope": false,
+    "sql_runtime": "SELECT only with default_transaction_read_only=on",
+    "qt_private_loader": "Only Qt child gets SDK library/plugin env",
+    "deadline_seconds": 15
+  },
+  "observations": [
+    "Compact login remains 460x600; product resizes authenticated chat to1180x760",
+    "Actual picker clicks then three XTest Space inputs select C/D/S005; selected3 label, all3 checked rows and names visually visible",
+    "005 naming whole PNG: all3 full rows C/D/S005 visible without clipping; selected list exact public path [1,0,1,3] rect[344,210,472,136], row heights44 at y210/254/298 entirely enclosed",
+    "006 XTest Tab transfers visible focus border from title entry to entire selected-member list; all3 rows remain visible",
+    "007 actual Previous returns to picker with all3 options checked and selected3 retained",
+    "008 actual Next returns with same3 full names and exact title retained; AT-SPI text readback equals '确认三人 中文 é 🙂' both before and after",
+    "009/010 actual UI Create closes modal and creates new selected conversation with exact title and member-count4; SQL exact result3:1:1,3,4,6 maps ownerA+C+D+S005",
+    "009/010/011 PNGs identical is the same static created state captured before/after SELECT and handoff, not independent new business coverage",
+    "All12 maps contain only permitted actual private Qt SDK files (startup8, authenticated12 or13), filehashes independently checked against freeze"
+  ],
+  "title": {
+    "text": "确认三人 中文 é 🙂",
+    "combining_sequence": "U+0065 U+0301",
+    "emoji": "U+1F642",
+    "sql_exact_result": "3:1:1,3,4,6",
+    "created_group_id": 3,
+    "owner_id": 1,
+    "member_ids": [
+      1,
+      3,
+      4,
+      6
+    ]
+  },
+  "cleanup": {
+    "status": "HANDOFF_NOT_PASS",
+    "owned_count": 7,
+    "observed_descendant_count": 5,
+    "all_recorded_gone": true,
+    "all7_owned_proc_absent_independently": true,
+    "extra_dbus_stderr_pids_verified_absent": [
+      2005715,
+      2005722,
+      2005737,
+      2005804,
+      2005811
+    ],
+    "protected_full_identity_independently_matches": [
+      2876288,
+      3225,
+      29935
+    ],
+    "protected_unchanged": true,
+    "errors": [],
+    "historical_retained_database": "chat_daily_d0cc8e6eb4e3af97",
+    "historical_database_present": true,
+    "database_deleted_by_reviewer": false,
+    "final_database_cleanup": {
+      "record": "/tmp/chat-group-confirm-fix.C03BPbKp/chat-group-after-archive.C03BPbKp/final-database-cleanup.json",
+      "record_sha256": "5ca05ff6887803f90aadcaa9c764bd62c56cdde1f46e1b31478101867c503751",
+      "database_name": "chat_daily_d0cc8e6eb4e3af97",
+      "pre_delete_connections": 0,
+      "dropdb_actual_exit": 0,
+      "post_delete_matching_pg_database_count": 0,
+      "port_18962_listeners": 0,
+      "user_database_or_dependency_deleted": false,
+      "provenance": "Independent full read of parent final-cleanup record, not a DB deletion performed by reviewer"
+    }
+  },
+  "normal_regression": {
+    "passed": 23,
+    "total": 23,
+    "seconds": 112.59,
+    "ctest_log_sha256": "995e6071d850cb39fcdaa08fc1953d8af2a43659edbfd056ad334ace11f3882c",
+    "source": "independently hash-checked local separate regression logs and freeze pin",
+    "sanitizer_rerun": false,
+    "current69": false
+  },
+  "boundaries": [
+    "Prior four-client daily run remains bound to before Qt3f171e...; this focused scope alone validates new Qt370a... targeted flow",
+    "Not complete keyboard/Orca/menu accessibility PASS: public tree suppresses traversal exceptions and includes stale hidden-page descendants reporting showing=true; selected parent + exact path + PNG support only these actual targets",
+    "No all-DPI/page-state matrix, TUI-width/height/SSH recovery matrix, general Unicode IME matrix, current full10-dimension scoring or full campaign PASS",
+    "No runtime SDK group/message injection, no second Qt or TUI launched in focused scope",
+    "No cancellation/reselection or 4plus member confirmation matrix in this scope"
+  ],
+  "archive_independent_check": {
+    "proof_sha256": "df13162f8a9e19a5186717ca4c4952b31b3d8e1536f6ccb039c42b8c8948fecb",
+    "records": 57,
+    "run_records": 54,
+    "driver_records": 3,
+    "stored_and_decompressed_sha_and_byte_differences": [],
+    "run_original_byte_differences": [],
+    "original_regular_files_excluded": ["cache/mesa_shader_cache/index", "runtime/dconf/user"],
+    "root_review_sha256": "6a9aca41c0390ab7ca6fc082097eedb5aba48bf6bc71148353b49a2d5c751938"
+  },
+  "regular_sha256": {
+    "wezterm.lua": "cb4b6b5f40587b9e5800e9d3689d3905adb4071b5b751c74b254fc2301779ce9",
+    "010-created-confirmed.png": "b1f4e1ebdd35204cecb5eab5cc732c166b20931f48af34e454ea818aeb1a9b2f",
+    "000-compact-login-A-A.tree.json": "3952a2baddae770295a22bcf271ee287b92abefcebe868d5cd8bdd683f586606",
+    "007-previous-keeps-three.png": "a6c4d493e251c851009d5cfa5038284ed4253c510b5e35551870793328c817ea",
+    "009-created-group.png": "b1f4e1ebdd35204cecb5eab5cc732c166b20931f48af34e454ea818aeb1a9b2f",
+    "008-return-keeps-three.png": "0aafa721aac2eb2c23ae556811a0c7cf80126b4965bb81f60a890e428c100c2d",
+    "seed-accepted-contacts.json": "f872ac2eca9db69891b12113359b83a92abe58ea5d40a1912cc84fefaf5a5907",
+    "011-handoff-A.maps": "01b81ae91a2ccd12517f59d7da0fa492e9e4a101ca670bc2f17f3781e7441330",
+    "008-return-keeps-three-A.tree.json": "6d713174a649452ac1b7766ffb16543a7ef7aec526c6d8ac4446e03ebaf2c4e8",
+    "005-three-naming.png": "a169f165b2796723bd43a4d7a5efc6983d0bd93e0fdb0854079b9895dfb8d885",
+    "001-login-A.tree.json": "6dad3a6e43d87ec3b36d743970148bc82f544f076f06e9eb932439409049ad70",
+    "002-group-actions-A.maps": "e2703449bce567c21e3cafb4a3c8ed4cc09e77ab0002e4c602aa0c037b70922c",
+    "000-compact-login-A.png": "82f0686d116f180b5c603e4dd9c1c88c31c7da92244fb07ae1d3c7b2e332bcd1",
+    "sdk-closed-before-login.json": "b386e703b96537f2dd3ac191e43fd0a1fdc54ee50ad34d4b8821fde5788230a7",
+    "009-created-group-A.maps": "01b81ae91a2ccd12517f59d7da0fa492e9e4a101ca670bc2f17f3781e7441330",
+    "003-group-picker-A.maps": "21c4ec4137f787fa35cf87c8c3ea7192f61041b796c78ce9e8e77f1a42f9d780",
+    "operations.json": "d10ac8ccfe28d12bccdfc64f710fa40507760fbc470192a6013eb58707ae8339",
+    "002-group-actions-A.tree.json": "6dad3a6e43d87ec3b36d743970148bc82f544f076f06e9eb932439409049ad70",
+    "sdk-prelogin.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "server.log": "60954f40199b132352c6cddab6bb50c1007c92870ba6a872f05230c63231321f",
+    "clipboard.log": "8cf2496ea1769f9fe99030933340d2192f85e0759184f231bd392f11fd7cb41d",
+    "005-three-naming-A.tree.json": "6d713174a649452ac1b7766ffb16543a7ef7aec526c6d8ac4446e03ebaf2c4e8",
+    "004-three-selected.png": "3ca811b947274d5fbe4b1ba23e77e90b29d2e533a540d1b16ef994056637e4e3",
+    "activation.log": "dcbee1b03202fdacd0d6380273e8aa33e9ff189201b3e1ab4af32a3ba70b593e",
+    "000-compact-login-A-A.maps": "b0f5e0b5f18e397b4687ddbaf04999359fc607589a81cdf10c4e8d45eae30459",
+    "010-created-confirmed-A.tree.json": "12d21d86ff5a27319098672b77e3cda6a228f48baa4b08da7ec5d44c0a82d9b4",
+    "004-three-selected-A.maps": "eb17b12e7c54ca43125e23017c8c3ce67b9842ba63210f37ce6c74e723fe16f9",
+    "tui-image.png": "6e97059bfeb9461e2c4d90c6b8dc4af7f9417ad4beefc48ddab905a536bc961b",
+    "001-login.png": "79474f112b1aef21624f8b5c2afc627bc9125401c22307e5b2fd447c52c2cfec",
+    "011-handoff-A.tree.json": "12d21d86ff5a27319098672b77e3cda6a228f48baa4b08da7ec5d44c0a82d9b4",
+    "010-created-confirmed-A.maps": "01b81ae91a2ccd12517f59d7da0fa492e9e4a101ca670bc2f17f3781e7441330",
+    "005-three-naming-A.maps": "d550e02cc3c30e7e3a9ad341a33ed600ed0558f44b7334aa8e65c8889eb1ee48",
+    "001-login-A.maps": "526a3fca360483260b8f972680a8010b21a38b1259f2331afe7978b56e2e3892",
+    "qt-text.txt": "feb84f57a7dbc074e72b51eded3cf8cbaeafb522adbc8359d52941dacbc2eb94",
+    "006-three-naming-keyboard.png": "649e37d43f9fbeafdfd684582ea58028b00a95e69ac4b572dcc8ba3fefe51fc9",
+    "006-three-naming-keyboard-A.tree.json": "6d713174a649452ac1b7766ffb16543a7ef7aec526c6d8ac4446e03ebaf2c4e8",
+    "006-three-naming-keyboard-A.maps": "7f2598ed6d9d13e690bff639d935157d258b1ad00c06703f3d67bd202bcf15e8",
+    "manifest.json": "c5bbbe34e5c2e26733430a187c165f2979bb9b5fb972ae26337efd21e792f771",
+    "tmux.conf": "4377c1b796857515944f843cff0ab182bc5151acf33234af63be140bdb6e05fa",
+    "qt-A.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "003-group-picker.png": "522ec2330e3428565cfb98546bbca9f6842fe2385e5eabfa0f8191ffedcff880",
+    "xvfb.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cleanup.json": "f3d9596a26056844b0fb6c20d61016534b2e5bc1ad56b0e8bd32c5a894b33adc",
+    "002-group-actions.png": "d6134a4e2eb014fd808507825c59fef454f7fdabf926fcf951ff38fe7ef5d670",
+    "008-return-keeps-three-A.maps": "d4529928c2013f2f1aedf11dc47f2cb0cf9fc930036d24f0bee42c8c728a9348",
+    "freeze.json": "241d9f6e7835c9c88d86fa8bfada5b42710e489ae1c12b0ee80ca73a00f17cb7",
+    "captures.json": "1d5baa2fa9b751679b48b361b9604fcc5e4ae9e0e3fd0ad457df276785c0efb4",
+    "007-previous-keeps-three-A.maps": "d4529928c2013f2f1aedf11dc47f2cb0cf9fc930036d24f0bee42c8c728a9348",
+    "009-created-group-A.tree.json": "12d21d86ff5a27319098672b77e3cda6a228f48baa4b08da7ec5d44c0a82d9b4",
+    "004-three-selected-A.tree.json": "6edac7d85f0b6ac299e41b4885c4b767aa905d275915222dc3c97fa1ba6a820c",
+    "runtime/dconf/user": "96a296d224f285c67bee93c30f8a309157f0daa35dc5b87e410b78630a09cfc7",
+    "cache/mesa_shader_cache/index": "6d0552c4e71fe85e6cdc7e7745882ea91b382fbc56448f2e9e1c2d77dcf67d81",
+    "007-previous-keeps-three-A.tree.json": "31f11cde71f8b2ea0a6a5ae0cfd5be8f7c52d4743969338688456daafe189ab0",
+    "011-handoff.png": "b1f4e1ebdd35204cecb5eab5cc732c166b20931f48af34e454ea818aeb1a9b2f",
+    "dbus.stderr": "060d812a7316177c7b8efc4f433145b297841e78ecb539f0056085635fd40a55",
+    "003-group-picker-A.tree.json": "bf1357fe859de7f6e9851de2e321845ef8e95f07d7ed419f2d950e188f206251"
+  }
+}

@@ -2044,7 +2044,7 @@ void chat_widget::create_group()
         selected->setVisible(!names.empty());
         selected->setFixedHeight(names.size() <= 2 ? 40 : 76);
         summary->setText(QStringLiteral("已选 %1 位好友").arg(names.size()));
-        member_list->setMaximumHeight(std::clamp(static_cast<int>(names.size()) * 44 + 4, 48, 180));
+        member_list->setFixedHeight(std::clamp(static_cast<int>(names.size()) * 44 + 4, 48, 136));
         proceed->setEnabled(!names.empty() && (steps->currentIndex() == 0 ||
             chat::valid_group_title(title->text().toUtf8().toStdString())));
     };

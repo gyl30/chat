@@ -1,0 +1,38 @@
+{
+  "verdict": "PASS for the scoped three-member group confirmation fix; not full product campaign PASS",
+  "actual_executor_exit": 0,
+  "qt_binary_sha256": "370a68ae9448916c86e3085f1a459e9b1ea0f2d292cf18113c842de96a1b24a4",
+  "source_manifest_sha256": "f9117596a0bce255529041b0989845a1efc4b6e0bb8a353c4a076f5068c43dc8",
+  "driver_sha256": "9e40014c3bd9c2f572dde5012e84f22a35d31a1a7413e20124b8fb1f7b89cf93",
+  "archive_sha256": "df13162f8a9e19a5186717ca4c4952b31b3d8e1536f6ccb039c42b8c8948fecb",
+  "actual_client": {"pid": 2005711, "ticks": "555725213", "mode": "xcb at scale1 and font DPI96"},
+  "native_input": "Actual XTest mouse, Space, Tab, clipboard paste, Previous/Next and Create; no runtime SDK or SQL writes",
+  "captures": 12,
+  "successful_operation_records": 28,
+  "operation_failure_captures": 0,
+  "personally_viewed_original_whole_png": [
+    "002-group-actions.png",
+    "005-three-naming.png",
+    "006-three-naming-keyboard.png",
+    "007-previous-keeps-three.png",
+    "008-return-keeps-three.png",
+    "010-created-confirmed.png"
+  ],
+  "criteria": {
+    "three_chosen_rows_visible": true,
+    "all_rows_inside_136_pixel_viewport": true,
+    "keyboard_focus_outline_complete": true,
+    "previous_keeps_all_three_checks": true,
+    "return_keeps_exact_combining_and_emoji_title": true,
+    "new_group_created_by_real_UI": true,
+    "readonly_group_owner_members": "3:1:1,3,4,6"
+  },
+  "cleanup": {"owned_gone": true, "observed_descendants_gone": true, "protected_unchanged": true, "errors": [], "database_final_remaining": 0},
+  "limits": [
+    "One native DPI, three selected members; 1/20 cases belong to permanent regression, not this native run",
+    "AT-SPI traversal silently skips some failures; no assertion of complete accessibility or zero read errors",
+    "Historical four-client run used old Qt binary and is not evidence of new Qt complete daily workflow",
+    "No ASan/UBSan run this stage; deferred until final validation",
+    "No new full-product score or two consecutive complete fresh reviews"
+  ]
+}

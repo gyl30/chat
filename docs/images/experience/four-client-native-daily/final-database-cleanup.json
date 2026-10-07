@@ -1,0 +1,14 @@
+{
+  "database_names": [
+    "chat_daily_cd819013592c63ca",
+    "chat_daily_9e8edede0872beed",
+    "chat_daily_99eaca3f3faab159"
+  ],
+  "pre_delete_activity": "All three exact own databases existed with zero pg_stat_activity connections",
+  "dropdb_actual_exit": 0,
+  "post_delete_matching_pg_database_count": 0,
+  "port_18961_listeners": 0,
+  "protected_post_delete_ticks": {"2876288": "521400965", "3225": "17583", "29935": "248258"},
+  "original_cleanup_files": "Retained without rewriting their historical database_retained=true result",
+  "user_database_or_dependency_deleted": false
+}

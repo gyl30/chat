@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-07",
+  "remote_scope": "gyl@172.20.45.187:/tmp/chat-daily-native-run-second.n2rUp1SW",
+  "scope": "Read-only copy and visual review; no product/client/business/sanitizer execution, source edit, font installation or global font-file search.",
+  "whole_original_images_personally_viewed": [
+    {"path": "002-login.png", "pixels": [2400, 1600], "sha256": "b0c16ff6921316ba3fd5e9ea5754b5d94960ff06896d0f4662352103b9cd7eb4"},
+    {"path": "004-incoming-D.png", "pixels": [2400, 1600], "sha256": "be18e33cebe67b42199d6875f49f500e8ad008e2f5918873fc4c588320dac6fd"}
+  ],
+  "observations": {
+    "002_B": "Chinese characters in title history-name, conversation initials/names and connected footer are hollow missing-glyph boxes in actual original pixels. ASCII, borders and layout are legible.",
+    "002_C": "Chinese friend-name, group initial/name and connected footer are already normal in the same whole screenshot.",
+    "004_B": "Same B process shows normal Chinese title history-name, Contacts observer-name and connected footer after actual Contacts navigation/redraw.",
+    "004_C": "Same C process remains normal and on the same Chats page.",
+    "not_only_a_tool_resize_artifact": true
+  },
+  "stable_identity_and_terminal": {
+    "B": {"pid": 1879328, "tick": "555425068", "exe": "/home/gyl/example/chat/build/chat_tui", "sha256": "1ecdf579af21099c08210e0d14b5383cef97342fc0a5ae0540f8877dac030350", "tty": "/dev/pts/22", "rows_columns": [40, 120]},
+    "C": {"pid": 1879422, "tick": "555425120", "exe": "/home/gyl/example/chat/build/chat_tui", "sha256": "1ecdf579af21099c08210e0d14b5383cef97342fc0a5ae0540f8877dac030350", "tty": "/dev/pts/24", "rows_columns": [40, 120]},
+    "evidence": "Both selected captures in captures.json record these same full original process identities and terminal sizes."
+  },
+  "text_vs_pixel_evidence": {
+    "002-login-B.txt_sha256": "7f1e6c8a848d1e4a0b538d03112fdeeabaac86f42c5873463a63bc90918f84e7",
+    "002-login-B.ansi_sha256": "83e41598beeaf8aad274f353ff0a06918be257e8d7f0950ccfe4462e8590f485",
+    "004-incoming-D-B.txt_sha256": "79a62af4e54f72c5b8d27574346b58bafb82009474885e43a25f7e8342d2236c",
+    "004-incoming-D-B.ansi_sha256": "a8ca699a26d0cb9bea1ce7910b8a439a3be8ff8a26cc43c2ee9bd5e6df39765f",
+    "B_first_three_plain_lines_both_sha256": "5c1f38e4f25f928bce88e48e67243309a18902620a58184f22d94df4c207d8b8",
+    "B_first_three_ANSI_lines_both_sha256": "d62840e816391bc08611328aeaa7fef5ab041bf3e0e897bc89a7edc54a6f2aa8",
+    "first_three_lines_result": "Same Chinese history-name Unicode and ANSI styles, different physical glyph pixels. Initial terminal capture contains correct history/navigation/connected Chinese, not replacement square characters.",
+    "C_whole_plain_cmp_exit": 0,
+    "C_whole_ANSI_cmp_exit": 0
+  },
+  "terminal_environment": {
+    "wezterm.lua_sha256": "cb4b6b5f40587b9e5800e9d3689d3905adb4071b5b751c74b254fc2301779ce9",
+    "config": "Software frontend, X11, Unicode version9, 120x40, 12pt/96DPI, fallback DejaVu Sans Mono -> Lily Han Sans HW SC -> Noto Color Emoji, no tab/scroll bar or padding.",
+    "fc_match_observed": "LilyHanSans.otc: Lily Han Sans HW SC / Regular",
+    "wezterm-B.log_sha256": "830f019e2fc7553a421b1086588b1bb5051389a73ba468a69a0444f13e1d17b1",
+    "log": "Only WARN unhandled SetDecPrivateMode 2031 and unknown CSI ?996n at16:27:22.067; no recorded font-load error.",
+    "limits": "fc-match proves the requested family resolves in fontconfig, not exactly which font/glyph WezTerm actually used for the first B frame. Extension warnings alone do not prove the glyph problem."
+  },
+  "classification": {
+    "product_bug_proven": false,
+    "leading_inference": "WezTerm fallback/glyph cache and frame/repaint timing interaction is more consistent with unchanged correct text/styles and normal later pixels than corrupt TUI Unicode output.",
+    "cannot_determine": ["Whether the first capture was merely too early", "Whether delayed font fallback or terminal glyph atlas invalidation caused the recovery", "Whether TUI/FTXUI damage optimization and terminal repaint interact", "Whether the initial failure is reproducible under another unchanged native run"],
+    "safe_followup_if_authorized": "Retain the anomalous first frame. Sample an unchanged page after visual settling before any navigation, compare whole PNG and contemporaneous same Unicode/ANSI output, then compare the normal user-navigation redraw; do not force product repaint or change dependencies merely to hide the evidence."
+  },
+  "a11y_boundary": {
+    "observed": "Known Daily nodes traversal has catch-and-ignore paths for geometry/text/child/node/application exceptions; this selected runtime scope exposes no *a11y* error log.",
+    "must_not_claim": "No .a11y error file or clean-looking saved tree does not establish zero read errors. Visible-parent-list plus path selectors can support the actual selected target, not certify complete error-free AT-SPI traversal.",
+    "note": "No menu accessibility or speech correctness claim is derived from these screenshots."
+  }
+}

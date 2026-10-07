@@ -1,0 +1,21 @@
+{
+  "scope": "Normal regression after group confirmation height fix, not the historical four-client daily run",
+  "base_head": "c86b0936b2dbeb82ff3730e9225baf1d9e4614fa",
+  "changed_compile_inputs": ["qt/src/chat_widget.cpp", "qt/tests/ui_test.cpp"],
+  "qt_binary_sha256": "370a68ae9448916c86e3085f1a459e9b1ea0f2d292cf18113c842de96a1b24a4",
+  "build": {"command": "cmake --build build -j12", "actual_exit": 0, "log_sha256": "90ab9f5792375e0f4defa20c7611f8e7e328040195febdb76311a857b5174a31"},
+  "widgets_only": {"actual_exit": 0, "log_sha256": "d869c675d2c6d7f0a5aa630eaa375d3b03a709ac36ef8a9c7ec11f0bd90515d6"},
+  "normal_ctest": {
+    "actual_exit": 0,
+    "passed": 23,
+    "total": 23,
+    "total_seconds": 112.59,
+    "qt_ui_seconds": 45.75,
+    "qt_delegate_seconds": 8.08,
+    "timeouts_changed": false,
+    "log_sha256": "995e6071d850cb39fcdaa08fc1953d8af2a43659edbfd056ad334ace11f3882c"
+  },
+  "configuration": {"build_type": "Debug", "qt": true, "tui": true, "actual_qt_flags": "-g -std=c++26 -Wall -Wextra -Wpedantic -fPIC -Werror"},
+  "sanitizer": {"executed_this_stage": false, "policy": "ASan and UBSan deferred to the final validation per user instruction"},
+  "full_campaign_pass": false
+}

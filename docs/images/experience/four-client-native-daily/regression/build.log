@@ -1,0 +1,47 @@
+[  2%] Built target wslay
+[  2%] Built target utf8proc
+[  2%] Built target chat_migration_test
+[  3%] Built target chat_online_users_test
+[  4%] Built target chat_avatar_image_test
+[  4%] Built target chat_tui_inbox_test
+[  5%] Built target chat_tui_file_test
+[  8%] Built target boost_capy
+[  8%] Built target simdjson
+[ 11%] Built target screen
+[ 13%] Built target chat_simdjson_reflection_test
+[ 20%] Built target boost_corosio
+[ 20%] Built target chat_corosio_timeout_test
+[ 21%] Built target chat_db_test
+[ 34%] Built target dom
+[ 54%] Built target boost_http
+[ 54%] Built target chat_tui_span_test
+[ 55%] Built target chat_bcrypt_test
+[ 56%] Built target chat_websocket_test
+[ 57%] Built target chat_http_test
+[ 58%] Built target chat_client
+[ 58%] Built target chat_qt_widgets_autogen_timestamp_deps
+[ 59%] Built target chat_tui_state
+[ 60%] Built target chat_client_test
+[ 60%] Built target chat_tui_state_test
+[ 68%] Built target component
+[ 69%] Built target chat_tui_core
+[ 70%] Built target chat_tui_ui
+[ 70%] Built target chat_tui_unicode_test
+[ 70%] Built target chat_tui_display_test
+[ 80%] Built target chat_server
+[ 81%] Built target chat_tui_render_test
+[ 81%] Built target chat_tui
+[ 91%] Built target chat_server_test
+[ 91%] Automatic MOC for target chat_qt_widgets
+[ 91%] Built target chat_qt_widgets_autogen
+[ 92%] Building CXX object qt/CMakeFiles/chat_qt_widgets.dir/src/chat_widget.cpp.o
+[ 97%] Built target chat_qt_widgets
+[ 98%] Linking CXX executable chat_qt
+[100%] Linking CXX executable chat_qt_models_test
+[100%] Linking CXX executable chat_qt_delegate_test
+[100%] Building CXX object qt/CMakeFiles/chat_qt_ui_test.dir/tests/ui_test.cpp.o
+[100%] Built target chat_qt
+[100%] Built target chat_qt_models_test
+[100%] Built target chat_qt_delegate_test
+[100%] Linking CXX executable chat_qt_ui_test
+[100%] Built target chat_qt_ui_test
