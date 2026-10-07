@@ -1,0 +1,33 @@
+{
+  "tui": {
+    "pid": 2811280,
+    "ticks": "556250067",
+    "exe": "/home/gyl/example/chat/build/chat_tui",
+    "sha": "1ecdf579af21099c08210e0d14b5383cef97342fc0a5ae0540f8877dac030350",
+    "cmd_sha": "62e4ea915584fa58198432f989331e7cc95351f97217bb4df17eaf0899012baa"
+  },
+  "tmux": {
+    "pid": 2811279,
+    "ticks": "556250065",
+    "exe": "/usr/bin/tmux",
+    "sha": "baa7e6be444a751339bb52de4006fb192187d40b9d17548a9fcb60c8ed7ad495",
+    "cmd_sha": "265b501f85c70d5277dd69cccf1257e3b58fb87faa3bdf172dbb80c46c0a1ece"
+  },
+  "wezterm": {
+    "pid": 2811285,
+    "ticks": "556250067",
+    "exe": "/usr/bin/wezterm-gui",
+    "sha": "939a3936a6594c417b95648e9ff001d277abd5b021a28179ca4b36c014deae29",
+    "cmd_sha": "94c7e408d4d88aa682285e8397ad164f5ff1e68171205a3040cd6d192fb5e893"
+  },
+  "sdk_pid": 2810231,
+  "sdk_exit": 0,
+  "server": {
+    "pid": 2810230,
+    "ticks": "556249545",
+    "exe": "/home/gyl/example/chat/build/chat_server",
+    "sha": "f2c9288cbc32817183e399e72a4a3af8e45adfdfbd54435af43aae86da36bf5b",
+    "cmd_sha": "e0a3411155071db2fdda9544126b4a1c19fe74ed5ba7cf24a8641d863ef9d566"
+  },
+  "authenticated_monotonic": 5562431.046353981
+}

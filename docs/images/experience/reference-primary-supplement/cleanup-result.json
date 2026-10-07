@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-07",
+  "scope": "reference research own tmp only",
+  "archive_verification": {
+    "records_verified": 21,
+    "mismatches": [],
+    "archive_regular_file_count": 22,
+    "partial_present": false,
+    "manifest_sha256": "1a96b8a3fdea2ac4c026004245e27e5a6f19115999e18a7656fa8aae66585b4c"
+  },
+  "remote_cleanup": {
+    "host": "gyl@172.20.45.187",
+    "exact_path": "/tmp/chat-reference-primary.eEMedP9a",
+    "precheck": {
+      "type": "directory",
+      "owner": "gyl:gyl",
+      "canonical_path": "/tmp/chat-reference-primary.eEMedP9a",
+      "regular_file_count": 13,
+      "complete_records_already_preserved_locally": 12,
+      "partial_excluded_count": 1
+    },
+    "command": "find /tmp/chat-reference-primary.eEMedP9a -mindepth 1 -maxdepth 1 -type f -delete && rmdir /tmp/chat-reference-primary.eEMedP9a && if test ! -e /tmp/chat-reference-primary.eEMedP9a; then printf \"remote_exact_scope_absent\\n\"; else exit 1; fi",
+    "actual_ssh_exit_code": 0,
+    "actual_stdout": "remote_exact_scope_absent\n",
+    "exact_scope_absent": true,
+    "removed": "12 complete duplicate reference files and 1 excluded partial download, then empty directory",
+    "recoverable_complete_bytes": "all 12 complete remote records retained in local archive",
+    "partial_recoverable": false
+  },
+  "local_cleanup": {
+    "examined_exact_dir": "/tmp/chat-reference-primary.YOcY4oLY",
+    "partial_download_present": false,
+    "deleted_count": 0,
+    "original_complete_21_records_retained": true
+  },
+  "product_process_started": false,
+  "product_process_stopped": false,
+  "repo_modified": false,
+  "sanitizer_run": false
+}

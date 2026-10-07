@@ -1,0 +1,16 @@
+{
+  "database": "chat_matrix_regression_8eefec29fe635c0d",
+  "fresh_database": true,
+  "fresh_build_configuration": false,
+  "normal_build_exit": 0,
+  "previous_missing_pg_environment_ctest_exit": 8,
+  "sanitizers_run": false,
+  "timeouts_changed": false,
+  "ctest_actual_exit": 0,
+  "seconds": 114.08786411676556,
+  "ctest_log_sha256": "03fde64bd37118cc01898afd2c488f6008226ee929b872cf97c27936b283d339",
+  "connections_before_drop": 0,
+  "dropdb_actual_exit": 0,
+  "database_remaining": 0,
+  "protected_ticks_unchanged": true
+}

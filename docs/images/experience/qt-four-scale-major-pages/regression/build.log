@@ -1,0 +1,40 @@
+[  2%] Built target chat_tui_inbox_test
+[  2%] Built target chat_migration_test
+[  2%] Built target chat_online_users_test
+[  2%] Built target utf8proc
+[  2%] Built target chat_avatar_image_test
+[  4%] Built target wslay
+[  5%] Built target chat_tui_file_test
+[  8%] Built target boost_capy
+[  8%] Built target simdjson
+[ 11%] Built target screen
+[ 13%] Built target chat_simdjson_reflection_test
+[ 20%] Built target boost_corosio
+[ 21%] Built target chat_corosio_timeout_test
+[ 21%] Built target chat_db_test
+[ 34%] Built target dom
+[ 54%] Built target boost_http
+[ 54%] Built target chat_tui_span_test
+[ 55%] Built target chat_bcrypt_test
+[ 56%] Built target chat_http_test
+[ 57%] Built target chat_websocket_test
+[ 58%] Built target chat_client
+[ 66%] Built target component
+[ 66%] Built target chat_qt_widgets_autogen_timestamp_deps
+[ 67%] Built target chat_tui_state
+[ 68%] Built target chat_client_test
+[ 68%] Built target chat_tui_unicode_test
+[ 68%] Built target chat_tui_display_test
+[ 68%] Built target chat_tui_state_test
+[ 69%] Built target chat_tui_core
+[ 79%] Built target chat_server
+[ 80%] Built target chat_tui_ui
+[ 81%] Built target chat_tui
+[ 81%] Built target chat_tui_render_test
+[ 91%] Built target chat_server_test
+[ 91%] Built target chat_qt_widgets_autogen
+[ 97%] Built target chat_qt_widgets
+[ 98%] Built target chat_qt
+[100%] Built target chat_qt_delegate_test
+[100%] Built target chat_qt_models_test
+[100%] Built target chat_qt_ui_test

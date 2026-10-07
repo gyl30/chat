@@ -1,0 +1,129 @@
+{
+  "status": "ACTUAL_OBSERVATIONS_REVIEWED_NOT_GENERAL_PRODUCT_PASS",
+  "reviewed_date": "2026-10-07",
+  "remote_scope": "/tmp/chat-tui-glyph-run-MLJIqD",
+  "remote_driver_scope": "/tmp/chat-tui-glyph-probe-prep.MLJIqD",
+  "local_review_scope": "/tmp/chat-tui-glyph-result.BciTfcTb",
+  "head": "7375815f70e3d9d6f456c3d9a0d173411800f294",
+  "source_inputs_count": 206,
+  "source206_sha256": "65e5443755a5444399fc4e5489066d80e9fb82670ce173e342e92bf5073c8f85",
+  "source_freeze_sha256": "7cc82f5ec81f4ac059c12f73749ed62fe118e499f0d4978a1aee0905a8e5d511",
+  "formal_tui_sha256": "1ecdf579af21099c08210e0d14b5383cef97342fc0a5ae0540f8877dac030350",
+  "formal_server_sha256": "f2c9288cbc32817183e399e72a4a3af8e45adfdfbd54435af43aae86da36bf5b",
+  "driver_sha256": "d3125fba418c09cb6ae476e7ae00b96bd9d9dd5c76adca6db7fe6f9685cd08f4",
+  "launcher_sha256": "a2c626401a1f2468bff8f227a05ed97f926d8956809e7940720ca009a88ec6eb",
+  "adapted_base_sha256": "b020b77cdae3e88a1124c8f473ba427041f9a3ace85a4b1149a614e639796ddf",
+  "original_committed_base_sha256": "a3830c73a5441b72bf1702b3611415f843466f55b56abd2c21554591bde0cc48",
+  "preexecution_review": "Full driver and reused base read before execution; exact driver SHA supplied to launcher and checked by driver.",
+  "fd_adaptation_contract": {
+    "change": "Only seed reply reading switched from text-wrapper readline after select to raw FD newline buffering.",
+    "deadline_seconds": 15,
+    "deadline_implementation": "monotonic()+15; each selector wait only remaining time; reads retain bytes after first newline for next reply.",
+    "seed_checks_preserved": ["matching reply id", "reply ok", "configure", "seed_navigation", "close", "helper.wait(timeout=15)==0", "SDK PID absent before first native login"]
+  },
+  "actual_exit": 0,
+  "actual_log_sha256": "95788dff4756dacf433c38cfbab1cf3d154732dc509eb318a1404ebde9188a73",
+  "actual_exit_file_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "identities": {
+    "tui_pid": 2811280,
+    "tui_start_tick": "556250067",
+    "tty": "/dev/pts/21",
+    "rows": 40,
+    "columns": 120,
+    "tmux_server_pid": 2811279,
+    "tmux_start_tick": "556250065",
+    "wezterm_gui_pid": 2811285,
+    "wezterm_gui_start_tick": "556250067",
+    "wezterm_gui_executable": "/usr/bin/wezterm-gui",
+    "wezterm_gui_sha256": "939a3936a6594c417b95648e9ff001d277abd5b021a28179ca4b36c014deae29",
+    "server_pid": 2810230,
+    "server_start_tick": "556249545",
+    "sdk_pid": 2810231,
+    "sdk_prelogin_actual_exit": 0,
+    "identity_file_sha256": "b0e20f59cb62082e43e6f9460d6e1e5bd98d45fb72acf7972cccb5d3d35b1356"
+  },
+  "native_constraints": {
+    "private_port": 18964,
+    "private_port_bind_checked_before_start": true,
+    "whole_png_dimensions": [2400, 1600],
+    "qt_client_launched": false,
+    "sdk_postlogin_business_calls": false,
+    "font_configuration_changed": false,
+    "forced_redraw": false,
+    "resize": false,
+    "input_during_first_five_samples": false,
+    "later_normal_input": ["c", "h"],
+    "production_edits_builds_sanitizers": false
+  },
+  "untouched_page_samples": [
+    {"png": "000-unchanged-0.png", "nominal_seconds": 0, "actual_before_seconds": 0.11423333641141653, "capture_monotonic_before": 5562431.160587317, "capture_monotonic_after": 5562431.428663135},
+    {"png": "001-unchanged-0p25.png", "nominal_seconds": 0.25, "actual_before_seconds": 0.38245894853025675, "capture_monotonic_before": 5562431.428812929, "capture_monotonic_after": 5562431.683757839},
+    {"png": "002-unchanged-1.png", "nominal_seconds": 1, "actual_before_seconds": 1.0003716377541423, "capture_monotonic_before": 5562432.046725619, "capture_monotonic_after": 5562432.271986934},
+    {"png": "003-unchanged-3.png", "nominal_seconds": 3, "actual_before_seconds": 3.0016623735427856, "capture_monotonic_before": 5562434.048016354, "capture_monotonic_after": 5562434.272508336},
+    {"png": "004-unchanged-5.png", "nominal_seconds": 5, "actual_before_seconds": 5.001739618368447, "capture_monotonic_before": 5562436.048093599, "capture_monotonic_after": 5562436.276224117}
+  ],
+  "same_bytes_for_first_five_and_normal_h": {
+    "png_sha256": "684bde9c557baafd917fa8706fd9680e477d3e7819a79bb27bf8c1c97875afe5",
+    "plain_sha256": "a22a98898fbcbf39a5518aa2a75e4edd212b9373879e4048de6a207be752d07e",
+    "ansi_sha256": "dad057839baa3390f6b3dea32745c02ca3055fd63b0b22c01f165c5acd92c6fb"
+  },
+  "normal_navigation_samples": [
+    {"png": "005-normal-c.png", "input_before_capture": "c", "actual_before_seconds": 5.240133576095104, "png_sha256": "eb3e8303d3d8faedc2060f5e1557c6ff10fa24c0e9c3fc0c0413c429a7b5c93d", "plain_sha256": "b19d12bd6b81961341a9622c9dd1157398da07a378361e7941984ff77563d6ba", "ansi_sha256": "edb07a762639a9804bda41ae6020a18352ca85ca18c31010507b79bdae80f260"},
+    {"png": "006-normal-h.png", "input_before_capture": "h", "actual_before_seconds": 5.519790436141193, "byte_identity": "same as untouched page PNG, plain and ANSI"}
+  ],
+  "raw_capture_caption_correction": "captures.json uses the generic no-input capture note also on normal-c/h; those two had ordinary c/h input immediately before capture, as recorded by driver/main and this review. Original captions are preserved, not silently rewritten.",
+  "captures_file_sha256": "0cc790627db8f4fba4bb99299640e71d867061b375c4993d7c4af81344c7e6a7",
+  "actual_pixel_review": {
+    "method": "Both distinct whole-PNG contents personally viewed with view_image detail original, not solely tool thumbnails. All five untouched frames and normal-h hash-identical, so share exactly the reviewed first-frame pixels.",
+    "directly_viewed": ["000-unchanged-0.png", "005-normal-c.png"],
+    "untouched_page": "Header 历史, chat entries 导/导航/导航测试群, and footer 已连接 have recognizable Chinese glyphs rather than hollow missing-glyph boxes.",
+    "contacts_page": "Header 历史, contact 观/观察 and footer 已连接 are recognizable Chinese glyphs.",
+    "result": "Historic attempt2 initial-B missing glyphs were not reproduced in this one-client sample. No visible waiting-time transition: all five untouched frames match exactly, and normal h returns the same pixels."
+  },
+  "font_evidence": {
+    "unchanged_wezterm_config_sha256": "cb4b6b5f40587b9e5800e9d3689d3905adb4071b5b751c74b254fc2301779ce9",
+    "config": "Software frontend; font_with_fallback DejaVu Sans Mono, Lily Han Sans HW SC, Noto Color Emoji; 12pt; 96dpi; Unicode9; 120x40.",
+    "actual_driver_fc_match": "1DejaVuSans.ttf: \"DejaVu Sans\" \"Book\"",
+    "readonly_default_environment_fc_match": "LilyHanSans.otc: \"Lily Han Sans HW SC\" \"Regular\"",
+    "readonly_owned_XDG_environment_fc_match": "1DejaVuSans.ttf: \"DejaVu Sans\" \"Book\"",
+    "readonly_contrast_command": "fc-match 'Lily Han Sans HW SC'; same command with XDG_CONFIG_HOME/XDG_CACHE_HOME/XDG_DATA_HOME/XDG_RUNTIME_DIR set to this run's config/cache/data/runtime directories.",
+    "interpretation_limit": "Default-shell fc-match cannot demonstrate the same match under native isolated XDG. Neither fc-match result identifies WezTerm's actual per-character fallback font; no font was installed or configuration changed for this probe.",
+    "wezterm_log_sha256": "2cf4886475ddfabe19cd55444d59c3ef46f3f84bb6126b209a70b6e6840432bf",
+    "wezterm_log_observation": "Only unhandled DecPrivateMode2031 and unknown CSI?996n warnings in the recorded log; absence of font warnings does not prove a correct font or explain the prior transient."
+  },
+  "cleanup": {
+    "authoritative_file": "final-cleanup.json",
+    "sha256": "31bb834c037865d0997a48a6393e41f6d4b6527020b85001b76121fb565b5fd3",
+    "database": "chat_daily_1d5bf52f642e947f266e15fb06d8cf0b",
+    "database_created_then_absent": true,
+    "port_closed": true,
+    "all_owned_processes_gone": true,
+    "tui_and_tmux_gone": true,
+    "activation_descendants_gone": true,
+    "protected_unchanged": true,
+    "source_unchanged": true,
+    "wrapper_errors": [],
+    "base_cleanup_errors": [],
+    "all_checks": true,
+    "owned_exits": {"server": 0, "sdk_prelogin": 0, "xvfb": 0, "dbus": 0, "wezterm_gui": -15},
+    "tui_exit_limit": "TUI is tmux-owned rather than a driver Popen; its PID absence is verified, but no independent TUI exit code was captured. Driver actual exit0 is not a claim of TUI exit0.",
+    "base_cleanup_caveat": "Inherited cleanup.json records the intermediate retained database before the wrapper's explicit drop; final-cleanup.json follows successful drop and readonly pg_database absence check. Both are kept."
+  },
+  "first_preflight_preserved": {
+    "remote_scope": "/tmp/chat-tui-glyph-probe-prep.7Tes1h",
+    "original_driver_sha256": "7a52f8338383e937c93c9ccebeb7be35215597f0ca08308fb096a9abb3ac6863",
+    "actual_exit": 1,
+    "reason": "Self-added PGHOST guard rejected original test environment which correctly uses libpq default local socket. Root authorized removing that irrelevant guard; no PGenv or production source changed.",
+    "no_runtime_or_database_created": true,
+    "logs": ["actual-driver.log", "actual-driver.exit"]
+  },
+  "historical_evidence_preserved": "Committed four-client-native-daily attempt2 002-login.png and 004-incoming-D.png remain unchanged; this fresh one-TUI sequence is supplementary and never substitutes its initial normal frame for the historical anomaly.",
+  "limits": [
+    "One fresh single-client run cannot establish absence of an intermittent or four-client concurrency-dependent glyph issue.",
+    "No anomalous initial frame in this run means waiting alone versus navigation redraw recovery was not tested on an actual missing-glyph state.",
+    "Current pixels and original valid ANSI do not prove whether the historical cause was terminal fallback/cache, asynchronous painting, capture timing or TUI repaint behavior.",
+    "No production defect or production fix is asserted; no sanitizer gate or complete daily-business acceptance is claimed.",
+    "This probe makes no AT-SPI tree-read success claim."
+  ],
+  "next_action": "Keep the historical anomaly plus this non-reproduction evidence. If a further diagnostic is needed, request a same four-client-concurrency reproduction with identical owned XDG and explicit per-process font/runtime evidence; do not alter production or force repaint merely to erase a candidate."
+}

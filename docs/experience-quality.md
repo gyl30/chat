@@ -4241,3 +4241,80 @@ PNG包含附件素材/保存文件，不是61次截图或61项视觉PASS；修�
 终端字体fallback/缓存与重绘时机交互，但尚未证明根因，不改生产强制重绘
 掩盖。原异常图与独立审查一起保留。AT-SPI遍历会吞局部异常，保存树不等于
 零读取错误或完整Orca验收；当前成功目标均限定实际可见页面和精确位置。
+
+## 阶段66：四级缩放主要页面与终端字形定向复验
+
+本轮基线`7375815f70e3d9d6f456c3d9a0d173411800f294`，main原先ahead3，
+未push。没有发现足以修改产品的高置信新问题；源码与四个运行二进制未改。
+冻结206项输入、Qt SDK/plugin及原进程身份，复验在172.20.45.187的Chat项目
+独立服务/数据库中执行，不将本地media_server工作区的既有修改混入本轮。
+
+100%/125%/150%/200%各一个正式Qt，四个独立seed scope各24张完整原截图、
+70份实际操作，合计96截图/280操作。登录前SDK只准备数据，断开并实际退出0；
+随后全部业务输入为XTest/系统剪贴板，AT-SPI仅读、SQL仅观察。各次Qt身份从
+登录到退出保持，截图SHA与运行记录匹配，公开树读取异常本次记录为0。
+
+覆盖紧凑登录、980×640聊天/联系人/新朋友、1920×1080新朋友窗口、用户搜索
+空输入及命中、群资料/四成员/一条待处理申请/管理、消息搜索空输入及命中、
+本人资料/退出取消、建群0→1勾选→命名→返回再进入、加入空输入及invalid
+文本后取消。真实Space勾选使Next启用；命名页保留精确`  页面矩阵 中文 é 🙂  `
+的两侧空格、组合字符与emoji。群及资料弹窗是标准尺寸，不冒称最小弹窗。
+invalid没有提交、创建没有提交，不把输入截图算错误反馈或建群业务通过。
+
+独立代理亲看四组全部96张完整图；主代理亲看重点整图，核全部身份、记录及
+哈希，完整阅读独立结论。所看状态未发现明确阻断级裁切/遮挡。菜单图实际
+有三项且键盘打开了正确窗口，但public tree没有menu/menu-item；树的多个
+背景focused标记也不能当唯一焦点/Orca完整通过。不要把observer errors=0
+替代屏幕阅读器通知、朗读与全键盘验收。
+
+此前四次不完整尝试保留：100%驱动错误后继续，虽exit0仍有7张失败截图且
+建群标签指向添加好友；125%首次剪贴板selection未就绪；125%-r2把logical
+坐标误当physical导致点击错位；200%首次私有端口EADDRINUSE，在DB/客户端
+创建前失败。后两者及剪贴板实际exit1，不能拼接为一次零失败运行。125%
+坐标通过真实xwininfo/树/截图定位，再按实际scale转换；所有成功run均采用
+fail-fast、显示祖先/有效rect/启用状态检查、原15秒时限，不放宽产品要求。
+
+[四级缩放原档](images/experience/qt-four-scale-major-pages/archive-proof.json)
+记录原654份文件，gzip还原差异0。142份PNG中7份是素材，不是截图；其中
+96成功路径截图、39不完整尝试截图分别保留。[主代理汇总](images/experience/qt-four-scale-major-pages/root-review.json)
+与reviews中的独立报告不覆盖原失败。后补regression/reviews另列清单，不把
+原654计数冒充全部归档数量。
+外部HTML和一份stderr原有空白/CRLF不删改，仅无损gzip；最终存储路径与原
+字节SHA另见[压缩映射](images/experience/qt-four-scale-major-pages/evidence-compression.json)。
+
+TUI偶发缺字框另作定向probe：正式WezTerm/tmux、120×40、同一TUI PID，
+前五次实际0.114/0.382/1.000/3.002/5.002秒无输入、无resize、无强制重绘，
+完整像素PNG、plain及ANSI各自哈希相同且中文正常。随后原生c进入联系人、
+h返回，原聊天PNG仍相同。7张整图、原始字节/身份/字体环境/独立复核见
+[字形原档](images/experience/tui-glyph-settling/source-map.json)。tmux中的TUI
+无独立退出码，不将驱动exit0说成TUIexit0。默认与独立XDG环境的fc-match
+不同，只证环境选择，不等于WezTerm逐字形实际字体。旧四端偶发缺字框本轮
+未复现，不能据单TUI静止实验关闭并发fallback/缓存/重绘候选，也不改产品
+加强制重绘掩盖。失败preflight与原截图caption边界保留在独立复核里。
+
+参考补查只增加有限官方材料，见[完整边界](images/experience/reference-primary-supplement/review.md)：
+微信4.0+升级帮助的加载/空间/权限3张局部原图、QQ登录错误原因文字、完整
+一页Awwwards Mobile Excellence PDF，以及twks/Ceramic Beats的官方提交
+静态图。QQ视频帧/装饰PNG与微信placeholder属于负面参考，不算真实桌面UI。
+Windows群通话选参与人不等于创建群/邀请，手机帮助不当Windows流程；版本
+配置不等于当前运行证据。当前QQ NT/微信Windows好友/建群/附件保存/断网
+恢复/reply/edit直接证据仍欠缺。8份成功响应无完整raw档，清单明确未保留；
+不把官方静态图外推成自己的交互通过或“精确QQ尺寸”。
+
+本轮正常增量构建exit0，Debug实际-g/C++26/-Wall/-Wextra/-Wpedantic/-Werror，
+没有fresh配置或RelWithDebInfo。第一次CTest未加载PG环境，6项数据库相关
+失败、actualexit8，原日志保留；不是产品故障。加载正确环境后，在另一个
+全新独立数据库上原CTest23/23、actualexit0、114.04秒，qt_ui46.98秒，
+qt_delegate8.14秒，原5/60秒时限未改。该库26项迁移完成，跑完0连接后
+drop成功、剩余0；不是覆盖第一次失败。[运行证据](images/experience/qt-four-scale-major-pages/regression/normal-regression-proof.json)
+同时保留两个环境结果。按用户要求不运行ASan/UBSan或原三模式verify。
+
+八次Qt尝试共创建七份数据库，全部精确drop后残留0；200首次未创建。TUI
+独立库及后补常规测试库也分别清理。原cleanup的retained历史状态不改写，
+另存最终删除记录。自有客户端/服务/激活后代均gone，私有端口无监听，原
+18080服务/fcitx5/speech-dispatcher身份不变；运行临时目录归档校验后移除。
+正常构建与Qt SDK不作为临时测试目录误删，third/server/client/SQL无修改。
+
+历史Qt87/TUI78不提高，尚未达到92分后的两轮完整fresh验收。本轮不能代替
+全页面全状态/四DPI/连续resize/IME/Orca、TUI六宽度与终端模式或完整四端
+日常组合；原生大列表/分页/全部文件选择错误/权限恢复等仍需单独真实验证。

@@ -1,0 +1,8 @@
+dbus-update-activation-environment: setting DISPLAY=:0
+dbus-update-activation-environment: setting XDG_RUNTIME_DIR=/tmp/chat-tui-glyph-run-MLJIqD/runtime
+dbus-update-activation-environment: setting XDG_CONFIG_HOME=/tmp/chat-tui-glyph-run-MLJIqD/config
+dbus-update-activation-environment: setting XDG_CACHE_HOME=/tmp/chat-tui-glyph-run-MLJIqD/cache
+dbus-update-activation-environment: setting XDG_DATA_HOME=/tmp/chat-tui-glyph-run-MLJIqD/data
+dbus-update-activation-environment: setting QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1
+dbus-update-activation-environment: setting QT_ACCESSIBILITY=1
+dbus-update-activation-environment: setting QT_QPA_PLATFORM=xcb

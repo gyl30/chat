@@ -1,0 +1,53 @@
+{
+  "prefix": "day_3943754ba3fa",
+  "url": "ws://127.0.0.1:18964/ws",
+  "actors": {
+    "A": {
+      "alias": "A",
+      "id": 1,
+      "username": "导航A_day_3943754ba3fa"
+    },
+    "B": {
+      "alias": "B",
+      "id": 2,
+      "username": "历史B_day_3943754ba3fa"
+    },
+    "C": {
+      "alias": "C",
+      "id": 3,
+      "username": "好友C_day_3943754ba3fa"
+    },
+    "D": {
+      "alias": "D",
+      "id": 4,
+      "username": "申请D_day_3943754ba3fa"
+    },
+    "E": {
+      "alias": "E",
+      "id": 5,
+      "username": "等待E_day_3943754ba3fa"
+    }
+  },
+  "sdk": [
+    {
+      "alias": "S005",
+      "id": 6,
+      "username": "观察S005_day_3943754ba3fa"
+    }
+  ],
+  "group": {
+    "id": 1,
+    "title": "导航测试群_day_3943754ba3fa"
+  },
+  "navigation": {
+    "readonly_conversation": 2,
+    "history_message": 1,
+    "history_marker": "readonly_history_day_3943754ba3fa",
+    "accepted": [
+      "C",
+      "S005"
+    ],
+    "incoming": "D",
+    "outgoing": "E"
+  }
+}

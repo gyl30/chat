@@ -1,0 +1,305 @@
+Internal ctest changing into directory: /home/gyl/example/chat/build
+Test project /home/gyl/example/chat/build
+      Start  1: migration
+ 1/23 Test  #1: migration ........................***Failed    0.00 sec
+FAIL migration: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: No such file or directory
+	Is the server running locally and accepting connections on that socket?
+
+
+      Start  2: client
+ 2/23 Test  #2: client ...........................   Passed    0.96 sec
+      Start  3: pg_connection
+ 3/23 Test  #3: pg_connection ....................***Failed    0.00 sec
+FAIL connect: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: No such file or directory
+	Is the server running locally and accepting connections on that socket?
+
+
+      Start  4: corosio_timeout
+ 4/23 Test  #4: corosio_timeout ..................   Passed    0.07 sec
+      Start  5: http_server
+ 5/23 Test  #5: http_server ......................   Passed    0.00 sec
+      Start  6: websocket
+ 6/23 Test  #6: websocket ........................   Passed    0.00 sec
+      Start  7: tui_integration
+ 7/23 Test  #7: tui_integration ..................***Failed    0.00 sec
+Fixture cleanup failed: no connection to the server
+
+FAIL TUI integration: TUI fixture database connection
+
+      Start  8: server
+ 8/23 Test  #8: server ...........................***Failed    0.00 sec
+FAIL authentication fixture connect: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: No such file or directory
+	Is the server running locally and accepting connections on that socket?
+
+
+      Start  9: friendship
+ 9/23 Test  #9: friendship .......................***Failed    0.26 sec
+Fixture cleanup failed: no connection to the server
+
+FAIL friendship: Register relationship fixture
+
+      Start 10: avatar_image
+10/23 Test #10: avatar_image .....................   Passed    0.00 sec
+      Start 11: simdjson_reflection
+11/23 Test #11: simdjson_reflection ..............   Passed    0.00 sec
+      Start 12: online_users
+12/23 Test #12: online_users .....................   Passed    0.00 sec
+      Start 13: bcrypt
+13/23 Test #13: bcrypt ...........................   Passed    0.01 sec
+      Start 14: tui_render
+14/23 Test #14: tui_render .......................   Passed    1.03 sec
+      Start 15: tui_unicode
+15/23 Test #15: tui_unicode ......................   Passed    0.03 sec
+      Start 16: tui_display
+16/23 Test #16: tui_display ......................   Passed    0.01 sec
+      Start 17: tui_span
+17/23 Test #17: tui_span .........................   Passed    0.00 sec
+      Start 18: tui_state
+18/23 Test #18: tui_state ........................   Passed    0.00 sec
+      Start 19: tui_inbox
+19/23 Test #19: tui_inbox ........................   Passed    0.00 sec
+      Start 20: tui_file
+20/23 Test #20: tui_file .........................   Passed    0.02 sec
+      Start 21: qt_models
+21/23 Test #21: qt_models ........................   Passed    0.01 sec
+      Start 22: qt_delegate
+22/23 Test #22: qt_delegate ......................   Passed    8.15 sec
+      Start 23: qt_ui
+23/23 Test #23: qt_ui ............................***Failed    7.44 sec
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+PASS Qt authentication hierarchy, keyboard focus and responsive settings
+PASS Qt friend request row rhythm and empty state
+PASS Qt group initial native row names and live role/status models without private stale rows
+PASS Qt exact group title drafts survive remote updates and become clean after successful save
+PASS Qt private group tabs remove and restore by authoritative role without stale count or duplicate pages
+PASS Qt group overview live member avatar and bounded details
+PASS Qt primary navigation, action menu, accepted contacts and pending history states
+PASS Qt profile identity hierarchy
+PASS Qt named confirmation actions and safe keyboard defaults
+PASS Qt message edit layout, keyboard and exact body semantics
+PASS Qt reply cancellation and read-member controls
+PASS Qt message action target identity, cancellation and conversation fencing
+PASS Qt message dialog keyboard, footer hierarchy and responsive image preview
+PASS Qt multiline composer, keyboard, bounded wrapping, offline and input method
+PASS Qt latest-message following and explicit history reading
+PASS Qt conversation draft ownership, closure and account isolation
+PASS Qt search results show actual Tab/Down focus and selected identity
+PASS Qt loaded search hits, live reconciliation, raw cursors, status, selection and captured copy
+FAIL Qt assertion: RPC failed
+FAIL Qt smoke: RPC failed
+
+
+74% tests passed, 6 tests failed out of 23
+
+Total Test time (real) =  18.02 sec
+
+The following tests FAILED:
+	  1 - migration (Failed)
+	  3 - pg_connection (Failed)
+	  7 - tui_integration (Failed)
+	  8 - server (Failed)
+	  9 - friendship (Failed)
+	 23 - qt_ui (Failed)
+Errors while running CTest

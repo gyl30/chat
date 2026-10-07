@@ -1,0 +1,2 @@
+Preflight failed: AssertionError: Explicit PG environment required
+{"status": "INCOMPLETE", "scope": "/tmp/chat-tui-glyph-run-7Tes1h", "exit": 1}

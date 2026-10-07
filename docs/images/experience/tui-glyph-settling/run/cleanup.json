@@ -1,0 +1,101 @@
+{
+  "status": "HANDOFF_NOT_PASS",
+  "owned": [
+    {
+      "name": "server",
+      "pid": 2810230,
+      "exit": 0,
+      "gone": true
+    },
+    {
+      "name": "sdk-prelogin",
+      "pid": 2810231,
+      "exit": 0,
+      "gone": true
+    },
+    {
+      "name": "xvfb",
+      "pid": 2811271,
+      "exit": 0,
+      "gone": true
+    },
+    {
+      "name": "dbus",
+      "pid": 2811274,
+      "exit": 0,
+      "gone": true
+    },
+    {
+      "name": "wezterm-B",
+      "pid": 2811285,
+      "exit": -15,
+      "gone": true
+    }
+  ],
+  "activation_descendants": [
+    {
+      "identity": {
+        "pid": 2811271,
+        "ticks": "556250059",
+        "exe": "/usr/bin/Xvfb",
+        "sha": "cf71d78eab8321f7c568271053af449f966a75422140117ea1f244bf72a7e81e",
+        "cmd_sha": "c66335600360ebd9740170b77e5dac14b1dc3046b2198f014848f526bae183e3"
+      },
+      "gone": true
+    },
+    {
+      "identity": {
+        "pid": 2811274,
+        "ticks": "556250062",
+        "exe": "/usr/bin/dbus-daemon",
+        "sha": "9e5cf3260e8b0d68a88732ebc4386970ff5977f4a9bcb9022a13ab905f832bbc",
+        "cmd_sha": "2548b4c00c01295e1951e246495735f5ee4a7bcf24724daa10885cb9fd8a02ee"
+      },
+      "gone": true
+    },
+    {
+      "identity": {
+        "pid": 2811285,
+        "ticks": "556250067",
+        "exe": "/usr/bin/wezterm-gui",
+        "sha": "939a3936a6594c417b95648e9ff001d277abd5b021a28179ca4b36c014deae29",
+        "cmd_sha": "94c7e408d4d88aa682285e8397ad164f5ff1e68171205a3040cd6d192fb5e893"
+      },
+      "gone": true
+    },
+    {
+      "identity": {
+        "pid": 2810230,
+        "ticks": "556249545",
+        "exe": "/home/gyl/example/chat/build/chat_server",
+        "sha": "f2c9288cbc32817183e399e72a4a3af8e45adfdfbd54435af43aae86da36bf5b",
+        "cmd_sha": "e0a3411155071db2fdda9544126b4a1c19fe74ed5ba7cf24a8641d863ef9d566"
+      },
+      "gone": true
+    },
+    {
+      "identity": {
+        "pid": 2811295,
+        "ticks": "556250069",
+        "exe": "/usr/bin/tmux",
+        "sha": "baa7e6be444a751339bb52de4006fb192187d40b9d17548a9fcb60c8ed7ad495",
+        "cmd_sha": "cc0e569ddfa95006c00e1b4dfa69b884ce212c85c3ebbf5519fe6a8b08f565c8"
+      },
+      "gone": true
+    }
+  ],
+  "tmux_server": {
+    "identity": {
+      "pid": 2811279,
+      "ticks": "556250065",
+      "exe": "/usr/bin/tmux",
+      "sha": "baa7e6be444a751339bb52de4006fb192187d40b9d17548a9fcb60c8ed7ad495",
+      "cmd_sha": "265b501f85c70d5277dd69cccf1257e3b58fb87faa3bdf172dbb80c46c0a1ece"
+    },
+    "gone": true
+  },
+  "database_retained": "chat_daily_1d5bf52f642e947f266e15fb06d8cf0b",
+  "database_present": true,
+  "protected_unchanged": true,
+  "errors": []
+}

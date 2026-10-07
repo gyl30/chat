@@ -1,0 +1,36 @@
+{
+  "base_head": "7375815f70e3d9d6f456c3d9a0d173411800f294",
+  "status": "BOUNDED_REVIEW_AND_NORMAL_REGRESSION_NOT_FULL_CAMPAIGN_PASS",
+  "original_archive_record_count": 654,
+  "original_archive_modified": false,
+  "supplemental_record_count": 14,
+  "normal_regression_actual_exit": 0,
+  "normal_tests_passed": 23,
+  "normal_test_seconds": 114.04,
+  "missing_pg_environment_attempt_actual_exit": 8,
+  "sanitizers_run": false,
+  "scores_increased": false,
+  "independent_whole_visual_reviews": 96,
+  "records": {
+    "reviews/other-archives-independent.json": "194d5201b7f1dd00407ea1230d606e6e7a7c6457083779d2bfa5ed464206fd3c",
+    "root-review.json": "b71ce2e1b32d4c07673866de0d159a3d1834693f4202d77447a07f12b28a367a",
+    "reviews/incomplete-scale100.md": "c05aa4b7ff5b0810fffe44c53d4717199849a1202f1601154a309b9e510dade7",
+    "reviews/routes.md": "443f6a4602366c2e825cf524cf166d80cc08b19a610c9b4458e14e37a83046df",
+    "reviews/scale100-150.json": "db6db22cfa6d3db61a570e31f7dfe13fb5d567c1bceed55835539e3ddb4e88c0",
+    "reviews/scale125.json": "eef908178731edcc6a29d842d518ffa9de63e401a7a3bc713f6870dadf1b4170",
+    "reviews/scale125.md": "d3444d6fa895eaf95f48373d9cacf49b923036e38c5e546e7cc5c0f9fe640523",
+    "reviews/scale200.json": "05fc2406b33f19b2966e82b18416e4f0b1306c73081b91f8e91ad11812605a9a",
+    "reviews/scale200.md": "0d3332d0a6ae39d3a934cece593018e19e116d3d484f6f8b544b93575904a61c",
+    "regression/build.log": "3005d77ea00bb531c8980ddf55fb201fcf6f145cb89c650efa61781f35ee18c6",
+    "regression/ctest-correct-env.log": "03fde64bd37118cc01898afd2c488f6008226ee929b872cf97c27936b283d339",
+    "regression/ctest-current.log": "105b6a5c3e976eb019d3eb3d55a0edeb3401ef0511845108c788975875a723d4",
+    "regression/normal-regression-proof.json": "41fc54907f35d7c5652839cfa102cb986caa9e9976d7fec683ea79f6254744b0",
+    "regression/normal_regression.py": "0b1518c5676695bd7d53ea14fc2f6797f2bbf6c0dc6a34766828fed023fe2c87"
+  },
+  "limits": [
+    "The initial failed CTest transcript remains separate from the corrected database-environment run.",
+    "This used the unchanged normal Debug build; not a fresh configuration, not RelWithDebInfo, not the original three-mode verify.",
+    "Normal regression used a fresh owned database, subsequently dropped with zero remaining.",
+    "No proof of full page/state matrix, Orca, IME, four-client daily combinations or post-92 two fresh acceptance rounds."
+  ]
+}

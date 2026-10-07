@@ -1,0 +1,664 @@
+{
+  "reviewer": "/root/audit_gb_first_media",
+  "review_date": "2026-10-07",
+  "mode": "independent read-only archived-native visual and public-tree review; no product launched, no repository changes, no build/sanitizer/browser",
+  "status": "BOUNDED_NATIVE_VISUAL_REVIEW_NOT_FULL_PRODUCT_PASS",
+  "scopes": [
+    {
+      "remote_scope": "/tmp/chat-daily-native-qt-scale100-r2-2y82nyss",
+      "local_scope": "/tmp/chat-qt-scale-review.EefXSqBG/chat-daily-native-qt-scale100-r2-2y82nyss",
+      "source_head": "7375815f70e3d9d6f456c3d9a0d173411800f294",
+      "source_inputs": 206,
+      "source_manifest_sha256": "f6c7ee38b8780c2991c7a31df5db910aa35baf9faf4434236a0e1ae463173bc2",
+      "qt_binary_sha256": "370a68ae9448916c86e3085f1a459e9b1ea0f2d292cf18113c842de96a1b24a4",
+      "identity": {
+        "pid": 2985887,
+        "ticks": "556338502",
+        "exe": "/home/gyl/example/chat/build/qt/chat_qt",
+        "sha": "370a68ae9448916c86e3085f1a459e9b1ea0f2d292cf18113c842de96a1b24a4",
+        "cmd_sha": "3d56f9c8bc848fe6f214bc66bfea28509a7fad30b2dcbe4851a8a10e789a5397"
+      },
+      "capture_identity_count": 1,
+      "scale": 1,
+      "regular_file_copy_check": {
+        "remote_count": 117,
+        "local_matching_count": 117,
+        "missing": [],
+        "sha_different": [],
+        "method": "independent ssh find -type f + sha256sum versus locally recomputed sha256; completed after scp"
+      },
+      "scp_exit": 1,
+      "scp_nonregular_excluded": "runtime/at-spi2-G9T5W3/socket (Unix socket; no regular file omitted)",
+      "whole_screenshot_count": 24,
+      "material_png_count": 1,
+      "whole_dimensions": [
+        4096,
+        2304
+      ],
+      "captures": [
+        {
+          "file": "000-compact-login-A.png",
+          "sha256": "42c26b1bcda19690fe2019afe5af126c62d83f602c1b5847fdd88cca8f1310f7",
+          "whole_personally_viewed": true,
+          "presentation": "original",
+          "tree_sha256": "a8638bb16469d9fbf69907a6d0527d8a43f0d1ccccb347775ab8c8bf584a5c69",
+          "maps_sha256": "6d85897de728f09278e1ff609a9f6eb6589d352a33dc6d33edb73dfd0aac6c51",
+          "xwininfo_sha256": "5e0a61175cd0d0e863553ef580faab57671979a0466712e0933695ebe6f815aa",
+          "main_window_physical_geometry": "460x600+0+0"
+        },
+        {
+          "file": "001-login.png",
+          "sha256": "2f191874ede20316ae763322bcebf04a1512e3a632b8a581349d75dd6a8b5bc7",
+          "whole_personally_viewed": true,
+          "presentation": "original",
+          "tree_sha256": "a2117bfaa98a0ec3985f13a951f6699dde2575d0702d20ca2dc73040732526ae",
+          "maps_sha256": "f5942dc37cca2f41660ad138ff618d9aed0e5e4b200fb41526b027e9114165c2",
+          "xwininfo_sha256": "59018689b7b1b89bb967b8a838a3b016fee67052fb0cdcf1d7f77738ca1531dc",
+          "main_window_physical_geometry": "1180x760+0+0"
+        },
+        {
+          "file": "002-group-chat-980-keyboard.png",
+          "sha256": "36a4c00cadd23f4584b76174da7302596d1ca675f77e9848ba97f5cab71cfbf1",
+          "whole_personally_viewed": true,
+          "presentation": "original",
+          "tree_sha256": "417d9731630f186b4dc3e3debead8cfa02c2b65345ede7288e669b5ff6b3479e",
+          "maps_sha256": "f5942dc37cca2f41660ad138ff618d9aed0e5e4b200fb41526b027e9114165c2",
+          "xwininfo_sha256": "0f30379c87d8e35d70684016bd370606d2db28e5c6325ec54781d3b6c35d8ff2",
+          "main_window_physical_geometry": "980x640+0+0"
+        },
+        {
+          "file": "003-contacts-980.png",
+          "sha256": "1b8f68cd74796d7b2be3f336be54b1696399c9e885de08526b6b2ce2739ffc9a",
+          "whole_personally_viewed": true,
+          "presentation": "original",
+          "tree_sha256": "9534d0357eeecb2df8e0ab89d5cf8bd3b79493b4c728b13934af78d8ac6cae5c",
+          "maps_sha256": "f5942dc37cca2f41660ad138ff618d9aed0e5e4b200fb41526b027e9114165c2",
+          "xwininfo_sha256": "0f30379c87d8e35d70684016bd370606d2db28e5c6325ec54781d3b6c35d8ff2",
+          "main_window_physical_geometry": "980x640+0+0"
+        },
+        {
+          "file": "004-friend-requests-980.png",
+          "sha256": "67b5e6348376255caade9f1d3bcf57293965f1ace79effc4dbec1fa37d0917ff",
+          "whole_personally_viewed": true,
+          "presentation": "original",
+          "tree_sha256": "0ec1bcd50e5ea8bcd631fbe7a4875f9025f45fd04e3784614ef3cfdd21818784",
+          "maps_sha256": "f5942dc37cca2f41660ad138ff618d9aed0e5e4b200fb41526b027e9114165c2",
+          "xwininfo_sha256": "0f30379c87d8e35d70684016bd370606d2db28e5c6325ec54781d3b6c35d8ff2",
+          "main_window_physical_geometry": "980x640+0+0"
+        },
+        {
+          "file": "005-friend-requests-1920.png",
+          "sha256": "983ce94e2c438976fc1fced922d633e7d727f1f15014214d3648e8511e4d35af",
+          "whole_personally_viewed": true,
+          "presentation": "original",
+          "tree_sha256": "94348ec2b47e98ae5a8b7ed1f3e2e4de221c900007bdcc0acc4be4ff185141f8",
+          "maps_sha256": "c285629d477e5d8ac471041b1392d8a4cd48123864a069a8162d80729f819ad2",
+          "xwininfo_sha256": "a8c38c97ddb4c142ac49dad9f59878830621c40fa3acf783b28da399fd70d596",
+          "main_window_physical_geometry": "1920x1080+0+0"
+        },
+        {
+          "file": "006-user-search-empty.png",
+          "sha256": "048ab92ae4865de2239ba9ae8236723f8929acc87c5bc5f65320378c2f90101f",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "4da2d9714ee7e25091d092637ea477fb25a430ee58ce151d6cb311e4a316bc62",
+          "maps_sha256": "b639b9d3a1f6f11359569999adf96467501ec4368dece5cbdc516d31b08f6b1a",
+          "xwininfo_sha256": "f42449eb4f002580a136830305b8c03db00bf0687ab230a66bd9ae78296e0a86",
+          "main_window_physical_geometry": "1180x760+0+0"
+        },
+        {
+          "file": "007-user-search-result.png",
+          "sha256": "019745467fe367ad4cfb742129c4950be8c57576ee6308529920a465a2608a76",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "10b610e2b3447fb61620c480702fa45b7906a16f0011c708d43fb2d131a0476c",
+          "maps_sha256": "b639b9d3a1f6f11359569999adf96467501ec4368dece5cbdc516d31b08f6b1a",
+          "xwininfo_sha256": "34412948f674b3d6c8deb12566b98b44036cfdfec0ca818db61a358c3fb2b3fc",
+          "main_window_physical_geometry": "1180x760+0+0"
+        },
+        {
+          "file": "008-group-info-default.png",
+          "sha256": "9b08cb243e07bfb5f9a1292c577343c2020c68fe106887295043c706c771f08b",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "26c978942dd1b6c6aa437cce8a2a8db93e2ff69633aae1c31c356a46b83359b9",
+          "maps_sha256": "898821454e8d83a58bb266cf3b59c06541b1a5c002006d4cc06262fc28f403b2",
+          "xwininfo_sha256": "cb288e6aa1a381319a4e8ee61734a2871416704b65b3025d2bc7b10696fe4a9a",
+          "main_window_physical_geometry": "1180x760+0+0"
+        },
+        {
+          "file": "009-group-members-keyboard.png",
+          "sha256": "f40b9d4f3df793de3bb0594a5bc5ba41cfd85beb5fbb354201c9d9040163a895",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "b79644913db53faf25d520ff6105e879c04490ce993272f558e392262a98676e",
+          "maps_sha256": "a65862139ee77711d48cbbef493dc8da4a305dcb63a5b2fadc136897668876c1",
+          "xwininfo_sha256": "cb288e6aa1a381319a4e8ee61734a2871416704b65b3025d2bc7b10696fe4a9a",
+          "main_window_physical_geometry": "1180x760+0+0"
+        },
+        {
+          "file": "010-group-requests-pending.png",
+          "sha256": "f2565d8a8eaadd046d62be3d3b9131e2da49e496c99dabc5244ab6b2523fa62e",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "04c2b82cef649a45d7d50daa0a47dee7719fe4d753c0c76807c926e3afe37bcb",
+          "maps_sha256": "a65862139ee77711d48cbbef493dc8da4a305dcb63a5b2fadc136897668876c1",
+          "xwininfo_sha256": "cb288e6aa1a381319a4e8ee61734a2871416704b65b3025d2bc7b10696fe4a9a",
+          "main_window_physical_geometry": "1180x760+0+0"
+        },
+        {
+          "file": "011-group-management-keyboard.png",
+          "sha256": "848e560b26b6c1350ac28448ed96a6e7dc2b90ab86822c187c172e965c9414c0",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "13ba5987b61e70fb16a1bec3635e6f8baf4fc1a23393cb0a19aebb2eb2bd85ea",
+          "maps_sha256": "a65862139ee77711d48cbbef493dc8da4a305dcb63a5b2fadc136897668876c1",
+          "xwininfo_sha256": "cb288e6aa1a381319a4e8ee61734a2871416704b65b3025d2bc7b10696fe4a9a",
+          "main_window_physical_geometry": "1180x760+0+0"
+        },
+        {
+          "file": "012-message-search-empty.png",
+          "sha256": "f101406805aa13e98b64c4993acbeb65fb306b838c95b91dcd725c32435a4987",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "b22429974b83b86cbaad397385fc222abc22cac8558bb11c4ae2738355f6fdaa",
+          "maps_sha256": "7ee6dccf2e59954b7d9fabc001538bc404cf6b9d6faa77cb4ea048d115c51a6c",
+          "xwininfo_sha256": "8a83bdedbcd6021b070ae1c3ea8ef39d944047812479efba901fc8e7198a950a",
+          "main_window_physical_geometry": "1180x760+0+0"
+        },
+        {
+          "file": "013-message-search-match-keyboard.png",
+          "sha256": "0a43aed37fd9089e0d90b02273cd0f1b5c436b3cbd6e0884816f6a661a1598c2",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "1b3ee567b42761e894c850fdba2c90e677d672aef36436bea42868a67c3e99fb",
+          "maps_sha256": "7ee6dccf2e59954b7d9fabc001538bc404cf6b9d6faa77cb4ea048d115c51a6c",
+          "xwininfo_sha256": "a737a81b13b28804c8a157c7d6e52c02e83aa55e0309dadb0b5b77521a45bffa",
+          "main_window_physical_geometry": "1180x760+0+0"
+        },
+        {
+          "file": "014-own-profile.png",
+          "sha256": "3e70a58ec8f3efaa7168871ec8ccb79d59919572a04b8f838cde288bf28c41e3",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "ddfec22d9be07f58becfc40c622c4701e10b3cb9445d452fc6ba5aeb1576c2f4",
+          "maps_sha256": "b4ff65430bf99bbdd26ebff9ce67307b4a806a3d3413992318b7ca2bce993e31",
+          "xwininfo_sha256": "1a7a359316a055a930293a22f34947e290268d4a90cbfedd6d9bbdf75711fd39",
+          "main_window_physical_geometry": "1180x760+0+0"
+        },
+        {
+          "file": "015-logout-confirmation-cancel.png",
+          "sha256": "3c23e8f904c80be80b22b7fd3bc4e9d15545158ae24aa378fdf181752949899d",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "7a046a0b50e5ab935806d46c5cbceb2f5dfc0c1ff314e6238780dd1dcbb5da74",
+          "maps_sha256": "1ac1f375d8d22216dc4847b7a4fe86c79494bf63f4cda60c8953601732670908",
+          "xwininfo_sha256": "3dd39caa1638f12cd637acf892918d58a073dcbcf9c6952e764b353902d8aa7a",
+          "main_window_physical_geometry": "1180x760+0+0"
+        },
+        {
+          "file": "016-chat-actions-menu.png",
+          "sha256": "6d4e0cd2bb5602a7dc3168b53806a2a38b4eab13d80b0c4c486a897aa7c3e07c",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "b171a2c2d77ecb65b69b0fdb8a993406b2b725c3bb7774a85829fc8c0ce9df1d",
+          "maps_sha256": "0b3a1a8eeb35c1b7b4df463ee4212bbabaa6be356824e0a8806961b440e68e33",
+          "xwininfo_sha256": "777f96a13292b12184a00a86f76743e650793fb0f327fad3093566fb22de296b",
+          "main_window_physical_geometry": "1180x760+0+0"
+        },
+        {
+          "file": "017-create-picker-zero.png",
+          "sha256": "17d207f101b75e1c33e635af7c057af254a63c1b3cafbe347da1eb4f62a5ae5e",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "ed07207d41915b1ceca8de74a790251ea2c70413f62e561fe54c81120e3973ce",
+          "maps_sha256": "4062ce64f1176019ae32b2eaab49a8f0618a8722a2b2bc913c7b346c247fa567",
+          "xwininfo_sha256": "aecccae7634dfe0a966b938a66874c3c0a4e1bacc5858cde4b1d536dc22010ac",
+          "main_window_physical_geometry": "1180x760+0+0"
+        },
+        {
+          "file": "018-create-picker-one-checked.png",
+          "sha256": "cccdc87ecfe85b71ff95b58a2af604c62592eec249924c7b898bddb2c642d941",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "1642b93427291434f1c36a535ebf7c5a9c4fc9847a461bde3efc5d6cdc6054bb",
+          "maps_sha256": "bce8285ab15dfbf79917fb5d54d68a3b108e499ffe1715315627b4c986c623aa",
+          "xwininfo_sha256": "aecccae7634dfe0a966b938a66874c3c0a4e1bacc5858cde4b1d536dc22010ac",
+          "main_window_physical_geometry": "1180x760+0+0"
+        },
+        {
+          "file": "019-create-naming-one-keyboard.png",
+          "sha256": "53a798ce9aa752b4db28147f8a818a40c49687a8246aab71cd2daa45197d39aa",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "f7193a1aba62db6cb92503769bc0810837a34451acbe508846bdfb08d95c26fb",
+          "maps_sha256": "a6d7871a473f198e3a252d0fe542196c350153078344a8d39abe6a01cf17d0bb",
+          "xwininfo_sha256": "91d6611da4a664132332ec5cb43764f1cfae65248539551883d7ec96c5774af8",
+          "main_window_physical_geometry": "1180x760+0+0"
+        },
+        {
+          "file": "020-create-naming-back-preserved.png",
+          "sha256": "9d06d832d9e8374cfcdd2b832ce331e7ae29d440774350e092201e3db99c5852",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "2a09709e985512f6a8d3fb8864760ec0629f821b890fbddfade8131dd9514d49",
+          "maps_sha256": "a6d7871a473f198e3a252d0fe542196c350153078344a8d39abe6a01cf17d0bb",
+          "xwininfo_sha256": "91d6611da4a664132332ec5cb43764f1cfae65248539551883d7ec96c5774af8",
+          "main_window_physical_geometry": "1180x760+0+0"
+        },
+        {
+          "file": "021-join-empty.png",
+          "sha256": "1390f731d797017ae5d609ffbfe15bfbc4e951135ba42ec9712a4a474526d5f9",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "5176d1b92e98c628516293069f8e45cec5ca47199860b82eef60c59e2d151ee4",
+          "maps_sha256": "c23e038e773b374c85f3235d6c22b77ceeb86148d51d34a4265468ca7b528152",
+          "xwininfo_sha256": "c895f5cfbe5020ac5bc3806e3a24ebbf6c346e2eb0bb1b38c473d46ca295b990",
+          "main_window_physical_geometry": "1180x760+0+0"
+        },
+        {
+          "file": "022-join-invalid-input.png",
+          "sha256": "c7e1db24906623888779465fc6ca10fec0bd1174a67fbc002a140d5db1515904",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "a740fa7ff4ca5e599b489504036e2079cf2e9b9882075cf11c00137954e29348",
+          "maps_sha256": "c23e038e773b374c85f3235d6c22b77ceeb86148d51d34a4265468ca7b528152",
+          "xwininfo_sha256": "5532c1b931316b45aaf0dfb0331e8e0b4762461519c5b79344c2d858f68a3cf8",
+          "main_window_physical_geometry": "1180x760+0+0"
+        },
+        {
+          "file": "023-handoff.png",
+          "sha256": "aaa35e138bb8bd69b4e2c604f801a849c8de4fbe65eb2ebdf3ab4885fbb99a38",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "8a8257af3d4f6a08d050933fabc9f514698d2c96af8de3b7d3f6e56efa3afba7",
+          "maps_sha256": "a8ed70398fb1d0d5fa5630a198ef507009e8fe8068af6c5cfe769a4c69f78fc5",
+          "xwininfo_sha256": "71371e4d5e8d2a766e9e22bdc3fe15da486fc18158343e885278f3bd99515556",
+          "main_window_physical_geometry": "1180x760+0+0"
+        }
+      ],
+      "public_tree_count": 24,
+      "a11y_errors": [],
+      "operation_count": 70,
+      "top_level_operation_error_count": 0,
+      "unicode_roundtrip": {
+        "operation": {
+          "op": "qt-text",
+          "actor": "A",
+          "selector": {
+            "name": "群名称",
+            "role": "text"
+          },
+          "equals": "  页面矩阵 中文 é 🙂  "
+        },
+        "result": "  页面矩阵 中文 é 🙂  "
+      },
+      "seed_sdk": {
+        "pid": 2984726,
+        "actual_exit": 0,
+        "A_disconnected_before_close": true
+      },
+      "cleanup": {
+        "sha256": "4e1353dfcb322be4f5a44c1998b20589349e49e93331c55981b9d0fbe34306ad",
+        "owned_count": 10,
+        "owned_all_gone": true,
+        "observed_descendants_count": 5,
+        "observed_all_gone": true,
+        "protected_unchanged": true,
+        "errors": [],
+        "database_retained": "chat_daily_5ff9f4f8b2a3dc85",
+        "database_present_at_original_cleanup": true
+      },
+      "current69": false,
+      "normal23": {
+        "exit": 0,
+        "exit_provenance": "root observed execution; pinned original normal ctest transcript",
+        "passed": 23,
+        "total": 23,
+        "seconds": 112.59,
+        "timeouts_changed": false,
+        "asan_ubsan_rerun": false,
+        "log_sha256": "995e6071d850cb39fcdaa08fc1953d8af2a43659edbfd056ad334ace11f3882c",
+        "original_verify_sh_rerun": false
+      }
+    },
+    {
+      "remote_scope": "/tmp/chat-daily-native-qt-scale150-2y82nyss",
+      "local_scope": "/tmp/chat-qt-scale-review.EefXSqBG/chat-daily-native-qt-scale150-2y82nyss",
+      "source_head": "7375815f70e3d9d6f456c3d9a0d173411800f294",
+      "source_inputs": 206,
+      "source_manifest_sha256": "f6c7ee38b8780c2991c7a31df5db910aa35baf9faf4434236a0e1ae463173bc2",
+      "qt_binary_sha256": "370a68ae9448916c86e3085f1a459e9b1ea0f2d292cf18113c842de96a1b24a4",
+      "identity": {
+        "pid": 2995598,
+        "ticks": "556342661",
+        "exe": "/home/gyl/example/chat/build/qt/chat_qt",
+        "sha": "370a68ae9448916c86e3085f1a459e9b1ea0f2d292cf18113c842de96a1b24a4",
+        "cmd_sha": "3d56f9c8bc848fe6f214bc66bfea28509a7fad30b2dcbe4851a8a10e789a5397"
+      },
+      "capture_identity_count": 1,
+      "scale": 1.5,
+      "regular_file_copy_check": {
+        "remote_count": 117,
+        "local_matching_count": 117,
+        "missing": [],
+        "sha_different": [],
+        "method": "independent ssh find -type f + sha256sum versus locally recomputed sha256; completed after scp"
+      },
+      "scp_exit": 1,
+      "scp_nonregular_excluded": "runtime/at-spi2-TY0QW3/socket (Unix socket; no regular file omitted)",
+      "whole_screenshot_count": 24,
+      "material_png_count": 1,
+      "whole_dimensions": [
+        4096,
+        2304
+      ],
+      "captures": [
+        {
+          "file": "000-compact-login-A.png",
+          "sha256": "71e7c25df99de9abc78af8d8ae5408a38fef4430a54eda4784062b234cb73ceb",
+          "whole_personally_viewed": true,
+          "presentation": "original",
+          "tree_sha256": "a8638bb16469d9fbf69907a6d0527d8a43f0d1ccccb347775ab8c8bf584a5c69",
+          "maps_sha256": "af3edc91a64acdd835610edaebf36b9d63f074e37d334886ed289a569507550d",
+          "xwininfo_sha256": "92fddc7c8f7d4e8bddb5638f325ba340a271fe59454484f747098a85605a3fac",
+          "main_window_physical_geometry": "690x900+0+0"
+        },
+        {
+          "file": "001-login.png",
+          "sha256": "add2f5c263175747d5a74a95c0b503ac416d685cf0477788ff2e1be78d9648a0",
+          "whole_personally_viewed": true,
+          "presentation": "original",
+          "tree_sha256": "39a496f1b16a772df70a014d7796fb50002380812c916258960b5bbe99a0452a",
+          "maps_sha256": "3bd1f2c4d46039eca9a5b54874564882589794403310dc1f661e42a3552b0148",
+          "xwininfo_sha256": "33bfab1dfb17d0b9ba8c0f93140ec4543a01e290ab9c45327331c529c20d66f3",
+          "main_window_physical_geometry": "1770x1140+0+0"
+        },
+        {
+          "file": "002-group-chat-980-keyboard.png",
+          "sha256": "31df3fa3d2a20a852df7825e4a690faf2e7d2a1b971d80f51f5ed0a0b3a92e20",
+          "whole_personally_viewed": true,
+          "presentation": "original",
+          "tree_sha256": "287cd6ac734d52574517dc3e1d040930d41d97043942470e9d05e509ac238a6b",
+          "maps_sha256": "3bd1f2c4d46039eca9a5b54874564882589794403310dc1f661e42a3552b0148",
+          "xwininfo_sha256": "59bf4a05c0048359a2a3524ade2a7bb98fde0cdddc5b390b06d587e46116f6be",
+          "main_window_physical_geometry": "1470x960+0+0"
+        },
+        {
+          "file": "003-contacts-980.png",
+          "sha256": "d78be253117e8ae05f91587d8d3cbf9f2c60411f786e8e896a9bbf96a3817f55",
+          "whole_personally_viewed": true,
+          "presentation": "original",
+          "tree_sha256": "dc757265ca7d222dd306320769643c9cfb90566262bcb36e130e616c5deebd6a",
+          "maps_sha256": "3bd1f2c4d46039eca9a5b54874564882589794403310dc1f661e42a3552b0148",
+          "xwininfo_sha256": "59bf4a05c0048359a2a3524ade2a7bb98fde0cdddc5b390b06d587e46116f6be",
+          "main_window_physical_geometry": "1470x960+0+0"
+        },
+        {
+          "file": "004-friend-requests-980.png",
+          "sha256": "50c2f67e4cc205a34d78e491e3c710950189ed77b517e5b6c934ab244a3acd02",
+          "whole_personally_viewed": true,
+          "presentation": "original",
+          "tree_sha256": "ed42ac2ea5ad1f2f37c2072e04b0e14949569fe45f1886ec6897f2a00c6e7696",
+          "maps_sha256": "3bd1f2c4d46039eca9a5b54874564882589794403310dc1f661e42a3552b0148",
+          "xwininfo_sha256": "59bf4a05c0048359a2a3524ade2a7bb98fde0cdddc5b390b06d587e46116f6be",
+          "main_window_physical_geometry": "1470x960+0+0"
+        },
+        {
+          "file": "005-friend-requests-1920.png",
+          "sha256": "47149425434ff9857cf28e3a8ed54fbba2c6260dd471b3215bdb22f1fb8e8283",
+          "whole_personally_viewed": true,
+          "presentation": "original",
+          "tree_sha256": "d0c9a9ffdb16b467df3d09107e107320e429e63bf943b5132af402d706911fea",
+          "maps_sha256": "ce5af2380ad78dfde5f59c264a11f41a6395c3c3353b247b5615893342d97996",
+          "xwininfo_sha256": "ac4b03099299474268bc2abb36f9769b86f457c149f1eadfa0cea8b8533cbb1c",
+          "main_window_physical_geometry": "2880x1620+0+0"
+        },
+        {
+          "file": "006-user-search-empty.png",
+          "sha256": "920ef618b44c79283e2c548f33875add976a108377c234ac6c280f57274f1d8b",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "5532a224c74ecb27fbd80eeacc7de7867fddbebdffe8a34f89a45337d3aaf818",
+          "maps_sha256": "911d523ce1eb500fa5e55506103a1afef36e04d18fca3664c92c79869dc82eae",
+          "xwininfo_sha256": "c5432024bc0dd7f9c6c57e745b8031cfc6719ccc49282e5539ce8f091bdd625b",
+          "main_window_physical_geometry": "1770x1140+0+0"
+        },
+        {
+          "file": "007-user-search-result.png",
+          "sha256": "5071da4a76102700f06c42af732786b9d573444aceade337bd59a7cfbcd4bd0f",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "f6e8dbeb961b5d597d880b03e2c65fb33d1922f9cb0406c8f2d91583eb2b53f6",
+          "maps_sha256": "50f35b2b3212af1b60a4a2a07d2055ef9440bc040198c38517c2620274abd153",
+          "xwininfo_sha256": "1cb9a5cf39b6c079b7c2c69d34a42c99297a114fff0851c35313164c985e3358",
+          "main_window_physical_geometry": "1770x1140+0+0"
+        },
+        {
+          "file": "008-group-info-default.png",
+          "sha256": "5eaa78961da5f70bd6cd2eb2091626820eadad48cc66eedae3da436aed261377",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "d70018226328da69c94292a32a2f06e7f38cca229ab489c8441c76f2ee4d9e7e",
+          "maps_sha256": "73f13d2b6b106afd983b2a05c2e66c2f04e8d3bca80eaf39ff043bb87ea0cc5a",
+          "xwininfo_sha256": "6a8c3c84db76aaeeb885d93a231e9ae4054b7fe09dfd714e8de3f047eac06e87",
+          "main_window_physical_geometry": "1770x1140+0+0"
+        },
+        {
+          "file": "009-group-members-keyboard.png",
+          "sha256": "241b21bc3a620948a416d41d77ad06151a8f591e353f03ad30127f38a77b94d1",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "250a148da8f1522897987bb3fffb1000d60671e2ec0b748a7532ad75a713e81f",
+          "maps_sha256": "5a3096920cbbc0f35b260bc7622c341231f10a1c25a8afad96d7613627a6f7d5",
+          "xwininfo_sha256": "6a8c3c84db76aaeeb885d93a231e9ae4054b7fe09dfd714e8de3f047eac06e87",
+          "main_window_physical_geometry": "1770x1140+0+0"
+        },
+        {
+          "file": "010-group-requests-pending.png",
+          "sha256": "c941c51258d6a8e240224b9646618712599740033f51ac2c5968ea98c737de7b",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "96cc97a1e36bbfc45247307178a689a33d37a8328e08d95e500cd5858a5b2cdc",
+          "maps_sha256": "5a3096920cbbc0f35b260bc7622c341231f10a1c25a8afad96d7613627a6f7d5",
+          "xwininfo_sha256": "6a8c3c84db76aaeeb885d93a231e9ae4054b7fe09dfd714e8de3f047eac06e87",
+          "main_window_physical_geometry": "1770x1140+0+0"
+        },
+        {
+          "file": "011-group-management-keyboard.png",
+          "sha256": "4f772434343f5e057cac705e713f625b7b15e7fdcdcb1f818e61288422c0316f",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "81473914dc0ae57dab9ded9e5b40293d538d7065b953cdbde1e42652a12146c9",
+          "maps_sha256": "5a3096920cbbc0f35b260bc7622c341231f10a1c25a8afad96d7613627a6f7d5",
+          "xwininfo_sha256": "6a8c3c84db76aaeeb885d93a231e9ae4054b7fe09dfd714e8de3f047eac06e87",
+          "main_window_physical_geometry": "1770x1140+0+0"
+        },
+        {
+          "file": "012-message-search-empty.png",
+          "sha256": "c529673571a047f3e33d1822c4753215af670088946d300092d588cff8d43f14",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "d3231974c9c6c59b974dc71dc055ffcd06f0fae39f86771517fc6f2c72bb2f3e",
+          "maps_sha256": "b24a7733cadd502f161aa09483796b2bef9033888371eafc589edb7db399234e",
+          "xwininfo_sha256": "08fc236300aa5429b736fe5f9bf2b00402d8225c197f36b33e6c61551c5ad198",
+          "main_window_physical_geometry": "1770x1140+0+0"
+        },
+        {
+          "file": "013-message-search-match-keyboard.png",
+          "sha256": "010a6acc6d23c043d780a75d60048f4401ce74bd30634f16bda0cb93723fa35e",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "187946bfe0ad4f18a79edc4bd604c821964b700c67ec2e79b6f2bf6ec6c2769b",
+          "maps_sha256": "b24a7733cadd502f161aa09483796b2bef9033888371eafc589edb7db399234e",
+          "xwininfo_sha256": "0ddefd3e64ef22ca6c3560caaa15614165f38ea17dc1e98cb964e6b92bbb5cec",
+          "main_window_physical_geometry": "1770x1140+0+0"
+        },
+        {
+          "file": "014-own-profile.png",
+          "sha256": "59e49c3dd4c1cdf56f8c2d85562f2dbc4f4c9954b0778fb53d61f9388c02a810",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "676294c963a9825c9295175b1fa3ef52f8fe98b4339b10a31dec3314bd11bc97",
+          "maps_sha256": "d8b7755e3c4ef441141a8b1307d6e77438caeb0abff5b2cfaff0b8e796b7dcef",
+          "xwininfo_sha256": "1d69c86cd5a22620dacc773814143a99c212519703ea5f842b32c401fe18a4de",
+          "main_window_physical_geometry": "1770x1140+0+0"
+        },
+        {
+          "file": "015-logout-confirmation-cancel.png",
+          "sha256": "5c38d15fe22461d00515f443444d356221e0602dae7939017917a1d77a43399b",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "61175dc7323bc1b421c5c36dcc0f9fd82e757503ccf7682c177969a279020489",
+          "maps_sha256": "1748d66ca9d7b88255e58e5c749e4cff1e11514a97c5de1b3a385d2b664d9bc1",
+          "xwininfo_sha256": "e2ee703ba9c489e99116beb59dbe82c0cd99d184460fe3bd55fbc9d83d6d1875",
+          "main_window_physical_geometry": "1770x1140+0+0"
+        },
+        {
+          "file": "016-chat-actions-menu.png",
+          "sha256": "2ae12923e5f8e1faf9b29df7f97fb6f9471431e873be5f9639337d926fd893e3",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "30ac4b7daf4354d1caa14976bdd5354d7d3ed03865c1d816577712751a2c04c4",
+          "maps_sha256": "8070c33722057b1cc6cc863f1b6b180426d65de54ab377b7b94f1c148ec85e29",
+          "xwininfo_sha256": "204e0908564d8e3463dd1569d7666be67a3dba409419a02d943c8bd3ce011fe1",
+          "main_window_physical_geometry": "1770x1140+0+0"
+        },
+        {
+          "file": "017-create-picker-zero.png",
+          "sha256": "9ba30edefa3dae213d5522f15ada823dd686a11f4a90e450eabb1e638c790b27",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "2e9b52ecef971ce4b848437e47730bfcee03f19af472dd3a4d520e127ac7775a",
+          "maps_sha256": "fac873ca2730cff5e723da1dfe75f3f1c7977c22047946d3d0d3ea21429f92ef",
+          "xwininfo_sha256": "f2870a45d1fc996adf8b8fe40559587567d60815ff39ef7019061f5921ed4bd3",
+          "main_window_physical_geometry": "1770x1140+0+0"
+        },
+        {
+          "file": "018-create-picker-one-checked.png",
+          "sha256": "fb99e7ba888c1be249c7559d524934ec076b064934edb6126641d07a63129742",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "8db1cb5e3915ed1094c0563cb1d9a4c36889e76b6479aa252efb141259f79e48",
+          "maps_sha256": "963c8340771970f29b90ae5bf997876884c90a0b6f705a0bad5d08fe1b611cbf",
+          "xwininfo_sha256": "f2870a45d1fc996adf8b8fe40559587567d60815ff39ef7019061f5921ed4bd3",
+          "main_window_physical_geometry": "1770x1140+0+0"
+        },
+        {
+          "file": "019-create-naming-one-keyboard.png",
+          "sha256": "c9762890e0985ee994a775abe457cc7c8bed6ccf366426dadad52a2f1b1e3197",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "8a0ceee7939a581436ab329fbee654d544fc360d78bd857213bd52aaeb9d2202",
+          "maps_sha256": "176938f5637b7f6fc5c3ae1279c051a0ecbbe554997e4a1e2b9f0c883929caac",
+          "xwininfo_sha256": "110218122de1c1e910a0a57d856ed470a91c699eb9ce4ea407fd9de1803e8a90",
+          "main_window_physical_geometry": "1770x1140+0+0"
+        },
+        {
+          "file": "020-create-naming-back-preserved.png",
+          "sha256": "2642a57f9fe4c2e55bf575beb575b6aff826a7cc37310a4c0bef3ceb4a21d2bd",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "72033581cd1bbc155a526abc4e7dce9037a55f1dc0d5a2c0d8b7638334b5220c",
+          "maps_sha256": "dfac209610b4e386f38a860fcad9a19d74f9782953d2c0649c940cb5735d43a2",
+          "xwininfo_sha256": "110218122de1c1e910a0a57d856ed470a91c699eb9ce4ea407fd9de1803e8a90",
+          "main_window_physical_geometry": "1770x1140+0+0"
+        },
+        {
+          "file": "021-join-empty.png",
+          "sha256": "6e610826bcd2cec9d49a034d008dd471e89a4bee220a3853c9a7171d379b4ddc",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "dab3d71ba5d540a67ad4876ca7fc166ccc103a6fcfc0c511df51a8fd02ffe753",
+          "maps_sha256": "f13e9812b9d90d668e917a4a36edeab77e9238ec90671aceba52c56a1ae87f69",
+          "xwininfo_sha256": "acd81e256755f4fb9d320437c02b19ae7ccbc0fba66a0ff269ce12eaa2e31ddb",
+          "main_window_physical_geometry": "1770x1140+0+0"
+        },
+        {
+          "file": "022-join-invalid-input.png",
+          "sha256": "d7b3d57e50f547a9969427a4d23e8fc4a8b87aafbc6370c4939ede535b469429",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "0179aa22949bcd7a34ea1f8f4a6c52331cde0c68ae1eb7fc55db138039e1b454",
+          "maps_sha256": "f13e9812b9d90d668e917a4a36edeab77e9238ec90671aceba52c56a1ae87f69",
+          "xwininfo_sha256": "2b6919ff9ac45a8c8843f0f544385317808f801a89a2177245d27542b3dd4310",
+          "main_window_physical_geometry": "1770x1140+0+0"
+        },
+        {
+          "file": "023-handoff.png",
+          "sha256": "6631b01ae10d27744496ca1efa90fe7f1e5700b3e769f1a59930e6eec9f062db",
+          "whole_personally_viewed": true,
+          "presentation": "high_whole_resized_by_viewer",
+          "tree_sha256": "6779cc91a00f12f3d196f3565e19c4047902934dd43a662203b4bbcd51694807",
+          "maps_sha256": "8cc86e2e1c76a15e2d686becd4001b9e0faa68842a16f4befcf83401e9d167ed",
+          "xwininfo_sha256": "1cb9a5cf39b6c079b7c2c69d34a42c99297a114fff0851c35313164c985e3358",
+          "main_window_physical_geometry": "1770x1140+0+0"
+        }
+      ],
+      "public_tree_count": 24,
+      "a11y_errors": [],
+      "operation_count": 70,
+      "top_level_operation_error_count": 0,
+      "unicode_roundtrip": {
+        "operation": {
+          "op": "qt-text",
+          "actor": "A",
+          "selector": {
+            "name": "群名称",
+            "role": "text"
+          },
+          "equals": "  页面矩阵 中文 é 🙂  "
+        },
+        "result": "  页面矩阵 中文 é 🙂  "
+      },
+      "seed_sdk": {
+        "pid": 2994315,
+        "actual_exit": 0,
+        "A_disconnected_before_close": true
+      },
+      "cleanup": {
+        "sha256": "998db348f61259f4095f9fca9245e52b13570748b7f0d2020ccbd2f20b81404e",
+        "owned_count": 10,
+        "owned_all_gone": true,
+        "observed_descendants_count": 5,
+        "observed_all_gone": true,
+        "protected_unchanged": true,
+        "errors": [],
+        "database_retained": "chat_daily_22560d9a0bf7c54f",
+        "database_present_at_original_cleanup": true
+      },
+      "current69": false,
+      "normal23": {
+        "exit": 0,
+        "exit_provenance": "root observed execution; pinned original normal ctest transcript",
+        "passed": 23,
+        "total": 23,
+        "seconds": 112.59,
+        "timeouts_changed": false,
+        "asan_ubsan_rerun": false,
+        "log_sha256": "995e6071d850cb39fcdaa08fc1953d8af2a43659edbfd056ad334ace11f3882c",
+        "original_verify_sh_rerun": false
+      }
+    }
+  ],
+  "observations": [
+    "All 48 original whole PNG files were personally viewed, retaining the entire 4096x2304 desktop; 000-005 each scale at original presentation, 006-023 each scale as whole viewer-resized high presentation. No supplemental crop substitutes were used.",
+    "460x600 logical compact login is 460x600 at 100% and 690x900 at 150%; gear, focused username, password/login/register fit. 980x640, 1180x760 and 1920x1080 authenticated windows follow actual scale; contact/request sidebar remains stable and composer remains contained.",
+    "Contacts has its own highlighted rail, search and C/S005 friend rows while current group conversation remains on the right; new friends shows one incoming D and one outgoing E.",
+    "User search empty prompt and actual result D visible. Group default/Member/Request/Manage tabs are distinct; member page shows all A/B/C/S005 rows, End selects S005; pending D and enabled accept/reject controls are visible but not invoked. Group management keyboard focus is in announcement, with no save/role/invite mutations claimed.",
+    "Message search keyword match returns one actual seeded message; Down keyboard result focus/whole green outline visible. This is seed read/navigation, not a new runtime message-send business proof.",
+    "Own profile shown. Logout confirmation has default Cancel focus; Escape cancellation followed by authenticated menu/handoff views supports no logout in this scope, not a logout-and-relogin proof.",
+    "Create zero picker disables Next. Home/space checks C, Next enables, naming shows one fully included member row; Tab moves to member list. Previous+Next keeps the exact space-padded Chinese e+combining accent and emoji name by public qt-text readback. Creation was cancelled, not submitted.",
+    "Join empty field then literal invalid input fit both scales, followed by Escape. No Join click or submitted validation response; invalid-input screenshot is input-only.",
+    "Chat-actions menu screenshot shows three entries and real keyboard Down/Return opens Create/Join. Capture 016 public trees do not expose menu/menu-item entries; this scope cannot prove menu AT-SPI/Orca bridge.",
+    "No material blocking overlap, offscreen action button or unreadable member row was identified within the viewed states. Expected long conversation/selected-chip ellipsis does not hide the full selected-member row in naming. This is not a general zero-issue claim."
+  ],
+  "limits": [
+    "Only one Qt A client in each independent seed scope, not current 2Qt+2TUI daily business or full page/state/DPI matrix.",
+    "100% r2 and 150% only; 125% reviewed separately, 200% not inspected here.",
+    "No register/login-error/server-settings-expanded states, actual attachments/file chooser, reply/edit/reaction, offline/reconnect, full keyboard tab map, IME candidate/composition, Orca speech, role-management mutations, empty/request transition matrix or destructive/failed submits.",
+    "Original cleanup records retain the two exact databases; no final database-drop evidence was copied/reviewed in this scope.",
+    "Native executor actualexit0 supplied by root is not independently re-executed; cleanup Qt -15 is intentional owned teardown and not an app clean-exit claim.",
+    "206 inputs and normal23 freeze preserved; historical69 is explicitly not a current69 pass; no score or full product acceptance inferred."
+  ]
+}

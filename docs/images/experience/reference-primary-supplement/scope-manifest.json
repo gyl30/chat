@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "observation_date": "2026-10-07",
+  "timezone": "Asia/Shanghai",
+  "repo_docs_read_head": "7375815",
+  "archive_dir": "/tmp/chat-reference-archive.MW8XAQJa",
+  "original_local_dir": "/tmp/chat-reference-primary.YOcY4oLY",
+  "original_remote_dir": "gyl@172.20.45.187:/tmp/chat-reference-primary.eEMedP9a",
+  "actions": {
+    "repo_modified": false,
+    "product_launched": false,
+    "dependency_installed": false,
+    "sanitizer_run": false,
+    "new_network_fetch_during_archival": false
+  },
+  "scope": {
+    "original_record_count": 21,
+    "saved_raw_web_responses": 6,
+    "whole_image_files_personally_viewed": 11,
+    "limited_positive_static_or_help_images": 6,
+    "negative_decorative_or_placeholder_images": 5,
+    "pdf_full_text_read": true,
+    "live_competitor_interaction_pass": false,
+    "current_desktop_full_flow_captured": false,
+    "all_images_ui_screenshots": false
+  },
+  "claims_boundaries": [
+    "WeChat help images are official cropped/marked help illustrations for Windows4.0+, not this machine's whole screenshots and not pinned to4.1.15.",
+    "QQ and WeChat promotional visuals are negative evidence, not real current desktop workflow captures.",
+    "twks/FWA submission images are static craft evidence, not current live website interaction PASS.",
+    "The Mobile Excellence PDF has no authoring date and legacy terms; no 2026 desktop scoring weights inferred.",
+    "Article dates not displayed must remain unknown; 202507 image paths are not exact publication dates.",
+    "Only listed raw web files are byte-preserved originals. Other successful tool stdout observations are summarized in review.md, NOT claimed as raw response archives."
+  ],
+  "not_preserved_as_raw_files": [
+    "https://www.awwwards.com/sites/twks-1",
+    "https://thefwa.com/api/cases/ceramicbeats",
+    "https://kf.qq.com/faq/161224EjYriq161224JnUvE3.html",
+    "https://kf.qq.com/faq/161224mEvqaI161224jqUzqI.html",
+    "https://kf.qq.com/faq/2407092uArUn240709uA32Ez.html",
+    "https://kf.qq.com/faq/161224q6RZnq161224y6n6NB.html",
+    "https://kf.qq.com/faq/161223m22e2I1612236zQz2M.html",
+    "https://kf.qq.com/faq/190511eeMFrY190511uqYZfU.html"
+  ],
+  "excluded": [
+    {
+      "path": "remote original dir/awwwards-abatable-product-ui.png",
+      "source": "https://assets.awwwards.com/awards/element/2026/09/6ab12400d85d7223917614.png",
+      "received_bytes": 540618,
+      "expected_bytes": 1174893,
+      "received_sha256": "ae5dc60892dae7be94c33485337c0134be41258ab4676e3e7ee7783edc4b77bd",
+      "curl_exit_code": 28,
+      "viewed": false,
+      "copied_to_local": false,
+      "copied_to_archive": false,
+      "reason": "partial timed-out download, never visually reviewed"
+    }
+  ],
+  "files": [
+    {
+      "path": "review.md",
+      "bytes": 11639,
+      "sha256": "e4ff55a3cd692da28f1546e52fd3ef0ca1b353d9af40a995f99ed34abc467594",
+      "scope": "review",
+      "source": "task analysis; not an original source response"
+    },
+    {
+      "path": "wechat-current-download.html",
+      "bytes": 6710,
+      "sha256": "1d87f20176d6c396d8bfdf6a3a530daa470d03cdee30e0e1a796c8cd107c8fbb",
+      "scope": "raw_response",
+      "source": "https://pc.weixin.qq.com/"
+    },
+    {
+      "path": "wechat-4.1.15-update.html",
+      "bytes": 153827,
+      "sha256": "7272adddd2120f31427e48cfd48386231531863ac48216a007429fe6bea46b2b",
+      "scope": "raw_response",
+      "source": "https://weixin.qq.com/updates?platform=windows&version=4.1.15"
+    },
+    {
+      "path": "qq-current-config.json",
+      "bytes": 1581,
+      "sha256": "34d5451e5120bc6c36d859121e57320d12d33bbab66f62edba59f8fccc343835",
+      "scope": "raw_response",
+      "source": "https://qq-web.cdn-go.cn/im.qq.com_new/latest/rainbow/pcConfig.json"
+    },
+    {
+      "path": "qq-desktop-login-official-help.html",
+      "bytes": 22876,
+      "sha256": "01bdafb5b359275d5a00c065bcfdde62bf2efde5e44445047109f8740ec70219",
+      "scope": "raw_response",
+      "source": "https://kf.qq.com/faq/221212meEbqq2212127zeMNf.html"
+    },
+    {
+      "path": "wechat4-upgrade-official-help.html",
+      "bytes": 25909,
+      "sha256": "673ebd2817500432657240eff1951d2169f0e7b60023bc3f2d02feb7dab2d120",
+      "scope": "raw_response",
+      "source": "https://kf.qq.com/faq/250710MraIZj250710QniyAr.html"
+    },
+    {
+      "path": "awwwards-abatable.html",
+      "bytes": 285795,
+      "sha256": "0179f4a5942444b64d953c6faa38c60ca31369b380a8ac7c546e4408067189fd",
+      "scope": "raw_response",
+      "source": "https://www.awwwards.com/sites/abatable"
+    },
+    {
+      "path": "awwwards-mobile-excellence-guidelines.pdf",
+      "bytes": 838372,
+      "sha256": "73b52442f04b3233510b53899e1f3c3a267588f4aea6100b3c44a5e4d93685eb",
+      "scope": "original_pdf_full_text_read",
+      "source": "https://www.awwwards.com/mobile-excellence-guidelines.pdf"
+    },
+    {
+      "path": "awwwards-twks.jpg",
+      "bytes": 255245,
+      "sha256": "7c2a2bb5db7e4a92e84bf603ca718275717d04c29530a1ad34f8c15e6c0a0678",
+      "scope": "whole_image_viewed_limited_static_craft",
+      "source": "https://assets.awwwards.com/awards/submissions/2026/08/6a8d4591d07cb861638495.jpg"
+    },
+    {
+      "path": "fwa-ceramic-home.png",
+      "bytes": 1274890,
+      "sha256": "f30c0cf861d6002a5163f67044168b4c63a01c0ae85af945e30f439b0dedc43d",
+      "scope": "whole_image_viewed_limited_static_craft",
+      "source": "https://thefwa.com/dyn/resources/Case_Model_Case/slide1/7/19187/1789536495/1364_span12/6aaa28a4c198bceramic-beats-home.png"
+    },
+    {
+      "path": "fwa-ceramic-tile.png",
+      "bytes": 1382490,
+      "sha256": "f187bf48160de22f2b5161f63d566f2ce933ca6ae97692ddfebd17d5c252cdf7",
+      "scope": "whole_image_viewed_limited_static_craft",
+      "source": "https://thefwa.com/dyn/resources/Case_Model_Case/slide3/7/19187/1789536495/1364_span12/6aaa28b7172e5ceramic-beats-tile.png"
+    },
+    {
+      "path": "wechat-4-history-loading.png",
+      "bytes": 9977,
+      "sha256": "d831d4820e93bedd2ba247a88868481067b9de315133bb21a7135ffecf8eb685",
+      "scope": "original_help_crop_viewed_limited_ui",
+      "source": "https://file.service.qq.com/user-files/uploads/202507/142445b672c087d48959d0141bde22a8.png"
+    },
+    {
+      "path": "wechat-4-space-error.png",
+      "bytes": 12391,
+      "sha256": "47672943155622418f36089f9cc56db97c3cb675996f120325265d77d6e012c3",
+      "scope": "original_help_crop_viewed_limited_ui",
+      "source": "https://file.service.qq.com/user-files/uploads/202507/6a4e0afc4e175a907f54011733a11301.png"
+    },
+    {
+      "path": "wechat-4-permission-error.png",
+      "bytes": 22981,
+      "sha256": "f35be8e785d28b3ff88c4839254d02e0e1e9c49058acb9ed95d51f1703ffe44b",
+      "scope": "original_help_crop_viewed_limited_ui",
+      "source": "https://file.service.qq.com/user-files/uploads/202507/dfe1485c361efd60f4d88ab9fe8a9753.png"
+    },
+    {
+      "path": "qq-windows-official.png",
+      "bytes": 272793,
+      "sha256": "bed20f5622f8ede1052750281cbcbc62d6dd71041f719856b0d2e3b0c24f5b05",
+      "scope": "whole_image_viewed_negative_decorative_only",
+      "source": "source page https://im.qq.com/index/#/windows; split_pc_win.png"
+    },
+    {
+      "path": "qq-windows-current-official.mp4",
+      "bytes": 453449,
+      "sha256": "c108865da2ddf31ab726db2a7f5d2ef8b8cde09d33c9fe4746a7276845cf1b01",
+      "scope": "original_complete_video_not_fully_visually_reviewed",
+      "source": "source page https://im.qq.com/index/#/windows; win.mp4; 11.584s/1920x1080"
+    },
+    {
+      "path": "qq-win-promo-frame-02.png",
+      "bytes": 265280,
+      "sha256": "b7b4478f3d9421b255d29f045bf572f60aabe1267fc69754de453642563636d1",
+      "scope": "derived_whole_image_viewed_negative_decorative_only",
+      "source": "qq-windows-current-official.mp4 at 2s"
+    },
+    {
+      "path": "qq-win-promo-frame-07.png",
+      "bytes": 218618,
+      "sha256": "2b4201a0ae50f5ef1fd1371a7371502b163b659b1197d22a3e454b267fb2633d",
+      "scope": "derived_whole_image_viewed_negative_decorative_only",
+      "source": "qq-windows-current-official.mp4 at 7s"
+    },
+    {
+      "path": "qq-win-promo-frame-10.png",
+      "bytes": 371337,
+      "sha256": "508086a0a201018fa7fde5db57ad6194a46ad70f7f878c37b844fa6e0527f962",
+      "scope": "derived_whole_image_viewed_negative_decorative_only",
+      "source": "qq-windows-current-official.mp4 at 10s"
+    },
+    {
+      "path": "wechat-windows-official.svg",
+      "bytes": 14902,
+      "sha256": "282cde70280bd316980e1d994a515dac77a9c0d5c417e4fb3b60b3398cac8b20",
+      "scope": "original_decorative_placeholder_svg",
+      "source": "https://res.wx.qq.com/t/wx_fed/base/portal/windows/res/assets/image1.282cde7028.svg"
+    },
+    {
+      "path": "wechat-windows-official.png",
+      "bytes": 11280,
+      "sha256": "c8ab9cd32fe4683489323ac01af5cab46a4ff9e47025bf77c87f64e2f87952cb",
+      "scope": "derived_whole_image_viewed_negative_placeholder_only",
+      "source": "wechat-windows-official.svg rendered with existing remote rsvg-convert"
+    }
+  ]
+}

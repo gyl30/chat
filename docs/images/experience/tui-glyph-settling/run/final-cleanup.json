@@ -1,0 +1,15 @@
+{
+  "database": "chat_daily_1d5bf52f642e947f266e15fb06d8cf0b",
+  "database_created": true,
+  "database_absent": true,
+  "private_port_closed": true,
+  "all_owned_gone": true,
+  "tui_gone": true,
+  "tmux_gone": true,
+  "activation_descendants_gone": true,
+  "protected_unchanged": true,
+  "source_unchanged": true,
+  "errors": [],
+  "base_cleanup_errors_preserved": [],
+  "all_checks": true
+}

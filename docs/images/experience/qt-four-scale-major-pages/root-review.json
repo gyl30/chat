@@ -1,0 +1,139 @@
+{
+  "head": "7375815f70e3d9d6f456c3d9a0d173411800f294",
+  "status": "FOUR_SCALE_MAJOR_PAGE_SUBSET_NOT_FULL_CAMPAIGN_PASS",
+  "runs": [
+    {
+      "label": "100-r2",
+      "scale": 1,
+      "captures": 24,
+      "operations": 70,
+      "a11y_read_errors": 0,
+      "original_qt": {
+        "pid": 2985887,
+        "ticks": "556338502",
+        "exe": "/home/gyl/example/chat/build/qt/chat_qt",
+        "sha": "370a68ae9448916c86e3085f1a459e9b1ea0f2d292cf18113c842de96a1b24a4",
+        "cmd_sha": "3d56f9c8bc848fe6f214bc66bfea28509a7fad30b2dcbe4851a8a10e789a5397"
+      },
+      "captured_image_hash_differences": 0,
+      "checked_and_next_enabled": true,
+      "back_navigation_exact_unicode_spaces": true,
+      "original_cleanup_database_retained": "chat_daily_5ff9f4f8b2a3dc85",
+      "owned_processes_gone": true,
+      "protected_unchanged": true,
+      "actual_exit": 0,
+      "exit_provenance": "Root observed tool execution or exact matrix runner stdout, not inferred from cleanup."
+    },
+    {
+      "label": "125-r3",
+      "scale": 1.25,
+      "captures": 24,
+      "operations": 70,
+      "a11y_read_errors": 0,
+      "original_qt": {
+        "pid": 2964324,
+        "ticks": "556328232",
+        "exe": "/home/gyl/example/chat/build/qt/chat_qt",
+        "sha": "370a68ae9448916c86e3085f1a459e9b1ea0f2d292cf18113c842de96a1b24a4",
+        "cmd_sha": "3d56f9c8bc848fe6f214bc66bfea28509a7fad30b2dcbe4851a8a10e789a5397"
+      },
+      "captured_image_hash_differences": 0,
+      "checked_and_next_enabled": true,
+      "back_navigation_exact_unicode_spaces": true,
+      "original_cleanup_database_retained": "chat_daily_a67fa867a17d96fd",
+      "owned_processes_gone": true,
+      "protected_unchanged": true,
+      "actual_exit": 0,
+      "exit_provenance": "Root observed tool execution or exact matrix runner stdout, not inferred from cleanup."
+    },
+    {
+      "label": "150",
+      "scale": 1.5,
+      "captures": 24,
+      "operations": 70,
+      "a11y_read_errors": 0,
+      "original_qt": {
+        "pid": 2995598,
+        "ticks": "556342661",
+        "exe": "/home/gyl/example/chat/build/qt/chat_qt",
+        "sha": "370a68ae9448916c86e3085f1a459e9b1ea0f2d292cf18113c842de96a1b24a4",
+        "cmd_sha": "3d56f9c8bc848fe6f214bc66bfea28509a7fad30b2dcbe4851a8a10e789a5397"
+      },
+      "captured_image_hash_differences": 0,
+      "checked_and_next_enabled": true,
+      "back_navigation_exact_unicode_spaces": true,
+      "original_cleanup_database_retained": "chat_daily_22560d9a0bf7c54f",
+      "owned_processes_gone": true,
+      "protected_unchanged": true,
+      "actual_exit": 0,
+      "exit_provenance": "Root observed tool execution or exact matrix runner stdout, not inferred from cleanup."
+    },
+    {
+      "label": "200-r2",
+      "scale": 2,
+      "captures": 24,
+      "operations": 70,
+      "a11y_read_errors": 0,
+      "original_qt": {
+        "pid": 3017629,
+        "ticks": "556353206",
+        "exe": "/home/gyl/example/chat/build/qt/chat_qt",
+        "sha": "370a68ae9448916c86e3085f1a459e9b1ea0f2d292cf18113c842de96a1b24a4",
+        "cmd_sha": "3d56f9c8bc848fe6f214bc66bfea28509a7fad30b2dcbe4851a8a10e789a5397"
+      },
+      "captured_image_hash_differences": 0,
+      "checked_and_next_enabled": true,
+      "back_navigation_exact_unicode_spaces": true,
+      "original_cleanup_database_retained": "chat_daily_6fa7e32094c2fdf0",
+      "owned_processes_gone": true,
+      "protected_unchanged": true,
+      "actual_exit": 0,
+      "exit_provenance": "Root observed tool execution or exact matrix runner stdout, not inferred from cleanup."
+    }
+  ],
+  "incomplete_attempts": [
+    {
+      "label": "100",
+      "captures": 33,
+      "operation_failure_captures": 7,
+      "actual_exit": 0,
+      "status": "PRESERVED_INCOMPLETE_ATTEMPT_NOT_PASS"
+    },
+    {
+      "label": "125",
+      "captures": 1,
+      "operation_failure_captures": 0,
+      "actual_exit": 1,
+      "status": "PRESERVED_INCOMPLETE_ATTEMPT_NOT_PASS"
+    },
+    {
+      "label": "125-r2",
+      "captures": 5,
+      "operation_failure_captures": 1,
+      "actual_exit": 1,
+      "status": "PRESERVED_INCOMPLETE_ATTEMPT_NOT_PASS"
+    },
+    {
+      "label": "200",
+      "captures": 0,
+      "operation_failure_captures": 0,
+      "actual_exit": 1,
+      "status": "PRESERVED_INCOMPLETE_ATTEMPT_NOT_PASS"
+    }
+  ],
+  "successful_captures": 96,
+  "successful_operations": 280,
+  "failure_boundaries": {
+    "100": "Interactive driver continued after errors: mis-targeted menu Home, wrong picker path and disabled Next clicks. Labels17–20 and naming-failure labels are not proof of those pages.",
+    "125": "Startup observer read clipboard before owner acquired selection; exception. No authenticated run.",
+    "125-r2": "AT-SPI returned logical coordinates while XTest expects physical. Contacts capture was identical to chat; later target timed out. Not a product fault or page PASS.",
+    "200": "Private port bind EADDRINUSE before database/client creation. Later listener check was empty. Exact transient cause was not recorded; no speculative cause asserted."
+  },
+  "limits": [
+    "One native Qt per independent scale, not four simultaneous daily clients.",
+    "Major page subset with one selected contact and standard dialog sizes, not all states, 3/20 contacts, min dialog sizes, paginated lists or continuous resize sweep.",
+    "Invalid join text was typed but not submitted; no invalid-submission response claimed.",
+    "Public tree read errors zero here does not mean complete Orca event/navigation acceptance.",
+    "No score increase, two fresh acceptance rounds, sanitizer run or full original three-mode verify claimed."
+  ]
+}

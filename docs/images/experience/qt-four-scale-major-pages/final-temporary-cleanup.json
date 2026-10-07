@@ -1,0 +1,40 @@
+{
+  "status": "EXACT_OWNED_REMOTE_TEST_DIRECTORIES_REMOVED_AFTER_ARCHIVE_VERIFICATION",
+  "base_head": "7375815f70e3d9d6f456c3d9a0d173411800f294",
+  "actual_remove_exit": 0,
+  "actual_post_remove_check_exit": 0,
+  "directories_removed": [
+    "/tmp/chat-daily-native-qt-scale100-2y82nyss",
+    "/tmp/chat-daily-native-qt-scale125-2y82nyss",
+    "/tmp/chat-daily-native-qt-scale125-r2-2y82nyss",
+    "/tmp/chat-daily-native-qt-scale125-r3-2y82nyss",
+    "/tmp/chat-daily-native-qt-scale100-r2-2y82nyss",
+    "/tmp/chat-daily-native-qt-scale150-2y82nyss",
+    "/tmp/chat-daily-native-qt-scale200-2y82nyss",
+    "/tmp/chat-daily-native-qt-scale200-r2-2y82nyss",
+    "/tmp/chat-qt-matrix-driver.2y82nyss",
+    "/tmp/chat-qt-matrix-archive.2y82nyss"
+  ],
+  "symlinks_rejected_before_removal": true,
+  "current_user_ownership_checked_before_removal": true,
+  "original_owned_and_activation_processes_gone_before_removal": true,
+  "directory_remaining": 0,
+  "protected_pid_ticks": {
+    "2876288": "521400965",
+    "3225": "17583",
+    "29935": "248258"
+  },
+  "protected_ticks_unchanged": true,
+  "source206_unchanged": true,
+  "private_port_18962_listeners": 0,
+  "private_port_18964_listeners": 0,
+  "normal_build_retained": true,
+  "qt_sdk_retained": true,
+  "archive_original_654_roundtrip_differences": 0,
+  "archive_supplemental_14_sha_differences": 0,
+  "persisted_glyph_59_reference_23_sha_differences": 0,
+  "database_cleanup": "Seven Qt databases dropped in the separately archived final-database-cleanup record; the independent normal regression database was dropped in normal-regression-proof. Original retained snapshots remain unchanged.",
+  "other_scope_cleanup": "TUI and reference original temporary scopes were already removed with their own separately archived cleanup records.",
+  "recoverability": "Archived top-level regular evidence files can be restored from the project documentation. Private configuration/cache/runtime directories and sockets were deliberately excluded; owned test credentials are inactive after database deletion.",
+  "limits": "This record covers the ten exact remote directories, not all /tmp contents or historical unrelated user data. Local reviewer copies are cleaned separately after the documentation commit."
+}

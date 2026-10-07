@@ -1,0 +1,38 @@
+{
+  "status": "LOSSLESS_PACKAGING_ONLY_ORIGINAL_BYTES_UNCHANGED",
+  "reason": "Three external HTML responses and one original stderr contain source whitespace/CRLF. Preserve their exact original bytes with gzip -n rather than edit or format evidence to satisfy git diff --check.",
+  "original_archive_manifests_rewritten": false,
+  "roundtrip_sha_differences": 0,
+  "path_base": "docs/images/experience",
+  "records": [
+    {
+      "original": "reference-primary-supplement/awwwards-abatable.html",
+      "stored": "reference-primary-supplement/awwwards-abatable.html.gz",
+      "bytes": 285795,
+      "original_sha256": "0179f4a5942444b64d953c6faa38c60ca31369b380a8ac7c546e4408067189fd",
+      "stored_sha256": "fbcbc20e7ae6dc31451dc8a87caf8b0798017f1d1366b0d0d792880c4739de3c"
+    },
+    {
+      "original": "reference-primary-supplement/qq-desktop-login-official-help.html",
+      "stored": "reference-primary-supplement/qq-desktop-login-official-help.html.gz",
+      "bytes": 22876,
+      "original_sha256": "01bdafb5b359275d5a00c065bcfdde62bf2efde5e44445047109f8740ec70219",
+      "stored_sha256": "b25178b7fd100695c5b7a8b7923a8f647c17edd17be2e0d21d8d1f3086248b43"
+    },
+    {
+      "original": "reference-primary-supplement/wechat4-upgrade-official-help.html",
+      "stored": "reference-primary-supplement/wechat4-upgrade-official-help.html.gz",
+      "bytes": 25909,
+      "original_sha256": "673ebd2817500432657240eff1951d2169f0e7b60023bc3f2d02feb7dab2d120",
+      "stored_sha256": "47cc374ea39851bed522470f0202b00f3cab6c4f1d1b7c1dee81db29b1dd57d9"
+    },
+    {
+      "original": "tui-glyph-settling/run/dbus.stderr",
+      "stored": "tui-glyph-settling/run/dbus.stderr.gz",
+      "bytes": 3287,
+      "original_sha256": "6a201a8f22a86af764f2f5a1bbe312ce5f278f32748bc1f495f1d0354f01c3b1",
+      "stored_sha256": "5492d73807ecd78d61e2a5a3e80474af0eabc4c0cad14ef24b05f606423df225"
+    }
+  ],
+  "verification": "For original source-map/manifest/independent-review paths listed here, decompress the mapped stored file before checking original bytes and SHA. The original 82-entry crosscheck proof describes the pre-compression archival phase; this four-file map describes final repository packaging."
+}

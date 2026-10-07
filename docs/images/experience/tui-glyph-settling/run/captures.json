@@ -1,0 +1,184 @@
+[
+  {
+    "label": "unchanged-0",
+    "png_sha": "684bde9c557baafd917fa8706fd9680e477d3e7819a79bb27bf8c1c97875afe5",
+    "original_clients": {
+      "B": {
+        "pid": 2811280,
+        "ticks": "556250067",
+        "exe": "/home/gyl/example/chat/build/chat_tui",
+        "sha": "1ecdf579af21099c08210e0d14b5383cef97342fc0a5ae0540f8877dac030350",
+        "cmd_sha": "62e4ea915584fa58198432f989331e7cc95351f97217bb4df17eaf0899012baa"
+      }
+    },
+    "B-tty": {
+      "tty": "/dev/pts/21",
+      "rows_cols": [
+        40,
+        120
+      ]
+    },
+    "B-raw_sha": "d0dcdd6f9283371ceadba7f31819224f35e315baa459d94e4fd421c8026c3f4f",
+    "monotonic_before_capture": 5562431.160587317,
+    "monotonic_after_capture": 5562431.428663135,
+    "seconds_after_authenticated": 0.11423333641141653,
+    "nominal_settling_seconds": 0,
+    "note": "Capture and terminal inspection only; no TUI input, resize, font change or forced redraw."
+  },
+  {
+    "label": "unchanged-0p25",
+    "png_sha": "684bde9c557baafd917fa8706fd9680e477d3e7819a79bb27bf8c1c97875afe5",
+    "original_clients": {
+      "B": {
+        "pid": 2811280,
+        "ticks": "556250067",
+        "exe": "/home/gyl/example/chat/build/chat_tui",
+        "sha": "1ecdf579af21099c08210e0d14b5383cef97342fc0a5ae0540f8877dac030350",
+        "cmd_sha": "62e4ea915584fa58198432f989331e7cc95351f97217bb4df17eaf0899012baa"
+      }
+    },
+    "B-tty": {
+      "tty": "/dev/pts/21",
+      "rows_cols": [
+        40,
+        120
+      ]
+    },
+    "B-raw_sha": "d0dcdd6f9283371ceadba7f31819224f35e315baa459d94e4fd421c8026c3f4f",
+    "monotonic_before_capture": 5562431.428812929,
+    "monotonic_after_capture": 5562431.683757839,
+    "seconds_after_authenticated": 0.38245894853025675,
+    "nominal_settling_seconds": 0.25,
+    "note": "Capture and terminal inspection only; no TUI input, resize, font change or forced redraw."
+  },
+  {
+    "label": "unchanged-1",
+    "png_sha": "684bde9c557baafd917fa8706fd9680e477d3e7819a79bb27bf8c1c97875afe5",
+    "original_clients": {
+      "B": {
+        "pid": 2811280,
+        "ticks": "556250067",
+        "exe": "/home/gyl/example/chat/build/chat_tui",
+        "sha": "1ecdf579af21099c08210e0d14b5383cef97342fc0a5ae0540f8877dac030350",
+        "cmd_sha": "62e4ea915584fa58198432f989331e7cc95351f97217bb4df17eaf0899012baa"
+      }
+    },
+    "B-tty": {
+      "tty": "/dev/pts/21",
+      "rows_cols": [
+        40,
+        120
+      ]
+    },
+    "B-raw_sha": "d0dcdd6f9283371ceadba7f31819224f35e315baa459d94e4fd421c8026c3f4f",
+    "monotonic_before_capture": 5562432.046725619,
+    "monotonic_after_capture": 5562432.271986934,
+    "seconds_after_authenticated": 1.0003716377541423,
+    "nominal_settling_seconds": 1,
+    "note": "Capture and terminal inspection only; no TUI input, resize, font change or forced redraw."
+  },
+  {
+    "label": "unchanged-3",
+    "png_sha": "684bde9c557baafd917fa8706fd9680e477d3e7819a79bb27bf8c1c97875afe5",
+    "original_clients": {
+      "B": {
+        "pid": 2811280,
+        "ticks": "556250067",
+        "exe": "/home/gyl/example/chat/build/chat_tui",
+        "sha": "1ecdf579af21099c08210e0d14b5383cef97342fc0a5ae0540f8877dac030350",
+        "cmd_sha": "62e4ea915584fa58198432f989331e7cc95351f97217bb4df17eaf0899012baa"
+      }
+    },
+    "B-tty": {
+      "tty": "/dev/pts/21",
+      "rows_cols": [
+        40,
+        120
+      ]
+    },
+    "B-raw_sha": "d0dcdd6f9283371ceadba7f31819224f35e315baa459d94e4fd421c8026c3f4f",
+    "monotonic_before_capture": 5562434.048016354,
+    "monotonic_after_capture": 5562434.272508336,
+    "seconds_after_authenticated": 3.0016623735427856,
+    "nominal_settling_seconds": 3,
+    "note": "Capture and terminal inspection only; no TUI input, resize, font change or forced redraw."
+  },
+  {
+    "label": "unchanged-5",
+    "png_sha": "684bde9c557baafd917fa8706fd9680e477d3e7819a79bb27bf8c1c97875afe5",
+    "original_clients": {
+      "B": {
+        "pid": 2811280,
+        "ticks": "556250067",
+        "exe": "/home/gyl/example/chat/build/chat_tui",
+        "sha": "1ecdf579af21099c08210e0d14b5383cef97342fc0a5ae0540f8877dac030350",
+        "cmd_sha": "62e4ea915584fa58198432f989331e7cc95351f97217bb4df17eaf0899012baa"
+      }
+    },
+    "B-tty": {
+      "tty": "/dev/pts/21",
+      "rows_cols": [
+        40,
+        120
+      ]
+    },
+    "B-raw_sha": "d0dcdd6f9283371ceadba7f31819224f35e315baa459d94e4fd421c8026c3f4f",
+    "monotonic_before_capture": 5562436.048093599,
+    "monotonic_after_capture": 5562436.276224117,
+    "seconds_after_authenticated": 5.001739618368447,
+    "nominal_settling_seconds": 5,
+    "note": "Capture and terminal inspection only; no TUI input, resize, font change or forced redraw."
+  },
+  {
+    "label": "normal-c",
+    "png_sha": "eb3e8303d3d8faedc2060f5e1557c6ff10fa24c0e9c3fc0c0413c429a7b5c93d",
+    "original_clients": {
+      "B": {
+        "pid": 2811280,
+        "ticks": "556250067",
+        "exe": "/home/gyl/example/chat/build/chat_tui",
+        "sha": "1ecdf579af21099c08210e0d14b5383cef97342fc0a5ae0540f8877dac030350",
+        "cmd_sha": "62e4ea915584fa58198432f989331e7cc95351f97217bb4df17eaf0899012baa"
+      }
+    },
+    "B-tty": {
+      "tty": "/dev/pts/21",
+      "rows_cols": [
+        40,
+        120
+      ]
+    },
+    "B-raw_sha": "2cc5e2048b2ce59aec0127ed7932e2236344190c6eb95b28e992f7b9414207f2",
+    "monotonic_before_capture": 5562436.286487557,
+    "monotonic_after_capture": 5562436.555649799,
+    "seconds_after_authenticated": 5.240133576095104,
+    "nominal_settling_seconds": null,
+    "note": "Capture and terminal inspection only; no TUI input, resize, font change or forced redraw."
+  },
+  {
+    "label": "normal-h",
+    "png_sha": "684bde9c557baafd917fa8706fd9680e477d3e7819a79bb27bf8c1c97875afe5",
+    "original_clients": {
+      "B": {
+        "pid": 2811280,
+        "ticks": "556250067",
+        "exe": "/home/gyl/example/chat/build/chat_tui",
+        "sha": "1ecdf579af21099c08210e0d14b5383cef97342fc0a5ae0540f8877dac030350",
+        "cmd_sha": "62e4ea915584fa58198432f989331e7cc95351f97217bb4df17eaf0899012baa"
+      }
+    },
+    "B-tty": {
+      "tty": "/dev/pts/21",
+      "rows_cols": [
+        40,
+        120
+      ]
+    },
+    "B-raw_sha": "88242b045b1b76e0eb462853237e7d276e8745427fda78fc6dab38b9f8aa4feb",
+    "monotonic_before_capture": 5562436.566144417,
+    "monotonic_after_capture": 5562436.807671204,
+    "seconds_after_authenticated": 5.519790436141193,
+    "nominal_settling_seconds": null,
+    "note": "Capture and terminal inspection only; no TUI input, resize, font change or forced redraw."
+  }
+]

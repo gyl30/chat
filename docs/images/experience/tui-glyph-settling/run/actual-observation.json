@@ -1,0 +1,7 @@
+{
+  "execution_completed": true,
+  "product_pass": false,
+  "scope": "5 untouched-page settling samples, then normal c/h; no font change/forced redraw.",
+  "font_match": "1DejaVuSans.ttf: \"DejaVu Sans\" \"Book\"",
+  "needs_human_original_png_review": true
+}
