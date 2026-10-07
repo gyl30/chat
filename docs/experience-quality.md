@@ -179,6 +179,7 @@ QQ/微信当前完整运行状态、Awwwards PDF 重试等原有缺口仍存在�
 | Q32 | P2 | 125% 下关闭真实编辑窗口后，消息行下方留下持续的黑色细线 | 第五十阶段完整标准控件公开时序复现，固定私有 Qt6.5.3 对照及正式 Chat 四档真实 after 已消除该局部黑线；不外推系统输入法或全部页面 HiDPI |
 | Q33 | P2 | 群资料、成员和入群申请的画面显示角色、本人或待审批，但实际无障碍行只读用户名 | 第五十七阶段复用现有角色/状态写入 AccessibleTextRole；同永久测试 RED/GREEN、真实 X11/AT-SPI 八行 before/after 和原三模式完整门禁通过；动态 bridge、Orca 与全页面矩阵仍开放 |
 | Q34 | P1 | 另一管理员更新群名后，群资料覆盖当前未保存的本地群名草稿 | 第五十九阶段真实双管理员与SQL复现；复用输入与旧权威值的差异守卫，永久同字节RED/GREEN、双Qt真实保存及完整69项门禁通过；不新增dirty状态 |
+| Q35 | P2 | 管理权限撤销后，隐藏的私有标签仍以visible/showing/enabled暴露在公开无障碍树中 | 第六十三阶段从实际tab registry移除原私有页，权威恢复后按原顺序重新加入；同字节永久RED/GREEN、真实双Qt撤权/恢复及最终69项门禁通过；事件观察器错误与菜单无障碍范围另记，不宣称完整Orca通过 |
 | T04 | P2 | FTXUI 对 ZWJ、宽字组合符和部分 emoji presentation 的格宽/输出不一致，真实终端可能错位或丢组合符 | 字素编辑、完整span及显示列修复已进入生产；第五十五阶段收口modern链复制页旧反白续格，第五十八阶段同modern链黑白两背景七个旧残留点为0。legacy、SSH、其它调色板及Unicode18完整物理矩阵仍未闭环，不计全部终端通过 |
 | T05 | P2 | Help 的命令列表横向裁掉，窄屏快捷键不换行；滚到底仍无法看到末尾命令 | 第十四轮按词换行与实际内容滚动；六档宽度、两类高度的原生证据收口 |
 | T06 | P2 | TUI 搜索选中消息之前一项被删除时，只clamp索引，选中目标跳到另一ID | 第二十四阶段修复，永久RED/GREEN、真实双TUI六档选中目标/可复制正文/草稿验证通过 |
@@ -4093,3 +4094,54 @@ SHA不变，没有skip、suppression或新编译告警/sanitizer报告。证据�
 这只是T10局部收口，未替代当前2Qt+2TUI全业务日常、完整页面/平台/IME/无障碍
 矩阵或全产品重评。Qt87/TUI78是历史暂评，不因局部通过提高，也不计达到92后的
 两轮完整fresh review。
+
+## 阶段 63：撤权后真正移除群管理私有标签
+
+真实双Qt运行首先复现：A失去管理员后，申请正文清空且动作停用，但`setTabVisible`
+仍让“入群申请 (1)”和“管理”留在公开AT-SPI树，visible/showing/enabled为true、
+rect为0。标准Qt6.5.3控件对照同样失败；标准remove/add对照通过。这不是服务端
+授权缺陷或已证明的申请正文泄漏，问题是权限与公开标签元数据不一致。
+
+复用原requests和management控件：未获得可用的权威管理角色时removeTab，恢复
+后按原顺序addTab，不新增role bool或另造页面。管理入口按真实widget identity
+导航，申请数量按实际tab identity更新；不可用时late申请回调不重建私有内容。
+`manager`仍只表示角色，局部`can_manage`同时考虑可用性：成员加载失败暂时
+移除私有页，但不会误判为权威撤权而丢失未保存公告草稿。
+
+最终永久test`01772f72…`同字节配旧production实际0.16秒exit1，新production
+7.43秒exit0，原60秒限制不变；这是`--widgets-only`回归，不冒称完整CTest。
+覆盖初始/foreign/不可用/普通角色、私有页正在显示时撤权、late回调、零旧申请
+数量与cursor、分页选择、公共成员选择、恢复顺序和反复更新不重复；原Q33/Q34
+断言仍保留。见[永久实测](images/experience/qt-private-tabs-permanent/q35-permanent-proof.json)。
+
+正式Qt冻结`ebaecaff…`的真实X11双客户端attempt3实际exit0，原15秒等待不变：
+C升/降管理员、A把群主转给B、B撤销A管理权限、B恢复A权限、再次升C，均通过
+真实UI输入；SDK仅登录前seed，退出后无业务调用，SQL只读。撤权后A的群窗口
+完整树（含hidden）只剩两个公共tab、没有私有申请D；SQL确认A=member、D仍待
+审批1。恢复后原四tab顺序正确、fresh D Name含待审批，真实群管理入口到可编辑
+表单，再次角色更新无重复tab。实际`/proc/PID/exe`及Qt6.5.3加载映射另记录。
+
+独立审查亲看17张原始整图，主代理亲看8张重点整图并重核98份manifest零差异，
+SQL/树/画面一致；降权后的实际菜单只有“个人资料”。树读取错误0，但事件
+观察器有61条真实读取错误（3空application、58已不可用object path），原日志
+保留；公开菜单树仍没有menu item，不能靠空集合宣布菜单可访问或完整通知/Orca
+正确。只覆盖单scale1、私有Xvfb2400×1000，不外推四DPI或全页面矩阵。
+
+前两个after失败独立保留：attempt1缺PG环境，未创建DB/Qt；attempt2误把实际
+ROLE_TEXT表单检查为ROLE_ENTRY，已完成撤权/恢复但driver失败。修driver只使用
+实际ROLE_TEXT和精确queryText，不放宽私有树缺席或等待时限。attempt3自有进程/
+数据库/端口清理完成，三个保护进程与源码首尾不变。原before、标准控件失败/
+通过、永久和三次after共10个独立scope归档441份记录、59张原PNG，非PNG无损
+gzip、逐字节roundtrip差异0；不收秘密配置、cache、SDK或ELF。见
+[归档映射](images/experience/qt-private-tabs-evidence/archive-proof.json)和
+[独立审查](images/experience/qt-private-tabs-evidence/native-after-actual-pass/q35-native-review.json.gz)。
+最终相同编译输入的三模式69项门禁见阶段62，不为文档或commit变化虚构重跑。
+
+### 最后一轮交付边界
+
+按用户要求，本阶段收口后停止本次任务，不再开启下一轮整改。当前两项局部
+缺陷已验证修复；完整2Qt+2TUI当前二进制日常流程、全部页面/状态/四DPI、其它
+终端/SSH/IME/Unicode物理矩阵及完整无障碍仍未全部验收。Qt87/TUI78仅为历史
+暂评，没有新的全产品评分，未达到并证明两端92和P0/P1/P2=0，达到门槛后的
+两轮fresh review未开始。不能将本次提交、69项门禁或局部原生PASS称为完整
+PRODUCT EXPERIENCE QUALITY CAMPAIGN已经达成。

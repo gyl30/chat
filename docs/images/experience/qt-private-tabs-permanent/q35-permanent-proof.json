@@ -1,0 +1,60 @@
+{
+  "scope": "/tmp/chat-private-tabs-permanent.c6pTzeeO",
+  "issue": "Q35 private group tab removal/restoration under authoritative role and availability",
+  "actual_results": {
+    "red": {
+      "build_exit": 0,
+      "test_exit": 1,
+      "elapsed_seconds": 0.16,
+      "failure": "Unavailable or ordinary membership removes private pages, clears private rows and disables private actions",
+      "failure_type": "Qt check assertion, not timeout",
+      "existing_Q33_and_Q34_checks_pass_before_failure": true,
+      "group_dialog_cpp_sha256": "08caa6a4bba627a04befaf7460f3b85e338cd60b6cb6dd64c0ed163c1ebc2724",
+      "group_dialog_hpp_sha256": "34358195aa81ad838d463d43a3913134bc6a512d505ced0ae6c350a8442fb31c",
+      "ui_test_binary_sha256": "3691a1017bf476c5fc446e6628d24cf45c86737448b4aaf307b520531dc1975c",
+      "production_object_sha256": "b0cae0173b7ce4538f69f279269d62621f897d4e374865d517aaf4265e1b338f",
+      "production_object_tab_symbols": ["QTabWidget::setTabVisible(int, bool)", "QTabWidget::setCurrentIndex(int)"]
+    },
+    "green": {
+      "build_exit": 0,
+      "test_exit": 0,
+      "elapsed_seconds": 7.43,
+      "existing_Q33_and_Q34_and_new_private_tab_checks_pass": true,
+      "group_dialog_cpp_sha256": "ab02ac28e55272cfa5d36f1381e0308d849ed8d59e744ae35e4cb8372bb0c830",
+      "group_dialog_hpp_sha256": "ee392c52189a31d20f4a427600bda3fbabdcc0430bdd040baca781ef1e816f93",
+      "ui_test_binary_sha256": "12c21ed6716917d4086b58491d9e443fd141d8042ca4d4220bd814dcc5694774",
+      "production_object_sha256": "76cc31b2f98dda5659b505730196b1e0e060f7561ec7154ab909c1f41048aca7",
+      "production_object_tab_symbols": ["QTabWidget::setCurrentIndex(int)", "QTabWidget::setCurrentWidget(QWidget*)", "QTabWidget::removeTab(int)"]
+    }
+  },
+  "same_final_test_source_sha256_for_red_and_green": "01772f7278505fcc13afe6964ef31930d598fc1ce176504163329f288540ef30",
+  "input_and_output_source_binary_object_hashes_identical_within_each_actual_run": true,
+  "test_command": "timeout 60s env QT_QPA_PLATFORM=offscreen LD_LIBRARY_PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/lib QT_PLUGIN_PATH=/tmp/chat-qt-dependency-compare.dmJWg7/install/plugins build/qt/chat_qt_ui_test --widgets-only",
+  "unchanged_timeout_seconds": 60,
+  "formal_binary_freeze": {
+    "before_path": "/tmp/chat-private-tabs-permanent.c6pTzeeO/chat_qt.before",
+    "before_sha256": "4ac6cc4f3c44e31833b59c1d3054f758e804a6e7acc24bdb79859bafef1436f4",
+    "after_path": "/tmp/chat-private-tabs-permanent.c6pTzeeO/chat_qt.after",
+    "after_sha256": "ebaecaff8d031d37bb787883c8ac4552212d0e927afebcd10b4c1230cd3800a2",
+    "after_build_exit": 0,
+    "boundary": "Formal application before/after bytes are frozen artifacts; the permanent runs actually execute chat_qt_ui_test with the corresponding production object, not these formal application copies."
+  },
+  "new_fixture_coverage": [
+    "Constructor and failed or foreign initial members cannot register private pages",
+    "Authorized original pages restore in order with actual empty request count and loading state",
+    "Manage navigation uses original widget identity",
+    "Request pagination retains selected applicant and updates actual tab",
+    "Availability loss removes private pages and rows despite old authorized role; late requests and action completion cannot restore them",
+    "Availability loss keeps exact unsaved announcement draft read-only; successful authoritative members restore editing and pages",
+    "Actual role downgrade clears private data and preserves public selected member identity",
+    "Role restoration starts with count zero and no stale cursor or rows",
+    "Repeated authorized snapshots do not duplicate private pages or lose current request selection",
+    "Revocation on the active private page leaves a valid public page"
+  ],
+  "scope_limits": "Offscreen permanent widgets regression; live bridge evidence requires the separate real X11/private DBus dual-Qt native run. No claim of active bridge from offscreen, four DPI, Orca speech or full gate.",
+  "production_unchanged_role_policy_and_draft_guard": true,
+  "no_accessibility_cache_deletion": true,
+  "no_server_protocol_changes_or_new_stored_permission_state": true,
+  "no_full_gate_executed_by_this_agent": true,
+  "not_committed": true
+}

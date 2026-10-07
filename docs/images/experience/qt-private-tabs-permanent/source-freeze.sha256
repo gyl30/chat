@@ -1,0 +1,6 @@
+ab02ac28e55272cfa5d36f1381e0308d849ed8d59e744ae35e4cb8372bb0c830  qt/src/group_dialog.cpp
+ee392c52189a31d20f4a427600bda3fbabdcc0430bdd040baca781ef1e816f93  qt/src/group_dialog.hpp
+01772f7278505fcc13afe6964ef31930d598fc1ce176504163329f288540ef30  qt/tests/ui_test.cpp
+ebaecaff8d031d37bb787883c8ac4552212d0e927afebcd10b4c1230cd3800a2  build/qt/chat_qt
+4ac6cc4f3c44e31833b59c1d3054f758e804a6e7acc24bdb79859bafef1436f4  /tmp/chat-private-tabs-permanent.c6pTzeeO/chat_qt.before
+ebaecaff8d031d37bb787883c8ac4552212d0e927afebcd10b4c1230cd3800a2  /tmp/chat-private-tabs-permanent.c6pTzeeO/chat_qt.after

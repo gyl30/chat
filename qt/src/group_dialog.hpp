@@ -15,6 +15,7 @@ class QListWidget;
 class QPushButton;
 class QCheckBox;
 class QTabWidget;
+class QScrollArea;
 
 class group_dialog final : public QDialog
 {
@@ -80,6 +81,7 @@ class group_dialog final : public QDialog
     QPushButton* revoke_invite_button_;
     QCheckBox* approval_;
     QTabWidget* tabs_;
+    QScrollArea* management_scroll_;
     QListWidget* requests_;
     QPushButton* accept_request_button_;
     QPushButton* reject_request_button_;

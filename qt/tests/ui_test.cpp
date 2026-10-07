@@ -789,6 +789,100 @@ void check_group_detail_layout()
               "Losing management permission keeps a title draft from being submitted through disabled controls");
         std::cout << "PASS Qt exact group title drafts survive remote updates and become clean after successful save\n";
     }
+    {
+        group_dialog private_dialog(43, 1, QStringLiteral("权限切换"), {}, false, nullptr);
+        auto* private_tabs = private_dialog.findChild<QTabWidget*>("groupTabs");
+        auto* private_requests = private_dialog.findChild<QListWidget*>("groupJoinRequestsList");
+        auto* request_page = private_requests->parentWidget();
+        auto* management_page = private_dialog.findChild<QScrollArea*>("groupManagementScroll");
+        auto* private_members = private_dialog.findChild<QListWidget*>("groupMembersList");
+        auto* manage = private_dialog.findChild<QPushButton*>("groupManageButton");
+        auto* accept = private_dialog.findChild<QPushButton*>("groupAcceptRequestButton");
+        auto* more = private_dialog.findChild<QPushButton*>("groupMoreRequestsButton");
+        auto* request_status = private_dialog.findChild<QLabel*>("groupJoinRequestsStatus");
+        auto* announcement = private_dialog.findChild<QPlainTextEdit*>("groupAnnouncementEdit");
+        auto const authorized = QList<member_data>{{1, "self", chat::member_role::admin, {}},
+                                                   {2, "owner", chat::member_role::owner, {}},
+                                                   {3, "selected", chat::member_role::member, {}}};
+        auto const ordinary = QList<member_data>{{1, "self", chat::member_role::member, {}},
+                                                 {2, "owner", chat::member_role::owner, {}},
+                                                 {3, "selected", chat::member_role::member, {}}};
+        auto check_private_absent = [&] {
+            check(private_tabs->count() == 2 && private_tabs->indexOf(request_page) == -1 &&
+                  private_tabs->indexOf(management_page) == -1 && private_requests->count() == 0 &&
+                  !accept->isEnabled() && !more->isEnabled() && manage->isHidden(),
+                  "Unavailable or ordinary membership removes private pages, clears private rows and disables private actions");
+        };
+        check_private_absent();
+        private_dialog.set_members(99, authorized, {});
+        private_dialog.set_members(43, authorized, QStringLiteral("成员加载失败"));
+        private_dialog.set_requests(43, {{10, "unavailable private applicant", false, 0, {}}}, 10, false, {});
+        check_private_absent();
+        int refreshes = 0;
+        QObject::connect(&private_dialog, &group_dialog::requests_requested, &private_dialog,
+                         [&](qint64 before) { check(before == 0, "Role restoration refreshes the first request page"); ++refreshes; });
+        private_dialog.set_members(43, authorized, {});
+        check(private_tabs->count() == 4 && private_tabs->widget(2) == request_page &&
+              private_tabs->widget(3) == management_page && private_tabs->tabText(2) == QStringLiteral("入群申请 (0)") &&
+              request_status->text() == QStringLiteral("正在加载申请…") && refreshes == 1,
+              "Authoritative manager membership adds the original private pages in order with actual empty count and loading state");
+        private_tabs->setCurrentIndex(0);
+        manage->click();
+        check(private_tabs->currentWidget() == management_page,
+              "The overview management action selects its actual page identity");
+        private_dialog.set_requests(43, {{10, "first", false, 0, {}}, {11, "selected applicant", false, 0, {}}}, 10, false, {});
+        private_requests->setCurrentRow(1);
+        private_dialog.set_requests(43, {{12, "older", false, 0, {}}}, 0, true, {});
+        check(private_tabs->tabText(private_tabs->indexOf(request_page)) == QStringLiteral("入群申请 (3)") &&
+              private_requests->currentItem()->data(Qt::UserRole).toLongLong() == 11 && accept->isEnabled(),
+              "Authorized request pagination updates its real tab and preserves the selected applicant");
+        auto const announcement_draft = QStringLiteral("加载失败前未保存公告");
+        announcement->setPlainText(announcement_draft);
+        private_dialog.set_members(43, authorized, QStringLiteral("已授权成员加载失败"));
+        check_private_absent();
+        check(announcement->toPlainText() == announcement_draft && announcement->isReadOnly(),
+              "Member loading failure disables announcement editing without treating the old authoritative role as revoked or erasing its draft");
+        private_dialog.set_requests(43, {{13, "late private applicant after error", false, 0, {}}}, 13, false, {});
+        private_dialog.finish_action(43, false, {});
+        check_private_absent();
+        private_dialog.set_members(43, authorized, {});
+        check(private_tabs->count() == 4 && private_tabs->widget(2) == request_page &&
+              private_tabs->widget(3) == management_page && private_tabs->tabText(2) == QStringLiteral("入群申请 (0)") &&
+              private_requests->count() == 0 && !accept->isEnabled() && !more->isEnabled() && refreshes == 2 &&
+              announcement->toPlainText() == announcement_draft && !announcement->isReadOnly(),
+              "Only a successful authoritative member snapshot restores private pages after availability loss despite the old authorized role");
+        private_tabs->setCurrentIndex(1);
+        private_members->setCurrentRow(2);
+        private_dialog.set_members(43, ordinary, {});
+        check_private_absent();
+        check(private_tabs->currentWidget() == private_members->parentWidget() &&
+              private_members->currentItem()->data(Qt::UserRole).toLongLong() == 3,
+              "Removing private pages preserves the visible public member page and selected identity");
+        private_dialog.set_requests(43, {{13, "stale private applicant", false, 0, {}}}, 13, false, {});
+        private_dialog.set_members(99, authorized, {});
+        private_dialog.set_members(43, authorized, QStringLiteral("旧权限加载失败"));
+        check_private_absent();
+        private_dialog.set_members(43, authorized, {});
+        check(private_tabs->count() == 4 && private_tabs->widget(2) == request_page &&
+              private_tabs->widget(3) == management_page && private_tabs->tabText(2) == QStringLiteral("入群申请 (0)") &&
+              private_requests->count() == 0 && !accept->isEnabled() && !more->isEnabled() &&
+              request_status->text() == QStringLiteral("正在加载申请…") && refreshes == 3 &&
+              private_tabs->currentIndex() == 1 && private_members->currentItem()->data(Qt::UserRole).toLongLong() == 3,
+              "Restored management reuses the original pages without stale private count, rows or lost public selection");
+        private_dialog.set_requests(43, {{14, "fresh applicant", false, 0, {}}}, 14, false, {});
+        private_requests->setCurrentRow(0);
+        private_dialog.set_members(43, authorized, {});
+        check(private_tabs->count() == 4 && private_tabs->tabText(2) == QStringLiteral("入群申请 (1+)") &&
+              private_requests->count() == 1 && private_requests->currentItem()->data(Qt::UserRole).toLongLong() == 14 &&
+              accept->isEnabled() && !more->isEnabled(),
+              "Repeated authoritative manager updates do not duplicate pages or clear current rows, and refresh invalidates the old cursor");
+        private_tabs->setCurrentWidget(request_page);
+        private_dialog.set_members(43, ordinary, {});
+        check_private_absent();
+        check(private_tabs->currentIndex() >= 0 && private_tabs->currentIndex() < 2,
+              "Revoking permission on the active private page leaves a valid public selection");
+        std::cout << "PASS Qt private group tabs remove and restore by authoritative role without stale count or duplicate pages\n";
+    }
     std::cout << "PASS Qt group overview live member avatar and bounded details\n";
 }
 

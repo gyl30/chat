@@ -132,16 +132,16 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     manage_button_->setObjectName(QStringLiteral("groupManageButton"));
     overview_actions->addWidget(manage_button_);
     overview_layout->addLayout(overview_actions);
-    connect(manage_button_, &QPushButton::clicked, this, [this] { tabs_->setCurrentIndex(3); });
+    connect(manage_button_, &QPushButton::clicked, this, [this] { tabs_->setCurrentWidget(management_scroll_); });
     overview_layout->addStretch();
     tabs_->addTab(overview_scroll, QStringLiteral("群资料"));
-    auto* management_scroll = new QScrollArea(tabs_);
-    management_scroll->setObjectName(QStringLiteral("groupManagementScroll"));
-    management_scroll->setWidgetResizable(true);
-    management_scroll->setFrameShape(QFrame::NoFrame);
-    management_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    auto* management = new QWidget(management_scroll);
-    management_scroll->setWidget(management);
+    management_scroll_ = new QScrollArea(tabs_);
+    management_scroll_->setObjectName(QStringLiteral("groupManagementScroll"));
+    management_scroll_->setWidgetResizable(true);
+    management_scroll_->setFrameShape(QFrame::NoFrame);
+    management_scroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    auto* management = new QWidget(management_scroll_);
+    management_scroll_->setWidget(management);
     auto* layout = new QVBoxLayout(management);
     layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding,
                               chat_theme::dialog_padding, chat_theme::dialog_padding);
@@ -250,7 +250,7 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     more_requests_button_->setAutoDefault(false);
     requests_layout->addWidget(more_requests_button_);
     tabs_->addTab(requests_page, QStringLiteral("入群申请"));
-    tabs_->addTab(management_scroll, QStringLiteral("管理"));
+    tabs_->addTab(management_scroll_, QStringLiteral("管理"));
     list_ = new QListWidget(this);
     list_->setObjectName(QStringLiteral("groupMembersList"));
     list_->setMinimumHeight(120);
@@ -708,7 +708,7 @@ void group_dialog::set_requests(qint64 conversation, QList<user_data> users, qin
     if (conversation != conversation_) { return; }
     if (older) { pending_ = false; }
     auto const self = std::find_if(members_.begin(), members_.end(), [this](auto const& member) { return member.id == self_user_; });
-    if (self == members_.end() || self->role == chat::member_role::member) { update_actions(); return; }
+    if (!available_ || self == members_.end() || self->role == chat::member_role::member) { update_actions(); return; }
     if (!error.isEmpty())
     {
         status_->setText(error);
@@ -738,7 +738,8 @@ void group_dialog::set_requests(qint64 conversation, QList<user_data> users, qin
     if (selected_visible && requests_->currentItem()) { requests_->scrollToItem(requests_->currentItem()); }
     next_request_ = next;
     requests_status_->setText(requests_->count() == 0 ? QStringLiteral("暂无待处理申请") : QString{});
-    tabs_->setTabText(2, QStringLiteral("入群申请 (%1%2)").arg(requests_->count()).arg(next ? QStringLiteral("+") : QString{}));
+    tabs_->setTabText(tabs_->indexOf(requests_->parentWidget()),
+                      QStringLiteral("入群申请 (%1%2)").arg(requests_->count()).arg(next ? QStringLiteral("+") : QString{}));
     update_actions();
 }
 
@@ -757,28 +758,38 @@ void group_dialog::update_actions()
     });
     auto const owner = self != members_.end() && self->role == chat::member_role::owner;
     auto const manager = self != members_.end() && self->role != chat::member_role::member;
+    auto const can_manage = available_ && manager;
     auto const enabled = available_ && !pending_;
     if (pending_) { status_->setText(QStringLiteral("正在处理…")); }
     status_->setVisible(!status_->text().isEmpty());
     invite_controls_->setVisible(manager);
     approval_->setEnabled(enabled && manager);
-    tabs_->setTabVisible(2, manager);
-    tabs_->setTabVisible(3, manager);
-    manage_button_->setVisible(manager);
+    manage_button_->setVisible(can_manage);
     overview_invite_->setVisible(manager);
     overview_invite_->setText(invite_edit_->text().isEmpty() ? QStringLiteral("邀请链接 · 尚未创建") : QStringLiteral("邀请链接 · 已创建"));
-    if (!manager)
+    if (!can_manage)
     {
         next_request_ = 0;
         if (requests_->count() > 0) { QSignalBlocker blocked(requests_); requests_->clear(); }
+        tabs_->removeTab(tabs_->indexOf(management_scroll_));
+        tabs_->removeTab(tabs_->indexOf(requests_->parentWidget()));
+    }
+    else
+    {
+        if (tabs_->indexOf(requests_->parentWidget()) < 0)
+        {
+            tabs_->addTab(requests_->parentWidget(), QStringLiteral("入群申请 (%1%2)").arg(requests_->count())
+                .arg(next_request_ > 0 ? QStringLiteral("+") : QString{}));
+        }
+        if (tabs_->indexOf(management_scroll_) < 0) { tabs_->addTab(management_scroll_, QStringLiteral("管理")); }
     }
     accept_request_button_->setEnabled(enabled && manager && requests_->currentItem());
     reject_request_button_->setEnabled(enabled && manager && requests_->currentItem());
     more_requests_button_->setEnabled(enabled && manager && next_request_ > 0);
-    accept_request_button_->setVisible(manager && requests_->count() > 0);
-    reject_request_button_->setVisible(manager && requests_->count() > 0);
-    more_requests_button_->setVisible(manager && next_request_ > 0);
-    requests_status_->setVisible(manager && !requests_status_->text().isEmpty());
+    accept_request_button_->setVisible(can_manage && requests_->count() > 0);
+    reject_request_button_->setVisible(can_manage && requests_->count() > 0);
+    more_requests_button_->setVisible(can_manage && next_request_ > 0);
+    requests_status_->setVisible(can_manage && !requests_status_->text().isEmpty());
     if (!manager) { invite_edit_->clear(); overview_invite_->clear(); }
     create_invite_button_->setEnabled(enabled && manager && invite_edit_->text().isEmpty());
     copy_invite_button_->setEnabled(enabled && manager && !invite_edit_->text().isEmpty());
