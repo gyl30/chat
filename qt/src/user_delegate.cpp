@@ -11,6 +11,26 @@
 #include "theme.hpp"
 #include "user_model.hpp"
 
+namespace
+{
+
+QFont action_font(QFont font)
+{
+    font.setPixelSize(13);
+    font.setBold(true);
+    return font;
+}
+
+QRect action_rect(QStyleOptionViewItem const& option, QString const& text)
+{
+    if (text.isEmpty()) { return {}; }
+    auto const width = QFontMetrics(action_font(option.font)).horizontalAdvance(text) + 28;
+    constexpr int height = 30;
+    return {option.rect.right() - chat_theme::dialog_right - width + 1, option.rect.center().y() - height / 2 + 1, width, height};
+}
+
+}
+
 user_delegate::user_delegate(QObject* parent) : QStyledItemDelegate(parent) {}
 
 bool user_delegate::editorEvent(QEvent* event, QAbstractItemModel* model,
@@ -24,7 +44,8 @@ bool user_delegate::editorEvent(QEvent* event, QAbstractItemModel* model,
     QRect avatar_rect(option.rect.left() + chat_theme::dialog_left, option.rect.top() + chat_theme::dialog_avatar_top,
                       chat_theme::dialog_avatar_size, chat_theme::dialog_avatar_size);
     if (mouse->button() != Qt::LeftButton) { return false; }
-    if (avatar_rect.contains(mouse->pos())) { emit avatar_clicked(index); }
+    if (action_rect(option, index.data(action_role).toString()).contains(mouse->pos())) { emit action_clicked(index); }
+    else if (avatar_rect.contains(mouse->pos())) { emit avatar_clicked(index); }
     else { emit body_clicked(index); }
     return true;
 }
@@ -52,7 +73,18 @@ void user_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option,
     paint_avatar(*painter, avatar_rect, username, 17, index.data(Qt::DecorationRole).value<QPixmap>());
 
     auto const left = rect.left() + chat_theme::dialog_text_left;
-    auto const right = rect.right() - chat_theme::dialog_right + 1;
+    auto const action = index.data(action_role).toString();
+    auto const button = action_rect(option, action);
+    auto const right = button.isValid() ? button.left() - 10 : rect.right() - chat_theme::dialog_right + 1;
+    if (button.isValid())
+    {
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(themed("#315A4B"));
+        painter->drawRoundedRect(button, 8, 8);
+        painter->setFont(action_font(option.font));
+        painter->setPen(theme_manager::instance().on_accent());
+        painter->drawText(button, Qt::AlignCenter, action);
+    }
 
     QFont username_font = option.font;
     username_font.setBold(true);

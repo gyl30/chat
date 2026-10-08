@@ -8,6 +8,8 @@ class user_delegate final : public QStyledItemDelegate
     Q_OBJECT
    public:
     explicit user_delegate(QObject* parent = nullptr);
+    // Text of an inline action (such as accepting a request) drawn at the end of the row.
+    static constexpr int action_role = Qt::UserRole + 20;
 
     void paint(QPainter* painter, QStyleOptionViewItem const& option, QModelIndex const& index) const override;
     QSize sizeHint(QStyleOptionViewItem const& option, QModelIndex const& index) const override;
@@ -17,6 +19,7 @@ class user_delegate final : public QStyledItemDelegate
    signals:
     void avatar_clicked(QModelIndex index);
     void body_clicked(QModelIndex index);
+    void action_clicked(QModelIndex index);
 };
 
 #endif

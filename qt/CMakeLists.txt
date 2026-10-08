@@ -63,8 +63,10 @@ qt_add_resources(chat_qt_widgets chat_icons
         resources/icons/contacts.svg
         resources/icons/copy.svg
         resources/icons/groups.svg
+        resources/icons/search.svg
         resources/icons/send.svg
         resources/icons/settings.svg
+        resources/icons/user-plus.svg
         resources/icons/window-maximize.svg
         resources/icons/window-minimize.svg
         resources/icons/window-restore.svg

@@ -444,17 +444,14 @@ void check_friend_request_layout()
     check(logical_pixel(focused, QPoint(1, selected_row.center().y())).lightness() <
           logical_pixel(focused, QPoint(incoming->viewport()->width() - 8, selected_row.center().y())).lightness() - 40,
           "Keyboard focus has a visible outline rather than relying on selection color");
-    bool opened = false;
-    QTimer::singleShot(0, &page, [&] {
-        auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
-        if (!dialog) { return; }
-        opened = dialog->findChild<QLabel*>("profileDialogName")->text() == QStringLiteral("申请 用户😀40");
-        dialog->reject();
-    });
     QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
     QApplication::sendEvent(incoming, &enter);
     QApplication::processEvents();
-    check(opened, "Enter opens the selected friend request's real profile action flow");
+    check(!QApplication::activeModalWidget() &&
+              page.findChild<QLabel*>("contactCardName")->text() == QStringLiteral("申请 用户😀40") &&
+              page.findChild<QPushButton*>("contactCardMessageButton")->text() == QStringLiteral("接受") &&
+              page.findChild<QPushButton*>("contactCardProfileButton")->text() == QStringLiteral("拒绝"),
+          "Enter shows the selected request on the right card with its accept and reject actions");
     QList<QPair<qint64, bool>> responses;
     QList<qint64> cancellations;
     auto const response_connection = QObject::connect(&page, &chat_widget::friend_request_respond_requested, &page,
@@ -466,7 +463,6 @@ void check_friend_request_layout()
         auto* list = action == 2 ? outgoing : incoming;
         auto const user = action == 2 ? 201 : 340;
         auto const username = action == 2 ? QStringLiteral("发出 申请") : QStringLiteral("申请 用户😀40");
-        int opened_profiles = 0;
         page.activateWindow();
         list->setFocus();
         QApplication::processEvents();
@@ -475,59 +471,34 @@ void check_friend_request_layout()
             QKeyEvent home(QEvent::KeyPress, Qt::Key_Home, Qt::NoModifier);
             QApplication::sendEvent(list, &home);
         }
-        QTimer::singleShot(0, &page, [&] {
-            auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
-            check(dialog && dialog->findChild<QLabel*>("profileDialogName")->text() == username,
-                  "Keyboard friend request activation preserves the exact current user");
-            ++opened_profiles;
-            QAbstractButton* button = nullptr;
-            if (action == 0)
-            {
-                for (auto* candidate : dialog->findChildren<QToolButton*>())
-                { if (candidate->text() == QStringLiteral("接受申请")) { button = candidate; } }
-            }
-            else
-            {
-                button = dialog->findChild<QPushButton*>(action == 1 ? "rejectFriendRequestButton" : "cancelFriendRequestButton");
-            }
-            check(button && button->isVisible() && button->isEnabled(), "The current pending relationship exposes its keyboard action");
-            if (action == 2)
-            {
-                QToolButton* waiting = nullptr;
-                for (auto* candidate : dialog->findChildren<QToolButton*>())
-                {
-                    if (candidate->text() == QStringLiteral("等待验证")) { waiting = candidate; }
-                }
-                check(waiting && waiting->isVisible() && !waiting->isEnabled(),
-                      "An outgoing pending request exposes its status without enabling a direct chat");
-                check(!dialog->findChild<QPushButton*>("rejectFriendRequestButton")->isVisible(),
-                      "An outgoing request does not expose the incoming rejection action");
-            }
-            for (int step = 0; step < 12 && !button->hasFocus(); ++step)
-            {
-                QKeyEvent tab(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier);
-                QApplication::sendEvent(QApplication::focusWidget(), &tab);
-                QApplication::processEvents();
-            }
-            check(button->hasFocus(), "Tab reaches the pending relationship action in the real profile dialog");
-            QKeyEvent press(QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier);
-            QKeyEvent release(QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier);
-            QApplication::sendEvent(button, &press);
-            QApplication::sendEvent(button, &release);
-            check(!button->isEnabled(), "A keyboard request action cannot be resubmitted while its result is pending");
-            page.finish_add_contact(999, QStringLiteral("其他申请的错误"));
-            check(!button->isEnabled(), "Another user's response cannot reset the current pending action");
-            page.finish_add_contact(user, QStringLiteral("连接中断，稍后重试"));
-            check(button->isEnabled() && dialog->findChild<QLabel*>("profileContactStatus")->text().contains(QStringLiteral("连接中断")),
-                  "The same user's error restores an actionable relationship with inline feedback");
-            QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
-            QApplication::sendEvent(dialog, &escape);
-        });
         QKeyEvent activate(QEvent::KeyPress, action == 2 ? Qt::Key_Enter : Qt::Key_Return, Qt::NoModifier);
         QApplication::sendEvent(list, &activate);
         QApplication::processEvents();
-        check(opened_profiles == 1 && list->currentItem()->data(Qt::UserRole).toLongLong() == user,
-              "Return and keypad Enter open one profile and preserve the request's current identity after Escape");
+        auto* primary = page.findChild<QPushButton*>("contactCardMessageButton");
+        auto* secondary = page.findChild<QPushButton*>("contactCardProfileButton");
+        check(!QApplication::activeModalWidget() && page.findChild<QLabel*>("contactCardName")->text() == username &&
+                  list->currentItem()->data(Qt::UserRole).toLongLong() == user,
+              "Return and keypad Enter show the exact current request on the card without a dialog");
+        QPushButton* button = action == 0 ? primary : secondary;
+        check(button->isVisible() && button->isEnabled() &&
+                  button->text() == (action == 0 ? QStringLiteral("接受") : action == 1 ? QStringLiteral("拒绝") : QStringLiteral("撤回申请")),
+              "The current pending relationship exposes its keyboard action on the card");
+        if (action == 2)
+        {
+            check(primary->text() == QStringLiteral("等待验证") && !primary->isEnabled(),
+                  "An outgoing pending request shows its status without enabling a direct chat");
+        }
+        button->setFocus(Qt::TabFocusReason);
+        QKeyEvent press(QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier);
+        QKeyEvent release(QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier);
+        QApplication::sendEvent(button, &press);
+        QApplication::sendEvent(button, &release);
+        check(!button->isEnabled(), "A keyboard request action cannot be resubmitted while its result is pending");
+        page.finish_add_contact(999, {});
+        check(!button->isEnabled(), "Another user's response cannot reset the current pending action");
+        page.finish_add_contact(user, QStringLiteral("连接中断，稍后重试"));
+        check(button->isEnabled() && page.findChild<QLabel*>("sidebarNotice")->text().contains(QStringLiteral("连接中断")),
+              "The same user's error restores an actionable relationship with visible feedback");
     }
     check(responses == QList<QPair<qint64, bool>>{{340, true}, {340, false}} && cancellations == QList<qint64>{201},
           "Keyboard accept, reject and cancel each emit exactly one action for the correct pending user");
@@ -549,9 +520,10 @@ void check_friend_request_layout()
     page.set_friend_requests({}, {}, {});
     QApplication::processEvents();
     auto* status = page.findChild<QLabel*>("friendRequestsStatus");
-    check(status->isVisible() && status->text().contains(QStringLiteral("暂无好友申请")) &&
-          !incoming->isVisible() && !outgoing->isVisible(),
-          "No requests shows an explicit empty state instead of empty list sections");
+    check(status->isVisible() && status->text().contains(QStringLiteral("还没有好友申请")) &&
+          !incoming->isVisible() && !outgoing->isVisible() &&
+          page.findChild<QPushButton*>("emptyAddFriendButton")->isVisible(),
+          "No requests shows an explicit empty state with the next step instead of empty list sections");
     std::cout << "PASS Qt friend request row rhythm and empty state\n";
 }
 
@@ -949,7 +921,7 @@ void check_primary_navigation()
     add->trigger();
     auto searches = page.findChildren<QLineEdit*>("userSearchEdit");
     check(std::any_of(searches.begin(), searches.end(), [](auto* field) {
-        return field->isVisible() && field->placeholderText() == QStringLiteral("搜索用户");
+        return field->isVisible() && field->accessibleName() == QStringLiteral("搜索用户");
     }), "Header add friend opens existing search");
     page.set_add_contact_search_results({{600, QStringLiteral("搜索 用户"), false, 0, {}}});
     QApplication::processEvents();
@@ -964,26 +936,15 @@ void check_primary_navigation()
     check_profile_avatar_click(*search_list, QPoint(20, search_row.center().y()));
     for (auto key : {Qt::Key_Return, Qt::Key_Enter})
     {
-        int opened_profiles = 0;
-        bool correct_profile = false;
-        QTimer close_profile;
-        QObject::connect(&close_profile, &QTimer::timeout, &page, [&] {
-            auto* profile = qobject_cast<QDialog*>(QApplication::activeModalWidget());
-            if (profile && profile->objectName() == "profileDialog")
-            {
-                ++opened_profiles;
-                correct_profile = profile->windowTitle() == QStringLiteral("搜索 用户");
-                profile->reject();
-            }
-        });
-        close_profile.start(0);
         (*search_list)->setFocus();
         QKeyEvent home(QEvent::KeyPress, Qt::Key_Home, Qt::NoModifier);
         QApplication::sendEvent(*search_list, &home);
         QKeyEvent activate(QEvent::KeyPress, key, Qt::NoModifier);
         QApplication::sendEvent(*search_list, &activate);
-        close_profile.stop();
-        check(opened_profiles == 1 && correct_profile, "User search keyboard activation opens exactly the current user's profile");
+        check(!QApplication::activeModalWidget() &&
+                  page.findChild<QLabel*>("contactCardName")->text() == QStringLiteral("搜索 用户") &&
+                  page.findChild<QPushButton*>("contactCardMessageButton")->text() == QStringLiteral("添加到通讯录"),
+              "User search keyboard activation shows exactly the current user on the card with its add action");
     }
     auto* back = page.findChild<QToolButton*>("sidebarHeaderButton");
     auto* chats = *std::find_if(buttons.begin(), buttons.end(), [](auto* button) { return button->text() == QStringLiteral("聊天"); });
@@ -1184,7 +1145,7 @@ void check_primary_navigation()
     for (auto* button : buttons)
     { if (button->text() == QStringLiteral("联系人")) { button->click(); } }
     auto* contact_search = *std::find_if(searches.begin(), searches.end(), [](auto* field) {
-        return field->placeholderText() == QStringLiteral("搜索联系人");
+        return field->accessibleName() == QStringLiteral("搜索联系人");
     });
     for (auto const& [query, id] : QList<QPair<QString, qint64>>{{"BOB", 10}, {QStringLiteral("三"), 11}, {".b", 12}, {QStringLiteral("äli"), 13}})
     {
@@ -1192,7 +1153,8 @@ void check_primary_navigation()
         check(contact_view->model()->rowCount() == 1 && contact_view->model()->index(0, 0).data(Qt::UserRole + 1).toLongLong() == id,
               ("Contacts substring match: " + query.toStdString() + " rows=" + std::to_string(contact_view->model()->rowCount()) +
                " id=" + std::to_string(contact_view->model()->index(0, 0).data(Qt::UserRole + 1).toLongLong())).c_str());
-        check(new_friends->isVisible(), "Local search never filters the New friends entry");
+        check(!new_friends->isVisible() && page.findChild<QPushButton*>("findUserButton")->isVisible(),
+              "While searching, finding users by the query takes the place of the New friends entry");
         QTimer::singleShot(0, [&] {
             auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
             auto* search = dialog->findChild<QLineEdit*>("groupContactSearch");
@@ -1213,7 +1175,9 @@ void check_primary_navigation()
         create->trigger();
     }
     contact_search->clear();
-    check(contact_view->model()->rowCount() == 4, "Cleared Contacts filter restores accepted list");
+    check(contact_view->model()->rowCount() == 4 && new_friends->isVisible() &&
+              !page.findChild<QPushButton*>("findUserButton")->isVisible(),
+          "Cleared Contacts filter restores the accepted list and the New friends entry");
     direct = {};
     direct.id = 50; direct.user = 200; direct.username = QStringLiteral("收到 申请"); direct.can_send = false;
     page.open_conversation(direct);
@@ -2043,6 +2007,82 @@ void check_themes()
           "Leaving night mode restores the theme chosen meanwhile");
     themes.set_theme(chat_theme_id::classic);
     check(chat_style_sheet() == classic, "Returning to classic restores the original stylesheet");
+}
+void check_friend_flow()
+{
+    chat_widget page;
+    page.setStyleSheet(chat_style_sheet());
+    page.resize(1180, 720);
+    page.set_user(QStringLiteral("本人"), 1);
+    page.set_connection_available(true);
+    page.set_contacts({{2, QStringLiteral("老朋友"), false, 0, {}}});
+    page.set_friend_requests({{5, QStringLiteral("申请人"), false, 0, {}}}, {{6, QStringLiteral("已发出"), false, 0, {}}}, {});
+    page.show();
+    QApplication::processEvents();
+    auto* nav_badge = page.findChild<QLabel*>("navigationBadge");
+    auto* row_badge = page.findChild<QLabel*>("newFriendsBadge");
+    check(nav_badge && nav_badge->isVisibleTo(&page) && nav_badge->text() == QStringLiteral("1") &&
+              row_badge && row_badge->text() == QStringLiteral("1"),
+          "Incoming requests are counted on the navigation icon and the New friends row");
+    for (auto* button : page.findChildren<QToolButton*>())
+    { if (button->text() == QStringLiteral("联系人")) { button->click(); } }
+    QString searched;
+    QObject::connect(&page, &chat_widget::add_contact_search_requested, &page, [&](QString query) { searched = query; });
+    QLineEdit* search = nullptr;
+    for (auto* field : page.findChildren<QLineEdit*>("userSearchEdit"))
+    { if (field->accessibleName() == QStringLiteral("搜索联系人")) { search = field; } }
+    search->setText(QStringLiteral("新同学"));
+    auto* find = page.findChild<QPushButton*>("findUserButton");
+    check(find && find->isVisible() && find->text().contains(QStringLiteral("新同学")),
+          "Typing in Contacts offers to find users by that name");
+    auto const shots = qEnvironmentVariable("CHAT_THEME_SHOTS");
+    QApplication::processEvents();
+    if (!shots.isEmpty()) { page.grab().save(shots + QStringLiteral("/friends-contacts-search.png")); }
+    find->click();
+    check(searched == QStringLiteral("新同学") && page.findChild<QLabel*>("sectionTitle")->text() == QStringLiteral("添加好友"),
+          "Find user searches the server for the typed name");
+    QList<QPair<qint64, bool>> responses;
+    QObject::connect(&page, &chat_widget::friend_request_respond_requested, &page,
+        [&](qint64 user, bool accept) { responses.push_back({user, accept}); });
+    page.findChild<QPushButton*>("newFriendsButton")->click();
+    auto* incoming = page.findChild<QListWidget*>("incomingFriendRequests");
+    QApplication::processEvents();
+    auto const row = incoming->visualItemRect(incoming->item(0));
+    auto const point = QPoint(row.right() - 24, row.center().y());
+    QMouseEvent press(QEvent::MouseButtonPress, point, incoming->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent release(QEvent::MouseButtonRelease, point, incoming->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(incoming->viewport(), &press);
+    QApplication::sendEvent(incoming->viewport(), &release);
+    QApplication::sendEvent(incoming->viewport(), &press);
+    QApplication::sendEvent(incoming->viewport(), &release);
+    check(responses == QList<QPair<qint64, bool>>{{5, true}} && !QApplication::activeModalWidget(),
+          "The inline accept button accepts that request once, without a dialog");
+    page.finish_add_contact(5, {});
+    auto* notice = page.findChild<QLabel*>("sidebarNotice");
+    check(notice->isVisibleTo(&page) && notice->text() == QStringLiteral("已添加 申请人 为好友"), "Accepting reports the new friend");
+    if (!shots.isEmpty())
+    {
+        page.set_friend_requests({{8, QStringLiteral("新申请"), false, 0, {}}}, {{6, QStringLiteral("已发出"), false, 0, {}}}, {});
+        page.grab().save(shots + QStringLiteral("/friends-new-friends.png"));
+    }
+    page.set_contacts({{2, QStringLiteral("老朋友"), false, 0, {}}, {5, QStringLiteral("申请人"), false, 0, {}}});
+    page.set_friend_requests({}, {{6, QStringLiteral("已发出"), false, 0, {}}}, {});
+    check(incoming->count() == 1 && incoming->item(0)->data(Qt::StatusTipRole).toString() == QStringLiteral("已添加") &&
+              !incoming->item(0)->data(user_delegate::action_role).isValid() && !nav_badge->isVisibleTo(&page),
+          "A handled request stays listed with its outcome while the page is open");
+    int adds = 0;
+    QObject::connect(&page, &chat_widget::contact_add_requested, &page, [&](qint64 user) { adds += user == 7; });
+    page.show_contact_card(7, QStringLiteral("陌生人"));
+    auto* primary = page.findChild<QPushButton*>("contactCardMessageButton");
+    check(primary->text() == QStringLiteral("添加到通讯录") && primary->isEnabled(), "A stranger's card offers adding them");
+    primary->click();
+    primary->click();
+    check(adds == 1 && !primary->isEnabled(), "Adding sends one request and waits for its result");
+    page.set_friend_requests({}, {{6, QStringLiteral("已发出"), false, 0, {}}, {7, QStringLiteral("陌生人"), false, 0, {}}}, {});
+    page.finish_add_contact(7, {});
+    check(notice->text() == QStringLiteral("已向 陌生人 发送好友申请，等待对方验证") &&
+              primary->text() == QStringLiteral("等待验证") && !primary->isEnabled(),
+          "A sent request is confirmed and the card shows it is waiting");
 }
 void check_message_action_targets()
 {
@@ -3022,7 +3062,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
+        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
@@ -3806,30 +3846,33 @@ int main(int argc, char** argv)
             wait([&] { return ordinary_member; });
             auto accept_friend = [&](int receiver, int sender) {
                 auto* incoming = windows[receiver]->findChild<QListWidget*>("incomingFriendRequests");
+                // A pending row, not an earlier handled outcome for the same person.
                 wait([&] {
                     for (int row = 0; row < incoming->count(); ++row)
-                    { if (incoming->item(row)->data(Qt::UserRole).toLongLong() == ids[sender]) { return true; } }
+                    {
+                        if (incoming->item(row)->data(Qt::UserRole).toLongLong() == ids[sender] &&
+                            incoming->item(row)->data(user_delegate::action_role).isValid()) { return true; }
+                    }
                     return false;
                 });
-                check(windows[receiver]->findChild<QPushButton*>("newFriendsButton")->text().contains(QStringLiteral("1")),
-                    "Incoming friend count is visible at contacts entry");
-                QTimer::singleShot(20, [&] {
-                    auto* profile = qobject_cast<QDialog*>(QApplication::activeModalWidget());
-                    check(profile && profile->objectName() == "profileDialog", "Incoming friend profile");
-                    QToolButton* accept = nullptr;
-                    for (auto* button : profile->findChildren<QToolButton*>("profileActionButton"))
-                    { if (button->text() == QStringLiteral("接受申请")) { accept = button; } }
-                    check(accept && accept->isEnabled(), "Incoming friend can be accepted explicitly");
-                    accept->click();
-                    wait([&] { return accept->text() == QStringLiteral("消息") && accept->isEnabled(); });
-                    profile->accept();
-                });
+                int waiting = 0;
+                for (int row = 0; row < incoming->count(); ++row)
+                { waiting += incoming->item(row)->data(user_delegate::action_role).isValid(); }
+                check(windows[receiver]->findChild<QLabel*>("newFriendsBadge")->text() == QString::number(waiting) &&
+                    windows[receiver]->findChild<QLabel*>("navigationBadge")->isVisibleTo(windows[receiver].get()),
+                    "Incoming friend count is visible at contacts entry and on the navigation icon");
                 windows[receiver]->findChild<QPushButton*>("newFriendsButton")->click();
                 for (int row = 0; row < incoming->count(); ++row)
                 {
-                    if (incoming->item(row)->data(Qt::UserRole).toLongLong() == ids[sender])
-                    { incoming->itemClicked(incoming->item(row)); break; }
+                    if (incoming->item(row)->data(Qt::UserRole).toLongLong() == ids[sender] &&
+                        incoming->item(row)->data(user_delegate::action_role).isValid())
+                    { click_list_body(incoming, incoming->model()->index(row, 0)); break; }
                 }
+                auto* accept = windows[receiver]->findChild<QPushButton*>("contactCardMessageButton");
+                check(accept->text() == QStringLiteral("接受") && accept->isEnabled(),
+                      "Incoming friend can be accepted explicitly from the card");
+                accept->click();
+                wait([&] { return accept->text() == QStringLiteral("发消息") && accept->isEnabled(); });
             };
             auto open_chat = [&](int actor, qint64 conversation) {
                 auto* list = windows[actor]->findChild<QListView*>("conversationList");
@@ -3897,15 +3940,13 @@ int main(int argc, char** argv)
                         wait([&] { return action->text() == QStringLiteral("等待验证"); });
                         auto* incoming = windows[1]->findChild<QListWidget*>("incomingFriendRequests");
                         wait([&] { return incoming->count() == 1; });
-                        QTimer::singleShot(20, [&] {
-                            auto* received = qobject_cast<QDialog*>(QApplication::activeModalWidget());
-                            auto* reject = received->findChild<QPushButton*>("rejectFriendRequestButton");
-                            check(reject && reject->isVisible() && reject->isEnabled(), "Incoming request offers reject");
-                            reject->click();
-                            wait([&] { return !reject->isVisible(); });
-                            received->reject();
-                        });
-                        incoming->itemClicked(incoming->item(0));
+                        windows[1]->findChild<QPushButton*>("newFriendsButton")->click();
+                        click_list_body(incoming, incoming->model()->index(0, 0));
+                        auto* reject = windows[1]->findChild<QPushButton*>("contactCardProfileButton");
+                        check(reject->isVisible() && reject->isEnabled() && reject->text() == QStringLiteral("拒绝"),
+                              "Incoming request offers reject on the card");
+                        reject->click();
+                        wait([&] { return reject->text() != QStringLiteral("拒绝"); });
                         wait([&] { return action->text() == QStringLiteral("添加好友") && action->isEnabled(); });
                         action->click();
                         wait([&] { return action->text() == QStringLiteral("等待验证"); });
@@ -3993,6 +4034,10 @@ int main(int argc, char** argv)
                 profile->reject();
             });
             click_list_body(search_view, search_view->model()->index(0, 0));
+            check(windows[2]->findChild<QLabel*>("contactCardName")->text() == names[1] &&
+                      windows[2]->findChild<QPushButton*>("contactCardMessageButton")->text() == QStringLiteral("发消息"),
+                  "An accepted search result shows its card with messaging");
+            windows[2]->findChild<QPushButton*>("contactCardProfileButton")->click();
             pages[2]->contact_remove_requested(ids[1]);
             wait([&] { return third_contacts->model()->rowCount() == 0; });
             pages[0]->contact_add_requested(ids[2]);

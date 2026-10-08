@@ -702,6 +702,68 @@ QString classic_style_sheet()
             color: #5D6C64;
             font-size: 13px;
         }
+        QPushButton#newFriendsButton {
+            min-height: 56px;
+            padding: 0 0 0 18px;
+            text-align: left;
+            background: #FCFBF7;
+            color: #25332D;
+            border: 0;
+            border-bottom: 1px solid #E8E4DA;
+            border-radius: 0;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        QPushButton#newFriendsButton:hover, QPushButton#newFriendsButton:focus {
+            background: #F1F3EF;
+        }
+        QLabel#newFriendsBadge {
+            min-width: 18px;
+            padding: 0 5px;
+            border-radius: 9px;
+            background: #D9534F;
+            color: #FFFFFF;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        QLabel#navigationBadge {
+            min-width: 16px;
+            padding: 0 4px;
+            border-radius: 8px;
+            background: #D9534F;
+            color: #FFFFFF;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        QPushButton#findUserButton {
+            min-height: 56px;
+            padding: 0 0 0 18px;
+            text-align: left;
+            background: #FCFBF7;
+            color: #315A4B;
+            border: 0;
+            border-bottom: 1px solid #E8E4DA;
+            border-radius: 0;
+            font-size: 14px;
+        }
+        QPushButton#findUserButton:hover, QPushButton#findUserButton:focus {
+            background: #F1F3EF;
+        }
+        QPushButton#emptyAddFriendButton {
+            min-height: 36px;
+            padding: 0 22px;
+            background: #315A4B;
+            color: #FFFFFF;
+            border: 2px solid transparent;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+        QPushButton#emptyAddFriendButton:hover {
+            background: #294D40;
+        }
+        QPushButton#contactCardProfileButton[danger="true"] {
+            color: #A64C48;
+        }
         QLabel#profileSectionTitle {
             color: #27362F;
             font-size: 14px;

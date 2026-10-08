@@ -51,6 +51,7 @@ class chat_widget final : public QWidget
     void open_conversation(conversation_data conversation);
     void close_conversation(qint64 conversation);
     void locate_message(qint64 conversation, qint64 message);
+    void show_contact_card(qint64 user, QString const& username);
     void refresh_theme();
     void set_members(qint64 conversation, QList<member_data> members, QString const& error);
     void set_loading();
@@ -135,8 +136,12 @@ class chat_widget final : public QWidget
     void filter_contacts(QString const& query);
     void search_users();
     void select_contact(QModelIndex const& index);
-    void show_contact_card(qint64 user, QString const& username);
     void update_contact_card();
+    void contact_card_primary();
+    void contact_card_secondary();
+    void request_friend_action(qint64 user, QString const& username, int action);
+    void find_user();
+    void update_friend_badges();
     void select_add_user(QModelIndex const& index);
     void select_conversation(QModelIndex const& index);
     void open_chat(qint64 user, QString username);
@@ -187,6 +192,14 @@ class chat_widget final : public QWidget
     QPushButton* contact_card_profile_ = nullptr;
     qint64 contact_card_user_ = 0;
     QString contact_card_username_;
+    QPushButton* find_user_button_ = nullptr;
+    QLabel* new_friends_badge_ = nullptr;
+    QLabel* navigation_badge_ = nullptr;
+    QPushButton* empty_add_friend_button_ = nullptr;
+    // The action awaiting its result per user, so the result can be reported in words.
+    QHash<qint64, QPair<int, QString>> pending_friend_actions_;
+    // Requests handled on the New friends page stay listed with their outcome until it is reopened.
+    QList<QPair<user_data, QString>> handled_requests_;
     feedback_label* notice_ = nullptr;
     QTimer* notice_timer_ = nullptr;
     QLineEdit* contact_search_ = nullptr;
