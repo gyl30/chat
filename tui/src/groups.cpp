@@ -31,14 +31,14 @@ void app::members()
                 data.next_requests.reset();
                 requests_busy_ = requests_again_ = false;
                 navigate(page::group);
-                data.status = "群角色已更新，申请管理已关闭";
+                notify("群角色已更新，申请管理已关闭");
             }
             else if (data.view == page::pick_contacts && (pick_action_ == "invite" || pick_action_ == "inviting"))
             {
                 data.picked_contacts.clear();
                 pick_action_.clear();
                 navigate(page::group);
-                data.status = "群角色已更新，联系人邀请已关闭";
+                notify("群角色已更新，联系人邀请已关闭");
             }
         }
         if (data.view == page::members)
@@ -84,7 +84,7 @@ void app::requests(bool more)
 
 void app::group_done(bool left)
 {
-    data.status = left ? "已退出群聊" : "群聊已更新";
+    notify(left ? "已退出群聊" : "群聊已更新");
     if (left)
     {
         stop_composing();
@@ -135,7 +135,7 @@ void app::finish_pick()
                         if (!value) { pick_action_ = "create"; error(value.error()); return; }
                         pick_action_.clear(); data.picked_contacts.clear(); data.pick_query.clear();
                         navigate(page::conversations); pending_open_ = *value;
-                        data.status = "群聊已创建"; conversations();
+                        notify("群聊已创建"); conversations();
                     }));
                 });
         });
@@ -186,10 +186,10 @@ void app::group_command(std::string const& name, std::string argument)
             if (view_ != view) { return; }
             if (!value) { error(value.error()); return; }
             if (value->state == group_join_state::pending)
-            { data.status = "申请已提交，等待管理员审批"; return; }
+            { notify("申请已提交，等待管理员审批"); return; }
             navigate(page::conversations);
             pending_open_ = value->conversation;
-            data.status = "已加入群聊";
+            notify("已加入群聊");
             conversations();
         }));
         return;
@@ -336,7 +336,7 @@ void app::group_command(std::string const& name, std::string argument)
                     if (data.active != id || view_ != view) { return; }
                     if (!value) { error(value.error()); return; }
                     data.copy_text.clear();
-                    data.status = "邀请码已撤销";
+                    notify("邀请码已撤销");
                 }));
             });
         }
@@ -357,7 +357,7 @@ void app::group_command(std::string const& name, std::string argument)
         client_->respond_group_join_request(id, user, name == "accept", callback([this, id, view](auto value) {
             if (data.active != id || view_ != view || data.view != page::requests) { return; }
             if (!value) { error(value.error()); return; }
-            data.status = "入群申请已处理";
+            notify("入群申请已处理");
             requests();
             changed(id, false);
         }));

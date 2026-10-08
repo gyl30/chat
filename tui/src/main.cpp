@@ -12,7 +12,7 @@ int main(int argc, char** argv)
 {
     if (argc > 2)
     {
-        std::cerr << "Usage: chat_tui [server-url]\n";
+        std::cerr << "用法：chat_tui [服务器地址]\n";
         return 1;
     }
     if (argc == 2)
@@ -20,9 +20,9 @@ int main(int argc, char** argv)
         const std::string_view arg(argv[1]);
         if (arg == "--help")
         {
-            std::cout << "Usage: chat_tui [server-url]\n"
-                         "Default: ws://127.0.0.1:18080/ws\n"
-                         "Enter credentials in the login page. Press ? for keyboard help.\n";
+            std::cout << "用法：chat_tui [服务器地址]\n"
+                         "默认：ws://127.0.0.1:18080/ws\n"
+                         "在登录页输入账号和密码；登录后按 ? 查看键盘帮助。\n";
             return 0;
         }
         if (arg == "--version")
@@ -32,7 +32,7 @@ int main(int argc, char** argv)
         }
         if (arg.starts_with("-"))
         {
-            std::cerr << "Unknown option\n";
+            std::cerr << "未知选项\n";
             return 1;
         }
     }

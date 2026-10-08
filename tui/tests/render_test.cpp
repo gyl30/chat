@@ -1,10 +1,12 @@
 #include "ui.hpp"
 #include "app.hpp"
+#include <chat/error_text.hpp>
 #include <ftxui/component/event.hpp>
 #include <ftxui/component/app.hpp>
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/loop.hpp>
 
+#include <ctime>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -133,7 +135,7 @@ int main()
     bool ok = true;
     ok &= expect(ftxui::string_width("张 三") == 5, "CJK uses terminal cells");
     state s;
-    ok &= expect(draw(s, 80, 24).find("Login / Register") != std::string::npos, "login page");
+    ok &= expect(draw(s, 80, 24).find("登录 / 注册") != std::string::npos, "login page");
     s.self = {1, "Alice", {}};
     s.link = connection::online;
     {
@@ -149,21 +151,21 @@ int main()
         {
             contact.view = page::profile;
             auto output = draw(contact, columns, 30);
-            ok &= expect(output.find("online") != std::string::npos && output.find(" · online") == std::string::npos,
+            ok &= expect(output.find("在线") != std::string::npos && output.find(" · 在线") == std::string::npos,
                          "Standalone profile presence has no leading append separator");
             contact.presences.at(2).online = false;
             output = draw(contact, columns, 30);
-            ok &= expect(output.find("offline") != std::string::npos && output.find(" · offline") == std::string::npos,
+            ok &= expect(output.find("离线") != std::string::npos && output.find(" · 离线") == std::string::npos,
                          "Standalone offline presence has no leading append separator");
             contact.presences.at(2).last_seen = 1700000000000;
             output = draw(contact, columns, 30);
-            ok &= expect(output.find("last seen ") != std::string::npos && output.find(" · last seen ") == std::string::npos,
+            ok &= expect(output.find("最后在线 ") != std::string::npos && output.find(" · 最后在线 ") == std::string::npos,
                          "Standalone last-seen presence has no leading append separator");
             contact.presences.at(2) = {2, true, 0};
             for (auto view : {page::conversations, page::contacts, page::conversation})
             {
                 contact.view = view;
-                ok &= expect(draw(contact, columns, 30).find(" · online") != std::string::npos,
+                ok &= expect(draw(contact, columns, 30).find(" · 在线") != std::string::npos,
                              "Appended presence remains separated from identity");
             }
         }
@@ -182,7 +184,7 @@ int main()
         for (int columns : {60, 70, 80, 100, 120, 160})
         {
             auto output = draw(application.data, columns, 30);
-            ok &= expect(output.find("Selected: 1") != std::string::npos &&
+            ok &= expect(output.find("已选 1 人") != std::string::npos &&
                          output.find("请至少选择一位联系人创建群聊") == std::string::npos,
                          "A valid selection does not display the former empty-selection error");
         }
@@ -201,13 +203,15 @@ int main()
         long_account.self.username = std::string(64, 'A');
         ftxui::Screen screen(60, 24);
         ftxui::Render(screen, render(long_account, 60, 24));
-        ok &= expect(screen.CellAt(49, 1).character == " ",
+        std::string header;
+        for (int x = 0; x < 60; ++x) { header += screen.CellAt(x, 1).character; }
+        ok &= expect(header.find("… ● 已连接") != std::string::npos,
                      "A clipped account identity stays separated from connection status");
     }
     {
         auto output = draw(s, 60, 20);
-        ok &= expect(output.find("No chats to display") != std::string::npos &&
-                     output.find("N: new chat options") != std::string::npos,
+        ok &= expect(output.find("暂无聊天") != std::string::npos &&
+                     output.find("按 N 添加好友或创建群聊") != std::string::npos,
                      "An empty chat list explains its content and next action");
     }
     chat::conversation direct;
@@ -216,21 +220,21 @@ int main()
     direct.username = "张 三";
     s.conversations.push_back(direct);
     s.select_conversation(10);
-    ok &= expect(draw(s, 60, 20).find("No messages to display") != std::string::npos,
+    ok &= expect(draw(s, 60, 20).find("暂无消息") != std::string::npos,
                  "An empty history identifies messages instead of generic items");
     {
         auto requests = s;
         requests.view = page::requests;
         auto output = draw(requests, 60, 20);
-        ok &= expect(output.find("No join requests to display") != std::string::npos,
+        ok &= expect(output.find("暂无入群申请") != std::string::npos,
                      "An empty group request page identifies join requests");
-        ok &= expect(output.find("y: accept") == std::string::npos,
+        ok &= expect(output.find("y 接受") == std::string::npos,
                      "An empty request page does not offer decisions without an applicant");
     }
     {
         auto users = s;
         users.view = page::users;
-        ok &= expect(draw(users, 60, 20).find("No users match this search") != std::string::npos,
+        ok &= expect(draw(users, 60, 20).find("没有找到匹配的用户") != std::string::npos,
                      "An empty user search explains that its prefix has no matches");
     }
     {
@@ -238,7 +242,7 @@ int main()
         search.view = page::search;
         search.search_query = "no_such_message_prefix";
         auto empty_search = draw(search, 60, 20);
-        ok &= expect(empty_search.find("No loaded search hits") != std::string::npos &&
+        ok &= expect(empty_search.find("已加载的结果中没有匹配项") != std::string::npos &&
                      empty_search.find("No messages match this search") == std::string::npos,
                      "An empty message search describes loaded hits rather than claiming a fresh server match set");
         search.search_query = std::string(64, 'q');
@@ -248,13 +252,12 @@ int main()
         for (auto [columns, rows] : {std::pair{60,20}, {70,22}, {80,24}, {100,30}, {120,40}, {160,45}})
         {
             auto output = draw(search, columns, rows);
-            ok &= expect(output.find("Search:") != std::string::npos &&
-                         output.find("Enter/y: show copyable text") != std::string::npos &&
+            ok &= expect(output.find("搜索：") != std::string::npos &&
+                         output.find("Enter 或 y 显示可复制文本") != std::string::npos &&
                          output.find("matching message") != std::string::npos,
                          "Long search queries do not clip the action hint or hide their selected result");
-            ok &= expect(output.find("Loaded hits") != std::string::npos &&
-                         output.find("live text") != std::string::npos &&
-                         output.find("Re-search for current matches") != std::string::npos,
+            ok &= expect(output.find("显示已加载的结果") != std::string::npos &&
+                         output.find("重新搜索可获取最新匹配") != std::string::npos,
                          "Search explains loaded membership and live bodies at every supported width");
         }
         search.search_query = "matching message";
@@ -267,7 +270,7 @@ int main()
         edited.deleted = true;
         search.apply_message(edited);
         auto deleted_search = draw(search, 60, 20);
-        ok &= expect(deleted_search.find("No loaded search hits") != std::string::npos &&
+        ok &= expect(deleted_search.find("已加载的结果中没有匹配项") != std::string::npos &&
                      deleted_search.find(edited.text) == std::string::npos,
                      "Deleting the final hit hides it without claiming no current server matches");
     }
@@ -286,9 +289,9 @@ int main()
     s.contacts = {{direct.user, direct.username, {}}};
     ok &= expect(draw(s, 80, 24).find("正在刷新聊天权限") != std::string::npos, "accepted friend with stale permission shows refresh hint");
     s.contacts.clear();
-    ok &= expect(draw(s, 20, 4).find("Terminal too small") != std::string::npos, "too small fallback");
+    ok &= expect(draw(s, 20, 4).find("终端太小") != std::string::npos, "too small fallback");
     s.view = page::conversations;
-    ok &= expect(draw(s, 60, 20).find("Chats") != std::string::npos, "narrow list navigation");
+    ok &= expect(draw(s, 60, 20).find("聊天") != std::string::npos, "narrow list navigation");
     ok &= expect(draw(s, 60, 20).find("你们目前不是好友") == std::string::npos, "narrow list does not squeeze conversation");
     {
         auto long_name_list = s;
@@ -307,7 +310,7 @@ int main()
             {
                 std::string row;
                 for (int x = 1; x < 30; ++x) { row += screen.CellAt(x, y).character; }
-                if (row.starts_with("[长]")) { visible_ellipsis = row.find("…") != std::string::npos; }
+                if (row.starts_with("长中文")) { visible_ellipsis = row.find("…") != std::string::npos; }
             }
             ok &= expect(visible_ellipsis, "The sidebar scroll indicator cannot hide a clipped title's ellipsis");
         }
@@ -321,10 +324,10 @@ int main()
         for (auto const& [columns, rows] : {std::pair{80, 24}, {160, 45}})
         {
             auto output = draw(status_list, columns, rows);
-            ok &= expect(output.find("[pin]") != std::string::npos, "long conversation title keeps personal pin visible");
-            ok &= expect(output.find("[mute]") != std::string::npos, "long conversation title keeps mute visible");
-            ok &= expect(output.find("(100)") != std::string::npos, "long conversation title keeps unread count visible");
-            ok &= expect(output.find("[百] 百") != std::string::npos, "conversation status leaves an identifiable title prefix");
+            ok &= expect(output.find("置顶") != std::string::npos, "long conversation title keeps personal pin visible");
+            ok &= expect(output.find("免打扰") != std::string::npos, "long conversation title keeps mute visible");
+            ok &= expect(output.find(" 100") != std::string::npos, "long conversation title keeps unread count visible");
+            ok &= expect(output.find("百人验") != std::string::npos, "conversation status leaves an identifiable title prefix");
         }
     }
     {
@@ -338,7 +341,7 @@ int main()
         for (auto const& [columns, rows] : {std::pair{80,24}, {160,45}})
         {
             auto output = draw(multiline_list, columns, rows);
-            ok &= expect(output.find("[M] Main summary group") != std::string::npos, "multiline latest summary keeps selected conversation title visible");
+            ok &= expect(output.find("Main summary group") != std::string::npos, "multiline latest summary keeps selected conversation title visible");
             ok &= expect(output.find("Next visible friend") != std::string::npos, "multiline latest summary leaves next conversation visible");
         }
     }
@@ -375,12 +378,12 @@ int main()
         for (int columns : {60, 70, 80, 100, 120, 160})
         {
             auto empty = draw(composer, columns, 30);
-            ok &= expect(empty.find("i: compose") != std::string::npos &&
-                         empty.find("i: compose ·") == std::string::npos,
+            ok &= expect(empty.find("按 i 输入消息") != std::string::npos &&
+                         empty.find("按 i 输入消息 ·") == std::string::npos,
                          "An empty composer hint has no dangling draft separator");
             composer.draft = "未发送 draft";
             auto retained = draw(composer, columns, 30);
-            ok &= expect(retained.find("i: compose · 未发送 draft") != std::string::npos &&
+            ok &= expect(retained.find("按 i 继续输入 · 未发送 draft") != std::string::npos &&
                          composer.draft == "未发送 draft",
                          "A retained draft stays distinct from its compose hint without changing its text");
             composer.draft.clear();
@@ -410,7 +413,7 @@ int main()
             ftxui::Render(screen, render(long_title, columns, 30));
             auto output = screen.ToString();
             ok &= expect(output.find("长中文群名称") != std::string::npos &&
-                         output.find("3 members") != std::string::npos,
+                         output.find("3 位成员") != std::string::npos,
                          "Long group headers retain identity and member count at every terminal width");
             if (columns < 160)
             { ok &= expect(output.find("…") != std::string::npos, "Clipped group identities have a visible ellipsis"); }
@@ -420,7 +423,7 @@ int main()
         }
     }
     auto output = draw(s, 120, 40);
-    for (auto const* token : {"开发公告", "你好", "(edited)", "消息已删除", "👍", "@Alice"})
+    for (auto const* token : {"开发公告", "你好", "（已编辑）", "消息已删除", "👍", "@Alice"})
     { ok &= expect(output.find(token) != std::string::npos, token); }
     {
         auto preview_state = s;
@@ -467,7 +470,7 @@ int main()
                 }
             ok &= expect(peer_x >= 0 && own_x > peer_x + 8, "Own messages align right and peer messages left at narrow and wide widths");
             ok &= expect(own_x - peer_x > (columns - peer_x - 2) / 2, "Short own messages shrink toward the right edge");
-            ok &= expect(screen.ToString().find("You") != std::string::npos && screen.ToString().find("已读") != std::string::npos,
+            ok &= expect(screen.ToString().find("我 ") != std::string::npos && screen.ToString().find("已读") != std::string::npos,
                          "Message alignment retains own heading and group read state");
         }
     }
@@ -487,30 +490,30 @@ int main()
                         if (screen.CellAt(x, y).character != " ") { identity += screen.CellAt(x, y).character; }
                 auto output = screen.ToString();
                 ok &= expect(identity.find(std::string(60, 'A') + "_END") != std::string::npos &&
-                             output.find("Show copyable username") != std::string::npos,
+                             output.find("显示可复制的用户名") != std::string::npos,
                              "Own and peer profiles show the complete maximum-length identity at every width");
             }
         }
     }
     s.profile = {3, "stranger", {}};
     output = draw(s, 80, 24);
-    ok &= expect(output.find("Add friend") != std::string::npos, "non-contact add action");
-    ok &= expect(output.find("Message") == std::string::npos, "non-contact cannot message");
+    ok &= expect(output.find("添加好友") != std::string::npos, "non-contact add action");
+    ok &= expect(output.find("发消息") == std::string::npos, "non-contact cannot message");
     s.presences.emplace(3, chat::presence{3, true, 0});
-    ok &= expect(draw(s, 80, 24).find("online") == std::string::npos, "non-contact presence hidden");
+    ok &= expect(draw(s, 80, 24).find("在线") == std::string::npos, "non-contact presence hidden");
     s.friends.outgoing = {{{3, "stranger", {}}, 1}};
     output = draw(s, 80, 24);
-    ok &= expect(output.find("Waiting for acceptance") != std::string::npos && output.find("Cancel friend request") != std::string::npos,
+    ok &= expect(output.find("等待对方确认") != std::string::npos && output.find("撤回好友申请") != std::string::npos,
                  "outgoing pending profile can cancel");
-    ok &= expect(output.find("Message") == std::string::npos && output.find("online") == std::string::npos,
+    ok &= expect(output.find("发消息") == std::string::npos && output.find("在线") == std::string::npos,
                  "pending profile cannot message or see presence");
     s.friends.outgoing.clear();
     s.friends.incoming = {{{3, "stranger", {}}, 1}};
     output = draw(s, 80, 24);
-    ok &= expect(output.find("Accept friend request") != std::string::npos && output.find("Reject friend request") != std::string::npos,
+    ok &= expect(output.find("接受好友申请") != std::string::npos && output.find("拒绝好友申请") != std::string::npos,
                  "incoming pending profile actions");
     s.view = page::contacts;
-    ok &= expect(draw(s, 80, 24).find("New friends (1)") != std::string::npos, "contacts expose pending friend count");
+    ok &= expect(draw(s, 80, 24).find("新的朋友 (1)") != std::string::npos, "contacts expose pending friend count");
     ok &= expect(draw(s, 80, 24).find(":create-group") == std::string::npos, "Contacts header contains no group creation action");
     s.contacts = {{9, "AcceptedOnly", {}}};
     s.friends.outgoing = {{{10, "OutgoingOnly", {}}, 1}};
@@ -518,15 +521,15 @@ int main()
     ok &= expect(output.find("AcceptedOnly") != std::string::npos && output.find("OutgoingOnly") == std::string::npos &&
                  output.find("stranger") == std::string::npos, "Contacts rows exclude incoming and outgoing requests");
     s.view = page::friend_requests;
-    ok &= expect(draw(s, 60, 20).find("Incoming") != std::string::npos, "incoming requests page");
+    ok &= expect(draw(s, 60, 20).find("新的朋友 · 收到") != std::string::npos, "incoming requests page");
     s.view = page::friend_sent;
-    ok &= expect(draw(s, 60, 20).find("Outgoing") != std::string::npos, "outgoing requests page");
+    ok &= expect(draw(s, 60, 20).find("新的朋友 · 发出") != std::string::npos, "outgoing requests page");
     s.contacts = {{3, "stranger", {}}, {4, "张 三", {}}};
     s.view = page::pick_contacts;
     s.pick_query = "张";
     s.picked_contacts = {4};
     output = draw(s, 80, 24);
-    ok &= expect(output.find("Selected: 1") != std::string::npos && output.find("[x]") != std::string::npos && output.find("stranger") == std::string::npos,
+    ok &= expect(output.find("已选 1 人") != std::string::npos && output.find("[x]") != std::string::npos && output.find("stranger") == std::string::npos,
                  "group picker filters accepted friends and shows selected count");
     s.pick_query.clear(); s.picked_contacts.clear();
     s.view = page::group;
@@ -550,7 +553,7 @@ int main()
                     i == 0 ? chat::member_role::owner : i == 1 ? chat::member_role::admin : chat::member_role::member, {}});
             }
             auto const shown = count < 3 ? count : 3;
-            auto const label = "Preview (" + std::to_string(shown) + " of " + std::to_string(count) + "):";
+            auto const label = "前 " + std::to_string(shown) + " 位成员（共 " + std::to_string(count) + " 位）：";
             for (int columns : {60, 70, 80, 100, 120, 160})
             {
                 for (int rows : {24, 40})
@@ -558,13 +561,13 @@ int main()
                     auto output = draw(preview, columns, rows);
                     ok &= expect(output.find(label) != std::string::npos,
                                  "Group preview explicitly identifies its bounded subset at every width and height");
-                    ok &= expect(output.find("Members: " + std::to_string(count) + " · Your role:") != std::string::npos &&
-                                 output.find("All members") != std::string::npos,
+                    ok &= expect(output.find("成员 " + std::to_string(count) + " 人 · 我的身份：") != std::string::npos &&
+                                 output.find("全部成员") != std::string::npos,
                                  "Group preview retains the total count and full-members action");
                     for (int i = 0; i < count; ++i)
                     {
-                        auto const role = i == 0 ? "owner" : i == 1 ? "admin" : "member";
-                        auto const identity = "P" + std::to_string(i + 1) + " (" + role + ")";
+                        auto const role = i == 0 ? "群主" : i == 1 ? "管理员" : "成员";
+                        auto const identity = "P" + std::to_string(i + 1) + " " + role;
                         ok &= expect((output.find(identity) != std::string::npos) == (i < shown),
                                      "Group preview retains the first members and roles without pretending to list the remainder");
                     }
@@ -573,8 +576,8 @@ int main()
                         auto full = preview;
                         full.view = page::members;
                         output = draw(full, columns, rows);
-                        ok &= expect(output.find("Members (" + std::to_string(count) + ")") != std::string::npos &&
-                                     output.find("Preview (") == std::string::npos,
+                        ok &= expect(output.find("群成员 (" + std::to_string(count) + ")") != std::string::npos &&
+                                     output.find("位成员（共") == std::string::npos,
                                      "Full members remains a complete list rather than the group preview");
                         for (int i = 0; i < count; ++i)
                         {
@@ -600,11 +603,11 @@ int main()
             for (int rows : {24, 40})
             {
                 auto output = draw(long_preview, columns, rows);
-                auto const begin = output.find("Preview (3 of 4):");
+                auto const begin = output.find("前 3 位成员（共 4 位）：");
                 auto const end = output.find("\r\n", begin);
                 auto const line = begin == std::string::npos ? std::string{} : output.substr(begin, end - begin);
-                ok &= expect(line.starts_with("Preview (3 of 4): 中文é_") && line.find("…") != std::string::npos &&
-                             output.find("All members") != std::string::npos,
+                ok &= expect(line.starts_with("前 3 位成员（共 4 位）：中文é_") && line.find("…") != std::string::npos &&
+                             output.find("全部成员") != std::string::npos,
                              "Long member clipping keeps the subset label at the start and the full-members action visible");
             }
         }
@@ -617,19 +620,19 @@ int main()
         for (int columns : {60, 70, 80, 100, 120, 160})
         {
             auto output = draw(long_member, columns, 24);
-            ok &= expect(output.find(" · admin") != std::string::npos,
+            ok &= expect(output.find(" · 管理员") != std::string::npos,
                          "Long member identities never clip their authoritative role");
         }
     }
-    ok &= expect(draw(s, 80, 24).find("invite code") == std::string::npos, "members never see secret invite actions");
-    ok &= expect(draw(s, 80, 24).find("Show full announcement") != std::string::npos, "members can read full announcement");
-    ok &= expect(draw(s, 80, 24).find("View pinned message") != std::string::npos, "members can view pinned message");
+    ok &= expect(draw(s, 80, 24).find("邀请码") == std::string::npos, "members never see secret invite actions");
+    ok &= expect(draw(s, 80, 24).find("查看完整公告") != std::string::npos, "members can read full announcement");
+    ok &= expect(draw(s, 80, 24).find("查看置顶消息") != std::string::npos, "members can view pinned message");
     auto const saved_announcement = s.conversations.front().announcement;
     s.conversations.front().announcement = std::string(2000, 'A');
-    ok &= expect(draw(s, 60, 20).find("Show full announcement") != std::string::npos, "long announcement preview leaves actions visible");
+    ok &= expect(draw(s, 60, 20).find("查看完整公告") != std::string::npos, "long announcement preview leaves actions visible");
     s.conversations.front().announcement = saved_announcement;
     s.members.front().role = chat::member_role::owner;
-    ok &= expect(draw(s, 120, 40).find("Generate invite code") != std::string::npos, "owner management actions");
+    ok &= expect(draw(s, 120, 40).find("生成新邀请码") != std::string::npos, "owner management actions");
     s.view = page::help;
     ok &= expect(draw(s, 120, 40).find("Ctrl+C") != std::string::npos, "keyboard help");
     for (int columns : {60, 70, 80, 100, 120, 160})
@@ -644,12 +647,12 @@ int main()
             application.viewport_height = rows;
             auto component = make_ui(application, [] {});
             auto top = draw(application.data, columns, rows);
-            ok &= expect(top.find("Move selection") != std::string::npos,
+            ok &= expect(top.find("移动选择") != std::string::npos,
                          "Help opens at its first shortcut");
             for (int i = 0; i < 200; ++i) { component->OnEvent(ftxui::Event::Character('j')); }
             auto output = draw(application.data, columns, rows);
-            auto const start = output.find("Commands:");
-            auto const end = output.find("Clipboard:", start);
+            auto const start = output.find("命令：");
+            auto const end = output.find("复制：", start);
             ok &= expect(start != std::string::npos && end != std::string::npos,
                          "Keyboard scrolling reaches the complete Help command section");
             auto const commands = start == std::string::npos ? std::string{} : output.substr(start, end - start);
@@ -665,7 +668,7 @@ int main()
             }
             if (rows == 24)
             {
-                ok &= expect(output.find("Move selection") == std::string::npos,
+                ok &= expect(output.find("移动选择") == std::string::npos,
                              "Help scrolls its body rather than keeping the first shortcut pinned");
             }
             for (int i = 0; i < 200; ++i) { component->OnEvent(ftxui::Event::Character('k')); }
@@ -720,7 +723,7 @@ int main()
         for (auto [columns, rows] : {std::pair{70, 20}, {80, 24}, {120, 40}})
         {
             auto text = draw(contacts, columns, rows);
-            ok &= expect(text.find("New friends (5)") != std::string::npos, "New friends entry remains at Contacts top while scrolling accepted rows");
+            ok &= expect(text.find("新的朋友 (5)") != std::string::npos, "New friends entry remains at Contacts top while scrolling accepted rows");
             ok &= expect(text.find("PendingIncoming") == std::string::npos && text.find("PendingOutgoing") == std::string::npos,
                          "Many pending requests never appear as accepted rows");
             if (count) { ok &= expect(text.find("好友" + std::to_string(count - 1)) != std::string::npos, "Selected accepted friend stays visible"); }
@@ -738,7 +741,7 @@ int main()
             for (auto [columns, rows] : {std::pair{70, 20}, {100, 30}, {120, 40}})
             {
                 auto text = draw(hundred, columns, rows);
-                ok &= expect(text.find("Members (100)") != std::string::npos && text.find("Member" + std::to_string(index)) != std::string::npos,
+                ok &= expect(text.find("群成员 (100)") != std::string::npos && text.find("Member" + std::to_string(index)) != std::string::npos,
                              "Hundred member navigation retains header and selected member at every width");
             }
         }
@@ -838,7 +841,7 @@ int main()
         component->OnEvent(ftxui::Event::Character("secret-password"));
         ftxui::Screen login_screen(80, 24);
         ftxui::Render(login_screen, component->Render());
-        ok &= expect(login_screen.ToString().find("Login / Register") != std::string::npos &&
+        ok &= expect(login_screen.ToString().find("登录 / 注册") != std::string::npos &&
                      login_screen.ToString().find(application.server_url) == std::string::npos,
                      "Login hides server configuration until explicitly expanded");
         ok &= expect(login_screen.ToString().find("secret-password") == std::string::npos, "password hidden");
@@ -870,7 +873,7 @@ int main()
         output = draw(application.data, 80, 24);
         ok &= expect(output.find("Bob") != std::string::npos && output.find("张三") == std::string::npos,
                      "Contacts local substring search ignores ASCII case");
-        ok &= expect(output.find("New friends (") != std::string::npos && output.find("/: search") != std::string::npos,
+        ok &= expect(output.find("新的朋友 (") != std::string::npos && output.find("/ 搜索") != std::string::npos,
                      "Contacts filter keeps New friends and search hint visible");
         component->OnEvent(ftxui::Event::Character('j'));
         component->OnEvent(ftxui::Event::Character('j'));
@@ -915,8 +918,8 @@ int main()
         ok &= expect(application.data.view == page::contacts, "Friend request tabs return directly to Contacts");
         component->OnEvent(ftxui::Event::Character('N'));
         output = draw(application.data, 80, 24);
-        ok &= expect(output.find("Add friend") != std::string::npos && output.find("Create group") != std::string::npos &&
-                     output.find("Join group") != std::string::npos, "New menu exposes existing three actions");
+        ok &= expect(output.find("添加好友") != std::string::npos && output.find("创建群聊") != std::string::npos &&
+                     output.find("加入群聊") != std::string::npos, "New menu exposes existing three actions");
         component->OnEvent(ftxui::Event::Escape);
         for (auto requests_page : {page::friend_requests, page::requests})
         {
@@ -927,7 +930,7 @@ int main()
         }
         component->OnEvent(ftxui::Event::Character('u'));
         output = draw(application.data, 80, 24);
-        ok &= expect(output.find("Account") != std::string::npos && output.find("Log out") != std::string::npos,
+        ok &= expect(output.find("账号 · ") != std::string::npos && output.find("退出登录") != std::string::npos,
                      "Account primary shortcut exposes existing profile and logout");
         application.data.link = connection::online;
         application.command("logout");
@@ -947,6 +950,45 @@ int main()
         ok &= expect(!application.dialog, "confirmation can be cancelled");
         component->OnEvent(ftxui::Event::CtrlC);
         ok &= expect(quit && application.exiting, "Ctrl+C shuts down before exit");
+    }
+    {
+        // Errors stay until the next key press; notices are not errors and are not dismissed by keys.
+        app application;
+        application.data.self = {1, "Alice", {}};
+        application.data.link = connection::online;
+        auto component = make_ui(application, [] {});
+        application.data.status = "请先选择消息";
+        component->OnEvent(ftxui::Event::Custom);
+        ok &= expect(application.data.status_error && application.data.status == "请先选择消息",
+                     "A directly set status is an error that survives redraws");
+        ok &= expect(draw(application.data, 80, 24).find("请先选择消息") != std::string::npos, "An error is shown in the status bar");
+        component->OnEvent(ftxui::Event::Character('j'));
+        ok &= expect(application.data.status.empty() && !application.data.status_error, "The next key press dismisses an error");
+        application.notify("消息已发送");
+        component->OnEvent(ftxui::Event::Character('j'));
+        ok &= expect(application.data.status == "消息已发送" && !application.data.status_error,
+                     "A success notice is not an error and is not dismissed by keys");
+        ok &= expect(chat::error_text({chat::error_kind::rpc, -32009, "Group permission denied"}) == "没有执行此操作的群权限",
+                     "Server errors are shown in Chinese");
+    }
+    {
+        // History shows a separator before each new day.
+        auto days = s;
+        days.view = page::conversation;
+        auto const now = static_cast<std::int64_t>(std::time(nullptr)) * 1000;
+        chat::message earlier;
+        earlier.id = 1; earlier.conversation = 10; earlier.from = 2; earlier.username = "peer";
+        earlier.text = "YESTERDAY_BODY"; earlier.timestamp = now - 86400000;
+        auto later = earlier;
+        later.id = 2; later.text = "TODAY_BODY"; later.timestamp = now;
+        days.messages = {earlier, later};
+        days.message_selected = 1;
+        auto output = draw(days, 120, 40);
+        ok &= expect(output.find("── 昨天 ──") != std::string::npos && output.find("── 今天 ──") != std::string::npos &&
+                     output.find("── 昨天 ──") < output.find("YESTERDAY_BODY") &&
+                     output.find("YESTERDAY_BODY") < output.find("── 今天 ──") &&
+                     output.find("── 今天 ──") < output.find("TODAY_BODY"),
+                     "Day separators precede the first message of each day");
     }
     // FTXUI text must not pass untrusted terminal escapes to the output.
     ftxui::Screen screen(50, 1);

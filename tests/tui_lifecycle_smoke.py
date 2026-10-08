@@ -93,7 +93,7 @@ def run(d):
         d.tmux('respawn-pane', '-t', d.panes[actor], command)
         pid = int(d.tmux('display-message', '-p', '-t', d.panes[actor], '#{pane_pid}').stdout.strip())
         d.observer.set_process('tui_' + actor, pid)
-        d.wait(actor, 'Login / Register')
+        d.wait(actor, '登录 / 注册')
         d.login(actor, first=True)
         d.open_main(actor)
         # An opened header alone does not prove the initial history RPC has
@@ -131,7 +131,7 @@ def run(d):
             d.control('connect', actors=sdk_actors, timeout=120)
         wait_offline()
         for other in 'ACDE':
-            d.wait(other, lambda text: 'connected' in text and '正在重连' not in text, timeout=30)
+            d.wait(other, lambda text: '已连接' in text and '正在重连' not in text, timeout=30)
 
         payload = d.work / 'lifecycle-upload-10MiB.bin'
         payload.write_bytes(b'L' * (10 * 1024 * 1024))
@@ -139,7 +139,7 @@ def run(d):
             pid = start_tui(sanitized)
             if state == 'requests':
                 d.command(actor, 'group')
-                d.wait(actor, 'Your role: admin')
+                d.wait(actor, '我的身份：管理员')
                 d.keys(actor, 'Escape')
             server = d.server
             try:
@@ -155,7 +155,7 @@ def run(d):
                     d.wait(actor, '正在上传附件')
                 else:
                     d.command(actor, 'requests')
-                    d.wait(actor, 'Join requests')
+                    d.wait(actor, '待处理的入群申请')
                 queued = _eventually(
                     lambda: (size if (size := _server_receive_queue(pid, d.args.port)) > initial_bytes else None),
                     f'{state} did not queue an actual request on the stopped server socket')

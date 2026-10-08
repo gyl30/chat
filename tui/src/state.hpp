@@ -19,6 +19,8 @@ struct state
     page view = page::conversations;
     chat::user self;
     std::string status;
+    // An error stays until the next key press; other notices expire or are replaced.
+    bool status_error = false;
     std::vector<chat::conversation> conversations;
     std::optional<conversation_cursor> next_conversations;
     std::vector<user> contacts, users;

@@ -1,4 +1,5 @@
 #include "app.hpp"
+#include <chat/error_text.hpp>
 #include <chat/text.hpp>
 #include <algorithm>
 #include <cassert>
@@ -46,12 +47,12 @@ bool app::writable()
 }
 void app::error(chat::error const& value)
 {
-    data.status = value.message.empty() ? "请求失败" : value.message;
+    data.status = value.message.empty() ? "请求失败" : chat::error_text(value);
     if (value.kind == error_kind::transport &&
         (data.link == connection::connecting || data.link == connection::authenticating))
     {
         disconnected();
-        data.status = (data.link == connection::reconnecting ? "连接失败，正在重连：" : "连接失败：") + value.message;
+        data.status = (data.link == connection::reconnecting ? "连接失败，正在重连：" : "连接失败：") + chat::error_text(value);
     }
 }
 void app::login(bool registration)
@@ -85,13 +86,13 @@ void app::start_connection()
     conversations_again_ = false;
     reconnect_at_.reset();
     data.link = connection::connecting;
-    data.status = retry_ ? "正在重连…" : "正在连接…";
+    notify(retry_ ? "正在重连…" : "正在连接…", true);
     client_ = std::make_unique<chat::client>();
     client_->set_connected_handler([cb = callback([this](bool) {
         data.link = connection::authenticating;
         if (registering_)
         {
-            data.status = "正在注册…";
+            notify("正在注册…", true);
             client_->register_user(username, password, callback([this](auto value) {
                 registering_ = false;
                 if (!value)
@@ -103,14 +104,14 @@ void app::start_connection()
                     data.link = connection::signed_out;
                     return;
                 }
-                data.status = "注册成功，请登录";
+                notify("注册成功，请登录");
                 ++session_;
                 client_.reset();
                 data.link = connection::signed_out;
             }));
             return;
         }
-        data.status = "正在认证…";
+        notify("正在认证…", true);
         client_->authenticate(username, password, callback([this](auto value) {
             if (!value)
             {
@@ -118,15 +119,15 @@ void app::start_connection()
                 else if (data.self.id && value.error().code == -32004)
                 {
                     client_->close(); disconnected();
-                    data.status = "旧连接正在释放，稍后重新认证…";
+                    notify("旧连接正在释放，稍后重新认证…", true);
                 }
-                else { auto message = value.error().message; logout(); data.status = std::move(message); }
+                else { auto message = chat::error_text(value.error()); logout(); data.status = std::move(message); }
                 return;
             }
             if (!value->authenticated) { logout(); data.status = "用户名或密码错误"; return; }
             data.self = {value->user, username, value->avatar};
             data.link = connection::online;
-            data.status = retry_ ? "已恢复连接" : "已连接";
+            notify(retry_ ? "已恢复连接" : "已连接");
             retry_ = 0;
             refresh();
         }));
@@ -187,7 +188,7 @@ void app::logout()
     dialog.reset(); prompt_action_ = {};
     command_mode = false; command_text.clear();
     pending_open_ = 0; marked_read_ = 0;
-    data.status = "已退出登录";
+    notify("已退出登录");
 }
 void app::disconnected()
 {
@@ -210,7 +211,7 @@ void app::disconnected()
     if (reconnect_enabled_ && !password.empty())
     {
         data.link = connection::reconnecting;
-        data.status = "正在重连…";
+        notify("正在重连…", true);
         reconnect_at_ = clock::now() + std::chrono::seconds(std::min(15, 1 << std::min(retry_++, 4)));
     }
     else { data.link = connection::signed_out; }
@@ -311,7 +312,7 @@ void app::conversations_page(std::optional<conversation_cursor> cursor, bool app
             history_busy_ = search_busy_ = requests_busy_ = sending_ = false;
             requests_again_ = false;
             marked_read_ = 0;
-            data.status = "当前会话已不可访问，已刷新会话列表";
+            notify("当前会话已不可访问，已刷新会话列表");
         }
         if (data.active && !data.can_send()) { stop_composing(); }
         if (pending_open_)
@@ -543,7 +544,7 @@ void app::changed(std::int64_t conversation, bool removed)
     if (removed && conversation == data.active)
     {
         stop_composing(); ++view_; data.select_conversation(0); data.view = page::conversations;
-        pages_.clear(); cancel_prompt(); data.status = "已离开该群";
+        pages_.clear(); cancel_prompt(); notify("已离开该群");
     }
     conversations();
     if (!removed && conversation == data.active)
@@ -568,6 +569,7 @@ void app::schedule()
     std::optional<clock::time_point> next = reconnect_at_;
     auto consider = [&](auto deadline) { if (deadline && (!next || *deadline < *next)) { next = deadline; } };
     consider(typing_stop_at_);
+    consider(status_expires_);
     for (auto const& [id, value] : typing_) { (void)id; consider(std::optional{value.second}); }
     timer_->schedule(next);
 }
@@ -578,7 +580,35 @@ void app::tick()
     if (reconnect_at_ && now >= *reconnect_at_) { start_connection(); }
     if (typing_stop_at_ && now >= *typing_stop_at_) { stop_typing(); }
     std::erase_if(typing_, [&](auto const& item) { return item.second.second <= now; });
+    if (status_expires_ && now >= *status_expires_)
+    {
+        status_expires_.reset();
+        if (!data.status_error) { data.status.clear(); status_set_.clear(); }
+    }
     schedule();
+}
+void app::notify(std::string text, bool sticky)
+{
+    data.status = std::move(text);
+    data.status_error = false;
+    status_set_ = data.status;
+    status_expires_.reset();
+    if (!sticky) { status_expires_ = clock::now() + std::chrono::seconds(5); }
+    schedule();
+}
+void app::observe_status()
+{
+    if (data.status == status_set_) { return; }
+    // Anything not set through notify() reports a failure and stays until the next key press.
+    status_set_ = data.status;
+    data.status_error = !data.status.empty();
+    status_expires_.reset();
+}
+void app::dismiss_error()
+{
+    if (!data.status_error) { return; }
+    data.status.clear(); status_set_.clear();
+    data.status_error = false;
 }
 std::string app::typing_text() const
 {

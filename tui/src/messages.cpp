@@ -97,7 +97,7 @@ void app::send()
             sent.avatar = data.self.avatar;
             data.apply_message(std::move(sent));
         }
-        data.status = editing ? "消息已编辑" : "消息已发送";
+        notify(editing ? "消息已编辑" : "消息已发送");
         history();
         conversations();
     };
@@ -196,7 +196,7 @@ void app::message_command(std::string const& name, std::string argument)
             auto filename = std::filesystem::path(path).filename().string();
             auto const reply = data.reply ? std::optional(data.reply->id) : std::nullopt;
             sending_ = true;
-            data.status = "正在上传附件…";
+            notify("正在上传附件…", true);
             client_->send_attachment(conversation, std::move(filename), std::move(*bytes),
                 callback([this, conversation, view, reply](auto value) {
                     if (view != view_ || conversation != data.active) { return; }
@@ -204,7 +204,7 @@ void app::message_command(std::string const& name, std::string argument)
                     if (!value) { error(value.error()); return; }
                     data.apply_message(std::move(*value));
                     if (data.reply && reply && data.reply->id == *reply) { data.reply.reset(); }
-                    data.status = "附件已发送";
+                    notify("附件已发送");
                     conversations();
                     mark_visible_read();
                 }), reply);
@@ -258,7 +258,7 @@ void app::message_command(std::string const& name, std::string argument)
                 if (view != view_ || conversation != data.active) { return; }
                 if (!value) { error(value.error()); return; }
                 updated(std::move(*value));
-                data.status = "消息已删除";
+                notify("消息已删除");
             }));
         });
         return;
@@ -280,7 +280,7 @@ void app::message_command(std::string const& name, std::string argument)
                     if (view != view_ || conversation != data.active) { return; }
                     if (!value) { error(value.error()); return; }
                     data.apply_reaction(std::move(*value));
-                    data.status = "回应已更新";
+                    notify("回应已更新");
                 }));
         };
         if (argument.empty()) { ask("回应：0 清除  1 👍  2 ❤️  3 😂  4 😮  5 😢  6 🎉", {}, std::move(action)); }
@@ -294,12 +294,13 @@ void app::message_command(std::string const& name, std::string argument)
         auto action = [this, conversation, view, id = message.id](std::string path) {
             if (view != view_ || conversation != data.active || !online()) { return; }
             if (path.empty()) { data.status = "请输入明确的保存路径"; return; }
-            data.status = "正在下载附件…";
+            notify("正在下载附件…", true);
             client_->get_attachment(conversation, id, callback([this, conversation, view, path = std::move(path)](auto value) {
                 if (view != view_ || conversation != data.active) { return; }
                 if (!value) { error(value.error()); return; }
                 auto saved = save_local_file(path, *value);
-                data.status = saved ? "附件已保存：" + path : saved.error();
+                if (saved) { notify("附件已保存：" + path); }
+                else { data.status = saved.error(); }
             }));
         };
         if (argument.empty()) { ask("附件保存到（必须是新文件路径）", {}, std::move(action)); }

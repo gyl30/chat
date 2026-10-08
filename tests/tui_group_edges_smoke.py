@@ -1,6 +1,7 @@
 """Focused real-TUI group edge cases sharing the scale driver's fixture."""
 from __future__ import annotations
 
+import re
 import time
 
 from tui_scale_observer import read_only_sql
@@ -112,12 +113,12 @@ def run(d):
                             for identity in reversed(pages[index])
                             if not collected[identity]['deleted'] and collected[identity]['text'])
             d.keys('C', 'PPage')
-            d.selected_message('C', sentinel)
+            d.selected_message('C', sentinel, latest=False)
         d.selected_message('C', reply_text)
         d.wait('C', lambda text: reply_text in text and '↪' in text and '消息已删除' in text)
         d.screenshot('C', 'older-reply-to-deleted-message')
         d.selected_message('C', edited_text)
-        d.wait('C', lambda text: edited_text in text and '(edited)' in text and '消息已删除' in text)
+        d.wait('C', lambda text: edited_text in text and '（已编辑）' in text and '消息已删除' in text)
         d.screenshot('C', 'older-edited-and-deleted')
         d.keys('C', 'G')
 
@@ -174,12 +175,12 @@ def run(d):
             d.selected_message('A', marker)
             d.command('A', 'pin-message')
             pinned = _group_is(d, lambda value: value['pinned_message'] is not None and value['pinned_message']['id'] == message['id'])
-            d.wait('C', 'Pinned: ' + marker)
+            d.wait('C', '置顶：' + marker)
             d.screenshot('C', marker.split('_' + d.args.run_id)[0])
             d.evidence('pin-' + str(message['id']), pinned['pinned_message'])
         d.command('A', 'unpin-message')
         _group_is(d, lambda value: value['pinned_message'] is None)
-        d.wait('C', lambda text: 'Pinned:' not in text)
+        d.wait('C', lambda text: '置顶：' not in text)
         d.screenshot('C', 'explicit-unpin')
 
     with d.case('typing-partial-clear-natural-expiry',
@@ -217,13 +218,14 @@ def prepare_reconnect(d):
         _eventually(lambda: _membership(d)['muted'], 'Real UI mute did not reach the server')
         d.resize('A', 80, 30)
         d.command('A', 'conversations')
-        d.wait('A', lambda text: 'Chats' in text and '[mute]' in text)
+        d.wait('A', lambda text: '聊天' in text and '免打扰' in text)
         d.barrier('A')
         before = _membership(d)
         assert before['muted']
         marker = 'mute_edge_' + d.args.run_id
         sent = d.query('S030', 'send_message', conversation=d.group, text=marker)
-        d.wait('A', lambda text: marker in text and '[mute]' in text and '(1)' in text)
+        # The unread count ends the summary row of the list.
+        d.wait('A', lambda text: '免打扰' in text and any(marker in line and re.search(r'\s1\s*│', line) for line in text.splitlines()))
         after = _membership(d)
         assert after['muted'] and after['unread'] == 1 and after['last_read'] == before['last_read']
         d.screenshot('A', 'muted-live-unread')
@@ -242,7 +244,7 @@ def verify_reconnect(d):
         # selected history. Wide-sidebar badge layout has separate coverage.
         d.resize('A', 80, 30)
         d.command('A', 'conversations')
-        d.wait('A', lambda text: 'Chats' in text and '[mute]' in text)
+        d.wait('A', lambda text: '聊天' in text and '免打扰' in text)
         d.screenshot('A', 'mute-survived-restarts-list')
         d.resize('A', 160, 45)
         d.open_main('A')

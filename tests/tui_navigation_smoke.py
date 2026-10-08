@@ -15,7 +15,7 @@ import time
 sys.dont_write_bytecode = True
 from tui_100_member_smoke import Driver, inverse_text, choose_row
 
-COMPOSER='i: compose'
+COMPOSER='按 i '
 
 class NavigationDriver(Driver):
     def setup(self):
@@ -36,18 +36,18 @@ class NavigationDriver(Driver):
         else:
             result=self.tmux('new-window','-d','-P','-F','#{pane_id}','-t',self.session,'-n',actor,command)
         self.panes[actor]=result.stdout.strip()
-        self.wait(actor,'Login / Register')
+        self.wait(actor,'登录 / 注册')
 
     def login(self,actor,first=True):
-        self.wait(actor,'Login / Register')
+        self.wait(actor,'登录 / 注册')
         if first:
             self.paste(actor,self.name(actor)); self.keys(actor,'Tab')
         self.paste(actor,self.password); self.keys(actor,'Enter')
-        self.wait(actor,lambda s:'connected' in s and ('Chats' in s or 'Conversations' in s))
+        self.wait(actor,lambda s:'已连接' in s and ('聊天' in s or '聊天' in s))
 
     def chats(self,actor):
         self.command(actor,'conversations')
-        self.wait(actor,lambda s:'Chats' in s or 'Conversations' in s)
+        self.wait(actor,lambda s:'聊天' in s or '聊天' in s)
 
     def select_chat(self,actor,title):
         self.chats(actor)
@@ -84,7 +84,7 @@ def _late_profile_message(d):
                 'A delayed peer Message response cannot replace Account opened on the same profile page'):
         d.control('connect', actors=['C'])
         d.find_profile('A', 'C')
-        d.wait('A', 'Message')
+        d.wait('A', '发消息')
         d.barrier('A')
         pid = int(d.tmux('display-message', '-p', '-t', d.panes['A'], '#{pane_pid}').stdout.strip())
         assert d.server is not None and d.server.poll() is None
@@ -101,7 +101,7 @@ def _late_profile_message(d):
             queued = _eventually(lambda: (size if (size := _server_receive_queue(pid, d.args.port)) > initial_bytes else None),
                                  'The real Message RPC did not reach the paused isolated server')
             d.keys('A', 'u')
-            d.wait('A', 'Account ·')
+            d.wait('A', '账号 ·')
             d.wait('A', d.name('A'))
             d.barrier('A')
             capture_terminal(d, 'A', 'account-before-message-response')
@@ -127,7 +127,7 @@ def _late_profile_message(d):
             d.barrier('A')
             screen = d.capture('A')
             observations += 1
-            if 'Account ·' not in screen:
+            if '账号 ·' not in screen:
                 capture_terminal(d, 'A', 'late-message-overrode-account')
                 raise AssertionError('A delayed peer Message response replaced the newer Account destination')
             time.sleep(.05)
@@ -179,14 +179,14 @@ def _hidden_direct_restoration(d):
         d.command('A', 'remove-contact')
         d.confirm('A', '删除好友')
         for actor, peer in (('A', 'C'), ('C', 'A')):
-            d.wait(actor, lambda screen: 'Chats' in screen and 'i: compose' not in screen and 'Profile ·' not in screen)
+            d.wait(actor, lambda screen: '聊天' in screen and '按 i ' not in screen and '资料 ·' not in screen)
             d.resize(actor, 80, 24)
             d.barrier(actor)
             assert d.name(peer) not in d.capture(actor), 'A removed direct remained in Chats'
             d.keys(actor, 'Tab', 'Escape')
             d.barrier(actor)
             screen = d.capture(actor)
-            assert 'i: compose' not in screen and 'HIDDEN_HISTORY_' not in screen and d.name(peer) not in screen, 'Tab reopened a removed readonly direct'
+            assert '按 i ' not in screen and 'HIDDEN_HISTORY_' not in screen and d.name(peer) not in screen, 'Tab reopened a removed readonly direct'
             capture_terminal(d, actor, 'removed-direct-closed-and-hidden')
 
         d.request_friend('A', 'C')
@@ -197,7 +197,7 @@ def _hidden_direct_restoration(d):
             d.keys(actor, 'Tab')
             d.barrier(actor)
             screen = d.capture(actor)
-            assert 'i: compose' not in screen and 'HIDDEN_HISTORY_' not in screen and d.name(peer) not in screen, 'Tab reopened a pending readonly direct'
+            assert '按 i ' not in screen and 'HIDDEN_HISTORY_' not in screen and d.name(peer) not in screen, 'Tab reopened a pending readonly direct'
             capture_terminal(d, actor, 'pending-direct-still-hidden')
 
         d.accept_friend('C', 'A')
@@ -223,13 +223,13 @@ def _hidden_direct_restoration(d):
             d.keys(actor, 'i', 'Enter', 'Escape')
             marker = 'DRAFT_' + actor + '_'
             d.wait(actor, lambda screen: marker in screen and '消息已发送' in screen and
-                   any('i: compose' in line and marker not in line for line in screen.splitlines()))
+                   any('按 i ' in line and marker not in line for line in screen.splitlines()))
         d.wait('A', 'DRAFT_C_')
         d.wait('C', 'DRAFT_A_')
         # Release C's real TUI identity before observing exact DTO bytes through SDK.
         d.command('C', 'logout')
         d.confirm('C', '退出当前账号')
-        d.wait('C', 'Login / Register')
+        d.wait('C', '登录 / 注册')
         d.control('connect', actors=['C'])
         metadata = d.query('C', 'get_conversations')['conversations']
         restored = next(v['id'] for v in metadata if v.get('user') == d.manifest['actors']['A']['id'])
@@ -251,7 +251,7 @@ def chat_navigation(d):
         d.wait('A',lambda s:marker in s and COMPOSER in s)
         d.screenshot('A','narrow-group-enter')
         d.keys('A','Escape')
-        d.wait('A',lambda s:('Chats' in s or 'Conversations' in s) and COMPOSER not in s)
+        d.wait('A',lambda s:('聊天' in s or '聊天' in s) and COMPOSER not in s)
         d.screenshot('A','narrow-escape-list')
         # Returning by the top-level Chats action must have the same root
         # semantics. Esc at that root cannot reveal the prior message view.
@@ -259,14 +259,14 @@ def chat_navigation(d):
         d.wait('A',COMPOSER)
         d.chats('A')
         d.keys('A','Escape')
-        d.wait('A',lambda s:('Chats' in s or 'Conversations' in s) and COMPOSER not in s)
+        d.wait('A',lambda s:('聊天' in s or '聊天' in s) and COMPOSER not in s)
         d.screenshot('A','narrow-root-escape-stable')
         d.resize('A',160,45)
         d.select_chat('A',d.title)
         d.wait('A',marker)
         d.keys('A','Escape')
         d.keys('A','j','Enter')
-        d.wait('A',lambda s:d.title in s and 'members' in s)
+        d.wait('A',lambda s:d.title in s and '位成员' in s)
         d.screenshot('A','wide-return-focus-opens-next-chat')
 
 
@@ -277,45 +277,45 @@ def tab_navigation(d):
         d.wait('A',COMPOSER)
         for _ in range(3):
             d.keys('A','Tab')
-            d.wait('A',lambda s:('Chats' in s or 'Conversations' in s) and COMPOSER not in s)
+            d.wait('A',lambda s:('聊天' in s or '聊天' in s) and COMPOSER not in s)
             d.keys('A','Tab')
             d.wait('A',COMPOSER)
         d.keys('A','Escape')
-        d.wait('A',lambda s:('Chats' in s or 'Conversations' in s) and COMPOSER not in s)
+        d.wait('A',lambda s:('聊天' in s or '聊天' in s) and COMPOSER not in s)
         d.keys('A','Escape')
-        d.wait('A',lambda s:('Chats' in s or 'Conversations' in s) and COMPOSER not in s)
+        d.wait('A',lambda s:('聊天' in s or '聊天' in s) and COMPOSER not in s)
         d.screenshot('A','tab-chat-root-stable')
-        d.keys('A','c'); d.wait('A','New friends (1)')
-        d.keys('A','Enter');d.wait('A','New friends · Incoming')
+        d.keys('A','c'); d.wait('A','新的朋友 (1)')
+        d.keys('A','Enter');d.wait('A','新的朋友 · 收到')
         for _ in range(3):
-            d.keys('A','Tab');d.wait('A','New friends · Outgoing')
-            d.keys('A','Tab');d.wait('A','New friends · Incoming')
-        d.keys('A','Tab');d.wait('A','New friends · Outgoing')
-        d.keys('A','Escape');d.wait('A','New friends (1)')
+            d.keys('A','Tab');d.wait('A','新的朋友 · 发出')
+            d.keys('A','Tab');d.wait('A','新的朋友 · 收到')
+        d.keys('A','Tab');d.wait('A','新的朋友 · 发出')
+        d.keys('A','Escape');d.wait('A','新的朋友 (1)')
         d.screenshot('A','request-tab-escape-contacts')
 
 
 def friends_navigation(d):
     with d.case('contacts-and-new-friends','Accepted contacts and requests stay separate; cancel, accept, remove are real actions'):
-        d.keys('A','c'); d.wait('A','New friends (1)')
+        d.keys('A','c'); d.wait('A','新的朋友 (1)')
         screen=d.capture('A')
         assert d.name('C') in screen and '观察S005_' in screen
         assert all(d.name(a) not in screen for a in ['B','D','E'])
         d.screenshot('A','accepted-list-only')
         d.control('connect',actors=['D','E','B'])
-        d.keys('A','Enter');d.wait('A','New friends · Incoming')
-        d.wait('A',d.name('D'));d.keys('A','Tab');d.wait('A','New friends · Outgoing')
+        d.keys('A','Enter');d.wait('A','新的朋友 · 收到')
+        d.wait('A',d.name('D'));d.keys('A','Tab');d.wait('A','新的朋友 · 发出')
         d.wait('A',d.name('E'));d.screenshot('A','outgoing-request')
-        d.keys('A','x');d.wait('A','No pending friend requests')
+        d.keys('A','x');d.wait('A','没有待处理的好友申请')
         assert not d.query('E','get_friend_requests')['incoming']
         d.keys('A','Tab');d.wait('A',d.name('D'));d.keys('A','y')
-        d.wait('A','No pending friend requests')
+        d.wait('A','没有待处理的好友申请')
         assert any(v['id']==d.manifest['actors']['A']['id'] for v in d.query('D','get_contacts'))
-        d.keys('A','Escape');d.wait('A','New friends (0)');d.wait('A',d.name('D'))
-        d.command('A','search-users '+d.name('D'));d.wait('A','User search');d.wait('A',d.name('D'))
-        d.keys('A','Enter');d.wait('A','Remove friend')
+        d.keys('A','Escape');d.wait('A','新的朋友 (0)');d.wait('A',d.name('D'))
+        d.command('A','search-users '+d.name('D'));d.wait('A','查找用户');d.wait('A',d.name('D'))
+        d.keys('A','Enter');d.wait('A','删除好友')
         d.command('A','remove-contact');d.confirm('A','删除好友')
-        d.wait('A','Not friends')
+        d.wait('A','不是好友')
         assert not any(v['id']==d.manifest['actors']['A']['id'] for v in d.query('D','get_contacts'))
         d.screenshot('A','accepted-then-removed')
         direct=d.manifest['navigation']['readonly_conversation']
@@ -326,16 +326,16 @@ def friends_navigation(d):
         d.query('B','send_friend_request',user='A')
         d.command('A','friend-requests');d.wait('A',d.name('B'))
         d.screenshot('A','hidden-direct-incoming-request')
-        d.query('B','cancel_friend_request',user='A');d.wait('A','No pending friend requests')
+        d.query('B','cancel_friend_request',user='A');d.wait('A','没有待处理的好友申请')
         d.command('A','search-users '+d.name('B'));d.wait('A',d.name('B'))
-        d.keys('A','Enter');d.wait('A','Add friend')
-        d.command('A','add');d.wait('A','Waiting for acceptance')
+        d.keys('A','Enter');d.wait('A','添加好友')
+        d.command('A','add');d.wait('A','等待对方确认')
         d.chats('A');d.barrier('A')
         assert d.name('B') not in d.capture('A')
         d.screenshot('A','hidden-direct-outgoing-request')
         d.command('A','search-users '+d.name('B'));d.wait('A',d.name('B'))
-        d.keys('A','Enter');d.wait('A','Cancel friend request');d.keys('A','j','Enter')
-        d.wait('A','Not friends')
+        d.keys('A','Enter');d.wait('A','撤回好友申请');d.keys('A','j','Enter')
+        d.wait('A','不是好友')
         assert not d.query('B','get_friend_requests')['incoming']
         d.control('disconnect',actors=['B','D','E'])
 
@@ -344,13 +344,13 @@ def contacts_search(d):
     with d.case('contacts-local-search','Local accepted-only substring filtering supports ASCII case, clear, selection and profile'):
         d.keys('A','c','/');d.wait('A','搜索已接受的好友')
         d.paste('A','s005');d.keys('A','Enter')
-        d.wait('A',lambda s:'观察S005_' in s and d.name('C') not in s and 'New friends (1)' in s)
+        d.wait('A',lambda s:'观察S005_' in s and d.name('C') not in s and '新的朋友 (1)' in s)
         assert all(d.name(a) not in d.capture('A') for a in ['B','D','E'])
         d.keys('A','j','j');d.wait_selected('A','观察S005_')
-        d.keys('A','Enter');d.wait('A','Remove friend');d.screenshot('A','filtered-contact-profile')
+        d.keys('A','Enter');d.wait('A','删除好友');d.screenshot('A','filtered-contact-profile')
         d.keys('A','Escape','/');d.wait('A','搜索已接受的好友')
         d.keys('A','End','BSpace','BSpace','BSpace','BSpace','Enter')
-        d.wait('A',lambda s:d.name('C') in s and '观察S005_' in s and 'New friends (1)' in s)
+        d.wait('A',lambda s:d.name('C') in s and '观察S005_' in s and '新的朋友 (1)' in s)
         d.screenshot('A','cleared-filter-accepted-only')
 
 
@@ -368,12 +368,12 @@ def request_selection(d):
         d.keys('A','n');d.wait('A',lambda s:d.name(order[1]) not in s)
         assert not any(r['user']['id']==aid for r in d.query(order[1],'get_friend_requests')['outgoing'])
         assert any(r['user']['id']==aid for r in d.query(order[2],'get_friend_requests')['outgoing'])
-        d.keys('A','y');d.wait('A','No pending friend requests')
+        d.keys('A','y');d.wait('A','没有待处理的好友申请')
         assert any(v['id']==aid for v in d.query(order[2],'get_contacts'))
         d.query(order[2],'remove_contact',user='A')
         for peer in peers:
             d.command('A','search-users '+d.name(peer));d.wait('A',d.name(peer))
-            d.keys('A','Enter');d.wait('A','Add friend');d.command('A','add');d.wait('A','Waiting for acceptance')
+            d.keys('A','Enter');d.wait('A','添加好友');d.command('A','add');d.wait('A','等待对方确认')
         d.command('A','friend-sent');d.wait('A',lambda s:all(d.name(p) in s for p in peers))
         order=sorted(peers,key=lambda p:d.capture('A').index(d.name(p)))
         d.keys('A','k',repeat=10);d.keys('A','j');d.wait_selected('A',d.name(order[1]))
@@ -384,7 +384,7 @@ def request_selection(d):
         assert not any(r['user']['id']==aid for r in d.query(order[1],'get_friend_requests')['incoming'])
         assert any(r['user']['id']==aid for r in d.query(order[2],'get_friend_requests')['incoming'])
         d.query(order[2],'respond_friend_request',user='A',accept=False)
-        d.wait('A','No pending friend requests')
+        d.wait('A','没有待处理的好友申请')
         d.control('disconnect',actors=peers)
 
 
@@ -398,11 +398,11 @@ def picker_selection(d):
         d.keys('A','k',repeat=10);d.keys('A','j');d.wait_selected('A',names[order[1]])
         d.query(order[0],'remove_contact',user='A')
         d.wait('A',lambda s:names[order[0]] not in s);d.wait_selected('A',names[order[1]])
-        d.keys('A','Space');d.wait('A','Selected: 1');d.screenshot('A','space-target-after-friend-removal')
+        d.keys('A','Space');d.wait('A','已选 1 人');d.screenshot('A','space-target-after-friend-removal')
         d.command('A','filter no-matching-friend');d.wait('A','[x]')
-        d.keys('A','Space');d.wait('A',lambda s:'Selected: 0' in s and names[order[1]] not in s)
+        d.keys('A','Space');d.wait('A',lambda s:'已选 0 人' in s and names[order[1]] not in s)
         d.screenshot('A','filtered-selection-cancelled')
-        d.keys('A','Escape');d.wait('A','New friends (1)')
+        d.keys('A','Escape');d.wait('A','新的朋友 (1)')
         d.query(order[0],'send_friend_request',user='A')
         d.command('A','friend-requests');d.wait('A',names[order[0]])
         choose_row(d,'A',names[order[0]],limit=3)
@@ -416,7 +416,7 @@ def message_alignment(d):
     with d.case('own-right-peer-left','Real group history distinguishes own and peer messages at narrow and wide terminal sizes'):
         d.control('connect',actors=['C'])
         own='RIGHT_OWN_'+d.args.run_id;peer='LEFT_PEER_'+d.args.run_id
-        d.select_chat('A',d.title);d.wait('A','i: compose')
+        d.select_chat('A',d.title);d.wait('A','按 i ')
         d.send('A',own)
         d.query('C','send_message',conversation=d.group,text=peer)
         for width in [80,160]:
@@ -440,7 +440,7 @@ def paste_messages(d):
             if index==2: d.keys('A','Up')
             d.wait('A','LAST_'+str(index))
             assert not d.query('S005','search_messages',conversation=d.group,query=marker)['messages']
-            d.keys('A','Escape');d.wait('A','i: compose')
+            d.keys('A','Escape');d.wait('A','按 i ')
             d.screenshot('A','unsent-multiline-'+str(index))
             assert not d.query('S005','search_messages',conversation=d.group,query=marker)['messages']
             d.keys('A','i','Enter','Escape');d.wait('A','消息已发送')
@@ -457,7 +457,7 @@ def paste_messages(d):
         d.tmux('send-keys','-l','-t',d.panes['A'],'\nN:quit\x1b[201~')
         d.wait('A','正在重连')
         d.start_server();d.control('connect',actors=['S005'])
-        d.wait('A',lambda s:'connected' in s and 'i: compose' in s)
+        d.wait('A',lambda s:'已连接' in s and '按 i ' in s)
         assert not d.query('S005','search_messages',conversation=d.group,query=marker)['messages']
         d.keys('A','i');d.wait('A',marker)
         d.screenshot('A','interrupted-paste-draft')
@@ -469,28 +469,28 @@ def paste_messages(d):
 
 def new_actions(d):
     with d.case('new-menu-three-actions','Global New offers add friend, two-step create, and actual join'):
-        d.keys('A','h','N');d.wait('A',lambda s: all(t in s for t in ['Add friend','Create group','Join group']))
+        d.keys('A','h','N');d.wait('A',lambda s: all(t in s for t in ['添加好友','创建群聊','加入群聊']))
         d.screenshot('A','new-three-actions')
         d.keys('A','Enter');d.wait('A','搜索用户（姓名前缀）')
-        d.paste('A',d.name('E'));d.keys('A','Enter');d.wait('A','User search');d.wait('A',d.name('E'))
-        d.keys('A','Enter');d.wait('A','Add friend');d.keys('A','j','Enter');d.wait('A','Waiting for acceptance')
+        d.paste('A',d.name('E'));d.keys('A','Enter');d.wait('A','查找用户');d.wait('A',d.name('E'))
+        d.keys('A','Enter');d.wait('A','添加好友');d.keys('A','j','Enter');d.wait('A','等待对方确认')
         d.screenshot('A','new-add-friend-pending')
-        d.keys('A','h','N','j','Enter');d.wait('A','Choose friends')
+        d.keys('A','h','N','j','Enter');d.wait('A','选择好友')
         # Both accepted friends are selected; pending E must not be an option.
         assert d.name('E') not in d.capture('A')
-        d.keys('A','Space','j','Space');d.wait('A','Selected: 2')
+        d.keys('A','Space','j','Space');d.wait('A','已选 2 人')
         d.screenshot('A','create-select-accepted')
         d.keys('A','Enter');d.wait('A','下一步：群名称')
         title='TUI导航新群_'+d.args.run_id
         d.paste('A',title);d.keys('A','Enter');d.confirm('A','创建群聊')
-        d.wait('A',lambda s:title in s and 'i: compose' in s)
+        d.wait('A',lambda s:title in s and '按 i ' in s)
         created=next(v for v in d.query('S005','get_conversations')['conversations'] if v['username']==title)
         actual=d.query('S005','get_members',conversation=created['id'])
         assert {v['id'] for v in actual}=={d.manifest['actors'][a]['id'] for a in ['A','C']}|{d.manifest['sdk'][0]['id']}
         d.screenshot('A','created-group-open')
         d.spawn_tui('E');d.login('E');d.keys('E','N','j','j','Enter');d.wait('E','加入群聊')
         d.paste('E',d.manifest['invite_token']);d.keys('E','Enter')
-        d.wait('E',lambda s:d.title in s and 'i: compose' in s)
+        d.wait('E',lambda s:d.title in s and '按 i ' in s)
         members=d.query('S005','get_members',conversation=d.group)
         assert len(members)==5 and any(v['id']==d.manifest['actors']['E']['id'] for v in members)
         d.screenshot('E','new-join-open')
@@ -498,12 +498,12 @@ def new_actions(d):
 
 def account_logout(d):
     with d.case('account-logout','Account opens explicitly and logout confirmation preserves or closes the real session'):
-        d.keys('A','u');d.wait('A','Account ·');d.wait('A','Log out')
+        d.keys('A','u');d.wait('A','账号 ·');d.wait('A','退出登录')
         d.screenshot('A','account-page')
         d.keys('A','j','j','j','Enter');d.wait('A','退出当前账号')
-        d.keys('A','Escape');d.wait('A','Account ·')
+        d.keys('A','Escape');d.wait('A','账号 ·')
         assert any(p['user']==d.manifest['actors']['A']['id'] and p['online'] for p in d.query('S005','get_presence'))
-        d.keys('A','Enter');d.confirm('A','退出当前账号');d.wait('A','Login / Register')
+        d.keys('A','Enter');d.confirm('A','退出当前账号');d.wait('A','登录 / 注册')
         d.screenshot('A','logout-login-page')
         assert any(p['user']==d.manifest['actors']['A']['id'] and not p['online'] for p in d.query('S005','get_presence'))
 

@@ -21,80 +21,80 @@ namespace
 using namespace ftxui;
 struct shortcut { std::string_view key, description; };
 constexpr std::array shortcuts{
-    shortcut{"j / Down, k / Up", "Move selection"},
-    shortcut{"Enter", "Open selected item / confirm"},
-    shortcut{"Esc", "Back / close prompt / keep draft"},
-    shortcut{"Tab / Shift+Tab", "Switch conversations and messages / input focus"},
-    shortcut{"i", "Compose (Enter sends, Esc keeps draft)"},
-    shortcut{"r / e / d", "Reply / edit / confirm delete"},
-    shortcut{"a", "Reaction picker (0 removes)"},
-    shortcut{"y / s", "Show copyable message / save attachment"},
-    shortcut{"/", "Search current conversation"},
-    shortcut{"PgUp / PgDn", "Earlier history / next search or request page"},
-    shortcut{"G", "Latest message"},
-    shortcut{"[ / ]", "Scroll within selected long message"},
-    shortcut{"m / p", "Mute / personal pin"},
-    shortcut{"h / c / u", "Chats / Contacts / Account"},
-    shortcut{"N (Shift+n)", "New: add friend / create group / join group"},
-    shortcut{"g", "Current group actions"},
-    shortcut{"A / O / D (members)", "Admin / transfer owner / remove member"},
-    shortcut{"y / n (requests)", "Accept / reject selected request"},
-    shortcut{"Tab (new friends)", "Switch incoming / outgoing requests"},
-    shortcut{"/ (contacts / picker)", "Filter accepted friends by name"},
-    shortcut{"Space / Enter (contacts picker)", "Toggle member / finish selection"},
-    shortcut{":", "Command input (:help for command list)"},
-    shortcut{"?", "Help"},
-    shortcut{"Ctrl+C / :quit", "Safe exit"},
+    shortcut{"j / ↓，k / ↑", "移动选择"},
+    shortcut{"Enter", "打开所选 / 确认"},
+    shortcut{"Esc", "返回 / 关闭输入框 / 保留草稿"},
+    shortcut{"Tab / Shift+Tab", "在会话列表与聊天之间切换"},
+    shortcut{"i", "输入消息（Enter 发送，Esc 保留草稿）"},
+    shortcut{"r / e / d", "回复 / 编辑 / 删除（需确认）"},
+    shortcut{"a", "表情回应（0 取消）"},
+    shortcut{"y / s", "显示可复制文本 / 保存附件"},
+    shortcut{"/", "搜索当前会话"},
+    shortcut{"PgUp / PgDn", "加载更早的消息 / 加载更多搜索结果或申请"},
+    shortcut{"G", "回到最新消息"},
+    shortcut{"[ / ]", "在长消息内逐行滚动"},
+    shortcut{"m / p", "免打扰 / 置顶会话"},
+    shortcut{"h / c / u", "聊天 / 联系人 / 账号"},
+    shortcut{"N（Shift+n）", "新建：添加好友 / 创建群聊 / 加入群聊"},
+    shortcut{"g", "当前群聊的操作"},
+    shortcut{"A / O / D（成员页）", "设置或取消管理员 / 转让群主 / 移除成员"},
+    shortcut{"y / n（申请页）", "接受 / 拒绝所选申请"},
+    shortcut{"Tab（新的朋友）", "切换收到 / 发出的申请"},
+    shortcut{"/（联系人、选择好友）", "按名称筛选好友"},
+    shortcut{"Space / Enter（选择好友）", "勾选成员 / 完成选择"},
+    shortcut{":", "输入命令（:help 查看命令列表）"},
+    shortcut{"?", "帮助"},
+    shortcut{"Ctrl+C / :quit", "安全退出"},
 };
 struct menu_action { std::string label, command; };
 std::vector<menu_action> actions(state const& s)
 {
     if (s.view == page::new_action)
-    { return {{"Add friend", "add-contact"}, {"Create group", "create-group"}, {"Join group", "join"}}; }
+    { return {{"添加好友", "add-contact"}, {"创建群聊", "create-group"}, {"加入群聊", "join"}}; }
     if (s.view == page::profile)
     {
-        std::vector<menu_action> items{{"Show copyable username", "copy-user"}};
+        std::vector<menu_action> items{{"显示可复制的用户名", "copy-user"}};
         if (s.profile.id == s.self.id)
         {
-            items.push_back({"Set avatar from PNG/JPEG path", "avatar"});
-            items.push_back({"Clear avatar", "avatar-clear"});
-            items.push_back({"Log out", "logout"});
+            items.push_back({"设置头像（PNG/JPEG 文件路径）", "avatar"});
+            items.push_back({"清除头像", "avatar-clear"});
+            items.push_back({"退出登录", "logout"});
         }
         else if (s.is_contact(s.profile.id))
         {
-            items.push_back({"Message", "message"});
-            items.push_back({"Remove friend", "remove-contact"});
+            items.push_back({"发消息", "message"});
+            items.push_back({"删除好友", "remove-contact"});
         }
         else if (s.friendship(s.profile.id) == friendship_state::outgoing_pending)
-        { items.push_back({"Cancel friend request", "cancel-friend"}); }
+        { items.push_back({"撤回好友申请", "cancel-friend"}); }
         else if (s.friendship(s.profile.id) == friendship_state::incoming_pending)
         {
-            items.push_back({"Accept friend request", "accept-friend"});
-            items.push_back({"Reject friend request", "reject-friend"});
+            items.push_back({"接受好友申请", "accept-friend"});
+            items.push_back({"拒绝好友申请", "reject-friend"});
         }
-        else { items.push_back({"Add friend", "add"}); }
+        else { items.push_back({"添加好友", "add"}); }
         return items;
     }
     if (s.view != page::group) { return {}; }
     auto c = s.active_conversation();
     if (!c || c->kind != conversation_kind::group) { return {}; }
-    std::vector<menu_action> items{{"All members", "members"}};
-    if (!c->announcement.empty()) { items.push_back({"Show full announcement", "show-announcement"}); }
-    if (c->pinned_message) { items.push_back({"View pinned message", "pinned"}); }
+    std::vector<menu_action> items{{"全部成员", "members"}};
+    if (!c->announcement.empty()) { items.push_back({"查看完整公告", "show-announcement"}); }
+    if (c->pinned_message) { items.push_back({"查看置顶消息", "pinned"}); }
     if (s.self_role() != member_role::member)
     {
-        items.push_back({"Invite accepted friends", "invite"});
-        items.push_back({"Rename group", "rename"});
-        items.push_back({"Edit / clear announcement", "announcement"});
-        items.push_back({"Pin selected message", "pin-message"});
-        if (c->pinned_message) { items.push_back({"Unpin group message", "unpin-message"}); }
-        items.push_back({"Show invite code", "link"});
-        items.push_back({"Generate invite code", "link-create"});
-        items.push_back({"Revoke invite code", "link-revoke"});
-        items.push_back({c->join_approval ? "Disable join approval" : "Enable join approval", "approval"});
-        items.push_back({"Pending join requests", "requests"});
+        items.push_back({"邀请好友入群", "invite"});
+        items.push_back({"修改群名称", "rename"});
+        items.push_back({"编辑或清除公告", "announcement"});
+        items.push_back({"置顶所选消息", "pin-message"});
+        if (c->pinned_message) { items.push_back({"取消置顶消息", "unpin-message"}); }
+        items.push_back({"查看邀请码", "link"});
+        items.push_back({"生成新邀请码", "link-create"});
+        items.push_back({"撤销邀请码", "link-revoke"});
+        items.push_back({c->join_approval ? "关闭入群审批" : "开启入群审批", "approval"});
+        items.push_back({"入群申请", "requests"});
     }
-    if (s.self_role() != member_role::owner) { items.push_back({"Leave group", "leave"}); }
+    if (s.self_role() != member_role::owner) { items.push_back({"退出群聊", "leave"}); }
     return items;
 }
 std::string first_glyph(std::string const& name)
@@ -138,8 +138,20 @@ Element help_content(int width, int* line_count = nullptr)
                 if (column && column + 1 + cells > width)
                 { if (!line_count) { output += '\n'; } column = 0; ++lines; }
                 else if (column) { if (!line_count) { output += ' '; } ++column; }
-                if (!line_count) { output += word; }
-                column += cells;
+                if (cells <= width - column) { if (!line_count) { output += word; } column += cells; }
+                else
+                {
+                    // Chinese text has no spaces to break at.
+                    for (auto const& glyph : Utf8ToGlyphs(std::string(word)))
+                    {
+                        if (glyph.empty()) { continue; }
+                        auto const glyph_cells = DisplayWidth(glyph);
+                        if (column && column + glyph_cells > width)
+                        { if (!line_count) { output += '\n'; } column = 0; ++lines; }
+                        if (!line_count) { output += glyph; }
+                        column += glyph_cells;
+                    }
+                }
             }
             if (end == std::string_view::npos) { break; }
             start = end + 1;
@@ -150,8 +162,8 @@ Element help_content(int width, int* line_count = nullptr)
     for (auto const& shortcut : shortcuts)
     { wrap(std::string(shortcut.key) + "  " + std::string(shortcut.description)); }
     if (!line_count) { rows.push_back(separator()); }
-    wrap("Commands: new, chats, contacts, friend-requests, friend-sent, accept-friend, reject-friend, cancel-friend, filter, add-contact, profile, account, create-group, join, file, save, members, invite, rename, announcement, show-announcement, pinned, pin-message, unpin-message, link, link-create, link-revoke, approval, requests, avatar, avatar-clear, logout, quit");
-    wrap("Clipboard: copyable text page; select with your terminal.");
+    wrap("命令：new, chats, contacts, friend-requests, friend-sent, accept-friend, reject-friend, cancel-friend, filter, add-contact, profile, account, create-group, join, file, save, members, invite, rename, announcement, show-announcement, pinned, pin-message, unpin-message, link, link-create, link-revoke, approval, requests, avatar, avatar-clear, logout, quit");
+    wrap("复制：在可复制文本页用终端自带的选择功能复制。");
     return line_count ? Element{} : vbox(std::move(rows));
 }
 Element preview_text(std::string value, int width)
@@ -177,15 +189,64 @@ Element preview_text(std::string value, int width)
     return text(value) | size(HEIGHT, EQUAL, 1);
 }
 std::string user_label(std::string const& name) { return "[" + first_glyph(name) + "] " + name; }
+std::tm local_time(std::int64_t value)
+{
+    // Protocol timestamps are Unix milliseconds.
+    auto const seconds = static_cast<std::time_t>(value / 1000);
+    std::tm time{};
+    localtime_r(&seconds, &time);
+    return time;
+}
+std::string format_time(std::tm const& time, char const* format)
+{
+    std::array<char, 32> output{};
+    std::strftime(output.data(), output.size(), format, &time);
+    return output.data();
+}
 std::string timestamp(std::int64_t value)
 {
     if (value <= 0) { return {}; }
-    // Protocol timestamps are Unix milliseconds.
-    const auto seconds = static_cast<std::time_t>(value / 1000);
-    std::tm time{};
-    localtime_r(&seconds, &time);
+    return format_time(local_time(value), "%m-%d %H:%M");
+}
+std::string clock_time(std::int64_t value) { return value > 0 ? format_time(local_time(value), "%H:%M") : std::string{}; }
+// Calendar days since an arbitrary epoch, for comparing local dates.
+int day_number(std::tm time)
+{
+    time.tm_hour = 12; time.tm_min = time.tm_sec = 0; time.tm_isdst = -1;
+    return static_cast<int>(std::mktime(&time) / 86400);
+}
+int today() { auto now = std::time(nullptr); std::tm time{}; localtime_r(&now, &time); return day_number(time); }
+std::string day_label(std::int64_t value)
+{
+    auto const time = local_time(value);
+    auto const days = today() - day_number(time);
+    if (days == 0) { return "今天"; }
+    if (days == 1) { return "昨天"; }
+    auto now = std::time(nullptr); std::tm current{}; localtime_r(&now, &current);
+    return format_time(time, time.tm_year == current.tm_year ? "%m月%d日" : "%Y年%m月%d日");
+}
+// The time column of the chat list: today's time, yesterday, a weekday this week, else the date.
+std::string list_time(std::int64_t value)
+{
+    if (value <= 0) { return {}; }
+    auto const time = local_time(value);
+    auto const days = today() - day_number(time);
+    if (days == 0) { return format_time(time, "%H:%M"); }
+    if (days == 1) { return "昨天"; }
+    if (days > 1 && days < 7)
+    {
+        constexpr std::array<char const*, 7> weekdays{"周日", "周一", "周二", "周三", "周四", "周五", "周六"};
+        return weekdays[static_cast<std::size_t>(time.tm_wday)];
+    }
+    auto now = std::time(nullptr); std::tm current{}; localtime_r(&now, &current);
+    return format_time(time, time.tm_year == current.tm_year ? "%m-%d" : "%Y-%m-%d");
+}
+std::string file_size(std::int64_t bytes)
+{
     std::array<char, 32> output{};
-    std::strftime(output.data(), output.size(), "%m-%d %H:%M", &time);
+    if (bytes < 1024) { return std::to_string(bytes) + " B"; }
+    if (bytes < 1024 * 1024) { std::snprintf(output.data(), output.size(), "%.1f KB", static_cast<double>(bytes) / 1024); }
+    else { std::snprintf(output.data(), output.size(), "%.1f MB", static_cast<double>(bytes) / (1024 * 1024)); }
     return output.data();
 }
 std::string presence_label(state const& s, std::int64_t id)
@@ -193,22 +254,22 @@ std::string presence_label(state const& s, std::int64_t id)
     if (!s.is_contact(id)) { return {}; }
     auto p = s.presences.find(id);
     if (p == s.presences.end()) { return {}; }
-    if (p->second.online) { return "online"; }
-    return p->second.last_seen ? "last seen " + timestamp(p->second.last_seen) : "offline";
+    if (p->second.online) { return "在线"; }
+    return p->second.last_seen ? "最后在线 " + timestamp(p->second.last_seen) : "离线";
 }
 std::string role_label(member_role role)
 {
-    switch (role) { case member_role::owner: return "owner"; case member_role::admin: return "admin"; default: return "member"; }
+    switch (role) { case member_role::owner: return "群主"; case member_role::admin: return "管理员"; default: return "成员"; }
 }
 std::string link_label(connection link)
 {
     switch (link)
     {
-        case connection::online: return "connected";
-        case connection::connecting: return "connecting…";
-        case connection::authenticating: return "authenticating…";
-        case connection::reconnecting: return "正在重连…";
-        default: return "signed out";
+        case connection::online: return "● 已连接";
+        case connection::connecting: return "○ 正在连接…";
+        case connection::authenticating: return "○ 正在认证…";
+        case connection::reconnecting: return "○ 正在重连…";
+        default: return "○ 未登录";
     }
 }
 Element selected(Element item, bool value, bool active = true)
@@ -218,7 +279,7 @@ Element selected(Element item, bool value, bool active = true)
 }
 Element scroll(Elements items)
 {
-    if (items.empty()) { items.push_back(text("No items")); }
+    if (items.empty()) { items.push_back(text("暂无内容") | dim); }
     return vbox(std::move(items)) | vscroll_indicator | yframe | flex;
 }
 Element conversation_list(state const& s, int width)
@@ -226,37 +287,43 @@ Element conversation_list(state const& s, int width)
     Elements rows;
     if (s.conversations.empty())
     {
-        rows.push_back(text("No chats to display"));
-        rows.push_back(text("N: new chat options") | dim);
+        rows.push_back(text("暂无聊天"));
+        rows.push_back(text("按 N 添加好友或创建群聊") | dim);
     }
     for (std::size_t i = 0; i < s.conversations.size(); ++i)
     {
         auto const& c = s.conversations[i];
-        auto label = user_label(c.username);
+        auto label = c.username;
         if (c.kind == conversation_kind::direct)
         {
             auto presence = presence_label(s, c.user);
             if (!presence.empty()) { label += " · " + presence; }
         }
-        auto unread = c.unread ? " (" + std::to_string(c.unread) + ")" : std::string{};
+        // Text marks, not only color, so they survive monochrome terminals.
         std::string flags;
-        if (c.pinned) { flags += " [pin]"; }
-        if (c.muted) { flags += " [mute]"; }
+        if (c.pinned) { flags += " 置顶"; }
+        if (c.muted) { flags += " 免打扰"; }
+        auto const when = " " + list_time(c.last.timestamp);
+        auto const unread = c.unread ? " " + std::to_string(c.unread) : std::string{};
         auto summary = c.last.deleted ? "消息已删除" : c.last.attachment ? "[文件] " + c.last.attachment->filename : c.last.text;
+        auto const name_width = width - DisplayWidth(when) - DisplayWidth(flags);
+        auto unread_mark = text(unread);
+        if (!unread.empty() && !c.muted) { unread_mark = unread_mark | bold; }
         rows.push_back(selected(vbox({
-            hbox({preview_text(label, width - DisplayWidth(unread)) | flex, text(unread)}),
-            hbox({preview_text(summary, width - DisplayWidth(flags)) | dim | flex, text(flags)})}),
+            hbox({preview_text(label, name_width) | bold | flex, text(flags) | dim, text(when) | dim}),
+            hbox({preview_text(summary, width - DisplayWidth(unread)) | dim | flex, unread_mark})}),
             s.conversation_selected == static_cast<int>(i), s.view == page::conversations));
     }
-    if (s.next_conversations) { rows.push_back(text("↓ More conversations")); }
-    return vbox({text("Chats") | bold, separator(), scroll(std::move(rows))}) | flex;
+    if (s.next_conversations) { rows.push_back(text("↓ 更多会话") | dim); }
+    return vbox({text("聊天") | bold, separator(), scroll(std::move(rows))}) | flex;
 }
 Element message_item(state const& s, message const& m, bool highlighted, int width, int scroll_line)
 {
     auto const content_width = std::max(1, width * 3 / 4);
-    std::string heading = m.from == s.self.id ? "You" : m.username;
-    heading += " " + timestamp(m.timestamp);
-    if (m.edited_at && !m.deleted) { heading += " (edited)"; }
+    std::string heading = m.from == s.self.id ? "我" : m.username;
+    // Search results span days, so they keep the date; history has day separators instead.
+    heading += " " + (s.view == page::search ? timestamp(m.timestamp) : clock_time(m.timestamp));
+    if (m.edited_at && !m.deleted) { heading += "（已编辑）"; }
     Elements lines{preview_text(heading, content_width) | bold};
     if (m.reply)
     {
@@ -269,7 +336,7 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
         if (m.attachment)
         {
             auto const& a = *m.attachment;
-            lines.push_back(text(std::string(a.media_type.starts_with("image/") ? "[图片] " : "[文件] ") + a.filename + " · " + std::to_string(a.size) + " bytes"));
+            lines.push_back(text(std::string(a.media_type.starts_with("image/") ? "[图片] " : "[文件] ") + a.filename + " · " + file_size(a.size)));
         }
         std::string reaction_text;
         for (auto const& reaction : m.reactions)
@@ -281,7 +348,7 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
         if (!reaction_text.empty()) { lines.push_back(text(reaction_text)); }
         if (!m.mentions.empty())
         {
-            std::string mentions = "Mentions:";
+            std::string mentions = "提及：";
             for (auto const& value : m.mentions) { mentions += " @" + value.username; }
             lines.push_back(text(mentions) | dim);
         }
@@ -294,7 +361,7 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
             return !c || c->kind != conversation_kind::group ||
                 std::ranges::find(s.members, p.user, &conversation_member::id) != s.members.end();
         });
-        lines.push_back(text(c && c->kind == conversation_kind::group ? "已读 " + std::to_string(read_count) + " 人" : read_count ? "✓✓" : "✓") | dim);
+        lines.push_back(text(c && c->kind == conversation_kind::group ? "已读 " + std::to_string(read_count) + " 人" : read_count ? "已读" : "已发送") | dim);
     }
     auto item = vbox(std::move(lines)) | size(WIDTH, LESS_THAN, content_width);
     if (highlighted)
@@ -310,10 +377,16 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
 Element history(state const& s, int width, int message_scroll)
 {
     Elements items;
-    if (s.messages.empty()) { items.push_back(text("No messages to display") | dim); }
-    if (s.history_more) { items.push_back(text("PgUp: load earlier history") | dim); }
+    if (s.messages.empty()) { items.push_back(text("暂无消息") | dim); }
+    if (s.history_more) { items.push_back(text("PgUp 加载更早的消息") | dim); }
+    int day = 0;
     for (std::size_t i = 0; i < s.messages.size(); ++i)
     {
+        if (auto const when = s.messages[i].timestamp; when > 0 && day_number(local_time(when)) != day)
+        {
+            day = day_number(local_time(when));
+            items.push_back(hbox({filler(), text("── " + day_label(when) + " ──") | dim, filler()}));
+        }
         items.push_back(message_item(s, s.messages[i], s.message_selected == static_cast<int>(i), width, message_scroll));
         items.push_back(text(""));
     }
@@ -322,21 +395,26 @@ Element history(state const& s, int width, int message_scroll)
 Element conversation_view(state const& s, Element input, std::string typing, int width, int message_scroll)
 {
     auto c = s.active_conversation();
-    if (!c) { return text("Select a conversation and press Enter") | center | flex; }
-    auto detail = c->kind == conversation_kind::group ? " · " + std::to_string(c->member_count) + " members" : presence_label(s, c->user);
+    if (!c) { return text("选择一个会话，按 Enter 打开") | center | flex; }
+    auto detail = c->kind == conversation_kind::group ? " · " + std::to_string(c->member_count) + " 位成员" : presence_label(s, c->user);
     if (c->kind == conversation_kind::direct && !detail.empty()) { detail = " · " + detail; }
     Elements items{hbox({preview_text(c->username, width - DisplayWidth(detail)) | bold | flex, text(detail) | dim})};
-    if (c->pinned_message) { items.push_back(preview_text("Pinned: " + (c->pinned_message->deleted ? "消息已删除" : c->pinned_message->text), width) | dim); }
-    if (!c->announcement.empty()) { items.push_back(preview_text("公告: " + c->announcement, width) | dim); }
+    // Pinned message and announcement share one line; the full announcement is in the group page.
+    if (c->pinned_message)
+    {
+        std::string const more = c->announcement.empty() ? "" : " 另有公告 · 见群信息";
+        items.push_back(hbox({preview_text("置顶：" + (c->pinned_message->deleted ? "消息已删除" : c->pinned_message->text), width - DisplayWidth(more)) | dim | flex, text(more) | dim}));
+    }
+    else if (!c->announcement.empty()) { items.push_back(preview_text("公告：" + c->announcement, width) | dim); }
     items.push_back(separator());
     items.push_back(history(s, width, message_scroll));
     if (!typing.empty()) { items.push_back(text(typing) | dim); }
-    if (!s.at_latest) { items.push_back(text("Browsing history · G: latest (new messages stay unread)") | dim); }
-    items.push_back(separator());
+    if (s.at_latest) { items.push_back(separator()); }
+    else { items.push_back(preview_text("── 正在浏览历史 · G 回到最新，新消息保持未读 ──", width) | dim); }
     if (!s.can_send())
     {
         std::string hint = "当前会话不可发送消息";
-        if (s.link != connection::online) { hint = "Waiting for connection…"; }
+        if (s.link != connection::online) { hint = "正在等待连接…"; }
         else if (c->kind == conversation_kind::direct)
         {
             hint = s.friendship_hint(c->user);
@@ -345,9 +423,9 @@ Element conversation_view(state const& s, Element input, std::string typing, int
     }
     else
     {
-        if (s.reply) { items.push_back(preview_text("Reply " + s.reply->username + ": " + s.reply->text, width) | dim); }
-        if (s.editing) { items.push_back(text("Editing message · Esc: keep draft") | dim); }
-        items.push_back(input ? input | size(HEIGHT, EQUAL, 1) : preview_text(s.composing ? "> " + s.draft : s.draft.empty() ? "i: compose" : "i: compose · " + s.draft, width));
+        if (s.reply) { items.push_back(preview_text("回复 " + s.reply->username + "：" + s.reply->text, width) | dim); }
+        if (s.editing) { items.push_back(text("正在编辑消息 · Esc 保留草稿") | dim); }
+        items.push_back(input ? input | size(HEIGHT, EQUAL, 1) : preview_text(s.composing ? "> " + s.draft : s.draft.empty() ? "按 i 输入消息" : "按 i 继续输入 · " + s.draft, width));
     }
     return vbox(std::move(items)) | flex;
 }
@@ -360,7 +438,7 @@ Element secondary(state const& s, int width, int message_scroll)
     {
         case page::new_action:
         {
-            title = "New";
+            title = "新建";
             auto items = actions(s);
             for (std::size_t i = 0; i < items.size(); ++i)
             { rows.push_back(selected(text(items[i].label), s.selected == static_cast<int>(i))); }
@@ -370,21 +448,21 @@ Element secondary(state const& s, int width, int message_scroll)
         case page::users:
         case page::pick_contacts:
         {
-            title = s.view == page::contacts ? "Contacts" : s.view == page::users ? "User search" : "Choose friends";
-            if (s.view == page::users && !s.users.empty()) { hint = "Enter: profile"; }
-            if (s.view == page::pick_contacts) { hint = "Space: toggle · Enter: next"; }
-            if (s.view == page::users && s.users.empty()) { rows.push_back(text("No users match this search") | dim); }
-            if (s.view == page::contacts && s.contacts.empty()) { rows.push_back(text("No accepted friends yet") | dim); }
-            if (s.view == page::contacts) { rows.push_back(preview_text("/: search · " + s.contacts_query, width) | dim); }
+            title = s.view == page::contacts ? "联系人" : s.view == page::users ? "查找用户" : "选择好友";
+            if (s.view == page::users && !s.users.empty()) { hint = "Enter 查看资料"; }
+            if (s.view == page::pick_contacts) { hint = "Space 勾选 · Enter 下一步"; }
+            if (s.view == page::users && s.users.empty()) { rows.push_back(text("没有找到匹配的用户") | dim); }
+            if (s.view == page::contacts && s.contacts.empty()) { rows.push_back(text("还没有好友") | dim); }
+            if (s.view == page::contacts) { rows.push_back(preview_text("/ 搜索 · " + s.contacts_query, width) | dim); }
             if (s.view == page::pick_contacts)
             {
-                rows.push_back(text("Selected: " + std::to_string(s.picked_contacts.size()) + " · /: search · " + s.pick_query));
+                rows.push_back(text("已选 " + std::to_string(s.picked_contacts.size()) + " 人 · / 搜索 · " + s.pick_query));
                 // Selected friends remain removable even while the current filter hides them.
-                std::string picked = "Picked: ";
+                std::string picked = "已选：";
                 for (auto id : s.picked_contacts)
                 {
                     auto found = std::ranges::find(s.contacts, id, &user::id);
-                    if (found != s.contacts.end()) { picked += found->username + "; "; }
+                    if (found != s.contacts.end()) { picked += found->username + "；"; }
                 }
                 rows.push_back(preview_text(picked, width));
                 auto values = s.pick_candidates();
@@ -412,7 +490,7 @@ Element secondary(state const& s, int width, int message_scroll)
             if (s.view == page::contacts)
             {
                 return vbox({text(title) | bold, separator(),
-                    selected(text("New friends (" + std::to_string(s.friends.incoming.size()) + ")"), s.selected == 0),
+                    selected(text("新的朋友 (" + std::to_string(s.friends.incoming.size()) + ")"), s.selected == 0),
                     separator(), scroll(std::move(rows))}) | flex;
             }
             break;
@@ -421,29 +499,29 @@ Element secondary(state const& s, int width, int message_scroll)
         case page::friend_sent:
         {
             bool const incoming = s.view == page::friend_requests;
-            title = incoming ? "New friends · Incoming" : "New friends · Outgoing";
-            hint = incoming ? "Tab: outgoing · y: accept · n: reject · Enter: profile" : "Tab: incoming · x: cancel · Enter: profile";
+            title = incoming ? "新的朋友 · 收到" : "新的朋友 · 发出";
+            hint = incoming ? "Tab 查看发出 · y 接受 · n 拒绝 · Enter 查看资料" : "Tab 查看收到 · x 撤回 · Enter 查看资料";
             auto const& requests = incoming ? s.friends.incoming : s.friends.outgoing;
             for (std::size_t i = 0; i < requests.size(); ++i)
             {
                 auto const& request = requests[i];
                 rows.push_back(selected(text(user_label(request.user.username) + " " + timestamp(request.created_at)), s.selected == static_cast<int>(i)));
             }
-            if (requests.empty()) { rows.push_back(text("No pending friend requests")); }
+            if (requests.empty()) { rows.push_back(text("没有待处理的好友申请") | dim); }
             break;
         }
         case page::profile:
         {
-            title = std::string(s.profile.id == s.self.id ? "Account · " : "Profile · ") + user_label(s.profile.username);
-            rows.push_back(text(std::string("Avatar: ") + (s.profile.avatar.present ? "set" : "default")));
+            title = std::string(s.profile.id == s.self.id ? "账号 · " : "资料 · ") + user_label(s.profile.username);
+            rows.push_back(text(std::string("头像：") + (s.profile.avatar.present ? "已设置" : "默认")));
             auto presence = presence_label(s, s.profile.id);
             if (!presence.empty()) { rows.push_back(text(presence)); }
             if (s.profile.id != s.self.id)
             {
                 auto relation = s.friendship(s.profile.id);
-                rows.push_back(text(relation == friendship_state::accepted ? "Friends" :
-                    relation == friendship_state::outgoing_pending ? "Waiting for acceptance" :
-                    relation == friendship_state::incoming_pending ? "Incoming friend request" : "Not friends"));
+                rows.push_back(text(relation == friendship_state::accepted ? "好友" :
+                    relation == friendship_state::outgoing_pending ? "等待对方确认" :
+                    relation == friendship_state::incoming_pending ? "收到好友申请" : "不是好友"));
             }
             rows.push_back(separator());
             auto items = actions(s);
@@ -451,52 +529,51 @@ Element secondary(state const& s, int width, int message_scroll)
             break;
         }
         case page::members:
-            title = "Members (" + std::to_string(s.members.size()) + ")";
-            if (s.self_role() == member_role::owner) { hint = "A: toggle admin · O: transfer to admin · D: remove"; }
-            else if (s.self_role() == member_role::admin) { hint = "D: remove selected member"; }
+            title = "群成员 (" + std::to_string(s.members.size()) + ")";
+            if (s.self_role() == member_role::owner) { hint = "A 设置或取消管理员 · O 转让给管理员 · D 移除"; }
+            else if (s.self_role() == member_role::admin) { hint = "D 移除所选成员"; }
             for (std::size_t i = 0; i < s.members.size(); ++i)
             {
                 auto const& m = s.members[i];
-                auto role = " · " + role_label(m.role) + (m.id == s.self.id ? " (you)" : "");
+                auto role = " · " + role_label(m.role) + (m.id == s.self.id ? "（我）" : "");
                 rows.push_back(selected(hbox({preview_text(user_label(m.username), width - DisplayWidth(role)) | flex,
                     text(role) | dim}), s.selected == static_cast<int>(i)));
             }
             break;
         case page::requests:
-            title = "Join requests";
-            if (!s.requests.empty()) { hint = "y: accept · n: reject"; }
-            if (s.requests.empty()) { rows.push_back(text("No join requests to display") | dim); }
+            title = "待处理的入群申请";
+            if (!s.requests.empty()) { hint = "y 接受 · n 拒绝"; }
+            if (s.requests.empty()) { rows.push_back(text("暂无入群申请") | dim); }
             for (std::size_t i = 0; i < s.requests.size(); ++i)
             {
                 auto const& value = s.requests[i];
                 rows.push_back(selected(text(user_label(value.applicant.username) + " " + timestamp(value.created_at)), s.selected == static_cast<int>(i)));
             }
-            if (s.next_requests) { rows.push_back(text("PgDn: more requests")); }
+            if (s.next_requests) { rows.push_back(text("PgDn 加载更多申请") | dim); }
             break;
         case page::search:
-            title = "Search: " + s.search_query;
-            hint = s.search_results.empty() ? "/: search again" : "Enter/y: show copyable text";
-            rows.push_back(text("Loaded hits · live text") | dim);
-            rows.push_back(text("Re-search for current matches") | dim);
-            if (s.search_results.empty()) { rows.push_back(text("No loaded search hits") | dim); }
+            title = "搜索：" + s.search_query;
+            hint = s.search_results.empty() ? "/ 重新搜索" : "Enter 或 y 显示可复制文本";
+            rows.push_back(text("显示已加载的结果，重新搜索可获取最新匹配") | dim);
+            if (s.search_results.empty()) { rows.push_back(text("已加载的结果中没有匹配项") | dim); }
             for (std::size_t i = 0; i < s.search_results.size(); ++i) { rows.push_back(message_item(s, s.search_results[i], s.selected == static_cast<int>(i), width, message_scroll)); rows.push_back(text("")); }
-            if (s.search_more) { rows.push_back(text("PgDn: earlier results")); }
+            if (s.search_more) { rows.push_back(text("PgDn 加载更早的结果") | dim); }
             break;
         case page::group:
         {
             auto c = s.active_conversation();
-            title = c ? "Group · " + c->username : "Group";
+            title = c ? "群聊 · " + c->username : "群聊";
             if (c)
             {
-                rows.push_back(text("Members: " + std::to_string(s.members.size()) + " · Your role: " + role_label(s.self_role())));
+                rows.push_back(text("成员 " + std::to_string(s.members.size()) + " 人 · 我的身份：" + role_label(s.self_role())));
                 auto const preview_count = std::min<std::size_t>(3, s.members.size());
-                std::string preview = "Preview (" + std::to_string(preview_count) + " of " + std::to_string(s.members.size()) + "): ";
+                std::string preview = "前 " + std::to_string(preview_count) + " 位成员（共 " + std::to_string(s.members.size()) + " 位）：";
                 for (std::size_t i = 0; i < preview_count; ++i)
-                { preview += s.members[i].username + " (" + role_label(s.members[i].role) + ") "; }
+                { preview += (i ? "、" : "") + s.members[i].username + " " + role_label(s.members[i].role); }
                 rows.push_back(preview_text(preview, width));
-                if (c->pinned_message) { rows.push_back(preview_text("Pinned: " + c->pinned_message->text, width)); }
-                rows.push_back(wrapped_text("公告: " + (c->announcement.empty() ? "(none)" : c->announcement), width) | size(HEIGHT, LESS_THAN, 3));
-                rows.push_back(text(c->join_approval ? "Join approval: on" : "Join approval: off"));
+                if (c->pinned_message) { rows.push_back(preview_text("置顶：" + c->pinned_message->text, width)); }
+                rows.push_back(wrapped_text("公告：" + (c->announcement.empty() ? "（无）" : c->announcement), width) | size(HEIGHT, LESS_THAN, 3));
+                rows.push_back(text(c->join_approval ? "入群审批：已开启" : "入群审批：已关闭"));
                 rows.push_back(separator());
             }
             auto items = actions(s);
@@ -504,13 +581,13 @@ Element secondary(state const& s, int width, int message_scroll)
             break;
         }
         case page::help:
-            title = "Keyboard help";
-            hint = "j/k: scroll · Esc: back";
+            title = "键盘帮助";
+            hint = "j/k 滚动 · Esc 返回";
             rows.push_back(help_content(width));
             break;
         case page::copy:
-            title = "Copyable text";
-            hint = "Use terminal selection · Esc: back";
+            title = "可复制文本";
+            hint = "用终端的选择功能复制 · Esc 返回";
             rows.push_back(wrapped_text(s.copy_text, width));
             break;
         default: title = "Chat"; break;
@@ -531,13 +608,13 @@ Element secondary(state const& s, int width, int message_scroll)
 }
 Element render_impl(state const& s, int width, int height, Element compose = {}, std::string typing = {}, int message_scroll = -1)
 {
-    if (state::layout(width, height) == layout_mode::too_small) { return text("Terminal too small (40x12 minimum)") | center; }
+    if (state::layout(width, height) == layout_mode::too_small) { return text("终端太小（至少 40×12）") | center; }
     if (!s.self.id)
     {
-        return vbox({text("Chat · Login / Register") | bold, text("和朋友，轻松聊。") | dim,
-                     text(""), text("Username"), text(""), text("Password"), text(""),
-                     text("Log in") | bold, text("Create account"), text("Server settings"),
-                     paragraph(s.status), text("Tab: move · Enter: select · Ctrl+C: quit") | dim}) |
+        return vbox({text("Chat · 登录 / 注册") | bold, text("和朋友，轻松聊。") | dim,
+                     text(""), text("用户名"), text(""), text("密码"), text(""),
+                     text("登录") | bold, text("注册账号"), text("服务器设置"),
+                     paragraph(s.status), text("Tab 切换 · Enter 确认 · Ctrl+C 退出") | dim}) |
             size(WIDTH, LESS_THAN, std::min(44, width - 4)) | center;
     }
     Element content;
@@ -551,7 +628,11 @@ Element render_impl(state const& s, int width, int height, Element compose = {},
     }
     else { content = secondary(s, width - 3, message_scroll); }
     auto link = " " + link_label(s.link);
-    return vbox({hbox({preview_text("Chat · " + s.self.username, width - 2 - DisplayWidth(link)) | bold | flex, text(link)}), text("h Chats  c Contacts  u Account  N New") | dim, separator(), content, separator(), hbox({preview_text(s.status.empty() ? "?: help · : command · Ctrl+C: quit" : s.status, width - 12) | flex, text(" Esc: back") | dim})}) | border;
+    std::string const help = " Esc 返回 · ? 帮助";
+    auto status = s.status.empty() ? preview_text("h 聊天 · c 联系人 · u 账号 · N 新建 · : 命令", width - 2 - DisplayWidth(help)) | dim
+                                   : preview_text(s.status, width - 2 - DisplayWidth(help));
+    if (s.status_error) { status = status | bold; }
+    return vbox({hbox({preview_text("Chat · " + s.self.username, width - 2 - DisplayWidth(link)) | bold | flex, text(link)}), separator(), content, separator(), hbox({status | flex, text(help) | dim})}) | border;
 }
 std::size_t selection_count(state const& s, int width)
 {
@@ -590,21 +671,21 @@ public:
         InputOption single;
         single.multiline = false;
         url_ = Input(&app_.server_url, "ws://127.0.0.1:18080/ws", single);
-        username_ = Input(&app_.username, "Username", single);
+        username_ = Input(&app_.username, "用户名", single);
         auto password_option = single;
         password_option.password = true;
         password_option.on_enter = [this] { app_.login(); };
-        password_ = Input(&app_.password, "Password", password_option);
+        password_ = Input(&app_.password, "密码", password_option);
         ButtonOption action;
         action.transform = [](EntryState const& item) {
             auto body = text((item.focused ? "> " : "  ") + item.label);
-            if (item.label == "Log in") { body |= bold; }
+            if (item.label == "登录") { body |= bold; }
             if (item.focused) { body |= inverted; }
             return body;
         };
-        login_ = Button("Log in", [this] { app_.login(); }, action);
-        register_ = Button("Create account", [this] { app_.login(true); }, action);
-        server_settings_ = Button("Server settings", [this] {
+        login_ = Button("登录", [this] { app_.login(); }, action);
+        register_ = Button("注册账号", [this] { app_.login(true); }, action);
+        server_settings_ = Button("服务器设置", [this] {
             server_settings_open_ = !server_settings_open_;
             if (server_settings_open_) { url_->TakeFocus(); }
             else { username_->TakeFocus(); }
@@ -614,9 +695,9 @@ public:
         auto compose_option = single;
         compose_option.multiline = true;
         compose_option.on_change = [this] { app_.compose_changed(); };
-        compose_ = Input(&app_.data.draft, "Message · Enter: send · Esc: keep", compose_option);
+        compose_ = Input(&app_.data.draft, "输入消息 · Enter 发送 · Esc 保留草稿", compose_option);
         Add(compose_);
-        command_ = Input(&app_.command_text, "command", single);
+        command_ = Input(&app_.command_text, "命令", single);
         Add(command_);
         prompt_ = Input(&prompt_text_, "", single);
         Add(prompt_);
@@ -636,12 +717,12 @@ public:
         {
             auto const width = std::min(44, terminal.dimx - 4);
             auto const roomy = terminal.dimy >= 20;
-            Elements fields{hbox({text("Chat") | bold, text(" · Login / Register") | dim})};
+            Elements fields{hbox({text("Chat") | bold, text(" · 登录 / 注册") | dim})};
             if (roomy) { fields.push_back(text("和朋友，轻松聊。") | dim); fields.push_back(text("")); }
-            fields.push_back(text("Username"));
+            fields.push_back(text("用户名"));
             fields.push_back(username_->Render());
             if (roomy) { fields.push_back(text("")); }
-            fields.push_back(text("Password"));
+            fields.push_back(text("密码"));
             fields.push_back(password_->Render());
             if (roomy) { fields.push_back(text("")); }
             fields.push_back(login_->Render());
@@ -654,7 +735,7 @@ public:
             { fields.push_back(text(link_label(s.link)) | bold); }
             if (roomy) { fields.push_back(text("")); }
             if (roomy || s.status.empty())
-            { fields.push_back(paragraph("Tab: move · Enter: select · Ctrl+C: quit") | dim); }
+            { fields.push_back(paragraph("Tab 切换 · Enter 确认 · Ctrl+C 退出") | dim); }
             page = vbox(std::move(fields)) | size(WIDTH, EQUAL, width) | center;
         }
         else
@@ -664,13 +745,22 @@ public:
         if (app_.dialog)
         {
             sync_prompt();
-            return dbox({page, vbox({paragraph(app_.dialog->title) | bold, separator(), prompt_->Render(), text(app_.dialog->confirmation ? "Enter: confirm y · Esc: cancel" : "Enter: confirm · Esc: cancel")}) | border | clear_under | center});
+            return dbox({page, vbox({paragraph(app_.dialog->title) | bold, separator(), prompt_->Render(), text(app_.dialog->confirmation ? "输入 y 后按 Enter 确认 · Esc 取消" : "Enter 确认 · Esc 取消")}) | border | clear_under | center});
         }
         if (app_.command_mode)
-        { return dbox({page, vbox({text("Command"), command_->Render(), text("Enter: run · Esc: cancel")}) | border | clear_under | center}); }
+        { return dbox({page, vbox({text("命令"), command_->Render(), text("Enter 执行 · Esc 取消")}) | border | clear_under | center}); }
         return page;
     }
     bool OnEvent(Event event) override
+    {
+        // An error stays until the next key press; status changes are classified after handling.
+        if (event != Event::Custom) { app_.dismiss_error(); }
+        auto const handled = handle(event);
+        app_.observe_status();
+        return handled;
+    }
+private:
+    bool handle(Event event)
     {
         update_viewport(Terminal::Size());
         // Pasted text belongs to the target as it was before queued results change it.

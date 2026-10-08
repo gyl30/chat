@@ -145,9 +145,9 @@ class Driver:
     def command(self, actor, command):
         self.keys(actor, ':')
         self.paste(actor, command)
-        self.wait(actor, 'Enter: run · Esc: cancel')
+        self.wait(actor, 'Enter 执行 · Esc 取消')
         self.keys(actor, 'Enter')
-        self.wait(actor, lambda screen: 'Enter: run · Esc: cancel' not in screen)
+        self.wait(actor, lambda screen: 'Enter 执行 · Esc 取消' not in screen)
 
     def barrier(self, actor):
         # A visible command-input nonce acknowledges preceding PTY key events.
@@ -160,7 +160,7 @@ class Driver:
         self.wait(actor, lambda screen: nonce not in screen)
 
     def confirm(self, actor, expected):
-        self.wait(actor, lambda text: expected in text and 'Enter: confirm y' in text)
+        self.wait(actor, lambda text: expected in text and '输入 y 后按 Enter 确认' in text)
         self.paste(actor, 'y')
         self.keys(actor, 'Enter')
 
@@ -273,7 +273,7 @@ class Driver:
         self.panes[actor] = result.stdout.strip()
         pid = int(self.tmux('display-message', '-p', '-t', self.panes[actor], '#{pane_pid}').stdout.strip())
         self.observer.set_process('tui_' + actor, pid)
-        self.wait(actor, 'Login / Register')
+        self.wait(actor, '登录 / 注册')
 
     def name(self, actor):
         return self.manifest['actors'][actor]['username']
@@ -287,7 +287,7 @@ class Driver:
         return self.manifest['group']['title']
 
     def login(self, actor, first=True, bad_password=False):
-        self.wait(actor, 'Login / Register')
+        self.wait(actor, '登录 / 注册')
         # Password Enter submits and leaves focus in that field across logout.
         if first:
             self.paste(actor, self.name(actor))
@@ -299,7 +299,7 @@ class Driver:
             self.screenshot(actor, 'bad-password')
         self.paste(actor, self.password)
         self.keys(actor, 'Enter')
-        self.wait(actor, lambda screen: 'connected' in screen and 'Chats' in screen, timeout=25)
+        self.wait(actor, lambda screen: '已连接' in screen and '聊天' in screen, timeout=25)
 
     def registration_edges(self, actor):
         self.paste(actor, ' Alice')
@@ -334,12 +334,12 @@ class Driver:
         self.keys(actor, 'Escape')
         self.command(actor, 'logout')
         self.confirm(actor, '退出当前账号')
-        self.wait(actor, 'Login / Register')
+        self.wait(actor, '登录 / 注册')
 
     def open_main(self, actor):
         self.keys(actor, 'Escape')
         self.command(actor, 'conversations')
-        self.wait(actor, 'Chats')
+        self.wait(actor, '聊天')
         self.keys(actor, 'k', repeat=200)
         self.barrier(actor)
         marker = self.title[:5]
@@ -349,13 +349,13 @@ class Driver:
                 if marker not in inverse_text(self.capture(actor, styled=True)):
                     continue
                 self.keys(actor, 'Enter')
-                self.wait(actor, lambda screen: self.title in screen and 'members' in screen)
+                self.wait(actor, lambda screen: self.title in screen and '位成员' in screen)
                 # Header metadata can precede the independent member snapshot.
                 # Wait for that observable snapshot before management actions.
                 self.command(actor, 'group')
-                self.wait(actor, lambda screen: re.search(r'Members: [1-9][0-9]*', screen) is not None)
+                self.wait(actor, lambda screen: re.search(r'成员 [1-9][0-9]* 人', screen) is not None)
                 self.keys(actor, 'Escape')
-                self.wait(actor, 'i: compose')
+                self.wait(actor, '按 i ')
                 return
             self.keys(actor, 'j')
             time.sleep(.045)
@@ -363,7 +363,7 @@ class Driver:
 
     def choose_member(self, actor, target):
         self.command(actor, 'members')
-        self.wait(actor, 'Members (')
+        self.wait(actor, '群成员 (')
         self.keys(actor, 'k', repeat=160)
         self.barrier(actor)
         for _ in range(130):
@@ -375,44 +375,44 @@ class Driver:
 
     def find_profile(self, actor, target):
         self.command(actor, 'search-users ' + self.name(target))
-        self.wait(actor, lambda screen: 'User search' in screen and self.name(target) in screen and 'No items' not in screen)
+        self.wait(actor, lambda screen: '查找用户' in screen and self.name(target) in screen and '暂无内容' not in screen)
         self.keys(actor, 'Enter')
-        self.wait(actor, 'Profile ·')
+        self.wait(actor, '资料 ·')
 
     def request_friend(self, actor, target):
         self.find_profile(actor, target)
-        self.wait(actor, 'Add friend')
+        self.wait(actor, '添加好友')
         self.command(actor, 'add')
-        self.wait(actor, 'Waiting for acceptance')
+        self.wait(actor, '等待对方确认')
         output = self.capture(actor)
-        assert 'Message' not in output and 'online' not in output
+        assert '发消息' not in output and '在线' not in output
         self.screenshot(actor, 'outgoing-pending')
 
     def accept_friend(self, actor, target):
         self.find_profile(actor, target)
-        self.wait(actor, 'Accept friend request')
+        self.wait(actor, '接受好友申请')
         self.command(actor, 'accept-friend')
-        self.wait(actor, 'Remove friend')
+        self.wait(actor, '删除好友')
 
     def add_contact(self, actor, target):
         self.find_profile(actor, target)
-        if 'Remove friend' in self.capture(actor):
+        if '删除好友' in self.capture(actor):
             return
         self.request_friend(actor, target)
         self.accept_friend(target, actor)
-        self.wait(actor, 'Remove friend')
+        self.wait(actor, '删除好友')
 
     def remove_contact(self, actor, target):
         self.find_profile(actor, target)
-        self.wait(actor, 'Remove friend')
+        self.wait(actor, '删除好友')
         self.command(actor, 'remove-contact')
         self.confirm(actor, '删除好友')
-        self.wait(actor, 'Add friend')
+        self.wait(actor, '添加好友')
 
     def open_named(self, actor, title):
         self.keys(actor, 'Escape')
         self.command(actor, 'conversations')
-        self.wait(actor, 'Chats')
+        self.wait(actor, '聊天')
         self.keys(actor, 'k', repeat=200)
         self.barrier(actor)
         for _ in range(200):
@@ -441,10 +441,13 @@ class Driver:
                     lines.append(value)
         return lines
 
-    def selected_message(self, actor, marker, older=False):
+    def selected_message(self, actor, marker, older=False, latest=True):
         if older:
             self.keys(actor, 'PPage')
-        self.keys(actor, 'G')
+        # G reloads the newest page, which drops an older page still in flight; a caller
+        # that has just paged up searches upward from where it is instead.
+        if latest:
+            self.keys(actor, 'G')
         self.barrier(actor)
         for _ in range(180):
             if any(marker in line for line in self.selected_message_lines(actor)):
@@ -457,8 +460,8 @@ class Driver:
 
     def resize(self, actor, width, height):
         self.tmux('resize-window', '-t', self.panes[actor], '-x', str(width), '-y', str(height))
-        self.wait(actor, (lambda text: 'Terminal too small' in text) if width < 40 or height < 12 else
-                  (lambda text: 'Chat ·' in text and 'Terminal too small' not in text))
+        self.wait(actor, (lambda text: '终端太小' in text) if width < 40 or height < 12 else
+                  (lambda text: 'Chat ·' in text and '终端太小' not in text))
 
     def evidence(self, label, value):
         path = self.work / (self.case_id + '-' + label + '.json')
@@ -496,7 +499,7 @@ class Driver:
     def open_direct(self, actor, target):
         self.find_profile(actor, target)
         self.command(actor, 'message')
-        self.wait(actor, lambda screen: self.name(target) in screen and 'i: compose' in screen)
+        self.wait(actor, lambda screen: self.name(target) in screen and '按 i ' in screen)
 
     def send(self, actor, marker):
         self.keys(actor, 'i')
@@ -507,12 +510,12 @@ class Driver:
         # success status or text still in the composer is not delivery evidence.
         visible_marker = marker.split(' ', 1)[0]
         self.wait(actor, lambda screen: visible_marker in screen and '消息已发送' in screen and
-                  any('i: compose' in line and visible_marker[:18] not in line for line in screen.splitlines()))
+                  any('按 i ' in line and visible_marker[:18] not in line for line in screen.splitlines()))
         return marker
 
     def link(self, actor, create=False):
         self.command(actor, 'link-create' if create else 'link')
-        self.wait(actor, 'Copyable text')
+        self.wait(actor, '可复制文本')
         # The TUI shows invite codes in two groups of four, such as K7QM-3XWP.
         output = self.wait(actor, lambda screen: re.search(r'\b[2-9A-HJKMNP-Z]{4}-?[2-9A-HJKMNP-Z]{4}\b', screen) is not None)
         token = re.search(r'\b([2-9A-HJKMNP-Z]{4}-?[2-9A-HJKMNP-Z]{4})\b', output).group(1).replace('-', '')
@@ -563,44 +566,44 @@ def message_id(d, marker):
 def stage_friendships(d):
     with d.case('friend-requests-incoming', 'Five real UI incoming friend requests can be rejected, without presence/direct permission'):
         d.command('A', 'friend-requests')
-        d.wait('A', 'Incoming')
+        d.wait('A', '新的朋友 · 收到')
         for fixture in d.manifest['friend_pending']['incoming']:
             choose_row(d, 'A', fixture['username'])
             d.keys('A', 'Enter')
-            d.wait('A', 'Incoming friend request')
-            assert 'Message' not in d.capture('A')
+            d.wait('A', '收到好友申请')
+            assert '发消息' not in d.capture('A')
             d.command('A', 'reject-friend')
-            d.wait('A', 'Add friend')
+            d.wait('A', '添加好友')
             d.command('A', 'friend-requests')
         d.screenshot('A', 'rejected-five')
     with d.case('friend-requests-outgoing', 'Five real UI outgoing requests remain pending until explicitly cancelled'):
         d.command('A', 'friend-sent')
-        d.wait('A', 'Outgoing')
+        d.wait('A', '新的朋友 · 发出')
         for fixture in d.manifest['friend_pending']['outgoing']:
             choose_row(d, 'A', fixture['username'])
             d.keys('A', 'Enter')
-            d.wait('A', 'Waiting for acceptance')
-            assert 'Message' not in d.capture('A')
+            d.wait('A', '等待对方确认')
+            assert '发消息' not in d.capture('A')
             d.command('A', 'cancel-friend')
-            d.wait('A', 'Add friend')
+            d.wait('A', '添加好友')
             d.command('A', 'friend-sent')
         d.screenshot('A', 'cancelled-five')
     with d.case('friend-from-group-profile', 'Nonfriend group profile exposes request; explicit recipient acceptance enables both direct directions'):
         d.open_main('B')
         d.choose_member('B', 'C')
         d.keys('B', 'Enter')
-        d.wait('B', 'Add friend')
-        assert 'Message' not in d.capture('B') and 'online' not in d.capture('B')
+        d.wait('B', '添加好友')
+        assert '发消息' not in d.capture('B') and '在线' not in d.capture('B')
         d.command('B', 'add')
-        d.wait('B', 'Waiting for acceptance')
+        d.wait('B', '等待对方确认')
         d.command('B', 'message')
         d.wait('B', '好友申请已发送，等待对方确认')
         d.find_profile('C', 'B')
-        d.wait('C', 'Incoming friend request')
-        assert 'Message' not in d.capture('C')
+        d.wait('C', '收到好友申请')
+        assert '发消息' not in d.capture('C')
         d.command('C', 'accept-friend')
-        d.wait('C', 'Remove friend')
-        d.wait('B', 'Remove friend')
+        d.wait('C', '删除好友')
+        d.wait('B', '删除好友')
         d.screenshot('B', 'accepted-profile')
         d.open_direct('B', 'C')
         d.open_direct('C', 'B')
@@ -624,7 +627,7 @@ def stage_onboard(d):
         d.wait('E', '等待管理员审批')
         assert d.title not in d.capture('E')
         d.command('A', 'requests')
-        d.wait('A', 'Join requests')
+        d.wait('A', '待处理的入群申请')
         choose_row(d, 'A', d.name('E'), pages=True)
         d.screenshot('A', 'e-pending')
         requests = d.query('S005', 'get_group_join_requests', conversation=d.group)
@@ -650,13 +653,13 @@ def stage_onboard(d):
     with d.case('hundred-current-members', 'Reserved SDK member leaves; real owner accepts E, restoring exactly 100 members and 100 authenticated clients'):
         d.control('replace-reserved')
         d.command('A', 'requests')
-        d.wait('A', 'Join requests')
+        d.wait('A', '待处理的入群申请')
         choose_row(d, 'A', d.name('E'), pages=True)
         d.keys('A', 'y')
         d.wait('A', '入群申请已处理')
         d.open_main('E')
         d.command('E', 'members')
-        d.wait('E', 'Members (100)')
+        d.wait('E', '群成员 (100)')
         d.screenshot('E', 'accepted-hundred')
         status = d.control('status', verify=True)
         assert status['member_count'] == 100 and status['online_member_count'] == 100, status
@@ -666,7 +669,7 @@ def stage_onboard(d):
         assert [value['role'] for value in people].count('owner') == 1
         assert [value['role'] for value in people].count('admin') == 3
         d.command('E', 'members')
-        d.wait('E', 'Members (100)')
+        d.wait('E', '群成员 (100)')
         d.keys('E', 'k', repeat=150)
         d.barrier('E')
         last = 0
@@ -675,7 +678,8 @@ def stage_onboard(d):
                 d.keys('E', 'j', repeat=index-last)
                 d.barrier('E')
             d.wait_selected('E', people[index]['username'])
-            assert people[index]['role'] in inverse_text(d.capture('E', styled=True))
+            role = {'owner': '群主', 'admin': '管理员', 'member': '成员'}[people[index]['role']]
+            assert role in inverse_text(d.capture('E', styled=True))
             d.screenshot('E', 'members-position-' + str(index))
             last = index
         d.evidence('member-role-order', people)
@@ -732,13 +736,13 @@ def stage_messages(d):
         for boundary in (69,19):
             d.keys('C', 'j', repeat=160)
             d.barrier('C')
-            d.wait('C', 'earlier results')
+            d.wait('C', '加载更早的结果')
             d.keys('C', 'NPage')
             d.wait('C', d.manifest['messages'][boundary]['marker'] + ' 中文群消息')
         d.keys('C', 'j', repeat=140)
         d.barrier('C')
         d.keys('C', 'Enter')
-        d.wait('C', 'Copyable text')
+        d.wait('C', '可复制文本')
         d.wait('C', d.manifest['messages'][0]['marker'] + ' 中文群消息')
         d.screenshot('C', 'last-search-result')
         history = d.query('S005', 'get_messages', conversation=d.group)
@@ -759,7 +763,7 @@ def stage_messages(d):
         d.wait('C', marker)
         d.selected_message('C', marker)
         d.keys('C', 'r')
-        d.wait('C', 'Reply ')
+        d.wait('C', '回复 ')
         d.paste('C', 'reply_body_' + d.args.run_id)
         d.keys('C', 'Enter', 'Escape')
         d.wait('B', 'reply_body_' + d.args.run_id)
@@ -786,7 +790,7 @@ def stage_messages(d):
         d.selected_message('B', marker)
         d.keys('B', 'd')
         d.confirm('B', '删除')
-        d.wait('D', lambda text: 'draft_survives_' + d.args.run_id in text and 'Reply ' not in text)
+        d.wait('D', lambda text: 'draft_survives_' + d.args.run_id in text and '回复 ' not in text)
         d.screenshot('D', 'deleted-reply-preserves-draft')
         d.keys('D', 'Enter', 'Escape')
         d.wait('C', 'draft_survives_' + d.args.run_id)
@@ -802,7 +806,7 @@ def stage_messages(d):
     with d.case('typing-and-read', 'Real text editing announces typing; Esc clears it; group read counts advance 0/1/10/50/99'):
         for actor in 'BCDE':
             d.command(actor, 'help')
-            d.wait(actor, 'Keyboard help')
+            d.wait(actor, '键盘帮助')
         d.open_main('A')
         marker = 'read_probe_' + d.args.run_id
         d.send('A', marker)
@@ -885,7 +889,7 @@ def stage_terminal_messages(d):
         d.wait('C', d.title)
         d.screenshot('C', 'multiline-conversation-row')
         d.keys('C', 'Enter')
-        d.wait('C', 'i: compose')
+        d.wait('C', '按 i ')
         d.resize('C', 160,45)
         d.query('S005', 'delete_message', conversation=d.group, message=sent['message_id'])
 
@@ -981,7 +985,7 @@ def stage_files(d):
         for media in ('png', 'jpeg'):
             d.command('D', 'avatar set ' + str(files[media]))
             d.wait('D', '头像已更新')
-            d.wait('D', 'Avatar: set')
+            d.wait('D', '头像：已设置')
             deadline = time.monotonic() + 10
             while True:
                 users = d.query('S005', 'search_users', query=d.name('D'))
@@ -1002,7 +1006,7 @@ def stage_files(d):
         d.command('D', 'avatar set ' + str(large))
         d.wait('D', lambda text: '超过' in text or '大' in text or 'limit' in text.lower())
         d.command('D', 'avatar-clear')
-        d.wait('D', 'Avatar: default')
+        d.wait('D', '头像：默认')
         d.screenshot('D', 'cleared-avatar')
     return files
 
@@ -1016,7 +1020,7 @@ def stage_friend_direct(d, files):
             d.wait(recipient, marker)
             d.selected_message(recipient, marker)
             d.keys(recipient, 'r')
-            d.wait(recipient, 'Reply ')
+            d.wait(recipient, '回复 ')
             reply = marker + '_reply'
             d.paste(recipient, reply)
             d.keys(recipient, 'Enter', 'Escape')
@@ -1059,7 +1063,7 @@ def stage_friend_direct(d, files):
             d.wait(sender, '消息已删除')
             d.screenshot(sender, 'direct-delete-' + sender)
             d.command(recipient, 'help')
-            d.wait(recipient, 'Keyboard help')
+            d.wait(recipient, '键盘帮助')
             unread_marker = marker + '_unread'
             d.send(sender, unread_marker)
             recipient_id = int(d.manifest['actors'][recipient]['id'])
@@ -1072,7 +1076,7 @@ def stage_friend_direct(d, files):
             d.screenshot(recipient, 'direct-unread-' + recipient)
             d.open_direct(recipient, sender)
             d.keys(recipient, 'G')
-            d.wait(sender, '✓✓')
+            d.wait(sender, '已读')
             deadline = time.monotonic() + 10
             while True:
                 after = read_only_sql(sql)
@@ -1120,11 +1124,11 @@ def stage_removed_friend(d, files):
         assert len(original) == 1, original
         # Removing the friend closes the open direct, so the profile page closes with it.
         d.find_profile('B', 'C')
-        d.wait('B', 'Remove friend')
+        d.wait('B', '删除好友')
         d.command('B', 'remove-contact')
         d.confirm('B', '删除好友')
         for actor in 'BC':
-            d.wait(actor, lambda screen: 'Chats' in screen and 'i: compose' not in screen and 'Profile ·' not in screen)
+            d.wait(actor, lambda screen: '聊天' in screen and '按 i ' not in screen and '资料 ·' not in screen)
             d.screenshot(actor, 'removed-direct-closed')
 
         def hidden(actor, peer, label):
@@ -1139,8 +1143,8 @@ def stage_removed_friend(d, files):
             hidden(actor, peer, 'removed-direct-hidden')
         d.request_friend('B', 'C')
         d.find_profile('C', 'B')
-        d.wait('C', 'Incoming friend request')
-        assert 'online' not in d.capture('C') and 'Message' not in d.capture('C')
+        d.wait('C', '收到好友申请')
+        assert '在线' not in d.capture('C') and '发消息' not in d.capture('C')
         for actor, peer in [('B', 'C'), ('C', 'B')]:
             hidden(actor, peer, 'pending-direct-hidden')
         d.accept_friend('C', 'B')
@@ -1165,20 +1169,20 @@ def stage_admin_friend_invite(d):
         d.accept_friend('D', 'B')
         d.request_friend('B', 'E')
         d.find_profile('E', 'B')
-        d.wait('E', 'Incoming friend request')
-        assert 'Message' not in d.capture('E')
+        d.wait('E', '收到好友申请')
+        assert '发消息' not in d.capture('E')
         d.open_main('D')
         d.open_main('A')
         d.choose_member('A', 'D')
         d.command('A', 'kick')
         d.confirm('A', '移除群成员')
-        d.wait('D', lambda text: 'Chats' in text and d.title not in text)
+        d.wait('D', lambda text: '聊天' in text and d.title not in text)
         d.open_main('B')
         d.command('B', 'group')
-        d.wait('B', 'Your role: admin')
+        d.wait('B', '我的身份：管理员')
         d.keys('B', 'Escape')
         d.command('B', 'invite')
-        d.wait('B', 'Choose friends')
+        d.wait('B', '选择好友')
         d.wait('B', d.name('D'))
         screen = d.capture('B')
         assert d.name('E') not in screen, 'Pending friend must not be an invitation candidate'
@@ -1187,13 +1191,13 @@ def stage_admin_friend_invite(d):
         d.screenshot('B', 'accepted-candidates-only')
         choose_row(d, 'B', d.name('D'))
         d.keys('B', 'Space')
-        d.wait('B', 'Selected: 1')
+        d.wait('B', '已选 1 人')
         d.screenshot('B', 'invite-selected-friend')
         d.keys('B', 'Enter')
-        d.wait('B', 'Members (100)')
+        d.wait('B', '群成员 (100)')
         d.open_main('D')
         d.command('D', 'members')
-        d.wait('D', 'Members (100)')
+        d.wait('D', '群成员 (100)')
         requests = d.query('S005', 'get_group_join_requests', conversation=d.group)
         pending = list(requests['requests'])
         while requests.get('next'):
@@ -1206,7 +1210,7 @@ def stage_admin_friend_invite(d):
         d.screenshot('D', 'manually-rejoined')
         d.find_profile('E', 'B')
         d.command('E', 'reject-friend')
-        d.wait('E', 'Add friend')
+        d.wait('E', '添加好友')
 
 def stage_group_management(d):
     with d.case('group-management-roles', 'Fourth administrator rejected; owner demotes/promotes; ordinary member sees no secret invitation actions'):
@@ -1219,16 +1223,16 @@ def stage_group_management(d):
         d.wait('A', '群聊已更新')
         d.open_main('B')
         d.command('B', 'group')
-        d.wait('B', 'Your role: member')
+        d.wait('B', '我的身份：成员')
         assert 'invitation link' not in d.capture('B')
         d.choose_member('A', 'B')
         d.command('A', 'admin')
         d.open_main('B')
         d.command('B', 'group')
-        d.wait('B', 'Your role: admin')
+        d.wait('B', '我的身份：管理员')
         d.open_main('C')
         d.command('C', 'group')
-        d.wait('C', 'Your role: member')
+        d.wait('C', '我的身份：成员')
         assert 'invitation link' not in d.capture('C')
         d.screenshot('C', 'member-public-group-profile')
     with d.case('group-announcement-pin', 'Group announcement supports full view/edit/clear; group pin follows edits and deletion'):
@@ -1237,7 +1241,7 @@ def stage_group_management(d):
         d.command('A', 'announcement ' + announcement)
         d.wait('C', announcement)
         d.command('C', 'show-announcement')
-        d.wait('C', 'Copyable text')
+        d.wait('C', '可复制文本')
         d.wait('C', announcement)
         d.screenshot('C', 'full-announcement')
         d.command('A', 'announcement')
@@ -1249,11 +1253,11 @@ def stage_group_management(d):
         d.send('A', marker)
         d.selected_message('A', marker)
         d.command('A', 'pin-message')
-        d.wait('A', 'Pinned:')
+        d.wait('A', '置顶：')
         d.open_main('C')
         d.selected_message('C', marker)
         d.command('C', 'pinned')
-        d.wait('C', 'i: compose')
+        d.wait('C', '按 i ')
         d.wait_selected('C', marker)
         d.selected_message('A', marker)
         d.keys('A', 'e')
@@ -1264,21 +1268,21 @@ def stage_group_management(d):
         d.selected_message('A', marker + '_edited')
         d.keys('A', 'd')
         d.confirm('A', '删除这条消息')
-        d.wait('C', lambda text: 'Pinned:' not in text)
+        d.wait('C', lambda text: '置顶：' not in text)
     with d.case('removed-group-stale-pages', 'Kicked member loses history/search/members pages; request/rejoin restores fresh membership and read state'):
         for page in ('conversation', 'search', 'members'):
             d.open_main('D')
             if page == 'search':
                 d.command('D', 'search ' + d.manifest['search_query'])
-                d.wait('D', 'Search:')
+                d.wait('D', '搜索：')
             elif page == 'members':
                 d.command('D', 'members')
-                d.wait('D', 'Members (100)')
+                d.wait('D', '群成员 (100)')
             d.open_main('A')
             d.choose_member('A', 'D')
             d.command('A', 'kick')
             d.confirm('A', '移除群成员')
-            d.wait('D', lambda text: 'Chats' in text and d.title not in text)
+            d.wait('D', lambda text: '聊天' in text and d.title not in text)
             d.screenshot('D', 'removed-' + page)
             gap = d.query('S005', 'send_message', conversation=d.group, text='removed_gap_' + page + '_' + d.args.run_id)
             if page == 'conversation':
@@ -1290,7 +1294,7 @@ def stage_group_management(d):
             d.command('D', 'join ' + d.manifest['invite_token'])
             d.wait('D', '等待管理员审批')
             d.command('A', 'requests')
-            d.wait('A', 'Join requests')
+            d.wait('A', '待处理的入群申请')
             choose_row(d, 'A', d.name('D'), pages=True)
             d.keys('A', 'y')
             d.wait('A', '入群申请已处理')
@@ -1299,7 +1303,7 @@ def stage_group_management(d):
             boundary = read_only_sql(f'SELECT joined_message_id,last_read_message_id FROM conversation_members WHERE conversation_id={int(d.group)} AND user_id={member_id}')
             assert len(boundary) == 1 and int(boundary[0][0]) >= gap['message_id'] and int(boundary[0][1]) <= int(boundary[0][0]), boundary
             d.command('D', 'help')
-            d.wait('D', 'Keyboard help')
+            d.wait('D', '键盘帮助')
             post = d.query('S005', 'send_message', conversation=d.group, text='postjoin_' + page + '_' + d.args.run_id)
             unread_sql = (f'SELECT count(*) FROM messages m JOIN conversation_members cm ON cm.conversation_id=m.conversation_id '
                           f'WHERE cm.conversation_id={int(d.group)} AND cm.user_id={member_id} AND m.id>cm.joined_message_id '
@@ -1308,7 +1312,8 @@ def stage_group_management(d):
             assert unread == [['1']], unread
             d.resize('D', 80,24)
             d.command('D', 'conversations')
-            d.wait('D', lambda text: d.title in text and '(1)' in text)
+            # The unread count ends the summary line of the conversation's list row.
+            d.wait('D', lambda text: re.search(r'\s1\s*$', list_row(text, d.title)) is not None)
             d.screenshot('D', 'only-postjoin-message-unread-' + page)
             d.evidence('rejoin-watermark-' + page, {'gap_message': gap['message_id'], 'membership': boundary, 'new_message':post['message_id'], 'unread':1})
             d.open_main('D')
@@ -1318,7 +1323,7 @@ def stage_group_management(d):
                 time.sleep(.1)
             d.resize('D', 160,45)
             d.command('D', 'members')
-            d.wait('D', 'Members (100)')
+            d.wait('D', '群成员 (100)')
         assert d.control('status', verify=True)['member_count'] == 100
     with d.case('conversation-pagination-pin-mute', 'Owner loads 65 authoritative conversations; personal pin and mute stay independent of unread/history'):
         d.logout('A')
@@ -1349,7 +1354,7 @@ def stage_group_management(d):
             prefix = next((name[:n] for n in range(1,13)
                            if sum(other.startswith(name[:n]) for other in names) == 1), None)
             assert prefix, 'Fixture names must have a unique visible sidebar prefix'
-            label = '[' + name[0] + '] ' + prefix
+            label = prefix
             deadline = time.monotonic() + 10
             while label not in inverse_text(d.capture('A', styled=True)):
                 assert time.monotonic() < deadline, 'TUI ordering differs from owner authoritative snapshot'
@@ -1359,7 +1364,7 @@ def stage_group_management(d):
             d.wait('A', name)
             seen.append(item['id'])
             d.keys('A', 'Escape')
-            d.wait('A', 'Chats')
+            d.wait('A', '聊天')
             d.keys('A', 'j')
             time.sleep(.08)
         assert seen == [value['id'] for value in expected]
@@ -1367,7 +1372,7 @@ def stage_group_management(d):
         d.screenshot('A', 'conversation-bottom')
         d.open_main('A')
         d.command('A', 'mute')
-        d.wait('A', '[mute]')
+        d.wait('A', '免打扰')
         owner_id = int(d.manifest['actors']['A']['id'])
         for flag in ('f','t'):
             d.command('A', 'pin')
@@ -1376,7 +1381,7 @@ def stage_group_management(d):
                 assert time.monotonic() < deadline, 'Personal pin RPC did not complete'
                 time.sleep(.1)
             # The list row shows the personal pin even while the conversation has the focus.
-            d.wait('A', lambda text: ('[pin]' in list_row(text, d.title)) == (flag == 't'))
+            d.wait('A', lambda text: ('置顶' in list_row(text, d.title)) == (flag == 't'))
         d.command('A', 'conversations')
         d.keys('A', 'k', repeat=150)
         d.barrier('A')
@@ -1401,13 +1406,13 @@ def list_row(screen, title):
 def stage_create_group(d):
     with d.case('create-group-friend-picker', 'Creation starts from accepted friends, search/multiselect/cancel, then title and explicit final confirmation'):
         d.command('A', 'create-group')
-        d.wait('A', 'Choose friends')
+        d.wait('A', '选择好友')
         d.command('A', 'filter ' + d.name('B'))
         d.wait('A', d.name('B'))
         d.keys('A', 'Space')
-        d.wait('A', 'Selected: 1')
+        d.wait('A', '已选 1 人')
         d.keys('A', 'Space')
-        d.wait('A', 'Selected: 0')
+        d.wait('A', '已选 0 人')
         d.keys('A', 'Space', 'Enter')
         d.wait('A', '群名称')
         title = '自建群_' + d.args.run_id
@@ -1421,13 +1426,13 @@ def stage_create_group(d):
         d.screenshot('B', 'new-group-visible')
         d.resize('B', 160,45)
         d.command('A', 'group')
-        d.wait('A', 'Your role: owner')
+        d.wait('A', '我的身份：群主')
         d.keys('A', 'Escape')
         d.command('A', 'invite')
-        d.wait('A', 'Choose friends')
+        d.wait('A', '选择好友')
         d.command('A', 'filter ' + d.name('C'))
         d.keys('A', 'Space', 'Enter')
-        d.wait('A', 'Members (3)')
+        d.wait('A', '群成员 (3)')
         assert d.name('C') in d.capture('A')
         d.screenshot('A', 'created-and-invited-friends')
         d.command('A', 'rename 重命名_' + d.args.run_id)
@@ -1435,7 +1440,7 @@ def stage_create_group(d):
         # Nonfriend E must not occur in the accepted-only invitation picker.
         d.command('A', 'invite')
         d.command('A', 'filter ' + d.name('E'))
-        d.wait('A', lambda text: 'No items' in text or '[ ]' not in text)
+        d.wait('A', lambda text: '暂无内容' in text or '[ ]' not in text)
         assert d.name('E') not in inverse_text(d.capture('A', styled=True))
         d.keys('A', 'Escape')
         d.open_main('A')
@@ -1449,22 +1454,22 @@ def stage_resize(d):
             d.open_main('A')
             if page == 'search':
                 d.command('A', 'search ' + d.manifest['search_query'])
-                d.wait('A', 'Search:')
+                d.wait('A', '搜索：')
             elif page == 'compose':
                 d.keys('A', 'i')
                 d.clear_input('A')
                 d.paste('A', 'resize_draft')
             elif page != 'conversation':
                 d.command('A', page)
-            heading = {'conversations':'Chats', 'members':'Members (100)',
-                       'conversation':d.title, 'search':'Search:', 'requests':'Join requests',
-                       'account':'Account ·', 'help':'Keyboard help', 'compose':'resize_draft'}[page]
+            heading = {'conversations':'聊天', 'members':'群成员 (100)',
+                       'conversation':d.title, 'search':'搜索：', 'requests':'待处理的入群申请',
+                       'account':'账号 ·', 'help':'键盘帮助', 'compose':'resize_draft'}[page]
             d.wait('A', heading)
             for width,height in sizes:
                 d.resize('A', width,height)
-                d.wait('A', 'Terminal too small' if width < 40 else heading)
+                d.wait('A', '终端太小' if width < 40 else heading)
                 if width >= 100 and page in ('conversations','conversation','compose'):
-                    d.wait('A', 'Chats')
+                    d.wait('A', '聊天')
                 d.screenshot('A', f'{page}-{width}x{height}')
             d.resize('A', 160,45)
             d.wait('A', heading)
@@ -1472,9 +1477,9 @@ def stage_resize(d):
         for actor in 'BCDE':
             d.resize(actor, 80,24)
             d.open_main(actor)
-            d.wait(actor, 'i: compose')
+            d.wait(actor, '按 i ')
             d.keys(actor, 'Escape')
-            d.wait(actor, 'Chats')
+            d.wait(actor, '聊天')
             d.keys(actor, 'Enter')
             d.resize(actor, 160,45)
 
@@ -1576,7 +1581,7 @@ def stage_restarts(d):
             d.start_server()
             d.control('connect', actors=actors, timeout=120)
             for actor in 'ABCDE':
-                d.wait(actor, lambda text: 'connected' in text and '正在重连' not in text and 'i: compose' in text, timeout=30)
+                d.wait(actor, lambda text: '已连接' in text and '正在重连' not in text and '按 i ' in text, timeout=30)
             d.keys('E', 'i')
             d.wait('E', draft)
             d.screenshot('E', 'restored-draft-' + str(iteration))
@@ -1650,7 +1655,7 @@ def stage_soak(d):
                 elif mode == 2:
                     d.keys(recipient, 'PPage')
                     d.keys(recipient, 'k', repeat=3)
-                    d.wait(recipient, 'Browsing history')
+                    d.wait(recipient, '正在浏览历史')
                     d.keys(recipient, 'G')
                 elif mode == 3:
                     d.keys(recipient, 'i')
@@ -1661,11 +1666,11 @@ def stage_soak(d):
                     d.wait(sender, lambda text: '正在输入' not in text)
                 elif mode == 4:
                     d.resize(recipient, 70,20)
-                    d.wait(recipient, 'i: compose')
+                    d.wait(recipient, '按 i ')
                     d.resize(recipient, 160,45)
                 else:
                     d.command(recipient, 'contacts')
-                    d.wait(recipient, 'New friends')
+                    d.wait(recipient, '新的朋友')
                     first = next(value['id'] for value in d.manifest['sdk'] if value['alias'] == 'S030')
                     second = next(value['id'] for value in d.manifest['sdk'] if value['alias'] == 'S031')
                     d.query('S030', 'remove_contact', user='S031')
@@ -1712,23 +1717,23 @@ def stage_transfer_logout(d):
         d.confirm('A', '转让')
         d.open_main('B')
         d.command('B', 'group')
-        d.wait('B', 'Your role: owner')
+        d.wait('B', '我的身份：群主')
         d.command('A', 'leave')
         d.confirm('A', '退出当前群聊')
         d.wait('A', '已退出群聊')
         d.screenshot('A', 'former-owner-left')
         d.command('B', 'invite')
-        d.wait('B', 'Choose friends')
+        d.wait('B', '选择好友')
         d.command('B', 'filter ' + d.name('A'))
         d.wait('B', d.name('A'))
         d.keys('B', 'Space', 'Enter')
-        d.wait('B', 'Members (100)')
+        d.wait('B', '群成员 (100)')
         d.choose_member('B', 'A')
         d.command('B', 'admin')
         d.wait('B', '群聊已更新')
         d.open_main('A')
         d.command('A', 'group')
-        d.wait('A', 'Your role: admin')
+        d.wait('A', '我的身份：管理员')
         final = d.control('status', verify=True)
         assert final['member_count'] == final['online_member_count'] == 100
         assert final['owner_count'] == 1 and final['admin_count'] == 3
@@ -1737,11 +1742,11 @@ def stage_transfer_logout(d):
     with d.case('account-logout', 'Self account page requires explicit logout confirmation and all five TUI processes exit safely'):
         for actor in 'ABCDE':
             d.command(actor, 'account')
-            d.wait(actor, 'Log out')
+            d.wait(actor, '退出登录')
             d.command(actor, 'logout')
             d.wait(actor, '退出当前账号')
             d.keys(actor, 'Escape')
-            d.wait(actor, 'Account ·')
+            d.wait(actor, '账号 ·')
             d.logout(actor)
             d.screenshot(actor, 'logged-out')
             d.keys(actor, 'C-c')

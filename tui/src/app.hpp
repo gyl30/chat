@@ -73,6 +73,10 @@ public:
     void tick();
     // Whether SDK results or timers are waiting for drain().
     bool pending();
+    // Status set directly is an error; notify() is for success (expires) or progress (sticky).
+    void notify(std::string text, bool sticky = false);
+    void observe_status();
+    void dismiss_error();
 
 private:
     using clock = std::chrono::steady_clock;
@@ -102,6 +106,8 @@ private:
     int retry_ = 0;
     std::optional<clock::time_point> reconnect_at_;
     std::optional<clock::time_point> typing_stop_at_;
+    std::optional<clock::time_point> status_expires_;
+    std::string status_set_;
     clock::time_point typing_last_{};
     std::unordered_map<std::int64_t, std::pair<std::string, clock::time_point>> typing_;
     std::unordered_map<std::int64_t, std::string> drafts_;

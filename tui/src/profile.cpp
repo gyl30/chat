@@ -90,7 +90,7 @@ void app::profile_command(std::string const& name, std::string argument)
             if (!value) { error(value.error()); return; }
             data.self.avatar = *value;
             if (data.profile.id == data.self.id) { data.profile.avatar = *value; }
-            data.status = "头像已清除";
+            notify("头像已清除");
         }));
         return;
     }
@@ -104,13 +104,13 @@ void app::profile_command(std::string const& name, std::string argument)
             auto bytes = read_local_file(path, chat::max_avatar_size);
             if (!bytes) { data.status = bytes.error(); return; }
             if (!image_signature(*bytes)) { data.status = "头像必须是 PNG 或 JPEG 图片"; return; }
-            data.status = "正在上传头像…";
+            notify("正在上传头像…", true);
             client_->set_avatar(std::move(*bytes), callback([this, view](auto value) {
                 if (view != view_) { return; }
                 if (!value) { error(value.error()); return; }
                 data.self.avatar = *value;
                 if (data.profile.id == data.self.id) { data.profile.avatar = *value; }
-                data.status = "头像已更新";
+                notify("头像已更新");
             }));
         };
         if (argument.empty() || argument == "set") { ask("头像 PNG/JPEG 文件路径（最多 1 MiB）", {}, std::move(action)); }
@@ -153,7 +153,7 @@ void app::profile_command(std::string const& name, std::string argument)
         auto done = callback([this, view](auto value) {
             if (!value) { if (view == view_) { error(value.error()); } return; }
             contacts(); friend_requests(); conversations();
-            if (view == view_) { data.status = "好友申请已更新"; }
+            if (view == view_) { notify("好友申请已更新"); }
         });
         if (name == "accept-friend" || name == "reject-friend")
         { client_->respond_friend_request(target.id, name == "accept-friend", std::move(done)); }
@@ -172,7 +172,7 @@ void app::profile_command(std::string const& name, std::string argument)
                 if (!value) { if (view == view_) { error(value.error()); } return; }
                 contacts(); friend_requests();
                 conversations();
-                if (view == view_) { data.status = "联系人已删除，历史记录保留"; }
+                if (view == view_) { notify("联系人已删除，历史记录保留"); }
             }));
         });
         return;

@@ -8,10 +8,10 @@
 #include <vector>
 
 #include <QByteArray>
-#include <QHash>
 #include <QMetaType>
 
 #include <chat/client.hpp>
+#include <chat/error_text.hpp>
 
 namespace
 {
@@ -28,53 +28,7 @@ QString from_utf8(std::string const& value)
 }
 
 // Server and protocol errors are English identifiers; users see them in Chinese.
-QString error_text(chat::error const& value)
-{
-    static QHash<QString, QString> const messages{
-        {QStringLiteral("Server error"), QStringLiteral("服务器出错，请稍后重试")},
-        {QStringLiteral("Authentication required"), QStringLiteral("登录状态已失效，请重新登录")},
-        {QStringLiteral("Already authenticated"), QStringLiteral("当前连接已登录")},
-        {QStringLiteral("User already online"), QStringLiteral("该账号已在其他地方登录")},
-        {QStringLiteral("Username already exists"), QStringLiteral("用户名已被占用")},
-        {QStringLiteral("User not found"), QStringLiteral("用户不存在")},
-        {QStringLiteral("User unavailable"), QStringLiteral("用户不存在")},
-        {QStringLiteral("Conversation unavailable"), QStringLiteral("会话不可用")},
-        {QStringLiteral("Message unavailable"), QStringLiteral("消息不存在或已被删除")},
-        {QStringLiteral("Communication not allowed"), QStringLiteral("你们还不是好友，无法发送")},
-        {QStringLiteral("Contact required"), QStringLiteral("需要先成为好友")},
-        {QStringLiteral("Already friends"), QStringLiteral("你们已经是好友")},
-        {QStringLiteral("Incoming friend request not found"), QStringLiteral("好友申请已失效")},
-        {QStringLiteral("Conflicting friend requests"), QStringLiteral("好友申请状态已变化，请刷新后重试")},
-        {QStringLiteral("Group unavailable"), QStringLiteral("群聊不可用")},
-        {QStringLiteral("Group permission denied"), QStringLiteral("没有执行此操作的群权限")},
-        {QStringLiteral("Member unavailable"), QStringLiteral("该成员已不在群中")},
-        {QStringLiteral("Invite unavailable"), QStringLiteral("邀请码无效或已失效")},
-        {QStringLiteral("Too many invite attempts"), QStringLiteral("邀请码尝试次数过多，请 10 分钟后再试")},
-        {QStringLiteral("Invitees must be your contacts"), QStringLiteral("只能邀请自己的好友")},
-        {QStringLiteral("At most three administrators are allowed"), QStringLiteral("最多只能设置三名管理员")},
-        {QStringLiteral("The owner cannot be an administrator"), QStringLiteral("群主不能设为管理员")},
-        {QStringLiteral("The owner cannot leave without transferring ownership"), QStringLiteral("群主需先转让群主身份才能退出")},
-        {QStringLiteral("Avatar unavailable"), QStringLiteral("头像不可用")},
-        {QStringLiteral("Avatar upload in progress"), QStringLiteral("头像正在上传，请稍候")},
-        {QStringLiteral("Avatar upload unavailable"), QStringLiteral("头像上传失败，请重试")},
-        {QStringLiteral("Avatar upload unavailable or incomplete"), QStringLiteral("头像上传失败，请重试")},
-        {QStringLiteral("Attachment unavailable"), QStringLiteral("文件不存在或已被删除")},
-        {QStringLiteral("Attachment upload in progress"), QStringLiteral("文件正在上传，请稍候")},
-        {QStringLiteral("Attachment upload unavailable"), QStringLiteral("文件上传失败，请重试")},
-        {QStringLiteral("Attachment upload incomplete"), QStringLiteral("文件上传失败，请重试")},
-        {QStringLiteral("Connection closed"), QStringLiteral("连接已断开")},
-        {QStringLiteral("Connection already open"), QStringLiteral("连接已建立")},
-        {QStringLiteral("Parse error"), QStringLiteral("请求无效，请升级客户端")},
-        {QStringLiteral("Invalid Request"), QStringLiteral("请求无效，请升级客户端")},
-        {QStringLiteral("Method not found"), QStringLiteral("服务器不支持此操作，请升级客户端")},
-        {QStringLiteral("Invalid params"), QStringLiteral("请求参数无效")},
-    };
-    auto const message = from_utf8(value.message);
-    if (auto const found = messages.constFind(message); found != messages.cend()) { return *found; }
-    if (value.kind == chat::error_kind::transport) { return QStringLiteral("无法连接服务器（%1）").arg(message); }
-    if (value.kind == chat::error_kind::protocol) { return QStringLiteral("服务器响应异常，请稍后重试"); }
-    return message;
-}
+QString display_error(chat::error const& value) { return from_utf8(chat::error_text(value)); }
 
 quoted_message_data to_reply_data(std::optional<chat::quoted_message> const& reply)
 {
@@ -161,7 +115,7 @@ client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::ma
     });
     client_->set_connected_handler([this] { emit connected(); });
     client_->set_disconnected_handler([this] { ++connection_generation_; emit disconnected(); });
-    client_->set_error_handler([this](chat::error const& value) { emit error(error_text(value)); });
+    client_->set_error_handler([this](chat::error const& value) { emit error(display_error(value)); });
     client_->set_message_handler([this](chat::message message) {
         auto const generation = connection_generation_.load();
         QMetaObject::invokeMethod(this, [this, generation, message = std::move(message)] {
@@ -243,7 +197,7 @@ void client_bridge::authenticate(QString const& username, QString const& passwor
         post_result(generation, [this, result = std::move(result)] {
             if (!result)
             {
-                emit authentication_finished(false, 0, error_text(result.error()),
+                emit authentication_finished(false, 0, display_error(result.error()),
                     result.error().kind == chat::error_kind::transport, {});
                 return;
             }
@@ -257,7 +211,7 @@ void client_bridge::register_user(QString const& username, QString const& passwo
     auto const generation = connection_generation_.load();
     client_->register_user(to_utf8(username), to_utf8(password), [this, generation](auto result) {
         post_result(generation, [this, result = std::move(result)] {
-            emit registration_finished(result ? *result : 0, result ? QString{} : error_text(result.error()));
+            emit registration_finished(result ? *result : 0, result ? QString{} : display_error(result.error()));
         });
     });
 }
@@ -285,7 +239,7 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
                     }
         if (!result)
         {
-            emit conversations_received({}, error_text(result.error()));
+            emit conversations_received({}, display_error(result.error()));
             return;
         }
                     for (auto const& item : result->conversations)
@@ -342,7 +296,7 @@ void client_bridge::set_conversation_muted(qint64 conversation, bool muted)
         QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
             if (generation != connection_generation_) { return; }
             if (result) { ++conversations_generation_; }
-            emit mute_finished(conversation, result ? *result : false, result ? QString{} : error_text(result.error()));
+            emit mute_finished(conversation, result ? *result : false, result ? QString{} : display_error(result.error()));
         }, Qt::QueuedConnection);
     });
 }
@@ -354,7 +308,7 @@ void client_bridge::set_conversation_pinned(qint64 conversation, bool pinned)
         QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
             if (generation != connection_generation_) { return; }
             if (result) { ++conversations_generation_; }
-            emit pin_finished(conversation, result ? *result : false, result ? QString{} : error_text(result.error()));
+            emit pin_finished(conversation, result ? *result : false, result ? QString{} : display_error(result.error()));
         }, Qt::QueuedConnection);
     });
 }
@@ -366,7 +320,7 @@ void client_bridge::set_group_pinned_message(qint64 conversation, std::optional<
         QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
             if (generation != connection_generation_) { return; }
             if (result) { ++conversations_generation_; }
-            emit group_pin_finished(conversation, result ? QString{} : error_text(result.error()));
+            emit group_pin_finished(conversation, result ? QString{} : display_error(result.error()));
         }, Qt::QueuedConnection);
     };
     if (message) { client_->pin_group_message(conversation, *message, std::move(finished)); }
@@ -386,7 +340,7 @@ void client_bridge::open_direct_conversation(qint64 user, QString username)
                 value.user = user;
                 value.username = username;
             }
-            emit conversation_opened(value, result ? QString{} : error_text(result.error()));
+            emit conversation_opened(value, result ? QString{} : display_error(result.error()));
         });
     });
 }
@@ -408,7 +362,7 @@ void client_bridge::create_group(QString title, QList<qint64> members)
                 value.username = title;
                 value.member_count = count;
             }
-            emit conversation_opened(value, result ? QString{} : error_text(result.error()));
+            emit conversation_opened(value, result ? QString{} : display_error(result.error()));
         });
     });
 }
@@ -434,7 +388,7 @@ void client_bridge::join_group(QString token)
                 value.can_send = true;
                 value.member_count = result->member_count;
             }
-            emit conversation_opened(value, result ? QString{} : error_text(result.error()));
+            emit conversation_opened(value, result ? QString{} : display_error(result.error()));
         }, Qt::QueuedConnection);
     });
 }
@@ -445,7 +399,7 @@ void client_bridge::group_invite(qint64 conversation, std::optional<bool> create
     auto finished = [this, conversation, create, generation](auto result) {
         QMetaObject::invokeMethod(this, [this, conversation, create, generation, result = std::move(result)] {
             if (generation != connection_generation_) { return; }
-            auto const error = result ? QString{} : error_text(result.error());
+            auto const error = result ? QString{} : display_error(result.error());
             if (create.has_value())
             {
                 if (result) { ++conversations_generation_; }
@@ -466,7 +420,7 @@ void client_bridge::set_group_join_approval(qint64 conversation, bool required)
         QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
             if (generation != connection_generation_) { return; }
             if (result) { ++conversations_generation_; }
-            emit group_action_finished(conversation, false, result ? QString{} : error_text(result.error()));
+            emit group_action_finished(conversation, false, result ? QString{} : display_error(result.error()));
         }, Qt::QueuedConnection);
     });
 }
@@ -488,7 +442,7 @@ void client_bridge::get_group_join_requests(qint64 conversation, qint64 before)
                     }
                 }
                 emit group_join_requests_received(conversation, std::move(values), result ? result->next.value_or(0) : 0,
-                    before > 0, result ? QString{} : error_text(result.error()));
+                    before > 0, result ? QString{} : display_error(result.error()));
             }, Qt::QueuedConnection);
         });
 }
@@ -500,7 +454,7 @@ void client_bridge::respond_group_join_request(qint64 conversation, qint64 user,
         QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
             if (generation != connection_generation_) { return; }
             if (result) { ++conversations_generation_; }
-            emit group_action_finished(conversation, false, result ? QString{} : error_text(result.error()));
+            emit group_action_finished(conversation, false, result ? QString{} : display_error(result.error()));
         }, Qt::QueuedConnection);
     });
 }
@@ -514,7 +468,7 @@ void client_bridge::get_members(qint64 conversation)
             if (generation != connection_generation_) { return; }
             if (!result)
             {
-                emit members_received(conversation, {}, error_text(result.error()));
+                emit members_received(conversation, {}, display_error(result.error()));
                 return;
             }
             QList<member_data> values;
@@ -533,7 +487,7 @@ void client_bridge::set_group_admin(qint64 conversation, qint64 user, bool admin
     client_->set_group_admin(conversation, user, admin, [this, conversation, generation](auto result) {
         post_result(generation, [this, conversation, result = std::move(result)] {
             if (result) { ++conversations_generation_; }
-            emit group_action_finished(conversation, false, result ? QString{} : error_text(result.error()));
+            emit group_action_finished(conversation, false, result ? QString{} : display_error(result.error()));
         });
     });
 }
@@ -544,7 +498,7 @@ void client_bridge::rename_group(qint64 conversation, QString title)
     client_->rename_group(conversation, to_utf8(title), [this, conversation, generation](auto result) {
         post_result(generation, [this, conversation, result = std::move(result)] {
             if (result) { ++conversations_generation_; }
-            emit group_action_finished(conversation, false, result ? QString{} : error_text(result.error()));
+            emit group_action_finished(conversation, false, result ? QString{} : display_error(result.error()));
         });
     });
 }
@@ -556,7 +510,7 @@ void client_bridge::set_group_announcement(qint64 conversation, QString text)
         QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
             if (generation != connection_generation_) { return; }
             if (result) { ++conversations_generation_; }
-            emit group_action_finished(conversation, false, result ? QString{} : error_text(result.error()));
+            emit group_action_finished(conversation, false, result ? QString{} : display_error(result.error()));
         }, Qt::QueuedConnection);
     });
 }
@@ -567,7 +521,7 @@ void client_bridge::transfer_group_owner(qint64 conversation, qint64 user)
     client_->transfer_group_owner(conversation, user, [this, conversation, generation](auto result) {
         post_result(generation, [this, conversation, result = std::move(result)] {
             if (result) { ++conversations_generation_; }
-            emit group_action_finished(conversation, false, result ? QString{} : error_text(result.error()));
+            emit group_action_finished(conversation, false, result ? QString{} : display_error(result.error()));
         });
     });
 }
@@ -578,7 +532,7 @@ void client_bridge::remove_group_member(qint64 conversation, qint64 user)
     client_->remove_group_member(conversation, user, [this, conversation, generation](auto result) {
         post_result(generation, [this, conversation, result = std::move(result)] {
             if (result) { ++conversations_generation_; }
-            emit group_action_finished(conversation, false, result ? QString{} : error_text(result.error()));
+            emit group_action_finished(conversation, false, result ? QString{} : display_error(result.error()));
         });
     });
 }
@@ -590,7 +544,7 @@ void client_bridge::invite_group_members(qint64 conversation, QList<qint64> memb
         [this, conversation, generation](auto result) {
             post_result(generation, [this, conversation, result = std::move(result)] {
                 if (result) { ++conversations_generation_; }
-                emit group_action_finished(conversation, false, result ? QString{} : error_text(result.error()));
+                emit group_action_finished(conversation, false, result ? QString{} : display_error(result.error()));
             });
         });
 }
@@ -601,7 +555,7 @@ void client_bridge::leave_group(qint64 conversation)
     client_->leave_group(conversation, [this, conversation, generation](auto result) {
         post_result(generation, [this, conversation, result = std::move(result)] {
             if (result) { ++conversations_generation_; }
-            emit group_action_finished(conversation, result.has_value(), result ? QString{} : error_text(result.error()));
+            emit group_action_finished(conversation, result.has_value(), result ? QString{} : display_error(result.error()));
         });
     });
 }
@@ -615,7 +569,7 @@ void client_bridge::get_contacts()
             if (request != contacts_generation_) { return; }
             if (!result)
             {
-                emit contacts_received({}, error_text(result.error()));
+                emit contacts_received({}, display_error(result.error()));
                 return;
             }
 
@@ -641,7 +595,7 @@ void client_bridge::get_presence()
         post_result(generation, [this, result = std::move(result)] {
             if (!result)
             {
-                emit presences_received({}, error_text(result.error()));
+                emit presences_received({}, display_error(result.error()));
                 return;
             }
 
@@ -675,7 +629,7 @@ void client_bridge::get_messages(qint64 conversation, std::optional<qint64> befo
         if (!result)
         {
                         emit messages_received(conversation, {}, {}, before.has_value(), after.has_value(), false,
-                                               error_text(result.error()));
+                                               display_error(result.error()));
             return;
         }
         QList<message_data> messages;
@@ -717,7 +671,7 @@ void client_bridge::send_message(qint64 user, QString text, qint64 reply_to)
                 emit message_sent(user, std::move(text), result ? result->message_id : 0, result ? result->timestamp : 0,
                     result && result->realtime, result ? to_reply_data(result->reply) : quoted_message_data{},
                     result ? to_mentions(result->mentions) : QList<mention_data>{},
-                    result ? QString{} : error_text(result.error()));
+                    result ? QString{} : display_error(result.error()));
             }, Qt::QueuedConnection);
         }, reply_to > 0 ? std::optional<std::int64_t>(reply_to) : std::nullopt);
 }
@@ -733,7 +687,7 @@ void client_bridge::send_attachment(qint64 conversation, QString filename, QByte
                     return;
                 }
                 emit attachment_sent(conversation, result ? to_message_data(*result) : message_data{},
-                                     result ? QString{} : error_text(result.error()));
+                                     result ? QString{} : display_error(result.error()));
             }, Qt::QueuedConnection);
         }, reply_to > 0 ? std::optional<std::int64_t>{reply_to} : std::nullopt);
 }
@@ -749,7 +703,7 @@ void client_bridge::get_attachment(qint64 conversation, qint64 message)
             }
             emit attachment_received(conversation, message,
                 result ? QByteArray(result->data(), static_cast<qsizetype>(result->size())) : QByteArray{},
-                result ? QString{} : error_text(result.error()));
+                result ? QString{} : display_error(result.error()));
         }, Qt::QueuedConnection);
     });
 }
@@ -761,7 +715,7 @@ void client_bridge::delete_message(qint64 conversation, qint64 message)
         QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
             if (generation != connection_generation_) { return; }
             emit message_updated(conversation, result ? to_message_data(*result) : message_data{},
-                                 result ? QString{} : error_text(result.error()));
+                                 result ? QString{} : display_error(result.error()));
         }, Qt::QueuedConnection);
     });
 }
@@ -774,7 +728,7 @@ void client_bridge::get_message_image(qint64 conversation, qint64 message)
             if (generation != connection_generation_) { return; }
             emit message_image_received(conversation, message,
                 result ? QByteArray(result->data(), static_cast<qsizetype>(result->size())) : QByteArray{},
-                result ? QString{} : error_text(result.error()));
+                result ? QString{} : display_error(result.error()));
         }, Qt::QueuedConnection);
     });
 }
@@ -786,7 +740,7 @@ void client_bridge::edit_message(qint64 conversation, qint64 message, QString te
         QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
             if (generation != connection_generation_) { return; }
             emit message_updated(conversation, result ? to_message_data(*result) : message_data{},
-                                 result ? QString{} : error_text(result.error()));
+                                 result ? QString{} : display_error(result.error()));
         }, Qt::QueuedConnection);
     });
 }
@@ -800,7 +754,7 @@ void client_bridge::set_message_reaction(qint64 conversation, qint64 message, QS
                 if (generation != connection_generation_) { return; }
                 emit reaction_changed(conversation, message, result ? result->revision : 0,
                     result ? to_reactions(result->reactions) : QList<reaction_data>{},
-                    result ? QString{} : error_text(result.error()));
+                    result ? QString{} : display_error(result.error()));
             }, Qt::QueuedConnection);
         });
 }
@@ -812,7 +766,7 @@ void client_bridge::search_users(QString query)
         post_result(generation, [this, result = std::move(result)] {
             if (!result)
             {
-                emit users_received({}, error_text(result.error()));
+                emit users_received({}, display_error(result.error()));
                 return;
             }
 
@@ -847,7 +801,7 @@ void client_bridge::search_messages(qint64 conversation, QString query, qint64 b
                 if (!result)
                 {
                     emit message_search_received(conversation, std::move(query), before, {}, {}, false,
-                                                 error_text(result.error()));
+                                                 display_error(result.error()));
                     return;
                 }
                 QList<message_data> messages;
@@ -875,7 +829,7 @@ void client_bridge::get_history(qint64 conversation, qint64 before)
                 if (generation != history_generation_) { return; }
                 if (!result)
                 {
-                    emit history_received(conversation, before, {}, false, error_text(result.error()));
+                    emit history_received(conversation, before, {}, false, display_error(result.error()));
                     return;
                 }
                 QList<message_data> messages;
@@ -894,7 +848,7 @@ void client_bridge::add_contact(qint64 user)
             {
                 user_data value;
                 value.id = user;
-                emit contact_added(value, error_text(result.error()));
+                emit contact_added(value, display_error(result.error()));
                 return;
             }
 
@@ -915,7 +869,7 @@ void client_bridge::get_friend_requests()
         post_result(generation, [this, request, result = std::move(result)] {
             if (request != friend_requests_generation_) { return; }
             QList<user_data> incoming, outgoing;
-            if (!result) { emit friend_requests_received({}, {}, error_text(result.error())); return; }
+            if (!result) { emit friend_requests_received({}, {}, display_error(result.error())); return; }
             for (auto const& request : result->incoming)
             {
                 user_data user; user.id = request.user.id; user.username = from_utf8(request.user.username);
@@ -937,7 +891,7 @@ void client_bridge::respond_friend_request(qint64 user, bool accept)
     client_->respond_friend_request(user, accept, [this, generation, user](auto result) {
         post_result(generation, [this, user, result = std::move(result)] {
             user_data value; value.id = user;
-            emit contact_added(value, result ? QString{} : error_text(result.error()));
+            emit contact_added(value, result ? QString{} : display_error(result.error()));
         });
     });
 }
@@ -948,7 +902,7 @@ void client_bridge::cancel_friend_request(qint64 user)
     client_->cancel_friend_request(user, [this, generation, user](auto result) {
         post_result(generation, [this, user, result = std::move(result)] {
             user_data value; value.id = user;
-            emit contact_added(value, result ? QString{} : error_text(result.error()));
+            emit contact_added(value, result ? QString{} : display_error(result.error()));
         });
     });
 }
@@ -958,7 +912,7 @@ void client_bridge::remove_contact(qint64 user)
     auto const generation = connection_generation_.load();
     client_->remove_contact(user, [this, generation](auto result) {
         post_result(generation, [this, result = std::move(result)] {
-            emit contact_removed(result ? QString{} : error_text(result.error()));
+            emit contact_removed(result ? QString{} : display_error(result.error()));
         });
     });
 }
@@ -969,7 +923,7 @@ void client_bridge::mark_read(qint64 user, qint64 message)
     client_->mark_read(user, message, [this, user, generation](std::expected<std::int64_t, chat::error> result) {
         QMetaObject::invokeMethod(this, [this, user, generation, result = std::move(result)] {
             if (generation != connection_generation_) { return; }
-            emit read_marked(user, result ? *result : 0, result ? QString{} : error_text(result.error()));
+            emit read_marked(user, result ? *result : 0, result ? QString{} : display_error(result.error()));
         }, Qt::QueuedConnection);
     });
 }
@@ -1014,7 +968,7 @@ void client_bridge::set_avatar(QByteArray data)
                                     {
                                         return;
                                     }
-                                    emit avatar_update_finished(result ? QString{} : error_text(result.error()));
+                                    emit avatar_update_finished(result ? QString{} : display_error(result.error()));
                                 },
                                 Qt::QueuedConnection);
                         });
@@ -1034,7 +988,7 @@ void client_bridge::clear_avatar()
                     {
                         return;
                     }
-                    emit avatar_update_finished(result ? QString{} : error_text(result.error()));
+                    emit avatar_update_finished(result ? QString{} : display_error(result.error()));
                 },
                 Qt::QueuedConnection);
         });
