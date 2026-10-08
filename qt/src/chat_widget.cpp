@@ -152,7 +152,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     navigation_layout->setContentsMargins(9, 18, 9, 14);
     navigation_layout->setSpacing(6);
 
-    auto* brand = new QLabel(QStringLiteral("轻聊"), navigation_panel);
+    auto* brand = new QLabel(QStringLiteral("Chat"), navigation_panel);
     brand->setObjectName(QStringLiteral("brandLabel"));
     brand->setAlignment(Qt::AlignCenter);
     brand->setFixedWidth(64);
