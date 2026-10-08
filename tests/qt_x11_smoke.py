@@ -112,6 +112,8 @@ owned.append(xvfb)
 display = ':' + xvfb.stdout.readline().strip()
 os.environ['DISPLAY'] = display
 os.environ['QT_QPA_PLATFORM'] = 'xcb'
+# A private settings home: remembered accounts and appearance must not change focus or colors.
+os.environ['XDG_CONFIG_HOME'] = str(work / 'config')
 x = C.CDLL('libX11.so.6')
 xt = C.CDLL('libXtst.so.6')
 x.XOpenDisplay.argtypes = [C.c_char_p]

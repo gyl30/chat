@@ -72,7 +72,7 @@ try:
     xvfb = S.Popen(['Xvfb', '-displayfd', '1', '-screen', '0', '1400x900x24', '-nolisten', 'tcp'], stdout=S.PIPE, stderr=S.DEVNULL, text=True)
     owned.append(xvfb)
     display = ':' + xvfb.stdout.readline().strip()
-    os.environ['DISPLAY'] = display; os.environ['QT_QPA_PLATFORM'] = 'xcb'
+    os.environ['DISPLAY'] = display; os.environ['QT_QPA_PLATFORM'] = 'xcb'; os.environ['XDG_CONFIG_HOME'] = str(work / 'config')
     x = C.CDLL('libX11.so.6'); xt = C.CDLL('libXtst.so.6')
     x.XOpenDisplay.argtypes = [C.c_char_p]; x.XOpenDisplay.restype = C.c_void_p
     d = x.XOpenDisplay(display.encode())
