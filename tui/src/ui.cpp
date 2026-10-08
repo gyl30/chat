@@ -749,8 +749,11 @@ public:
         Add(command_);
         prompt_ = Input(&prompt_text_, "", single);
         Add(prompt_);
+        // Pasted text the UI still holds goes into the draft before that draft is put away.
+        app_.before_input_change = [this] { flush_paste(true); };
         username_->TakeFocus();
     }
+    ~terminal_ui() override { app_.before_input_change = nullptr; }
     Element OnRender() override
     {
         flush_paste();
@@ -821,7 +824,10 @@ public:
         // queued results are applied. A paste in progress is settled first.
         if (!pasting_)
         {
-            update_history_rows(Terminal::Size());
+            // One size snapshot for both the minimum-size check and the visible history rows.
+            auto const terminal = Terminal::Size();
+            update_viewport(terminal);
+            update_history_rows(terminal);
             if (app_.read_check) { app_.check_read(); }
         }
         app_.observe_status();

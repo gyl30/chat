@@ -71,6 +71,9 @@ public:
     void send();
     void stop_composing();
     void sync_focus();
+    // Runs before the composer stops taking input or its draft is put away, so input the UI
+    // still holds (the tail of a paste) reaches the draft it was typed into.
+    std::function<void()> before_input_change;
     // Asks for a read check; check_read() performs it after the UI knows the visible history.
     void mark_visible_read();
     void check_read();

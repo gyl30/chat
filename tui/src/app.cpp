@@ -196,6 +196,7 @@ void app::disconnected()
     if (data.link == connection::reconnecting || data.link == connection::signed_out) { return; }
     ++session_; ++view_;
     pending_open_ = 0;
+    if (data.composing && before_input_change) { before_input_change(); }
     data.composing = false;
     typing_sent_ = false; typing_stop_at_.reset(); typing_.clear();
     data.friends = {}; data.pick_query.clear();
@@ -304,6 +305,7 @@ void app::conversations_page(std::optional<conversation_cursor> cursor, bool app
         data.apply_conversations({std::move(values), result->next}, append);
         if (!append && !data.next_conversations && data.active && !data.active_conversation())
         {
+            if (before_input_change) { before_input_change(); }
             drafts_[data.active] = data.draft;
             ++view_;
             stop_composing();
@@ -332,6 +334,7 @@ void app::open_conversation(std::int64_t id)
     pending_open_ = 0;
     if (!online()) { return; }
     stop_typing();
+    if (before_input_change) { before_input_change(); }
     if (data.active) { drafts_[data.active] = data.draft; }
     ++view_; ++search_request_;
     history_busy_ = search_busy_ = requests_busy_ = sending_ = false;

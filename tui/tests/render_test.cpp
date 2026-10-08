@@ -1178,6 +1178,38 @@ int main()
             component->OnEvent(ftxui::Event::Insert);
             ok &= expect(application.data.draft == "e\xcc\x81" "fcd", "Overwrite paste keeps grapheme boundaries across redraws");
         }
+        // Joiners and modifiers split from their base by a redraw also make one glyph.
+        for (auto [base, rest, joined] : {std::tuple{std::string("\xf0\x9f\x91\xa9\xe2\x80\x8d"), std::string("\xf0\x9f\x92\xbb"),
+                                                     std::string("\xf0\x9f\x91\xa9\xe2\x80\x8d\xf0\x9f\x92\xbb")},
+                                          std::tuple{std::string("\xf0\x9f\x91\x8d"), std::string("\xf0\x9f\x8f\xbd"),
+                                                     std::string("\xf0\x9f\x91\x8d\xf0\x9f\x8f\xbd")}})
+        {
+            reset("abcd");
+            component->OnEvent(ftxui::Event::Home);
+            component->OnEvent(ftxui::Event::Insert);
+            component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+            type(base);
+            { ftxui::Screen frame(120, 40); ftxui::Render(frame, component->Render()); }
+            type(rest);
+            component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+            component->OnEvent(ftxui::Event::Insert);
+            ok &= expect(application.data.draft == joined + "bcd", "Overwrite paste keeps ZWJ and modifier sequences whole");
+        }
+        // The held last glyph reaches the draft when the composer closes during the paste.
+        reset("abcd");
+        component->OnEvent(ftxui::Event::Home);
+        component->OnEvent(ftxui::Event::Insert);
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        type("X"); type("Y"); type("Z");
+        { ftxui::Screen frame(120, 40); ftxui::Render(frame, component->Render()); }
+        // As a disconnect would: the composer closes and stays closed for the rest of the paste.
+        application.stop_composing();
+        application.data.selecting = true;
+        component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        ok &= expect(application.data.draft == "XYZd", "A paste interrupted by closing the composer keeps every pasted glyph");
+        application.data.selecting = false;
+        component->OnEvent(ftxui::Event::Custom);
+        component->OnEvent(ftxui::Event::Insert);
         // Esc order: an open dialog closes before an error is cleared.
         application.data.draft.clear();
         application.data.status = "请先选择消息";

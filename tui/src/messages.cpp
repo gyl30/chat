@@ -30,6 +30,7 @@ void app::compose_changed()
 void app::stop_composing()
 {
     assert_ui();
+    if (data.composing && before_input_change) { before_input_change(); }
     stop_typing();
     data.composing = false;
 }

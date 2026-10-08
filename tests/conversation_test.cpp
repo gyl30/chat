@@ -3452,26 +3452,51 @@ int run_tui_tests()
             require(sql_ids("SELECT id FROM messages WHERE conversation_id=" + std::to_string(direct) +
                             " AND body='" + sent + "'").size() == 1, "Keys typed in the real UI are stored exactly once");
 
-            // With a reply target and a peer typing indicator, 40x12 has no history row: nothing is read.
+            // Read receipts follow what is on screen. Only the component drives events here: each
+            // Custom applies queued results, then decides a requested read with the current size.
+            auto ui_pump = [&](auto predicate, std::source_location location = std::source_location::current()) {
+                auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+                while (true)
+                {
+                    event(ftxui::Event::Custom);
+                    if (predicate()) { return; }
+                    std::unique_lock lock(mutex);
+                    if (!wake.wait_until(lock, deadline, [&] { return ready; }))
+                    { throw std::runtime_error("TUI timeout at line " + std::to_string(location.line()) + ": " + app.data.status); }
+                    ready = false;
+                }
+            };
             auto read_position = [&] {
                 auto values = sql_ids("SELECT last_read_message_id FROM conversation_members WHERE conversation_id=" +
                                       std::to_string(direct) + " AND user_id=" + std::to_string(self));
                 return values.empty() ? std::int64_t{0} : values.front();
             };
+            // A later request on the same connection is answered after any earlier mark_read is stored.
+            auto connection_barrier = [&] {
+                app.data.contacts.clear();
+                app.contacts();
+                ui_pump([&] { return !app.data.contacts.empty(); });
+            };
+            ui_pump([&] { return app.history_rows > 0; });
+            // A reply target and an edit in progress take two rows: 40x12 then has no history row.
+            auto const& own = app.data.messages.back();
+            app.data.reply = chat::quoted_message{own.id, own.from, own.username, own.text, {}, false};
+            app.data.editing = own.id;
             ftxui::Terminal::SetFallbackSize({40, 12});
-            auto const& replied = app.data.messages.back();
-            app.data.reply = chat::quoted_message{replied.id, replied.from, replied.username, replied.text, {}, false};
-            require(call<bool>([&](auto handler) { peer.set_typing(direct, true, handler); }).has_value(), "Peer types in the direct");
-            pump([&] { event(ftxui::Event::Custom); return !app.typing_text().empty(); });
             auto unseen = call<chat::send_message_result>([&](auto handler) { peer.send_message(direct, "unseen while hidden", handler); });
-            require(unseen.has_value(), "Peer sends while the history has no row");
-            pump([&] { event(ftxui::Event::Custom); return !app.data.messages.empty() && app.data.messages.back().id == unseen->message_id; });
-            event(ftxui::Event::Custom);
-            require(app.history_rows < 1 && read_position() < unseen->message_id, "No history row on screen means nothing is read");
+            require(unseen.has_value(), "Peer sends while the terminal shrinks");
+            // Let the delivery reach the queue so the shrink and the message usually share one
+            // event; either way the read decision uses the size current at that event.
+            std::this_thread::sleep_for(std::chrono::milliseconds(300));
+            require(app.history_rows > 0, "The last frame still had history rows");
+            ui_pump([&] { return !app.data.messages.empty() && app.data.messages.back().id == unseen->message_id; });
+            require(app.history_rows < 1, "With the shrink applied there is no history row");
+            connection_barrier();
+            require(read_position() < unseen->message_id, "No history row on screen means nothing is read");
             ftxui::Terminal::SetFallbackSize({120, 40});
-            pump([&] { event(ftxui::Event::Custom); return read_position() >= unseen->message_id; });
+            ui_pump([&] { return read_position() >= unseen->message_id; });
             app.data.reply.reset();
-            require(call<bool>([&](auto handler) { peer.set_typing(direct, false, handler); }).has_value(), "Peer stops typing");
+            app.data.editing = 0;
             ftxui::Terminal::SetFallbackSize(fallback);
         }
         std::cout << "PASS TUI real UI typing, backslash line break and visible-only read\n";
