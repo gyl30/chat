@@ -134,6 +134,8 @@ class chat_widget final : public QWidget
     void filter_contacts(QString const& query);
     void search_users();
     void select_contact(QModelIndex const& index);
+    void show_contact_card(qint64 user, QString const& username);
+    void update_contact_card();
     void select_add_user(QModelIndex const& index);
     void select_conversation(QModelIndex const& index);
     void open_chat(qint64 user, QString username);
@@ -173,6 +175,15 @@ class chat_widget final : public QWidget
     sidebar_parent add_friend_parent_ = sidebar_parent::contacts;
     QListView* conversations_view_ = nullptr;
     QLabel* conversations_status_ = nullptr;
+    QStackedWidget* right_pages_ = nullptr;
+    QStackedWidget* contact_detail_ = nullptr;
+    QLabel* contact_card_avatar_ = nullptr;
+    QLabel* contact_card_name_ = nullptr;
+    QLabel* contact_card_status_ = nullptr;
+    QPushButton* contact_card_message_ = nullptr;
+    QPushButton* contact_card_profile_ = nullptr;
+    qint64 contact_card_user_ = 0;
+    QString contact_card_username_;
     feedback_label* notice_ = nullptr;
     QTimer* notice_timer_ = nullptr;
     QLineEdit* contact_search_ = nullptr;

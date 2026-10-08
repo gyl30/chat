@@ -535,7 +535,7 @@ QString chat_style_sheet()
         QToolButton#navigationSelected, QToolButton#navigationButton {
             border: 0;
             border-radius: 12px;
-            padding: 6px 4px 5px 4px;
+            padding: 0;
             color: #D8E4DE;
             background: transparent;
             font-size: 12px;
@@ -696,6 +696,48 @@ QString chat_style_sheet()
         QLabel#profileRelationship {
             color: #5D6C64;
             font-size: 13px;
+        }
+        QStackedWidget#contactDetail, QWidget#contactCard, QLabel#contactDetailPlaceholder {
+            background: #F7F5EF;
+        }
+        QLabel#contactCardName {
+            color: #27362F;
+            font-size: 22px;
+            font-weight: 700;
+        }
+        QLabel#contactCardStatus {
+            color: #8B918D;
+            font-size: 13px;
+        }
+        QLabel#contactCardOnline {
+            color: #4F8A70;
+            font-size: 13px;
+        }
+        QPushButton#contactCardMessageButton, QPushButton#contactCardProfileButton {
+            border: 2px solid transparent;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        QPushButton#contactCardMessageButton {
+            background: #315A4B;
+            color: #FFFFFF;
+        }
+        QPushButton#contactCardMessageButton:hover {
+            background: #294D40;
+        }
+        QPushButton#contactCardMessageButton:disabled {
+            background: #AEBDB6;
+        }
+        QPushButton#contactCardProfileButton {
+            background: #ECEFEA;
+            color: #315A4B;
+        }
+        QPushButton#contactCardProfileButton:hover {
+            background: #E2E8E3;
+        }
+        QPushButton#contactCardMessageButton:focus, QPushButton#contactCardProfileButton:focus {
+            border-color: #88A697;
         }
         QToolButton#profileActionButton {
             padding: 0 12px;

@@ -987,6 +987,9 @@ void check_primary_navigation()
     auto* back = page.findChild<QToolButton*>("sidebarHeaderButton");
     auto* chats = *std::find_if(buttons.begin(), buttons.end(), [](auto* button) { return button->text() == QStringLiteral("聊天"); });
     check(chats->objectName() == "navigationSelected", "Add friend from Chats preserves primary ownership");
+    check(chats->toolButtonStyle() == Qt::ToolButtonIconOnly && chats->toolTip() == QStringLiteral("聊天") &&
+              chats->accessibleName() == QStringLiteral("聊天") && !chats->icon().isNull(),
+          "Like WeChat, primary navigation shows icons and names them only on hover");
     back->click();
     check(actions->isVisible() && !back->isVisible(), "Add friend Back returns to Chats");
     for (auto* button : buttons)
@@ -1126,7 +1129,13 @@ void check_primary_navigation()
     QMouseEvent contact_release(QEvent::MouseButtonRelease, contact_point, contact_view->viewport()->mapToGlobal(contact_point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
     QApplication::sendEvent(contact_view->viewport(), &contact_press);
     QApplication::sendEvent(contact_view->viewport(), &contact_release);
-    check(direct_requests == 1, "A contact row body still opens its chat with one click");
+    auto* card_name = page.findChild<QLabel*>("contactCardName");
+    auto* card_message = page.findChild<QPushButton*>("contactCardMessageButton");
+    check(direct_requests == 0 && card_name && card_name->isVisibleTo(&page) && card_name->text() == QStringLiteral("Alice Bob") &&
+              !page.findChild<QListView*>("messageList")->isVisibleTo(&page),
+          "Like WeChat, a contact row shows its card on the right instead of the previous chat");
+    card_message->click();
+    check(direct_requests == 1 && direct_user == 10, "The card's message action opens exactly that contact's chat");
     contact_view->setFocus();
     QKeyEvent home(QEvent::KeyPress, Qt::Key_Home, Qt::NoModifier);
     QKeyEvent down(QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier);
@@ -1136,10 +1145,14 @@ void check_primary_navigation()
     QApplication::sendEvent(contact_view, &home);
     QApplication::sendEvent(contact_view, &down);
     QApplication::sendEvent(contact_view, &enter);
-    check(direct_requests == 2 && direct_user == 11, "Contacts Enter opens exactly the current accepted contact");
+    check(card_name->text() == QStringLiteral("张 三") && direct_requests == 1, "Contacts Enter shows the current accepted contact");
+    card_message->click();
+    check(direct_requests == 2 && direct_user == 11, "Contacts Enter then message opens exactly the current accepted contact");
     QApplication::sendEvent(contact_view, &end);
     QApplication::sendEvent(contact_view, &keypad_enter);
-    check(direct_requests == 3 && direct_user == 13, "Contacts keypad Enter opens exactly the current accepted contact");
+    check(card_name->text() == QStringLiteral("Älice") && direct_requests == 2, "Contacts keypad Enter shows the current accepted contact");
+    card_message->click();
+    check(direct_requests == 3 && direct_user == 13, "Contacts keypad Enter then message opens exactly the current accepted contact");
     QObject::disconnect(direct_connection);
     conversation_data direct;
     direct.id = 91; direct.user = 10; direct.username = QStringLiteral("Alice Bob");
@@ -3905,8 +3918,17 @@ int main(int argc, char** argv)
             pages[0]->contact_add_requested(ids[2]);
             accept_friend(2, 0);
             std::cout << "PASS Qt friendship request, pending, cancellation, rejection, explicit acceptance and shared-group isolation\n";
+            // Contacts now own the right side; the chat steps below run on the Chats tab.
+            for (auto const& window : windows)
+            {
+                for (auto* button : window->findChildren<QToolButton*>())
+                { if (button->text() == QStringLiteral("聊天")) { button->click(); } }
+            }
             auto choose_reply = [&](int actor = 1, int row = 0)
             {
+                // The chat, and so its reply bar, is shown only on the Chats tab.
+                for (auto* button : windows[actor]->findChildren<QToolButton*>())
+                { if (button->text() == QStringLiteral("聊天")) { button->click(); } }
                 auto* view = windows[actor]->findChild<QListView*>("messageList");
                 QTimer::singleShot(20,
                                    []
@@ -4259,6 +4281,7 @@ int main(int argc, char** argv)
             type_character(0);
             wait([&] { return group_typing->isVisible(); });
             click_list_body(contact_view, contact_view->model()->index(0, 0));
+            windows[0]->findChild<QPushButton*>("contactCardMessageButton")->click();
             wait([&] { return pages[0]->active_conversation() != group && pages[0]->messages_ready(); });
             wait([&] { return !group_typing->isVisible(); });
             auto const direct = pages[0]->active_conversation();
