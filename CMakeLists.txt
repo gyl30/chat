@@ -304,7 +304,7 @@ target_link_libraries(chat_server_test
 )
 
 if(CHAT_BUILD_TUI_CLIENT)
-    target_link_libraries(chat_server_test PRIVATE chat_tui_core)
+    target_link_libraries(chat_server_test PRIVATE chat_tui_ui)
     target_compile_definitions(chat_server_test PRIVATE CHAT_TEST_TUI)
     add_test(NAME tui_integration COMMAND chat_server_test --tui-only)
     set_tests_properties(tui_integration PROPERTIES TIMEOUT 60)

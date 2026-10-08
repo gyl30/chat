@@ -116,7 +116,14 @@ void app::send()
 
 void app::mark_visible_read()
 {
+    // Decided once the current batch is applied and the layout for the current size is known.
+    read_check = true;
+}
+
+void app::check_read()
+{
     assert_ui();
+    read_check = false;
     if (data.link != connection::online || data.view != page::conversation || !data.at_latest ||
         state::layout(viewport_width, viewport_height) == layout_mode::too_small || dialog || command_mode || history_rows < 1 ||
         history_busy_ || data.messages.empty()) { return; }

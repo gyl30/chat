@@ -71,7 +71,10 @@ public:
     void send();
     void stop_composing();
     void sync_focus();
+    // Asks for a read check; check_read() performs it after the UI knows the visible history.
     void mark_visible_read();
+    void check_read();
+    bool read_check = false;
     void select_message(int delta);
     void toggle_pick();
     void finish_pick();

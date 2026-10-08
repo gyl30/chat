@@ -817,6 +817,13 @@ public:
         }
         auto const handled = handle(event);
         if (app_.data.self.id) { app_.sync_focus(); }
+        // Read receipts use the history rows of the current size and state, after this event's
+        // queued results are applied. A paste in progress is settled first.
+        if (!pasting_)
+        {
+            update_history_rows(Terminal::Size());
+            if (app_.read_check) { app_.check_read(); }
+        }
         app_.observe_status();
         return handled;
     }
@@ -849,7 +856,7 @@ private:
             return true;
         }
         if (event == Event::Special("\x1b[201~"))
-        { flush_paste(); pasting_ = false; paste_input_.reset(); newline_.reset(); return true; }
+        { flush_paste(true); pasting_ = false; paste_input_.reset(); newline_.reset(); return true; }
         if (pasting_ && event != Event::Custom)
         {
             if (paste_input_ != input() || paste_conversation_ != s.active) { paste_buffer_.clear(); paste_input_.reset(); }
@@ -857,16 +864,13 @@ private:
             {
                 // Inserting character by character rescans the whole text each time, so a large
                 // paste is collected and inserted at once.
-                if (event == Event::Escape) { flush_paste(); paste_input_.reset(); }
+                if (event == Event::Escape) { flush_paste(true); paste_input_.reset(); }
                 else if (event.is_character()) { paste_buffer_ += event.character(); }
                 else if (event == Event::Return) { paste_buffer_ += paste_input_ == compose_ ? '\n' : ' '; }
                 else if (event == Event::Tab) { paste_buffer_ += ' '; }
             }
             return true;
         }
-        // Read receipts below use the history rows of the current size, not the last frame.
-        // (After the paste branch: counting lines of a growing paste per character would be quadratic.)
-        update_history_rows(Terminal::Size());
         if (event == Event::Custom)
         {
             // A pending backslash newline survives redraws, but not a program change to its text.
@@ -967,7 +971,8 @@ private:
         if (event == Event::Escape)
         {
             // A reply or edit is cancelled first, wherever the focus is; the draft stays.
-            if (s.view == page::conversation && (s.editing || s.reply)) { s.editing = 0; s.reply.reset(); return true; }
+            if ((s.view == page::conversation || s.view == page::conversations) && (s.editing || s.reply))
+            { s.editing = 0; s.reply.reset(); return true; }
             // From the messages Esc returns to the composer when there is one.
             if (s.view == page::conversation && s.selecting && s.can_send()) { s.selecting = false; return true; }
             app_.back();
@@ -1103,19 +1108,28 @@ private:
         auto const typing = !app_.typing_text().empty();
         auto const wide = state::layout(terminal.dimx, terminal.dimy) == layout_mode::wide;
         auto const width = terminal.dimx - (wide ? 34 : 3);
+        // Without send permission the hint (counted in the chrome) replaces the composer.
         app_.history_rows = terminal.dimy - chat_chrome(s, width, typing) -
-            (s.composing ? composer_lines(s, width, terminal.dimy, typing) : 1);
+            (s.composing ? composer_lines(s, width, terminal.dimy, typing) : s.can_send() ? 1 : 0);
     }
-    void flush_paste()
+    // Called at each redraw and before queued results (final = false), and when the paste ends.
+    void flush_paste(bool final = false)
     {
         if (paste_buffer_.empty()) { return; }
-        auto text = std::exchange(paste_buffer_, {});
-        if (!paste_input_ || paste_input_ != input() || paste_conversation_ != app_.data.active) { return; }
-        // One insertion keeps a large paste linear. Overwrite mode replaces one glyph per
-        // typed character, so there (and in the short single-line fields) glyphs go one by one.
-        if (paste_input_ == compose_ && compose_insert_) { paste_input_->OnEvent(Event::Character(std::move(text))); return; }
-        for (auto const& glyph : Utf8ToGlyphs(text))
-        { if (!glyph.empty()) { paste_input_->OnEvent(Event::Character(glyph)); } }
+        if (!paste_input_ || paste_input_ != input() || paste_conversation_ != app_.data.active)
+        { paste_buffer_.clear(); return; }
+        // One insertion keeps a large paste linear.
+        if (paste_input_ == compose_ && compose_insert_)
+        { paste_input_->OnEvent(Event::Character(std::exchange(paste_buffer_, {}))); return; }
+        // Overwrite mode (and the short single-line fields) replace one glyph per glyph. The last
+        // glyph may continue in the next batch (a combining mark, ZWJ or modifier), so until the
+        // paste ends it waits; the result is then the same however the paste was split.
+        auto glyphs = Utf8ToGlyphs(paste_buffer_);
+        std::erase(glyphs, std::string{});
+        std::string rest;
+        if (!final && !glyphs.empty()) { rest = glyphs.back(); glyphs.pop_back(); }
+        paste_buffer_ = std::move(rest);
+        for (auto const& glyph : glyphs) { paste_input_->OnEvent(Event::Character(glyph)); }
     }
     void sync_message_scroll()
     {

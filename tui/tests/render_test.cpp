@@ -1164,6 +1164,20 @@ int main()
             component->OnEvent(ftxui::Event::Insert);
             ok &= expect(application.data.draft == "XYZd", "An overwrite-mode paste replaces one glyph per pasted glyph");
         }
+        // A combining mark split from its base by a redraw still makes one glyph.
+        for (bool redraw : {false, true})
+        {
+            reset("abcd");
+            component->OnEvent(ftxui::Event::Home);
+            component->OnEvent(ftxui::Event::Insert);
+            component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+            type("e");
+            if (redraw) { ftxui::Screen frame(120, 40); ftxui::Render(frame, component->Render()); }
+            type("\xcc\x81"); type("f");
+            component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+            component->OnEvent(ftxui::Event::Insert);
+            ok &= expect(application.data.draft == "e\xcc\x81" "fcd", "Overwrite paste keeps grapheme boundaries across redraws");
+        }
         // Esc order: an open dialog closes before an error is cleared.
         application.data.draft.clear();
         application.data.status = "请先选择消息";
@@ -1173,6 +1187,14 @@ int main()
         ok &= expect(!application.dialog && application.data.status == "请先选择消息", "Esc closes a dialog and keeps the error");
         component->OnEvent(ftxui::Event::Escape);
         ok &= expect(application.data.status.empty() && application.data.view == page::conversation, "The next Esc clears the error");
+        // On the wide list, Esc also cancels a reply first.
+        application.data.reply = chat::quoted_message{5, 2, "peer", "quoted", {}, false};
+        component->OnEvent(ftxui::Event::Tab);
+        ok &= expect(application.data.view == page::conversations && application.data.reply, "Tab to the list keeps the reply");
+        component->OnEvent(ftxui::Event::Escape);
+        ok &= expect(application.data.view == page::conversations && !application.data.reply, "Esc on the list cancels the reply first");
+        application.navigate(page::conversation);
+        component->OnEvent(ftxui::Event::Custom);
         // In the messages, Esc cancels a reply before returning to the composer.
         component->OnEvent(ftxui::Event::TabReverse);
         application.data.reply = chat::quoted_message{5, 2, "peer", "quoted", {}, false};
@@ -1222,7 +1244,11 @@ int main()
         application.data.messages = {latest};
         frame(40, 12);
         ok &= expect(application.history_rows < 1, "Pinned, reply and composer can leave no history row at 40x12");
-        application.mark_visible_read();  // must return before using the (absent) client
+        // A read request is decided after the event with the current rows: none here, so the
+        // (absent) client is never used.
+        application.mark_visible_read();
+        component->OnEvent(ftxui::Event::Custom);
+        ok &= expect(!application.read_check, "A read request is decided after the event");
         ftxui::Terminal::SetFallbackSize(fallback);
     }
     {
@@ -1236,6 +1262,10 @@ int main()
         component->OnEvent(ftxui::Event::F1);
         component->OnEvent(ftxui::Event::Escape);
         ok &= expect(application.data.view == page::contacts && application.data.selected == 2, "Leaving help keeps the list selection");
+        component->OnEvent(ftxui::Event::F1);
+        component->OnEvent(ftxui::Event::F1);
+        component->OnEvent(ftxui::Event::Escape);
+        ok &= expect(application.data.view == page::contacts && application.data.selected == 2, "Help opened twice still returns to the selection");
     }
     // FTXUI text must not pass untrusted terminal escapes to the output.
     ftxui::Screen screen(50, 1);

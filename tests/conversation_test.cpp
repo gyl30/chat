@@ -24,6 +24,10 @@
 #include "avatar_fixture.hpp"
 #ifdef CHAT_TEST_TUI
 #include "app.hpp"
+#include "ui.hpp"
+#include <ftxui/component/component.hpp>
+#include <ftxui/component/event.hpp>
+#include <ftxui/screen/terminal.hpp>
 #include <filesystem>
 #include <fstream>
 #include <source_location>
@@ -2673,6 +2677,8 @@ int run_tui_tests()
             while (true)
             {
                 target.drain();
+                // As the UI does after each event: a requested read check runs once the batch is applied.
+                if (target.read_check) { target.check_read(); }
                 if (predicate()) { return; }
                 std::unique_lock lock(mutex);
                 if (!wake.wait_until(lock, deadline, [&] { return ready; }))
@@ -3424,6 +3430,51 @@ int run_tui_tests()
         app.open_conversation(direct);
         pump([&] { return !app.data.messages.empty(); });
         std::cout << "PASS TUI real conversation, history, search and join-request cursor pagination\n";
+        {
+            // Through the real UI component: keys typed in the composer are what the server
+            // stores, and the read position advances only while history is on screen.
+            auto const fallback = ftxui::Terminal::Size();
+            ftxui::Terminal::SetFallbackSize({120, 40});
+            auto component = chat::tui::make_ui(app, [] {});
+            auto event = [&](ftxui::Event value) { component->OnEvent(value); };
+            event(ftxui::Event::Custom);
+            require(app.data.view == page::conversation && app.data.composing, "Real UI opens a writable direct in the composer");
+            app.data.draft.clear();
+            event(ftxui::Event::End);
+            auto const first = "ui_typed_?:/r_" + suffix;
+            for (auto glyph : first) { event(ftxui::Event::Character(std::string(1, glyph))); }
+            event(ftxui::Event::Character("\\"));
+            event(ftxui::Event::Return);
+            for (auto glyph : std::string("second")) { event(ftxui::Event::Character(std::string(1, glyph))); }
+            event(ftxui::Event::Return);
+            auto const sent = first + "\nsecond";
+            pump([&] { event(ftxui::Event::Custom); return !app.data.messages.empty() && app.data.messages.back().text == sent; });
+            require(sql_ids("SELECT id FROM messages WHERE conversation_id=" + std::to_string(direct) +
+                            " AND body='" + sent + "'").size() == 1, "Keys typed in the real UI are stored exactly once");
+
+            // With a reply target and a peer typing indicator, 40x12 has no history row: nothing is read.
+            auto read_position = [&] {
+                auto values = sql_ids("SELECT last_read_message_id FROM conversation_members WHERE conversation_id=" +
+                                      std::to_string(direct) + " AND user_id=" + std::to_string(self));
+                return values.empty() ? std::int64_t{0} : values.front();
+            };
+            ftxui::Terminal::SetFallbackSize({40, 12});
+            auto const& replied = app.data.messages.back();
+            app.data.reply = chat::quoted_message{replied.id, replied.from, replied.username, replied.text, {}, false};
+            require(call<bool>([&](auto handler) { peer.set_typing(direct, true, handler); }).has_value(), "Peer types in the direct");
+            pump([&] { event(ftxui::Event::Custom); return !app.typing_text().empty(); });
+            auto unseen = call<chat::send_message_result>([&](auto handler) { peer.send_message(direct, "unseen while hidden", handler); });
+            require(unseen.has_value(), "Peer sends while the history has no row");
+            pump([&] { event(ftxui::Event::Custom); return !app.data.messages.empty() && app.data.messages.back().id == unseen->message_id; });
+            event(ftxui::Event::Custom);
+            require(app.history_rows < 1 && read_position() < unseen->message_id, "No history row on screen means nothing is read");
+            ftxui::Terminal::SetFallbackSize({120, 40});
+            pump([&] { event(ftxui::Event::Custom); return read_position() >= unseen->message_id; });
+            app.data.reply.reset();
+            require(call<bool>([&](auto handler) { peer.set_typing(direct, false, handler); }).has_value(), "Peer stops typing");
+            ftxui::Terminal::SetFallbackSize(fallback);
+        }
+        std::cout << "PASS TUI real UI typing, backslash line break and visible-only read\n";
         std::size_t offline_before_logout = 0;
         {
             std::lock_guard lock(peer_events.mutex);

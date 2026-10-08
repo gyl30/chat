@@ -475,7 +475,13 @@ void app::command(std::string text)
     if (name == "quit") { shutdown(); return; }
     if (name == "logout") { confirm("退出当前账号？", [this] { logout(); }); return; }
     if (name == "reconnect") { reconnect(); return; }
-    if (name == "help") { auto const selected = data.selected; navigate(page::help); help_return_selected_ = selected; return; }
+    if (name == "help")
+    {
+        // Help opened again from help keeps the selection of the page behind it.
+        if (data.view != page::help) { help_return_selected_ = data.selected; }
+        navigate(page::help);
+        return;
+    }
     if (data.self.id && name == "new") { navigate(page::new_action); return; }
     if (data.self.id && (name == "chats" || name == "conversations")) { navigate(page::conversations); return; }
     if (data.self.id && name == "account")
