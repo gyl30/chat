@@ -2217,6 +2217,94 @@ void check_quiet_status()
     page.findChild<QToolButton*>("sendButton")->click();
     check(!status_text().contains(QStringLiteral("正在发送")), "Sending does not flash a status line");
 }
+void check_chat_empty_guidance()
+{
+    chat_widget page;
+    page.setStyleSheet(chat_style_sheet());
+    page.resize(1180, 760);
+    page.set_user(QStringLiteral("本人"), 1);
+    page.set_connection_available(true);
+    page.show();
+    QApplication::processEvents();
+    auto* list = page.findChild<QListView*>("conversationList");
+    auto* history = page.findChild<QListView*>("messageList");
+    auto const labels = history->parentWidget()->findChildren<QLabel*>("subtleText", Qt::FindDirectChildrenOnly);
+    auto has_hint = [&](QString const& expected) {
+        return std::any_of(labels.begin(), labels.end(), [&](auto* label) {
+            return label->isVisibleTo(&page) && label->text() == expected;
+        });
+    };
+    QString const empty_hint = QStringLiteral("暂无会话，点击左侧「+」开始聊天");
+    QString const selection_hint = QStringLiteral("选择一个会话开始聊天");
+    bool all_transitions = true;
+    auto transition = [&](bool correct, char const* phase) {
+        std::cout << (correct ? "PASS" : "RED") << " Qt empty chat guidance " << phase << '\n';
+        all_transitions = all_transitions && correct;
+    };
+    int opens = 0, reads = 0;
+    QObject::connect(&page, &chat_widget::conversation_selected, &page, [&](qint64, bool) { ++opens; });
+    QObject::connect(&page, &chat_widget::read_requested, &page, [&](qint64, qint64) { ++reads; });
+    page.set_loading();
+    transition(has_hint(QStringLiteral("正在加载会话…")) && !has_hint(empty_hint), "loading");
+    page.set_conversations({});
+    transition(has_hint(empty_hint) && list->model()->rowCount() == 0 &&
+                   page.findChild<QToolButton*>("chatsActionsButton")->isVisibleTo(&page), "empty response");
+    conversation_data first;
+    first.id = 50; first.user = 2; first.username = QStringLiteral("林小满");
+    page.set_conversations({first});
+    transition(has_hint(selection_hint) && page.active_conversation() == 0 && opens == 0 && reads == 0,
+               "nonempty without selection");
+    auto* search = page.findChild<QLineEdit*>("conversationSearchEdit");
+    search->setText(QStringLiteral("没有匹配的名字"));
+    page.set_conversations({first});
+    transition(list->model()->rowCount() == 1 && list->isRowHidden(0) && has_hint(selection_hint) &&
+                   !has_hint(empty_hint) && opens == 0 && reads == 0, "filtered nonempty list");
+    search->clear();
+    page.open_conversation(first);
+    page.set_conversations({});
+    transition(page.active_conversation() == 0 && has_hint(empty_hint) &&
+                   !page.findChild<QPlainTextEdit*>("messageEdit")->isEnabled(), "last conversation removed");
+    page.set_conversations({first});
+    transition(has_hint(selection_hint) && !has_hint(empty_hint) && page.active_conversation() == 0 &&
+                   !list->currentIndex().isValid() && opens == 1 && reads == 0, "repopulated without automatic selection");
+    QString const failed = QStringLiteral("会话列表加载失败");
+    auto* list_status = list->parentWidget()->findChild<QLabel*>("subtleText");
+    page.set_loading();
+    page.set_conversations_error(failed);
+    transition(has_hint(failed) && !has_hint(QStringLiteral("正在加载会话…")) && list_status->text() == failed,
+               "failed list load stops loading");
+    page.set_conversations({});
+    transition(has_hint(empty_hint) && !has_hint(failed), "empty response recovers after failure");
+    page.set_loading();
+    page.set_conversations_error(failed);
+    search->setText(first.username);
+    page.set_conversations({first});
+    transition(has_hint(selection_hint) && !has_hint(failed) && list_status->text().isEmpty() &&
+                   !list->isRowHidden(0), "matching response recovers after failure");
+    page.open_conversation(first);
+    message_data message;
+    message.id = 1001; message.conversation = first.id; message.from = first.user; message.text = QStringLiteral("保留已加载的历史");
+    page.set_messages(first.id, {message}, {}, false, false, false);
+    auto* editor = page.findChild<QPlainTextEdit*>("messageEdit");
+    editor->setPlainText(QStringLiteral("保留草稿"));
+    QApplication::processEvents();
+    auto const opens_before_failure = opens, reads_before_failure = reads;
+    page.set_loading();
+    page.set_conversations_error(failed);
+    transition(page.active_conversation() == first.id && history->model()->rowCount() == 1 &&
+                   history->model()->index(0, 0).data(message_model::id_role).toLongLong() == message.id &&
+                   editor->toPlainText() == QStringLiteral("保留草稿") && !has_hint(failed) &&
+                   !has_hint(QStringLiteral("正在加载会话…")) && list_status->text() == failed &&
+                   opens == opens_before_failure && reads == reads_before_failure,
+               "selected history survives list failure");
+    page.set_conversations({first});
+    transition(list_status->text().isEmpty() && page.active_conversation() == first.id &&
+                   history->model()->rowCount() == 1 && editor->toPlainText() == QStringLiteral("保留草稿") &&
+                   !has_hint(failed) && opens == opens_before_failure && reads == reads_before_failure,
+               "selected history survives list recovery");
+    check(all_transitions, "Empty chat guidance follows successful and failed list transitions without replacing selected history");
+}
+
 void check_chat_list_search()
 {
     chat_widget page;
@@ -3300,7 +3388,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_login_settings_restore(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_list_search(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
+        try { check_login_settings_restore(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;

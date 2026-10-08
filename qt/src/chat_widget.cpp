@@ -1280,7 +1280,11 @@ void chat_widget::load_visible_images()
     }
 }
 
-void chat_widget::set_loading() { set_list_status(QStringLiteral("正在加载…")); }
+void chat_widget::set_loading()
+{
+    set_list_status(QStringLiteral("正在加载…"));
+    if (active_conversation_ == 0) { set_message_status(QStringLiteral("正在加载会话…")); }
+}
 
 void chat_widget::set_error(QString message)
 {
@@ -1290,7 +1294,11 @@ void chat_widget::set_error(QString message)
     notice_timer_->start();
 }
 
-void chat_widget::set_conversations_error(QString message) { set_list_status(std::move(message)); }
+void chat_widget::set_conversations_error(QString message)
+{
+    set_list_status(message);
+    if (active_conversation_ == 0) { set_message_status(std::move(message)); }
+}
 
 // The status row takes space only while it has something to say.
 void chat_widget::set_list_status(QString text)
@@ -1390,6 +1398,7 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
     {
         set_list_status(QStringLiteral("暂无会话"));
         conversations_view_->setCurrentIndex({});
+        if (active_conversation_ == 0) { set_message_status(QStringLiteral("暂无会话，点击左侧「+」开始聊天")); }
         return;
     }
 
@@ -1417,6 +1426,7 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
     // Opening a conversation reports it read; only the user's own choice may do that.
     conversations_view_->setCurrentIndex({});
     conversations_view_->clearSelection();
+    set_message_status(QStringLiteral("选择一个会话开始聊天"));
 }
 
 void chat_widget::set_contacts(QList<user_data> contacts)
@@ -2325,7 +2335,8 @@ void chat_widget::close_conversation(qint64 conversation)
     message_search_button_->setEnabled(false);
     attachment_button_->setEnabled(false);
     chat_more_button_->setEnabled(false);
-    set_message_status(QStringLiteral("选择一个会话开始聊天"));
+    set_message_status(conversations_->rowCount() == 0
+        ? QStringLiteral("暂无会话，点击左侧「+」开始聊天") : QStringLiteral("选择一个会话开始聊天"));
 }
 
 void chat_widget::update_pinned_message()
