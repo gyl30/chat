@@ -37,7 +37,8 @@ attachment_dialog::attachment_dialog(qint64 conversation, qint64 message, QStrin
     image_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
     image_->installEventFilter(this);
     image_->setPixmap(preview_image_);
-    image_->hide();
+    // The cached bubble thumbnail is only a placeholder until the original arrives.
+    image_->setVisible(preview_ && !preview_image_.isNull());
     layout->addWidget(image_, 1);
     save_button_ = new QPushButton(QStringLiteral("保存文件"), this);
     save_button_->setObjectName(QStringLiteral("saveAttachmentButton"));
@@ -93,7 +94,6 @@ void attachment_dialog::set_data(qint64 conversation, qint64 message, QByteArray
     {
         return;
     }
-    if (!preview_image_.isNull()) { image_->show(); return; }
     QBuffer buffer(&data_);
     buffer.open(QIODevice::ReadOnly);
     QImageReader::setAllocationLimit(64);
@@ -105,7 +105,6 @@ void attachment_dialog::set_data(qint64 conversation, qint64 message, QByteArray
         status_->setText(QStringLiteral("图片无法预览，或尺寸过大；可以保存原文件。"));
         return;
     }
-    reader.setScaledSize(size.scaled(QSize(640, 480), Qt::KeepAspectRatio));
     auto const image = reader.read();
     if (image.isNull())
     {

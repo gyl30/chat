@@ -1899,6 +1899,27 @@ void check_message_locate()
           }),
           "Exhausted history reports a message that no longer exists");
 }
+void check_image_preview_resolution()
+{
+    QImage original(1600, 1200, QImage::Format_RGB32);
+    original.fill(QColor(QStringLiteral("#4F8A70")));
+    QByteArray bytes;
+    QBuffer buffer(&bytes);
+    buffer.open(QIODevice::WriteOnly);
+    check(original.save(&buffer, "PNG"), "Preview fixture encodes a large PNG");
+    auto const thumbnail = QPixmap::fromImage(original.scaled(QSize(640, 480), Qt::KeepAspectRatio));
+    attachment_dialog dialog(50, 7, QStringLiteral("large.png"), true, nullptr, thumbnail);
+    dialog.resize(1700, 1400);
+    dialog.show();
+    QApplication::processEvents();
+    auto* image = dialog.findChild<QLabel*>("attachmentImage");
+    check(image && image->isVisible(), "The cached thumbnail is shown while the original downloads");
+    dialog.set_data(50, 7, bytes, {});
+    dialog.resize(1720, 1420);
+    QApplication::processEvents();
+    check(image->pixmap().width() > 640 && image->pixmap().width() <= 1600,
+          "Image preview shows the original resolution rather than the 640x480 bubble thumbnail");
+}
 void check_message_action_targets()
 {
     // Real menus and dialogs, without a server: older history resets the model
@@ -2877,7 +2898,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_message_locate(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); return 0; }
+        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
