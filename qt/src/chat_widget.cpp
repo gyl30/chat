@@ -203,14 +203,31 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     // The chat list leads with search instead of a title, as WeChat does.
     conversation_search_ = new QLineEdit(conversation_header);
     conversation_search_->setObjectName(QStringLiteral("conversationSearchEdit"));
-    conversation_search_->setPlaceholderText(QStringLiteral("搜索聊天"));
+    conversation_search_->setPlaceholderText(QStringLiteral("搜索"));
     conversation_search_->setAccessibleName(QStringLiteral("搜索聊天"));
     conversation_search_->addAction(svg_icon(u"search", QColor(QStringLiteral("#8B918D")), QSize(16, 16)), QLineEdit::LeadingPosition);
     conversation_header_layout->addWidget(conversation_search_, 1);
+    // Contacts use the same row: their own search box beside the add-friend icon, as in WeChat.
+    contact_search_ = new QLineEdit(conversation_header);
+    contact_search_->setObjectName(QStringLiteral("userSearchEdit"));
+    contact_search_->setPlaceholderText(QStringLiteral("搜索"));
+    contact_search_->setAccessibleName(QStringLiteral("搜索联系人"));
+    contact_search_->setToolTip(QStringLiteral("搜索联系人，或按 Enter 查找用户"));
+    contact_search_->setClearButtonEnabled(false);
+    contact_search_->setProperty("header", true);
+    contact_search_->addAction(svg_icon(u"search", QColor(QStringLiteral("#8B918D")), QSize(16, 16)), QLineEdit::LeadingPosition);
+    contact_search_->hide();
+    conversation_header_layout->addWidget(contact_search_, 1);
     conversation_header_layout->addStretch();
     add_contact_button_ = new QToolButton(conversation_header);
     add_contact_button_->setObjectName(QStringLiteral("sidebarTextButton"));
     add_contact_button_->setText(QStringLiteral("添加好友"));
+    add_contact_button_->setToolTip(QStringLiteral("添加好友"));
+    add_contact_button_->setAccessibleName(QStringLiteral("添加好友"));
+    add_contact_button_->setIcon(svg_icon(u"user-plus", QColor(QStringLiteral("#315A4B")), QSize(18, 18)));
+    add_contact_button_->setIconSize(QSize(18, 18));
+    add_contact_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    add_contact_button_->setFixedSize(34, 34);
     add_contact_button_->setCursor(Qt::PointingHandCursor);
     add_contact_button_->hide();
     conversation_header_layout->addWidget(add_contact_button_);
@@ -270,12 +287,6 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     contacts_layout->setContentsMargins(0, 0, 0, 0);
     contacts_layout->setSpacing(0);
     // One search box, as in WeChat: it filters friends as you type and offers to find new people.
-    contact_search_ = new QLineEdit(contacts_page);
-    contact_search_->setObjectName(QStringLiteral("userSearchEdit"));
-    contact_search_->setPlaceholderText(QStringLiteral("搜索联系人或查找用户"));
-    contact_search_->setAccessibleName(QStringLiteral("搜索联系人"));
-    contact_search_->setClearButtonEnabled(false);
-    contacts_layout->addWidget(contact_search_);
     new_friends_button_ = new QPushButton(QStringLiteral("新的朋友"), contacts_page);
     new_friends_button_->setObjectName(QStringLiteral("newFriendsButton"));
     new_friends_button_->setIcon(svg_icon(u"user-plus", QColor(QStringLiteral("#315A4B")), QSize(22, 22)));
@@ -1829,6 +1840,7 @@ void chat_widget::show_conversations_section()
     section_title_->setText(QStringLiteral("消息"));
     section_title_->hide();
     conversation_search_->show();
+    contact_search_->hide();
     sidebar_pages_->setCurrentIndex(0);
     right_pages_->setCurrentIndex(0);
     sidebar_back_button_->hide();
@@ -1841,8 +1853,9 @@ void chat_widget::show_conversations_section()
 void chat_widget::show_contacts_section()
 {
     section_title_->setText(QStringLiteral("联系人"));
-    section_title_->show();
+    section_title_->hide();
     conversation_search_->hide();
+    contact_search_->show();
     sidebar_pages_->setCurrentIndex(1);
     right_pages_->setCurrentIndex(1);
     sidebar_back_button_->hide();
@@ -1863,6 +1876,7 @@ void chat_widget::show_add_contact_section()
     section_title_->setText(QStringLiteral("添加好友"));
     section_title_->show();
     conversation_search_->hide();
+    contact_search_->hide();
     sidebar_pages_->setCurrentIndex(2);
     right_pages_->setCurrentIndex(1);
     sidebar_back_button_->show();
@@ -1883,6 +1897,7 @@ void chat_widget::show_new_friends_section()
     section_title_->setText(QStringLiteral("新的朋友"));
     section_title_->show();
     conversation_search_->hide();
+    contact_search_->hide();
     sidebar_pages_->setCurrentIndex(3);
     right_pages_->setCurrentIndex(1);
     sidebar_back_button_->show();
@@ -1959,6 +1974,7 @@ void chat_widget::refresh_theme()
     chats_actions_->setIcon(svg_icon(u"plus", QColor(QStringLiteral("#315A4B")), QSize(18, 18)));
     new_friends_button_->setIcon(svg_icon(u"user-plus", QColor(QStringLiteral("#315A4B")), QSize(22, 22)));
     find_user_button_->setIcon(svg_icon(u"search", QColor(QStringLiteral("#315A4B")), QSize(18, 18)));
+    add_contact_button_->setIcon(svg_icon(u"user-plus", QColor(QStringLiteral("#315A4B")), QSize(18, 18)));
     contact_placeholder_->setPixmap(svg_icon(u"contacts", QColor(QStringLiteral("#D6D2C8")), QSize(72, 72)).pixmap(72, 72));
     profile_avatar_->setIcon(avatar_icon(profile_avatar_->toolTip(), 44, avatars_.image(self_user_)));
     if (active_conversation_ > 0) { update_chat_header(active_username_); }

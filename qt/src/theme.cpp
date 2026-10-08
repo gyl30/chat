@@ -967,7 +967,8 @@ QString classic_style_sheet()
         QToolButton#cancelReplyButton:focus {
             border-color: #547C68;
         }
-            QLineEdit#conversationSearchEdit {
+            QLineEdit#conversationSearchEdit, QLineEdit#userSearchEdit[header="true"] {
+            margin: 0;
             min-height: 34px;
             padding: 0 10px 0 4px;
             background: #EEEDE7;
@@ -975,11 +976,12 @@ QString classic_style_sheet()
             border-radius: 17px;
             font-size: 13px;
         }
-        QLineEdit#conversationSearchEdit:focus {
+        QLineEdit#conversationSearchEdit:focus, QLineEdit#userSearchEdit[header="true"]:focus {
             background: #FFFFFF;
             border-color: #88A697;
         }
-        QToolButton#chatsActionsButton {
+        QToolButton#chatsActionsButton, QToolButton#sidebarTextButton {
+            padding: 0;
             border: 1px solid #DDD9D0;
             border-radius: 17px;
             background: #FFFFFF;
