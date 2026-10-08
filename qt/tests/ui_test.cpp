@@ -1194,6 +1194,13 @@ void check_primary_navigation()
     auto* history = page.findChild<QListView*>("messageList");
     check(page.active_conversation() == 0 && history->model()->rowCount() == 0 && !edit->isEnabled(),
           "A hidden nonfriend direct closes its active page and clears displayed history");
+    int unrequested_opens = 0;
+    auto unrequested = QObject::connect(&page, &chat_widget::conversation_selected, &page,
+        [&](qint64, bool) { ++unrequested_opens; });
+    page.set_conversations({other});
+    check(page.active_conversation() == 0 && unrequested_opens == 0 && !conversations->currentIndex().isValid(),
+          "A later list refresh never opens, and so never marks read, a conversation the user did not choose");
+    QObject::disconnect(unrequested);
     page.add_message(direct.id, hidden_message);
     check(history->model()->rowCount() == 0, "Late messages cannot reopen a hidden direct");
     direct.can_send = true;
@@ -2709,6 +2716,9 @@ void check_conversation_drafts()
     edit->setPlainText(QStringLiteral("上一个账号的草稿"));
     page.open_conversation(first);
     page.set_user(QStringLiteral("另一账号"), 3);
+    page.set_conversations({first, second});
+    check(page.active_conversation() == 0 && edit->toPlainText().isEmpty(),
+          "Signing in lists conversations without opening the first one");
     page.open_conversation(second);
     check(edit->toPlainText().isEmpty(), "Changing accounts cannot restore the previous account's draft");
     auto* send = page.findChild<QToolButton*>("sendButton");
@@ -4567,7 +4577,10 @@ int main(int argc, char** argv)
             });
             invite_poll.start(20);
             windows[0]->findChild<QPushButton*>("chatHeaderButton")->click();
-            wait([&] { return reinvited && pages[2]->active_conversation() == group && pages[2]->messages_ready(); });
+            wait([&] { return reinvited && pages[2]->conversation(group).has_value(); });
+            check(pages[2]->active_conversation() == 0, "A reinvited member's list refresh does not open the group by itself");
+            pages[2]->open_conversation(*pages[2]->conversation(group));
+            wait([&] { return pages[2]->active_conversation() == group && pages[2]->messages_ready(); });
             check(windows[2]->findChild<QListView*>("messageList")->model()->rowCount() ==
                       windows[0]->findChild<QListView*>("messageList")->model()->rowCount(), "Reinvited Qt member recovers full history");
             auto member_action = [&](int actor, qint64 target, QString const& button_name) {
@@ -4657,6 +4670,8 @@ int main(int argc, char** argv)
                 invite_again_poll.start(20);
                 windows[0]->findChild<QPushButton*>("chatHeaderButton")->click();
                 check(finished, "Reinvite action completed");
+                wait([&] { return pages[2]->conversation(group).has_value(); });
+                pages[2]->open_conversation(*pages[2]->conversation(group));
                 wait([&] { return pages[2]->active_conversation() == group && pages[2]->messages_ready(); });
             };
             for (auto const& modal : {QStringLiteral("groupDialog"), QStringLiteral("messageSearchDialog"),

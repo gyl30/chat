@@ -1190,9 +1190,9 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
         return;
     }
 
-    auto const index = conversations_->index(0, 0);
-    conversations_view_->setCurrentIndex(index);
-    select_conversation(index);
+    // Opening a conversation reports it read; only the user's own choice may do that.
+    conversations_view_->setCurrentIndex({});
+    conversations_view_->clearSelection();
 }
 
 void chat_widget::set_contacts(QList<user_data> contacts)
