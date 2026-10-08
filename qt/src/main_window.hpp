@@ -67,7 +67,7 @@ class main_window final : public QMainWindow
     bool reading_conversation(qint64 conversation) const;
     void notify_message(message_data const& message);
     QStringList recent_accounts() const;
-    void remember_account(QString const& username);
+    void remember_login(QString const& username, QString const& server);
     void update_login_identity();
     void update_window_chrome();
     void place_resize_grips();

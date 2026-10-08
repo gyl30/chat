@@ -14,7 +14,7 @@ int main(int argc, char* argv[])
     QApplication::setApplicationName(QStringLiteral("chat_qt"));
     theme_manager::instance().load_settings();
 
-    QString server_url = QStringLiteral("ws://127.0.0.1:18080/ws");
+    QString server_url;
     if (argc > 1)
     {
         server_url = QString::fromLocal8Bit(argv[1]);

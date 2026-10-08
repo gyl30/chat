@@ -139,6 +139,14 @@ main_window::main_window(QString server_url, QWidget* parent)
     login_layout->addWidget(login_avatar_, 0, Qt::AlignHCenter);
     login_layout->addSpacing(12);
 
+    if (server_url.isEmpty())
+    {
+        if (!QCoreApplication::organizationName().isEmpty())
+        {
+            server_url = QSettings().value(QStringLiteral("login/last_server_url")).toString().trimmed();
+        }
+        if (server_url.isEmpty()) { server_url = QStringLiteral("ws://127.0.0.1:18080/ws"); }
+    }
     server_edit_ = new QLineEdit(std::move(server_url), login_card);
     server_edit_->setObjectName(QStringLiteral("serverUrlEdit"));
     server_edit_->setAccessibleName(QStringLiteral("服务器地址"));
@@ -524,7 +532,7 @@ main_window::main_window(QString server_url, QWidget* parent)
 
                 session_server_ = server_edit_->text().trimmed();
                 session_username_ = pending_username_;
-                remember_account(session_username_);
+                remember_login(session_username_, session_server_);
                 session_password_ = pending_password_;
                 pending_password_.clear();
                 status_label_->clear();
@@ -1044,14 +1052,16 @@ QStringList main_window::recent_accounts() const
     return QSettings().value(QStringLiteral("login/recent_accounts")).toStringList();
 }
 
-void main_window::remember_account(QString const& username)
+void main_window::remember_login(QString const& username, QString const& server)
 {
     if (QCoreApplication::organizationName().isEmpty() || username.isEmpty()) { return; }
     auto accounts = recent_accounts();
     accounts.removeAll(username);
     accounts.prepend(username);
     constexpr int max_recent_accounts = 5;
-    QSettings().setValue(QStringLiteral("login/recent_accounts"), accounts.mid(0, max_recent_accounts));
+    QSettings settings;
+    settings.setValue(QStringLiteral("login/recent_accounts"), accounts.mid(0, max_recent_accounts));
+    settings.setValue(QStringLiteral("login/last_server_url"), server);
     update_login_identity();
 }
 

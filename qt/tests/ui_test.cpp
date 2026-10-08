@@ -34,6 +34,7 @@
 #include <QThread>
 #include <QTemporaryDir>
 #include <QSortFilterProxyModel>
+#include <QSettings>
 #include <QScrollBar>
 #include <QScrollArea>
 #include <QSystemTrayIcon>
@@ -199,6 +200,108 @@ void click_list_body(QAbstractItemView* list, QModelIndex index)
     QApplication::sendEvent(list->viewport(), &press);
     QApplication::sendEvent(list->viewport(), &release);
 }
+class isolated_login_settings
+{
+   public:
+    isolated_login_settings()
+        : organization_(QCoreApplication::organizationName()), application_(QCoreApplication::applicationName()),
+          format_(QSettings::defaultFormat())
+    {
+        check(directory_.isValid(), "Login settings have a temporary storage directory");
+        QSettings::setDefaultFormat(QSettings::IniFormat);
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, directory_.path());
+        QCoreApplication::setOrganizationName(QStringLiteral("chat_qt_login_test"));
+        QCoreApplication::setApplicationName(QStringLiteral("login"));
+    }
+    ~isolated_login_settings()
+    {
+        QCoreApplication::setOrganizationName(organization_);
+        QCoreApplication::setApplicationName(application_);
+        QSettings::setDefaultFormat(format_);
+    }
+   private:
+    QTemporaryDir directory_;
+    QString organization_;
+    QString application_;
+    QSettings::Format format_;
+};
+
+void check_login_settings_restore()
+{
+    isolated_login_settings isolated;
+    QString const saved_server = QStringLiteral("ws://saved.example:18080/ws");
+    QString const saved_account = QStringLiteral("login_test_account");
+    QSettings().setValue(QStringLiteral("login/last_server_url"), saved_server);
+    QSettings().setValue(QStringLiteral("login/recent_accounts"), QStringList{saved_account});
+    {
+        main_window restored(QString{});
+        check(restored.findChild<QLineEdit*>("serverUrlEdit")->text() == saved_server,
+              "Starting without a server URL restores the last successful server");
+        check(restored.findChild<QLineEdit*>("loginUsernameEdit")->text() == saved_account &&
+                  restored.findChild<QLineEdit*>("loginPasswordEdit")->text().isEmpty(),
+              "Recent login restores the account and leaves the password empty");
+    }
+    {
+        QString const explicit_server = QStringLiteral("ws://explicit.example:18080/ws");
+        main_window explicit_window(explicit_server);
+        check(explicit_window.findChild<QLineEdit*>("serverUrlEdit")->text() == explicit_server,
+              "An explicit server URL overrides the saved server");
+    }
+    QSettings().clear();
+    {
+        main_window first_run(QString{});
+        check(first_run.findChild<QLineEdit*>("serverUrlEdit")->text() == QStringLiteral("ws://127.0.0.1:18080/ws"),
+              "Starting without login history keeps the default local server");
+    }
+    std::cout << "PASS Qt isolated recent login restoration and explicit server priority\n";
+}
+
+void check_login_settings_save(QString const& server, QString const& username)
+{
+    isolated_login_settings isolated;
+    QString const password = QStringLiteral("ui password");
+    auto sign_in = [&](main_window& window, QString const& attempted_password) {
+        window.show();
+        window.findChild<QLineEdit*>("loginUsernameEdit")->setText(username);
+        window.findChild<QLineEdit*>("loginPasswordEdit")->setText(attempted_password);
+        window.findChild<QPushButton*>("loginButton")->click();
+    };
+    {
+        main_window successful(QStringLiteral("  ") + server + QStringLiteral("  "));
+        sign_in(successful, password);
+        wait([&] { return successful.findChild<chat_widget*>()->isVisible(); });
+        check(QSettings().value(QStringLiteral("login/last_server_url")).toString() == server &&
+                  QSettings().value(QStringLiteral("login/recent_accounts")).toStringList() == QStringList{username},
+              "Successful authentication persists the trimmed server and recent account");
+    }
+    {
+        main_window failed(server + QStringLiteral("?login_test=failed"));
+        sign_in(failed, QStringLiteral("incorrect test password"));
+        auto* feedback = failed.findChild<QWidget*>("loginCard")->findChild<QLabel*>("subtleText");
+        wait([&] { return feedback->text() == QStringLiteral("用户名或密码错误"); });
+        check(QSettings().value(QStringLiteral("login/last_server_url")).toString() == server &&
+                  QSettings().value(QStringLiteral("login/recent_accounts")).toStringList() == QStringList{username},
+              "Failed authentication does not replace the last successful login");
+    }
+    {
+        main_window restored(QString{});
+        check(restored.findChild<QLineEdit*>("serverUrlEdit")->text() == server &&
+                  restored.findChild<QLineEdit*>("loginUsernameEdit")->text() == username &&
+                  restored.findChild<QLineEdit*>("loginPasswordEdit")->text().isEmpty(),
+              "A new window restores the successful login without restoring a password");
+    }
+    QSettings settings;
+    settings.sync();
+    check(settings.status() == QSettings::NoError, "Isolated login settings are written successfully");
+    QFile stored(settings.fileName());
+    check(stored.open(QIODevice::ReadOnly), "The isolated login settings file is readable");
+    auto const contents = stored.readAll();
+    check(!contents.contains(password.toUtf8()) && !contents.contains("incorrect test password") &&
+              !contents.toLower().contains("password"),
+          "Neither successful nor failed login passwords are persisted");
+    std::cout << "PASS Qt successful login persistence, failed login preservation and no stored passwords\n";
+}
+
 void check_authentication_layout()
 {
     main_window window(QStringLiteral("ws://127.0.0.1:18769/ws"));
@@ -3132,7 +3235,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_list_search(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
+        try { check_login_settings_restore(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_list_search(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
@@ -3368,6 +3471,7 @@ int main(int argc, char** argv)
             QThread::msleep(100);
         }
         {
+            check_login_settings_save(QString::fromStdString(url), names[0]);
             std::vector<std::unique_ptr<main_window>> windows;
             std::vector<chat_widget*> pages;
             struct notification { qint64 conversation; QString title; QString summary; };
