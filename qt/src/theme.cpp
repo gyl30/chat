@@ -1004,14 +1004,31 @@ QString classic_style_sheet()
             image: none;
             width: 0;
         }
-        QToolButton#messageSearchButton, QToolButton#chatMoreButton, QToolButton#sendAttachmentButton {
+        QToolButton#messageSearchButton, QToolButton#chatMoreButton, QToolButton#sendAttachmentButton,
+        QToolButton#emojiButton, QToolButton#chatHistoryButton {
             padding: 0;
             border: 0;
             border-radius: 18px;
             background: transparent;
         }
         QToolButton#messageSearchButton:hover:enabled, QToolButton#chatMoreButton:hover:enabled,
-        QToolButton#sendAttachmentButton:hover:enabled {
+        QToolButton#sendAttachmentButton:hover:enabled, QToolButton#emojiButton:hover:enabled,
+        QToolButton#chatHistoryButton:hover:enabled {
+            background: #EEEDE7;
+        }
+        QFrame#emojiPicker {
+            background: #FFFFFF;
+            border: 1px solid #DDD9D0;
+            border-radius: 12px;
+        }
+        QToolButton#emojiChoice {
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            font-family: "Noto Color Emoji";
+            font-size: 22px;
+        }
+        QToolButton#emojiChoice:hover {
             background: #EEEDE7;
         }
         QFrame#inputBar {

@@ -364,12 +364,14 @@ void check_authentication_username_fonts()
               "Username emoji font preserves every configured family in its original order");
     }
     bool all_composed = true;
+    int checked_fonts = 0;
     for (auto appearance : {chat_appearance::light, chat_appearance::dark, chat_appearance::light})
     {
         themes.set_appearance(appearance);
         QApplication::processEvents();
         for (auto* field : {login, username})
         {
+            ++checked_fonts;
             field->ensurePolished();
             auto const actual = field->font();
             check(actual.pixelSize() == (field == login ? 15 : 14),
@@ -401,6 +403,8 @@ void check_authentication_username_fonts()
     registration->reject();
     themes.set_theme(saved_theme);
     themes.set_appearance(saved_appearance);
+    check(checked_fonts == 6, "Both username fonts are checked in each theme transition");
+    std::cout << "PASS Qt actual username font checks=" << checked_fonts << std::endl;
     check(all_composed, "Both actual username fonts compose the literal astronaut through theme restoration");
 }
 
@@ -2513,6 +2517,60 @@ void check_chat_list_search()
               search_messages->toolTip() == QStringLiteral("搜索消息") && page.findChild<QToolButton*>("chatMoreButton"),
           "The chat header uses named icon buttons instead of a text button");
 }
+void check_composer_actions()
+{
+    chat_widget page;
+    page.setStyleSheet(chat_style_sheet());
+    page.resize(1180, 720);
+    page.set_user(QStringLiteral("本人"), 1);
+    page.set_connection_available(true);
+    page.set_contacts({{2, QStringLiteral("朋友"), false, 0, {}}});
+    conversation_data direct;
+    direct.id = 50; direct.user = 2; direct.username = QStringLiteral("朋友"); direct.can_send = true;
+    page.set_conversations({direct});
+    page.open_conversation(direct);
+    page.set_messages(50, {}, {}, false, false, false);
+    page.show();
+    QApplication::processEvents();
+    auto* edit = page.findChild<QPlainTextEdit*>("messageEdit");
+    auto* attach = page.findChild<QToolButton*>("sendAttachmentButton");
+    auto* emoji = page.findChild<QToolButton*>("emojiButton");
+    auto* history = page.findChild<QToolButton*>("chatHistoryButton");
+    auto* send = page.findChild<QToolButton*>("sendButton");
+    auto x = [](QWidget* widget) { return widget->mapTo(widget->window(), QPoint(0, 0)).x(); };
+    check(attach && emoji && history && x(attach) < x(edit) && x(edit) < x(emoji) && x(emoji) < x(history) && x(history) < x(send),
+          "The composer puts attach left of the text and emoji, history and send on its right");
+    check(emoji->isEnabled() && history->isEnabled() && emoji->toolTip() == QStringLiteral("表情") &&
+              history->toolTip() == QStringLiteral("聊天记录"), "Composer actions are named and available in an open chat");
+    edit->setPlainText(QStringLiteral("晚上见"));
+    edit->moveCursor(QTextCursor::End);
+    bool picked = false;
+    QTimer::singleShot(0, &page, [&] {
+        auto* picker = qobject_cast<QFrame*>(QApplication::activePopupWidget());
+        check(picker && picker->objectName() == QStringLiteral("emojiPicker"), "The emoji button opens the emoji panel");
+        if (auto const shots = qEnvironmentVariable("CHAT_THEME_SHOTS"); !shots.isEmpty())
+        {
+            page.grab().save(shots + QStringLiteral("/composer.png"));
+            picker->grab().save(shots + QStringLiteral("/emoji-picker.png"));
+        }
+        for (auto* choice : picker->findChildren<QToolButton*>("emojiChoice"))
+        {
+            if (choice->text() == QStringLiteral("🎉")) { choice->click(); picked = true; break; }
+        }
+    });
+    emoji->click();
+    QApplication::processEvents();
+    check(picked && edit->toPlainText() == QStringLiteral("晚上见🎉") && !QApplication::activePopupWidget(),
+          "Choosing an emoji inserts it at the cursor and closes the panel");
+    int searches = 0;
+    QObject::connect(&page, &chat_widget::message_search_requested, &page, [&](qint64 conversation, auto...) {
+        searches += conversation == 50;
+    });
+    history->click();
+    check(searches == 1, "Chat history opens the current conversation's messages");
+    page.close_conversation(50);
+    check(!emoji->isEnabled() && !history->isEnabled(), "Without a conversation the composer actions are unavailable");
+}
 void check_message_action_targets()
 {
     // Real menus and dialogs, without a server: older history resets the model
@@ -3491,7 +3549,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
+        try { check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_composer_actions(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;

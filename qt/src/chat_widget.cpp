@@ -9,6 +9,7 @@
 #include <QAbstractTextDocumentLayout>
 #include <QApplication>
 #include <QClipboard>
+#include <QGridLayout>
 #include <QComboBox>
 #include <QColor>
 #include <QDialog>
@@ -802,7 +803,28 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     attachment_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
     attachment_button_->setFixedSize(chat_theme::compose_button_width, chat_theme::compose_button_height);
     attachment_button_->setEnabled(false);
-    input_layout->addWidget(attachment_button_, 0, Qt::AlignBottom);
+    // Telegram's arrangement: attach on the left of the text, the other actions on its right.
+    input_layout->insertWidget(0, attachment_button_, 0, Qt::AlignBottom);
+    auto make_composer_button = [input_bar](QString const& name, QStringView icon, QString const& label) {
+        auto* button = new QToolButton(input_bar);
+        button->setObjectName(name);
+        button->setToolTip(label);
+        button->setAccessibleName(label);
+        button->setIcon(svg_icon(icon, QColor(QStringLiteral("#3F4542")), QSize(22, 22)));
+        button->setIconSize(QSize(22, 22));
+        button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+        button->setFixedSize(chat_theme::compose_button_width, chat_theme::compose_button_height);
+        button->setCursor(Qt::PointingHandCursor);
+        button->setEnabled(false);
+        return button;
+    };
+    emoji_button_ = make_composer_button(QStringLiteral("emojiButton"), u"emoji", QStringLiteral("表情"));
+    history_button_ = make_composer_button(QStringLiteral("chatHistoryButton"), u"history", QStringLiteral("聊天记录"));
+    input_layout->addWidget(emoji_button_, 0, Qt::AlignBottom);
+    input_layout->addWidget(history_button_, 0, Qt::AlignBottom);
+    connect(emoji_button_, &QToolButton::clicked, this, [this] { show_emoji_picker(); });
+    // Chat history is the conversation's message search, opened from where the user is typing.
+    connect(history_button_, &QToolButton::clicked, this, [this] { message_search_button_->click(); });
     connect(attachment_button_, &QToolButton::clicked, this, [this] {
         auto const path = QFileDialog::getOpenFileName(this, QStringLiteral("发送文件或图片"));
         if (path.isEmpty())
@@ -1205,6 +1227,7 @@ void chat_widget::set_user(QString const& username, qint64 user)
     message_edit_->setEnabled(false);
     send_button_->setEnabled(false);
     message_search_button_->setEnabled(false);
+    history_button_->setEnabled(false);
     attachment_button_->setEnabled(false);
     chat_more_button_->setEnabled(false);
 }
@@ -1356,6 +1379,7 @@ void chat_widget::set_connection_available(bool available)
     update_compose_state();
     add_contact_button_->setEnabled(available);
     message_search_button_->setEnabled(available && active_conversation_ > 0);
+    history_button_->setEnabled(available && active_conversation_ > 0);
     update_pinned_message();
     update_contact_card();
     add_user_search_->setEnabled(available);
@@ -1971,6 +1995,8 @@ void chat_widget::refresh_theme()
     message_search_button_->setIcon(svg_icon(u"search", QColor(QStringLiteral("#3F4542")), QSize(20, 20)));
     chat_more_button_->setIcon(svg_icon(u"more", QColor(QStringLiteral("#3F4542")), QSize(20, 20)));
     attachment_button_->setIcon(svg_icon(u"attach", QColor(QStringLiteral("#3F4542")), QSize(22, 22)));
+    emoji_button_->setIcon(svg_icon(u"emoji", QColor(QStringLiteral("#3F4542")), QSize(22, 22)));
+    history_button_->setIcon(svg_icon(u"history", QColor(QStringLiteral("#3F4542")), QSize(22, 22)));
     chats_actions_->setIcon(svg_icon(u"plus", QColor(QStringLiteral("#315A4B")), QSize(18, 18)));
     new_friends_button_->setIcon(svg_icon(u"user-plus", QColor(QStringLiteral("#315A4B")), QSize(22, 22)));
     find_user_button_->setIcon(svg_icon(u"search", QColor(QStringLiteral("#315A4B")), QSize(18, 18)));
@@ -2116,6 +2142,56 @@ void chat_widget::update_unread_badge()
     chats_badge_->setGeometry(std::min(chats_navigation_->width() - width, 30), 2, width, 16);
 }
 
+void chat_widget::show_emoji_picker()
+{
+    if (!can_send()) { return; }
+    static QStringList const emoji{
+        QStringLiteral("😀"), QStringLiteral("😄"), QStringLiteral("😁"), QStringLiteral("😆"), QStringLiteral("😅"),
+        QStringLiteral("😂"), QStringLiteral("🤣"), QStringLiteral("😊"), QStringLiteral("🙂"), QStringLiteral("😉"),
+        QStringLiteral("😍"), QStringLiteral("🥰"), QStringLiteral("😘"), QStringLiteral("😋"), QStringLiteral("😜"),
+        QStringLiteral("🤔"), QStringLiteral("🤗"), QStringLiteral("🤭"), QStringLiteral("😐"), QStringLiteral("🙄"),
+        QStringLiteral("😏"), QStringLiteral("😴"), QStringLiteral("😮"), QStringLiteral("😳"), QStringLiteral("🥺"),
+        QStringLiteral("😢"), QStringLiteral("😭"), QStringLiteral("😤"), QStringLiteral("😡"), QStringLiteral("😱"),
+        QStringLiteral("😎"), QStringLiteral("🤓"), QStringLiteral("👍"), QStringLiteral("👎"), QStringLiteral("👌"),
+        QStringLiteral("✌️"), QStringLiteral("👏"), QStringLiteral("🙏"), QStringLiteral("💪"), QStringLiteral("🤝"),
+        QStringLiteral("❤️"), QStringLiteral("💔"), QStringLiteral("🔥"), QStringLiteral("🎉"), QStringLiteral("✨"),
+        QStringLiteral("🌹"), QStringLiteral("☕"), QStringLiteral("🍻")};
+    auto* picker = new QFrame(this, Qt::Popup);
+    picker->setObjectName(QStringLiteral("emojiPicker"));
+    picker->setAttribute(Qt::WA_DeleteOnClose);
+    auto* grid = new QGridLayout(picker);
+    grid->setContentsMargins(8, 8, 8, 8);
+    grid->setSpacing(2);
+    constexpr int columns = 8;
+    auto font = emoji_input_font(picker->font());
+    font.setPixelSize(22);
+    for (int i = 0; i < emoji.size(); ++i)
+    {
+        auto* button = new QToolButton(picker);
+        button->setObjectName(QStringLiteral("emojiChoice"));
+        button->setText(emoji[i]);
+        button->setAccessibleName(emoji[i]);
+        button->setFont(font);
+        button->setFixedSize(38, 38);
+        button->setAutoRaise(true);
+        button->setCursor(Qt::PointingHandCursor);
+        connect(button, &QToolButton::clicked, picker, [this, picker, text = emoji[i]] {
+            if (can_send())
+            {
+                message_edit_->insertPlainText(text);
+                message_edit_->setFocus();
+            }
+            picker->close();
+        });
+        grid->addWidget(button, i / columns, i % columns);
+    }
+    picker->adjustSize();
+    // Opens above the button, right-aligned with it, like the emoji panels of Telegram and WeChat.
+    auto const anchor = emoji_button_->mapToGlobal(QPoint(emoji_button_->width(), 0));
+    picker->move(anchor.x() - picker->width(), anchor.y() - picker->height() - 6);
+    picker->show();
+}
+
 void chat_widget::show_loading_status()
 {
     set_message_status({});
@@ -2200,6 +2276,7 @@ void chat_widget::update_compose_state()
     message_edit_->setEnabled(allowed);
     send_button_->setEnabled(allowed && !message_sending_.contains(active_conversation_) && !message_edit_->toPlainText().isEmpty());
     attachment_button_->setEnabled(allowed && !attachment_sending_);
+    emoji_button_->setEnabled(allowed);
     auto hint = QStringLiteral("输入消息…");
     if (current && !current->group && !current->can_send)
     {
@@ -2295,6 +2372,7 @@ void chat_widget::open_conversation(conversation_data conversation)
         message_edit_->moveCursor(QTextCursor::End);
     }
     message_search_button_->setEnabled(connection_available_);
+    history_button_->setEnabled(connection_available_);
     chat_more_button_->setEnabled(true);
     messages_->reset(active_conversation_, active_group_);
     update_pinned_message();
@@ -2349,6 +2427,7 @@ void chat_widget::close_conversation(qint64 conversation)
     message_edit_->setEnabled(false);
     send_button_->setEnabled(false);
     message_search_button_->setEnabled(false);
+    history_button_->setEnabled(false);
     attachment_button_->setEnabled(false);
     chat_more_button_->setEnabled(false);
     set_message_status(conversations_->rowCount() == 0

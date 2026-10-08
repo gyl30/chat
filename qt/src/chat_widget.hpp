@@ -145,6 +145,7 @@ class chat_widget final : public QWidget
     void set_list_status(QString text);
     void update_unread_badge();
     void show_loading_status();
+    void show_emoji_picker();
     void update_friend_badges();
     void select_add_user(QModelIndex const& index);
     void select_conversation(QModelIndex const& index);
@@ -202,6 +203,8 @@ class chat_widget final : public QWidget
     QLabel* chats_badge_ = nullptr;
     QLineEdit* conversation_search_ = nullptr;
     QToolButton* chat_more_button_ = nullptr;
+    QToolButton* emoji_button_ = nullptr;
+    QToolButton* history_button_ = nullptr;
     QPushButton* empty_add_friend_button_ = nullptr;
     // The action awaiting its result per user, so the result can be reported in words.
     QHash<qint64, QPair<int, QString>> pending_friend_actions_;
