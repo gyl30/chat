@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QLabel>
+#include <QFont>
 #include <QSyntaxHighlighter>
 #include <QTextLayout>
 
@@ -8,6 +9,8 @@
 
 class QPainter;
 class QPlainTextEdit;
+
+QFont emoji_input_font(QFont font);
 
 QList<QTextLayout::FormatRange> emoji_formats(QString const& text, QFont const& font);
 void paint_emoji_line(QPainter& painter, QRect const& rect, QString const& text,

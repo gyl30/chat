@@ -4,6 +4,7 @@
 #include <memory>
 
 #include <QFontDatabase>
+#include <QFontInfo>
 #include <QGlyphRun>
 #include <QInputMethodEvent>
 #include <QPainter>
@@ -11,6 +12,20 @@
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTimer>
+
+QFont emoji_input_font(QFont font)
+{
+    auto const available = QFontDatabase::families();
+    auto const emoji = QStringLiteral("Noto Color Emoji");
+    if (!available.contains(emoji)) { return font; }
+    auto const primary = QFontInfo(font).family();
+    if (primary.isEmpty() || !available.contains(primary)) { return font; }
+    auto families = font.families();
+    if (families.isEmpty() || families.front() != primary) { families.prepend(primary); }
+    if (!families.contains(emoji)) { families.append(emoji); }
+    font.setFamilies(families);
+    return font;
+}
 
 QList<QTextLayout::FormatRange> emoji_formats(QString const& text, QFont const& font)
 {

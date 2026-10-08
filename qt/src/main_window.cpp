@@ -1,4 +1,5 @@
 #include "main_window.hpp"
+#include "emoji_text.hpp"
 #include "theme_manager.hpp"
 #include "emoji_segments.hpp"
 
@@ -994,6 +995,10 @@ main_window::main_window(QString server_url, QWidget* parent)
         title_bar_->refresh_theme();
         chat_page_->refresh_theme();
     });
+    username_edit_->ensurePolished();
+    username_edit_->setFont(emoji_input_font(username_edit_->font()));
+    registration_username_edit_->ensurePolished();
+    registration_username_edit_->setFont(emoji_input_font(registration_username_edit_->font()));
     (username_edit_->text().isEmpty() ? username_edit_ : password_edit_)->setFocus();
 }
 

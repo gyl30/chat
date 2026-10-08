@@ -13,6 +13,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFontDatabase>
+#include <QGlyphRun>
 #include <QHeaderView>
 #include <QImage>
 #include <QPainter>
@@ -68,6 +69,7 @@
 #include "theme.hpp"
 #include "theme_manager.hpp"
 #include "avatar.hpp"
+#include "emoji_text.hpp"
 
 void check(bool v, char const* text)
 {
@@ -301,6 +303,107 @@ void check_login_settings_save(QString const& server, QString const& username)
           "Neither successful nor failed login passwords are persisted");
     std::cout << "PASS Qt successful login persistence, failed login preservation and no stored passwords\n";
 }
+
+struct auth_shape
+{
+    qreal width = 0;
+    QList<QString> fonts;
+    QList<QList<quint32>> glyphs;
+    int visible = 0;
+};
+auth_shape auth_text_shape(QString const& text, QFont const& font)
+{
+    QTextLayout layout(text, font);
+    layout.beginLayout();
+    auto line = layout.createLine();
+    if (line.isValid()) { line.setLineWidth(1000000); }
+    layout.endLayout();
+    auth_shape value;
+    value.width = line.isValid() ? line.naturalTextWidth() : 0;
+    for (auto const& run : layout.glyphRuns())
+    {
+        value.fonts.push_back(run.rawFont().familyName());
+        value.glyphs.push_back(run.glyphIndexes());
+        for (auto glyph : run.glyphIndexes())
+        { if (!run.rawFont().boundingRect(glyph).isEmpty()) { ++value.visible; } }
+    }
+    return value;
+}
+void check_authentication_username_fonts()
+{
+    auto& themes = theme_manager::instance();
+    auto const saved_theme = themes.theme();
+    auto const saved_appearance = themes.appearance();
+    themes.set_theme(chat_theme_id::classic);
+    main_window window(QStringLiteral("ws://127.0.0.1:18769/ws"));
+    window.show();
+    window.activateWindow();
+    QApplication::processEvents();
+    auto* login = window.findChild<QLineEdit*>("loginUsernameEdit");
+    auto* registration = window.findChild<QDialog*>("registrationDialog");
+    auto* username = registration->findChild<QLineEdit*>("registrationUsernameEdit");
+    window.findChild<QPushButton*>("registerButton")->click();
+    QApplication::processEvents();
+    check(registration->isVisible(), "Username font check uses the actual registration form");
+    for (auto const& families : {QStringList{QStringLiteral("DejaVu Sans"), QStringLiteral("Noto Sans CJK JP"), QStringLiteral("Sans Serif")},
+                                 QStringList{QStringLiteral("Sans Serif"), QStringLiteral("Noto Sans CJK JP"), QStringLiteral("DejaVu Sans")}})
+    {
+        QFont configured(families);
+        configured.setPixelSize(17);
+        configured.setWeight(QFont::Medium);
+        configured.setItalic(true);
+        configured.setStretch(105);
+        configured.setLetterSpacing(QFont::AbsoluteSpacing, 0.25);
+        configured.setWordSpacing(0.5);
+        auto const changed = emoji_input_font(configured);
+        auto restored = changed;
+        restored.setFamilies(configured.families());
+        check(restored == configured, "Username emoji font changes only family preference and retains font properties");
+        auto const offset = changed.families().front() == configured.families().front() ? 0 : 1;
+        check(changed.families().mid(offset, families.size()) == families,
+              "Username emoji font preserves every configured family in its original order");
+    }
+    bool all_composed = true;
+    for (auto appearance : {chat_appearance::light, chat_appearance::dark, chat_appearance::light})
+    {
+        themes.set_appearance(appearance);
+        QApplication::processEvents();
+        for (auto* field : {login, username})
+        {
+            field->ensurePolished();
+            auto const actual = field->font();
+            check(actual.pixelSize() == (field == login ? 15 : 14),
+                  "Theme changes retain the actual login and registration username CSS sizes");
+            auto baseline = actual;
+            baseline.setFamilies(QApplication::font().families());
+            for (auto const& text : {QStringLiteral("Alice"), QStringLiteral("0123 #*"),
+                                    QStringLiteral("张三"), QStringLiteral("é")})
+            {
+                auto const before = auth_text_shape(text, baseline);
+                auto const after = auth_text_shape(text, actual);
+                check(qAbs(before.width - after.width) <= 1.0 / 64 &&
+                          before.fonts == after.fonts && before.glyphs == after.glyphs,
+                      "Username font retains same-size ordinary Latin, numeric and CJK glyphs and width");
+            }
+            if (QFontDatabase::families().contains(QStringLiteral("Noto Color Emoji")))
+            {
+                auto const astronaut = auth_text_shape(QStringLiteral("👩‍🚀"), actual);
+                bool const composed = astronaut.visible == 1 &&
+                    astronaut.fonts == QList<QString>{QStringLiteral("Noto Color Emoji")};
+                std::cout << (composed ? "PASS" : "RED") << " Qt actual " << field->objectName().toStdString()
+                          << " username astronaut visible-glyphs=" << astronaut.visible
+                          << " size=" << actual.pixelSize()
+                          << " appearance=" << (appearance == chat_appearance::dark ? "dark" : "light") << '\n';
+                all_composed = all_composed && composed;
+            }
+        }
+    }
+    registration->reject();
+    themes.set_theme(saved_theme);
+    themes.set_appearance(saved_appearance);
+    check(all_composed, "Both actual username fonts compose the literal astronaut through theme restoration");
+}
+
 
 void check_authentication_layout()
 {
@@ -3388,7 +3491,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_login_settings_restore(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
+        try { check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
