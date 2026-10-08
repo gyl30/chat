@@ -226,6 +226,8 @@ class chat_widget final : public QWidget
     bool messages_loading_ = false;
     bool history_exhausted_ = false;
     qint64 pending_locate_ = 0;
+    qint64 attachment_reply_ = 0;
+    QString attachment_reply_text_;
     int locate_pages_ = 0;
     bool connection_available_ = true;
     bool attachment_sending_ = false;

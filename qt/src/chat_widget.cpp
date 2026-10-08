@@ -730,6 +730,9 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
             return;
         }
         auto const reply = reply_to_;
+        // Kept until the result, so a failed upload can restore the reply like a failed text send keeps it.
+        attachment_reply_ = reply;
+        attachment_reply_text_ = reply_preview_->text();
         reply_to_ = 0;
         reply_bar_->hide();
         attachment_sending_ = true;
@@ -980,6 +983,7 @@ void chat_widget::set_user(QString const& username, qint64 user)
     drafts_.clear();
     message_sending_.clear();
     attachment_sending_ = false;
+    attachment_reply_ = 0;
     active_peer_ = 0;
     active_group_ = false;
     reply_to_ = 0;
@@ -1545,11 +1549,23 @@ void chat_widget::finish_message_send(qint64 user, qint64 message, qint64 timest
 void chat_widget::finish_attachment_send(qint64 conversation, QString error_message)
 {
     attachment_sending_ = false;
+    auto const reply = std::exchange(attachment_reply_, 0);
+    auto reply_text = std::exchange(attachment_reply_text_, {});
     update_compose_state();
-    if (conversation == active_conversation_)
+    if (conversation != active_conversation_) { return; }
+    if (!error_message.isEmpty() && reply > 0 && reply_to_ == 0 && can_send())
     {
-        set_message_status(std::move(error_message));
+        for (int row = 0; row < messages_->rowCount(); ++row)
+        {
+            auto const index = messages_->index(row, 0);
+            if (index.data(message_model::id_role).toLongLong() != reply || index.data(message_model::deleted_role).toBool()) { continue; }
+            reply_to_ = reply;
+            reply_preview_->setText(std::move(reply_text));
+            reply_bar_->show();
+            break;
+        }
     }
+    set_message_status(std::move(error_message));
 }
 
 void chat_widget::set_message_error(qint64 user, QString message)
@@ -1851,6 +1867,7 @@ void chat_widget::close_conversation(qint64 conversation)
     active_member_count_ = 0;
     active_username_.clear();
     attachment_sending_ = false;
+    attachment_reply_ = 0;
     messages_loaded_ = false;
     messages_loading_ = false;
     history_exhausted_ = false;
