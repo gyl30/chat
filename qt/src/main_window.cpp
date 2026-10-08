@@ -1,4 +1,5 @@
 #include "main_window.hpp"
+#include "theme_manager.hpp"
 #include "emoji_segments.hpp"
 
 #include <algorithm>
@@ -972,6 +973,15 @@ main_window::main_window(QString server_url, QWidget* parent)
             },
             Qt::AutoConnection);
     update_window_chrome();
+    connect(&theme_manager::instance(), &theme_manager::changed, this, [this] {
+        setStyleSheet(chat_style_sheet());
+        server_settings_->setIcon(svg_icon(u"settings", QColor(QStringLiteral("#5D6C64"))));
+        recent_accounts_action_->setIcon(svg_icon(u"chevron-down", QColor(QStringLiteral("#5D6C64")), QSize(18, 18)));
+        tray_->setIcon(svg_icon(u"chat", QColor(QStringLiteral("#365E4B")), QSize(32, 32)));
+        update_login_identity();
+        title_bar_->refresh_theme();
+        chat_page_->refresh_theme();
+    });
     (username_edit_->text().isEmpty() ? username_edit_ : password_edit_)->setFocus();
 }
 

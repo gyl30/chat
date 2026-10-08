@@ -1,4 +1,5 @@
 #include "theme.hpp"
+#include "theme_manager.hpp"
 #include <QAbstractButton>
 #include <QAccessibleObject>
 #include <QApplication>
@@ -97,7 +98,11 @@ void show_notice(QWidget* parent, QString const& title, QString const& text, QSt
     dialog.exec();
 }
 
-QString chat_style_sheet()
+namespace
+{
+
+// Written in the classic palette; theme_manager maps every color to the active theme.
+QString classic_style_sheet()
 {
     return QStringLiteral(R"(
         QMainWindow {
@@ -697,6 +702,36 @@ QString chat_style_sheet()
             color: #5D6C64;
             font-size: 13px;
         }
+        QLabel#profileSectionTitle {
+            color: #27362F;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        QLabel#themeLockedHint {
+            color: #8B918D;
+            font-size: 12px;
+        }
+        QComboBox {
+            min-height: 34px;
+            padding: 0 10px;
+            background: #FFFFFF;
+            color: #27332E;
+            border: 1px solid #DDD9D0;
+            border-radius: 8px;
+        }
+        QComboBox:focus {
+            border-color: #547C68;
+        }
+        QComboBox:disabled {
+            color: #96A29C;
+            background: #F0EFEC;
+        }
+        QComboBox QAbstractItemView {
+            background: #FFFFFF;
+            color: #27332E;
+            selection-background-color: #E7EEE9;
+            selection-color: #27332E;
+        }
         QStackedWidget#contactDetail, QWidget#contactCard, QLabel#contactDetailPlaceholder {
             background: #F7F5EF;
         }
@@ -886,3 +921,7 @@ QString chat_style_sheet()
         }
     )");
 }
+
+}    // namespace
+
+QString chat_style_sheet() { return theme_manager::instance().style_sheet(classic_style_sheet()); }

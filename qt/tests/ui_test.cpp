@@ -64,6 +64,7 @@
 #include "user_delegate.hpp"
 #include "message_delegate.hpp"
 #include "theme.hpp"
+#include "theme_manager.hpp"
 #include "avatar.hpp"
 
 void check(bool v, char const* text)
@@ -1964,6 +1965,85 @@ void check_image_preview_resolution()
     check(image->pixmap().width() > 640 && image->pixmap().width() <= 1600,
           "Image preview shows the original resolution rather than the 640x480 bubble thumbnail");
 }
+void check_themes()
+{
+    auto& themes = theme_manager::instance();
+    check(themes.theme() == chat_theme_id::classic && !themes.dark(), "Tests start from the classic light theme");
+    auto const classic = chat_style_sheet();
+    check(classic.contains(QStringLiteral("#315A4B")) && classic.contains(QStringLiteral("#F7F5EF")),
+          "The classic theme keeps the original palette exactly");
+    auto const shots = qEnvironmentVariable("CHAT_THEME_SHOTS");
+    auto render = [&](QString const& name) {
+        chat_widget page;
+        page.setStyleSheet(chat_style_sheet());
+        page.resize(1180, 720);
+        page.set_user(QStringLiteral("本人"), 1);
+        page.set_connection_available(true);
+        page.set_contacts({{2, QStringLiteral("朋友"), false, 0, {}}});
+        conversation_data direct;
+        direct.id = 50; direct.user = 2; direct.username = QStringLiteral("朋友"); direct.can_send = true; direct.unread = 2;
+        direct.last_text = QStringLiteral("晚上一起吃饭吗？"); direct.last_id = 7; direct.last_from = 2; direct.last_timestamp = 1791427200000;
+        conversation_data group = direct;
+        group.id = 51; group.group = true; group.user = 0; group.username = QStringLiteral("周末徒步群"); group.member_count = 5;
+        page.set_conversations({direct, group});
+        page.open_conversation(direct);
+        message_data incoming;
+        incoming.id = 7; incoming.conversation = 50; incoming.from = 2; incoming.username = QStringLiteral("朋友");
+        incoming.text = QStringLiteral("晚上一起吃饭吗？看看 https://example.com"); incoming.timestamp = 1791427200000;
+        auto outgoing = incoming;
+        outgoing.id = 8; outgoing.from = 1; outgoing.username = QStringLiteral("本人"); outgoing.text = QStringLiteral("好啊，七点见 🙂");
+        page.set_messages(50, {incoming, outgoing}, {{1, 8}, {2, 8}}, false, false, false);
+        page.show();
+        QApplication::processEvents();
+        auto const image = page.grab().toImage();
+        if (!shots.isEmpty()) { image.save(shots + QStringLiteral("/theme-") + name + QStringLiteral(".png")); }
+        return image.pixelColor(image.width() - 40, image.height() / 2);
+    };
+    check(render(QStringLiteral("classic")).lightness() > 200, "Classic chat background is light");
+    for (auto const& info : theme_manager::themes())
+    {
+        themes.set_theme(info.id);
+        auto const background = render(info.key);
+        check(background.lightness() > 200, "Every light theme renders a light chat background");
+        if (info.id != chat_theme_id::classic)
+        {
+            check(chat_style_sheet() != classic && !chat_style_sheet().contains(QStringLiteral("#315A4B")),
+                  "Other themes replace the classic accent");
+        }
+    }
+    themes.set_theme(chat_theme_id::paper);
+    themes.set_appearance(chat_appearance::dark);
+    auto const night = render(QStringLiteral("night"));
+    check(themes.dark() && night.lightness() < 60, "Night mode renders a dark chat background");
+    auto const night_sheet = chat_style_sheet();
+    themes.set_theme(chat_theme_id::terminal);
+    check(chat_style_sheet() == night_sheet, "In night mode the chosen theme cannot change the night theme");
+    {
+        chat_widget page;
+        page.set_user(QStringLiteral("本人"), 1);
+        page.set_connection_available(true);
+        page.show();
+        bool inspected = false;
+        QTimer::singleShot(0, &page, [&] {
+            auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+            check(dialog && dialog->objectName() == QStringLiteral("profileDialog"), "Own profile opens");
+            auto* theme = dialog->findChild<QComboBox*>("themeCombo");
+            auto* mode = dialog->findChild<QComboBox*>("appearanceModeCombo");
+            check(theme && mode && !theme->isEnabled() && dialog->findChild<QLabel*>("themeLockedHint")->isVisibleTo(dialog),
+                  "Night mode locks the theme choice and says why");
+            mode->setCurrentIndex(mode->findData(static_cast<int>(chat_appearance::light)));
+            check(theme->isEnabled() && !themes.dark(), "Light mode unlocks the theme choice");
+            inspected = true;
+            dialog->reject();
+        });
+        page.findChild<QToolButton*>("profileAvatar")->click();
+        check(inspected, "Appearance settings were inspected in the real profile dialog");
+    }
+    check(themes.theme() == chat_theme_id::terminal && chat_style_sheet().contains(QStringLiteral("monospace")),
+          "Leaving night mode restores the theme chosen meanwhile");
+    themes.set_theme(chat_theme_id::classic);
+    check(chat_style_sheet() == classic, "Returning to classic restores the original stylesheet");
+}
 void check_message_action_targets()
 {
     // Real menus and dialogs, without a server: older history resets the model
@@ -2942,7 +3022,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); return 0; }
+        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;

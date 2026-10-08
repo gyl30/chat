@@ -1,4 +1,5 @@
 #include "message_delegate.hpp"
+#include "theme_manager.hpp"
 
 #include <algorithm>
 #include <memory>
@@ -243,7 +244,7 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
             {
                 auto const match = matches.next();
                 QTextCharFormat format;
-                format.setForeground(QColor(QStringLiteral("#277399")));
+                format.setForeground(themed("#277399"));
                 formats.push_back({static_cast<int>(match.capturedStart()), static_cast<int>(match.capturedLength()), format});
             }
         }
@@ -351,7 +352,7 @@ QPainterPath rounded_path(QRectF const& rect, qreal top_left, qreal top_right, q
 
 void paint_receipt(QPainter& painter, QRect const& rect, bool read)
 {
-    auto pen = QPen(read ? QColor(QStringLiteral("#4C876C")) : QColor(QStringLiteral("#6E8877")));
+    auto pen = QPen(read ? themed("#4C876C") : themed("#6E8877"));
     pen.setWidthF(1.4);
     pen.setCapStyle(Qt::RoundCap);
     pen.setJoinStyle(Qt::RoundJoin);
@@ -448,11 +449,11 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
                    width,
                    chat_theme::message_date_height);
         painter->setPen(Qt::NoPen);
-        painter->setBrush(QColor(88, 106, 97, 30));
+        painter->setBrush(themed(QColor(88, 106, 97, 30)));
         painter->drawRoundedRect(pill, chat_theme::message_date_height / 2.0,
                                  chat_theme::message_date_height / 2.0);
         painter->setFont(font);
-        painter->setPen(QColor(QStringLiteral("#6E7A74")));
+        painter->setPen(themed("#6E7A74"));
         painter->drawText(pill, Qt::AlignCenter, label);
         y += layout.day_height;
     }
@@ -477,8 +478,8 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
 
     painter->setPen(Qt::NoPen);
     painter->setBrush(layout.outgoing
-                          ? QColor(QStringLiteral("#D6EAD9"))
-                          : QColor(QStringLiteral("#FFFFFF")));
+                          ? themed("#D6EAD9")
+                          : themed("#FFFFFF"));
     painter->drawPath(bubble_path(bubble, layout.outgoing, layout.group_start, layout.group_end));
 
     auto content_top = bubble.top() + chat_theme::message_padding_vertical;
@@ -489,7 +490,7 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     {
         auto const font = name_font(option);
         painter->setFont(font);
-        painter->setPen(QColor(QStringLiteral("#315A4B")));
+        painter->setPen(themed("#315A4B"));
         QRect name_rect(content_left, content_top, content_right - content_left, QFontMetrics(font).height());
         painter->drawText(name_rect, Qt::AlignLeft | Qt::AlignVCenter,
                           QFontMetrics(font).elidedText(layout.sender, Qt::ElideRight, name_rect.width()));
@@ -501,7 +502,7 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     {
         QRect frame(content_left, content_top, layout.image_width, layout.image_height - 8);
         painter->setPen(Qt::NoPen);
-        painter->setBrush(QColor(QStringLiteral("#EDF1EE")));
+        painter->setBrush(themed("#EDF1EE"));
         painter->drawRoundedRect(frame, 8, 8);
         if (!layout.image.isNull())
         {
@@ -513,12 +514,12 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
         }
         else
         {
-            painter->setPen(QColor(QStringLiteral("#6E7A74")));
+            painter->setPen(themed("#6E7A74"));
             painter->drawText(frame.adjusted(12, 8, -12, -8), Qt::AlignCenter | Qt::TextWordWrap, layout.image_status);
         }
         content_top += layout.image_height;
     }
-    painter->setPen(QColor(QStringLiteral("#26342E")));
+    painter->setPen(themed("#26342E"));
     auto const metadata_width = layout.time_width
         + ((layout.time_width > 0 && layout.receipt_width > 0) ? 3 : 0)
         + layout.receipt_width;
@@ -541,8 +542,8 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
             auto const font = time_font(option);
             painter->setFont(font);
             painter->setPen(layout.outgoing
-                                ? QColor(QStringLiteral("#6E8877"))
-                                : QColor(QStringLiteral("#89918D")));
+                                ? themed("#6E8877")
+                                : themed("#89918D"));
             QRect time_rect(metadata_x, metadata_y, layout.time_width, layout.time_height);
             painter->drawText(time_rect, Qt::AlignRight | Qt::AlignVCenter, layout.time);
             metadata_x += layout.time_width;
@@ -567,9 +568,9 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
             bubble.bottom() + 1 - chat_theme::message_padding_vertical - layout.reactions_height);
         auto const mine = reaction.emoji == own_reaction;
         painter->setPen(Qt::NoPen);
-        painter->setBrush(QColor(mine ? QStringLiteral("#A8D6BD") : QStringLiteral("#E8F0EB")));
+        painter->setBrush(themed(QColor(mine ? QStringLiteral("#A8D6BD") : QStringLiteral("#E8F0EB"))));
         painter->drawRoundedRect(rect, 10, 10);
-        painter->setPen(QColor(QStringLiteral("#315A4B")));
+        painter->setPen(themed("#315A4B"));
         painter->drawText(rect, Qt::AlignCenter, reaction.emoji + QStringLiteral(" %1").arg(reaction.users.size()));
     }
 
@@ -579,7 +580,7 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
          (option.state & QStyle::State_Selected)))
     {
         auto const focused = option.state & QStyle::State_HasFocus;
-        painter->setPen(QPen(QColor(focused ? QStringLiteral("#547C68") : QStringLiteral("#A9B8B1")),
+        painter->setPen(QPen(themed(QColor(focused ? QStringLiteral("#547C68") : QStringLiteral("#A9B8B1"))),
                              focused ? 2 : 1));
         painter->setBrush(Qt::NoBrush);
         painter->drawRoundedRect(option.rect.adjusted(2, 2, -3, -3), 4, 4);

@@ -1,4 +1,5 @@
 #include "icons.hpp"
+#include "theme_manager.hpp"
 
 #include <QByteArray>
 #include <QFile>
@@ -15,7 +16,9 @@ QIcon svg_icon(QStringView name, QColor const& color, QSize size)
     }
 
     auto data = file.readAll();
-    data.replace("currentColor", color.name().toUtf8());
+    // White marks an icon drawn on an accent or navigation ground.
+    auto const ink = color == QColor(Qt::white) ? theme_manager::instance().on_accent() : themed(color);
+    data.replace("currentColor", ink.name().toUtf8());
     QSvgRenderer renderer(data);
     if (!renderer.isValid())
     {

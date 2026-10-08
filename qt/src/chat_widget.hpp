@@ -51,6 +51,7 @@ class chat_widget final : public QWidget
     void open_conversation(conversation_data conversation);
     void close_conversation(qint64 conversation);
     void locate_message(qint64 conversation, qint64 message);
+    void refresh_theme();
     void set_members(qint64 conversation, QList<member_data> members, QString const& error);
     void set_loading();
     void set_error(QString message);
@@ -176,6 +177,8 @@ class chat_widget final : public QWidget
     QListView* conversations_view_ = nullptr;
     QLabel* conversations_status_ = nullptr;
     QStackedWidget* right_pages_ = nullptr;
+    QLabel* contact_placeholder_ = nullptr;
+    QToolButton* cancel_reply_button_ = nullptr;
     QStackedWidget* contact_detail_ = nullptr;
     QLabel* contact_card_avatar_ = nullptr;
     QLabel* contact_card_name_ = nullptr;

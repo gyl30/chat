@@ -1,4 +1,5 @@
 #include "avatar.hpp"
+#include "theme_manager.hpp"
 
 #include <array>
 #include <algorithm>
@@ -26,7 +27,8 @@ QColor avatar_background(QString const& username)
         "#E9E6D7",
         "#DCE8E8",
     };
-    return QColor(QString::fromLatin1(palette[qHash(username.trimmed()) % palette.size()]));
+    return theme_manager::instance().avatar_background(
+        QColor(QString::fromLatin1(palette[qHash(username.trimmed()) % palette.size()])));
 }
 
 void paint_avatar(QPainter& painter, QRect const& rect, QString const& username, int font_size, QPixmap const& image)
@@ -52,7 +54,7 @@ void paint_avatar(QPainter& painter, QRect const& rect, QString const& username,
     font.setBold(true);
     font.setPixelSize(font_size > 0 ? font_size : rect.height() * 9 / 22);
     painter.setFont(font);
-    painter.setPen(QColor(QStringLiteral("#315A4B")));
+    painter.setPen(theme_manager::instance().avatar_text());
     painter.drawText(rect, Qt::AlignCenter, avatar_initial(username));
     painter.restore();
 }

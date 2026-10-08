@@ -17,6 +17,7 @@ class title_bar final : public QWidget
     void set_title_visible(bool visible);
     void set_maximizable(bool maximizable);
     void add_tool_button(QToolButton* button);
+    void refresh_theme();
 
    protected:
     void mousePressEvent(QMouseEvent* event) override;

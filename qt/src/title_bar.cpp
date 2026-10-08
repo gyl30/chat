@@ -1,4 +1,5 @@
 #include "title_bar.hpp"
+#include "theme_manager.hpp"
 
 #include <QEvent>
 #include <QHBoxLayout>
@@ -62,6 +63,14 @@ void title_bar::add_tool_button(QToolButton* button)
     button->setFixedSize(46, 34);
     auto* row = static_cast<QHBoxLayout*>(layout());
     row->insertWidget(row->indexOf(minimize_), button);
+}
+
+void title_bar::refresh_theme()
+{
+    QColor const icon_color(QStringLiteral("#3F4542"));
+    minimize_->setIcon(svg_icon(u"window-minimize", icon_color, QSize(18, 18)));
+    close_->setIcon(svg_icon(u"close", icon_color, QSize(18, 18)));
+    update_maximize_button();
 }
 
 void title_bar::set_title_visible(bool visible) { title_->setVisible(visible); }

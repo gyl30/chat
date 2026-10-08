@@ -1,4 +1,5 @@
 #include "conversation_delegate.hpp"
+#include "theme_manager.hpp"
 
 #include <algorithm>
 
@@ -54,11 +55,11 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     auto const rect = option.rect;
     if (option.state & QStyle::State_Selected)
     {
-        painter->fillRect(rect, QColor(QStringLiteral("#E7EEE9")));
+        painter->fillRect(rect, themed("#E7EEE9"));
     }
     else if (option.state & QStyle::State_MouseOver)
     {
-        painter->fillRect(rect, QColor(QStringLiteral("#F1F3EF")));
+        painter->fillRect(rect, themed("#F1F3EF"));
     }
 
     auto const username = index.data(conversation_model::username_role).toString();
@@ -75,8 +76,8 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     paint_avatar(*painter, avatar_rect, group ? QStringLiteral("群") : username, 17, index.data(Qt::DecorationRole).value<QPixmap>());
     if (online)
     {
-        painter->setPen(QPen(QColor(QStringLiteral("#FCFBF7")), 2));
-        painter->setBrush(QColor(QStringLiteral("#4F8A70")));
+        painter->setPen(QPen(themed("#FCFBF7"), 2));
+        painter->setBrush(themed("#4F8A70"));
         painter->drawEllipse(QPointF(avatar_rect.right() - 3, avatar_rect.bottom() - 3), 5, 5);
     }
 
@@ -90,7 +91,7 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     auto const date_width = date.isEmpty() ? 0 : QFontMetrics(date_font).horizontalAdvance(date);
     if (!date.isEmpty())
     {
-        painter->setPen(QColor(QStringLiteral("#8C948F")));
+        painter->setPen(themed("#8C948F"));
         QRect date_rect(content_right - date_width, rect.top() + chat_theme::dialog_name_top, date_width,
                         QFontMetrics(date_font).height());
         painter->drawText(date_rect, Qt::AlignRight | Qt::AlignVCenter, date);
@@ -100,31 +101,31 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     username_font.setBold(true);
     username_font.setPixelSize(14);
     painter->setFont(username_font);
-    painter->setPen(QColor(QStringLiteral("#25332D")));
+    painter->setPen(themed("#25332D"));
     auto name_right = content_right - (date_width > 0 ? date_width + 8 : 0);
     if (muted || pinned)
     {
         auto const label = muted && pinned ? QStringLiteral("置顶 静音") :
                            pinned ? QStringLiteral("置顶") : QStringLiteral("静音");
         painter->setFont(date_font);
-        painter->setPen(QColor(QStringLiteral("#8C948F")));
+        painter->setPen(themed("#8C948F"));
         auto const label_width = QFontMetrics(date_font).horizontalAdvance(label);
         painter->drawText(QRect(name_right - label_width, rect.top() + chat_theme::dialog_name_top,
                                 label_width, QFontMetrics(date_font).height()), Qt::AlignVCenter, label);
         name_right -= label_width + 8;
         painter->setFont(username_font);
-        painter->setPen(QColor(QStringLiteral("#25332D")));
+        painter->setPen(themed("#25332D"));
     }
     QRect username_rect(content_left, rect.top() + chat_theme::dialog_name_top,
                         std::max(0, name_right - content_left), QFontMetrics(username_font).height());
     auto const name_padding = std::max(0, (chat_theme::dialog_preview_top - chat_theme::dialog_name_top - username_rect.height()) / 2);
     username_rect.adjust(0, -name_padding, 0, name_padding);
-    paint_emoji_line(*painter, username_rect, username, username_font, QColor(QStringLiteral("#25332D")));
+    paint_emoji_line(*painter, username_rect, username, username_font, themed("#25332D"));
 
     QFont preview_font = option.font;
     preview_font.setPixelSize(13);
     painter->setFont(preview_font);
-    painter->setPen(QColor(QStringLiteral("#858D88")));
+    painter->setPen(themed("#858D88"));
 
     auto badge_width = 0;
     QString badge_text;
@@ -144,7 +145,7 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     auto const preview_padding = std::max(0, (chat_theme::dialog_row_height - chat_theme::dialog_preview_top -
                                              chat_theme::dialog_avatar_top - preview_rect.height()) / 2);
     preview_rect.adjust(0, -preview_padding, 0, preview_padding);
-    paint_emoji_line(*painter, preview_rect, last_text, preview_font, QColor(QStringLiteral("#858D88")));
+    paint_emoji_line(*painter, preview_rect, last_text, preview_font, themed("#858D88"));
 
     if (unread > 0)
     {
@@ -157,10 +158,10 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
                          badge_width,
                          chat_theme::dialog_unread_height);
         painter->setPen(Qt::NoPen);
-        painter->setBrush(QColor(QStringLiteral("#315A4B")));
+        painter->setBrush(themed("#315A4B"));
         painter->drawRoundedRect(badge_rect, chat_theme::dialog_unread_height / 2.0,
                                  chat_theme::dialog_unread_height / 2.0);
-        painter->setPen(QColor(QStringLiteral("#FFFFFF")));
+        painter->setPen(theme_manager::instance().on_accent());
         painter->drawText(badge_rect, Qt::AlignCenter, badge_text);
     }
 

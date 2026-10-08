@@ -39,6 +39,8 @@ add_library(chat_qt_widgets OBJECT
     src/presence_data.hpp
     src/theme.cpp
     src/theme.hpp
+    src/theme_manager.cpp
+    src/theme_manager.hpp
     src/title_bar.cpp
     src/title_bar.hpp
     src/user_data.hpp

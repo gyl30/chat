@@ -1,4 +1,5 @@
 #include "user_delegate.hpp"
+#include "theme_manager.hpp"
 
 #include <QFont>
 #include <QFontMetrics>
@@ -36,11 +37,11 @@ void user_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option,
     auto const rect = option.rect;
     if (option.state & QStyle::State_Selected)
     {
-        painter->fillRect(rect, QColor(QStringLiteral("#E7EEE9")));
+        painter->fillRect(rect, themed("#E7EEE9"));
     }
     else if (option.state & QStyle::State_MouseOver)
     {
-        painter->fillRect(rect, QColor(QStringLiteral("#F1F3EF")));
+        painter->fillRect(rect, themed("#F1F3EF"));
     }
 
     auto const username = index.data(Qt::DisplayRole).toString();
@@ -57,7 +58,7 @@ void user_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option,
     username_font.setBold(true);
     username_font.setPixelSize(14);
     painter->setFont(username_font);
-    painter->setPen(QColor(QStringLiteral("#25332D")));
+    painter->setPen(themed("#25332D"));
     QRect username_rect(left, rect.top() + chat_theme::dialog_name_top, right - left,
                         QFontMetrics(username_font).height());
     painter->drawText(username_rect, Qt::AlignLeft | Qt::AlignVCenter,
@@ -70,8 +71,8 @@ void user_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option,
         QFont status_font = option.font;
         status_font.setPixelSize(13);
         painter->setFont(status_font);
-        painter->setPen(QColor(request_status.isValid() ? QStringLiteral("#5D6C64")
-            : online ? QStringLiteral("#4F8A70") : QStringLiteral("#858D88")));
+        painter->setPen(themed(QColor(request_status.isValid() ? QStringLiteral("#5D6C64")
+            : online ? QStringLiteral("#4F8A70") : QStringLiteral("#858D88"))));
         QRect status_rect(left, rect.top() + chat_theme::dialog_preview_top, right - left,
                           QFontMetrics(status_font).height());
         painter->drawText(status_rect, Qt::AlignLeft | Qt::AlignVCenter,
@@ -80,7 +81,7 @@ void user_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option,
 
     if (option.state & QStyle::State_HasFocus)
     {
-        painter->setPen(QColor(QStringLiteral("#547C68")));
+        painter->setPen(themed("#547C68"));
         painter->setBrush(Qt::NoBrush);
         painter->drawRoundedRect(rect.adjusted(1, 1, -2, -2), 4, 4);
     }

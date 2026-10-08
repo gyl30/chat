@@ -1,4 +1,5 @@
 #include "chat_widget.hpp"
+#include "theme_manager.hpp"
 #include <chat/text.hpp>
 
 #include <utility>
@@ -8,6 +9,7 @@
 #include <QAbstractTextDocumentLayout>
 #include <QApplication>
 #include <QClipboard>
+#include <QComboBox>
 #include <QColor>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -113,7 +115,7 @@ QToolButton* make_navigation_button(
     button->setToolButtonStyle(Qt::ToolButtonIconOnly);
     button->setIcon(svg_icon(
         icon,
-        selected ? QColor(QStringLiteral("#FFFFFF")) : QColor(QStringLiteral("#C4D2CB")),
+        selected ? QColor(Qt::white) : QColor(QStringLiteral("#C4D2CB")),
         QSize(24, 24)));
     button->setIconSize(QSize(24, 24));
     button->setEnabled(enabled);
@@ -126,7 +128,7 @@ void set_navigation_button(QToolButton* button, QStringView icon, bool selected)
 {
     button->setObjectName(selected ? QStringLiteral("navigationSelected") : QStringLiteral("navigationButton"));
     button->setIcon(svg_icon(
-        icon, selected ? QColor(QStringLiteral("#FFFFFF")) : QColor(QStringLiteral("#C4D2CB")), QSize(24, 24)));
+        icon, selected ? QColor(Qt::white) : QColor(QStringLiteral("#C4D2CB")), QSize(24, 24)));
     button->style()->unpolish(button);
     button->style()->polish(button);
 }
@@ -498,6 +500,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     reply_preview_ = new emoji_label(reply_bar_);
     reply_preview_->setObjectName(QStringLiteral("replyPreview"));
     auto* cancel_reply = new QToolButton(reply_bar_);
+    cancel_reply_button_ = cancel_reply;
     cancel_reply->setObjectName(QStringLiteral("cancelReplyButton"));
     cancel_reply->setAccessibleName(QStringLiteral("取消回复"));
     cancel_reply->setToolTip(QStringLiteral("取消回复"));
@@ -766,6 +769,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     contact_detail_ = new QStackedWidget(right_pages_);
     contact_detail_->setObjectName(QStringLiteral("contactDetail"));
     auto* contact_placeholder = new QLabel(contact_detail_);
+    contact_placeholder_ = contact_placeholder;
     contact_placeholder->setObjectName(QStringLiteral("contactDetailPlaceholder"));
     contact_placeholder->setAlignment(Qt::AlignCenter);
     contact_placeholder->setPixmap(svg_icon(u"contacts", QColor(QStringLiteral("#D6D2C8")), QSize(72, 72)).pixmap(72, 72));
@@ -1759,6 +1763,21 @@ void chat_widget::select_contact(QModelIndex const& index)
     }
 }
 
+void chat_widget::refresh_theme()
+{
+    auto const chats = sidebar_pages_->currentIndex() == 0 ||
+        (sidebar_pages_->currentIndex() == 2 && add_friend_parent_ == sidebar_parent::chats);
+    set_navigation_button(chats_navigation_, QStringLiteral("chat"), chats);
+    set_navigation_button(contacts_navigation_, QStringLiteral("contacts"), !chats);
+    cancel_reply_button_->setIcon(svg_icon(QStringLiteral("close"), QColor(QStringLiteral("#3F4542")), QSize(20, 20)));
+    send_button_->setIcon(svg_icon(QStringLiteral("send"), QColor(QStringLiteral("#315A4B")), QSize(22, 22)));
+    contact_placeholder_->setPixmap(svg_icon(u"contacts", QColor(QStringLiteral("#D6D2C8")), QSize(72, 72)).pixmap(72, 72));
+    profile_avatar_->setIcon(avatar_icon(profile_avatar_->toolTip(), 44, avatars_.image(self_user_)));
+    if (active_conversation_ > 0) { update_chat_header(active_username_); }
+    update_contact_card();
+    for (auto* view : findChildren<QAbstractItemView*>()) { view->viewport()->update(); }
+}
+
 void chat_widget::show_contact_card(qint64 user, QString const& username)
 {
     contact_card_user_ = user;
@@ -2461,7 +2480,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
     };
     auto* message_button = make_action(QStringLiteral("消息"), QStringLiteral("chat"), QColor(Qt::white));
     message_button->setProperty("primary", true);
-    auto* copy_username_button = make_action(QStringLiteral("复制用户名"), QStringLiteral("copy"), QColor(QStringLiteral("#315A4B")));
+    auto* copy_username_button = make_action(QStringLiteral("复制用户名"), QStringLiteral("copy"), themed("#315A4B"));
     actions->addWidget(message_button);
     actions->addWidget(copy_username_button);
     actions->addStretch();
@@ -2556,6 +2575,8 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
     if (user == self_user_)
     {
         message_button->hide();
+        // Relationship status only concerns other people; an empty row would only cost height.
+        contact_status->hide();
         auto* change = new QPushButton(QStringLiteral("更换头像"), info);
         change->setObjectName(QStringLiteral("changeAvatarButton"));
         auto* remove = new QPushButton(QStringLiteral("移除头像"), info);
@@ -2570,12 +2591,13 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
             change->setEnabled(connection_available_ && !avatar_updating_);
             remove->setEnabled(connection_available_ && !avatar_updating_ && avatars_.state(user).present);
             if (avatar_updating_) { status->setText(QStringLiteral("正在更新头像…")); }
+            status->setVisible(!status->text().isEmpty());
         };
         update();
         connect(&avatars_, &avatar_cache::changed, &dialog, [update](qint64) { update(); });
         connect(this, &chat_widget::avatar_update_finished, &dialog, [status, update](QString error) {
-            update();
             status->setText(error);
+            update();
         });
         connect(change, &QPushButton::clicked, &dialog, [this, &dialog, status, update] {
             auto const path = QFileDialog::getOpenFileName(&dialog, QStringLiteral("更换头像"), {},
@@ -2584,13 +2606,13 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
             QFile file(path);
             if (!file.open(QIODevice::ReadOnly) || file.size() > static_cast<qint64>(chat::max_avatar_size))
             {
-                status->setText(QStringLiteral("无法读取图片，头像文件不得超过 1 MiB。"));
+                status->setText(QStringLiteral("无法读取图片，头像文件不得超过 1 MiB。")); status->show();
                 return;
             }
             auto bytes = file.readAll();
             if (decode_avatar(bytes).isNull())
             {
-                status->setText(QStringLiteral("请选择完整的 PNG 或 JPEG 图片，最多 1600 万像素。"));
+                status->setText(QStringLiteral("请选择完整的 PNG 或 JPEG 图片，最多 1600 万像素。")); status->show();
                 return;
             }
             avatar_updating_ = true;
@@ -2602,6 +2624,50 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
             update();
             emit avatar_clear_requested();
         });
+        auto& themes = theme_manager::instance();
+        auto* appearance_row = new QHBoxLayout;
+        appearance_row->setSpacing(8);
+        auto* mode = new QComboBox(info);
+        mode->setObjectName(QStringLiteral("appearanceModeCombo"));
+        mode->setAccessibleName(QStringLiteral("外观模式"));
+        mode->addItem(QStringLiteral("跟随系统"), static_cast<int>(chat_appearance::system));
+        mode->addItem(QStringLiteral("浅色"), static_cast<int>(chat_appearance::light));
+        mode->addItem(QStringLiteral("夜间"), static_cast<int>(chat_appearance::dark));
+        mode->setCurrentIndex(mode->findData(static_cast<int>(themes.appearance())));
+        auto* theme = new QComboBox(info);
+        theme->setObjectName(QStringLiteral("themeCombo"));
+        theme->setAccessibleName(QStringLiteral("主题"));
+        for (auto const& item : theme_manager::themes()) { theme->addItem(item.name, static_cast<int>(item.id)); }
+        theme->setCurrentIndex(theme->findData(static_cast<int>(themes.theme())));
+        auto* mode_label = new QLabel(QStringLiteral("外观"), info);
+        mode_label->setObjectName(QStringLiteral("profileSectionTitle"));
+        mode_label->setBuddy(mode);
+        auto* theme_label = new QLabel(QStringLiteral("主题"), info);
+        theme_label->setObjectName(QStringLiteral("profileSectionTitle"));
+        theme_label->setBuddy(theme);
+        appearance_row->addWidget(mode_label);
+        appearance_row->addWidget(mode, 1);
+        appearance_row->addSpacing(8);
+        appearance_row->addWidget(theme_label);
+        appearance_row->addWidget(theme, 1);
+        info_layout->addLayout(appearance_row);
+        auto* theme_hint = new QLabel(QStringLiteral("夜间模式下固定使用夜间主题"), info);
+        theme_hint->setObjectName(QStringLiteral("themeLockedHint"));
+        info_layout->addWidget(theme_hint);
+        // Night mode has a single theme of its own, so the theme choice waits for light mode.
+        auto update_theme_lock = [theme, theme_hint] {
+            auto const night = theme_manager::instance().dark();
+            theme->setEnabled(!night);
+            theme_hint->setVisible(night);
+        };
+        update_theme_lock();
+        connect(mode, &QComboBox::currentIndexChanged, &dialog, [mode](int) {
+            theme_manager::instance().set_appearance(static_cast<chat_appearance>(mode->currentData().toInt()));
+        });
+        connect(theme, &QComboBox::currentIndexChanged, &dialog, [theme](int) {
+            theme_manager::instance().set_theme(static_cast<chat_theme_id>(theme->currentData().toInt()));
+        });
+        connect(&themes, &theme_manager::changed, &dialog, update_theme_lock);
         auto* logout = new QPushButton(QStringLiteral("退出登录"), info);
         logout->setObjectName(QStringLiteral("profileLogoutButton"));
         info_layout->addWidget(logout);
