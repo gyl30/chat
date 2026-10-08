@@ -1158,7 +1158,7 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
     {
         conversations_->set_online(item.user, item.online);
     }
-    if (previous_user > 0 && active_group_ && !conversations_->index_for_conversation(previous_user).isValid())
+    if (previous_user > 0 && !conversations_->index_for_conversation(previous_user).isValid())
     {
         close_conversation(previous_user);
     }

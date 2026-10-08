@@ -100,7 +100,11 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
             SELECT c.*, own.last_read_message_id, own.joined_message_id, own.muted, own.pinned,
                    CASE WHEN c.direct_user_low=$1::bigint THEN c.direct_user_high ELSE c.direct_user_low END AS peer
             FROM conversations c JOIN conversation_members own ON own.conversation_id=c.id
-            WHERE own.user_id=$1::bigint AND (own.pinned,c.activity,c.id)<($4::boolean,$2::bigint,$3::bigint)
+            WHERE own.user_id=$1::bigint
+              AND (c.kind='group' OR EXISTS(SELECT 1 FROM contacts
+                  WHERE owner_id=$1::bigint AND contact_id=
+                      CASE WHEN c.direct_user_low=$1::bigint THEN c.direct_user_high ELSE c.direct_user_low END))
+              AND (own.pinned,c.activity,c.id)<($4::boolean,$2::bigint,$3::bigint)
             ORDER BY own.pinned DESC,c.activity DESC,c.id DESC LIMIT 51
         ), visible AS (SELECT * FROM page ORDER BY pinned DESC,activity DESC,id DESC LIMIT 50)
         SELECT json_build_object(

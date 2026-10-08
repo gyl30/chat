@@ -2836,6 +2836,7 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
 }    // namespace
 
 int run_group_tests();
+int run_group_lifecycle_tests();
 int run_friendship_tests();
 
 #ifdef CHAT_TEST_TUI
@@ -2845,6 +2846,8 @@ int run_tui_tests();
 int main(int argc, char** argv)
 {
     if (argc == 2 && std::string_view(argv[1]) == "--friendship-only") { return run_friendship_tests(); }
+    if (argc == 2 && std::string_view(argv[1]) == "--groups-only") { return run_group_tests(); }
+    if (argc == 2 && std::string_view(argv[1]) == "--group-lifecycle-only") { return run_group_lifecycle_tests(); }
 #ifdef CHAT_TEST_TUI
     if (argc == 2 && std::string_view(argv[1]) == "--tui-only") { return run_tui_tests(); }
 #endif
@@ -2904,5 +2907,7 @@ int main(int argc, char** argv)
 
     std::cout << "PASS chat server shutdown\n";
     std::cout << "PASS chat server validation\n";
-    return raw_only ? 0 : run_group_tests();
+    if (raw_only) { return 0; }
+    if (auto result = run_group_tests()) { return result; }
+    return run_group_lifecycle_tests();
 }

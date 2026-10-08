@@ -308,8 +308,12 @@ if(CHAT_BUILD_TUI_CLIENT)
     set_tests_properties(tui_integration PROPERTIES TIMEOUT 60)
 endif()
 
-add_test(NAME server COMMAND chat_server_test)
+add_test(NAME server COMMAND chat_server_test --raw-websocket-only)
 set_tests_properties(server PROPERTIES TIMEOUT 60)
+add_test(NAME server_conversations COMMAND chat_server_test --groups-only)
+set_tests_properties(server_conversations PROPERTIES TIMEOUT 60)
+add_test(NAME server_group_lifecycle COMMAND chat_server_test --group-lifecycle-only)
+set_tests_properties(server_group_lifecycle PROPERTIES TIMEOUT 60)
 add_test(NAME friendship COMMAND chat_server_test --friendship-only)
 set_tests_properties(friendship PROPERTIES TIMEOUT 60)
 

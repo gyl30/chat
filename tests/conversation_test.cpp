@@ -248,6 +248,13 @@ chat::conversation conversation(chat::client& client, std::int64_t id)
     throw std::runtime_error("Conversation missing");
 }
 
+bool lists_conversation(chat::client& client, std::int64_t id)
+{
+    auto result = call<chat::conversations_result>([&](auto handler) { client.get_conversations({}, handler); });
+    require(result.has_value(), "Conversations RPC");
+    return std::ranges::any_of(result->conversations, [id](auto const& value) { return value.id == id; });
+}
+
 std::int64_t position(chat::messages_result const& result, std::int64_t user)
 {
     for (auto const& value : result.read_positions)
@@ -381,9 +388,16 @@ int run_friendship_tests()
                         "Read-only direct preserves history, search, attachment, read and private preferences");
                     auto contacts = call<std::vector<chat::user>>([&](auto h) { actor.get_contacts(h); });
                     auto presence = call<std::vector<chat::presence>>([&](auto h) { actor.get_presence(h); });
+                    auto conversations = call<chat::conversations_result>([&](auto h) { actor.get_conversations({}, h); });
                     require(contacts && contacts->size() == (allowed ? 1u : 0u) && presence &&
-                        presence->size() == contacts->size() && conversation(actor, direct_id).can_send == allowed,
-                        "Contacts, private presence and authoritative capability agree with confirmed friendship");
+                        presence->size() == contacts->size() && conversations &&
+                        std::ranges::any_of(conversations->conversations, [&](auto const& value) {
+                            return value.id == direct_id;
+                        }) == allowed,
+                        "Chats shows a direct only for accepted friends, including after reacceptance");
+                    require(std::ranges::any_of(conversations->conversations, [&](auto const& value) {
+                        return value.id == *shared && value.kind == chat::conversation_kind::group;
+                    }), "Shared groups remain in Chats regardless of friendship");
                 }
             }
             auto outsider_presence = call<std::vector<chat::presence>>([&](auto h) { peers[2].get_presence(h); });
@@ -416,8 +430,8 @@ int run_friendship_tests()
             require(authenticated && authenticated->authenticated, "Reconnect contact peer");
             require(call<std::vector<chat::presence>>([&](auto h) { left.get_presence(h); }).value().empty() &&
                 call<std::vector<chat::presence>>([&](auto h) { peers[2].get_presence(h); }).value().empty() &&
-                !conversation(left, direct_id).can_send && !conversation(right, direct_id).can_send,
-                "Reconnect preserves symmetric removal");
+                !lists_conversation(left, direct_id) && !lists_conversation(right, direct_id),
+                "Reconnect keeps the removed friendship hidden in both chat lists");
             {
                 std::scoped_lock lock(changes[0].mutex, changes[2].mutex);
                 require(changes[0].presences.size() == previous_presence && changes[2].presences.empty(),
@@ -532,8 +546,9 @@ int run_friendship_tests()
             require(make_friends(left, left_id, fresh, *fresh_user), "Restore creation authorization");
             auto creation_first = call<chat::direct_conversation_result>([&](auto h) { left.open_direct_conversation(*fresh_user, h); });
             require(creation_first && call<bool>([&](auto h) { left.remove_contact(*fresh_user, h); }).value() &&
-                !conversation(left, creation_first->conversation).can_send,
-                "Open before removal retains an empty authoritative read-only conversation");
+                !lists_conversation(left, creation_first->conversation) &&
+                call<chat::messages_result>([&](auto h) { left.get_messages(creation_first->conversation, {}, h); }).has_value(),
+                "Open before removal retains an empty conversation in storage but hides it from Chats");
             for (bool cancel : {false, true})
             {
                 for (bool accept_first : {false, true})
@@ -1278,8 +1293,8 @@ int run_group_tests()
         auto denied_direct_typing = call<bool>([&](auto handler) { a.set_typing(direct->conversation, true, handler); });
         auto denied_stop = call<bool>([&](auto handler) { a.set_typing(direct->conversation, false, handler); });
         require(!denied_direct_typing && denied_direct_typing.error().code == -32006 && !denied_stop &&
-            denied_stop.error().code == -32006 && !conversation(a, direct->conversation).can_send,
-            "Removing a contact rejects both typing states and restores a read-only snapshot");
+            denied_stop.error().code == -32006 && !lists_conversation(a, direct->conversation),
+            "Removing a contact rejects both typing states and hides the direct from Chats");
         require(make_friends(a, data.users[0], b, data.users[1]),
             "Re-adding a contact restores direct communication");
         auto direct_typing = call<bool>([&](auto handler) { a.set_typing(direct->conversation, true, handler); });
@@ -1823,6 +1838,8 @@ int run_group_tests()
         auto verify_pages = [&](chat::client& client, std::int64_t user) {
             auto const sql = "SELECT c.id,own.pinned FROM conversations c JOIN conversation_members own ON own.conversation_id=c.id "
                 "WHERE own.user_id=" + std::to_string(user) +
+                " AND (c.kind='group' OR EXISTS(SELECT 1 FROM contacts WHERE owner_id=own.user_id AND contact_id="
+                "CASE WHEN c.direct_user_low=own.user_id THEN c.direct_user_high ELSE c.direct_user_low END))"
                 " ORDER BY own.pinned DESC,c.activity DESC,c.id DESC";
             std::unique_ptr<PGresult, decltype(&PQclear)> expected(PQexec(data.database.get(), sql.c_str()), &PQclear);
             require(expected && PQresultStatus(expected.get()) == PGRES_TUPLES_OK, "Expected conversation order");
@@ -1833,6 +1850,8 @@ int run_group_tests()
             {
                 auto result = call<chat::conversations_result>([&](auto handler) { client.get_conversations(cursor, handler); });
                 require(result && result->conversations.size() <= 50, "Conversation cursor page limit");
+                require(result->conversations.size() == static_cast<std::size_t>(std::min(50, PQntuples(expected.get()) - count)),
+                    "Nonfriend directs are filtered before the visible page limit");
                 for (auto const& item : result->conversations)
                 {
                     require(count < PQntuples(expected.get()) && item.id == std::stoll(PQgetvalue(expected.get(), count, 0)) &&
@@ -1871,6 +1890,25 @@ int run_group_tests()
         b_events.wait([&] { return b_events.disconnected == 3; });
         c_events.wait([&] { return c_events.disconnected == 4; });
         d_events.wait([&] { return d_events.disconnected == 3; });
+        data.cleanup();
+        std::cout
+            << "PASS real four-client direct/group, membership, read, pagination, reconnect and concurrent sends\n";
+        return 0;
+    }
+    catch (std::exception const& error)
+    {
+        std::cerr << "FAIL groups: " << error.what() << '\n';
+        return 1;
+    }
+}
+
+int run_group_lifecycle_tests()
+{
+    try
+    {
+        runtime server;
+        fixture data;
+        require(PQstatus(data.database.get()) == CONNECTION_OK, "Fixture database connection");
         {
             std::array<events, 5> managed_events;
             std::array<chat::client, 5> managed;
@@ -1932,8 +1970,13 @@ int run_group_tests()
             auto owner_target = call<bool>([&](auto handler) {
                 managed[0].set_group_admin(managed_group, managed_ids[0], true, handler);
             });
+            auto outsider = call<std::int64_t>([&](auto handler) {
+                managed[0].register_user("chat_roles_outsider_" + std::to_string(getpid()), "roles password", handler);
+            });
+            require(outsider.has_value(), "Register nonmember role fixture");
+            data.users.push_back(*outsider);
             auto absent_target = call<bool>([&](auto handler) {
-                managed[0].set_group_admin(managed_group, data.users[0], true, handler);
+                managed[0].set_group_admin(managed_group, *outsider, true, handler);
             });
             require(!denied && denied.error().code == -32009 && !owner_target && owner_target.error().code == -32602 &&
                         !absent_target && absent_target.error().code == -32005, "Only owner manages existing ordinary members");
@@ -2565,13 +2608,12 @@ int run_group_tests()
             }
         }
         data.cleanup();
-        std::cout
-            << "PASS real four-client direct/group, membership, read, pagination, reconnect and concurrent sends\n";
+        std::cout << "PASS group roles, membership lifecycle and concurrent management\n";
         return 0;
     }
     catch (std::exception const& error)
     {
-        std::cerr << "FAIL groups: " << error.what() << '\n';
+        std::cerr << "FAIL group lifecycle: " << error.what() << '\n';
         return 1;
     }
 }
@@ -2773,63 +2815,49 @@ int run_tui_tests()
         require(app.dialog && app.dialog->confirmation, "Contact deletion requires confirmation");
         app.dialog->text = "y";
         app.submit_prompt();
-        pump([&] { return !app.data.can_send() && !app.data.is_contact(peer_id); });
-        require(!app.data.presences.contains(peer_id), "Contact removal clears presence");
-        require(!conversation(peer, direct).can_send, "Removing friendship closes both directions");
+        pump([&] { return app.data.active == 0 && !app.data.is_contact(peer_id) &&
+            std::ranges::none_of(app.data.conversations, [direct](auto const& value) { return value.id == direct; }); });
+        require(app.data.messages.empty() && !app.data.presences.contains(peer_id), "Contact removal closes displayed history and clears presence");
+        require(!lists_conversation(peer, direct), "Removing friendship hides the direct in both chat lists");
         for (auto const* action : {"reply", "edit", "reaction 1", "file"})
         {
             app.command(action);
-            require(!app.data.composing && !app.dialog, "Removed friend write actions remain disabled");
+            require(!app.data.composing && !app.dialog, "Hidden direct write actions remain disabled");
         }
-        app.command("mute");
-        app.command("pin");
-        app.command("search edited");
-        pump([&] { return !app.data.search_results.empty(); });
-        app.back();
-        pump([&] { return app.data.view == page::conversation; });
-        require(!app.data.can_send(), "Removed friendship retains history/search/preferences but remains read only");
-
+        auto retained = call<chat::messages_result>([&](auto handler) { peer.get_messages(direct, {}, handler); });
+        require(retained && std::ranges::any_of(retained->messages, [own_message](auto const& value) { return value.id == own_message; }),
+                "Hidden direct history is retained on the server");
+        app.command("search-users " + peer_name);
+        pump([&] { return app.data.users.size() == 1 && app.data.users[0].id == peer_id; });
         app.command("add");
         pump([&] { return app.data.friendship(peer_id) == chat::friendship_state::outgoing_pending; });
-        require(!app.data.is_contact(peer_id) && !app.data.can_send(), "Re-request preserves read-only history without adding a contact");
+        require(!app.data.is_contact(peer_id) && !app.data.can_send(), "Re-request does not add a contact or restore sending");
         for (int width : {120, 70, 120, 70})
         {
             app.viewport_width = width;
             app.command("conversations");
-            auto found = std::ranges::find(app.data.conversations, direct, &chat::conversation::id);
-            require(found != app.data.conversations.end(), "Pending historical direct remains in Chats");
-            app.data.conversation_selected = static_cast<int>(found - app.data.conversations.begin());
-            app.activate();
-            pump([&] { return !app.data.messages.empty(); });
-            require(app.data.view == page::conversation && !app.data.can_send(), "Chats opens historical pending direct read only");
-            app.back();
-            app.drain();
-            require(app.data.view == page::conversations && app.data.active == direct, "Back returns from read-only history to Chats after resize");
+            app.refresh();
+            pump([&] { return !app.data.next_conversations; });
+            require(std::ranges::none_of(app.data.conversations, [direct](auto const& value) { return value.id == direct; }),
+                    "Pending historical direct remains hidden in wide and narrow Chats");
         }
         require(call<chat::friendship_result>([&](auto h) { peer.respond_friend_request(self, false, h); }).has_value(),
                 "Recipient rejects pending navigation fixture");
         pump([&] { return app.data.friendship(peer_id) == chat::friendship_state::none; });
-        app.open_conversation(direct);
-        pump([&] { return !app.data.messages.empty(); });
-
-        app.command("compose");
-        require(!app.data.composing, "Non-contact TUI disables compose");
-        require(app.data.status == "你们目前不是好友", "Nonfriend compose status matches its read-only banner");
-        app.data.draft = "readonly draft";
-        app.send();
-        require(app.data.draft == "readonly draft", "Read-only send preserves draft");
+        add_contact(peer_name, peer_id);
+        app.command("message");
+        pump([&] { return app.data.active == direct && app.data.can_send() && !app.data.messages.empty(); });
+        require(std::ranges::any_of(app.data.messages, [attachment](auto const& value) { return value.id == attachment && value.attachment.has_value(); }),
+                "Reaccepted friendship restores stored messages and attachment metadata");
         select(own_message);
         app.command("delete");
-        require(app.dialog && app.dialog->confirmation, "Read-only own-message delete remains available");
+        require(app.dialog && app.dialog->confirmation, "Own-message delete remains available after reopening");
         app.dialog->text = "y";
         app.submit_prompt();
         pump([&] {
             auto found = std::ranges::find(app.data.messages, own_message, &chat::message::id);
             return found != app.data.messages.end() && found->deleted;
         });
-        add_contact(peer_name, peer_id);
-        app.command("message");
-        pump([&] { return app.data.active == direct && app.data.can_send(); });
         add_contact(other_name, other_id);
         app.command("message");
         pump([&] { return app.data.active != direct && app.data.can_send(); });
@@ -2927,12 +2955,14 @@ int run_tui_tests()
             // This new contacts result follows the rejected RPC on the same connection.
             // Invalidate older snapshots so the predicate also waits for its failure ACK.
             app.contacts();
-            pump([&] { return !app.data.is_contact(peer_id) && !app.data.can_send(); });
-            require(app.data.draft == failed_text, "Failed reply/edit RPC preserves its draft after a conversation round trip");
+            pump([&] { return !app.data.is_contact(peer_id) && app.data.active == 0; });
             auto history = call<chat::messages_result>([&](auto h) { peer.get_messages(direct, {}, h); });
             require(history && std::ranges::none_of(history->messages, [&](auto const& value) { return value.text == failed_text; }),
                     "Rejected reply/edit does not change persisted messages");
             add_contact(peer_name, peer_id);
+            app.command("message");
+            pump([&] { return app.data.active == direct && app.data.can_send() && !app.data.messages.empty(); });
+            require(app.data.draft == failed_text, "Failed reply/edit RPC preserves its draft after hiding and reopening the direct");
         }
 
         auto seeded = call<chat::send_message_result>([&](auto h) { other.send_message(other_direct, "ACK B history barrier", h); });
@@ -3030,10 +3060,11 @@ int run_tui_tests()
         app.data.draft = "rejected send keeps draft";
         app.send();
         app.contacts(); // A fresh result follows the failed send ACK on this connection.
-        pump([&] { return !app.data.is_contact(peer_id) && !app.data.can_send(); });
-        require(app.data.draft == "rejected send keeps draft", "Asynchronous send rejection preserves the unsent draft");
+        pump([&] { return !app.data.is_contact(peer_id) && app.data.active == 0; });
         add_contact(peer_name, peer_id);
-        app.open_conversation(direct);
+        app.command("message");
+        pump([&] { return app.data.active == direct && app.data.can_send() && !app.data.messages.empty(); });
+        require(app.data.draft == "rejected send keeps draft", "Asynchronous send rejection preserves the draft after hiding and reopening the direct");
         app.open_conversation(other_direct);
         app.refresh();
         pump([&] { return app.data.active == other_direct && app.data.presences.contains(other_id); });
@@ -3306,7 +3337,9 @@ int run_tui_tests()
         pump([&] { return !app.data.next_conversations; });
         auto expected_order = sql_ids(
             "SELECT c.id FROM conversations c JOIN conversation_members m ON m.conversation_id=c.id "
-            "WHERE m.user_id=" + std::to_string(self) + " ORDER BY m.pinned DESC,c.activity DESC,c.id DESC");
+            "WHERE m.user_id=" + std::to_string(self) +
+            " AND (c.kind='group' OR EXISTS(SELECT 1 FROM contacts WHERE owner_id=m.user_id AND contact_id="
+            "CASE WHEN c.direct_user_low=m.user_id THEN c.direct_user_high ELSE c.direct_user_low END)) ORDER BY m.pinned DESC,c.activity DESC,c.id DESC");
         require(app.data.conversations.size() == expected_order.size(), "TUI conversation cursor returns all rows");
         for (std::size_t i = 0; i < expected_order.size(); ++i)
         { require(app.data.conversations[i].id == expected_order[i], "TUI preserves server pinned/activity/id order across pages"); }

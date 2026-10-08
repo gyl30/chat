@@ -14,7 +14,7 @@ import time
 sys.dont_write_bytecode = True
 from tui_100_member_smoke import Driver, inverse_text, choose_row
 
-READONLY='你们目前不是好友'
+COMPOSER='i: compose'
 
 class NavigationDriver(Driver):
     def setup(self):
@@ -61,26 +61,27 @@ class NavigationDriver(Driver):
         raise AssertionError('Expected chat was not selectable: '+title)
 
 
-def readonly_navigation(d):
-    marker=d.manifest['navigation']['history_marker']
-    with d.case('readonly-enter-escape-navigation','Read-only history opens with Enter; Esc reaches Chats and stays there'):
+def chat_navigation(d):
+    marker='visible_group_'+d.args.run_id
+    d.query('S005','send_message',conversation=d.group,text=marker)
+    with d.case('chat-enter-escape-navigation','Visible group history opens with Enter; Esc reaches Chats and stays there'):
         d.resize('A',80,24)
-        d.select_chat('A',d.name('B'))
-        d.wait('A',lambda s:marker in s and READONLY in s)
-        d.screenshot('A','narrow-readonly-enter')
+        d.select_chat('A',d.title)
+        d.wait('A',lambda s:marker in s and COMPOSER in s)
+        d.screenshot('A','narrow-group-enter')
         d.keys('A','Escape')
-        d.wait('A',lambda s:('Chats' in s or 'Conversations' in s) and READONLY not in s)
+        d.wait('A',lambda s:('Chats' in s or 'Conversations' in s) and COMPOSER not in s)
         d.screenshot('A','narrow-escape-list')
         # Returning by the top-level Chats action must have the same root
-        # semantics. Esc at that root cannot reveal the prior read-only view.
-        d.select_chat('A',d.name('B'))
-        d.wait('A',READONLY)
+        # semantics. Esc at that root cannot reveal the prior message view.
+        d.select_chat('A',d.title)
+        d.wait('A',COMPOSER)
         d.chats('A')
         d.keys('A','Escape')
-        d.wait('A',lambda s:('Chats' in s or 'Conversations' in s) and READONLY not in s)
+        d.wait('A',lambda s:('Chats' in s or 'Conversations' in s) and COMPOSER not in s)
         d.screenshot('A','narrow-root-escape-stable')
         d.resize('A',160,45)
-        d.select_chat('A',d.name('B'))
+        d.select_chat('A',d.title)
         d.wait('A',marker)
         d.keys('A','Escape')
         d.keys('A','j','Enter')
@@ -91,17 +92,17 @@ def readonly_navigation(d):
 def tab_navigation(d):
     with d.case('tab-navigation-roots','Tab changes focus or request tabs; Esc returns directly to the parent'):
         d.resize('A',80,24)
-        d.select_chat('A',d.name('B'))
-        d.wait('A',READONLY)
+        d.select_chat('A',d.title)
+        d.wait('A',COMPOSER)
         for _ in range(3):
             d.keys('A','Tab')
-            d.wait('A',lambda s:('Chats' in s or 'Conversations' in s) and READONLY not in s)
+            d.wait('A',lambda s:('Chats' in s or 'Conversations' in s) and COMPOSER not in s)
             d.keys('A','Tab')
-            d.wait('A',READONLY)
+            d.wait('A',COMPOSER)
         d.keys('A','Escape')
-        d.wait('A',lambda s:('Chats' in s or 'Conversations' in s) and READONLY not in s)
+        d.wait('A',lambda s:('Chats' in s or 'Conversations' in s) and COMPOSER not in s)
         d.keys('A','Escape')
-        d.wait('A',lambda s:('Chats' in s or 'Conversations' in s) and READONLY not in s)
+        d.wait('A',lambda s:('Chats' in s or 'Conversations' in s) and COMPOSER not in s)
         d.screenshot('A','tab-chat-root-stable')
         d.keys('A','c'); d.wait('A','New friends (1)')
         d.keys('A','Enter');d.wait('A','New friends · Incoming')
@@ -136,17 +137,23 @@ def friends_navigation(d):
         d.wait('A','Not friends')
         assert not any(v['id']==d.manifest['actors']['A']['id'] for v in d.query('D','get_contacts'))
         d.screenshot('A','accepted-then-removed')
-        # The preserved B conversation exercises all three distinct read-only hints.
-        d.select_chat('A',d.name('B'));d.wait('A',READONLY)
+        direct=d.manifest['navigation']['readonly_conversation']
+        d.chats('A');d.barrier('A')
+        assert d.name('B') not in d.capture('A')
+        assert any(m['id']==d.manifest['navigation']['history_message']
+                   for m in d.query('B','get_messages',conversation=direct)['messages'])
         d.query('B','send_friend_request',user='A')
-        d.wait('A','对方已发送好友申请，确认后可继续聊天')
-        d.screenshot('A','readonly-incoming-request')
-        d.query('B','cancel_friend_request',user='A');d.wait('A',READONLY)
-        d.command('A','profile');d.wait('A','Add friend')
-        d.keys('A','j','Enter');d.wait('A','Waiting for acceptance')
-        d.keys('A','Escape');d.wait('A','好友申请已发送，等待对方确认')
-        d.screenshot('A','readonly-outgoing-request')
-        d.command('A','profile');d.wait('A','Cancel friend request');d.keys('A','j','Enter')
+        d.command('A','friend-requests');d.wait('A',d.name('B'))
+        d.screenshot('A','hidden-direct-incoming-request')
+        d.query('B','cancel_friend_request',user='A');d.wait('A','No pending friend requests')
+        d.command('A','search-users '+d.name('B'));d.wait('A',d.name('B'))
+        d.keys('A','Enter');d.wait('A','Add friend')
+        d.command('A','add');d.wait('A','Waiting for acceptance')
+        d.chats('A');d.barrier('A')
+        assert d.name('B') not in d.capture('A')
+        d.screenshot('A','hidden-direct-outgoing-request')
+        d.command('A','search-users '+d.name('B'));d.wait('A',d.name('B'))
+        d.keys('A','Enter');d.wait('A','Cancel friend request');d.keys('A','j','Enter')
         d.wait('A','Not friends')
         assert not d.query('B','get_friend_requests')['incoming']
         d.control('disconnect',actors=['B','D','E'])
@@ -256,9 +263,9 @@ def paste_messages(d):
             d.screenshot('A','unsent-multiline-'+str(index))
             assert not d.query('S005','search_messages',conversation=d.group,query=marker)['messages']
             d.keys('A','i','Enter','Escape');d.wait('A','消息已发送')
+            d.wait('C','LAST_'+str(index))
             result=d.query('S005','search_messages',conversation=d.group,query=marker)['messages']
             assert len(result)==1 and result[0]['text']==text,result
-            d.wait('C','LAST_'+str(index))
             d.screenshot('C','received-multiline-'+str(index))
     with d.case('paste-interrupted-by-reconnect','A disconnected composer keeps its draft and ignores the remainder of the old paste'):
         marker='PASTE_INTERRUPTED_'+d.args.run_id
@@ -349,7 +356,7 @@ def main():
                 subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-f',str(migration)],check=True,stdout=log,stderr=subprocess.STDOUT)
         print('Evidence:',work,flush=True)
         driver=NavigationDriver(args);driver.setup();driver.login('A')
-        readonly_navigation(driver)
+        chat_navigation(driver)
         tab_navigation(driver)
         if not args.red_only:
             contacts_search(driver)

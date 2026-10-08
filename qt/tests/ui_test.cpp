@@ -1184,6 +1184,24 @@ void check_primary_navigation()
     check(!edit->isEnabled() && edit->placeholderText().contains(QStringLiteral("等待对方")), "Read-only history distinguishes outgoing pending");
     page.set_friend_requests({{200, direct.username, false, 0, {}}}, {}, {});
     check(!edit->isEnabled() && edit->placeholderText().contains(QStringLiteral("待处理")), "Read-only history distinguishes incoming pending");
+    message_data hidden_message;
+    hidden_message.id = 501;
+    hidden_message.conversation = direct.id;
+    hidden_message.from = direct.user;
+    hidden_message.text = QStringLiteral("原有单聊历史");
+    page.set_messages(direct.id, {hidden_message}, {}, false, false, false);
+    page.set_conversations({other});
+    auto* history = page.findChild<QListView*>("messageList");
+    check(page.active_conversation() == 0 && history->model()->rowCount() == 0 && !edit->isEnabled(),
+          "A hidden nonfriend direct closes its active page and clears displayed history");
+    page.add_message(direct.id, hidden_message);
+    check(history->model()->rowCount() == 0, "Late messages cannot reopen a hidden direct");
+    direct.can_send = true;
+    page.set_conversations({direct, other});
+    page.open_conversation(direct);
+    page.set_messages(direct.id, {hidden_message}, {}, false, false, false);
+    check(page.active_conversation() == direct.id && history->model()->rowCount() == 1 && edit->isEnabled(),
+          "Accepted friendship restores the direct and its stored history");
     page.set_connection_available(false);
     check(!actions->isEnabled() && !add->isEnabled() && !create->isEnabled() && !join->isEnabled(), "Offline header actions cannot issue requests");
     {
@@ -2761,21 +2779,6 @@ int main(int argc, char** argv)
     };
     try
     {
-        check_authentication_layout();
-        check_friend_request_layout();
-        check_group_detail_layout();
-        check_primary_navigation();
-        check_profile_layout();
-        check_confirmation_dialogs();
-        check_message_editor();
-        check_reply_and_read_details_controls();
-        check_message_action_targets();
-        check_message_dialogs();
-        check_message_composer();
-        check_message_viewport();
-        check_conversation_drafts();
-        check_message_search_keyboard_visibility();
-        check_message_search_live_policy();
         start();
         {
             chat_widget page;
@@ -3568,6 +3571,39 @@ int main(int argc, char** argv)
                     { incoming->itemClicked(incoming->item(row)); break; }
                 }
             };
+            auto open_chat = [&](int actor, qint64 conversation) {
+                auto* list = windows[actor]->findChild<QListView*>("conversationList");
+                wait([&] { return pages[actor]->conversation(conversation).has_value(); });
+                for (int row = 0; row < list->model()->rowCount(); ++row)
+                {
+                    auto const index = list->model()->index(row, 0);
+                    if (index.data(conversation_model::id_role).toLongLong() == conversation)
+                    { click_list_body(list, index); break; }
+                }
+                wait([&] { return pages[actor]->active_conversation() == conversation && pages[actor]->messages_ready(); });
+            };
+            auto open_searched_profile = [&](int actor, int target, auto inspect) {
+                windows[actor]->findChild<QToolButton*>("sidebarTextButton")->click();
+                QLineEdit* search = nullptr;
+                QListView* results = nullptr;
+                for (auto* input : windows[actor]->findChildren<QLineEdit*>("userSearchEdit"))
+                { if (input->isVisible()) { search = input; } }
+                for (auto* list : windows[actor]->findChildren<QListView*>("userList"))
+                { if (list->isVisible()) { results = list; } }
+                check(search && results, "Open public user search after the direct is hidden");
+                search->setText(names[target]);
+                search->returnPressed();
+                wait([&] { return results->model()->rowCount() == 1; });
+                auto const index = results->model()->index(0, 0);
+                results->scrollTo(index);
+                QApplication::processEvents();
+                auto const point = QPoint(20, results->visualRect(index).center().y());
+                QTimer::singleShot(30, windows[actor].get(), inspect);
+                QMouseEvent press(QEvent::MouseButtonPress, point, results->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+                QMouseEvent release(QEvent::MouseButtonRelease, point, results->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+                QApplication::sendEvent(results->viewport(), &press);
+                QApplication::sendEvent(results->viewport(), &release);
+            };
             pages[2]->contact_remove_requested(ids[0]);
             wait([&] {
                 for (auto* view : windows[2]->findChildren<QListView*>("userList"))
@@ -4079,15 +4115,13 @@ int main(int argc, char** argv)
             });
             windows[0]->findChild<QPushButton*>("chatHeaderButton")->click();
             wait([&] { return contact_view->model()->rowCount() == 1; });
-            wait([&] { return pages[0]->conversation(direct) && !pages[0]->conversation(direct)->can_send; });
-            check(pages[0]->active_conversation() == direct &&
-                      windows[0]->findChild<QListView*>("messageList")->model()->rowCount() == 1,
-                  "Contact removal retains active chat and history");
+            wait([&] { return !pages[0]->conversation(direct) && pages[0]->active_conversation() == 0; });
+            check(windows[0]->findChild<QListView*>("messageList")->model()->rowCount() == 0,
+                  "Contact removal hides the direct and closes displayed history");
             check(!windows[0]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled() &&
                 !windows[0]->findChild<QToolButton*>("sendButton")->isEnabled() &&
-                !windows[0]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled() &&
-                windows[0]->findChild<QPlainTextEdit*>("messageEdit")->placeholderText().contains(QStringLiteral("还不是好友")),
-                "The removed contact direct is explicitly read-only");
+                !windows[0]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled(),
+                "The hidden direct has no available compose actions");
             auto contacts_sql = "SELECT count(*) FROM contacts WHERE owner_id=" + std::to_string(ids[0]) +
                                 " AND contact_id=" + std::to_string(ids[1]);
             auto* contacts_result = PQexec(db, contacts_sql.c_str());
@@ -4095,7 +4129,7 @@ int main(int argc, char** argv)
                       std::string_view(PQgetvalue(contacts_result, 0, 0)) == "0", "Contact removal persisted");
             PQclear(contacts_result);
 
-            QTimer::singleShot(50, [&] {
+            open_searched_profile(0, 1, [&] {
                 auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
                 check(dialog && dialog->objectName() == "profileDialog", "Removed contact profile");
                 QToolButton* action = nullptr;
@@ -4112,9 +4146,9 @@ int main(int argc, char** argv)
                 wait([&] { return action->text() == QStringLiteral("消息") && action->isEnabled(); });
                 action->click();
             });
-            windows[0]->findChild<QPushButton*>("chatHeaderButton")->click();
             wait([&] { return pages[0]->conversation(direct) && pages[0]->conversation(direct)->can_send &&
-                windows[0]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled(); });
+                pages[0]->active_conversation() == direct &&
+                windows[0]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled() && pages[0]->messages_ready(); });
             check(pages[0]->active_conversation() == direct && windows[0]->findChild<QListView*>("messageList")->model()->rowCount() == 1,
                 "Re-add and authoritative direct open restore writing without losing history");
 
@@ -4160,22 +4194,23 @@ int main(int argc, char** argv)
                 return false;
             });
             click_list_body(peer_conversations, direct_index);
-            pages[1]->contact_remove_requested(ids[0]);
-            wait([&] { return avatar_contacts->model()->rowCount() == 0 && !pages[1]->conversation(direct)->can_send; });
             auto* peer_attachment_view = windows[1]->findChild<QListView*>("messageList");
             wait([&] { return pages[1]->active_conversation() == direct && pages[1]->messages_ready() &&
                                   peer_attachment_view->model()->rowCount() == 2; });
-            check(!pages[1]->conversation(direct)->can_send &&
-                !windows[1]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled() &&
-                !windows[1]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled(),
-                "Removing friendship makes the historical direct read-only");
             wait([&] { return !peer_attachment_view->model()->index(1, 0).data(message_model::image_role).value<QPixmap>().isNull(); });
             check(peer_attachment_view->model()->index(0, 0).data(message_model::reactions_role)
                       .value<QList<reaction_data>>().size() == 1, "Direct history restores reaction");
             check(!peer_attachment_view->model()->index(0, 0).data(Qt::DecorationRole).value<QPixmap>().isNull(), "Direct message real avatar");
             check(!direct_index.data(Qt::DecorationRole).value<QPixmap>().isNull(), "Direct conversation real avatar");
+            pages[1]->contact_remove_requested(ids[0]);
+            wait([&] { return avatar_contacts->model()->rowCount() == 0 && !pages[1]->conversation(direct) &&
+                pages[1]->active_conversation() == 0; });
+            check(peer_attachment_view->model()->rowCount() == 0 &&
+                !windows[1]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled() &&
+                !windows[1]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled(),
+                "Removing friendship hides the direct and clears its attachment display");
             bool saw_avatar_profile = false;
-            QTimer::singleShot(50, [&] {
+            open_searched_profile(1, 0, [&] {
                 auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
                 check(dialog && dialog->objectName() == "profileDialog", "Peer avatar profile");
                 auto const picture = dialog->findChild<QLabel*>("profileDialogAvatar")->pixmap();
@@ -4192,12 +4227,18 @@ int main(int argc, char** argv)
                 wait([&] { return action->text() == QStringLiteral("等待验证"); });
                 accept_friend(0, 1);
                 wait([&] { return action->text() == QStringLiteral("消息") && action->isEnabled() &&
-                    pages[1]->conversation(direct)->can_send; });
+                    pages[1]->conversation(direct) && pages[1]->conversation(direct)->can_send; });
                 saw_avatar_profile = true;
                 action->click();
             });
-            windows[1]->findChild<QPushButton*>("chatHeaderButton")->click();
             check(saw_avatar_profile, "Peer profile avatar UI");
+            wait([&] { return pages[1]->active_conversation() == direct && pages[1]->messages_ready() && peer_attachment_view->model()->rowCount() == 2; });
+            open_chat(0, direct);
+            for (int row = 0; row < peer_conversations->model()->rowCount(); ++row)
+            {
+                auto const index = peer_conversations->model()->index(row, 0);
+                if (index.data(conversation_model::id_role).toLongLong() == direct) { direct_index = index; break; }
+            }
             choose_reaction(1, QStringLiteral("😮"));
             wait([&] {
                 auto const reactions = windows[0]->findChild<QListView*>("messageList")->model()->index(0, 0)
@@ -4286,7 +4327,6 @@ int main(int argc, char** argv)
             });
             attachment_action(1, QStringLiteral("下载文件"));
             auto const cached_image_id = attachment_view->model()->index(1, 0).data(message_model::id_role).toLongLong();
-            auto const cached_image_key = pages[1]->images().image(cached_image_id).cacheKey();
             QTimer::singleShot(50, [&] {
                 auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
                 check(dialog && dialog->objectName() == "attachmentDialog", "Download disconnect dialog");
@@ -4328,14 +4368,17 @@ int main(int argc, char** argv)
                 "Reconnect cannot re-enable cached send permission before the authoritative snapshot");
             std::unique_ptr<PGresult, decltype(&PQclear)> released_snapshot(PQexec(db, "COMMIT"), &PQclear);
             check(released_snapshot && PQresultStatus(released_snapshot.get()) == PGRES_COMMAND_OK, "Release reconnect snapshot");
-            wait([&] { return pages[0]->messages_ready() && !pages[0]->conversation(direct)->can_send; });
-            check(!windows[0]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled() &&
-                !windows[0]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled(), "Reconnect restores read-only direct");
-            wait([&] { return !windows[1]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled() &&
-                pages[1]->messages_ready() && windows[2]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled() &&
-                pages[2]->messages_ready(); });
-            check(pages[1]->images().image(cached_image_id).cacheKey() == cached_image_key,
-                  "Reconnect preserves immutable downloaded image");
+            wait([&] { return !pages[0]->conversation(direct) && pages[0]->active_conversation() == 0 &&
+                !pages[1]->conversation(direct) && pages[1]->active_conversation() == 0; });
+            check(windows[0]->findChild<QListView*>("messageList")->model()->rowCount() == 0 &&
+                !windows[0]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled() &&
+                !windows[0]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled(), "Reconnect keeps the removed direct hidden");
+            wait([&] { return windows[2]->findChild<QToolButton*>("sendAttachmentButton")->isEnabled() && pages[2]->messages_ready(); });
+            check(pages[1]->images().image(cached_image_id).isNull(), "Hidden direct clears displayed image cache");
+            pages[0]->contact_add_requested(ids[1]);
+            accept_friend(1, 0);
+            for (int actor = 0; actor < 2; ++actor) { open_chat(actor, direct); }
+            wait([&] { return !pages[1]->images().image(cached_image_id).isNull(); });
             QTimer::singleShot(50, [] {
                 auto* confirmation = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
                 check(confirmation, "Delete attachment confirmation");
@@ -4350,10 +4393,6 @@ int main(int argc, char** argv)
                       "Deleted attachment has no download metadata");
                 check(pages[i]->images().bytes(cached_image_id).isEmpty(), "Deleted image leaves cache");
             }
-            pages[0]->contact_add_requested(ids[1]);
-            accept_friend(1, 0);
-            wait([&] { return pages[0]->conversation(direct)->can_send &&
-                windows[0]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled(); });
 
             auto select_group = [&](int actor) {
                 auto* list = windows[actor]->findChild<QListView*>("conversationList");

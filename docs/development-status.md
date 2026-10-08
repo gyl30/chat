@@ -69,7 +69,7 @@ SQL 编号连续为 001–026，当前 migration 回归覆盖 fresh 升级及已
 
 ## 好友申请与确认
 
-正式关系由陌生人、outgoing pending、incoming pending、accepted friend 构成。申请必须由对方明确接受，接受后在同一事务创建双向 contacts；pending 不进入联系人列表，不获得 direct communication 或 presence 权限。反向申请只呈现已有 incoming，不暗中接受；同方向重复申请幂等。好友删除原子清除双向 contacts 和该 pair pending。现有单聊与历史保留，双方变为只读：仍可查询历史/搜索、下载旧附件、mark read、个人静音/置顶、删除自己旧消息；不能 send/reply/edit/reaction/typing 或新附件。
+正式关系由陌生人、outgoing pending、incoming pending、accepted friend 构成。申请必须由对方明确接受，接受后在同一事务创建双向 contacts；pending 不进入联系人列表，不获得 direct communication 或 presence 权限。反向申请只呈现已有 incoming，不暗中接受；同方向重复申请幂等。好友删除原子清除双向 contacts 和该 pair pending。现有单聊与历史保留，双方失去主动通讯权限：服务端仍允许查询历史/搜索、下载旧附件、mark read、个人静音/置顶、删除自己旧消息；不能 send/reply/edit/reaction/typing 或新附件。按 2026-10-08 的展示要求，非好友单聊不进入聊天列表，当前打开的页面关闭；重新确认好友后恢复会话和历史。
 
 SQL 026 新增仅保存当前 pending 的 `friend_requests`，用户外键、自申请 CHECK、无序 pair 唯一索引；不保存决定历史。SQL 001–025 不改。迁移保留已有双向联系人，将旧单向关系转为原方向 pending 并删除该单向 contacts，绝不自动授予反向好友权限；保留身份、历史和原创建时间。开发库实际 preflight 为 41 条 contacts：3 对互为联系人、35 条单向，无 self/orphan 行。停服后再次扫描并应用 026，结果保留 6 条 contacts、生成 35 条 pending；逐行核对关系方向和创建时间，全部用户名/用户 ID 保持不变，重启后 health PASS。
 
@@ -89,7 +89,7 @@ Qt 一级只保留 Chats（聊天）、Contacts（联系人），底部自己的
 
 TUI 一级为 Chats、Contacts、Account，常驻键位 `h/c/u`；`N`（Shift+n）打开 New 菜单，提供同样三个动作，`:new` 与原有命令仍可用。小写 `n` 保留申请页的拒绝动作，避免全局 New 与破坏性动作冲突。Contacts header 不再把建群当成主要内容，顶部 New friends(N) 只是进入 incoming/outgoing 的入口；Tab 在两个申请分页之间切换，Esc 返回 Contacts。TUI 不启用鼠标或内联图片。
 
-两端 Contacts 正文始终来自 `get_contacts()` 的 accepted friends，pending 只在新的朋友/关系资料中出现。没有增加客户端过滤来掩盖服务端或 state 污染。陌生人、outgoing、incoming 的 profile 分别提供添加、等待/取消、接受/拒绝，只有 accepted 才显示 Message；无历史 pending 不创建空 direct。已有历史即使删除或重新申请仍保留在 Chats，按权威 `can_send=false` 只读，聊天区区分未好友、等待确认和收到申请；原历史/搜索/旧附件下载/已读/个人静音置顶/删除自己旧消息不受导航改动影响。
+两端 Contacts 正文始终来自 `get_contacts()` 的 accepted friends，pending 只在新的朋友/关系资料中出现。没有增加客户端过滤来掩盖服务端或 state 污染。陌生人、outgoing、incoming 的 profile 分别提供添加、等待/取消、接受/拒绝，只有 accepted 才显示 Message；无历史 pending 不创建空 direct。按 2026-10-08 的追加要求，已有历史在删除好友或重新申请后也不进入 Chats；`get_conversations` 在 cursor 排序和 LIMIT 前排除非好友 direct，Qt/TUI 按权威列表关闭消失的会话。历史容器、消息、旧附件、读位及个人偏好保留，重新确认好友后可恢复。群聊及群内非好友发送者不受该过滤影响。
 
 本次真实基线测试中，最简单窄屏 Enter→Esc 能返回；可复现的失败是从只读历史切换顶层 `:conversations` 后 Esc 又返回旧会话。另有 Tab 反复压入返回栈及宽屏列表/消息双高亮。先留 RED 后修复：顶级目的地清理旧返回栈，同级 tab 不压栈，只有实际键盘区域反色；历史、草稿和当前会话保留。联系人刷新后按用户身份保持选择，已选好友被删或列表为空时选择合法项，不会无高亮且 Enter 无响应。
 
@@ -1852,3 +1852,11 @@ attempt3 driver0，17全图独立审查、98manifest重hash无差异，cleanup�
 矩阵尚未全部证明，92分门槛及达到后的两轮fresh review均未验收，不能宣布完整
 campaign完成。已提交证据保留；本轮产生的临时文件/构建目录在确认归属、占用
 与归档后清理，不删除源码或仍被服务使用的依赖。未push。
+
+## 非好友单聊展示收口（2026-10-08）
+
+基线 `bcddcec97268abebad9995a29c43cb911b11bb39`。等待确认和非好友 direct 不再出现在聊天列表；服务端在 cursor 排序和 LIMIT 前过滤，群聊不受影响。Qt 根据完整权威列表关闭消失的当前单聊并清理显示状态，迟到消息不重新显示。TUI 复用现有缺失会话关闭路径。历史、附件、读位和个人偏好保留；重新确认好友后原会话和历史恢复。不新增 SQL/RPC。
+
+回归覆盖关系状态、删除/重新申请/接受、重连、50+ 会话分页、迟到消息及真实多窗口交互。将既有 WebSocket、四客户端会话、独立群管理生命周期和 Qt widget 场景分别登记到同一测试 executable 的 CTest 入口；全部原断言和超时保留，没有新增 executable。Qt 6.5.3 normal 全量构建无编译警告，完整 CTest 26/26 PASS；真实 Qt X11 导航 4/4、TUI 导航 11/11 PASS。验证日志 `/tmp/chat-friend-normal-ctest.log`。
+
+验证期间曾实际运行 ASan：组合测试超时，拆分后的第一次完整运行仍有群管理组合超时；这不是 sanitizer PASS。用户随后明确仅在必要时运行 ASan/UBSan，本阶段最终门槛为 normal build 与完整 CTest，未继续完整 sanitizer。未改真实用户身份或业务数据；测试使用隔离数据库。
