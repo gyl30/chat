@@ -1,8 +1,8 @@
 # 开发状态
 
-本记录对应截至 2026-10-04 的仓库实际历史。阶段提交和 push 结果以 Git 历史为准，Telegram 调研与裁剪依据见 [调研记录](telegram-group-design-research.md)。
+本记录对应截至 2026-10-08 的仓库实际历史。阶段提交和 push 结果以 Git 历史为准，Telegram 调研与裁剪依据见 [调研记录](telegram-group-design-research.md)。
 
-上一轮长期 Goal 从 `bac606681cac9acff3f75c9c0588831b77646214` 开始；头像在该基线已完成，未重复开发。阶段 0–12 的产品能力和最终综合审查均已完成。本轮从 `49bfa2941dd23aff3c50332d7a90b8d9cae9d592` 开始，仅收口产品语义、授权关系和状态转换，不增加产品功能。下文各阶段的“下一阶段”是当时的开发记录，好友关系已在后续百人验证 Goal 中明确变更，当前关系规则以下面的“好友申请与确认”为准；历史单向授权描述仅记录旧版本。
+上一轮长期 Goal 从 `bac606681cac9acff3f75c9c0588831b77646214` 开始；头像在该基线已完成，未重复开发。阶段 0–12 的产品能力和最终综合审查均已完成。本轮从 `49bfa2941dd23aff3c50332d7a90b8d9cae9d592` 开始，仅收口产品语义、授权关系和状态转换，不增加产品功能。下文各阶段的“下一阶段”是当时的开发记录，好友关系已在后续百人验证 Goal 中明确变更，当前关系规则以下面的“好友申请与确认”为准；非好友单聊展示以 `0cc26e8` 及末尾“非好友单聊展示收口（2026-10-08）”为准，覆盖旧只读单聊导航描述。历史单向授权与只读单聊展示描述仅记录旧版本。
 
 ## Qt / TUI 一致性收口与冻结
 
@@ -152,7 +152,7 @@ TUI 一级为 Chats、Contacts、Account，常驻键位 `h/c/u`；`N`（Shift+n�
 | RPC | 主要参数或结果 |
 |---|---|
 | `open_direct_conversation` / `create_group` | 真实用户 / 群名及自己的联系人 ID 列表；open 要求当前联系人，返回 `conversation,can_send:true`；create 返回会话 ID |
-| `get_conversations` | `(pinned, activity, id)` cursor；全部当前 membership，包括已创建的空单聊；置顶优先，各层内活动时间和 ID 降序；会话资料、未读、个人 muted/pinned 和权威 `can_send` |
+| `get_conversations` | `(pinned, activity, id)` cursor；当前成员群聊及已确认好友 direct，包括已创建的空单聊；非好友 direct 在 cursor 排序和 LIMIT 前排除；置顶优先，各层内活动时间和 ID 降序；会话资料、未读、个人 muted/pinned 和权威 `can_send` |
 | `set_conversation_muted` | `conversation, muted`；只修改当前成员自己的偏好，返回当前 muted |
 | `set_conversation_pinned` | `conversation, pinned`；只修改本人列表排序偏好，返回当前 pinned |
 | `get_messages` | 会话及互斥的 `before/after` 消息 ID；消息、当前成员实际阅读位置、`has_more` |
@@ -1860,3 +1860,22 @@ campaign完成。已提交证据保留；本轮产生的临时文件/构建目�
 回归覆盖关系状态、删除/重新申请/接受、重连、50+ 会话分页、迟到消息及真实多窗口交互。将既有 WebSocket、四客户端会话、独立群管理生命周期和 Qt widget 场景分别登记到同一测试 executable 的 CTest 入口；全部原断言和超时保留，没有新增 executable。Qt 6.5.3 normal 全量构建无编译警告，完整 CTest 26/26 PASS；真实 Qt X11 导航 4/4、TUI 导航 11/11 PASS。验证日志 `/tmp/chat-friend-normal-ctest.log`。
 
 验证期间曾实际运行 ASan：组合测试超时，拆分后的第一次完整运行仍有群管理组合超时；这不是 sanitizer PASS。用户随后明确仅在必要时运行 ASan/UBSan，本阶段最终门槛为 normal build 与完整 CTest，未继续完整 sanitizer。未改真实用户身份或业务数据；测试使用隔离数据库。
+
+
+## 当前品质回归（2026-10-08，基线 b16a49c）
+
+实际复核并修复：Qt 最近成功登录的服务器地址未恢复、会话搜索在刷新后丢失无结果提示、
+空聊天与加载失败缺少正确下一步反馈、TUI 迟到 Message 回调覆盖 Account、
+头像首 Unicode 字素截断及 emoji 绘制、终端 Help 滚动重复构建 DOM。
+各项先确认 RED，再做最小修复；未修改 server/client/RPC/SQL、好友关系或群权限。
+真实双 TUI 验证非好友单聊隐藏、pending 不恢复入口、重新接受恢复同一会话/历史/双方草稿。
+Qt 账号与地址冷启动、成功登录后空状态及头像使用实际 X11 截图复核。
+
+当前工作区在用户原有联系人 header 和主题修改基础上构建，本轮提交没有包含或覆盖这些用户改动。
+原统一 `tests/verify.sh` 实际 exit 0：Qt/TUI ON，normal 26/26（120.01 s）、
+ASan 26/26（162.74 s）、UBSan 26/26（147.89 s），没有 suppression、skip 或放宽 timeout。
+这是本轮实际工作区的验证，历史 PASS 不作为本次依据。
+原图、styled tmux、完整门禁日志及范围限制见 [品质记录阶段67](experience-quality.md#阶段67当前状态恢复确定问题回归与真实证据2026-10-08)。
+
+用户名输入框的 ZWJ emoji 绘制随后修复：登录与注册用户名框在样式字体后追加彩色表情字体作为后备，实际字形检查在浅色与夜间均为单个宇航员字形。完整主题、HiDPI、无障碍和原生多客户端日常审查继续。
+当前局部结果不等于两端 92 分或连续两轮完整 fresh review，品质 Goal 尚未结束。

@@ -1,0 +1,414 @@
+-- liburing 2.5+ not found — io_uring backend disabled
+-- Building with OpenSSL support
+-- simdjson exception interface turned off. Code that does not check error codes will not compile.
+-- simdjson: C++26 static reflection forced on.
+-- Adding -Og to compile flag
+-- Build spdlog: 1.17.0
+-- Build type: Debug
+-- ┌─ FTXUI 7.0.3 ────────────────────────
+-- │ FTXUI_BUILD_DOCS         : OFF
+-- │ FTXUI_BUILD_EXAMPLES     : OFF
+-- │ FTXUI_BUILD_MODULES      : OFF
+-- │ FTXUI_BUILD_TESTS        : OFF
+-- │ FTXUI_BUILD_TESTS_FUZZER : OFF
+-- │ FTXUI_CLANG_TIDY         : OFF
+-- │ FTXUI_DEV_WARNINGS       : OFF
+-- │ FTXUI_ENABLE_CCACHE      : OFF
+-- │ FTXUI_ENABLE_COVERAGE    : OFF
+-- │ FTXUI_ENABLE_INSTALL     : OFF
+-- │ FTXUI_QUIET              : OFF
+-- └─────────────────────────────────────
+-- Configuring done (0.3s)
+-- Generating done (0.1s)
+-- Build files have been written to: /home/gyl/example/chat/build
+[  1%] Built target utf8proc
+[  2%] Built target wslay
+[  4%] Built target chat_tui_inbox_test
+[  4%] Built target chat_avatar_image_test
+[  4%] Built target simdjson
+[  4%] Built target chat_tui_file_test
+[  5%] Built target chat_migration_test
+[  5%] Built target chat_online_users_test
+[  8%] Built target boost_capy
+[  9%] Built target chat_simdjson_reflection_test
+[ 11%] Built target screen
+[ 19%] Built target boost_corosio
+[ 20%] Built target chat_corosio_timeout_test
+[ 21%] Built target chat_db_test
+[ 33%] Built target dom
+[ 33%] Built target chat_tui_span_test
+[ 52%] Built target boost_http
+[ 61%] Built target component
+[ 62%] Built target chat_tui_unicode_test
+[ 62%] Built target chat_bcrypt_test
+[ 63%] Built target chat_tui_display_test
+[ 64%] Built target chat_http_test
+[ 65%] Built target chat_websocket_test
+[ 66%] Built target chat_client
+[ 66%] Built target chat_qt_widgets_autogen_timestamp_deps
+[ 67%] Built target chat_tui_state
+[ 67%] Built target chat_client_test
+[ 67%] Built target chat_tui_state_test
+[ 68%] Built target chat_tui_core
+[ 69%] Built target chat_tui_ui
+[ 78%] Built target chat_server
+[ 79%] Linking CXX executable ../chat_tui
+[ 79%] Built target chat_tui_render_test
+[ 90%] Built target chat_server_test
+[ 91%] Automatic MOC for target chat_qt_widgets
+[ 91%] Built target chat_qt_widgets_autogen
+[ 97%] Built target chat_qt_widgets
+[100%] Built target chat_qt_delegate_test
+[100%] Built target chat_qt_models_test
+[100%] Built target chat_qt
+[100%] Built target chat_qt_ui_test
+[100%] Built target chat_tui
+Internal ctest changing into directory: /home/gyl/example/chat/build
+Test project /home/gyl/example/chat/build
+      Start  1: migration
+ 1/26 Test  #1: migration ........................   Passed    0.74 sec
+      Start  2: client
+ 2/26 Test  #2: client ...........................   Passed    1.03 sec
+      Start  3: pg_connection
+ 3/26 Test  #3: pg_connection ....................   Passed    0.35 sec
+      Start  4: corosio_timeout
+ 4/26 Test  #4: corosio_timeout ..................   Passed    0.07 sec
+      Start  5: http_server
+ 5/26 Test  #5: http_server ......................   Passed    0.00 sec
+      Start  6: websocket
+ 6/26 Test  #6: websocket ........................   Passed    0.00 sec
+      Start  7: tui_integration
+ 7/26 Test  #7: tui_integration ..................   Passed   12.72 sec
+      Start  8: server
+ 8/26 Test  #8: server ...........................   Passed    6.29 sec
+      Start  9: server_conversations
+ 9/26 Test  #9: server_conversations .............   Passed   22.34 sec
+      Start 10: server_group_lifecycle
+10/26 Test #10: server_group_lifecycle ...........   Passed    9.60 sec
+      Start 11: friendship
+11/26 Test #11: friendship .......................   Passed    9.17 sec
+      Start 12: avatar_image
+12/26 Test #12: avatar_image .....................   Passed    0.00 sec
+      Start 13: simdjson_reflection
+13/26 Test #13: simdjson_reflection ..............   Passed    0.00 sec
+      Start 14: online_users
+14/26 Test #14: online_users .....................   Passed    0.00 sec
+      Start 15: bcrypt
+15/26 Test #15: bcrypt ...........................   Passed    0.01 sec
+      Start 16: tui_render
+16/26 Test #16: tui_render .......................   Passed    0.51 sec
+      Start 17: tui_unicode
+17/26 Test #17: tui_unicode ......................   Passed    0.03 sec
+      Start 18: tui_display
+18/26 Test #18: tui_display ......................   Passed    0.01 sec
+      Start 19: tui_span
+19/26 Test #19: tui_span .........................   Passed    0.00 sec
+      Start 20: tui_state
+20/26 Test #20: tui_state ........................   Passed    0.00 sec
+      Start 21: tui_inbox
+21/26 Test #21: tui_inbox ........................   Passed    0.00 sec
+      Start 22: tui_file
+22/26 Test #22: tui_file .........................   Passed    0.02 sec
+      Start 23: qt_models
+23/26 Test #23: qt_models ........................   Passed    0.01 sec
+      Start 24: qt_delegate
+24/26 Test #24: qt_delegate ......................   Passed    8.35 sec
+      Start 25: qt_widgets
+25/26 Test #25: qt_widgets .......................   Passed    7.80 sec
+      Start 26: qt_ui
+26/26 Test #26: qt_ui ............................   Passed   40.95 sec
+
+100% tests passed, 0 tests failed out of 26
+
+Total Test time (real) = 120.01 sec
+-- liburing 2.5+ not found — io_uring backend disabled
+-- Building with OpenSSL support
+-- simdjson exception interface turned off. Code that does not check error codes will not compile.
+-- simdjson: C++26 static reflection forced on.
+-- Adding -Og to compile flag
+-- Build spdlog: 1.17.0
+-- Build type: Debug
+-- ┌─ FTXUI 7.0.3 ────────────────────────
+-- │ FTXUI_BUILD_DOCS         : OFF
+-- │ FTXUI_BUILD_EXAMPLES     : OFF
+-- │ FTXUI_BUILD_MODULES      : OFF
+-- │ FTXUI_BUILD_TESTS        : OFF
+-- │ FTXUI_BUILD_TESTS_FUZZER : OFF
+-- │ FTXUI_CLANG_TIDY         : OFF
+-- │ FTXUI_DEV_WARNINGS       : OFF
+-- │ FTXUI_ENABLE_CCACHE      : OFF
+-- │ FTXUI_ENABLE_COVERAGE    : OFF
+-- │ FTXUI_ENABLE_INSTALL     : OFF
+-- │ FTXUI_QUIET              : OFF
+-- └─────────────────────────────────────
+-- Configuring done (0.2s)
+-- Generating done (0.1s)
+-- Build files have been written to: /home/gyl/example/chat/build/asan
+[  0%] Built target chat_migration_test
+[  2%] Built target wslay
+[  3%] Built target chat_avatar_image_test
+[  3%] Built target utf8proc
+[  4%] Built target chat_tui_inbox_test
+[  4%] Built target chat_tui_file_test
+[  5%] Built target chat_online_users_test
+[  5%] Built target simdjson
+[  8%] Built target boost_capy
+[ 11%] Built target screen
+[ 11%] Built target chat_simdjson_reflection_test
+[ 19%] Built target boost_corosio
+[ 20%] Built target chat_corosio_timeout_test
+[ 21%] Built target chat_db_test
+[ 33%] Built target dom
+[ 33%] Built target chat_tui_span_test
+[ 41%] Built target component
+[ 61%] Built target boost_http
+[ 61%] Built target chat_tui_unicode_test
+[ 62%] Built target chat_tui_display_test
+[ 63%] Built target chat_websocket_test
+[ 64%] Built target chat_http_test
+[ 65%] Built target chat_bcrypt_test
+[ 66%] Built target chat_client
+[ 66%] Built target chat_qt_widgets_autogen_timestamp_deps
+[ 67%] Built target chat_tui_state
+[ 67%] Built target chat_client_test
+[ 67%] Built target chat_tui_state_test
+[ 68%] Built target chat_tui_core
+[ 69%] Built target chat_tui_ui
+[ 70%] Automatic MOC for target chat_qt_widgets
+[ 79%] Built target chat_server
+[ 79%] Built target chat_tui_render_test
+[ 80%] Linking CXX executable ../chat_tui
+[ 81%] Linking CXX executable chat_server_test
+[ 81%] Built target chat_qt_widgets_autogen
+[ 81%] Running rcc for resource chat_icons
+[ 82%] Building CXX object qt/CMakeFiles/chat_qt_widgets.dir/chat_qt_widgets_autogen/mocs_compilation.cpp.o
+[ 82%] Building CXX object qt/CMakeFiles/chat_qt_widgets.dir/src/avatar.cpp.o
+[ 83%] Building CXX object qt/CMakeFiles/chat_qt_widgets.dir/src/emoji_text.cpp.o
+[ 83%] Building CXX object qt/CMakeFiles/chat_qt_widgets.dir/src/chat_widget.cpp.o
+[ 83%] Building CXX object qt/CMakeFiles/chat_qt_widgets.dir/src/conversation_delegate.cpp.o
+[ 83%] Building CXX object qt/CMakeFiles/chat_qt_widgets.dir/src/message_delegate.cpp.o
+[ 84%] Building CXX object qt/CMakeFiles/chat_qt_widgets.dir/src/theme.cpp.o
+[ 84%] Building CXX object qt/CMakeFiles/chat_qt_widgets.dir/src/main_window.cpp.o
+[ 84%] Building CXX object qt/CMakeFiles/chat_qt_widgets.dir/src/theme_manager.cpp.o
+[ 84%] Building CXX object qt/CMakeFiles/chat_qt_widgets.dir/.rcc/qrc_chat_icons.cpp.o
+[ 84%] Built target chat_tui
+[ 94%] Built target chat_server_test
+[ 97%] Built target chat_qt_widgets
+[ 97%] Building CXX object qt/CMakeFiles/chat_qt_models_test.dir/tests/models_test.cpp.o
+[ 97%] Building CXX object qt/CMakeFiles/chat_qt.dir/src/main.cpp.o
+[ 98%] Building CXX object qt/CMakeFiles/chat_qt_delegate_test.dir/tests/delegate_test.cpp.o
+[ 98%] Building CXX object qt/CMakeFiles/chat_qt_ui_test.dir/tests/ui_test.cpp.o
+[ 98%] Linking CXX executable chat_qt
+[ 98%] Built target chat_qt
+[100%] Linking CXX executable chat_qt_models_test
+[100%] Linking CXX executable chat_qt_delegate_test
+[100%] Built target chat_qt_models_test
+[100%] Built target chat_qt_delegate_test
+[100%] Linking CXX executable chat_qt_ui_test
+[100%] Built target chat_qt_ui_test
+Internal ctest changing into directory: /home/gyl/example/chat/build/asan
+Test project /home/gyl/example/chat/build/asan
+      Start  1: migration
+ 1/26 Test  #1: migration ........................   Passed    0.78 sec
+      Start  2: client
+ 2/26 Test  #2: client ...........................   Passed    1.05 sec
+      Start  3: pg_connection
+ 3/26 Test  #3: pg_connection ....................   Passed    0.33 sec
+      Start  4: corosio_timeout
+ 4/26 Test  #4: corosio_timeout ..................   Passed    0.09 sec
+      Start  5: http_server
+ 5/26 Test  #5: http_server ......................   Passed    0.01 sec
+      Start  6: websocket
+ 6/26 Test  #6: websocket ........................   Passed    0.01 sec
+      Start  7: tui_integration
+ 7/26 Test  #7: tui_integration ..................   Passed   16.89 sec
+      Start  8: server
+ 8/26 Test  #8: server ...........................   Passed   11.00 sec
+      Start  9: server_conversations
+ 9/26 Test  #9: server_conversations .............   Passed   30.17 sec
+      Start 10: server_group_lifecycle
+10/26 Test #10: server_group_lifecycle ...........   Passed   12.72 sec
+      Start 11: friendship
+11/26 Test #11: friendship .......................   Passed   14.94 sec
+      Start 12: avatar_image
+12/26 Test #12: avatar_image .....................   Passed    0.01 sec
+      Start 13: simdjson_reflection
+13/26 Test #13: simdjson_reflection ..............   Passed    0.02 sec
+      Start 14: online_users
+14/26 Test #14: online_users .....................   Passed    0.01 sec
+      Start 15: bcrypt
+15/26 Test #15: bcrypt ...........................   Passed    0.02 sec
+      Start 16: tui_render
+16/26 Test #16: tui_render .......................   Passed    2.62 sec
+      Start 17: tui_unicode
+17/26 Test #17: tui_unicode ......................   Passed    0.16 sec
+      Start 18: tui_display
+18/26 Test #18: tui_display ......................   Passed    0.07 sec
+      Start 19: tui_span
+19/26 Test #19: tui_span .........................   Passed    0.02 sec
+      Start 20: tui_state
+20/26 Test #20: tui_state ........................   Passed    0.01 sec
+      Start 21: tui_inbox
+21/26 Test #21: tui_inbox ........................   Passed    0.02 sec
+      Start 22: tui_file
+22/26 Test #22: tui_file .........................   Passed    0.01 sec
+      Start 23: qt_models
+23/26 Test #23: qt_models ........................   Passed    0.02 sec
+      Start 24: qt_delegate
+24/26 Test #24: qt_delegate ......................   Passed   12.88 sec
+      Start 25: qt_widgets
+25/26 Test #25: qt_widgets .......................   Passed   11.72 sec
+      Start 26: qt_ui
+26/26 Test #26: qt_ui ............................   Passed   47.17 sec
+
+100% tests passed, 0 tests failed out of 26
+
+Total Test time (real) = 162.74 sec
+-- liburing 2.5+ not found — io_uring backend disabled
+-- Building with OpenSSL support
+-- simdjson exception interface turned off. Code that does not check error codes will not compile.
+-- simdjson: C++26 static reflection forced on.
+-- Adding -Og to compile flag
+-- Build spdlog: 1.17.0
+-- Build type: Debug
+-- ┌─ FTXUI 7.0.3 ────────────────────────
+-- │ FTXUI_BUILD_DOCS         : OFF
+-- │ FTXUI_BUILD_EXAMPLES     : OFF
+-- │ FTXUI_BUILD_MODULES      : OFF
+-- │ FTXUI_BUILD_TESTS        : OFF
+-- │ FTXUI_BUILD_TESTS_FUZZER : OFF
+-- │ FTXUI_CLANG_TIDY         : OFF
+-- │ FTXUI_DEV_WARNINGS       : OFF
+-- │ FTXUI_ENABLE_CCACHE      : OFF
+-- │ FTXUI_ENABLE_COVERAGE    : OFF
+-- │ FTXUI_ENABLE_INSTALL     : OFF
+-- │ FTXUI_QUIET              : OFF
+-- └─────────────────────────────────────
+-- Configuring done (0.2s)
+-- Generating done (0.1s)
+-- Build files have been written to: /home/gyl/example/chat/build/ubsan
+[  0%] Built target utf8proc
+[  1%] Built target chat_online_users_test
+[  3%] Built target wslay
+[  4%] Built target chat_tui_inbox_test
+[  4%] Built target chat_tui_file_test
+[  5%] Built target chat_avatar_image_test
+[  5%] Built target chat_migration_test
+[  5%] Built target simdjson
+[  8%] Built target boost_capy
+[ 11%] Built target screen
+[ 11%] Built target chat_simdjson_reflection_test
+[ 19%] Built target boost_corosio
+[ 31%] Built target dom
+[ 32%] Built target chat_corosio_timeout_test
+[ 33%] Built target chat_db_test
+[ 33%] Built target chat_tui_span_test
+[ 52%] Built target boost_http
+[ 53%] Built target chat_bcrypt_test
+[ 62%] Built target component
+[ 63%] Built target chat_websocket_test
+[ 64%] Built target chat_http_test
+[ 65%] Built target chat_client
+[ 66%] Built target chat_tui_unicode_test
+[ 66%] Built target chat_tui_display_test
+[ 66%] Built target chat_qt_widgets_autogen_timestamp_deps
+[ 67%] Built target chat_tui_state
+[ 67%] Built target chat_client_test
+[ 67%] Built target chat_tui_state_test
+[ 69%] Automatic MOC for target chat_qt_widgets
+[ 69%] Building CXX object tui/CMakeFiles/chat_tui_core.dir/src/profile.cpp.o
+[ 78%] Built target chat_server
+[ 78%] Built target chat_qt_widgets_autogen
+[ 78%] Running rcc for resource chat_icons
+[ 79%] Building CXX object qt/CMakeFiles/chat_qt_widgets.dir/src/avatar.cpp.o
+[ 79%] Building CXX object qt/CMakeFiles/chat_qt_widgets.dir/chat_qt_widgets_autogen/mocs_compilation.cpp.o
+[ 79%] Building CXX object qt/CMakeFiles/chat_qt_widgets.dir/src/chat_widget.cpp.o
+[ 79%] Building CXX object qt/CMakeFiles/chat_qt_widgets.dir/src/conversation_delegate.cpp.o
+[ 80%] Building CXX object qt/CMakeFiles/chat_qt_widgets.dir/src/main_window.cpp.o
+[ 80%] Building CXX object qt/CMakeFiles/chat_qt_widgets.dir/src/message_delegate.cpp.o
+[ 81%] Building CXX object qt/CMakeFiles/chat_qt_widgets.dir/src/emoji_text.cpp.o
+[ 81%] Building CXX object qt/CMakeFiles/chat_qt_widgets.dir/src/theme.cpp.o
+[ 81%] Building CXX object qt/CMakeFiles/chat_qt_widgets.dir/src/theme_manager.cpp.o
+[ 81%] Building CXX object qt/CMakeFiles/chat_qt_widgets.dir/.rcc/qrc_chat_icons.cpp.o
+[ 81%] Linking CXX static library libchat_tui_core.a
+[ 81%] Built target chat_tui_core
+[ 82%] Building CXX object tui/CMakeFiles/chat_tui_ui.dir/src/ui.cpp.o
+[ 83%] Linking CXX executable chat_server_test
+[ 93%] Built target chat_server_test
+[ 93%] Linking CXX static library libchat_tui_ui.a
+[ 93%] Built target chat_tui_ui
+[ 94%] Linking CXX executable chat_tui_render_test
+[ 94%] Linking CXX executable ../chat_tui
+[ 94%] Built target chat_tui
+[ 94%] Built target chat_tui_render_test
+[ 97%] Built target chat_qt_widgets
+[ 97%] Building CXX object qt/CMakeFiles/chat_qt_ui_test.dir/tests/ui_test.cpp.o
+[ 97%] Building CXX object qt/CMakeFiles/chat_qt_models_test.dir/tests/models_test.cpp.o
+[ 97%] Building CXX object qt/CMakeFiles/chat_qt.dir/src/main.cpp.o
+[ 98%] Building CXX object qt/CMakeFiles/chat_qt_delegate_test.dir/tests/delegate_test.cpp.o
+[ 98%] Linking CXX executable chat_qt
+[ 98%] Built target chat_qt
+[100%] Linking CXX executable chat_qt_models_test
+[100%] Linking CXX executable chat_qt_delegate_test
+[100%] Built target chat_qt_models_test
+[100%] Built target chat_qt_delegate_test
+[100%] Linking CXX executable chat_qt_ui_test
+[100%] Built target chat_qt_ui_test
+Internal ctest changing into directory: /home/gyl/example/chat/build/ubsan
+Test project /home/gyl/example/chat/build/ubsan
+      Start  1: migration
+ 1/26 Test  #1: migration ........................   Passed    0.73 sec
+      Start  2: client
+ 2/26 Test  #2: client ...........................   Passed    1.07 sec
+      Start  3: pg_connection
+ 3/26 Test  #3: pg_connection ....................   Passed    0.31 sec
+      Start  4: corosio_timeout
+ 4/26 Test  #4: corosio_timeout ..................   Passed    0.07 sec
+      Start  5: http_server
+ 5/26 Test  #5: http_server ......................   Passed    0.01 sec
+      Start  6: websocket
+ 6/26 Test  #6: websocket ........................   Passed    0.01 sec
+      Start  7: tui_integration
+ 7/26 Test  #7: tui_integration ..................   Passed   15.23 sec
+      Start  8: server
+ 8/26 Test  #8: server ...........................   Passed    8.93 sec
+      Start  9: server_conversations
+ 9/26 Test  #9: server_conversations .............   Passed   30.41 sec
+      Start 10: server_group_lifecycle
+10/26 Test #10: server_group_lifecycle ...........   Passed   12.77 sec
+      Start 11: friendship
+11/26 Test #11: friendship .......................   Passed   12.87 sec
+      Start 12: avatar_image
+12/26 Test #12: avatar_image .....................   Passed    0.00 sec
+      Start 13: simdjson_reflection
+13/26 Test #13: simdjson_reflection ..............   Passed    0.00 sec
+      Start 14: online_users
+14/26 Test #14: online_users .....................   Passed    0.00 sec
+      Start 15: bcrypt
+15/26 Test #15: bcrypt ...........................   Passed    0.01 sec
+      Start 16: tui_render
+16/26 Test #16: tui_render .......................   Passed    0.96 sec
+      Start 17: tui_unicode
+17/26 Test #17: tui_unicode ......................   Passed    0.05 sec
+      Start 18: tui_display
+18/26 Test #18: tui_display ......................   Passed    0.03 sec
+      Start 19: tui_span
+19/26 Test #19: tui_span .........................   Passed    0.00 sec
+      Start 20: tui_state
+20/26 Test #20: tui_state ........................   Passed    0.00 sec
+      Start 21: tui_inbox
+21/26 Test #21: tui_inbox ........................   Passed    0.00 sec
+      Start 22: tui_file
+22/26 Test #22: tui_file .........................   Passed    0.02 sec
+      Start 23: qt_models
+23/26 Test #23: qt_models ........................   Passed    0.01 sec
+      Start 24: qt_delegate
+24/26 Test #24: qt_delegate ......................   Passed   11.02 sec
+      Start 25: qt_widgets
+25/26 Test #25: qt_widgets .......................   Passed    7.87 sec
+      Start 26: qt_ui
+26/26 Test #26: qt_ui ............................   Passed   45.50 sec
+
+100% tests passed, 0 tests failed out of 26
+
+Total Test time (real) = 147.89 sec

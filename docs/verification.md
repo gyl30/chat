@@ -13,7 +13,7 @@ tests/verify.sh
 - CMake 3.30 或更新。
 - 支持 `-std=c++26 -freflection` 的 GCC 16；当前验证使用 `16.0.1 20260315`（trunk `r16-8100-g3aca3bae8ee`）。静态反射由现有 simdjson CMake 配置启用。
 - Boost **1.92.0** 的 CMake package；当前安装于 `/usr/local`。非默认安装位置可通过 `CMAKE_PREFIX_PATH` 提供，首次配置的编译器使用常规 `CC/CXX` 环境变量。
-- OpenSSL、PostgreSQL/libpq、libpng、libjpeg、Qt 6.2+ Widgets/Svg 开发包及 Qt offscreen 平台插件。
+- OpenSSL、PostgreSQL/libpq、libpng、libjpeg、Qt 6.5+ Widgets/Svg 开发包及 Qt offscreen 平台插件。
 - TUI 使用固定的 FTXUI v7.0.3 submodule，无 Qt 或 curses 依赖。
 - 按仓库 gitlink 初始化第三方依赖：`git submodule update --init --recursive`。
 

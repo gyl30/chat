@@ -1,0 +1,29 @@
+{
+  "head": "d182e553159a066c2bdff4abd9a8660903090b39",
+  "binary_sha256": {
+    "build/qt/chat_qt": "5853678c7f273f814d53eee54980644df7e6115b70bdb312791b9d0e12747a6f",
+    "build/chat_tui": "b69c102889021990fbb56b9090d026621e534eeae157809f8f65c65e2ac30d42",
+    "build/chat_server": "4063ebd96b8b9b7c48b3ace5dd9026cc3280bb3e2d41681fa567f0d5931be8a7",
+    "build/chat_tui_scale_fixture": "b624a131f2170164bd4f9b2c9ac2cc732fd6b62c23819f3a8b9d7fc0b4d021fe"
+  },
+  "verify_exit_code": 0,
+  "ctest": {
+    "normal": {
+      "passed": 26,
+      "total": 26,
+      "seconds": 120.01
+    },
+    "asan": {
+      "passed": 26,
+      "total": 26,
+      "seconds": 162.74
+    },
+    "ubsan": {
+      "passed": 26,
+      "total": 26,
+      "seconds": 147.89
+    }
+  },
+  "user_changes": "chat_widget.cpp/theme.cpp original layout changes preserved and included in actual worktree build; excluded from our commits",
+  "verify_log_sha256": "addbd93f2aebac97c6c89f4bfc3aa8297bc828722f75ccd539671733cfd0f5c9"
+}

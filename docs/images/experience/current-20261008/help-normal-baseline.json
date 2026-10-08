@@ -1,0 +1,6 @@
+{
+  "role": "Existing normal baseline binary, not yet relinked against Help optimization",
+  "binary_before_sha": "d5837a7ad135c40612f56a1dd284889681ad6a4ed94625a5d7dd53f7610e1792",
+  "exit_code": 0,
+  "binary_after_sha": "d5837a7ad135c40612f56a1dd284889681ad6a4ed94625a5d7dd53f7610e1792"
+}

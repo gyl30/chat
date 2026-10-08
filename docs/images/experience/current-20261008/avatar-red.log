@@ -1,0 +1,18 @@
+Internal ctest changing into directory: /home/gyl/example/chat/build
+Test project /home/gyl/example/chat/build
+    Start 23: qt_models
+1/1 Test #23: qt_models ........................***Failed    0.00 sec
+FAIL avatar initial for 🙂Alice: expected 🙂, got UTF-8 hex 3f
+FAIL avatar initial for 𠀀用户: expected 𠀀, got UTF-8 hex 3f
+FAIL avatar initial for éAlice: expected É, got UTF-8 hex 45
+FAIL avatar initial for 👩‍🚀名字: expected 👩‍🚀, got UTF-8 hex 3f
+FAIL avatar initial for 🇨🇳中国: expected 🇨🇳, got UTF-8 hex 3f
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.01 sec
+
+The following tests FAILED:
+	 23 - qt_models (Failed)
+Errors while running CTest

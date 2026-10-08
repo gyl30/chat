@@ -1,0 +1,23 @@
+{
+  "role": "Existing ASan baseline binary, not relinked against current edits; diagnostic only",
+  "before": {
+    "build/asan/tui/chat_tui_render_test": "fab271def5646565c712d8d20bf2ff9b3d3e27b4f08eb80fa1be622b8d30c6db",
+    "tui/src/ui.cpp": "203f0e3f0097c5dee6df4c812f9c44abf2ee8375ca9d25eeab2e532564c2ff71",
+    "tui/tests/render_test.cpp": "6156768019b1f60d2a856eee6b552eab0a7afec6ba2c87934b959da12eec7015",
+    "tui/src/profile.cpp": "895a05fb6e365c11c100861359555c906b1273029da50db553e80da2a450d85d",
+    "tui/cmake/ftxui-7.0.3-grapheme.patch": "1e4bf334b12a9d4cd0876f68a0c096717f6ee8070e113f01fdc73b1e6595e56d"
+  },
+  "binary_mtime": 1791424401.7798758,
+  "ASAN_OPTIONS": null,
+  "LSAN_OPTIONS": null,
+  "tty": false,
+  "elapsed_seconds": 5.035090958997898,
+  "exit_code": 0,
+  "after": {
+    "build/asan/tui/chat_tui_render_test": "fab271def5646565c712d8d20bf2ff9b3d3e27b4f08eb80fa1be622b8d30c6db",
+    "tui/src/ui.cpp": "203f0e3f0097c5dee6df4c812f9c44abf2ee8375ca9d25eeab2e532564c2ff71",
+    "tui/tests/render_test.cpp": "6156768019b1f60d2a856eee6b552eab0a7afec6ba2c87934b959da12eec7015",
+    "tui/src/profile.cpp": "895a05fb6e365c11c100861359555c906b1273029da50db553e80da2a450d85d",
+    "tui/cmake/ftxui-7.0.3-grapheme.patch": "1e4bf334b12a9d4cd0876f68a0c096717f6ee8070e113f01fdc73b1e6595e56d"
+  }
+}

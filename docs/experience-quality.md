@@ -4318,3 +4318,75 @@ drop成功、剩余0；不是覆盖第一次失败。[运行证据](images/exper
 历史Qt87/TUI78不提高，尚未达到92分后的两轮完整fresh验收。本轮不能代替
 全页面全状态/四DPI/连续resize/IME/Orca、TUI六宽度与终端模式或完整四端
 日常组合；原生大列表/分页/全部文件选择错误/权限恢复等仍需单独真实验证。
+
+
+## 阶段67：当前状态恢复、确定问题回归与真实证据（2026-10-08）
+
+本轮 `BASE_HEAD` 为 `b16a49cd696bda3ae76d9e381094fcf01a0d5728`。
+重新 fetch 后 HEAD 与 origin/main 一致、submodules 干净；工作区已有用户的
+`chat_widget.cpp` / `theme.cpp` 联系人 header 修改。用户明确要求保留并在其基础上继续。
+下述实际构建包含这些修改，本轮独立提交仅暂存自己的补丁，没有覆盖或代为提交用户改动。
+这是当前工作区验证，不能称为纯净 git HEAD 的独立构建。
+
+### 复核与最小修复
+
+| 问题 | RED 与根因 | 修复和实际边界 |
+| --- | --- | --- |
+| 最近账号恢复但服务器回到 localhost | 无 URL 参数的正式入口预填 localhost，覆盖恢复；隔离 QSettings 和成功认证回归分别失败 | 显式 URL 优先，其次最后成功登录的 URL，最后 localhost；仅认证成功写入账号和地址，失败不覆盖、不保存密码。真实 X11 关闭再启动及显式 URL 覆盖通过 |
+| 会话搜索无结果刷新后提示消失 | modelReset 先运行 filter，随后 set_conversations 清空提示，确定性 RED | 完成刷新时重新 filter；无匹配、有匹配、后续结果出现/消失、清空、真正空列表和已选会话的草稿/历史均覆盖 |
+| 空聊天页指导选择不存在的会话 | 新用户真实 X11 原图；加载/空列表/关闭最后会话的六种转换 RED。补查加载失败又确认右侧留在 loading 的 RED | 从当前模型派生 loading/error/empty/selection 文案，真正空列表提示左侧「+」；不增加状态或计时器，不替换已选历史/草稿 |
+| 迟到 Message 响应切走 TUI Account | 独立 server SIGSTOP，确认 real RPC Receive-Q 增长后进入 Account；恢复 server 后旧响应覆盖页面，真实 RED | 沿用页面版本并核对 profile 用户 ID。GREEN 在服务端完成后的有限 3.190 秒、11 次 PTY 屏障观察中保持 Account；不是无限迟到安全证明 |
+| 头像截断 emoji、补充平面汉字或组合字素 | 5 个字面期望 RED；真实头像原图为替换字符。首字素修复后又实际看到宇航员拆成女人/火箭 | 复用既有 grapheme_ends 和 emoji 字体绘制，保持完整首字素与居中。最终真实头像是单个宇航员，文字输入框仍分裂，未宣称全界面 Unicode 已完成 |
+| 帮助滚动重复构建 DOM 导致 ASan 超时 | 原 5 秒 CTest 确实 Timeout；GDB 24 次采样中 11 次含帮助测高构建栈，perf 受系统权限限制，未绕过 | 复用同一换行规则直接计行。未改 4800 按键回归、Unicode 策略、FTXUI 补丁或 timeout；旧/新直接 ASan wall 5.03/2.57 秒，最终完整 CTest 为 2.62 秒 |
+
+当前正式规则仍是 `0cc26e8`：非好友 direct 从 Chats 隐藏，打开页关闭，申请待确认
+不恢复入口；重新接受恢复同一会话和历史。新增显式 `--hidden-direct-only` 原生双 TUI
+回归确认原会话 ID、历史、双方 Unicode 多行草稿，并随后实际各发送一次。
+每个客户端走 60/70/80/100/120/160 列 × 20/24/40 行的 18 尺寸；
+这些检查确认 marker/历史 selection 与草稿保存，不等于每个尺寸的全页面视觉评审。
+旧百人 smoke 的 removed-friend 只读入口期望已过时，本轮未用它作为当前产品 PASS。
+没有增加非好友历史入口，没有改 server/client/RPC/SQL 或 submodule。
+
+### 代表性原始视觉证据
+
+- 空聊天：[before](images/experience/current-20261008/qt-empty-before.png) /
+  [after](images/experience/current-20261008/qt-empty-after.png)。两次都是真实正式 Qt/X11 登录，账号不同，不能当逐像素 A/B 实验。
+- 头像：[before](images/experience/current-20261008/qt-avatar-before.png) /
+  [after](images/experience/current-20261008/qt-avatar-after.png)，同一驱动、同一 canvas 和窗口尺寸；输入框尚未修复的 emoji 绘制在 after 可见。
+- [正常 380×540 登录窗口](images/experience/current-20261008/qt-login-default.png)；主窗口 1180×760、最小 980×640，rail 82、sidebar 332、composer 56 起步最多六行；本轮没有无依据改这些设计尺寸。
+- 原始有样式 tmux：[Account 在迟到响应后](images/experience/current-20261008/tui-account-after-late-message.ansi)、
+  [解除好友后隐藏](images/experience/current-20261008/tui-removed-direct-hidden.ansi)、
+  [重新接受后恢复](images/experience/current-20261008/tui-reaccepted-direct-restored.ansi)。保留 ANSI，没有重画示意图代替实际终端。
+
+### 当前工程门禁
+
+最终生产源码冻结后实际完整执行原 `tests/verify.sh`，Qt/TUI 均 ON，exit 0：
+
+| 模式 | build | CTest | 全部 CTest 用时 |
+| --- | --- | --- | --- |
+| normal Debug | PASS | 26/26 PASS | 120.01 s |
+| ASan | PASS | 26/26 PASS | 162.74 s |
+| UBSan | PASS | 26/26 PASS | 147.89 s |
+
+[完整统一入口日志](images/experience/current-20261008/verify.log)与
+[二进制指纹及工作区范围](images/experience/current-20261008/verify-and-binaries.json)保留。
+没有 suppression、skip、测试排除、放宽 timeout 或降低断言；构建日志没有新增 warning。
+定向 Qt models/delegate/widgets、完整 qt_ui 和 TUI state/render/integration 均实际执行；
+原始 RED 保留为失败证据，没有将失败当通过。
+测试使用独立数据库，业务 fixture 通过 SDK；只暂停/停止自己的 server，未触碰既有 18080 服务。
+
+### 品质目标仍开放
+
+当前局部真实证据不能签署新的全产品分数；历史 Qt87/TUI78 不是本轮最新评分。
+两端 92 分、P0/P1/P2=0 和达到门槛后的连续两轮完整 fresh review 均未证明。
+完整夜间/HiDPI/无障碍/全页面矩阵、原生四端日常流程仍需继续。
+这些修复提高可预测性与反馈，不为局部门禁或截图通过拔高品质分数。
+
+### 交接后的收尾（2026-10-08）
+
+本阶段工作在用户名输入框修复和夜间对比度检查写完、尚未提交时停止，随后接手验证并提交，未改动其逻辑：
+
+- 用户名输入框：`emoji_input_font` 保留样式解析出的首选字体并追加 Noto Color Emoji 后备。登录与注册两个实际输入框在浅色、夜间、再回到浅色三次切换中，拉丁、数字、中文的字形和宽度不变，宇航员 ZWJ 序列均为单个可见字形。
+- 夜间对比度：消息发送者名称及自己、他人的表情回应计数，按实际实心字形像素测得 8.23、9.97、6.42，均不低于 4.5:1。
+- Qt models/delegate/widgets/qt_ui 4/4 通过。
+
