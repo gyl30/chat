@@ -32,7 +32,9 @@ public:
     }
 
     // A bounded batch lets the event loop render even when producers are busy.
-    std::size_t drain()
+    // before() runs once ahead of a non-empty batch, so the UI can settle its own
+    // pending input against the state that batch is about to change.
+    std::size_t drain(task const& before = {})
     {
         std::deque<task> batch;
         {
@@ -40,6 +42,7 @@ public:
             if (stopped_) { return 0; }
             batch.swap(tasks_);
         }
+        if (!batch.empty() && before) { before(); }
         std::size_t count = 0;
         for (auto& action : batch)
         {
@@ -51,12 +54,6 @@ public:
             ++count;
         }
         return count;
-    }
-
-    bool empty()
-    {
-        std::lock_guard lock(mutex_);
-        return tasks_.empty();
     }
 
     // Call on the UI thread before destroying the screen or client. A task

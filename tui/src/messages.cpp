@@ -118,7 +118,7 @@ void app::mark_visible_read()
 {
     assert_ui();
     if (data.link != connection::online || data.view != page::conversation || !data.at_latest ||
-        state::layout(viewport_width, viewport_height) == layout_mode::too_small || dialog || command_mode ||
+        state::layout(viewport_width, viewport_height) == layout_mode::too_small || dialog || command_mode || history_rows < 1 ||
         history_busy_ || data.messages.empty()) { return; }
     auto const conversation = data.active;
     auto const view = view_;

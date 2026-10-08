@@ -188,7 +188,7 @@
   <nav class="toc">
     <a href="#current">现状</a><a href="#principles">原则</a><a href="#layout">布局</a><a href="#focus">焦点与按键</a>
     <a href="#read">已读与浮层</a><a href="#messages">消息</a><a href="#permissions">权限</a><a href="#capabilities">能力对照</a>
-    <a href="#pages">页面</a><a href="#a11y">可访问性</a><a href="#phases">阶段</a><a href="#decisions">待决定</a><a href="#review">审查记录</a>
+    <a href="#pages">页面</a><a href="#a11y">可访问性</a><a href="#phases">阶段</a><a href="#decisions">待决定</a><a href="#review">审查记录</a><a href="#implementation">实施记录</a>
   </nav>
 </header>
 
@@ -597,6 +597,44 @@
   </div>
   <h3>第五轮（复审第 5 版）</h3>
   <p>Codex 结论：第四轮意见全部解决；反斜杠换行规则自洽、可在现有 FTXUI 与 <code>tui/src</code> 上实现（光标位置为 UTF-8 字节偏移，直接替换该位置前的 ASCII 反斜杠并走现有草稿变更处理）；全文未发现阻塞实施的问题。<b>双方一致同意据此实施阶段 0～2</b>，实际行为仍以回归测试与真实 PTY 验证为准。</p>
+</section>
+<section id="implementation">
+  <h2>实施记录</h2>
+  <p>阶段 0～2 已实施。每个阶段提交前均通过 CTest（含 8 个 TUI 测试）与 4 个 tmux 冒烟驱动；百人驱动为 30 秒短稳态、1 次重启，结果记为 <code>DIAGNOSTIC_PASS</code>，不是完整验收。</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>阶段</th><th>提交</th><th>要点</th></tr></thead>
+    <tbody>
+      <tr><td class="k">0</td><td><code>2abbec5</code></td><td>修正百人驱动中过时或依赖时序的期望；大段粘贴由逐字符插入（61440 字节约 60 秒）改为整批插入（约 0.5 秒）</td></tr>
+      <tr><td class="k">1</td><td><code>e5306f5</code></td><td>界面中文化；服务端错误中文表与 Qt 共用（<code>client/include/chat/error_text.hpp</code>）；列表时间与文字标记；日期分隔；置顶与公告合并一行；通知分类与到期</td></tr>
+      <tr><td class="k">2</td><td><code>0589860</code></td><td>直接输入；焦点与 Tab 循环；Esc 逐层；<kbd>\</kbd> Enter 与 Alt+Enter 换行；输入框 1～4 行；F1 帮助；随焦点变化的按键提示</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3>与方案的差异（已确认）</h3>
+  <ul class="notes">
+    <li><b>输入框中 PgUp</b>：转到消息选择并加载更早的消息，草稿保留。方案只在消息选择中列出 PgUp。</li>
+    <li><b>帮助仍是页面</b>：没有做成叠加浮层；对话框和命令输入中 F1 不打开帮助。离开帮助后回到原页面并保留其选择与输入框草稿。2026-10-08 经确认保留。</li>
+    <li><b>列表焦点文字标记</b>：用 <code>&gt;</code> 而不是 <code>›</code>，以免与输入框提示符混淆。</li>
+    <li><b>Alt+Enter</b>：已在 tmux 中验证（ESC CR）；WezTerm 默认用于切换全屏，未在其他终端实测。</li>
+  </ul>
+  <h3>实现审查（Codex，第一轮）与修复</h3>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>意见</th><th>级别</th><th>修复</th></tr></thead>
+    <tbody>
+      <tr><td>判断队列为空与 drain 之间的竞态可能丢失粘贴内容</td><td>高</td><td>drain 在取出非空批次后、执行前回调 flush，不再单独查询</td></tr>
+      <tr><td>消息区可能没有可见行仍上报已读</td><td>高</td><td>落实「消息区少于 8 行时输入框缩回 1 行」；按当前尺寸计算可见行数，为 0 时不上报</td></tr>
+      <tr><td>覆盖模式下批量粘贴结果取决于分批</td><td>中</td><td>覆盖模式与单行字段逐字形插入</td></tr>
+      <tr><td>Esc 未统一一次只做一件</td><td>中</td><td>浮层先关闭、错误留待下一次；消息选择中也先取消回复或编辑</td></tr>
+      <tr><td>只清错误的 Esc 未取消待换行</td><td>中</td><td>一并清除标记</td></tr>
+      <tr><td>到期通知可能清掉同批写入的错误</td><td>中</td><td>错误写入即归类；到期只清除自己那条</td></tr>
+      <tr><td>帮助返回重置列表选择</td><td>中</td><td>返回时恢复原选择（帮助保持页面形式，见上）</td></tr>
+      <tr><td>回归覆盖不足、驱动掩盖焦点问题</td><td>中</td><td>补组合回归；隐藏判断只接受「列表中不存在」；导航驱动增加不经自动切焦点的原始按键与 Esc 逐层验证</td></tr>
+      <tr><td>测试依赖终端与日期环境</td><td>低</td><td>尺寸统一用 fallback 控制并在无终端的 CTest 中验证；日期按本地日历构造</td></tr>
+    </tbody>
+  </table>
+  </div>
 </section>
 </main>
 </body>

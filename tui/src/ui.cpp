@@ -6,6 +6,7 @@
 #include <ctime>
 #include <string_view>
 #include <optional>
+#include <unordered_map>
 #include <utility>
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/component_options.hpp>
@@ -25,10 +26,11 @@ constexpr std::array shortcuts{
     shortcut{"直接输入", "打开会话后直接输入；输入框中所有字符都是正文"},
     shortcut{"Enter", "发送消息 / 打开所选 / 确认"},
     shortcut{"\\ 后 Enter", "换行：只对刚键入的 \\ 生效；先按 → 等任意键再 Enter 可发送结尾的 \\"},
-    shortcut{"Alt+Enter", "换行（WezTerm 等终端可能占用）"},
+    shortcut{"Alt+Enter", "换行（已在 tmux 中验证；WezTerm 默认用它切换全屏）"},
     shortcut{"Esc", "依次：清除错误 / 取消回复或编辑 / 回到输入框 / 返回列表"},
     shortcut{"Tab / Shift+Tab", "宽屏在列表、消息、输入框之间切换；窄屏在消息与输入框之间切换"},
     shortcut{"↑（输入框为空）", "选择消息"},
+    shortcut{"PgUp（输入框中）", "转到消息并加载更早的消息，草稿保留"},
     shortcut{"F1", "帮助"},
     shortcut{"以下按键在消息或列表中使用", ""},
     shortcut{"j / ↓，k / ↑", "移动选择"},
@@ -300,7 +302,10 @@ Element conversation_list(state const& s, int width)
     for (std::size_t i = 0; i < s.conversations.size(); ++i)
     {
         auto const& c = s.conversations[i];
-        auto label = c.username;
+        bool const current = s.conversation_selected == static_cast<int>(i);
+        // A text mark as well as reverse video, so the focus survives monochrome terminals.
+        std::string const mark = current && s.view == page::conversations ? "> " : "  ";
+        auto label = mark + c.username;
         if (c.kind == conversation_kind::direct)
         {
             auto presence = presence_label(s, c.user);
@@ -318,8 +323,8 @@ Element conversation_list(state const& s, int width)
         if (!unread.empty() && !c.muted) { unread_mark = unread_mark | bold; }
         rows.push_back(selected(vbox({
             hbox({preview_text(label, name_width) | bold | flex, text(flags) | dim, text(when) | dim}),
-            hbox({preview_text(summary, width - DisplayWidth(unread)) | dim | flex, unread_mark})}),
-            s.conversation_selected == static_cast<int>(i), s.view == page::conversations));
+            hbox({text("  "), preview_text(summary, width - 2 - DisplayWidth(unread)) | dim | flex, unread_mark})}),
+            current, s.view == page::conversations));
     }
     if (s.next_conversations) { rows.push_back(text("↓ 更多会话") | dim); }
     return vbox({text("聊天") | bold, separator(), scroll(std::move(rows))}) | flex;
@@ -400,7 +405,38 @@ Element history(state const& s, int width, int message_scroll)
     }
     return scroll(std::move(items));
 }
-Element conversation_view(state const& s, Element input, std::string typing, int width, int message_scroll)
+std::string send_hint(state const& s, chat::conversation const& c)
+{
+    if (s.link != connection::online) { return "正在等待连接…"; }
+    if (c.kind == conversation_kind::direct) { return s.friendship_hint(c.user); }
+    return "当前会话不可发送消息";
+}
+int wrapped_lines(std::string const& value, int width)
+{
+    return std::max(1, (DisplayWidth(value) + std::max(1, width) - 1) / std::max(1, width));
+}
+// Rows above and below the history in the chat page, including the outer frame,
+// header, separators and status line.
+int chat_chrome(state const& s, int width, bool typing)
+{
+    auto const* c = s.active_conversation();
+    if (!c) { return 0; }
+    int rows = 6 + 3;  // frame, app header, separators and status; chat title and both history separators
+    if (c->pinned_message || !c->announcement.empty()) { ++rows; }
+    if (typing) { ++rows; }
+    if (!s.can_send()) { return rows + wrapped_lines(send_hint(s, *c), width); }
+    if (s.reply) { ++rows; }
+    if (s.editing) { ++rows; }
+    return rows;
+}
+// The composer grows with its lines up to four, but returns to one line while that
+// would leave the history fewer than eight rows.
+int composer_lines(state const& s, int width, int height, bool typing)
+{
+    auto const wanted = std::clamp(static_cast<int>(std::ranges::count(s.draft, '\n')) + 1, 1, 4);
+    return height - chat_chrome(s, width, typing) - wanted < 8 ? 1 : wanted;
+}
+Element conversation_view(state const& s, Element input, std::string typing, int width, int height, int message_scroll)
 {
     auto c = s.active_conversation();
     if (!c) { return text("选择一个会话，按 Enter 打开") | center | flex; }
@@ -419,24 +455,14 @@ Element conversation_view(state const& s, Element input, std::string typing, int
     if (!typing.empty()) { items.push_back(text(typing) | dim); }
     if (s.at_latest) { items.push_back(separator()); }
     else { items.push_back(preview_text("── 正在浏览历史 · G 回到最新，新消息保持未读 ──", width) | dim); }
-    if (!s.can_send())
-    {
-        std::string hint = "当前会话不可发送消息";
-        if (s.link != connection::online) { hint = "正在等待连接…"; }
-        else if (c->kind == conversation_kind::direct)
-        {
-            hint = s.friendship_hint(c->user);
-        }
-        items.push_back(wrapped_text(hint, width));
-    }
+    if (!s.can_send()) { items.push_back(wrapped_text(send_hint(s, *c), width)); }
     else
     {
         if (s.reply) { items.push_back(preview_text("回复 " + s.reply->username + "：" + s.reply->text, width) | dim); }
         if (s.editing) { items.push_back(text("正在编辑消息 · Esc 保留草稿") | dim); }
         if (input)
         {
-            // The composer grows with its lines up to four, then scrolls inside.
-            auto const lines = std::clamp(static_cast<int>(std::ranges::count(s.draft, '\n')) + 1, 1, 4);
+            auto const lines = composer_lines(s, width, height, !typing.empty());
             items.push_back(hbox({text("› "), input | flex}) | size(HEIGHT, EQUAL, lines));
         }
         else { items.push_back(preview_text(s.composing ? "› " + s.draft : s.draft.empty() ? "按 i 输入消息" : "按 i 继续输入 · " + s.draft, width)); }
@@ -636,9 +662,9 @@ Element render_impl(state const& s, int width, int height, Element compose = {},
     {
         if (state::layout(width, height) == layout_mode::wide)
         {
-            content = hbox({conversation_list(s, 29) | size(WIDTH, EQUAL, 30), separator(), conversation_view(s, compose, std::move(typing), width - 34, message_scroll)}) | flex;
+            content = hbox({conversation_list(s, 29) | size(WIDTH, EQUAL, 30), separator(), conversation_view(s, compose, std::move(typing), width - 34, height, message_scroll)}) | flex;
         }
-        else { content = s.view == page::conversations ? conversation_list(s, width - 3) : conversation_view(s, compose, std::move(typing), width - 3, message_scroll); }
+        else { content = s.view == page::conversations ? conversation_list(s, width - 3) : conversation_view(s, compose, std::move(typing), width - 3, height, message_scroll); }
     }
     else { content = secondary(s, width - 3, message_scroll); }
     auto link = " " + link_label(s.link);
@@ -668,9 +694,11 @@ std::size_t selection_count(state const& s, int width)
         case page::new_action: case page::profile: case page::group: return actions(s).size();
         case page::help:
         {
-            int lines = 0;
-            help_content(width, &lines);
-            return static_cast<std::size_t>(lines);
+            // The help text is fixed, so its height per width is computed once.
+            static std::unordered_map<int, int> heights;
+            auto [found, added] = heights.try_emplace(width, 0);
+            if (added) { help_content(width, &found->second); }
+            return static_cast<std::size_t>(found->second);
         }
         case page::copy:
         {
@@ -714,6 +742,7 @@ public:
         compose_option.multiline = true;
         compose_option.on_change = [this] { app_.compose_changed(); };
         compose_option.cursor_position = &compose_cursor_;
+        compose_option.insert = &compose_insert_;
         compose_ = Input(&app_.data.draft, "输入消息", compose_option);
         Add(compose_);
         command_ = Input(&app_.command_text, "命令", single);
@@ -760,7 +789,9 @@ public:
         }
         else
         {
-            page = render_impl(s, terminal.dimx, terminal.dimy, s.composing ? compose_->Render() : Element{}, app_.typing_text(), message_scroll_);
+            auto const typing = app_.typing_text();
+            update_history_rows(terminal);
+            page = render_impl(s, terminal.dimx, terminal.dimy, s.composing ? compose_->Render() : Element{}, typing, message_scroll_);
         }
         if (app_.dialog)
         {
@@ -777,10 +808,12 @@ public:
         if (event != Event::Custom)
         {
             // Esc only clears a shown error, so it does not also leave the page.
+            // An open dialog or command line is closed first; the error waits for the next Esc.
+            bool const overlay = app_.dialog || app_.command_mode;
             bool const clear_only = event == Event::Escape && app_.data.status_error && app_.data.self.id &&
-                                    !pasting_ && !app_.dialog && !app_.command_mode;
-            app_.dismiss_error();
-            if (clear_only) { app_.observe_status(); return true; }
+                                    !pasting_ && !overlay;
+            if (event != Event::Escape || !overlay) { app_.dismiss_error(); }
+            if (clear_only) { newline_.reset(); app_.observe_status(); return true; }
         }
         auto const handled = handle(event);
         if (app_.data.self.id) { app_.sync_focus(); }
@@ -792,8 +825,7 @@ private:
     {
         update_viewport(Terminal::Size());
         // Pasted text belongs to the target as it was before queued results change it.
-        if (!paste_buffer_.empty() && app_.pending()) { flush_paste(); }
-        app_.drain();
+        app_.drain([this] { flush_paste(); });
         if (app_.data.self.id) { app_.sync_focus(); }
         sync_message_scroll();
         auto& s = app_.data;
@@ -832,6 +864,9 @@ private:
             }
             return true;
         }
+        // Read receipts below use the history rows of the current size, not the last frame.
+        // (After the paste branch: counting lines of a growing paste per character would be quadratic.)
+        update_history_rows(Terminal::Size());
         if (event == Event::Custom)
         {
             // A pending backslash newline survives redraws, but not a program change to its text.
@@ -931,6 +966,8 @@ private:
         if (event == Event::F1) { app_.command("help"); return true; }
         if (event == Event::Escape)
         {
+            // A reply or edit is cancelled first, wherever the focus is; the draft stays.
+            if (s.view == page::conversation && (s.editing || s.reply)) { s.editing = 0; s.reply.reset(); return true; }
             // From the messages Esc returns to the composer when there is one.
             if (s.view == page::conversation && s.selecting && s.can_send()) { s.selecting = false; return true; }
             app_.back();
@@ -1058,12 +1095,27 @@ private:
         }
         return {};
     }
+    void update_history_rows(ftxui::Dimensions terminal)
+    {
+        auto const& s = app_.data;
+        if (s.view != page::conversation || terminal.dimx <= 0 || terminal.dimy <= 0) { return; }
+        // Read receipts need at least one history row on screen.
+        auto const typing = !app_.typing_text().empty();
+        auto const wide = state::layout(terminal.dimx, terminal.dimy) == layout_mode::wide;
+        auto const width = terminal.dimx - (wide ? 34 : 3);
+        app_.history_rows = terminal.dimy - chat_chrome(s, width, typing) -
+            (s.composing ? composer_lines(s, width, terminal.dimy, typing) : 1);
+    }
     void flush_paste()
     {
         if (paste_buffer_.empty()) { return; }
         auto text = std::exchange(paste_buffer_, {});
-        if (paste_input_ && paste_input_ == input() && paste_conversation_ == app_.data.active)
-        { paste_input_->OnEvent(Event::Character(std::move(text))); }
+        if (!paste_input_ || paste_input_ != input() || paste_conversation_ != app_.data.active) { return; }
+        // One insertion keeps a large paste linear. Overwrite mode replaces one glyph per
+        // typed character, so there (and in the short single-line fields) glyphs go one by one.
+        if (paste_input_ == compose_ && compose_insert_) { paste_input_->OnEvent(Event::Character(std::move(text))); return; }
+        for (auto const& glyph : Utf8ToGlyphs(text))
+        { if (!glyph.empty()) { paste_input_->OnEvent(Event::Character(glyph)); } }
     }
     void sync_message_scroll()
     {
@@ -1114,6 +1166,7 @@ private:
     Component paste_input_;
     std::string paste_buffer_;
     int compose_cursor_ = 0;
+    bool compose_insert_ = true;
     struct newline_mark { std::int64_t conversation; int cursor; std::string draft; };
     std::optional<newline_mark> newline_;
     std::int64_t paste_conversation_ = 0;

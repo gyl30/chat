@@ -388,7 +388,8 @@ class Driver:
         self.wait(actor, '聊天')
         self.keys(actor, 'k', repeat=200)
         self.barrier(actor)
-        marker = self.title[:5]
+        # The part before '_' is unique and survives clipping beside the pin and mute marks.
+        marker = self.title.split('_', 1)[0]
         for _ in range(140):
             if marker in inverse_text(self.capture(actor, styled=True)):
                 time.sleep(.1)
@@ -471,7 +472,8 @@ class Driver:
                 return
             self.keys(actor, 'j')
             time.sleep(.04)
-        raise AssertionError(f'{actor}: conversation {title!r} missing')
+        # A distinct error, so a caller checking that a chat is hidden cannot mistake other failures.
+        raise LookupError(f'{actor}: conversation {title!r} missing')
 
     def selected_message_lines(self, actor):
         # In a wide layout the conversation list is independently highlighted.
@@ -1181,7 +1183,7 @@ def stage_removed_friend(d, files):
         def hidden(actor, peer, label):
             try:
                 d.open_named(actor, d.name(peer))
-            except AssertionError:
+            except LookupError:
                 d.screenshot(actor, label)
                 return
             raise AssertionError(f'{actor}: direct with non-friend {peer} reachable from Chats')
@@ -1432,7 +1434,7 @@ def stage_group_management(d):
         d.command('A', 'conversations')
         d.keys('A', 'k', repeat=150)
         d.barrier('A')
-        d.wait_selected('A', d.title[:5])
+        d.wait_selected('A', d.title.split('_', 1)[0])
         d.screenshot('A', 'personal-pinned-first')
         d.keys('A', 'Enter')
         d.command('A', 'mute')
@@ -1458,7 +1460,7 @@ def list_row(screen, title):
     lines = screen.splitlines()
     for index, line in enumerate(lines):
         cells = line.split('│')
-        if len(cells) > 2 and title[:5] in cells[1]:
+        if len(cells) > 2 and title.split('_', 1)[0] in cells[1]:
             following = lines[index + 1].split('│') if index + 1 < len(lines) else []
             return cells[1] + (following[1] if len(following) > 2 else '')
     return ''

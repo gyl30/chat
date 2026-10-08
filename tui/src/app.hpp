@@ -40,9 +40,13 @@ public:
     std::string command_text;
     bool exiting = false;
     int viewport_width = 80;
+    // History rows visible in the chat page as last drawn; nothing is read while it is zero.
+    int history_rows = 1;
     int viewport_height = 24;
 
-    void drain();
+    // before() runs ahead of any queued results, e.g. to finish pending pasted text.
+
+    void drain(std::function<void()> const& before = {});
     void shutdown();
     void login(bool registration = false);
     void logout();
@@ -72,8 +76,6 @@ public:
     void toggle_pick();
     void finish_pick();
     void tick();
-    // Whether SDK results or timers are waiting for drain().
-    bool pending();
     // Status set directly is an error; notify() is for success (expires) or progress (sticky).
     void notify(std::string text, bool sticky = false);
     void observe_status();
@@ -108,6 +110,10 @@ private:
     std::optional<clock::time_point> reconnect_at_;
     std::optional<clock::time_point> typing_stop_at_;
     std::optional<clock::time_point> status_expires_;
+public:
+    // How long a success notice stays; tests shorten it.
+    std::chrono::milliseconds notice_duration{5000};
+private:
     std::string status_set_;
     clock::time_point typing_last_{};
     std::unordered_map<std::int64_t, std::pair<std::string, clock::time_point>> typing_;
@@ -118,6 +124,7 @@ private:
     std::string group_title_;
     std::int64_t pending_open_ = 0;
     std::int64_t marked_read_ = 0;
+    int help_return_selected_ = 0;
 
     void assert_ui() const;
     void start_connection();

@@ -15,8 +15,7 @@ app::app(std::function<void()> wake)
 }
 app::~app() { shutdown(); }
 void app::assert_ui() const { assert(std::this_thread::get_id() == ui_thread_); }
-void app::drain() { assert_ui(); inbox_->drain(); }
-bool app::pending() { return !inbox_->empty(); }
+void app::drain(std::function<void()> const& before) { assert_ui(); inbox_->drain(before); }
 void app::shutdown()
 {
     assert_ui();
@@ -48,6 +47,8 @@ bool app::writable()
 void app::error(chat::error const& value)
 {
     data.status = value.message.empty() ? "请求失败" : chat::error_text(value);
+    // Classify now: a notice expiring in the same batch must not clear this error.
+    status_set_ = data.status; data.status_error = true; status_expires_.reset();
     if (value.kind == error_kind::transport &&
         (data.link == connection::connecting || data.link == connection::authenticating))
     {
@@ -410,9 +411,11 @@ void app::back()
     if (data.composing) { stop_composing(); return; }
     ++view_; ++search_request_; history_busy_ = search_busy_ = requests_busy_ = sending_ = false;
     requests_again_ = false;
+    bool const from_help = data.view == page::help;
     if (!pages_.empty()) { data.view = pages_.back(); pages_.pop_back(); }
     else { data.view = page::conversations; }
-    data.selected = 0;
+    // Help is a look-up: the page behind it keeps its selection.
+    data.selected = from_help ? help_return_selected_ : 0;
     if (data.view == page::conversation) { history(); members(); }
     mark_visible_read();
 }
@@ -472,7 +475,7 @@ void app::command(std::string text)
     if (name == "quit") { shutdown(); return; }
     if (name == "logout") { confirm("退出当前账号？", [this] { logout(); }); return; }
     if (name == "reconnect") { reconnect(); return; }
-    if (name == "help") { navigate(page::help); return; }
+    if (name == "help") { auto const selected = data.selected; navigate(page::help); help_return_selected_ = selected; return; }
     if (data.self.id && name == "new") { navigate(page::new_action); return; }
     if (data.self.id && (name == "chats" || name == "conversations")) { navigate(page::conversations); return; }
     if (data.self.id && name == "account")
@@ -584,7 +587,8 @@ void app::tick()
     if (status_expires_ && now >= *status_expires_)
     {
         status_expires_.reset();
-        if (!data.status_error) { data.status.clear(); status_set_.clear(); }
+        // Only the notice that set this deadline is cleared, never text that replaced it.
+        if (!data.status_error && data.status == status_set_) { data.status.clear(); status_set_.clear(); }
     }
     schedule();
 }
@@ -594,7 +598,7 @@ void app::notify(std::string text, bool sticky)
     data.status_error = false;
     status_set_ = data.status;
     status_expires_.reset();
-    if (!sticky) { status_expires_ = clock::now() + std::chrono::seconds(5); }
+    if (!sticky) { status_expires_ = clock::now() + notice_duration; }
     schedule();
 }
 void app::observe_status()

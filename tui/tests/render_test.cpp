@@ -324,7 +324,7 @@ int main()
             {
                 std::string row;
                 for (int x = 1; x < 30; ++x) { row += screen.CellAt(x, y).character; }
-                if (row.starts_with("长中文")) { visible_ellipsis = row.find("…") != std::string::npos; }
+                if (row.starts_with("> 长中文") || row.starts_with("  长中文")) { visible_ellipsis = row.find("…") != std::string::npos; }
             }
             ok &= expect(visible_ellipsis, "The sidebar scroll indicator cannot hide a clipped title's ellipsis");
         }
@@ -379,6 +379,8 @@ int main()
                     { (x < 31 ? list_focus : history_focus) = true; }
             ok &= expect(list_focus == (view == page::conversations), "only Chats keyboard focus highlights its list");
             ok &= expect(history_focus == (view == page::conversation), "Esc removes conversation keyboard highlight even when read only");
+            ok &= expect((screen.ToString().find("> 张 三") != std::string::npos) == (view == page::conversations),
+                         "The focused list row also has a text mark");
         }
     }
     s.view = page::conversation;
@@ -657,11 +659,12 @@ int main()
             application.data = s;
             application.data.view = page::contacts;
             application.command("help");
-            application.viewport_width = columns;
-            application.viewport_height = rows;
+            // Events read the terminal size; the fallback stands in for it without a terminal.
+            auto const fallback = ftxui::Terminal::Size();
+            ftxui::Terminal::SetFallbackSize({columns, rows});
             auto component = make_ui(application, [] {});
             auto top = draw(application.data, columns, rows);
-            ok &= expect(top.find("移动选择") != std::string::npos,
+            ok &= expect(top.find("直接输入") != std::string::npos,
                          "Help opens at its first shortcut");
             for (int i = 0; i < 200; ++i) { component->OnEvent(ftxui::Event::Character('j')); }
             auto output = draw(application.data, columns, rows);
@@ -682,7 +685,7 @@ int main()
             }
             if (rows == 24)
             {
-                ok &= expect(output.find("移动选择") == std::string::npos,
+                ok &= expect(output.find("直接输入") == std::string::npos,
                              "Help scrolls its body rather than keeping the first shortcut pinned");
             }
             for (int i = 0; i < 200; ++i) { component->OnEvent(ftxui::Event::Character('k')); }
@@ -691,6 +694,7 @@ int main()
             component->OnEvent(ftxui::Event::Escape);
             ok &= expect(application.data.view == page::contacts,
                          "Escape leaves Help for its parent page");
+            ftxui::Terminal::SetFallbackSize(fallback);
         }
     }
     s.view = page::conversation;
@@ -989,10 +993,18 @@ int main()
         // History shows a separator before each new day.
         auto days = s;
         days.view = page::conversation;
-        auto const now = static_cast<std::int64_t>(std::time(nullptr)) * 1000;
+        // Noon today and noon yesterday on the local calendar, independent of DST.
+        auto noon = [](int days_ago) {
+            auto now = std::time(nullptr);
+            std::tm day{};
+            localtime_r(&now, &day);
+            day.tm_mday -= days_ago; day.tm_hour = 12; day.tm_min = day.tm_sec = 0; day.tm_isdst = -1;
+            return static_cast<std::int64_t>(std::mktime(&day)) * 1000;
+        };
+        auto const now = noon(0);
         chat::message earlier;
         earlier.id = 1; earlier.conversation = 10; earlier.from = 2; earlier.username = "peer";
-        earlier.text = "YESTERDAY_BODY"; earlier.timestamp = now - 86400000;
+        earlier.text = "YESTERDAY_BODY"; earlier.timestamp = noon(1);
         auto later = earlier;
         later.id = 2; later.text = "TODAY_BODY"; later.timestamp = now;
         days.messages = {earlier, later};
@@ -1101,7 +1113,7 @@ int main()
         type("\\");
         component->OnEvent(ftxui::Event::ArrowRight);
         component->OnEvent(ftxui::Event::Return);
-        ok &= expect(application.data.draft == "y\\", "Any other key, even one that does not move, makes Enter send");
+        ok &= expect(application.data.draft == "y\\", "Any other key, even one that does not move, leaves the backslash as typed");
         reset("");
         component->OnEvent(ftxui::Event::Special("\x1b[200~"));
         type("p\\");
@@ -1117,7 +1129,113 @@ int main()
         reset("q");
         component->OnEvent(ftxui::Event::Special("\x1b\r"));
         ok &= expect(application.data.draft == "q\n", "Alt+Enter adds a line");
+        // Esc after a backslash that only clears an error still cancels the line break.
+        reset("e");
+        type("\\");
+        application.data.status = "请先选择消息";
+        component->OnEvent(ftxui::Event::Custom);
+        component->OnEvent(ftxui::Event::Escape);
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.data.draft == "e\\", "Esc that clears an error also cancels a pending line break");
+        // An empty paste and a pasted double backslash never become a line break.
+        reset("f");
+        type("\\");
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.data.draft == "f\\", "An empty paste cancels a pending line break");
+        reset("");
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        type("g\\\\");
+        component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.data.draft == "g\\\\", "A pasted double backslash stays as it is");
+        // Overwrite mode gives the same text however the paste is split by redraws.
+        for (bool redraw : {false, true})
+        {
+            reset("abcd");
+            component->OnEvent(ftxui::Event::Home);
+            component->OnEvent(ftxui::Event::Insert);
+            component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+            type("X");
+            if (redraw) { ftxui::Screen frame(120, 40); ftxui::Render(frame, component->Render()); }
+            type("Y"); type("Z");
+            component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+            component->OnEvent(ftxui::Event::Insert);
+            ok &= expect(application.data.draft == "XYZd", "An overwrite-mode paste replaces one glyph per pasted glyph");
+        }
+        // Esc order: an open dialog closes before an error is cleared.
+        application.data.draft.clear();
+        application.data.status = "请先选择消息";
+        component->OnEvent(ftxui::Event::Custom);
+        application.command("logout");
+        component->OnEvent(ftxui::Event::Escape);
+        ok &= expect(!application.dialog && application.data.status == "请先选择消息", "Esc closes a dialog and keeps the error");
+        component->OnEvent(ftxui::Event::Escape);
+        ok &= expect(application.data.status.empty() && application.data.view == page::conversation, "The next Esc clears the error");
+        // In the messages, Esc cancels a reply before returning to the composer.
+        component->OnEvent(ftxui::Event::TabReverse);
+        application.data.reply = chat::quoted_message{5, 2, "peer", "quoted", {}, false};
+        component->OnEvent(ftxui::Event::Escape);
+        ok &= expect(!application.data.reply && application.data.selecting, "Esc in the messages cancels a reply first");
+        escape();
+        ok &= expect(application.data.composing, "The next Esc returns to the composer");
         ftxui::Terminal::SetFallbackSize(fallback);
+    }
+    {
+        // A notice that expires in the same batch never clears a newer error.
+        app application;
+        writable_conversation(application);
+        application.notice_duration = std::chrono::milliseconds(0);
+        application.notify("消息已发送");
+        application.data.status = "发送失败";
+        application.tick();
+        ok &= expect(application.data.status == "发送失败", "An expiring notice leaves a newer error in place");
+        application.notify("消息已发送");
+        application.tick();
+        ok &= expect(application.data.status.empty(), "An expired notice is cleared");
+    }
+    {
+        // The composer shrinks before the history does, and nothing is read with no history row.
+        auto const fallback = ftxui::Terminal::Size();
+        app application;
+        writable_conversation(application);
+        application.data.conversations.front().pinned_message = chat::quoted_message{1, 2, "peer", "pinned", {}, false};
+        application.data.draft = "L1\nL2\nL3\nL4";
+        auto component = make_ui(application, [] {});
+        auto frame = [&](int columns, int rows) {
+            ftxui::Terminal::SetFallbackSize({columns, rows});
+            component->OnEvent(ftxui::Event::Custom);
+            ftxui::Screen screen(columns, rows);
+            ftxui::Render(screen, component->Render());
+            return screen.ToString();
+        };
+        auto roomy = frame(120, 40);
+        ok &= expect(roomy.find("L1") != std::string::npos && roomy.find("L4") != std::string::npos, "A roomy composer shows four lines");
+        auto tight = frame(60, 16);
+        int visible = 0;
+        for (auto line : {"L1", "L2", "L3", "L4"}) { visible += tight.find(line) != std::string::npos; }
+        ok &= expect(visible == 1 && application.history_rows >= 1, "A tight composer returns to one line");
+        application.data.reply = chat::quoted_message{1, 2, "peer", "quoted", {}, false};
+        chat::message latest;
+        latest.id = 3; latest.conversation = 10; latest.from = 2; latest.text = "UNSEEN";
+        application.data.messages = {latest};
+        frame(40, 12);
+        ok &= expect(application.history_rows < 1, "Pinned, reply and composer can leave no history row at 40x12");
+        application.mark_visible_read();  // must return before using the (absent) client
+        ftxui::Terminal::SetFallbackSize(fallback);
+    }
+    {
+        // Help is a look-up: the page behind it keeps its selection.
+        app application;
+        application.data.self = {1, "Alice", {}};
+        application.data.contacts = {{2, "Bob", {}}, {3, "Carol", {}}, {4, "Dan", {}}};
+        application.data.view = page::contacts;
+        application.data.selected = 2;
+        auto component = make_ui(application, [] {});
+        component->OnEvent(ftxui::Event::F1);
+        component->OnEvent(ftxui::Event::Escape);
+        ok &= expect(application.data.view == page::contacts && application.data.selected == 2, "Leaving help keeps the list selection");
     }
     // FTXUI text must not pass untrusted terminal escapes to the output.
     ftxui::Screen screen(50, 1);
