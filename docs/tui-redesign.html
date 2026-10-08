@@ -17,6 +17,8 @@
     --accent-soft: #E7EEE9;
     --warn: #A64C48;
     --warn-soft: #F6E7E5;
+    --note: #8A6A1F;
+    --note-soft: #F7F0DD;
     --term-bg: #1B1F1D;
     --term-text: #D8E0DB;
     --term-dim: #7E8984;
@@ -38,6 +40,8 @@
       --accent-soft: #263A30;
       --warn: #E0716B;
       --warn-soft: #3A2524;
+      --note: #E2C26F;
+      --note-soft: #332B18;
     }
   }
   :root[data-theme="dark"] {
@@ -52,6 +56,8 @@
     --accent-soft: #263A30;
     --warn: #E0716B;
     --warn-soft: #3A2524;
+    --note: #E2C26F;
+    --note-soft: #332B18;
   }
   * { box-sizing: border-box; }
   body {
@@ -61,32 +67,38 @@
     font: 15px/1.7 -apple-system, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
   }
   main { max-width: 980px; margin: 0 auto; padding: 40px 20px 72px; }
-  header { margin-bottom: 36px; }
+  header { margin-bottom: 28px; }
   h1 { font-size: 30px; line-height: 1.3; margin: 0 0 8px; }
-  .lede { color: var(--muted); margin: 0; max-width: 720px; }
+  .lede { color: var(--muted); margin: 0; max-width: 760px; }
   .meta { color: var(--faint); font-size: 13px; margin-top: 10px; }
+  nav.toc { margin: 18px 0 0; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 14px; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
   h2 {
     font-size: 21px; margin: 48px 0 14px; padding-bottom: 8px;
     border-bottom: 1px solid var(--border);
   }
   h3 { font-size: 16px; margin: 24px 0 8px; }
   p { margin: 8px 0; }
-  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); margin: 10px 0; }
   table { border-collapse: collapse; width: 100%; min-width: 640px; }
   th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--border); }
   tr:last-child td { border-bottom: 0; }
-  th { font-size: 13px; color: var(--muted); font-weight: 600; background: var(--accent-soft); }
-  td:first-child { white-space: nowrap; color: var(--muted); }
-  code, kbd {
-    font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Noto Sans Mono", monospace;
-    font-size: 13px;
+  th { font-size: 13px; color: var(--muted); font-weight: 600; background: var(--accent-soft); white-space: nowrap; }
+  td.k { white-space: nowrap; color: var(--muted); }
+  code, kbd, pre {
+    font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Noto Sans Mono CJK SC", "Noto Sans Mono", monospace;
   }
+  code, kbd { font-size: 13px; }
   kbd {
     display: inline-block; padding: 0 6px; border: 1px solid var(--border); border-bottom-width: 2px;
     border-radius: 6px; background: var(--surface); line-height: 1.6; white-space: nowrap;
   }
   code { padding: 1px 5px; border-radius: 5px; background: var(--accent-soft); }
-  .principles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 12px; }
+  .tag { display: inline-block; font-size: 12px; padding: 0 7px; border-radius: 10px; margin-left: 6px; vertical-align: 1px; }
+  .tag.fixed { background: var(--accent-soft); color: var(--accent); }
+  .tag.new { background: var(--note-soft); color: var(--note); }
+  .principles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 12px; }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
   .card b { display: block; margin-bottom: 4px; }
   .card span { color: var(--muted); font-size: 14px; }
@@ -105,7 +117,6 @@
   .tab-on { color: var(--term-accent); font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
   .dim { color: var(--term-dim); }
   .badge { color: #fff; background: var(--term-badge); border-radius: 8px; padding: 0 5px; font-size: 11px; }
-  .dot { color: var(--term-badge); }
   .search { margin: 4px 12px 8px; padding: 2px 8px; border: 1px solid var(--term-line); border-radius: 6px; color: var(--term-dim); }
   .row { padding: 3px 12px 3px 10px; border-left: 3px solid transparent; }
   .row.on { background: var(--term-select); border-left-color: var(--term-accent); }
@@ -130,13 +141,28 @@
   .status .ok { color: var(--term-accent); }
   .status kbd { background: #2F3833; border-color: #46504B; color: var(--term-text); font-size: 11px; padding: 0 4px; }
   .caption { color: var(--faint); font-size: 13px; }
+
+  .charmock-wrap { overflow-x: auto; margin: 10px 0; }
+  pre.charmock {
+    display: inline-block; margin: 0; padding: 12px 14px; background: var(--term-bg); color: var(--term-text);
+    border-radius: 10px; font-size: 12.5px; line-height: 1.45; white-space: pre;
+  }
+  pre.charmock .d { color: var(--term-dim); }
+  pre.charmock .a { color: var(--term-accent); }
+  pre.charmock .s { background: var(--term-select); }
+  pre.charmock .r { color: #fff; background: var(--term-badge); }
+  .mock-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; align-items: start; }
+
   ul.notes { padding-left: 20px; margin: 10px 0; }
   ul.notes li { margin: 4px 0; }
   .phases { display: grid; gap: 10px; }
   .phase { display: grid; grid-template-columns: 52px 1fr; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
   .phase .n { font-size: 24px; font-weight: 700; color: var(--accent); line-height: 1.2; }
   .phase .tests { color: var(--muted); font-size: 13px; margin-top: 4px; }
-  .callout { background: var(--warn-soft); border-left: 4px solid var(--warn); border-radius: 8px; padding: 10px 14px; margin: 14px 0; }
+  .phase.optional { border-style: dashed; }
+  .callout { border-radius: 8px; padding: 10px 14px; margin: 14px 0; }
+  .callout.warn { background: var(--warn-soft); border-left: 4px solid var(--warn); }
+  .callout.note { background: var(--note-soft); border-left: 4px solid var(--note); }
   .decisions { counter-reset: d; list-style: none; padding: 0; display: grid; gap: 10px; }
   .decisions li { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px 12px 52px; position: relative; }
   .decisions li::before {
@@ -145,6 +171,8 @@
     font-weight: 700; font-size: 13px; display: grid; place-items: center;
   }
   .rec { color: var(--accent); font-weight: 600; }
+  .yes { color: var(--accent); font-weight: 600; }
+  .no { color: var(--faint); }
   @media (max-width: 600px) {
     h1 { font-size: 24px; }
     .phase { grid-template-columns: 36px 1fr; }
@@ -155,52 +183,58 @@
 <main>
 <header>
   <h1>TUI 重新设计方案</h1>
-  <p class="lede">让终端客户端用起来自然、好上手：全中文、能直接打字、操作看得见，并且和 Qt 客户端保持同样的结构。本文只是方案，尚未修改代码。</p>
-  <p class="meta">2026-10-08 · 依据：<code>tui/src/ui.cpp</code> 与 <code>docs/images/experience/</code> 下的真实 tmux 截图</p>
+  <p class="lede">让终端客户端用起来自然、好上手：全中文、能直接打字、操作看得见，业务分组和术语与 Qt 客户端一致。本文只是方案，尚未修改代码。</p>
+  <p class="meta">第 2 版 · 2026-10-08 · 已按 Codex 只读审查意见修订（见文末「审查与修订记录」）· 依据：<code>tui/src/</code>、<code>tui/tests/</code>、<code>tests/tui_*_smoke.py</code>、<code>docs/images/experience/</code> 下的真实 tmux 截图</p>
+  <nav class="toc">
+    <a href="#current">现状</a><a href="#principles">原则</a><a href="#layout">布局</a><a href="#focus">焦点与按键</a>
+    <a href="#read">已读与浮层</a><a href="#messages">消息</a><a href="#permissions">权限</a><a href="#capabilities">能力对照</a>
+    <a href="#pages">页面</a><a href="#a11y">可访问性</a><a href="#phases">阶段</a><a href="#decisions">待决定</a><a href="#review">审查记录</a>
+  </nav>
 </header>
 
-<section>
+<section id="current">
   <h2>现状的问题</h2>
   <div class="table-wrap">
   <table>
-    <thead><tr><th>#</th><th>问题</th><th>例子</th></tr></thead>
+    <thead><tr><th>#</th><th>问题</th><th>依据</th></tr></thead>
     <tbody>
-      <tr><td>1</td><td><b>中英文混用</b></td><td>导航、按钮、群菜单是英文（Chats、Account、Show invite code、Esc: back），状态提示是中文（已连接、好友申请已更新），和 Qt 端也不一致</td></tr>
-      <tr><td>2</td><td><b>框线和固定行太多，信息密度低</b></td><td>顶部固定 3 行（应用名加用户名、<code>connected</code>、<code>h Chats c Contacts u Account N New</code>），每块内容再套一层框，底部再一行 <code>Esc: back</code>。账号页只有 4 个选项，下面空着 30 多行</td></tr>
-      <tr><td>3</td><td><b>类 vim 的模式输入不符合直觉</b></td><td>必须先按 <kbd>i</kbd> 才能打字；回复、编辑、删除、表情、复制、保存全靠记单字母（<kbd>r</kbd> <kbd>e</kbd> <kbd>d</kbd> <kbd>a</kbd> <kbd>y</kbd> <kbd>s</kbd>），还有大写 <kbd>A</kbd>/<kbd>O</kbd>/<kbd>D</kbd>、<kbd>[</kbd> <kbd>]</kbd>、<kbd>G</kbd>、<kbd>:</kbd> 命令，新用户发现不了</td></tr>
-      <tr><td>4</td><td><b>会话列表信息不全</b></td><td>一行只有 <code>[连] 连续日常…</code>，看不到时间、未读数、免打扰或置顶状态</td></tr>
-      <tr><td>5</td><td><b>消息排版松散</b></td><td>每条消息都重复「名字＋时间」，已读状态单独占一行，没有日期分隔，连续发言没有合并</td></tr>
-      <tr><td>6</td><td><b>结构和 Qt 端不一致</b></td><td>新的朋友、添加好友、群信息、账号各自是一整页，层层用 Esc 返回；Qt 端已改成右侧资料卡和统一搜索入口</td></tr>
+      <tr><td class="k">1</td><td><b>中英文混用</b></td><td>导航、按钮、群菜单是英文（Chats、Account、Show invite code、<code>Esc: back</code>、<code>i: compose</code>），状态提示是中文（已连接、好友申请已更新），与 Qt 端不一致</td></tr>
+      <tr><td class="k">2</td><td><b>固定区域和嵌套框线占位多</b></td><td>顶部两行（应用名、用户名与连接状态一行，按键说明一行），每块内容再套一层框，底部再一行。<code>tui-account-after-late-message.ansi</code>：账号页只有 4 个选项，下方空出 30 多行</td></tr>
+      <tr><td class="k">3</td><td><b>模式输入，操作难以发现</b></td><td>需先按 <kbd>i</kbd> 才能输入；回复、编辑、删除、表情、复制、保存依赖记忆单字母（<kbd>r</kbd> <kbd>e</kbd> <kbd>d</kbd> <kbd>a</kbd> <kbd>y</kbd> <kbd>s</kbd>），还有大写 <kbd>A</kbd>/<kbd>O</kbd>/<kbd>D</kbd>、<kbd>[</kbd> <kbd>]</kbd>、<kbd>G</kbd> 和 <kbd>:</kbd> 命令</td></tr>
+      <tr><td class="k">4</td><td><b>会话列表：已是两行并有未读、置顶、静音，继续优化</b></td><td><code>ui.cpp:241</code> 已显示未读数 <code>(3)</code> 和 <code>[pin]</code> <code>[mute]</code>；不足是标记为英文、缺少最后消息时间</td></tr>
+      <tr><td class="k">5</td><td><b>消息排版松散</b></td><td>自己的消息已靠右（<code>ui.cpp:308</code>）。不足：每条都重复名字和时间，已读状态另起一行，没有日期分隔</td></tr>
+      <tr><td class="k">6</td><td><b>页面层级深</b></td><td>新的朋友、添加好友、群信息、账号各占整页，层层用 Esc 返回。Qt 联系人已改为右侧资料卡和统一搜索；Qt 群资料目前仍是模态对话框</td></tr>
     </tbody>
   </table>
   </div>
 </section>
 
-<section>
+<section id="principles">
   <h2>设计原则</h2>
   <div class="principles">
-    <div class="card"><b>全中文</b><span>用词和 Qt 端一致。</span></div>
-    <div class="card"><b>能直接打字</b><span>进入会话即可输入，Enter 发送，不再需要按 i。</span></div>
-    <div class="card"><b>操作看得见</b><span>底部常驻随焦点变化的按键提示；选中消息按 Enter 弹出操作菜单，菜单标出快捷键。</span></div>
-    <div class="card"><b>少框线、多内容</b><span>去掉嵌套的框，只保留必要的分隔线。</span></div>
-    <div class="card"><b>结构对齐 Qt</b><span>左边列表、右边详情；资料卡、群信息、账号用浮层或右侧面板，不再整页跳转。</span></div>
+    <div class="card"><b>全中文</b><span>用词与 Qt 端一致。</span></div>
+    <div class="card"><b>能直接打字</b><span>进入会话即可输入，不再需要按 i；输入时所有字符都是正文。</span></div>
+    <div class="card"><b>操作看得见</b><span>底部常驻随焦点变化的按键提示；消息操作菜单标出快捷键。</span></div>
+    <div class="card"><b>少框线、多内容</b><span>去掉嵌套框，只保留必要分隔线。</span></div>
+    <div class="card"><b>与 Qt 业务一致</b><span>业务分组、术语和主要路径一致；布局按终端特点设计，不要求逐处相同。</span></div>
+    <div class="card"><b>不改变已读语义</b><span>只有消息真正可见时才上报已读，浮层期间不上报。</span></div>
   </div>
 </section>
 
-<section>
-  <h2>主界面草图</h2>
-  <p>宽屏（不少于 100 列）：左侧会话或联系人列表，右侧聊天，底部一行状态栏。</p>
+<section id="layout">
+  <h2>布局</h2>
+  <h3>宽屏（不少于 100 列）</h3>
   <div class="terminal-wrap">
-  <div class="terminal" role="img" aria-label="TUI 主界面示意：左侧会话列表，右侧聊天，底部状态栏">
+  <div class="terminal" role="img" aria-label="宽屏示意：左侧会话列表，右侧聊天，底部状态栏">
     <div class="term-bar"><i></i><i></i><i></i></div>
     <div class="term-body">
       <div class="sidebar">
-        <div class="tabs"><span class="tab-on">聊天</span> <span class="badge">3</span>&nbsp;&nbsp;&nbsp;<span class="dim">联系人</span> <span class="dot">●</span></div>
+        <div class="tabs"><span class="tab-on">聊天</span> <span class="badge">3</span>&nbsp;&nbsp;&nbsp;<span class="dim">联系人</span> <span class="badge">1</span></div>
         <div class="search">⌕ 搜索</div>
-        <div class="row on"><div class="line"><span class="name">产品设计组</span><span class="dim">14:28</span></div><div class="line"><span class="dim">林小满：这是我整理的新…</span><span class="badge">3</span></div></div>
-        <div class="row"><div class="line"><span class="name">林小满</span><span class="dim">13:45</span></div><div class="line"><span class="dim">好的，我这边先调整～</span><span class="badge">2</span></div></div>
-        <div class="row"><div class="line"><span class="name">妈妈 🔕</span><span class="dim">昨天 20:18</span></div><div class="line"><span class="dim">记得按时吃饭～</span><span class="dim">1</span></div></div>
-        <div class="row"><div class="line"><span class="name">文件助手</span><span class="dim">昨天 17:06</span></div><div class="line"><span class="dim">[文件] 设计评审会议纪要.docx</span><span></span></div></div>
+        <div class="row on"><div class="line"><span class="name">› 产品设计组</span><span class="dim">14:28</span></div><div class="line"><span class="dim">  林小满：这是我整理的新…</span><span class="badge">3</span></div></div>
+        <div class="row"><div class="line"><span class="name">  林小满</span><span class="dim">13:45</span></div><div class="line"><span class="dim">  好的，我这边先调整～</span><span class="badge">2</span></div></div>
+        <div class="row"><div class="line"><span class="name">  妈妈 <span class="dim">免打扰</span></span><span class="dim">昨天 20:18</span></div><div class="line"><span class="dim">  记得按时吃饭～</span><span class="dim">1</span></div></div>
+        <div class="row"><div class="line"><span class="name">  文件助手 <span class="dim">置顶</span></span><span class="dim">昨天 17:06</span></div><div class="line"><span class="dim">  [文件] 设计评审会议纪要.docx</span><span></span></div></div>
       </div>
       <div class="chat">
         <div class="chat-head"><b>产品设计组</b><span class="dim">8 位成员</span></div>
@@ -213,7 +247,7 @@
           <div class="body">整体感觉很不错 👍</div>
           <div class="body dim">┃ 引用 林小满：这是我整理的新版…</div>
           <div class="body">右侧这块的留白视觉会更舒服</div>
-          <div class="mine" style="margin-top:6px">我也很喜欢这个方向，下午一起过一遍？ <span class="dim">11:05</span> <span class="tick">✓✓</span></div>
+          <div class="mine" style="margin-top:6px">我也很喜欢这个方向，下午一起过一遍？ <span class="dim">11:05 · 已读 3 人</span></div>
         </div>
         <div class="compose"><b>›</b> 输入消息…</div>
       </div>
@@ -221,80 +255,244 @@
     <div class="status">
       <span class="ok">● 已连接</span>
       <span><kbd>Tab</kbd> 切换焦点</span>
-      <span><kbd>↑↓</kbd> 选择</span>
-      <span><kbd>Enter</kbd> 打开</span>
+      <span><kbd>↑</kbd> 选择消息</span>
       <span><kbd>Ctrl+K</kbd> 命令面板</span>
-      <span><kbd>?</kbd> 帮助</span>
+      <span><kbd>F1</kbd> 帮助</span>
     </div>
   </div>
   </div>
-  <p class="caption">示意图，实际为终端字符界面；颜色会跟随终端配色。</p>
-  <ul class="notes">
-    <li><b>顶部</b>：两个标签页（聊天、联系人），带未读数或红点，下面是搜索框。原来固定的 3 行标题全部去掉。</li>
-    <li><b>会话行</b>：两行。第一行名字和时间，第二行最后一条消息预览和未读数；免打扰显示 🔕，置顶有标记；选中行左侧显示色条。</li>
-    <li><b>消息区</b>：按日期分隔；同一个人连续的消息只显示一次名字和时间；自己的消息靠右，时间后直接跟已读标记；引用以 <code>┃</code> 开头；附件显示为「[图片] 文件名 · 大小」。</li>
-    <li><b>输入行</b>：常驻，不再需要 <kbd>i</kbd>。</li>
-    <li><b>状态栏</b>：左边连接状态（● 已连接 / ○ 3 秒后重连），右边当前焦点可用的按键；临时通知也显示在这里，几秒后自动消失。</li>
-    <li><b>窄屏</b>（80～99 列）：只显示一栏。在列表按 Enter 进入会话，Esc 返回。</li>
-  </ul>
-</section>
+  <p class="caption">示意图，实际为终端字符界面，颜色跟随终端配色。置顶、免打扰用中文文字标记，不只靠图标或颜色。</p>
 
-<section>
-  <h2>交互模型</h2>
+  <h3>80×24 字符草图与行数预算 <span class="tag new">新增</span></h3>
+  <p>80×24 是主要验收尺寸。低于 100 列为单栏，资料、群信息等以可返回的覆盖页显示；仍保留现有 40×12 的降级提示，不提高硬下限。</p>
+  <div class="mock-grid">
+    <div class="charmock-wrap"><pre class="charmock" aria-label="80 列会话列表"><span class="a">聊天</span> <span class="r">3</span>  <span class="d">联系人</span> <span class="r">1</span>                        <span class="a">● 已连接</span>
+<span class="d">⌕ 搜索</span>
+<span class="s">› 产品设计组                     14:28</span>
+<span class="s">  林小满：这是我整理的新版…      <span class="r">3</span></span>
+  林小满                         13:45
+  好的，我这边先调整～           <span class="r">2</span>
+  妈妈 <span class="d">免打扰</span>                昨天 20:18
+  记得按时吃饭～                     1
+  …
+<span class="d">Enter 打开  / 搜索  Ctrl+K 命令  F1 帮助</span></pre></div>
+    <div class="charmock-wrap"><pre class="charmock" aria-label="80 列聊天页"><span class="a">‹</span> 产品设计组 <span class="d">· 8 位成员</span>         <span class="a">● 已连接</span>
+<span class="d">─────────────── 今天 ───────────────</span>
+<span class="a">林小满</span> <span class="d">10:24</span>
+  这是我整理的新版首页设计方案，大家
+  看看有没有需要优化的地方？
+  <span class="d">[图片] 首页改版设计_v3.png · 2.4 MB</span>
+<span class="a">周一航</span> <span class="d">10:37</span>
+  整体感觉很不错 👍
+            我也很喜欢这个方向 <span class="d">11:05 · 已读 3</span>
+<span class="d">────────────────────────────────────</span>
+<span class="a">›</span> 输入消息…
+<span class="d">Esc 返回  ↑ 选择消息  Ctrl+K 命令  F1 帮助</span></pre></div>
+  </div>
   <div class="table-wrap">
   <table>
-    <thead><tr><th>场景</th><th>按键</th></tr></thead>
+    <thead><tr><th>区域（80×24 聊天页）</th><th>行数</th><th>规则</th></tr></thead>
     <tbody>
-      <tr><td>列表与会话之间切换焦点</td><td><kbd>Tab</kbd> / <kbd>Shift+Tab</kbd>；窄屏用 <kbd>Enter</kbd> 进入、<kbd>Esc</kbd> 返回</td></tr>
-      <tr><td>列表里移动</td><td><kbd>↑</kbd><kbd>↓</kbd>（保留 <kbd>j</kbd>/<kbd>k</kbd>）、<kbd>PgUp</kbd>/<kbd>PgDn</kbd>、<kbd>Home</kbd>/<kbd>End</kbd></td></tr>
-      <tr><td>会话里打字</td><td>直接输入；<kbd>Enter</kbd> 发送；<kbd>Alt+Enter</kbd> 换行（多数终端无法区分 Shift+Enter）</td></tr>
-      <tr><td>选中某条消息</td><td>输入框为空时按 <kbd>↑</kbd> 进入选择，再用 <kbd>↑</kbd><kbd>↓</kbd> 移动；<kbd>Esc</kbd> 回到输入</td></tr>
-      <tr><td>对消息操作</td><td>选中后按 <kbd>Enter</kbd> 弹出菜单：回复、复制、编辑、删除、表情、置顶、保存文件。菜单标出单字母快捷键，熟悉后可直接按</td></tr>
-      <tr><td>其他所有操作</td><td><kbd>Ctrl+K</kbd> 命令面板：输入中文或拼音首字母模糊搜索，例如添加好友、发起群聊、加入群聊、群信息、聊天记录、账号、退出登录。原来的 <kbd>:</kbd> 英文命令保留为隐藏别名</td></tr>
-      <tr><td>群信息 / 联系人资料</td><td>在右侧面板显示，带操作按钮，<kbd>Esc</kbd> 关闭</td></tr>
-      <tr><td>帮助</td><td><kbd>?</kbd> 弹出分组的按键说明；首次登录时状态栏提示「按 ? 查看帮助」</td></tr>
+      <tr><td class="k">标题行</td><td>1</td><td>返回标记、会话名、成员数或在线状态、连接状态；超长名称按显示宽度省略</td></tr>
+      <tr><td class="k">置顶消息条</td><td>0–1</td><td>仅群有置顶时显示</td></tr>
+      <tr><td class="k">消息区</td><td>≥ 15</td><td>余下全部空间；输入框增高时压缩，最少保留 12 行</td></tr>
+      <tr><td class="k">分隔线</td><td>1</td><td></td></tr>
+      <tr><td class="k">回复、正在输入、发送限制提示</td><td>0–1</td><td>同一行按优先级显示：发送限制 &gt; 回复对象 &gt; 正在输入</td></tr>
+      <tr><td class="k">输入框</td><td>1–4</td><td>随内容增高，最多 4 行，超出在框内滚动</td></tr>
+      <tr><td class="k">状态栏</td><td>1</td><td>按键提示；通知临时占用该行（规则见「可访问性与通知」）</td></tr>
     </tbody>
   </table>
   </div>
 </section>
 
-<section>
+<section id="focus">
+  <h2>焦点与按键作用域 <span class="tag new">新增</span></h2>
+  <p>直接输入与单字母快捷键会冲突，因此先定义四种焦点上下文，按键只在所属上下文生效。</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>焦点</th><th>可打印字符</th><th>可用按键</th></tr></thead>
+    <tbody>
+      <tr><td class="k">输入框</td><td><b>全部进入正文</b>，包括 <kbd>?</kbd> <kbd>:</kbd> <kbd>/</kbd> 和字母</td><td><kbd>Enter</kbd> 发送；换行见下文；输入框为空时 <kbd>↑</kbd> 进入消息选择</td></tr>
+      <tr><td class="k">消息选择</td><td>作为快捷键</td><td><kbd>↑↓</kbd>/<kbd>j</kbd><kbd>k</kbd> 移动，<kbd>[</kbd> <kbd>]</kbd> 逐行查看长消息，<kbd>G</kbd> 回到最新，<kbd>Enter</kbd> 打开操作菜单，单字母直接执行菜单中对应操作</td></tr>
+      <tr><td class="k">列表</td><td>作为快捷键</td><td><kbd>↑↓</kbd>/<kbd>j</kbd><kbd>k</kbd>、<kbd>PgUp</kbd>/<kbd>PgDn</kbd>、<kbd>Enter</kbd> 打开，<kbd>/</kbd> 搜索，<kbd>m</kbd> 免打扰，<kbd>p</kbd> 置顶会话</td></tr>
+      <tr><td class="k">浮层</td><td>由浮层决定（命令面板、搜索框中为输入）</td><td>菜单 <kbd>↑↓</kbd> <kbd>Enter</kbd>；确认对话框保留现有 <kbd>y</kbd>/<kbd>N</kbd></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3>任何焦点都可用的按键</h3>
+  <ul class="notes">
+    <li><kbd>Ctrl+K</kbd> 命令面板：从输入框打开时保留草稿与光标，关闭后原样恢复。FTXUI 为它提供独立事件。</li>
+    <li><kbd>F1</kbd> 帮助；非输入焦点下 <kbd>?</kbd> 也打开帮助。</li>
+    <li><kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> 焦点循环：列表 → 消息选择 → 输入框 → 列表（窄屏不含列表）。有草稿时用 <kbd>Shift+Tab</kbd> 从输入框进入消息选择，草稿保留。</li>
+    <li><kbd>Esc</kbd> 优先级：关闭最上层浮层 → 退出消息选择回到输入框 → 从输入框回到列表（窄屏返回列表页）→ 在列表上不做任何事。</li>
+    <li><kbd>:</kbd> 英文命令保留为隐藏别名，仅在非输入焦点下响应。</li>
+  </ul>
+  <h3>换行</h3>
+  <div class="callout warn">Alt+Enter 不能作为唯一的换行入口：当前 FTXUI 没有对应命名事件，需要识别原始序列；WezTerm 默认把它用于切换全屏；Ctrl+J 与 Enter 在 FTXUI 中同为 <code>0x0a</code>，不可用。</div>
+  <ul class="notes">
+    <li><kbd>Alt+Enter</kbd>：在验证过的终端上作为快捷入口，帮助中列出已验证终端。</li>
+    <li>命令面板「插入换行」：所有终端都可用的保底入口。</li>
+    <li>多行粘贴：沿用现有括号粘贴处理，粘贴内容中的换行原样保留。</li>
+  </ul>
+  <h3>新的朋友页的 Tab 冲突</h3>
+  <p>现在用 <kbd>Tab</kbd> 在「收到 / 发出」之间切换，与焦点循环冲突。改为一个列表分两组显示（与 Qt 一致），不再需要切换。</p>
+</section>
+
+<section id="read">
+  <h2>已读、浮层与操作目标 <span class="tag new">新增</span></h2>
+  <p>这部分会触及状态管理，不是只改界面。<code>app.cpp:379</code> 的页面切换会停止输入、递增页面版本并重置请求状态；<code>messages.cpp:108</code> 的已读判定依赖当前页面、是否在最新位置和弹窗状态；<code>groups.cpp:20</code> 的群回调会校验页面版本。</p>
+  <ul class="notes">
+    <li><b>已读</b>：命令面板、消息菜单、帮助、资料或群信息覆盖聊天区，或窄屏下聊天区不可见时，<b>一律不上报已读</b>；浮层关闭后重新判定。底层页面保持「会话」也不能绕过这一条。</li>
+    <li><b>稳定目标</b>：消息菜单打开时绑定消息 ID，而不是列表位置；执行前再确认该消息仍存在、未删除、权限未变化，否则给出提示并取消。</li>
+    <li><b>不改动</b>：SDK、inbox 投递和连接与重连机制。</li>
+    <li><b>新增回归</b>：浮层期间来消息不被标记已读；浮层期间迟到的响应不切换页面；切换会话后上一会话发送完成不串到当前会话；浮层期间被移出群或解除好友时浮层安全关闭；断线恢复后浮层与草稿保持。</li>
+  </ul>
+</section>
+
+<section id="messages">
+  <h2>消息排版与合并规则</h2>
+  <ul class="notes">
+    <li><b>只合并视觉信息</b>：同一发送者的相邻消息只显示一次名字和时间，每条消息仍可单独选择和操作。</li>
+    <li><b>开始新的一组</b>：发送者变化、跨日期（插入日期分隔）、与上一条间隔超过 5 分钟、上一条为删除占位。</li>
+    <li><b>引用、编辑、删除</b>：引用以 <code>┃</code> 开头单独一行，不打断合并；已编辑在时间后标「已编辑」；删除显示「消息已删除」占位并结束当前组。</li>
+    <li><b>视口顶部</b>：若最上方可见消息是组内后续消息，在它上方补显发送者和时间，保证随时能看出是谁发的。</li>
+    <li><b>分页</b>：向上加载更早消息后重新计算分组，选中项与阅读位置保持不变。</li>
+    <li><b>搜索结果</b>：不合并，每条都显示发送者和时间。</li>
+    <li><b>已读显示</b>：单聊用「已读」文字；群聊保留「已读 N 人」，不以双勾替代。</li>
+    <li><b>Unicode</b>：沿用 <code>tui/cmake/README.md</code> 描述的 utf8proc 字素处理和 <code>DisplayWidth</code>、<code>Utf8ToGlyphs</code>，中文、组合符、ZWJ、VS16 和 emoji 在换行、省略、选中、复制中逐项回归；单测通过不外推为所有终端正确。</li>
+  </ul>
+</section>
+
+<section id="permissions">
+  <h2>操作的权限矩阵 <span class="tag new">新增</span></h2>
+  <p>菜单只显示当前可用的操作；业务层检查和现有的危险操作确认全部保留。</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>操作</th><th>可用条件</th><th>确认</th></tr></thead>
+    <tbody>
+      <tr><td class="k">回复、表情回应</td><td>会话可发送，消息未删除</td><td>否</td></tr>
+      <tr><td class="k">复制</td><td>消息有文本（显示可复制文本，不写系统剪贴板）</td><td>否</td></tr>
+      <tr><td class="k">编辑</td><td>自己的文本消息、未删除、会话可发送</td><td>否</td></tr>
+      <tr><td class="k">删除</td><td>自己的消息、未删除</td><td><b>是</b></td></tr>
+      <tr><td class="k">保存文件</td><td>消息有附件、未删除</td><td>否</td></tr>
+      <tr><td class="k">已读详情</td><td>自己在群里发的消息</td><td>否</td></tr>
+      <tr><td class="k">群内置顶消息</td><td>群主或管理员；与「置顶会话」（个人偏好）区分</td><td>否</td></tr>
+      <tr><td class="k">置顶会话、免打扰</td><td>所有成员，只影响自己</td><td>否</td></tr>
+      <tr><td class="k">查看 / 生成 / 撤销邀请码</td><td><b>仅群主和管理员</b>；普通成员只看到说明文字</td><td>撤销：<b>是</b></td></tr>
+      <tr><td class="k">任免管理员、转让群主</td><td>仅群主</td><td>转让：<b>是</b></td></tr>
+      <tr><td class="k">移除成员</td><td>群主；管理员可移除普通成员</td><td><b>是</b></td></tr>
+      <tr><td class="k">改群名、编辑公告、入群审批</td><td>群主或管理员</td><td>否</td></tr>
+      <tr><td class="k">退出群聊</td><td>非群主</td><td><b>是</b></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="capabilities">
+  <h2>现有能力 → 新入口对照 <span class="tag new">新增</span></h2>
+  <p>保证改版后没有能力丢失。带参数的 <code>:</code> 命令全部保留为隐藏别名。</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>现有能力</th><th>现在</th><th>新入口</th></tr></thead>
+    <tbody>
+      <tr><td class="k">输入消息</td><td><kbd>i</kbd></td><td>直接输入</td></tr>
+      <tr><td class="k">回复 / 编辑 / 删除 / 表情</td><td><kbd>r</kbd> <kbd>e</kbd> <kbd>d</kbd> <kbd>a</kbd></td><td>消息选择下按 Enter 打开菜单，或直接按同一字母</td></tr>
+      <tr><td class="k">复制 / 保存附件</td><td><kbd>y</kbd> <kbd>s</kbd></td><td>同上</td></tr>
+      <tr><td class="k">长消息逐行查看、回到最新</td><td><kbd>[</kbd> <kbd>]</kbd> <kbd>G</kbd></td><td>消息选择下保留</td></tr>
+      <tr><td class="k">翻页、加载更早消息</td><td><kbd>PgUp</kbd> <kbd>PgDn</kbd></td><td>保留</td></tr>
+      <tr><td class="k">发送文件、@提及</td><td><code>:file</code>、输入 @</td><td>命令面板「发送文件」；@ 保留并补候选提示</td></tr>
+      <tr><td class="k">会话免打扰、置顶会话</td><td><kbd>m</kbd> <kbd>p</kbd></td><td>列表焦点保留；命令面板</td></tr>
+      <tr><td class="k">搜索消息</td><td><kbd>/</kbd></td><td>命令面板「聊天记录」；非输入焦点下 <kbd>/</kbd></td></tr>
+      <tr><td class="k">群信息、成员、公告、邀请码、审批</td><td><kbd>g</kbd> 与群菜单</td><td>右侧群信息面板（窄屏覆盖页）；命令面板</td></tr>
+      <tr><td class="k">成员管理</td><td>成员页 <kbd>A</kbd> <kbd>O</kbd> <kbd>D</kbd></td><td>成员列表保留；另加成员操作菜单</td></tr>
+      <tr><td class="k">处理好友申请</td><td><kbd>y</kbd> <kbd>n</kbd> <kbd>x</kbd></td><td>保留，新的朋友页一个列表两组</td></tr>
+      <tr><td class="k">建群选人</td><td><kbd>Space</kbd> 勾选</td><td>保留</td></tr>
+      <tr><td class="k">新建：加好友、建群、加群</td><td><kbd>N</kbd> 菜单</td><td>命令面板；联系人页添加好友入口</td></tr>
+      <tr><td class="k">聊天 / 联系人 / 账号</td><td><kbd>h</kbd> <kbd>c</kbd> <kbd>u</kbd></td><td>标签页与焦点循环；非输入焦点下保留字母别名</td></tr>
+      <tr><td class="k">头像上传 / 清除、复制用户名、退出登录</td><td>账号页</td><td>账号浮层</td></tr>
+      <tr><td class="k">正在输入、断线与不可发送提示</td><td>聊天页</td><td>输入框上方提示行，按优先级显示</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="pages">
   <h2>各页面的调整</h2>
   <div class="table-wrap">
   <table>
     <thead><tr><th>页面</th><th>调整</th></tr></thead>
     <tbody>
-      <tr><td>联系人</td><td>左侧标签页，和 Qt 一致：搜索框；输入内容后出现「查找用户“xxx”」；Enter 在右侧显示资料卡，操作随好友关系变化（发消息、添加、接受、拒绝、撤回）</td></tr>
-      <tr><td>新的朋友</td><td>联系人标签页上用红点提示，通过命令面板或快捷键打开；申请行内直接按 <kbd>y</kbd> 接受、<kbd>n</kbd> 拒绝</td></tr>
-      <tr><td>群信息</td><td>右侧面板，依次为成员（先显示前几位，可展开全部）、公告、邀请码（直接显示并可复制）、管理（仅群主和管理员可见）、退出群聊</td></tr>
-      <tr><td>账号</td><td>小浮层：头像、复制用户名、退出登录，不再占一整页</td></tr>
-      <tr><td>聊天记录</td><td>对应 Qt 的聊天记录窗口，分「全部 / 图片 / 文件 / 链接」，可直接搜索</td></tr>
-      <tr><td>登录</td><td>中文；最近登录的账号直接填好（和 Qt 一致）；服务器设置折叠</td></tr>
+      <tr><td class="k">联系人</td><td>左侧标签页：搜索框；输入后出现「查找用户“xxx”」；Enter 在右侧（窄屏覆盖页）显示资料卡，操作随好友关系变化</td></tr>
+      <tr><td class="k">新的朋友</td><td>联系人标签上显示待处理数量；一个列表分「收到 / 发出」两组；行内 <kbd>y</kbd> 接受、<kbd>n</kbd> 拒绝、<kbd>x</kbd> 撤回</td></tr>
+      <tr><td class="k">群信息</td><td><b>新增的 TUI 布局</b>（Qt 目前仍为对话框）：成员（先显示前几位，可展开）、公告、邀请码与管理（仅群主和管理员）、退出群聊</td></tr>
+      <tr><td class="k">账号</td><td>小浮层：头像上传与清除、复制用户名、退出登录</td></tr>
+      <tr><td class="k">聊天记录</td><td>对应 Qt 聊天记录窗口：全部 / 图片 / 文件 / 链接，可搜索</td></tr>
+      <tr><td class="k">登录</td><td>中文；服务器设置沿用现有的默认折叠。<b>新增</b>最近账号预填：仅在认证成功后保存用户名和服务器地址，<b>不保存密码</b>，命令行显式地址优先，与 Qt 规则一致</td></tr>
     </tbody>
   </table>
   </div>
 </section>
 
-<section>
-  <h2>分阶段实施</h2>
-  <p>每个阶段单独提交，阶段末跑完整测试。</p>
-  <div class="phases">
-    <div class="phase"><div class="n">1</div><div><b>外观与排版</b>：全中文化，精简标题栏和底部栏，状态栏与按键提示，会话列表两行，消息按发送人合并、加日期分隔<div class="tests">影响测试：tui_render 的文案与布局断言，tmux 冒烟脚本的匹配文字</div></div></div>
-    <div class="phase"><div class="n">2</div><div><b>交互模型</b>：直接输入、焦点切换、消息操作菜单、命令面板、<kbd>?</kbd> 帮助<div class="tests">影响测试：tui_state、tui_integration、两个 tmux 冒烟脚本的按键序列</div></div></div>
-    <div class="phase"><div class="n">3</div><div><b>联系人与群</b>：联系人、新的朋友、添加好友、资料卡、群信息面板，对齐 Qt<div class="tests">影响测试：tui_integration 与冒烟脚本中的好友、群流程</div></div></div>
-    <div class="phase"><div class="n">4</div><div><b>收尾</b>：账号浮层、聊天记录、登录页；按 60～160 列、20～40 行逐一检查截图<div class="tests">影响测试：渲染与截图检查</div></div></div>
-  </div>
-  <div class="callout">风险主要在测试：现有 TUI 测试大量依赖英文文案和单字母按键序列，第 1、2 阶段需要同步改写不少断言。底层状态管理（SDK 回调、重连、草稿、并发保护）已经充分验证，这次只动界面层，不碰这部分。</div>
+<section id="a11y">
+  <h2>可访问性与通知 <span class="tag new">新增</span></h2>
+  <ul class="notes">
+    <li><b>不只靠颜色</b>：焦点与选中项用反色加 <code>›</code> 标记；未读显示数字；置顶、免打扰、连接状态都有文字。</li>
+    <li><b>通知生命周期</b>：成功类通知约 5 秒后消失；<b>错误保留</b>到用户下一次操作或按 Esc。现有 <code>status</code> 是普通字符串，需要增加类型与到期时间（<code>state.hpp:21</code>、<code>app.cpp:564</code>）。</li>
+    <li><b>验收</b>：浅色终端、深色终端、无颜色（<code>NO_COLOR</code>）、纯键盘各走一遍主要流程。全屏终端的读屏效果需实际验证，不因支持键盘就视为完成。</li>
+    <li><b>鼠标</b>：首轮继续关闭，保留终端原生选中复制（<code>main.cpp:43</code>、<code>ui.cpp:511</code>）。若以后启用，单独交付点击、滚动、选中复制和终端模式恢复。</li>
+  </ul>
 </section>
 
-<section>
+<section id="phases">
+  <h2>分阶段实施</h2>
+  <p>每个阶段单独提交，阶段末执行完整验证：TUI 相关 8 个 CTest（<code>tui_render</code>、<code>tui_unicode</code>、<code>tui_display</code>、<code>tui_span</code>、<code>tui_state</code>、<code>tui_inbox</code>、<code>tui_file</code>、<code>tui_integration</code>），4 个 tmux 冒烟驱动（百人、导航、群边界、生命周期），以及真实 PTY 截图。</p>
+  <div class="phases">
+    <div class="phase"><div class="n">0</div><div><b>基线校准</b>：修正已过时的测试期望；登记现有能力与按键；全套测试建立基线<div class="tests">已知：<code>tui_100_member_smoke.py:1100</code> 仍期待删除好友后打开只读单聊、搜索并保存旧附件，与「隐藏非好友单聊」规则冲突（<code>conversation_test.cpp:2849</code> 已按新规则验证，<code>experience-quality.md:4342</code> 已注明过时）。改为隐藏、关闭、待确认不恢复、重新接受后恢复同一会话与草稿；SDK 层历史与权限断言保留。</div></div></div>
+    <div class="phase"><div class="n">1</div><div><b>中文化与有限排版</b>：文案、标题与状态栏、列表时间与中文标记、日期分隔、通知生命周期。不改交互与按键<div class="tests">影响：<code>tui_render</code> 文案断言（如 <code>render_test.cpp:378</code>）、冒烟驱动的匹配文字</div></div></div>
+    <div class="phase"><div class="n">2</div><div><b>输入与焦点</b>：直接输入、四种焦点上下文、Tab 循环、Esc 优先级、换行入口、F1；浮层不上报已读的约束及其回归<div class="tests">影响：<code>tui_state</code>、<code>tui_integration</code>，以及固定依赖 <code>i: compose</code> 的驱动（<code>tui_navigation_smoke.py:18</code> 等）。复用 <code>make_ui()-&gt;OnEvent()</code> 测试，再用真实 PTY 验证终端编码、粘贴与复制</div></div></div>
+    <div class="phase"><div class="n">3</div><div><b>消息合并与操作菜单</b>：合并规则、操作菜单、权限矩阵、稳定操作目标<div class="tests">影响：渲染与集成测试；分页插入后的选择与阅读位置稳定性</div></div></div>
+    <div class="phase"><div class="n">4</div><div><b>命令面板</b>：模糊搜索、草稿保留、<code>:</code> 别名兼容<div class="tests">影响：状态与渲染测试</div></div></div>
+    <div class="phase"><div class="n">5</div><div><b>联系人、新的朋友与群信息面板</b>：资料卡、两组申请列表、群信息面板与窄屏覆盖页<div class="tests">影响：<code>tui_integration</code> 与冒烟驱动中的好友、群流程</div></div></div>
+    <div class="phase"><div class="n">6</div><div><b>聊天记录与登录持久化</b>：分类聊天记录、账号浮层、最近账号预填<div class="tests">影响：渲染测试；持久化的隔离配置目录（测试不得读写用户真实配置）</div></div></div>
+    <div class="phase optional"><div class="n">*</div><div><b>鼠标（可选，单独评估）</b>：点击命中、滚动、选中复制、终端模式恢复<div class="tests">需在多种终端真实验证</div></div></div>
+  </div>
+  <div class="callout note">建议先交付 0～2 阶段并评审实际效果，再决定后续阶段，避免把菜单、面板和持久化一次性混入。</div>
+</section>
+
+<section id="decisions">
   <h2>需要决定的事项</h2>
   <ol class="decisions">
-    <li><b>鼠标</b>：项目文档之前定过「TUI 不启用鼠标」。启用后可以点击列表行、菜单和按钮，FTXUI 支持，大多数终端也支持。<br><span class="rec">建议：启用，但键盘仍是完整可用的主要方式。</span></li>
-    <li><b>vim 风格按键</b>（<kbd>j</kbd>/<kbd>k</kbd>、<kbd>G</kbd> 等）。<br><span class="rec">建议：保留为别名，不在提示里显示，习惯它的人不受影响。</span></li>
-    <li><b>最小终端尺寸</b>。<br><span class="rec">建议：以 80×24 为下限，低于此尺寸只提示「请放大终端窗口」。</span></li>
-    <li><b>范围</b>：四个阶段全做，还是先做第 1、2 阶段看效果再决定后面。</li>
+    <li><b>鼠标</b>。<br><span class="rec">建议：首轮保持关闭。</span>当前关闭鼠标是为了保留终端原生选中复制；启用后普通拖选会交给应用处理，需要单独验证。（原建议为启用，按审查意见改为关闭。）</li>
+    <li><b>vim 风格按键</b>（<kbd>j</kbd>/<kbd>k</kbd>、<kbd>G</kbd> 等）。<br><span class="rec">建议：只在非输入焦点下保留，帮助中注明作用域。</span>不能承诺旧的按键序列完全不受影响。</li>
+    <li><b>最小终端尺寸</b>。<br><span class="rec">建议：80×24 为主要验收尺寸，保留现有 40×12 的降级提示。</span>提高硬下限需要有真实不可用的证据。</li>
+    <li><b>实施范围</b>。<br><span class="rec">建议：先做 0～2 阶段，评审效果后再决定后续。</span></li>
   </ol>
+</section>
+
+<section id="review">
+  <h2>审查与修订记录</h2>
+  <p>2026-10-08 由 Codex 只读审查第 1 版（未运行构建或测试），结论为：方向合理，但现状描述有误，输入与焦点规则尚未闭合，状态和测试风险被低估，建议修订后分步实施。第 2 版的对应修订：</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>审查意见</th><th>级别</th><th>本版修订</th></tr></thead>
+    <tbody>
+      <tr><td>直接输入与快捷键的作用域未定义</td><td>高</td><td>新增「焦点与按键作用域」</td></tr>
+      <tr><td>Alt+Enter 不能作为唯一换行入口</td><td>高</td><td>换行改为三种入口，保底为命令面板</td></tr>
+      <tr><td>「只动界面层」不成立，浮层可能误报已读</td><td>高</td><td>新增「已读、浮层与操作目标」及回归清单</td></tr>
+      <tr><td>默认启用鼠标会破坏原生复制</td><td>高</td><td>首轮关闭，鼠标单独成阶段</td></tr>
+      <tr><td>测试中有过时的只读单聊期望</td><td>高</td><td>新增阶段 0 基线校准</td></tr>
+      <tr><td>邀请码与消息菜单缺权限矩阵</td><td>中</td><td>新增「操作的权限矩阵」</td></tr>
+      <tr><td>80×24 与窄屏缺字符布局</td><td>中</td><td>新增字符草图与行数预算，窄屏用覆盖页</td></tr>
+      <tr><td>遗漏现有能力入口</td><td>中</td><td>新增「现有能力 → 新入口对照」</td></tr>
+      <tr><td>消息合并缺少边界规则</td><td>中</td><td>重写「消息排版与合并规则」</td></tr>
+      <tr><td>Unicode 是既有工程能力与开放风险</td><td>中</td><td>合并规则中明确沿用现有实现并逐项回归</td></tr>
+      <tr><td>可访问性与通知缺验收定义</td><td>中</td><td>新增「可访问性与通知」</td></tr>
+      <tr><td>「结构对齐 Qt」范围过大</td><td>中</td><td>改为业务分组、术语和主要路径一致；注明 Qt 群资料仍为对话框、服务器设置原本已折叠</td></tr>
+      <tr><td>阶段 2 过大、测试清单不全</td><td>中</td><td>重新切分为 0～6 阶段，列全 8 个 CTest 与 4 个冒烟驱动</td></tr>
+      <tr><td>现状表把已有能力列为待实现</td><td>低</td><td>更正第 4、5 条，补充截图与代码依据</td></tr>
+    </tbody>
+  </table>
+  </div>
 </section>
 </main>
 </body>
