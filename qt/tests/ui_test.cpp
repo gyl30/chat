@@ -2244,14 +2244,79 @@ void check_chat_list_search()
         { if (!list->isRowHidden(row)) { ids.push_back(list->model()->index(row, 0).data(conversation_model::id_role).toLongLong()); } }
         return ids;
     };
+    auto* status = list->parentWidget()->findChild<QLabel*>("subtleText");
+    check(status, "Chat list has its own status label");
+    auto has_status = [&](QString const& text) {
+        return status->text() == text && status->isVisibleTo(&page) == !text.isEmpty();
+    };
+    int opens = 0;
+    int reads = 0;
+    QObject::connect(&page, &chat_widget::conversation_selected, &page, [&](qint64, bool) { ++opens; });
+    QObject::connect(&page, &chat_widget::read_requested, &page, [&](qint64, qint64) { ++reads; });
     search->setText(QStringLiteral("周"));
     check(visible() == QList<qint64>{51}, "Chat search matches conversation names");
     search->setText(QStringLiteral("设计"));
     check(visible() == QList<qint64>{50}, "Chat search matches the latest message");
     page.set_conversations({first, second, muted});
-    check(visible() == QList<qint64>{50}, "A list refresh keeps the active chat search");
+    check(visible() == QList<qint64>{50} && has_status({}),
+          "Refreshing matching chats keeps the result and hides the empty status");
+
+    search->setText(QStringLiteral("后来出现"));
+    check(visible().isEmpty() && has_status(QStringLiteral("没有匹配的聊天")),
+          "A query with no matching chats shows its empty status");
+    page.set_conversations({first, second, muted});
+    check(visible().isEmpty() && has_status(QStringLiteral("没有匹配的聊天")),
+          "Refreshing nonempty chats with no match preserves the search empty status");
+    auto matching = second;
+    matching.last_text = QStringLiteral("后来出现的消息");
+    page.set_conversations({first, matching, muted});
+    check(visible() == QList<qint64>{51} && has_status({}),
+          "A result arriving on refresh clears the search empty status without changing the query");
+    page.set_conversations({first, second, muted});
+    check(visible().isEmpty() && has_status(QStringLiteral("没有匹配的聊天")),
+          "Removing the only search result restores the search empty status");
     search->clear();
-    check(visible().size() == 3, "Clearing chat search shows every conversation");
+    check(visible() == QList<qint64>{50, 51, 52} && has_status({}),
+          "Clearing an unmatched chat query restores every chat and clears its empty status");
+
+    search->setText(QStringLiteral("后来出现"));
+    page.set_conversations({});
+    check(list->model()->rowCount() == 0 && visible().isEmpty() && has_status(QStringLiteral("暂无会话")),
+          "An actually empty chat list is distinguished from nonempty chats with no search match");
+    search->clear();
+    check(has_status(QStringLiteral("暂无会话")), "Clearing search keeps the actually empty chat list status");
+    page.set_conversations({first, second, muted});
+    check(visible() == QList<qint64>{50, 51, 52} && has_status({}) &&
+              page.active_conversation() == 0 && !list->currentIndex().isValid() && opens == 0 && reads == 0,
+          "Filtering and refreshing chats never opens or marks read a chat the user did not choose");
+
+    page.open_conversation(first);
+    check(opens == 1 && page.active_conversation() == first.id, "The chosen chat opens exactly once");
+    message_data message;
+    message.id = 1001; message.conversation = first.id; message.from = first.user; message.text = QStringLiteral("已读历史");
+    page.set_messages(first.id, {message}, {{1, message.id}}, false, false, false);
+    auto* edit = page.findChild<QPlainTextEdit*>("messageEdit");
+    edit->setPlainText(QStringLiteral("当前会话的草稿"));
+    QApplication::processEvents();
+    auto const reads_before_filter = reads;
+    search->setText(QStringLiteral("周"));
+    page.set_conversations({first, second, muted});
+    QApplication::processEvents();
+    check(visible() == QList<qint64>{51} && has_status({}) && page.active_conversation() == first.id &&
+              list->currentIndex().data(conversation_model::id_role).toLongLong() == first.id && list->isRowHidden(0) &&
+              opens == 1 && reads == reads_before_filter,
+          "Filtering a chosen chat preserves it without opening or marking read the remaining match");
+    search->setText(QStringLiteral("后来出现"));
+    page.set_conversations({first, second, muted});
+    QApplication::processEvents();
+    auto* history = page.findChild<QListView*>("messageList");
+    check(visible().isEmpty() && has_status(QStringLiteral("没有匹配的聊天")) &&
+              page.active_conversation() == first.id && list->currentIndex().data(conversation_model::id_role).toLongLong() == first.id &&
+              page.messages_ready() && history->model()->rowCount() == 1 &&
+              history->model()->index(0, 0).data(message_model::id_role).toLongLong() == message.id &&
+              edit->toPlainText() == QStringLiteral("当前会话的草稿") && opens == 1 && reads == reads_before_filter,
+          "An unmatched refresh preserves the chosen chat, history and draft without reopening or marking read");
+    search->clear();
     auto* search_messages = page.findChild<QToolButton*>("messageSearchButton");
     check(search_messages->toolButtonStyle() == Qt::ToolButtonIconOnly && !search_messages->icon().isNull() &&
               search_messages->toolTip() == QStringLiteral("搜索消息") && page.findChild<QToolButton*>("chatMoreButton"),

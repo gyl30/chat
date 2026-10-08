@@ -1393,7 +1393,7 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
         return;
     }
 
-    set_list_status({});
+    filter_conversations();
     if (previous_user > 0)
     {
         auto const index = conversations_->index_for_conversation(previous_user);
