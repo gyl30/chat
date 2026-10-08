@@ -767,6 +767,20 @@ QString classic_style_sheet()
             border: 1px solid #DDD9D0;
             border-radius: 8px;
         }
+        QComboBox#appearanceModeCombo, QComboBox#themeCombo {
+            padding-right: 32px;
+        }
+        QComboBox#appearanceModeCombo::drop-down, QComboBox#themeCombo::drop-down {
+            subcontrol-origin: padding;
+            subcontrol-position: top right;
+            width: 28px;
+            background: transparent;
+            border: none;
+        }
+        QComboBox#appearanceModeCombo::down-arrow, QComboBox#themeCombo::down-arrow {
+            width: 12px;
+            height: 12px;
+        }
         QComboBox:focus {
             border-color: #547C68;
         }
