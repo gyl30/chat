@@ -446,21 +446,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     chat_layout->addWidget(pinned_row);
     connect(pinned_message_button_, &QPushButton::clicked, this, [this] {
         auto const item = conversation(active_conversation_);
-        if (!item || item->pinned_message.id <= 0) { return; }
-        for (int row = 0; row < messages_->rowCount(); ++row)
-        {
-            auto const index = messages_->index(row, 0);
-            if (index.data(message_model::id_role).toLongLong() != item->pinned_message.id) { continue; }
-            messages_view_->scrollTo(index, QAbstractItemView::PositionAtCenter);
-            return;
-        }
-        QString query;
-        for (auto const& line : item->pinned_message.text.split(QLatin1Char('\n')))
-        {
-            query = grapheme_prefix(line.trimmed(), 80);
-            if (!query.isEmpty()) { break; }
-        }
-        emit message_search_requested(active_conversation_, self_user_, true, active_username_, std::move(query));
+        if (item && item->pinned_message.id > 0) { locate_message(active_conversation_, item->pinned_message.id); }
     });
     connect(unpin_message_button_, &QToolButton::clicked, this, [this] {
         if (connection_available_ && messages_->can_manage_group())
@@ -1390,14 +1376,53 @@ void chat_widget::set_messages(qint64 user, QList<message_data> messages, read_p
         QTimer::singleShot(0, messages_view_, [this] {
             messages_view_->scrollToBottom();
             mark_visible_messages();
+            continue_locate();
         });
         return;
     }
 
     set_message_status({});
-    QTimer::singleShot(0, messages_view_, [scroll, old_maximum, old_value] {
+    QTimer::singleShot(0, messages_view_, [this, scroll, old_maximum, old_value] {
         scroll->setValue(old_value + scroll->maximum() - old_maximum);
+        continue_locate();
     });
+}
+
+void chat_widget::locate_message(qint64 conversation, qint64 message)
+{
+    if (conversation != active_conversation_ || message <= 0) { return; }
+    pending_locate_ = message;
+    locate_pages_ = 0;
+    continue_locate();
+}
+
+void chat_widget::continue_locate()
+{
+    if (pending_locate_ <= 0) { return; }
+    for (int row = 0; row < messages_->rowCount(); ++row)
+    {
+        auto const index = messages_->index(row, 0);
+        if (index.data(message_model::id_role).toLongLong() != pending_locate_) { continue; }
+        pending_locate_ = 0;
+        messages_view_->setCurrentIndex(index);
+        messages_view_->scrollTo(index, QAbstractItemView::PositionAtCenter);
+        set_message_status({});
+        return;
+    }
+    // A page in flight resumes locating when it is merged.
+    if (!messages_loaded_ || messages_loading_) { return; }
+    // Older pages keep history contiguous; a gap would break later paging.
+    constexpr int max_locate_pages = 50;
+    auto const first = messages_->first_message_id();
+    if (history_exhausted_ || first <= 0 || pending_locate_ > first || locate_pages_ >= max_locate_pages)
+    {
+        pending_locate_ = 0;
+        set_message_status(QStringLiteral("没有找到这条消息，它可能已被删除。"));
+        return;
+    }
+    ++locate_pages_;
+    set_message_status(QStringLiteral("正在定位消息…"));
+    request_older_messages();
 }
 
 void chat_widget::set_read_message(qint64 conversation, qint64 user, qint64 message)
@@ -1523,6 +1548,7 @@ void chat_widget::set_message_error(qint64 user, QString message)
     if (user == active_conversation_)
     {
         messages_loading_ = false;
+        pending_locate_ = 0;
         set_message_status(std::move(message));
     }
 }
@@ -1788,6 +1814,7 @@ void chat_widget::open_conversation(conversation_data conversation)
     messages_loaded_ = false;
     messages_loading_ = true;
     history_exhausted_ = false;
+    pending_locate_ = 0;
     set_message_status(QStringLiteral("正在加载消息…"));
     update_compose_state();
     if (connection_available_)
@@ -1818,6 +1845,7 @@ void chat_widget::close_conversation(qint64 conversation)
     messages_loaded_ = false;
     messages_loading_ = false;
     history_exhausted_ = false;
+    pending_locate_ = 0;
     reply_to_ = 0;
     reply_bar_->hide();
     messages_->reset(0);
@@ -1850,7 +1878,7 @@ void chat_widget::update_pinned_message()
         auto const summary = QStringLiteral("置顶消息 · %1：%2")
             .arg(item->pinned_message.username, grapheme_prefix(item->pinned_message.text.simplified(), 80));
         pinned_message_button_->setText(QString(summary).replace(QLatin1Char('&'), QStringLiteral("&&")));
-        pinned_message_button_->setToolTip(summary + QStringLiteral("\n点击定位；较早的消息通过搜索查看。"));
+        pinned_message_button_->setToolTip(summary + QStringLiteral("\n点击定位到这条消息。"));
     }
 }
 

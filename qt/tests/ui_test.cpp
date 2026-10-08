@@ -1699,8 +1699,7 @@ bool check_pinned_unicode_boundaries(QString const& artifact_directory = {})
     int searches = 0;
     QObject::connect(&page, &chat_widget::message_search_requested, &page,
         [&](qint64 conversation, qint64 user, bool is_group, QString title, QString value) {
-            check(conversation == 50 && user == 1 && is_group && title == group.username,
-                  "Older pinned-message lookup retains its actual conversation and actor");
+            (void)conversation; (void)user; (void)is_group; (void)title;
             query = std::move(value); ++searches;
         });
     bool intact = true;
@@ -1714,15 +1713,15 @@ bool check_pinned_unicode_boundaries(QString const& artifact_directory = {})
         check(button->isVisible() && page.conversation(50)->pinned_message.text.toUtf8() == group.pinned_message.text.toUtf8(),
               "Pinned display truncation leaves the complete original multiline Unicode untouched");
         bool const summary_ok = button->text() == QString(summary).replace(QLatin1Char('&'), QStringLiteral("&&")) &&
-            button->toolTip() == summary + QStringLiteral("\n点击定位；较早的消息通过搜索查看。");
+            button->toolTip() == summary + QStringLiteral("\n点击定位到这条消息。");
         if (!artifact_directory.isEmpty())
         {
             check(page.grab().save(artifact_directory + QStringLiteral("/qt_pinned_unicode_") + name + QStringLiteral(".png")),
                   "The real pinned Unicode widget has an original capture");
         }
-        int const previous_searches = searches;
         button->click();
-        bool const query_ok = searches == previous_searches + 1 && query == prefix;
+        // Locating loads history instead of guessing with a text search that may match other messages.
+        bool const query_ok = searches == 0 && query.isEmpty();
         std::cout << (summary_ok && query_ok ? "PASS" : "RED") << " Qt pinned Unicode " << name.toStdString()
                   << " summary=" << summary_ok << " first_line=" << query_ok << '\n';
         intact = intact && summary_ok && query_ok;
@@ -1852,6 +1851,53 @@ void check_message_copy()
     QKeyEvent copy_key(QEvent::KeyPress, Qt::Key_C, Qt::ControlModifier);
     QApplication::sendEvent(view, &copy_key);
     check(QGuiApplication::clipboard()->text() == message.text, "Ctrl+C copies the current message");
+}
+void check_message_locate()
+{
+    chat_widget page;
+    page.setStyleSheet(chat_style_sheet());
+    page.resize(1180, 760);
+    page.set_user(QStringLiteral("本人"), 1);
+    page.set_connection_available(true);
+    conversation_data group;
+    group.id = 50; group.group = true; group.can_send = true; group.username = QStringLiteral("定位群");
+    group.pinned_message.id = 7; group.pinned_message.username = QStringLiteral("发布者");
+    page.set_conversations({group});
+    page.open_conversation(group);
+    auto message = [](qint64 id) {
+        message_data value;
+        value.id = id; value.conversation = 50; value.from = 2; value.username = QStringLiteral("发布者");
+        value.text = QStringLiteral("消息 %1").arg(id);
+        return value;
+    };
+    page.set_messages(50, {message(10), message(11)}, {}, false, false, true);
+    page.show();
+    QApplication::processEvents();
+    QList<qint64> older_requests;
+    QObject::connect(&page, &chat_widget::older_messages_requested, &page,
+        [&](qint64 conversation, qint64 before) { check(conversation == 50, "Locating stays in its conversation"); older_requests.push_back(before); });
+    auto* view = page.findChild<QListView*>("messageList");
+    page.findChild<QPushButton*>("pinnedMessageButton")->click();
+    check(older_requests == QList<qint64>{10}, "Locating an unloaded message requests the adjacent older page");
+    page.set_messages(50, {message(8), message(9)}, {}, true, false, true);
+    QApplication::processEvents();
+    check(older_requests == QList<qint64>{10, 8}, "Locating keeps loading older pages until it reaches the message");
+    page.set_messages(50, {message(6), message(7)}, {}, true, false, true);
+    QApplication::processEvents();
+    QApplication::processEvents();
+    check(older_requests.size() == 2 && view->currentIndex().data(message_model::id_role).toLongLong() == 7,
+          "The located message becomes current once loaded, without further requests");
+    page.locate_message(50, 11);
+    check(view->currentIndex().data(message_model::id_role).toLongLong() == 11, "A loaded message is located immediately");
+    page.locate_message(50, 3);
+    check(older_requests == QList<qint64>{10, 8, 6}, "Locating an older message continues from the loaded history");
+    page.set_messages(50, {message(4), message(5)}, {}, true, false, false);
+    QApplication::processEvents();
+    auto const labels = page.findChildren<QLabel*>();
+    check(older_requests.size() == 3 && std::ranges::any_of(labels, [](auto* label) {
+              return label->isVisible() && label->text().contains(QStringLiteral("没有找到"));
+          }),
+          "Exhausted history reports a message that no longer exists");
 }
 void check_message_action_targets()
 {
@@ -2831,7 +2877,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); return 0; }
+        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_message_locate(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;

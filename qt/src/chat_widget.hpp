@@ -50,6 +50,7 @@ class chat_widget final : public QWidget
     void set_user(QString const& username, qint64 user = 0);
     void open_conversation(conversation_data conversation);
     void close_conversation(qint64 conversation);
+    void locate_message(qint64 conversation, qint64 message);
     void set_members(qint64 conversation, QList<member_data> members, QString const& error);
     void set_loading();
     void set_error(QString message);
@@ -142,6 +143,7 @@ class chat_widget final : public QWidget
     void update_compose_state();
     void create_group();
     void request_older_messages();
+    void continue_locate();
     void send_current_message();
     void show_read_details(qint64 conversation, qint64 message);
     void update_chat_header(QString const& username);
@@ -223,6 +225,8 @@ class chat_widget final : public QWidget
     bool messages_loaded_ = false;
     bool messages_loading_ = false;
     bool history_exhausted_ = false;
+    qint64 pending_locate_ = 0;
+    int locate_pages_ = 0;
     bool connection_available_ = true;
     bool attachment_sending_ = false;
 };
