@@ -7,8 +7,37 @@
 #include <QCoreApplication>
 #include <QDateTime>
 
+#include "avatar.hpp"
 #include "conversation_model.hpp"
 #include "message_model.hpp"
+
+bool check_avatar_initial()
+{
+    bool ok = true;
+    for (auto const& [username, expected] : std::vector<std::pair<QString, QString>>{
+        {QStringLiteral("Alice"), QStringLiteral("A")},
+        {QStringLiteral(" Alice "), QStringLiteral("A")},
+        {QStringLiteral("张三"), QStringLiteral("张")},
+        {QStringLiteral(""), QStringLiteral("?")},
+        {QStringLiteral("  "), QStringLiteral("?")},
+        {QStringLiteral("🙂Alice"), QStringLiteral("🙂")},
+        {QStringLiteral("𠀀用户"), QStringLiteral("𠀀")},
+        {QStringLiteral("éAlice"), QStringLiteral("É")},
+        {QStringLiteral("👩‍🚀名字"), QStringLiteral("👩‍🚀")},
+        {QStringLiteral("🇨🇳中国"), QStringLiteral("🇨🇳")}})
+    {
+        auto const actual = avatar_initial(username);
+        if (actual != expected)
+        {
+            std::cerr << "FAIL avatar initial for " << username.toUtf8().constData()
+                      << ": expected " << expected.toUtf8().constData()
+                      << ", got UTF-8 hex " << actual.toUtf8().toHex().constData() << '\n';
+            ok = false;
+        }
+    }
+    if (ok) { std::cout << "PASS avatar initial keeps the complete first grapheme and uppercase/empty behavior\n"; }
+    return ok;
+}
 
 bool check_message_accessible_context()
 {
@@ -103,6 +132,7 @@ bool check_message_accessible_context()
 int main(int argc, char** argv)
 {
     QCoreApplication app(argc, argv);
+    if (!check_avatar_initial()) { return 1; }
     if (!check_message_accessible_context()) { return 1; }
     for (auto const& name : std::vector<std::string>{"ASCII", "中文", "normal space", "dot.name", "dash-name", "under_score",
         "r(.*)[z]\\_'", "Alice Bob", "张 三", "Alice\u00a0Bob", "张\u3000三", std::string(64, 'x')})

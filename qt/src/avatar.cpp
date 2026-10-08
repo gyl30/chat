@@ -1,4 +1,6 @@
 #include "avatar.hpp"
+#include "emoji_segments.hpp"
+#include "emoji_text.hpp"
 #include "theme_manager.hpp"
 
 #include <array>
@@ -14,7 +16,7 @@
 QString avatar_initial(QString const& username)
 {
     auto const value = username.trimmed();
-    return value.isEmpty() ? QStringLiteral("?") : value.left(1).toUpper();
+    return value.isEmpty() ? QStringLiteral("?") : value.left(grapheme_ends(value).front()).toUpper();
 }
 
 QColor avatar_background(QString const& username)
@@ -54,8 +56,8 @@ void paint_avatar(QPainter& painter, QRect const& rect, QString const& username,
     font.setBold(true);
     font.setPixelSize(font_size > 0 ? font_size : rect.height() * 9 / 22);
     painter.setFont(font);
-    painter.setPen(theme_manager::instance().avatar_text());
-    painter.drawText(rect, Qt::AlignCenter, avatar_initial(username));
+    paint_emoji_line(painter, rect, avatar_initial(username), font,
+                     theme_manager::instance().avatar_text(), Qt::AlignHCenter);
     painter.restore();
 }
 

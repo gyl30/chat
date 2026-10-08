@@ -11,7 +11,7 @@ class QPlainTextEdit;
 
 QList<QTextLayout::FormatRange> emoji_formats(QString const& text, QFont const& font);
 void paint_emoji_line(QPainter& painter, QRect const& rect, QString const& text,
-                      QFont const& font, QColor const& color);
+                      QFont const& font, QColor const& color, Qt::Alignment horizontal_alignment = Qt::AlignLeft);
 
 class emoji_label final : public QLabel
 {

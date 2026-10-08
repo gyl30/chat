@@ -53,7 +53,7 @@ QList<QTextLayout::FormatRange> emoji_formats(QString const& text, QFont const& 
 }
 
 void paint_emoji_line(QPainter& painter, QRect const& rect, QString const& text,
-                      QFont const& font, QColor const& color)
+                      QFont const& font, QColor const& color, Qt::Alignment horizontal_alignment)
 {
     if (rect.width() <= 0 || rect.height() <= 0 || text.isEmpty()) { return; }
     auto displayed = text;
@@ -64,6 +64,7 @@ void paint_emoji_line(QPainter& painter, QRect const& rect, QString const& text,
         auto layout = std::make_unique<QTextLayout>(value, font);
         QTextOption option;
         option.setWrapMode(QTextOption::NoWrap);
+        option.setAlignment(horizontal_alignment);
         layout->setTextOption(option);
         layout->setFormats(emoji_formats(value, font));
         layout->beginLayout();

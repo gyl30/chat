@@ -32,7 +32,7 @@ bool check_emoji_display_policy()
 {
     QList<QString> const candidates{
         QStringLiteral("🙂"), QStringLiteral("1️⃣"), QStringLiteral("7️⃣"),
-        QStringLiteral("#️⃣"), QStringLiteral("*️⃣"), QStringLiteral("👩‍💻"),
+        QStringLiteral("#️⃣"), QStringLiteral("*️⃣"), QStringLiteral("👩‍💻"), QStringLiteral("👩‍🚀"),
         QStringLiteral("👨‍👩‍👧‍👦"), QStringLiteral("👍🏽"), QStringLiteral("👍\uFE0F🏽"),
         QStringLiteral("🇨🇳"), QStringLiteral("☺\uFE0F")
     };
