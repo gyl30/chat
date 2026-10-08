@@ -93,6 +93,54 @@ member_role state::self_role() const
     return found == members.end() ? member_role::member : found->role;
 }
 
+std::vector<menu_item> state::message_actions(message const& value) const
+{
+    bool const online = link == connection::online;
+    bool const writable = can_send();
+    bool const own = value.from == self.id;
+    auto const* current = active_conversation();
+    std::vector<menu_item> items;
+    if (writable && !value.deleted)
+    {
+        items.push_back({"回复", 'r', "reply", {}});
+        items.push_back({"表情回应", 'a', "reaction", {}});
+    }
+    items.push_back({"复制", 'y', "copy", {}});
+    // Editing needs send permission; deleting one's own message does not.
+    if (writable && own && !value.deleted && !value.attachment) { items.push_back({"编辑", 'e', "edit", {}}); }
+    if (online && own && !value.deleted) { items.push_back({"删除", 'd', "delete", {}}); }
+    if (online && value.attachment && !value.deleted) { items.push_back({"保存文件", 's', "save", {}}); }
+    if (online && current && current->kind == conversation_kind::group && self_role() != member_role::member && !value.deleted)
+    {
+        bool const pinned = current->pinned_message && current->pinned_message->id == value.id;
+        items.push_back({pinned ? "取消群置顶" : "置顶到群", 't', pinned ? "unpin-message" : "pin-message", {}});
+    }
+    return items;
+}
+
+std::vector<menu_item> state::member_actions(conversation_member const& value) const
+{
+    std::vector<menu_item> items{{"查看资料", 'v', "profile", {}}};
+    // Nobody manages themselves; every change needs a connection.
+    if (value.id == self.id || link != connection::online) { return items; }
+    auto const role = self_role();
+    if (role == member_role::owner && value.role == member_role::member)
+    {
+        bool const full = std::ranges::count(members, member_role::admin, &conversation_member::role) >= 3;
+        items.push_back({"设为管理员", 'A', "admin", full ? "管理员已满 3 人" : ""});
+    }
+    if (role == member_role::owner && value.role == member_role::admin)
+    {
+        items.push_back({"取消管理员", 'A', "admin", {}});
+        // Ownership goes only to a current administrator.
+        items.push_back({"转让群主", 'O', "transfer", {}});
+    }
+    if ((role == member_role::owner && value.role != member_role::owner) ||
+        (role == member_role::admin && value.role == member_role::member))
+    { items.push_back({"移除成员", 'D', "kick", {}}); }
+    return items;
+}
+
 bool state::is_contact(std::int64_t id) const
 {
     return std::ranges::find(contacts, id, &user::id) != contacts.end();

@@ -110,6 +110,17 @@ bool check_blank_preerase(ftxui::App screen, bool check_resize = false)
     return ok;
 }
 
+// The date and time as search results show them.
+std::string timestamp_text(std::int64_t value)
+{
+    auto const seconds = static_cast<std::time_t>(value / 1000);
+    std::tm time{};
+    localtime_r(&seconds, &time);
+    char output[32];
+    std::strftime(output, sizeof output, "%m-%d %H:%M", &time);
+    return output;
+}
+
 // A signed-in app with one open conversation that accepts typing (no network client).
 void writable_conversation(chat::tui::app& application)
 {
@@ -1279,6 +1290,154 @@ int main()
         component->OnEvent(ftxui::Event::Special("\x1b[201~"));
         ok &= expect(application.data.draft == "e\xcc\x81" "bcd", append ? "A further page leaves a held glyph to join its mark"
                                                                        : "An ordinary refresh leaves a held glyph to join its mark");
+    }
+    {
+        // Phase 3: headings are shared within a group; each message keeps its own edited mark.
+        auto noon = [] {
+            auto now = std::time(nullptr);
+            std::tm day{};
+            localtime_r(&now, &day);
+            day.tm_hour = 12; day.tm_min = day.tm_sec = 0; day.tm_isdst = -1;
+            return static_cast<std::int64_t>(std::mktime(&day)) * 1000;
+        }();
+        state chat;
+        chat.self = {1, "Alice", {}};
+        chat.link = connection::online;
+        chat::conversation group;
+        group.id = 10; group.username = "group"; group.kind = chat::conversation_kind::group; group.can_send = true;
+        chat.conversations = {group};
+        chat.select_conversation(10);
+        chat.view = page::conversation;
+        auto make = [&](std::int64_t id, std::int64_t from, std::string name, std::string body, int minutes) {
+            chat::message m;
+            m.id = id; m.conversation = 10; m.from = from; m.username = std::move(name); m.text = std::move(body);
+            m.timestamp = noon + minutes * 60 * 1000;
+            return m;
+        };
+        chat.messages = {make(1, 2, "peer", "G1_FIRST", 0), make(2, 2, "peer", "G1_SECOND", 2), make(3, 2, "peer", "G2_AFTER_GAP", 9),
+                         make(4, 3, "other", "G3_OTHER", 9), make(5, 3, "other", "G3_DELETED", 9), make(6, 3, "other", "G4_AFTER_DELETE", 9)};
+        chat.messages[1].edited_at = 1;
+        chat.messages[4].deleted = true;
+        chat.message_selected = 5;
+        auto output = draw(chat, 120, 40);
+        auto count = [&](std::string const& value) {
+            std::size_t n = 0;
+            for (auto at = output.find(value); at != std::string::npos; at = output.find(value, at + 1)) { ++n; }
+            return n;
+        };
+        ok &= expect(count("peer 12:00") == 1 && count("peer 12:02") == 0, "A sender's messages within five minutes share one heading");
+        ok &= expect(count("peer 12:09") == 1, "A gap of more than five minutes starts a new group");
+        ok &= expect(count("other 12:09") == 2, "Another sender starts a group, and so does the message after a deleted one");
+        ok &= expect(output.find("G1_SECOND（已编辑）") != std::string::npos, "The edited mark stays with its own message in a group");
+        // Scrolled so the group's heading is above the view: the sender is pinned at the top.
+        chat.messages.clear();
+        for (int i = 0; i < 40; ++i) { chat.messages.push_back(make(100 + i, 2, "peer", "LINE_" + std::to_string(i), 0)); }
+        chat.message_selected = 39;
+        output = draw(chat, 120, 30);
+        ok &= expect(output.find("LINE_0 ") == std::string::npos && output.find("LINE_39") != std::string::npos &&
+                     output.find("peer 12:00") != std::string::npos, "The sender stays visible when the group heading scrolls away");
+        chat.composing = false;
+        ok &= expect(output.find("按 i 输入消息") != std::string::npos, "The pinned heading leaves room for the composer line");
+        // Search results are not grouped.
+        chat.view = page::search;
+        chat.search_query = "LINE";
+        chat.search_results = {make(1, 2, "peer", "HIT_ONE", 0), make(2, 2, "peer", "HIT_TWO", 1)};
+        output = draw(chat, 120, 40);
+        ok &= expect(count(timestamp_text(noon)) + count(timestamp_text(noon + 60000)) == 2, "Every search result has its own heading");
+    }
+    {
+        // The permission matrix behind the menus.
+        state chat;
+        chat.self = {1, "Alice", {}};
+        chat.link = connection::online;
+        chat::conversation group;
+        group.id = 10; group.username = "group"; group.kind = chat::conversation_kind::group; group.can_send = true;
+        chat.conversations = {group};
+        chat.select_conversation(10);
+        chat.members = {{1, "Alice", chat::member_role::owner, {}}, {2, "Bob", chat::member_role::admin, {}},
+                        {3, "Carol", chat::member_role::member, {}}, {4, "Dan", chat::member_role::member, {}}};
+        auto commands = [](std::vector<menu_item> const& items) {
+            std::string out;
+            for (auto const& item : items) { out += item.command + (item.disabled.empty() ? "" : "!") + ","; }
+            return out;
+        };
+        chat::message own; own.id = 1; own.from = 1; own.text = "mine";
+        chat::message other; other.id = 2; other.from = 2; other.text = "theirs";
+        ok &= expect(commands(chat.message_actions(own)) == "reply,reaction,copy,edit,delete,pin-message,", "Own text message actions for an owner");
+        ok &= expect(commands(chat.message_actions(other)) == "reply,reaction,copy,pin-message,", "Another member's message cannot be edited or deleted");
+        auto file = own; file.attachment = chat::attachment_info{}; file.text.clear();
+        ok &= expect(commands(chat.message_actions(file)) == "reply,reaction,copy,delete,save,pin-message,", "An attachment is saved, not edited");
+        auto gone = own; gone.deleted = true;
+        ok &= expect(commands(chat.message_actions(gone)) == "copy,", "A deleted message can only be copied");
+        chat.conversations.front().pinned_message = chat::quoted_message{1, 1, "Alice", "mine", {}, false};
+        ok &= expect(commands(chat.message_actions(own)).find("unpin-message") != std::string::npos, "The pinned message offers unpinning");
+        chat.conversations.front().can_send = false;
+        ok &= expect(commands(chat.message_actions(own)) == "copy,delete,unpin-message,", "Without send permission, delete stays and edit goes");
+        chat.conversations.front().can_send = true;
+        chat.members.front().role = chat::member_role::member;
+        ok &= expect(commands(chat.message_actions(own)).find("pin-message") == std::string::npos, "Ordinary members cannot pin");
+        chat.members.front().role = chat::member_role::owner;
+        ok &= expect(commands(chat.member_actions(chat.members[0])) == "profile,", "Nobody manages themselves");
+        ok &= expect(commands(chat.member_actions(chat.members[1])) == "profile,admin,transfer,kick,", "Owner on an administrator");
+        ok &= expect(commands(chat.member_actions(chat.members[2])) == "profile,admin,kick,", "Owner on a member");
+        chat.members[3].role = chat::member_role::admin;
+        chat.members.push_back({5, "Eve", chat::member_role::admin, {}});
+        chat.members.push_back({6, "Fay", chat::member_role::member, {}});
+        ok &= expect(commands(chat.member_actions(chat.members[5])) == "profile,admin!,kick,", "With three administrators the promotion is shown disabled");
+        chat.members[0].role = chat::member_role::admin;
+        chat.members[1].role = chat::member_role::owner;
+        ok &= expect(commands(chat.member_actions(chat.members[1])) == "profile,", "An administrator cannot act on the owner");
+        ok &= expect(commands(chat.member_actions(chat.members[3])) == "profile,", "An administrator cannot act on another administrator");
+        ok &= expect(commands(chat.member_actions(chat.members[2])) == "profile,kick,", "An administrator can remove a member");
+        chat.link = connection::reconnecting;
+        ok &= expect(commands(chat.member_actions(chat.members[2])) == "profile," && commands(chat.message_actions(own)) == "copy,",
+                     "Offline, only local actions remain");
+    }
+    {
+        // The message menu is bound to its message: it acts on that message after the list changes.
+        app application;
+        writable_conversation(application);
+        auto const fallback = ftxui::Terminal::Size();
+        ftxui::Terminal::SetFallbackSize({120, 40});
+        chat::message first; first.id = 1; first.conversation = 10; first.from = 2; first.username = "peer"; first.text = "TARGET_TEXT";
+        auto second = first; second.id = 2; second.text = "OTHER_TEXT";
+        application.data.messages = {first, second};
+        auto component = make_ui(application, [] {});
+        component->OnEvent(ftxui::Event::Custom);
+        component->OnEvent(ftxui::Event::TabReverse);
+        component->OnEvent(ftxui::Event::Character('k'));
+        component->OnEvent(ftxui::Event::Return);
+        ftxui::Screen screen(120, 40);
+        ftxui::Render(screen, component->Render());
+        ok &= expect(application.menu_open && screen.ToString().find("复制") != std::string::npos && screen.ToString().find("TARGET_TEXT") != std::string::npos,
+                     "Enter on a message opens its menu");
+        auto third = first; third.id = 0; third.text = "EARLIER";  // a message loaded before it moves the positions
+        application.data.messages.insert(application.data.messages.begin(), third);
+        application.data.message_selected = 2;
+        component->OnEvent(ftxui::Event::Character('y'));
+        ok &= expect(!application.menu_open && application.data.view == page::copy && application.data.copy_text == "TARGET_TEXT",
+                     "A menu letter acts on the bound message, not the current position");
+        component->OnEvent(ftxui::Event::Escape);
+        component->OnEvent(ftxui::Event::Return);
+        application.data.messages.erase(application.data.messages.begin() + 1);
+        component->OnEvent(ftxui::Event::Custom);
+        ok &= expect(!application.menu_open && application.data.status.find("已不存在") != std::string::npos,
+                     "A menu whose message disappears closes with a notice");
+        // A member menu shows a disabled entry with its reason.
+        application.data.members = {{1, "Alice", chat::member_role::owner, {}}, {2, "Bob", chat::member_role::admin, {}},
+                                    {3, "Carol", chat::member_role::admin, {}}, {4, "Dan", chat::member_role::admin, {}},
+                                    {5, "Eve", chat::member_role::member, {}}};
+        application.navigate(page::members);
+        application.data.selected = 4;
+        component->OnEvent(ftxui::Event::Return);
+        ftxui::Render(screen, component->Render());
+        ok &= expect(screen.ToString().find("设为管理员（管理员已满 3 人）") != std::string::npos, "A full administrator list is explained");
+        component->OnEvent(ftxui::Event::Character('A'));
+        ok &= expect(application.menu_open && application.data.status == "管理员已满 3 人", "A disabled entry does nothing but explain");
+        component->OnEvent(ftxui::Event::Character('v'));
+        ok &= expect(!application.menu_open && application.data.view == page::profile && application.data.profile.id == 5,
+                     "The member menu opens the member's profile");
+        ftxui::Terminal::SetFallbackSize(fallback);
     }
     {
         // A notice that expires in the same batch never clears a newer error.

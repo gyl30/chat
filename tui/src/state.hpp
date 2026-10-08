@@ -12,6 +12,15 @@ enum class connection { signed_out, connecting, authenticating, online, reconnec
 enum class page { conversations, conversation, new_action, contacts, friend_requests, friend_sent, users, profile, members, requests, search, group, help, pick_contacts, copy };
 enum class layout_mode { too_small, narrow, wide };
 
+// One entry of an action menu. A disabled entry stays visible with its reason.
+struct menu_item
+{
+    std::string label;
+    char key = 0;
+    std::string command;
+    std::string disabled;
+};
+
 // Mutated exclusively by the UI event loop. SDK callbacks only enqueue payloads.
 struct state
 {
@@ -52,6 +61,10 @@ struct state
     message const* selected_message() const;
     bool can_send() const;
     member_role self_role() const;
+    // The actions offered for a message or a group member, following the permission matrix in
+    // docs/tui-redesign.html. The server still checks every request; this only hides what cannot work.
+    std::vector<menu_item> message_actions(message const& value) const;
+    std::vector<menu_item> member_actions(conversation_member const& value) const;
     bool is_contact(std::int64_t id) const;
     friendship_state friendship(std::int64_t id) const;
     std::string friendship_hint(std::int64_t id) const;

@@ -31,9 +31,10 @@ constexpr std::array shortcuts{
     shortcut{"Tab / Shift+Tab", "宽屏在列表、消息、输入框之间切换；窄屏在消息与输入框之间切换"},
     shortcut{"↑（输入框为空）", "选择消息"},
     shortcut{"PgUp（输入框中）", "转到消息并加载更早的消息，草稿保留"},
-    shortcut{"F1", "帮助"},
+    shortcut{"F1；不在输入框时也可按 ?", "帮助"},
     shortcut{"以下按键在消息或列表中使用", ""},
     shortcut{"j / ↓，k / ↑", "移动选择"},
+    shortcut{"Enter（消息、成员）", "打开操作菜单：只列出当前可用的操作，菜单中字母直接执行"},
     shortcut{"i", "回到输入框"},
     shortcut{"r / e / d", "回复 / 编辑 / 删除（需确认）"},
     shortcut{"a", "表情回应（0 取消）"},
@@ -52,7 +53,6 @@ constexpr std::array shortcuts{
     shortcut{"/（联系人、选择好友）", "按名称筛选好友"},
     shortcut{"Space / Enter（选择好友）", "勾选成员 / 完成选择"},
     shortcut{":", "输入命令（:help 查看命令列表）"},
-    shortcut{"?", "帮助"},
     shortcut{"Ctrl+C / :quit", "安全退出"},
 };
 struct menu_action { std::string label, command; };
@@ -329,14 +329,28 @@ Element conversation_list(state const& s, int width)
     if (s.next_conversations) { rows.push_back(text("↓ 更多会话") | dim); }
     return vbox({text("聊天") | bold, separator(), scroll(std::move(rows))}) | flex;
 }
-Element message_item(state const& s, message const& m, bool highlighted, int width, int scroll_line)
+// A new group starts with another sender, another day, after five quiet minutes, or after a
+// deleted message. Only the heading is shared; every message stays selectable on its own.
+bool starts_group(std::vector<message> const& values, std::size_t index)
+{
+    if (index == 0) { return true; }
+    auto const& previous = values[index - 1];
+    auto const& current = values[index];
+    return previous.from != current.from || previous.deleted ||
+        day_number(local_time(previous.timestamp)) != day_number(local_time(current.timestamp)) ||
+        current.timestamp - previous.timestamp > 5 * 60 * 1000;
+}
+std::string message_heading(state const& s, message const& m)
+{
+    // Search results span days, so they keep the date; history has day separators instead.
+    return (m.from == s.self.id ? "我" : m.username) + " " +
+        (s.view == page::search ? timestamp(m.timestamp) : clock_time(m.timestamp));
+}
+Element message_item(state const& s, message const& m, bool highlighted, int width, int scroll_line, bool heading = true)
 {
     auto const content_width = std::max(1, width * 3 / 4);
-    std::string heading = m.from == s.self.id ? "我" : m.username;
-    // Search results span days, so they keep the date; history has day separators instead.
-    heading += " " + (s.view == page::search ? timestamp(m.timestamp) : clock_time(m.timestamp));
-    if (m.edited_at && !m.deleted) { heading += "（已编辑）"; }
-    Elements lines{preview_text(heading, content_width) | bold};
+    Elements lines;
+    if (heading) { lines.push_back(preview_text(message_heading(s, m), content_width) | bold); }
     if (m.reply)
     {
         lines.push_back(preview_text("↪ " + m.reply->username + ": " + (m.reply->deleted ? "消息已删除" : m.reply->text), content_width) | dim);
@@ -344,11 +358,14 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
     if (m.deleted) { lines.push_back(text("消息已删除") | dim); }
     else
     {
-        if (!m.text.empty()) { lines.push_back(wrapped_text(m.text, content_width)); }
+        // The edited mark belongs to its own message, wherever the shared heading is.
+        auto const edited = m.edited_at ? std::string("（已编辑）") : std::string{};
+        if (!m.text.empty()) { lines.push_back(wrapped_text(m.text + edited, content_width)); }
         if (m.attachment)
         {
             auto const& a = *m.attachment;
-            lines.push_back(text(std::string(a.media_type.starts_with("image/") ? "[图片] " : "[文件] ") + a.filename + " · " + file_size(a.size)));
+            lines.push_back(text(std::string(a.media_type.starts_with("image/") ? "[图片] " : "[文件] ") + a.filename + " · " + file_size(a.size) +
+                                 (m.text.empty() ? edited : std::string{})));
         }
         std::string reaction_text;
         for (auto const& reaction : m.reactions)
@@ -387,23 +404,48 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
     }
     return m.from == s.self.id ? hbox({filler(), item}) : hbox({item, filler()});
 }
-Element history(state const& s, int width, int message_scroll)
+// The chat history; rows is how many lines it gets on screen.
+Element history(state const& s, int width, int rows, int message_scroll)
 {
     Elements items;
-    if (s.messages.empty()) { items.push_back(text("暂无消息") | dim); }
-    if (s.history_more) { items.push_back(text("PgUp 加载更早的消息") | dim); }
+    struct placed { int start = 0, height = 0; int message = -1; bool heading = false; };
+    std::vector<placed> layout;
+    int total = 0, focus = 0;
+    auto add = [&](Element item, int message = -1, bool heading = false) {
+        item->ComputeRequirement();
+        auto const height = item->requirement().min_y;
+        if (item->requirement().focused.enabled) { focus = total + item->requirement().focused.box.y_min; }
+        layout.push_back({total, height, message, heading});
+        total += height;
+        items.push_back(std::move(item));
+    };
+    if (s.messages.empty()) { add(text("暂无消息") | dim); }
+    if (s.history_more) { add(text("PgUp 加载更早的消息") | dim); }
     int day = 0;
     for (std::size_t i = 0; i < s.messages.size(); ++i)
     {
-        if (auto const when = s.messages[i].timestamp; when > 0 && day_number(local_time(when)) != day)
+        auto const& m = s.messages[i];
+        if (auto const when = m.timestamp; when > 0 && day_number(local_time(when)) != day)
         {
             day = day_number(local_time(when));
-            items.push_back(hbox({filler(), text("── " + day_label(when) + " ──") | dim, filler()}));
+            add(hbox({filler(), text("── " + day_label(when) + " ──") | dim, filler()}));
         }
-        items.push_back(message_item(s, s.messages[i], s.message_selected == static_cast<int>(i), width, message_scroll));
-        items.push_back(text(""));
+        auto const heading = starts_group(s.messages, i);
+        // Groups are separated by a blank line; messages within a group follow each other.
+        if (heading && i > 0) { add(text("")); }
+        add(message_item(s, m, s.message_selected == static_cast<int>(i), width, message_scroll, heading),
+            static_cast<int>(i), heading);
     }
-    return scroll(std::move(items));
+    auto list = scroll(std::move(items));
+    if (rows < 2) { return list; }
+    // The first visible row, as the frame scrolls: the focus is centered, then clamped.
+    auto const top = std::clamp(focus - (rows - 1) / 2, 0, std::max(0, total - rows));
+    auto const at = std::ranges::find_if(layout, [&](placed const& p) { return p.start <= top && top < p.start + p.height; });
+    // A message whose heading is above the view gets its sender and time pinned at the top.
+    if (at == layout.end() || at->message < 0 || (at->heading && top == at->start)) { return list; }
+    auto const& m = s.messages[static_cast<std::size_t>(at->message)];
+    // flex keeps the history shrinkable inside the chat column, as the plain list is.
+    return dbox({list, vbox({hbox({preview_text(message_heading(s, m), width) | bold, filler()}) | clear_under, filler()})}) | flex;
 }
 std::string send_hint(state const& s, chat::conversation const& c)
 {
@@ -451,7 +493,9 @@ Element conversation_view(state const& s, Element input, std::string typing, int
     }
     else if (!c->announcement.empty()) { items.push_back(preview_text("公告：" + c->announcement, width) | dim); }
     items.push_back(separator());
-    items.push_back(history(s, width, message_scroll));
+    auto const rows = height - chat_chrome(s, width, !typing.empty()) -
+        (input ? composer_lines(s, width, height, !typing.empty()) : s.can_send() ? 1 : 0);
+    items.push_back(history(s, width, rows, message_scroll));
     if (!typing.empty()) { items.push_back(text(typing) | dim); }
     if (s.at_latest) { items.push_back(separator()); }
     else { items.push_back(preview_text("── 正在浏览历史 · G 回到最新，新消息保持未读 ──", width) | dim); }
@@ -671,7 +715,7 @@ Element render_impl(state const& s, int width, int height, Element compose = {},
     std::string const help = " Esc 返回 · F1 帮助";
     std::string keys = "h 聊天 · c 联系人 · u 账号 · N 新建 · : 命令";
     if (s.view == page::conversation && s.composing) { keys = "Enter 发送 · \\ Enter 换行 · Shift+Tab 选择消息"; }
-    else if (s.view == page::conversation) { keys = "↑↓ 选择 · r 回复 · e 编辑 · d 删除 · a 回应 · y 复制 · i 输入"; }
+    else if (s.view == page::conversation) { keys = "↑↓ 选择 · Enter 操作 · r 回复 · e 编辑 · y 复制 · i 输入"; }
     else if (s.view == page::conversations) { keys = "Enter 打开 · Tab 切换焦点 · N 新建 · : 命令"; }
     auto status = s.status.empty() ? preview_text(keys, width - 2 - DisplayWidth(help)) | dim
                                    : preview_text(s.status, width - 2 - DisplayWidth(help));
@@ -757,6 +801,7 @@ public:
     Element OnRender() override
     {
         flush_paste();
+        validate_menu();
         if (app_.data.self.id) { app_.sync_focus(); }
         auto terminal = Terminal::Size();
         update_viewport(terminal);
@@ -803,6 +848,23 @@ public:
         }
         if (app_.command_mode)
         { return dbox({page, vbox({text("命令"), command_->Render(), text("Enter 执行 · Esc 取消")}) | border | clear_under | center}); }
+        if (menu_)
+        {
+            auto const items = menu_items();
+            Elements rows{preview_text(menu_->title, 40) | bold, separator()};
+            for (std::size_t i = 0; i < items.size(); ++i)
+            {
+                auto const& item = items[i];
+                auto label = std::string(item.key ? std::string(1, item.key) + "  " : "   ") + item.label;
+                if (!item.disabled.empty()) { label += "（" + item.disabled + "）"; }
+                auto row = text((static_cast<int>(i) == menu_->selected ? "> " : "  ") + label);
+                if (!item.disabled.empty()) { row = row | dim; }
+                rows.push_back(static_cast<int>(i) == menu_->selected ? row | inverted : row);
+            }
+            rows.push_back(separator());
+            rows.push_back(text("Enter 执行 · 字母直接执行 · Esc 关闭") | dim);
+            return dbox({page, vbox(std::move(rows)) | border | clear_under | center});
+        }
         return page;
     }
     bool OnEvent(Event event) override
@@ -812,7 +874,7 @@ public:
         {
             // Esc only clears a shown error, so it does not also leave the page.
             // An open dialog or command line is closed first; the error waits for the next Esc.
-            bool const overlay = app_.dialog || app_.command_mode;
+            bool const overlay = app_.dialog || app_.command_mode || menu_;
             bool const clear_only = event == Event::Escape && app_.data.status_error && app_.data.self.id &&
                                     !pasting_ && !overlay;
             if (event != Event::Escape || !overlay) { app_.dismiss_error(); }
@@ -839,6 +901,7 @@ private:
         update_viewport(Terminal::Size());
         // Pasted text belongs to the target as it was before queued results change it.
         app_.drain([this] { flush_paste(); });
+        validate_menu();
         if (app_.data.self.id) { app_.sync_focus(); }
         sync_message_scroll();
         auto& s = app_.data;
@@ -918,6 +981,7 @@ private:
             }
             return command_->OnEvent(event);
         }
+        if (menu_) { return menu_event(event); }
         if (!s.self.id)
         {
             if (s.link != connection::signed_out)
@@ -1000,6 +1064,7 @@ private:
             }
             return true;
         }
+        if (event == Event::Return && s.view == page::conversation) { open_message_menu(); return true; }
         if (event == Event::ArrowDown || event == Event::Character('j')) { move(1); return true; }
         if (event == Event::ArrowUp || event == Event::Character('k')) { move(-1); return true; }
         if (event == Event::Return)
@@ -1007,7 +1072,7 @@ private:
             auto options = actions(s);
             if (!options.empty() && s.selected >= 0 && static_cast<std::size_t>(s.selected) < options.size()) { app_.command(options[s.selected].command); }
             else if (s.view == page::pick_contacts) { app_.finish_pick(); }
-            else if (s.view == page::members) { app_.command("profile"); }
+            else if (s.view == page::members) { open_member_menu(); }
             else { app_.activate(); }
             return true;
         }
@@ -1031,7 +1096,10 @@ private:
             auto const* message = s.selected_message();
             if (!message) { return true; }
             auto width = app_.viewport_width - (s.view == page::conversation && state::layout(app_.viewport_width, app_.viewport_height) == layout_mode::wide ? 34 : 3);
-            auto item = message_item(s, *message, false, width, -1);
+            // Same height as drawn: a message within a group has no heading line.
+            auto const index = static_cast<std::size_t>(s.message_selected);
+            auto const heading = s.view != page::conversation || index >= s.messages.size() || starts_group(s.messages, index);
+            auto item = message_item(s, *message, false, width, -1, heading);
             item->ComputeRequirement();
             int last = std::max(0, item->requirement().min_y - 1);
             int current = message_scroll_ < 0 ? last : message_scroll_;
@@ -1105,6 +1173,102 @@ private:
             for (auto const& field : {url_, username_, password_}) { if (field->Focused()) { return field; } }
         }
         return {};
+    }
+    // The menu is bound to its message or member, not to a list position.
+    struct menu_state { enum class kind { message, member } kind; std::int64_t target = 0; std::string title; int selected = 0; };
+    std::optional<menu_state> menu_;
+
+    std::vector<menu_item> menu_items() const
+    {
+        auto const& s = app_.data;
+        if (!menu_) { return {}; }
+        if (menu_->kind == menu_state::kind::message)
+        {
+            auto found = std::ranges::find(s.messages, menu_->target, &message::id);
+            return found == s.messages.end() ? std::vector<menu_item>{} : s.message_actions(*found);
+        }
+        auto found = std::ranges::find(s.members, menu_->target, &conversation_member::id);
+        return found == s.members.end() ? std::vector<menu_item>{} : s.member_actions(*found);
+    }
+    void open_message_menu()
+    {
+        auto const* message = app_.data.selected_message();
+        if (!message) { app_.data.status = "请先选择消息"; return; }
+        auto preview = message->deleted ? std::string("消息已删除") : message->attachment && message->text.empty()
+            ? message->attachment->filename : message->text;
+        for (char& c : preview) { if (c == '\n') { c = ' '; } }
+        menu_ = menu_state{menu_state::kind::message, message->id, message_heading(app_.data, *message) + " · " + preview, 0};
+        app_.menu_open = true;
+    }
+    void open_member_menu()
+    {
+        auto const& s = app_.data;
+        if (s.selected < 0 || static_cast<std::size_t>(s.selected) >= s.members.size()) { return; }
+        auto const& member = s.members[static_cast<std::size_t>(s.selected)];
+        menu_ = menu_state{menu_state::kind::member, member.id, "成员 · " + member.username, 0};
+        app_.menu_open = true;
+    }
+    void close_menu() { menu_.reset(); app_.menu_open = false; }
+    // A menu outlives neither its page, its connection nor its target.
+    void validate_menu()
+    {
+        if (!menu_) { return; }
+        auto const& s = app_.data;
+        auto const page_ok = menu_->kind == menu_state::kind::message ? s.view == page::conversation : s.view == page::members;
+        if (!page_ok || s.link != connection::online || app_.dialog || app_.command_mode) { close_menu(); return; }
+        if (menu_items().empty()) { close_menu(); app_.data.status = "操作对象已不存在，菜单已关闭"; }
+    }
+    bool menu_event(Event const& event)
+    {
+        auto const items = menu_items();
+        if (items.empty())
+        {
+            // The message or member is gone (deleted, removed or reloaded away).
+            close_menu();
+            app_.data.status = "操作对象已不存在，菜单已关闭";
+            return true;
+        }
+        if (event == Event::Escape) { close_menu(); return true; }
+        auto const count = static_cast<int>(items.size());
+        menu_->selected = std::clamp(menu_->selected, 0, count - 1);
+        if (event == Event::ArrowDown || event == Event::Character('j')) { menu_->selected = (menu_->selected + 1) % count; return true; }
+        if (event == Event::ArrowUp || event == Event::Character('k')) { menu_->selected = (menu_->selected + count - 1) % count; return true; }
+        std::optional<menu_item> chosen;
+        if (event == Event::Return) { chosen = items[static_cast<std::size_t>(menu_->selected)]; }
+        else if (event.is_character())
+        {
+            auto found = std::ranges::find_if(items, [&](menu_item const& item) { return item.key && event == Event::Character(item.key); });
+            if (found != items.end()) { chosen = *found; }
+        }
+        if (!chosen) { return true; }
+        if (!chosen->disabled.empty()) { app_.data.status = chosen->disabled; return true; }
+        run_menu_item(*chosen);
+        return true;
+    }
+    void run_menu_item(menu_item const& chosen)
+    {
+        auto& s = app_.data;
+        auto const target = *menu_;
+        close_menu();
+        // Act on the bound target as it is now: it must still exist and still allow this action.
+        std::vector<menu_item> now;
+        if (target.kind == menu_state::kind::message)
+        {
+            auto found = std::ranges::find(s.messages, target.target, &message::id);
+            if (found == s.messages.end()) { s.status = "消息已不存在，操作已取消"; return; }
+            s.message_selected = static_cast<int>(found - s.messages.begin());
+            now = s.message_actions(*found);
+        }
+        else
+        {
+            auto found = std::ranges::find(s.members, target.target, &conversation_member::id);
+            if (found == s.members.end()) { s.status = "该成员已不在群中，操作已取消"; return; }
+            s.selected = static_cast<int>(found - s.members.begin());
+            now = s.member_actions(*found);
+        }
+        auto still = std::ranges::find(now, chosen.command, &menu_item::command);
+        if (still == now.end() || !still->disabled.empty()) { s.status = "该操作当前不可用，已取消"; return; }
+        app_.command(chosen.command);
     }
     void update_history_rows(ftxui::Dimensions terminal)
     {

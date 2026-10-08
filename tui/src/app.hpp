@@ -37,6 +37,8 @@ public:
     std::string password;
     std::optional<prompt> dialog;
     bool command_mode = false;
+    // An action menu drawn by the UI covers the chat: no typing, nothing read.
+    bool menu_open = false;
     std::string command_text;
     bool exiting = false;
     int viewport_width = 80;

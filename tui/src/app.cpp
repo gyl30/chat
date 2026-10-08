@@ -516,6 +516,9 @@ void app::command(std::string text)
         else { filter(std::move(argument)); }
         return;
     }
+    // Copying text and opening a known profile use local data, so they work offline too.
+    if (data.self.id && name == "copy") { message_command(name, std::move(argument)); return; }
+    if (data.self.id && name == "profile") { profile_command(name, std::move(argument)); return; }
     if (!online()) { return; }
     if (name == "friend-requests" || name == "friend-sent")
     { navigate(name == "friend-requests" ? page::friend_requests : page::friend_sent); friend_requests(); return; }

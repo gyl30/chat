@@ -640,7 +640,10 @@ def stage_friendships(d):
     with d.case('friend-from-group-profile', 'Nonfriend group profile exposes request; explicit recipient acceptance enables both direct directions'):
         d.open_main('B')
         d.choose_member('B', 'C')
+        # Enter on a member opens its menu; v opens the profile.
         d.keys('B', 'Enter')
+        d.wait('B', '查看资料')
+        d.keys('B', 'v')
         d.wait('B', '添加好友')
         assert '发消息' not in d.capture('B') and '在线' not in d.capture('B')
         d.command('B', 'add')
