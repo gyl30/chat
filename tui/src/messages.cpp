@@ -14,7 +14,7 @@ namespace chat::tui
 void app::compose_changed()
 {
     assert_ui();
-    if (!data.composing || !data.can_send()) { stop_typing(); return; }
+    if (!data.composing || !data.can_send() || !client_) { stop_typing(); return; }
     if (data.draft.empty()) { stop_typing(); return; }
     auto const now = clock::now();
     typing_stop_at_ = now + std::chrono::seconds(3);
@@ -32,6 +32,15 @@ void app::stop_composing()
     assert_ui();
     stop_typing();
     data.composing = false;
+}
+
+void app::sync_focus()
+{
+    assert_ui();
+    // Overlays and other pages take the keys; an open, writable conversation types directly.
+    bool const input = data.view == page::conversation && !dialog && !command_mode && !data.selecting && data.can_send();
+    if (input && !data.composing) { data.composing = true; }
+    else if (!input && data.composing) { stop_composing(); }
 }
 
 void app::send()
@@ -172,7 +181,7 @@ void app::message_command(std::string const& name, std::string argument)
     }
     if (name == "compose")
     {
-        if (writable()) { navigate(page::conversation); data.composing = true; }
+        if (writable()) { navigate(page::conversation); data.selecting = false; data.composing = true; }
         return;
     }
     if (name == "latest")
@@ -232,6 +241,7 @@ void app::message_command(std::string const& name, std::string argument)
         navigate(page::conversation);
         data.reply = quoted_message{message.id, message.from, message.username, message.text, message.edited_at, false};
         data.editing = 0;
+        data.selecting = false;
         data.composing = true;
         return;
     }
@@ -244,6 +254,7 @@ void app::message_command(std::string const& name, std::string argument)
         data.editing = message.id;
         data.reply.reset();
         data.draft = message.text;
+        data.selecting = false;
         data.composing = true;
         return;
     }

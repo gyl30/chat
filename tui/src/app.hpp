@@ -66,6 +66,7 @@ public:
     void compose_changed();
     void send();
     void stop_composing();
+    void sync_focus();
     void mark_visible_read();
     void select_message(int delta);
     void toggle_pick();

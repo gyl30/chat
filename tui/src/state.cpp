@@ -349,6 +349,7 @@ void state::select_conversation(std::int64_t id)
     reply.reset();
     editing = 0;
     composing = false;
+    selecting = false;
     draft.clear();
     message_selected = selected = 0;
     history_before.reset();

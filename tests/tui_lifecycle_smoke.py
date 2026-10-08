@@ -172,7 +172,7 @@ def run(d):
 
         pid = start_tui(sanitized)
         d.open_main('A')
-        d.keys(actor, 'i')
+        d.focus_input(actor)
         d.paste(actor, 'lifecycle_typing_' + d.args.run_id)
         d.wait('A', '正在输入')
         d.screenshot('A', 'typing-before-exit')

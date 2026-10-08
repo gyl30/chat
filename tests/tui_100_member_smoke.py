@@ -96,6 +96,10 @@ class Driver:
                               check=check, stdout=subprocess.PIPE, stderr=subprocess.PIPE, input=input)
 
     def keys(self, actor, *keys, repeat=1):
+        # Single-character keys are shortcuts for the messages; while the composer has the
+        # keys they would be text, so move to the messages first. Text is always pasted.
+        if keys and len(keys[0]) == 1 and keys[0].isprintable() and self.typing(actor):
+            self.focus_messages(actor)
         for key in keys:
             self.tmux('send-keys', '-t', self.panes[actor], '-N', str(repeat), key)
             if repeat > 1:
@@ -142,7 +146,44 @@ class Driver:
         self.screenshot(actor, 'selection-timeout')
         raise AssertionError(f'{actor}: selected item does not contain {value!r}')
 
+    def settled(self, actor):
+        # A key still in flight may not be drawn yet; wait for two identical frames.
+        previous = self.capture(actor)
+        for _ in range(25):
+            time.sleep(.08)
+            current = self.capture(actor)
+            if current == previous:
+                return current
+            previous = current
+        return previous
+
+    def typing(self, actor):
+        # The composer prompt is drawn only while the composer has the keys.
+        return composing(self.settled(actor))
+
+    def escape_until(self, actor, condition, attempts=3):
+        # Esc first only clears a shown error; press again until the expected page appears.
+        for attempt in range(attempts):
+            self.keys(actor, 'Escape')
+            try:
+                return self.wait(actor, condition, timeout=4)
+            except AssertionError:
+                if attempt == attempts - 1:
+                    raise
+
+    def focus_messages(self, actor):
+        if self.typing(actor):
+            self.keys(actor, 'BTab')
+            self.wait(actor, lambda screen: not composing(screen))
+
+    def focus_input(self, actor):
+        if not self.typing(actor):
+            self.keys(actor, 'i')
+            self.wait(actor, composing)
+
     def command(self, actor, command):
+        # While typing, ':' is message text; commands are given from the messages.
+        self.focus_messages(actor)
         self.keys(actor, ':')
         self.paste(actor, command)
         self.wait(actor, 'Enter 执行 · Esc 取消')
@@ -153,11 +194,16 @@ class Driver:
         # A visible command-input nonce acknowledges preceding PTY key events.
         # Cancel it without executing: no product test hooks or network refresh.
         nonce = 'ui_barrier_' + secrets.token_hex(4)
+        typing = self.typing(actor)
+        self.focus_messages(actor)
         self.keys(actor, ':')
         self.paste(actor, nonce)
         self.wait(actor, nonce)
         self.keys(actor, 'Escape')
         self.wait(actor, lambda screen: nonce not in screen)
+        if typing:
+            self.keys(actor, 'i')
+            self.wait(actor, composing)
 
     def confirm(self, actor, expected):
         self.wait(actor, lambda text: expected in text and '输入 y 后按 Enter 确认' in text)
@@ -355,7 +401,7 @@ class Driver:
                 self.command(actor, 'group')
                 self.wait(actor, lambda screen: re.search(r'成员 [1-9][0-9]* 人', screen) is not None)
                 self.keys(actor, 'Escape')
-                self.wait(actor, '按 i ')
+                self.wait(actor, chat_open)
                 return
             self.keys(actor, 'j')
             time.sleep(.045)
@@ -442,6 +488,7 @@ class Driver:
         return lines
 
     def selected_message(self, actor, marker, older=False, latest=True):
+        self.focus_messages(actor)
         if older:
             self.keys(actor, 'PPage')
         # G reloads the newest page, which drops an older page still in flight; a caller
@@ -499,18 +546,18 @@ class Driver:
     def open_direct(self, actor, target):
         self.find_profile(actor, target)
         self.command(actor, 'message')
-        self.wait(actor, lambda screen: self.name(target) in screen and '按 i ' in screen)
+        self.wait(actor, lambda screen: self.name(target) in screen and chat_open(screen))
 
     def send(self, actor, marker):
-        self.keys(actor, 'i')
+        self.focus_input(actor)
         self.clear_input(actor)
         self.paste(actor, marker)
-        self.keys(actor, 'Enter', 'Escape')
+        self.keys(actor, 'Enter')
         # Wait for the draft to clear as well as the delivered body. A stale
         # success status or text still in the composer is not delivery evidence.
         visible_marker = marker.split(' ', 1)[0]
         self.wait(actor, lambda screen: visible_marker in screen and '消息已发送' in screen and
-                  any('按 i ' in line and visible_marker[:18] not in line for line in screen.splitlines()))
+                  any(prompt_line(line) and visible_marker[:18] not in line for line in screen.splitlines()))
         return marker
 
     def link(self, actor, create=False):
@@ -765,13 +812,13 @@ def stage_messages(d):
         d.keys('C', 'r')
         d.wait('C', '回复 ')
         d.paste('C', 'reply_body_' + d.args.run_id)
-        d.keys('C', 'Enter', 'Escape')
+        d.keys('C', 'Enter')
         d.wait('B', 'reply_body_' + d.args.run_id)
         d.selected_message('C', 'reply_body_' + d.args.run_id)
         d.keys('C', 'e')
         d.clear_input('C')
         d.paste('C', 'edited_reply_' + d.args.run_id)
-        d.keys('C', 'Enter', 'Escape')
+        d.keys('C', 'Enter')
         d.wait('B', 'edited_reply_' + d.args.run_id)
         for choice, emoji in ((1, '👍'), (2, '❤️'), (0, None)):
             d.selected_message('A', marker)
@@ -792,7 +839,7 @@ def stage_messages(d):
         d.confirm('B', '删除')
         d.wait('D', lambda text: 'draft_survives_' + d.args.run_id in text and '回复 ' not in text)
         d.screenshot('D', 'deleted-reply-preserves-draft')
-        d.keys('D', 'Enter', 'Escape')
+        d.keys('D', 'Enter')
         d.wait('C', 'draft_survives_' + d.args.run_id)
         sent_draft = d.query('S005', 'search_messages', conversation=d.group, query='draft_survives_' + d.args.run_id)['messages']
         assert len(sent_draft) == 1 and not sent_draft[0].get('reply'), sent_draft
@@ -829,11 +876,11 @@ def stage_messages(d):
         snapshot = d.control('read_snapshot', message=identity)
         assert snapshot['count'] == 99, snapshot
         d.evidence('read-final', snapshot)
-        d.keys('B', 'i')
+        d.focus_input('B')
         d.paste('B', 'typing_probe')
         d.wait('A', '正在输入')
         d.screenshot('A', 'typing-active')
-        d.keys('B', 'Escape')
+        d.focus_messages('B')
         d.wait('A', lambda text: '正在输入' not in text)
 
 
@@ -889,7 +936,7 @@ def stage_terminal_messages(d):
         d.wait('C', d.title)
         d.screenshot('C', 'multiline-conversation-row')
         d.keys('C', 'Enter')
-        d.wait('C', '按 i ')
+        d.wait('C', chat_open)
         d.resize('C', 160,45)
         d.query('S005', 'delete_message', conversation=d.group, message=sent['message_id'])
 
@@ -902,7 +949,7 @@ def stage_large_text(d):
         tail = ' 中文😀 TUI_TAIL_' + d.args.run_id
         body = head + 'x' * (61440 - len(head.encode()) - len(tail.encode())) + tail
         assert len(body.encode()) == 61440 and '\n' not in body
-        d.keys('A', 'i')
+        d.focus_input('A')
         d.clear_input('A')
         started = time.monotonic()
         d.paste('A', body)
@@ -912,7 +959,7 @@ def stage_large_text(d):
         d.screenshot('A', 'full-input-tail')
         d.keys('A', 'Enter')
         d.wait('A', '消息已发送', timeout=60)
-        d.keys('A', 'Escape')
+        d.focus_messages('A')
         d.keys('B', 'G')
         d.wait('B', 'TUI_TAIL_' + d.args.run_id, timeout=60)
         peer_visible = time.monotonic()
@@ -1023,14 +1070,14 @@ def stage_friend_direct(d, files):
             d.wait(recipient, '回复 ')
             reply = marker + '_reply'
             d.paste(recipient, reply)
-            d.keys(recipient, 'Enter', 'Escape')
+            d.keys(recipient, 'Enter')
             d.wait(sender, reply)
             d.selected_message(recipient, reply)
             d.keys(recipient, 'e')
             d.clear_input(recipient)
             edited = reply + '_edited'
             d.paste(recipient, edited)
-            d.keys(recipient, 'Enter', 'Escape')
+            d.keys(recipient, 'Enter')
             d.wait(sender, edited)
             d.selected_message(sender, edited)
             for choice, emoji in ((1, '👍'), (2, '❤️')):
@@ -1039,16 +1086,16 @@ def stage_friend_direct(d, files):
                 d.wait(recipient, emoji)
             d.command(sender, 'reaction 0')
             d.wait(sender, lambda text: '👍' not in text and '❤️' not in text)
-            d.keys(recipient, 'i')
+            d.focus_input(recipient)
             d.paste(recipient, 'typing_' + marker)
             d.wait(sender, '正在输入')
             d.screenshot(sender, 'direct-typing-' + sender)
-            d.keys(recipient, 'Escape')
+            d.focus_messages(recipient)
             d.wait(sender, lambda text: '正在输入' not in text)
             # Remove the unsent typing probe before the next compose action.
-            d.keys(recipient, 'i')
+            d.focus_input(recipient)
             d.clear_input(recipient)
-            d.keys(recipient, 'Escape')
+            d.focus_messages(recipient)
             d.command(sender, 'search ' + edited)
             d.wait(sender, edited)
             d.screenshot(sender, 'direct-search-' + sender)
@@ -1128,7 +1175,7 @@ def stage_removed_friend(d, files):
         d.command('B', 'remove-contact')
         d.confirm('B', '删除好友')
         for actor in 'BC':
-            d.wait(actor, lambda screen: '聊天' in screen and '按 i ' not in screen and '资料 ·' not in screen)
+            d.wait(actor, lambda screen: '聊天' in screen and not chat_open(screen) and '资料 ·' not in screen)
             d.screenshot(actor, 'removed-direct-closed')
 
         def hidden(actor, peer, label):
@@ -1257,13 +1304,13 @@ def stage_group_management(d):
         d.open_main('C')
         d.selected_message('C', marker)
         d.command('C', 'pinned')
-        d.wait('C', '按 i ')
+        d.wait('C', chat_open)
         d.wait_selected('C', marker)
         d.selected_message('A', marker)
         d.keys('A', 'e')
         d.clear_input('A')
         d.paste('A', marker + '_edited')
-        d.keys('A', 'Enter', 'Escape')
+        d.keys('A', 'Enter')
         d.wait('C', marker + '_edited')
         d.selected_message('A', marker + '_edited')
         d.keys('A', 'd')
@@ -1363,8 +1410,8 @@ def stage_group_management(d):
             d.keys('A', 'Enter')
             d.wait('A', name)
             seen.append(item['id'])
-            d.keys('A', 'Escape')
-            d.wait('A', '聊天')
+            # Back on the list, its row is highlighted again.
+            d.escape_until('A', lambda text: label in inverse_text(d.capture('A', styled=True)))
             d.keys('A', 'j')
             time.sleep(.08)
         assert seen == [value['id'] for value in expected]
@@ -1390,6 +1437,20 @@ def stage_group_management(d):
         d.keys('A', 'Enter')
         d.command('A', 'mute')
         d.command('A', 'pin')
+
+
+def prompt_line(line):
+    """A composer line that currently has the keys: it starts with the › prompt."""
+    return re.search(r'(^|│)› ', line) is not None
+
+
+def composing(screen):
+    return any(prompt_line(line) for line in screen.splitlines())
+
+
+def chat_open(screen):
+    """A conversation is open: its composer has the keys or offers to take them."""
+    return composing(screen) or '按 i ' in screen
 
 
 def list_row(screen, title):
@@ -1456,7 +1517,7 @@ def stage_resize(d):
                 d.command('A', 'search ' + d.manifest['search_query'])
                 d.wait('A', '搜索：')
             elif page == 'compose':
-                d.keys('A', 'i')
+                d.focus_input('A')
                 d.clear_input('A')
                 d.paste('A', 'resize_draft')
             elif page != 'conversation':
@@ -1477,9 +1538,8 @@ def stage_resize(d):
         for actor in 'BCDE':
             d.resize(actor, 80,24)
             d.open_main(actor)
-            d.wait(actor, '按 i ')
-            d.keys(actor, 'Escape')
-            d.wait(actor, '聊天')
+            d.wait(actor, chat_open)
+            d.escape_until(actor, lambda text: '聊天' in text and not chat_open(text))
             d.keys(actor, 'Enter')
             d.resize(actor, 160,45)
 
@@ -1569,11 +1629,11 @@ def stage_restarts(d):
             d.open_main(actor)
         for iteration in range(d.args.restarts):
             draft = f'reconnect_draft_{iteration}_' + d.args.run_id
-            d.keys('E', 'i')
+            d.focus_input('E')
             d.clear_input('E')
             d.paste('E', draft)
             d.wait('E', draft)
-            d.keys('E', 'Escape')
+            d.focus_messages('E')
             d.control('close')
             d.stop_server()
             for actor in 'ABCDE':
@@ -1581,12 +1641,12 @@ def stage_restarts(d):
             d.start_server()
             d.control('connect', actors=actors, timeout=120)
             for actor in 'ABCDE':
-                d.wait(actor, lambda text: '已连接' in text and '正在重连' not in text and '按 i ' in text, timeout=30)
-            d.keys('E', 'i')
+                d.wait(actor, lambda text: '已连接' in text and '正在重连' not in text and chat_open(text), timeout=30)
+            d.focus_input('E')
             d.wait('E', draft)
             d.screenshot('E', 'restored-draft-' + str(iteration))
             d.clear_input('E')
-            d.keys('E', 'Escape')
+            d.focus_messages('E')
             marker = f'restart_{iteration:02d}_{d.args.run_id}'
             d.control('events_reset', conversation=d.group, marker=marker)
             d.send('A', marker)
@@ -1658,15 +1718,15 @@ def stage_soak(d):
                     d.wait(recipient, '正在浏览历史')
                     d.keys(recipient, 'G')
                 elif mode == 3:
-                    d.keys(recipient, 'i')
+                    d.focus_input(recipient)
                     d.clear_input(recipient)
                     d.paste(recipient, 'soak_typing')
                     d.wait(sender, '正在输入')
-                    d.keys(recipient, 'Escape')
+                    d.focus_messages(recipient)
                     d.wait(sender, lambda text: '正在输入' not in text)
                 elif mode == 4:
                     d.resize(recipient, 70,20)
-                    d.wait(recipient, '按 i ')
+                    d.wait(recipient, chat_open)
                     d.resize(recipient, 160,45)
                 else:
                     d.command(recipient, 'contacts')

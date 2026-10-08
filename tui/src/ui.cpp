@@ -5,6 +5,7 @@
 #include <array>
 #include <ctime>
 #include <string_view>
+#include <optional>
 #include <utility>
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/component_options.hpp>
@@ -21,11 +22,17 @@ namespace
 using namespace ftxui;
 struct shortcut { std::string_view key, description; };
 constexpr std::array shortcuts{
+    shortcut{"直接输入", "打开会话后直接输入；输入框中所有字符都是正文"},
+    shortcut{"Enter", "发送消息 / 打开所选 / 确认"},
+    shortcut{"\\ 后 Enter", "换行：只对刚键入的 \\ 生效；先按 → 等任意键再 Enter 可发送结尾的 \\"},
+    shortcut{"Alt+Enter", "换行（WezTerm 等终端可能占用）"},
+    shortcut{"Esc", "依次：清除错误 / 取消回复或编辑 / 回到输入框 / 返回列表"},
+    shortcut{"Tab / Shift+Tab", "宽屏在列表、消息、输入框之间切换；窄屏在消息与输入框之间切换"},
+    shortcut{"↑（输入框为空）", "选择消息"},
+    shortcut{"F1", "帮助"},
+    shortcut{"以下按键在消息或列表中使用", ""},
     shortcut{"j / ↓，k / ↑", "移动选择"},
-    shortcut{"Enter", "打开所选 / 确认"},
-    shortcut{"Esc", "返回 / 关闭输入框 / 保留草稿"},
-    shortcut{"Tab / Shift+Tab", "在会话列表与聊天之间切换"},
-    shortcut{"i", "输入消息（Enter 发送，Esc 保留草稿）"},
+    shortcut{"i", "回到输入框"},
     shortcut{"r / e / d", "回复 / 编辑 / 删除（需确认）"},
     shortcut{"a", "表情回应（0 取消）"},
     shortcut{"y / s", "显示可复制文本 / 保存附件"},
@@ -369,7 +376,8 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
         item->ComputeRequirement();
         auto const last_line = std::max(1, item->requirement().min_y - 1);
         float position = scroll_line < 0 ? 1.f : static_cast<float>(std::clamp(scroll_line, 0, last_line)) / last_line;
-        if (s.view == page::conversation || s.view == page::search) { item = item | inverted; }
+        // While typing, the newest message keeps the view at the bottom without a highlight.
+        if ((s.view == page::conversation && !s.composing) || s.view == page::search) { item = item | inverted; }
         item = item | focusPositionRelative(0.f, position);
     }
     return m.from == s.self.id ? hbox({filler(), item}) : hbox({item, filler()});
@@ -425,7 +433,13 @@ Element conversation_view(state const& s, Element input, std::string typing, int
     {
         if (s.reply) { items.push_back(preview_text("回复 " + s.reply->username + "：" + s.reply->text, width) | dim); }
         if (s.editing) { items.push_back(text("正在编辑消息 · Esc 保留草稿") | dim); }
-        items.push_back(input ? input | size(HEIGHT, EQUAL, 1) : preview_text(s.composing ? "> " + s.draft : s.draft.empty() ? "按 i 输入消息" : "按 i 继续输入 · " + s.draft, width));
+        if (input)
+        {
+            // The composer grows with its lines up to four, then scrolls inside.
+            auto const lines = std::clamp(static_cast<int>(std::ranges::count(s.draft, '\n')) + 1, 1, 4);
+            items.push_back(hbox({text("› "), input | flex}) | size(HEIGHT, EQUAL, lines));
+        }
+        else { items.push_back(preview_text(s.composing ? "› " + s.draft : s.draft.empty() ? "按 i 输入消息" : "按 i 继续输入 · " + s.draft, width)); }
     }
     return vbox(std::move(items)) | flex;
 }
@@ -628,8 +642,12 @@ Element render_impl(state const& s, int width, int height, Element compose = {},
     }
     else { content = secondary(s, width - 3, message_scroll); }
     auto link = " " + link_label(s.link);
-    std::string const help = " Esc 返回 · ? 帮助";
-    auto status = s.status.empty() ? preview_text("h 聊天 · c 联系人 · u 账号 · N 新建 · : 命令", width - 2 - DisplayWidth(help)) | dim
+    std::string const help = " Esc 返回 · F1 帮助";
+    std::string keys = "h 聊天 · c 联系人 · u 账号 · N 新建 · : 命令";
+    if (s.view == page::conversation && s.composing) { keys = "Enter 发送 · \\ Enter 换行 · Shift+Tab 选择消息"; }
+    else if (s.view == page::conversation) { keys = "↑↓ 选择 · r 回复 · e 编辑 · d 删除 · a 回应 · y 复制 · i 输入"; }
+    else if (s.view == page::conversations) { keys = "Enter 打开 · Tab 切换焦点 · N 新建 · : 命令"; }
+    auto status = s.status.empty() ? preview_text(keys, width - 2 - DisplayWidth(help)) | dim
                                    : preview_text(s.status, width - 2 - DisplayWidth(help));
     if (s.status_error) { status = status | bold; }
     return vbox({hbox({preview_text("Chat · " + s.self.username, width - 2 - DisplayWidth(link)) | bold | flex, text(link)}), separator(), content, separator(), hbox({status | flex, text(help) | dim})}) | border;
@@ -695,7 +713,8 @@ public:
         auto compose_option = single;
         compose_option.multiline = true;
         compose_option.on_change = [this] { app_.compose_changed(); };
-        compose_ = Input(&app_.data.draft, "输入消息 · Enter 发送 · Esc 保留草稿", compose_option);
+        compose_option.cursor_position = &compose_cursor_;
+        compose_ = Input(&app_.data.draft, "输入消息", compose_option);
         Add(compose_);
         command_ = Input(&app_.command_text, "命令", single);
         Add(command_);
@@ -706,6 +725,7 @@ public:
     Element OnRender() override
     {
         flush_paste();
+        if (app_.data.self.id) { app_.sync_focus(); }
         auto terminal = Terminal::Size();
         update_viewport(terminal);
         sync_message_scroll();
@@ -754,8 +774,16 @@ public:
     bool OnEvent(Event event) override
     {
         // An error stays until the next key press; status changes are classified after handling.
-        if (event != Event::Custom) { app_.dismiss_error(); }
+        if (event != Event::Custom)
+        {
+            // Esc only clears a shown error, so it does not also leave the page.
+            bool const clear_only = event == Event::Escape && app_.data.status_error && app_.data.self.id &&
+                                    !pasting_ && !app_.dialog && !app_.command_mode;
+            app_.dismiss_error();
+            if (clear_only) { app_.observe_status(); return true; }
+        }
         auto const handled = handle(event);
+        if (app_.data.self.id) { app_.sync_focus(); }
         app_.observe_status();
         return handled;
     }
@@ -766,6 +794,7 @@ private:
         // Pasted text belongs to the target as it was before queued results change it.
         if (!paste_buffer_.empty() && app_.pending()) { flush_paste(); }
         app_.drain();
+        if (app_.data.self.id) { app_.sync_focus(); }
         sync_message_scroll();
         auto& s = app_.data;
         if (event == Event::CtrlC)
@@ -784,10 +813,11 @@ private:
                 paste_conversation_ = s.active;
                 paste_buffer_.clear();
             }
+            newline_.reset();
             return true;
         }
         if (event == Event::Special("\x1b[201~"))
-        { flush_paste(); pasting_ = false; paste_input_.reset(); return true; }
+        { flush_paste(); pasting_ = false; paste_input_.reset(); newline_.reset(); return true; }
         if (pasting_ && event != Event::Custom)
         {
             if (paste_input_ != input() || paste_conversation_ != s.active) { paste_buffer_.clear(); paste_input_.reset(); }
@@ -804,12 +834,17 @@ private:
         }
         if (event == Event::Custom)
         {
+            // A pending backslash newline survives redraws, but not a program change to its text.
+            if (newline_ && (!s.composing || newline_->conversation != s.active || newline_->draft != s.draft ||
+                             newline_->cursor != compose_cursor_)) { newline_.reset(); }
             if (!s.self.id) { login_form_->TakeFocus(); }
             else if (s.composing) { compose_->TakeFocus(); }
             auto terminal = Terminal::Size();
             if (state::layout(terminal.dimx, terminal.dimy) != layout_mode::too_small) { app_.mark_visible_read(); }
             return true;
         }
+        // Only Enter can use a backslash typed just before it; every other key ends that chance.
+        auto const newline = std::exchange(newline_, std::nullopt);
         if (app_.dialog)
         {
             sync_prompt();
@@ -853,21 +888,68 @@ private:
             }
             return login_form_->OnEvent(event);
         }
+        bool const wide = state::layout(app_.viewport_width, app_.viewport_height) == layout_mode::wide;
         if (s.composing)
         {
+            // The composer owns every printable character, including ? : / and letters.
             compose_->TakeFocus();
-            if (event == Event::Escape) { app_.stop_composing(); return true; }
-            if (event == Event::Return) { app_.send(); return true; }
-            return compose_->OnEvent(event);
+            if (event == Event::Escape)
+            {
+                // One level at a time: a reply or edit first, then back to the list.
+                if (s.editing || s.reply) { s.editing = 0; s.reply.reset(); return true; }
+                app_.stop_composing();
+                app_.back();
+                return true;
+            }
+            if (event == Event::TabReverse || (event == Event::ArrowUp && s.draft.empty()) || (event == Event::Tab && !wide))
+            { s.selecting = true; app_.stop_composing(); return true; }
+            if (event == Event::Tab) { app_.navigate(page::conversations); return true; }
+            if (event == Event::F1) { app_.command("help"); return true; }
+            // Reading older history is browsing the messages, so PgUp moves there.
+            if (event == Event::PageUp)
+            { s.selecting = true; app_.stop_composing(); s.at_latest = false; app_.history(true); return true; }
+            if (event == Event::Return)
+            {
+                if (newline && newline->conversation == s.active && newline->draft == s.draft &&
+                    newline->cursor == compose_cursor_ && compose_cursor_ > 0 &&
+                    static_cast<std::size_t>(compose_cursor_) <= s.draft.size() && s.draft[compose_cursor_ - 1] == '\\')
+                {
+                    // Replace exactly that backslash; the text on both sides stays as it is.
+                    s.draft[compose_cursor_ - 1] = '\n';
+                    app_.compose_changed();
+                    return true;
+                }
+                app_.send();
+                return true;
+            }
+            if (event == Event::Special("\x1b\r") || event == Event::Special("\x1b\n"))
+            { return compose_->OnEvent(Event::Character("\n")); }
+            auto const handled = compose_->OnEvent(event);
+            if (event == Event::Character("\\")) { newline_ = newline_mark{s.active, compose_cursor_, s.draft}; }
+            return handled;
         }
-        if (event == Event::Escape) { app_.back(); return true; }
+        if (event == Event::F1) { app_.command("help"); return true; }
+        if (event == Event::Escape)
+        {
+            // From the messages Esc returns to the composer when there is one.
+            if (s.view == page::conversation && s.selecting && s.can_send()) { s.selecting = false; return true; }
+            app_.back();
+            return true;
+        }
         if (event == Event::Character(':')) { app_.command_mode = true; app_.command_text.clear(); command_->TakeFocus(); return true; }
         if (event == Event::Tab || event == Event::TabReverse)
         {
+            // Wide: list -> messages -> composer -> list. Narrow: messages <-> composer; Esc reaches the list.
+            bool const forward = event == Event::Tab;
             if (s.view == page::friend_requests || s.view == page::friend_sent)
             { app_.command(s.view == page::friend_requests ? "friend-sent" : "friend-requests"); }
-            else if (s.view == page::conversations && s.active) { app_.navigate(page::conversation); }
-            else if (s.view == page::conversation) { app_.navigate(page::conversations); }
+            else if (s.view == page::conversations && s.active)
+            { app_.navigate(page::conversation); s.selecting = forward || !s.can_send(); }
+            else if (s.view == page::conversation)
+            {
+                if ((forward || !wide) && s.can_send()) { s.selecting = false; }
+                else if (wide) { app_.navigate(page::conversations); }
+            }
             return true;
         }
         if (event == Event::ArrowDown || event == Event::Character('j')) { move(1); return true; }
@@ -1031,6 +1113,9 @@ private:
     bool pasting_ = false;
     Component paste_input_;
     std::string paste_buffer_;
+    int compose_cursor_ = 0;
+    struct newline_mark { std::int64_t conversation; int cursor; std::string draft; };
+    std::optional<newline_mark> newline_;
     std::int64_t paste_conversation_ = 0;
     std::string prompt_text_;
     bool prompt_active_ = false;

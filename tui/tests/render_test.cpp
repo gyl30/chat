@@ -110,6 +110,20 @@ bool check_blank_preerase(ftxui::App screen, bool check_resize = false)
     return ok;
 }
 
+// A signed-in app with one open conversation that accepts typing (no network client).
+void writable_conversation(chat::tui::app& application)
+{
+    application.data.self = {1, "Alice", {}};
+    application.data.link = chat::tui::connection::online;
+    chat::conversation conversation;
+    conversation.id = 10; conversation.username = "group"; conversation.can_send = true;
+    conversation.kind = chat::conversation_kind::group;
+    application.data.conversations = {conversation};
+    application.data.active = 10;
+    application.data.view = chat::tui::page::conversation;
+    application.data.composing = true;
+}
+
 bool check_real_draw_blank_preerase()
 {
     auto fallback = ftxui::Terminal::Size();
@@ -748,9 +762,7 @@ int main()
     }
     {
         app application;
-        application.data.self = {1, "Alice", {}};
-        application.data.active = 10;
-        application.data.composing = true;
+        writable_conversation(application);
         auto component = make_ui(application, [] {});
         component->OnEvent(ftxui::Event::Special("\x1b[200~"));
         component->OnEvent(ftxui::Event::Character("第一行"));
@@ -773,14 +785,16 @@ int main()
         component->OnEvent(ftxui::Event::Character("wrong target"));
         component->OnEvent(ftxui::Event::Special("\x1b[201~"));
         ok &= expect(application.data.draft == "other conversation", "Interrupted paste cannot follow a changed conversation");
+        application.data.active = 10;
+        component->OnEvent(ftxui::Event::Custom);
         component->OnEvent(ftxui::Event::Special("\x1b[200~"));
-        application.data.composing = false;
+        application.data.link = connection::reconnecting;
         component->OnEvent(ftxui::Event::Custom);
         component->OnEvent(ftxui::Event::Character("N"));
         component->OnEvent(ftxui::Event::Return);
         component->OnEvent(ftxui::Event::Special("\x1b[201~"));
-        ok &= expect(application.data.draft == "other conversation" && application.data.view == page::conversations,
-                     "Connection recovery discards pasted tail rather than opening another page");
+        ok &= expect(application.data.draft == "other conversation" && application.data.view == page::conversation,
+                     "Connection loss discards pasted tail rather than opening another page");
         application.command_mode = true;
         component->OnEvent(ftxui::Event::Special("\x1b[200~"));
         component->OnEvent(ftxui::Event::Character("quit"));
@@ -792,9 +806,7 @@ int main()
         // A large paste is inserted in batches: the text appears as the screen redraws, and the
         // total cost stays linear (character-by-character insertion took over 10 s here).
         app application;
-        application.data.self = {1, "Alice", {}};
-        application.data.active = 10;
-        application.data.composing = true;
+        writable_conversation(application);
         auto component = make_ui(application, [] {});
         component->OnEvent(ftxui::Event::Special("\x1b[200~"));
         ftxui::Screen screen(100, 30);
@@ -899,6 +911,8 @@ int main()
             application.viewport_width = width;
             application.navigate(page::conversations);
             application.navigate(page::conversation);
+            // Without a server every refresh reports an error; Esc would first clear it.
+            application.dismiss_error();
             component->OnEvent(ftxui::Event::Escape);
             ok &= expect(application.data.view == page::conversations && application.data.active == direct.id &&
                          application.data.draft == "read-only draft", "read-only Escape returns to Chats without hiding history or draft");
@@ -989,6 +1003,121 @@ int main()
                      output.find("YESTERDAY_BODY") < output.find("── 今天 ──") &&
                      output.find("── 今天 ──") < output.find("TODAY_BODY"),
                      "Day separators precede the first message of each day");
+    }
+    {
+        // Phase 2 focus: an open, writable conversation takes typing directly.
+        app application;
+        writable_conversation(application);
+        // Events read the terminal size, so the layout is chosen through the fallback size.
+        auto const fallback = ftxui::Terminal::Size();
+        ftxui::Terminal::SetFallbackSize({120, 40});
+        auto component = make_ui(application, [] {});
+        auto type = [&](std::string const& value) { component->OnEvent(ftxui::Event::Character(value)); };
+        // Without a server each refresh reports an error, which Esc would clear first.
+        auto escape = [&] { application.dismiss_error(); component->OnEvent(ftxui::Event::Escape); };
+        for (auto key : {"?", ":", "/", "r", "N", "h", "i"}) { type(key); }
+        ok &= expect(application.data.draft == "?:/rNhi" && application.data.view == page::conversation &&
+                     !application.command_mode && application.data.composing,
+                     "Printable keys, including ? : / and shortcut letters, are message text while typing");
+        application.data.reply = chat::quoted_message{5, 2, "peer", "quoted", {}, false};
+        escape();
+        ok &= expect(!application.data.reply && application.data.composing && application.data.draft == "?:/rNhi",
+                     "Esc first cancels a reply and keeps the draft");
+        component->OnEvent(ftxui::Event::TabReverse);
+        ok &= expect(!application.data.composing && application.data.selecting, "Shift+Tab moves from the composer to the messages");
+        escape();
+        ok &= expect(application.data.composing && !application.data.selecting, "Esc returns from the messages to the composer");
+        component->OnEvent(ftxui::Event::ArrowUp);
+        ok &= expect(application.data.composing, "Up with a draft stays in the composer");
+        application.data.draft.clear();
+        component->OnEvent(ftxui::Event::ArrowUp);
+        ok &= expect(application.data.selecting && !application.data.composing, "Up in an empty composer selects messages");
+        component->OnEvent(ftxui::Event::Tab);
+        ok &= expect(application.data.composing, "Tab moves from the messages to the composer");
+        component->OnEvent(ftxui::Event::PageUp);
+        ok &= expect(application.data.selecting && !application.data.at_latest, "PgUp in the composer browses older messages");
+        component->OnEvent(ftxui::Event::Tab);
+        component->OnEvent(ftxui::Event::Tab);
+        ok &= expect(application.data.view == page::conversations, "Wide Tab moves from the composer to the list");
+        component->OnEvent(ftxui::Event::Tab);
+        ok &= expect(application.data.view == page::conversation && application.data.selecting, "Wide Tab moves from the list to the messages");
+        escape();
+        application.data.draft = "保留";
+        component->OnEvent(ftxui::Event::F1);
+        ok &= expect(application.data.view == page::help, "F1 opens help from the composer");
+        escape();
+        ok &= expect(application.data.view == page::conversation && application.data.composing && application.data.draft == "保留",
+                     "Leaving help returns to the composer with its draft");
+        ftxui::Terminal::SetFallbackSize({70, 24});
+        component->OnEvent(ftxui::Event::Tab);
+        ok &= expect(application.data.view == page::conversation && application.data.selecting, "Narrow Tab moves to the messages");
+        component->OnEvent(ftxui::Event::Tab);
+        ok &= expect(application.data.view == page::conversation && application.data.composing, "Narrow Tab returns to the composer");
+        escape();
+        ok &= expect(application.data.view == page::conversations, "Esc from the composer returns to the list");
+        ftxui::Terminal::SetFallbackSize({120, 40});
+        application.navigate(page::conversation);
+        component->OnEvent(ftxui::Event::Custom);
+        application.data.status = "请先选择消息";
+        component->OnEvent(ftxui::Event::Custom);
+        component->OnEvent(ftxui::Event::Escape);
+        ok &= expect(application.data.status.empty() && application.data.view == page::conversation && application.data.composing,
+                     "Esc with an error only clears the error");
+        ok &= expect(draw(application.data, 120, 40).find("\\ Enter 换行") != std::string::npos,
+                     "The key bar shows how to add a line while typing");
+
+        // Backslash before Enter adds a line; nothing else rewrites the text.
+        auto reset = [&](std::string draft) {
+            application.data.draft = std::move(draft);
+            component->OnEvent(ftxui::Event::End);
+        };
+        reset("a");
+        type("\\");
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.data.draft == "a\n", "A typed backslash then Enter becomes a line break");
+        reset("");
+        type("\\"); type("\\"); type("\\");
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.data.draft == "\\\\\n", "Only the last of several backslashes becomes a line break");
+        reset("ab");
+        component->OnEvent(ftxui::Event::ArrowLeft);
+        type("\\");
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.data.draft == "a\nb", "A backslash in the middle becomes a line break in place");
+        reset("abc");
+        component->OnEvent(ftxui::Event::ArrowLeft);
+        component->OnEvent(ftxui::Event::ArrowLeft);
+        component->OnEvent(ftxui::Event::Insert);
+        type("\\");
+        component->OnEvent(ftxui::Event::Return);
+        component->OnEvent(ftxui::Event::Insert);
+        ok &= expect(application.data.draft == "a\nc", "Overwrite mode replaces only the backslash with the line break");
+        reset("x");
+        type("\\");
+        component->OnEvent(ftxui::Event::Custom);
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.data.draft == "x\n", "A redraw between backslash and Enter keeps the line break");
+        reset("y");
+        type("\\");
+        component->OnEvent(ftxui::Event::ArrowRight);
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.data.draft == "y\\", "Any other key, even one that does not move, makes Enter send");
+        reset("");
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        type("p\\");
+        component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.data.draft == "p\\", "A pasted trailing backslash is sent as it is");
+        reset("z");
+        type("\\");
+        application.data.draft = "changed\\";
+        component->OnEvent(ftxui::Event::Custom);
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.data.draft == "changed\\", "A program change to the draft cancels the pending line break");
+        reset("q");
+        component->OnEvent(ftxui::Event::Special("\x1b\r"));
+        ok &= expect(application.data.draft == "q\n", "Alt+Enter adds a line");
+        ftxui::Terminal::SetFallbackSize(fallback);
     }
     // FTXUI text must not pass untrusted terminal escapes to the output.
     ftxui::Screen screen(50, 1);

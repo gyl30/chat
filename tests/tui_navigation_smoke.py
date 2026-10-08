@@ -13,9 +13,8 @@ import sys
 import time
 
 sys.dont_write_bytecode = True
-from tui_100_member_smoke import Driver, inverse_text, choose_row
+from tui_100_member_smoke import Driver, inverse_text, choose_row, chat_open, composing, prompt_line
 
-COMPOSER='按 i '
 
 class NavigationDriver(Driver):
     def setup(self):
@@ -167,10 +166,10 @@ def _hidden_direct_restoration(d):
         drafts = {actor: 'DRAFT_' + actor + '_' + d.args.run_id + ' é 👩‍💻 1️⃣\n第二行 🫩 👨‍👩‍👧‍👦'
                   for actor in ('A', 'C')}
         for actor in ('A', 'C'):
-            d.keys(actor, 'i')
+            d.focus_input(actor)
             d.clear_input(actor)
             d.paste(actor, drafts[actor])
-            d.keys(actor, 'Escape')
+            d.focus_messages(actor)
             d.wait(actor, 'DRAFT_' + actor + '_')
             capture_terminal(d, actor, 'open-with-unsent-unicode-draft')
 
@@ -179,14 +178,14 @@ def _hidden_direct_restoration(d):
         d.command('A', 'remove-contact')
         d.confirm('A', '删除好友')
         for actor, peer in (('A', 'C'), ('C', 'A')):
-            d.wait(actor, lambda screen: '聊天' in screen and '按 i ' not in screen and '资料 ·' not in screen)
+            d.wait(actor, lambda screen: '聊天' in screen and not chat_open(screen) and '资料 ·' not in screen)
             d.resize(actor, 80, 24)
             d.barrier(actor)
             assert d.name(peer) not in d.capture(actor), 'A removed direct remained in Chats'
             d.keys(actor, 'Tab', 'Escape')
             d.barrier(actor)
             screen = d.capture(actor)
-            assert '按 i ' not in screen and 'HIDDEN_HISTORY_' not in screen and d.name(peer) not in screen, 'Tab reopened a removed readonly direct'
+            assert not chat_open(screen) and 'HIDDEN_HISTORY_' not in screen and d.name(peer) not in screen, 'Tab reopened a removed readonly direct'
             capture_terminal(d, actor, 'removed-direct-closed-and-hidden')
 
         d.request_friend('A', 'C')
@@ -197,7 +196,7 @@ def _hidden_direct_restoration(d):
             d.keys(actor, 'Tab')
             d.barrier(actor)
             screen = d.capture(actor)
-            assert '按 i ' not in screen and 'HIDDEN_HISTORY_' not in screen and d.name(peer) not in screen, 'Tab reopened a pending readonly direct'
+            assert not chat_open(screen) and 'HIDDEN_HISTORY_' not in screen and d.name(peer) not in screen, 'Tab reopened a pending readonly direct'
             capture_terminal(d, actor, 'pending-direct-still-hidden')
 
         d.accept_friend('C', 'A')
@@ -205,6 +204,8 @@ def _hidden_direct_restoration(d):
             d.open_direct(actor, peer)
             d.wait(actor, 'HIDDEN_HISTORY_')
             d.wait(actor, 'DRAFT_' + actor + '_')
+            # The selected history message is highlighted only while the messages have the keys.
+            d.focus_messages(actor)
             capture_terminal(d, actor, 'accepted-history-and-draft-restored')
 
         dimensions = [(width, height) for width in (60, 70, 80, 100, 120, 160) for height in (20, 24, 40)]
@@ -220,10 +221,11 @@ def _hidden_direct_restoration(d):
                                          'checks': ['unsent Unicode draft preview', 'selected original historical message']})
 
         for actor in ('A', 'C'):
-            d.keys(actor, 'i', 'Enter', 'Escape')
+            d.focus_input(actor)
+            d.keys(actor, 'Enter')
             marker = 'DRAFT_' + actor + '_'
             d.wait(actor, lambda screen: marker in screen and '消息已发送' in screen and
-                   any('按 i ' in line and marker not in line for line in screen.splitlines()))
+                   any(prompt_line(line) and marker not in line for line in screen.splitlines()))
         d.wait('A', 'DRAFT_C_')
         d.wait('C', 'DRAFT_A_')
         # Release C's real TUI identity before observing exact DTO bytes through SDK.
@@ -248,18 +250,18 @@ def chat_navigation(d):
     with d.case('chat-enter-escape-navigation','Visible group history opens with Enter; Esc reaches Chats and stays there'):
         d.resize('A',80,24)
         d.select_chat('A',d.title)
-        d.wait('A',lambda s:marker in s and COMPOSER in s)
+        d.wait('A',lambda s:marker in s and chat_open(s))
         d.screenshot('A','narrow-group-enter')
         d.keys('A','Escape')
-        d.wait('A',lambda s:('聊天' in s or '聊天' in s) and COMPOSER not in s)
+        d.wait('A',lambda s:('聊天' in s or '聊天' in s) and not chat_open(s))
         d.screenshot('A','narrow-escape-list')
         # Returning by the top-level Chats action must have the same root
         # semantics. Esc at that root cannot reveal the prior message view.
         d.select_chat('A',d.title)
-        d.wait('A',COMPOSER)
+        d.wait('A',chat_open)
         d.chats('A')
         d.keys('A','Escape')
-        d.wait('A',lambda s:('聊天' in s or '聊天' in s) and COMPOSER not in s)
+        d.wait('A',lambda s:('聊天' in s or '聊天' in s) and not chat_open(s))
         d.screenshot('A','narrow-root-escape-stable')
         d.resize('A',160,45)
         d.select_chat('A',d.title)
@@ -274,16 +276,16 @@ def tab_navigation(d):
     with d.case('tab-navigation-roots','Tab changes focus or request tabs; Esc returns directly to the parent'):
         d.resize('A',80,24)
         d.select_chat('A',d.title)
-        d.wait('A',COMPOSER)
+        d.wait('A',chat_open)
         for _ in range(3):
             d.keys('A','Tab')
-            d.wait('A',lambda s:('聊天' in s or '聊天' in s) and COMPOSER not in s)
+            d.wait('A',lambda s:chat_open(s) and not composing(s))
             d.keys('A','Tab')
-            d.wait('A',COMPOSER)
+            d.wait('A',composing)
         d.keys('A','Escape')
-        d.wait('A',lambda s:('聊天' in s or '聊天' in s) and COMPOSER not in s)
+        d.wait('A',lambda s:('聊天' in s or '聊天' in s) and not chat_open(s))
         d.keys('A','Escape')
-        d.wait('A',lambda s:('聊天' in s or '聊天' in s) and COMPOSER not in s)
+        d.wait('A',lambda s:('聊天' in s or '聊天' in s) and not chat_open(s))
         d.screenshot('A','tab-chat-root-stable')
         d.keys('A','c'); d.wait('A','新的朋友 (1)')
         d.keys('A','Enter');d.wait('A','新的朋友 · 收到')
@@ -416,7 +418,7 @@ def message_alignment(d):
     with d.case('own-right-peer-left','Real group history distinguishes own and peer messages at narrow and wide terminal sizes'):
         d.control('connect',actors=['C'])
         own='RIGHT_OWN_'+d.args.run_id;peer='LEFT_PEER_'+d.args.run_id
-        d.select_chat('A',d.title);d.wait('A','按 i ')
+        d.select_chat('A',d.title);d.wait('A',chat_open)
         d.send('A',own)
         d.query('C','send_message',conversation=d.group,text=peer)
         for width in [80,160]:
@@ -436,32 +438,32 @@ def paste_messages(d):
         for index in range(3):
             marker='PASTE_'+str(index)+'_'+d.args.run_id
             text=marker+'\n第二行 🙂\n\nLAST_'+str(index)+('\n' if index==2 else '')
-            d.keys('A','i');d.clear_input('A');d.paste('A',text)
+            d.focus_input('A');d.clear_input('A');d.paste('A',text)
             if index==2: d.keys('A','Up')
             d.wait('A','LAST_'+str(index))
             assert not d.query('S005','search_messages',conversation=d.group,query=marker)['messages']
-            d.keys('A','Escape');d.wait('A','按 i ')
+            d.focus_messages('A')
             d.screenshot('A','unsent-multiline-'+str(index))
             assert not d.query('S005','search_messages',conversation=d.group,query=marker)['messages']
-            d.keys('A','i','Enter','Escape');d.wait('A','消息已发送')
+            d.focus_input('A');d.keys('A','Enter');d.wait('A','消息已发送')
             d.wait('C','LAST_'+str(index))
             result=d.query('S005','search_messages',conversation=d.group,query=marker)['messages']
             assert len(result)==1 and result[0]['text']==text,result
             d.screenshot('C','received-multiline-'+str(index))
     with d.case('paste-interrupted-by-reconnect','A disconnected composer keeps its draft and ignores the remainder of the old paste'):
         marker='PASTE_INTERRUPTED_'+d.args.run_id
-        d.keys('A','i');d.clear_input('A')
+        d.focus_input('A');d.clear_input('A')
         d.tmux('send-keys','-l','-t',d.panes['A'],'\x1b[200~'+marker)
         d.wait('A',marker)
         d.stop_server();d.control('close');d.wait('A','正在重连')
         d.tmux('send-keys','-l','-t',d.panes['A'],'\nN:quit\x1b[201~')
         d.wait('A','正在重连')
         d.start_server();d.control('connect',actors=['S005'])
-        d.wait('A',lambda s:'已连接' in s and '按 i ' in s)
+        d.wait('A',lambda s:'已连接' in s and chat_open(s))
         assert not d.query('S005','search_messages',conversation=d.group,query=marker)['messages']
-        d.keys('A','i');d.wait('A',marker)
+        d.focus_input('A');d.wait('A',marker)
         d.screenshot('A','interrupted-paste-draft')
-        d.keys('A','Enter','Escape');d.wait('A','消息已发送')
+        d.keys('A','Enter');d.wait('A','消息已发送')
         result=d.query('S005','search_messages',conversation=d.group,query=marker)['messages']
         assert len(result)==1 and result[0]['text']==marker,result
         d.wait('C',marker)
@@ -483,14 +485,14 @@ def new_actions(d):
         d.keys('A','Enter');d.wait('A','下一步：群名称')
         title='TUI导航新群_'+d.args.run_id
         d.paste('A',title);d.keys('A','Enter');d.confirm('A','创建群聊')
-        d.wait('A',lambda s:title in s and '按 i ' in s)
+        d.wait('A',lambda s:title in s and chat_open(s))
         created=next(v for v in d.query('S005','get_conversations')['conversations'] if v['username']==title)
         actual=d.query('S005','get_members',conversation=created['id'])
         assert {v['id'] for v in actual}=={d.manifest['actors'][a]['id'] for a in ['A','C']}|{d.manifest['sdk'][0]['id']}
         d.screenshot('A','created-group-open')
         d.spawn_tui('E');d.login('E');d.keys('E','N','j','j','Enter');d.wait('E','加入群聊')
         d.paste('E',d.manifest['invite_token']);d.keys('E','Enter')
-        d.wait('E',lambda s:d.title in s and '按 i ' in s)
+        d.wait('E',lambda s:d.title in s and chat_open(s))
         members=d.query('S005','get_members',conversation=d.group)
         assert len(members)==5 and any(v['id']==d.manifest['actors']['E']['id'] for v in members)
         d.screenshot('E','new-join-open')

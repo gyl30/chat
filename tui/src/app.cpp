@@ -396,6 +396,7 @@ void app::navigate(page target)
         if (primary) { pages_.clear(); }
         else if (!chat_tab && !friend_tab) { pages_.push_back(data.view); }
         data.view = target; data.selected = 0;
+        if (target == page::conversation) { data.selecting = false; }
     }
     cancel_prompt();
     if (target == page::conversation && data.active) { history(); members(); }

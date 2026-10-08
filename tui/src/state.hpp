@@ -36,6 +36,9 @@ struct state
     // Oldest history-page boundary; realtime edits can refer to older messages.
     std::optional<std::int64_t> history_before, search_before;
     bool history_more = false, search_more = false, at_latest = true, composing = false;
+    // The person moved from the composer to the messages; otherwise an open, writable
+    // conversation takes typing directly.
+    bool selecting = false;
     std::string draft, search_query;
     std::optional<quoted_message> reply;
     std::int64_t editing = 0;
