@@ -28,6 +28,7 @@ class message_search_dialog final : public QDialog
 
    signals:
     void search_requested(QString query, qint64 before);
+    void message_activated(qint64 message);
 
    private:
     struct selection_state

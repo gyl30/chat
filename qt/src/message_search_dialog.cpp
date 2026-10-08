@@ -66,8 +66,7 @@ message_search_dialog::message_search_dialog(qint64 conversation, qint64 self_us
     search_row->addWidget(input_, 1);
     search_row->addWidget(search_button_);
     layout->addLayout(search_row);
-    auto* help = new QLabel(QStringLiteral("不区分大小写。正文实时更新，可能已不再匹配；"
-                                          "重新搜索获取当前匹配。已删除消息不显示。"), this);
+    auto* help = new QLabel(QStringLiteral("不区分大小写。双击或按 Enter 跳转到聊天中的位置；消息被编辑后可重新搜索。"), this);
     help->setObjectName(QStringLiteral("messageSearchHelp"));
     help->setWordWrap(true);
     layout->addWidget(help);
@@ -103,6 +102,12 @@ message_search_dialog::message_search_dialog(qint64 conversation, qint64 self_us
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(search_button_, &QPushButton::clicked, this, [this] { request_search(false); });
+    auto const activate = [this](QModelIndex const& index) {
+        auto const id = index.data(message_model::id_role).toLongLong();
+        if (id > 0) { emit message_activated(id); }
+    };
+    connect(results_, &QListView::activated, this, activate);
+    connect(results_, &QListView::doubleClicked, this, activate);
     connect(more_button_, &QPushButton::clicked, this, [this] { request_search(true); });
     connect(input_, &QLineEdit::textChanged, this, [this] {
         more_button_->setEnabled(next_before_ > 0 && input_->text().trimmed() == query_);

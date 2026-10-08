@@ -2227,7 +2227,7 @@ void check_message_search_live_policy()
           !index_for(101).data(Qt::AccessibleTextRole).toString().contains(edit.text),
           "Accessible remaining model hit does not inherit the deleted target body");
     auto* help = dialog.findChild<QLabel*>("messageSearchHelp");
-    check(help && help->isVisible() && help->text().contains(QStringLiteral("正文实时更新")) &&
+    check(help && help->isVisible() && help->text().contains(QStringLiteral("跳转")) &&
           help->text().contains(QStringLiteral("重新搜索")) && count && count->text().contains(QStringLiteral("已加载 1")),
           "Search persistently explains live bodies and counts only visible loaded hits");
     check(help->font().pixelSize() == 13 && count->font().pixelSize() == 13 &&

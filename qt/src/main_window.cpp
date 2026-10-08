@@ -676,7 +676,12 @@ main_window::main_window(QString server_url, QWidget* parent)
                 [&dialog, conversation](qint64 id, bool removed) {
             if (removed && id == conversation) { dialog.reject(); }
         });
-        dialog.exec();
+        qint64 located = 0;
+        connect(&dialog, &message_search_dialog::message_activated, &dialog, [&dialog, &located](qint64 message) {
+            located = message;
+            dialog.accept();
+        });
+        if (dialog.exec() == QDialog::Accepted && located > 0) { chat_page_->locate_message(conversation, located); }
     });
     connect(
         client_.get(), &client_bridge::conversation_opened, this,
