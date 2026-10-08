@@ -1798,16 +1798,18 @@ bool check_pinned_unicode_boundaries(QString const& artifact_directory = {})
     check(accessible && accessible->role() == QAccessible::Button &&
               accessible->text(QAccessible::Name).startsWith(QStringLiteral("置顶消息")),
           "Pinned elision retains the actual button accessibility role and leading name");
-    int const before_keyboard = searches;
+    int activations = 0;
+    auto const activation = QObject::connect(button, &QPushButton::clicked, &page, [&] { ++activations; });
     QKeyEvent press(QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier);
     QKeyEvent release(QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier);
     QApplication::sendEvent(button, &press);
     QApplication::sendEvent(button, &release);
-    check(searches == before_keyboard + 1 && query == prefix,
-          "The elided pinned button still locates the actual older message with Space");
+    check(activations == 1 && searches == 0,
+          "The elided pinned button is activated with Space and locates instead of searching");
     button->setEnabled(false);
     button->click();
-    check(searches == before_keyboard + 1, "A disabled pinned button cannot invoke its location action");
+    QObject::disconnect(activation);
+    check(activations == 1, "A disabled pinned button cannot invoke its location action");
     member_data owner;
     owner.id = 1;
     owner.username = QStringLiteral("本人");
@@ -3317,7 +3319,7 @@ int main(int argc, char** argv)
             windows[0]->findChild<QToolButton*>("sendButton")->click();
             wait([&] {
                 return std::ranges::any_of(pages[0]->findChildren<QLabel*>(), [](auto* label) {
-                    return label->text().contains(QStringLiteral("Invalid params"));
+                    return label->text().contains(QStringLiteral("请求参数无效"));
                 });
             });
             check(edit->toPlainText() == rejected_draft && receipt_view->model()->rowCount() == 1,
@@ -3892,7 +3894,12 @@ int main(int argc, char** argv)
                                    {
                                        auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
                                        check(menu, "Reply menu");
-                                       menu->setActiveAction(menu->actions().front());
+                                       auto const actions = menu->actions();
+                                       auto const reply = std::ranges::find_if(actions, [](auto* action) {
+                                           return action->text() == QStringLiteral("回复");
+                                       });
+                                       check(reply != actions.end(), "Reply action");
+                                       menu->setActiveAction(*reply);
                                        QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
                                        QApplication::sendEvent(menu, &enter);
                                    });
@@ -4446,10 +4453,10 @@ int main(int argc, char** argv)
                 check(dialog && dialog->objectName() == "attachmentDialog", "Image preview dialog");
                 auto* preview = dialog->findChild<QLabel*>("attachmentImage");
                 wait([&] { return !preview->pixmap().isNull(); });
-                check(preview->pixmap().size() == QSize(640, 384), "PNG preview decoded and scaled");
+                wait([&] { return preview->pixmap().size() == QSize(40, 24); });
                 auto const image_id = attachment_view->model()->index(1, 0).data(message_model::id_role).toLongLong();
-                check(preview->pixmap().cacheKey() == pages[0]->images().image(image_id).cacheKey(),
-                      "Full preview reuses decoded image cache");
+                check(preview->pixmap().cacheKey() != pages[0]->images().image(image_id).cacheKey(),
+                      "Full preview decodes the original instead of reusing the bubble thumbnail, without upscaling");
                 check(dialog->findChild<QPushButton*>("saveAttachmentButton")->isEnabled(),
                       "Cached preview can save original bytes");
                 dialog->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_attachment_preview.png");
@@ -4836,6 +4843,13 @@ int main(int argc, char** argv)
                     wait([&] { return pages[0]->latest_message_id() > before_file && pages[2]->latest_message_id() > before_file; });
                     file_message = pages[2]->latest_message_id();
                 }
+                if (modal == "readDetailsDialog")
+                {
+                    // Read details belong to the sender, so the removed member opens them on its own message.
+                    auto const before_own = pages[2]->latest_message_id();
+                    pages[2]->send_message_requested(group, QStringLiteral("移除前自己的消息"), 0);
+                    wait([&] { return pages[2]->latest_message_id() > before_own; });
+                }
                 QTimer::singleShot(50, [&] {
                     auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
                     check(dialog && dialog->objectName() == modal, "Removed member has a conversation modal open");
@@ -4937,7 +4951,7 @@ int main(int argc, char** argv)
             wait([&] { return pages[2]->active_conversation() == 0 && !pages[2]->conversation(group); });
             join_link(original_link);
             wait([&] { return std::ranges::any_of(windows[2]->findChildren<QLabel*>(), [](auto* label) {
-                return label->text().contains(QStringLiteral("Invite unavailable"));
+                return label->text().contains(QStringLiteral("邀请链接无效或已失效"));
             }); });
             check(pages[2]->active_conversation() == 0, "Revoked link cannot reopen a removed conversation");
             auto const replacement_link = link_action(0, true);
@@ -5289,16 +5303,10 @@ int main(int argc, char** argv)
             wait([&] { return recent->model()->rowCount() == 50 && pages[0]->messages_ready(); });
             check(recent->model()->index(0, 0).data(message_model::id_role).toLongLong() > early_id,
                 "Pinned target is older than the current history page");
-            QTimer::singleShot(20, [&] {
-                auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
-                check(dialog && dialog->objectName() == "messageSearchDialog", "Older pin opens existing search");
-                auto* results = dialog->findChild<QListView*>("messageSearchResults");
-                wait([&] { return results->model()->rowCount() == 1; });
-                check(results->model()->index(0, 0).data(message_model::id_role).toLongLong() == early_id,
-                    "Pinned summary searches the persisted message beyond cursor page");
-                dialog->reject();
-            });
             windows[0]->findChild<QPushButton*>("pinnedMessageButton")->click();
+            wait([&] { return recent->currentIndex().data(message_model::id_role).toLongLong() == early_id; });
+            check(!QApplication::activeModalWidget() && recent->model()->index(0, 0).data(message_model::id_role).toLongLong() <= early_id,
+                "An older pin loads contiguous history from the real server until the pinned message is selected");
 
             bool const pinned_unicode_ok = check_pinned_unicode_boundaries(QString::fromLocal8Bit(argv[2]));
             check(!pages[1]->conversation(group)->muted, "Unicode notification fixture uses the existing unmuted group");

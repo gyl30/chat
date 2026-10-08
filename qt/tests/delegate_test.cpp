@@ -632,22 +632,41 @@ int main(int argc, char** argv)
         if (index.data(message_model::id_role).toLongLong() != message.id) { std::abort(); }
         ++read_clicks;
     });
+    // Readers are shown only to the sender, so the click target lives on the user's own message.
+    message_model own_messages;
+    own_messages.set_self_user(1);
+    own_messages.reset(1, true);
+    own_messages.set_members({{1, "self", {}, {}}, {2, QStringLiteral("成员"), {}, {}}});
+    auto own = message;
+    own.from = 1;
+    own.username = QStringLiteral("self");
+    own_messages.add_message(own);
     QPoint read_point;
-    for (int y = 0; y < delegate.sizeHint(option, messages.index(0, 0)).height() && read_clicks == 0; y += 4)
+    for (int y = 0; y < delegate.sizeHint(option, own_messages.index(0, 0)).height() && read_clicks == 0; y += 4)
     {
         for (int x = 0; x < option.rect.width() && read_clicks == 0; x += 4)
         {
             QMouseEvent click(QEvent::MouseButtonRelease, QPointF(x, y), QPointF(x, y),
                               Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
-            delegate.editorEvent(&click, &messages, option, messages.index(0, 0));
+            delegate.editorEvent(&click, &own_messages, option, own_messages.index(0, 0));
             read_point = {x, y};
         }
     }
     if (read_clicks != 1) { std::cerr << "FAIL group read count click target\n"; return 1; }
+    for (int y = 0; y < delegate.sizeHint(option, messages.index(0, 0)).height(); y += 4)
+    {
+        for (int x = 0; x < option.rect.width(); x += 4)
+        {
+            QMouseEvent click(QEvent::MouseButtonRelease, QPointF(x, y), QPointF(x, y),
+                              Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+            delegate.editorEvent(&click, &messages, option, messages.index(0, 0));
+        }
+    }
+    if (read_clicks != 1) { std::cerr << "FAIL another member's group message exposes read details\n"; return 1; }
     message_model direct_messages;
     direct_messages.set_self_user(1);
     direct_messages.reset(1);
-    direct_messages.add_message(message);
+    direct_messages.add_message(own);
     QMouseEvent direct_click(QEvent::MouseButtonRelease, QPointF(read_point), QPointF(read_point),
                             Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
     delegate.editorEvent(&direct_click, &direct_messages, option, direct_messages.index(0, 0));
