@@ -2538,6 +2538,23 @@ void check_composer_actions()
     auto* history = page.findChild<QToolButton*>("chatHistoryButton");
     auto* send = page.findChild<QToolButton*>("sendButton");
     auto x = [](QWidget* widget) { return widget->mapTo(widget->window(), QPoint(0, 0)).x(); };
+    // Every composer icon sits on one line: same height, same top and the same vertical ink center.
+    auto ink_center = [](QWidget* button) {
+        auto const image = button->grab().toImage();
+        auto const ground = image.pixelColor(1, 1);
+        int top = image.height(), bottom = -1;
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                if (qAbs(image.pixelColor(x, y).lightness() - ground.lightness()) > 40) { top = std::min(top, y); bottom = std::max(bottom, y); }
+        return (top + bottom) / 2.0 / image.devicePixelRatio();
+    };
+    for (auto* button : {attach, emoji, history})
+    {
+        check(button->height() == send->height() &&
+                  button->mapTo(&page, QPoint(0, 0)).y() == send->mapTo(&page, QPoint(0, 0)).y() &&
+                  qAbs(ink_center(button) - ink_center(send)) <= 1.0,
+              "Composer icons share the send button's height, top and vertical center");
+    }
     check(attach && emoji && history && x(attach) < x(edit) && x(edit) < x(emoji) && x(emoji) < x(history) && x(history) < x(send),
           "The composer puts attach left of the text and emoji, history and send on its right");
     check(emoji->isEnabled() && history->isEnabled() && emoji->toolTip() == QStringLiteral("表情") &&

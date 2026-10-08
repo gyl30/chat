@@ -209,7 +209,7 @@ QString classic_style_sheet()
         QPlainTextEdit#groupAnnouncementEdit:focus, QPlainTextEdit#editMessageText:focus {
             border-color: #547C68;
         }
-        QDialog QPushButton, QPushButton#newFriendsButton, QToolButton#messageSearchButton, QToolButton#sendAttachmentButton, QToolButton#unpinMessageButton {
+        QDialog QPushButton, QPushButton#newFriendsButton, QToolButton#unpinMessageButton {
             min-height: 32px;
             padding: 0 12px;
             background: #FFFFFF;
@@ -217,7 +217,7 @@ QString classic_style_sheet()
             border: 1px solid #AFC0B8;
             border-radius: 8px;
         }
-        QDialog QPushButton:disabled, QPushButton#newFriendsButton:disabled, QToolButton#messageSearchButton:disabled, QToolButton#sendAttachmentButton:disabled, QToolButton#unpinMessageButton:disabled {
+        QDialog QPushButton:disabled, QPushButton#newFriendsButton:disabled, QToolButton#unpinMessageButton:disabled {
             color: #96A29C;
             border-color: #D7DDD9;
         }
