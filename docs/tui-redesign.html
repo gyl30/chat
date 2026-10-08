@@ -184,7 +184,7 @@
 <header>
   <h1>TUI 重新设计方案</h1>
   <p class="lede">让终端客户端用起来自然、好上手：全中文、能直接打字、操作看得见，业务分组和术语与 Qt 客户端一致。本文只是方案，尚未修改代码。</p>
-  <p class="meta">第 3 版 · 2026-10-08 · 已按 Codex 两轮只读审查意见修订（见文末「审查与修订记录」）· 依据：<code>tui/src/</code>、<code>tui/tests/</code>、<code>tests/tui_*_smoke.py</code>、<code>docs/images/experience/</code> 下的真实 tmux 截图</p>
+  <p class="meta">第 4 版 · 2026-10-08 · 已按 Codex 三轮只读审查意见修订（见文末「审查与修订记录」）· 依据：<code>tui/src/</code>、<code>tui/tests/</code>、<code>tests/tui_*_smoke.py</code>、<code>docs/images/experience/</code> 下的真实 tmux 截图</p>
   <nav class="toc">
     <a href="#current">现状</a><a href="#principles">原则</a><a href="#layout">布局</a><a href="#focus">焦点与按键</a>
     <a href="#read">已读与浮层</a><a href="#messages">消息</a><a href="#permissions">权限</a><a href="#capabilities">能力对照</a>
@@ -264,7 +264,7 @@
   <p class="caption">示意图，实际为终端字符界面，颜色跟随终端配色。置顶、免打扰用中文文字标记，不只靠图标或颜色。</p>
 
   <h3>80×24 与 100×24 字符草图 <span class="tag new">新增</span></h3>
-  <p>以下两幅草图严格按显示宽度生成（中文和 emoji 占 2 列），左侧为行号，上方为列尺。80×24 是主要验收尺寸。</p>
+  <p>草图展示阶段 2 完成后的状态（帮助为 F1）。以下两幅草图严格按显示宽度生成（中文和 emoji 占 2 列），左侧为行号，上方为列尺。80×24 是主要验收尺寸。</p>
   <p class="caption">80×24 单栏：置顶条、编辑状态、4 行输入和「正在浏览历史」同时出现的最拥挤情况；焦点在输入框。</p>
 <div class="charmock-wrap"><pre class="charmock" aria-label="80×24 聊天页：置顶、编辑状态、4 行输入、浏览历史同时出现"><span class="d">              1         2         3         4         5         6         7         </span>
 <span class="d">    01234567890123456789012345678901234567890123456789012345678901234567890123456789</span>
@@ -331,7 +331,7 @@
       <tr><td class="k">下分隔线</td><td>1</td><td>不在最新位置时变为「正在浏览历史 · 新消息保持未读」，不额外占行</td></tr>
       <tr><td class="k">状态提示行</td><td>0–1</td><td>同一行按优先级：发送限制或断线 &gt; 正在编辑 &gt; 回复对象；「正在输入」放在该行右侧，没有其他提示时单独显示</td></tr>
       <tr><td class="k">输入框</td><td>1–4</td><td>随内容增高，最多 4 行，超出在框内滚动。不可发送时由状态提示行说明原因，输入框保留草稿</td></tr>
-      <tr><td class="k">按键提示栏</td><td>1</td><td>左侧随焦点变化的提示，右侧始终保留「F1 帮助」。通知显示时临时占用左侧（见「可访问性与通知」）</td></tr>
+      <tr><td class="k">按键提示栏</td><td>1</td><td>左侧随焦点变化的提示，右侧始终保留帮助入口（阶段 1 沿用「? 帮助」，阶段 2 起为「F1 帮助」）。通知显示时临时占用左侧（见「可访问性与通知」）</td></tr>
     </tbody>
   </table>
   </div>
@@ -369,7 +369,16 @@
   <h3>换行</h3>
   <div class="callout warn">Alt+Enter 不能作为唯一入口：当前 FTXUI 没有对应命名事件，需要识别原始序列；WezTerm 默认把它用于切换全屏；Ctrl+J 与 Enter 在 FTXUI 中同为 <code>0x0a</code>，不可用。</div>
   <ul class="notes">
-    <li><b><kbd>\</kbd> 后 Enter</b>（阶段 2 交付，所有终端可用）：光标前一个字符是 <kbd>\</kbd> 时按 Enter，删除这个 <kbd>\</kbd> 并插入换行，不发送。确实要发送以 <code>\</code> 结尾的消息时输入 <code>\\</code>，发送时还原为一个。按键提示栏常驻「\ Enter 换行」，可发现。</li>
+    <li><b><kbd>\</kbd> 后 Enter</b>（阶段 2 交付，所有终端可用）。规则只看<b>按键事件</b>，从不改写正文：
+      <ul class="notes">
+        <li>触发条件：<b>上一个按键事件是手动键入的 <kbd>\</kbd></b>，且光标仍紧跟在它后面。此时 Enter 删除这一个 <kbd>\</kbd>，在光标处插入换行，不发送。</li>
+        <li>只消费这一个反斜杠：连续键入 <code>\\\</code> 后 Enter，前两个保留，第三个变成换行。光标在正文中间时同样只作用于光标前的那个字符。</li>
+        <li>粘贴不触发：括号粘贴仍在发送分支之前处理（<code>ui.cpp:697</code>），粘贴内容（包括反斜杠和换行）原样进入输入框；粘贴后直接按 Enter 即发送，即使粘贴内容以 <code>\</code> 结尾。</li>
+        <li>不做反转义：没有 <code>\\</code> 之类的转义，发送时正文原样提交。</li>
+        <li>要发送手动键入的结尾反斜杠：键入 <kbd>\</kbd> 后先按任意移动光标的键（如 <kbd>←</kbd> 再 <kbd>→</kbd>），使「上一个按键」不再是 <kbd>\</kbd>，再按 Enter 即发送。帮助中写明。</li>
+        <li>回归用例：结尾单个与多个反斜杠、光标在中间、粘贴含反斜杠加换行、粘贴以单个或两个反斜杠结尾后 Enter、键入反斜杠后移动光标再 Enter。</li>
+      </ul>
+      按键提示栏在输入焦点且没有通知时显示「\ Enter 换行」。</li>
     <li><kbd>Alt+Enter</kbd>（阶段 2 交付）：在验证过的终端上作为快捷入口，帮助中列出已验证终端。</li>
     <li>命令面板「插入换行」（阶段 4 补充）。</li>
     <li>多行粘贴：沿用现有括号粘贴处理，换行原样保留。</li>
@@ -386,7 +395,7 @@
     <li><b>稳定目标</b>：消息菜单打开时绑定消息 ID，而不是列表位置；执行前再确认该消息仍存在、未删除、权限未变化，否则给出提示并取消。</li>
     <li><b>不改动</b>：SDK、inbox 投递和连接与重连机制。</li>
     <li><b>新增回归</b>：浮层期间来消息不被标记已读；浮层期间迟到的响应不切换页面；切换会话后上一会话发送完成不串到当前会话；浮层期间被移出群或解除好友时浮层安全关闭；断线重连后草稿保持。</li>
-    <li><b>断线</b>：沿用现有行为（<code>app.cpp:191</code>）：关闭浮层、清除回复与编辑状态、保留草稿，重连后回到原会话。不新增「恢复浮层」。</li>
+    <li><b>断线</b>：沿用现有行为（<code>app.cpp:191</code>）：关闭浮层、清除回复与编辑状态、保留草稿。重连后原会话仍可访问时恢复到该会话；否则保存它的草稿、关闭会话并返回列表（现有 <code>app.cpp:302</code>）。不新增「恢复浮层」。</li>
   </ul>
 </section>
 
@@ -415,21 +424,22 @@
       <tr><td class="k">复制</td><td>任何消息：文本取正文，附件取文件名，已删除取「消息已删除」（与现有 <code>messages.cpp:221</code> 一致）。显示可复制文本，不写系统剪贴板</td><td>否</td></tr>
       <tr><td class="k">编辑</td><td>在线、自己的文本消息、未删除、会话可发送（服务端只对编辑检查发送权限）</td><td>否</td></tr>
       <tr><td class="k">删除</td><td>在线、自己的消息、未删除。<b>不要求</b>会话可发送</td><td><b>是</b></td></tr>
-      <tr><td class="k">保存文件</td><td>在线、消息有附件、未删除</td><td>否</td></tr>
+      <tr><td class="k">保存文件</td><td>在线、当前成员、消息有附件、未删除</td><td>否</td></tr>
       <tr><td class="k">已读详情</td><td>自己在群里发的消息</td><td>否</td></tr>
-      <tr><td class="k">群内置顶消息</td><td>在线、当前成员、群主或管理员；与「置顶会话」（个人偏好）区分</td><td>否</td></tr>
+      <tr><td class="k">群内置顶消息</td><td>群主或管理员；目标消息属于当前群且未删除。与「置顶会话」（个人偏好）区分</td><td>否</td></tr>
       <tr><td class="k">置顶会话、免打扰</td><td>所有成员，只影响自己</td><td>否</td></tr>
       <tr><td class="k">查看 / 生成 / 撤销邀请码</td><td><b>仅群主和管理员</b>；普通成员只看到说明文字</td><td>撤销：<b>是</b></td></tr>
       <tr><td class="k">设为管理员</td><td>群主；目标为其他普通成员；管理员未满 3 人（已满时菜单项显示但禁用并说明原因）</td><td>否</td></tr>
       <tr><td class="k">取消管理员</td><td>群主；目标为其他管理员</td><td>否</td></tr>
       <tr><td class="k">转让群主</td><td>群主；目标<b>必须是其他现任管理员</b>（普通成员需先设为管理员）</td><td><b>是</b></td></tr>
       <tr><td class="k">移除成员</td><td>群主可移除除自己外的任何成员；管理员只能移除普通成员</td><td><b>是</b></td></tr>
-      <tr><td class="k">改群名、编辑公告、入群审批</td><td>在线、群主或管理员</td><td>否</td></tr>
+      <tr><td class="k">改群名、编辑公告、入群审批</td><td>群主或管理员</td><td>否</td></tr>
+      <tr><td class="k">邀请联系人入群</td><td>群主或管理员；被邀请人必须是自己的联系人（服务端 <code>Invitees must be your contacts</code>）</td><td>否</td></tr>
       <tr><td class="k">退出群聊</td><td>非群主（群主需先转让）</td><td><b>是</b></td></tr>
     </tbody>
   </table>
   </div>
-  <p>成员管理操作都不能以自己为目标；成员菜单对自己只显示「查看资料」。</p>
+  <p><b>公共前提</b>：所有群操作都要求在线且自己仍是当前成员（现有入口先检查在线，<code>groups.cpp:164</code>；服务端再检查成员身份，<code>group_management_request.cpp:182</code>）；表中「在线」只在非群操作上单独写出。成员管理操作都不能以自己为目标；成员菜单对自己只显示「查看资料」。</p>
 </section>
 
 <section id="capabilities">
@@ -482,7 +492,7 @@
   <h2>可访问性与通知 <span class="tag new">新增</span></h2>
   <ul class="notes">
     <li><b>不只靠颜色</b>：焦点与选中项用反色加 <code>›</code> 标记；未读显示数字；置顶、免打扰、连接状态都有文字。</li>
-    <li><b>通知生命周期</b>：成功类通知约 5 秒后消失；<b>错误保留</b>到用户下一次操作，从阶段 2 起也可按 <kbd>Esc</kbd> 清除（只清除，不同时返回，见 Esc 顺序）。通知临时占用按键提示栏的左侧，右侧「F1 帮助」始终保留。现有 <code>status</code> 是普通字符串，需要增加类型与到期时间（<code>state.hpp:21</code>、<code>app.cpp:564</code>）。</li>
+    <li><b>通知生命周期</b>：成功类通知约 5 秒后消失；<b>错误保留</b>到用户下一次操作，从阶段 2 起也可按 <kbd>Esc</kbd> 清除（只清除，不同时返回，见 Esc 顺序）。通知临时占用按键提示栏的左侧，右侧帮助入口始终保留（阶段 1 为现有的「? 帮助」，阶段 2 起为「F1 帮助」）。现有 <code>status</code> 是普通字符串，需要增加类型与到期时间（<code>state.hpp:21</code>、<code>app.cpp:564</code>）。</li>
     <li><b>验收</b>：浅色终端、深色终端、无颜色（<code>NO_COLOR</code>）、纯键盘各走一遍主要流程。全屏终端的读屏效果需实际验证，不因支持键盘就视为完成。</li>
     <li><b>鼠标</b>：首轮继续关闭，保留终端原生选中复制（<code>main.cpp:43</code>、<code>ui.cpp:511</code>）。若以后启用，单独交付点击、滚动、选中复制和终端模式恢复。</li>
   </ul>
@@ -493,8 +503,8 @@
   <p>每个阶段单独提交，阶段末执行完整验证：TUI 相关 8 个 CTest（<code>tui_render</code>、<code>tui_unicode</code>、<code>tui_display</code>、<code>tui_span</code>、<code>tui_state</code>、<code>tui_inbox</code>、<code>tui_file</code>、<code>tui_integration</code>），4 个 tmux 冒烟驱动（百人、导航、群边界、生命周期），以及真实 PTY 截图。</p>
   <div class="phases">
     <div class="phase"><div class="n">0</div><div><b>基线校准</b>：修正已过时的测试期望；登记现有能力与按键；全套测试建立基线<div class="tests">已知：<code>tui_100_member_smoke.py:1100</code> 仍期待删除好友后打开只读单聊、搜索并保存旧附件，与「隐藏非好友单聊」规则冲突（<code>conversation_test.cpp:2849</code> 已按新规则验证，<code>experience-quality.md:4342</code> 已注明过时）。改为隐藏、关闭、待确认不恢复、重新接受后恢复同一会话与草稿；SDK 层历史与权限断言保留。</div></div></div>
-    <div class="phase"><div class="n">1</div><div><b>中文化与有限排版</b>：文案、标题与按键提示栏、列表时间与中文标记、日期分隔、置顶与公告合并为一行；通知增加类型与到期时间（成功消失，错误保留到下一次操作）。不改按键<div class="tests">影响：<code>tui_render</code> 文案断言（如 <code>render_test.cpp:378</code>）、冒烟驱动的匹配文字</div></div></div>
-    <div class="phase"><div class="n">2</div><div><b>输入与焦点</b>：直接输入、事件分发顺序、聊天工作区 Tab 循环（新的朋友页 Tab 不变）、Esc 顺序（含清除错误通知）、<kbd>\</kbd> Enter 与 Alt+Enter 换行、输入框多行增长、F1 帮助；浮层不上报已读的约束及其回归<div class="tests">影响：<code>tui_state</code>、<code>tui_integration</code>，以及固定依赖 <code>i: compose</code> 的驱动（<code>tui_navigation_smoke.py:18</code> 等）。复用 <code>make_ui()-&gt;OnEvent()</code> 测试，再用真实 PTY 验证终端编码、粘贴与复制</div></div></div>
+    <div class="phase"><div class="n">1</div><div><b>中文化与有限排版</b>：文案、标题与按键提示栏、列表时间与中文标记、日期分隔、置顶与公告合并为一行；通知增加类型与到期时间（成功消失，错误保留到下一次操作）。不改按键，帮助入口仍是现有的 <kbd>?</kbd><div class="tests">影响：<code>tui_render</code> 文案断言（如 <code>render_test.cpp:378</code>）、冒烟驱动的匹配文字</div></div></div>
+    <div class="phase"><div class="n">2</div><div><b>输入与焦点</b>：直接输入、事件分发顺序、聊天工作区 Tab 循环（新的朋友页 Tab 不变）、Esc 顺序（含清除错误通知、独立取消回复与编辑，同步迁移 <code>render_test.cpp:912</code> 等并逐次断言）、<kbd>\</kbd> Enter 与 Alt+Enter 换行、输入框多行增长、F1 帮助；浮层不上报已读的约束及其回归<div class="tests">影响：<code>tui_state</code>、<code>tui_integration</code>，以及固定依赖 <code>i: compose</code> 的驱动（<code>tui_navigation_smoke.py:18</code> 等）。复用 <code>make_ui()-&gt;OnEvent()</code> 测试，再用真实 PTY 验证终端编码、粘贴与复制</div></div></div>
     <div class="phase"><div class="n">3</div><div><b>消息合并与操作菜单</b>：合并规则、操作菜单、权限矩阵、稳定操作目标<div class="tests">影响：渲染与集成测试；分页插入后的选择与阅读位置稳定性</div></div></div>
     <div class="phase"><div class="n">4</div><div><b>命令面板</b>：模糊搜索、草稿保留、<code>:</code> 别名兼容、「插入换行」入口<div class="tests">影响：状态与渲染测试</div></div></div>
     <div class="phase"><div class="n">5</div><div><b>联系人、新的朋友与群信息面板</b>：资料卡、收到与发出合并为分组列表（同时取消该页的 Tab 切换）、群信息面板与窄屏覆盖页<div class="tests">影响：<code>tui_integration</code> 与冒烟驱动中的好友、群流程</div></div></div>
@@ -552,6 +562,20 @@
       <tr><td>字符草图不完整</td><td>低</td><td>换成按显示宽度校验的完整 80×24、100×24 草图（带行号与列尺），交代置顶 / 公告、浏览历史、编辑、回复、正在输入的位置</td></tr>
       <tr><td>PgUp / PgDn、确认框、尺寸下限描述不准</td><td>低</td><td>按页面分别写明分页键；确认框写明输入 y 后 Enter；尺寸写为宽度小于 40 或高度小于 12 才提示过小</td></tr>
       <tr><td>重连会清除浮层</td><td>说明</td><td>沿用现有行为：关闭浮层、清除回复与编辑、保留草稿；去掉「恢复浮层」</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3>第三轮（复审第 3 版）</h3>
+  <p>Codex 结论：权限核心规则、事件分发、草图与预算已核实无误；需先修正反斜杠与粘贴的规则，以及阶段 1 对 F1 的依赖。第 4 版的对应修订：</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>复审意见</th><th>级别</th><th>本版修订</th></tr></thead>
+    <tbody>
+      <tr><td>反斜杠换行与 <code>\\</code> 转义规则矛盾，可能改写粘贴正文</td><td>高</td><td>取消转义；只在「上一个按键是手动键入的 \」时生效，只消费一个反斜杠；粘贴从不触发；写明发送结尾反斜杠的方式和回归用例</td></tr>
+      <tr><td>阶段 1 常驻 F1 依赖阶段 2；换行提示与通知争用</td><td>中</td><td>阶段 1 沿用「? 帮助」，阶段 2 切换为 F1；换行提示只在输入焦点且没有通知时显示</td></tr>
+      <tr><td>权限矩阵缺少公共前提与若干目标条件</td><td>中</td><td>补「在线且为当前成员」公共前提；置顶目标须属于本群且未删除；保存附件须为当前成员；新增邀请联系人一行</td></tr>
+      <tr><td>重连后回到原会话缺少可访问性条件</td><td>低</td><td>原会话仍可访问才恢复，否则保存草稿并返回列表</td></tr>
+      <tr><td>新 Esc 顺序改变现有行为</td><td>说明</td><td>阶段 2 同步迁移相关测试并逐次断言</td></tr>
     </tbody>
   </table>
   </div>
