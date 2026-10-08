@@ -1258,6 +1258,28 @@ int main()
         ok &= expect(kept == "XYZd", removed ? "A paste is complete in the draft put away when its conversation disappears"
                                               : "A paste is complete when send permission is revoked");
     }
+    for (bool append : {false, true})
+    {
+        // A list that keeps the composer (an ordinary refresh, or a further page without the
+        // open conversation) leaves the held glyph alone, so a split combining mark still joins it.
+        app application;
+        writable_conversation(application);
+        auto component = make_ui(application, [] {});
+        component->OnEvent(ftxui::Event::Custom);
+        application.data.draft = "abcd";
+        component->OnEvent(ftxui::Event::Home);
+        component->OnEvent(ftxui::Event::Insert);
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        component->OnEvent(ftxui::Event::Character("e"));
+        { ftxui::Screen frame(120, 40); ftxui::Render(frame, component->Render()); }
+        auto snapshot = application.data.conversations;
+        if (append) { snapshot.front().id = 11; }
+        application.apply_conversation_snapshot({std::move(snapshot), std::nullopt}, append);
+        component->OnEvent(ftxui::Event::Character("\xcc\x81"));
+        component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        ok &= expect(application.data.draft == "e\xcc\x81" "bcd", append ? "A further page leaves a held glyph to join its mark"
+                                                                       : "An ordinary refresh leaves a held glyph to join its mark");
+    }
     {
         // A notice that expires in the same batch never clears a newer error.
         app application;
