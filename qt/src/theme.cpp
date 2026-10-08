@@ -209,7 +209,7 @@ QString classic_style_sheet()
         QPlainTextEdit#groupAnnouncementEdit:focus, QPlainTextEdit#editMessageText:focus {
             border-color: #547C68;
         }
-        QDialog QPushButton, QPushButton#newFriendsButton, QToolButton#unpinMessageButton {
+        QDialog QPushButton, QToolButton#unpinMessageButton {
             min-height: 32px;
             padding: 0 12px;
             background: #FFFFFF;
@@ -217,7 +217,7 @@ QString classic_style_sheet()
             border: 1px solid #AFC0B8;
             border-radius: 8px;
         }
-        QDialog QPushButton:disabled, QPushButton#newFriendsButton:disabled, QToolButton#unpinMessageButton:disabled {
+        QDialog QPushButton:disabled, QToolButton#unpinMessageButton:disabled {
             color: #96A29C;
             border-color: #D7DDD9;
         }
@@ -688,25 +688,10 @@ QString classic_style_sheet()
             color: #5D6C64;
             font-size: 13px;
         }
-        QPushButton#newFriendsButton {
-            min-height: 56px;
-            padding: 0 0 0 18px;
-            text-align: left;
-            background: #FCFBF7;
-            color: #25332D;
-            border: 0;
-            border-bottom: 1px solid #E8E4DA;
-            border-radius: 0;
-            font-size: 14px;
-            font-weight: 600;
-        }
-        QPushButton#newFriendsButton:hover, QPushButton#newFriendsButton:focus {
-            background: #F1F3EF;
-        }
-        QLabel#newFriendsBadge {
-            min-width: 18px;
-            padding: 0 5px;
-            border-radius: 9px;
+        QLabel#addFriendBadge {
+            min-width: 16px;
+            padding: 0 4px;
+            border-radius: 8px;
             background: #D9534F;
             color: #FFFFFF;
             font-size: 11px;

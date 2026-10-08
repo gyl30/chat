@@ -148,6 +148,7 @@ class chat_widget final : public QWidget
     void show_loading_status();
     void show_emoji_picker();
     void update_friend_badges();
+    void update_add_friend_tooltip();
     void select_add_user(QModelIndex const& index);
     void select_conversation(QModelIndex const& index);
     void open_chat(qint64 user, QString username);
@@ -199,7 +200,7 @@ class chat_widget final : public QWidget
     qint64 contact_card_user_ = 0;
     QString contact_card_username_;
     QPushButton* find_user_button_ = nullptr;
-    QLabel* new_friends_badge_ = nullptr;
+    QLabel* add_friend_badge_ = nullptr;
     QLabel* navigation_badge_ = nullptr;
     QLabel* chats_badge_ = nullptr;
     QLineEdit* conversation_search_ = nullptr;
@@ -217,7 +218,6 @@ class chat_widget final : public QWidget
     QLineEdit* contact_search_ = nullptr;
     QListView* contacts_view_ = nullptr;
     QLabel* contacts_status_ = nullptr;
-    QPushButton* new_friends_button_ = nullptr;
     QListWidget* incoming_friends_ = nullptr;
     QListWidget* outgoing_friends_ = nullptr;
     QLabel* incoming_friends_title_ = nullptr;

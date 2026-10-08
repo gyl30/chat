@@ -229,6 +229,11 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     add_contact_button_->setIconSize(QSize(18, 18));
     add_contact_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
     add_contact_button_->setFixedSize(34, 34);
+    add_friend_badge_ = new QLabel(add_contact_button_);
+    add_friend_badge_->setObjectName(QStringLiteral("addFriendBadge"));
+    add_friend_badge_->setAlignment(Qt::AlignCenter);
+    add_friend_badge_->setAttribute(Qt::WA_TransparentForMouseEvents);
+    add_friend_badge_->hide();
     add_contact_button_->setCursor(Qt::PointingHandCursor);
     add_contact_button_->hide();
     conversation_header_layout->addWidget(add_contact_button_);
@@ -288,29 +293,13 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     contacts_layout->setContentsMargins(0, 0, 0, 0);
     contacts_layout->setSpacing(0);
     // One search box, as in WeChat: it filters friends as you type and offers to find new people.
-    new_friends_button_ = new QPushButton(QStringLiteral("新的朋友"), contacts_page);
-    new_friends_button_->setObjectName(QStringLiteral("newFriendsButton"));
-    new_friends_button_->setIcon(svg_icon(u"user-plus", QColor(QStringLiteral("#315A4B")), QSize(22, 22)));
-    new_friends_button_->setIconSize(QSize(22, 22));
-    new_friends_button_->setCursor(Qt::PointingHandCursor);
-    auto* new_friends_layout = new QHBoxLayout(new_friends_button_);
-    new_friends_layout->setContentsMargins(0, 0, 14, 0);
-    new_friends_layout->addStretch();
-    new_friends_badge_ = new QLabel(new_friends_button_);
-    new_friends_badge_->setObjectName(QStringLiteral("newFriendsBadge"));
-    new_friends_badge_->setAlignment(Qt::AlignCenter);
-    new_friends_badge_->setFixedHeight(18);
-    new_friends_badge_->hide();
-    new_friends_layout->addWidget(new_friends_badge_, 0, Qt::AlignVCenter);
-    contacts_layout->addWidget(new_friends_button_);
-    // While searching, finding new people takes the place of the New friends entry.
+    // While searching, the first row offers to find new people by the query.
     find_user_button_ = new QPushButton(contacts_page);
     find_user_button_->setObjectName(QStringLiteral("findUserButton"));
     find_user_button_->setIcon(svg_icon(u"search", QColor(QStringLiteral("#315A4B")), QSize(18, 18)));
     find_user_button_->setCursor(Qt::PointingHandCursor);
     find_user_button_->hide();
     contacts_layout->addWidget(find_user_button_);
-    connect(new_friends_button_, &QPushButton::clicked, this, [this] { show_new_friends_section(); });
     contacts_status_ = new QLabel(QStringLiteral("暂无联系人"), contacts_page);
     contacts_status_->setObjectName(QStringLiteral("subtleText"));
     contacts_status_->setContentsMargins(18, 8, 14, 8);
@@ -1018,7 +1007,11 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
         }
         show_contacts_section();
     });
-    connect(add_contact_button_, &QToolButton::clicked, this, [this] { show_add_contact_section(); });
+    // From Contacts the icon opens New friends (requests, with its count); there it finds new people.
+    connect(add_contact_button_, &QToolButton::clicked, this, [this] {
+        if (sidebar_pages_->currentIndex() == 1) { show_new_friends_section(); }
+        else { show_add_contact_section(); }
+    });
     connect(contact_search_, &QLineEdit::textChanged, this, [this](QString const& query) { filter_contacts(query); });
     connect(contacts_delegate, &user_delegate::body_clicked, this, [this](QModelIndex const& index) { select_contact(index); });
     connect(contacts_view_, &QListView::activated, this, &chat_widget::select_contact);
@@ -1882,6 +1875,7 @@ void chat_widget::show_contacts_section()
     conversation_search_->hide();
     contact_search_->show();
     sidebar_pages_->setCurrentIndex(1);
+    update_add_friend_tooltip();
     right_pages_->setCurrentIndex(1);
     sidebar_back_button_->hide();
     add_contact_button_->show();
@@ -1924,6 +1918,7 @@ void chat_widget::show_new_friends_section()
     conversation_search_->hide();
     contact_search_->hide();
     sidebar_pages_->setCurrentIndex(3);
+    update_add_friend_tooltip();
     right_pages_->setCurrentIndex(1);
     sidebar_back_button_->show();
     add_contact_button_->show();
@@ -1937,7 +1932,6 @@ void chat_widget::filter_contacts(QString const& query)
     auto const trimmed = query.trimmed();
     find_user_button_->setText(QStringLiteral("查找用户“%1”").arg(trimmed));
     find_user_button_->setVisible(!trimmed.isEmpty());
-    new_friends_button_->setVisible(trimmed.isEmpty());
     find_user_button_->setEnabled(connection_available_);
     contacts_filter_->setFilterFixedString(query);
     contacts_filter_->setFilterCaseSensitivity(Qt::CaseInsensitive);
@@ -1999,7 +1993,6 @@ void chat_widget::refresh_theme()
     emoji_button_->setIcon(svg_icon(u"emoji", QColor(QStringLiteral("#3F4542")), QSize(22, 22)));
     history_button_->setIcon(svg_icon(u"history", QColor(QStringLiteral("#3F4542")), QSize(22, 22)));
     chats_actions_->setIcon(svg_icon(u"plus", QColor(QStringLiteral("#315A4B")), QSize(18, 18)));
-    new_friends_button_->setIcon(svg_icon(u"user-plus", QColor(QStringLiteral("#315A4B")), QSize(22, 22)));
     find_user_button_->setIcon(svg_icon(u"search", QColor(QStringLiteral("#315A4B")), QSize(18, 18)));
     add_contact_button_->setIcon(svg_icon(u"user-plus", QColor(QStringLiteral("#315A4B")), QSize(18, 18)));
     contact_placeholder_->setPixmap(svg_icon(u"contacts", QColor(QStringLiteral("#D6D2C8")), QSize(72, 72)).pixmap(72, 72));
@@ -2208,12 +2201,25 @@ void chat_widget::find_user()
     search_users();
 }
 
+// The icon opens New friends from Contacts and finds new people from New friends.
+void chat_widget::update_add_friend_tooltip()
+{
+    auto const count = incoming_requests_.size();
+    auto const text = sidebar_pages_->currentIndex() != 1 ? QStringLiteral("添加好友")
+        : count > 0 ? QStringLiteral("新的朋友 · %1 个申请").arg(count) : QStringLiteral("新的朋友");
+    add_contact_button_->setToolTip(text);
+    add_contact_button_->setAccessibleName(text);
+}
+
 void chat_widget::update_friend_badges()
 {
     auto const count = incoming_requests_.size();
     auto const text = count > 99 ? QStringLiteral("99+") : QString::number(count);
-    new_friends_badge_->setText(text);
-    new_friends_badge_->setVisible(count > 0);
+    add_friend_badge_->setText(text);
+    add_friend_badge_->setVisible(count > 0);
+    auto const badge_width = std::max(16, add_friend_badge_->sizeHint().width());
+    add_friend_badge_->setGeometry(add_contact_button_->width() - badge_width + 4, -2, badge_width, 16);
+    update_add_friend_tooltip();
     navigation_badge_->setText(text);
     navigation_badge_->setVisible(count > 0);
     // On the icon's upper right corner, overlapping only its edge, as WeChat does.

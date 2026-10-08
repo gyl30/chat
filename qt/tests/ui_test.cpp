@@ -589,7 +589,9 @@ void check_friend_request_layout()
     page.set_friend_requests({{200, QStringLiteral("收到 申请"), false, 0, {}}},
                              {{201, QStringLiteral("发出 申请"), false, 0, {}}}, {});
     page.show();
-    page.findChild<QPushButton*>("newFriendsButton")->click();
+    for (auto* button : page.findChildren<QToolButton*>())
+    { if (button->text() == QStringLiteral("联系人")) { button->click(); } }
+    page.findChild<QToolButton*>("sidebarTextButton")->click();
     QApplication::processEvents();
     auto* incoming = page.findChild<QListWidget*>("incomingFriendRequests");
     auto* outgoing = page.findChild<QListWidget*>("outgoingFriendRequests");
@@ -1182,8 +1184,7 @@ void check_primary_navigation()
     add_contact->click();
     back->click();
     check(contact_view->isVisible() && !back->isVisible(), "Contacts Add friend Back returns to Contacts");
-    auto* new_friends = page.findChild<QPushButton*>("newFriendsButton");
-    new_friends->click();
+    add_contact->click();
     add_contact->click();
     back->click();
     check(page.findChild<QLabel*>("friendRequestsStatus")->isVisible() && back->isVisible(), "Add friend Back restores the empty New friends page");
@@ -1366,8 +1367,8 @@ void check_primary_navigation()
         check(contact_view->model()->rowCount() == 1 && contact_view->model()->index(0, 0).data(Qt::UserRole + 1).toLongLong() == id,
               ("Contacts substring match: " + query.toStdString() + " rows=" + std::to_string(contact_view->model()->rowCount()) +
                " id=" + std::to_string(contact_view->model()->index(0, 0).data(Qt::UserRole + 1).toLongLong())).c_str());
-        check(!new_friends->isVisible() && page.findChild<QPushButton*>("findUserButton")->isVisible(),
-              "While searching, finding users by the query takes the place of the New friends entry");
+        check(page.findChild<QPushButton*>("findUserButton")->isVisible(),
+              "While searching, the first row offers to find users by the query");
         QTimer::singleShot(0, [&] {
             auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
             auto* search = dialog->findChild<QLineEdit*>("groupContactSearch");
@@ -1388,9 +1389,8 @@ void check_primary_navigation()
         create->trigger();
     }
     contact_search->clear();
-    check(contact_view->model()->rowCount() == 4 && new_friends->isVisible() &&
-              !page.findChild<QPushButton*>("findUserButton")->isVisible(),
-          "Cleared Contacts filter restores the accepted list and the New friends entry");
+    check(contact_view->model()->rowCount() == 4 && !page.findChild<QPushButton*>("findUserButton")->isVisible(),
+          "Cleared Contacts filter restores the accepted list");
     direct = {};
     direct.id = 50; direct.user = 200; direct.username = QStringLiteral("收到 申请"); direct.can_send = false;
     page.open_conversation(direct);
@@ -2233,10 +2233,10 @@ void check_friend_flow()
     page.show();
     QApplication::processEvents();
     auto* nav_badge = page.findChild<QLabel*>("navigationBadge");
-    auto* row_badge = page.findChild<QLabel*>("newFriendsBadge");
+    auto* row_badge = page.findChild<QLabel*>("addFriendBadge");
     check(nav_badge && nav_badge->isVisibleTo(&page) && nav_badge->text() == QStringLiteral("1") &&
               row_badge && row_badge->text() == QStringLiteral("1"),
-          "Incoming requests are counted on the navigation icon and the New friends row");
+          "Incoming requests are counted on the navigation icon and the add-friend icon");
     for (auto* button : page.findChildren<QToolButton*>())
     { if (button->text() == QStringLiteral("联系人")) { button->click(); } }
     QString searched;
@@ -2257,7 +2257,9 @@ void check_friend_flow()
     QList<QPair<qint64, bool>> responses;
     QObject::connect(&page, &chat_widget::friend_request_respond_requested, &page,
         [&](qint64 user, bool accept) { responses.push_back({user, accept}); });
-    page.findChild<QPushButton*>("newFriendsButton")->click();
+    for (auto* button : page.findChildren<QToolButton*>())
+    { if (button->text() == QStringLiteral("联系人")) { button->click(); } }
+    page.findChild<QToolButton*>("sidebarTextButton")->click();
     auto* incoming = page.findChild<QListWidget*>("incomingFriendRequests");
     QApplication::processEvents();
     auto const row = incoming->visualItemRect(incoming->item(0));
@@ -3658,12 +3660,9 @@ int main(int argc, char** argv)
             {
                 if (button->text() == QStringLiteral("联系人")) { button->click(); break; }
             }
-            auto* entry = page.findChild<QPushButton*>("newFriendsButton");
-            check(entry && entry->isVisible(), "New friends entry is visible above contacts");
-            auto const image = entry->grab().toImage();
-            auto const background = logical_pixel(image, QPoint(10, entry->height() / 2));
-            check(background.alpha() == 255 && background.lightness() > 200,
-                "New friends entry has an opaque light background for readable dark text");
+            auto* entry = page.findChild<QToolButton*>("sidebarTextButton");
+            check(entry && entry->isVisible() && !entry->icon().isNull() && entry->toolTip().startsWith(QStringLiteral("新的朋友")),
+                  "New friends is reached from the add-friend icon beside the contact search");
         }
         {
             main_window registration(QStringLiteral("ws://127.0.0.1:18769/ws"));
@@ -4428,10 +4427,12 @@ int main(int argc, char** argv)
                 int waiting = 0;
                 for (int row = 0; row < incoming->count(); ++row)
                 { waiting += incoming->item(row)->data(user_delegate::action_role).isValid(); }
-                check(windows[receiver]->findChild<QLabel*>("newFriendsBadge")->text() == QString::number(waiting) &&
+                check(windows[receiver]->findChild<QLabel*>("addFriendBadge")->text() == QString::number(waiting) &&
                     windows[receiver]->findChild<QLabel*>("navigationBadge")->isVisibleTo(windows[receiver].get()),
                     "Incoming friend count is visible at contacts entry and on the navigation icon");
-                windows[receiver]->findChild<QPushButton*>("newFriendsButton")->click();
+                for (auto* button : windows[receiver]->findChildren<QToolButton*>())
+                { if (button->text() == QStringLiteral("联系人")) { button->click(); } }
+                windows[receiver]->findChild<QToolButton*>("sidebarTextButton")->click();
                 for (int row = 0; row < incoming->count(); ++row)
                 {
                     if (incoming->item(row)->data(Qt::UserRole).toLongLong() == ids[sender] &&
@@ -4510,7 +4511,9 @@ int main(int argc, char** argv)
                         wait([&] { return action->text() == QStringLiteral("等待验证"); });
                         auto* incoming = windows[1]->findChild<QListWidget*>("incomingFriendRequests");
                         wait([&] { return incoming->count() == 1; });
-                        windows[1]->findChild<QPushButton*>("newFriendsButton")->click();
+                        for (auto* button : windows[1]->findChildren<QToolButton*>())
+                        { if (button->text() == QStringLiteral("联系人")) { button->click(); } }
+                        windows[1]->findChild<QToolButton*>("sidebarTextButton")->click();
                         click_list_body(incoming, incoming->model()->index(0, 0));
                         auto* reject = windows[1]->findChild<QPushButton*>("contactCardProfileButton");
                         check(reject->isVisible() && reject->isEnabled() && reject->text() == QStringLiteral("拒绝"),
