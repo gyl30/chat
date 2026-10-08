@@ -178,7 +178,7 @@ void app::group_command(std::string const& name, std::string argument)
             ask("加入群聊 · 输入邀请码，例如 K7QM-3XWP", {}, [this](std::string token) { group_command("join", std::move(token)); });
             return;
         }
-        // Any case, spaces and dashes are accepted; old chat://join/ links keep working.
+        // Any case is accepted, with spaces or a dash between the two groups.
         auto token = normalize_invite_token(argument);
         if (!token) { data.status = "邀请码无效，请检查后重新输入"; return; }
         auto const view = view_;

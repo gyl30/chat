@@ -100,9 +100,9 @@ int main(int argc, char** argv)
             execute(std::string(std::istreambuf_iterator<char>(file), {}));
             if (std::string(name).starts_with("027"))
             {
-                // Invites already handed out keep working; only new ones are short codes.
-                auto kept = execute("SELECT count(*) FROM conversations WHERE invite_token=repeat('c',64)");
-                if (std::string(PQgetvalue(kept.get(), 0, 0)) != "1") { throw std::runtime_error("Short invite codes dropped a legacy token"); }
+                // Old 64-digit links are revoked; groups generate a new code.
+                auto revoked = execute("SELECT count(*) FROM conversations WHERE title='legacy invite' AND invite_token IS NULL");
+                if (std::string(PQgetvalue(revoked.get(), 0, 0)) != "1") { throw std::runtime_error("Short invite codes kept an old link"); }
                 execute("DELETE FROM conversation_members WHERE conversation_id IN (SELECT id FROM conversations WHERE title='legacy invite'); "
                         "DELETE FROM conversations WHERE title='legacy invite'");
             }
@@ -232,7 +232,7 @@ int main(int argc, char** argv)
         catch (std::runtime_error const&) { direct_announcement_rejected = true; }
         if (!direct_announcement_rejected) { throw std::runtime_error("Direct conversation accepts announcement"); }
         bool direct_invite_rejected = false;
-        try { execute("UPDATE conversations SET invite_token=repeat('a',64) WHERE kind='direct'"); }
+        try { execute("UPDATE conversations SET invite_token='K7QM3XWP' WHERE kind='direct'"); }
         catch (std::runtime_error const&) { direct_invite_rejected = true; }
         if (!direct_invite_rejected) { throw std::runtime_error("Direct conversation accepts invite token"); }
         bool direct_approval_rejected = false;
@@ -285,25 +285,26 @@ int main(int argc, char** argv)
         try { execute("UPDATE conversations SET announcement=repeat('x',4097) WHERE kind='group'"); }
         catch (std::runtime_error const&) { oversized_announcement_rejected = true; }
         if (!oversized_announcement_rejected) { throw std::runtime_error("Oversized announcement accepted"); }
-        execute("UPDATE conversations SET invite_token=repeat('a',64) WHERE kind='group'");
+        execute("UPDATE conversations SET invite_token='K7QM3XWP' WHERE kind='group'");
         bool malformed_invite_rejected = false;
         try { execute("UPDATE conversations SET invite_token=repeat('z',64) WHERE kind='group'"); }
         catch (std::runtime_error const&) { malformed_invite_rejected = true; }
         if (!malformed_invite_rejected) { throw std::runtime_error("Malformed invite token accepted"); }
         execute("UPDATE conversations SET invite_token='K7QM3XWP' WHERE kind='group'");
-        for (auto const* code : {"k7qm3xwp", "K7QM3XW0", "K7QM3XWI", "K7QM3XWPP", "K7QM-3XW"})
+        for (auto const* code : {"k7qm3xwp", "K7QM3XW0", "K7QM3XWI", "K7QM3XWPP", "K7QM-3XW",
+                                 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
         {
             bool rejected = false;
             try { execute(std::string("UPDATE conversations SET invite_token='") + code + "' WHERE kind='group'"); }
             catch (std::runtime_error const&) { rejected = true; }
             if (!rejected) { throw std::runtime_error(std::string("Malformed invite code accepted: ") + code); }
         }
-        execute("UPDATE conversations SET invite_token=repeat('a',64) WHERE kind='group'");
+        execute("UPDATE conversations SET invite_token='K7QM3XWP' WHERE kind='group'");
         bool duplicate_invite_rejected = false;
         try
         {
             execute("WITH created AS (INSERT INTO conversations(kind,title,owner_id,invite_token) "
-                    "VALUES('group','duplicate invite',2,repeat('a',64)) RETURNING id) "
+                    "VALUES('group','duplicate invite',2,'K7QM3XWP') RETURNING id) "
                     "INSERT INTO conversation_members(conversation_id,user_id) SELECT id,2 FROM created");
         }
         catch (std::runtime_error const&) { duplicate_invite_rejected = true; }

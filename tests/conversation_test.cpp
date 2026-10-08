@@ -1626,8 +1626,11 @@ int run_group_tests()
             require(owner_link && *owner_link == std::optional<std::string>(token), "Owner reads the persistent current token");
             auto admin_link = call<std::optional<std::string>>([&](auto h) { b.create_group_invite(mention_group, h); });
             require(admin_link && *admin_link == std::optional<std::string>(token), "Create is stable and administrator can recover current link");
-            auto invalid_link = call<chat::group_join_result>([&](auto h) { d.join_group(std::string(64, 'a'), h); });
-            require(!invalid_link && invalid_link.error().code == -32014, "Unknown opaque token cannot join a group");
+            auto const unknown = token == "ABCD2345" ? std::string("ABCD2346") : std::string("ABCD2345");
+            auto invalid_link = call<chat::group_join_result>([&](auto h) { d.join_group(unknown, h); });
+            require(!invalid_link && invalid_link.error().code == -32014, "An unknown invite code cannot join a group");
+            auto old_link = call<chat::group_join_result>([&](auto h) { d.join_group(std::string(64, 'a'), h); });
+            require(!old_link && old_link.error().code == -32602, "Old 64-digit invite tokens are rejected as invalid");
             auto const before_join = conversation(a, mention_group);
             std::size_t before_join_events;
             { std::lock_guard lock(c_events.mutex); before_join_events = c_events.conversations.size(); }
@@ -3280,9 +3283,11 @@ int run_tui_tests()
         require(call<bool>([&](auto handler) { peer.set_group_join_approval(*external, true, handler); }).has_value(), "Peer enables approval");
         auto invite = call<std::optional<std::string>>([&](auto handler) { peer.create_group_invite(*external, handler); });
         require(invite && invite->has_value(), "Peer creates valid invite");
-        app.command("join chat://join/" + **invite + "?unsafe=query");
-        require(app.data.status.find("无效") != std::string::npos, "TUI safely rejects invite query suffix");
+        app.command("join " + **invite + "?unsafe=query");
+        require(app.data.status.find("无效") != std::string::npos, "TUI rejects anything beyond the invite code");
         app.command("join chat://join/" + **invite);
+        require(app.data.status.find("无效") != std::string::npos, "TUI no longer accepts invite links");
+        app.command("join " + chat::format_invite_token(**invite));
         pump([&] { return app.data.status == "申请已提交，等待管理员审批"; });
         require(app.data.active == 0 && app.data.messages.empty(), "TUI pending join opens no group history");
         require(call<bool>([&](auto handler) { peer.respond_group_join_request(*external, self, true, handler); }).has_value(), "Peer accepts TUI user");

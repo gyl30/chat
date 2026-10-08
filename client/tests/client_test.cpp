@@ -210,12 +210,12 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             if (params->as_object().size() != 1 || !params->at("conversation").is_int64())
             { co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false}; }
             auto const conversation = params->at("conversation").as_int64();
-            boost::json::object result{{"token", operation == "revoke_group_invite" || conversation == 1 ? boost::json::value(nullptr) : boost::json::value(std::string(64, 'a'))}};
+            boost::json::object result{{"token", operation == "revoke_group_invite" || conversation == 1 ? boost::json::value(nullptr) : boost::json::value("K7QM3XWP")}};
             if (conversation == 98) { result.erase("token"); }
             if (conversation == 99) { result["token"] = true; }
             if (conversation == 97) { result["token"] = std::string(64, 'z'); }
             if (conversation == 96) { result["token"] = std::string(63, 'a'); }
-            if (conversation == 95) { result["token"] = operation == "revoke_group_invite" ? boost::json::value(std::string(64, 'a')) : boost::json::value(nullptr); }
+            if (conversation == 95) { result["token"] = operation == "revoke_group_invite" ? boost::json::value("K7QM3XWP") : boost::json::value(nullptr); }
             response.emplace("result", std::move(result));
             auto [sent] = co_await send_text(connection, std::move(response));
             co_return boost::capy::io_result<bool>{sent, !sent};
@@ -1326,7 +1326,7 @@ int main()
     for (int operation = 0; operation < 3; ++operation)
     {
         auto token = invite_call(operation, 2);
-        if (!token || (operation == 2 ? token->has_value() : *token != std::optional<std::string>(std::string(64, 'a')))) { return 1; }
+        if (!token || (operation == 2 ? token->has_value() : *token != std::optional<std::string>("K7QM3XWP"))) { return 1; }
         for (int id : {98, 99, 97, 96})
         {
             auto invalid = invite_call(operation, id);

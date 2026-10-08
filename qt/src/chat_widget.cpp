@@ -990,7 +990,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
         input->setPlaceholderText(QStringLiteral("例如 K7QM-3XWP"));
         input->setAccessibleName(QStringLiteral("邀请码"));
         if (dialog.exec() != QDialog::Accepted || !connection_available_) { return; }
-        // Any case, spaces and dashes are accepted; old chat://join/ links keep working.
+        // Any case is accepted, with spaces or a dash between the two groups.
         auto const token = chat::normalize_invite_token(dialog.textValue().toStdString());
         if (!token) { set_error(QStringLiteral("邀请码无效，请检查后重新输入")); return; }
         emit group_join_requested(QString::fromStdString(*token));

@@ -74,17 +74,16 @@ class Driver:
     def redact(self, value):
         if isinstance(value, dict):
             for key, item in value.items():
-                if 'token' in key and isinstance(item, str) and re.fullmatch('[0-9a-f]{64}|[2-9A-HJKMNP-Z]{8}', item):
+                if 'token' in key and isinstance(item, str) and re.fullmatch('[2-9A-HJKMNP-Z]{8}', item):
                     self.secret_tokens.add(item)
             return {key: self.redact(item) for key, item in value.items()}
         if isinstance(value, list):
             return [self.redact(item) for item in value]
         if isinstance(value, str):
-            result = re.sub(r'chat://join/[0-9a-f]{64}', 'chat://join/[REDACTED]', value)
+            result = value
             for token in self.secret_tokens:
                 result = result.replace(token, '[REDACTED_INVITE_TOKEN]')
-                if len(token) == 8:
-                    result = result.replace(token[:4] + '-' + token[4:], '[REDACTED_INVITE_TOKEN]')
+                result = result.replace(token[:4] + '-' + token[4:], '[REDACTED_INVITE_TOKEN]')
             return result.replace(self.password, '[REDACTED_PASSWORD]')
         return value
 

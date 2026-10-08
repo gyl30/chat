@@ -2674,12 +2674,14 @@ void check_join_by_code()
     };
     join(QStringLiteral(" k7qm 3xwp "));
     join(QStringLiteral("K7QM-3XWP"));
-    join(QStringLiteral("chat://join/") + QString(64, 'A'));
-    check(joined == QStringList{QStringLiteral("K7QM3XWP"), QStringLiteral("K7QM3XWP"), QString(64, 'a')},
-          "Codes accept any case, spaces and dashes; old links keep working");
-    join(QStringLiteral("K7QM-3XW0"));
-    check(joined.size() == 3 && page.findChild<QLabel*>("sidebarNotice")->text().contains(QStringLiteral("邀请码无效")),
-          "A code with characters outside the alphabet is rejected with feedback");
+    check(joined == QStringList{QStringLiteral("K7QM3XWP"), QStringLiteral("K7QM3XWP")},
+          "Codes accept any case, spaces and a dash");
+    for (auto const& invalid : {QStringLiteral("K7QM-3XW0"), QStringLiteral("chat://join/") + QString(64, 'a')})
+    {
+        join(invalid);
+        check(joined.size() == 2 && page.findChild<QLabel*>("sidebarNotice")->text().contains(QStringLiteral("邀请码无效")),
+              "Codes outside the alphabet and old links are rejected with feedback");
+    }
 }
 void check_message_action_targets()
 {
@@ -3734,12 +3736,10 @@ int main(int argc, char** argv)
             rename->click();
             check(requested_title == QStringLiteral("  群 名  "), "Qt preserves meaningful title whitespace");
             dialog.finish_action(1, false, {});
-            dialog.set_invite(1, QString(64, 'a'), {});
-            auto* invite_edit = dialog.findChild<QLineEdit*>("groupInviteLinkEdit");
-            check(invite_edit->text() == QString(64, 'a') &&
-                dialog.findChild<QPushButton*>("groupCopyInviteButton")->isEnabled(), "Manager can display a legacy invite token");
             dialog.set_invite(1, QStringLiteral("K7QM3XWP"), {});
+            auto* invite_edit = dialog.findChild<QLineEdit*>("groupInviteLinkEdit");
             check(invite_edit->text() == QStringLiteral("K7QM-3XWP") &&
+                      dialog.findChild<QPushButton*>("groupCopyInviteButton")->isEnabled() &&
                       dialog.findChild<QLabel*>("groupOverviewInvite")->text() == QStringLiteral("邀请码 · K7QM-3XWP"),
                   "Invite codes are shown in two groups of four, in the overview too");
             dialog.set_requests(1, {{3, "applicant", false, 0, {}}}, 3, false, {});
