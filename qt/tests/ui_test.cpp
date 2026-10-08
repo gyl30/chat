@@ -241,6 +241,18 @@ void check_authentication_layout()
               !window.findChild<QToolButton*>("windowMaximizeButton")->isVisible() &&
               !window.findChild<QLabel*>("windowTitle")->isVisible(),
           "The compact login uses the application's own title bar without title or maximize");
+    {
+        auto* frame = window.findChild<QWidget*>("windowFrame");
+        auto const grips = frame->findChildren<QWidget*>("windowResizeGrip", Qt::FindDirectChildrenOnly);
+        check(grips.size() == 8 && std::ranges::all_of(grips, [](auto* grip) {
+                  return grip->isVisible() && grip->cursor().shape() != Qt::ArrowCursor;
+              }), "Frameless window keeps resize handles on every edge and corner");
+        QMouseEvent edge_move(QEvent::MouseMove, QPointF(1, 200), QPointF(1, 200), Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+        QApplication::sendEvent(frame, &edge_move);
+        check(!frame->testAttribute(Qt::WA_SetCursor) && username->cursor().shape() == Qt::IBeamCursor &&
+                  window.findChild<QWidget*>("loginPage")->cursor().shape() == Qt::ArrowCursor,
+              "Resize cursors stay on the border handles and are never inherited by the content");
+    }
     check(!username->accessibleName().isEmpty() && !password->accessibleName().isEmpty() &&
           !server->accessibleName().isEmpty(), "Authentication fields have accessible names");
     check(password->echoMode() == QLineEdit::Password, "Login password stays masked");

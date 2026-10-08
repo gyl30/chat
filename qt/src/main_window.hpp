@@ -70,9 +70,11 @@ class main_window final : public QMainWindow
     void remember_account(QString const& username);
     void update_login_identity();
     void update_window_chrome();
+    void place_resize_grips();
 
     QWidget* frame_ = nullptr;
     title_bar* title_bar_ = nullptr;
+    QList<QWidget*> resize_grips_;
     QStackedWidget* pages_ = nullptr;
     QWidget* login_page_ = nullptr;
     chat_widget* chat_page_ = nullptr;

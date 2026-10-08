@@ -41,6 +41,41 @@
 #include "title_bar.hpp"
 #include "icons.hpp"
 
+namespace
+{
+
+// A transparent strip of the frame border; it hands resizing to the window system.
+class resize_grip final : public QWidget
+{
+   public:
+    resize_grip(QWidget* parent, Qt::Edges edges) : QWidget(parent), edges_(edges)
+    {
+        setObjectName(QStringLiteral("windowResizeGrip"));
+        auto const diagonal_down = edges == (Qt::LeftEdge | Qt::TopEdge) || edges == (Qt::RightEdge | Qt::BottomEdge);
+        auto const diagonal_up = edges == (Qt::RightEdge | Qt::TopEdge) || edges == (Qt::LeftEdge | Qt::BottomEdge);
+        setCursor(diagonal_down ? Qt::SizeFDiagCursor : diagonal_up ? Qt::SizeBDiagCursor
+            : edges & (Qt::LeftEdge | Qt::RightEdge) ? Qt::SizeHorCursor : Qt::SizeVerCursor);
+    }
+    Qt::Edges edges() const { return edges_; }
+
+   protected:
+    void mousePressEvent(QMouseEvent* event) override
+    {
+        if (event->button() == Qt::LeftButton && window()->windowHandle())
+        {
+            window()->windowHandle()->startSystemResize(edges_);
+            event->accept();
+            return;
+        }
+        QWidget::mousePressEvent(event);
+    }
+
+   private:
+    Qt::Edges edges_;
+};
+
+}
+
 main_window::main_window(QString server_url, QWidget* parent)
     : QMainWindow(parent), client_(std::make_unique<client_bridge>())
 {
@@ -54,8 +89,14 @@ main_window::main_window(QString server_url, QWidget* parent)
     frame_->setObjectName(QStringLiteral("windowFrame"));
     frame_->setAttribute(Qt::WA_StyledBackground);
     // The frame's margin is the resize border that a frameless window no longer gets from the platform.
-    frame_->setMouseTracking(true);
     frame_->installEventFilter(this);
+    // Separate grips own the resize cursors, so the content never inherits one.
+    for (auto const edges : {Qt::Edges(Qt::LeftEdge), Qt::Edges(Qt::RightEdge), Qt::Edges(Qt::TopEdge),
+                             Qt::Edges(Qt::BottomEdge), Qt::LeftEdge | Qt::TopEdge, Qt::RightEdge | Qt::TopEdge,
+                             Qt::LeftEdge | Qt::BottomEdge, Qt::RightEdge | Qt::BottomEdge})
+    {
+        resize_grips_.push_back(new resize_grip(frame_, edges));
+    }
     auto* frame_layout = new QVBoxLayout(frame_);
     frame_layout->setSpacing(0);
     setCentralWidget(frame_);
@@ -943,6 +984,8 @@ void main_window::update_window_chrome()
     server_settings_->setVisible(!chatting);
     auto const border = isMaximized() || isFullScreen() ? 0 : chat_theme::window_resize_border;
     frame_->layout()->setContentsMargins(border, border, border, border);
+    for (auto* grip : resize_grips_) { grip->setVisible(border > 0); }
+    place_resize_grips();
     for (auto* widget : {frame_, static_cast<QWidget*>(title_bar_)})
     {
         widget->setProperty("login", !chatting);
@@ -953,37 +996,29 @@ void main_window::update_window_chrome()
 
 bool main_window::eventFilter(QObject* object, QEvent* event)
 {
-    if (object != frame_ || isMaximized() || isFullScreen()) { return QMainWindow::eventFilter(object, event); }
-    auto edges_at = [this](QPoint position) {
-        auto const border = chat_theme::window_resize_border;
-        Qt::Edges edges;
-        if (position.x() < border) { edges |= Qt::LeftEdge; }
-        if (position.x() >= frame_->width() - border) { edges |= Qt::RightEdge; }
-        if (position.y() < border) { edges |= Qt::TopEdge; }
-        if (position.y() >= frame_->height() - border) { edges |= Qt::BottomEdge; }
-        return edges;
-    };
-    if (event->type() == QEvent::MouseMove)
-    {
-        auto const edges = edges_at(static_cast<QMouseEvent*>(event)->position().toPoint());
-        auto const diagonal_down = edges == (Qt::LeftEdge | Qt::TopEdge) || edges == (Qt::RightEdge | Qt::BottomEdge);
-        auto const diagonal_up = edges == (Qt::RightEdge | Qt::TopEdge) || edges == (Qt::LeftEdge | Qt::BottomEdge);
-        frame_->setCursor(diagonal_down ? Qt::SizeFDiagCursor : diagonal_up ? Qt::SizeBDiagCursor
-            : edges & (Qt::LeftEdge | Qt::RightEdge) ? Qt::SizeHorCursor
-            : edges & (Qt::TopEdge | Qt::BottomEdge) ? Qt::SizeVerCursor : Qt::ArrowCursor);
-    }
-    else if (event->type() == QEvent::MouseButtonPress)
-    {
-        auto* mouse = static_cast<QMouseEvent*>(event);
-        auto const edges = edges_at(mouse->position().toPoint());
-        if (mouse->button() == Qt::LeftButton && edges && windowHandle())
-        {
-            windowHandle()->startSystemResize(edges);
-            return true;
-        }
-    }
-    else if (event->type() == QEvent::Leave) { frame_->unsetCursor(); }
+    if (object == frame_ && event->type() == QEvent::Resize) { place_resize_grips(); }
     return QMainWindow::eventFilter(object, event);
+}
+
+void main_window::place_resize_grips()
+{
+    auto const border = chat_theme::window_resize_border;
+    auto const width = frame_->width();
+    auto const height = frame_->height();
+    for (auto* grip : resize_grips_)
+    {
+        auto const edges = static_cast<resize_grip*>(grip)->edges();
+        auto const left = edges.testFlag(Qt::LeftEdge);
+        auto const right = edges.testFlag(Qt::RightEdge);
+        auto const top = edges.testFlag(Qt::TopEdge);
+        auto const bottom = edges.testFlag(Qt::BottomEdge);
+        auto const x = left ? 0 : right ? width - border : border;
+        auto const y = top ? 0 : bottom ? height - border : border;
+        auto const w = left || right ? border : width - 2 * border;
+        auto const h = top || bottom ? border : height - 2 * border;
+        grip->setGeometry(x, y, w, h);
+        grip->raise();
+    }
 }
 
 main_window::~main_window() { client_.reset(); }
