@@ -1814,6 +1814,45 @@ bool check_pinned_unicode_boundaries(QString const& artifact_directory = {})
     return intact;
 }
 
+void check_message_copy()
+{
+    chat_widget page;
+    page.setStyleSheet(chat_style_sheet());
+    page.resize(980, 640);
+    page.set_user(QStringLiteral("本人"), 1);
+    page.set_connection_available(true);
+    conversation_data conversation;
+    conversation.id = 50; conversation.user = 2; conversation.username = QStringLiteral("朋友"); conversation.can_send = false;
+    page.open_conversation(conversation);
+    message_data message;
+    message.id = 7; message.conversation = 50; message.from = 2; message.username = QStringLiteral("朋友");
+    message.text = QStringLiteral("可复制的消息\n第二行 🙂");
+    page.set_messages(50, {message}, {}, false, false, false);
+    page.show();
+    QApplication::processEvents();
+    auto* view = page.findChild<QListView*>("messageList");
+    auto const index = view->model()->index(0, 0);
+    QGuiApplication::clipboard()->clear();
+    bool chosen = false;
+    QTimer::singleShot(0, &page, [&] {
+        auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+        check(menu, "Copy is reached through the actual message context menu");
+        QAction* copy = nullptr;
+        for (auto* item : menu->actions()) { if (item->text() == QStringLiteral("复制")) { copy = item; } }
+        check(copy, "Read-only history still offers copying a message");
+        chosen = true;
+        menu->setActiveAction(copy);
+        QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+        QApplication::sendEvent(menu, &enter);
+    });
+    view->customContextMenuRequested(view->visualRect(index).center());
+    check(chosen && QGuiApplication::clipboard()->text() == message.text, "The context menu copies the complete message text");
+    QGuiApplication::clipboard()->clear();
+    view->setCurrentIndex(index);
+    QKeyEvent copy_key(QEvent::KeyPress, Qt::Key_C, Qt::ControlModifier);
+    QApplication::sendEvent(view, &copy_key);
+    check(QGuiApplication::clipboard()->text() == message.text, "Ctrl+C copies the current message");
+}
 void check_message_action_targets()
 {
     // Real menus and dialogs, without a server: older history resets the model
@@ -2792,7 +2831,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); return 0; }
+        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;

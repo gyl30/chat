@@ -21,6 +21,7 @@
 #include <QIcon>
 #include <QLabel>
 #include <QKeyEvent>
+#include <QKeySequence>
 #include <QLineEdit>
 #include <QListView>
 #include <QMessageBox>
@@ -490,6 +491,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
         QTimer::singleShot(0, messages_view_, [this] { load_visible_images(); });
     });
     messages_view_->viewport()->installEventFilter(this);
+    messages_view_->installEventFilter(this);
     messages_view_->setModel(messages_);
     auto* messages_delegate = new message_delegate(messages_view_);
     messages_view_->setItemDelegate(messages_delegate);
@@ -534,9 +536,10 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                     return;
                 }
                 QMenu menu(this);
-                auto* reply = can_send() ? menu.addAction(QStringLiteral("回复")) : nullptr;
                 auto const message_id = index.data(message_model::id_role).toLongLong();
                 auto const message_text = index.data(message_model::text_role).toString();
+                auto* copy = !message_text.isEmpty() ? menu.addAction(QStringLiteral("复制")) : nullptr;
+                auto* reply = can_send() ? menu.addAction(QStringLiteral("回复")) : nullptr;
                 auto const sender_name = index.data(message_model::sender_name_role).toString();
                 auto const current = conversation(active_conversation_);
                 auto const unpin = current && current->pinned_message.id == message_id;
@@ -574,6 +577,12 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                                    ? menu.addAction(QStringLiteral("删除"))
                                    : nullptr;
                 auto* selected = menu.exec(messages_view_->viewport()->mapToGlobal(position));
+                if (copy && selected == copy)
+                {
+                    // The text was captured when the menu opened, so later history changes cannot retarget it.
+                    QGuiApplication::clipboard()->setText(message_text);
+                    return;
+                }
                 if (!connection_available_ || conversation != active_conversation_) { return; }
                 if (group_pin && selected == group_pin)
                 {
@@ -1053,6 +1062,17 @@ bool chat_widget::eventFilter(QObject* object, QEvent* event)
             send_current_message();
             return true;
         }
+    }
+    if (object == messages_view_ && event->type() == QEvent::KeyPress &&
+        static_cast<QKeyEvent*>(event)->matches(QKeySequence::Copy))
+    {
+        auto const current = messages_view_->currentIndex();
+        auto const text = current.data(message_model::text_role).toString();
+        if (current.isValid() && !current.data(message_model::deleted_role).toBool() && !text.isEmpty())
+        {
+            QGuiApplication::clipboard()->setText(text);
+        }
+        return true;
     }
     if (object == messages_view_->viewport() && (event->type() == QEvent::Resize || event->type() == QEvent::Show))
     {
