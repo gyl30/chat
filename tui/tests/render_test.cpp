@@ -621,7 +621,7 @@ int main()
                          "Long member identities never clip their authoritative role");
         }
     }
-    ok &= expect(draw(s, 80, 24).find("invitation link") == std::string::npos, "members never see secret link actions");
+    ok &= expect(draw(s, 80, 24).find("invite code") == std::string::npos, "members never see secret invite actions");
     ok &= expect(draw(s, 80, 24).find("Show full announcement") != std::string::npos, "members can read full announcement");
     ok &= expect(draw(s, 80, 24).find("View pinned message") != std::string::npos, "members can view pinned message");
     auto const saved_announcement = s.conversations.front().announcement;
@@ -629,7 +629,7 @@ int main()
     ok &= expect(draw(s, 60, 20).find("Show full announcement") != std::string::npos, "long announcement preview leaves actions visible");
     s.conversations.front().announcement = saved_announcement;
     s.members.front().role = chat::member_role::owner;
-    ok &= expect(draw(s, 120, 40).find("Create invitation link") != std::string::npos, "owner management actions");
+    ok &= expect(draw(s, 120, 40).find("Generate invite code") != std::string::npos, "owner management actions");
     s.view = page::help;
     ok &= expect(draw(s, 120, 40).find("Ctrl+C") != std::string::npos, "keyboard help");
     for (int columns : {60, 70, 80, 100, 120, 160})

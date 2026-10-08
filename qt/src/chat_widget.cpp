@@ -1,5 +1,6 @@
 #include "chat_widget.hpp"
 #include "theme_manager.hpp"
+#include <chat/invite.hpp>
 #include <chat/text.hpp>
 
 #include <utility>
@@ -969,7 +970,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
         QInputDialog dialog(this);
         dialog.setObjectName(QStringLiteral("joinGroupDialog"));
         dialog.setWindowTitle(QStringLiteral("加入群聊"));
-        dialog.setLabelText(QStringLiteral("粘贴完整邀请链接"));
+        dialog.setLabelText(QStringLiteral("输入群主或管理员分享的邀请码"));
         dialog.setInputMode(QInputDialog::TextInput);
         dialog.setOkButtonText(QStringLiteral("加入"));
         dialog.setCancelButtonText(QStringLiteral("取消"));
@@ -986,14 +987,13 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
         }
         auto* input = dialog.findChild<QLineEdit*>();
         input->setMinimumWidth(chat_theme::dialog_small_width - 2 * chat_theme::dialog_padding);
-        input->setPlaceholderText(QStringLiteral("chat://join/…"));
-        input->setAccessibleName(QStringLiteral("邀请链接"));
+        input->setPlaceholderText(QStringLiteral("例如 K7QM-3XWP"));
+        input->setAccessibleName(QStringLiteral("邀请码"));
         if (dialog.exec() != QDialog::Accepted || !connection_available_) { return; }
-        auto const link = dialog.textValue().trimmed();
-        static QRegularExpression const pattern(QStringLiteral("\\Achat://join/([0-9a-f]{64})\\z"));
-        auto const matched = pattern.match(link);
-        if (!matched.hasMatch()) { set_error(QStringLiteral("邀请链接无效，请复制完整链接。")); return; }
-        emit group_join_requested(matched.captured(1));
+        // Any case, spaces and dashes are accepted; old chat://join/ links keep working.
+        auto const token = chat::normalize_invite_token(dialog.textValue().toStdString());
+        if (!token) { set_error(QStringLiteral("邀请码无效，请检查后重新输入")); return; }
+        emit group_join_requested(QString::fromStdString(*token));
     });
     connect(sidebar_back_button_, &QToolButton::clicked, this, [this] {
         if (sidebar_pages_->currentIndex() == 2)

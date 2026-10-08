@@ -1,5 +1,6 @@
 #include "app.hpp"
 
+#include <chat/invite.hpp>
 #include <chat/text.hpp>
 #include <algorithm>
 #include <string_view>
@@ -174,16 +175,14 @@ void app::group_command(std::string const& name, std::string argument)
     {
         if (argument.empty())
         {
-            ask("加入群聊 · chat://join/<token> 或 token", {}, [this](std::string token) { group_command("join", std::move(token)); });
+            ask("加入群聊 · 输入邀请码，例如 K7QM-3XWP", {}, [this](std::string token) { group_command("join", std::move(token)); });
             return;
         }
-        constexpr std::string_view prefix = "chat://join/";
-        if (argument.starts_with(prefix)) { argument.erase(0, prefix.size()); }
-        if (argument.size() != 64 || !std::ranges::all_of(argument, [](char c) {
-            return (c >= 48 && c <= 57) || (c >= 97 && c <= 102);
-        })) { data.status = "邀请链接无效：token 须为 64 位小写十六进制"; return; }
+        // Any case, spaces and dashes are accepted; old chat://join/ links keep working.
+        auto token = normalize_invite_token(argument);
+        if (!token) { data.status = "邀请码无效，请检查后重新输入"; return; }
         auto const view = view_;
-        client_->join_group(std::move(argument), callback([this, view](auto value) {
+        client_->join_group(std::move(*token), callback([this, view](auto value) {
             if (view_ != view) { return; }
             if (!value) { error(value.error()); return; }
             if (value->state == group_join_state::pending)
@@ -323,21 +322,21 @@ void app::group_command(std::string const& name, std::string argument)
         auto show = callback([this, id, view](auto value) {
             if (data.active != id || view_ != view) { return; }
             if (!value) { error(value.error()); return; }
-            if (!*value) { data.status = "当前无有效邀请链接"; return; }
-            data.copy_text = "chat://join/" + **value;
+            if (!*value) { data.status = "当前没有邀请码"; return; }
+            data.copy_text = format_invite_token(**value);
             navigate(page::copy);
         });
         if (name == "link") { client_->get_group_invite(id, std::move(show)); }
         else if (name == "link-create") { client_->create_group_invite(id, std::move(show)); }
         else
         {
-            confirm("撤销群邀请链接？", [this, id, view] {
+            confirm("撤销群邀请码？", [this, id, view] {
                 if (data.active != id || view_ != view || !online()) { return; }
                 client_->revoke_group_invite(id, callback([this, id, view](auto value) {
                     if (data.active != id || view_ != view) { return; }
                     if (!value) { error(value.error()); return; }
                     data.copy_text.clear();
-                    data.status = "邀请链接已撤销";
+                    data.status = "邀请码已撤销";
                 }));
             });
         }

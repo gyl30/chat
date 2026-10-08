@@ -88,9 +88,9 @@ std::vector<menu_action> actions(state const& s)
         items.push_back({"Edit / clear announcement", "announcement"});
         items.push_back({"Pin selected message", "pin-message"});
         if (c->pinned_message) { items.push_back({"Unpin group message", "unpin-message"}); }
-        items.push_back({"Show invitation link", "link"});
-        items.push_back({"Create invitation link", "link-create"});
-        items.push_back({"Revoke invitation link", "link-revoke"});
+        items.push_back({"Show invite code", "link"});
+        items.push_back({"Generate invite code", "link-create"});
+        items.push_back({"Revoke invite code", "link-revoke"});
         items.push_back({c->join_approval ? "Disable join approval" : "Enable join approval", "approval"});
         items.push_back({"Pending join requests", "requests"});
     }

@@ -2655,6 +2655,32 @@ void check_chat_history_dialog()
     search->clear();
     check(history_cursors.back() == 0 && list->count() == 0, "Clearing the search returns to browsing from the newest page");
 }
+void check_join_by_code()
+{
+    chat_widget page;
+    page.set_user(QStringLiteral("本人"), 1);
+    page.set_connection_available(true);
+    page.show();
+    QStringList joined;
+    QObject::connect(&page, &chat_widget::group_join_requested, &page, [&](QString token) { joined.push_back(token); });
+    auto join = [&](QString const& text) {
+        QTimer::singleShot(0, &page, [&] {
+            auto* input = qobject_cast<QInputDialog*>(QApplication::activeModalWidget());
+            check(input && input->labelText().contains(QStringLiteral("邀请码")), "Join group asks for an invite code");
+            input->setTextValue(text);
+            input->accept();
+        });
+        page.findChild<QAction*>("joinGroupAction")->trigger();
+    };
+    join(QStringLiteral(" k7qm 3xwp "));
+    join(QStringLiteral("K7QM-3XWP"));
+    join(QStringLiteral("chat://join/") + QString(64, 'A'));
+    check(joined == QStringList{QStringLiteral("K7QM3XWP"), QStringLiteral("K7QM3XWP"), QString(64, 'a')},
+          "Codes accept any case, spaces and dashes; old links keep working");
+    join(QStringLiteral("K7QM-3XW0"));
+    check(joined.size() == 3 && page.findChild<QLabel*>("sidebarNotice")->text().contains(QStringLiteral("邀请码无效")),
+          "A code with characters outside the alphabet is rejected with feedback");
+}
 void check_message_action_targets()
 {
     // Real menus and dialogs, without a server: older history resets the model
@@ -3633,7 +3659,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_composer_actions(); check_chat_history_dialog(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
+        try { check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_composer_actions(); check_join_by_code(); check_chat_history_dialog(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
@@ -3710,8 +3736,12 @@ int main(int argc, char** argv)
             dialog.finish_action(1, false, {});
             dialog.set_invite(1, QString(64, 'a'), {});
             auto* invite_edit = dialog.findChild<QLineEdit*>("groupInviteLinkEdit");
-            check(invite_edit->text() == QStringLiteral("chat://join/") + QString(64, 'a') &&
-                dialog.findChild<QPushButton*>("groupCopyInviteButton")->isEnabled(), "Manager can display current invite link");
+            check(invite_edit->text() == QString(64, 'a') &&
+                dialog.findChild<QPushButton*>("groupCopyInviteButton")->isEnabled(), "Manager can display a legacy invite token");
+            dialog.set_invite(1, QStringLiteral("K7QM3XWP"), {});
+            check(invite_edit->text() == QStringLiteral("K7QM-3XWP") &&
+                      dialog.findChild<QLabel*>("groupOverviewInvite")->text() == QStringLiteral("邀请码 · K7QM-3XWP"),
+                  "Invite codes are shown in two groups of four, in the overview too");
             dialog.set_requests(1, {{3, "applicant", false, 0, {}}}, 3, false, {});
             auto* tabs = dialog.findChild<QTabWidget*>("groupTabs");
             check(tabs->tabText(1) == QStringLiteral("成员") &&
@@ -5663,8 +5693,9 @@ int main(int argc, char** argv)
                 return link;
             };
             auto const original_link = link_action(0, true);
-            check(original_link.startsWith(QStringLiteral("chat://join/")) && original_link.size() == 76 &&
-                link_action(1, std::nullopt) == original_link, "Administrator sees same stable owner-created link");
+            static QRegularExpression const code_pattern(QStringLiteral("\\A[2-9A-HJKMNP-Z]{4}-[2-9A-HJKMNP-Z]{4}\\z"));
+            check(code_pattern.match(original_link).hasMatch() &&
+                link_action(1, std::nullopt) == original_link, "Administrator sees the same stable owner-created invite code");
             auto join_link = [&](QString const& link) {
                 bool pasted = false;
                 QTimer::singleShot(20, [&] {
@@ -5691,7 +5722,7 @@ int main(int argc, char** argv)
             wait([&] { return pages[2]->active_conversation() == 0 && !pages[2]->conversation(group); });
             join_link(original_link);
             wait([&] { return std::ranges::any_of(windows[2]->findChildren<QLabel*>(), [](auto* label) {
-                return label->text().contains(QStringLiteral("邀请链接无效或已失效"));
+                return label->text().contains(QStringLiteral("邀请码无效或已失效"));
             }); });
             check(pages[2]->active_conversation() == 0, "Revoked link cannot reopen a removed conversation");
             auto const replacement_link = link_action(0, true);

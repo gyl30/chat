@@ -95,6 +95,8 @@ class group_dialog final : public QDialog
     QPushButton* read_announcement_button_;
     QLabel* overview_pin_;
     QLabel* overview_invite_;
+    QPushButton* overview_copy_invite_ = nullptr;
+    bool copy_after_create_ = false;
     QListWidget* preview_;
     QPushButton* manage_button_;
     QLabel* requests_status_;

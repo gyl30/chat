@@ -23,6 +23,7 @@
 #include <boost/json.hpp>
 
 #include <chat/client.hpp>
+#include <chat/invite.hpp>
 #include <chat/detail/base64.hpp>
 
 #include "websocket.hpp"
@@ -1198,9 +1199,7 @@ struct client::impl
                 if (token->is_string())
                 {
                     value = std::string(token->as_string());
-                    if (value->size() != 64 || !std::all_of(value->begin(), value->end(), [](char c) {
-                        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
-                    }))
+                    if (!valid_invite_token(*value))
                     {
                         handler(std::unexpected(make_error(error_kind::protocol, "Invalid invite token")));
                         return;

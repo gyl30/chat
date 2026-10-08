@@ -48,7 +48,7 @@ QString error_text(chat::error const& value)
         {QStringLiteral("Group unavailable"), QStringLiteral("群聊不可用")},
         {QStringLiteral("Group permission denied"), QStringLiteral("没有执行此操作的群权限")},
         {QStringLiteral("Member unavailable"), QStringLiteral("该成员已不在群中")},
-        {QStringLiteral("Invite unavailable"), QStringLiteral("邀请链接无效或已失效")},
+        {QStringLiteral("Invite unavailable"), QStringLiteral("邀请码无效或已失效")},
         {QStringLiteral("Invitees must be your contacts"), QStringLiteral("只能邀请自己的好友")},
         {QStringLiteral("At most three administrators are allowed"), QStringLiteral("最多只能设置三名管理员")},
         {QStringLiteral("The owner cannot be an administrator"), QStringLiteral("群主不能设为管理员")},

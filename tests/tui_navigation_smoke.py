@@ -489,7 +489,7 @@ def new_actions(d):
         assert {v['id'] for v in actual}=={d.manifest['actors'][a]['id'] for a in ['A','C']}|{d.manifest['sdk'][0]['id']}
         d.screenshot('A','created-group-open')
         d.spawn_tui('E');d.login('E');d.keys('E','N','j','j','Enter');d.wait('E','加入群聊')
-        d.paste('E','chat://join/'+d.manifest['invite_token']);d.keys('E','Enter')
+        d.paste('E',d.manifest['invite_token']);d.keys('E','Enter')
         d.wait('E',lambda s:d.title in s and 'i: compose' in s)
         members=d.query('S005','get_members',conversation=d.group)
         assert len(members)==5 and any(v['id']==d.manifest['actors']['E']['id'] for v in members)

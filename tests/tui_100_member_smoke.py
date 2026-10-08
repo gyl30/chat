@@ -74,7 +74,7 @@ class Driver:
     def redact(self, value):
         if isinstance(value, dict):
             for key, item in value.items():
-                if 'token' in key and isinstance(item, str) and re.fullmatch('[0-9a-f]{64}', item):
+                if 'token' in key and isinstance(item, str) and re.fullmatch('[0-9a-f]{64}|[2-9A-HJKMNP-Z]{8}', item):
                     self.secret_tokens.add(item)
             return {key: self.redact(item) for key, item in value.items()}
         if isinstance(value, list):
@@ -83,6 +83,8 @@ class Driver:
             result = re.sub(r'chat://join/[0-9a-f]{64}', 'chat://join/[REDACTED]', value)
             for token in self.secret_tokens:
                 result = result.replace(token, '[REDACTED_INVITE_TOKEN]')
+                if len(token) == 8:
+                    result = result.replace(token[:4] + '-' + token[4:], '[REDACTED_INVITE_TOKEN]')
             return result.replace(self.password, '[REDACTED_PASSWORD]')
         return value
 
@@ -510,8 +512,9 @@ class Driver:
     def link(self, actor, create=False):
         self.command(actor, 'link-create' if create else 'link')
         self.wait(actor, 'Copyable text')
-        output = self.wait(actor, lambda screen: re.search(r'chat://join/[0-9a-f]{64}', screen) is not None)
-        token = re.search(r'chat://join/([0-9a-f]{64})', output).group(1)
+        # The TUI shows invite codes in two groups of four, such as K7QM-3XWP.
+        output = self.wait(actor, lambda screen: re.search(r'\b[2-9A-HJKMNP-Z]{4}-?[2-9A-HJKMNP-Z]{4}\\b', screen) is not None)
+        token = re.search(r'\\b([2-9A-HJKMNP-Z]{4}-?[2-9A-HJKMNP-Z]{4})\\b', output).group(1).replace('-', '')
         self.secret_tokens.add(token)
         self.keys(actor, 'Escape')
         return token
@@ -616,7 +619,7 @@ def stage_onboard(d):
     with d.case('join-approval-sixty', 'Outsider E submits real UI link request; sixty pending requests paginate without granting history'):
         d.open_main('A')
         token = d.link('A')
-        d.command('E', 'join chat://join/' + token)
+        d.command('E', 'join ' + token)
         d.wait('E', '等待管理员审批')
         assert d.title not in d.capture('E')
         d.command('A', 'requests')
@@ -634,8 +637,8 @@ def stage_onboard(d):
     with d.case('link-revoke-preserves-pending', 'Revoking invitation leaves pending requests intact; old link rejected and replacement link differs'):
         d.open_main('A')
         d.command('A', 'link-revoke')
-        d.confirm('A', '撤销群邀请链接')
-        d.wait('A', '邀请链接已撤销')
+        d.confirm('A', '撤销群邀请码')
+        d.wait('A', '邀请码已撤销')
         d.command('E', 'join ' + token)
         d.wait('E', lambda text: '无效' in text or 'invalid' in text.lower() or 'Invite unavailable' in text)
         replacement = d.link('A', create=True)
@@ -1267,7 +1270,7 @@ def stage_group_management(d):
                 d.wait('A', '已读 98 人')
                 d.screenshot('A', 'reader-left-count98')
 
-            d.command('D', 'join chat://join/' + d.manifest['invite_token'])
+            d.command('D', 'join ' + d.manifest['invite_token'])
             d.wait('D', '等待管理员审批')
             d.command('A', 'requests')
             d.wait('A', 'Join requests')

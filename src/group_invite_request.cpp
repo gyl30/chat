@@ -8,6 +8,8 @@
 #include <openssl/rand.h>
 #include <simdjson.h>
 
+#include <chat/invite.hpp>
+
 #include "chat_session.hpp"
 #include "pg_connection_pool.hpp"
 
@@ -45,9 +47,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_invite(json_r
         conversation = params.conversation;
     }
     if (parse_error || !document.at_end() || (!joining && conversation <= 0) ||
-        (joining && (token.size() != 64 || !std::all_of(token.begin(), token.end(), [](char c) {
-            return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
-        }))))
+        (joining && !chat::valid_invite_token(token)))
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
@@ -178,16 +178,39 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_invite(json_r
             if (!(*group)[3].empty()) { current = (*group)[3]; }
             if (creating && !current)
             {
-                std::array<unsigned char, 32> random;
-                if (RAND_bytes(random.data(), random.size()) != 1)
+                // A short code people can read out and type; a few attempts avoid reusing a live code.
+                std::string generated;
+                for (int attempt = 0; attempt < 5 && generated.empty(); ++attempt)
                 {
-                    connection.close();
+                    std::string candidate;
+                    while (candidate.size() < chat::invite_code_length)
+                    {
+                        std::array<unsigned char, 16> random;
+                        if (RAND_bytes(random.data(), random.size()) != 1)
+                        {
+                            connection.close();
+                            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+                        }
+                        // Rejection sampling keeps every character equally likely.
+                        constexpr auto alphabet = chat::invite_code_alphabet;
+                        constexpr auto limit = 256 - 256 % alphabet.size();
+                        for (auto byte : random)
+                        {
+                            if (byte < limit && candidate.size() < chat::invite_code_length) { candidate += alphabet[byte % alphabet.size()]; }
+                        }
+                    }
+                    auto taken = co_await connection.execute_row("SELECT 1 FROM conversations WHERE invite_token=$1", {candidate});
+                    if (std::get<0>(taken))
+                    {
+                        connection.close();
+                        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+                    }
+                    if (!std::get<1>(taken)) { generated = std::move(candidate); }
+                }
+                if (generated.empty())
+                {
                     co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
                 }
-                std::string generated;
-                generated.reserve(64);
-                constexpr char digits[] = "0123456789abcdef";
-                for (auto byte : random) { generated += digits[byte >> 4]; generated += digits[byte & 15]; }
                 auto saved = co_await connection.execute_row("UPDATE conversations SET invite_token=$2 WHERE id=$1::bigint",
                     {std::to_string(conversation), generated});
                 if (std::get<0>(saved))

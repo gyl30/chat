@@ -1,4 +1,8 @@
 #include "group_dialog.hpp"
+
+#include <utility>
+
+#include <chat/invite.hpp>
 #include <chat/text.hpp>
 #include "avatar.hpp"
 #include "theme.hpp"
@@ -117,7 +121,15 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     overview_invite_->setTextFormat(Qt::PlainText);
     overview_invite_->setWordWrap(true);
     overview_invite_->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    overview_layout->addWidget(overview_invite_);
+    // Inviting is reachable from the overview: managers copy (creating if needed) in one step.
+    auto* invite_overview_row = new QHBoxLayout;
+    invite_overview_row->setSpacing(chat_theme::dialog_spacing);
+    invite_overview_row->addWidget(overview_invite_, 1);
+    overview_copy_invite_ = new QPushButton(QStringLiteral("复制邀请码"), overview);
+    overview_copy_invite_->setObjectName(QStringLiteral("groupOverviewCopyInvite"));
+    overview_copy_invite_->setAutoDefault(false);
+    invite_overview_row->addWidget(overview_copy_invite_);
+    overview_layout->addLayout(invite_overview_row);
     preview_ = new QListWidget(overview);
     preview_->setObjectName(QStringLiteral("groupMemberPreview"));
     overview_layout->addWidget(preview_);
@@ -185,27 +197,27 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     auto* invite_layout = new QVBoxLayout(invite_controls_);
     invite_layout->setContentsMargins(0, 0, 0, 0);
     invite_layout->setSpacing(chat_theme::dialog_spacing);
-    auto* invite_heading = new QLabel(QStringLiteral("邀请链接"), invite_controls_);
+    auto* invite_heading = new QLabel(QStringLiteral("邀请码"), invite_controls_);
     invite_heading->setObjectName(QStringLiteral("groupSectionHeading"));
     invite_layout->addWidget(invite_heading);
-    approval_ = new QCheckBox(QStringLiteral("通过邀请链接加入需要审批"), invite_controls_);
+    approval_ = new QCheckBox(QStringLiteral("通过邀请码加入需要审批"), invite_controls_);
     approval_->setObjectName(QStringLiteral("groupJoinApprovalCheck"));
     approval_->setChecked(join_approval);
     invite_layout->addWidget(approval_);
     invite_edit_ = new QLineEdit(invite_controls_);
     invite_edit_->setObjectName(QStringLiteral("groupInviteLinkEdit"));
     invite_edit_->setReadOnly(true);
-    invite_edit_->setPlaceholderText(QStringLiteral("尚无邀请链接"));
-    invite_edit_->setAccessibleName(QStringLiteral("群邀请链接"));
+    invite_edit_->setPlaceholderText(QStringLiteral("尚未生成邀请码"));
+    invite_edit_->setAccessibleName(QStringLiteral("群邀请码"));
     invite_layout->addWidget(invite_edit_);
     auto* invite_row = new QHBoxLayout;
     invite_row->setSpacing(chat_theme::dialog_spacing);
     invite_row->addStretch();
-    create_invite_button_ = new QPushButton(QStringLiteral("创建链接"), invite_controls_);
+    create_invite_button_ = new QPushButton(QStringLiteral("生成邀请码"), invite_controls_);
     create_invite_button_->setObjectName(QStringLiteral("groupCreateInviteButton"));
-    copy_invite_button_ = new QPushButton(QStringLiteral("复制链接"), invite_controls_);
+    copy_invite_button_ = new QPushButton(QStringLiteral("复制邀请码"), invite_controls_);
     copy_invite_button_->setObjectName(QStringLiteral("groupCopyInviteButton"));
-    revoke_invite_button_ = new QPushButton(QStringLiteral("撤销链接"), invite_controls_);
+    revoke_invite_button_ = new QPushButton(QStringLiteral("撤销邀请码"), invite_controls_);
     revoke_invite_button_->setObjectName(QStringLiteral("groupRevokeInviteButton"));
     for (auto* button : {create_invite_button_, copy_invite_button_, revoke_invite_button_})
     {
@@ -410,6 +422,19 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     });
     connect(copy_invite_button_, &QPushButton::clicked, this, [this] {
         QGuiApplication::clipboard()->setText(invite_edit_->text());
+    });
+    connect(overview_copy_invite_, &QPushButton::clicked, this, [this] {
+        if (!invite_edit_->text().isEmpty())
+        {
+            QGuiApplication::clipboard()->setText(invite_edit_->text());
+            status_->setText(QStringLiteral("已复制邀请码。发给朋友后，对方在「+ → 加入群聊」中输入即可加入。"));
+            update_actions();
+            return;
+        }
+        copy_after_create_ = true;
+        pending_ = true;
+        update_actions();
+        emit invite_link_requested(true);
     });
     connect(announcement_button_, &QPushButton::clicked, this, [this] {
         pending_ = true;
@@ -697,9 +722,15 @@ void group_dialog::set_invite(qint64 conversation, QString const& token, QString
     if (conversation != conversation_) { return; }
     auto const self = std::find_if(members_.begin(), members_.end(), [this](auto const& member) { return member.id == self_user_; });
     if (self == members_.end() || self->role == chat::member_role::member) { return; }
-    if (!error.isEmpty()) { status_->setText(error); status_->show(); return; }
-    invite_edit_->setText(token.isEmpty() ? QString{} : QStringLiteral("chat://join/") + token);
+    if (!error.isEmpty()) { copy_after_create_ = false; status_->setText(error); status_->show(); return; }
+    invite_edit_->setText(token.isEmpty() ? QString{}
+        : QString::fromStdString(chat::format_invite_token(token.toStdString())));
     invite_edit_->setCursorPosition(0);
+    if (std::exchange(copy_after_create_, false) && !token.isEmpty())
+    {
+        QGuiApplication::clipboard()->setText(invite_edit_->text());
+        status_->setText(QStringLiteral("已生成并复制邀请码。发给朋友后，对方在「+ → 加入群聊」中输入即可加入。"));
+    }
     update_actions();
 }
 
@@ -765,8 +796,11 @@ void group_dialog::update_actions()
     invite_controls_->setVisible(manager);
     approval_->setEnabled(enabled && manager);
     manage_button_->setVisible(can_manage);
-    overview_invite_->setVisible(manager);
-    overview_invite_->setText(invite_edit_->text().isEmpty() ? QStringLiteral("邀请链接 · 尚未创建") : QStringLiteral("邀请链接 · 已创建"));
+    overview_invite_->setVisible(true);
+    overview_invite_->setText(!manager ? QStringLiteral("只有群主和管理员可以生成邀请码")
+        : invite_edit_->text().isEmpty() ? QStringLiteral("邀请码 · 尚未生成") : QStringLiteral("邀请码 · ") + invite_edit_->text());
+    overview_copy_invite_->setVisible(manager);
+    overview_copy_invite_->setEnabled(enabled && manager);
     if (!can_manage)
     {
         next_request_ = 0;
@@ -790,7 +824,7 @@ void group_dialog::update_actions()
     reject_request_button_->setVisible(can_manage && requests_->count() > 0);
     more_requests_button_->setVisible(can_manage && next_request_ > 0);
     requests_status_->setVisible(can_manage && !requests_status_->text().isEmpty());
-    if (!manager) { invite_edit_->clear(); overview_invite_->clear(); }
+    if (!manager) { invite_edit_->clear(); copy_after_create_ = false; }
     create_invite_button_->setEnabled(enabled && manager && invite_edit_->text().isEmpty());
     copy_invite_button_->setEnabled(enabled && manager && !invite_edit_->text().isEmpty());
     revoke_invite_button_->setEnabled(enabled && manager && !invite_edit_->text().isEmpty());

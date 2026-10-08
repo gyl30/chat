@@ -17,6 +17,7 @@
 #include <boost/capy/ex/work_guard.hpp>
 #include <boost/http/server/router.hpp>
 #include <chat/client.hpp>
+#include <chat/invite.hpp>
 #include <chat/detail/base64.hpp>
 
 #include "server.hpp"
@@ -1618,7 +1619,8 @@ int run_group_tests()
                 !outsider_link && outsider_link.error().code == -32006 && !direct_link && direct_link.error().code == -32006,
                 "Only current group managers may view or create invite secrets; existing groups default to no link");
             auto created_link = call<std::optional<std::string>>([&](auto h) { a.create_group_invite(mention_group, h); });
-            require(created_link && *created_link && (**created_link).size() == 64, "Owner creates high-entropy invite token");
+            require(created_link && *created_link && (**created_link).size() == chat::invite_code_length &&
+                        chat::valid_invite_token(**created_link), "Owner creates a short invite code");
             auto const token = **created_link;
             auto owner_link = call<std::optional<std::string>>([&](auto h) { a.get_group_invite(mention_group, h); });
             require(owner_link && *owner_link == std::optional<std::string>(token), "Owner reads the persistent current token");
@@ -3170,9 +3172,9 @@ int run_tui_tests()
         app.command("approval");
         pump([&] { return app.data.active_conversation()->join_approval; });
         app.command("link-create");
-        pump([&] { return app.data.view == page::copy && app.data.copy_text.starts_with("chat://join/"); });
-        auto const token = app.data.copy_text.substr(std::string("chat://join/").size());
-        require(token.size() == 64, "TUI shows the server invite token");
+        pump([&] { return app.data.view == page::copy && app.data.copy_text.size() == 9 && app.data.copy_text[4] == '-'; });
+        auto const token = *chat::normalize_invite_token(app.data.copy_text);
+        require(token.size() == chat::invite_code_length && chat::valid_invite_token(token), "TUI shows the server invite code in two groups");
         app.back();
         auto pending = call<chat::group_join_result>([&](auto handler) { other.join_group(token, handler); });
         require(pending && pending->state == chat::group_join_state::pending, "Link admission is pending");
@@ -3234,7 +3236,7 @@ int run_tui_tests()
         app.command("link-revoke");
         require(app.dialog && app.dialog->confirmation, "Invite revocation requires confirmation");
         app.dialog->text = "y"; app.submit_prompt();
-        pump([&] { return app.data.status == "邀请链接已撤销"; });
+        pump([&] { return app.data.status == "邀请码已撤销"; });
         auto revoked = call<chat::group_join_result>([&](auto handler) { other.join_group(token, handler); });
         require(!revoked, "Revoked link cannot join");
         app.command("leave");
