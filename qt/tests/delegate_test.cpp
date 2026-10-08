@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cmath>
 
 #include <QApplication>
 #include <QBuffer>
@@ -25,6 +26,7 @@
 #include "../../tests/avatar_fixture.hpp"
 #include "message_model.hpp"
 #include "theme.hpp"
+#include "theme_manager.hpp"
 #include "message_images.hpp"
 #include "icons.hpp"
 
@@ -273,11 +275,124 @@ bool check_message_selection_raster()
     return true;
 }
 
+bool check_night_message_text_contrast()
+{
+    auto& themes = theme_manager::instance();
+    auto const appearance = themes.appearance();
+    themes.set_appearance(chat_appearance::dark);
+    message_model model;
+    model.set_self_user(1);
+    model.reset(50);
+    message_data message;
+    message.id = 100;
+    message.conversation = 50;
+    message.from = 2;
+    message.username = QStringLiteral("HHHHHHHH");
+    message.text = QStringLiteral("A sufficiently wide incoming message body");
+    model.add_message(message);
+    message_delegate delegate;
+    QStyleOptionViewItem option;
+    option.rect = QRect(0, 0, 640, 220);
+    option.font = QApplication::font();
+    option.font.setPixelSize(14);
+    // Measure solid glyph ink, never anti-aliasing blends with the background.
+    option.font.setStyleStrategy(QFont::NoAntialias);
+    auto render = [&] {
+        QImage image(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        delegate.paint(&painter, option, model.index(0, 0));
+        painter.end();
+        return image;
+    };
+    auto luminance = [](QColor const& color) {
+        auto linear = [](double value) {
+            return value <= 0.04045 ? value / 12.92 : std::pow((value + 0.055) / 1.055, 2.4);
+        };
+        return 0.2126 * linear(color.redF()) + 0.7152 * linear(color.greenF()) + 0.0722 * linear(color.blueF());
+    };
+    auto check_ink = [&](char const* label, QImage const& image, QRect region, QColor background) {
+        QHash<QRgb, int> pixels;
+        for (int y = region.top(); y <= region.bottom(); ++y)
+        {
+            for (int x = region.left(); x <= region.right(); ++x)
+            {
+                auto const color = image.pixelColor(x, y);
+                if (color.alpha() == 255 && color != background) { ++pixels[color.rgba()]; }
+            }
+        }
+        QColor ink;
+        int count = 0;
+        for (auto it = pixels.cbegin(); it != pixels.cend(); ++it)
+        {
+            if (it.value() > count) { ink = QColor::fromRgba(it.key()); count = it.value(); }
+        }
+        auto const a = luminance(ink), b = luminance(background);
+        auto const ratio = (std::max(a, b) + 0.05) / (std::min(a, b) + 0.05);
+        auto const passed = count >= 8 && ratio >= 4.5;
+        std::cout << (passed ? "PASS " : "RED ") << "Night " << label
+                  << " solid-ink=" << ink.name().toStdString() << " background=" << background.name().toStdString()
+                  << " pixels=" << count << " contrast=" << ratio << "\n";
+        return passed;
+    };
+    auto image = render();
+    QFont sender_font = option.font;
+    sender_font.setPixelSize(13);
+    sender_font.setBold(true);
+    auto const left = chat_theme::message_side_margin + chat_theme::message_avatar_skip
+        + chat_theme::message_padding_horizontal;
+    QRect sender(left, chat_theme::message_margin_top + chat_theme::message_padding_vertical,
+                 QFontMetrics(sender_font).horizontalAdvance(message.username) + 12, QFontMetrics(sender_font).height());
+    bool passed = check_ink("sender", image, sender, image.pixelColor(sender.topRight()));
+    for (bool mine : {false, true})
+    {
+        QList<qint64> users{mine ? 1 : 9, 2, 3, 4, 5, 6, 7, 8};
+        model.set_reactions(message.id, mine ? 2 : 1, {{QStringLiteral("👍"), users}});
+        image = render();
+        bool clicked = false;
+        auto const connection = QObject::connect(&delegate, &message_delegate::reaction_clicked, &delegate,
+            [&](QModelIndex const&, QString const&) { clicked = true; });
+        auto hit = [&](int x, int y) {
+            clicked = false;
+            QMouseEvent click(QEvent::MouseButtonRelease, QPointF(x, y), QPointF(x, y),
+                              Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+            delegate.editorEvent(&click, &model, option, model.index(0, 0));
+            return clicked;
+        };
+        QPoint point(-1, -1);
+        for (int y = 0; y < delegate.sizeHint(option, model.index(0, 0)).height() && point.x() < 0; y += 4)
+        {
+            for (int x = left; x < left + 160; x += 4)
+            {
+                if (hit(x, y)) { point = QPoint(x, y); break; }
+            }
+        }
+        if (point.x() < 0) { std::cerr << "FAIL Night reaction has no real hit target\n"; passed = false; }
+        else
+        {
+            int right = point.x(), top = point.y(), bottom = point.y();
+            while (hit(right + 1, point.y())) { ++right; }
+            while (hit(point.x(), top - 1)) { --top; }
+            while (hit(point.x(), bottom + 1)) { ++bottom; }
+            QFont count_font = option.font;
+            count_font.setPixelSize(12);
+            auto const count_width = QFontMetrics(count_font).horizontalAdvance(QStringLiteral("8"));
+            QRect count_region(right - 8 - count_width, top + 5, count_width + 1, bottom - top - 9);
+            passed = check_ink(mine ? "own reaction count" : "other reaction count", image, count_region,
+                              image.pixelColor(right - 8 - count_width, top + 3)) && passed;
+        }
+        QObject::disconnect(connection);
+    }
+    themes.set_appearance(appearance);
+    return passed;
+}
+
 int main(int argc, char** argv)
 {
     QApplication app(argc, argv);
     if (!check_emoji_display_policy()) { return 1; }
     if (!check_message_selection_raster()) { return 1; }
+    if (!check_night_message_text_contrast()) { return 1; }
     auto const chat_icon = svg_icon(QStringLiteral("chat"), QColor(QStringLiteral("#315A4B")));
     for (qreal ratio : {1.0, 1.25, 1.5, 2.0})
     {
