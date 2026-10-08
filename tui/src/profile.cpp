@@ -183,8 +183,8 @@ void app::profile_command(std::string const& name, std::string argument)
         if (!data.is_contact(target.id))
         { data.status = data.friendship_hint(target.id); return; }
         auto const view = view_;
-        client_->open_direct_conversation(target.id, callback([this, view](auto value) {
-            if (view != view_) { return; }
+        client_->open_direct_conversation(target.id, callback([this, view, target = target.id](auto value) {
+            if (view != view_ || (data.view == page::profile && data.profile.id != target)) { return; }
             if (!value) { error(value.error()); return; }
             pending_open_ = value->conversation;
             conversations();

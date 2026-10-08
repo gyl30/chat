@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import shlex
+import signal
 import socket
 import subprocess
 import sys
@@ -59,6 +60,186 @@ class NavigationDriver(Driver):
             self.keys(actor,'j')
             self.barrier(actor)
         raise AssertionError('Expected chat was not selectable: '+title)
+
+
+def capture_terminal(d, actor, label):
+    d.screenshot(actor, label)
+    path = d.work / f'{d.case_id}-{actor}-{label}.ansi'
+    path.write_text(d.redact(d.capture(actor, styled=True)))
+    d.observer.capture_reference(d.case_id, path, label + ' styled terminal')
+
+
+def late_profile_message(d):
+    try:
+        _late_profile_message(d)
+    except Exception:
+        capture_terminal(d, 'A', 'failure')
+        raise
+
+
+def _late_profile_message(d):
+    from tui_lifecycle_smoke import _eventually, _server_receive_queue
+
+    with d.case('late-profile-message',
+                'A delayed peer Message response cannot replace Account opened on the same profile page'):
+        d.control('connect', actors=['C'])
+        d.find_profile('A', 'C')
+        d.wait('A', 'Message')
+        d.barrier('A')
+        pid = int(d.tmux('display-message', '-p', '-t', d.panes['A'], '#{pane_pid}').stdout.strip())
+        assert d.server is not None and d.server.poll() is None
+        server_pid = d.server.pid
+        # Only this driver's isolated server is stopped. Receive-Q establishes
+        # that the real open-direct request cannot complete before Account.
+        os.kill(server_pid, signal.SIGSTOP)
+        try:
+            _eventually(lambda: any(line.startswith('State:') and line.split()[1] in ('T', 't')
+                                    for line in Path(f'/proc/{server_pid}/status').read_text().splitlines()),
+                        'The isolated server did not enter the stopped state')
+            initial_bytes = _server_receive_queue(pid, d.args.port)
+            d.command('A', 'message')
+            queued = _eventually(lambda: (size if (size := _server_receive_queue(pid, d.args.port)) > initial_bytes else None),
+                                 'The real Message RPC did not reach the paused isolated server')
+            d.keys('A', 'u')
+            d.wait('A', 'Account ·')
+            d.wait('A', d.name('A'))
+            d.barrier('A')
+            capture_terminal(d, 'A', 'account-before-message-response')
+            d.evidence('message-rpc-pending', {'tui_pid': pid, 'isolated_server_pid': server_pid,
+                                            'server_receive_queue_before': initial_bytes,
+                                            'server_receive_queue_after': queued})
+        finally:
+            os.kill(server_pid, signal.SIGCONT)
+
+        def peer_direct():
+            values = d.query('C', 'get_conversations')['conversations']
+            return next((v for v in values if v.get('user') == d.manifest['actors']['A']['id']), None)
+
+        direct = _eventually(peer_direct, 'The paused real Message RPC did not create the peer direct')
+        d.evidence('message-rpc-server-completed', {'conversation': direct['id']})
+        # Poll real terminal output after the server-side effect, allowing both
+        # the delayed open callback and its follow-up list response to run.
+        observation_seconds = 3
+        started = time.monotonic()
+        deadline = started + observation_seconds
+        observations = 0
+        while time.monotonic() < deadline:
+            d.barrier('A')
+            screen = d.capture('A')
+            observations += 1
+            if 'Account ·' not in screen:
+                capture_terminal(d, 'A', 'late-message-overrode-account')
+                raise AssertionError('A delayed peer Message response replaced the newer Account destination')
+            time.sleep(.05)
+        capture_terminal(d, 'A', 'account-after-message-response')
+        d.evidence('client-observation-window', {'requested_seconds': observation_seconds,
+                   'observed_seconds': time.monotonic() - started, 'pty_barrier_observations': observations,
+                   'scope': 'Account remained visible during this finite 3-second client observation after server-side direct creation'})
+
+
+
+def hidden_direct_restoration(d):
+    try:
+        _hidden_direct_restoration(d)
+    except Exception:
+        for actor in ('A', 'C'):
+            if actor in d.panes:
+                capture_terminal(d, actor, 'failure')
+        raise
+
+
+def _hidden_direct_restoration(d):
+    with d.case('hidden-direct-restoration',
+                'Two real TUIs close removed direct chats, keep pending chats hidden, and restore the same history and Unicode drafts after acceptance'):
+        d.control('connect', actors=['C'])
+        direct = d.query('C', 'open_direct_conversation', user='A')['conversation']
+        history = 'HIDDEN_HISTORY_' + d.args.run_id + ' é 👩‍💻 1️⃣'
+        d.open_direct('A', 'C')
+        d.send('A', history)
+        original = d.query('C', 'get_messages', conversation=direct)['messages']
+        historical = next(v for v in original if v['text'] == history)
+        d.evidence('original-direct-history', {'conversation': direct, 'message': historical['id'], 'text': history})
+        d.control('disconnect', actors=['C'])
+        d.spawn_tui('C')
+        d.login('C')
+        d.open_direct('C', 'A')
+        d.wait('C', 'HIDDEN_HISTORY_')
+        drafts = {actor: 'DRAFT_' + actor + '_' + d.args.run_id + ' é 👩‍💻 1️⃣\n第二行 🫩 👨‍👩‍👧‍👦'
+                  for actor in ('A', 'C')}
+        for actor in ('A', 'C'):
+            d.keys(actor, 'i')
+            d.clear_input(actor)
+            d.paste(actor, drafts[actor])
+            d.keys(actor, 'Escape')
+            d.wait(actor, 'DRAFT_' + actor + '_')
+            capture_terminal(d, actor, 'open-with-unsent-unicode-draft')
+
+        # The removal and subsequent friendship actions use actual TUI commands.
+        # Both clients have this direct open when the removal is confirmed.
+        d.command('A', 'remove-contact')
+        d.confirm('A', '删除好友')
+        for actor, peer in (('A', 'C'), ('C', 'A')):
+            d.wait(actor, lambda screen: 'Chats' in screen and 'i: compose' not in screen and 'Profile ·' not in screen)
+            d.resize(actor, 80, 24)
+            d.barrier(actor)
+            assert d.name(peer) not in d.capture(actor), 'A removed direct remained in Chats'
+            d.keys(actor, 'Tab', 'Escape')
+            d.barrier(actor)
+            screen = d.capture(actor)
+            assert 'i: compose' not in screen and 'HIDDEN_HISTORY_' not in screen and d.name(peer) not in screen, 'Tab reopened a removed readonly direct'
+            capture_terminal(d, actor, 'removed-direct-closed-and-hidden')
+
+        d.request_friend('A', 'C')
+        for actor, peer in (('A', 'C'), ('C', 'A')):
+            d.chats(actor)
+            d.barrier(actor)
+            assert d.name(peer) not in d.capture(actor), 'A pending friendship exposed its direct in Chats'
+            d.keys(actor, 'Tab')
+            d.barrier(actor)
+            screen = d.capture(actor)
+            assert 'i: compose' not in screen and 'HIDDEN_HISTORY_' not in screen and d.name(peer) not in screen, 'Tab reopened a pending readonly direct'
+            capture_terminal(d, actor, 'pending-direct-still-hidden')
+
+        d.accept_friend('C', 'A')
+        for actor, peer in (('A', 'C'), ('C', 'A')):
+            d.open_direct(actor, peer)
+            d.wait(actor, 'HIDDEN_HISTORY_')
+            d.wait(actor, 'DRAFT_' + actor + '_')
+            capture_terminal(d, actor, 'accepted-history-and-draft-restored')
+
+        dimensions = [(width, height) for width in (60, 70, 80, 100, 120, 160) for height in (20, 24, 40)]
+        for actor in ('A', 'C'):
+            for width, height in dimensions:
+                d.resize(actor, width, height)
+                d.barrier(actor)
+                screen = d.capture(actor)
+                assert 'DRAFT_' + actor + '_' in screen, 'Resize lost the restored draft preview'
+                assert 'HIDDEN_HISTORY_' in inverse_text(d.capture(actor, styled=True)), 'Resize lost the selected historical message'
+            capture_terminal(d, actor, 'restored-after-six-widths-three-heights')
+        d.evidence('resize-preservation', {'clients': ['A', 'C'], 'dimensions': dimensions,
+                                         'checks': ['unsent Unicode draft preview', 'selected original historical message']})
+
+        for actor in ('A', 'C'):
+            d.keys(actor, 'i', 'Enter', 'Escape')
+            marker = 'DRAFT_' + actor + '_'
+            d.wait(actor, lambda screen: marker in screen and '消息已发送' in screen and
+                   any('i: compose' in line and marker not in line for line in screen.splitlines()))
+        d.wait('A', 'DRAFT_C_')
+        d.wait('C', 'DRAFT_A_')
+        # Release C's real TUI identity before observing exact DTO bytes through SDK.
+        d.command('C', 'logout')
+        d.confirm('C', '退出当前账号')
+        d.wait('C', 'Login / Register')
+        d.control('connect', actors=['C'])
+        metadata = d.query('C', 'get_conversations')['conversations']
+        restored = next(v['id'] for v in metadata if v.get('user') == d.manifest['actors']['A']['id'])
+        assert restored == direct, 'Acceptance restored a different direct conversation'
+        messages = d.query('C', 'get_messages', conversation=restored)['messages']
+        assert any(v['id'] == historical['id'] and v['text'] == history for v in messages), 'The original direct history was not preserved'
+        for text in drafts.values():
+            assert sum(v['text'] == text for v in messages) == 1, 'A restored Unicode draft was lost, altered, or sent twice'
+        d.evidence('same-direct-and-exact-unicode', {'original_conversation': direct, 'restored_conversation': restored,
+                   'historical_message': historical['id'], 'drafts': drafts, 'exact_message_count_per_draft': 1})
 
 
 def chat_navigation(d):
@@ -333,7 +514,9 @@ def main():
     parser.add_argument('--binary')
     parser.add_argument('--port',type=int,default=18884)
     parser.add_argument('--work-dir',default='/tmp/chat-navigation-'+time.strftime('%m%d%H%M%S'))
-    parser.add_argument('--red-only',action='store_true',help='Only readonly/focus regression')
+    parser.add_argument('--red-only',action='store_true',help='Only Chats/focus regression')
+    parser.add_argument('--late-profile-only',action='store_true',help='Only delayed Message versus Account navigation regression')
+    parser.add_argument('--hidden-direct-only',action='store_true',help='Only two-client hidden direct and Unicode draft restoration regression')
     parser.add_argument('--keep-database',action='store_true')
     args=parser.parse_args()
     repo=Path(__file__).resolve().parents[1]
@@ -356,17 +539,22 @@ def main():
                 subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-f',str(migration)],check=True,stdout=log,stderr=subprocess.STDOUT)
         print('Evidence:',work,flush=True)
         driver=NavigationDriver(args);driver.setup();driver.login('A')
-        chat_navigation(driver)
-        tab_navigation(driver)
-        if not args.red_only:
-            contacts_search(driver)
-            picker_selection(driver)
-            friends_navigation(driver)
-            request_selection(driver)
-            message_alignment(driver)
-            paste_messages(driver)
-            new_actions(driver)
-            account_logout(driver)
+        if args.late_profile_only:
+            late_profile_message(driver)
+        elif args.hidden_direct_only:
+            hidden_direct_restoration(driver)
+        else:
+            chat_navigation(driver)
+            tab_navigation(driver)
+            if not args.red_only:
+                contacts_search(driver)
+                picker_selection(driver)
+                friends_navigation(driver)
+                request_selection(driver)
+                message_alignment(driver)
+                paste_messages(driver)
+                new_actions(driver)
+                account_logout(driver)
         success=True
         (work/'result.json').write_text(json.dumps({'status':'PASS','cases':driver.case_count,'mode':'navigation'},indent=2))
     finally:
