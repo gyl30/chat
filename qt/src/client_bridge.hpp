@@ -68,6 +68,8 @@ class client_bridge final : public QObject
     void set_message_reaction(qint64 conversation, qint64 message, QString emoji);
     void search_users(QString query);
     void search_messages(qint64 conversation, QString query, qint64 before = 0);
+    // History pages for the chat history window; independent of the open chat's own paging.
+    void get_history(qint64 conversation, qint64 before = 0);
     void add_contact(qint64 user);
     void remove_contact(qint64 user);
     void send_attachment(qint64 conversation, QString filename, QByteArray data, qint64 reply_to = 0);
@@ -121,6 +123,8 @@ class client_bridge final : public QObject
     void attachment_sent(qint64 conversation, message_data message, QString error_message);
     void attachment_received(qint64 conversation, qint64 message, QByteArray data, QString error_message);
     void message_image_received(qint64 conversation, qint64 message, QByteArray data, QString error_message);
+    void history_received(qint64 conversation, qint64 before, QList<message_data> messages, bool has_more,
+                          QString error_message);
     void message_search_received(qint64 conversation, QString query, qint64 before, QList<message_data> messages,
                                  read_positions positions, bool has_more, QString error_message);
     void read_marked(qint64 user, qint64 message, QString error_message);
@@ -139,6 +143,7 @@ class client_bridge final : public QObject
      std::uint64_t friend_requests_generation_ = 0;
      std::uint64_t messages_generation_ = 0;
      std::uint64_t search_generation_ = 0;
+     std::uint64_t history_generation_ = 0;
      std::uint64_t upload_generation_ = 0;
      std::uint64_t download_generation_ = 0;
     std::atomic_uint64_t connection_generation_ = 0;

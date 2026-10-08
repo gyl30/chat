@@ -34,6 +34,7 @@
 #include <QWidget>
 
 #include "avatar.hpp"
+#include "chat_history_dialog.hpp"
 #include "chat_widget.hpp"
 #include "attachment_dialog.hpp"
 #include "group_dialog.hpp"
@@ -758,6 +759,27 @@ main_window::main_window(QString server_url, QWidget* parent)
             located = message;
             dialog.accept();
         });
+        if (dialog.exec() == QDialog::Accepted && located > 0) { chat_page_->locate_message(conversation, located); }
+    });
+    connect(chat_page_, &chat_widget::chat_history_requested, this, [this](qint64 conversation, QString const& title) {
+        chat_history_dialog dialog(conversation, title, this, &chat_page_->avatars());
+        connect(&dialog, &chat_history_dialog::history_requested, &dialog, [this, conversation](qint64 before) {
+            client_->get_history(conversation, before);
+        });
+        connect(&dialog, &chat_history_dialog::search_requested, &dialog, [this, conversation](QString query, qint64 before) {
+            client_->search_messages(conversation, std::move(query), before);
+        });
+        connect(client_.get(), &client_bridge::history_received, &dialog, &chat_history_dialog::set_history);
+        connect(client_.get(), &client_bridge::message_search_received, &dialog, &chat_history_dialog::set_search_results);
+        connect(client_.get(), &client_bridge::conversation_changed, &dialog, [&dialog, conversation](qint64 id, bool removed) {
+            if (removed && id == conversation) { dialog.reject(); }
+        });
+        qint64 located = 0;
+        connect(&dialog, &chat_history_dialog::message_activated, &dialog, [&dialog, &located](qint64 message) {
+            located = message;
+            dialog.accept();
+        });
+        dialog.start();
         if (dialog.exec() == QDialog::Accepted && located > 0) { chat_page_->locate_message(conversation, located); }
     });
     connect(

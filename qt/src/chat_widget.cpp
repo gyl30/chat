@@ -823,8 +823,9 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     input_layout->addWidget(emoji_button_, 0, Qt::AlignBottom);
     input_layout->addWidget(history_button_, 0, Qt::AlignBottom);
     connect(emoji_button_, &QToolButton::clicked, this, [this] { show_emoji_picker(); });
-    // Chat history is the conversation's message search, opened from where the user is typing.
-    connect(history_button_, &QToolButton::clicked, this, [this] { message_search_button_->click(); });
+    connect(history_button_, &QToolButton::clicked, this, [this] {
+        if (active_conversation_ > 0 && connection_available_) { emit chat_history_requested(active_conversation_, active_username_); }
+    });
     connect(attachment_button_, &QToolButton::clicked, this, [this] {
         auto const path = QFileDialog::getOpenFileName(this, QStringLiteral("发送文件或图片"));
         if (path.isEmpty())

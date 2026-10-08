@@ -865,6 +865,25 @@ void client_bridge::search_messages(qint64 conversation, QString query, qint64 b
         });
 }
 
+void client_bridge::get_history(qint64 conversation, qint64 before)
+{
+    auto const generation = ++history_generation_;
+    client_->get_messages(conversation, before > 0 ? std::optional<std::int64_t>{before} : std::nullopt,
+        [this, conversation, before, generation](std::expected<chat::messages_result, chat::error> result) mutable {
+            QMetaObject::invokeMethod(this, [this, conversation, before, generation, result = std::move(result)]() mutable {
+                if (generation != history_generation_) { return; }
+                if (!result)
+                {
+                    emit history_received(conversation, before, {}, false, error_text(result.error()));
+                    return;
+                }
+                QList<message_data> messages;
+                for (auto const& value : result->messages) { messages.push_back(to_message_data(value)); }
+                emit history_received(conversation, before, std::move(messages), result->has_more, {});
+            }, Qt::QueuedConnection);
+        });
+}
+
 void client_bridge::add_contact(qint64 user)
 {
     auto const generation = connection_generation_.load();

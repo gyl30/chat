@@ -4,6 +4,7 @@
 #include <QAction>
 #include <QFrame>
 #include <QClipboard>
+#include <QTabBar>
 #include <QElapsedTimer>
 #include <QCheckBox>
 #include <QComboBox>
@@ -57,6 +58,7 @@
 #include <iostream>
 #include <unistd.h>
 #include "main_window.hpp"
+#include "chat_history_dialog.hpp"
 #include "chat_widget.hpp"
 #include "group_dialog.hpp"
 #include "client_bridge.hpp"
@@ -2579,14 +2581,77 @@ void check_composer_actions()
     QApplication::processEvents();
     check(picked && edit->toPlainText() == QStringLiteral("晚上见🎉") && !QApplication::activePopupWidget(),
           "Choosing an emoji inserts it at the cursor and closes the panel");
-    int searches = 0;
-    QObject::connect(&page, &chat_widget::message_search_requested, &page, [&](qint64 conversation, auto...) {
-        searches += conversation == 50;
+    int histories = 0;
+    QObject::connect(&page, &chat_widget::chat_history_requested, &page, [&](qint64 conversation, QString title) {
+        histories += conversation == 50 && title == QStringLiteral("朋友");
     });
     history->click();
-    check(searches == 1, "Chat history opens the current conversation's messages");
+    check(histories == 1, "Chat history opens the current conversation's history window");
     page.close_conversation(50);
     check(!emoji->isEnabled() && !history->isEnabled(), "Without a conversation the composer actions are unavailable");
+}
+void check_chat_history_dialog()
+{
+    auto message = [](qint64 id) {
+        message_data value;
+        value.id = id; value.conversation = 50; value.from = id % 2 ? 2 : 1;
+        value.username = id % 2 ? QStringLiteral("林小满") : QStringLiteral("本人");
+        value.timestamp = 1791427200000 + id * 60000;
+        value.text = QStringLiteral("第 %1 条").arg(id);
+        if (id == 12) { value.text = QStringLiteral("看看 https://example.com"); }
+        if (id == 15) { value.text.clear(); value.attachment = attachment_data{QStringLiteral("设计稿.png"), QStringLiteral("image/png"), 2400000}; }
+        if (id == 4) { value.text.clear(); value.attachment = attachment_data{QStringLiteral("纪要.docx"), QStringLiteral("application/octet-stream"), 1100000}; }
+        return value;
+    };
+    chat_history_dialog dialog(50, QStringLiteral("产品设计组"), nullptr);
+    QList<qint64> history_cursors;
+    QList<QPair<QString, qint64>> searches;
+    qint64 activated = 0;
+    QObject::connect(&dialog, &chat_history_dialog::history_requested, &dialog, [&](qint64 before) { history_cursors.push_back(before); });
+    QObject::connect(&dialog, &chat_history_dialog::search_requested, &dialog, [&](QString query, qint64 before) { searches.push_back({query, before}); });
+    QObject::connect(&dialog, &chat_history_dialog::message_activated, &dialog, [&](qint64 id) { activated = id; });
+    dialog.show();
+    dialog.start();
+    check(history_cursors == QList<qint64>{0}, "The history window starts from the newest page");
+    QList<message_data> newest;
+    for (qint64 id = 10; id <= 30; ++id) { newest.push_back(message(id)); }
+    dialog.set_history(50, 0, newest, true, {});
+    auto* list = dialog.findChild<QListWidget*>("historyList");
+    check(list->count() == 21 && list->item(0)->data(Qt::UserRole).toLongLong() == 30 &&
+              list->item(20)->data(Qt::UserRole).toLongLong() == 10, "History lists the newest record first");
+    auto* tabs = dialog.findChild<QTabBar*>("historyTabs");
+    tabs->setCurrentIndex(1);
+    check(list->count() == 1 && list->item(0)->data(Qt::UserRole + 3).toString().startsWith(QStringLiteral("[图片] 设计稿.png")),
+          "The Images category keeps only images");
+    check(history_cursors == QList<qint64>{0, 10}, "A sparse category reads back older pages by itself");
+    QList<message_data> older;
+    for (qint64 id = 1; id < 10; ++id) { older.push_back(message(id)); }
+    dialog.set_history(50, 10, older, false, {});
+    tabs->setCurrentIndex(2);
+    check(list->count() == 1 && list->item(0)->data(Qt::UserRole + 3).toString().contains(QStringLiteral("纪要.docx")),
+          "The Files category finds a file from an older page");
+    tabs->setCurrentIndex(3);
+    check(list->count() == 1 && list->item(0)->data(Qt::UserRole).toLongLong() == 12, "The Links category finds messages with links");
+    tabs->setCurrentIndex(0);
+    if (auto const shots = qEnvironmentVariable("CHAT_THEME_SHOTS"); !shots.isEmpty())
+    {
+        dialog.setStyleSheet(chat_style_sheet());
+        QApplication::processEvents();
+        dialog.grab().save(shots + QStringLiteral("/chat-history.png"));
+    }
+    check(list->count() == 30 && !dialog.findChild<QPushButton*>("historyMoreButton")->isVisible(),
+          "Exhausted history offers no further page");
+    auto* search = dialog.findChild<QLineEdit*>("historySearchEdit");
+    search->setText(QStringLiteral("第 2"));
+    search->returnPressed();
+    check(searches.size() == 1 && searches.front() == QPair<QString, qint64>{QStringLiteral("第 2"), 0}, "Searching asks the server from the newest match");
+    dialog.set_search_results(50, QStringLiteral("第 2"), 0, {message(2), message(20)}, {}, false, {});
+    check(list->count() == 2 && list->item(0)->data(Qt::UserRole).toLongLong() == 20, "Search results are listed newest first");
+    list->setCurrentRow(1);
+    emit list->itemActivated(list->item(1));
+    check(activated == 2, "Activating a record asks to locate it in the chat");
+    search->clear();
+    check(history_cursors.back() == 0 && list->count() == 0, "Clearing the search returns to browsing from the newest page");
 }
 void check_message_action_targets()
 {
@@ -3566,7 +3631,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_composer_actions(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
+        try { check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_composer_actions(); check_chat_history_dialog(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;

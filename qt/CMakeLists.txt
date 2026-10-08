@@ -6,6 +6,8 @@ add_library(chat_qt_widgets OBJECT
     src/attachment_dialog.cpp
     src/attachment_dialog.hpp
     src/avatar.hpp
+    src/chat_history_dialog.cpp
+    src/chat_history_dialog.hpp
     src/chat_widget.cpp
     src/chat_widget.hpp
     src/client_bridge.cpp

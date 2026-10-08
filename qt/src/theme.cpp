@@ -1049,6 +1049,40 @@ QString classic_style_sheet()
         QToolButton#sendButton:disabled {
             background: #AEBDB6;
         }
+        QLineEdit#historySearchEdit {
+            min-height: 34px;
+            padding: 0 10px 0 4px;
+            background: #EEEDE7;
+            border: 1px solid transparent;
+            border-radius: 17px;
+        }
+        QLineEdit#historySearchEdit:focus {
+            background: #FFFFFF;
+            border-color: #88A697;
+        }
+        QTabBar#historyTabs::tab {
+            padding: 6px 14px;
+            margin-right: 4px;
+            background: transparent;
+            color: #5D6C64;
+            border: 0;
+            border-bottom: 2px solid transparent;
+        }
+        QTabBar#historyTabs::tab:selected {
+            color: #315A4B;
+            font-weight: 600;
+            border-bottom-color: #315A4B;
+        }
+        QTabBar#historyTabs::tab:hover:!selected {
+            color: #27332E;
+        }
+        QListWidget#historyList {
+            background: transparent;
+        }
+        QLabel#historyStatus {
+            color: #8B918D;
+            padding: 24px 0;
+        }
 )");
 }
 
