@@ -134,6 +134,7 @@ add_executable(chat_server
     src/register_request.cpp
     src/send_message_request.cpp
     src/search_users_request.cpp
+    src/invite_attempts.cpp
     src/json_rpc.cpp
     src/online_users.cpp
     src/pg_connection.cpp
@@ -276,6 +277,7 @@ add_executable(chat_server_test
     src/register_request.cpp
     src/send_message_request.cpp
     src/search_users_request.cpp
+    src/invite_attempts.cpp
     src/json_rpc.cpp
     src/online_users.cpp
     src/pg_connection.cpp
@@ -344,6 +346,14 @@ target_include_directories(chat_online_users_test PRIVATE src)
 
 add_test(NAME online_users COMMAND chat_online_users_test)
 set_tests_properties(online_users PROPERTIES TIMEOUT 5)
+
+add_executable(chat_invite_attempts_test
+    tests/invite_attempts_test.cpp
+    src/invite_attempts.cpp
+)
+target_include_directories(chat_invite_attempts_test PRIVATE src)
+add_test(NAME invite_attempts COMMAND chat_invite_attempts_test)
+set_tests_properties(invite_attempts PROPERTIES TIMEOUT 5)
 
 add_executable(chat_bcrypt_test
     tests/bcrypt_test.cpp

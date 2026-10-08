@@ -12,6 +12,7 @@
 #include "online_users.hpp"
 #include "websocket.hpp"
 
+class invite_attempts;
 class pg_connection_pool;
 class pg_connection;
 
@@ -20,6 +21,7 @@ class chat_session
    public:
     chat_session(websocket_connection& connection,
                  online_users& users,
+                 invite_attempts& invite_attempts,
                  pg_connection_pool& database);
 
     boost::capy::task<void> run();
@@ -76,6 +78,7 @@ class chat_session
 
     websocket_connection& connection_;
     online_users& users_;
+    invite_attempts& invite_attempts_;
     pg_connection_pool& database_;
     std::optional<std::int64_t> user_id_;
     std::string username_;

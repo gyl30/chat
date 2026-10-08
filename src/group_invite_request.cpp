@@ -11,6 +11,7 @@
 #include <chat/invite.hpp>
 
 #include "chat_session.hpp"
+#include "invite_attempts.hpp"
 #include "pg_connection_pool.hpp"
 
 boost::capy::task<simdjson::error_code> chat_session::handle_group_invite(json_rpc_request& request, std::string& response)
@@ -51,6 +52,10 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_invite(json_r
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
+    if (joining && invite_attempts_.blocked(*user_id_))
+    {
+        co_return serialize_json_rpc_error(-32015, "Too many invite attempts", std::move(request.id), response);
+    }
     auto lease = co_await database_.acquire();
     if (lease.error()) { co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response); }
     auto& connection = lease.connection();
@@ -63,6 +68,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_invite(json_r
         }
         if (!std::get<1>(found))
         {
+            // A well-formed code that matches nothing is a guess; a code revoked under the lock below is not.
+            invite_attempts_.record_failure(*user_id_);
             co_return serialize_json_rpc_error(-32014, "Invite unavailable", std::move(request.id), response);
         }
         conversation = std::stoll(std::get<1>(found)->front());

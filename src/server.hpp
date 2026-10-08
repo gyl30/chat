@@ -10,6 +10,7 @@
 #include <boost/corosio/tcp_server.hpp>
 #include <boost/http/server/router.hpp>
 
+#include "invite_attempts.hpp"
 #include "online_users.hpp"
 #include "pg_connection_pool.hpp"
 
@@ -34,6 +35,7 @@ class chat_server
 
    private:
     online_users users_;
+    invite_attempts invite_attempts_;
     pg_connection_pool database_;
     boost::corosio::tcp_server server_;
 };

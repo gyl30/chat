@@ -6,6 +6,7 @@
 #include <system_error>
 
 #include "chat_session.hpp"
+#include "invite_attempts.hpp"
 #include "pg_connection_pool.hpp"
 
 namespace
@@ -26,8 +27,9 @@ constexpr std::size_t kMaxQueuedMessages = 64;
 
 }    // namespace
 
-chat_session::chat_session(websocket_connection& connection, online_users& users, pg_connection_pool& database)
-    : connection_(connection), users_(users), database_(database)
+chat_session::chat_session(websocket_connection& connection, online_users& users, invite_attempts& invite_attempts,
+                           pg_connection_pool& database)
+    : connection_(connection), users_(users), invite_attempts_(invite_attempts), database_(database)
 {
 }
 

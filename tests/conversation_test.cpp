@@ -1631,6 +1631,36 @@ int run_group_tests()
             require(!invalid_link && invalid_link.error().code == -32014, "An unknown invite code cannot join a group");
             auto old_link = call<chat::group_join_result>([&](auto h) { d.join_group(std::string(64, 'a'), h); });
             require(!old_link && old_link.error().code == -32602, "Old 64-digit invite tokens are rejected as invalid");
+            {
+                // A separate account guesses codes, so the lockout cannot affect the fixture users.
+                events guesser_events;
+                chat::client guesser;
+                guesser_events.attach(guesser);
+                guesser.connect(server.url);
+                guesser_events.wait([&] { return guesser_events.connected == 1; });
+                auto const guesser_name = "chat_group_test_" + std::to_string(getpid()) + "_guesser";
+                auto guesser_id = call<std::int64_t>([&](auto h) { guesser.register_user(guesser_name, "group password", h); });
+                require(guesser_id.has_value(), "Register invite guesser");
+                data.users.push_back(*guesser_id);
+                require(call<chat::authentication_result>([&](auto h) { guesser.authenticate(guesser_name, "group password", h); })->authenticated,
+                        "Authenticate invite guesser");
+                for (int attempt = 0; attempt < 10; ++attempt)
+                {
+                    auto guess = std::string("ABCDEF") + chat::invite_code_alphabet[attempt] + chat::invite_code_alphabet[attempt + 1];
+                    if (guess == token) { guess[0] = 'Z'; }
+                    auto missed = call<chat::group_join_result>([&](auto h) { guesser.join_group(guess, h); });
+                    require(!missed && missed.error().code == -32014, "Unknown codes are refused while under the guessing limit");
+                }
+                auto limited = call<chat::group_join_result>([&](auto h) { guesser.join_group("ABCDEFZZ", h); });
+                require(!limited && limited.error().code == -32015, "Ten wrong codes lock the account out of joining");
+                auto valid_while_limited = call<chat::group_join_result>([&](auto h) { guesser.join_group(token, h); });
+                require(!valid_while_limited && valid_while_limited.error().code == -32015,
+                        "During the lockout even a valid code is refused, so guessing reveals nothing");
+                auto other_account = call<chat::group_join_result>([&](auto h) { d.join_group(unknown, h); });
+                require(!other_account && other_account.error().code == -32014, "One account's lockout does not limit another");
+                guesser.close();
+                guesser_events.wait([&] { return guesser_events.disconnected == 1; });
+            }
             auto const before_join = conversation(a, mention_group);
             std::size_t before_join_events;
             { std::lock_guard lock(c_events.mutex); before_join_events = c_events.conversations.size(); }
