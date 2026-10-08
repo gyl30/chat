@@ -9,6 +9,7 @@
 #include <QAbstractItemView>
 #include <QAbstractTextDocumentLayout>
 #include <QApplication>
+#include <QAction>
 #include <QClipboard>
 #include <QGridLayout>
 #include <QComboBox>
@@ -479,17 +480,14 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     chat_identity_layout->addWidget(typing_label_);
     header_layout->addWidget(chat_identity);
     header_layout->addStretch();
-    message_search_button_ = new QToolButton(header);
-    message_search_button_->setObjectName(QStringLiteral("messageSearchButton"));
-    message_search_button_->setText(QStringLiteral("搜索消息"));
-    message_search_button_->setToolTip(QStringLiteral("搜索消息"));
-    message_search_button_->setAccessibleName(QStringLiteral("搜索消息"));
-    message_search_button_->setIcon(svg_icon(u"search", QColor(QStringLiteral("#3F4542")), QSize(20, 20)));
-    message_search_button_->setIconSize(QSize(20, 20));
-    message_search_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    message_search_button_->setFixedSize(36, 36);
-    message_search_button_->setEnabled(false);
-    header_layout->addWidget(message_search_button_);
+    // Keyword search is a shortcut (Ctrl+F) rather than a header icon, as in WeChat and QQ;
+    // the composer's chat history window also searches.
+    message_search_action_ = new QAction(QStringLiteral("搜索消息"), this);
+    message_search_action_->setObjectName(QStringLiteral("messageSearchAction"));
+    message_search_action_->setShortcut(QKeySequence::Find);
+    message_search_action_->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    message_search_action_->setEnabled(false);
+    addAction(message_search_action_);
     chat_more_button_ = new QToolButton(header);
     chat_more_button_->setObjectName(QStringLiteral("chatMoreButton"));
     chat_more_button_->setToolTip(QStringLiteral("聊天信息"));
@@ -502,7 +500,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     header_layout->addWidget(chat_more_button_);
     // The header icons replace the old text button and lead to the same chat or group details.
     connect(chat_more_button_, &QToolButton::clicked, this, [this] { if (chat_title_->isEnabled()) { chat_title_->click(); } });
-    connect(message_search_button_, &QToolButton::clicked, this, [this] {
+    connect(message_search_action_, &QAction::triggered, this, [this] {
         emit message_search_requested(active_conversation_, self_user_, active_group_, active_username_, {});
     });
     connection_status_ = new QToolButton(header);
@@ -1220,7 +1218,7 @@ void chat_widget::set_user(QString const& username, qint64 user)
     message_edit_->clear();
     message_edit_->setEnabled(false);
     send_button_->setEnabled(false);
-    message_search_button_->setEnabled(false);
+    message_search_action_->setEnabled(false);
     history_button_->setEnabled(false);
     attachment_button_->setEnabled(false);
     chat_more_button_->setEnabled(false);
@@ -1372,7 +1370,7 @@ void chat_widget::set_connection_available(bool available)
     messages_loading_ = available && active_conversation_ > 0;
     update_compose_state();
     add_contact_button_->setEnabled(available);
-    message_search_button_->setEnabled(available && active_conversation_ > 0);
+    message_search_action_->setEnabled(available && active_conversation_ > 0);
     history_button_->setEnabled(available && active_conversation_ > 0);
     update_pinned_message();
     update_contact_card();
@@ -1987,7 +1985,6 @@ void chat_widget::refresh_theme()
     set_navigation_button(contacts_navigation_, QStringLiteral("contacts"), !chats);
     cancel_reply_button_->setIcon(svg_icon(QStringLiteral("close"), QColor(QStringLiteral("#3F4542")), QSize(20, 20)));
     send_button_->setIcon(svg_icon(QStringLiteral("send"), QColor(Qt::white), QSize(20, 20)));
-    message_search_button_->setIcon(svg_icon(u"search", QColor(QStringLiteral("#3F4542")), QSize(20, 20)));
     chat_more_button_->setIcon(svg_icon(u"more", QColor(QStringLiteral("#3F4542")), QSize(20, 20)));
     attachment_button_->setIcon(svg_icon(u"attach", QColor(QStringLiteral("#3F4542")), QSize(22, 22)));
     emoji_button_->setIcon(svg_icon(u"emoji", QColor(QStringLiteral("#3F4542")), QSize(22, 22)));
@@ -2378,7 +2375,7 @@ void chat_widget::open_conversation(conversation_data conversation)
         message_edit_->setPlainText(drafts_.take(user));
         message_edit_->moveCursor(QTextCursor::End);
     }
-    message_search_button_->setEnabled(connection_available_);
+    message_search_action_->setEnabled(connection_available_);
     history_button_->setEnabled(connection_available_);
     chat_more_button_->setEnabled(true);
     messages_->reset(active_conversation_, active_group_);
@@ -2433,7 +2430,7 @@ void chat_widget::close_conversation(qint64 conversation)
     message_edit_->clear();
     message_edit_->setEnabled(false);
     send_button_->setEnabled(false);
-    message_search_button_->setEnabled(false);
+    message_search_action_->setEnabled(false);
     history_button_->setEnabled(false);
     attachment_button_->setEnabled(false);
     chat_more_button_->setEnabled(false);

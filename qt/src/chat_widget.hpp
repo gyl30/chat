@@ -21,6 +21,7 @@
 #include "member_data.hpp"
 #include "message_images.hpp"
 
+class QAction;
 class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
@@ -178,7 +179,7 @@ class chat_widget final : public QWidget
     QToolButton* chats_actions_ = nullptr;
     QToolButton* sidebar_back_button_ = nullptr;
     QToolButton* add_contact_button_ = nullptr;
-    QToolButton* message_search_button_ = nullptr;
+    QAction* message_search_action_ = nullptr;
     QPushButton* pinned_message_button_ = nullptr;
     QToolButton* unpin_message_button_ = nullptr;
     QToolButton* attachment_button_ = nullptr;

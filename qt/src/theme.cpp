@@ -989,14 +989,14 @@ QString classic_style_sheet()
             image: none;
             width: 0;
         }
-        QToolButton#messageSearchButton, QToolButton#chatMoreButton, QToolButton#sendAttachmentButton,
+        QToolButton#chatMoreButton, QToolButton#sendAttachmentButton,
         QToolButton#emojiButton, QToolButton#chatHistoryButton {
             padding: 0;
             border: 0;
             border-radius: 18px;
             background: transparent;
         }
-        QToolButton#messageSearchButton:hover:enabled, QToolButton#chatMoreButton:hover:enabled,
+        QToolButton#chatMoreButton:hover:enabled,
         QToolButton#sendAttachmentButton:hover:enabled, QToolButton#emojiButton:hover:enabled,
         QToolButton#chatHistoryButton:hover:enabled {
             background: #EEEDE7;

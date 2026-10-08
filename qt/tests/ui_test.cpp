@@ -2516,10 +2516,10 @@ void check_chat_list_search()
               edit->toPlainText() == QStringLiteral("当前会话的草稿") && opens == 1 && reads == reads_before_filter,
           "An unmatched refresh preserves the chosen chat, history and draft without reopening or marking read");
     search->clear();
-    auto* search_messages = page.findChild<QToolButton*>("messageSearchButton");
-    check(search_messages->toolButtonStyle() == Qt::ToolButtonIconOnly && !search_messages->icon().isNull() &&
-              search_messages->toolTip() == QStringLiteral("搜索消息") && page.findChild<QToolButton*>("chatMoreButton"),
-          "The chat header uses named icon buttons instead of a text button");
+    auto* search_messages = page.findChild<QAction*>("messageSearchAction");
+    check(!page.findChild<QToolButton*>("messageSearchButton") && search_messages &&
+              search_messages->shortcut() == QKeySequence(QKeySequence::Find) && page.findChild<QToolButton*>("chatMoreButton"),
+          "The chat header has no search icon; keyword search is Ctrl+F");
 }
 void check_composer_actions()
 {
@@ -4986,7 +4986,7 @@ int main(int argc, char** argv)
                 check(results->model()->rowCount() == 0, "Search excludes previous message content");
                 dialog->reject();
             });
-            windows[0]->findChild<QToolButton*>("messageSearchButton")->click();
+            windows[0]->findChild<QAction*>("messageSearchAction")->trigger();
             for (auto* button : windows[0]->findChildren<QToolButton*>())
             {
                 if (button->text() == QStringLiteral("联系人"))
@@ -5639,7 +5639,7 @@ int main(int argc, char** argv)
                     }
                 });
                 if (modal == "groupDialog") { windows[2]->findChild<QPushButton*>("chatHeaderButton")->click(); }
-                else if (modal == "messageSearchDialog") { windows[2]->findChild<QToolButton*>("messageSearchButton")->click(); }
+                else if (modal == "messageSearchDialog") { windows[2]->findChild<QAction*>("messageSearchAction")->trigger(); }
                 else if (modal == "readDetailsDialog")
                 {
                     open_read_details(2, windows[2]->findChild<QListView*>("messageList")->model()->rowCount() - 1);
