@@ -119,11 +119,14 @@ Element wrapped_text(std::string const& value, int width)
     }
     return text(output);
 }
-Element help_content(int width)
+Element help_content(int width, int* line_count = nullptr)
 {
-    auto wrap = [width](std::string_view value) {
+    Elements rows;
+    if (line_count) { *line_count = 1; } // The separator contributes one row.
+    auto wrap = [width, line_count, &rows](std::string_view value) {
         std::string output;
         int column = 0;
+        int lines = 1;
         std::size_t start = 0;
         while (start < value.size())
         {
@@ -132,23 +135,24 @@ Element help_content(int width)
             if (!word.empty())
             {
                 auto const cells = DisplayWidth(word);
-                if (column && column + 1 + cells > width) { output += '\n'; column = 0; }
-                else if (column) { output += ' '; ++column; }
-                output += word;
+                if (column && column + 1 + cells > width)
+                { if (!line_count) { output += '\n'; } column = 0; ++lines; }
+                else if (column) { if (!line_count) { output += ' '; } ++column; }
+                if (!line_count) { output += word; }
                 column += cells;
             }
             if (end == std::string_view::npos) { break; }
             start = end + 1;
         }
-        return text(output);
+        if (line_count) { *line_count += lines; return; }
+        rows.push_back(text(output));
     };
-    Elements rows;
     for (auto const& shortcut : shortcuts)
-    { rows.push_back(wrap(std::string(shortcut.key) + "  " + std::string(shortcut.description))); }
-    rows.push_back(separator());
-    rows.push_back(wrap("Commands: new, chats, contacts, friend-requests, friend-sent, accept-friend, reject-friend, cancel-friend, filter, add-contact, profile, account, create-group, join, file, save, members, invite, rename, announcement, show-announcement, pinned, pin-message, unpin-message, link, link-create, link-revoke, approval, requests, avatar, avatar-clear, logout, quit"));
-    rows.push_back(wrap("Clipboard: copyable text page; select with your terminal."));
-    return vbox(std::move(rows));
+    { wrap(std::string(shortcut.key) + "  " + std::string(shortcut.description)); }
+    if (!line_count) { rows.push_back(separator()); }
+    wrap("Commands: new, chats, contacts, friend-requests, friend-sent, accept-friend, reject-friend, cancel-friend, filter, add-contact, profile, account, create-group, join, file, save, members, invite, rename, announcement, show-announcement, pinned, pin-message, unpin-message, link, link-create, link-revoke, approval, requests, avatar, avatar-clear, logout, quit");
+    wrap("Clipboard: copyable text page; select with your terminal.");
+    return line_count ? Element{} : vbox(std::move(rows));
 }
 Element preview_text(std::string value, int width)
 {
@@ -563,9 +567,15 @@ std::size_t selection_count(state const& s, int width)
         case page::requests: return s.requests.size();
         case page::search: return s.search_results.size();
         case page::new_action: case page::profile: case page::group: return actions(s).size();
-        case page::help: case page::copy:
+        case page::help:
         {
-            auto body = s.view == page::help ? help_content(width) : wrapped_text(s.copy_text, width);
+            int lines = 0;
+            help_content(width, &lines);
+            return static_cast<std::size_t>(lines);
+        }
+        case page::copy:
+        {
+            auto body = wrapped_text(s.copy_text, width);
             body->ComputeRequirement();
             return static_cast<std::size_t>(std::max(1, body->requirement().min_y));
         }
