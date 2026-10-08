@@ -1190,6 +1190,7 @@ void check_primary_navigation()
     hidden_message.from = direct.user;
     hidden_message.text = QStringLiteral("原有单聊历史");
     page.set_messages(direct.id, {hidden_message}, {}, false, false, false);
+    edit->setPlainText(QStringLiteral("删除好友前没发出的草稿"));
     page.set_conversations({other});
     auto* history = page.findChild<QListView*>("messageList");
     check(page.active_conversation() == 0 && history->model()->rowCount() == 0 && !edit->isEnabled(),
@@ -1209,6 +1210,8 @@ void check_primary_navigation()
     page.set_messages(direct.id, {hidden_message}, {}, false, false, false);
     check(page.active_conversation() == direct.id && history->model()->rowCount() == 1 && edit->isEnabled(),
           "Accepted friendship restores the direct and its stored history");
+    check(edit->toPlainText() == QStringLiteral("删除好友前没发出的草稿"),
+          "Accepted friendship also restores the draft left in the hidden direct");
     {
         page.set_error(QStringLiteral("入群申请已通过。"));
         page.set_conversations({direct, other});

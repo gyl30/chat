@@ -1168,10 +1168,17 @@ void chat_widget::set_connection_status(QString text, bool retry_enabled)
 void chat_widget::set_conversations(QList<conversation_data> conversations)
 {
     auto const previous_user = active_conversation_;
+    // A direct hidden by an ended friendship returns with its history once re-accepted, so it keeps its draft.
+    QSet<qint64> groups;
+    for (int row = 0; row < conversations_->rowCount(); ++row)
+    {
+        auto const* item = conversations_->conversation_at(conversations_->index(row, 0));
+        if (item && item->group) { groups.insert(item->id); }
+    }
     conversations_->set_conversations(std::move(conversations));
     for (auto it = drafts_.begin(); it != drafts_.end();)
     {
-        if (!conversations_->index_for_conversation(it.key()).isValid()) { it = drafts_.erase(it); }
+        if (!conversations_->index_for_conversation(it.key()).isValid() && groups.contains(it.key())) { it = drafts_.erase(it); }
         else { ++it; }
     }
     message_sending_.removeIf([this](qint64 id) { return !conversations_->index_for_conversation(id).isValid(); });
@@ -1183,7 +1190,9 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
     }
     if (previous_user > 0 && !conversations_->index_for_conversation(previous_user).isValid())
     {
+        auto draft = groups.contains(previous_user) ? QString{} : message_edit_->toPlainText();
         close_conversation(previous_user);
+        if (!draft.isEmpty()) { drafts_.insert(previous_user, std::move(draft)); }
     }
     if (conversations_->rowCount() == 0)
     {
