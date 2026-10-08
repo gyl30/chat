@@ -81,13 +81,14 @@ bool check_message_accessible_context()
     peer.id = 102;
     model.add_message(peer);
     auto const third = model.index(2, 0);
-    if (!third.data(Qt::AccessibleTextRole).toString().contains(QStringLiteral("已读 0 人")))
+    if (third.data(Qt::AccessibleTextRole).toString().contains(QStringLiteral("已读")) ||
+        third.data(message_model::read_count_role).isValid())
     {
-        std::cerr << "FAIL visible incoming group read metadata is missing from accessible context\n";
+        std::cerr << "FAIL group read counts belong only to the user's own messages\n";
         return false;
     }
     model.set_read_message(2, 102);
-    if (!third.data(Qt::AccessibleTextRole).toString().contains(QStringLiteral("已读 1 人")) ||
+    if (third.data(Qt::AccessibleTextRole).toString().contains(QStringLiteral("已读")) ||
         !changed_roles.contains(Qt::AccessibleTextRole) || name().contains(QStringLiteral("已读"))) { return false; }
     model.set_read_positions({{2,101}});
     if (!changed_roles.contains(Qt::AccessibleTextRole)) { return false; }
@@ -282,7 +283,7 @@ int main(int argc, char** argv)
     messages.set_read_message(2, outgoing.id);
     messages.merge_messages({incoming});
     messages.set_read_positions({{1, outgoing.id}, {2, 0}, {3, 0}});
-    if (messages.index(0, 0).data(message_model::read_count_role).toInt() != 1 ||
+    if (messages.index(0, 0).data(message_model::read_count_role).isValid() ||
         messages.index(1, 0).data(message_model::read_count_role).toInt() != 1 ||
         messages.read_members(incoming.id).front().id != 2)
     {

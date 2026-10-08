@@ -4168,7 +4168,13 @@ int main(int argc, char** argv)
             for (int i = 0; i < 3; ++i)
             {
                 auto* view = windows[i]->findChild<QListView*>("messageList");
-                wait([&] { return view->model()->index(3, 0).data(message_model::read_count_role).toInt() == (i == 1 ? 2 : 1); });
+                wait([&] {
+                    auto const index = view->model()->index(3, 0);
+                    auto const count = index.data(message_model::read_count_role);
+                    // Only the sender sees who read a group message.
+                    return index.data(message_model::from_role).toLongLong() == pages[i]->self_user()
+                        ? count.toInt() == (i == 1 ? 2 : 1) : !count.isValid();
+                });
             }
             windows[1]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_reconnected.png");
             QTimer::singleShot(50, [&] {

@@ -194,7 +194,8 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             }
             return !group_ && read_positions_.size() == 1 && read_positions_.value(self_user_) >= message.id;
         case read_count_role:
-            if (!group_ || members_.isEmpty() || message.deleted)
+            // Like other IMs, readers are shown only to the sender of a group message.
+            if (!group_ || members_.isEmpty() || message.deleted || message.from != self_user_)
             {
                 return {};
             }
