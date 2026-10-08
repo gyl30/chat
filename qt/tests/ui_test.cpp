@@ -225,15 +225,22 @@ void check_authentication_layout()
     check(!avatar->property("empty").toBool() && !avatar->pixmap().isNull(), "Typing an account shows that account's avatar");
     username->clear();
     auto* server = card->findChild<QLineEdit*>("serverUrlEdit");
-    auto* settings = card->findChild<QToolButton*>("serverSettingsButton");
+    auto* settings = window.findChild<QToolButton*>("serverSettingsButton");
     check(server && settings && server->isHidden(), "Server address is available through progressive settings");
     check(settings && !settings->icon().isNull() && settings->text().isEmpty() &&
           settings->toolButtonStyle() == Qt::ToolButtonIconOnly &&
           settings->accessibleName() == QStringLiteral("服务器设置") && !settings->toolTip().isEmpty(),
           "Server settings uses a named, keyboard-accessible gear icon instead of a text row");
-    check(settings->mapTo(card, QPoint(0, 0)).x() > card->width() / 2 &&
-          settings->mapTo(card, QPoint(0, 0)).y() < username->mapTo(card, QPoint(0, 0)).y(),
-          "The settings gear is above the form at the upper right");
+    check(settings->mapTo(&window, QPoint(0, 0)).x() > window.width() / 2 &&
+          settings->mapTo(&window, QPoint(0, 0)).y() < username->mapTo(&window, QPoint(0, 0)).y() &&
+          settings->parentWidget()->objectName() == QStringLiteral("windowTitleBar"),
+          "Like QQ, the settings gear sits with the window controls at the upper right");
+    check(window.windowFlags().testFlag(Qt::FramelessWindowHint) &&
+              window.findChild<QToolButton*>("windowMinimizeButton")->isVisible() &&
+              window.findChild<QToolButton*>("windowCloseButton")->isVisible() &&
+              !window.findChild<QToolButton*>("windowMaximizeButton")->isVisible() &&
+              !window.findChild<QLabel*>("windowTitle")->isVisible(),
+          "The compact login uses the application's own title bar without title or maximize");
     check(!username->accessibleName().isEmpty() && !password->accessibleName().isEmpty() &&
           !server->accessibleName().isEmpty(), "Authentication fields have accessible names");
     check(password->echoMode() == QLineEdit::Password, "Login password stays masked");

@@ -39,6 +39,8 @@ add_library(chat_qt_widgets OBJECT
     src/presence_data.hpp
     src/theme.cpp
     src/theme.hpp
+    src/title_bar.cpp
+    src/title_bar.hpp
     src/user_data.hpp
     src/user_delegate.cpp
     src/user_delegate.hpp
@@ -61,6 +63,9 @@ qt_add_resources(chat_qt_widgets chat_icons
         resources/icons/groups.svg
         resources/icons/send.svg
         resources/icons/settings.svg
+        resources/icons/window-maximize.svg
+        resources/icons/window-minimize.svg
+        resources/icons/window-restore.svg
 )
 
 set_target_properties(chat_qt_widgets PROPERTIES AUTOMOC ON)

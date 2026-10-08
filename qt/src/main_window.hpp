@@ -16,9 +16,11 @@ class QLineEdit;
 class QPushButton;
 class QStackedWidget;
 class QTimer;
+class QToolButton;
 class QWidget;
 class QSystemTrayIcon;
 class chat_widget;
+class title_bar;
 class client_bridge;
 
 class main_window final : public QMainWindow
@@ -33,6 +35,7 @@ class main_window final : public QMainWindow
 
    protected:
     void changeEvent(QEvent* event) override;
+    bool eventFilter(QObject* object, QEvent* event) override;
 
    private:
     enum class pending_action
@@ -66,7 +69,10 @@ class main_window final : public QMainWindow
     QStringList recent_accounts() const;
     void remember_account(QString const& username);
     void update_login_identity();
+    void update_window_chrome();
 
+    QWidget* frame_ = nullptr;
+    title_bar* title_bar_ = nullptr;
     QStackedWidget* pages_ = nullptr;
     QWidget* login_page_ = nullptr;
     chat_widget* chat_page_ = nullptr;
@@ -75,6 +81,7 @@ class main_window final : public QMainWindow
     QLineEdit* password_edit_ = nullptr;
     QLabel* login_avatar_ = nullptr;
     QAction* recent_accounts_action_ = nullptr;
+    QToolButton* server_settings_ = nullptr;
     QPushButton* login_button_ = nullptr;
     QPushButton* register_button_ = nullptr;
     feedback_label* status_label_ = nullptr;

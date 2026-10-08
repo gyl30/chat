@@ -8,6 +8,8 @@
 #include <chat/text.hpp>
 
 #include <QDialog>
+#include <QWindow>
+#include <QMouseEvent>
 #include <QStyle>
 #include <QAction>
 #include <QCoreApplication>
@@ -36,6 +38,7 @@
 #include "client_bridge.hpp"
 #include "message_search_dialog.hpp"
 #include "theme.hpp"
+#include "title_bar.hpp"
 #include "icons.hpp"
 
 main_window::main_window(QString server_url, QWidget* parent)
@@ -46,8 +49,20 @@ main_window::main_window(QString server_url, QWidget* parent)
     setMinimumSize(chat_theme::login_window_size);
     setStyleSheet(chat_style_sheet());
 
-    pages_ = new QStackedWidget(this);
-    setCentralWidget(pages_);
+    setWindowFlag(Qt::FramelessWindowHint);
+    frame_ = new QWidget(this);
+    frame_->setObjectName(QStringLiteral("windowFrame"));
+    frame_->setAttribute(Qt::WA_StyledBackground);
+    // The frame's margin is the resize border that a frameless window no longer gets from the platform.
+    frame_->setMouseTracking(true);
+    frame_->installEventFilter(this);
+    auto* frame_layout = new QVBoxLayout(frame_);
+    frame_layout->setSpacing(0);
+    setCentralWidget(frame_);
+    title_bar_ = new title_bar(frame_);
+    frame_layout->addWidget(title_bar_);
+    pages_ = new QStackedWidget(frame_);
+    frame_layout->addWidget(pages_, 1);
 
     login_page_ = new QWidget(pages_);
     login_page_->setObjectName(QStringLiteral("loginPage"));
@@ -63,18 +78,16 @@ main_window::main_window(QString server_url, QWidget* parent)
     login_layout->setContentsMargins(chat_theme::auth_padding, 8, chat_theme::auth_padding, 20);
     login_layout->setSpacing(chat_theme::auth_spacing);
 
-    auto* server_settings = new QToolButton(login_card);
+    auto* server_settings = new QToolButton(title_bar_);
     server_settings->setObjectName(QStringLiteral("serverSettingsButton"));
     server_settings->setIcon(svg_icon(u"settings", QColor(QStringLiteral("#5D6C64"))));
     server_settings->setToolTip(QStringLiteral("服务器设置"));
     server_settings->setAccessibleName(QStringLiteral("服务器设置"));
     server_settings->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    server_settings->setFixedSize(36, 36);
     server_settings->setCheckable(true);
-    auto* settings_bar = new QHBoxLayout;
-    settings_bar->addStretch();
-    settings_bar->addWidget(server_settings);
-    login_layout->addLayout(settings_bar);
+    // As in QQ, connection settings sit with the window controls instead of in the sign-in form.
+    title_bar_->add_tool_button(server_settings);
+    server_settings_ = server_settings;
     login_layout->addStretch(2);
 
     login_avatar_ = new QLabel(login_card);
@@ -277,6 +290,7 @@ main_window::main_window(QString server_url, QWidget* parent)
         setMinimumSize(chatting ? QSize(980, 640) : chat_theme::login_window_size);
         if (!chatting && isMaximized()) { showNormal(); }
         resize(chatting ? QSize(1180, 760) : chat_theme::login_window_size);
+        update_window_chrome();
     });
 
     connect(login_button_, &QPushButton::clicked, this, [this] { start_login(); });
@@ -916,7 +930,60 @@ main_window::main_window(QString server_url, QWidget* parent)
                 client_->get_conversations();
             },
             Qt::AutoConnection);
+    update_window_chrome();
     (username_edit_->text().isEmpty() ? username_edit_ : password_edit_)->setFocus();
+}
+
+void main_window::update_window_chrome()
+{
+    auto const chatting = pages_->currentWidget() == chat_page_;
+    // Like the QQ login, the compact sign-in window shows no title and cannot be maximized.
+    title_bar_->set_title_visible(chatting);
+    title_bar_->set_maximizable(chatting);
+    server_settings_->setVisible(!chatting);
+    auto const border = isMaximized() || isFullScreen() ? 0 : chat_theme::window_resize_border;
+    frame_->layout()->setContentsMargins(border, border, border, border);
+    for (auto* widget : {frame_, static_cast<QWidget*>(title_bar_)})
+    {
+        widget->setProperty("login", !chatting);
+        widget->style()->unpolish(widget);
+        widget->style()->polish(widget);
+    }
+}
+
+bool main_window::eventFilter(QObject* object, QEvent* event)
+{
+    if (object != frame_ || isMaximized() || isFullScreen()) { return QMainWindow::eventFilter(object, event); }
+    auto edges_at = [this](QPoint position) {
+        auto const border = chat_theme::window_resize_border;
+        Qt::Edges edges;
+        if (position.x() < border) { edges |= Qt::LeftEdge; }
+        if (position.x() >= frame_->width() - border) { edges |= Qt::RightEdge; }
+        if (position.y() < border) { edges |= Qt::TopEdge; }
+        if (position.y() >= frame_->height() - border) { edges |= Qt::BottomEdge; }
+        return edges;
+    };
+    if (event->type() == QEvent::MouseMove)
+    {
+        auto const edges = edges_at(static_cast<QMouseEvent*>(event)->position().toPoint());
+        auto const diagonal_down = edges == (Qt::LeftEdge | Qt::TopEdge) || edges == (Qt::RightEdge | Qt::BottomEdge);
+        auto const diagonal_up = edges == (Qt::RightEdge | Qt::TopEdge) || edges == (Qt::LeftEdge | Qt::BottomEdge);
+        frame_->setCursor(diagonal_down ? Qt::SizeFDiagCursor : diagonal_up ? Qt::SizeBDiagCursor
+            : edges & (Qt::LeftEdge | Qt::RightEdge) ? Qt::SizeHorCursor
+            : edges & (Qt::TopEdge | Qt::BottomEdge) ? Qt::SizeVerCursor : Qt::ArrowCursor);
+    }
+    else if (event->type() == QEvent::MouseButtonPress)
+    {
+        auto* mouse = static_cast<QMouseEvent*>(event);
+        auto const edges = edges_at(mouse->position().toPoint());
+        if (mouse->button() == Qt::LeftButton && edges && windowHandle())
+        {
+            windowHandle()->startSystemResize(edges);
+            return true;
+        }
+    }
+    else if (event->type() == QEvent::Leave) { frame_->unsetCursor(); }
+    return QMainWindow::eventFilter(object, event);
 }
 
 main_window::~main_window() { client_.reset(); }
@@ -955,6 +1022,7 @@ void main_window::update_login_identity()
 void main_window::changeEvent(QEvent* event)
 {
     QMainWindow::changeEvent(event);
+    if (event->type() == QEvent::WindowStateChange) { update_window_chrome(); }
     if (event->type() == QEvent::ActivationChange && isActiveWindow())
     {
         QTimer::singleShot(0, this, [this] { chat_page_->mark_visible_messages(); });

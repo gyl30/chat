@@ -386,8 +386,39 @@ QString chat_style_sheet()
             color: #96A29C;
         }
         QWidget#loginPage {
+            background: transparent;
+        }
+        QWidget#windowFrame {
+            background: #F7F5EF;
+            border: 1px solid #D6D2C8;
+        }
+        QWidget#windowFrame[login="true"] {
             background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
                 stop: 0 #DCEBE3, stop: 0.42 #F7F5EF, stop: 1 #F7F5EF);
+        }
+        QWidget#windowTitleBar {
+            background: #F7F5EF;
+            border-bottom: 1px solid #E8E4DA;
+        }
+        QWidget#windowTitleBar[login="true"] {
+            background: transparent;
+            border-bottom: 0;
+        }
+        QLabel#windowTitle {
+            color: #3F4542;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        QWidget#windowTitleBar QToolButton {
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+        }
+        QWidget#windowTitleBar QToolButton:hover {
+            background: rgba(39, 54, 47, 0.08);
+        }
+        QWidget#windowTitleBar QToolButton#windowCloseButton:hover {
+            background: #D9534F;
         }
         QFrame#loginCard {
             background: transparent;
