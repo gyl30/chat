@@ -418,6 +418,16 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     notice_timer_->setSingleShot(true);
     notice_timer_->setInterval(6000);
     connect(notice_timer_, &QTimer::timeout, this, [this] { notice_->clear(); notice_->hide(); });
+    // Loading is usually instant; saying so only when it is not avoids a flash on every switch.
+    loading_status_timer_ = new QTimer(this);
+    loading_status_timer_->setSingleShot(true);
+    loading_status_timer_->setInterval(400);
+    connect(loading_status_timer_, &QTimer::timeout, this, [this] {
+        if (active_conversation_ > 0 && messages_loading_ && !messages_loaded_)
+        {
+            set_message_status(QStringLiteral("正在加载消息…"));
+        }
+    });
     conversation_layout->addWidget(sidebar_pages_, 1);
 
     auto* chat_panel = new QFrame(this);
@@ -1248,7 +1258,7 @@ void chat_widget::set_connection_available(bool available)
         update_typing_label();
         if (message_sending_.contains(active_conversation_))
         {
-            set_message_status(QStringLiteral("连接已断开，草稿已保留。重连后请查看历史确认是否送达。"));
+            set_message_status(QStringLiteral("连接已断开，消息可能未发出，草稿已保留"));
         }
         message_sending_.clear();
     }
@@ -1983,6 +1993,12 @@ void chat_widget::request_friend_action(qint64 user, QString const& username, in
     update_contact_card();
 }
 
+void chat_widget::show_loading_status()
+{
+    set_message_status({});
+    loading_status_timer_->start();
+}
+
 void chat_widget::find_user()
 {
     auto const query = contact_search_->text().trimmed();
@@ -2128,7 +2144,7 @@ void chat_widget::open_conversation(conversation_data conversation)
         if (!messages_loaded_ && !messages_loading_)
         {
             messages_loading_ = true;
-            set_message_status(QStringLiteral("正在加载消息…"));
+            show_loading_status();
             if (connection_available_)
             {
                 emit conversation_selected(active_conversation_, active_group_);
@@ -2162,7 +2178,7 @@ void chat_widget::open_conversation(conversation_data conversation)
     messages_loading_ = true;
     history_exhausted_ = false;
     pending_locate_ = 0;
-    set_message_status(QStringLiteral("正在加载消息…"));
+    show_loading_status();
     update_compose_state();
     if (connection_available_)
     {
@@ -2556,7 +2572,6 @@ void chat_widget::send_current_message()
     stop_typing();
     message_sending_.insert(active_conversation_);
     update_compose_state();
-    set_message_status(QStringLiteral("正在发送…"));
     auto const reply = reply_to_;
     emit send_message_requested(active_conversation_, std::move(text), reply);
 }
@@ -2926,7 +2941,7 @@ void chat_widget::update_chat_presence()
     if (active_group_)
     {
         chat_presence_->setObjectName(QStringLiteral("chatPresence"));
-        chat_presence_->setText(QStringLiteral("%1 名成员 · 点击群名称查看").arg(active_member_count_));
+        chat_presence_->setText(QStringLiteral("%1 名成员").arg(active_member_count_));
         chat_presence_->show();
         return;
     }

@@ -4,6 +4,7 @@
 #include <QAction>
 #include <QFrame>
 #include <QClipboard>
+#include <QElapsedTimer>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QTabWidget>
@@ -2084,6 +2085,35 @@ void check_friend_flow()
               primary->text() == QStringLiteral("等待验证") && !primary->isEnabled(),
           "A sent request is confirmed and the card shows it is waiting");
 }
+void check_quiet_status()
+{
+    chat_widget page;
+    page.resize(980, 640);
+    page.set_user(QStringLiteral("本人"), 1);
+    page.set_connection_available(true);
+    conversation_data direct;
+    direct.id = 50; direct.user = 2; direct.username = QStringLiteral("朋友"); direct.can_send = true;
+    page.set_contacts({{2, QStringLiteral("朋友"), false, 0, {}}});
+    page.set_conversations({direct});
+    page.show();
+    auto status_text = [&] {
+        for (auto* label : page.findChildren<QLabel*>("subtleText"))
+        { if (label->isVisible() && label->alignment() & Qt::AlignHCenter) { return label->text(); } }
+        return QString{};
+    };
+    page.open_conversation(direct);
+    QApplication::processEvents();
+    check(status_text().isEmpty(), "Opening a conversation does not flash a loading message");
+    QElapsedTimer clock;
+    clock.start();
+    wait([&] { return status_text() == QStringLiteral("正在加载消息…"); });
+    check(clock.elapsed() >= 350, "A slow load is reported only after a short delay");
+    page.set_messages(50, {}, {}, false, false, false);
+    auto* edit = page.findChild<QPlainTextEdit*>("messageEdit");
+    edit->setPlainText(QStringLiteral("你好"));
+    page.findChild<QToolButton*>("sendButton")->click();
+    check(!status_text().contains(QStringLiteral("正在发送")), "Sending does not flash a status line");
+}
 void check_message_action_targets()
 {
     // Real menus and dialogs, without a server: older history resets the model
@@ -3062,7 +3092,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
+        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;

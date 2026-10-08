@@ -591,8 +591,8 @@ main_window::main_window(QString server_url, QWidget* parent)
             [this](QList<presence_data> users, QString const& error_message) {
                 if (!error_message.isEmpty())
                 {
+                    // Presence is decoration; without it the lists simply show no online dots.
                     chat_page_->set_presences({});
-                    chat_page_->set_error(error_message);
                     return;
                 }
                 chat_page_->set_presences(std::move(users));
@@ -648,7 +648,7 @@ main_window::main_window(QString server_url, QWidget* parent)
     connect(client_.get(), &client_bridge::contact_removed, this, [this](QString const& error_message) {
         if (!error_message.isEmpty())
         {
-            show_notice(this, QStringLiteral("移除联系人失败"), error_message, QStringLiteral("关闭"));
+            chat_page_->set_error(QStringLiteral("移除联系人失败：%1").arg(error_message));
             return;
         }
         client_->get_contacts();
@@ -764,18 +764,22 @@ main_window::main_window(QString server_url, QWidget* parent)
             client_->get_conversations();
         });
     connect(client_.get(), &client_bridge::group_join_pending, this, [this](QString const& title) {
-        chat_page_->set_error(QStringLiteral("已申请加入 %1，等待管理员处理。").arg(title));
+        chat_page_->set_error(QStringLiteral("已申请加入 %1，等待管理员处理").arg(title));
     });
     connect(client_.get(), &client_bridge::group_join_request_changed, this,
         [this](qint64, qint64 user, chat::group_join_request_state state) {
             if (user == chat_page_->self_user())
             {
                 if (state == chat::group_join_request_state::accepted) { client_->get_conversations(); }
-                chat_page_->set_error(state == chat::group_join_request_state::accepted ? QStringLiteral("入群申请已通过。") :
-                    state == chat::group_join_request_state::rejected ? QStringLiteral("入群申请被拒绝。") : QStringLiteral("入群申请已提交。"));
+                // Submission is already confirmed by the join result itself.
+                if (state != chat::group_join_request_state::pending)
+                {
+                    chat_page_->set_error(state == chat::group_join_request_state::accepted
+                        ? QStringLiteral("入群申请已通过") : QStringLiteral("入群申请被拒绝"));
+                }
             }
             else if (state == chat::group_join_request_state::pending)
-            { chat_page_->set_error(QStringLiteral("收到新的入群申请，可在群资料中处理。")); }
+            { chat_page_->set_error(QStringLiteral("收到新的入群申请")); }
         });
     connect(client_.get(), &client_bridge::group_action_finished, this,
             [this](qint64 conversation, bool left, QString const& error) {

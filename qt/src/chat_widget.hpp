@@ -141,6 +141,7 @@ class chat_widget final : public QWidget
     void contact_card_secondary();
     void request_friend_action(qint64 user, QString const& username, int action);
     void find_user();
+    void show_loading_status();
     void update_friend_badges();
     void select_add_user(QModelIndex const& index);
     void select_conversation(QModelIndex const& index);
@@ -202,6 +203,7 @@ class chat_widget final : public QWidget
     QList<QPair<user_data, QString>> handled_requests_;
     feedback_label* notice_ = nullptr;
     QTimer* notice_timer_ = nullptr;
+    QTimer* loading_status_timer_ = nullptr;
     QLineEdit* contact_search_ = nullptr;
     QListView* contacts_view_ = nullptr;
     QLabel* contacts_status_ = nullptr;

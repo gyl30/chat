@@ -84,20 +84,6 @@ bool confirm_action(QWidget* parent, QString const& title, QString const& text, 
     return dialog.exec() == QMessageBox::Yes;
 }
 
-void show_notice(QWidget* parent, QString const& title, QString const& text, QString const& action)
-{
-    QMessageBox dialog(QMessageBox::NoIcon, title, text, QMessageBox::Ok, parent);
-    dialog.setObjectName(QStringLiteral("noticeDialog"));
-    dialog.setTextFormat(Qt::PlainText);
-    auto* button = dialog.button(QMessageBox::Ok);
-    button->setText(action);
-    button->setIcon({});
-    dialog.layout()->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding,
-                                       chat_theme::dialog_padding, chat_theme::dialog_padding);
-    dialog.layout()->setSpacing(chat_theme::dialog_spacing);
-    dialog.exec();
-}
-
 namespace
 {
 
@@ -308,7 +294,7 @@ QString classic_style_sheet()
             padding: 0 8px;
         }
         QLabel#groupSelectedCount, QLabel#groupNamingSummary { color: #5D6C64; font-size: 13px; }
-        QDialog#confirmationDialog QLabel#qt_msgbox_label, QDialog#noticeDialog QLabel#qt_msgbox_label {
+        QDialog#confirmationDialog QLabel#qt_msgbox_label {
             min-width: 340px;
             max-width: 430px;
         }

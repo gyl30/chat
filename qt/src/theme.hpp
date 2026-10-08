@@ -71,6 +71,5 @@ inline constexpr int compose_field_min_height = 36;
 
 QString chat_style_sheet();
 bool confirm_action(QWidget* parent, QString const& title, QString const& text, QString const& action);
-void show_notice(QWidget* parent, QString const& title, QString const& text, QString const& action);
 
 #endif
