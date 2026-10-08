@@ -486,20 +486,17 @@ main_window::main_window(QString server_url, QWidget* parent)
                     return;
                 }
 
-                auto const username = pending_username_;
-                pending_action_ = pending_action::none;
-                pending_password_.clear();
-                set_login_busy(false);
+                // A new account signs in directly with the credentials just chosen, like other IMs.
                 set_registration_busy(false);
-                username_edit_->setText(username);
-                password_edit_->clear();
                 registration_status_label_->clear();
-                show_notice(registration_dialog_, QStringLiteral("注册成功"),
-                            QStringLiteral("账号 %1 注册成功，请返回登录。").arg(username), QStringLiteral("返回登录"));
                 registration_dialog_->accept();
                 registration_username_edit_->clear();
                 registration_password_edit_->clear();
                 registration_password_confirm_edit_->clear();
+                username_edit_->setText(pending_username_);
+                password_edit_->clear();
+                pending_action_ = pending_action::login;
+                authenticate();
             },
             Qt::AutoConnection);
 
