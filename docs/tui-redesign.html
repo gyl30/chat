@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TUI 重新设计方案</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #F7F5EF;
+    --surface: #FFFFFF;
+    --text: #27332E;
+    --muted: #5D6C64;
+    --faint: #8B918D;
+    --border: #E3E0D8;
+    --accent: #315A4B;
+    --accent-soft: #E7EEE9;
+    --warn: #A64C48;
+    --warn-soft: #F6E7E5;
+    --term-bg: #1B1F1D;
+    --term-text: #D8E0DB;
+    --term-dim: #7E8984;
+    --term-accent: #7FC4A3;
+    --term-select: #2C3A33;
+    --term-badge: #E5484D;
+    --term-line: #34403A;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #161513;
+      --surface: #1F1E1A;
+      --text: #ECE9E3;
+      --muted: #B6B1A7;
+      --faint: #958F84;
+      --border: #34322D;
+      --accent: #8FC1A8;
+      --accent-soft: #263A30;
+      --warn: #E0716B;
+      --warn-soft: #3A2524;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #161513;
+    --surface: #1F1E1A;
+    --text: #ECE9E3;
+    --muted: #B6B1A7;
+    --faint: #958F84;
+    --border: #34322D;
+    --accent: #8FC1A8;
+    --accent-soft: #263A30;
+    --warn: #E0716B;
+    --warn-soft: #3A2524;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.7 -apple-system, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  }
+  main { max-width: 980px; margin: 0 auto; padding: 40px 20px 72px; }
+  header { margin-bottom: 36px; }
+  h1 { font-size: 30px; line-height: 1.3; margin: 0 0 8px; }
+  .lede { color: var(--muted); margin: 0; max-width: 720px; }
+  .meta { color: var(--faint); font-size: 13px; margin-top: 10px; }
+  h2 {
+    font-size: 21px; margin: 48px 0 14px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 { font-size: 16px; margin: 24px 0 8px; }
+  p { margin: 8px 0; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 640px; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: 0; }
+  th { font-size: 13px; color: var(--muted); font-weight: 600; background: var(--accent-soft); }
+  td:first-child { white-space: nowrap; color: var(--muted); }
+  code, kbd {
+    font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Noto Sans Mono", monospace;
+    font-size: 13px;
+  }
+  kbd {
+    display: inline-block; padding: 0 6px; border: 1px solid var(--border); border-bottom-width: 2px;
+    border-radius: 6px; background: var(--surface); line-height: 1.6; white-space: nowrap;
+  }
+  code { padding: 1px 5px; border-radius: 5px; background: var(--accent-soft); }
+  .principles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 12px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .card b { display: block; margin-bottom: 4px; }
+  .card span { color: var(--muted); font-size: 14px; }
+
+  .terminal-wrap { overflow-x: auto; margin: 14px 0 6px; border-radius: 12px; }
+  .terminal {
+    min-width: 860px; background: var(--term-bg); color: var(--term-text); border-radius: 12px;
+    font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Noto Sans Mono CJK SC", monospace;
+    font-size: 13px; line-height: 1.55; overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  }
+  .term-bar { display: flex; gap: 6px; padding: 9px 12px; background: #252B28; }
+  .term-bar i { width: 10px; height: 10px; border-radius: 50%; background: #4A524E; display: block; }
+  .term-body { display: grid; grid-template-columns: 300px 1fr; min-height: 340px; }
+  .sidebar { border-right: 1px solid var(--term-line); padding: 8px 0; }
+  .tabs { padding: 0 12px 6px; }
+  .tab-on { color: var(--term-accent); font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
+  .dim { color: var(--term-dim); }
+  .badge { color: #fff; background: var(--term-badge); border-radius: 8px; padding: 0 5px; font-size: 11px; }
+  .dot { color: var(--term-badge); }
+  .search { margin: 4px 12px 8px; padding: 2px 8px; border: 1px solid var(--term-line); border-radius: 6px; color: var(--term-dim); }
+  .row { padding: 3px 12px 3px 10px; border-left: 3px solid transparent; }
+  .row.on { background: var(--term-select); border-left-color: var(--term-accent); }
+  .row .line { display: flex; justify-content: space-between; gap: 8px; }
+  .row .name { font-weight: 700; }
+  .chat { display: flex; flex-direction: column; }
+  .chat-head { display: flex; justify-content: space-between; padding: 8px 14px; border-bottom: 1px solid var(--term-line); }
+  .chat-head b { color: #fff; }
+  .msgs { flex: 1; padding: 6px 14px; }
+  .day { text-align: center; color: var(--term-dim); margin: 2px 0 6px; }
+  .from { color: var(--term-accent); font-weight: 700; }
+  .body { padding-left: 2ch; }
+  .mine { text-align: right; }
+  .mine .tick { color: var(--term-accent); }
+  .file { padding-left: 2ch; color: #E8C27A; }
+  .compose { border-top: 1px solid var(--term-line); padding: 6px 14px; color: var(--term-dim); }
+  .compose b { color: var(--term-accent); }
+  .status {
+    display: flex; gap: 18px; flex-wrap: wrap; padding: 6px 12px; background: #232926;
+    color: var(--term-dim); border-top: 1px solid var(--term-line);
+  }
+  .status .ok { color: var(--term-accent); }
+  .status kbd { background: #2F3833; border-color: #46504B; color: var(--term-text); font-size: 11px; padding: 0 4px; }
+  .caption { color: var(--faint); font-size: 13px; }
+  ul.notes { padding-left: 20px; margin: 10px 0; }
+  ul.notes li { margin: 4px 0; }
+  .phases { display: grid; gap: 10px; }
+  .phase { display: grid; grid-template-columns: 52px 1fr; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .phase .n { font-size: 24px; font-weight: 700; color: var(--accent); line-height: 1.2; }
+  .phase .tests { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .callout { background: var(--warn-soft); border-left: 4px solid var(--warn); border-radius: 8px; padding: 10px 14px; margin: 14px 0; }
+  .decisions { counter-reset: d; list-style: none; padding: 0; display: grid; gap: 10px; }
+  .decisions li { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px 12px 52px; position: relative; }
+  .decisions li::before {
+    counter-increment: d; content: counter(d); position: absolute; left: 16px; top: 12px;
+    width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--bg);
+    font-weight: 700; font-size: 13px; display: grid; place-items: center;
+  }
+  .rec { color: var(--accent); font-weight: 600; }
+  @media (max-width: 600px) {
+    h1 { font-size: 24px; }
+    .phase { grid-template-columns: 36px 1fr; }
+  }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>TUI 重新设计方案</h1>
+  <p class="lede">让终端客户端用起来自然、好上手：全中文、能直接打字、操作看得见，并且和 Qt 客户端保持同样的结构。本文只是方案，尚未修改代码。</p>
+  <p class="meta">2026-10-08 · 依据：<code>tui/src/ui.cpp</code> 与 <code>docs/images/experience/</code> 下的真实 tmux 截图</p>
+</header>
+
+<section>
+  <h2>现状的问题</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>#</th><th>问题</th><th>例子</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><b>中英文混用</b></td><td>导航、按钮、群菜单是英文（Chats、Account、Show invite code、Esc: back），状态提示是中文（已连接、好友申请已更新），和 Qt 端也不一致</td></tr>
+      <tr><td>2</td><td><b>框线和固定行太多，信息密度低</b></td><td>顶部固定 3 行（应用名加用户名、<code>connected</code>、<code>h Chats c Contacts u Account N New</code>），每块内容再套一层框，底部再一行 <code>Esc: back</code>。账号页只有 4 个选项，下面空着 30 多行</td></tr>
+      <tr><td>3</td><td><b>类 vim 的模式输入不符合直觉</b></td><td>必须先按 <kbd>i</kbd> 才能打字；回复、编辑、删除、表情、复制、保存全靠记单字母（<kbd>r</kbd> <kbd>e</kbd> <kbd>d</kbd> <kbd>a</kbd> <kbd>y</kbd> <kbd>s</kbd>），还有大写 <kbd>A</kbd>/<kbd>O</kbd>/<kbd>D</kbd>、<kbd>[</kbd> <kbd>]</kbd>、<kbd>G</kbd>、<kbd>:</kbd> 命令，新用户发现不了</td></tr>
+      <tr><td>4</td><td><b>会话列表信息不全</b></td><td>一行只有 <code>[连] 连续日常…</code>，看不到时间、未读数、免打扰或置顶状态</td></tr>
+      <tr><td>5</td><td><b>消息排版松散</b></td><td>每条消息都重复「名字＋时间」，已读状态单独占一行，没有日期分隔，连续发言没有合并</td></tr>
+      <tr><td>6</td><td><b>结构和 Qt 端不一致</b></td><td>新的朋友、添加好友、群信息、账号各自是一整页，层层用 Esc 返回；Qt 端已改成右侧资料卡和统一搜索入口</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>设计原则</h2>
+  <div class="principles">
+    <div class="card"><b>全中文</b><span>用词和 Qt 端一致。</span></div>
+    <div class="card"><b>能直接打字</b><span>进入会话即可输入，Enter 发送，不再需要按 i。</span></div>
+    <div class="card"><b>操作看得见</b><span>底部常驻随焦点变化的按键提示；选中消息按 Enter 弹出操作菜单，菜单标出快捷键。</span></div>
+    <div class="card"><b>少框线、多内容</b><span>去掉嵌套的框，只保留必要的分隔线。</span></div>
+    <div class="card"><b>结构对齐 Qt</b><span>左边列表、右边详情；资料卡、群信息、账号用浮层或右侧面板，不再整页跳转。</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>主界面草图</h2>
+  <p>宽屏（不少于 100 列）：左侧会话或联系人列表，右侧聊天，底部一行状态栏。</p>
+  <div class="terminal-wrap">
+  <div class="terminal" role="img" aria-label="TUI 主界面示意：左侧会话列表，右侧聊天，底部状态栏">
+    <div class="term-bar"><i></i><i></i><i></i></div>
+    <div class="term-body">
+      <div class="sidebar">
+        <div class="tabs"><span class="tab-on">聊天</span> <span class="badge">3</span>&nbsp;&nbsp;&nbsp;<span class="dim">联系人</span> <span class="dot">●</span></div>
+        <div class="search">⌕ 搜索</div>
+        <div class="row on"><div class="line"><span class="name">产品设计组</span><span class="dim">14:28</span></div><div class="line"><span class="dim">林小满：这是我整理的新…</span><span class="badge">3</span></div></div>
+        <div class="row"><div class="line"><span class="name">林小满</span><span class="dim">13:45</span></div><div class="line"><span class="dim">好的，我这边先调整～</span><span class="badge">2</span></div></div>
+        <div class="row"><div class="line"><span class="name">妈妈 🔕</span><span class="dim">昨天 20:18</span></div><div class="line"><span class="dim">记得按时吃饭～</span><span class="dim">1</span></div></div>
+        <div class="row"><div class="line"><span class="name">文件助手</span><span class="dim">昨天 17:06</span></div><div class="line"><span class="dim">[文件] 设计评审会议纪要.docx</span><span></span></div></div>
+      </div>
+      <div class="chat">
+        <div class="chat-head"><b>产品设计组</b><span class="dim">8 位成员</span></div>
+        <div class="msgs">
+          <div class="day">──────── 今天 ────────</div>
+          <div><span class="from">林小满</span> <span class="dim">10:24</span></div>
+          <div class="body">这是我整理的新版首页设计方案，大家看看有没有需要优化的地方？</div>
+          <div class="file">[图片] 首页改版设计_v3.png · 2.4 MB</div>
+          <div style="margin-top:6px"><span class="from">周一航</span> <span class="dim">10:37</span></div>
+          <div class="body">整体感觉很不错 👍</div>
+          <div class="body dim">┃ 引用 林小满：这是我整理的新版…</div>
+          <div class="body">右侧这块的留白视觉会更舒服</div>
+          <div class="mine" style="margin-top:6px">我也很喜欢这个方向，下午一起过一遍？ <span class="dim">11:05</span> <span class="tick">✓✓</span></div>
+        </div>
+        <div class="compose"><b>›</b> 输入消息…</div>
+      </div>
+    </div>
+    <div class="status">
+      <span class="ok">● 已连接</span>
+      <span><kbd>Tab</kbd> 切换焦点</span>
+      <span><kbd>↑↓</kbd> 选择</span>
+      <span><kbd>Enter</kbd> 打开</span>
+      <span><kbd>Ctrl+K</kbd> 命令面板</span>
+      <span><kbd>?</kbd> 帮助</span>
+    </div>
+  </div>
+  </div>
+  <p class="caption">示意图，实际为终端字符界面；颜色会跟随终端配色。</p>
+  <ul class="notes">
+    <li><b>顶部</b>：两个标签页（聊天、联系人），带未读数或红点，下面是搜索框。原来固定的 3 行标题全部去掉。</li>
+    <li><b>会话行</b>：两行。第一行名字和时间，第二行最后一条消息预览和未读数；免打扰显示 🔕，置顶有标记；选中行左侧显示色条。</li>
+    <li><b>消息区</b>：按日期分隔；同一个人连续的消息只显示一次名字和时间；自己的消息靠右，时间后直接跟已读标记；引用以 <code>┃</code> 开头；附件显示为「[图片] 文件名 · 大小」。</li>
+    <li><b>输入行</b>：常驻，不再需要 <kbd>i</kbd>。</li>
+    <li><b>状态栏</b>：左边连接状态（● 已连接 / ○ 3 秒后重连），右边当前焦点可用的按键；临时通知也显示在这里，几秒后自动消失。</li>
+    <li><b>窄屏</b>（80～99 列）：只显示一栏。在列表按 Enter 进入会话，Esc 返回。</li>
+  </ul>
+</section>
+
+<section>
+  <h2>交互模型</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>场景</th><th>按键</th></tr></thead>
+    <tbody>
+      <tr><td>列表与会话之间切换焦点</td><td><kbd>Tab</kbd> / <kbd>Shift+Tab</kbd>；窄屏用 <kbd>Enter</kbd> 进入、<kbd>Esc</kbd> 返回</td></tr>
+      <tr><td>列表里移动</td><td><kbd>↑</kbd><kbd>↓</kbd>（保留 <kbd>j</kbd>/<kbd>k</kbd>）、<kbd>PgUp</kbd>/<kbd>PgDn</kbd>、<kbd>Home</kbd>/<kbd>End</kbd></td></tr>
+      <tr><td>会话里打字</td><td>直接输入；<kbd>Enter</kbd> 发送；<kbd>Alt+Enter</kbd> 换行（多数终端无法区分 Shift+Enter）</td></tr>
+      <tr><td>选中某条消息</td><td>输入框为空时按 <kbd>↑</kbd> 进入选择，再用 <kbd>↑</kbd><kbd>↓</kbd> 移动；<kbd>Esc</kbd> 回到输入</td></tr>
+      <tr><td>对消息操作</td><td>选中后按 <kbd>Enter</kbd> 弹出菜单：回复、复制、编辑、删除、表情、置顶、保存文件。菜单标出单字母快捷键，熟悉后可直接按</td></tr>
+      <tr><td>其他所有操作</td><td><kbd>Ctrl+K</kbd> 命令面板：输入中文或拼音首字母模糊搜索，例如添加好友、发起群聊、加入群聊、群信息、聊天记录、账号、退出登录。原来的 <kbd>:</kbd> 英文命令保留为隐藏别名</td></tr>
+      <tr><td>群信息 / 联系人资料</td><td>在右侧面板显示，带操作按钮，<kbd>Esc</kbd> 关闭</td></tr>
+      <tr><td>帮助</td><td><kbd>?</kbd> 弹出分组的按键说明；首次登录时状态栏提示「按 ? 查看帮助」</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>各页面的调整</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>页面</th><th>调整</th></tr></thead>
+    <tbody>
+      <tr><td>联系人</td><td>左侧标签页，和 Qt 一致：搜索框；输入内容后出现「查找用户“xxx”」；Enter 在右侧显示资料卡，操作随好友关系变化（发消息、添加、接受、拒绝、撤回）</td></tr>
+      <tr><td>新的朋友</td><td>联系人标签页上用红点提示，通过命令面板或快捷键打开；申请行内直接按 <kbd>y</kbd> 接受、<kbd>n</kbd> 拒绝</td></tr>
+      <tr><td>群信息</td><td>右侧面板，依次为成员（先显示前几位，可展开全部）、公告、邀请码（直接显示并可复制）、管理（仅群主和管理员可见）、退出群聊</td></tr>
+      <tr><td>账号</td><td>小浮层：头像、复制用户名、退出登录，不再占一整页</td></tr>
+      <tr><td>聊天记录</td><td>对应 Qt 的聊天记录窗口，分「全部 / 图片 / 文件 / 链接」，可直接搜索</td></tr>
+      <tr><td>登录</td><td>中文；最近登录的账号直接填好（和 Qt 一致）；服务器设置折叠</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>分阶段实施</h2>
+  <p>每个阶段单独提交，阶段末跑完整测试。</p>
+  <div class="phases">
+    <div class="phase"><div class="n">1</div><div><b>外观与排版</b>：全中文化，精简标题栏和底部栏，状态栏与按键提示，会话列表两行，消息按发送人合并、加日期分隔<div class="tests">影响测试：tui_render 的文案与布局断言，tmux 冒烟脚本的匹配文字</div></div></div>
+    <div class="phase"><div class="n">2</div><div><b>交互模型</b>：直接输入、焦点切换、消息操作菜单、命令面板、<kbd>?</kbd> 帮助<div class="tests">影响测试：tui_state、tui_integration、两个 tmux 冒烟脚本的按键序列</div></div></div>
+    <div class="phase"><div class="n">3</div><div><b>联系人与群</b>：联系人、新的朋友、添加好友、资料卡、群信息面板，对齐 Qt<div class="tests">影响测试：tui_integration 与冒烟脚本中的好友、群流程</div></div></div>
+    <div class="phase"><div class="n">4</div><div><b>收尾</b>：账号浮层、聊天记录、登录页；按 60～160 列、20～40 行逐一检查截图<div class="tests">影响测试：渲染与截图检查</div></div></div>
+  </div>
+  <div class="callout">风险主要在测试：现有 TUI 测试大量依赖英文文案和单字母按键序列，第 1、2 阶段需要同步改写不少断言。底层状态管理（SDK 回调、重连、草稿、并发保护）已经充分验证，这次只动界面层，不碰这部分。</div>
+</section>
+
+<section>
+  <h2>需要决定的事项</h2>
+  <ol class="decisions">
+    <li><b>鼠标</b>：项目文档之前定过「TUI 不启用鼠标」。启用后可以点击列表行、菜单和按钮，FTXUI 支持，大多数终端也支持。<br><span class="rec">建议：启用，但键盘仍是完整可用的主要方式。</span></li>
+    <li><b>vim 风格按键</b>（<kbd>j</kbd>/<kbd>k</kbd>、<kbd>G</kbd> 等）。<br><span class="rec">建议：保留为别名，不在提示里显示，习惯它的人不受影响。</span></li>
+    <li><b>最小终端尺寸</b>。<br><span class="rec">建议：以 80×24 为下限，低于此尺寸只提示「请放大终端窗口」。</span></li>
+    <li><b>范围</b>：四个阶段全做，还是先做第 1、2 阶段看效果再决定后面。</li>
+  </ol>
+</section>
+</main>
+</body>
+</html>
