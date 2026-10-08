@@ -386,25 +386,28 @@ QString chat_style_sheet()
             color: #96A29C;
         }
         QWidget#loginPage {
-            background: #F7F5EF;
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                stop: 0 #DCEBE3, stop: 0.42 #F7F5EF, stop: 1 #F7F5EF);
         }
         QFrame#loginCard {
-            background: #FFFEFA;
-            border: 1px solid #E8E4DA;
-            border-radius: 18px;
+            background: transparent;
+            border: 0;
         }
-        QLabel#loginTitle {
-            font-size: 26px;
-            font-weight: 700;
-            color: #294B3E;
+        QLabel#loginAvatar {
+            border-radius: 44px;
+            background: transparent;
         }
-        QLabel#authMark {
+        QLabel#loginAvatar[empty="true"] {
             background: #315A4B;
-            border-radius: 12px;
         }
         QLabel#authSubtitle {
             color: #5D6C64;
             font-size: 13px;
+        }
+        QFrame#loginCard QLineEdit {
+            min-height: 42px;
+            border-color: #E3E0D8;
+            font-size: 15px;
         }
         QFrame#loginCard QLabel#subtleText, QDialog#registrationDialog QLabel#subtleText {
             color: #5D6C64;

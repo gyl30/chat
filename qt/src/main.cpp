@@ -8,6 +8,9 @@
 int main(int argc, char* argv[])
 {
     QApplication application(argc, argv);
+    // Settings identity; also enables remembering recently signed-in accounts.
+    QApplication::setOrganizationName(QStringLiteral("chat"));
+    QApplication::setApplicationName(QStringLiteral("chat_qt"));
 
     QString server_url = QStringLiteral("ws://127.0.0.1:18080/ws");
     if (argc > 1)

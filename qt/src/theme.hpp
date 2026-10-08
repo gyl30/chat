@@ -1,8 +1,9 @@
 #ifndef CHAT_QT_SRC_THEME_HPP
 #define CHAT_QT_SRC_THEME_HPP
 
-#include <QString>
 #include <QLabel>
+#include <QSize>
+#include <QString>
 
 class QWidget;
 
@@ -20,9 +21,11 @@ class feedback_label final : public QLabel
 namespace chat_theme
 {
 
-inline constexpr int auth_card_width = 420;
-inline constexpr int auth_padding = 32;
+inline constexpr int auth_card_width = 380;
+inline constexpr int auth_padding = 36;
 inline constexpr int auth_spacing = 12;
+inline constexpr QSize login_window_size{380, 540};
+inline constexpr int login_avatar_size = 88;
 
 inline constexpr int dialog_padding = 24;
 inline constexpr int dialog_spacing = 12;

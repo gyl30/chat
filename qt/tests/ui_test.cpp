@@ -200,13 +200,13 @@ void click_list_body(QAbstractItemView* list, QModelIndex index)
 void check_authentication_layout()
 {
     main_window window(QStringLiteral("ws://127.0.0.1:18769/ws"));
-    check(window.size() == QSize(460, 600) && window.minimumSize() == QSize(460, 600),
+    check(window.size() == chat_theme::login_window_size && window.minimumSize() == chat_theme::login_window_size,
           "Login opens as a compact window rather than the chat workspace");
     window.show();
     window.activateWindow();
     QApplication::processEvents();
     wait([&] { return window.isActiveWindow(); });
-    check(window.size() == QSize(460, 600) && window.minimumSize() == QSize(460, 600),
+    check(window.size() == chat_theme::login_window_size && window.minimumSize() == chat_theme::login_window_size,
           "The hidden chat workspace does not enlarge the visible login window");
     auto* card = window.findChild<QFrame*>("loginCard");
     QLineEdit* username = nullptr;
@@ -217,6 +217,13 @@ void check_authentication_layout()
         if (field->placeholderText() == QStringLiteral("密码")) { password = field; }
     }
     check(username && password && username->hasFocus(), "Login starts at username rather than server configuration");
+    auto* avatar = card->findChild<QLabel*>("loginAvatar");
+    check(avatar && avatar->isVisible() && avatar->mapTo(card, QPoint(0, 0)).y() < username->mapTo(card, QPoint(0, 0)).y() &&
+              avatar->property("empty").toBool(),
+          "Like QQ, a centered avatar sits above the account fields and shows the app mark before an account is entered");
+    username->setText(QStringLiteral("张三"));
+    check(!avatar->property("empty").toBool() && !avatar->pixmap().isNull(), "Typing an account shows that account's avatar");
+    username->clear();
     auto* server = card->findChild<QLineEdit*>("serverUrlEdit");
     auto* settings = card->findChild<QToolButton*>("serverSettingsButton");
     check(server && settings && server->isHidden(), "Server address is available through progressive settings");
@@ -270,7 +277,7 @@ void check_authentication_layout()
     window.findChild<QPushButton*>("loginButton")->click();
     check(login_accessible->text(QAccessible::Name) == login_error && QApplication::focusWidget() == login_focus,
           "A new login rejection restores the current error without moving keyboard focus");
-    for (auto const size : {QSize(460, 600), QSize(980, 640), QSize(1180, 760), QSize(1280, 800), QSize(1440, 900), QSize(1920, 1080)})
+    for (auto const size : {chat_theme::login_window_size, QSize(980, 640), QSize(1180, 760), QSize(1280, 800), QSize(1440, 900), QSize(1920, 1080)})
     {
         window.resize(size);
         for (int expanded = 0; expanded < 2; ++expanded)
@@ -5246,7 +5253,7 @@ int main(int argc, char** argv)
             wait([&] { return !pages[0]->isVisible() && windows[0]->findChild<QPushButton*>("loginButton")->isEnabled(); });
             windows[0]->activateWindow();
             QApplication::processEvents();
-            check(windows[0]->size() == QSize(460, 600) && windows[0]->minimumSize() == QSize(460, 600),
+            check(windows[0]->size() == chat_theme::login_window_size && windows[0]->minimumSize() == chat_theme::login_window_size,
                   "Logout restores the compact login window");
             check(windows[0]->findChild<QLineEdit*>("loginUsernameEdit")->hasFocus(),
                   "Confirmed logout returns keyboard focus to the login identity field");

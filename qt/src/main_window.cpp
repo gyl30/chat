@@ -8,6 +8,11 @@
 #include <chat/text.hpp>
 
 #include <QDialog>
+#include <QStyle>
+#include <QAction>
+#include <QCoreApplication>
+#include <QSettings>
+#include <QMenu>
 #include <QApplication>
 #include <QEvent>
 #include <QFormLayout>
@@ -24,6 +29,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include "avatar.hpp"
 #include "chat_widget.hpp"
 #include "attachment_dialog.hpp"
 #include "group_dialog.hpp"
@@ -36,8 +42,8 @@ main_window::main_window(QString server_url, QWidget* parent)
     : QMainWindow(parent), client_(std::make_unique<client_bridge>())
 {
     setWindowTitle(QStringLiteral("Chat"));
-    resize(460, 600);
-    setMinimumSize(460, 600);
+    resize(chat_theme::login_window_size);
+    setMinimumSize(chat_theme::login_window_size);
     setStyleSheet(chat_style_sheet());
 
     pages_ = new QStackedWidget(this);
@@ -46,15 +52,15 @@ main_window::main_window(QString server_url, QWidget* parent)
     login_page_ = new QWidget(pages_);
     login_page_->setObjectName(QStringLiteral("loginPage"));
     auto* login_outer = new QVBoxLayout(login_page_);
-    login_outer->setContentsMargins(20, 12, 20, 12);
-    login_outer->addStretch();
+    login_outer->setContentsMargins(0, 0, 0, 0);
 
+    // Modeled on the QQ desktop login: identity first (avatar, account, password), one primary
+    // action, and secondary entries (registration, server settings) kept out of the main path.
     auto* login_card = new QFrame(login_page_);
     login_card->setObjectName(QStringLiteral("loginCard"));
     login_card->setFixedWidth(chat_theme::auth_card_width);
     auto* login_layout = new QVBoxLayout(login_card);
-    login_layout->setContentsMargins(chat_theme::auth_padding, chat_theme::auth_padding,
-                                    chat_theme::auth_padding, chat_theme::auth_padding);
+    login_layout->setContentsMargins(chat_theme::auth_padding, 8, chat_theme::auth_padding, 20);
     login_layout->setSpacing(chat_theme::auth_spacing);
 
     auto* server_settings = new QToolButton(login_card);
@@ -69,33 +75,15 @@ main_window::main_window(QString server_url, QWidget* parent)
     settings_bar->addStretch();
     settings_bar->addWidget(server_settings);
     login_layout->addLayout(settings_bar);
+    login_layout->addStretch(2);
 
-    auto* brand = new QVBoxLayout;
-    brand->setSpacing(chat_theme::auth_spacing);
-    auto* mark = new QLabel(login_card);
-    mark->setObjectName(QStringLiteral("authMark"));
-    mark->setFixedSize(64, 64);
-    mark->setAlignment(Qt::AlignCenter);
-    mark->setPixmap(svg_icon(u"chat", Qt::white, QSize(36, 36)).pixmap(36, 36));
-    brand->addWidget(mark, 0, Qt::AlignHCenter);
-    auto* identity = new QVBoxLayout;
-    identity->setSpacing(4);
-    auto* title = new QLabel(QStringLiteral("Chat"), login_card);
-    title->setObjectName(QStringLiteral("loginTitle"));
-    title->setAlignment(Qt::AlignCenter);
-    identity->addWidget(title);
-    auto* subtitle = new QLabel(QStringLiteral("和朋友，轻松聊。"), login_card);
-    subtitle->setObjectName(QStringLiteral("authSubtitle"));
-    subtitle->setAlignment(Qt::AlignCenter);
-    identity->addWidget(subtitle);
-    brand->addLayout(identity);
-    login_layout->addLayout(brand);
-    login_layout->addSpacing(8);
+    login_avatar_ = new QLabel(login_card);
+    login_avatar_->setObjectName(QStringLiteral("loginAvatar"));
+    login_avatar_->setFixedSize(chat_theme::login_avatar_size, chat_theme::login_avatar_size);
+    login_avatar_->setAlignment(Qt::AlignCenter);
+    login_layout->addWidget(login_avatar_, 0, Qt::AlignHCenter);
+    login_layout->addSpacing(12);
 
-    auto* form = new QFormLayout;
-    form->setRowWrapPolicy(QFormLayout::WrapAllRows);
-    form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-    form->setVerticalSpacing(8);
     server_edit_ = new QLineEdit(std::move(server_url), login_card);
     server_edit_->setObjectName(QStringLiteral("serverUrlEdit"));
     server_edit_->setAccessibleName(QStringLiteral("服务器地址"));
@@ -103,19 +91,37 @@ main_window::main_window(QString server_url, QWidget* parent)
     username_edit_ = new QLineEdit(login_card);
     username_edit_->setObjectName(QStringLiteral("loginUsernameEdit"));
     username_edit_->setAccessibleName(QStringLiteral("用户名"));
+    username_edit_->setPlaceholderText(QStringLiteral("用户名"));
+    username_edit_->setAlignment(Qt::AlignCenter);
     password_edit_ = new QLineEdit(login_card);
     password_edit_->setObjectName(QStringLiteral("loginPasswordEdit"));
     password_edit_->setAccessibleName(QStringLiteral("密码"));
-    password_edit_->setEchoMode(QLineEdit::Password);
-    username_edit_->setPlaceholderText(QStringLiteral("用户名"));
     password_edit_->setPlaceholderText(QStringLiteral("密码"));
-
-    form->addRow(username_edit_);
-    form->addRow(password_edit_);
-    login_layout->addLayout(form);
+    password_edit_->setEchoMode(QLineEdit::Password);
+    password_edit_->setAlignment(Qt::AlignCenter);
+    recent_accounts_action_ = username_edit_->addAction(
+        svg_icon(u"chevron-down", QColor(QStringLiteral("#5D6C64")), QSize(18, 18)), QLineEdit::TrailingPosition);
+    recent_accounts_action_->setToolTip(QStringLiteral("选择已登录过的账号"));
+    connect(recent_accounts_action_, &QAction::triggered, this, [this] {
+        QMenu menu(username_edit_);
+        menu.setObjectName(QStringLiteral("recentAccountsMenu"));
+        for (auto const& account : recent_accounts())
+        {
+            menu.addAction(avatar_icon(account, 24), account, this, [this, account] {
+                username_edit_->setText(account);
+                password_edit_->clear();
+                password_edit_->setFocus();
+            });
+        }
+        menu.setMinimumWidth(username_edit_->width());
+        menu.exec(username_edit_->mapToGlobal(QPoint(0, username_edit_->height())));
+    });
+    login_layout->addWidget(username_edit_);
+    login_layout->addWidget(password_edit_);
 
     status_label_ = new feedback_label(login_card);
     status_label_->setObjectName(QStringLiteral("subtleText"));
+    status_label_->setAlignment(Qt::AlignCenter);
     status_label_->setWordWrap(true);
     login_layout->addWidget(status_label_);
 
@@ -123,25 +129,33 @@ main_window::main_window(QString server_url, QWidget* parent)
     login_button_->setObjectName(QStringLiteral("loginButton"));
     login_button_->setDefault(true);
     login_layout->addWidget(login_button_);
-    register_button_ = new QPushButton(QStringLiteral("创建账号"), login_card);
+    register_button_ = new QPushButton(QStringLiteral("注册账号"), login_card);
     register_button_->setObjectName(QStringLiteral("registerButton"));
-    login_layout->addWidget(register_button_);
+    login_layout->addWidget(register_button_, 0, Qt::AlignHCenter);
 
     login_layout->addWidget(server_edit_);
+    login_layout->addStretch(3);
     server_edit_->hide();
     connect(server_settings, &QToolButton::toggled, this, [this](bool expanded) {
         server_edit_->setVisible(expanded);
         if (expanded) { server_edit_->setFocus(); }
         else { username_edit_->setFocus(); }
     });
+    connect(username_edit_, &QLineEdit::textChanged, this, [this] { update_login_identity(); });
     setTabOrder(username_edit_, password_edit_);
     setTabOrder(password_edit_, login_button_);
     setTabOrder(login_button_, register_button_);
     setTabOrder(register_button_, server_settings);
     setTabOrder(server_settings, server_edit_);
 
-    login_outer->addWidget(login_card, 0, Qt::AlignHCenter);
-    login_outer->addStretch();
+    login_outer->addWidget(login_card, 1, Qt::AlignHCenter);
+
+    if (auto const accounts = recent_accounts(); !accounts.isEmpty())
+    {
+        // Like QQ, the last account is ready and only its password is asked for.
+        username_edit_->setText(accounts.front());
+    }
+    update_login_identity();
 
     registration_dialog_ = new QDialog(this);
     registration_dialog_->setObjectName(QStringLiteral("registrationDialog"));
@@ -260,9 +274,9 @@ main_window::main_window(QString server_url, QWidget* parent)
         auto const chatting = pages_->currentWidget() == chat_page_;
         auto const policy = chatting ? QSizePolicy::Preferred : QSizePolicy::Ignored;
         chat_page_->setSizePolicy(policy, policy);
-        setMinimumSize(chatting ? QSize(980, 640) : QSize(460, 600));
+        setMinimumSize(chatting ? QSize(980, 640) : chat_theme::login_window_size);
         if (!chatting && isMaximized()) { showNormal(); }
-        resize(chatting ? QSize(1180, 760) : QSize(460, 600));
+        resize(chatting ? QSize(1180, 760) : chat_theme::login_window_size);
     });
 
     connect(login_button_, &QPushButton::clicked, this, [this] { start_login(); });
@@ -454,6 +468,7 @@ main_window::main_window(QString server_url, QWidget* parent)
 
                 session_server_ = server_edit_->text().trimmed();
                 session_username_ = pending_username_;
+                remember_account(session_username_);
                 session_password_ = pending_password_;
                 pending_password_.clear();
                 status_label_->clear();
@@ -904,10 +919,41 @@ main_window::main_window(QString server_url, QWidget* parent)
                 client_->get_conversations();
             },
             Qt::AutoConnection);
-    username_edit_->setFocus();
+    (username_edit_->text().isEmpty() ? username_edit_ : password_edit_)->setFocus();
 }
 
 main_window::~main_window() { client_.reset(); }
+
+QStringList main_window::recent_accounts() const
+{
+    // Only the installed client has an identity to store settings under; tests and tools never persist.
+    if (QCoreApplication::organizationName().isEmpty()) { return {}; }
+    return QSettings().value(QStringLiteral("login/recent_accounts")).toStringList();
+}
+
+void main_window::remember_account(QString const& username)
+{
+    if (QCoreApplication::organizationName().isEmpty() || username.isEmpty()) { return; }
+    auto accounts = recent_accounts();
+    accounts.removeAll(username);
+    accounts.prepend(username);
+    constexpr int max_recent_accounts = 5;
+    QSettings().setValue(QStringLiteral("login/recent_accounts"), accounts.mid(0, max_recent_accounts));
+    update_login_identity();
+}
+
+void main_window::update_login_identity()
+{
+    auto const username = username_edit_->text();
+    auto const size = chat_theme::login_avatar_size;
+    login_avatar_->setPixmap(username.isEmpty()
+        ? svg_icon(u"chat", Qt::white, QSize(size / 2, size / 2)).pixmap(size / 2, size / 2)
+        : avatar_icon(username, size).pixmap(size, size));
+    login_avatar_->setProperty("empty", username.isEmpty());
+    login_avatar_->style()->unpolish(login_avatar_);
+    login_avatar_->style()->polish(login_avatar_);
+    recent_accounts_action_->setVisible(!recent_accounts().isEmpty());
+}
 
 void main_window::changeEvent(QEvent* event)
 {

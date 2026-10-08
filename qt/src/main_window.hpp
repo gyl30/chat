@@ -5,9 +5,12 @@
 
 #include <QMainWindow>
 #include <QString>
+#include <QStringList>
 #include "message_data.hpp"
 
+class QAction;
 class QDialog;
+class QLabel;
 class feedback_label;
 class QLineEdit;
 class QPushButton;
@@ -60,6 +63,9 @@ class main_window final : public QMainWindow
     void return_to_login(QString message);
     bool reading_conversation(qint64 conversation) const;
     void notify_message(message_data const& message);
+    QStringList recent_accounts() const;
+    void remember_account(QString const& username);
+    void update_login_identity();
 
     QStackedWidget* pages_ = nullptr;
     QWidget* login_page_ = nullptr;
@@ -67,6 +73,8 @@ class main_window final : public QMainWindow
     QLineEdit* server_edit_ = nullptr;
     QLineEdit* username_edit_ = nullptr;
     QLineEdit* password_edit_ = nullptr;
+    QLabel* login_avatar_ = nullptr;
+    QAction* recent_accounts_action_ = nullptr;
     QPushButton* login_button_ = nullptr;
     QPushButton* register_button_ = nullptr;
     feedback_label* status_label_ = nullptr;
