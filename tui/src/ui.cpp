@@ -624,6 +624,7 @@ public:
     }
     Element OnRender() override
     {
+        flush_paste();
         auto terminal = Terminal::Size();
         update_viewport(terminal);
         sync_message_scroll();
@@ -672,6 +673,8 @@ public:
     bool OnEvent(Event event) override
     {
         update_viewport(Terminal::Size());
+        // Pasted text belongs to the target as it was before queued results change it.
+        if (!paste_buffer_.empty() && app_.pending()) { flush_paste(); }
         app_.drain();
         sync_message_scroll();
         auto& s = app_.data;
@@ -689,21 +692,23 @@ public:
                 pasting_ = true;
                 paste_input_ = input();
                 paste_conversation_ = s.active;
+                paste_buffer_.clear();
             }
             return true;
         }
         if (event == Event::Special("\x1b[201~"))
-        { pasting_ = false; paste_input_.reset(); return true; }
+        { flush_paste(); pasting_ = false; paste_input_.reset(); return true; }
         if (pasting_ && event != Event::Custom)
         {
-            if (paste_input_ != input() || paste_conversation_ != s.active) { paste_input_.reset(); }
+            if (paste_input_ != input() || paste_conversation_ != s.active) { paste_buffer_.clear(); paste_input_.reset(); }
             if (paste_input_)
             {
-                if (event == Event::Escape) { paste_input_.reset(); }
-                else if (event.is_character()) { paste_input_->OnEvent(event); }
-                else if (event == Event::Return)
-                { paste_input_->OnEvent(paste_input_ == compose_ ? Event::Return : Event::Character(' ')); }
-                else if (event == Event::Tab) { paste_input_->OnEvent(Event::Character(' ')); }
+                // Inserting character by character rescans the whole text each time, so a large
+                // paste is collected and inserted at once.
+                if (event == Event::Escape) { flush_paste(); paste_input_.reset(); }
+                else if (event.is_character()) { paste_buffer_ += event.character(); }
+                else if (event == Event::Return) { paste_buffer_ += paste_input_ == compose_ ? '\n' : ' '; }
+                else if (event == Event::Tab) { paste_buffer_ += ' '; }
             }
             return true;
         }
@@ -881,6 +886,13 @@ private:
         }
         return {};
     }
+    void flush_paste()
+    {
+        if (paste_buffer_.empty()) { return; }
+        auto text = std::exchange(paste_buffer_, {});
+        if (paste_input_ && paste_input_ == input() && paste_conversation_ == app_.data.active)
+        { paste_input_->OnEvent(Event::Character(std::move(text))); }
+    }
     void sync_message_scroll()
     {
         auto const& s = app_.data;
@@ -928,6 +940,7 @@ private:
     bool server_settings_open_ = false;
     bool pasting_ = false;
     Component paste_input_;
+    std::string paste_buffer_;
     std::int64_t paste_conversation_ = 0;
     std::string prompt_text_;
     bool prompt_active_ = false;

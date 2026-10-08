@@ -786,6 +786,30 @@ int main()
         ok &= expect(!application.exiting && application.command_text == "quit ", "Pasted newline cannot execute a command");
     }
     {
+        // A large paste is inserted in batches: the text appears as the screen redraws, and the
+        // total cost stays linear (character-by-character insertion took over 10 s here).
+        app application;
+        application.data.self = {1, "Alice", {}};
+        application.data.active = 10;
+        application.data.composing = true;
+        auto component = make_ui(application, [] {});
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        ftxui::Screen screen(100, 30);
+        bool visible_during_paste = false;
+        for (int i = 0; i < 30000; ++i)
+        {
+            component->OnEvent(ftxui::Event::Character('x'));
+            if (i % 512 == 511)
+            {
+                ftxui::Render(screen, component->Render());
+                visible_during_paste |= application.data.draft.size() == static_cast<std::size_t>(i + 1);
+            }
+        }
+        component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        ok &= expect(visible_during_paste, "Pasted text reaches the composer before the paste ends");
+        ok &= expect(application.data.draft == std::string(30000, 'x'), "A large paste arrives complete");
+    }
+    {
         app application;
         auto component = make_ui(application, [] {});
         component->OnEvent(ftxui::Event::Special("\x1b[200~"));

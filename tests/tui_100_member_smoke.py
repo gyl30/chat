@@ -449,8 +449,10 @@ class Driver:
         for _ in range(180):
             if any(marker in line for line in self.selected_message_lines(actor)):
                 return
+            # Wait for each move to be drawn: a slow frame (such as a 60 KiB message)
+            # would otherwise let queued keys skip past the target.
             self.keys(actor, 'k')
-            time.sleep(.025)
+            self.barrier(actor)
         raise AssertionError(f'{actor}: message selection {marker!r} unavailable')
 
     def resize(self, actor, width, height):
@@ -512,8 +514,8 @@ class Driver:
         self.command(actor, 'link-create' if create else 'link')
         self.wait(actor, 'Copyable text')
         # The TUI shows invite codes in two groups of four, such as K7QM-3XWP.
-        output = self.wait(actor, lambda screen: re.search(r'\b[2-9A-HJKMNP-Z]{4}-?[2-9A-HJKMNP-Z]{4}\\b', screen) is not None)
-        token = re.search(r'\\b([2-9A-HJKMNP-Z]{4}-?[2-9A-HJKMNP-Z]{4})\\b', output).group(1).replace('-', '')
+        output = self.wait(actor, lambda screen: re.search(r'\b[2-9A-HJKMNP-Z]{4}-?[2-9A-HJKMNP-Z]{4}\b', screen) is not None)
+        token = re.search(r'\b([2-9A-HJKMNP-Z]{4}-?[2-9A-HJKMNP-Z]{4})\b', output).group(1).replace('-', '')
         self.secret_tokens.add(token)
         self.keys(actor, 'Escape')
         return token
@@ -713,13 +715,18 @@ def stage_messages(d):
             assert sorted(collected) == sorted(value['id'] for value in expected)
             d.evidence(method + '-all-page-ids', pages)
         d.open_main('C')
-        d.keys('C', 'PPage')
-        time.sleep(.15)
-        d.keys('C', 'PPage')
-        time.sleep(.15)
-        d.keys('C', 'k', repeat=220)
+        # A PgUp pressed while the previous page is still loading is ignored, so
+        # keep paging until the oldest message arrives rather than sleeping a fixed time.
+        oldest = d.manifest['messages'][0]['marker'] + ' 中文群消息'
+        for _ in range(12):
+            d.keys('C', 'PPage')
+            d.keys('C', 'k', repeat=220)
+            d.barrier('C')
+            if oldest in d.capture('C'):
+                break
+            time.sleep(.25)
         d.screenshot('C', 'oldest-history')
-        assert d.manifest['messages'][0]['marker'] + ' 中文群消息' in d.capture('C')
+        assert oldest in d.capture('C')
         d.command('C', 'search ' + d.manifest['search_query'])
         d.wait('C', d.manifest['messages'][119]['marker'] + ' 中文群消息')
         for boundary in (69,19):
@@ -862,7 +869,8 @@ def stage_terminal_messages(d):
         d.wait('C', 'BOUNDARY_TAIL_' + d.args.run_id)
         d.command('C', 'copy')
         d.wait('C', 'ANSI_HEAD_' + d.args.run_id)
-        d.wait('C', '[2J]52;c;dW50cnVzdGVk')
+        # C0/C1 controls are shown as replacement characters (tui/cmake/README.md), never emitted.
+        d.wait('C', '\ufffd[2J\ufffd]52;c;dW50cnVzdGVk\ufffd')
         d.screenshot('C', 'literal-control-text-head')
         for _ in range(60):
             d.keys('C', 'j', repeat=40)
@@ -1098,47 +1106,57 @@ def stage_friend_direct(d, files):
         d.evidence('direct-attachment-sha256', hashes)
 
 def stage_removed_friend(d, files):
-    with d.case('removed-friend-bilateral-gating', 'Removed friends retain direct history/search/download/read/mute/pin/delete, but neither side can send/reply/edit/react/type/upload'):
+    # Since 0cc26e8 a direct with a non-friend is hidden rather than offered read-only:
+    # removal closes the open page on both sides, a pending request does not restore it,
+    # and acceptance restores the same conversation. Server-side permissions for the
+    # retained history are covered by conversation_test.
+    with d.case('removed-friend-hidden-direct', 'Removing a friend closes and hides the direct on both sides; pending keeps it hidden; acceptance restores the same conversation, history and attachment'):
         d.open_direct('B', 'C')
         d.open_direct('C', 'B')
-        d.send('B', 'retained_history_' + d.args.run_id)
+        marker = d.send('B', 'retained_history_' + d.args.run_id)
         d.command('B', 'file ' + str(files['png']))
         d.wait('C', files['png'].name)
-        d.remove_contact('B', 'C')
-        d.find_profile('C', 'B')
-        d.wait('C', 'Add friend')
+        original = read_only_sql(f"SELECT conversation_id::text FROM messages WHERE body='{marker}'")
+        assert len(original) == 1, original
+        # Removing the friend closes the open direct, so the profile page closes with it.
+        d.find_profile('B', 'C')
+        d.wait('B', 'Remove friend')
+        d.command('B', 'remove-contact')
+        d.confirm('B', '删除好友')
+        for actor in 'BC':
+            d.wait(actor, lambda screen: 'Chats' in screen and 'i: compose' not in screen and 'Profile ·' not in screen)
+            d.screenshot(actor, 'removed-direct-closed')
+
+        def hidden(actor, peer, label):
+            try:
+                d.open_named(actor, d.name(peer))
+            except AssertionError:
+                d.screenshot(actor, label)
+                return
+            raise AssertionError(f'{actor}: direct with non-friend {peer} reachable from Chats')
+
         for actor, peer in [('B', 'C'), ('C', 'B')]:
-            d.open_named(actor, d.name(peer))
-            d.wait(actor, '你们目前不是好友')
-            for action in ('compose', 'reply', 'edit', 'reaction 1', 'file ' + str(files['text'])):
-                d.command(actor, action)
-                d.wait(actor, '你们目前不是好友')
-                assert '正在上传' not in d.capture(actor)
-            d.command(actor, 'mute')
-            d.command(actor, 'pin')
-            d.command(actor, 'read')
-            d.command(actor, 'search retained_history_' + d.args.run_id)
-            d.wait(actor, 'retained_history_' + d.args.run_id)
-            d.screenshot(actor, 'removed-history-search')
-            d.keys(actor, 'Escape')
-        d.selected_message('C', files['png'].name)
-        target = d.work / 'removed-friend-download.png'
-        d.command('C', 'save ' + str(target))
-        d.wait('C', lambda text: target.exists() and target.stat().st_size == files['png'].stat().st_size, timeout=40, description='removed-friend download complete')
-        assert target.read_bytes() == files['png'].read_bytes()
-        d.selected_message('B', 'retained_history_' + d.args.run_id)
-        d.keys('B', 'd')
-        d.confirm('B', '删除这条消息')
-        d.wait('C', '消息已删除')
+            hidden(actor, peer, 'removed-direct-hidden')
         d.request_friend('B', 'C')
         d.find_profile('C', 'B')
         d.wait('C', 'Incoming friend request')
         assert 'online' not in d.capture('C') and 'Message' not in d.capture('C')
+        for actor, peer in [('B', 'C'), ('C', 'B')]:
+            hidden(actor, peer, 'pending-direct-hidden')
         d.accept_friend('C', 'B')
-        d.open_direct('B', 'C')
-        d.open_direct('C', 'B')
-        d.send('C', 'reaccepted_' + d.args.run_id)
-        d.wait('B', 'reaccepted_' + d.args.run_id)
+        for actor, peer in [('B', 'C'), ('C', 'B')]:
+            d.open_direct(actor, peer)
+            d.wait(actor, marker)
+        d.selected_message('C', files['png'].name)
+        target = d.work / 'reaccepted-friend-download.png'
+        d.command('C', 'save ' + str(target))
+        d.wait('C', lambda text: target.exists() and target.stat().st_size == files['png'].stat().st_size, timeout=40, description='retained attachment downloaded after acceptance')
+        assert target.read_bytes() == files['png'].read_bytes()
+        reaccepted = d.send('C', 'reaccepted_' + d.args.run_id)
+        d.wait('B', reaccepted)
+        restored = read_only_sql(f"SELECT conversation_id::text FROM messages WHERE body='{reaccepted}'")
+        assert restored == original, (original, restored)
+        d.evidence('restored-direct', {'conversation': original[0][0]})
 
 
 def stage_admin_friend_invite(d):
@@ -1357,7 +1375,8 @@ def stage_group_management(d):
             while read_only_sql(f'SELECT pinned FROM conversation_members WHERE conversation_id={int(d.group)} AND user_id={owner_id}') != [[flag]]:
                 assert time.monotonic() < deadline, 'Personal pin RPC did not complete'
                 time.sleep(.1)
-            d.wait('A', lambda text: ('[pin]' in inverse_text(d.capture('A', styled=True))) == (flag == 't'))
+            # The list row shows the personal pin even while the conversation has the focus.
+            d.wait('A', lambda text: ('[pin]' in list_row(text, d.title)) == (flag == 't'))
         d.command('A', 'conversations')
         d.keys('A', 'k', repeat=150)
         d.barrier('A')
@@ -1366,6 +1385,17 @@ def stage_group_management(d):
         d.keys('A', 'Enter')
         d.command('A', 'mute')
         d.command('A', 'pin')
+
+
+def list_row(screen, title):
+    """The two sidebar lines of a conversation in the wide layout."""
+    lines = screen.splitlines()
+    for index, line in enumerate(lines):
+        cells = line.split('│')
+        if len(cells) > 2 and title[:5] in cells[1]:
+            following = lines[index + 1].split('│') if index + 1 < len(lines) else []
+            return cells[1] + (following[1] if len(following) > 2 else '')
+    return ''
 
 
 def stage_create_group(d):

@@ -15,6 +15,7 @@ app::app(std::function<void()> wake)
 app::~app() { shutdown(); }
 void app::assert_ui() const { assert(std::this_thread::get_id() == ui_thread_); }
 void app::drain() { assert_ui(); inbox_->drain(); }
+bool app::pending() { return !inbox_->empty(); }
 void app::shutdown()
 {
     assert_ui();

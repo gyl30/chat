@@ -71,6 +71,8 @@ public:
     void toggle_pick();
     void finish_pick();
     void tick();
+    // Whether SDK results or timers are waiting for drain().
+    bool pending();
 
 private:
     using clock = std::chrono::steady_clock;

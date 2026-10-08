@@ -53,6 +53,12 @@ public:
         return count;
     }
 
+    bool empty()
+    {
+        std::lock_guard lock(mutex_);
+        return tasks_.empty();
+    }
+
     // Call on the UI thread before destroying the screen or client. A task
     // already executing in drain() completes normally.
     void stop()
