@@ -16,7 +16,7 @@ struct roles
     QColor text, text_secondary, text_muted;
     QColor accent, accent_hover, accent_disabled, online, link;
     QColor danger, danger_hover, danger_soft;
-    QColor nav, nav_text, on_accent, avatar_text;
+    QColor nav, nav_text, on_accent, avatar_text, highlight;
 };
 
 QColor mix(QColor const& a, QColor const& b, double amount)
@@ -39,6 +39,7 @@ struct base
     char const* link;
     char const* nav;
     char const* nav_text;
+    char const* highlight;
 };
 
 roles light(base const& value)
@@ -56,14 +57,16 @@ roles light(base const& value)
     r.link = QColor(value.link);
     r.nav = QColor(value.nav);
     r.nav_text = QColor(value.nav_text);
+    r.highlight = QColor(value.highlight);
     r.subtle = r.canvas_hover;
-    r.selected = mix(r.accent, r.canvas_hover, 0.12);
-    r.bubble_out = mix(r.accent, r.surface, 0.14);
-    r.reaction_own = mix(r.accent, r.surface, 0.32);
+    // Enough accent in large areas (selection, own bubbles) that each theme reads as its own color.
+    r.selected = mix(r.accent, r.canvas_hover, 0.20);
+    r.bubble_out = mix(r.accent, r.surface, 0.22);
+    r.reaction_own = mix(r.accent, r.surface, 0.40);
     r.border = mix(r.text, r.canvas, 0.13);
     r.border_strong = mix(r.text, r.canvas, 0.30);
     r.focus = mix(r.accent, r.surface, 0.55);
-    r.accent_muted = mix(r.accent, r.text_secondary, 0.6);
+    r.accent_muted = mix(r.accent, r.text_secondary, 0.8);
     r.accent_disabled = mix(r.accent, r.canvas, 0.35);
     r.online = QColor(QStringLiteral("#2F7D55"));
     r.danger = QColor(QStringLiteral("#A64C48"));
@@ -82,17 +85,20 @@ roles theme_roles(chat_theme_id theme)
     {
         case chat_theme_id::paper:
             return light({"#F7F6F3", "#EFEDE8", "#FBFAF8", "#FFFFFF", "#21201C", "#56534C", "#6B665D",
-                          "#2B5F8C", "#1D68A5", "#2B5F8C", "#21201C", "#ECE9E3"});
+                          "#2B5F8C", "#1D68A5", "#2B5F8C", "#3A2E26", "#F3E9DF", "#9C5530"});
         case chat_theme_id::slate:
             return light({"#F1F4F8", "#E9EEF4", "#F6F9FC", "#FFFFFF", "#16222E", "#3D4E61", "#586B80",
-                          "#245F94", "#1D6FC4", "#245F94", "#16222E", "#E8EEF6"});
+                          "#245F94", "#1D6FC4", "#245F94", "#1B3550", "#E3ECF6", "#B4762E"});
         case chat_theme_id::ink:
         {
             // Black and white with red accents: actions are black, hover and links turn red.
             // Ink's secondary ground carries the chat, so white message cards stay distinct.
             auto r = light({"#F4F4F4", "#EAEAEA", "#FFFFFF", "#FFFFFF", "#141414", "#474747", "#636363",
-                            "#141414", "#C8102E", "#C8102E", "#141414", "#EDEDED"});
-            r.selected = QColor(QStringLiteral("#F4F4F4"));
+                            "#141414", "#C8102E", "#C8102E", "#141414", "#EDEDED", "#C8102E"});
+            // Red is Ink's only color: selection carries a red tint, own bubbles stay a quiet gray.
+            r.selected = mix(QColor(QStringLiteral("#C8102E")), QColor(QStringLiteral("#FFFFFF")), 0.10);
+            r.bubble_out = QColor(QStringLiteral("#E6E6E6"));
+            r.reaction_own = mix(QColor(QStringLiteral("#C8102E")), QColor(QStringLiteral("#FFFFFF")), 0.22);
             r.focus = QColor(QStringLiteral("#C8102E"));
             r.avatar_text = r.text;
             return r;
@@ -100,9 +106,7 @@ roles theme_roles(chat_theme_id theme)
         case chat_theme_id::terminal:
         {
             auto r = light({"#F4F5F2", "#E9EBE6", "#F8F9F6", "#FDFDFB", "#1D211F", "#4A514D", "#606B63",
-                            "#0A6560", "#084F4B", "#0A6560", "#1D211F", "#D3DBD6"});
-            // Amber marks attention, as Terminal does for its accents.
-            r.online = QColor(QStringLiteral("#935400"));
+                            "#0A6560", "#084F4B", "#0A6560", "#0D3B38", "#D3E6E2", "#935400"});
             return r;
         }
         case chat_theme_id::classic:
@@ -142,6 +146,7 @@ roles night_roles()
     r.nav_text = r.text;
     r.on_accent = QColor(Qt::white);
     r.avatar_text = r.text;
+    r.highlight = QColor(QStringLiteral("#D99A6C"));
     return r;
 }
 
@@ -292,6 +297,7 @@ void theme_manager::rebuild()
     on_accent_ = QColor(Qt::white);
     avatar_text_ = QColor(QStringLiteral("#315A4B"));
     avatar_ground_ = {};
+    highlight_ = QColor(QStringLiteral("#315A4B"));
     auto* application = qobject_cast<QApplication*>(QCoreApplication::instance());
     if (!identity_)
     {
@@ -299,6 +305,7 @@ void theme_manager::rebuild()
         colors_ = role_map(r);
         on_accent_ = r.on_accent;
         avatar_text_ = r.avatar_text;
+        highlight_ = r.highlight;
         if (night) { avatar_ground_ = r.surface; }
         if (application)
         {
@@ -340,6 +347,8 @@ QColor theme_manager::color(QColor const& classic) const
 QColor theme_manager::on_accent() const { return on_accent_; }
 
 QColor theme_manager::avatar_text() const { return avatar_text_; }
+
+QColor theme_manager::highlight() const { return highlight_; }
 
 QColor theme_manager::avatar_background(QColor const& classic) const
 {

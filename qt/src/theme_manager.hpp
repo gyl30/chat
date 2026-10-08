@@ -52,6 +52,8 @@ class theme_manager final : public QObject
     QColor color(QColor const& classic) const;
     QColor on_accent() const;
     QColor avatar_text() const;
+    // Unread badges and similar marks: the theme's second color (copper, red, amber).
+    QColor highlight() const;
     QColor avatar_background(QColor const& classic) const;
     QString style_sheet(QString classic) const;
 
@@ -71,6 +73,7 @@ class theme_manager final : public QObject
     QColor on_accent_;
     QColor avatar_text_;
     QColor avatar_ground_;
+    QColor highlight_;
     QPalette original_palette_;
 };
 

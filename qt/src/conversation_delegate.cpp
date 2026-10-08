@@ -158,7 +158,7 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
                          badge_width,
                          chat_theme::dialog_unread_height);
         painter->setPen(Qt::NoPen);
-        painter->setBrush(themed("#315A4B"));
+        painter->setBrush(theme_manager::instance().highlight());
         painter->drawRoundedRect(badge_rect, chat_theme::dialog_unread_height / 2.0,
                                  chat_theme::dialog_unread_height / 2.0);
         painter->setPen(theme_manager::instance().on_accent());
