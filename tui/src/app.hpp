@@ -71,6 +71,14 @@ public:
     void send();
     void stop_composing();
     void sync_focus();
+    // Applies an authoritative conversation list (a refresh or a further page).
+    void apply_conversation_snapshot(conversations_result result, bool append);
+    // The draft put away for a conversation that is not open.
+    std::string saved_draft(std::int64_t conversation) const
+    {
+        auto found = drafts_.find(conversation);
+        return found == drafts_.end() ? std::string{} : found->second;
+    }
     // Runs before the composer stops taking input or its draft is put away, so input the UI
     // still holds (the tail of a paste) reaches the draft it was typed into.
     std::function<void()> before_input_change;

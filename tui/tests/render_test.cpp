@@ -1236,6 +1236,28 @@ int main()
         ok &= expect(application.data.composing, "The next Esc returns to the composer");
         ftxui::Terminal::SetFallbackSize(fallback);
     }
+    for (bool removed : {false, true})
+    {
+        // A conversation list that takes the composer away (send permission revoked, or the
+        // conversation gone) arrives during an overwrite paste: every pasted glyph is kept.
+        app application;
+        writable_conversation(application);
+        auto component = make_ui(application, [] {});
+        component->OnEvent(ftxui::Event::Custom);
+        application.data.draft = "abcd";
+        component->OnEvent(ftxui::Event::Home);
+        component->OnEvent(ftxui::Event::Insert);
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        for (auto glyph : {"X", "Y", "Z"}) { component->OnEvent(ftxui::Event::Character(glyph)); }
+        { ftxui::Screen frame(120, 40); ftxui::Render(frame, component->Render()); }
+        auto snapshot = application.data.conversations;
+        if (removed) { snapshot.clear(); } else { snapshot.front().can_send = false; }
+        application.apply_conversation_snapshot({std::move(snapshot), std::nullopt}, false);
+        component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        auto const kept = removed ? application.saved_draft(10) : application.data.draft;
+        ok &= expect(kept == "XYZd", removed ? "A paste is complete in the draft put away when its conversation disappears"
+                                              : "A paste is complete when send permission is revoked");
+    }
     {
         // A notice that expires in the same batch never clears a newer error.
         app application;

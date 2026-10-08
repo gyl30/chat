@@ -302,31 +302,42 @@ void app::conversations_page(std::optional<conversation_cursor> cursor, bool app
             conversations();
             return;
         }
-        data.apply_conversations({std::move(values), result->next}, append);
-        if (!append && !data.next_conversations && data.active && !data.active_conversation())
-        {
-            if (before_input_change) { before_input_change(); }
-            drafts_[data.active] = data.draft;
-            ++view_;
-            stop_composing();
-            data.select_conversation(0);
-            data.view = page::conversations;
-            pages_.clear(); cancel_prompt();
-            history_busy_ = search_busy_ = requests_busy_ = sending_ = false;
-            requests_again_ = false;
-            marked_read_ = 0;
-            notify("当前会话已不可访问，已刷新会话列表");
-        }
-        if (data.active && !data.can_send()) { stop_composing(); }
-        if (pending_open_)
-        {
-            if (std::ranges::find(data.conversations, pending_open_, &chat::conversation::id) != data.conversations.end())
-            { auto id = pending_open_; pending_open_ = 0; open_conversation(id); }
-            else if (data.next_conversations) { conversations(true); return; }
-            else { pending_open_ = 0; }
-        }
-        if (conversations_again_) { conversations_again_ = false; conversations(); }
+        apply_conversation_snapshot({std::move(values), result->next}, append);
     }));
+}
+void app::apply_conversation_snapshot(conversations_result result, bool append)
+{
+    assert_ui();
+    // A snapshot that takes the composer away (the conversation is gone or can no longer
+    // send) first lets the UI finish input it still holds, while the composer is valid.
+    if (data.composing && before_input_change)
+    {
+        auto const found = std::ranges::find(result.conversations, data.active, &chat::conversation::id);
+        if (found != result.conversations.end() ? !found->can_send : !append) { before_input_change(); }
+    }
+    data.apply_conversations(std::move(result), append);
+    if (!append && !data.next_conversations && data.active && !data.active_conversation())
+    {
+        drafts_[data.active] = data.draft;
+        ++view_;
+        stop_composing();
+        data.select_conversation(0);
+        data.view = page::conversations;
+        pages_.clear(); cancel_prompt();
+        history_busy_ = search_busy_ = requests_busy_ = sending_ = false;
+        requests_again_ = false;
+        marked_read_ = 0;
+        notify("当前会话已不可访问，已刷新会话列表");
+    }
+    if (data.active && !data.can_send()) { stop_composing(); }
+    if (pending_open_)
+    {
+        if (std::ranges::find(data.conversations, pending_open_, &chat::conversation::id) != data.conversations.end())
+        { auto id = pending_open_; pending_open_ = 0; open_conversation(id); }
+        else if (data.next_conversations) { conversations(true); return; }
+        else { pending_open_ = 0; }
+    }
+    if (conversations_again_) { conversations_again_ = false; conversations(); }
 }
 void app::open_conversation(std::int64_t id)
 {
