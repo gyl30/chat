@@ -55,6 +55,7 @@ qt_add_resources(chat_qt_widgets chat_icons
     BASE "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons"
     FILES
         resources/icons/activity.svg
+        resources/icons/attach.svg
         resources/icons/bookmark.svg
         resources/icons/chat.svg
         resources/icons/check.svg
@@ -63,6 +64,8 @@ qt_add_resources(chat_qt_widgets chat_icons
         resources/icons/contacts.svg
         resources/icons/copy.svg
         resources/icons/groups.svg
+        resources/icons/more.svg
+        resources/icons/plus.svg
         resources/icons/search.svg
         resources/icons/send.svg
         resources/icons/settings.svg

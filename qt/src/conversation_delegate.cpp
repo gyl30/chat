@@ -53,13 +53,13 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     painter->setRenderHint(QPainter::Antialiasing);
 
     auto const rect = option.rect;
-    if (option.state & QStyle::State_Selected)
+    // Selection is an inset rounded card rather than a full-width band.
+    auto const card = QRectF(rect).adjusted(6, 2, -6, -2);
+    if (option.state & (QStyle::State_Selected | QStyle::State_MouseOver))
     {
-        painter->fillRect(rect, themed("#E7EEE9"));
-    }
-    else if (option.state & QStyle::State_MouseOver)
-    {
-        painter->fillRect(rect, themed("#F1F3EF"));
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(option.state & QStyle::State_Selected ? themed("#E7EEE9") : themed("#F1F3EF"));
+        painter->drawRoundedRect(card, 12, 12);
     }
 
     auto const username = index.data(conversation_model::username_role).toString();
@@ -158,7 +158,8 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
                          badge_width,
                          chat_theme::dialog_unread_height);
         painter->setPen(Qt::NoPen);
-        painter->setBrush(theme_manager::instance().highlight());
+        // A muted conversation still counts, but quietly, as in WeChat.
+        painter->setBrush(muted ? themed("#AEBDB6") : theme_manager::instance().highlight());
         painter->drawRoundedRect(badge_rect, chat_theme::dialog_unread_height / 2.0,
                                  chat_theme::dialog_unread_height / 2.0);
         painter->setPen(theme_manager::instance().on_accent());

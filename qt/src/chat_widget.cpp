@@ -200,6 +200,13 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     section_title_ = new QLabel(QStringLiteral("消息"), conversation_header);
     section_title_->setObjectName(QStringLiteral("sectionTitle"));
     conversation_header_layout->addWidget(section_title_);
+    // The chat list leads with search instead of a title, as WeChat does.
+    conversation_search_ = new QLineEdit(conversation_header);
+    conversation_search_->setObjectName(QStringLiteral("conversationSearchEdit"));
+    conversation_search_->setPlaceholderText(QStringLiteral("搜索聊天"));
+    conversation_search_->setAccessibleName(QStringLiteral("搜索聊天"));
+    conversation_search_->addAction(svg_icon(u"search", QColor(QStringLiteral("#8B918D")), QSize(16, 16)), QLineEdit::LeadingPosition);
+    conversation_header_layout->addWidget(conversation_search_, 1);
     conversation_header_layout->addStretch();
     add_contact_button_ = new QToolButton(conversation_header);
     add_contact_button_->setObjectName(QStringLiteral("sidebarTextButton"));
@@ -210,9 +217,12 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     chats_actions_ = new QToolButton(conversation_header);
     chats_actions_->setObjectName(QStringLiteral("chatsActionsButton"));
     chats_actions_->setText(QStringLiteral("+"));
+    chats_actions_->setIcon(svg_icon(u"plus", QColor(QStringLiteral("#315A4B")), QSize(18, 18)));
+    chats_actions_->setIconSize(QSize(18, 18));
+    chats_actions_->setToolButtonStyle(Qt::ToolButtonIconOnly);
     chats_actions_->setAccessibleName(QStringLiteral("聊天操作"));
     chats_actions_->setToolTip(QStringLiteral("添加好友、发起群聊或加入群聊"));
-    chats_actions_->setFixedSize(32, 32);
+    chats_actions_->setFixedSize(34, 34);
     chats_actions_->setCursor(Qt::PointingHandCursor);
     chats_actions_->setPopupMode(QToolButton::InstantPopup);
     auto* actions = new QMenu(chats_actions_);
@@ -470,8 +480,26 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     message_search_button_ = new QToolButton(header);
     message_search_button_->setObjectName(QStringLiteral("messageSearchButton"));
     message_search_button_->setText(QStringLiteral("搜索消息"));
+    message_search_button_->setToolTip(QStringLiteral("搜索消息"));
+    message_search_button_->setAccessibleName(QStringLiteral("搜索消息"));
+    message_search_button_->setIcon(svg_icon(u"search", QColor(QStringLiteral("#3F4542")), QSize(20, 20)));
+    message_search_button_->setIconSize(QSize(20, 20));
+    message_search_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    message_search_button_->setFixedSize(36, 36);
     message_search_button_->setEnabled(false);
     header_layout->addWidget(message_search_button_);
+    chat_more_button_ = new QToolButton(header);
+    chat_more_button_->setObjectName(QStringLiteral("chatMoreButton"));
+    chat_more_button_->setToolTip(QStringLiteral("聊天信息"));
+    chat_more_button_->setAccessibleName(QStringLiteral("聊天信息"));
+    chat_more_button_->setIcon(svg_icon(u"more", QColor(QStringLiteral("#3F4542")), QSize(20, 20)));
+    chat_more_button_->setIconSize(QSize(20, 20));
+    chat_more_button_->setFixedSize(36, 36);
+    chat_more_button_->setCursor(Qt::PointingHandCursor);
+    chat_more_button_->setEnabled(false);
+    header_layout->addWidget(chat_more_button_);
+    // The header icons replace the old text button and lead to the same chat or group details.
+    connect(chat_more_button_, &QToolButton::clicked, this, [this] { if (chat_title_->isEnabled()) { chat_title_->click(); } });
     connect(message_search_button_, &QToolButton::clicked, this, [this] {
         emit message_search_requested(active_conversation_, self_user_, active_group_, active_username_, {});
     });
@@ -713,6 +741,8 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     input_separator->setFrameShape(QFrame::HLine);
     input_separator->setObjectName(QStringLiteral("horizontalSeparator"));
     chat_layout->addWidget(input_separator);
+    // The composer is drawn as a rounded card, which already separates it from the history.
+    input_separator->hide();
 
     auto* input_bar = new QFrame(chat_panel);
     input_bar->setObjectName(QStringLiteral("inputBar"));
@@ -754,6 +784,12 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     attachment_button_ = new QToolButton(input_bar);
     attachment_button_->setObjectName(QStringLiteral("sendAttachmentButton"));
     attachment_button_->setText(QStringLiteral("文件/图片"));
+    attachment_button_->setToolTip(QStringLiteral("发送文件或图片"));
+    attachment_button_->setAccessibleName(QStringLiteral("发送文件或图片"));
+    attachment_button_->setIcon(svg_icon(u"attach", QColor(QStringLiteral("#3F4542")), QSize(22, 22)));
+    attachment_button_->setIconSize(QSize(22, 22));
+    attachment_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    attachment_button_->setFixedSize(chat_theme::compose_button_width, chat_theme::compose_button_height);
     attachment_button_->setEnabled(false);
     input_layout->addWidget(attachment_button_, 0, Qt::AlignBottom);
     connect(attachment_button_, &QToolButton::clicked, this, [this] {
@@ -799,8 +835,8 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     });
     send_button_ = new QToolButton(input_bar);
     send_button_->setObjectName(QStringLiteral("sendButton"));
-    send_button_->setIcon(svg_icon(QStringLiteral("send"), QColor(QStringLiteral("#315A4B")), QSize(22, 22)));
-    send_button_->setIconSize(QSize(22, 22));
+    send_button_->setIcon(svg_icon(QStringLiteral("send"), QColor(Qt::white), QSize(20, 20)));
+    send_button_->setIconSize(QSize(20, 20));
     send_button_->setToolTip(QStringLiteral("发送消息（Enter）"));
     send_button_->setAccessibleName(QStringLiteral("发送消息"));
     send_button_->setFixedSize(chat_theme::compose_button_width, chat_theme::compose_button_height);
@@ -868,6 +904,14 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     layout->addWidget(right_pages_, 1);
     connect(contact_card_message_, &QPushButton::clicked, this, [this] { contact_card_primary(); });
     connect(contact_card_profile_, &QPushButton::clicked, this, [this] { contact_card_secondary(); });
+    chats_badge_ = new QLabel(chats_navigation_);
+    chats_badge_->setObjectName(QStringLiteral("chatsBadge"));
+    chats_badge_->setAlignment(Qt::AlignCenter);
+    chats_badge_->setAttribute(Qt::WA_TransparentForMouseEvents);
+    chats_badge_->hide();
+    connect(conversation_search_, &QLineEdit::textChanged, this, [this] { filter_conversations(); });
+    connect(conversations_, &QAbstractItemModel::modelReset, this, [this] { filter_conversations(); update_unread_badge(); });
+    connect(conversations_, &QAbstractItemModel::dataChanged, this, [this] { update_unread_badge(); });
     navigation_badge_ = new QLabel(contacts_navigation_);
     navigation_badge_->setObjectName(QStringLiteral("navigationBadge"));
     navigation_badge_->setAlignment(Qt::AlignCenter);
@@ -1124,7 +1168,7 @@ void chat_widget::set_user(QString const& username, qint64 user)
     presence_.clear();
     conversations_->set_conversations({});
     conversations_view_->setCurrentIndex({});
-    conversations_status_->setText(QStringLiteral("暂无会话"));
+    set_list_status(QStringLiteral("暂无会话"));
     messages_->set_self_user(user);
     messages_->reset(0);
     contacts_->set_users({});
@@ -1151,6 +1195,7 @@ void chat_widget::set_user(QString const& username, qint64 user)
     send_button_->setEnabled(false);
     message_search_button_->setEnabled(false);
     attachment_button_->setEnabled(false);
+    chat_more_button_->setEnabled(false);
 }
 
 bool chat_widget::eventFilter(QObject* object, QEvent* event)
@@ -1235,7 +1280,7 @@ void chat_widget::load_visible_images()
     }
 }
 
-void chat_widget::set_loading() { conversations_status_->setText(QStringLiteral("正在加载…")); }
+void chat_widget::set_loading() { set_list_status(QStringLiteral("正在加载…")); }
 
 void chat_widget::set_error(QString message)
 {
@@ -1245,7 +1290,14 @@ void chat_widget::set_error(QString message)
     notice_timer_->start();
 }
 
-void chat_widget::set_conversations_error(QString message) { conversations_status_->setText(std::move(message)); }
+void chat_widget::set_conversations_error(QString message) { set_list_status(std::move(message)); }
+
+// The status row takes space only while it has something to say.
+void chat_widget::set_list_status(QString text)
+{
+    conversations_status_->setText(std::move(text));
+    conversations_status_->setVisible(!conversations_status_->text().isEmpty());
+}
 
 void chat_widget::set_connection_available(bool available)
 {
@@ -1336,12 +1388,12 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
     }
     if (conversations_->rowCount() == 0)
     {
-        conversations_status_->setText(QStringLiteral("暂无会话"));
+        set_list_status(QStringLiteral("暂无会话"));
         conversations_view_->setCurrentIndex({});
         return;
     }
 
-    conversations_status_->clear();
+    set_list_status({});
     if (previous_user > 0)
     {
         auto const index = conversations_->index_for_conversation(previous_user);
@@ -1765,6 +1817,8 @@ qint64 chat_widget::latest_message_id() const { return messages_->last_message_i
 void chat_widget::show_conversations_section()
 {
     section_title_->setText(QStringLiteral("消息"));
+    section_title_->hide();
+    conversation_search_->show();
     sidebar_pages_->setCurrentIndex(0);
     right_pages_->setCurrentIndex(0);
     sidebar_back_button_->hide();
@@ -1777,6 +1831,8 @@ void chat_widget::show_conversations_section()
 void chat_widget::show_contacts_section()
 {
     section_title_->setText(QStringLiteral("联系人"));
+    section_title_->show();
+    conversation_search_->hide();
     sidebar_pages_->setCurrentIndex(1);
     right_pages_->setCurrentIndex(1);
     sidebar_back_button_->hide();
@@ -1795,6 +1851,8 @@ void chat_widget::show_add_contact_section()
             : sidebar_pages_->currentIndex() == 3 ? sidebar_parent::new_friends : sidebar_parent::contacts;
     }
     section_title_->setText(QStringLiteral("添加好友"));
+    section_title_->show();
+    conversation_search_->hide();
     sidebar_pages_->setCurrentIndex(2);
     right_pages_->setCurrentIndex(1);
     sidebar_back_button_->show();
@@ -1813,6 +1871,8 @@ void chat_widget::show_new_friends_section()
         set_friend_requests(incoming_requests_, outgoing_requests_, {});
     }
     section_title_->setText(QStringLiteral("新的朋友"));
+    section_title_->show();
+    conversation_search_->hide();
     sidebar_pages_->setCurrentIndex(3);
     right_pages_->setCurrentIndex(1);
     sidebar_back_button_->show();
@@ -1882,7 +1942,11 @@ void chat_widget::refresh_theme()
     set_navigation_button(chats_navigation_, QStringLiteral("chat"), chats);
     set_navigation_button(contacts_navigation_, QStringLiteral("contacts"), !chats);
     cancel_reply_button_->setIcon(svg_icon(QStringLiteral("close"), QColor(QStringLiteral("#3F4542")), QSize(20, 20)));
-    send_button_->setIcon(svg_icon(QStringLiteral("send"), QColor(QStringLiteral("#315A4B")), QSize(22, 22)));
+    send_button_->setIcon(svg_icon(QStringLiteral("send"), QColor(Qt::white), QSize(20, 20)));
+    message_search_button_->setIcon(svg_icon(u"search", QColor(QStringLiteral("#3F4542")), QSize(20, 20)));
+    chat_more_button_->setIcon(svg_icon(u"more", QColor(QStringLiteral("#3F4542")), QSize(20, 20)));
+    attachment_button_->setIcon(svg_icon(u"attach", QColor(QStringLiteral("#3F4542")), QSize(22, 22)));
+    chats_actions_->setIcon(svg_icon(u"plus", QColor(QStringLiteral("#315A4B")), QSize(18, 18)));
     new_friends_button_->setIcon(svg_icon(u"user-plus", QColor(QStringLiteral("#315A4B")), QSize(22, 22)));
     find_user_button_->setIcon(svg_icon(u"search", QColor(QStringLiteral("#315A4B")), QSize(18, 18)));
     contact_placeholder_->setPixmap(svg_icon(u"contacts", QColor(QStringLiteral("#D6D2C8")), QSize(72, 72)).pixmap(72, 72));
@@ -1991,6 +2055,39 @@ void chat_widget::request_friend_action(qint64 user, QString const& username, in
     else if (state == chat::friendship_state::outgoing_pending) { emit friend_request_cancel_requested(user); }
     else { emit contact_add_requested(user); }
     update_contact_card();
+}
+
+void chat_widget::filter_conversations()
+{
+    auto const query = conversation_search_->text().trimmed();
+    int shown = 0;
+    for (int row = 0; row < conversations_->rowCount(); ++row)
+    {
+        auto const index = conversations_->index(row, 0);
+        auto const matched = query.isEmpty() ||
+            index.data(conversation_model::username_role).toString().contains(query, Qt::CaseInsensitive) ||
+            index.data(conversation_model::last_text_role).toString().contains(query, Qt::CaseInsensitive);
+        conversations_view_->setRowHidden(row, !matched);
+        shown += matched;
+    }
+    if (conversations_->rowCount() > 0)
+    {
+        set_list_status(!query.isEmpty() && shown == 0 ? QStringLiteral("没有匹配的聊天") : QString{});
+    }
+}
+
+void chat_widget::update_unread_badge()
+{
+    quint64 total = 0;
+    for (int row = 0; row < conversations_->rowCount(); ++row)
+    {
+        auto const index = conversations_->index(row, 0);
+        if (!index.data(conversation_model::muted_role).toBool()) { total += index.data(conversation_model::unread_role).toULongLong(); }
+    }
+    chats_badge_->setText(total > 99 ? QStringLiteral("99+") : QString::number(total));
+    chats_badge_->setVisible(total > 0);
+    auto const width = std::max(16, chats_badge_->sizeHint().width());
+    chats_badge_->setGeometry(std::min(chats_navigation_->width() - width, 30), 2, width, 16);
 }
 
 void chat_widget::show_loading_status()
@@ -2172,6 +2269,7 @@ void chat_widget::open_conversation(conversation_data conversation)
         message_edit_->moveCursor(QTextCursor::End);
     }
     message_search_button_->setEnabled(connection_available_);
+    chat_more_button_->setEnabled(true);
     messages_->reset(active_conversation_, active_group_);
     update_pinned_message();
     messages_loaded_ = false;
@@ -2226,6 +2324,7 @@ void chat_widget::close_conversation(qint64 conversation)
     send_button_->setEnabled(false);
     message_search_button_->setEnabled(false);
     attachment_button_->setEnabled(false);
+    chat_more_button_->setEnabled(false);
     set_message_status(QStringLiteral("选择一个会话开始聊天"));
 }
 

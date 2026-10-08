@@ -712,7 +712,7 @@ QString classic_style_sheet()
             font-size: 11px;
             font-weight: 700;
         }
-        QLabel#navigationBadge {
+        QLabel#navigationBadge, QLabel#chatsBadge {
             min-width: 16px;
             padding: 0 4px;
             border-radius: 8px;
@@ -967,7 +967,56 @@ QString classic_style_sheet()
         QToolButton#cancelReplyButton:focus {
             border-color: #547C68;
         }
-    )");
+            QLineEdit#conversationSearchEdit {
+            min-height: 34px;
+            padding: 0 10px 0 4px;
+            background: #EEEDE7;
+            border: 1px solid transparent;
+            border-radius: 17px;
+            font-size: 13px;
+        }
+        QLineEdit#conversationSearchEdit:focus {
+            background: #FFFFFF;
+            border-color: #88A697;
+        }
+        QToolButton#chatsActionsButton {
+            border: 1px solid #DDD9D0;
+            border-radius: 17px;
+            background: #FFFFFF;
+        }
+        QToolButton#chatsActionsButton::menu-indicator {
+            image: none;
+            width: 0;
+        }
+        QToolButton#messageSearchButton, QToolButton#chatMoreButton, QToolButton#sendAttachmentButton {
+            padding: 0;
+            border: 0;
+            border-radius: 18px;
+            background: transparent;
+        }
+        QToolButton#messageSearchButton:hover:enabled, QToolButton#chatMoreButton:hover:enabled,
+        QToolButton#sendAttachmentButton:hover:enabled {
+            background: #EEEDE7;
+        }
+        QFrame#inputBar {
+            margin: 4px 14px 14px 14px;
+            background: #FFFFFF;
+            border: 1px solid #E3E0D8;
+            border-radius: 14px;
+        }
+        QToolButton#sendButton {
+            margin: 4px 2px;
+            border: 0;
+            border-radius: 10px;
+            background: #315A4B;
+        }
+        QToolButton#sendButton:hover:enabled {
+            background: #294D40;
+        }
+        QToolButton#sendButton:disabled {
+            background: #AEBDB6;
+        }
+)");
 }
 
 }    // namespace

@@ -141,6 +141,9 @@ class chat_widget final : public QWidget
     void contact_card_secondary();
     void request_friend_action(qint64 user, QString const& username, int action);
     void find_user();
+    void filter_conversations();
+    void set_list_status(QString text);
+    void update_unread_badge();
     void show_loading_status();
     void update_friend_badges();
     void select_add_user(QModelIndex const& index);
@@ -196,6 +199,9 @@ class chat_widget final : public QWidget
     QPushButton* find_user_button_ = nullptr;
     QLabel* new_friends_badge_ = nullptr;
     QLabel* navigation_badge_ = nullptr;
+    QLabel* chats_badge_ = nullptr;
+    QLineEdit* conversation_search_ = nullptr;
+    QToolButton* chat_more_button_ = nullptr;
     QPushButton* empty_add_friend_button_ = nullptr;
     // The action awaiting its result per user, so the result can be reported in words.
     QHash<qint64, QPair<int, QString>> pending_friend_actions_;

@@ -2114,6 +2114,46 @@ void check_quiet_status()
     page.findChild<QToolButton*>("sendButton")->click();
     check(!status_text().contains(QStringLiteral("正在发送")), "Sending does not flash a status line");
 }
+void check_chat_list_search()
+{
+    chat_widget page;
+    page.setStyleSheet(chat_style_sheet());
+    page.resize(1180, 720);
+    page.set_user(QStringLiteral("本人"), 1);
+    page.set_connection_available(true);
+    conversation_data first;
+    first.id = 50; first.user = 2; first.username = QStringLiteral("林小满"); first.unread = 3; first.last_text = QStringLiteral("设计方案");
+    auto second = first;
+    second.id = 51; second.user = 3; second.username = QStringLiteral("周一航"); second.unread = 2; second.last_text = QStringLiteral("辛苦了");
+    auto muted = first;
+    muted.id = 52; muted.user = 4; muted.username = QStringLiteral("妈妈"); muted.unread = 9; muted.muted = true; muted.last_text = QStringLiteral("吃饭");
+    page.set_conversations({first, second, muted});
+    page.show();
+    QApplication::processEvents();
+    auto* badge = page.findChild<QLabel*>("chatsBadge");
+    check(badge && badge->isVisibleTo(&page) && badge->text() == QStringLiteral("5"),
+          "The Chats icon counts unread messages of conversations that are not muted");
+    auto* list = page.findChild<QListView*>("conversationList");
+    auto* search = page.findChild<QLineEdit*>("conversationSearchEdit");
+    auto visible = [&] {
+        QList<qint64> ids;
+        for (int row = 0; row < list->model()->rowCount(); ++row)
+        { if (!list->isRowHidden(row)) { ids.push_back(list->model()->index(row, 0).data(conversation_model::id_role).toLongLong()); } }
+        return ids;
+    };
+    search->setText(QStringLiteral("周"));
+    check(visible() == QList<qint64>{51}, "Chat search matches conversation names");
+    search->setText(QStringLiteral("设计"));
+    check(visible() == QList<qint64>{50}, "Chat search matches the latest message");
+    page.set_conversations({first, second, muted});
+    check(visible() == QList<qint64>{50}, "A list refresh keeps the active chat search");
+    search->clear();
+    check(visible().size() == 3, "Clearing chat search shows every conversation");
+    auto* search_messages = page.findChild<QToolButton*>("messageSearchButton");
+    check(search_messages->toolButtonStyle() == Qt::ToolButtonIconOnly && !search_messages->icon().isNull() &&
+              search_messages->toolTip() == QStringLiteral("搜索消息") && page.findChild<QToolButton*>("chatMoreButton"),
+          "The chat header uses named icon buttons instead of a text button");
+}
 void check_message_action_targets()
 {
     // Real menus and dialogs, without a server: older history resets the model
@@ -3092,7 +3132,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
+        try { check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_list_search(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;

@@ -297,7 +297,7 @@ void theme_manager::rebuild()
     on_accent_ = QColor(Qt::white);
     avatar_text_ = QColor(QStringLiteral("#315A4B"));
     avatar_ground_ = {};
-    highlight_ = QColor(QStringLiteral("#315A4B"));
+    highlight_ = QColor(QStringLiteral("#E5484D"));
     auto* application = qobject_cast<QApplication*>(QCoreApplication::instance());
     if (!identity_)
     {
