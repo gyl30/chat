@@ -1709,6 +1709,7 @@ void chat_widget::open_conversation(conversation_data conversation)
         if (!existing.isValid()) { items.push_back(conversation); }
         conversations_->set_conversations(std::move(items));
     }
+    if (sidebar_pages_->currentIndex() != 0) { show_conversations_section(); }
     auto username = conversation.username;
     active_peer_ = conversation.user;
     active_group_ = conversation.group;

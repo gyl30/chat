@@ -1222,6 +1222,13 @@ void check_primary_navigation()
         auto* list_status = page.findChild<QListView*>("conversationList")->parentWidget()->findChild<QLabel*>("subtleText");
         check(list_status && list_status->text().isEmpty(), "Operation notices are not written into the list status");
     }
+    for (auto* button : buttons)
+    { if (button->text() == QStringLiteral("联系人")) { button->click(); } }
+    page.open_conversation(other);
+    check(page.findChild<QLabel*>("sectionTitle")->text() == QStringLiteral("消息") &&
+              page.findChild<QListView*>("conversationList")->isVisibleTo(&page) &&
+              page.findChild<QListView*>("conversationList")->currentIndex().data(Qt::DisplayRole).isValid(),
+          "Opening a chat from Contacts shows the chat list with that conversation selected");
     page.set_connection_available(false);
     check(!actions->isEnabled() && !add->isEnabled() && !create->isEnabled() && !join->isEnabled(), "Offline header actions cannot issue requests");
     {
