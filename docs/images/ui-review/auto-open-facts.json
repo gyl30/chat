@@ -1,0 +1,24 @@
+{
+  "group": 1,
+  "direct": 3,
+  "group_msg": 2,
+  "direct_msg": 3,
+  "before": {
+    "group": 0,
+    "direct": 0
+  },
+  "after_login": {
+    "group": 0,
+    "direct": 3
+  },
+  "group_msg2": 4,
+  "before_removal": {
+    "group": 0
+  },
+  "after_removal": {
+    "group": 0
+  },
+  "after_unrelated_refresh": {
+    "group": 4
+  }
+}
