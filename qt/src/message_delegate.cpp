@@ -490,7 +490,7 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     {
         auto const font = name_font(option);
         painter->setFont(font);
-        painter->setPen(themed("#315A4B"));
+        painter->setPen(themed(theme_manager::instance().dark() ? "#547C68" : "#315A4B"));
         QRect name_rect(content_left, content_top, content_right - content_left, QFontMetrics(font).height());
         painter->drawText(name_rect, Qt::AlignLeft | Qt::AlignVCenter,
                           QFontMetrics(font).elidedText(layout.sender, Qt::ElideRight, name_rect.width()));
@@ -570,7 +570,7 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
         painter->setPen(Qt::NoPen);
         painter->setBrush(themed(QColor(mine ? QStringLiteral("#A8D6BD") : QStringLiteral("#E8F0EB"))));
         painter->drawRoundedRect(rect, 10, 10);
-        painter->setPen(themed("#315A4B"));
+        painter->setPen(themed(theme_manager::instance().dark() ? "#27332E" : "#315A4B"));
         painter->drawText(rect, Qt::AlignCenter, reaction.emoji + QStringLiteral(" %1").arg(reaction.users.size()));
     }
 
