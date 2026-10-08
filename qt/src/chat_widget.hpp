@@ -33,6 +33,7 @@ class QStackedWidget;
 class QToolButton;
 class QTimer;
 class conversation_model;
+class feedback_label;
 class message_model;
 class user_model;
 
@@ -52,6 +53,7 @@ class chat_widget final : public QWidget
     void set_members(qint64 conversation, QList<member_data> members, QString const& error);
     void set_loading();
     void set_error(QString message);
+    void set_conversations_error(QString message);
     void set_connection_available(bool available);
     void set_connection_status(QString text, bool retry_enabled);
     void set_conversations(QList<conversation_data> conversations);
@@ -169,6 +171,8 @@ class chat_widget final : public QWidget
     sidebar_parent add_friend_parent_ = sidebar_parent::contacts;
     QListView* conversations_view_ = nullptr;
     QLabel* conversations_status_ = nullptr;
+    feedback_label* notice_ = nullptr;
+    QTimer* notice_timer_ = nullptr;
     QLineEdit* contact_search_ = nullptr;
     QListView* contacts_view_ = nullptr;
     QLabel* contacts_status_ = nullptr;

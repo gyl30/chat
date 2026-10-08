@@ -557,6 +557,14 @@ QString chat_style_sheet()
         QLabel#subtleText {
             color: #8B918D;
         }
+        QLabel#sidebarNotice {
+            margin: 0 12px 8px 12px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            background: #ECEFEA;
+            color: #315A4B;
+            font-size: 13px;
+        }
         QLabel#friendRequestsStatus, QLabel#friendRequestHeading {
             color: #5D6C64;
             font-size: 13px;

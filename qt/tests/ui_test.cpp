@@ -1209,6 +1209,19 @@ void check_primary_navigation()
     page.set_messages(direct.id, {hidden_message}, {}, false, false, false);
     check(page.active_conversation() == direct.id && history->model()->rowCount() == 1 && edit->isEnabled(),
           "Accepted friendship restores the direct and its stored history");
+    {
+        page.set_error(QStringLiteral("入群申请已通过。"));
+        page.set_conversations({direct, other});
+        auto* notice = page.findChild<QLabel*>("sidebarNotice");
+        check(notice && !notice->isHidden() && notice->text() == QStringLiteral("入群申请已通过。"),
+              "A conversation list refresh keeps the latest operation notice");
+        for (auto* button : buttons)
+        { if (button->text() == QStringLiteral("联系人")) { button->click(); } }
+        check(notice->isVisibleTo(&page), "Operation notices remain visible on every sidebar page");
+        chats->click();
+        auto* list_status = page.findChild<QListView*>("conversationList")->parentWidget()->findChild<QLabel*>("subtleText");
+        check(list_status && list_status->text().isEmpty(), "Operation notices are not written into the list status");
+    }
     page.set_connection_available(false);
     check(!actions->isEnabled() && !add->isEnabled() && !create->isEnabled() && !join->isEnabled(), "Offline header actions cannot issue requests");
     {

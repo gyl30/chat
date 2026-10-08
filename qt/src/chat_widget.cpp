@@ -363,6 +363,15 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
         list->installEventFilter(this);
         list->viewport()->installEventFilter(this);
     }
+    notice_ = new feedback_label(conversation_panel);
+    notice_->setObjectName(QStringLiteral("sidebarNotice"));
+    notice_->setWordWrap(true);
+    notice_->hide();
+    conversation_layout->addWidget(notice_);
+    notice_timer_ = new QTimer(this);
+    notice_timer_->setSingleShot(true);
+    notice_timer_->setInterval(6000);
+    connect(notice_timer_, &QTimer::timeout, this, [this] { notice_->clear(); notice_->hide(); });
     conversation_layout->addWidget(sidebar_pages_, 1);
 
     auto* chat_panel = new QFrame(this);
@@ -1084,7 +1093,15 @@ void chat_widget::load_visible_images()
 
 void chat_widget::set_loading() { conversations_status_->setText(QStringLiteral("正在加载…")); }
 
-void chat_widget::set_error(QString message) { conversations_status_->setText(std::move(message)); }
+void chat_widget::set_error(QString message)
+{
+    // Operation feedback outlives list refreshes, which own conversations_status_.
+    notice_->setVisible(!message.isEmpty());
+    notice_->show_error(std::move(message));
+    notice_timer_->start();
+}
+
+void chat_widget::set_conversations_error(QString message) { conversations_status_->setText(std::move(message)); }
 
 void chat_widget::set_connection_available(bool available)
 {

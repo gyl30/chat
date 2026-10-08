@@ -493,7 +493,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                 if (!error_message.isEmpty())
                 {
                     pending_notifications_.clear();
-                    chat_page_->set_error(error_message);
+                    chat_page_->set_conversations_error(error_message);
                     return;
                 }
                 chat_page_->set_conversations(std::move(conversations));
