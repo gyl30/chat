@@ -1615,7 +1615,62 @@ int main()
         ok &= expect(application.menu_open && application.palette_open, "The palette opens over a menu");
         component->OnEvent(ftxui::Event::Escape);
         ok &= expect(application.menu_open && !application.palette_open, "Closing the palette returns to the menu");
+        // Over a menu, a paste fills the palette query.
+        component->OnEvent(ftxui::Event::CtrlK);
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        type("帮助");
+        component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.data.view == page::help, "A paste over a menu reaches the palette");
+        application.dismiss_error();
         component->OnEvent(ftxui::Event::Escape);
+        // The menu below closing (its message deleted) does not take the palette's key.
+        component->OnEvent(ftxui::Event::Custom);
+        if (application.data.composing) { component->OnEvent(ftxui::Event::TabReverse); }
+        application.data.message_selected = 0;
+        component->OnEvent(ftxui::Event::Return);
+        component->OnEvent(ftxui::Event::CtrlK);
+        application.data.messages.front().deleted = true;
+        type("x");
+        ok &= expect(application.palette_open && !application.menu_open && screen_text().find("> x") != std::string::npos,
+                     "A key for the palette is not swallowed when the menu below closes");
+        component->OnEvent(ftxui::Event::Escape);
+        application.data.messages.front().deleted = false;
+        // ":" alone is a command line, never the line break entry.
+        application.data.status.clear();
+        component->OnEvent(ftxui::Event::Tab);
+        application.data.draft = "ab";
+        component->OnEvent(ftxui::Event::CtrlK);
+        type(":");
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.data.draft == "ab", "A lone colon does not insert a line break");
+        // The palette closes when the connection or the account changes under it, but opens offline.
+        component->OnEvent(ftxui::Event::CtrlK);
+        application.data.link = connection::reconnecting;
+        component->OnEvent(ftxui::Event::Custom);
+        ok &= expect(!application.palette_open, "A disconnect closes the palette");
+        component->OnEvent(ftxui::Event::CtrlK);
+        component->OnEvent(ftxui::Event::Custom);
+        ok &= expect(application.palette_open, "The palette opens and stays open while offline");
+        application.data.link = connection::online;
+        component->OnEvent(ftxui::Event::Custom);
+        ok &= expect(!application.palette_open, "Reconnecting also closes it");
+        // A command from the palette starts its own dialog empty, not with the dialog input beneath.
+        application.data.contacts = {{2, "Bob", {}}};
+        application.navigate(page::contacts);
+        application.command("filter");
+        type("y");
+        component->OnEvent(ftxui::Event::CtrlK);
+        type("退出登录");
+        component->OnEvent(ftxui::Event::Return);
+        screen_text();
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.data.self.id == 1, "The logout confirmation does not inherit a y typed in another dialog");
+        application.cancel_prompt();
+        component->OnEvent(ftxui::Event::CtrlK);
+        application.data.self.id = 0;
+        component->OnEvent(ftxui::Event::Custom);
+        ok &= expect(!application.palette_open, "Signing out closes the palette");
         ftxui::Terminal::SetFallbackSize(fallback);
     }
     {

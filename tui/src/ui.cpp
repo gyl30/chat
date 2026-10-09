@@ -724,13 +724,13 @@ Element render_impl(state const& s, int width, int height, Element compose = {},
     return vbox({hbox({preview_text("Chat · " + s.self.username, width - 2 - DisplayWidth(link)) | bold | flex, text(link)}), separator(), content, separator(), hbox({status | flex, text(help) | dim})}) | border;
 }
 // One command palette entry; an empty command inserts a line break in the composer.
-struct palette_entry { std::string label; std::string command; };
+struct palette_entry { std::string label; std::string command; bool line_break = false; };
 std::vector<palette_entry> palette_entries(state const& s)
 {
     std::vector<palette_entry> entries;
     auto const* c = s.active_conversation();
     bool const chat = s.view == page::conversation && c;
-    if (chat && s.can_send()) { entries.push_back({"插入换行", ""}); entries.push_back({"发送文件", "file"}); }
+    if (chat && s.can_send()) { entries.push_back({"插入换行", "", true}); entries.push_back({"发送文件", "file"}); }
     if (chat)
     {
         entries.push_back({"搜索聊天记录", "search"});
@@ -867,6 +867,7 @@ public:
     Element OnRender() override
     {
         flush_paste();
+        validate_palette();
         validate_menu();
         if (app_.data.self.id) { app_.sync_focus(); }
         auto terminal = Terminal::Size();
@@ -990,13 +991,14 @@ private:
         // Pasted text belongs to the target as it was before queued results change it.
         app_.drain([this] { flush_paste(); });
         bool const had_menu = menu_.has_value();
+        validate_palette();
         validate_menu();
         if (app_.data.self.id) { app_.sync_focus(); }
         // A key meant for a menu that just closed because its target changed does nothing else.
         // Paste markers still keep the paste protocol in step; pasted text without a target is
         // dropped by the paste branch below.
         bool const paste_marker = event == Event::Special("\x1b[200~") || event == Event::Special("\x1b[201~");
-        if (had_menu && !menu_ && event != Event::Custom && event != Event::CtrlC && !paste_marker) { return true; }
+        if (had_menu && !menu_ && !palette_open_ && event != Event::Custom && event != Event::CtrlC && !paste_marker) { return true; }
         sync_message_scroll();
         auto& s = app_.data;
         if (event == Event::CtrlC)
@@ -1013,7 +1015,7 @@ private:
                 pasting_ = true;
                 // A paste that began while a menu was open belongs to no input, even if that
                 // menu closed in this event and the composer has just come back.
-                paste_input_ = had_menu ? Component{} : input();
+                paste_input_ = palette_open_ ? palette_input_ : had_menu ? Component{} : input();
                 paste_conversation_ = s.active;
                 paste_buffer_.clear();
             }
@@ -1324,8 +1326,21 @@ private:
         palette_open_ = true;
         app_.palette_open = true;
         palette_query_.clear();
+        palette_seen_query_.clear();
         palette_selected_ = 0;
+        palette_conversation_ = app_.data.active;
+        palette_link_ = app_.data.link;
+        palette_account_ = app_.data.self.id;
         palette_input_->TakeFocus();
+    }
+    // The palette closes when the session or connection it was opened in ends, or the open
+    // conversation goes away; its query changing (typed or pasted) resets the selection.
+    void validate_palette()
+    {
+        if (!palette_open_) { return; }
+        auto const& s = app_.data;
+        if (s.self.id != palette_account_ || s.link != palette_link_ || s.active != palette_conversation_) { close_palette(); return; }
+        if (palette_query_ != palette_seen_query_) { palette_seen_query_ = palette_query_; palette_selected_ = 0; }
     }
     // Closing returns to whatever was open before: the composer with its draft and cursor, a
     // menu or a dialog.
@@ -1351,16 +1366,20 @@ private:
             return true;
         }
         palette_input_->TakeFocus();
-        auto const before = palette_query_;
         palette_input_->OnEvent(event);
-        if (palette_query_ != before) { palette_selected_ = 0; }
+        validate_palette();
         return true;
     }
     void run_palette_entry(palette_entry const& entry)
     {
         auto& s = app_.data;
-        if (!entry.command.empty())
+        if (!entry.line_break)
         {
+            // A command from the palette replaces a dialog or command line left open beneath
+            // it, so a new dialog starts empty instead of inheriting the old input.
+            if (app_.dialog) { app_.cancel_prompt(); }
+            prompt_active_ = false;
+            app_.command_mode = false;
             app_.command(entry.command);
             if (app_.exiting) { quit_(); }
             return;
@@ -1534,6 +1553,9 @@ private:
     std::string palette_query_;
     bool palette_open_ = false;
     int palette_selected_ = 0;
+    std::string palette_seen_query_;
+    std::int64_t palette_conversation_ = 0, palette_account_ = 0;
+    connection palette_link_ = connection::signed_out;
     bool compose_insert_ = true;
     struct newline_mark { std::int64_t conversation; int cursor; std::string draft; };
     std::optional<newline_mark> newline_;
