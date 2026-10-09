@@ -1876,6 +1876,54 @@ int main()
         };
         ok &= expect(overwrite(true) == overwrite(false) && overwrite(true) == "aXY中ZW\ndef",
                      "An overwrite paste replaces like typing and stops at the line end");
+        // The edges of overwrite pastes: a line ending in CRLF, a mark arriving in a later batch,
+        // and a pasted flag, which replaces one glyph (typing its halves one by one would not).
+        auto overwrite_paste = [&](std::string draft, std::vector<std::string> const& batches, bool typing = false) {
+            app application;
+            writable_conversation(application);
+            application.data.draft = std::move(draft);
+            auto component = make_ui(application, [] {});
+            ftxui::Screen screen(100, 30);
+            component->OnEvent(ftxui::Event::Home);
+            component->OnEvent(ftxui::Event::Insert);
+            if (!typing) { component->OnEvent(ftxui::Event::Special("\x1b[200~")); }
+            for (auto const& batch : batches)
+            {
+                component->OnEvent(ftxui::Event::Character(batch));
+                ftxui::Render(screen, component->Render());
+            }
+            if (!typing) { component->OnEvent(ftxui::Event::Special("\x1b[201~")); }
+            return application.data.draft;
+        };
+        ok &= expect(overwrite_paste("a\r\nb", {"XY"}) == "XY\r\nb" && overwrite_paste("a\r\nb", {"X", "Y"}, true) == "XY\r\nb",
+                     "An overwrite paste stops before a CRLF line ending, as typing does");
+        ok &= expect(overwrite_paste("abc", {"e", "́"}) == "ébc" && overwrite_paste("abc", {"é"}) == "ébc",
+                     "A combining mark in a later batch joins its letter and replaces one glyph");
+        ok &= expect(overwrite_paste("\U0001F1F3\U0001F1E6Z", {"\U0001F1E8\U0001F1FA"}) == "\U0001F1E8\U0001F1FAZ",
+                     "A pasted flag replaces one glyph");
+        // A prompt reused with new text keeps its old byte cursor until it draws; a paste
+        // arriving first must not split a character.
+        for (bool insert : {true, false})
+        {
+            app application;
+            application.data.self = {1, "Alice", {}};
+            application.data.link = connection::online;
+            application.data.view = page::contacts;
+            auto component = make_ui(application, [] {});
+            application.command("filter");
+            component->OnEvent(ftxui::Event::Character('a'));
+            if (!insert) { component->OnEvent(ftxui::Event::Insert); }
+            component->OnEvent(ftxui::Event::Escape);
+            application.data.contacts_query = "中文";
+            application.command("filter");  // a new prompt starting with "中文", its cursor still at byte 1
+            component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+            component->OnEvent(ftxui::Event::Character("X"));
+            component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+            component->OnEvent(ftxui::Event::Return);
+            ok &= expect(application.data.contacts_query == (insert ? "中X文" : "中X"),
+                         insert ? "A first paste into a reused prompt lands on a glyph boundary"
+                                : "A first overwrite paste into a reused prompt lands on a glyph boundary");
+        }
         // A large paste takes time in proportion to its size in every kind of field.
         auto timed = [](auto&& action) {
             auto const start = std::chrono::steady_clock::now();

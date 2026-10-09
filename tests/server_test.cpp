@@ -1602,8 +1602,9 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         if (sent_accept) { co_return false; }
         // A named result, not a structured binding of the co_await itself: built by the GCC 16
         // snapshot r16-8100 with ASan, that form here left the reply's string undestroyed once the
-        // TUI UI was linked into this binary. The same code built by GCC 16.2.0 does not leak, so
-        // it looks like a fault of that snapshot; a standalone reduction does not reproduce it.
+        // TUI UI was linked into this binary. Built by GCC 16.2.0 (and its runtime) it does not;
+        // a standalone reduction does not reproduce it either, so the cause is not established.
+        // The named form is kept so builds with that snapshot stay clean.
         auto accepted = co_await receive_websocket_text(accepting);
         auto& [read, reply] = accepted;
         if (read || !json_matches(reply, R"({"result":{"state":"accepted"}})")) { co_return false; }

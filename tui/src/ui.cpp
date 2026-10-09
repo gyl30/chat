@@ -1684,14 +1684,20 @@ private:
         // Each batch goes right after the bytes the previous one put in: the drawn cursor snaps to
         // whole glyphs, and a pasted piece that joins the text after it (a flag's first half
         // before another flag) would otherwise move it past that text and reorder the paste.
-        auto const at = std::min(paste_at_.value_or(static_cast<std::size_t>(std::max(0, *target.cursor))), text.size());
+        // The first batch starts where the field's cursor is, moved to a glyph boundary as the
+        // field itself would before an edit: a cursor kept from an earlier text (a reused prompt)
+        // can point inside a multi-byte character until the field next draws.
+        auto const at = paste_at_ ? std::min(*paste_at_, text.size())
+                                  : glyph_boundary_at_or_after(text, static_cast<std::size_t>(std::max(0, *target.cursor)));
         std::string pasted;
         std::size_t replaced = 0;
         if (*target.insert) { pasted = std::exchange(paste_buffer_, {}); }
         else
         {
             // Overwrite replaces one glyph of the text after the cursor per pasted glyph, up to the
-            // end of its line, as typing does. The last pasted glyph may continue in the next
+            // end of its line. Glyphs are counted in the pasted text and the original text each, so
+            // a pasted flag replaces one glyph even where typing its two halves one by one would
+            // join the first to the text after it. The last pasted glyph may continue in the next
             // batch (a combining mark, ZWJ or modifier), so until the paste ends it waits: the
             // result is then the same however the paste was split.
             auto glyphs = Utf8ToGlyphs(paste_buffer_);
@@ -1715,6 +1721,17 @@ private:
         paste_at_ = at + pasted.size();
         *target.cursor = static_cast<int>(*paste_at_);
         if (paste_input_ == compose_) { app_.compose_changed(); }
+    }
+    // The first glyph boundary at or after a byte offset, as an input field moves its cursor.
+    static std::size_t glyph_boundary_at_or_after(std::string_view text, std::size_t at)
+    {
+        std::size_t boundary = 0;
+        for (auto const& glyph : Utf8ToGlyphs(text))
+        {
+            if (boundary >= at) { return boundary; }
+            boundary += glyph.size();
+        }
+        return text.size();
     }
     struct field_state { int cursor = 0; bool insert = true; };
     struct edit_target { std::string* text = nullptr; int* cursor = nullptr; bool* insert = nullptr; };
