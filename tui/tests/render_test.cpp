@@ -1440,6 +1440,80 @@ int main()
         ftxui::Terminal::SetFallbackSize(fallback);
     }
     {
+        // A menu keeps the meaning it opened with: when the target changes, it closes instead of
+        // turning unpin into pin, copy into nothing, or demote into promote.
+        app application;
+        writable_conversation(application);
+        auto const fallback = ftxui::Terminal::Size();
+        ftxui::Terminal::SetFallbackSize({120, 40});
+        application.data.members = {{1, "Alice", chat::member_role::owner, {}}, {2, "Bob", chat::member_role::admin, {}}};
+        chat::message pinned; pinned.id = 1; pinned.conversation = 10; pinned.from = 2; pinned.username = "Bob"; pinned.text = "PINNED";
+        auto other = pinned; other.id = 2; other.text = "OTHER"; other.timestamp = 600000;
+        application.data.messages = {pinned, other};
+        application.data.conversations.front().pinned_message = chat::quoted_message{1, 2, "Bob", "PINNED", {}, false};
+        auto component = make_ui(application, [] {});
+        auto open_on_first = [&] {
+            component->OnEvent(ftxui::Event::Custom);
+            if (application.data.composing) { component->OnEvent(ftxui::Event::TabReverse); }
+            application.data.message_selected = 0;
+            component->OnEvent(ftxui::Event::Return);
+        };
+        open_on_first();
+        ok &= expect(application.menu_open, "The pinned message's menu opens");
+        application.data.conversations.front().pinned_message = chat::quoted_message{2, 2, "Bob", "OTHER", {}, false};
+        component->OnEvent(ftxui::Event::Character('t'));
+        ok &= expect(!application.menu_open && application.data.status.find("已变化") != std::string::npos,
+                     "A pin change in the same batch closes the menu instead of pinning");
+        application.data.conversations.front().pinned_message.reset();
+        open_on_first();
+        application.data.messages.front().deleted = true;
+        component->OnEvent(ftxui::Event::Character('y'));
+        ok &= expect(!application.menu_open && application.data.view == page::conversation &&
+                     application.data.status.find("已变化") != std::string::npos, "A message deleted meanwhile closes its menu");
+        application.data.messages.front().deleted = false;
+        application.navigate(page::members);
+        application.data.selected = 1;
+        component->OnEvent(ftxui::Event::Return);
+        application.data.members[1].role = chat::member_role::member;
+        component->OnEvent(ftxui::Event::Character('A'));
+        ok &= expect(!application.menu_open && application.data.status.find("已变化") != std::string::npos,
+                     "A role change closes the member menu instead of reversing the action");
+        ftxui::Terminal::SetFallbackSize(fallback);
+    }
+    {
+        // An older page that joins the selected message to the group before it removes its
+        // heading; the long message keeps the same text lines in view.
+        auto const fallback = ftxui::Terminal::Size();
+        ftxui::Terminal::SetFallbackSize({100, 24});
+        app application;
+        writable_conversation(application);
+        chat::message longest; longest.id = 5; longest.conversation = 10; longest.from = 2; longest.username = "peer";
+        longest.timestamp = 600000;
+        for (int i = 0; i < 30; ++i) { longest.text += "L" + std::to_string(100 + i) + (i < 29 ? "\n" : ""); }
+        application.data.messages = {longest};
+        application.data.history_before = 5;
+        auto component = make_ui(application, [] {});
+        component->OnEvent(ftxui::Event::Custom);
+        component->OnEvent(ftxui::Event::TabReverse);
+        for (int i = 0; i < 12; ++i) { component->OnEvent(ftxui::Event::Character('[')); }
+        auto last_line = [&] {
+            ftxui::Screen screen(100, 24);
+            ftxui::Render(screen, component->Render());
+            auto text = screen.ToString();
+            int last = -1;
+            for (int i = 100; i < 130; ++i) { if (text.find("L" + std::to_string(i)) != std::string::npos) { last = i; } }
+            return last;
+        };
+        auto const before = last_line();
+        chat::message earlier = longest; earlier.id = 4; earlier.text = "EARLIER"; earlier.timestamp = 540000;
+        chat::messages_result page;
+        page.messages = {earlier};
+        application.data.apply_history(std::move(page), true);
+        component->OnEvent(ftxui::Event::Custom);
+        ok &= expect(before > 100 && last_line() == before, "Joining a group above keeps a long message's reading position");
+        ftxui::Terminal::SetFallbackSize(fallback);
+    }
+    {
         // A notice that expires in the same batch never clears a newer error.
         app application;
         writable_conversation(application);

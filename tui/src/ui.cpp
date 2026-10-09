@@ -850,7 +850,7 @@ public:
         { return dbox({page, vbox({text("命令"), command_->Render(), text("Enter 执行 · Esc 取消")}) | border | clear_under | center}); }
         if (menu_)
         {
-            auto const items = menu_items();
+            auto const& items = menu_->items;
             Elements rows{preview_text(menu_->title, 40) | bold, separator()};
             for (std::size_t i = 0; i < items.size(); ++i)
             {
@@ -901,8 +901,11 @@ private:
         update_viewport(Terminal::Size());
         // Pasted text belongs to the target as it was before queued results change it.
         app_.drain([this] { flush_paste(); });
+        bool const had_menu = menu_.has_value();
         validate_menu();
         if (app_.data.self.id) { app_.sync_focus(); }
+        // A key meant for a menu that just closed because its target changed does nothing else.
+        if (had_menu && !menu_ && event != Event::Custom && event != Event::CtrlC) { return true; }
         sync_message_scroll();
         auto& s = app_.data;
         if (event == Event::CtrlC)
@@ -1175,10 +1178,20 @@ private:
         return {};
     }
     // The menu is bound to its message or member, not to a list position.
-    struct menu_state { enum class kind { message, member } kind; std::int64_t target = 0; std::string title; int selected = 0; };
+    // The entries are fixed when the menu opens: a key never changes meaning (pin into unpin,
+    // promote into demote) because the target changed meanwhile; such a change closes the menu.
+    struct menu_state
+    {
+        enum class kind { message, member } kind;
+        std::int64_t target = 0;
+        std::string title;
+        std::vector<menu_item> items;
+        int selected = 0;
+    };
     std::optional<menu_state> menu_;
 
-    std::vector<menu_item> menu_items() const
+    // The actions the target allows now.
+    std::vector<menu_item> current_items() const
     {
         auto const& s = app_.data;
         if (!menu_) { return {}; }
@@ -1197,7 +1210,8 @@ private:
         auto preview = message->deleted ? std::string("消息已删除") : message->attachment && message->text.empty()
             ? message->attachment->filename : message->text;
         for (char& c : preview) { if (c == '\n') { c = ' '; } }
-        menu_ = menu_state{menu_state::kind::message, message->id, message_heading(app_.data, *message) + " · " + preview, 0};
+        menu_ = menu_state{menu_state::kind::message, message->id, message_heading(app_.data, *message) + " · " + preview,
+                           app_.data.message_actions(*message), 0};
         app_.menu_open = true;
     }
     void open_member_menu()
@@ -1205,10 +1219,16 @@ private:
         auto const& s = app_.data;
         if (s.selected < 0 || static_cast<std::size_t>(s.selected) >= s.members.size()) { return; }
         auto const& member = s.members[static_cast<std::size_t>(s.selected)];
-        menu_ = menu_state{menu_state::kind::member, member.id, "成员 · " + member.username, 0};
+        menu_ = menu_state{menu_state::kind::member, member.id, "成员 · " + member.username, s.member_actions(member), 0};
         app_.menu_open = true;
     }
-    void close_menu() { menu_.reset(); app_.menu_open = false; }
+    void close_menu()
+    {
+        menu_.reset();
+        app_.menu_open = false;
+        // The chat is visible again: decide reading anew at the end of this event.
+        app_.mark_visible_read();
+    }
     // A menu outlives neither its page, its connection nor its target.
     void validate_menu()
     {
@@ -1216,18 +1236,16 @@ private:
         auto const& s = app_.data;
         auto const page_ok = menu_->kind == menu_state::kind::message ? s.view == page::conversation : s.view == page::members;
         if (!page_ok || s.link != connection::online || app_.dialog || app_.command_mode) { close_menu(); return; }
-        if (menu_items().empty()) { close_menu(); app_.data.status = "操作对象已不存在，菜单已关闭"; }
+        auto const now = current_items();
+        if (now.empty()) { close_menu(); app_.data.status = "操作对象已不存在，菜单已关闭"; return; }
+        auto same = [](menu_item const& a, menu_item const& b) {
+            return a.command == b.command && a.label == b.label && a.disabled == b.disabled;
+        };
+        if (!std::ranges::equal(now, menu_->items, same)) { close_menu(); app_.data.status = "操作对象已变化，菜单已关闭"; }
     }
     bool menu_event(Event const& event)
     {
-        auto const items = menu_items();
-        if (items.empty())
-        {
-            // The message or member is gone (deleted, removed or reloaded away).
-            close_menu();
-            app_.data.status = "操作对象已不存在，菜单已关闭";
-            return true;
-        }
+        auto const items = menu_->items;
         if (event == Event::Escape) { close_menu(); return true; }
         auto const count = static_cast<int>(items.size());
         menu_->selected = std::clamp(menu_->selected, 0, count - 1);
@@ -1266,7 +1284,8 @@ private:
             s.selected = static_cast<int>(found - s.members.begin());
             now = s.member_actions(*found);
         }
-        auto still = std::ranges::find(now, chosen.command, &menu_item::command);
+        // The same action, in the same direction, must still be allowed.
+        auto still = std::ranges::find_if(now, [&](menu_item const& item) { return item.command == chosen.command && item.label == chosen.label; });
         if (still == now.end() || !still->disabled.empty()) { s.status = "该操作当前不可用，已取消"; return; }
         app_.command(chosen.command);
     }
@@ -1306,6 +1325,8 @@ private:
         auto const& s = app_.data;
         auto const* current = s.selected_message();
         auto const id = current ? current->id : 0;
+        auto const index = static_cast<std::size_t>(std::max(0, s.message_selected));
+        bool const heading = s.view != page::conversation || index >= s.messages.size() || starts_group(s.messages, index);
         if (scroll_conversation_ != s.active || scroll_message_ != id || scroll_page_ != s.view)
         {
             message_scroll_ = -1;
@@ -1313,6 +1334,11 @@ private:
             scroll_message_ = id;
             scroll_page_ = s.view;
         }
+        // An older page can join the message to the group before it (or split it off), which
+        // removes (or adds) its heading line: keep the same text line in view.
+        else if (heading != scroll_heading_ && message_scroll_ >= 0)
+        { message_scroll_ = std::max(0, message_scroll_ + (heading ? 1 : -1)); }
+        scroll_heading_ = heading;
     }
     void update_viewport(ftxui::Dimensions dimensions)
     {
@@ -1358,6 +1384,7 @@ private:
     bool prompt_active_ = false;
     int message_scroll_ = -1;
     std::int64_t scroll_conversation_ = 0, scroll_message_ = 0;
+    bool scroll_heading_ = true;
     page scroll_page_ = page::conversations;
 };
 }

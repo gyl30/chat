@@ -3497,6 +3497,23 @@ int run_tui_tests()
             ui_pump([&] { return read_position() >= unseen->message_id; });
             app.data.reply.reset();
             app.data.editing = 0;
+            // An open action menu covers the chat: a new message is not read, and closing the menu
+            // reads it without any further event.
+            event(ftxui::Event::Custom);
+            if (app.data.composing) { event(ftxui::Event::TabReverse); }
+            event(ftxui::Event::Return);
+            require(app.menu_open, "Enter on a message opens its menu");
+            auto during = call<chat::send_message_result>([&](auto handler) { peer.send_message(direct, "arrives under the menu", handler); });
+            require(during.has_value(), "Peer sends while the menu is open");
+            ui_pump([&] { return !app.data.messages.empty() && app.data.messages.back().id == during->message_id; });
+            connection_barrier();
+            require(app.menu_open && read_position() < during->message_id, "Nothing is read while a menu covers the chat");
+            event(ftxui::Event::Escape);
+            require(!app.menu_open, "Esc closes the menu");
+            auto const read_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+            while (read_position() < during->message_id && std::chrono::steady_clock::now() < read_deadline)
+            { std::this_thread::sleep_for(std::chrono::milliseconds(50)); }
+            require(read_position() >= during->message_id, "Closing the menu reads the visible message without another event");
             ftxui::Terminal::SetFallbackSize(fallback);
         }
         std::cout << "PASS TUI real UI typing, backslash line break and visible-only read\n";
