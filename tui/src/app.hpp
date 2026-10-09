@@ -7,6 +7,7 @@
 #include <chrono>
 #include <functional>
 #include <memory>
+#include <map>
 #include <optional>
 #include <string>
 #include <thread>
@@ -132,8 +133,9 @@ private:
     bool older_again_ = false;
     // Set by login(): the next successful sign-in is remembered (a reconnect's is not).
     bool remember_login_ = false;
-    // destination_ when a join request awaiting approval was sent from where the person still is.
-    std::optional<std::uint64_t> join_destination_;
+    // Per group awaiting approval: destination_ when that request was answered; the approval opens
+    // the group only if nothing newer was chosen since.
+    std::map<std::int64_t, std::uint64_t> join_destinations_;
     std::int64_t help_return_message_ = 0;
     bool search_busy_ = false;
     bool requests_busy_ = false;

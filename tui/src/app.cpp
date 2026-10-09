@@ -173,9 +173,11 @@ void app::start_connection()
         if (value.user == data.self.id && value.state == group_join_request_state::accepted)
         {
             // Opened only while the person is still where they asked to join from.
-            if (join_destination_ == destination_) { pending_open_ = value.conversation; }
+            // Each request carries its own: an older approval never borrows a newer request's.
+            auto const asked = join_destinations_.find(value.conversation);
+            if (asked != join_destinations_.end() && asked->second == destination_) { pending_open_ = value.conversation; }
             else { notify("入群申请已通过"); }
-            join_destination_.reset();
+            if (asked != join_destinations_.end()) { join_destinations_.erase(asked); }
             conversations();
         }
         if (value.conversation == data.active && data.view == page::requests) { requests(); }
@@ -191,7 +193,7 @@ void app::logout()
     ++view_;
     reconnect_enabled_ = false;
     remember_login_ = false;
-    join_destination_.reset();
+    join_destinations_.clear();
     reconnect_at_.reset();
     timer_->schedule({});
     client_.reset();
@@ -208,6 +210,7 @@ void app::disconnected()
     if (data.link == connection::reconnecting || data.link == connection::signed_out) { return; }
     ++session_; ++view_;
     pending_open_ = 0;
+    join_destinations_.clear();  // a request made before the link dropped no longer opens anything
     data.focus_sent = false;
     if (data.composing && before_input_change) { before_input_change(); }
     data.composing = false;
@@ -355,7 +358,7 @@ void app::apply_conversation_snapshot(conversations_result result, bool append)
 void app::open_conversation(std::int64_t id)
 {
     assert_ui();
-    pending_open_ = 0;
+    claim_destination();
     if (!online()) { return; }
     stop_typing();
     if (before_input_change) { before_input_change(); }

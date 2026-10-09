@@ -190,7 +190,8 @@ void app::group_command(std::string const& name, std::string argument)
             if (value->state == group_join_state::pending)
             {
                 // Approval opens the group later only if nothing newer was chosen meanwhile.
-                join_destination_ = destination == destination_ ? std::optional{destination_} : std::nullopt;
+                if (destination == destination_) { join_destinations_[value->conversation] = destination_; }
+                else { join_destinations_.erase(value->conversation); }
                 notify("申请已提交，等待管理员审批");
                 return;
             }

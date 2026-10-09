@@ -3335,16 +3335,39 @@ int run_tui_tests()
             applicant.password = "test password";
             applicant.login();
             pump_app(applicant, [&] { return applicant.data.link == connection::online && applicant.data.self.id != 0; });
-            applicant.command("join " + token);
-            pump_app(applicant, [&] { return applicant.data.status == "申请已提交，等待管理员审批"; });
+            // A second group with approval, owned by the peer.
+            auto const second = call<std::int64_t>([&](auto h) { peer.create_group("终端 审批二群", {self}, h); });
+            require(second.has_value(), "Peer creates a second approval group");
+            require(call<bool>([&](auto h) { peer.set_group_join_approval(*second, true, h); }).has_value(), "Second group needs approval");
+            auto const second_token = call<std::optional<std::string>>([&](auto h) { peer.create_group_invite(*second, h); });
+            require(second_token && second_token->has_value(), "Second group invite code");
+            auto applied = [&](std::string const& code) {
+                applicant.data.status.clear();
+                applicant.command("join " + code);
+                pump_app(applicant, [&] { return applicant.data.status == "申请已提交，等待管理员审批"; });
+            };
+            auto listed = [&](std::int64_t id) {
+                return std::ranges::any_of(applicant.data.conversations, [&](auto const& c) { return c.id == id; });
+            };
+            // Request A, choose somewhere else, request B: A's approval must not borrow B's.
+            applied(token);
             applicant.claim_destination();
+            applied(**second_token);
             app.requests();
             pump([&] { return app.data.requests.size() == 1 && app.data.requests[0].applicant.id == applicant_id; });
             app.data.selected = 0;
             app.command("accept");
-            pump_app(applicant, [&] { return std::ranges::any_of(applicant.data.conversations, [&](auto const& c) { return c.id == group; }); });
+            pump_app(applicant, [&] { return listed(group); });
             require(applicant.data.active == 0 && applicant.data.status == "入群申请已通过",
                     "A late approval does not open the group over a newer destination");
+            // Opening another chat is a newer choice too: B's approval then only lists B.
+            applicant.open_conversation(group);
+            applicant.data.status.clear();
+            require(call<bool>([&](auto h) { peer.respond_group_join_request(*second, applicant_id, true, h); }).has_value(),
+                    "Peer approves the second request");
+            pump_app(applicant, [&] { return listed(*second); });
+            require(applicant.data.active == group && applicant.data.status == "入群申请已通过",
+                    "An approval does not replace a chat opened while waiting");
             applicant.shutdown();
             applicant.drain();
             app.command("members");
