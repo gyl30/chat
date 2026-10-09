@@ -130,8 +130,10 @@ void app::finish_pick()
                     std::erase_if(picked, [this](auto id) { return !data.is_contact(id); });
                     if (picked.empty()) { data.status = "所选好友关系已变更，请重新选择"; return; }
                     pick_action_ = "creating";
-                    client_->create_group(std::move(title), std::move(picked), callback([this, view](auto value) {
+                    client_->create_group(std::move(title), std::move(picked), callback([this, view, destination = destination_](auto value) {
                         if (view_ != view || data.view != page::pick_contacts) { return; }
+                        // The group exists either way; only opening it waits on no newer choice.
+                        if (destination != destination_) { pick_action_.clear(); data.picked_contacts.clear(); notify("群聊已创建"); conversations(); return; }
                         if (!value) { pick_action_ = "create"; error(value.error()); return; }
                         pick_action_.clear(); data.picked_contacts.clear(); data.pick_query.clear();
                         navigate(page::conversations); pending_open_ = *value;
@@ -182,11 +184,12 @@ void app::group_command(std::string const& name, std::string argument)
         auto token = normalize_invite_token(argument);
         if (!token) { data.status = "邀请码无效，请检查后重新输入"; return; }
         auto const view = view_;
-        client_->join_group(std::move(*token), callback([this, view](auto value) {
+        client_->join_group(std::move(*token), callback([this, view, destination = destination_](auto value) {
             if (view_ != view) { return; }
             if (!value) { error(value.error()); return; }
             if (value->state == group_join_state::pending)
             { notify("申请已提交，等待管理员审批"); return; }
+            if (destination != destination_) { notify("已加入群聊"); conversations(); return; }
             navigate(page::conversations);
             pending_open_ = value->conversation;
             notify("已加入群聊");

@@ -9,6 +9,9 @@
 
 #include <cstdlib>
 #include <ctime>
+#include <fstream>
+#include <thread>
+#include <vector>
 #include <unistd.h>
 #include <filesystem>
 #include <iostream>
@@ -1873,7 +1876,7 @@ int main()
         ok &= expect(application.data.view == page::copy && application.data.copy_text == "Alice",
                      "The account menu copies the signed-in name, not the selected contact");
         auto items = application.data.account_actions();
-        ok &= expect(items.size() == 3 && items[0].command == "account" && items[2].command == "logout",
+        ok &= expect(items.size() == 3 && items[0].command == "my-profile" && items[2].command == "logout",
                      "Offline the account menu leaves out avatar changes");
         application.data.link = connection::online;
         application.data.self.avatar.present = true;
@@ -1908,6 +1911,32 @@ int main()
         ok &= expect(loaded && loaded->username == "alice" && loaded->server_url == "ws://chat.example/ws",
                      "The username and server come back next time");
         ok &= expect(recent_login_path() == directory / "chat" / "tui-login", "The record stays in the configured directory");
+        auto const record = directory / "chat" / "tui-login";
+        auto write_raw = [&](std::string const& content) { std::ofstream(record, std::ios::binary | std::ios::trunc) << content; };
+        for (auto const* broken : {"alice\nws://x/ws\nextra\n", "alice\r\nws://x/ws\n", "alice\nhttp://x\n", "\nws://x/ws\n",
+                                   "alice\nws://x/ws", "alice\n"})
+        {
+            write_raw(broken);
+            ok &= expect(!load_recent_login(), "A malformed record is ignored");
+        }
+        save_recent_login({"bad\nname", "ws://x/ws"});
+        ok &= expect(!load_recent_login(), "A username with a line break is never written");
+        // Several clients signing in at once leave one whole record and no temporary files.
+        std::vector<std::thread> writers;
+        for (int i = 0; i < 8; ++i)
+        { writers.emplace_back([i] { for (int n = 0; n < 50; ++n) { save_recent_login({"user" + std::to_string(i), "ws://h/ws"}); } }); }
+        for (auto& writer : writers) { writer.join(); }
+        auto const last = load_recent_login();
+        ok &= expect(last && last->username.starts_with("user") && last->server_url == "ws://h/ws", "Concurrent saves leave one whole record");
+        int files = 0;
+        for ([[maybe_unused]] auto const& entry : std::filesystem::directory_iterator(directory / "chat")) { ++files; }
+        ok &= expect(files == 1, "No temporary file is left behind");
+        // A directory it cannot write to keeps the old record.
+        std::filesystem::permissions(directory / "chat", std::filesystem::perms::owner_read | std::filesystem::perms::owner_exec);
+        save_recent_login({"carol", "ws://h/ws"});
+        std::filesystem::permissions(directory / "chat", std::filesystem::perms::owner_all);
+        auto const kept = load_recent_login();
+        ok &= expect(::geteuid() == 0 || (kept && kept->username == last->username), "A failed save keeps the previous record");
         std::filesystem::remove_all(directory);
         if (saved_config) { ::setenv("XDG_CONFIG_HOME", previous.c_str(), 1); } else { ::unsetenv("XDG_CONFIG_HOME"); }
     }

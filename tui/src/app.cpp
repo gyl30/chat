@@ -82,7 +82,7 @@ void app::start_connection()
     ++list_request_;
     ++search_request_;
     client_.reset(); // UI-thread destruction joins the previous network thread.
-    conversations_busy_ = history_busy_ = search_busy_ = requests_busy_ = sending_ = false;
+    conversations_busy_ = history_busy_ = older_again_ = search_busy_ = requests_busy_ = sending_ = false;
     requests_again_ = false;
     conversations_again_ = false;
     reconnect_at_.reset();
@@ -128,7 +128,8 @@ void app::start_connection()
             if (!value->authenticated) { logout(); data.status = "用户名或密码错误"; return; }
             data.self = {value->user, username, value->avatar};
             data.link = connection::online;
-            if (on_signed_in) { on_signed_in(username, server_url); }
+            // Remembered on a sign-in the person made, not when a dropped link signs in again (as Qt).
+            if (on_signed_in && !retry_) { on_signed_in(username, server_url); }
             notify(retry_ ? "已恢复连接" : "已连接");
             retry_ = 0;
             refresh();
@@ -210,7 +211,7 @@ void app::disconnected()
     data.view = data.active ? page::conversation : page::conversations;
     pages_.clear(); data.copy_text.clear(); data.picked_contacts.clear();
     pick_action_.clear(); group_title_.clear();
-    conversations_busy_ = history_busy_ = search_busy_ = requests_busy_ = sending_ = false;
+    conversations_busy_ = history_busy_ = older_again_ = search_busy_ = requests_busy_ = sending_ = false;
     requests_again_ = false;
     if (reconnect_enabled_ && !password.empty())
     {
@@ -326,7 +327,7 @@ void app::apply_conversation_snapshot(conversations_result result, bool append)
         data.select_conversation(0);
         data.view = page::conversations;
         pages_.clear(); cancel_prompt();
-        history_busy_ = search_busy_ = requests_busy_ = sending_ = false;
+        history_busy_ = older_again_ = search_busy_ = requests_busy_ = sending_ = false;
         requests_again_ = false;
         marked_read_ = 0;
         notify("当前会话已不可访问，已刷新会话列表");
@@ -350,7 +351,7 @@ void app::open_conversation(std::int64_t id)
     if (before_input_change) { before_input_change(); }
     if (data.active) { drafts_[data.active] = data.draft; }
     ++view_; ++search_request_;
-    history_busy_ = search_busy_ = requests_busy_ = sending_ = false;
+    history_busy_ = older_again_ = search_busy_ = requests_busy_ = sending_ = false;
     requests_again_ = false;
     data.select_conversation(id);
     data.draft = drafts_[id];
@@ -362,7 +363,9 @@ void app::open_conversation(std::int64_t id)
 }
 void app::history(bool older)
 {
-    if (!online() || !data.active || history_busy_) { return; }
+    if (!online() || !data.active) { return; }
+    // PgUp while a page is still loading is kept, and asked for once that page has arrived.
+    if (history_busy_) { older_again_ = older_again_ || older; return; }
     if (older && (!data.history_more || !data.history_before)) { return; }
     history_busy_ = true;
     auto const request = ++history_request_;
@@ -371,9 +374,10 @@ void app::history(bool older)
     client_->get_messages(conversation, before, callback([this, conversation, view, older, request](auto value) {
         if (view != view_ || conversation != data.active || request != history_request_) { return; }
         history_busy_ = false;
-        if (!value) { error(value.error()); return; }
+        if (!value) { older_again_ = false; error(value.error()); return; }
         data.apply_history(std::move(*value), older);
         mark_visible_read();
+        if (std::exchange(older_again_, false)) { data.at_latest = false; history(true); }
     }));
 }
 void app::search(std::string query, bool more)
@@ -395,17 +399,22 @@ void app::search(std::string query, bool more)
         data.apply_search(std::move(*value), more);
     }));
 }
+void app::claim_destination()
+{
+    pending_open_ = 0;
+    ++destination_;
+}
 void app::navigate(page target)
 {
     assert_ui();
-    pending_open_ = 0;
+    claim_destination();
     // A pending ":friend-sent" belongs to the visit that asked for it; that command sets it again.
     data.focus_sent = false;
     stop_composing();
     if (data.view != target)
     {
         ++view_; ++search_request_;
-        history_busy_ = search_busy_ = requests_busy_ = sending_ = false;
+        history_busy_ = older_again_ = search_busy_ = requests_busy_ = sending_ = false;
         requests_again_ = false;
         bool const primary = target == page::conversations || target == page::contacts;
         bool const chat_tab = data.view == page::conversations && target == page::conversation;
@@ -427,9 +436,10 @@ void app::back()
     if (dialog) { cancel_prompt(); return; }
     if (command_mode) { command_mode = false; return; }
     if (data.composing) { stop_composing(); return; }
+    ++destination_;
     // Going back to another page ends the visit a pending ":friend-sent" belonged to.
     data.focus_sent = false;
-    ++view_; ++search_request_; history_busy_ = search_busy_ = requests_busy_ = sending_ = false;
+    ++view_; ++search_request_; history_busy_ = older_again_ = search_busy_ = requests_busy_ = sending_ = false;
     requests_again_ = false;
     bool const from_help = data.view == page::help;
     if (!pages_.empty()) { data.view = pages_.back(); pages_.pop_back(); }
@@ -530,11 +540,13 @@ void app::command(std::string text)
         if (data.view != page::conversation || !data.active) { data.status = "请先打开会话"; return; }
         data.history_category = 0;
         navigate(page::history);
+        // Leaving the chat dropped any first page still on its way; ask again so the list fills.
+        if (data.messages.empty() || !data.history_before) { history(); }
         return;
     }
     // Copying text and opening a known profile use local data, so they work offline too.
     if (data.self.id && name == "copy") { message_command(name, std::move(argument)); return; }
-    if (data.self.id && (name == "profile" || name == "copy-self")) { profile_command(name, std::move(argument)); return; }
+    if (data.self.id && (name == "profile" || name == "copy-self" || name == "my-profile")) { profile_command(name, std::move(argument)); return; }
     if (!online()) { return; }
     if (name == "friend-requests" || name == "friend-sent")
     {
@@ -605,7 +617,7 @@ void app::changed(std::int64_t conversation, bool removed)
         // Membership removal/rejoin can reset server read positions to zero.
         // Invalidate any pre-change history response before authoritative recovery.
         ++history_request_;
-        history_busy_ = false;
+        history_busy_ = older_again_ = false;
         data.read_positions.clear(); marked_read_ = 0;
         history(); members();
     }

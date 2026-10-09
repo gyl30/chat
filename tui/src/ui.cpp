@@ -1532,6 +1532,8 @@ private:
     {
         auto const& s = app_.data;
         if (!s.self.id) { return; }
+        // The menu is the newest choice: a conversation an earlier request would open stays closed.
+        app_.claim_destination();
         menu_ = menu_state{menu_state::kind::account, s.self.id, "账号 · " + s.self.username, s.account_actions(), 0};
         app_.menu_open = true;
     }

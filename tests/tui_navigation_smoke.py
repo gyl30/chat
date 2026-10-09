@@ -99,13 +99,10 @@ def _late_profile_message(d):
             d.command('A', 'message')
             queued = _eventually(lambda: (size if (size := _server_receive_queue(pid, d.args.port)) > initial_bytes else None),
                                  'The real Message RPC did not reach the paused isolated server')
-            # The newer destination: the own profile, reached through the account menu.
+            # The newer destination is the account menu itself, left open while the answer arrives.
+            # (A command-line barrier would close it, so the open menu is the acknowledgement.)
             d.keys('A', 'u')
-            d.wait('A', '复制用户名')
-            d.keys('A', 'p')
-            # Only the own profile offers avatar changes; the title bar always shows A's name.
-            d.wait('A', lambda s: '设置头像' in s and '复制用户名' not in s)
-            d.barrier('A')
+            d.wait('A', lambda s: '复制用户名' in s and '退出登录' in s)
             capture_terminal(d, 'A', 'account-before-message-response')
             d.evidence('message-rpc-pending', {'tui_pid': pid, 'isolated_server_pid': server_pid,
                                             'server_receive_queue_before': initial_bytes,
@@ -126,16 +123,16 @@ def _late_profile_message(d):
         deadline = started + observation_seconds
         observations = 0
         while time.monotonic() < deadline:
-            d.barrier('A')
+            time.sleep(.05)
             screen = d.capture('A')
             observations += 1
-            if '设置头像' not in screen:
+            if '复制用户名' not in screen or chat_open(screen):
                 capture_terminal(d, 'A', 'late-message-overrode-account')
                 raise AssertionError('A delayed peer Message response replaced the newer Account destination')
             time.sleep(.05)
         capture_terminal(d, 'A', 'account-after-message-response')
         d.evidence('client-observation-window', {'requested_seconds': observation_seconds,
-                   'observed_seconds': time.monotonic() - started, 'pty_barrier_observations': observations,
+                   'observed_seconds': time.monotonic() - started, 'screen_observations': observations,
                    'scope': 'Account remained visible during this finite 3-second client observation after server-side direct creation'})
 
 

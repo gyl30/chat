@@ -196,6 +196,7 @@ void app::message_command(std::string const& name, std::string argument)
     {
         data.at_latest = true;
         data.message_selected = data.messages.empty() ? 0 : static_cast<int>(data.messages.size()) - 1;
+        older_again_ = false;  // G replaces a PgUp still waiting on a page
         history();
         return;
     }

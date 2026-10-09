@@ -65,6 +65,9 @@ public:
     void presence();
     void open_conversation(std::int64_t id);
     void history(bool older = false);
+    // A newer destination than any page a pending request would still open (the account menu):
+    // conversations opened by earlier "message", "create group" or "join" requests are dropped.
+    void claim_destination();
     void search(std::string query, bool more = false);
     void members();
     void requests(bool more = false);
@@ -110,6 +113,9 @@ private:
     std::thread::id ui_thread_;
     std::uint64_t session_ = 0;
     std::uint64_t view_ = 0;
+    // Bumped by navigation and claim_destination(); a late request that would open a conversation
+    // checks it, so it never replaces something the person chose after asking.
+    std::uint64_t destination_ = 0;
     std::uint64_t list_request_ = 0;
     std::uint64_t search_request_ = 0;
     std::uint64_t contacts_request_ = 0;
@@ -122,6 +128,8 @@ private:
     bool conversations_busy_ = false;
     bool conversations_again_ = false;
     bool history_busy_ = false;
+    // PgUp arrived while a history page was loading.
+    bool older_again_ = false;
     bool search_busy_ = false;
     bool requests_busy_ = false;
     bool requests_again_ = false;

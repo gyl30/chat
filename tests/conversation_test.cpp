@@ -2772,6 +2772,20 @@ int run_tui_tests()
         app.command("cancel-friend");
         pump([&] { return app.data.friendship(peer_id) == chat::friendship_state::none; });
         add_contact(peer_name, peer_id);
+        {
+            // The account menu opened before the answer: the direct chat is made but not opened.
+            auto const before = app.data.view;
+            auto const active = app.data.active;
+            app.command("message");
+            app.claim_destination();
+            auto const deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+            while (std::chrono::steady_clock::now() < deadline)
+            {
+                app.drain();
+                std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            }
+            require(app.data.view == before && app.data.active == active, "A late Message answer does not replace the account menu's page");
+        }
         app.command("message");
         pump([&] { return app.data.active > 0 && app.data.can_send(); });
         auto const direct = app.data.active;
@@ -2788,6 +2802,15 @@ int run_tui_tests()
         auto const own_message = app.data.messages.back().id;
         require(app.data.messages.back().text.find("TUI 中文") != std::string::npos, "TUI sends Unicode text via SDK");
         peer_events.wait([&] { return std::ranges::any_of(peer_events.messages, [&](auto const& value) { return value.id == own_message; }); });
+        {
+            // History opened before the chat's first page arrived still fills in.
+            app.open_conversation(direct);
+            require(app.data.messages.empty(), "Reopening starts without messages");
+            app.command("history");
+            pump([&] { return app.data.view == chat::tui::page::history && !app.data.history_entries().empty(); });
+            app.back();
+            pump([&] { return !app.data.messages.empty(); });
+        }
         auto incoming = call<chat::send_message_result>([&](auto handler) { peer.send_message(direct, "peer incoming", handler); });
         require(incoming.has_value(), "Peer sends incoming message");
         pump([&] { return std::ranges::any_of(app.data.messages, [&](auto const& value) { return value.id == incoming->message_id; }); });
@@ -3400,6 +3423,11 @@ int run_tui_tests()
                 "Older real history page preserves selected message and does not mark new area read");
         require(app.data.messages.front().id == message_ids.front() && app.data.messages.back().id == message_ids.back(),
                 "Real history cursor merges chronological pages without duplicates");
+        // PgUp before the first page has arrived is kept and asked for once it has.
+        app.open_conversation(paging_group);
+        require(app.data.messages.empty(), "Reopening waits for the first page");
+        app.command("older");
+        pump([&] { return app.data.messages.size() == 51 && !app.data.history_more; });
         app.search("tui-page-search-");
         pump([&] { return app.data.search_results.size() == 50 && app.data.search_more; });
         app.search(app.data.search_query, true);
@@ -3579,6 +3607,9 @@ int run_tui_tests()
             require(remembered.size() == 1 && remembered[0] == std::pair{account, server.url}, "A successful sign-in is remembered");
             reconnecting.reconnect();
             require(reconnecting.data.link == connection::reconnecting, "Reconnect scheduled before shutdown");
+            pump_app(reconnecting, [&] { return reconnecting.data.link == connection::online; });
+            require(remembered.size() == 1, "Signing in again after a dropped link is not a new remembered login");
+            reconnecting.reconnect();
             reconnecting.shutdown();
             reconnecting.drain();
             require(reconnecting.exiting, "Shutdown cancels reconnect timer and callbacks");

@@ -143,8 +143,8 @@ std::vector<menu_item> state::member_actions(conversation_member const& value) c
 
 std::vector<menu_item> state::account_actions() const
 {
-    // The profile page shows the avatar state; "account" goes there rather than reopening this menu.
-    std::vector<menu_item> items{{"我的资料", 'p', "account", {}}};
+    // The own profile shows the avatar state.
+    std::vector<menu_item> items{{"我的资料", 'p', "my-profile", {}}};
     // Avatar changes need the server; copying and signing out do not.
     if (link == connection::online)
     {

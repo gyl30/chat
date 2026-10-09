@@ -60,6 +60,13 @@ void app::profile_command(std::string const& name, std::string argument)
         navigate(page::profile);
         return;
     }
+    // From the account menu: the own profile as a detail page, so Esc returns where it was opened.
+    if (name == "my-profile")
+    {
+        data.profile = data.self;
+        navigate(page::profile);
+        return;
+    }
     // The account menu copies the signed-in name whatever page it was opened over.
     if (name == "copy-self")
     {
@@ -189,8 +196,9 @@ void app::profile_command(std::string const& name, std::string argument)
         if (!data.is_contact(target.id))
         { data.status = data.friendship_hint(target.id); return; }
         auto const view = view_;
-        client_->open_direct_conversation(target.id, callback([this, view, target = target.id](auto value) {
-            if (view != view_ || (data.view == page::profile && data.profile.id != target)) { return; }
+        auto const destination = destination_;
+        client_->open_direct_conversation(target.id, callback([this, view, destination, target = target.id](auto value) {
+            if (view != view_ || destination != destination_ || (data.view == page::profile && data.profile.id != target)) { return; }
             if (!value) { error(value.error()); return; }
             pending_open_ = value->conversation;
             conversations();
