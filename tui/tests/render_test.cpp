@@ -1496,6 +1496,19 @@ int main()
                      "The paste ends with the menu, and keys work again");
         application.data.messages.front().deleted = false;
         application.data.draft.clear();
+        // The composer coming back in the same batch (send permission restored) does not take a
+        // paste that began under the menu.
+        application.data.conversations.front().can_send = false;
+        open_on_first();
+        application.data.selecting = false;
+        application.data.draft = "kept";
+        application.data.conversations.front().can_send = true;
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        component->OnEvent(ftxui::Event::Character("XYZ"));
+        component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        ok &= expect(!application.menu_open && application.data.composing && application.data.draft == "kept",
+                     "A paste begun under a menu never reaches the composer that returns with it");
+        application.data.draft.clear();
         application.navigate(page::members);
         application.data.selected = 1;
         component->OnEvent(ftxui::Event::Return);

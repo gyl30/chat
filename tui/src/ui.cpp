@@ -923,7 +923,9 @@ private:
             if (!pasting_)
             {
                 pasting_ = true;
-                paste_input_ = input();
+                // A paste that began while a menu was open belongs to no input, even if that
+                // menu closed in this event and the composer has just come back.
+                paste_input_ = had_menu ? Component{} : input();
                 paste_conversation_ = s.active;
                 paste_buffer_.clear();
             }
