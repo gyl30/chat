@@ -1801,6 +1801,15 @@ int main()
         application.navigate(page::friend_requests);
         application.data.apply_friend_requests(snapshot);
         ok &= expect(application.data.selected == 0, "Returning by another route starts at the top");
+        // Going back page by page also drops it.
+        application.navigate(page::profile);
+        application.navigate(page::friend_requests);
+        application.data.focus_sent = true;
+        application.back();
+        application.back();
+        application.data.apply_friend_requests(snapshot);
+        ok &= expect(application.data.view == page::friend_requests && !application.data.focus_sent && application.data.selected == 0,
+                     "Esc back to new friends does not jump to the sent group later");
     }
     {
         // A notice that expires in the same batch never clears a newer error.

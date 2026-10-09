@@ -426,6 +426,8 @@ void app::back()
     if (dialog) { cancel_prompt(); return; }
     if (command_mode) { command_mode = false; return; }
     if (data.composing) { stop_composing(); return; }
+    // Going back to another page ends the visit a pending ":friend-sent" belonged to.
+    data.focus_sent = false;
     ++view_; ++search_request_; history_busy_ = search_busy_ = requests_busy_ = sending_ = false;
     requests_again_ = false;
     bool const from_help = data.view == page::help;
