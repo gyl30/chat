@@ -466,14 +466,16 @@ void app::activate()
     else if (data.view == page::contacts || data.view == page::users)
     {
         if (data.view == page::contacts && data.selected == 0) { command("friend-requests"); return; }
+        if (data.view == page::contacts && !data.contacts_query.empty() &&
+            data.selected == static_cast<int>(data.visible_contacts().size()) + 1)
+        { command("search-users " + data.contacts_query); return; }
         if (auto const* user = data.selected_user())
         { data.profile = *user; navigate(page::profile); }
     }
     else if (data.view == page::friend_requests || data.view == page::friend_sent)
     {
-        auto const& requests = data.view == page::friend_requests ? data.friends.incoming : data.friends.outgoing;
-        if (data.selected >= 0 && static_cast<std::size_t>(data.selected) < requests.size())
-        { data.profile = requests[data.selected].user; navigate(page::profile); }
+        if (auto const [request, received] = data.friend_request_at(data.selected); request)
+        { (void)received; data.profile = request->user; navigate(page::profile); }
     }
     else if (data.view == page::pick_contacts) { finish_pick(); }
     else if (data.view == page::search) { command("copy"); }
@@ -521,7 +523,13 @@ void app::command(std::string text)
     if (data.self.id && name == "profile") { profile_command(name, std::move(argument)); return; }
     if (!online()) { return; }
     if (name == "friend-requests" || name == "friend-sent")
-    { navigate(name == "friend-requests" ? page::friend_requests : page::friend_sent); friend_requests(); return; }
+    {
+        // One page lists both; "friend-sent" starts at the first sent request.
+        navigate(page::friend_requests);
+        if (name == "friend-sent") { data.selected = static_cast<int>(data.friends.incoming.size()); }
+        friend_requests();
+        return;
+    }
     if (name == "refresh") { refresh(); return; }
     if (name == "more")
     {

@@ -110,6 +110,26 @@ bool check_blank_preerase(ftxui::App screen, bool check_resize = false)
     return ok;
 }
 
+// The right column of a wide two-column page (everything after the column separator), or the
+// whole screen when narrow.
+std::string right_pane(std::string const& output, int columns)
+{
+    if (columns < 100) { return output; }
+    std::string right;
+    std::size_t start = 0;
+    while (start < output.size())
+    {
+        auto end = output.find("\r\n", start);
+        auto line = output.substr(start, end == std::string::npos ? std::string::npos : end - start);
+        auto first = line.find("│");
+        auto second = first == std::string::npos ? std::string::npos : line.find("│", first + 1);
+        right += (second == std::string::npos ? line : line.substr(second)) + "\n";
+        if (end == std::string::npos) { break; }
+        start = end + 2;
+    }
+    return right;
+}
+
 // The date and time as search results show them.
 std::string timestamp_text(std::int64_t value)
 {
@@ -175,15 +195,16 @@ int main()
         for (int columns : {60, 70, 80, 100, 120, 160})
         {
             contact.view = page::profile;
-            auto output = draw(contact, columns, 30);
+            // Wide profiles keep the contacts list (with appended presence) on the left.
+            auto output = right_pane(draw(contact, columns, 30), columns);
             ok &= expect(output.find("在线") != std::string::npos && output.find(" · 在线") == std::string::npos,
                          "Standalone profile presence has no leading append separator");
             contact.presences.at(2).online = false;
-            output = draw(contact, columns, 30);
+            output = right_pane(draw(contact, columns, 30), columns);
             ok &= expect(output.find("离线") != std::string::npos && output.find(" · 离线") == std::string::npos,
                          "Standalone offline presence has no leading append separator");
             contact.presences.at(2).last_seen = 1700000000000;
-            output = draw(contact, columns, 30);
+            output = right_pane(draw(contact, columns, 30), columns);
             ok &= expect(output.find("最后在线 ") != std::string::npos && output.find(" · 最后在线 ") == std::string::npos,
                          "Standalone last-seen presence has no leading append separator");
             contact.presences.at(2) = {2, true, 0};
@@ -513,7 +534,8 @@ int main()
                 ftxui::Render(screen, render(long_profile, columns, 24));
                 std::string identity;
                 for (int y = 0; y < 24; ++y)
-                    for (int x = 1; x < columns - 1; ++x)
+                    // Wide profiles start right of the contacts column.
+                    for (int x = columns >= 100 ? 32 : 1; x < columns - 1; ++x)
                         if (screen.CellAt(x, y).character != " ") { identity += screen.CellAt(x, y).character; }
                 auto output = screen.ToString();
                 ok &= expect(identity.find(std::string(60, 'A') + "_END") != std::string::npos &&
@@ -548,9 +570,9 @@ int main()
     ok &= expect(output.find("AcceptedOnly") != std::string::npos && output.find("OutgoingOnly") == std::string::npos &&
                  output.find("stranger") == std::string::npos, "Contacts rows exclude incoming and outgoing requests");
     s.view = page::friend_requests;
-    ok &= expect(draw(s, 60, 20).find("新的朋友 · 收到") != std::string::npos, "incoming requests page");
+    ok &= expect(draw(s, 60, 20).find("收到 (") != std::string::npos, "incoming requests page");
     s.view = page::friend_sent;
-    ok &= expect(draw(s, 60, 20).find("新的朋友 · 发出") != std::string::npos, "outgoing requests page");
+    ok &= expect(draw(s, 60, 20).find("发出 (") != std::string::npos, "outgoing requests page");
     s.contacts = {{3, "stranger", {}}, {4, "张 三", {}}};
     s.view = page::pick_contacts;
     s.pick_query = "张";
@@ -904,6 +926,9 @@ int main()
                      "Contacts filter keeps New friends and search hint visible");
         component->OnEvent(ftxui::Event::Character('j'));
         component->OnEvent(ftxui::Event::Character('j'));
+        component->OnEvent(ftxui::Event::Character('j'));
+        ok &= expect(application.data.selected == 2, "Filtered Contacts selection reaches the user search below the matches");
+        component->OnEvent(ftxui::Event::Character('k'));
         ok &= expect(application.data.selected == 1, "Filtered Contacts keyboard selection stays in visible rows");
         component->OnEvent(ftxui::Event::Return);
         ok &= expect(application.data.view == page::profile && application.data.profile.id == 2, "Filtered Enter opens the visible friend's profile");
@@ -1690,6 +1715,51 @@ int main()
         component->OnEvent(ftxui::Event::Special("\x1b[201~"));
         ok &= expect(!application.palette_open && application.data.draft == "kept",
                      "A paste begun in a palette that just closed reaches no composer");
+        ftxui::Terminal::SetFallbackSize(fallback);
+    }
+    {
+        // Phase 5: one new-friends list in two groups; y and n answer received requests only.
+        app application;
+        application.data.self = {1, "Alice", {}};
+        application.data.friends.incoming = {{{2, "IncomingBob", {}}, 1}};
+        application.data.friends.outgoing = {{{3, "OutgoingCarol", {}}, 1}};
+        application.data.view = page::friend_requests;
+        auto const fallback = ftxui::Terminal::Size();
+        ftxui::Terminal::SetFallbackSize({80, 24});
+        auto component = make_ui(application, [] {});
+        auto output = draw(application.data, 80, 24);
+        ok &= expect(output.find("收到 (1)") != std::string::npos && output.find("发出 (1)") != std::string::npos &&
+                     output.find("IncomingBob") < output.find("OutgoingCarol"), "Received and sent requests share one list");
+        component->OnEvent(ftxui::Event::Character('j'));
+        ok &= expect(application.data.selected == 1, "Selection moves from the received group into the sent group");
+        component->OnEvent(ftxui::Event::Character('y'));
+        ok &= expect(application.data.status.empty(), "y does nothing on a sent request");
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.data.view == page::profile && application.data.profile.id == 3, "Enter on a sent request opens that person");
+        // Contacts: words that match no friend offer a user search.
+        application.data.contacts = {{4, "Dan", {}}};
+        application.navigate(page::contacts);
+        application.data.contacts_query = "zz";
+        output = draw(application.data, 80, 24);
+        ok &= expect(output.find("查找用户“zz”") != std::string::npos, "A contacts search offers to find users");
+        // Wide layouts keep the list on the left.
+        application.data.contacts_query.clear();
+        application.data.selected = 1;
+        output = draw(application.data, 120, 40);
+        ok &= expect(output.find("Dan") != std::string::npos && output.find("Enter 打开资料") != std::string::npos,
+                     "Wide contacts show the selected contact's card beside the list");
+        application.data.profile = {4, "Dan", {}};
+        application.data.view = page::profile;
+        output = draw(application.data, 120, 40);
+        ok &= expect(output.find("联系人") != std::string::npos && output.find("资料 · ") != std::string::npos,
+                     "A wide profile keeps the contacts list beside it");
+        chat::conversation group; group.id = 10; group.username = "PANEL_GROUP"; group.kind = chat::conversation_kind::group;
+        application.data.conversations = {group};
+        application.data.select_conversation(10);
+        application.data.view = page::group;
+        output = draw(application.data, 120, 40);
+        ok &= expect(output.find("聊天") != std::string::npos && output.find("群聊 · PANEL_GROUP") != std::string::npos,
+                     "Group information opens as a panel beside the chat list");
         ftxui::Terminal::SetFallbackSize(fallback);
     }
     {

@@ -572,6 +572,12 @@ Element secondary(state const& s, int width, int message_scroll)
                     rows.push_back(selected(text(label), s.selected == static_cast<int>(i) + offset));
                 }
             }
+            if (s.view == page::contacts && !s.contacts_query.empty())
+            {
+                // Beyond the friends already listed, the same words can find anyone on the server.
+                auto const index = static_cast<int>(s.visible_contacts().size()) + 1;
+                rows.push_back(selected(preview_text("查找用户“" + s.contacts_query + "”", width), s.selected == index));
+            }
             if (s.view == page::contacts)
             {
                 return vbox({text(title) | bold, separator(),
@@ -583,16 +589,21 @@ Element secondary(state const& s, int width, int message_scroll)
         case page::friend_requests:
         case page::friend_sent:
         {
-            bool const incoming = s.view == page::friend_requests;
-            title = incoming ? "新的朋友 · 收到" : "新的朋友 · 发出";
-            hint = incoming ? "Tab 查看发出 · y 接受 · n 拒绝 · Enter 查看资料" : "Tab 查看收到 · x 撤回 · Enter 查看资料";
-            auto const& requests = incoming ? s.friends.incoming : s.friends.outgoing;
-            for (std::size_t i = 0; i < requests.size(); ++i)
+            // One list in two groups, as in Qt: received requests, then sent ones.
+            title = "新的朋友";
+            hint = "y 接受 · n 拒绝（收到）· x 撤回（发出）· Enter 查看资料";
+            int index = 0;
+            for (auto [label, requests] : {std::pair{"收到", &s.friends.incoming}, std::pair{"发出", &s.friends.outgoing}})
             {
-                auto const& request = requests[i];
-                rows.push_back(selected(text(user_label(request.user.username) + " " + timestamp(request.created_at)), s.selected == static_cast<int>(i)));
+                rows.push_back(text(std::string(label) + " (" + std::to_string(requests->size()) + ")") | bold);
+                if (requests->empty()) { rows.push_back(text("  暂无") | dim); }
+                for (auto const& request : *requests)
+                {
+                    rows.push_back(selected(text("  " + user_label(request.user.username) + " " + timestamp(request.created_at)),
+                                            s.selected == index));
+                    ++index;
+                }
             }
-            if (requests.empty()) { rows.push_back(text("没有待处理的好友申请") | dim); }
             break;
         }
         case page::profile:
@@ -691,6 +702,51 @@ Element secondary(state const& s, int width, int message_scroll)
     else { panel.push_back(scroll(std::move(rows))); }
     return vbox(std::move(panel)) | flex;
 }
+bool people_page(page view) { return view == page::contacts || view == page::profile || view == page::friend_requests || view == page::friend_sent; }
+bool group_page(page view) { return view == page::group || view == page::members || view == page::requests; }
+// The contacts list as the left column of the wide layout. It is highlighted only on the
+// contacts page; elsewhere the selection belongs to the right side.
+Element contacts_column(state const& s, int width)
+{
+    bool const active = s.view == page::contacts;
+    Elements rows;
+    auto const contacts = s.visible_contacts();
+    if (contacts.empty()) { rows.push_back(text(s.contacts.empty() ? "还没有好友" : "没有匹配的好友") | dim); }
+    for (std::size_t i = 0; i < contacts.size(); ++i)
+    {
+        auto label = contacts[i]->username;
+        auto const presence = presence_label(s, contacts[i]->id);
+        if (!presence.empty()) { label += " · " + presence; }
+        rows.push_back(selected(preview_text((active && s.selected == static_cast<int>(i) + 1 ? "> " : "  ") + label, width),
+                                active && s.selected == static_cast<int>(i) + 1));
+    }
+    if (active && !s.contacts_query.empty())
+    {
+        auto const index = static_cast<int>(contacts.size()) + 1;
+        rows.push_back(selected(preview_text("查找用户“" + s.contacts_query + "”", width), s.selected == index));
+    }
+    auto requests = "新的朋友 (" + std::to_string(s.friends.incoming.size()) + ")";
+    return vbox({text("联系人") | bold, preview_text("/ 搜索 · " + s.contacts_query, width) | dim, separator(),
+                 selected(text(requests), active && s.selected == 0), separator(), scroll(std::move(rows))}) | flex;
+}
+// The selected contact at a glance; Enter opens the profile with its actions.
+Element contact_card(state const& s, int width)
+{
+    auto const* person = s.selected_user();
+    if (!person)
+    {
+        return vbox({text(s.selected == 0 ? "新的朋友：收到和发出的好友申请" : "选择一位联系人查看资料") | dim, text(""),
+                     text("Enter 打开") | dim}) | flex;
+    }
+    Elements rows{preview_text(user_label(person->username), width) | bold};
+    auto const presence = presence_label(s, person->id);
+    if (!presence.empty()) { rows.push_back(text(presence)); }
+    rows.push_back(text(std::string("头像：") + (person->avatar.present ? "已设置" : "默认")));
+    rows.push_back(text("好友"));
+    rows.push_back(separator());
+    rows.push_back(text("Enter 打开资料：发消息、删除好友") | dim);
+    return vbox(std::move(rows)) | flex;
+}
 Element render_impl(state const& s, int width, int height, Element compose = {}, std::string typing = {}, int message_scroll = -1)
 {
     if (state::layout(width, height) == layout_mode::too_small) { return text("终端太小（至少 40×12）") | center; }
@@ -710,6 +766,17 @@ Element render_impl(state const& s, int width, int height, Element compose = {},
             content = hbox({conversation_list(s, 29) | size(WIDTH, EQUAL, 30), separator(), conversation_view(s, compose, std::move(typing), width - 34, height, message_scroll)}) | flex;
         }
         else { content = s.view == page::conversations ? conversation_list(s, width - 3) : conversation_view(s, compose, std::move(typing), width - 3, height, message_scroll); }
+    }
+    else if (state::layout(width, height) == layout_mode::wide && people_page(s.view))
+    {
+        // People stay listed on the left; the right shows the selected contact or the open page.
+        auto right = s.view == page::contacts ? contact_card(s, width - 34) : secondary(s, width - 34, message_scroll);
+        content = hbox({contacts_column(s, 29) | size(WIDTH, EQUAL, 30), separator(), right | flex}) | flex;
+    }
+    else if (state::layout(width, height) == layout_mode::wide && group_page(s.view))
+    {
+        // Group information opens beside the chat list, as a panel rather than a new screen.
+        content = hbox({conversation_list(s, 29) | size(WIDTH, EQUAL, 30), separator(), secondary(s, width - 34, message_scroll) | flex}) | flex;
     }
     else { content = secondary(s, width - 3, message_scroll); }
     auto link = " " + link_label(s.link);
@@ -791,10 +858,10 @@ std::size_t selection_count(state const& s, int width)
     switch (s.view)
     {
         case page::conversations: return s.conversations.size();
-        case page::contacts: return s.visible_contacts().size() + 1;
+        case page::contacts: return s.visible_contacts().size() + 1 + (s.contacts_query.empty() ? 0 : 1);
         case page::pick_contacts: return s.pick_candidates().size();
-        case page::friend_requests: return s.friends.incoming.size();
-        case page::friend_sent: return s.friends.outgoing.size();
+        case page::friend_requests:
+        case page::friend_sent: return s.friends.incoming.size() + s.friends.outgoing.size();
         case page::users: return s.users.size();
         case page::members: return s.members.size();
         case page::requests: return s.requests.size();
@@ -1156,9 +1223,7 @@ private:
         {
             // Wide: list -> messages -> composer -> list. Narrow: messages <-> composer; Esc reaches the list.
             bool const forward = event == Event::Tab;
-            if (s.view == page::friend_requests || s.view == page::friend_sent)
-            { app_.command(s.view == page::friend_requests ? "friend-sent" : "friend-requests"); }
-            else if (s.view == page::conversations && s.active)
+            if (s.view == page::conversations && s.active)
             { app_.navigate(page::conversation); s.selecting = forward || !s.can_send(); }
             else if (s.view == page::conversation)
             {
@@ -1226,13 +1291,14 @@ private:
         }
         if ((s.view == page::contacts || s.view == page::pick_contacts) && event == Event::Character('/'))
         { app_.command("filter"); return true; }
-        if (s.view == page::friend_requests)
+        if (s.view == page::friend_requests || s.view == page::friend_sent)
         {
-            if (event == Event::Character('y')) { app_.command("accept-friend"); return true; }
-            if (event == Event::Character('n')) { app_.command("reject-friend"); return true; }
+            // y and n answer a received request; x withdraws a sent one.
+            auto const [request, received] = s.friend_request_at(s.selected);
+            if (request && received && event == Event::Character('y')) { app_.command("accept-friend"); return true; }
+            if (request && received && event == Event::Character('n')) { app_.command("reject-friend"); return true; }
+            if (request && !received && event == Event::Character('x')) { app_.command("cancel-friend"); return true; }
         }
-        if (s.view == page::friend_sent && event == Event::Character('x'))
-        { app_.command("cancel-friend"); return true; }
         if (s.view == page::requests)
         {
             if (event == Event::Character('y')) { app_.command("accept"); return true; }

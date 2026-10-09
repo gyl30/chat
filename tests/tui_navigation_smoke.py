@@ -310,12 +310,11 @@ def tab_navigation(d):
         d.wait('A',lambda s:('聊天' in s or '聊天' in s) and not chat_open(s))
         d.screenshot('A','tab-chat-root-stable')
         d.keys('A','c'); d.wait('A','新的朋友 (1)')
-        d.keys('A','Enter');d.wait('A','新的朋友 · 收到')
-        for _ in range(3):
-            d.keys('A','Tab');d.wait('A','新的朋友 · 发出')
-            d.keys('A','Tab');d.wait('A','新的朋友 · 收到')
-        d.keys('A','Tab');d.wait('A','新的朋友 · 发出')
-        d.keys('A','Escape');d.wait('A','新的朋友 (1)')
+        # One page lists received and sent requests; Tab no longer switches between them.
+        d.keys('A','Enter');d.wait('A',lambda s:'收到 (' in s and '发出 (' in s)
+        d.keys('A','Tab');d.barrier('A')
+        assert '收到 (' in d.capture('A') and '发出 (' in d.capture('A')
+        d.keys('A','Escape');d.wait('A',lambda s:'新的朋友 (1)' in s and '收到 (' not in s)
         d.screenshot('A','request-tab-escape-contacts')
 
 
@@ -327,13 +326,13 @@ def friends_navigation(d):
         assert all(d.name(a) not in screen for a in ['B','D','E'])
         d.screenshot('A','accepted-list-only')
         d.control('connect',actors=['D','E','B'])
-        d.keys('A','Enter');d.wait('A','新的朋友 · 收到')
-        d.wait('A',d.name('D'));d.keys('A','Tab');d.wait('A','新的朋友 · 发出')
-        d.wait('A',d.name('E'));d.screenshot('A','outgoing-request')
-        d.keys('A','x');d.wait('A','没有待处理的好友申请')
+        d.keys('A','Enter');d.wait('A',lambda s:'收到 (1)' in s and '发出 (1)' in s)
+        d.wait('A',lambda s:d.name('D') in s and d.name('E') in s);d.screenshot('A','outgoing-request')
+        choose_row(d,'A',d.name('E'),limit=4)
+        d.keys('A','x');d.wait('A','发出 (0)')
         assert not d.query('E','get_friend_requests')['incoming']
-        d.keys('A','Tab');d.wait('A',d.name('D'));d.keys('A','y')
-        d.wait('A','没有待处理的好友申请')
+        choose_row(d,'A',d.name('D'),limit=4);d.keys('A','y')
+        d.wait('A','收到 (0)')
         assert any(v['id']==d.manifest['actors']['A']['id'] for v in d.query('D','get_contacts'))
         d.keys('A','Escape');d.wait('A','新的朋友 (0)');d.wait('A',d.name('D'))
         d.command('A','search-users '+d.name('D'));d.wait('A','查找用户');d.wait('A',d.name('D'))
@@ -350,7 +349,7 @@ def friends_navigation(d):
         d.query('B','send_friend_request',user='A')
         d.command('A','friend-requests');d.wait('A',d.name('B'))
         d.screenshot('A','hidden-direct-incoming-request')
-        d.query('B','cancel_friend_request',user='A');d.wait('A','没有待处理的好友申请')
+        d.query('B','cancel_friend_request',user='A');d.wait('A','收到 (0)')
         d.command('A','search-users '+d.name('B'));d.wait('A',d.name('B'))
         d.keys('A','Enter');d.wait('A','添加好友')
         d.command('A','add');d.wait('A','等待对方确认')
@@ -370,7 +369,7 @@ def contacts_search(d):
         d.paste('A','s005');d.keys('A','Enter')
         d.wait('A',lambda s:'观察S005_' in s and d.name('C') not in s and '新的朋友 (1)' in s)
         assert all(d.name(a) not in d.capture('A') for a in ['B','D','E'])
-        d.keys('A','j','j');d.wait_selected('A','观察S005_')
+        d.keys('A','j');d.wait_selected('A','观察S005_')
         d.keys('A','Enter');d.wait('A','删除好友');d.screenshot('A','filtered-contact-profile')
         d.keys('A','Escape','/');d.wait('A','搜索已接受的好友')
         d.keys('A','End','BSpace','BSpace','BSpace','BSpace','Enter')
@@ -392,7 +391,7 @@ def request_selection(d):
         d.keys('A','n');d.wait('A',lambda s:d.name(order[1]) not in s)
         assert not any(r['user']['id']==aid for r in d.query(order[1],'get_friend_requests')['outgoing'])
         assert any(r['user']['id']==aid for r in d.query(order[2],'get_friend_requests')['outgoing'])
-        d.keys('A','y');d.wait('A','没有待处理的好友申请')
+        d.keys('A','y');d.wait('A','收到 (0)')
         assert any(v['id']==aid for v in d.query(order[2],'get_contacts'))
         d.query(order[2],'remove_contact',user='A')
         for peer in peers:
@@ -408,7 +407,7 @@ def request_selection(d):
         assert not any(r['user']['id']==aid for r in d.query(order[1],'get_friend_requests')['incoming'])
         assert any(r['user']['id']==aid for r in d.query(order[2],'get_friend_requests')['incoming'])
         d.query(order[2],'respond_friend_request',user='A',accept=False)
-        d.wait('A','没有待处理的好友申请')
+        d.wait('A','发出 (0)')
         d.control('disconnect',actors=peers)
 
 

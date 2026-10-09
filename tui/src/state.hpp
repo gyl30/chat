@@ -69,6 +69,9 @@ struct state
     friendship_state friendship(std::int64_t id) const;
     std::string friendship_hint(std::int64_t id) const;
     user const* selected_user() const;
+    // New friends is one list: received requests first, then sent ones. Returns the request at a
+    // list position and whether it was received.
+    std::pair<friend_request const*, bool> friend_request_at(int index) const;
     std::vector<user const*> visible_contacts() const;
     std::vector<user const*> pick_candidates() const;
     void apply_conversations(conversations_result result, bool append);

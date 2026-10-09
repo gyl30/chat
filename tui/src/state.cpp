@@ -240,18 +240,29 @@ void state::apply_contacts(std::vector<user> values)
     std::erase_if(presences, [this](auto const& value) { return !is_contact(value.first); });
 }
 
+std::pair<friend_request const*, bool> state::friend_request_at(int index) const
+{
+    if (index < 0) { return {nullptr, false}; }
+    auto const position = static_cast<std::size_t>(index);
+    if (position < friends.incoming.size()) { return {&friends.incoming[position], true}; }
+    if (position - friends.incoming.size() < friends.outgoing.size())
+    { return {&friends.outgoing[position - friends.incoming.size()], false}; }
+    return {nullptr, false};
+}
+
 void state::apply_friend_requests(friend_requests_result values)
 {
-    auto const& old = view == page::friend_sent ? friends.outgoing : friends.incoming;
-    auto const selected_id = selected >= 0 && static_cast<std::size_t>(selected) < old.size()
-        ? old[selected].user.id : 0;
+    // Keep the same request selected (same person, same direction) across a refresh.
+    auto const [old, received] = friend_request_at(selected);
+    auto const selected_id = old ? old->user.id : 0;
     friends = std::move(values);
     if (view == page::friend_requests || view == page::friend_sent)
     {
-        auto const& requests = view == page::friend_requests ? friends.incoming : friends.outgoing;
+        auto const& requests = received ? friends.incoming : friends.outgoing;
         auto found = std::ranges::find_if(requests, [selected_id](auto const& value) { return value.user.id == selected_id; });
-        selected = found == requests.end() ? bounded(selected, requests.size())
-                                          : static_cast<int>(found - requests.begin());
+        auto const total = friends.incoming.size() + friends.outgoing.size();
+        selected = found == requests.end() || !selected_id ? bounded(selected, total)
+            : static_cast<int>(found - requests.begin()) + (received ? 0 : static_cast<int>(friends.incoming.size()));
     }
 }
 

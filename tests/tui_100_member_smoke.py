@@ -615,7 +615,7 @@ def message_id(d, marker):
 def stage_friendships(d):
     with d.case('friend-requests-incoming', 'Five real UI incoming friend requests can be rejected, without presence/direct permission'):
         d.command('A', 'friend-requests')
-        d.wait('A', '新的朋友 · 收到')
+        d.wait('A', '收到 (')
         for fixture in d.manifest['friend_pending']['incoming']:
             choose_row(d, 'A', fixture['username'])
             d.keys('A', 'Enter')
@@ -627,7 +627,7 @@ def stage_friendships(d):
         d.screenshot('A', 'rejected-five')
     with d.case('friend-requests-outgoing', 'Five real UI outgoing requests remain pending until explicitly cancelled'):
         d.command('A', 'friend-sent')
-        d.wait('A', '新的朋友 · 发出')
+        d.wait('A', '发出 (')
         for fixture in d.manifest['friend_pending']['outgoing']:
             choose_row(d, 'A', fixture['username'])
             d.keys('A', 'Enter')

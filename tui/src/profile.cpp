@@ -34,9 +34,8 @@ void app::profile_command(std::string const& name, std::string argument)
             }
             else if (data.view == page::friend_requests || data.view == page::friend_sent)
             {
-                auto const& requests = data.view == page::friend_requests ? data.friends.incoming : data.friends.outgoing;
-                if (data.selected >= 0 && static_cast<std::size_t>(data.selected) < requests.size())
-                { data.profile = requests[data.selected].user; }
+                if (auto const [request, received] = data.friend_request_at(data.selected); request)
+                { (void)received; data.profile = request->user; }
             }
             else if (data.view == page::members)
             {
@@ -133,10 +132,10 @@ void app::profile_command(std::string const& name, std::string argument)
     }
     if (data.view == page::friend_requests || data.view == page::friend_sent)
     {
-        auto const& requests = data.view == page::friend_requests ? data.friends.incoming : data.friends.outgoing;
-        if (data.selected < 0 || static_cast<std::size_t>(data.selected) >= requests.size())
-        { data.status = "请先选择好友申请"; return; }
-        target = requests[data.selected].user;
+        auto const [request, received] = data.friend_request_at(data.selected);
+        if (!request) { data.status = "请先选择好友申请"; return; }
+        (void)received;
+        target = request->user;
     }
     if (name == "add" || name == "add-contact" || name == "accept-friend" || name == "reject-friend" || name == "cancel-friend")
     {
