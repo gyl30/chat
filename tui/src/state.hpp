@@ -55,6 +55,8 @@ struct state
     user profile;
     std::string copy_text;
     std::vector<std::int64_t> picked_contacts;
+    // Set by ":friend-sent" until the requests arrive, unless the selection moves first.
+    bool focus_sent = false;
 
     chat::conversation const* active_conversation() const;
     chat::conversation* active_conversation();

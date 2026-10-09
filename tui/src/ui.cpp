@@ -51,7 +51,7 @@ constexpr std::array shortcuts{
     shortcut{"g", "当前群聊的操作"},
     shortcut{"A / O / D（成员页）", "设置或取消管理员 / 转让群主 / 移除成员"},
     shortcut{"y / n（申请页）", "接受 / 拒绝所选申请"},
-    shortcut{"Tab（新的朋友）", "切换收到 / 发出的申请"},
+    shortcut{"y / n / x（新的朋友）", "接受 / 拒绝收到的申请，撤回发出的申请"},
     shortcut{"/（联系人、选择好友）", "按名称筛选好友"},
     shortcut{"Space / Enter（选择好友）", "勾选成员 / 完成选择"},
     shortcut{":", "输入命令（:help 查看命令列表）"},
@@ -1607,6 +1607,7 @@ private:
     {
         auto& s = app_.data;
         if (s.view == page::conversation || s.view == page::search) { message_scroll_ = -1; app_.select_message(delta); app_.mark_visible_read(); return; }
+        s.focus_sent = false;  // the person chose a row; a pending ":friend-sent" no longer moves it
         auto count = selection_count(s, app_.viewport_width - 3);
         auto& index = s.view == page::conversations ? s.conversation_selected : s.selected;
         index = count ? std::clamp(index + delta, 0, static_cast<int>(count) - 1) : 0;

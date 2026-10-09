@@ -526,7 +526,11 @@ void app::command(std::string text)
     {
         // One page lists both; "friend-sent" starts at the first sent request.
         navigate(page::friend_requests);
-        if (name == "friend-sent") { data.selected = static_cast<int>(data.friends.incoming.size()); }
+        if (name == "friend-sent")
+        {
+            data.selected = static_cast<int>(data.friends.incoming.size());
+            data.focus_sent = true;
+        }
         friend_requests();
         return;
     }

@@ -1763,6 +1763,36 @@ int main()
         ftxui::Terminal::SetFallbackSize(fallback);
     }
     {
+        // The "find user" row stays selected across contact refreshes, whatever the match count.
+        state people;
+        people.self = {1, "Alice", {}};
+        people.view = page::contacts;
+        people.contacts = {{2, "Dan", {}}};
+        people.contacts_query = "zz";
+        people.selected = 1;  // no matches: the search row follows "new friends"
+        people.apply_contacts({{2, "Dan", {}}});
+        ok &= expect(people.selected == 1, "An unchanged refresh keeps the find-user row");
+        people.apply_contacts({{2, "Dan", {}}, {3, "zzTop", {}}});
+        ok &= expect(people.selected == 2, "A new match moves the find-user row down with it");
+        people.apply_contacts({{2, "Dan", {}}});
+        ok &= expect(people.selected == 1, "A lost match moves it back up");
+        // ":friend-sent" before the requests are loaded lands on the sent group when they arrive.
+        state requests;
+        requests.self = {1, "Alice", {}};
+        requests.view = page::friend_requests;
+        requests.selected = 0;
+        requests.focus_sent = true;
+        chat::friend_requests_result snapshot;
+        snapshot.incoming = {{{2, "In", {}}, 1}, {{3, "In2", {}}, 1}};
+        snapshot.outgoing = {{{4, "Out", {}}, 1}};
+        requests.apply_friend_requests(snapshot);
+        ok &= expect(requests.selected == 2 && !requests.focus_sent, "Sent requests are selected once they load");
+        requests.selected = 0;
+        requests.focus_sent = false;  // the person moved first
+        requests.apply_friend_requests(snapshot);
+        ok &= expect(requests.selected == 0, "A selection the person made is kept");
+    }
+    {
         // A notice that expires in the same batch never clears a newer error.
         app application;
         writable_conversation(application);

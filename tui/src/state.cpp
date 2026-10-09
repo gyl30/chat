@@ -215,6 +215,9 @@ void state::apply_contacts(std::vector<user> values)
 {
     auto const* selected_contact = selected_user();
     auto selected_id = view == page::contacts && selected_contact ? selected_contact->id : 0;
+    // The "find user" row follows the matches, wherever their number moves it.
+    bool const on_search = view == page::contacts && !contacts_query.empty() &&
+                           selected == static_cast<int>(visible_contacts().size()) + 1;
     if (view == page::pick_contacts)
     {
         auto candidates = pick_candidates();
@@ -227,8 +230,9 @@ void state::apply_contacts(std::vector<user> values)
     {
         auto candidates = visible_contacts();
         auto found = std::ranges::find_if(candidates, [selected_id](auto value) { return value->id == selected_id; });
-        selected = found != candidates.end() ? static_cast<int>(found - candidates.begin()) + 1
-                                            : std::clamp(selected, 0, static_cast<int>(candidates.size()));
+        selected = on_search ? static_cast<int>(candidates.size()) + 1
+            : found != candidates.end() ? static_cast<int>(found - candidates.begin()) + 1
+                                        : std::clamp(selected, 0, static_cast<int>(candidates.size()));
     }
     if (view == page::pick_contacts)
     {
@@ -252,6 +256,15 @@ std::pair<friend_request const*, bool> state::friend_request_at(int index) const
 
 void state::apply_friend_requests(friend_requests_result values)
 {
+    // ":friend-sent" asked for the sent group before the requests were loaded: start there.
+    if (focus_sent && (view == page::friend_requests || view == page::friend_sent))
+    {
+        focus_sent = false;
+        friends = std::move(values);
+        selected = static_cast<int>(friends.outgoing.empty() ? 0 : friends.incoming.size());
+        return;
+    }
+    focus_sent = false;
     // Keep the same request selected (same person, same direction) across a refresh.
     auto const [old, received] = friend_request_at(selected);
     auto const selected_id = old ? old->user.id : 0;
