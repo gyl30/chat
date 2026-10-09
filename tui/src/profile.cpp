@@ -60,6 +60,13 @@ void app::profile_command(std::string const& name, std::string argument)
         navigate(page::profile);
         return;
     }
+    // The account menu copies the signed-in name whatever page it was opened over.
+    if (name == "copy-self")
+    {
+        data.copy_text = data.self.username;
+        navigate(page::copy);
+        return;
+    }
     if (name == "copy-user")
     {
         data.copy_text = data.view == page::profile ? data.profile.username : data.self.username;

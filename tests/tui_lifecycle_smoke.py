@@ -89,7 +89,7 @@ def run(d):
 
     def start_tui(binary):
         assert _pane_state(d, actor)['dead'], 'Never replace a still-running TUI'
-        command = 'exec ' + shlex.quote(str(binary)) + ' ' + shlex.quote(d.url)
+        command = 'exec ' + d.tui_environment(actor) + shlex.quote(str(binary)) + ' ' + shlex.quote(d.url)
         d.tmux('respawn-pane', '-t', d.panes[actor], command)
         pid = int(d.tmux('display-message', '-p', '-t', d.panes[actor], '#{pane_pid}').stdout.strip())
         d.observer.set_process('tui_' + actor, pid)

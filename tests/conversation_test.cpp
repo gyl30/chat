@@ -3554,12 +3554,29 @@ int run_tui_tests()
             require(queued.data.link == connection::signed_out && queued.data.self.id == 0, "Queued callbacks cannot restore a logged out session");
         }
         {
+            // Only a sign-in the server accepted is remembered, with the address it used.
+            chat::tui::app rejected(notify);
+            int remembered = 0;
+            rejected.on_signed_in = [&](auto const&, auto const&) { ++remembered; };
+            rejected.server_url = server.url;
+            rejected.username = account;
+            rejected.password = "wrong password";
+            rejected.login();
+            pump_app(rejected, [&] { return rejected.data.link == connection::signed_out && !rejected.data.status.empty(); });
+            require(remembered == 0, "A rejected password is not remembered");
+            rejected.shutdown();
+            rejected.drain();
+        }
+        {
             chat::tui::app reconnecting(notify);
+            std::vector<std::pair<std::string, std::string>> remembered;
+            reconnecting.on_signed_in = [&](auto const& name, auto const& url) { remembered.emplace_back(name, url); };
             reconnecting.server_url = server.url;
             reconnecting.username = account;
             reconnecting.password = "test password";
             reconnecting.login();
             pump_app(reconnecting, [&] { return reconnecting.data.link == connection::online; });
+            require(remembered.size() == 1 && remembered[0] == std::pair{account, server.url}, "A successful sign-in is remembered");
             reconnecting.reconnect();
             require(reconnecting.data.link == connection::reconnecting, "Reconnect scheduled before shutdown");
             reconnecting.shutdown();

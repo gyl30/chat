@@ -1,12 +1,16 @@
 #include "ui.hpp"
 #include "app.hpp"
+#include "recent_login.hpp"
 #include <chat/error_text.hpp>
 #include <ftxui/component/event.hpp>
 #include <ftxui/component/app.hpp>
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/loop.hpp>
 
+#include <cstdlib>
 #include <ctime>
+#include <unistd.h>
+#include <filesystem>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -983,9 +987,15 @@ int main()
             component->OnEvent(ftxui::Event::Escape);
         }
         component->OnEvent(ftxui::Event::Character('u'));
-        output = draw(application.data, 80, 24);
-        ok &= expect(output.find("账号 · ") != std::string::npos && output.find("退出登录") != std::string::npos,
-                     "Account primary shortcut exposes existing profile and logout");
+        {
+            // The account is a small menu over the page.
+            ftxui::Screen account(80, 24);
+            ftxui::Render(account, component->Render());
+            output = account.ToString();
+        }
+        ok &= expect(application.menu_open && output.find("账号 · ") != std::string::npos && output.find("退出登录") != std::string::npos &&
+                     output.find("复制用户名") != std::string::npos, "Account primary shortcut opens the account menu");
+        component->OnEvent(ftxui::Event::Escape);
         application.data.link = connection::online;
         application.command("logout");
         ok &= expect(application.dialog && application.dialog->confirmation && application.data.self.id == 1, "logout requires confirmation");
@@ -1810,6 +1820,96 @@ int main()
         application.data.apply_friend_requests(snapshot);
         ok &= expect(application.data.view == page::friend_requests && !application.data.focus_sent && application.data.selected == 0,
                      "Esc back to new friends does not jump to the sent group later");
+    }
+    {
+        // Chat history: all / images / files / links over the loaded messages, newest first.
+        app application;
+        writable_conversation(application);
+        application.data.composing = false;
+        auto make = [](std::int64_t id, std::string text, std::string type = {}) {
+            chat::message m; m.id = id; m.from = 2; m.username = "Bob"; m.conversation = 10; m.text = std::move(text);
+            if (!type.empty()) { m.attachment = chat::attachment_info{"f" + std::to_string(id), std::move(type), 1}; m.text.clear(); }
+            return m;
+        };
+        auto gone = make(5, "https://deleted.example");
+        gone.deleted = true;
+        application.data.messages = {make(1, "hello"), make(2, "", "image/png"), make(3, "", "application/pdf"),
+                                     make(4, "see https://example.com"), gone, make(6, "last")};
+        application.data.message_selected = 5;
+        auto ids = [&](int category) {
+            application.data.history_category = category;
+            std::string out;
+            for (auto const* m : application.data.history_entries()) { out += std::to_string(m->id); }
+            return out;
+        };
+        ok &= expect(ids(0) == "64321" && ids(1) == "2" && ids(2) == "3" && ids(3) == "4", "History categories pick images, files and links");
+        auto component = make_ui(application, [] {});
+        application.command("history");
+        application.data.selected = 1;  // message 4
+        application.data.apply_message(make(7, "newer"));
+        ok &= expect(application.data.history_entries()[static_cast<std::size_t>(application.data.selected)]->id == 4,
+                     "A new message does not move the history selection to another message");
+        application.data.selected = 0;
+        ok &= expect(application.data.view == page::history && application.data.history_category == 0, "The history page opens on all messages");
+        component->OnEvent(ftxui::Event::ArrowRight);
+        component->OnEvent(ftxui::Event::ArrowRight);
+        auto output = draw(application.data, 80, 24);
+        ok &= expect(application.data.history_category == 2 && output.find("[文件]") != std::string::npos &&
+                     output.find("f3") != std::string::npos && output.find("hello") == std::string::npos,
+                     "Arrow keys switch the history category");
+        component->OnEvent(ftxui::Event::Character('4'));  // links
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.data.view == page::conversation && application.data.selecting &&
+                     application.data.message_selected == 3 && !application.data.at_latest,
+                     "Enter goes back to the chat with that message selected");
+        // The account menu opens over any page; offline it still copies the name and signs out.
+        application.data.view = page::contacts;
+        application.data.contacts = {{2, "Bob", {}}};
+        application.data.selected = 1;
+        application.data.link = connection::reconnecting;
+        component->OnEvent(ftxui::Event::Character('u'));
+        ok &= expect(application.menu_open, "The account menu opens offline");
+        component->OnEvent(ftxui::Event::Character('y'));
+        ok &= expect(application.data.view == page::copy && application.data.copy_text == "Alice",
+                     "The account menu copies the signed-in name, not the selected contact");
+        auto items = application.data.account_actions();
+        ok &= expect(items.size() == 3 && items[0].command == "account" && items[2].command == "logout",
+                     "Offline the account menu leaves out avatar changes");
+        application.data.link = connection::online;
+        application.data.self.avatar.present = true;
+        ok &= expect(application.data.account_actions().size() == 5, "Online with an avatar it can be set or cleared");
+        component->OnEvent(ftxui::Event::Character('u'));
+        component->OnEvent(ftxui::Event::Character('p'));
+        ok &= expect(!application.menu_open && application.data.view == page::profile && application.data.profile.id == 1,
+                     "The account menu opens the signed-in profile");
+    }
+    {
+        // With the last username filled in, typing goes straight to the password.
+        app application;
+        application.username = "alice";
+        auto component = make_ui(application, [] {});
+        component->OnEvent(ftxui::Event::Character('p'));
+        ok &= expect(application.password == "p" && application.username == "alice", "A remembered username starts in the password field");
+        app fresh;
+        auto blank = make_ui(fresh, [] {});
+        blank->OnEvent(ftxui::Event::Character('b'));
+        ok &= expect(fresh.username == "b" && fresh.password.empty(), "Without one it starts in the username field");
+    }
+    {
+        // The last sign-in lives under XDG_CONFIG_HOME and holds no password.
+        auto const directory = std::filesystem::temp_directory_path() / ("chat-tui-login-" + std::to_string(::getpid()));
+        std::filesystem::remove_all(directory);
+        auto const* saved_config = std::getenv("XDG_CONFIG_HOME");
+        std::string const previous = saved_config ? saved_config : "";
+        ::setenv("XDG_CONFIG_HOME", directory.c_str(), 1);
+        ok &= expect(!load_recent_login(), "No record before the first sign-in");
+        save_recent_login({"alice", "ws://chat.example/ws"});
+        auto const loaded = load_recent_login();
+        ok &= expect(loaded && loaded->username == "alice" && loaded->server_url == "ws://chat.example/ws",
+                     "The username and server come back next time");
+        ok &= expect(recent_login_path() == directory / "chat" / "tui-login", "The record stays in the configured directory");
+        std::filesystem::remove_all(directory);
+        if (saved_config) { ::setenv("XDG_CONFIG_HOME", previous.c_str(), 1); } else { ::unsetenv("XDG_CONFIG_HOME"); }
     }
     {
         // A notice that expires in the same batch never clears a newer error.

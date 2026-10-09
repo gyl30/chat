@@ -1,4 +1,5 @@
 #include "app.hpp"
+#include "recent_login.hpp"
 #include "ui.hpp"
 
 #include <iostream>
@@ -43,7 +44,16 @@ int main(int argc, char** argv)
     // Keep native terminal selection available for copyable text pages.
     screen.TrackMouse(false);
     chat::tui::app application([&screen] { screen.PostEvent(ftxui::Event::Custom); });
+    // An address given on the command line wins; otherwise the last one that signed in.
+    if (auto const recent = chat::tui::load_recent_login())
+    {
+        application.username = recent->username;
+        if (!recent->server_url.empty()) { application.server_url = recent->server_url; }
+    }
     if (argc == 2) { application.server_url = argv[1]; }
+    application.on_signed_in = [](std::string const& username, std::string const& server) {
+        chat::tui::save_recent_login({username, server});
+    };
     auto ui = chat::tui::make_ui(application, [&screen] { screen.Exit(); });
     auto terminal = ftxui::CatchEvent(ui, [&](ftxui::Event event) {
         if (event != ftxui::Event::CtrlZ) { return false; }

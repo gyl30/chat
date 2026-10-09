@@ -28,7 +28,7 @@ class NavigationDriver(Driver):
         self.spawn_tui('A')
 
     def spawn_tui(self, actor):
-        command='exec '+shlex.quote(str(self.args.binary))+' '+shlex.quote(self.url)
+        command='exec '+self.tui_environment(actor)+shlex.quote(str(self.args.binary))+' '+shlex.quote(self.url)
         if not self.panes:
             result=self.tmux('new-session','-d','-P','-F','#{pane_id}','-s',self.session,
                              '-n',actor,'-x','160','-y','45',command)
@@ -39,7 +39,7 @@ class NavigationDriver(Driver):
 
     def login(self,actor,first=True):
         self.wait(actor,'登录 / 注册')
-        if first:
+        if first and self.name(actor) not in self.capture(actor):
             self.paste(actor,self.name(actor)); self.keys(actor,'Tab')
         self.paste(actor,self.password); self.keys(actor,'Enter')
         self.wait(actor,lambda s:'已连接' in s and ('聊天' in s or '聊天' in s))
@@ -99,9 +99,12 @@ def _late_profile_message(d):
             d.command('A', 'message')
             queued = _eventually(lambda: (size if (size := _server_receive_queue(pid, d.args.port)) > initial_bytes else None),
                                  'The real Message RPC did not reach the paused isolated server')
+            # The newer destination: the own profile, reached through the account menu.
             d.keys('A', 'u')
-            d.wait('A', '账号 ·')
-            d.wait('A', d.name('A'))
+            d.wait('A', '复制用户名')
+            d.keys('A', 'p')
+            # Only the own profile offers avatar changes; the title bar always shows A's name.
+            d.wait('A', lambda s: '设置头像' in s and '复制用户名' not in s)
             d.barrier('A')
             capture_terminal(d, 'A', 'account-before-message-response')
             d.evidence('message-rpc-pending', {'tui_pid': pid, 'isolated_server_pid': server_pid,
@@ -126,7 +129,7 @@ def _late_profile_message(d):
             d.barrier('A')
             screen = d.capture('A')
             observations += 1
-            if '账号 ·' not in screen:
+            if '设置头像' not in screen:
                 capture_terminal(d, 'A', 'late-message-overrode-account')
                 raise AssertionError('A delayed peer Message response replaced the newer Account destination')
             time.sleep(.05)
@@ -519,14 +522,25 @@ def new_actions(d):
         d.screenshot('E','new-join-open')
 
 
+def history_categories(d):
+    with d.case('history-categories','Chat history files links separately and Enter returns to that message in the chat'):
+        marker='HISTORY_LINK_'+d.args.run_id
+        d.select_chat('A',d.title);d.wait('A',chat_open)
+        d.send('A',marker+' https://example.com/'+d.args.run_id)
+        d.command('A','history');d.wait('A',lambda s:'聊天记录' in s and '[全部]' in s and marker in s)
+        d.keys('A','4');d.wait('A',lambda s:'[链接]' in s and marker in s and 'RIGHT_OWN_'+d.args.run_id not in s)
+        d.screenshot('A','history-links')
+        d.keys('A','Enter');d.wait('A',lambda s:chat_open(s) and '[链接]' not in s and marker in s)
+
+
 def account_logout(d):
-    with d.case('account-logout','Account opens explicitly and logout confirmation preserves or closes the real session'):
-        d.keys('A','u');d.wait('A','账号 ·');d.wait('A','退出登录')
-        d.screenshot('A','account-page')
-        d.keys('A','j','j','j','Enter');d.wait('A','退出当前账号')
-        d.keys('A','Escape');d.wait('A','账号 ·')
+    with d.case('account-logout','The account menu opens over the page and logout confirmation preserves or closes the real session'):
+        d.keys('A','u');d.wait('A',lambda s:'退出登录' in s and '复制用户名' in s)
+        d.screenshot('A','account-menu')
+        d.keys('A','l');d.wait('A','退出当前账号')
+        d.keys('A','Escape');d.wait('A',lambda s:'退出当前账号' not in s)
         assert any(p['user']==d.manifest['actors']['A']['id'] and p['online'] for p in d.query('S005','get_presence'))
-        d.keys('A','Enter');d.confirm('A','退出当前账号');d.wait('A','登录 / 注册')
+        d.keys('A','u');d.wait('A','复制用户名');d.keys('A','l');d.confirm('A','退出当前账号');d.wait('A','登录 / 注册')
         d.screenshot('A','logout-login-page')
         assert any(p['user']==d.manifest['actors']['A']['id'] and not p['online'] for p in d.query('S005','get_presence'))
 
@@ -575,6 +589,7 @@ def main():
                 friends_navigation(driver)
                 request_selection(driver)
                 message_alignment(driver)
+                history_categories(driver)
                 paste_messages(driver)
                 new_actions(driver)
                 account_logout(driver)

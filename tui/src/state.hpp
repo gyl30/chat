@@ -9,7 +9,7 @@
 namespace chat::tui
 {
 enum class connection { signed_out, connecting, authenticating, online, reconnecting };
-enum class page { conversations, conversation, new_action, contacts, friend_requests, friend_sent, users, profile, members, requests, search, group, help, pick_contacts, copy };
+enum class page { conversations, conversation, new_action, contacts, friend_requests, friend_sent, users, profile, members, requests, search, group, help, pick_contacts, copy, history };
 enum class layout_mode { too_small, narrow, wide };
 
 // One entry of an action menu. A disabled entry stays visible with its reason.
@@ -57,6 +57,10 @@ struct state
     std::vector<std::int64_t> picked_contacts;
     // Set by ":friend-sent" until the requests arrive, unless the selection moves first.
     bool focus_sent = false;
+    // Chat history page: 0 all, 1 images, 2 files, 3 links (as Qt's history window).
+    int history_category = 0;
+    // The loaded messages of the open conversation in that category, newest first.
+    std::vector<message const*> history_entries() const;
 
     chat::conversation const* active_conversation() const;
     chat::conversation* active_conversation();
@@ -67,6 +71,8 @@ struct state
     // docs/tui-redesign.html. The server still checks every request; this only hides what cannot work.
     std::vector<menu_item> message_actions(message const& value) const;
     std::vector<menu_item> member_actions(conversation_member const& value) const;
+    // The account menu: own profile, avatar, copying the username and signing out.
+    std::vector<menu_item> account_actions() const;
     bool is_contact(std::int64_t id) const;
     friendship_state friendship(std::int64_t id) const;
     std::string friendship_hint(std::int64_t id) const;

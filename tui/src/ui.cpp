@@ -33,6 +33,7 @@ constexpr std::array shortcuts{
     shortcut{"PgUp（输入框中）", "转到消息并加载更早的消息，草稿保留"},
     shortcut{"Ctrl+K", "命令面板：搜索并执行命令，草稿保留；:命令 照常可用"},
     shortcut{"F1；不在输入框时也可按 ?", "帮助"},
+    shortcut{":history", "聊天记录：全部、图片、文件、链接；也可在命令面板选择"},
     shortcut{"Ctrl+C / :quit", "安全退出"},
     shortcut{"以下按键在消息或列表中使用", ""},
     shortcut{"j / ↓，k / ↑", "移动选择"},
@@ -676,6 +677,34 @@ Element secondary(state const& s, int width, int message_scroll)
             for (std::size_t i = 0; i < items.size(); ++i) { rows.push_back(selected(text(items[i].label), s.selected == static_cast<int>(i))); }
             break;
         }
+        case page::history:
+        {
+            auto c = s.active_conversation();
+            title = "聊天记录" + (c ? " · " + c->username : std::string{});
+            hint = "←→ 分类 · Enter 定位到聊天 · / 搜索 · PgDn 加载更早";
+            Elements tabs;
+            constexpr std::array<char const*, 4> categories{"全部", "图片", "文件", "链接"};
+            for (int i = 0; i < 4; ++i)
+            {
+                auto tab = text(std::string(i == s.history_category ? "[" : " ") + categories[static_cast<std::size_t>(i)] +
+                                (i == s.history_category ? "]" : " "));
+                tabs.push_back(i == s.history_category ? tab | bold : tab | dim);
+                tabs.push_back(text(" "));
+            }
+            rows.push_back(hbox(std::move(tabs)));
+            auto const entries = s.history_entries();
+            if (entries.empty()) { rows.push_back(text("已加载的消息中没有这一类") | dim); }
+            for (std::size_t i = 0; i < entries.size(); ++i)
+            {
+                auto const& m = *entries[i];
+                auto body = m.attachment ? (m.attachment->media_type.starts_with("image/") ? "[图片] " : "[文件] ") + m.attachment->filename
+                                         : m.text;
+                rows.push_back(selected(preview_text(timestamp(m.timestamp) + "  " + (m.from == s.self.id ? "我" : m.username) + "：" + body, width),
+                                        s.selected == static_cast<int>(i)));
+            }
+            if (s.history_more) { rows.push_back(text("PgDn 加载更早的消息") | dim); }
+            break;
+        }
         case page::help:
             title = "键盘帮助";
             hint = "j/k 滚动 · Esc 返回";
@@ -801,6 +830,7 @@ std::vector<palette_entry> palette_entries(state const& s)
     if (chat)
     {
         entries.push_back({"搜索聊天记录", "search"});
+        entries.push_back({"聊天记录（图片、文件、链接）", "history"});
         entries.push_back({c->muted ? "取消免打扰" : "免打扰", "mute"});
         entries.push_back({c->pinned ? "取消置顶会话" : "置顶会话", "pin"});
         if (c->kind == conversation_kind::group)
@@ -866,6 +896,7 @@ std::size_t selection_count(state const& s, int width)
         case page::members: return s.members.size();
         case page::requests: return s.requests.size();
         case page::search: return s.search_results.size();
+        case page::history: return s.history_entries().size();
         case page::new_action: case page::profile: case page::group: return actions(s).size();
         case page::help:
         {
@@ -928,7 +959,8 @@ public:
         Add(palette_input_);
         // Pasted text the UI still holds goes into the draft before that draft is put away.
         app_.before_input_change = [this] { flush_paste(true); };
-        username_->TakeFocus();
+        // With the last account filled in, only its password is left to type.
+        (app_.username.empty() ? username_ : password_)->TakeFocus();
     }
     ~terminal_ui() override { app_.before_input_change = nullptr; }
     Element OnRender() override
@@ -1145,6 +1177,7 @@ private:
             {
                 auto command = std::exchange(app_.command_text, {});
                 app_.command_mode = false;
+                if (command == "account" || command == ":account") { open_account_menu(); return true; }
                 app_.command(std::move(command));
                 if (app_.exiting) { quit_(); }
                 return true;
@@ -1232,6 +1265,32 @@ private:
             }
             return true;
         }
+        if (s.view == page::history)
+        {
+            int category = s.history_category;
+            if (event == Event::ArrowRight) { category = (category + 1) % 4; }
+            else if (event == Event::ArrowLeft) { category = (category + 3) % 4; }
+            for (char key : {'1', '2', '3', '4'}) { if (event == Event::Character(key)) { category = key - '1'; } }
+            if (category != s.history_category) { s.history_category = category; s.selected = 0; return true; }
+            if (event == Event::PageDown) { app_.history(true); return true; }
+            if (event == Event::Character('/')) { app_.command("search"); return true; }
+            if (event == Event::Return)
+            {
+                // Back to the chat with that message selected.
+                auto const entries = s.history_entries();
+                if (s.selected < 0 || static_cast<std::size_t>(s.selected) >= entries.size()) { return true; }
+                auto const id = entries[static_cast<std::size_t>(s.selected)]->id;
+                app_.back();
+                auto found = std::ranges::find(s.messages, id, &message::id);
+                if (found != s.messages.end())
+                {
+                    s.message_selected = static_cast<int>(found - s.messages.begin());
+                    s.at_latest = found + 1 == s.messages.end();
+                    s.selecting = true;
+                }
+                return true;
+            }
+        }
         if (event == Event::Return && s.view == page::conversation) { open_message_menu(); return true; }
         if (event == Event::ArrowDown || event == Event::Character('j')) { move(1); return true; }
         if (event == Event::ArrowUp || event == Event::Character('k')) { move(-1); return true; }
@@ -1306,7 +1365,7 @@ private:
         }
         if (event == Event::Character('N')) { app_.command("new"); return true; }
         if (event == Event::Character('h')) { app_.command("chats"); return true; }
-        if (event == Event::Character('u')) { app_.command("account"); return true; }
+        if (event == Event::Character('u')) { open_account_menu(); return true; }
         if (event == Event::Character('i'))
         {
             if (s.view != page::conversation) { return false; }
@@ -1349,7 +1408,7 @@ private:
     // promote into demote) because the target changed meanwhile; such a change closes the menu.
     struct menu_state
     {
-        enum class kind { message, member } kind;
+        enum class kind { message, member, account } kind;
         std::int64_t target = 0;
         std::string title;
         std::vector<menu_item> items;
@@ -1362,6 +1421,7 @@ private:
     {
         auto const& s = app_.data;
         if (!menu_) { return {}; }
+        if (menu_->kind == menu_state::kind::account) { return s.self.id == menu_->target ? s.account_actions() : std::vector<menu_item>{}; }
         if (menu_->kind == menu_state::kind::message)
         {
             auto found = std::ranges::find(s.messages, menu_->target, &message::id);
@@ -1451,6 +1511,7 @@ private:
             if (app_.dialog) { app_.cancel_prompt(); }
             prompt_active_ = false;
             app_.command_mode = false;
+            if (entry.command == "account") { open_account_menu(); return; }
             app_.command(entry.command);
             if (app_.exiting) { quit_(); }
             return;
@@ -1466,6 +1527,14 @@ private:
         app_.compose_changed();
         compose_->TakeFocus();
     }
+    // The account is a small menu over the current page, not a page of its own.
+    void open_account_menu()
+    {
+        auto const& s = app_.data;
+        if (!s.self.id) { return; }
+        menu_ = menu_state{menu_state::kind::account, s.self.id, "账号 · " + s.self.username, s.account_actions(), 0};
+        app_.menu_open = true;
+    }
     void close_menu()
     {
         menu_.reset();
@@ -1478,8 +1547,10 @@ private:
     {
         if (!menu_) { return; }
         auto const& s = app_.data;
-        auto const page_ok = menu_->kind == menu_state::kind::message ? s.view == page::conversation : s.view == page::members;
-        if (!page_ok || s.link != connection::online || app_.dialog || app_.command_mode) { close_menu(); return; }
+        auto const page_ok = menu_->kind == menu_state::kind::account || (menu_->kind == menu_state::kind::message ? s.view == page::conversation : s.view == page::members);
+        // The account menu also works offline (copy, sign out); the others need the server.
+        auto const link_ok = menu_->kind == menu_state::kind::account || s.link == connection::online;
+        if (!page_ok || !link_ok || app_.dialog || app_.command_mode) { close_menu(); return; }
         auto const now = current_items();
         if (now.empty()) { close_menu(); app_.data.status = "操作对象已不存在，菜单已关闭"; return; }
         auto same = [](menu_item const& a, menu_item const& b) {
@@ -1514,7 +1585,12 @@ private:
         close_menu();
         // Act on the bound target as it is now: it must still exist and still allow this action.
         std::vector<menu_item> now;
-        if (target.kind == menu_state::kind::message)
+        if (target.kind == menu_state::kind::account)
+        {
+            if (s.self.id != target.target) { return; }
+            now = s.account_actions();
+        }
+        else if (target.kind == menu_state::kind::message)
         {
             auto found = std::ranges::find(s.messages, target.target, &message::id);
             if (found == s.messages.end()) { s.status = "消息已不存在，操作已取消"; return; }

@@ -309,7 +309,7 @@ class Driver:
         binary = str(self.build / 'chat_tui')
         # These two words are trusted harness paths/URL, not message or filename data.
         import shlex
-        command = 'exec ' + shlex.quote(binary) + ' ' + shlex.quote(self.url)
+        command = 'exec ' + self.tui_environment(actor) + shlex.quote(binary) + ' ' + shlex.quote(self.url)
         if not self.panes:
             result = self.tmux('new-session', '-d', '-P', '-F', '#{pane_id}', '-s', self.session,
                                '-n', actor, '-x', '160', '-y', '45', command)
@@ -332,10 +332,18 @@ class Driver:
     def title(self):
         return self.manifest['group']['title']
 
+    def tui_environment(self, actor):
+        # Each actor remembers its own last sign-in in its own directory, never the user's.
+        import shlex
+        config = self.work / 'config' / actor
+        config.mkdir(parents=True, exist_ok=True)
+        return 'env XDG_CONFIG_HOME=' + shlex.quote(str(config)) + ' '
+
     def login(self, actor, first=True, bad_password=False):
         self.wait(actor, '登录 / 注册')
         # Password Enter submits and leaves focus in that field across logout.
-        if first:
+        # A relaunched client fills in its last username and starts in the password field.
+        if first and self.name(actor) not in self.capture(actor):
             self.paste(actor, self.name(actor))
             self.keys(actor, 'Tab')
         if bad_password:
@@ -1032,7 +1040,11 @@ def stage_files(d):
             d.screenshot('C', 'download-' + name)
         d.evidence('attachment-hashes', hashes)
     with d.case('avatar-profile', 'Actual account UI sets PNG, replaces JPEG, rejects truncated/oversize image, clears, and never displays inline graphics'):
+        # The account menu leads to the own profile, which shows the avatar state.
         d.command('D', 'account')
+        d.wait('D', '账号 ·')
+        d.keys('D', 'p')
+        d.wait('D', '头像：')
         revision = 0
         for media in ('png', 'jpeg'):
             d.command('D', 'avatar set ' + str(files[media]))
@@ -1804,14 +1816,15 @@ def stage_transfer_logout(d):
         assert final['owner_count'] == 1 and final['admin_count'] == 3
         d.evidence('final-hundred-roles', final)
 
-    with d.case('account-logout', 'Self account page requires explicit logout confirmation and all five TUI processes exit safely'):
+    with d.case('account-logout', 'The account menu requires explicit logout confirmation and all five TUI processes exit safely'):
         for actor in 'ABCDE':
             d.command(actor, 'account')
-            d.wait(actor, '退出登录')
-            d.command(actor, 'logout')
+            d.wait(actor, lambda text: '复制用户名' in text and '退出登录' in text)
+            d.keys(actor, 'l')
             d.wait(actor, '退出当前账号')
             d.keys(actor, 'Escape')
-            d.wait(actor, '账号 ·')
+            # The page footer also says "u 账号 ·"; the menu's own items show whether it is open.
+            d.wait(actor, lambda text: '退出当前账号' not in text and '复制用户名' not in text)
             d.logout(actor)
             d.screenshot(actor, 'logged-out')
             d.keys(actor, 'C-c')

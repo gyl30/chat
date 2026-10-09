@@ -141,6 +141,37 @@ std::vector<menu_item> state::member_actions(conversation_member const& value) c
     return items;
 }
 
+std::vector<menu_item> state::account_actions() const
+{
+    // The profile page shows the avatar state; "account" goes there rather than reopening this menu.
+    std::vector<menu_item> items{{"我的资料", 'p', "account", {}}};
+    // Avatar changes need the server; copying and signing out do not.
+    if (link == connection::online)
+    {
+        items.push_back({"设置头像（PNG/JPEG）", 'a', "avatar", {}});
+        if (self.avatar.present) { items.push_back({"清除头像", 'c', "avatar-clear", {}}); }
+    }
+    items.push_back({"复制用户名", 'y', "copy-self", {}});
+    items.push_back({"退出登录", 'l', "logout", {}});
+    return items;
+}
+
+std::vector<message const*> state::history_entries() const
+{
+    std::vector<message const*> entries;
+    for (auto it = messages.rbegin(); it != messages.rend(); ++it)
+    {
+        auto const& m = *it;
+        if (m.deleted) { continue; }
+        bool const image = m.attachment && m.attachment->media_type.starts_with("image/");
+        bool const link = m.text.find("http://") != std::string::npos || m.text.find("https://") != std::string::npos;
+        bool const wanted = history_category == 1 ? image : history_category == 2 ? m.attachment && !image
+                          : history_category == 3 ? link : true;
+        if (wanted) { entries.push_back(&m); }
+    }
+    return entries;
+}
+
 bool state::is_contact(std::int64_t id) const
 {
     return std::ranges::find(contacts, id, &user::id) != contacts.end();
@@ -348,6 +379,13 @@ void state::apply_message(message value)
     if (value.conversation != active) { return; }
     auto const selected_search_id = view == page::search && selected >= 0 &&
         static_cast<std::size_t>(selected) < search_results.size() ? search_results[selected].id : 0;
+    // The history page lists newest first, so a new message would shift the selection down.
+    std::int64_t selected_history_id = 0;
+    if (view == page::history)
+    {
+        auto const entries = history_entries();
+        if (selected >= 0 && static_cast<std::size_t>(selected) < entries.size()) { selected_history_id = entries[selected]->id; }
+    }
     auto selected_id = message_selected >= 0 && static_cast<std::size_t>(message_selected) < messages.size()
         ? messages[message_selected].id : 0;
     auto found = std::ranges::lower_bound(messages, value.id, {}, &message::id);
@@ -368,6 +406,12 @@ void state::apply_message(message value)
         auto current = std::ranges::find(search_results, selected_search_id, &message::id);
         selected = current == search_results.end() ? bounded(selected, search_results.size())
                                                   : static_cast<int>(current - search_results.begin());
+    }
+    if (view == page::history)
+    {
+        auto const entries = history_entries();
+        auto current = std::ranges::find(entries, selected_history_id, &message::id);
+        selected = current == entries.end() ? bounded(selected, entries.size()) : static_cast<int>(current - entries.begin());
     }
     if (reply && reply->id == authoritative.id)
     {

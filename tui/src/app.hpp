@@ -34,6 +34,9 @@ public:
     state data;
     std::string server_url = "ws://127.0.0.1:18080/ws";
     std::string username;
+    // Called after a successful sign-in (not a failed one) with the username and server; the
+    // program stores them for next time. Tests leave it empty and never touch user files.
+    std::function<void(std::string const&, std::string const&)> on_signed_in;
     std::string password;
     std::optional<prompt> dialog;
     bool command_mode = false;

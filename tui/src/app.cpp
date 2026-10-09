@@ -128,6 +128,7 @@ void app::start_connection()
             if (!value->authenticated) { logout(); data.status = "用户名或密码错误"; return; }
             data.self = {value->user, username, value->avatar};
             data.link = connection::online;
+            if (on_signed_in) { on_signed_in(username, server_url); }
             notify(retry_ ? "已恢复连接" : "已连接");
             retry_ = 0;
             refresh();
@@ -523,9 +524,17 @@ void app::command(std::string text)
         else { filter(std::move(argument)); }
         return;
     }
+    // The history page browses what is loaded; loading more needs the server.
+    if (data.self.id && name == "history")
+    {
+        if (data.view != page::conversation || !data.active) { data.status = "请先打开会话"; return; }
+        data.history_category = 0;
+        navigate(page::history);
+        return;
+    }
     // Copying text and opening a known profile use local data, so they work offline too.
     if (data.self.id && name == "copy") { message_command(name, std::move(argument)); return; }
-    if (data.self.id && name == "profile") { profile_command(name, std::move(argument)); return; }
+    if (data.self.id && (name == "profile" || name == "copy-self")) { profile_command(name, std::move(argument)); return; }
     if (!online()) { return; }
     if (name == "friend-requests" || name == "friend-sent")
     {
@@ -578,7 +587,7 @@ void app::command(std::string text)
         name == "link-revoke" || name == "approval" || name == "requests" || name == "accept" || name == "reject" || name == "join")
     { group_command(name, std::move(argument)); return; }
     if (name == "profile" || name == "account" || name == "add" || name == "remove-contact" || name == "message" ||
-        name == "avatar" || name == "avatar-clear" || name == "copy-user" ||
+        name == "avatar" || name == "avatar-clear" || name == "copy-user" || name == "copy-self" ||
         name == "accept-friend" || name == "reject-friend" || name == "cancel-friend")
     { profile_command(name, std::move(argument)); return; }
     message_command(name, std::move(argument));
