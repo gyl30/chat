@@ -1671,6 +1671,25 @@ int main()
         application.data.self.id = 0;
         component->OnEvent(ftxui::Event::Custom);
         ok &= expect(!application.palette_open, "Signing out closes the palette");
+        application.data.self.id = 1;
+        // A key arriving with the change that closes the palette is the palette's, not a shortcut.
+        component->OnEvent(ftxui::Event::CtrlK);
+        application.data.link = connection::reconnecting;
+        type(":");
+        ok &= expect(!application.palette_open && !application.command_mode, "A palette closing on a disconnect swallows its key");
+        // A paste starting with that change has no target, even if the composer comes back with it.
+        application.command_mode = false;  // independent of the previous step
+        application.navigate(page::conversation);
+        application.data.selecting = false;
+        application.data.draft = "kept";
+        component->OnEvent(ftxui::Event::CtrlK);
+        component->OnEvent(ftxui::Event::Custom);
+        application.data.link = connection::online;
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        type("XYZ");
+        component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        ok &= expect(!application.palette_open && application.data.draft == "kept",
+                     "A paste begun in a palette that just closed reaches no composer");
         ftxui::Terminal::SetFallbackSize(fallback);
     }
     {

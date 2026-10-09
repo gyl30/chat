@@ -991,6 +991,7 @@ private:
         // Pasted text belongs to the target as it was before queued results change it.
         app_.drain([this] { flush_paste(); });
         bool const had_menu = menu_.has_value();
+        bool const had_palette = palette_open_;
         validate_palette();
         validate_menu();
         if (app_.data.self.id) { app_.sync_focus(); }
@@ -998,7 +999,8 @@ private:
         // Paste markers still keep the paste protocol in step; pasted text without a target is
         // dropped by the paste branch below.
         bool const paste_marker = event == Event::Special("\x1b[200~") || event == Event::Special("\x1b[201~");
-        if (had_menu && !menu_ && !palette_open_ && event != Event::Custom && event != Event::CtrlC && !paste_marker) { return true; }
+        bool const overlay_closed = (had_menu && !menu_ && !palette_open_) || (had_palette && !palette_open_);
+        if (overlay_closed && event != Event::Custom && event != Event::CtrlC && !paste_marker) { return true; }
         sync_message_scroll();
         auto& s = app_.data;
         if (event == Event::CtrlC)
@@ -1015,7 +1017,7 @@ private:
                 pasting_ = true;
                 // A paste that began while a menu was open belongs to no input, even if that
                 // menu closed in this event and the composer has just come back.
-                paste_input_ = palette_open_ ? palette_input_ : had_menu ? Component{} : input();
+                paste_input_ = palette_open_ ? palette_input_ : had_menu || had_palette ? Component{} : input();
                 paste_conversation_ = s.active;
                 paste_buffer_.clear();
             }
@@ -1349,6 +1351,9 @@ private:
         palette_open_ = false;
         app_.palette_open = false;
         app_.mark_visible_read();
+        // A dialog or command line beneath gets its keys back, with its text and cursor as they were.
+        if (app_.dialog) { prompt_->TakeFocus(); }
+        else if (app_.command_mode) { command_->TakeFocus(); }
     }
     bool palette_event(Event const& event)
     {
