@@ -555,19 +555,6 @@ void app::command(std::string text)
     if (name == "quit") { shutdown(); return; }
     if (name == "logout") { confirm("退出当前账号？", [this] { logout(); }); return; }
     if (name == "reconnect") { reconnect(); return; }
-    // The login page's settings: the server address, starting from the current one.
-    if (name == "server" && !data.self.id && data.link == connection::signed_out)
-    {
-        ask("服务器地址（ws:// 或 wss://）", server_url, [this](std::string url) {
-            while (!url.empty() && (url.back() == ' ' || url.back() == '\t')) { url.pop_back(); }
-            while (!url.empty() && (url.front() == ' ' || url.front() == '\t')) { url.erase(0, 1); }
-            if (!(url.starts_with("ws://") || url.starts_with("wss://")) || url.find_first_of(" \t") != std::string::npos)
-            { data.status = "请输入 ws:// 或 wss:// 服务器地址"; return; }
-            server_url = std::move(url);
-            notify("服务器地址：" + server_url);
-        });
-        return;
-    }
     if (name == "help")
     {
         // The page behind keeps its selection in its stack entry, however deep help is opened.

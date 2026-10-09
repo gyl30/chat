@@ -1,4 +1,5 @@
 #include "ui.hpp"
+#include "server_address.hpp"
 #include "app.hpp"
 
 #include <chrono>
@@ -948,10 +949,20 @@ public:
         };
         login_ = Button("登录", [this] { app_.login(); }, action);
         register_ = Button("注册账号", [this] { app_.login(true); }, action);
-        server_settings_ = Button("设置", [this] { app_.command("server"); }, action);
+        server_settings_ = Button("设置", [this] { open_settings(); }, action);
+        // Settings: "IP:port" and a TLS box; the URL is made from them.
+        auto address_option = own(single, address_field_);
+        address_option.on_enter = [this] { save_settings(); };
+        address_ = Input(&settings_address_, "127.0.0.1:18080", address_option);
+        CheckboxOption tls_option = CheckboxOption::Simple();
+        tls_ = Checkbox("TLS（wss://）", &settings_tls_, tls_option);
+        settings_ok_ = Button("确定", [this] { save_settings(); }, action);
+        settings_cancel_ = Button("取消", [this] { close_settings(); }, action);
+        settings_form_ = Container::Vertical({address_, tls_, settings_ok_, settings_cancel_});
         // One focus chain (Tab and ↑↓ go through every field); the three buttons are drawn in a row.
         login_form_ = Container::Vertical({username_, password_, login_, register_, server_settings_});
-        Add(login_form_);
+        // The settings form takes the keys while open; one of the two is active at a time.
+        Add(Container::Tab({login_form_, settings_form_}, &login_tab_));
         auto compose_option = single;
         compose_option.multiline = true;
         compose_option.on_change = [this] { app_.compose_changed(); };
@@ -1006,6 +1017,15 @@ public:
             if (roomy || s.status.empty())
             { fields.push_back(paragraph("Tab 切换 · ←→ 选按钮 · Enter 确认 · Ctrl+C 退出") | dim); }
             page = vbox(std::move(fields)) | size(WIDTH, EQUAL, width) | center;
+            if (settings_open_)
+            {
+                page = dbox({page, vbox({text("服务器") | bold, separator(), text("地址（IP:端口）"), address_->Render(),
+                                         tls_->Render(),
+                                         settings_error_.empty() ? text("") : paragraph(settings_error_) | bold,
+                                         hbox({settings_ok_->Render(), text("  "), settings_cancel_->Render()}),
+                                         text("Tab 切换 · Space 勾选 · Enter 确认 · Esc 取消") | dim}) |
+                                       size(WIDTH, GREATER_THAN, 34) | border | clear_under | center});
+            }
         }
         else
         {
@@ -1201,6 +1221,7 @@ private:
                 if (event == Event::Escape) { app_.logout(); }
                 return true;
             }
+            if (settings_open_) { return settings_event(event); }
             // The buttons share a row, so ←→ move between them as Tab does.
             if (login_->Focused() || register_->Focused() || server_settings_->Focused())
             {
@@ -1408,6 +1429,7 @@ private:
         if (app_.data.composing) { return compose_; }
         if (!app_.data.self.id && app_.data.link == connection::signed_out)
         {
+            if (settings_open_) { return address_->Focused() ? address_ : Component{}; }
             for (auto const& field : {username_, password_}) { if (field->Focused()) { return field; } }
         }
         return {};
@@ -1586,6 +1608,41 @@ private:
         menu_->link = app_.data.link;
         app_.menu_open = true;
     }
+    // The server settings over the login page, filled from the current address.
+    void open_settings()
+    {
+        auto const parts = split_server_url(app_.server_url).value_or(server_address{"127.0.0.1:18080", false, "/ws"});
+        settings_address_ = parts.host_port;
+        settings_tls_ = parts.tls;
+        settings_path_ = parts.path;
+        settings_error_.clear();
+        address_field_.cursor = static_cast<int>(settings_address_.size());
+        settings_open_ = true;
+        login_tab_ = 1;
+        address_->TakeFocus();
+    }
+    void close_settings()
+    {
+        settings_open_ = false;
+        login_tab_ = 0;
+        server_settings_->TakeFocus();
+    }
+    void save_settings()
+    {
+        auto url = join_server_url(settings_address_, settings_tls_, settings_path_);
+        if (!url) { settings_error_ = url.error(); return; }
+        app_.server_url = std::move(*url);
+        close_settings();
+        app_.notify("服务器：" + app_.server_url);
+    }
+    bool settings_event(Event const& event)
+    {
+        if (event == Event::Escape) { close_settings(); return true; }
+        // The two buttons share a row.
+        if (event == Event::ArrowRight && settings_ok_->Focused()) { settings_cancel_->TakeFocus(); return true; }
+        if (event == Event::ArrowLeft && settings_cancel_->Focused()) { settings_ok_->TakeFocus(); return true; }
+        return settings_form_->OnEvent(event);
+    }
     void close_menu()
     {
         menu_.reset();
@@ -1740,11 +1797,12 @@ private:
         if (field == palette_input_) { return {&palette_query_, &palette_field_.cursor, &palette_field_.insert}; }
         if (field == prompt_) { return {&prompt_text_, &prompt_field_.cursor, &prompt_field_.insert}; }
         if (field == command_) { return {&app_.command_text, &command_field_.cursor, &command_field_.insert}; }
+        if (field == address_) { return {&settings_address_, &address_field_.cursor, &address_field_.insert}; }
         if (field == username_) { return {&app_.username, &username_field_.cursor, &username_field_.insert}; }
         if (field == password_) { return {&app_.password, &password_field_.cursor, &password_field_.insert}; }
         return {};
     }
-    field_state username_field_, password_field_, command_field_, prompt_field_, palette_field_;
+    field_state address_field_, username_field_, password_field_, command_field_, prompt_field_, palette_field_;
     // A conversation's draft comes back with the cursor after it, ready to go on typing or
     // to delete; moving between the messages and the composer of one chat keeps the cursor.
     void follow_draft()
@@ -1807,6 +1865,13 @@ private:
     }
     app& app_;
     std::function<void()> quit_;
+    Component address_, tls_, settings_ok_, settings_cancel_, settings_form_;
+    std::string settings_address_;
+    bool settings_tls_ = false;
+    std::string settings_path_ = "/ws";
+    std::string settings_error_;
+    bool settings_open_ = false;
+    int login_tab_ = 0;
     Component username_, password_, login_, register_, server_settings_, login_form_, compose_, command_, prompt_;
     bool pasting_ = false;
     Component paste_input_;

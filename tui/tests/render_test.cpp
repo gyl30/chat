@@ -1,6 +1,7 @@
 #include "ui.hpp"
 #include "app.hpp"
 #include "recent_login.hpp"
+#include "server_address.hpp"
 #include <chat/error_text.hpp>
 #include <ftxui/component/event.hpp>
 #include <ftxui/component/app.hpp>
@@ -922,27 +923,55 @@ int main()
         component->OnEvent(ftxui::Event::ArrowLeft);   // 注册账号
         component->OnEvent(ftxui::Event::Tab);         // 设置
         component->OnEvent(ftxui::Event::Return);
-        ok &= expect(application.dialog && application.dialog->text == application.server_url, "Settings asks for the server address, starting from the current one");
-        ftxui::Screen settings_screen(80, 24);
-        ftxui::Render(settings_screen, component->Render());
-        ok &= expect(settings_screen.ToString().find(application.server_url) != std::string::npos,
-                     "The settings dialog shows the current address");
-        auto const original = application.server_url;
-        component->OnEvent(ftxui::Event::Character("/chosen"));  // the cursor starts after the address
+        auto screen_text = [&] {
+            ftxui::Screen screen(80, 24);
+            ftxui::Render(screen, component->Render());
+            return screen.ToString();
+        };
+        auto shown = screen_text();
+        ok &= expect(shown.find("地址（IP:端口）") != std::string::npos && shown.find("127.0.0.1:18080") != std::string::npos &&
+                     shown.find("ws://") == std::string::npos && shown.find("TLS") != std::string::npos,
+                     "Settings show the IP and port, and TLS as a box");
+        // The cursor starts after the address: Backspace edits the port.
+        for (int i = 0; i < 5; ++i) { component->OnEvent(ftxui::Event::Backspace); }
+        component->OnEvent(ftxui::Event::Character("9000"));
+        component->OnEvent(ftxui::Event::Tab);                // TLS
+        component->OnEvent(ftxui::Event::Character(' '));
+        component->OnEvent(ftxui::Event::Tab);                // 确定
         component->OnEvent(ftxui::Event::Return);
-        ok &= expect(!application.dialog && application.server_url == original + "/chosen", "Typing in settings continues the address");
-        component->OnEvent(ftxui::Event::Return);
-        component->OnEvent(ftxui::Event::Backspace);
-        for (int i = 0; i < 200; ++i) { component->OnEvent(ftxui::Event::Backspace); }
-        component->OnEvent(ftxui::Event::Character("http://wrong"));
-        component->OnEvent(ftxui::Event::Return);
-        ok &= expect(application.server_url == original + "/chosen" && application.data.status.find("ws://") != std::string::npos,
-                     "Settings keep the address when the new one is not ws:// or wss://");
+        ok &= expect(application.server_url == "wss://127.0.0.1:9000/ws", "Saving makes a wss:// URL from the address and TLS");
+        // An address that cannot be used is explained in the form, which stays open.
+        component->OnEvent(ftxui::Event::Return);             // 设置 again
+        ok &= expect(screen_text().find("127.0.0.1:9000") != std::string::npos, "Settings reopen with the saved address");
+        component->OnEvent(ftxui::Event::Character("x"));
+        component->OnEvent(ftxui::Event::Return);             // Enter in the address saves
+        shown = screen_text();
+        ok &= expect(application.server_url == "wss://127.0.0.1:9000/ws" && shown.find("端口须为") != std::string::npos &&
+                     shown.find("地址（IP:端口）") != std::string::npos,
+                     "A bad port is explained in the open form and changes nothing");
+        component->OnEvent(ftxui::Event::Escape);
+        ok &= expect(application.server_url == "wss://127.0.0.1:9000/ws" && screen_text().find("地址（IP:端口）") == std::string::npos,
+                     "Esc closes the settings without saving");
         component->OnEvent(ftxui::Event::Tab);  // from 设置 back to the username
         component->OnEvent(ftxui::Event::End);
         component->OnEvent(ftxui::Event::Character("四"));
         ok &= expect(application.username == "张三四" && application.password == "secret-password",
                      "Settings keep the typed username and password");
+        // The address and TLS make the URL, and come back out of it.
+        {
+            auto const plain = join_server_url("192.168.1.5:18080", false);
+            auto const secure = join_server_url(" chat.example:443 ", true);
+            auto const six = join_server_url("[::1]:18080", false);
+            auto const kept = split_server_url("wss://h:1/custom");
+            ok &= expect(plain && *plain == "ws://192.168.1.5:18080/ws" && secure && *secure == "wss://chat.example:443/ws" &&
+                         six && *six == "ws://[::1]:18080/ws" && kept && kept->host_port == "h:1" && kept->tls && kept->path == "/custom" &&
+                         join_server_url(kept->host_port, kept->tls, kept->path).value_or("") == "wss://h:1/custom",
+                         "IP and port with TLS make the URL, keeping a path from the command line");
+            for (auto const* bad : {"127.0.0.1", "127.0.0.1:0", "127.0.0.1:65536", "127.0.0.1:80a", "ws://127.0.0.1:80",
+                                    "a b:80", ":80", "::1:80", "h:80/ws"})
+            { ok &= expect(!join_server_url(bad, false), "An address without a usable host and port is refused"); }
+            ok &= expect(!split_server_url("http://h:1/ws"), "Only ws:// and wss:// URLs split");
+        }
         application.data.self = {1, "Alice", {}};
         application.data.view = page::contacts;
         application.data.contacts = {{2, "Bob", {}}, {3, "张三", {}}};
