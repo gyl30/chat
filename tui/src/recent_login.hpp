@@ -26,6 +26,9 @@ struct recent_login
     std::string server_url;
 };
 
+// Both ends use this bound, so whatever is saved can be read back.
+inline constexpr std::size_t max_recent_login_size = 64 * 1024;
+
 // $XDG_CONFIG_HOME/chat/tui-login, else ~/.config/chat/tui-login; none without a home directory.
 inline std::optional<std::filesystem::path> recent_login_path()
 {
@@ -44,7 +47,7 @@ inline std::optional<recent_login> load_recent_login()
     std::ifstream input(*path, std::ios::binary);
     if (!input) { return std::nullopt; }
     std::string const content{std::istreambuf_iterator<char>(input), {}};
-    if (content.size() > 4096 || !content.ends_with('\n')) { return std::nullopt; }
+    if (content.size() > max_recent_login_size || !content.ends_with('\n')) { return std::nullopt; }
     auto const first = content.find('\n');
     auto const second = content.find('\n', first + 1);
     if (second + 1 != content.size()) { return std::nullopt; }
@@ -64,6 +67,7 @@ inline void save_recent_login(recent_login const& value)
     if (!path || value.username.empty() || value.username.find_first_of("\r\n") != std::string::npos ||
         value.server_url.find_first_of("\r\n") != std::string::npos)
     { return; }
+    if (value.username.size() + value.server_url.size() + 2 > max_recent_login_size) { return; }
     std::error_code error;
     std::filesystem::create_directories(path->parent_path(), error);
     if (error) { return; }

@@ -2808,6 +2808,13 @@ int run_tui_tests()
             require(app.data.messages.empty(), "Reopening starts without messages");
             app.command("history");
             pump([&] { return app.data.view == chat::tui::page::history && !app.data.history_entries().empty(); });
+            // Leaving before that first page arrives drops it; coming back asks again.
+            app.back();
+            app.open_conversation(direct);
+            app.command("history");
+            app.command("help");
+            app.back();
+            pump([&] { return app.data.view == chat::tui::page::history && !app.data.history_entries().empty(); });
             app.back();
             pump([&] { return !app.data.messages.empty(); });
         }
@@ -3143,6 +3150,27 @@ int run_tui_tests()
         auto after_reconnect = call<chat::send_message_result>([&](auto handler) { peer.send_message(direct, "after reconnect", handler); });
         require(after_reconnect.has_value(), "Peer sends after reconnect");
         pump([&] { return std::ranges::any_of(app.data.messages, [&](auto const& value) { return value.id == after_reconnect->message_id; }); });
+        {
+            // A creation the server refuses is reported even after the account menu opened, and can be retried.
+            app.command("create-group 终端 失败群");
+            auto other_contact = std::ranges::find(app.data.contacts, other_id, &chat::user::id);
+            require(other_contact != app.data.contacts.end(), "Other is a contact before the refused creation");
+            app.data.selected = static_cast<int>(other_contact - app.data.contacts.begin());
+            app.toggle_pick();
+            app.finish_pick();
+            app.submit_prompt();
+            require(app.dialog && app.dialog->confirmation, "Refused creation reaches its confirmation");
+            // The friendship ends on the server before the UI hears of it.
+            require(call<bool>([&](auto h) { other.remove_contact(self, h); }).value(), "Other removes the friendship");
+            app.dialog->text = "y";
+            app.submit_prompt();
+            app.claim_destination();
+            pump([&] { return app.data.status_error && !app.data.status.empty(); });
+            require(app.data.view == page::pick_contacts && app.data.status != "群聊已创建",
+                    "A refused creation is an error, not a success, after the destination changed");
+            app.back();
+            add_contact(other_name, other_id);
+        }
         // Group actions exercise the same UI app with the existing real server fixture.
         app.command("create-group 终端 测试群");
         require(app.data.view == page::pick_contacts, "Group creation selects only own contacts");
@@ -3291,6 +3319,43 @@ int run_tui_tests()
         pump([&] { return app.data.requests.size() == 1; });
         app.command("reject");
         pump([&] { return app.data.requests.empty(); });
+        {
+            // An approval that arrives after the applicant chose somewhere else lists the group but opens nothing.
+            events registrar_events;
+            chat::client registrar;
+            registrar_events.attach(registrar);
+            registrar.connect(server.url);
+            registrar_events.wait([&] { return registrar_events.connected == 1; });
+            auto const applicant_name = "tui_late_approval_" + suffix;
+            auto const applicant_id = register_peer(registrar, applicant_name);
+            registrar.close();
+            chat::tui::app applicant(notify);
+            applicant.server_url = server.url;
+            applicant.username = applicant_name;
+            applicant.password = "test password";
+            applicant.login();
+            pump_app(applicant, [&] { return applicant.data.link == connection::online && applicant.data.self.id != 0; });
+            applicant.command("join " + token);
+            pump_app(applicant, [&] { return applicant.data.status == "申请已提交，等待管理员审批"; });
+            applicant.claim_destination();
+            app.requests();
+            pump([&] { return app.data.requests.size() == 1 && app.data.requests[0].applicant.id == applicant_id; });
+            app.data.selected = 0;
+            app.command("accept");
+            pump_app(applicant, [&] { return std::ranges::any_of(applicant.data.conversations, [&](auto const& c) { return c.id == group; }); });
+            require(applicant.data.active == 0 && applicant.data.status == "入群申请已通过",
+                    "A late approval does not open the group over a newer destination");
+            applicant.shutdown();
+            applicant.drain();
+            app.command("members");
+            pump([&] { return app.data.members.size() == 3; });
+            choose_member(applicant_id);
+            app.command("kick");
+            app.dialog->text = "y"; app.submit_prompt();
+            pump([&] { return app.data.members.size() == 2; });
+            app.open_conversation(group);
+            require(app.data.view == page::conversation, "Back in the group chat");
+        }
         app.reconnect();
         require(app.data.view == page::conversation && app.data.requests.empty(),
                 "Reconnect leaves temporary requests page");
@@ -3580,6 +3645,22 @@ int run_tui_tests()
             queued.logout();
             queued.drain();
             require(queued.data.link == connection::signed_out && queued.data.self.id == 0, "Queued callbacks cannot restore a logged out session");
+        }
+        {
+            // A sign-in the person made that only succeeds after a failed connection is still remembered.
+            chat::tui::app retried(notify);
+            std::vector<std::string> remembered;
+            retried.on_signed_in = [&](auto const&, auto const& url) { remembered.push_back(url); };
+            retried.server_url = "ws://127.0.0.1:1/ws";
+            retried.username = account;
+            retried.password = "test password";
+            retried.login();
+            pump_app(retried, [&] { return retried.data.link == connection::reconnecting; });
+            retried.server_url = server.url;
+            pump_app(retried, [&] { return retried.data.link == connection::online; });
+            require(remembered.size() == 1 && remembered[0] == server.url, "A first sign-in after a retry is remembered");
+            retried.shutdown();
+            retried.drain();
         }
         {
             // Only a sign-in the server accepted is remembered, with the address it used.

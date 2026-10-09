@@ -130,6 +130,11 @@ private:
     bool history_busy_ = false;
     // PgUp arrived while a history page was loading.
     bool older_again_ = false;
+    // Set by login(): the next successful sign-in is remembered (a reconnect's is not).
+    bool remember_login_ = false;
+    // destination_ when a join request awaiting approval was sent from where the person still is.
+    std::optional<std::uint64_t> join_destination_;
+    std::int64_t help_return_message_ = 0;
     bool search_busy_ = false;
     bool requests_busy_ = false;
     bool requests_again_ = false;

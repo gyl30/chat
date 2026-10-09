@@ -132,9 +132,9 @@ void app::finish_pick()
                     pick_action_ = "creating";
                     client_->create_group(std::move(title), std::move(picked), callback([this, view, destination = destination_](auto value) {
                         if (view_ != view || data.view != page::pick_contacts) { return; }
+                        if (!value) { pick_action_ = "create"; error(value.error()); return; }
                         // The group exists either way; only opening it waits on no newer choice.
                         if (destination != destination_) { pick_action_.clear(); data.picked_contacts.clear(); notify("群聊已创建"); conversations(); return; }
-                        if (!value) { pick_action_ = "create"; error(value.error()); return; }
                         pick_action_.clear(); data.picked_contacts.clear(); data.pick_query.clear();
                         navigate(page::conversations); pending_open_ = *value;
                         notify("群聊已创建"); conversations();
@@ -188,7 +188,12 @@ void app::group_command(std::string const& name, std::string argument)
             if (view_ != view) { return; }
             if (!value) { error(value.error()); return; }
             if (value->state == group_join_state::pending)
-            { notify("申请已提交，等待管理员审批"); return; }
+            {
+                // Approval opens the group later only if nothing newer was chosen meanwhile.
+                join_destination_ = destination == destination_ ? std::optional{destination_} : std::nullopt;
+                notify("申请已提交，等待管理员审批");
+                return;
+            }
             if (destination != destination_) { notify("已加入群聊"); conversations(); return; }
             navigate(page::conversations);
             pending_open_ = value->conversation;

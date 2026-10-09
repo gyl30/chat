@@ -72,6 +72,8 @@ void app::login(bool registration)
     registering_ = registration;
     reconnect_enabled_ = !registration;
     retry_ = 0;
+    // This sign-in is the person's own, so it is remembered when it succeeds, after retries too.
+    remember_login_ = true;
     start_connection();
 }
 void app::start_connection()
@@ -129,7 +131,7 @@ void app::start_connection()
             data.self = {value->user, username, value->avatar};
             data.link = connection::online;
             // Remembered on a sign-in the person made, not when a dropped link signs in again (as Qt).
-            if (on_signed_in && !retry_) { on_signed_in(username, server_url); }
+            if (std::exchange(remember_login_, false) && on_signed_in) { on_signed_in(username, server_url); }
             notify(retry_ ? "已恢复连接" : "已连接");
             retry_ = 0;
             refresh();
@@ -169,7 +171,13 @@ void app::start_connection()
     })](std::int64_t user, avatar_state avatar) mutable { cb(std::pair{user, avatar}); });
     client_->set_group_join_request_handler(callback([this](group_join_request_event value) {
         if (value.user == data.self.id && value.state == group_join_request_state::accepted)
-        { pending_open_ = value.conversation; conversations(); }
+        {
+            // Opened only while the person is still where they asked to join from.
+            if (join_destination_ == destination_) { pending_open_ = value.conversation; }
+            else { notify("入群申请已通过"); }
+            join_destination_.reset();
+            conversations();
+        }
         if (value.conversation == data.active && data.view == page::requests) { requests(); }
     }));
     client_->connect(server_url);
@@ -182,6 +190,8 @@ void app::logout()
     ++session_;
     ++view_;
     reconnect_enabled_ = false;
+    remember_login_ = false;
+    join_destination_.reset();
     reconnect_at_.reset();
     timer_->schedule({});
     client_.reset();
@@ -446,6 +456,16 @@ void app::back()
     else { data.view = page::conversations; }
     // Help is a look-up: the page behind it keeps its selection.
     data.selected = from_help ? help_return_selected_ : 0;
+    if (from_help && data.view == page::history)
+    {
+        // Messages may have come or gone meanwhile: return to the same message, not the same row.
+        auto const entries = data.history_entries();
+        auto found = std::ranges::find(entries, help_return_message_, &message::id);
+        if (found != entries.end()) { data.selected = static_cast<int>(found - entries.begin()); }
+        else { data.selected = std::clamp(data.selected, 0, std::max(0, static_cast<int>(entries.size()) - 1)); }
+    }
+    // A page whose first load was dropped while away asks again.
+    if (data.view == page::history && (data.messages.empty() || !data.history_before)) { history(); }
     if (data.view == page::conversation) { history(); members(); }
     mark_visible_read();
 }
@@ -510,7 +530,13 @@ void app::command(std::string text)
     if (name == "help")
     {
         // Help opened again from help keeps the selection of the page behind it.
-        if (data.view != page::help) { help_return_selected_ = data.selected; }
+        if (data.view != page::help)
+        {
+            help_return_selected_ = data.selected;
+            auto const entries = data.view == page::history ? data.history_entries() : std::vector<message const*>{};
+            help_return_message_ = data.selected >= 0 && static_cast<std::size_t>(data.selected) < entries.size()
+                ? entries[static_cast<std::size_t>(data.selected)]->id : 0;
+        }
         navigate(page::help);
         return;
     }

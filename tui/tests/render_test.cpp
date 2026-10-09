@@ -1852,6 +1852,13 @@ int main()
         application.data.apply_message(make(7, "newer"));
         ok &= expect(application.data.history_entries()[static_cast<std::size_t>(application.data.selected)]->id == 4,
                      "A new message does not move the history selection to another message");
+        // The same holds across a look at help.
+        application.command("help");
+        application.data.apply_message(make(8, "while in help"));
+        application.back();
+        ok &= expect(application.data.view == page::history &&
+                     application.data.history_entries()[static_cast<std::size_t>(application.data.selected)]->id == 4,
+                     "Back from help the history keeps the same message selected");
         application.data.selected = 0;
         ok &= expect(application.data.view == page::history && application.data.history_category == 0, "The history page opens on all messages");
         component->OnEvent(ftxui::Event::ArrowRight);
@@ -1919,8 +1926,13 @@ int main()
             write_raw(broken);
             ok &= expect(!load_recent_login(), "A malformed record is ignored");
         }
+        // A long but valid address is saved only if it can be read back.
+        save_recent_login({"alice", "ws://h/ws?" + std::string(8000, 'q')});
+        ok &= expect(load_recent_login() && load_recent_login()->server_url.size() == 8010, "A long saved address reads back");
+        save_recent_login({"alice", "ws://h/ws?" + std::string(max_recent_login_size, 'q')});
+        ok &= expect(load_recent_login() && load_recent_login()->server_url.size() == 8010, "An address too long to read back is not saved");
         save_recent_login({"bad\nname", "ws://x/ws"});
-        ok &= expect(!load_recent_login(), "A username with a line break is never written");
+        ok &= expect(load_recent_login() && load_recent_login()->username == "alice", "A username with a line break is never written");
         // Several clients signing in at once leave one whole record and no temporary files.
         std::vector<std::thread> writers;
         for (int i = 0; i < 8; ++i)
