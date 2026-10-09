@@ -1600,7 +1600,12 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
             "{\"jsonrpc\":\"2.0\",\"method\":\"respond_friend_request\",\"params\":{\"user\":" +
             source_user_id + ",\"accept\":true},\"id\":\"friend-accept\"}");
         if (sent_accept) { co_return false; }
-        auto [read, reply] = co_await receive_websocket_text(accepting);
+        // A named result, not a structured binding of the co_await itself: built by the GCC 16
+        // snapshot r16-8100 with ASan, that form here left the reply's string undestroyed once the
+        // TUI UI was linked into this binary. The same code built by GCC 16.2.0 does not leak, so
+        // it looks like a fault of that snapshot; a standalone reduction does not reproduce it.
+        auto accepted = co_await receive_websocket_text(accepting);
+        auto& [read, reply] = accepted;
         if (read || !json_matches(reply, R"({"result":{"state":"accepted"}})")) { co_return false; }
         accepting.close();
         auto [offline_ec, offline] = co_await receive_websocket_text(source_socket);
