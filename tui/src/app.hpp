@@ -55,6 +55,8 @@ public:
     // before() runs ahead of any queued results, e.g. to finish pending pasted text.
 
     void drain(std::function<void()> const& before = {});
+    // Queues work for the UI thread as an SDK callback would; tests use it to stand in for one.
+    void post(std::function<void()> task) { inbox_->post(std::move(task)); }
     void shutdown();
     void login(bool registration = false);
     void logout();

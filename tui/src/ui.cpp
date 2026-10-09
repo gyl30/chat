@@ -1021,7 +1021,9 @@ public:
             {
                 page = dbox({page, vbox({text("服务器") | bold, separator(), text("地址（IP:端口）"), address_->Render(),
                                          tls_->Render(),
-                                         settings_error_.empty() ? text("") : paragraph(settings_error_) | bold,
+                                         // An error is about what was saved; typing or pasting a change hides it.
+                                         settings_error_.empty() || settings_error_for_ != std::pair{settings_address_, settings_tls_}
+                                             ? text("") : paragraph(settings_error_) | bold,
                                          hbox({settings_ok_->Render(), text("  "), settings_cancel_->Render()}),
                                          text("Tab 切换 · Space 勾选 · Enter 确认 · Esc 取消") | dim}) |
                                        size(WIDTH, GREATER_THAN, 34) | border | clear_under | center});
@@ -1122,6 +1124,8 @@ private:
         validate_palette();
         validate_menu();
         if (app_.data.self.id) { app_.sync_focus(); }
+        // Queued results may have switched to another chat's draft: this key starts after it.
+        follow_draft();
         // A key meant for a menu that just closed because its target changed does nothing else.
         // Paste markers still keep the paste protocol in step; pasted text without a target is
         // dropped by the paste branch below.
@@ -1173,7 +1177,8 @@ private:
             // A pending backslash newline survives redraws, but not a program change to its text.
             if (newline_ && (!s.composing || newline_->conversation != s.active || newline_->draft != s.draft ||
                              newline_->cursor != compose_cursor_)) { newline_.reset(); }
-            if (!s.self.id) { login_form_->TakeFocus(); }
+            // An open settings form keeps the keys (and its field) across background events.
+            if (!s.self.id && !settings_open_) { login_form_->TakeFocus(); }
             else if (s.composing) { compose_->TakeFocus(); }
             auto terminal = Terminal::Size();
             if (state::layout(terminal.dimx, terminal.dimy) != layout_mode::too_small) { app_.mark_visible_read(); }
@@ -1630,7 +1635,7 @@ private:
     void save_settings()
     {
         auto url = join_server_url(settings_address_, settings_tls_, settings_path_);
-        if (!url) { settings_error_ = url.error(); return; }
+        if (!url) { settings_error_ = url.error(); settings_error_for_ = {settings_address_, settings_tls_}; return; }
         app_.server_url = std::move(*url);
         close_settings();
         app_.notify("服务器：" + app_.server_url);
@@ -1870,6 +1875,7 @@ private:
     bool settings_tls_ = false;
     std::string settings_path_ = "/ws";
     std::string settings_error_;
+    std::pair<std::string, bool> settings_error_for_;
     bool settings_open_ = false;
     int login_tab_ = 0;
     Component username_, password_, login_, register_, server_settings_, login_form_, compose_, command_, prompt_;

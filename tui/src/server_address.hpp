@@ -1,6 +1,7 @@
 #ifndef CHAT_TUI_SERVER_ADDRESS_HPP
 #define CHAT_TUI_SERVER_ADDRESS_HPP
 
+#include <arpa/inet.h>
 #include <charconv>
 #include <expected>
 #include <optional>
@@ -46,9 +47,24 @@ inline std::expected<std::string, std::string> join_server_url(std::string_view 
     if (colon == std::string_view::npos) { return std::unexpected("请填写端口，例如 127.0.0.1:18080"); }
     auto const host = host_port.substr(0, colon);
     auto const port = host_port.substr(colon + 1);
-    bool const bracketed = host.starts_with('[') && host.ends_with(']') && host.size() > 2;
-    if (host.empty() || (!bracketed && (host.find(':') != std::string_view::npos || host.find_first_of("[]") != std::string_view::npos)))
-    { return std::unexpected("IP 或域名无效；IPv6 地址请写成 [::1]:18080"); }
+    // An IPv6 address goes in brackets and must parse as one; other hosts are IPv4 addresses
+    // or names, without control characters or the characters URLs give a meaning to.
+    bool valid = !host.empty();
+    if (host.starts_with('['))
+    {
+        unsigned char parsed[16];
+        auto const inside = std::string(host.substr(1, host.size() > 1 ? host.size() - 2 : 0));
+        valid = host.size() > 2 && host.ends_with(']') && ::inet_pton(AF_INET6, inside.c_str(), parsed) == 1;
+    }
+    else
+    {
+        for (unsigned char c : host)
+        {
+            if (c < 0x21 || c == 0x7f || std::string_view("[]:\\\"<>^`{|}%").find(static_cast<char>(c)) != std::string_view::npos)
+            { valid = false; }
+        }
+    }
+    if (!valid) { return std::unexpected("IP 或域名无效；IPv6 地址请写成 [::1]:18080"); }
     unsigned value = 0;
     auto const [end, error] = std::from_chars(port.data(), port.data() + port.size(), value);
     if (port.empty() || error != std::errc{} || end != port.data() + port.size() || value == 0 || value > 65535)

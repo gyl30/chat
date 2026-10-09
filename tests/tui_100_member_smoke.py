@@ -483,6 +483,15 @@ class Driver:
         # A distinct error, so a caller checking that a chat is hidden cannot mistake other failures.
         raise LookupError(f'{actor}: conversation {title!r} missing')
 
+    def right_pane(self, actor):
+        # The detail pane of a wide layout (everything right of the list column); the whole
+        # screen when the layout is narrow.
+        width = int(self.tmux('display-message', '-p', '-t', self.panes[actor], '#{pane_width}').stdout)
+        screen = self.capture(actor)
+        if width < 100:
+            return screen
+        return '\n'.join(line.split('│', 2)[2] for line in screen.splitlines() if line.count('│') >= 3)
+
     def selected_message_lines(self, actor):
         # In a wide layout the conversation list is independently highlighted.
         # Restrict message selection evidence to the right pane, and preserve
@@ -653,7 +662,10 @@ def stage_friendships(d):
         d.wait('B', '查看资料')
         d.keys('B', 'v')
         d.wait('B', '添加好友')
-        assert '发消息' not in d.capture('B') and '在线' not in d.capture('B')
+        # Only the profile panel: in a wide terminal the contacts list beside it shows other
+        # people's presence, and whether "在线" fits there depends on the fixture name length.
+        profile = d.right_pane('B')
+        assert '发消息' not in profile and '在线' not in profile, profile
         d.command('B', 'add')
         d.wait('B', '等待对方确认')
         d.command('B', 'message')

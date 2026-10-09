@@ -949,9 +949,35 @@ int main()
         ok &= expect(application.server_url == "wss://127.0.0.1:9000/ws" && shown.find("端口须为") != std::string::npos &&
                      shown.find("地址（IP:端口）") != std::string::npos,
                      "A bad port is explained in the open form and changes nothing");
+        // The error is about what was saved: changing the address hides it.
+        component->OnEvent(ftxui::Event::Backspace);
+        ok &= expect(screen_text().find("端口须为") == std::string::npos, "Editing the address hides its old error");
+        component->OnEvent(ftxui::Event::Character("x"));
+        component->OnEvent(ftxui::Event::Return);
+        component->OnEvent(ftxui::Event::Backspace);
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        component->OnEvent(ftxui::Event::Character("1"));
+        component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        ok &= expect(screen_text().find("端口须为") == std::string::npos, "Pasting into the address hides its old error");
         component->OnEvent(ftxui::Event::Escape);
         ok &= expect(application.server_url == "wss://127.0.0.1:9000/ws" && screen_text().find("地址（IP:端口）") == std::string::npos,
                      "Esc closes the settings without saving");
+        // Background events (wakeups, expiring notices) leave an open form its keys.
+        component->OnEvent(ftxui::Event::Return);  // 设置
+        component->OnEvent(ftxui::Event::Custom);
+        for (int i = 0; i < 4; ++i) { component->OnEvent(ftxui::Event::Backspace); }
+        component->OnEvent(ftxui::Event::Custom);
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        component->OnEvent(ftxui::Event::Character("9100"));
+        component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        component->OnEvent(ftxui::Event::Custom);
+        component->OnEvent(ftxui::Event::Tab);
+        component->OnEvent(ftxui::Event::Custom);
+        component->OnEvent(ftxui::Event::Character(' '));  // TLS off
+        component->OnEvent(ftxui::Event::Custom);
+        component->OnEvent(ftxui::Event::Tab);
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.server_url == "ws://127.0.0.1:9100/ws", "Settings keep working across background events");
         component->OnEvent(ftxui::Event::Tab);  // from 设置 back to the username
         component->OnEvent(ftxui::Event::End);
         component->OnEvent(ftxui::Event::Character("四"));
@@ -967,8 +993,11 @@ int main()
                          six && *six == "ws://[::1]:18080/ws" && kept && kept->host_port == "h:1" && kept->tls && kept->path == "/custom" &&
                          join_server_url(kept->host_port, kept->tls, kept->path).value_or("") == "wss://h:1/custom",
                          "IP and port with TLS make the URL, keeping a path from the command line");
+            ok &= expect(join_server_url("[fe80::1]:443", true).value_or("") == "wss://[fe80::1]:443/ws" &&
+                         join_server_url("聊天.example:80", false).has_value(), "IPv6 in brackets and international names are accepted");
             for (auto const* bad : {"127.0.0.1", "127.0.0.1:0", "127.0.0.1:65536", "127.0.0.1:80a", "ws://127.0.0.1:80",
-                                    "a b:80", ":80", "::1:80", "h:80/ws"})
+                                    "a b:80", ":80", "::1:80", "h:80/ws", "[garbage]:80", "[[]]:80", "[]:80", "[::1:80",
+                                    "h\x01:80", "h|x:80", "h%41:80"})
             { ok &= expect(!join_server_url(bad, false), "An address without a usable host and port is refused"); }
             ok &= expect(!split_server_url("http://h:1/ws"), "Only ws:// and wss:// URLs split");
         }
@@ -1976,6 +2005,33 @@ int main()
             ok &= expect(application.data.draft == (insert ? "中X文" : "中X"),
                          insert ? "A first paste into a replaced draft lands on a glyph boundary"
                                 : "A first overwrite paste into a replaced draft lands on a glyph boundary");
+        }
+        // A queued result that switches to another chat's draft: the next key, a backslash newline
+        // and a paste all continue after that draft, not at the old chat's cursor.
+        for (int kind = 0; kind < 3; ++kind)
+        {
+            app application;
+            writable_conversation(application);
+            chat::conversation other; other.id = 11; other.username = "other"; other.can_send = true;
+            other.kind = chat::conversation_kind::group;
+            application.data.conversations.push_back(other);
+            auto component = make_ui(application, [] {});
+            component->OnEvent(ftxui::Event::Character("one"));
+            component->OnEvent(ftxui::Event::Home);
+            application.post([&] { application.data.active = 11; application.data.draft = "saved"; });
+            if (kind == 0) { component->OnEvent(ftxui::Event::Character("!")); }
+            if (kind == 1) { component->OnEvent(ftxui::Event::Character("\\")); component->OnEvent(ftxui::Event::Return); }
+            if (kind == 2)
+            {
+                component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+                component->OnEvent(ftxui::Event::Character("X"));
+                component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+            }
+            char const* const expected[] = {"saved!", "saved\n", "savedX"};
+            ok &= expect(application.data.active == 11 && application.data.draft == expected[kind],
+                         kind == 0 ? "A key after a queued chat switch continues the restored draft"
+                         : kind == 1 ? "A backslash newline after a queued chat switch ends the restored draft"
+                                     : "A paste after a queued chat switch continues the restored draft");
         }
         // Default values: a dialog's initial text, a remembered username and a restored draft
         // all start with the cursor after them.
