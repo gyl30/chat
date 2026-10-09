@@ -905,7 +905,10 @@ private:
         validate_menu();
         if (app_.data.self.id) { app_.sync_focus(); }
         // A key meant for a menu that just closed because its target changed does nothing else.
-        if (had_menu && !menu_ && event != Event::Custom && event != Event::CtrlC) { return true; }
+        // Paste markers still keep the paste protocol in step; pasted text without a target is
+        // dropped by the paste branch below.
+        bool const paste_marker = event == Event::Special("\x1b[200~") || event == Event::Special("\x1b[201~");
+        if (had_menu && !menu_ && event != Event::Custom && event != Event::CtrlC && !paste_marker) { return true; }
         sync_message_scroll();
         auto& s = app_.data;
         if (event == Event::CtrlC)

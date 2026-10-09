@@ -1471,6 +1471,31 @@ int main()
         ok &= expect(!application.menu_open && application.data.view == page::conversation &&
                      application.data.status.find("已变化") != std::string::npos, "A message deleted meanwhile closes its menu");
         application.data.messages.front().deleted = false;
+        // A paste that starts in the same batch as the change is still a paste: its text, with no
+        // target, is dropped instead of running as keys.
+        application.data.status.clear();
+        open_on_first();
+        application.data.messages.front().deleted = true;
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        for (auto key : {"i", "A", "B", "C"}) { component->OnEvent(ftxui::Event::Character(key)); }
+        component->OnEvent(ftxui::Event::Return);
+        component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        ok &= expect(!application.menu_open && !application.data.composing && application.data.draft.empty() &&
+                     application.data.view == page::conversation, "A paste starting as the menu closes runs no keys");
+        component->OnEvent(ftxui::Event::Tab);  // i would also check the (absent) connection
+        ok &= expect(application.data.composing, "Keys work after that paste");
+        application.data.messages.front().deleted = false;
+        // A paste already in progress ends normally when the menu closes on its end marker.
+        open_on_first();
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        component->OnEvent(ftxui::Event::Character("text"));
+        application.data.messages.front().deleted = true;
+        component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        component->OnEvent(ftxui::Event::Tab);
+        ok &= expect(!application.menu_open && application.data.composing && application.data.draft.empty(),
+                     "The paste ends with the menu, and keys work again");
+        application.data.messages.front().deleted = false;
+        application.data.draft.clear();
         application.navigate(page::members);
         application.data.selected = 1;
         component->OnEvent(ftxui::Event::Return);
