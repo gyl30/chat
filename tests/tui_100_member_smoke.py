@@ -484,13 +484,22 @@ class Driver:
         raise LookupError(f'{actor}: conversation {title!r} missing')
 
     def right_pane(self, actor):
-        # The detail pane of a wide layout (everything right of the list column); the whole
-        # screen when the layout is narrow.
-        width = int(self.tmux('display-message', '-p', '-t', self.panes[actor], '#{pane_width}').stdout)
-        screen = self.capture(actor)
-        if width < 100:
-            return screen
-        return '\n'.join(line.split('│', 2)[2] for line in screen.splitlines() if line.count('│') >= 3)
+        # The detail pane of a wide layout: what lies right of the list column's divider, found
+        # by its display column (CJK takes two cells) on the "├───┬───┤" line under the title.
+        # The whole screen when the layout is a single column.
+        import unicodedata
+        def cells(text):
+            out = []
+            for ch in text:
+                out.append(ch)
+                if unicodedata.east_asian_width(ch) in ('W', 'F'):
+                    out.append('')
+            return out
+        lines = [cells(line) for line in self.capture(actor).splitlines()]
+        divider = next((row.index('┬') for row in lines if row and row[0] == '├' and '┬' in row), None)
+        if divider is None:
+            return '\n'.join(''.join(row) for row in lines)
+        return '\n'.join(''.join(row[divider + 1:]) for row in lines if len(row) > divider + 1)
 
     def selected_message_lines(self, actor):
         # In a wide layout the conversation list is independently highlighted.
@@ -665,6 +674,8 @@ def stage_friendships(d):
         # Only the profile panel: in a wide terminal the contacts list beside it shows other
         # people's presence, and whether "在线" fits there depends on the fixture name length.
         profile = d.right_pane('B')
+        # The pane must be the profile itself before anything is concluded from what it lacks.
+        assert '添加好友' in profile and '不是好友' in profile, profile
         assert '发消息' not in profile and '在线' not in profile, profile
         d.command('B', 'add')
         d.wait('B', '等待对方确认')

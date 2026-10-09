@@ -954,11 +954,19 @@ int main()
         ok &= expect(screen_text().find("端口须为") == std::string::npos, "Editing the address hides its old error");
         component->OnEvent(ftxui::Event::Character("x"));
         component->OnEvent(ftxui::Event::Return);
-        component->OnEvent(ftxui::Event::Backspace);
-        component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+        ok &= expect(screen_text().find("端口须为") != std::string::npos, "The error is back for the same bad address");
+        component->OnEvent(ftxui::Event::Special("\x1b[200~"));  // nothing typed first: only the paste changes it
         component->OnEvent(ftxui::Event::Character("1"));
         component->OnEvent(ftxui::Event::Special("\x1b[201~"));
         ok &= expect(screen_text().find("端口须为") == std::string::npos, "Pasting into the address hides its old error");
+        component->OnEvent(ftxui::Event::Return);                  // still bad ("...x1"): the error shows
+        ok &= expect(screen_text().find("端口须为") != std::string::npos, "A bad pasted address is explained");
+        component->OnEvent(ftxui::Event::Tab);                     // TLS
+        component->OnEvent(ftxui::Event::Character(' '));
+        ok &= expect(screen_text().find("端口须为") == std::string::npos, "Switching TLS hides the old error");
+        component->OnEvent(ftxui::Event::Character(' '));
+        component->OnEvent(ftxui::Event::TabReverse);              // back to the address
+        for (int i = 0; i < 2; ++i) { component->OnEvent(ftxui::Event::Backspace); }
         component->OnEvent(ftxui::Event::Escape);
         ok &= expect(application.server_url == "wss://127.0.0.1:9000/ws" && screen_text().find("地址（IP:端口）") == std::string::npos,
                      "Esc closes the settings without saving");
@@ -1000,6 +1008,12 @@ int main()
                                     "h\x01:80", "h|x:80", "h%41:80"})
             { ok &= expect(!join_server_url(bad, false), "An address without a usable host and port is refused"); }
             ok &= expect(!split_server_url("http://h:1/ws"), "Only ws:// and wss:// URLs split");
+            // A NUL inside the brackets must not let inet_pton read only the part before it.
+            std::string const with_nul("[::1\0garbage]:80", 16);
+            std::string const host_nul("h\0x:80", 6);
+            ok &= expect(with_nul.find('\0') == 4 && with_nul.ends_with("]:80") && host_nul.ends_with(":80") &&
+                         !join_server_url(with_nul, false) && !join_server_url(host_nul, false),
+                         "An address with a NUL byte is refused");
         }
         application.data.self = {1, "Alice", {}};
         application.data.view = page::contacts;

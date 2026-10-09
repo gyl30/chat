@@ -50,13 +50,15 @@ inline std::expected<std::string, std::string> join_server_url(std::string_view 
     // An IPv6 address goes in brackets and must parse as one; other hosts are IPv4 addresses
     // or names, without control characters or the characters URLs give a meaning to.
     bool valid = !host.empty();
-    if (host.starts_with('['))
+    // No control characters anywhere (a NUL would also cut short what inet_pton reads).
+    for (unsigned char c : host) { if (c < 0x21 || c == 0x7f) { valid = false; } }
+    if (valid && host.starts_with('['))
     {
         unsigned char parsed[16];
         auto const inside = std::string(host.substr(1, host.size() > 1 ? host.size() - 2 : 0));
         valid = host.size() > 2 && host.ends_with(']') && ::inet_pton(AF_INET6, inside.c_str(), parsed) == 1;
     }
-    else
+    else if (valid)
     {
         for (unsigned char c : host)
         {
