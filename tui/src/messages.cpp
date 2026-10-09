@@ -39,7 +39,7 @@ void app::sync_focus()
 {
     assert_ui();
     // Overlays and other pages take the keys; an open, writable conversation types directly.
-    bool const input = data.view == page::conversation && !dialog && !command_mode && !menu_open && !data.selecting && data.can_send();
+    bool const input = data.view == page::conversation && !dialog && !command_mode && !menu_open && !palette_open && !data.selecting && data.can_send();
     if (input && !data.composing) { data.composing = true; }
     else if (!input && data.composing) { stop_composing(); }
 }
@@ -126,7 +126,7 @@ void app::check_read()
     assert_ui();
     read_check = false;
     if (!client_ || data.link != connection::online || data.view != page::conversation || !data.at_latest ||
-        state::layout(viewport_width, viewport_height) == layout_mode::too_small || dialog || command_mode || menu_open || history_rows < 1 ||
+        state::layout(viewport_width, viewport_height) == layout_mode::too_small || dialog || command_mode || menu_open || palette_open || history_rows < 1 ||
         history_busy_ || data.messages.empty()) { return; }
     auto const conversation = data.active;
     auto const view = view_;

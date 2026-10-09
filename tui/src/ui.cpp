@@ -31,7 +31,9 @@ constexpr std::array shortcuts{
     shortcut{"Tab / Shift+Tab", "宽屏在列表、消息、输入框之间切换；窄屏在消息与输入框之间切换"},
     shortcut{"↑（输入框为空）", "选择消息"},
     shortcut{"PgUp（输入框中）", "转到消息并加载更早的消息，草稿保留"},
+    shortcut{"Ctrl+K", "命令面板：搜索并执行命令，草稿保留；:命令 照常可用"},
     shortcut{"F1；不在输入框时也可按 ?", "帮助"},
+    shortcut{"Ctrl+C / :quit", "安全退出"},
     shortcut{"以下按键在消息或列表中使用", ""},
     shortcut{"j / ↓，k / ↑", "移动选择"},
     shortcut{"Enter（消息、成员）", "打开操作菜单：只列出当前可用的操作，菜单中字母直接执行"},
@@ -53,7 +55,6 @@ constexpr std::array shortcuts{
     shortcut{"/（联系人、选择好友）", "按名称筛选好友"},
     shortcut{"Space / Enter（选择好友）", "勾选成员 / 完成选择"},
     shortcut{":", "输入命令（:help 查看命令列表）"},
-    shortcut{"Ctrl+C / :quit", "安全退出"},
 };
 struct menu_action { std::string label, command; };
 std::vector<menu_action> actions(state const& s)
@@ -722,6 +723,69 @@ Element render_impl(state const& s, int width, int height, Element compose = {},
     if (s.status_error) { status = status | bold; }
     return vbox({hbox({preview_text("Chat · " + s.self.username, width - 2 - DisplayWidth(link)) | bold | flex, text(link)}), separator(), content, separator(), hbox({status | flex, text(help) | dim})}) | border;
 }
+// One command palette entry; an empty command inserts a line break in the composer.
+struct palette_entry { std::string label; std::string command; };
+std::vector<palette_entry> palette_entries(state const& s)
+{
+    std::vector<palette_entry> entries;
+    auto const* c = s.active_conversation();
+    bool const chat = s.view == page::conversation && c;
+    if (chat && s.can_send()) { entries.push_back({"插入换行", ""}); entries.push_back({"发送文件", "file"}); }
+    if (chat)
+    {
+        entries.push_back({"搜索聊天记录", "search"});
+        entries.push_back({c->muted ? "取消免打扰" : "免打扰", "mute"});
+        entries.push_back({c->pinned ? "取消置顶会话" : "置顶会话", "pin"});
+        if (c->kind == conversation_kind::group)
+        {
+            entries.push_back({"群信息", "group"});
+            entries.push_back({"群成员", "members"});
+            if (!c->announcement.empty()) { entries.push_back({"查看完整公告", "show-announcement"}); }
+            if (c->pinned_message) { entries.push_back({"查看置顶消息", "pinned"}); }
+            if (s.self_role() != member_role::member)
+            {
+                entries.push_back({"邀请好友入群", "invite"});
+                entries.push_back({"查看邀请码", "link"});
+                entries.push_back({"入群申请", "requests"});
+            }
+            if (s.self_role() != member_role::owner) { entries.push_back({"退出群聊", "leave"}); }
+        }
+    }
+    for (auto const& entry : std::initializer_list<palette_entry>{
+             {"聊天", "chats"}, {"联系人", "contacts"}, {"新的朋友", "friend-requests"}, {"账号", "account"},
+             {"添加好友", "add-contact"}, {"创建群聊", "create-group"}, {"加入群聊", "join"}, {"帮助", "help"},
+             {"重新连接", "reconnect"}, {"退出登录", "logout"}, {"退出程序", "quit"}})
+    { entries.push_back(entry); }
+    return entries;
+}
+// Case-insensitive subsequence match, so "sf" finds "search" and "发文" finds 发送文件.
+bool fuzzy_match(std::string const& query, std::string const& value)
+{
+    auto lower = [](std::string text) {
+        for (char& c : text) { if (c >= 'A' && c <= 'Z') { c = static_cast<char>(c - 'A' + 'a'); } }
+        return text;
+    };
+    auto const wanted = Utf8ToGlyphs(lower(query));
+    auto const glyphs = Utf8ToGlyphs(lower(value));
+    std::size_t at = 0;
+    for (auto const& glyph : wanted)
+    {
+        if (glyph.empty() || glyph == " ") { continue; }
+        while (at < glyphs.size() && glyphs[at] != glyph) { ++at; }
+        if (at == glyphs.size()) { return false; }
+        ++at;
+    }
+    return true;
+}
+std::vector<palette_entry> palette_matches(state const& s, std::string const& query)
+{
+    // ":name args" runs a command line as before, so existing commands keep working.
+    if (!query.empty() && query.front() == ':') { return {{"执行命令 " + query, query.substr(1)}}; }
+    std::vector<palette_entry> found;
+    for (auto& entry : palette_entries(s))
+    { if (fuzzy_match(query, entry.label) || fuzzy_match(query, entry.command)) { found.push_back(std::move(entry)); } }
+    return found;
+}
 std::size_t selection_count(state const& s, int width)
 {
     switch (s.view)
@@ -793,6 +857,8 @@ public:
         Add(command_);
         prompt_ = Input(&prompt_text_, "", single);
         Add(prompt_);
+        palette_input_ = Input(&palette_query_, "输入命令或关键字", single);
+        Add(palette_input_);
         // Pasted text the UI still holds goes into the draft before that draft is put away.
         app_.before_input_change = [this] { flush_paste(true); };
         username_->TakeFocus();
@@ -841,6 +907,28 @@ public:
             update_history_rows(terminal);
             page = render_impl(s, terminal.dimx, terminal.dimy, s.composing ? compose_->Render() : Element{}, typing, message_scroll_);
         }
+        if (palette_open_) { page = dbox({overlays(std::move(page)), palette_view()}); return page; }
+        return overlays(std::move(page));
+    }
+    Element palette_view()
+    {
+        auto const entries = palette_matches(app_.data, palette_query_);
+        Elements rows{text("命令面板") | bold, hbox({text("> "), palette_input_->Render() | flex}), separator()};
+        if (entries.empty()) { rows.push_back(text("没有匹配的命令") | dim); }
+        auto const shown = std::min<std::size_t>(entries.size(), 10);
+        for (std::size_t i = 0; i < shown; ++i)
+        {
+            auto const& entry = entries[i];
+            auto row = hbox({text((static_cast<int>(i) == palette_selected_ ? "> " : "  ") + entry.label) | flex,
+                             text(entry.command.empty() ? "" : " :" + entry.command) | dim});
+            rows.push_back(static_cast<int>(i) == palette_selected_ ? row | inverted : row);
+        }
+        rows.push_back(separator());
+        rows.push_back(text("↑↓ 选择 · Enter 执行 · :命令 直接执行 · Esc 关闭") | dim);
+        return vbox(std::move(rows)) | size(WIDTH, EQUAL, 52) | border | clear_under | center;
+    }
+    Element overlays(Element page)
+    {
         if (app_.dialog)
         {
             sync_prompt();
@@ -874,7 +962,7 @@ public:
         {
             // Esc only clears a shown error, so it does not also leave the page.
             // An open dialog or command line is closed first; the error waits for the next Esc.
-            bool const overlay = app_.dialog || app_.command_mode || menu_;
+            bool const overlay = app_.dialog || app_.command_mode || menu_ || palette_open_;
             bool const clear_only = event == Event::Escape && app_.data.status_error && app_.data.self.id &&
                                     !pasting_ && !overlay;
             if (event != Event::Escape || !overlay) { app_.dismiss_error(); }
@@ -961,6 +1049,9 @@ private:
         }
         // Only Enter can use a backslash typed just before it; every other key ends that chance.
         auto const newline = std::exchange(newline_, std::nullopt);
+        // The palette opens over anything and takes every key while open.
+        if (palette_open_) { return palette_event(event); }
+        if (event == Event::CtrlK && s.self.id) { open_palette(); return true; }
         if (app_.dialog)
         {
             sync_prompt();
@@ -1173,6 +1264,7 @@ private:
 private:
     Component input()
     {
+        if (palette_open_) { return palette_input_; }
         if (app_.dialog) { sync_prompt(); return prompt_; }
         if (app_.command_mode) { return command_; }
         if (app_.data.composing) { return compose_; }
@@ -1226,6 +1318,63 @@ private:
         auto const& member = s.members[static_cast<std::size_t>(s.selected)];
         menu_ = menu_state{menu_state::kind::member, member.id, "成员 · " + member.username, s.member_actions(member), 0};
         app_.menu_open = true;
+    }
+    void open_palette()
+    {
+        palette_open_ = true;
+        app_.palette_open = true;
+        palette_query_.clear();
+        palette_selected_ = 0;
+        palette_input_->TakeFocus();
+    }
+    // Closing returns to whatever was open before: the composer with its draft and cursor, a
+    // menu or a dialog.
+    void close_palette()
+    {
+        palette_open_ = false;
+        app_.palette_open = false;
+        app_.mark_visible_read();
+    }
+    bool palette_event(Event const& event)
+    {
+        if (event == Event::Escape || event == Event::CtrlK) { close_palette(); return true; }
+        auto const entries = palette_matches(app_.data, palette_query_);
+        auto const count = static_cast<int>(std::min<std::size_t>(entries.size(), 10));
+        if (event == Event::ArrowDown) { palette_selected_ = count ? (palette_selected_ + 1) % count : 0; return true; }
+        if (event == Event::ArrowUp) { palette_selected_ = count ? (palette_selected_ + count - 1) % count : 0; return true; }
+        if (event == Event::Return)
+        {
+            if (!count) { return true; }
+            auto const entry = entries[static_cast<std::size_t>(std::clamp(palette_selected_, 0, count - 1))];
+            close_palette();
+            run_palette_entry(entry);
+            return true;
+        }
+        palette_input_->TakeFocus();
+        auto const before = palette_query_;
+        palette_input_->OnEvent(event);
+        if (palette_query_ != before) { palette_selected_ = 0; }
+        return true;
+    }
+    void run_palette_entry(palette_entry const& entry)
+    {
+        auto& s = app_.data;
+        if (!entry.command.empty())
+        {
+            app_.command(entry.command);
+            if (app_.exiting) { quit_(); }
+            return;
+        }
+        // Insert a line break at the composer's cursor. The text is edited directly so overwrite
+        // mode cannot replace a glyph with it.
+        if (s.view != page::conversation || !s.can_send()) { return; }
+        s.selecting = false;
+        app_.sync_focus();
+        auto const at = static_cast<std::size_t>(std::clamp(compose_cursor_, 0, static_cast<int>(s.draft.size())));
+        s.draft.insert(at, "\n");
+        compose_cursor_ = static_cast<int>(at) + 1;
+        app_.compose_changed();
+        compose_->TakeFocus();
     }
     void close_menu()
     {
@@ -1381,6 +1530,10 @@ private:
     Component paste_input_;
     std::string paste_buffer_;
     int compose_cursor_ = 0;
+    Component palette_input_;
+    std::string palette_query_;
+    bool palette_open_ = false;
+    int palette_selected_ = 0;
     bool compose_insert_ = true;
     struct newline_mark { std::int64_t conversation; int cursor; std::string draft; };
     std::optional<newline_mark> newline_;

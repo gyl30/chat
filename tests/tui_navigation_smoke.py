@@ -291,6 +291,13 @@ def tab_navigation(d):
         d.tmux('send-keys','-l','-t',d.panes['A'],'second')
         d.wait('A',lambda s:'?:/r' in s and 'second' in s and not any('?:/r' in l and 'second' in l for l in s.splitlines()))
         d.screenshot('A','raw-typing-and-alt-enter')
+        # Ctrl+K: the palette takes the query, runs help, and Esc returns to the same draft.
+        d.keys('A','C-k')
+        d.wait('A','命令面板')
+        d.tmux('send-keys','-l','-t',d.panes['A'],'帮助')
+        d.keys('A','Enter')
+        d.wait('A','键盘帮助')
+        d.escape_until('A',lambda s:composing(s) and '?:/r' in s and 'second' in s)
         d.keys('A','BTab')
         d.wait('A',lambda s:chat_open(s) and not composing(s))
         d.keys('A','Escape')

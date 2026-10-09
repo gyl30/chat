@@ -1552,6 +1552,73 @@ int main()
         ftxui::Terminal::SetFallbackSize(fallback);
     }
     {
+        // Phase 4: the command palette.
+        app application;
+        writable_conversation(application);
+        auto const fallback = ftxui::Terminal::Size();
+        ftxui::Terminal::SetFallbackSize({120, 40});
+        auto component = make_ui(application, [] {});
+        auto type = [&](std::string const& value) { component->OnEvent(ftxui::Event::Character(value)); };
+        auto screen_text = [&] { ftxui::Screen screen(120, 40); ftxui::Render(screen, component->Render()); return screen.ToString(); };
+        component->OnEvent(ftxui::Event::Custom);
+        application.data.draft = "ab";
+        component->OnEvent(ftxui::Event::Home);
+        component->OnEvent(ftxui::Event::ArrowRight);
+        component->OnEvent(ftxui::Event::CtrlK);
+        ok &= expect(application.palette_open && !application.data.composing, "Ctrl+K opens the palette over the composer");
+        for (auto key : {"?", ":", "r"}) { type(key); }
+        ok &= expect(application.data.draft == "ab" && application.data.view == page::conversation && !application.command_mode,
+                     "Keys typed in the palette are its query, not text or shortcuts");
+        component->OnEvent(ftxui::Event::Escape);
+        type("X");
+        ok &= expect(!application.palette_open && application.data.draft == "aXb", "Closing the palette restores the draft and cursor");
+        application.data.draft = "ab";
+        component->OnEvent(ftxui::Event::Home);
+        component->OnEvent(ftxui::Event::ArrowRight);
+        component->OnEvent(ftxui::Event::CtrlK);
+        type("换行");
+        ok &= expect(screen_text().find("插入换行") != std::string::npos, "The palette lists matching entries");
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(!application.palette_open && application.data.composing && application.data.draft == "a\nb",
+                     "Insert line break puts it at the composer's cursor");
+        component->OnEvent(ftxui::Event::CtrlK);
+        type("srch");
+        ok &= expect(screen_text().find("搜索聊天记录") != std::string::npos, "Entries also match their command name loosely");
+        component->OnEvent(ftxui::Event::Escape);
+        component->OnEvent(ftxui::Event::CtrlK);
+        type("帮助");
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.data.view == page::help, "A palette entry runs its command");
+        application.dismiss_error();
+        component->OnEvent(ftxui::Event::Escape);
+        component->OnEvent(ftxui::Event::CtrlK);
+        type(":help");
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.data.view == page::help, "A :command line still runs from the palette");
+        application.dismiss_error();
+        component->OnEvent(ftxui::Event::Escape);
+        // Direct conversations do not offer group entries.
+        application.data.conversations.front().kind = chat::conversation_kind::direct;
+        component->OnEvent(ftxui::Event::CtrlK);
+        type("群");
+        auto const direct = screen_text();
+        ok &= expect(direct.find("群成员") == std::string::npos && direct.find("创建群聊") != std::string::npos,
+                     "The palette lists only what applies here");
+        component->OnEvent(ftxui::Event::Escape);
+        application.data.conversations.front().kind = chat::conversation_kind::group;
+        // Over an open menu: the palette closes back to the menu.
+        chat::message m; m.id = 1; m.conversation = 10; m.from = 2; m.username = "peer"; m.text = "MENU_TARGET";
+        application.data.messages = {m};
+        component->OnEvent(ftxui::Event::TabReverse);
+        component->OnEvent(ftxui::Event::Return);
+        component->OnEvent(ftxui::Event::CtrlK);
+        ok &= expect(application.menu_open && application.palette_open, "The palette opens over a menu");
+        component->OnEvent(ftxui::Event::Escape);
+        ok &= expect(application.menu_open && !application.palette_open, "Closing the palette returns to the menu");
+        component->OnEvent(ftxui::Event::Escape);
+        ftxui::Terminal::SetFallbackSize(fallback);
+    }
+    {
         // A notice that expires in the same batch never clears a newer error.
         app application;
         writable_conversation(application);
