@@ -1791,6 +1791,16 @@ int main()
         requests.focus_sent = false;  // the person moved first
         requests.apply_friend_requests(snapshot);
         ok &= expect(requests.selected == 0, "A selection the person made is kept");
+        // Leaving the page drops the pending ":friend-sent"; a later visit starts where it says.
+        app application;
+        application.data.self = {1, "Alice", {}};
+        application.navigate(page::friend_requests);
+        application.data.focus_sent = true;
+        application.navigate(page::conversations);
+        ok &= expect(!application.data.focus_sent, "Leaving new friends cancels the pending sent-group focus");
+        application.navigate(page::friend_requests);
+        application.data.apply_friend_requests(snapshot);
+        ok &= expect(application.data.selected == 0, "Returning by another route starts at the top");
     }
     {
         // A notice that expires in the same batch never clears a newer error.

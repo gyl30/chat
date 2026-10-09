@@ -196,6 +196,7 @@ void app::disconnected()
     if (data.link == connection::reconnecting || data.link == connection::signed_out) { return; }
     ++session_; ++view_;
     pending_open_ = 0;
+    data.focus_sent = false;
     if (data.composing && before_input_change) { before_input_change(); }
     data.composing = false;
     typing_sent_ = false; typing_stop_at_.reset(); typing_.clear();
@@ -250,7 +251,7 @@ void app::friend_requests()
     auto const request = ++friends_request_;
     client_->get_friend_requests(callback([this, request](auto value) {
         if (request != friends_request_) { return; }
-        if (!value) { error(value.error()); return; }
+        if (!value) { data.focus_sent = false; error(value.error()); return; }
         data.apply_friend_requests(std::move(*value));
     }));
 }
@@ -397,6 +398,8 @@ void app::navigate(page target)
 {
     assert_ui();
     pending_open_ = 0;
+    // A pending ":friend-sent" belongs to the visit that asked for it; that command sets it again.
+    data.focus_sent = false;
     stop_composing();
     if (data.view != target)
     {
