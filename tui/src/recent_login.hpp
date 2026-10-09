@@ -7,7 +7,6 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -46,7 +45,10 @@ inline std::optional<recent_login> load_recent_login()
     if (!path) { return std::nullopt; }
     std::ifstream input(*path, std::ios::binary);
     if (!input) { return std::nullopt; }
-    std::string const content{std::istreambuf_iterator<char>(input), {}};
+    // Read at most one byte past the bound, so a damaged or huge file is never read whole.
+    std::string content(max_recent_login_size + 1, '\0');
+    input.read(content.data(), static_cast<std::streamsize>(content.size()));
+    content.resize(static_cast<std::size_t>(input.gcount()));
     if (content.size() > max_recent_login_size || !content.ends_with('\n')) { return std::nullopt; }
     auto const first = content.find('\n');
     auto const second = content.find('\n', first + 1);

@@ -1,6 +1,7 @@
 #include "ui.hpp"
 #include "app.hpp"
 
+#include <chrono>
 #include <algorithm>
 #include <array>
 #include <ctime>
@@ -221,10 +222,12 @@ std::string timestamp(std::int64_t value)
 }
 std::string clock_time(std::int64_t value) { return value > 0 ? format_time(local_time(value), "%H:%M") : std::string{}; }
 // Calendar days since an arbitrary epoch, for comparing local dates.
-int day_number(std::tm time)
+// Days since 1970-01-01 of the local calendar date. Counted from the date itself, not from
+// seconds: around a daylight saving change a local day is 23 or 25 hours long.
+int day_number(std::tm const& time)
 {
-    time.tm_hour = 12; time.tm_min = time.tm_sec = 0; time.tm_isdst = -1;
-    return static_cast<int>(std::mktime(&time) / 86400);
+    auto const date = std::chrono::year{time.tm_year + 1900} / (time.tm_mon + 1) / time.tm_mday;
+    return static_cast<int>(std::chrono::sys_days{date}.time_since_epoch().count());
 }
 int today() { auto now = std::time(nullptr); std::tm time{}; localtime_r(&now, &time); return day_number(time); }
 std::string day_label(std::int64_t value)
@@ -820,7 +823,11 @@ Element render_impl(state const& s, int width, int height, Element compose = {},
     return vbox({hbox({preview_text("Chat · " + s.self.username, width - 2 - DisplayWidth(link)) | bold | flex, text(link)}), separator(), content, separator(), hbox({status | flex, text(help) | dim})}) | border;
 }
 // One command palette entry; an empty command inserts a line break in the composer.
-struct palette_entry { std::string label; std::string command; bool line_break = false; };
+struct palette_entry
+{
+    std::string label; std::string command; bool line_break = false;
+    bool operator==(palette_entry const&) const = default;
+};
 std::vector<palette_entry> palette_entries(state const& s)
 {
     std::vector<palette_entry> entries;
@@ -922,9 +929,15 @@ public:
     {
         InputOption single;
         single.multiline = false;
-        url_ = Input(&app_.server_url, "ws://127.0.0.1:18080/ws", single);
-        username_ = Input(&app_.username, "用户名", single);
-        auto password_option = single;
+        // Each field's cursor and insert mode are kept here, so a paste can edit the text at once.
+        auto own = [](InputOption option, field_state& field) {
+            option.cursor_position = &field.cursor;
+            option.insert = &field.insert;
+            return option;
+        };
+        url_ = Input(&app_.server_url, "ws://127.0.0.1:18080/ws", own(single, url_field_));
+        username_ = Input(&app_.username, "用户名", own(single, username_field_));
+        auto password_option = own(single, password_field_);
         password_option.password = true;
         password_option.on_enter = [this] { app_.login(); };
         password_ = Input(&app_.password, "密码", password_option);
@@ -951,11 +964,11 @@ public:
         compose_option.insert = &compose_insert_;
         compose_ = Input(&app_.data.draft, "输入消息", compose_option);
         Add(compose_);
-        command_ = Input(&app_.command_text, "命令", single);
+        command_ = Input(&app_.command_text, "命令", own(single, command_field_));
         Add(command_);
-        prompt_ = Input(&prompt_text_, "", single);
+        prompt_ = Input(&prompt_text_, "", own(single, prompt_field_));
         Add(prompt_);
-        palette_input_ = Input(&palette_query_, "输入命令或关键字", single);
+        palette_input_ = Input(&palette_query_, "输入命令或关键字", own(single, palette_field_));
         Add(palette_input_);
         // Pasted text the UI still holds goes into the draft before that draft is put away.
         app_.before_input_change = [this] { flush_paste(true); };
@@ -1119,6 +1132,7 @@ private:
                 paste_input_ = palette_open_ ? palette_input_ : had_menu || had_palette ? Component{} : input();
                 paste_conversation_ = s.active;
                 paste_buffer_.clear();
+                paste_at_.reset();
             }
             newline_.reset();
             return true;
@@ -1413,6 +1427,10 @@ private:
         std::string title;
         std::vector<menu_item> items;
         int selected = 0;
+        // The connection state the items were offered for: offline the permission matrix still
+        // offers local actions (copy, profile), so a menu closes when this changes, not merely
+        // because it is offline.
+        connection link = connection::signed_out;
     };
     std::optional<menu_state> menu_;
 
@@ -1439,6 +1457,7 @@ private:
         for (char& c : preview) { if (c == '\n') { c = ' '; } }
         menu_ = menu_state{menu_state::kind::message, message->id, message_heading(app_.data, *message) + " · " + preview,
                            app_.data.message_actions(*message), 0};
+        menu_->link = app_.data.link;
         app_.menu_open = true;
     }
     void open_member_menu()
@@ -1447,6 +1466,7 @@ private:
         if (s.selected < 0 || static_cast<std::size_t>(s.selected) >= s.members.size()) { return; }
         auto const& member = s.members[static_cast<std::size_t>(s.selected)];
         menu_ = menu_state{menu_state::kind::member, member.id, "成员 · " + member.username, s.member_actions(member), 0};
+        menu_->link = app_.data.link;
         app_.menu_open = true;
     }
     void open_palette()
@@ -1456,6 +1476,7 @@ private:
         palette_query_.clear();
         palette_seen_query_.clear();
         palette_selected_ = 0;
+        choose_palette_entry();
         palette_conversation_ = app_.data.active;
         palette_link_ = app_.data.link;
         palette_account_ = app_.data.self.id;
@@ -1468,7 +1489,35 @@ private:
         if (!palette_open_) { return; }
         auto const& s = app_.data;
         if (s.self.id != palette_account_ || s.link != palette_link_ || s.active != palette_conversation_) { close_palette(); return; }
-        if (palette_query_ != palette_seen_query_) { palette_seen_query_ = palette_query_; palette_selected_ = 0; }
+        if (palette_query_ != palette_seen_query_)
+        {
+            palette_seen_query_ = palette_query_; palette_selected_ = 0;
+            choose_palette_entry();
+            return;
+        }
+        // The highlighted command is the one Enter runs. When the list changes underneath (a role,
+        // the page or the conversation's state), it stays on that command wherever it moved; if
+        // it is gone, the palette closes rather than run whatever now sits in its row.
+        if (!palette_choice_) { choose_palette_entry(); return; }
+        auto const entries = palette_matches(s, palette_query_);
+        auto const found = std::ranges::find(entries, *palette_choice_);
+        auto const index = found - entries.begin();
+        if (found == entries.end() || index >= 10)
+        {
+            close_palette();
+            app_.data.status = "可用命令已变化，请重新选择";
+            return;
+        }
+        palette_selected_ = static_cast<int>(index);
+    }
+    // Remembers which command is highlighted, not just its row.
+    void choose_palette_entry()
+    {
+        auto const entries = palette_matches(app_.data, palette_query_);
+        auto const count = static_cast<int>(std::min<std::size_t>(entries.size(), 10));
+        if (!count) { palette_choice_.reset(); palette_selected_ = 0; return; }
+        palette_selected_ = std::clamp(palette_selected_, 0, count - 1);
+        palette_choice_ = entries[static_cast<std::size_t>(palette_selected_)];
     }
     // Closing returns to whatever was open before: the composer with its draft and cursor, a
     // menu or a dialog.
@@ -1486,8 +1535,8 @@ private:
         if (event == Event::Escape || event == Event::CtrlK) { close_palette(); return true; }
         auto const entries = palette_matches(app_.data, palette_query_);
         auto const count = static_cast<int>(std::min<std::size_t>(entries.size(), 10));
-        if (event == Event::ArrowDown) { palette_selected_ = count ? (palette_selected_ + 1) % count : 0; return true; }
-        if (event == Event::ArrowUp) { palette_selected_ = count ? (palette_selected_ + count - 1) % count : 0; return true; }
+        if (event == Event::ArrowDown) { palette_selected_ = count ? (palette_selected_ + 1) % count : 0; choose_palette_entry(); return true; }
+        if (event == Event::ArrowUp) { palette_selected_ = count ? (palette_selected_ + count - 1) % count : 0; choose_palette_entry(); return true; }
         if (event == Event::Return)
         {
             if (!count) { return true; }
@@ -1535,6 +1584,7 @@ private:
         // The menu is the newest choice: a conversation an earlier request would open stays closed.
         app_.claim_destination();
         menu_ = menu_state{menu_state::kind::account, s.self.id, "账号 · " + s.self.username, s.account_actions(), 0};
+        menu_->link = app_.data.link;
         app_.menu_open = true;
     }
     void close_menu()
@@ -1550,8 +1600,7 @@ private:
         if (!menu_) { return; }
         auto const& s = app_.data;
         auto const page_ok = menu_->kind == menu_state::kind::account || (menu_->kind == menu_state::kind::message ? s.view == page::conversation : s.view == page::members);
-        // The account menu also works offline (copy, sign out); the others need the server.
-        auto const link_ok = menu_->kind == menu_state::kind::account || s.link == connection::online;
+        auto const link_ok = menu_->kind == menu_state::kind::account || s.link == menu_->link;
         if (!page_ok || !link_ok || app_.dialog || app_.command_mode) { close_menu(); return; }
         auto const now = current_items();
         if (now.empty()) { close_menu(); app_.data.status = "操作对象已不存在，菜单已关闭"; return; }
@@ -1629,19 +1678,58 @@ private:
         if (paste_buffer_.empty()) { return; }
         if (!paste_input_ || paste_input_ != input() || paste_conversation_ != app_.data.active)
         { paste_buffer_.clear(); return; }
-        // One insertion keeps a large paste linear.
-        if (paste_input_ == compose_ && compose_insert_)
-        { paste_input_->OnEvent(Event::Character(std::exchange(paste_buffer_, {}))); return; }
-        // Overwrite mode (and the short single-line fields) replace one glyph per glyph. The last
-        // glyph may continue in the next batch (a combining mark, ZWJ or modifier), so until the
-        // paste ends it waits; the result is then the same however the paste was split.
-        auto glyphs = Utf8ToGlyphs(paste_buffer_);
-        std::erase(glyphs, std::string{});
-        std::string rest;
-        if (!final && !glyphs.empty()) { rest = glyphs.back(); glyphs.pop_back(); }
-        paste_buffer_ = std::move(rest);
-        for (auto const& glyph : glyphs) { paste_input_->OnEvent(Event::Character(glyph)); }
+        auto const target = edit_target_of(paste_input_);
+        if (!target.text) { paste_buffer_.clear(); return; }
+        auto& text = *target.text;
+        // Each batch goes right after the bytes the previous one put in: the drawn cursor snaps to
+        // whole glyphs, and a pasted piece that joins the text after it (a flag's first half
+        // before another flag) would otherwise move it past that text and reorder the paste.
+        auto const at = std::min(paste_at_.value_or(static_cast<std::size_t>(std::max(0, *target.cursor))), text.size());
+        std::string pasted;
+        std::size_t replaced = 0;
+        if (*target.insert) { pasted = std::exchange(paste_buffer_, {}); }
+        else
+        {
+            // Overwrite replaces one glyph of the text after the cursor per pasted glyph, up to the
+            // end of its line, as typing does. The last pasted glyph may continue in the next
+            // batch (a combining mark, ZWJ or modifier), so until the paste ends it waits: the
+            // result is then the same however the paste was split.
+            auto glyphs = Utf8ToGlyphs(paste_buffer_);
+            std::erase(glyphs, std::string{});
+            std::string rest;
+            if (!final && !glyphs.empty()) { rest = glyphs.back(); glyphs.pop_back(); }
+            paste_buffer_ = std::move(rest);
+            auto tail = Utf8ToGlyphs(std::string_view(text).substr(at));
+            std::erase(tail, std::string{});
+            std::size_t next = 0;
+            for (auto const& glyph : glyphs)
+            {
+                pasted += glyph;
+                if (next < tail.size() && tail[next] != "\n" && tail[next] != "\r\n" &&
+                    !(tail[next] == "\r" && next + 1 < tail.size() && tail[next + 1] == "\n"))
+                { replaced += tail[next++].size(); }
+            }
+        }
+        // One edit for the whole batch keeps a large paste linear in its size.
+        text.replace(at, replaced, pasted);
+        paste_at_ = at + pasted.size();
+        *target.cursor = static_cast<int>(*paste_at_);
+        if (paste_input_ == compose_) { app_.compose_changed(); }
     }
+    struct field_state { int cursor = 0; bool insert = true; };
+    struct edit_target { std::string* text = nullptr; int* cursor = nullptr; bool* insert = nullptr; };
+    edit_target edit_target_of(Component const& field)
+    {
+        if (field == compose_) { return {&app_.data.draft, &compose_cursor_, &compose_insert_}; }
+        if (field == palette_input_) { return {&palette_query_, &palette_field_.cursor, &palette_field_.insert}; }
+        if (field == prompt_) { return {&prompt_text_, &prompt_field_.cursor, &prompt_field_.insert}; }
+        if (field == command_) { return {&app_.command_text, &command_field_.cursor, &command_field_.insert}; }
+        if (field == url_) { return {&app_.server_url, &url_field_.cursor, &url_field_.insert}; }
+        if (field == username_) { return {&app_.username, &username_field_.cursor, &username_field_.insert}; }
+        if (field == password_) { return {&app_.password, &password_field_.cursor, &password_field_.insert}; }
+        return {};
+    }
+    field_state url_field_, username_field_, password_field_, command_field_, prompt_field_, palette_field_;
     void sync_message_scroll()
     {
         auto const& s = app_.data;
@@ -1704,12 +1792,15 @@ private:
     bool palette_open_ = false;
     int palette_selected_ = 0;
     std::string palette_seen_query_;
+    std::optional<palette_entry> palette_choice_;
     std::int64_t palette_conversation_ = 0, palette_account_ = 0;
     connection palette_link_ = connection::signed_out;
     bool compose_insert_ = true;
     struct newline_mark { std::int64_t conversation; int cursor; std::string draft; };
     std::optional<newline_mark> newline_;
     std::int64_t paste_conversation_ = 0;
+    // Byte offset in the draft where the next batch of an inserting paste goes.
+    std::optional<std::size_t> paste_at_;
     std::string prompt_text_;
     bool prompt_active_ = false;
     int message_scroll_ = -1;

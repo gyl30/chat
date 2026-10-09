@@ -7,6 +7,7 @@
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/loop.hpp>
 
+#include <chrono>
 #include <cstdlib>
 #include <ctime>
 #include <fstream>
@@ -15,6 +16,7 @@
 #include <unistd.h>
 #include <filesystem>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -1825,6 +1827,174 @@ int main()
                      "Esc back to new friends does not jump to the sent group later");
     }
     {
+        // Messages either side of a midnight on a daylight saving change are on different days.
+        auto const* saved_zone = std::getenv("TZ");
+        std::string const previous_zone = saved_zone ? saved_zone : "";
+        for (auto const* zone : {"Asia/Shanghai", "Pacific/Auckland"})  // Auckland moves its clocks on 2026-09-27
+        {
+            ::setenv("TZ", zone, 1); ::tzset();
+            std::tm late{}; late.tm_year = 126; late.tm_mon = 8; late.tm_mday = 26; late.tm_hour = 23; late.tm_min = 59; late.tm_isdst = -1;
+            std::tm early{}; early.tm_year = 126; early.tm_mon = 8; early.tm_mday = 27; early.tm_min = 1; early.tm_isdst = -1;
+            state chat;
+            chat.self = {1, "Alice", {}};
+            chat.link = connection::online;
+            chat::conversation group; group.id = 10; group.username = "group"; group.kind = chat::conversation_kind::group;
+            chat.conversations = {group};
+            chat.active = 10;
+            chat.view = page::conversation;
+            chat::message first; first.id = 1; first.from = 2; first.username = "Bob"; first.conversation = 10; first.text = "LATE_NIGHT";
+            first.timestamp = static_cast<std::int64_t>(std::mktime(&late)) * 1000;
+            auto second = first; second.id = 2; second.text = "EARLY_MORNING";
+            second.timestamp = static_cast<std::int64_t>(std::mktime(&early)) * 1000;
+            chat.messages = {first, second};
+            chat.message_selected = 1;
+            auto const output = draw(chat, 100, 30);
+            int headings = 0;
+            for (auto at = output.find("Bob"); at != std::string::npos; at = output.find("Bob", at + 1)) { ++headings; }
+            ok &= expect(output.find("09月27日") != std::string::npos && headings == 2,
+                         zone == std::string_view("Asia/Shanghai") ? "A new local day starts a new group"
+                                                                   : "A new local day starts a new group across a clock change");
+        }
+        if (saved_zone) { ::setenv("TZ", previous_zone.c_str(), 1); } else { ::unsetenv("TZ"); }
+        ::tzset();
+    }
+    {
+        // Overwrite pastes replace what typing the same text would, up to the end of the line.
+        auto overwrite = [&](bool paste) {
+            app application;
+            writable_conversation(application);
+            application.data.draft = "ab好c\ndef";
+            auto component = make_ui(application, [] {});
+            component->OnEvent(ftxui::Event::Home);
+            component->OnEvent(ftxui::Event::ArrowRight);
+            component->OnEvent(ftxui::Event::Insert);
+            std::string const text = "XY中ZW";
+            if (paste) { component->OnEvent(ftxui::Event::Special("\x1b[200~")); }
+            for (auto const& glyph : ftxui::Utf8ToGlyphs(text)) { if (!glyph.empty()) { component->OnEvent(ftxui::Event::Character(glyph)); } }
+            if (paste) { component->OnEvent(ftxui::Event::Special("\x1b[201~")); }
+            return application.data.draft;
+        };
+        ok &= expect(overwrite(true) == overwrite(false) && overwrite(true) == "aXY中ZW\ndef",
+                     "An overwrite paste replaces like typing and stops at the line end");
+        // A large paste takes time in proportion to its size in every kind of field.
+        auto timed = [](auto&& action) {
+            auto const start = std::chrono::steady_clock::now();
+            action();
+            return std::chrono::steady_clock::now() - start;
+        };
+        std::string const large(64 * 1024, 'a');
+        app login;
+        auto login_ui = make_ui(login, [] {});
+        auto const username_time = timed([&] {
+            login_ui->OnEvent(ftxui::Event::Special("\x1b[200~"));
+            login_ui->OnEvent(ftxui::Event::Character(large));
+            login_ui->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        });
+        ok &= expect(login.username == large && username_time < std::chrono::seconds(2), "A 64 KiB paste into a single-line field is quick");
+        app chat;
+        writable_conversation(chat);
+        chat.data.draft = std::string(64 * 1024, 'b');
+        auto chat_ui = make_ui(chat, [] {});
+        chat_ui->OnEvent(ftxui::Event::Home);
+        chat_ui->OnEvent(ftxui::Event::Insert);
+        auto const overwrite_time = timed([&] {
+            chat_ui->OnEvent(ftxui::Event::Special("\x1b[200~"));
+            chat_ui->OnEvent(ftxui::Event::Character(large));
+            chat_ui->OnEvent(ftxui::Event::Special("\x1b[201~"));
+        });
+        ok &= expect(chat.data.draft == large && overwrite_time < std::chrono::seconds(2), "A 64 KiB overwrite paste is quick");
+    }
+    {
+        // Offline the message and member menus offer local actions, and stay open to use them.
+        app application;
+        writable_conversation(application);
+        application.data.composing = false;
+        application.data.selecting = true;
+        chat::message m; m.id = 1; m.from = 2; m.username = "Bob"; m.conversation = 10; m.text = "offline copy";
+        application.data.messages = {m};
+        application.data.message_selected = 0;
+        application.data.members = {{1, "Alice", chat::member_role::owner, {}}, {2, "Bob", chat::member_role::member, {}}};
+        application.data.link = connection::reconnecting;
+        auto component = make_ui(application, [] {});
+        ftxui::Screen screen(100, 30);
+        component->OnEvent(ftxui::Event::Return);
+        ftxui::Render(screen, component->Render());
+        component->OnEvent(ftxui::Event::Custom);
+        ok &= expect(application.menu_open, "An offline message menu stays open");
+        component->OnEvent(ftxui::Event::Character('y'));
+        ok &= expect(application.data.view == page::copy && application.data.copy_text == "offline copy", "Its copy action runs offline");
+        application.back();
+        application.data.view = page::members;
+        application.data.selected = 1;
+        component->OnEvent(ftxui::Event::Return);
+        component->OnEvent(ftxui::Event::Custom);
+        ok &= expect(application.menu_open, "An offline member menu stays open");
+        component->OnEvent(ftxui::Event::Character('v'));
+        ok &= expect(application.data.view == page::profile && application.data.profile.id == 2, "Its profile action runs offline");
+        // A change of connection still closes it: what it offered no longer applies.
+        application.back();
+        application.data.view = page::members;
+        component->OnEvent(ftxui::Event::Return);
+        application.data.link = connection::online;
+        component->OnEvent(ftxui::Event::Custom);
+        ok &= expect(!application.menu_open, "Coming back online closes a menu opened offline");
+    }
+    {
+        // A paste split by a redraw keeps its order, even when its first piece joins the text after it.
+        for (bool redraw : {false, true})
+        {
+            app application;
+            writable_conversation(application);
+            application.data.draft = "\U0001F1F3\U0001F1E6Z";
+            auto component = make_ui(application, [] {});
+            ftxui::Screen screen(100, 30);
+            ftxui::Render(screen, component->Render());
+            component->OnEvent(ftxui::Event::Home);
+            component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+            component->OnEvent(ftxui::Event::Character("\U0001F1E8"));
+            if (redraw) { ftxui::Render(screen, component->Render()); }
+            component->OnEvent(ftxui::Event::Character("\U0001F1FA"));
+            component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+            ftxui::Render(screen, component->Render());
+            ok &= expect(application.data.draft == "\U0001F1E8\U0001F1FA\U0001F1F3\U0001F1E6Z",
+                         redraw ? "A redraw inside a paste does not reorder it" : "A paste without a redraw keeps its order");
+        }
+    }
+    {
+        // The palette runs the command that was highlighted, not whatever later sits in its row.
+        std::string closed_status;
+        bool open_after_change = true;
+        auto palette_after_role_change = [&](chat::member_role before, chat::member_role after, int downs, bool& quit) {
+            auto application = std::make_unique<app>();
+            writable_conversation(*application);
+            application->data.composing = false;
+            application->data.members = {{1, "Alice", before, {}}, {2, "Bob", chat::member_role::owner, {}}};
+            if (before == chat::member_role::owner) { application->data.members[1].role = chat::member_role::admin; }
+            auto component = make_ui(*application, [&] { quit = true; });
+            component->OnEvent(ftxui::Event::CtrlK);
+            component->OnEvent(ftxui::Event::Character("退"));
+            for (int i = 0; i < downs; ++i) { component->OnEvent(ftxui::Event::ArrowDown); }
+            application->data.members[0].role = after;
+            if (after == chat::member_role::owner) { application->data.members[1].role = chat::member_role::admin; }
+            component->OnEvent(ftxui::Event::Custom);
+            closed_status = application->data.status;
+            open_after_change = application->palette_open;
+            component->OnEvent(ftxui::Event::Return);
+            return std::pair{std::move(application), component};
+        };
+        bool quit = false;
+        // "退出登录" was highlighted below "退出群聊"; becoming owner removes the latter.
+        auto [moved, moved_ui] = palette_after_role_change(chat::member_role::admin, chat::member_role::owner, 1, quit);
+        ok &= expect(!quit && !moved->exiting && moved->dialog && moved->dialog->confirmation &&
+                     moved->dialog->title.find("退出当前账号") != std::string::npos,
+                     "A palette row that moved still runs the highlighted command");
+        // "退出群聊" itself was highlighted and is gone: nothing runs.
+        quit = false;
+        auto [gone, gone_ui] = palette_after_role_change(chat::member_role::admin, chat::member_role::owner, 0, quit);
+        ok &= expect(!quit && !gone->exiting && !gone->dialog && !open_after_change && closed_status == "可用命令已变化，请重新选择",
+                     "A highlighted command that disappeared closes the palette without running another");
+    }
+    {
         // Chat history: all / images / files / links over the loaded messages, newest first.
         app application;
         writable_conversation(application);
@@ -1931,6 +2101,19 @@ int main()
         ok &= expect(load_recent_login() && load_recent_login()->server_url.size() == 8010, "A long saved address reads back");
         save_recent_login({"alice", "ws://h/ws?" + std::string(max_recent_login_size, 'q')});
         ok &= expect(load_recent_login() && load_recent_login()->server_url.size() == 8010, "An address too long to read back is not saved");
+        {
+            // A huge record is refused after reading just past the bound, not read whole.
+            {
+                std::ofstream huge(record, std::ios::binary | std::ios::trunc);
+                huge << "alice\nws://h/ws?";
+                huge.seekp(static_cast<std::streamoff>(256) * 1024 * 1024);
+                huge << "\n";
+            }
+            auto const start = std::chrono::steady_clock::now();
+            ok &= expect(!load_recent_login(), "A record past the size bound is ignored");
+            ok &= expect(std::chrono::steady_clock::now() - start < std::chrono::milliseconds(200), "A huge record is not read whole");
+            save_recent_login({"alice", "ws://h/ws?" + std::string(8000, 'q')});
+        }
         save_recent_login({"bad\nname", "ws://x/ws"});
         ok &= expect(load_recent_login() && load_recent_login()->username == "alice", "A username with a line break is never written");
         // Several clients signing in at once leave one whole record and no temporary files.
