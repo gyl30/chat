@@ -69,6 +69,9 @@ public:
     // A newer destination than any page a pending request would still open (the account menu):
     // conversations opened by earlier "message", "create group" or "join" requests are dropped.
     void claim_destination();
+    // Opens a conversation a request asked for while the command palette was open, once the
+    // palette closes without running a command.
+    void open_pending();
     void search(std::string query, bool more = false);
     void members();
     void requests(bool more = false);
@@ -136,7 +139,6 @@ private:
     // Per group awaiting approval: destination_ when that request was answered; the approval opens
     // the group only if nothing newer was chosen since.
     std::map<std::int64_t, std::uint64_t> join_destinations_;
-    std::int64_t help_return_message_ = 0;
     bool search_busy_ = false;
     bool requests_busy_ = false;
     bool requests_again_ = false;
@@ -154,13 +156,22 @@ private:
     clock::time_point typing_last_{};
     std::unordered_map<std::int64_t, std::pair<std::string, clock::time_point>> typing_;
     std::unordered_map<std::int64_t, std::string> drafts_;
-    std::vector<page> pages_;
+    // A page to go back to, as it was left: its selection, the message selected in a history
+    // list and the person a profile showed, so returning restores what was on screen.
+    struct page_entry
+    {
+        page view = page::conversations;
+        int selected = 0;
+        std::int64_t message = 0;
+        std::optional<user> profile;
+    };
+    page_entry leaving() const;
+    std::vector<page_entry> pages_;
     std::function<void(std::string)> prompt_action_;
     std::string pick_action_;
     std::string group_title_;
     std::int64_t pending_open_ = 0;
     std::int64_t marked_read_ = 0;
-    int help_return_selected_ = 0;
 
     void assert_ui() const;
     void start_connection();

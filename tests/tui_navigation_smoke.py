@@ -35,10 +35,10 @@ class NavigationDriver(Driver):
         else:
             result=self.tmux('new-window','-d','-P','-F','#{pane_id}','-t',self.session,'-n',actor,command)
         self.panes[actor]=result.stdout.strip()
-        self.wait(actor,'登录 / 注册')
+        self.wait(actor,'注册账号')
 
     def login(self,actor,first=True):
-        self.wait(actor,'登录 / 注册')
+        self.wait(actor,'注册账号')
         if first and self.name(actor) not in self.capture(actor):
             self.paste(actor,self.name(actor)); self.keys(actor,'Tab')
         self.paste(actor,self.password); self.keys(actor,'Enter')
@@ -231,7 +231,7 @@ def _hidden_direct_restoration(d):
         # Release C's real TUI identity before observing exact DTO bytes through SDK.
         d.command('C', 'logout')
         d.confirm('C', '退出当前账号')
-        d.wait('C', '登录 / 注册')
+        d.wait('C', '注册账号')
         d.control('connect', actors=['C'])
         metadata = d.query('C', 'get_conversations')['conversations']
         restored = next(v['id'] for v in metadata if v.get('user') == d.manifest['actors']['A']['id'])
@@ -537,7 +537,7 @@ def account_logout(d):
         d.keys('A','l');d.wait('A','退出当前账号')
         d.keys('A','Escape');d.wait('A',lambda s:'退出当前账号' not in s)
         assert any(p['user']==d.manifest['actors']['A']['id'] and p['online'] for p in d.query('S005','get_presence'))
-        d.keys('A','u');d.wait('A','复制用户名');d.keys('A','l');d.confirm('A','退出当前账号');d.wait('A','登录 / 注册')
+        d.keys('A','u');d.wait('A','复制用户名');d.keys('A','l');d.confirm('A','退出当前账号');d.wait('A','注册账号')
         d.screenshot('A','logout-login-page')
         assert any(p['user']==d.manifest['actors']['A']['id'] and not p['online'] for p in d.query('S005','get_presence'))
 

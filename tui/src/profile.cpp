@@ -63,8 +63,11 @@ void app::profile_command(std::string const& name, std::string argument)
     // From the account menu: the own profile as a detail page, so Esc returns where it was opened.
     if (name == "my-profile")
     {
+        // From someone else's profile the own one is another detail page: Esc shows them again.
+        if (data.view == page::profile && data.profile.id != data.self.id) { pages_.push_back(leaving()); }
         data.profile = data.self;
         navigate(page::profile);
+        data.selected = 0;
         return;
     }
     // The account menu copies the signed-in name whatever page it was opened over.

@@ -319,7 +319,7 @@ class Driver:
         self.panes[actor] = result.stdout.strip()
         pid = int(self.tmux('display-message', '-p', '-t', self.panes[actor], '#{pane_pid}').stdout.strip())
         self.observer.set_process('tui_' + actor, pid)
-        self.wait(actor, '登录 / 注册')
+        self.wait(actor, '注册账号')
 
     def name(self, actor):
         return self.manifest['actors'][actor]['username']
@@ -340,7 +340,7 @@ class Driver:
         return 'env XDG_CONFIG_HOME=' + shlex.quote(str(config)) + ' '
 
     def login(self, actor, first=True, bad_password=False):
-        self.wait(actor, '登录 / 注册')
+        self.wait(actor, '注册账号')
         # Password Enter submits and leaves focus in that field across logout.
         # A relaunched client fills in its last username and starts in the password field.
         if first and self.name(actor) not in self.capture(actor):
@@ -388,7 +388,7 @@ class Driver:
         self.keys(actor, 'Escape')
         self.command(actor, 'logout')
         self.confirm(actor, '退出当前账号')
-        self.wait(actor, '登录 / 注册')
+        self.wait(actor, '注册账号')
 
     def open_main(self, actor):
         self.keys(actor, 'Escape')

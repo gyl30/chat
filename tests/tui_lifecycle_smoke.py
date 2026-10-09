@@ -93,7 +93,7 @@ def run(d):
         d.tmux('respawn-pane', '-t', d.panes[actor], command)
         pid = int(d.tmux('display-message', '-p', '-t', d.panes[actor], '#{pane_pid}').stdout.strip())
         d.observer.set_process('tui_' + actor, pid)
-        d.wait(actor, '登录 / 注册')
+        d.wait(actor, '注册账号')
         d.login(actor, first=True)
         d.open_main(actor)
         # An opened header alone does not prove the initial history RPC has

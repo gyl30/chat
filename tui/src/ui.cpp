@@ -784,10 +784,9 @@ Element render_impl(state const& s, int width, int height, Element compose = {},
     if (state::layout(width, height) == layout_mode::too_small) { return text("终端太小（至少 40×12）") | center; }
     if (!s.self.id)
     {
-        return vbox({text("Chat · 登录 / 注册") | bold, text("和朋友，轻松聊。") | dim,
-                     text(""), text("用户名"), text(""), text("密码"), text(""),
-                     text("登录") | bold, text("注册账号"), text("服务器设置"),
-                     paragraph(s.status), text("Tab 切换 · Enter 确认 · Ctrl+C 退出") | dim}) |
+        return vbox({text("用户名"), text(""), text("密码"), text(""),
+                     hbox({text("登录") | bold, text("  "), text("注册账号"), text("  "), text("设置")}),
+                     paragraph(s.status), text("Tab 切换 · ←→ 选按钮 · Enter 确认 · Ctrl+C 退出") | dim}) |
             size(WIDTH, LESS_THAN, std::min(44, width - 4)) | center;
     }
     Element content;
@@ -935,7 +934,6 @@ public:
             option.insert = &field.insert;
             return option;
         };
-        url_ = Input(&app_.server_url, "ws://127.0.0.1:18080/ws", own(single, url_field_));
         username_ = Input(&app_.username, "用户名", own(single, username_field_));
         auto password_option = own(single, password_field_);
         password_option.password = true;
@@ -950,12 +948,9 @@ public:
         };
         login_ = Button("登录", [this] { app_.login(); }, action);
         register_ = Button("注册账号", [this] { app_.login(true); }, action);
-        server_settings_ = Button("服务器设置", [this] {
-            server_settings_open_ = !server_settings_open_;
-            if (server_settings_open_) { url_->TakeFocus(); }
-            else { username_->TakeFocus(); }
-        }, action);
-        login_form_ = Container::Vertical({username_, password_, login_, register_, server_settings_, Maybe(url_, &server_settings_open_)});
+        server_settings_ = Button("设置", [this] { app_.command("server"); }, action);
+        // One focus chain (Tab and ↑↓ go through every field); the three buttons are drawn in a row.
+        login_form_ = Container::Vertical({username_, password_, login_, register_, server_settings_});
         Add(login_form_);
         auto compose_option = single;
         compose_option.multiline = true;
@@ -974,6 +969,7 @@ public:
         app_.before_input_change = [this] { flush_paste(true); };
         // With the last account filled in, only its password is left to type.
         (app_.username.empty() ? username_ : password_)->TakeFocus();
+        username_field_.cursor = static_cast<int>(app_.username.size());
     }
     ~terminal_ui() override { app_.before_input_change = nullptr; }
     Element OnRender() override
@@ -982,6 +978,7 @@ public:
         validate_palette();
         validate_menu();
         if (app_.data.self.id) { app_.sync_focus(); }
+        follow_draft();
         auto terminal = Terminal::Size();
         update_viewport(terminal);
         sync_message_scroll();
@@ -993,25 +990,21 @@ public:
         {
             auto const width = std::min(44, terminal.dimx - 4);
             auto const roomy = terminal.dimy >= 20;
-            Elements fields{hbox({text("Chat") | bold, text(" · 登录 / 注册") | dim})};
-            if (roomy) { fields.push_back(text("和朋友，轻松聊。") | dim); fields.push_back(text("")); }
+            Elements fields;
             fields.push_back(text("用户名"));
             fields.push_back(username_->Render());
             if (roomy) { fields.push_back(text("")); }
             fields.push_back(text("密码"));
             fields.push_back(password_->Render());
             if (roomy) { fields.push_back(text("")); }
-            fields.push_back(login_->Render());
-            fields.push_back(register_->Render());
-            fields.push_back(server_settings_->Render());
-            if (server_settings_open_) { fields.push_back(url_->Render()); }
+            fields.push_back(hbox({login_->Render(), text("  "), register_->Render(), text("  "), server_settings_->Render()}));
             if (!s.status.empty())
             { fields.push_back(wrapped_text(s.status, width)); }
             else if (s.link != connection::signed_out)
             { fields.push_back(text(link_label(s.link)) | bold); }
             if (roomy) { fields.push_back(text("")); }
             if (roomy || s.status.empty())
-            { fields.push_back(paragraph("Tab 切换 · Enter 确认 · Ctrl+C 退出") | dim); }
+            { fields.push_back(paragraph("Tab 切换 · ←→ 选按钮 · Enter 确认 · Ctrl+C 退出") | dim); }
             page = vbox(std::move(fields)) | size(WIDTH, EQUAL, width) | center;
         }
         else
@@ -1070,6 +1063,7 @@ public:
     }
     bool OnEvent(Event event) override
     {
+        follow_draft();
         // An error stays until the next key press; status changes are classified after handling.
         if (event != Event::Custom)
         {
@@ -1083,6 +1077,7 @@ public:
         }
         auto const handled = handle(event);
         if (app_.data.self.id) { app_.sync_focus(); }
+        follow_draft();
         // Read receipts use the history rows of the current size and state, after this event's
         // queued results are applied. A paste in progress is settled first.
         if (!pasting_)
@@ -1206,11 +1201,11 @@ private:
                 if (event == Event::Escape) { app_.logout(); }
                 return true;
             }
-            if (event == Event::Escape && server_settings_open_)
+            // The buttons share a row, so ←→ move between them as Tab does.
+            if (login_->Focused() || register_->Focused() || server_settings_->Focused())
             {
-                server_settings_open_ = false;
-                username_->TakeFocus();
-                return true;
+                if (event == Event::ArrowRight && !server_settings_->Focused()) { return login_form_->OnEvent(Event::Tab); }
+                if (event == Event::ArrowLeft && !login_->Focused()) { return login_form_->OnEvent(Event::TabReverse); }
             }
             return login_form_->OnEvent(event);
         }
@@ -1413,7 +1408,7 @@ private:
         if (app_.data.composing) { return compose_; }
         if (!app_.data.self.id && app_.data.link == connection::signed_out)
         {
-            for (auto const& field : {url_, username_, password_}) { if (field->Focused()) { return field; } }
+            for (auto const& field : {username_, password_}) { if (field->Focused()) { return field; } }
         }
         return {};
     }
@@ -1521,10 +1516,13 @@ private:
     }
     // Closing returns to whatever was open before: the composer with its draft and cursor, a
     // menu or a dialog.
-    void close_palette()
+    // resume: open a conversation a request asked for while the palette was open. Running a
+    // palette command is a newer choice instead, as opening the account menu is.
+    void close_palette(bool resume = true)
     {
         palette_open_ = false;
         app_.palette_open = false;
+        if (resume) { app_.open_pending(); }
         app_.mark_visible_read();
         // A dialog or command line beneath gets its keys back, with its text and cursor as they were.
         if (app_.dialog) { prompt_->TakeFocus(); }
@@ -1541,7 +1539,8 @@ private:
         {
             if (!count) { return true; }
             auto const entry = entries[static_cast<std::size_t>(std::clamp(palette_selected_, 0, count - 1))];
-            close_palette();
+            close_palette(false);
+            app_.claim_destination();
             run_palette_entry(entry);
             return true;
         }
@@ -1741,12 +1740,20 @@ private:
         if (field == palette_input_) { return {&palette_query_, &palette_field_.cursor, &palette_field_.insert}; }
         if (field == prompt_) { return {&prompt_text_, &prompt_field_.cursor, &prompt_field_.insert}; }
         if (field == command_) { return {&app_.command_text, &command_field_.cursor, &command_field_.insert}; }
-        if (field == url_) { return {&app_.server_url, &url_field_.cursor, &url_field_.insert}; }
         if (field == username_) { return {&app_.username, &username_field_.cursor, &username_field_.insert}; }
         if (field == password_) { return {&app_.password, &password_field_.cursor, &password_field_.insert}; }
         return {};
     }
-    field_state url_field_, username_field_, password_field_, command_field_, prompt_field_, palette_field_;
+    field_state username_field_, password_field_, command_field_, prompt_field_, palette_field_;
+    // A conversation's draft comes back with the cursor after it, ready to go on typing or
+    // to delete; moving between the messages and the composer of one chat keeps the cursor.
+    void follow_draft()
+    {
+        auto const& s = app_.data;
+        if (!s.composing || s.active == draft_conversation_) { return; }
+        draft_conversation_ = s.active;
+        compose_cursor_ = static_cast<int>(s.draft.size());
+    }
     void sync_message_scroll()
     {
         auto const& s = app_.data;
@@ -1782,6 +1789,8 @@ private:
         if (!prompt_active_)
         {
             prompt_text_ = app_.dialog->text;
+            // A default value is usually replaced or extended: start after it.
+            prompt_field_.cursor = static_cast<int>(prompt_text_.size());
             prompt_active_ = true;
             prompt_->TakeFocus();
         }
@@ -1798,12 +1807,12 @@ private:
     }
     app& app_;
     std::function<void()> quit_;
-    Component url_, username_, password_, login_, register_, server_settings_, login_form_, compose_, command_, prompt_;
-    bool server_settings_open_ = false;
+    Component username_, password_, login_, register_, server_settings_, login_form_, compose_, command_, prompt_;
     bool pasting_ = false;
     Component paste_input_;
     std::string paste_buffer_;
     int compose_cursor_ = 0;
+    std::int64_t draft_conversation_ = 0;
     Component palette_input_;
     std::string palette_query_;
     bool palette_open_ = false;

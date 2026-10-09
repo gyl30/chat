@@ -18,6 +18,7 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
+#include <ranges>
 #include <string>
 #include <utility>
 #include <ftxui/dom/elements.hpp>
@@ -189,7 +190,7 @@ int main()
     bool ok = true;
     ok &= expect(ftxui::string_width("张 三") == 5, "CJK uses terminal cells");
     state s;
-    ok &= expect(draw(s, 80, 24).find("登录 / 注册") != std::string::npos, "login page");
+    ok &= expect(draw(s, 80, 24).find("注册账号") != std::string::npos, "login page");
     s.self = {1, "Alice", {}};
     s.link = connection::online;
     {
@@ -899,25 +900,49 @@ int main()
         component->OnEvent(ftxui::Event::Character("secret-password"));
         ftxui::Screen login_screen(80, 24);
         ftxui::Render(login_screen, component->Render());
-        ok &= expect(login_screen.ToString().find("登录 / 注册") != std::string::npos &&
-                     login_screen.ToString().find(application.server_url) == std::string::npos,
-                     "Login hides server configuration until explicitly expanded");
-        ok &= expect(login_screen.ToString().find("secret-password") == std::string::npos, "password hidden");
-        component->OnEvent(ftxui::Event::Tab);
-        component->OnEvent(ftxui::Event::Tab);
-        component->OnEvent(ftxui::Event::Tab);
+        {
+            auto const shown = login_screen.ToString();
+            bool one_row = false;
+            std::istringstream lines(shown);
+            for (std::string line; std::getline(lines, line);)
+            {
+                one_row = one_row || (line.find("登录") != std::string::npos && line.find("注册账号") != std::string::npos &&
+                                      line.find("设置") != std::string::npos);
+            }
+            ok &= expect(one_row && shown.find("登录 / 注册") == std::string::npos &&
+                         shown.find("和朋友") == std::string::npos && shown.find(application.server_url) == std::string::npos,
+                         "Login shows its three buttons on one line, without a heading or the server address");
+            ok &= expect(shown.find("secret-password") == std::string::npos, "password hidden");
+        }
+        // ←→ move along the button row; Tab still goes through every field.
+        component->OnEvent(ftxui::Event::Tab);         // 登录
+        component->OnEvent(ftxui::Event::ArrowRight);  // 注册账号
+        component->OnEvent(ftxui::Event::ArrowRight);  // 设置
+        component->OnEvent(ftxui::Event::ArrowRight);  // stays on 设置
+        component->OnEvent(ftxui::Event::ArrowLeft);   // 注册账号
+        component->OnEvent(ftxui::Event::Tab);         // 设置
         component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.dialog && application.dialog->text == application.server_url, "Settings asks for the server address, starting from the current one");
         ftxui::Screen settings_screen(80, 24);
         ftxui::Render(settings_screen, component->Render());
         ok &= expect(settings_screen.ToString().find(application.server_url) != std::string::npos,
-                     "Server settings reveal the authoritative connection address");
-        component->OnEvent(ftxui::Event::End);
-        component->OnEvent(ftxui::Event::Character("/chosen"));
-        component->OnEvent(ftxui::Event::Escape);
+                     "The settings dialog shows the current address");
+        auto const original = application.server_url;
+        component->OnEvent(ftxui::Event::Character("/chosen"));  // the cursor starts after the address
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(!application.dialog && application.server_url == original + "/chosen", "Typing in settings continues the address");
+        component->OnEvent(ftxui::Event::Return);
+        component->OnEvent(ftxui::Event::Backspace);
+        for (int i = 0; i < 200; ++i) { component->OnEvent(ftxui::Event::Backspace); }
+        component->OnEvent(ftxui::Event::Character("http://wrong"));
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.server_url == original + "/chosen" && application.data.status.find("ws://") != std::string::npos,
+                     "Settings keep the address when the new one is not ws:// or wss://");
+        component->OnEvent(ftxui::Event::Tab);  // from 设置 back to the username
         component->OnEvent(ftxui::Event::End);
         component->OnEvent(ftxui::Event::Character("四"));
-        ok &= expect(application.server_url.ends_with("/chosen") && application.username == "张三四" &&
-                     application.password == "secret-password", "Closing server settings preserves values and restores username focus");
+        ok &= expect(application.username == "张三四" && application.password == "secret-password",
+                     "Settings keep the typed username and password");
         application.data.self = {1, "Alice", {}};
         application.data.view = page::contacts;
         application.data.contacts = {{2, "Bob", {}}, {3, "张三", {}}};
@@ -1849,9 +1874,14 @@ int main()
             chat.messages = {first, second};
             chat.message_selected = 1;
             auto const output = draw(chat, 100, 30);
-            int headings = 0;
-            for (auto at = output.find("Bob"); at != std::string::npos; at = output.find("Bob", at + 1)) { ++headings; }
-            ok &= expect(output.find("09月27日") != std::string::npos && headings == 2,
+            auto count = [&](std::string_view needle) {
+                int found = 0;
+                for (auto at = output.find(needle); at != std::string::npos; at = output.find(needle, at + 1)) { ++found; }
+                return found;
+            };
+            // A day separator reads "今天", "昨天" or a date ending in "日", whatever today is.
+            int const separators = count("天 ──") + count("日 ──");
+            ok &= expect(separators == 2 && count("Bob") == 2,
                          zone == std::string_view("Asia/Shanghai") ? "A new local day starts a new group"
                                                                    : "A new local day starts a new group across a clock change");
         }
@@ -1901,30 +1931,70 @@ int main()
                      "A combining mark in a later batch joins its letter and replaces one glyph");
         ok &= expect(overwrite_paste("\U0001F1F3\U0001F1E6Z", {"\U0001F1E8\U0001F1FA"}) == "\U0001F1E8\U0001F1FAZ",
                      "A pasted flag replaces one glyph");
-        // A prompt reused with new text keeps its old byte cursor until it draws; a paste
-        // arriving first must not split a character.
+        // A draft the program replaced while typing (the cursor still at its old byte) takes a
+        // paste on a glyph boundary, not inside a character.
         for (bool insert : {true, false})
+        {
+            app application;
+            writable_conversation(application);
+            auto component = make_ui(application, [] {});
+            component->OnEvent(ftxui::Event::Character('a'));
+            if (!insert) { component->OnEvent(ftxui::Event::Insert); }
+            application.data.draft = "中文";  // the cursor stays at byte 1 until the field draws
+            component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+            component->OnEvent(ftxui::Event::Character("X"));
+            component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+            ok &= expect(application.data.draft == (insert ? "中X文" : "中X"),
+                         insert ? "A first paste into a replaced draft lands on a glyph boundary"
+                                : "A first overwrite paste into a replaced draft lands on a glyph boundary");
+        }
+        // Default values: a dialog's initial text, a remembered username and a restored draft
+        // all start with the cursor after them.
         {
             app application;
             application.data.self = {1, "Alice", {}};
             application.data.link = connection::online;
             application.data.view = page::contacts;
+            application.data.contacts_query = "中文";
             auto component = make_ui(application, [] {});
             application.command("filter");
-            component->OnEvent(ftxui::Event::Character('a'));
-            if (!insert) { component->OnEvent(ftxui::Event::Insert); }
-            component->OnEvent(ftxui::Event::Escape);
-            application.data.contacts_query = "中文";
-            application.command("filter");  // a new prompt starting with "中文", its cursor still at byte 1
-            component->OnEvent(ftxui::Event::Special("\x1b[200~"));
             component->OnEvent(ftxui::Event::Character("X"));
-            component->OnEvent(ftxui::Event::Special("\x1b[201~"));
             component->OnEvent(ftxui::Event::Return);
-            ok &= expect(application.data.contacts_query == (insert ? "中X文" : "中X"),
-                         insert ? "A first paste into a reused prompt lands on a glyph boundary"
-                                : "A first overwrite paste into a reused prompt lands on a glyph boundary");
+            ok &= expect(application.data.contacts_query == "中文X", "A dialog's initial text is followed by the cursor");
         }
-        // A large paste takes time in proportion to its size in every kind of field.
+        {
+            app application;
+            application.username = "alice";
+            auto component = make_ui(application, [] {});
+            component->OnEvent(ftxui::Event::TabReverse);  // from the password back to the username
+            component->OnEvent(ftxui::Event::Character("2"));
+            ok &= expect(application.username == "alice2", "A remembered username is followed by the cursor");
+        }
+        {
+            app application;
+            writable_conversation(application);
+            chat::conversation other; other.id = 11; other.username = "other"; other.can_send = true;
+            other.kind = chat::conversation_kind::group;
+            application.data.conversations.push_back(other);
+            auto component = make_ui(application, [] {});
+            component->OnEvent(ftxui::Event::Character("one"));
+            component->OnEvent(ftxui::Event::Home);
+            application.data.active = 11;  // another chat, whose draft comes back
+            application.data.draft = "saved";
+            component->OnEvent(ftxui::Event::Character("!"));
+            ok &= expect(application.data.draft == "saved!", "A restored draft is followed by the cursor");
+            application.data.active = 10;
+            application.data.draft = "one";
+            component->OnEvent(ftxui::Event::Home);
+            application.data.selecting = true;
+            component->OnEvent(ftxui::Event::Custom);
+            application.data.selecting = false;
+            component->OnEvent(ftxui::Event::Custom);
+            component->OnEvent(ftxui::Event::Character("^"));
+            ok &= expect(application.data.draft.starts_with("^"), "Leaving and re-entering one chat's composer keeps the cursor");
+        }
+        // A large paste takes time in proportion to its size in every kind of field. The bound is
+        // loose for slow and sanitizer builds; the glyph-by-glyph path took over a minute here.
         auto timed = [](auto&& action) {
             auto const start = std::chrono::steady_clock::now();
             action();
@@ -1938,7 +2008,7 @@ int main()
             login_ui->OnEvent(ftxui::Event::Character(large));
             login_ui->OnEvent(ftxui::Event::Special("\x1b[201~"));
         });
-        ok &= expect(login.username == large && username_time < std::chrono::seconds(2), "A 64 KiB paste into a single-line field is quick");
+        ok &= expect(login.username == large && username_time < std::chrono::seconds(10), "A 64 KiB paste into a single-line field is quick");
         app chat;
         writable_conversation(chat);
         chat.data.draft = std::string(64 * 1024, 'b');
@@ -1950,7 +2020,7 @@ int main()
             chat_ui->OnEvent(ftxui::Event::Character(large));
             chat_ui->OnEvent(ftxui::Event::Special("\x1b[201~"));
         });
-        ok &= expect(chat.data.draft == large && overwrite_time < std::chrono::seconds(2), "A 64 KiB overwrite paste is quick");
+        ok &= expect(chat.data.draft == large && overwrite_time < std::chrono::seconds(10), "A 64 KiB overwrite paste is quick");
     }
     {
         // Offline the message and member menus offer local actions, and stay open to use them.
@@ -2122,6 +2192,39 @@ int main()
         auto blank = make_ui(fresh, [] {});
         blank->OnEvent(ftxui::Event::Character('b'));
         ok &= expect(fresh.username == "b" && fresh.password.empty(), "Without one it starts in the username field");
+    }
+    {
+        // Each page behind keeps what it showed: help opened twice, and the own profile opened
+        // from someone else's.
+        app application;
+        writable_conversation(application);
+        application.data.composing = false;
+        auto make = [](std::int64_t id) {
+            chat::message m; m.id = id; m.from = 2; m.username = "Bob"; m.conversation = 10; m.text = "m" + std::to_string(id);
+            return m;
+        };
+        application.data.messages = {make(1), make(2), make(3)};
+        application.command("history");
+        application.data.selected = 1;  // message 2 (newest first)
+        application.command("help");
+        application.data.view = page::help;
+        application.command("my-profile");
+        application.command("help");
+        application.data.messages.push_back(make(4));
+        application.back();
+        ok &= expect(application.data.view == page::profile && application.data.profile.id == 1, "Back from the second help shows the own profile");
+        application.back();
+        ok &= expect(application.data.view == page::help, "Then the first help");
+        application.back();
+        ok &= expect(application.data.view == page::history &&
+                     application.data.history_entries()[static_cast<std::size_t>(application.data.selected)]->id == 2,
+                     "Then history, on the message selected before help, however deep help went");
+        application.data.view = page::profile;
+        application.data.profile = {2, "Bob", {}};
+        application.command("my-profile");
+        ok &= expect(application.data.profile.id == 1, "The own profile opens over someone else's");
+        application.back();
+        ok &= expect(application.data.view == page::profile && application.data.profile.id == 2, "Esc shows the other person again");
     }
     {
         // The last sign-in lives under XDG_CONFIG_HOME and holds no password.

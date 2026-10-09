@@ -349,7 +349,10 @@ void app::apply_conversation_snapshot(conversations_result result, bool append)
     if (pending_open_)
     {
         if (std::ranges::find(data.conversations, pending_open_, &chat::conversation::id) != data.conversations.end())
-        { auto id = pending_open_; pending_open_ = 0; open_conversation(id); }
+        {
+            // The command palette is a short look over the page: the conversation opens once it closes.
+            if (!palette_open) { auto id = pending_open_; pending_open_ = 0; open_conversation(id); }
+        }
         else if (data.next_conversations) { conversations(true); return; }
         else { pending_open_ = 0; }
     }
@@ -412,10 +415,30 @@ void app::search(std::string query, bool more)
         data.apply_search(std::move(*value), more);
     }));
 }
+void app::open_pending()
+{
+    if (!pending_open_ || palette_open || !online()) { return; }
+    if (std::ranges::find(data.conversations, pending_open_, &chat::conversation::id) == data.conversations.end()) { return; }
+    auto const id = pending_open_;
+    pending_open_ = 0;
+    open_conversation(id);
+}
 void app::claim_destination()
 {
     pending_open_ = 0;
     ++destination_;
+}
+app::page_entry app::leaving() const
+{
+    page_entry entry{data.view, data.selected, 0, std::nullopt};
+    if (data.view == page::history)
+    {
+        auto const entries = data.history_entries();
+        if (data.selected >= 0 && static_cast<std::size_t>(data.selected) < entries.size())
+        { entry.message = entries[static_cast<std::size_t>(data.selected)]->id; }
+    }
+    if (data.view == page::profile) { entry.profile = data.profile; }
+    return entry;
 }
 void app::navigate(page target)
 {
@@ -435,7 +458,7 @@ void app::navigate(page target)
                                 (target == page::friend_requests || target == page::friend_sent);
         // Primary destinations and sibling tabs are not nested detail pages.
         if (primary) { pages_.clear(); }
-        else if (!chat_tab && !friend_tab) { pages_.push_back(data.view); }
+        else if (!chat_tab && !friend_tab) { pages_.push_back(leaving()); }
         data.view = target; data.selected = 0;
         if (target == page::conversation) { data.selecting = false; }
     }
@@ -455,15 +478,17 @@ void app::back()
     ++view_; ++search_request_; history_busy_ = older_again_ = search_busy_ = requests_busy_ = sending_ = false;
     requests_again_ = false;
     bool const from_help = data.view == page::help;
-    if (!pages_.empty()) { data.view = pages_.back(); pages_.pop_back(); }
-    else { data.view = page::conversations; }
+    page_entry entry;
+    if (!pages_.empty()) { entry = std::move(pages_.back()); pages_.pop_back(); }
+    data.view = entry.view;
+    if (entry.profile && data.view == page::profile) { data.profile = *entry.profile; }
     // Help is a look-up: the page behind it keeps its selection.
-    data.selected = from_help ? help_return_selected_ : 0;
+    data.selected = from_help ? entry.selected : 0;
     if (from_help && data.view == page::history)
     {
         // Messages may have come or gone meanwhile: return to the same message, not the same row.
         auto const entries = data.history_entries();
-        auto found = std::ranges::find(entries, help_return_message_, &message::id);
+        auto found = std::ranges::find(entries, entry.message, &message::id);
         if (found != entries.end()) { data.selected = static_cast<int>(found - entries.begin()); }
         else { data.selected = std::clamp(data.selected, 0, std::max(0, static_cast<int>(entries.size()) - 1)); }
     }
@@ -530,16 +555,22 @@ void app::command(std::string text)
     if (name == "quit") { shutdown(); return; }
     if (name == "logout") { confirm("退出当前账号？", [this] { logout(); }); return; }
     if (name == "reconnect") { reconnect(); return; }
+    // The login page's settings: the server address, starting from the current one.
+    if (name == "server" && !data.self.id && data.link == connection::signed_out)
+    {
+        ask("服务器地址（ws:// 或 wss://）", server_url, [this](std::string url) {
+            while (!url.empty() && (url.back() == ' ' || url.back() == '\t')) { url.pop_back(); }
+            while (!url.empty() && (url.front() == ' ' || url.front() == '\t')) { url.erase(0, 1); }
+            if (!(url.starts_with("ws://") || url.starts_with("wss://")) || url.find_first_of(" \t") != std::string::npos)
+            { data.status = "请输入 ws:// 或 wss:// 服务器地址"; return; }
+            server_url = std::move(url);
+            notify("服务器地址：" + server_url);
+        });
+        return;
+    }
     if (name == "help")
     {
-        // Help opened again from help keeps the selection of the page behind it.
-        if (data.view != page::help)
-        {
-            help_return_selected_ = data.selected;
-            auto const entries = data.view == page::history ? data.history_entries() : std::vector<message const*>{};
-            help_return_message_ = data.selected >= 0 && static_cast<std::size_t>(data.selected) < entries.size()
-                ? entries[static_cast<std::size_t>(data.selected)]->id : 0;
-        }
+        // The page behind keeps its selection in its stack entry, however deep help is opened.
         navigate(page::help);
         return;
     }

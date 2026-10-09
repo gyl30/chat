@@ -2773,18 +2773,50 @@ int run_tui_tests()
         pump([&] { return app.data.friendship(peer_id) == chat::friendship_state::none; });
         add_contact(peer_name, peer_id);
         {
-            // The account menu opened before the answer: the direct chat is made but not opened.
+            // A late Message answer and what was chosen meanwhile. The server answers one request
+            // at a time per connection, so the answer to a later request proves the earlier ones
+            // were handled. The friend request list is the marker (a pushed conversation update
+            // could fill the chat list early). Twice: the first round lets the Message answer run
+            // and send its own list request, the second lets that list's answer be applied.
+            auto const peer_direct = [&] {
+                auto found = std::ranges::find_if(app.data.conversations, [&](auto const& c) {
+                    return c.kind == chat::conversation_kind::direct && c.user == peer_id;
+                });
+                return found == app.data.conversations.end() ? std::int64_t{0} : found->id;
+            };
+            auto const settled = [&] {
+                for (int round = 0; round < 2; ++round)
+                {
+                    app.data.friends.incoming.push_back({{-42, "barrier", {}}, 0});
+                    app.friend_requests();
+                    pump([&] { return std::ranges::none_of(app.data.friends.incoming, [](auto const& r) { return r.user.id == -42; }); });
+                }
+            };
+            auto component = chat::tui::make_ui(app, [] {});
             auto const before = app.data.view;
             auto const active = app.data.active;
+            // The account menu opened: the direct chat is made but not opened.
             app.command("message");
             app.claim_destination();
-            auto const deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-            while (std::chrono::steady_clock::now() < deadline)
-            {
-                app.drain();
-                std::this_thread::sleep_for(std::chrono::milliseconds(20));
-            }
+            settled();
             require(app.data.view == before && app.data.active == active, "A late Message answer does not replace the account menu's page");
+            // A command run from the palette is newer still: the answer opens nothing.
+            app.command("message");
+            component->OnEvent(ftxui::Event::CtrlK);
+            component->OnEvent(ftxui::Event::Character(":refresh"));
+            component->OnEvent(ftxui::Event::Return);
+            settled();
+            require(!app.palette_open && app.data.view == before && app.data.active == active,
+                    "A palette command run before the answer keeps the page");
+            // The palette only looked: the answer waits while it is open and opens when it closes.
+            app.command("message");
+            component->OnEvent(ftxui::Event::CtrlK);
+            settled();
+            require(peer_direct() != 0 && app.palette_open && app.data.view == before && app.data.active == active,
+                    "An answer arriving while the palette is open does not close it");
+            component->OnEvent(ftxui::Event::Escape);
+            require(!app.palette_open && app.data.active == peer_direct() && app.data.view == page::conversation,
+                    "Closing the palette opens the chat the answer was for");
         }
         app.command("message");
         pump([&] { return app.data.active > 0 && app.data.can_send(); });
