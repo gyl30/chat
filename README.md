@@ -64,6 +64,21 @@ Boost/Qt 安装目录。当前经过验证的具体工具链见 [完整验证说
 证书更新后需要重启服务器加载；证书签发和续期由部署者管理。
 `GET /health` 是健康检查入口。
 
+## WebSocket 协议约束
+
+WS / WSS 的完整客户端 JSON-RPC 请求上限均为 **65,536 字节（64 KiB）**。
+按实际序列化后的 UTF-8 字节数计算，包含 JSON-RPC envelope、`method`、`params`、
+request `id` 及 JSON 转义产生的内容；不是消息正文的字符数上限。
+共享 C++ SDK 会在本地拒绝超限请求并返回可读错误，保留现有连接。
+直接使用原始 WebSocket 的第三方客户端必须自行遵守上限；超过服务端接收上限可能
+结束连接，不保证收到 JSON-RPC 错误响应。
+
+客户端必须正确实现 WebSocket Ping/Pong：收到 Ping 后返回携带**相同 payload** 的 Pong。
+当前服务端在 WebSocket Upgrade 后使用 **30 秒探测周期、10 秒响应宽限**；
+不匹配的 Pong、普通业务消息和其他数据不能代替心跳确认。
+失活连接会被结束并正常释放对应在线会话。WS / WSS 行为相同；这些是当前固定行为，
+没有新增心跳配置参数，也不改变严格单账号在线规则。
+
 ## 验证与依赖声明
 
 [完整验证说明](docs/verification.md) 介绍专用测试数据库、迁移、Qt offscreen
