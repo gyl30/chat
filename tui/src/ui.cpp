@@ -115,21 +115,23 @@ std::string first_glyph(std::string const& name)
     auto glyphs = Utf8ToGlyphs(name);
     return glyphs.empty() ? "?" : glyphs.front();
 }
-Element wrapped_text(std::string const& value, int width)
+Element wrapped_text(std::string const& value, int width, int* line_count = nullptr)
 {
     width = std::max(1, width);
     std::string output;
     int column = 0;
+    int lines = 1;
     // Use FTXUI's glyphs and terminal cell widths for wrapping.
     for (auto const& glyph : Utf8ToGlyphs(value))
     {
         if (glyph.empty()) { continue; } // reserved second cell of a wide glyph
-        if (glyph == "\n" || glyph == "\r\n") { output += glyph; column = 0; continue; }
+        if (glyph == "\n" || glyph == "\r\n") { output += glyph; column = 0; ++lines; continue; }
         auto const cells = DisplayWidth(glyph);
-        if (column && column + cells > width) { output += '\n'; column = 0; }
+        if (column && column + cells > width) { output += '\n'; column = 0; ++lines; }
         output += glyph;
         column += cells;
     }
+    if (line_count) { *line_count = lines; }
     return text(output);
 }
 Element help_content(int width, int* line_count = nullptr)
@@ -352,7 +354,7 @@ std::string message_heading(state const& s, message const& m)
     return (m.from == s.self.id ? "我" : m.username) + " " +
         (s.view == page::search ? timestamp(m.timestamp) : clock_time(m.timestamp));
 }
-Element message_item(state const& s, message const& m, bool highlighted, int width, int scroll_line, bool heading = true)
+Element message_item(state const& s, message const& m, bool highlighted, int width, int scroll_line, bool heading = true, bool body_focus = false)
 {
     auto const content_width = std::max(1, width * 3 / 4);
     Elements lines;
@@ -361,6 +363,7 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
     {
         lines.push_back(preview_text("↪ " + m.reply->username + ": " + (m.reply->deleted ? "消息已删除" : m.reply->text), content_width) | dim);
     }
+    int body_line = 0;
     if (m.deleted) { lines.push_back(text("消息已删除") | dim); }
     else
     {
@@ -373,6 +376,15 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
             lines.push_back(text(std::string(a.media_type.starts_with("image/") ? "[图片] " : "[文件] ") + a.filename + " · " + file_size(a.size) +
                                  (m.text.empty() ? edited : std::string{})));
         }
+    }
+    if (body_focus && highlighted)
+    {
+        auto body = vbox(lines);
+        body->ComputeRequirement();
+        body_line = std::max(0, body->requirement().min_y - 1);
+    }
+    if (!m.deleted)
+    {
         std::string reaction_text;
         for (auto const& reaction : m.reactions)
         {
@@ -403,7 +415,10 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
     {
         item->ComputeRequirement();
         auto const last_line = std::max(1, item->requirement().min_y - 1);
-        float position = scroll_line < 0 ? 1.f : static_cast<float>(std::clamp(scroll_line, 0, last_line)) / last_line;
+        // A one-row viewport prioritizes content over trailing receipts/reactions; explicit
+        // scrolling still addresses the complete message, with the same stable selection.
+        auto const default_line = body_focus ? body_line : last_line;
+        float position = static_cast<float>(scroll_line < 0 ? default_line : std::clamp(scroll_line, 0, last_line)) / last_line;
         // While typing, the newest message keeps the view at the bottom without a highlight.
         if ((s.view == page::conversation && !s.composing) || s.view == page::search) { item = item | inverted; }
         item = item | focusPositionRelative(0.f, position);
@@ -439,11 +454,13 @@ Element history(state const& s, int width, int rows, int message_scroll)
         auto const heading = starts_group(s.messages, i);
         // Groups are separated by a blank line; messages within a group follow each other.
         if (heading && i > 0) { add(text("")); }
-        add(message_item(s, m, s.message_selected == static_cast<int>(i), width, message_scroll, heading),
+        add(message_item(s, m, s.message_selected == static_cast<int>(i), width, message_scroll, heading, rows == 1),
             static_cast<int>(i), heading);
     }
     auto list = scroll(std::move(items));
-    if (rows < 2) { return list; }
+    // With two rows, an own message has only its body and delivery state visible. A pinned
+    // heading would replace the entire body; keep the content instead at this small height.
+    if (rows < 3) { return list; }
     // The first visible row, as the frame scrolls: the focus is centered, then clamped.
     auto const top = std::clamp(focus - (rows - 1) / 2, 0, std::max(0, total - rows));
     auto const at = std::ranges::find_if(layout, [&](placed const& p) { return p.start <= top && top < p.start + p.height; });
@@ -1040,20 +1057,35 @@ public:
     }
     Element palette_view()
     {
+        auto const terminal = Terminal::Size();
+        auto const width = std::min(52, std::max(1, terminal.dimx - 2));
+        int hint_lines = 0;
+        std::string const full_hint = "↑↓ 选择 · Enter 执行 · :命令 直接执行 · Esc 关闭";
+        auto const hint_text = DisplayWidth(full_hint) <= width ? full_hint :
+            "↑↓ 选择 · Enter 执行\n:命令 直接执行 · Esc 关闭";
+        auto hint = wrapped_text(hint_text, width, &hint_lines) | dim;
         auto const entries = palette_matches(app_.data, palette_query_);
         Elements rows{text("命令面板") | bold, hbox({text("> "), palette_input_->Render() | flex}), separator()};
         if (entries.empty()) { rows.push_back(text("没有匹配的命令") | dim); }
-        auto const shown = std::min<std::size_t>(entries.size(), 10);
-        for (std::size_t i = 0; i < shown; ++i)
+        auto const count = std::min<std::size_t>(entries.size(), 10);
+        // Title, query, two separators and border use six rows; keep the complete hint as well.
+        auto const shown = std::min(count, static_cast<std::size_t>(std::max(1, terminal.dimy - 6 - hint_lines)));
+        auto const first = count ? std::clamp(palette_selected_ - static_cast<int>(shown) + 1, 0,
+                                              static_cast<int>(count - shown)) : 0;
+        for (auto i = static_cast<std::size_t>(first); i < static_cast<std::size_t>(first) + shown; ++i)
         {
             auto const& entry = entries[i];
-            auto row = hbox({text((static_cast<int>(i) == palette_selected_ ? "> " : "  ") + entry.label) | flex,
-                             text(entry.command.empty() ? "" : " :" + entry.command) | dim});
+            auto const label = (static_cast<int>(i) == palette_selected_ ? "> " : "  ") + entry.label;
+            auto const command = entry.command.empty() ? "" : " :" + entry.command;
+            Elements columns{text(label) | flex};
+            // The descriptive label takes priority when the command alias cannot fit beside it.
+            if (DisplayWidth(label) + DisplayWidth(command) <= width) { columns.push_back(text(command) | dim); }
+            auto row = hbox(std::move(columns));
             rows.push_back(static_cast<int>(i) == palette_selected_ ? row | inverted : row);
         }
         rows.push_back(separator());
-        rows.push_back(text("↑↓ 选择 · Enter 执行 · :命令 直接执行 · Esc 关闭") | dim);
-        return vbox(std::move(rows)) | size(WIDTH, EQUAL, 52) | border | clear_under | center;
+        rows.push_back(std::move(hint));
+        return vbox(std::move(rows)) | size(WIDTH, EQUAL, width) | border | clear_under | center;
     }
     Element overlays(Element page)
     {

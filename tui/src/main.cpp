@@ -23,7 +23,8 @@ int main(int argc, char** argv)
         {
             std::cout << "用法：chat_tui [服务器地址]\n"
                          "默认：ws://127.0.0.1:18080/ws\n"
-                         "在登录页输入账号和密码；登录后按 ? 查看键盘帮助。\n";
+                         "在登录页输入账号和密码；登录后按 F1 查看键盘帮助，Ctrl+K 打开命令面板。\n"
+                         "聊天输入框中 ? 和 : 都是正文。\n";
             return 0;
         }
         if (arg == "--version")

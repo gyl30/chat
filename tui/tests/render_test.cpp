@@ -1900,6 +1900,155 @@ int main()
         ftxui::Terminal::SetFallbackSize(fallback);
     }
     {
+        // The palette fits the supported terminal sizes without hiding its query, chosen entry or keys.
+        auto const fallback = ftxui::Terminal::Size();
+        for (auto const [width, height] : std::vector<std::pair<int, int>>{
+                 {40, 12}, {45, 15}, {50, 20}, {60, 20}, {80, 24}, {100, 30}, {120, 40}, {160, 40}})
+        {
+            ftxui::Terminal::SetFallbackSize({width, height});
+            app application;
+            writable_conversation(application);
+            application.data.conversations[0].kind = chat::conversation_kind::direct;
+            application.data.draft = "?:/ared é 👩‍🚀";
+            auto component = make_ui(application, [] {});
+            component->OnEvent(ftxui::Event::Custom);
+            component->OnEvent(ftxui::Event::CtrlK);
+            auto shown = [&] {
+                ftxui::Screen screen(width, height);
+                ftxui::Render(screen, component->Render());
+                return screen.ToString();
+            };
+            auto output = shown();
+            ok &= expect(output.find("命令面板") != std::string::npos && output.find("输入命令或关键字") != std::string::npos &&
+                         output.find("↑↓ 选择") != std::string::npos && output.find("Enter 执行") != std::string::npos &&
+                         output.find(":命令 直接执行") != std::string::npos && output.find("Esc 关闭") != std::string::npos,
+                         "Palette keeps its title, query and full key hint at every supported size");
+            for (int i = 0; i < 9; ++i) { component->OnEvent(ftxui::Event::ArrowDown); }
+            ok &= expect(shown().find("> 账号") != std::string::npos,
+                         "Palette scrolls its last selectable entry into view in a short terminal");
+            component->OnEvent(ftxui::Event::Return);
+            ok &= expect(!application.palette_open && application.menu_open && shown().find("复制用户名") != std::string::npos,
+                         "Enter runs the visibly selected palette entry");
+            component->OnEvent(ftxui::Event::Escape);
+            component->OnEvent(ftxui::Event::CtrlK);
+            component->OnEvent(ftxui::Event::Character("帮助"));
+            ftxui::Terminal::SetFallbackSize({40, 12});
+            ftxui::Screen resized(40, 12);
+            ftxui::Render(resized, component->Render());
+            ok &= expect(application.palette_open && resized.ToString().find("> 帮助") != std::string::npos &&
+                         resized.ToString().find("Esc 关闭") != std::string::npos,
+                         "Resizing a palette retains the query, selected command and close hint");
+            component->OnEvent(ftxui::Event::CtrlK);
+            ok &= expect(application.data.draft == "?:/ared é 👩‍🚀" && !application.palette_open,
+                         "Closing a resized palette preserves the literal Unicode draft");
+        }
+        ftxui::Terminal::SetFallbackSize(fallback);
+    }
+    {
+        // At the minimum chat height, a pinned sender must not replace the only visible body line.
+        auto const fallback = ftxui::Terminal::Size();
+        ftxui::Terminal::SetFallbackSize({40, 12});
+        for (bool own : {false, true})
+        {
+            for (auto const* body : {"MINIMUM_BODY", "最低正文中文"})
+            {
+                app application;
+                writable_conversation(application);
+                application.data.conversations[0].kind = chat::conversation_kind::direct;
+                application.data.draft = "UNSENT";
+                chat::message message;
+                message.id = 77; message.conversation = 10; message.from = own ? 1 : 2;
+                message.username = own ? "Alice" : "peer"; message.text = body;
+                message.timestamp = static_cast<std::int64_t>(std::time(nullptr)) * 1000;
+                application.data.messages = {message};
+                for (bool composing : {false, true})
+                {
+                    application.data.composing = composing;
+                    auto const output = draw(application.data, 40, 12);
+                    ok &= expect(output.find(body) != std::string::npos && output.find("UNSENT") != std::string::npos,
+                                 "A single own or peer body stays readable at 40x12 while composing or selecting");
+                    if (own) { ok &= expect(output.find("已发送") != std::string::npos, "Small chat retains the own-message delivery state"); }
+                }
+                application.data.composing = true;
+                auto component = make_ui(application, [] {});
+                auto shown = [&] {
+                    ftxui::Screen screen(40, 12);
+                    ftxui::Render(screen, component->Render());
+                    return screen.ToString();
+                };
+                component->OnEvent(ftxui::Event::Custom);
+                ok &= expect(shown().find(body) != std::string::npos, "The real composer keeps the minimum-height body visible");
+                component->OnEvent(ftxui::Event::TabReverse);
+                ok &= expect(shown().find(body) != std::string::npos && application.data.selected_message() && application.data.selected_message()->id == 77,
+                             "Selecting a minimum-height message keeps its body and stable target");
+                component->OnEvent(ftxui::Event::Return);
+                ok &= expect(application.menu_open && shown().find("复制") != std::string::npos, "The readable selected message opens its menu");
+                component->OnEvent(ftxui::Event::Character('y'));
+                ok &= expect(application.data.view == page::copy && shown().find(body) != std::string::npos,
+                             "Minimum-height copy uses the selected message's whole body");
+                component->OnEvent(ftxui::Event::Escape);
+                application.dismiss_error();
+                component->OnEvent(ftxui::Event::Escape);
+                ok &= expect(shown().find(body) != std::string::npos && application.data.draft == "UNSENT",
+                             "Returning from the message menu preserves the visible body and unsent draft");
+            }
+        }
+        ftxui::Terminal::SetFallbackSize(fallback);
+    }
+    {
+        // Reply/edit chrome leaves one history row at the minimum size: show content before receipts.
+        auto const fallback = ftxui::Terminal::Size();
+        ftxui::Terminal::SetFallbackSize({40, 12});
+        for (bool own : {false, true})
+        {
+            for (int mode : {0, 1, 2})
+            {
+                bool const edit = mode == 1;
+                if (!own && mode != 0) { continue; }  // Only own messages can be edited; one announcement control suffices.
+                app application;
+                writable_conversation(application);
+                application.data.conversations[0].kind = chat::conversation_kind::group;
+                application.data.draft = "DRAFT é 👩‍🚀";
+                chat::message message;
+                message.id = 77; message.conversation = 10; message.from = own ? 1 : 2;
+                message.username = own ? "Alice" : "peer"; message.text = "正文 BODY中文";
+                message.timestamp = static_cast<std::int64_t>(std::time(nullptr)) * 1000;
+                application.data.messages = {message};
+                if (edit) { application.data.editing = message.id; }
+                else if (mode == 0) { application.data.reply = chat::quoted_message{77, message.from, message.username, "quoted PREVIEW", {}, false}; }
+                else { application.data.conversations[0].announcement = "公告 NOTICE"; }
+                application.data.composing = true;
+                auto component = make_ui(application, [] {});
+                component->OnEvent(ftxui::Event::Custom);
+                auto shown = [&] {
+                    ftxui::Screen screen(40, 12);
+                    ftxui::Render(screen, component->Render());
+                    return screen.ToString();
+                };
+                auto const output = shown();
+                ok &= expect(output.find("正文 BODY中文") != std::string::npos &&
+                             output.find("DRAFT é 👩‍🚀") != std::string::npos &&
+                             output.find(edit ? "正在编辑消息" : mode == 0 ? "回复 " : "公告 NOTICE") != std::string::npos,
+                             "One-row group history keeps content, Unicode draft and reply/edit/announcement mode visible");
+                ok &= expect(application.data.selected_message() && application.data.selected_message()->id == 77,
+                             "One-row content priority preserves the selected message identity");
+                if (own && mode == 0)
+                {
+                    ftxui::Screen metadata(40, 12);
+                    ftxui::Render(metadata, render(application.data, 40, 12, 2));
+                    ok &= expect(metadata.ToString().find("已读 0 人") != std::string::npos,
+                                 "Explicit one-row scrolling still reaches the original receipt row");
+                    component->OnEvent(ftxui::Event::TabReverse);
+                    component->OnEvent(ftxui::Event::Return);
+                    component->OnEvent(ftxui::Event::Character('y'));
+                    ok &= expect(application.data.view == page::copy && application.data.copy_text == message.text,
+                                 "A one-row message menu copies the selected full body");
+                }
+            }
+        }
+        ftxui::Terminal::SetFallbackSize(fallback);
+    }
+    {
         // Phase 5: one new-friends list in two groups; y and n answer received requests only.
         app application;
         application.data.self = {1, "Alice", {}};
