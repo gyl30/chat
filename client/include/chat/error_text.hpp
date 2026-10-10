@@ -52,6 +52,7 @@ inline std::string error_text(error const& value)
         {"Invalid Request", "请求无效，请升级客户端"},
         {"Method not found", "服务器不支持此操作，请升级客户端"},
         {"Invalid params", "请求参数无效"},
+        {"Request exceeds 64 KiB", "内容过长，请缩短后重试"},
     };
     if (auto const found = messages.find(value.message); found != messages.end()) { return std::string(found->second); }
     if (value.kind == error_kind::transport) { return "无法连接服务器（" + value.message + "）"; }

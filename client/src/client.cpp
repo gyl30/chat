@@ -25,6 +25,7 @@
 #include <chat/client.hpp>
 #include <chat/invite.hpp>
 #include <chat/detail/base64.hpp>
+#include <chat/detail/websocket_limits.hpp>
 
 #include "websocket.hpp"
 
@@ -502,14 +503,19 @@ struct client::impl
         }
 
         auto const id = next_request_id_++;
-        pending_.emplace(id, std::move(handler));
-
         boost::json::object request;
         request.emplace("jsonrpc", "2.0");
         request.emplace("method", std::move(method));
         request.emplace("params", std::move(params));
         request.emplace("id", id);
-        outgoing_.push_back(boost::json::serialize(request));
+        auto payload = boost::json::serialize(request);
+        if (payload.size() > detail::max_websocket_request_size)
+        {
+            handler(std::unexpected(make_error(error_kind::protocol, "Request exceeds 64 KiB")));
+            return;
+        }
+        pending_.emplace(id, std::move(handler));
+        outgoing_.push_back(std::move(payload));
         websocket_.interrupt_receive();
     }
 

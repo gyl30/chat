@@ -6,6 +6,7 @@
 #include <iostream>
 #include <future>
 #include <chat/detail/base64.hpp>
+#include <chat/error_text.hpp>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -659,7 +660,10 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
         {
             auto const* user = params->as_object().if_contains("conversation");
             auto const* text = params->as_object().if_contains("text");
-            if (!user || !user->is_int64() || user->as_int64() != 2 || !text || !text->is_string() || text->as_string() != "outgoing")
+            bool const boundary = text && text->is_string() && text->as_string().starts_with("request-boundary:") &&
+                payload.size() == 64 * 1024;
+            if (!user || !user->is_int64() || user->as_int64() != 2 || !text || !text->is_string() ||
+                (text->as_string() != "outgoing" && !boundary))
             {
                 co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false};
             }
@@ -675,6 +679,8 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             {
                 co_return boost::capy::io_result<bool>{response_ec, false};
             }
+
+            if (boundary) { co_return boost::capy::io_result<bool>{std::error_code{}, true}; }
 
             boost::json::object notification_params;
             notification_params.emplace("conversation", 2);
@@ -854,6 +860,7 @@ std::vector<std::unique_ptr<boost::corosio::tcp_server::worker_base>> make_worke
     boost::http::shared_serializer_config const& serializer_config)
 {
     std::vector<std::unique_ptr<boost::corosio::tcp_server::worker_base>> workers;
+    workers.push_back(std::make_unique<client_test_worker>(io_context, parser_config, serializer_config));
     workers.push_back(std::make_unique<client_test_worker>(io_context, parser_config, serializer_config));
     return workers;
 }
@@ -1462,6 +1469,50 @@ int main()
         !state.wait([&] { return state.errors.size() > protocol_errors; })) { return 1; }
     { std::lock_guard lock(state.mutex); if (state.reactions.size() != 2) { return 1; } }
     std::cout << "PASS client reaction metadata, RPC, clear, notification and duplicate-user rejection\n";
+
+    {
+        std::atomic_int disconnected = 0;
+        std::atomic_int callbacks = 0;
+        chat::client boundary_client;
+        std::promise<void> connected;
+        auto ready = connected.get_future();
+        boundary_client.set_connected_handler([&] { connected.set_value(); });
+        boundary_client.set_disconnected_handler([&] { ++disconnected; });
+        boundary_client.connect(url);
+        if (ready.wait_for(5s) != std::future_status::ready) { return 1; }
+
+        // The fixture accepts this request only when the complete JSON frame is exactly 64 KiB.
+        std::string boundary_text = "request-boundary:";
+        boost::json::object envelope{{"jsonrpc", "2.0"}, {"method", "send_message"},
+            {"params", boost::json::object{{"conversation", 2}, {"text", boundary_text}}}, {"id", 1}};
+        boundary_text.append(64 * 1024 - boost::json::serialize(envelope).size(), 'x');
+        auto accepted = avatar_call.operator()<chat::send_message_result>([&](auto h) {
+            boundary_client.send_message(2, boundary_text, h);
+        });
+        if (!accepted) { std::cerr << "FAIL client exact 64 KiB request boundary\n"; return 1; }
+
+        std::string cjk;
+        for (int i = 0; i < 21846; ++i) { cjk += "中"; }
+        for (auto const& text : {std::string(65536, 'x'), cjk, std::string(32768, '\\')})
+        {
+            auto rejected = avatar_call.operator()<chat::send_message_result>([&](auto h) {
+                boundary_client.send_message(2, text, [&, h](auto result) mutable {
+                    ++callbacks;
+                    h(std::move(result));
+                });
+            });
+            if (rejected || rejected.error().kind != chat::error_kind::protocol ||
+                chat::error_text(rejected.error()) != "内容过长，请缩短后重试")
+            { std::cerr << "FAIL client oversize request must return an explicit local protocol error\n"; return 1; }
+            auto next = avatar_call.operator()<chat::send_message_result>([&](auto h) {
+                boundary_client.send_message(2, "outgoing", h);
+            });
+            if (!next || disconnected != 0)
+            { std::cerr << "FAIL client oversize request must preserve connection and next RPC\n"; return 1; }
+        }
+        if (callbacks != 3) { std::cerr << "FAIL client oversize request callback count\n"; return 1; }
+        std::cout << "PASS client serialized request boundary, ASCII/CJK/escaping rejection and connection preservation\n";
+    }
 
     bool send_called = false;
     chat::send_message_result send_result;
