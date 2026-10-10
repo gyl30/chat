@@ -2313,7 +2313,7 @@ int main()
         }
         // A large paste takes time in proportion to its size in every kind of field: milliseconds
         // here, also under ASan; the glyph-by-glyph path took over a minute. The bound stays
-        // under the test's 5 second timeout so it can fail on its own.
+        // under the CTest deadline so it can fail on its own.
         auto timed = [](auto&& action) {
             auto const start = std::chrono::steady_clock::now();
             action();

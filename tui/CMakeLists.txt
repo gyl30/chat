@@ -12,7 +12,8 @@ set_target_properties(chat_tui PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BI
 add_executable(chat_tui_render_test tests/render_test.cpp)
 target_link_libraries(chat_tui_render_test PRIVATE chat_tui_ui)
 add_test(NAME tui_render COMMAND chat_tui_render_test)
-set_tests_properties(tui_render PROPERTIES TIMEOUT 5)
+# Allow normal sanitizer overhead across the rendering and input matrix.
+set_tests_properties(tui_render PROPERTIES TIMEOUT 10)
 
 add_executable(chat_tui_unicode_test tests/unicode_test.cpp)
 target_include_directories(chat_tui_unicode_test PRIVATE "${ftxui_patched}/src")
