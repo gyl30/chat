@@ -903,8 +903,11 @@ struct server_guard
 
 }    // namespace
 
+int run_client_heartbeat_tests();
+
 int main()
 {
+    if (run_client_heartbeat_tests()) { return 1; }
     boost::corosio::io_context server_io_context;
     auto parser_config = boost::http::make_parser_config(boost::http::parser_config{true});
     auto serializer_config = boost::http::make_serializer_config(boost::http::serializer_config{});

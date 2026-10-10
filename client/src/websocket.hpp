@@ -5,9 +5,12 @@
 #include <cstdint>
 #include <deque>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
+
+#include <chat/detail/websocket_heartbeat.hpp>
 
 #include <wslay/wslay.h>
 #include <boost/capy/io_task.hpp>
@@ -35,7 +38,7 @@ struct websocket_message
 class websocket_client
 {
    public:
-    explicit websocket_client(boost::corosio::io_context& io_context);
+    explicit websocket_client(boost::corosio::io_context& io_context, websocket_heartbeat_config heartbeat = {});
 
     websocket_client(websocket_client const&) = delete;
     websocket_client& operator=(websocket_client const&) = delete;
@@ -45,6 +48,7 @@ class websocket_client
     boost::capy::io_task<> connect(std::string_view url);
     boost::capy::io_task<websocket_message> receive();
     boost::capy::io_task<> send_text(std::string_view payload);
+    std::optional<websocket_message> take_pending_message();
 
     void interrupt_receive() noexcept;
     void cancel() noexcept;
@@ -60,6 +64,9 @@ class websocket_client
 
     boost::capy::io_task<> handshake(std::string_view target, std::string_view host_header);
     boost::capy::io_task<> flush();
+    boost::capy::io_task<> read_input();
+    boost::capy::io_task<> read_once(std::size_t& transferred);
+    std::error_code poll_heartbeat();
 
     static ssize_t receive_callback(wslay_event_context_ptr context, std::uint8_t* buffer, std::size_t size, int flags, void* user_data);
     static int genmask_callback(wslay_event_context_ptr context, std::uint8_t* buffer, std::size_t size, void* user_data);
@@ -71,6 +78,8 @@ class websocket_client
     std::unique_ptr<boost::corosio::openssl_stream> tls_;
     boost::capy::any_stream stream_;
     context_ptr context_;
+    websocket_heartbeat heartbeat_;
+    std::optional<std::error_code> deferred_read_error_;
     std::array<std::uint8_t, 4096> input_buffer_{};
     std::span<std::uint8_t const> input_;
     std::deque<websocket_message> messages_;

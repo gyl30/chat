@@ -171,6 +171,7 @@ set_tests_properties(migration PROPERTIES TIMEOUT 15)
 
 add_executable(chat_client_test
     client/tests/client_test.cpp
+    client/tests/heartbeat_test.cpp
     src/websocket.cpp
 )
 
@@ -240,7 +241,7 @@ add_executable(chat_websocket_test
     src/websocket.cpp
 )
 
-target_include_directories(chat_websocket_test PRIVATE src)
+target_include_directories(chat_websocket_test PRIVATE src client/include)
 
 target_link_libraries(chat_websocket_test
     PRIVATE

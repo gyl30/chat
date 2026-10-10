@@ -39,10 +39,12 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
                       online_users& users,
                       invite_attempts& invite_attempts,
                       pg_connection_pool& database,
-                      std::optional<boost::corosio::tls_context> const& tls)
+                      std::optional<boost::corosio::tls_context> const& tls,
+                      chat::detail::websocket_heartbeat_config heartbeat)
         : io_context_(io_context),
           socket_(io_context),
           stream_(&socket_),
+          heartbeat_config_(heartbeat),
           router_(std::move(router)),
           users_(users),
           invite_attempts_(invite_attempts),
@@ -149,7 +151,7 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
                 auto [upgrade_ec] = co_await send_websocket_upgrade(accept);
                 if (!upgrade_ec)
                 {
-                    websocket_connection connection(socket_, boost::capy::any_stream(&stream_));
+                    websocket_connection connection(socket_, boost::capy::any_stream(&stream_), heartbeat_config_);
                     chat_session session(connection, users_, invite_attempts_, database_);
                     co_await session.run();
                 }
@@ -179,6 +181,7 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
     boost::corosio::tcp_socket socket_;
     std::optional<boost::corosio::openssl_stream> tls_;
     boost::capy::any_stream stream_;
+    chat::detail::websocket_heartbeat_config heartbeat_config_;
     boost::http::router<boost::http::route_params> router_;
     online_users& users_;
     invite_attempts& invite_attempts_;
@@ -196,7 +199,8 @@ chat_server::chat_server(boost::corosio::io_context& io_context,
                          boost::http::router<boost::http::route_params> router,
                          std::string database_connection_string,
                          std::size_t database_connection_count,
-                         std::optional<boost::corosio::tls_context> tls)
+                         std::optional<boost::corosio::tls_context> tls,
+                         chat::detail::websocket_heartbeat_config heartbeat)
     : database_(io_context, std::move(database_connection_string), database_connection_count),
       server_(io_context, io_context.get_executor())
 {
@@ -207,7 +211,7 @@ chat_server::chat_server(boost::corosio::io_context& io_context,
     for (std::size_t i = 0; i < worker_count; ++i)
     {
         workers.push_back(std::make_unique<connection_worker>(
-            io_context, router, parser_config, serializer_config, users_, invite_attempts_, database_, tls));
+            io_context, router, parser_config, serializer_config, users_, invite_attempts_, database_, tls, heartbeat));
     }
     server_.set_workers(std::move(workers));
 }

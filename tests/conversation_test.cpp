@@ -11,6 +11,10 @@
 #include <thread>
 #include <vector>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <poll.h>
+#include <atomic>
 
 #include <libpq-fe.h>
 #include <boost/capy/ex/run_async.hpp>
@@ -220,8 +224,9 @@ struct runtime
     std::thread thread;
     std::string url;
 
-    explicit runtime(std::optional<boost::corosio::tls_context> tls = {}, std::size_t workers = 8)
-        : server(io, workers, boost::http::router<boost::http::route_params>{}, "", 4, tls)
+    explicit runtime(std::optional<boost::corosio::tls_context> tls = {}, std::size_t workers = 8,
+                     chat::detail::websocket_heartbeat_config heartbeat = {})
+        : server(io, workers, boost::http::router<boost::http::route_params>{}, "", 4, tls, heartbeat)
     {
         require(!server.bind(boost::corosio::endpoint(boost::corosio::ipv4_address::loopback(), 0)), "Server bind");
         url = std::string(tls ? "wss://127.0.0.1:" : "ws://127.0.0.1:") + std::to_string(server.local_endpoint().port()) + "/ws";
@@ -3778,6 +3783,129 @@ int run_tui_tests()
 #endif
 
 
+namespace
+{
+// Byte relay only: it never parses RPC or WebSocket/TLS. Dropping traffic leaves both
+// established sockets open so the test exercises missing liveness, not FIN/RST cleanup.
+class blackhole_relay
+{
+ public:
+    explicit blackhole_relay(unsigned short upstream_port)
+    {
+        listener_ = ::socket(AF_INET, SOCK_STREAM, 0);
+        require(listener_ >= 0, "Relay socket");
+        sockaddr_in address{};
+        address.sin_family = AF_INET;
+        address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        require(::bind(listener_, reinterpret_cast<sockaddr*>(&address), sizeof(address)) == 0, "Relay bind");
+        socklen_t length = sizeof(address);
+        require(::getsockname(listener_, reinterpret_cast<sockaddr*>(&address), &length) == 0, "Relay address");
+        port_ = ntohs(address.sin_port);
+        require(::listen(listener_, 1) == 0, "Relay listen");
+        thread_ = std::thread([this, upstream_port] {
+            pollfd listening{listener_, POLLIN, 0};
+            while (!stopping_ && ::poll(&listening, 1, 50) <= 0) {}
+            if (stopping_) { return; }
+            int incoming = ::accept(listener_, nullptr, nullptr);
+            int upstream = ::socket(AF_INET, SOCK_STREAM, 0);
+            {
+                std::lock_guard lock(mutex_);
+                incoming_ = incoming;
+                upstream_ = upstream;
+            }
+            sockaddr_in target{};
+            target.sin_family = AF_INET;
+            target.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+            target.sin_port = htons(upstream_port);
+            if (incoming < 0 || upstream < 0 || ::connect(upstream, reinterpret_cast<sockaddr*>(&target), sizeof(target))) { return; }
+            pollfd reads[2]{{incoming, POLLIN, 0}, {upstream, POLLIN, 0}};
+            std::array<char, 16384> bytes{};
+            while (!stopping_)
+            {
+                if (::poll(reads, 2, 50) <= 0) { continue; }
+                for (int i = 0; i < 2; ++i)
+                {
+                    if (!(reads[i].revents & (POLLIN | POLLHUP | POLLERR))) { continue; }
+                    auto size = ::recv(reads[i].fd, bytes.data(), bytes.size(), 0);
+                    if (size <= 0)
+                    {
+                        if (i == 1) { std::lock_guard lock(mutex_); server_closed_ = true; condition_.notify_all(); }
+                        // Keep the client's endpoint open until fixture cleanup.
+                        return;
+                    }
+                    if (dropping_) { dropped_.fetch_add(static_cast<std::size_t>(size)); continue; }
+                    std::size_t sent = 0;
+                    while (sent < static_cast<std::size_t>(size) && !stopping_)
+                    {
+                        auto count = ::send(reads[1-i].fd, bytes.data()+sent, static_cast<std::size_t>(size)-sent, MSG_NOSIGNAL);
+                        if (count <= 0) { return; }
+                        sent += static_cast<std::size_t>(count);
+                    }
+                }
+            }
+        });
+    }
+    ~blackhole_relay()
+    {
+        stopping_ = true;
+        { std::lock_guard lock(mutex_); if (incoming_ >= 0) { ::shutdown(incoming_, SHUT_RDWR); } if (upstream_ >= 0) { ::shutdown(upstream_, SHUT_RDWR); } }
+        thread_.join();
+        if (incoming_ >= 0) { ::close(incoming_); }
+        if (upstream_ >= 0) { ::close(upstream_); }
+        ::close(listener_);
+    }
+    unsigned short port() const { return port_; }
+    void drop() { dropping_ = true; }
+    bool wait_server_closed()
+    {
+        std::unique_lock lock(mutex_);
+        return condition_.wait_for(lock, std::chrono::seconds(2), [this] { return server_closed_; });
+    }
+    std::size_t dropped() const { return dropped_; }
+ private:
+    int listener_ = -1, incoming_ = -1, upstream_ = -1;
+    unsigned short port_ = 0;
+    std::atomic<bool> stopping_ = false, dropping_ = false;
+    std::atomic<std::size_t> dropped_ = 0;
+    std::mutex mutex_;
+    std::condition_variable condition_;
+    bool server_closed_ = false;
+    std::thread thread_;
+};
+
+void verify_session_liveness(std::optional<boost::corosio::tls_context> tls)
+{
+    using namespace std::chrono_literals;
+    bool secure = tls.has_value();
+    runtime server(tls, 2, {50ms, 500ms});
+    blackhole_relay relay(server.server.local_endpoint().port());
+    fixture data;
+    events old_events, next_events;
+    chat::client old_peer, next_peer;
+    old_events.attach(old_peer); next_events.attach(next_peer);
+    std::string name = "liveness_" + std::to_string(getpid()) + (secure ? "_tls" : "_plain");
+    auto relayed_url = std::string(secure ? "wss://" : "ws://") + "127.0.0.1:" + std::to_string(relay.port()) + "/ws";
+    old_peer.connect(relayed_url);
+    old_events.wait([&] { return old_events.connected == 1; });
+    auto registered = call<std::int64_t>([&](auto h) { old_peer.register_user(name, "liveness fixture", h); });
+    require(registered.has_value(), "Liveness registration"); data.users.push_back(*registered);
+    auto auth = call<chat::authentication_result>([&](auto h) { old_peer.authenticate(name, "liveness fixture", h); });
+    require(auth && auth->authenticated, "Liveness initial authentication");
+    next_peer.connect(server.url);
+    next_events.wait([&] { return next_events.connected == 1; });
+    auto duplicate = call<chat::authentication_result>([&](auto h) { next_peer.authenticate(name, "liveness fixture", h); });
+    require(!duplicate && duplicate.error().code == -32004, "Live session retains strict single-account online semantics");
+    relay.drop();
+    require(relay.wait_server_closed(), "Missing pong must close blackholed server session");
+    require(relay.dropped() > 0, "Blackhole actually discarded transport traffic");
+    auto restored = call<chat::authentication_result>([&](auto h) { next_peer.authenticate(name, "liveness fixture", h); });
+    require(restored && restored->authenticated && restored->user == *registered, "Heartbeat expiry releases old online registration before reauthentication");
+    auto contacts = call<std::vector<chat::user>>([&](auto h) { next_peer.get_contacts(h); });
+    require(contacts.has_value(), "Recovered session serves normal RPC");
+    std::cout << "PASS " << (secure ? "WSS" : "WS") << " blackhole expiry releases single-account online registration\n";
+}
+}
+
 int run_tls_tests(std::string_view directory)
 {
     try
@@ -3800,6 +3928,8 @@ int run_tls_tests(std::string_view directory)
         require(chat::parse_server_url("wss://%31%32%37.0.0.1:443/ws").has_value(), "Legal encoded host preserved");
         std::cout << "PASS TLS URL host control rejection\n";
         auto good = context("good");
+        verify_session_liveness({});
+        verify_session_liveness(good);
         {
             runtime server(good, 2);
             fixture data;

@@ -5,6 +5,7 @@
 #include <array>
 #include <deque>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -13,6 +14,7 @@
 #include <boost/capy/io/any_stream.hpp>
 #include <boost/http/request_base.hpp>
 #include <boost/corosio/tcp_socket.hpp>
+#include <chat/detail/websocket_heartbeat.hpp>
 
 struct websocket_message
 {
@@ -33,7 +35,8 @@ class websocket_connection
    public:
     explicit websocket_connection(boost::corosio::tcp_socket& socket);
 
-    websocket_connection(boost::corosio::tcp_socket& socket, boost::capy::any_stream stream);
+    websocket_connection(boost::corosio::tcp_socket& socket, boost::capy::any_stream stream,
+                         chat::detail::websocket_heartbeat_config heartbeat = {});
 
     websocket_connection(websocket_connection const&) = delete;
     websocket_connection& operator=(websocket_connection const&) = delete;
@@ -57,6 +60,9 @@ class websocket_connection
     using context_ptr = std::unique_ptr<wslay_event_context, context_deleter>;
 
     boost::capy::io_task<> flush();
+    boost::capy::io_task<> read_input();
+    boost::capy::io_task<> read_once(std::size_t& transferred);
+    std::error_code poll_heartbeat();
 
     static ssize_t receive_callback(wslay_event_context_ptr context, std::uint8_t* buffer, std::size_t size, int flags, void* user_data);
 
@@ -66,6 +72,8 @@ class websocket_connection
     boost::corosio::tcp_socket& socket_;
     boost::capy::any_stream stream_;
     context_ptr context_;
+    chat::detail::websocket_heartbeat heartbeat_;
+    std::optional<std::error_code> deferred_read_error_;
     std::array<std::uint8_t, 4096> input_buffer_{};
     std::span<std::uint8_t const> input_;
     std::deque<websocket_message> messages_;

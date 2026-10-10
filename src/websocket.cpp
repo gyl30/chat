@@ -6,6 +6,8 @@
 
 #include <openssl/evp.h>
 #include <boost/capy/cond.hpp>
+#include <boost/corosio/timeout.hpp>
+#include <chat/detail/websocket_limits.hpp>
 #include <boost/capy/error.hpp>
 #include <boost/capy/write.hpp>
 #include <boost/http/field.hpp>
@@ -20,7 +22,7 @@ namespace
 {
 
 constexpr std::string_view kWebSocketGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-constexpr std::uint64_t kMaxWebSocketMessageSize = 64 * 1024;
+using chat::detail::websocket_heartbeat;
 
 std::string_view as_string_view(boost::core::string_view value) { return {value.data(), value.size()}; }
 
@@ -165,9 +167,11 @@ websocket_connection::websocket_connection(boost::corosio::tcp_socket& socket)
 {
 }
 
-websocket_connection::websocket_connection(boost::corosio::tcp_socket& socket, boost::capy::any_stream stream)
-    : socket_(socket), stream_(std::move(stream))
+websocket_connection::websocket_connection(boost::corosio::tcp_socket& socket, boost::capy::any_stream stream,
+                                             chat::detail::websocket_heartbeat_config heartbeat)
+    : socket_(socket), stream_(std::move(stream)), heartbeat_(heartbeat)
 {
+    heartbeat_.reset(chat::detail::websocket_heartbeat::clock::now());
     wslay_event_callbacks callbacks{};
     callbacks.recv_callback = &receive_callback;
     callbacks.on_msg_recv_callback = &message_callback;
@@ -175,7 +179,7 @@ websocket_connection::websocket_connection(boost::corosio::tcp_socket& socket, b
     wslay_event_context_ptr context = nullptr;
     if (wslay_event_context_server_init(&context, &callbacks, this) == 0)
     {
-        wslay_event_config_set_max_recv_msg_length(context, kMaxWebSocketMessageSize);
+        wslay_event_config_set_max_recv_msg_length(context, chat::detail::max_websocket_request_size);
         context_.reset(context);
     }
 }
@@ -190,59 +194,115 @@ boost::capy::io_task<websocket_message> websocket_connection::receive()
             messages_.pop_front();
             co_return boost::capy::io_result<websocket_message>{std::error_code{}, std::move(message)};
         }
-
-        if (interrupt_requested_)
+        if (deferred_read_error_)
+        {
+            co_return boost::capy::io_result<websocket_message>{*deferred_read_error_, {}};
+        }
+        if (interrupt_requested_ && !heartbeat_.pending())
         {
             interrupt_requested_ = false;
             co_return boost::capy::io_result<websocket_message>{std::make_error_code(std::errc::interrupted), {}};
         }
+        auto [ec] = co_await read_input();
+        if (ec) { deferred_read_error_ = ec; }
+    }
+}
 
-        if (!context_)
-        {
-            co_return boost::capy::io_result<websocket_message>{std::make_error_code(std::errc::not_connected), {}};
-        }
+boost::capy::io_task<> websocket_connection::read_input()
+{
+    if (!context_) { co_return std::make_error_code(std::errc::not_connected); }
+    if (deferred_read_error_) { co_return *deferred_read_error_; }
+    if (wslay_event_want_read(context_.get()) == 0)
+    {
+        co_return boost::capy::make_error_code(boost::capy::error::eof);
+    }
 
-        if (wslay_event_want_read(context_.get()) == 0)
-        {
-            co_return boost::capy::io_result<websocket_message>{boost::capy::make_error_code(boost::capy::error::eof), {}};
-        }
+    if (auto ec = poll_heartbeat())
+    {
+        co_return ec;
+    }
+    if (wslay_event_want_write(context_.get()) != 0)
+    {
+        auto [ec] = co_await flush();
+        if (ec) { co_return ec; }
+    }
 
-        reading_ = true;
-        auto [ec, size] = co_await stream_.read_some(boost::capy::mutable_buffer(input_buffer_.data(), input_buffer_.size()));
-        reading_ = false;
-        if (ec)
-        {
-            if (interrupt_requested_ && ec == boost::capy::cond::canceled)
-            {
-                interrupt_requested_ = false;
-                co_return boost::capy::io_result<websocket_message>{std::make_error_code(std::errc::interrupted), {}};
-            }
-            co_return boost::capy::io_result<websocket_message>{ec, {}};
-        }
-        if (size == 0)
-        {
-            co_return boost::capy::io_result<websocket_message>{std::make_error_code(std::errc::connection_reset), {}};
-        }
-
+    // timeout() discards the canceled operation's payload. Keep any bytes that the
+    // transport actually produced, including when a TLS read completes during cancellation.
+    std::size_t size = 0;
+    reading_ = true;
+    auto [ec] = co_await boost::corosio::timeout(read_once(size), heartbeat_.deadline());
+    reading_ = false;
+    if (size != 0)
+    {
         input_ = std::span<std::uint8_t const>(input_buffer_.data(), size);
         if (wslay_event_recv(context_.get()) != 0 || (!input_.empty() && wslay_event_want_read(context_.get()) != 0))
         {
-            co_return boost::capy::io_result<websocket_message>{websocket_protocol_error(), {}};
+            input_ = {};
+            co_return websocket_protocol_error();
         }
         input_ = {};
-
-        auto [flush_ec] = co_await flush();
-        if (flush_ec)
-        {
-            co_return boost::capy::io_result<websocket_message>{flush_ec, {}};
-        }
     }
+
+    auto const interrupted = interrupt_requested_ && ec == boost::capy::cond::canceled;
+    if (heartbeat_.expired(websocket_heartbeat::clock::now()))
+    {
+        deferred_read_error_ = boost::capy::make_error_code(boost::capy::error::timeout);
+    }
+    else if (ec && ec != boost::capy::cond::timeout && !interrupted)
+    {
+        deferred_read_error_ = ec;
+    }
+    else if (!ec && size == 0)
+    {
+        deferred_read_error_ = std::make_error_code(std::errc::connection_reset);
+    }
+    if (deferred_read_error_)
+    {
+        // Deliver complete messages already parsed above, then return the retained
+        // transport error on the next receive; send_text also refuses further writes.
+        co_return *deferred_read_error_;
+    }
+
+    auto [flush_ec] = co_await flush();
+    if (flush_ec)
+    {
+        co_return flush_ec;
+    }
+    if (wslay_event_get_close_received(context_.get()) != 0)
+    {
+        co_return boost::capy::make_error_code(boost::capy::error::eof);
+    }
+    co_return {};
+}
+
+boost::capy::io_task<> websocket_connection::read_once(std::size_t& transferred)
+{
+    auto [ec, size] = co_await stream_.read_some(boost::capy::mutable_buffer(input_buffer_.data(), input_buffer_.size()));
+    transferred = size;
+    co_return ec;
+}
+
+std::error_code websocket_connection::poll_heartbeat()
+{
+    auto const now = websocket_heartbeat::clock::now();
+    if (heartbeat_.expired(now)) { return boost::capy::make_error_code(boost::capy::error::timeout); }
+    if (heartbeat_.probe_due(now))
+    {
+        auto const token = heartbeat_.start_probe(now);
+        wslay_event_msg message{};
+        message.opcode = WSLAY_PING;
+        message.msg = token.data();
+        message.msg_length = token.size();
+        if (wslay_event_queue_msg(context_.get(), &message) != 0) { return websocket_protocol_error(); }
+    }
+    return {};
 }
 
 void websocket_connection::interrupt_receive() noexcept
 {
     interrupt_requested_ = true;
-    if (reading_)
+    if (reading_ && !heartbeat_.pending())
     {
         socket_.cancel();
     }
@@ -253,6 +313,25 @@ boost::capy::io_task<> websocket_connection::send_text(std::string_view payload)
     if (!context_)
     {
         co_return std::make_error_code(std::errc::not_connected);
+    }
+
+    if (deferred_read_error_) { co_return *deferred_read_error_; }
+    if (auto ec = poll_heartbeat()) { co_return ec; }
+    if (heartbeat_.pending())
+    {
+        auto [flush_ec] = co_await flush();
+        if (flush_ec) { co_return flush_ec; }
+        // A busy application's outgoing queue must not prevent a matching pong from
+        // being read. Pump controls here; business messages remain in messages_.
+        while (heartbeat_.pending())
+        {
+            auto [ec] = co_await read_input();
+            if (ec)
+            {
+                deferred_read_error_ = ec;
+                co_return ec;
+            }
+        }
     }
 
     wslay_event_msg message{};
@@ -269,10 +348,19 @@ boost::capy::io_task<> websocket_connection::send_text(std::string_view payload)
 
 boost::capy::io_task<> websocket_connection::flush()
 {
+    if (auto ec = poll_heartbeat()) { co_return ec; }
+    auto const now = websocket_heartbeat::clock::now();
+    auto const write_deadline = heartbeat_.pending()
+        ? std::min(heartbeat_.deadline(), now + heartbeat_.grace())
+        : now + heartbeat_.grace();
     std::array<std::uint8_t, 4096> output{};
 
     while (wslay_event_want_write(context_.get()) != 0)
     {
+        if (websocket_heartbeat::clock::now() >= write_deadline)
+        {
+            co_return boost::capy::make_error_code(boost::capy::error::timeout);
+        }
         auto const result = wslay_event_write(context_.get(), output.data(), output.size());
         if (result <= 0)
         {
@@ -280,7 +368,8 @@ boost::capy::io_task<> websocket_connection::flush()
         }
 
         auto const size = static_cast<std::size_t>(result);
-        auto [ec, written] = co_await boost::capy::write(stream_, boost::capy::const_buffer(output.data(), size));
+        auto [ec, written] = co_await boost::corosio::timeout(
+            boost::capy::write(stream_, boost::capy::const_buffer(output.data(), size)), write_deadline);
         if (ec)
         {
             co_return ec;
@@ -321,6 +410,11 @@ void websocket_connection::message_callback(wslay_event_context_ptr, wslay_event
         {
             result.payload.assign(reinterpret_cast<char const*>(message->msg), message->msg_length);
         }
+    }
+    else if (message->opcode == WSLAY_PONG)
+    {
+        self.heartbeat_.pong(std::span<std::uint8_t const>(message->msg, message->msg_length), websocket_heartbeat::clock::now());
+        return;
     }
     else if (message->opcode == WSLAY_CONNECTION_CLOSE)
     {

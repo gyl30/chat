@@ -832,6 +832,17 @@ struct client::impl
             receive(message.payload);
         }
 
+        if (connection_error && !closing_)
+        {
+            // The fair control-frame pump may have received complete RPC replies while
+            // sending. Deliver those before failing requests whose replies never arrived.
+            while (!closing_ && !suppress_callbacks_.load())
+            {
+                auto message = websocket_.take_pending_message();
+                if (!message) { break; }
+                if (message->message_type == detail::websocket_message::type::text) { receive(message->payload); }
+            }
+        }
         websocket_.close();
         outgoing_.clear();
         state_ = connection_state::disconnected;

@@ -10,6 +10,7 @@
 #include <boost/corosio/io_context.hpp>
 #include <boost/corosio/tcp_server.hpp>
 #include <boost/corosio/tls_context.hpp>
+#include <chat/detail/websocket_heartbeat.hpp>
 #include <boost/http/server/router.hpp>
 
 #include "invite_attempts.hpp"
@@ -24,7 +25,8 @@ class chat_server
                 boost::http::router<boost::http::route_params> router,
                 std::string database_connection_string,
                 std::size_t database_connection_count,
-                std::optional<boost::corosio::tls_context> tls = std::nullopt);
+                std::optional<boost::corosio::tls_context> tls = std::nullopt,
+                chat::detail::websocket_heartbeat_config heartbeat = {});
 
     std::error_code bind(boost::corosio::endpoint endpoint);
 
