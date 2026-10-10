@@ -118,7 +118,7 @@ QToolButton* make_navigation_button(
     button->setToolButtonStyle(Qt::ToolButtonIconOnly);
     button->setIcon(svg_icon(
         icon,
-        selected ? QColor(Qt::white) : QColor(QStringLiteral("#C4D2CB")),
+        selected && !theme_manager::instance().dark() ? QColor(Qt::white) : QColor(QStringLiteral("#C4D2CB")),
         QSize(24, 24)));
     button->setIconSize(QSize(24, 24));
     button->setEnabled(enabled);
@@ -131,7 +131,7 @@ void set_navigation_button(QToolButton* button, QStringView icon, bool selected)
 {
     button->setObjectName(selected ? QStringLiteral("navigationSelected") : QStringLiteral("navigationButton"));
     button->setIcon(svg_icon(
-        icon, selected ? QColor(Qt::white) : QColor(QStringLiteral("#C4D2CB")), QSize(24, 24)));
+        icon, selected && !theme_manager::instance().dark() ? QColor(Qt::white) : QColor(QStringLiteral("#C4D2CB")), QSize(24, 24)));
     button->style()->unpolish(button);
     button->style()->polish(button);
 }

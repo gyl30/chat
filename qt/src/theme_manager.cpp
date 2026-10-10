@@ -115,38 +115,38 @@ roles theme_roles(chat_theme_id theme)
     return {};
 }
 
-// The night theme, based on Oink Paper's dark palette with the classic green as its action color.
+// One opaque blue-gray night palette for both stylesheet and painter paths.
 roles night_roles()
 {
     roles r;
-    r.canvas = QColor(QStringLiteral("#161513"));
-    r.canvas_hover = QColor(QStringLiteral("#262420"));
-    r.panel = QColor(QStringLiteral("#1B1A17"));
-    r.surface = QColor(QStringLiteral("#1F1E1A"));
-    r.subtle = QColor(QStringLiteral("#2A2824"));
-    r.text = QColor(QStringLiteral("#ECE9E3"));
-    r.text_secondary = QColor(QStringLiteral("#B6B1A7"));
-    r.text_muted = QColor(QStringLiteral("#958F84"));
-    r.accent = QColor(QStringLiteral("#3D7A62"));
-    r.accent_hover = QColor(QStringLiteral("#4A8A70"));
-    r.accent_disabled = QColor(QStringLiteral("#34413B"));
-    r.link = QColor(QStringLiteral("#7DB5E6"));
-    r.online = QColor(QStringLiteral("#6FBF95"));
-    r.selected = mix(r.accent, r.surface, 0.30);
-    r.bubble_out = mix(r.accent, r.surface, 0.42);
-    r.reaction_own = mix(r.accent, r.surface, 0.65);
-    r.border = QColor(QStringLiteral("#34322D"));
-    r.border_strong = QColor(QStringLiteral("#4A4740"));
-    r.focus = mix(r.accent, r.text, 0.6);
-    r.accent_muted = QColor(QStringLiteral("#8FC1A8"));
-    r.danger = QColor(QStringLiteral("#E0716B"));
-    r.danger_hover = QColor(QStringLiteral("#C75F59"));
-    r.danger_soft = QColor(QStringLiteral("#5A2F2C"));
-    r.nav = QColor(QStringLiteral("#0F0E0D"));
+    r.canvas = QColor(QStringLiteral("#142737"));
+    r.canvas_hover = QColor(QStringLiteral("#2B4B5D"));
+    r.panel = QColor(QStringLiteral("#1A3445"));
+    r.surface = QColor(QStringLiteral("#213B4B"));
+    r.subtle = QColor(QStringLiteral("#243F50"));
+    r.text = QColor(QStringLiteral("#EDF4F7"));
+    r.text_secondary = QColor(QStringLiteral("#B2C5CF"));
+    r.text_muted = QColor(QStringLiteral("#A7BDCA"));
+    r.accent = QColor(QStringLiteral("#73B9C5"));
+    r.accent_hover = QColor(QStringLiteral("#8AC7D1"));
+    r.accent_disabled = QColor(QStringLiteral("#375363"));
+    r.link = QColor(QStringLiteral("#9ACDE1"));
+    r.online = QColor(QStringLiteral("#8DCBB5"));
+    r.selected = QColor(QStringLiteral("#294D61"));
+    r.bubble_out = QColor(QStringLiteral("#294957"));
+    r.reaction_own = QColor(QStringLiteral("#426C7C"));
+    r.border = QColor(QStringLiteral("#344F60"));
+    r.border_strong = QColor(QStringLiteral("#577587"));
+    r.focus = r.accent;
+    r.accent_muted = QColor(QStringLiteral("#8FC8D2"));
+    r.danger = QColor(QStringLiteral("#E28C86"));
+    r.danger_hover = QColor(QStringLiteral("#D9827C"));
+    r.danger_soft = QColor(QStringLiteral("#633F49"));
+    r.nav = QColor(QStringLiteral("#102535"));
     r.nav_text = r.text;
-    r.on_accent = QColor(Qt::white);
+    r.on_accent = r.nav;
     r.avatar_text = r.text;
-    r.highlight = QColor(QStringLiteral("#D99A6C"));
+    r.highlight = QColor(QStringLiteral("#E4A49A"));
     return r;
 }
 
@@ -390,6 +390,51 @@ QString theme_manager::style_sheet(QString classic) const
     }
     translucent += QStringView(result).mid(last);
     translucent.replace(QStringLiteral("@on-accent"), on_accent_.name(QColor::HexRgb).toUpper());
+    if (dark())
+    {
+        auto const r = night_roles();
+        // Opaque gradients suggest glass without compositor dependencies or geometry changes.
+        auto const glow = mix(r.accent, r.panel, 0.24);
+        translucent += QStringLiteral(R"(
+        QWidget#windowFrame {
+            background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, stop: 0 %1, stop: 1 %2);
+        }
+        QWidget#windowFrame[login="true"] {
+            background: qlineargradient(x1: 0, y1: 0, x2: 0.6, y2: 1,
+                stop: 0 %3, stop: 0.55 %1, stop: 1 %2);
+        }
+        QWidget#windowTitleBar {
+            background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0, stop: 0 %1, stop: 1 %2);
+        }
+        QWidget#windowTitleBar[login="true"] { background: transparent; }
+        QFrame#navigationPanel {
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 %4, stop: 1 %2);
+        }
+        QFrame#conversationPanel {
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 %5, stop: 1 %1);
+        }
+        QFrame#chatPanel {
+            background: qlineargradient(x1: 0, y1: 0, x2: 0.4, y2: 1, stop: 0 %11, stop: 1 %2);
+        }
+        QFrame#inputBar {
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 %6, stop: 1 %1);
+        }
+        QFrame#loginCard QLineEdit {
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 %5, stop: 1 %6);
+            border-color: %7;
+        }
+        QFrame#loginCard QLineEdit:focus { border-color: %8; }
+        QToolButton#navigationSelected, QMenu#chatsActionsMenu::item:selected { color: %9; }
+        QLineEdit, QPlainTextEdit { placeholder-text-color: %10; }
+        QWidget#windowTitleBar QToolButton#windowCloseButton:hover { background: %12; }
+        QPushButton#loginButton:disabled, QPushButton#registrationSubmitButton:disabled {
+            color: %10;
+        }
+)").arg(r.panel.name(), r.canvas.name(), glow.name(), r.nav.name(),
+            mix(r.surface, r.panel, 0.65).name(), r.surface.name(), r.border.name(),
+            r.focus.name(), r.nav_text.name(), r.text_muted.name(), mix(r.panel, r.canvas, 0.6).name(),
+            r.danger_soft.name());
+    }
     if (theme_ == chat_theme_id::terminal && !dark())
     {
         // Terminal sets headings and controls in monospace and keeps prose in the sans face.

@@ -42,6 +42,7 @@
 #include <QSystemTrayIcon>
 #include <QStyle>
 #include <QStyleOptionButton>
+#include <QStyleOptionMenuItem>
 #include <QTextBlock>
 #include <QTextCharFormat>
 #include <QTextDocument>
@@ -2149,6 +2150,14 @@ void check_themes()
     auto const classic = chat_style_sheet();
     check(classic.contains(QStringLiteral("#315A4B")) && classic.contains(QStringLiteral("#F7F5EF")),
           "The classic theme keeps the original palette exactly");
+    auto luminance = [](QColor const& color) {
+        auto linear = [](qreal value) { return value <= 0.04045 ? value / 12.92 : qPow((value + 0.055) / 1.055, 2.4); };
+        return 0.2126 * linear(color.redF()) + 0.7152 * linear(color.greenF()) + 0.0722 * linear(color.blueF());
+    };
+    auto contrast = [&](QColor const& first, QColor const& second) {
+        auto const a = luminance(first), b = luminance(second);
+        return (std::max(a, b) + 0.05) / (std::min(a, b) + 0.05);
+    };
     auto const shots = qEnvironmentVariable("CHAT_THEME_SHOTS");
     auto render = [&](QString const& name) {
         chat_widget page;
@@ -2174,12 +2183,50 @@ void check_themes()
         QApplication::processEvents();
         auto const image = page.grab().toImage();
         if (!shots.isEmpty()) { image.save(shots + QStringLiteral("/theme-") + name + QStringLiteral(".png")); }
-        return image.pixelColor(image.width() - 40, image.height() / 2);
+        if (themes.dark())
+        {
+            auto const top = logical_pixel(image, QPoint(page.width() - 12, 100));
+            auto const bottom = logical_pixel(image, QPoint(page.width() - 12, page.height() - 100));
+            check(top.blue() > top.red() && bottom.blue() > bottom.red() && top != bottom,
+                  "Night chat uses a subtly varying blue-gray background");
+            auto const icon = page.findChild<QToolButton*>("navigationSelected")->icon().pixmap(24, 24).toImage();
+            bool visible_ink = false;
+            for (int y = 0; y < icon.height(); ++y)
+                for (int x = 0; x < icon.width(); ++x)
+                    if (auto const ink = icon.pixelColor(x, y); ink.alpha() > 240)
+                    { visible_ink = true; check(contrast(ink, themed("#294F40")) >= 3.0, "Selected navigation icon stays visible on its dark rail"); }
+            check(visible_ink, "Selected navigation has a painted icon");
+            check(page.findChild<QPlainTextEdit*>("messageEdit")->palette().color(QPalette::PlaceholderText) == themed("#8B918D"),
+                  "Night composer preserves the explicit readable placeholder color");
+            QMenu menu(&page); menu.setObjectName(QStringLiteral("chatsActionsMenu")); menu.ensurePolished();
+            QStyleOptionMenuItem option; option.initFrom(&menu); option.rect = QRect(0, 0, 200, 36);
+            option.menuItemType = QStyleOptionMenuItem::Normal; option.checkType = QStyleOptionMenuItem::NotCheckable;
+            option.text = QStringLiteral("添加好友"); option.font = menu.font(); option.fontMetrics = QFontMetrics(option.font);
+            option.state |= QStyle::State_Selected | QStyle::State_Enabled | QStyle::State_Active;
+            QImage selected(option.rect.size(), QImage::Format_ARGB32); selected.fill(Qt::transparent);
+            QPainter painter(&selected); menu.style()->drawControl(QStyle::CE_MenuItem, &option, &painter, &menu); painter.end();
+            bool painted_text = false;
+            for (int y = 0; y < selected.height(); ++y)
+                for (int x = 0; x < selected.width(); ++x)
+                    painted_text |= selected.pixelColor(x, y) == themed("#27332E");
+            check(painted_text && contrast(themed("#27332E"), selected.pixelColor(180, 18)) >= 4.5,
+                  "New-action menu paints readable light text on its selected dark background");
+        }
+        return logical_pixel(image, QPoint(page.width() - 40, page.height() / 2));
     };
     check(render(QStringLiteral("classic")).lightness() > 200, "Classic chat background is light");
     for (auto const& info : theme_manager::themes())
     {
         themes.set_theme(info.id);
+        auto const light_sheet = chat_style_sheet();
+        std::array<char const*, 8> const sources{"#F7F5EF", "#FFFEFA", "#FFFFFF", "#27332E", "#5D6C64", "#315A4B", "#D6EAD9", "#294F40"};
+        std::vector<QColor> light_colors;
+        for (auto const* source : sources) { light_colors.push_back(themed(source)); }
+        themes.set_appearance(chat_appearance::dark);
+        themes.set_appearance(chat_appearance::light);
+        check(chat_style_sheet() == light_sheet, "Each light theme restores its exact stylesheet after night mode");
+        for (std::size_t i = 0; i < sources.size(); ++i)
+            check(themed(sources[i]) == light_colors[i], "Night mode leaves every light theme's semantic colors unchanged");
         auto const background = render(info.key);
         check(background.lightness() > 200, "Every light theme renders a light chat background");
         if (info.id != chat_theme_id::classic)
@@ -2192,6 +2239,17 @@ void check_themes()
     themes.set_appearance(chat_appearance::dark);
     auto const night = render(QStringLiteral("night"));
     check(themes.dark() && night.lightness() < 60, "Night mode renders a dark chat background");
+    for (auto const* ground : {"#FFFFFF", "#E7EEE9", "#D6EAD9"})
+    {
+        for (auto const* ink : {"#27332E", "#5D6C64", "#8B918D"})
+        {
+            auto const ratio = contrast(themed(ink), themed(ground));
+            if (ratio < 4.5) { std::cerr << "Night text contrast " << ink << " on " << ground << ": " << ratio << '\n'; }
+            check(ratio >= 4.5, "Night body, secondary and metadata text are readable on surface, selection and own bubbles");
+        }
+        check(contrast(themed("#88A697"), themed(ground)) >= 3.0, "Night focus color stays distinct from its control ground");
+    }
+    check(contrast(themes.on_accent(), themed("#315A4B")) >= 4.5, "Night primary actions have readable text on their accent fill");
     auto const night_sheet = chat_style_sheet();
     themes.set_theme(chat_theme_id::terminal);
     check(chat_style_sheet() == night_sheet, "In night mode the chosen theme cannot change the night theme");
@@ -2220,6 +2278,31 @@ void check_themes()
           "Leaving night mode restores the theme chosen meanwhile");
     themes.set_theme(chat_theme_id::classic);
     check(chat_style_sheet() == classic, "Returning to classic restores the original stylesheet");
+    main_window window(QStringLiteral("ws://127.0.0.1:18769/ws"));
+    window.show();
+    QApplication::processEvents();
+    auto* username = window.findChild<QLineEdit*>("loginUsernameEdit");
+    auto* password = window.findChild<QLineEdit*>("loginPasswordEdit");
+    username->setText(QStringLiteral("张 三"));
+    password->setText(QStringLiteral("unsaved-input"));
+    auto const user_rect = username->geometry(), password_rect = password->geometry();
+    for (auto appearance : {chat_appearance::dark, chat_appearance::light})
+    {
+        themes.set_appearance(appearance);
+        QApplication::processEvents();
+        if (themes.dark())
+        {
+            auto const placeholder = username->palette().color(QPalette::PlaceholderText);
+            check(placeholder == themed("#8B918D") && contrast(placeholder, username->palette().color(QPalette::Base)) >= 4.5,
+                  "Night login keeps opaque readable placeholder text after stylesheet polishing");
+        }
+        check(window.size() == chat_theme::login_window_size && window.minimumSize() == chat_theme::login_window_size &&
+                  username->geometry() == user_rect && password->geometry() == password_rect,
+              "Night appearance changes paint without shifting login controls or window geometry");
+        check(username->text() == QStringLiteral("张 三") && password->text() == QStringLiteral("unsaved-input") &&
+                  password->echoMode() == QLineEdit::Password,
+              "Switching appearance preserves account input and password masking");
+    }
 }
 void check_friend_flow()
 {
