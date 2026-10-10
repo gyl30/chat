@@ -1,13 +1,68 @@
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <set>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <utility>
 #include <unistd.h>
 
 #include <libpq-fe.h>
+
+namespace {
+
+bool migration_filename(std::string_view name)
+{
+    return name.size() >= 8 && name[0] >= '0' && name[0] <= '9' &&
+        name[1] >= '0' && name[1] <= '9' && name[2] >= '0' && name[2] <= '9' &&
+        name[3] == '_' && name.ends_with(".sql");
+}
+
+void check_migration_files(std::filesystem::path const& directory,
+    std::vector<char const*> const& migrations)
+{
+    std::set<std::string> missing;
+    int previous = -1;
+    for (auto const* name : migrations)
+    {
+        if (!migration_filename(name))
+        {
+            throw std::runtime_error("Invalid registered migration filename: " + std::string(name));
+        }
+        if (!missing.insert(name).second)
+        {
+            throw std::runtime_error("Duplicate registered migration: " + std::string(name));
+        }
+        int const number = (name[0] - '0') * 100 + (name[1] - '0') * 10 + name[2] - '0';
+        if (number <= previous)
+        {
+            throw std::runtime_error("Migration numbers must increase: " + std::string(name));
+        }
+        previous = number;
+    }
+    for (auto const& entry : std::filesystem::directory_iterator(directory))
+    {
+        auto const name = entry.path().filename().string();
+        if (!migration_filename(name)) { continue; }
+        if (!entry.is_regular_file())
+        {
+            throw std::runtime_error("Migration is not a regular file: " + name);
+        }
+        if (missing.erase(name) == 0)
+        {
+            throw std::runtime_error("Unregistered migration: " + name);
+        }
+    }
+    if (!missing.empty())
+    {
+        throw std::runtime_error("Registered migration file missing: " + *missing.begin());
+    }
+}
+
+} // namespace
 
 int main(int argc, char** argv)
 {
@@ -31,13 +86,6 @@ int main(int argc, char** argv)
     bool created = false;
     try
     {
-        if (PQstatus(connection.get()) != CONNECTION_OK)
-        {
-            throw std::runtime_error(PQerrorMessage(connection.get()));
-        }
-        execute("CREATE SCHEMA " + schema);
-        created = true;
-        execute("SET search_path TO " + schema);
         std::vector<char const*> migrations{
               "001_create_users.sql", "002_create_messages.sql", "003_add_messages_conversation_index.sql",
               "004_create_message_read_positions.sql", "005_add_messages_recipient_index.sql",
@@ -49,6 +97,14 @@ int main(int argc, char** argv)
               "021_add_group_announcement.sql", "022_add_group_invite.sql", "023_create_group_join_requests.sql",
               "024_validate_identity_and_group_title.sql", "025_validate_username_edges.sql", "026_create_friend_requests.sql",
               "027_short_group_invite_codes.sql"};
+        check_migration_files(argv[1], migrations);
+        if (PQstatus(connection.get()) != CONNECTION_OK)
+        {
+            throw std::runtime_error(PQerrorMessage(connection.get()));
+        }
+        execute("CREATE SCHEMA " + schema);
+        created = true;
+        execute("SET search_path TO " + schema);
         for (auto const* name : migrations)
         {
             if (std::string(name).starts_with("008"))
@@ -352,7 +408,7 @@ int main(int argc, char** argv)
         execute("SET search_path TO public");
         execute("DROP SCHEMA " + schema + " CASCADE");
         created = false;
-        std::cout << "PASS fresh 001-026 schema and populated identity/direct/friend-request migration\n";
+        std::cout << "PASS fresh 001-027 schema and populated identity/direct/friend-request migration\n";
         return 0;
     }
     catch (std::exception const& error)
