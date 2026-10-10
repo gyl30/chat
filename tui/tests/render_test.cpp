@@ -930,24 +930,35 @@ int main()
         };
         auto shown = screen_text();
         ok &= expect(shown.find("地址（IP:端口）") != std::string::npos && shown.find("127.0.0.1:18080") != std::string::npos &&
-                     shown.find("ws://1") == std::string::npos && shown.find("暂不支持") != std::string::npos,
-                     "Settings show the IP and port, and TLS as not yet available");
-        // The cursor starts after the address: Backspace edits the port. TLS is not in the Tab order.
+                     shown.find("ws://1") == std::string::npos && shown.find("TLS（wss://）") != std::string::npos &&
+                     shown.find("暂不支持") == std::string::npos,
+                     "Settings show the IP and port, and a TLS checkbox");
+        // A missing checkbox changes the following key sequence; stop this regression before it can reach login.
+        if (shown.find("暂不支持") != std::string::npos || shown.find("TLS（wss://）") == std::string::npos) { return 1; }
+        // The cursor starts after the address: Backspace edits the port; Tab reaches TLS, then Save.
         for (int i = 0; i < 5; ++i) { component->OnEvent(ftxui::Event::Backspace); }
         component->OnEvent(ftxui::Event::Character("9000"));
+        component->OnEvent(ftxui::Event::Tab);                // TLS
+        component->OnEvent(ftxui::Event::Character(' '));
+        component->OnEvent(ftxui::Event::Custom);
         component->OnEvent(ftxui::Event::Tab);                // 确定
         component->OnEvent(ftxui::Event::Return);
-        ok &= expect(application.server_url == "ws://127.0.0.1:9000/ws", "Saving makes a ws:// URL from the address");
+        ok &= expect(application.server_url == "wss://127.0.0.1:9000/ws", "Saving makes a wss:// URL from the address and TLS");
         // An address that cannot be used is explained in the form, which stays open.
         component->OnEvent(ftxui::Event::Return);             // 设置 again
         ok &= expect(screen_text().find("127.0.0.1:9000") != std::string::npos, "Settings reopen with the saved address");
         component->OnEvent(ftxui::Event::Character("x"));
         component->OnEvent(ftxui::Event::Return);             // Enter in the address saves
         shown = screen_text();
-        ok &= expect(application.server_url == "ws://127.0.0.1:9000/ws" && shown.find("端口须为") != std::string::npos &&
+        ok &= expect(application.server_url == "wss://127.0.0.1:9000/ws" && shown.find("端口须为") != std::string::npos &&
                      shown.find("地址（IP:端口）") != std::string::npos,
                      "A bad port is explained in the open form and changes nothing");
-        // The error is about what was saved: changing the address hides it.
+        // An error belongs to both the address and TLS choice; changing either hides it.
+        component->OnEvent(ftxui::Event::Tab);
+        component->OnEvent(ftxui::Event::Character(' '));
+        ok &= expect(screen_text().find("端口须为") == std::string::npos, "Switching TLS hides the old error");
+        component->OnEvent(ftxui::Event::Character(' '));
+        component->OnEvent(ftxui::Event::TabReverse);
         component->OnEvent(ftxui::Event::Backspace);
         ok &= expect(screen_text().find("端口须为") == std::string::npos, "Editing the address hides its old error");
         component->OnEvent(ftxui::Event::Character("x"));
@@ -959,7 +970,7 @@ int main()
         ok &= expect(screen_text().find("端口须为") == std::string::npos, "Pasting into the address hides its old error");
         for (int i = 0; i < 2; ++i) { component->OnEvent(ftxui::Event::Backspace); }
         component->OnEvent(ftxui::Event::Escape);
-        ok &= expect(application.server_url == "ws://127.0.0.1:9000/ws" && screen_text().find("地址（IP:端口）") == std::string::npos,
+        ok &= expect(application.server_url == "wss://127.0.0.1:9000/ws" && screen_text().find("地址（IP:端口）") == std::string::npos,
                      "Esc closes the settings without saving");
         // Background events (wakeups, expiring notices) leave an open form its keys.
         component->OnEvent(ftxui::Event::Return);  // 设置
@@ -970,35 +981,63 @@ int main()
         component->OnEvent(ftxui::Event::Character("9100"));
         component->OnEvent(ftxui::Event::Special("\x1b[201~"));
         component->OnEvent(ftxui::Event::Custom);
-        component->OnEvent(ftxui::Event::Tab);
+        component->OnEvent(ftxui::Event::Tab);                // TLS
         component->OnEvent(ftxui::Event::Custom);
+        component->OnEvent(ftxui::Event::Character(' '));     // TLS off
+        component->OnEvent(ftxui::Event::Custom);
+        component->OnEvent(ftxui::Event::Tab);                // 确定
         component->OnEvent(ftxui::Event::Return);
         ok &= expect(application.server_url == "ws://127.0.0.1:9100/ws", "Settings keep working across background events");
-        // A wss:// address (from the command line or the last sign-in) is explained, and saving
-        // turns it into ws://; signing in with one says why instead of failing to connect.
-        application.server_url = "wss://chat.example:443/ws";
-        application.login();
-        ok &= expect(application.data.link == connection::signed_out && application.data.status.find("暂不支持 TLS") != std::string::npos,
-                     "Signing in with a wss:// address explains TLS is not available");
+        // A configured TLS address keeps its scheme and target, including a default port.
+        application.server_url = "wss://chat.example/ws?token=abc";
         component->OnEvent(ftxui::Event::Return);  // 设置
         shown = screen_text();
-        ok &= expect(shown.find("chat.example:443") != std::string::npos && shown.find("改用 ws://") != std::string::npos,
-                     "Settings from a wss:// address say it becomes ws://");
+        ok &= expect(shown.find("chat.example:443") != std::string::npos && shown.find("TLS（wss://）") != std::string::npos &&
+                     shown.find("改用 ws://") == std::string::npos,
+                     "Settings restore the TLS address with its default port");
         component->OnEvent(ftxui::Event::Return);
-        ok &= expect(application.server_url == "ws://chat.example:443/ws", "Saving a wss:// address makes it ws://");
+        ok &= expect(application.server_url == "wss://chat.example:443/ws?token=abc", "Saving preserves TLS and the configured target");
+        component->OnEvent(ftxui::Event::Return);  // 设置 again
+        component->OnEvent(ftxui::Event::Tab);     // TLS
+        component->OnEvent(ftxui::Event::Character(' '));
+        component->OnEvent(ftxui::Event::Escape);
+        ok &= expect(application.server_url == "wss://chat.example:443/ws?token=abc", "Cancelling a TLS change preserves the saved address");
+        component->OnEvent(ftxui::Event::Return);  // reopening restores TLS rather than the cancelled choice
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.server_url == "wss://chat.example:443/ws?token=abc", "Reopening restores the saved TLS choice");
         component->OnEvent(ftxui::Event::Tab);  // from 设置 back to the username
         component->OnEvent(ftxui::Event::End);
         component->OnEvent(ftxui::Event::Character("四"));
         ok &= expect(application.username == "张三四" && application.password == "secret-password",
                      "Settings keep the typed username and password");
         {
-            // At the smallest size the settings hint wraps instead of losing "Esc 取消".
+            // Both schemes and long errors keep every control and the full hint at the minimum size.
             component->OnEvent(ftxui::Event::TabReverse);  // from the username back to 设置
-            component->OnEvent(ftxui::Event::Return);
-            ftxui::Screen small(40, 12);
-            ftxui::Render(small, component->Render());
-            ok &= expect(small.ToString().find("Esc 取消") != std::string::npos, "The settings hint is whole on a 40×12 terminal");
-            component->OnEvent(ftxui::Event::Escape);
+            for (bool tls : {false, true})
+            {
+                for (auto const* bad : {"聊天.example:443", "h/a:80", "[garbage]:80"})
+                {
+                    application.server_url = tls ? "wss://chat.example:443/ws" : "ws://chat.example:80/ws";
+                    component->OnEvent(ftxui::Event::Return);
+                    component->OnEvent(ftxui::Event::Home);
+                    for (int i = 0; i < 40; ++i) { component->OnEvent(ftxui::Event::Delete); }
+                    component->OnEvent(ftxui::Event::Special("\x1b[200~"));
+                    component->OnEvent(ftxui::Event::Character(bad));
+                    component->OnEvent(ftxui::Event::Special("\x1b[201~"));
+                    component->OnEvent(ftxui::Event::Return);
+                    ftxui::Screen small(40, 12);
+                    ftxui::Render(small, component->Render());
+                    auto const output = small.ToString();
+                    ok &= expect(output.find(bad) != std::string::npos && output.find("TLS（wss://）") != std::string::npos &&
+                                 output.find("确定") != std::string::npos && output.find("取消") != std::string::npos &&
+                                 output.find("Tab 切换") != std::string::npos && output.find("Space 勾选") != std::string::npos &&
+                                 output.find("Enter 确认") != std::string::npos && output.find("Esc 取消") != std::string::npos,
+                                 "Settings keep the address, TLS, buttons and whole hint with a long error at 40x12");
+                    component->OnEvent(ftxui::Event::Escape);
+                    ok &= expect(application.server_url == (tls ? "wss://chat.example:443/ws" : "ws://chat.example:80/ws"),
+                                 "Cancelling a small settings form changes neither scheme nor address");
+                }
+            }
         }
         // The address makes the URL and comes back out of it, by the client's own URL rules.
         {
@@ -1008,20 +1047,27 @@ int main()
             ok &= expect(plain && *plain == "ws://192.168.1.5:18080/ws" && six && *six == "ws://[::1]:18080/ws" &&
                          join_server_url("[fe80::1]:443", false).value_or("") == "ws://[fe80::1]:443/ws" &&
                          kept && kept->host_port == "h:1" && kept->tls && kept->target == "/custom" &&
-                         join_server_url(kept->host_port, false, kept->target).value_or("") == "ws://h:1/custom",
+                         join_server_url(kept->host_port, kept->tls, kept->target).value_or("") == "wss://h:1/custom",
                          "IP and port make the URL, keeping a path from the command line");
-            ok &= expect(!join_server_url("h:1", true), "A TLS address is refused while the client has no TLS");
+            ok &= expect(join_server_url("h:1", true).value_or("") == "wss://h:1/ws", "TLS selects a wss:// address");
             // Every URL the client accepts comes back the same: the client's default port is
             // filled in, and an empty or query-only target is kept as it was.
             auto round_trip = [](std::string_view url, std::string_view host_port, std::string_view saved) {
                 auto const parts = split_server_url(url);
-                return parts && parts->host_port == host_port && join_server_url(parts->host_port, false, parts->target).value_or("") == saved;
+                return parts && parts->host_port == host_port && join_server_url(parts->host_port, parts->tls, parts->target).value_or("") == saved;
             };
             ok &= expect(round_trip("ws://chat.example/ws", "chat.example:80", "ws://chat.example:80/ws") &&
                          round_trip("ws://chat.example:80", "chat.example:80", "ws://chat.example:80") &&
                          round_trip("ws://chat.example:80?token=abc", "chat.example:80", "ws://chat.example:80?token=abc") &&
                          round_trip("ws://chat.example:80/custom?token=abc", "chat.example:80", "ws://chat.example:80/custom?token=abc") &&
-                         round_trip("ws://[::1]:9/ws", "[::1]:9", "ws://[::1]:9/ws"),
+                         round_trip("ws://[::1]:9/ws", "[::1]:9", "ws://[::1]:9/ws") &&
+                         round_trip("wss://chat.example/ws", "chat.example:443", "wss://chat.example:443/ws") &&
+                         round_trip("wss://chat.example:443", "chat.example:443", "wss://chat.example:443") &&
+                         round_trip("wss://chat.example:443?token=abc", "chat.example:443", "wss://chat.example:443?token=abc") &&
+                         round_trip("wss://[::1]/custom?token=abc", "[::1]:443", "wss://[::1]:443/custom?token=abc") &&
+                         round_trip("ws://chat.example:/ws", "chat.example:80", "ws://chat.example:80/ws") &&
+                         round_trip("wss://chat.example:/ws", "chat.example:443", "wss://chat.example:443/ws") &&
+                         round_trip("wss://h%41:443/ws", "h%41:443", "wss://h%41:443/ws"),
                          "Addresses the client accepts round-trip through the settings");
             auto const unicode = join_server_url("聊天.example:80", false);
             ok &= expect(!unicode && unicode.error().find("xn--") != std::string::npos &&
@@ -1029,7 +1075,7 @@ int main()
                          "Names are ASCII (punycode for international ones), as the client requires");
             for (auto const* bad : {"127.0.0.1", "127.0.0.1:0", "127.0.0.1:65536", "127.0.0.1:80a", "ws://127.0.0.1:80",
                                     "a b:80", ":80", "::1:80", "h:80/ws", "[garbage]:80", "[[]]:80", "[]:80", "[::1:80",
-                                    "h\x01:80", "h|x:80", "h%41:80"})
+                                    "h\x01:80", "h|x:80", "h%GG:80"})
             { ok &= expect(!join_server_url(bad, false), "An address without a usable host and port is refused"); }
             ok &= expect(!split_server_url("http://h:1/ws"), "Only ws:// and wss:// URLs split");
             // A NUL inside the brackets must not let inet_pton read only the part before it.

@@ -73,6 +73,7 @@ target_include_directories(chat_client PUBLIC client/include)
 
 target_link_libraries(chat_client
     PRIVATE
+        Boost::corosio_openssl
         Boost::json
         Boost::capy
         Boost::corosio
@@ -141,6 +142,7 @@ add_executable(chat_server
     src/pg_connection.cpp
     src/pg_connection_pool.cpp
     src/server.cpp
+    src/tls_config.cpp
     src/websocket.cpp
 )
 
@@ -148,6 +150,8 @@ target_include_directories(chat_server PRIVATE src client/include)
 
 target_link_libraries(chat_server
     PRIVATE
+        Boost::corosio_openssl
+        OpenSSL::SSL
         Boost::capy
         Boost::corosio
         Boost::http
@@ -284,6 +288,7 @@ add_executable(chat_server_test
     src/pg_connection.cpp
     src/pg_connection_pool.cpp
     src/server.cpp
+    src/tls_config.cpp
     src/websocket.cpp
 )
 
@@ -291,6 +296,8 @@ target_include_directories(chat_server_test PRIVATE src)
 
 target_link_libraries(chat_server_test
     PRIVATE
+        Boost::corosio_openssl
+        OpenSSL::SSL
         chat_client
         Boost::json
         Boost::capy
@@ -310,6 +317,9 @@ if(CHAT_BUILD_TUI_CLIENT)
     add_test(NAME tui_integration COMMAND chat_server_test --tui-only)
     set_tests_properties(tui_integration PROPERTIES TIMEOUT 60)
 endif()
+
+add_test(NAME server_tls COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/tests/tls_test.sh" "$<TARGET_FILE:chat_server_test>")
+set_tests_properties(server_tls PROPERTIES TIMEOUT 30)
 
 add_test(NAME server COMMAND chat_server_test --raw-websocket-only)
 set_tests_properties(server PROPERTIES TIMEOUT 60)

@@ -2844,6 +2844,7 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
 int run_group_tests();
 int run_group_lifecycle_tests();
 int run_friendship_tests();
+int run_tls_tests(std::string_view directory);
 
 #ifdef CHAT_TEST_TUI
 int run_tui_tests();
@@ -2851,6 +2852,7 @@ int run_tui_tests();
 
 int main(int argc, char** argv)
 {
+    if (argc == 3 && std::string_view(argv[1]) == "--tls-only") { return run_tls_tests(argv[2]); }
     if (argc == 2 && std::string_view(argv[1]) == "--friendship-only") { return run_friendship_tests(); }
     if (argc == 2 && std::string_view(argv[1]) == "--groups-only") { return run_group_tests(); }
     if (argc == 2 && std::string_view(argv[1]) == "--group-lifecycle-only") { return run_group_lifecycle_tests(); }

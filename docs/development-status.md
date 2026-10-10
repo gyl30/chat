@@ -1889,3 +1889,22 @@ SQL 027 撤销所有旧的 64 位十六进制邀请链接，约束只接受邀�
 Qt 群资料概览为群主和管理员提供「复制邀请码」，没有邀请码时先生成再复制；普通成员看到只有群主和管理员可以生成的说明。「加入群聊」提示输入邀请码。TUI 的 `link`、`link-create`、`link-revoke` 命令名不变，显示与提示改为邀请码。
 
 8 位邀请码约有 8.5 × 10¹¹ 种组合。服务端按账号限流：10 分钟内猜错 10 次后，剩余时间内该账号的加入请求一律拒绝（含正确的邀请码，避免泄露猜测结果），返回 -32015；格式错误的输入和加锁后发现已撤销的邀请码不计入。服务端无法获得对端 IP，所以无法限制同一来源批量注册账号绕过；需要更强保护的群可开启入群审批，或随时撤销重新生成。
+
+
+### WebSocket TLS 传输
+
+Qt、TUI 共用的 `chat::client` 支持 `ws://` 与 `wss://`。WSS 在 WebSocket Upgrade 前完成 TLS 握手，最低 TLS 1.2；默认端口分别为 80、443。客户端验证证书链以及 URL 中的域名或 IP（DNS SNI / IP SAN），握手失败不会回退为明文。默认使用系统信任库；私有 CA 可通过 OpenSSL 标准 `SSL_CERT_FILE` / `SSL_CERT_DIR` 配置。没有跳过证书校验的开关，也不保存密码。
+
+服务端保留原来的三个位置参数，成对提供 PEM 证书链与未加密私钥后，该监听端口提供 HTTPS / WSS：
+
+```sh
+./build/chat_server 18443 32 8 --tls-cert /path/fullchain.pem --tls-key /path/key.pem
+./build/qt/chat_qt wss://chat.example:18443/ws
+./build/chat_tui wss://chat.example:18443/ws
+```
+
+不提供 TLS 参数时继续运行 HTTP / WS。证书链、私钥及匹配关系在监听前检查；证书应包含实际访问域名或 IP 的 SAN，链中首张证书为服务端证书。证书不会自动签发或续期；更新证书后重启服务端加载。TUI 设置中的 TLS 复选框现在选择真正的加密连接，保留地址的路径与查询，窄屏校验错误也保留按钮与返回提示。
+
+`server_tls` 使用现有 `chat_server_test` 和 SDK fixture，临时生成独立测试 CA、有效/错误主机/过期/未知 CA 证书，覆盖配置拒绝、注册认证、好友确认、消息与实时推送、typing、跨记录附件字节、重连、重复客户端/工作线程复用、明文降级拒绝及未完成握手时服务端退出。测试证书与私钥在结束后清理，不修改 SQL 或业务授权规则。
+
+本次 WSS 修改实际执行 `tests/verify.sh`（Qt/TUI ON）：normal、ASan、UBSan 均 28/28 PASS，CTest 分别 159.35 s、192.75 s、170.51 s；无 suppression、测试排除或 timeout 放宽。`server_tls` 的证书生成依赖 OpenSSL 命令行工具。额外 11 个 SDK ASan 探针覆盖可信 DNS/IP、错误证书及未完成 TLS / Upgrade 时关闭与直接析构，均通过。真实 X11 Qt 与 tmux TUI 在独立 CA 的 WSS 服务端完成登录、联系人/群显示及双向消息；TUI TLS 设置的 Tab、Space、保存/取消和 40×12 错误状态也已实测。验证没有修改 SQL、好友权限或群语义；这些结果不代表完整产品品质 Goal 已达标。

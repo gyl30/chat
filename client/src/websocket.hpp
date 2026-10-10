@@ -11,7 +11,9 @@
 
 #include <wslay/wslay.h>
 #include <boost/capy/io_task.hpp>
+#include <boost/capy/io/any_stream.hpp>
 #include <boost/corosio/io_context.hpp>
+#include <boost/corosio/openssl_stream.hpp>
 #include <boost/corosio/resolver.hpp>
 #include <boost/corosio/tcp_socket.hpp>
 
@@ -66,6 +68,8 @@ class websocket_client
    private:
     boost::corosio::resolver resolver_;
     boost::corosio::tcp_socket socket_;
+    std::unique_ptr<boost::corosio::openssl_stream> tls_;
+    boost::capy::any_stream stream_;
     context_ptr context_;
     std::array<std::uint8_t, 4096> input_buffer_{};
     std::span<std::uint8_t const> input_;

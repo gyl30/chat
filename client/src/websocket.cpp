@@ -169,7 +169,7 @@ boost::capy::io_task<> websocket_client::connect(std::string_view url)
     }
 
     auto const& host = parsed->host;
-    auto service = parsed->port.empty() ? std::string("80") : parsed->port;
+    auto service = parsed->port.empty() ? std::string(parsed->tls ? "443" : "80") : parsed->port;
     auto target = parsed->target.empty() ? std::string("/") : parsed->target;
     auto const& host_header = parsed->host_header;
 
@@ -204,6 +204,28 @@ boost::capy::io_task<> websocket_client::connect(std::string_view url)
     {
         socket_.close();
         co_return error.code();
+    }
+
+    if (parsed->tls)
+    {
+        boost::corosio::tls_context tls_context;
+        if (auto ec = tls_context.set_default_verify_paths()) { co_return ec; }
+        if (auto ec = tls_context.set_verify_mode(boost::corosio::tls_verify_mode::peer)) { co_return ec; }
+        if (auto ec = tls_context.set_min_protocol_version(boost::corosio::tls_version::tls_1_2)) { co_return ec; }
+        if (auto ec = tls_context.set_alpn({"http/1.1"})) { co_return ec; }
+        tls_ = std::make_unique<boost::corosio::openssl_stream>(&socket_, tls_context);
+        tls_->set_hostname(host);
+        auto [tls_ec] = co_await tls_->handshake(boost::corosio::tls_role::client);
+        if (tls_ec)
+        {
+            socket_.close();
+            co_return tls_ec;
+        }
+        stream_ = boost::capy::any_stream(tls_.get());
+    }
+    else
+    {
+        stream_ = boost::capy::any_stream(&socket_);
     }
 
     auto [handshake_ec] = co_await handshake(target, host_header);
@@ -247,7 +269,7 @@ boost::capy::io_task<> websocket_client::handshake(std::string_view target, std:
     request.append(key);
     request.append("\r\nSec-WebSocket-Version: 13\r\n\r\n");
 
-    auto [write_ec, written] = co_await boost::capy::write(socket_, boost::capy::const_buffer(request.data(), request.size()));
+    auto [write_ec, written] = co_await boost::capy::write(stream_, boost::capy::const_buffer(request.data(), request.size()));
     if (write_ec)
     {
         co_return write_ec;
@@ -262,7 +284,7 @@ boost::capy::io_task<> websocket_client::handshake(std::string_view target, std:
     parser.reset();
     parser.start();
 
-    auto [read_ec] = co_await parser.read(socket_);
+    auto [read_ec] = co_await parser.read(stream_);
     if (read_ec)
     {
         co_return read_ec;
@@ -309,7 +331,7 @@ boost::capy::io_task<websocket_message> websocket_client::receive()
         }
 
         reading_ = true;
-        auto [ec, size] = co_await socket_.read_some(boost::capy::mutable_buffer(input_buffer_.data(), input_buffer_.size()));
+        auto [ec, size] = co_await stream_.read_some(boost::capy::mutable_buffer(input_buffer_.data(), input_buffer_.size()));
         reading_ = false;
         if (ec)
         {
@@ -382,7 +404,7 @@ boost::capy::io_task<> websocket_client::flush()
         }
 
         auto const size = static_cast<std::size_t>(result);
-        auto [ec, written] = co_await boost::capy::write(socket_, boost::capy::const_buffer(output.data(), size));
+        auto [ec, written] = co_await boost::capy::write(stream_, boost::capy::const_buffer(output.data(), size));
         if (ec)
         {
             co_return ec;
@@ -406,6 +428,10 @@ void websocket_client::close() noexcept
 {
     resolver_.cancel();
     socket_.close();
+    // cancel() wakes the connection coroutine first; TLS resources are released only after
+    // its I/O has returned. The selected stream borrows rather than owns the transport.
+    stream_ = boost::capy::any_stream{};
+    tls_.reset();
     context_.reset();
     input_ = {};
     messages_.clear();

@@ -17,10 +17,14 @@
 #include <boost/capy/ex/work_guard.hpp>
 #include <boost/http/server/router.hpp>
 #include <chat/client.hpp>
+#include <chat/server_url.hpp>
 #include <chat/invite.hpp>
 #include <chat/detail/base64.hpp>
 
 #include "server.hpp"
+#include "tls_config.hpp"
+#include <openssl/ssl.h>
+#include <boost/capy/write.hpp>
 #include "avatar_fixture.hpp"
 #ifdef CHAT_TEST_TUI
 #include "app.hpp"
@@ -212,15 +216,15 @@ struct runtime
     boost::corosio::io_context io;
     boost::capy::work_guard<boost::corosio::io_context::executor_type> work{
         boost::capy::make_work_guard(io.get_executor())};
-    chat_server server{io, 8, boost::http::router<boost::http::route_params>{},
-                       "", 4};
+    chat_server server;
     std::thread thread;
     std::string url;
 
-    runtime()
+    explicit runtime(std::optional<boost::corosio::tls_context> tls = {}, std::size_t workers = 8)
+        : server(io, workers, boost::http::router<boost::http::route_params>{}, "", 4, tls)
     {
         require(!server.bind(boost::corosio::endpoint(boost::corosio::ipv4_address::loopback(), 0)), "Server bind");
-        url = "ws://127.0.0.1:" + std::to_string(server.local_endpoint().port()) + "/ws";
+        url = std::string(tls ? "wss://127.0.0.1:" : "ws://127.0.0.1:") + std::to_string(server.local_endpoint().port()) + "/ws";
         server.start();
         thread = std::thread([this] { io.run(); });
     }
@@ -3772,3 +3776,166 @@ int run_tui_tests()
     }
 }
 #endif
+
+
+int run_tls_tests(std::string_view directory)
+{
+    try
+    {
+        auto file = [&](std::string_view name) { return std::string(directory) + "/" + std::string(name); };
+        auto context = [&](std::string_view name) {
+            auto result = make_server_tls_context(file(std::string(name) + ".pem"), file(std::string(name) + ".key"));
+            require(result.has_value(), "TLS fixture configuration: " + (result ? std::string{} : result.error()));
+            return std::move(*result);
+        };
+        require(!make_server_tls_context(file("missing.pem"), file("good.key")), "Missing certificate refused");
+        require(!make_server_tls_context(file("malformed.pem"), file("good.key")), "Malformed certificate refused");
+        require(!make_server_tls_context(file("trailing.pem"), file("good.key")), "Malformed certificate-chain tail refused");
+        require(!make_server_tls_context(file("good.pem"), file("wrong.key")), "Mismatched private key refused");
+        require(!make_server_tls_context(file("good.pem"), file("malformed.pem")), "Malformed private key refused");
+        std::cout << "PASS TLS configuration validation\n";
+
+        for (auto const* url : {"wss://localhost%00evil.invalid:443/ws", "ws://h%09:80/ws", "ws://h%0a:80/ws", "ws://h%0d:80/ws", "ws://h%1f:80/ws", "ws://h%7f:80/ws"})
+        { require(!chat::parse_server_url(url), "Decoded host controls cannot reach resolver or certificate verifier"); }
+        require(chat::parse_server_url("wss://%31%32%37.0.0.1:443/ws").has_value(), "Legal encoded host preserved");
+        std::cout << "PASS TLS URL host control rejection\n";
+        auto good = context("good");
+        {
+            runtime server(good, 2);
+            fixture data;
+            std::array<events, 2> changes;
+            std::array<chat::client, 2> peers;
+            std::array<std::string, 2> accounts;
+            for (int i = 0; i < 2; ++i)
+            {
+                accounts[i] = "tls_用户_" + std::to_string(getpid()) + "_" + std::to_string(i);
+                changes[i].attach(peers[i]);
+                // Exercise both IP SAN verification and DNS hostname verification/SNI.
+                auto url = server.url;
+                if (i) { url.replace(url.find("127.0.0.1"), 9, "localhost"); }
+                peers[i].connect(url);
+                changes[i].wait([&] { return changes[i].connected == 1; });
+                auto registered = call<std::int64_t>([&](auto h) { peers[i].register_user(accounts[i], "TLS test password", h); });
+                require(registered.has_value(), "Register over WSS");
+                data.users.push_back(*registered);
+                auto auth = call<chat::authentication_result>([&](auto h) { peers[i].authenticate(accounts[i], "TLS test password", h); });
+                require(auth && auth->authenticated, "Authenticate over WSS");
+            }
+            require(make_friends(peers[0], data.users[0], peers[1], data.users[1]), "Friendship over WSS");
+            auto direct = call<chat::direct_conversation_result>([&](auto h) { peers[0].open_direct_conversation(data.users[1], h); });
+            require(direct && direct->can_send, "Direct over WSS");
+            auto sent = call<chat::send_message_result>([&](auto h) { peers[0].send_message(direct->conversation, "TLS 中文 🙂", h); });
+            require(sent.has_value(), "Send over WSS");
+            changes[1].wait([&] { return std::ranges::any_of(changes[1].messages, [&](auto const& m) { return m.id == sent->message_id && m.text == "TLS 中文 🙂"; }); });
+            auto reply = call<chat::send_message_result>([&](auto h) { peers[1].send_message(direct->conversation, "encrypted reply", h, sent->message_id); });
+            require(reply.has_value(), "Reply over WSS");
+            changes[0].wait([&] { return std::ranges::any_of(changes[0].messages, [&](auto const& m) { return m.id == reply->message_id; }); });
+            // Each outgoing RPC interrupts a parked TLS read; later notifications must still arrive.
+            require(call<bool>([&](auto h) { peers[0].set_typing(direct->conversation, true, h); }).has_value(), "Typing RPC over WSS");
+            changes[1].wait([&] { return !changes[1].typing.empty() && changes[1].typing.back().typing; });
+            require(call<bool>([&](auto h) { peers[0].set_typing(direct->conversation, false, h); }).has_value(), "Typing stop over WSS");
+            std::string bytes(96 * 1024, '\0');
+            for (std::size_t i = 0; i < bytes.size(); ++i) { bytes[i] = static_cast<char>(i % 251); }
+            auto attached = call<chat::message>([&](auto h) { peers[0].send_attachment(direct->conversation, "TLS 空格.bin", bytes, h); });
+            require(attached.has_value(), "Multi-record attachment upload over WSS");
+            auto downloaded = call<std::string>([&](auto h) { peers[1].get_attachment(direct->conversation, attached->id, h); });
+            require(downloaded && *downloaded == bytes, "Multi-record attachment download bytes over WSS");
+            auto last = call<chat::send_message_result>([&](auto h) { peers[1].send_message(direct->conversation, "TLS idle push", h); });
+            require(last.has_value(), "Send after upload/download over WSS");
+            changes[0].wait([&] { return std::ranges::any_of(changes[0].messages, [&](auto const& m) { return m.id == last->message_id; }); });
+            peers[0].close();
+            changes[0].wait([&] { return changes[0].disconnected == 1; });
+            peers[0].connect(server.url);
+            changes[0].wait([&] { return changes[0].connected == 2; });
+            auto restored = call<chat::authentication_result>([&](auto h) { peers[0].authenticate(accounts[0], "TLS test password", h); });
+            require(restored && restored->authenticated, "Reauthenticate over WSS");
+            auto history = call<chat::messages_result>([&](auto h) { peers[0].get_messages(direct->conversation, {}, h); });
+            require(history && std::ranges::any_of(history->messages, [&](auto const& m) { return m.id == last->message_id; }), "WSS reconnect preserves authoritative history");
+            std::cout << "PASS WSS registration authentication friendship messaging typing attachment reconnect\n";
+        }
+        // Reuse one server worker and one client: every TLS session must begin from clean state.
+        {
+            runtime server(good, 1);
+            events changes;
+            chat::client peer;
+            changes.attach(peer);
+            for (int i = 1; i <= 10; ++i)
+            {
+                peer.connect(server.url);
+                changes.wait([&] { return changes.connected == i; });
+                peer.close();
+                changes.wait([&] { return changes.disconnected == i; });
+            }
+            std::cout << "PASS WSS repeated client and server-worker reuse\n";
+        }
+        auto refused = [&](std::optional<boost::corosio::tls_context> tls, bool secure_client, std::string_view label) {
+            runtime server(std::move(tls), 1);
+            std::mutex mutex;
+            std::condition_variable condition;
+            bool connected = false;
+            std::optional<chat::error> error;
+            chat::client peer;
+            peer.set_connected_handler([&] { std::lock_guard lock(mutex); connected = true; condition.notify_all(); });
+            peer.set_error_handler([&](chat::error e) { std::lock_guard lock(mutex); error = std::move(e); condition.notify_all(); });
+            auto url = server.url;
+            if (secure_client && url.starts_with("ws://")) { url.insert(2, "s"); }
+            if (!secure_client && url.starts_with("wss://")) { url.erase(2, 1); }
+            peer.connect(url);
+            std::unique_lock lock(mutex);
+            require(condition.wait_for(lock, std::chrono::seconds(5), [&] { return connected || error.has_value(); }), std::string(label) + " callback");
+            require(!connected && error && error->kind == chat::error_kind::transport, std::string(label) + " must fail before connected");
+            std::cout << "PASS " << label << '\n';
+        };
+        refused(context("wrong"), true, "TLS hostname mismatch");
+        refused(context("untrusted"), true, "TLS unknown certificate authority");
+        refused(context("expired"), true, "TLS expired certificate");
+        refused(good, false, "WS plaintext cannot enter TLS server");
+        refused({}, true, "WSS cannot silently downgrade to plaintext server");
+
+        // Generate a real ClientHello, read the server's first encrypted handshake flight, then
+        // stop while it waits for the rest of the handshake. No timing sleep or worker hook.
+        {
+            std::unique_ptr<SSL_CTX, decltype(&SSL_CTX_free)> ctx(SSL_CTX_new(TLS_client_method()), SSL_CTX_free);
+            require(bool(ctx), "ClientHello context");
+            std::unique_ptr<SSL, decltype(&SSL_free)> ssl(SSL_new(ctx.get()), SSL_free);
+            require(bool(ssl), "ClientHello SSL");
+            auto* incoming = BIO_new(BIO_s_mem());
+            auto* outgoing = BIO_new(BIO_s_mem());
+            require(incoming && outgoing, "ClientHello BIO");
+            SSL_set_bio(ssl.get(), incoming, outgoing);
+            SSL_set_connect_state(ssl.get());
+            auto result = SSL_do_handshake(ssl.get());
+            require(result < 0 && SSL_get_error(ssl.get(), result) == SSL_ERROR_WANT_READ, "ClientHello emitted");
+            std::array<char, 8192> hello{};
+            int length = BIO_read(outgoing, hello.data(), static_cast<int>(hello.size()));
+            require(length > 0, "ClientHello bytes");
+            boost::corosio::io_context io;
+            boost::corosio::tcp_socket socket(io);
+            {
+                runtime server(good, 1);
+                bool exchanged = false;
+                auto exchange = [&]() -> boost::capy::task<void> {
+                    auto [ec] = co_await socket.connect(server.server.local_endpoint());
+                    require(!ec, "Incomplete TLS connect");
+                    auto [write_ec, written] = co_await boost::capy::write(socket, boost::capy::const_buffer(hello.data(), length));
+                    require(!write_ec && written == static_cast<std::size_t>(length), "Incomplete TLS ClientHello write");
+                    std::array<char, 4096> flight{};
+                    auto [read_ec, read] = co_await socket.read_some(boost::capy::mutable_buffer(flight.data(), flight.size()));
+                    require(!read_ec && read > 0, "Server entered TLS handshake");
+                    exchanged = true;
+                };
+                boost::capy::run_async(io.get_executor())(exchange());
+                io.run();
+                require(exchanged, "Incomplete TLS handshake fixture");
+            }
+            socket.close();
+            std::cout << "PASS TLS server shutdown during incomplete handshake\n";
+        }
+        return 0;
+    }
+    catch (std::exception const& error)
+    {
+        std::cerr << "FAIL TLS integration: " << error.what() << '\n';
+        return 1;
+    }
+}

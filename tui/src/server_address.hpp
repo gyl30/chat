@@ -23,21 +23,20 @@ struct server_address
 };
 
 // A ws:// or wss:// URL into its parts, with the client's own URL rules; nothing for any other
-// text. A missing port is filled in as the one the client would use (80).
+// text. A missing port is filled in as the one the client would use (80 or 443).
 inline std::optional<server_address> split_server_url(std::string_view url)
 {
-    bool const tls = url.starts_with("wss://");
-    auto const parts = parse_server_url(tls ? "ws://" + std::string(url.substr(6)) : std::string(url));
+    auto const parts = parse_server_url(url);
     if (!parts) { return std::nullopt; }
-    return server_address{parts->port.empty() ? parts->host_header + ":80" : parts->host_header, tls, parts->target};
+    return server_address{parts->port.empty() ? parts->host_header + (parts->tls ? ":443" : ":80") : parts->host_header,
+                          parts->tls, parts->target};
 }
 
 // "host:port" into the URL to connect to, keeping the target, or the reason it is not usable.
 // The host is an IPv4 address, an ASCII name, or an IPv6 address in brackets; the port is
-// required. The client has no TLS yet, so a TLS address is refused here rather than at login.
+// required. The scheme comes from the TLS checkbox; the client parser validates the result.
 inline std::expected<std::string, std::string> join_server_url(std::string_view host_port, bool tls, std::string_view target = "/ws")
 {
-    if (tls) { return std::unexpected("暂不支持 TLS（wss://），请使用 ws://"); }
     while (!host_port.empty() && (host_port.front() == ' ' || host_port.front() == '\t')) { host_port.remove_prefix(1); }
     while (!host_port.empty() && (host_port.back() == ' ' || host_port.back() == '\t')) { host_port.remove_suffix(1); }
     if (host_port.find("://") != std::string_view::npos)
@@ -67,7 +66,7 @@ inline std::expected<std::string, std::string> join_server_url(std::string_view 
     {
         for (unsigned char c : host)
         {
-            if (std::string_view("[]:\\\"<>^`{|}%").find(static_cast<char>(c)) != std::string_view::npos) { valid = false; }
+            if (std::string_view("[]:\\\"<>^`{|}").find(static_cast<char>(c)) != std::string_view::npos) { valid = false; }
         }
     }
     if (!valid) { return std::unexpected("IP 或域名无效；IPv6 地址请写成 [::1]:18080"); }
@@ -76,7 +75,7 @@ inline std::expected<std::string, std::string> join_server_url(std::string_view 
     if (port.empty() || error != std::errc{} || end != port.data() + port.size() || value == 0 || value > 65535)
     { return std::unexpected("端口须为 1–65535 的数字"); }
     if (!target.empty() && target.front() != '/' && target.front() != '?') { target = "/ws"; }
-    auto url = "ws://" + std::string(host_port) + std::string(target);
+    auto url = std::string(tls ? "wss://" : "ws://") + std::string(host_port) + std::string(target);
     // The client's own rules have the last word, so a saved address is one it will try.
     if (!parse_server_url(url)) { return std::unexpected("地址无效，请检查 IP（或域名）和端口"); }
     return url;

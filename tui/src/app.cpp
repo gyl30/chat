@@ -69,7 +69,6 @@ void app::login(bool registration)
     }
     if (password.empty() || password.size() > 72) { data.status = "密码须为 1–72 字节"; return; }
     // Checked with the client's own rules, so a refusal says why instead of failing to connect.
-    if (server_url.starts_with("wss://")) { data.status = "暂不支持 TLS（wss://），请在设置中改用 ws://"; return; }
     if (!parse_server_url(server_url)) { data.status = "服务器地址无效，请在设置中修改"; return; }
     if (data.link == connection::connecting || data.link == connection::authenticating) { return; }
     registering_ = registration;

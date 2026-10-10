@@ -6,6 +6,7 @@
 #include <charconv>
 #include <string_view>
 #include <system_error>
+#include <optional>
 
 #include <spdlog/spdlog.h>
 #include <boost/capy/task.hpp>
@@ -19,6 +20,7 @@
 #include <boost/corosio/signal_set.hpp>
 
 #include "server.hpp"
+#include "tls_config.hpp"
 
 namespace
 {
@@ -79,9 +81,9 @@ boost::capy::task<int> wait_for_shutdown(boost::corosio::signal_set& signals, ch
 
 int main(int argc, char* argv[])
 {
-    if (argc != 4)
+    if (argc < 4)
     {
-        spdlog::error("usage: {} <port> <max-workers> <database-connections>", argv[0]);
+        spdlog::error("usage: {} <port> <max-workers> <database-connections> [--tls-cert fullchain.pem --tls-key key.pem]", argv[0]);
         return EXIT_FAILURE;
     }
 
@@ -104,13 +106,48 @@ int main(int argc, char* argv[])
         return EXIT_FAILURE;
     }
 
+    std::optional<std::string_view> certificate_file;
+    std::optional<std::string_view> private_key_file;
+    for (int i = 4; i < argc; ++i)
+    {
+        std::string_view const option = argv[i];
+        if (i + 1 >= argc || (option != "--tls-cert" && option != "--tls-key"))
+        {
+            spdlog::error("TLS options must be --tls-cert fullchain.pem and --tls-key key.pem");
+            return EXIT_FAILURE;
+        }
+        auto& destination = option == "--tls-cert" ? certificate_file : private_key_file;
+        if (destination)
+        {
+            spdlog::error("TLS options may only be specified once");
+            return EXIT_FAILURE;
+        }
+        destination = argv[++i];
+    }
+    if (certificate_file.has_value() != private_key_file.has_value())
+    {
+        spdlog::error("--tls-cert and --tls-key must be specified together");
+        return EXIT_FAILURE;
+    }
+    std::optional<boost::corosio::tls_context> tls;
+    if (certificate_file)
+    {
+        auto context = make_server_tls_context(*certificate_file, *private_key_file);
+        if (!context)
+        {
+            spdlog::error("TLS configuration failed: {}", context.error());
+            return EXIT_FAILURE;
+        }
+        tls.emplace(std::move(*context));
+    }
+
     boost::corosio::io_context io_context;
 
     boost::http::router<boost::http::route_params> router;
     router.add(boost::http::method::get, "/health", health_handler);
     router.use(not_found_handler);
 
-    chat_server server(io_context, max_workers, std::move(router), {}, database_connections);
+    chat_server server(io_context, max_workers, std::move(router), {}, database_connections, tls);
     if (auto ec = server.bind(boost::corosio::endpoint(port)))
     {
         spdlog::error("bind failed: {}", ec.message());
@@ -129,7 +166,7 @@ int main(int argc, char* argv[])
         return EXIT_FAILURE;
     }
 
-    spdlog::info("chat server listening on port {} with {} workers and {} database connections", port, max_workers, database_connections);
+    spdlog::info("chat server listening on port {} ({}) with {} workers and {} database connections", port, tls ? "TLS" : "plain", max_workers, database_connections);
     server.start();
 
     int exit_code = EXIT_FAILURE;

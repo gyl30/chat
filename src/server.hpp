@@ -2,12 +2,14 @@
 #define CHAT_SRC_SERVER_HPP
 
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <system_error>
 
 #include <boost/corosio/endpoint.hpp>
 #include <boost/corosio/io_context.hpp>
 #include <boost/corosio/tcp_server.hpp>
+#include <boost/corosio/tls_context.hpp>
 #include <boost/http/server/router.hpp>
 
 #include "invite_attempts.hpp"
@@ -21,7 +23,8 @@ class chat_server
                 std::size_t worker_count,
                 boost::http::router<boost::http::route_params> router,
                 std::string database_connection_string,
-                std::size_t database_connection_count);
+                std::size_t database_connection_count,
+                std::optional<boost::corosio::tls_context> tls = std::nullopt);
 
     std::error_code bind(boost::corosio::endpoint endpoint);
 

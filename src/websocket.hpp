@@ -10,6 +10,7 @@
 
 #include <wslay/wslay.h>
 #include <boost/capy/io_task.hpp>
+#include <boost/capy/io/any_stream.hpp>
 #include <boost/http/request_base.hpp>
 #include <boost/corosio/tcp_socket.hpp>
 
@@ -31,6 +32,8 @@ class websocket_connection
 {
    public:
     explicit websocket_connection(boost::corosio::tcp_socket& socket);
+
+    websocket_connection(boost::corosio::tcp_socket& socket, boost::capy::any_stream stream);
 
     websocket_connection(websocket_connection const&) = delete;
     websocket_connection& operator=(websocket_connection const&) = delete;
@@ -61,6 +64,7 @@ class websocket_connection
 
    private:
     boost::corosio::tcp_socket& socket_;
+    boost::capy::any_stream stream_;
     context_ptr context_;
     std::array<std::uint8_t, 4096> input_buffer_{};
     std::span<std::uint8_t const> input_;

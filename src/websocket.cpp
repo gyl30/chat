@@ -160,7 +160,13 @@ bool websocket_upgrade_accept(boost::http::request_base const& request, std::str
 
 void websocket_connection::context_deleter::operator()(wslay_event_context* context) const noexcept { wslay_event_context_free(context); }
 
-websocket_connection::websocket_connection(boost::corosio::tcp_socket& socket) : socket_(socket)
+websocket_connection::websocket_connection(boost::corosio::tcp_socket& socket)
+    : websocket_connection(socket, boost::capy::any_stream(&socket))
+{
+}
+
+websocket_connection::websocket_connection(boost::corosio::tcp_socket& socket, boost::capy::any_stream stream)
+    : socket_(socket), stream_(std::move(stream))
 {
     wslay_event_callbacks callbacks{};
     callbacks.recv_callback = &receive_callback;
@@ -202,7 +208,7 @@ boost::capy::io_task<websocket_message> websocket_connection::receive()
         }
 
         reading_ = true;
-        auto [ec, size] = co_await socket_.read_some(boost::capy::mutable_buffer(input_buffer_.data(), input_buffer_.size()));
+        auto [ec, size] = co_await stream_.read_some(boost::capy::mutable_buffer(input_buffer_.data(), input_buffer_.size()));
         reading_ = false;
         if (ec)
         {
@@ -274,7 +280,7 @@ boost::capy::io_task<> websocket_connection::flush()
         }
 
         auto const size = static_cast<std::size_t>(result);
-        auto [ec, written] = co_await boost::capy::write(socket_, boost::capy::const_buffer(output.data(), size));
+        auto [ec, written] = co_await boost::capy::write(stream_, boost::capy::const_buffer(output.data(), size));
         if (ec)
         {
             co_return ec;
