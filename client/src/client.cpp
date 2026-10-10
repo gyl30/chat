@@ -484,9 +484,9 @@ struct client::impl
     {
         auto pending = std::move(pending_);
         pending_.clear();
-        if (suppress_callbacks_.load()) { return; }
         for (auto& [id, handler] : pending)
         {
+            if (suppress_callbacks_.load()) { return; }
             (void)id;
             handler(std::unexpected(value));
         }

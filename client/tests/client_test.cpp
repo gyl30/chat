@@ -1625,5 +1625,45 @@ int main()
         { std::cerr << "FAIL client destroyed from callback cannot finish shutdown\n"; return 1; }
     }
     std::cout << "PASS client destruction from connected, request and message callbacks releases network ownership\n";
+    {
+        std::atomic_int failed_callbacks = 0;
+        std::atomic_bool invalid_failure = false;
+        auto released = std::make_shared<std::promise<void>>();
+        auto release_future = released->get_future();
+        auto lifetime = std::shared_ptr<int>(new int(0), [released](int* value) {
+            delete value;
+            released->set_value();
+        });
+        auto owned = std::make_unique<chat::client>();
+        owned->set_error_handler([lifetime](auto const&) {});
+        lifetime.reset();
+        auto ready = std::make_shared<std::promise<void>>();
+        auto ready_future = ready->get_future();
+        owned->set_connected_handler([ready] { ready->set_value(); });
+        owned->connect(url);
+        if (ready_future.wait_for(5s) != std::future_status::ready) { return 1; }
+        auto fail_and_destroy = [&](auto result) {
+            if (result || result.error().kind != chat::error_kind::transport) { invalid_failure = true; }
+            if (++failed_callbacks == 1) { owned.reset(); }
+        };
+        // User 92 intentionally receives no reply. The successful RPC is a barrier
+        // proving both requests were installed before the fixture closes the socket.
+        owned->get_avatar(92, 1, fail_and_destroy);
+        owned->get_avatar(92, 1, fail_and_destroy);
+        auto barrier = avatar_call.operator()<chat::authentication_result>([&](auto h) {
+            owned->authenticate("alice", "secret", h);
+        });
+        if (!barrier) { return 1; }
+        owned->authenticate("close", "secret", fail_and_destroy);
+        if (release_future.wait_for(5s) != std::future_status::ready)
+        { std::cerr << "FAIL failed callback destruction cannot finish shutdown\n"; return 1; }
+        if (failed_callbacks != 1 || invalid_failure)
+        {
+            std::cerr << "FAIL client destruction in failed callback must suppress remaining pending callbacks: observed "
+                      << failed_callbacks << "\n";
+            return 1;
+        }
+    }
+    std::cout << "PASS client destruction in failed callback suppresses remaining pending callbacks\n";
     return 0;
 }
