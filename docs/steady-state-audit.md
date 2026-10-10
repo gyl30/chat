@@ -47,3 +47,114 @@
 完整 CTest 的 13 个测试包含 migration、client、PostgreSQL、HTTP/WebSocket、server、Qt model/delegate 和真实多窗口 UI。已有测试覆盖 concurrent send、leave/rejoin、typing/disconnect、edit/delete/reconnect；本次增强真实 send/invite 竞争、事务连接恢复、附件断线/退出及过期 bridge 回调，复用现有公共边界。
 
 最终验证结果记录在 [开发状态](development-status.md)。构建目录均位于被忽略的 `build/` 内，测试环境通过调用进程提供；没有修改或补写 SQL 001–014。
+
+
+## 运行期可靠性复核（2026-10-10）
+
+本轮基线 `e2be12d86428f211e769447f785558d290d5f475`。只把可复现的问题作为修复依据；
+`project-analysis.html` 是用户提供的调查线索，未修改、提交或把其中的描述直接当成事实。
+没有新增 SQL/RPC、改变好友或群权限，也没有拆分大文件或替换现有 RPC 分发。
+
+### 失活连接与单账号在线
+
+原实现会自动响应对端 ping，但不主动探测失活。实际双向字节黑洞保持两端 TCP socket
+打开，45.70 秒后原 session 仍占用账号，重新认证返回 `-32004 User already online`。
+正常关闭、进程 SIGKILL 和 TCP RST 对照均可重新登录（观察上界 0.34–0.39 秒，含认证耗时）；
+进程退出不是网络黑洞。这是用户态 relay 消费并丢弃字节的确定性故障，不是物理 Wi-Fi
+断开或内核丢包实测。
+
+客户端和服务端现在在现有单连接协程中使用同一探测规则：完成 WebSocket Upgrade 后，
+30 秒发送一个带序号的 ping，10 秒内必须收到相同 payload 的 pong。无关业务消息、旧 pong
+和错误 pong 不延长 deadline；匹配后重新计时。每次 flush 使用一个绝对写入截止时间，
+不能用不断产生的分块延长写入。WS/WSS 走同一规则，不增加线程或应用层 RPC。
+失活退出现有 session 清理路径，移除 `online_users` 登记；存活的旧 session 仍使新登录
+返回原错误，没有自动踢人。
+
+真实默认时长黑洞 GREEN：WS 39.66 秒、WSS 39.56 秒释放并重新登录成功。
+正式 `server_tls` 内复用短时配置，分别断言 WS/WSS 确实丢弃字节、服务端先关闭、
+重复在线认证被拒绝、失活后同账号恢复及正常 RPC。配置仅在内部构造边界注入；公共 SDK
+和服务器命令行没有额外的测试开关。
+
+探测实现审查又建立两项 RED：大量连续发送时不读取已到达的 pong，会误判失活；
+发送路径等待 pong 时收到完整 RPC ACK，随后 timeout 会把 ACK 一同清掉。
+现在只在等待 pong 时泵入已有接收队列，保持业务消息顺序；连接错误清理前派发已经收到
+的完整消息，再失败尚无响应的请求。关闭/析构的 callback 抑制条件保留。
+真实公开 SDK 私有探针证明首 ACK 从错误失败变成成功，其余未收到响应的请求仍失败。
+该公开路径探针采用私有短时配置，normal/ASan 实际通过，不能写成默认周期公开 CTest 覆盖。永久 client 测试复用
+原 executable，覆盖假时钟、正确/错误/迟到 pong、无关流量、部分帧与取消、批量发送公平性
+及超时前收到 ACK 的队列保留。私有 WS/WSS 探针 normal/ASan 各 9/9 通过。
+
+边界：本轮 deadline 从 Upgrade 后开始，DNS/TCP/TLS/HTTP Upgrade 阶段的连接等待规则
+未改变。单连接业务处理和事件循环被长时间阻塞时也可能推迟检查；约 40 秒是本次可运行
+事件循环下的实测，不能作为所有负载下的全局释放 SLA。物理网络接口断开未执行。
+
+独立复核还确认一个既存生命周期缺陷：多个请求同时失败时，首回调析构客户端后，
+`fail_pending` 仍调用后续 handler。实际 RED 观察到 3 次，预期只有首个；最小修复把已有
+`suppress_callbacks_` 检查移到每个 handler 前，没有新状态。永久回归复用原 fixture，
+用成功 RPC 作安装 barrier、用生命周期释放 future 确认 shutdown；不以 sleep 猜顺序。
+私有 normal/ASan 完整 client 测试 GREEN。
+
+### 请求大小与持久化
+
+服务端原有接收 64 KiB 限制和消息通知序列化预算保留。实测临界 ASCII、CJK 和反斜线
+转义：某些超过完整请求预算的正文原来引发断线，而非明确错误；拒绝请求没有数据库写入。
+SDK 现在先序列化完整 JSON-RPC 请求，超过既有 64 KiB 后直接返回“内容过长，请缩短后重试”，
+不加入 pending/send queue，不关闭连接。共享常量表达同一个请求帧限制；没有另加正文字符数
+限制，也不降低客户端接收通知预算。
+
+永久测试包含完整 JSON 恰好 65536 字节、ASCII/CJK/转义超限、错误翻译和后续请求。
+真实服务器 11 个边界组合通过：成功请求增加一条消息，拒绝请求增加零条，全部连接保留，
+后续 RPC 和正常发送成功。已有服务端通知预算在提交前检查，未复现“已持久化但被判断失败”
+的边界缺陷。本次不改服务端消息事务。
+
+### 真实界面与最小尺寸
+
+TUI 固定 52 列命令面板在 40×12/45×15 裁切键位和候选，是确定 RED。
+面板现在随宽高缩减，并让选中项滚入可见窗口；中文操作名优先，空间足够才显示高级命令别名。
+40×12 下另一 RED 是两行历史被固定 sender 标题遮住整个正文；不足三行时保留正文和发送状态，
+常规高度继续显示固定标题。追加回复/编辑/公告真实组合测试又发现，历史仅一行时
+默认焦点仍落在尾部已读状态，正文不可见；先建立永久 RED，再把这一行的默认焦点放在
+正文/附件最后行。没有删除元数据或改变消息行索引，显式滚动仍可查看原已读行。
+真实 WS/WSS 同一 driver 确认正文、模式与 Unicode 草稿同时可见。最低可用尺寸不变。
+
+真实 tmux 在 40×12、45×15、50×20、60×20、80×24、100×30、120×40、160×40，
+验证 Ctrl+K 打开/搜索/选择/执行/取消、F1、输入焦点、消息菜单/复制、窗口缩放、草稿和
+Unicode/多行 bracketed paste，共保留 207 份 plain/styled capture；最终最小历史再保留 13 份。
+输入框中的 `?:/ared` 继续作为正文。CLI 帮助修正为真实的 F1/Ctrl+K 键位。
+另外分别运行两真实 TUI 的 WS/WSS 组合：45 秒正常 idle、自己的服务重启自动恢复原历史
+和多行 Unicode 草稿，Ctrl+Z 进入真实交互 shell、检查 canonical/echo、fg 恢复，以及退出后
+归还终端；各保存 28 份 capture，自己的进程、tmux 和数据库清理。最终一行历史 UI 用同一
+driver 另测短时组合，各 28 份，不把短观察宣称重复 45 秒验证。真实 TUI 大文本超限发送、
+长期暂停、物理断网、完整明暗主题矩阵未执行；超限的 SDK 与真实 Qt 证据不能替代这些。
+
+真实双 Qt 使用验证 SAN 的私有 CA WSS，9 项通过：登录、重复在线拒绝、非好友 direct 隐藏、
+超限中文提示和完整 65536 字节草稿保留、45 秒 idle 后收发、反向消息、服务重启后的自动恢复、
+重连后非好友仍隐藏及正常退出。前两次测试驱动失败保留原记录，没有计入产品 PASS。
+本次没有完整重做好友确认/移除/重新接受的原生矩阵；完整 CTest 是另一层回归证据。
+
+README 补齐真实构建、迁移、启动和 WS/WSS 前提；第三方索引指向实际原始声明，未替 Chat
+选择许可证。群规模、BYTEA、分发 if/else、单文件行数及缺少 CI 本轮没有可复现的新缺陷，
+没有据此增加架构、缓存或存储层。
+
+原始日志、二进制哈希、PNG、ANSI/plain capture 和失败记录保留在开发机：
+`/tmp/chat-runtime-audit-20261010`、`/tmp/chat-sdk-heartbeat-review`、
+`/tmp/chat-message-boundary-e2be12d`、`/tmp/chat-qt-heartbeat-native-e2be12d-attempt3`、
+`/tmp/chat-tui-palette-e2be12d`、`/tmp/chat-tui-network-final`、
+`/tmp/chat-tui-one-row-final`、`/tmp/chat-fail-pending-lifetime-ddffualn`。它们是本轮开发证据，不是仓库自带的可永久重放测试资源。
+正式回归位于现有 client、server_tls、tui_render 入口；没有新 executable 或默认重型测试。
+本次范围不等于完整 Qt/TUI 品质矩阵或 92 分验收，完整主题、HiDPI、IME、辅助技术等仍未证明。
+
+
+### 最终完整门禁
+
+最后一次源码冻结后实际运行原 `tests/verify.sh`，exit 0：normal 28/28（144.67 秒）、
+ASan 28/28（203.55 秒）、UBSan 28/28（178.22 秒）；Qt/TUI ON，没有 suppression、
+跳过测试、降低断言或放宽 timeout。编译警告和 sanitizer 诊断均未见。
+`client/websocket/server_tls/tui_render/tui_state/tui_integration` 最终针对性回归 6/6，27.63 秒。
+最终 ASan `tui_render` 4.78 秒，接近原 5 秒限制；记录这一余量，不外推任意系统负载下稳定。
+首轮完整门禁发生在最后两个组合修复之前，也保留日志，不能替代上述最终结果。
+生产和测试文件的冻结哈希已与最终运行后字节核对。
+
+最后完整门禁：开发机 `/tmp/chat-runtime-audit-20261010/verify-final.log`；
+先前门禁为同目录 `verify.log`。正式回归可以用仓库验证入口在符合前提的专用数据库重跑。
+所有本轮拥有的业务测试数据库、服务端、客户端和 tmux session 清理；用户分析报告原样保留。

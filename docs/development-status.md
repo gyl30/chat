@@ -1908,3 +1908,31 @@ Qt、TUI 共用的 `chat::client` 支持 `ws://` 与 `wss://`。WSS 在 WebSocke
 `server_tls` 使用现有 `chat_server_test` 和 SDK fixture，临时生成独立测试 CA、有效/错误主机/过期/未知 CA 证书，覆盖配置拒绝、注册认证、好友确认、消息与实时推送、typing、跨记录附件字节、重连、重复客户端/工作线程复用、明文降级拒绝及未完成握手时服务端退出。测试证书与私钥在结束后清理，不修改 SQL 或业务授权规则。
 
 本次 WSS 修改实际执行 `tests/verify.sh`（Qt/TUI ON）：normal、ASan、UBSan 均 28/28 PASS，CTest 分别 159.35 s、192.75 s、170.51 s；无 suppression、测试排除或 timeout 放宽。`server_tls` 的证书生成依赖 OpenSSL 命令行工具。额外 11 个 SDK ASan 探针覆盖可信 DNS/IP、错误证书及未完成 TLS / Upgrade 时关闭与直接析构，均通过。真实 X11 Qt 与 tmux TUI 在独立 CA 的 WSS 服务端完成登录、联系人/群显示及双向消息；TUI TLS 设置的 Tab、Space、保存/取消和 40×12 错误状态也已实测。验证没有修改 SQL、好友权限或群语义；这些结果不代表完整产品品质 Goal 已达标。
+
+
+## 运行可靠性与终端交互复核（2026-10-10）
+
+从 `e2be12d86428f211e769447f785558d290d5f475` 开始。真实字节黑洞 RED 证明旧在线
+session 至少 45.70 秒不释放、同账号重连被拒。WS/WSS 共用 Upgrade 后 30 秒 ping / 10 秒
+匹配 pong 期限及绝对写入截止时间，在原协程中结束失活连接并走原在线清理路径；默认时长
+实测分别 39.66 / 39.56 秒释放并重新登录，存活账号仍拒绝第二登录，没有踢掉旧 session。
+忙发送时主动读取 pong、已收到 ACK 在失败清理前交付，以及失败回调析构后的抑制均有
+RED/GREEN。DNS/TCP/TLS/HTTP Upgrade 等待策略未改变，不把实测周期当作所有负载的 SLA。
+
+SDK 按完整序列化请求复用原 64 KiB 接收预算，超限直接返回中文错误并保留连接；
+ASCII/CJK/转义边界真实 11 项验证拒绝不写库、后续 RPC 正常。双 Qt/WSS 实测错误提示、
+完整草稿、45 秒 idle、双向消息及服务器重启恢复；非好友 direct 继续隐藏。
+
+TUI 命令面板自适应 40–160 列、滚动选中候选、优先中文动作；40×12 的两行历史不再让
+固定标题遮住正文。一行历史（回复/编辑/公告）默认聚焦内容，元数据仍可滚动，选择 ID 不变。
+真实双 TUI 分别在 WS/WSS 验证 idle、重连、Unicode 多行草稿、Ctrl+Z/fg 和终端归还；
+最小尺寸组合再由同一 driver 验证。没有改变最低尺寸、好友/群模型、SQL 或 RPC。
+
+最终原 `tests/verify.sh` exit 0，Qt/TUI ON：normal 28/28（144.67 s）、ASan 28/28
+（203.55 s）、UBSan 28/28（178.22 s），无 suppression、排除或 timeout 放宽。
+新增回归复用 client、server_tls、tui_render；最终针对性 6/6。ASan render 4.78 秒接近
+原 5 秒限制，不承诺任意负载余量。README 与第三方来源索引补齐，未选择项目许可证。
+
+完整事实、原生证据位置、失败驱动记录与未覆盖范围见 [稳态审计](steady-state-audit.md)。
+物理断网、长期终端暂停、真实 TUI 超限发送、完整主题/HiDPI/IME/辅助技术矩阵未执行；
+本轮没有重新给两端打 92 分，也不宣称完整品质 Campaign 已验收。
