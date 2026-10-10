@@ -954,11 +954,10 @@ public:
         auto address_option = own(single, address_field_);
         address_option.on_enter = [this] { save_settings(); };
         address_ = Input(&settings_address_, "127.0.0.1:18080", address_option);
-        CheckboxOption tls_option = CheckboxOption::Simple();
-        tls_ = Checkbox("TLS（wss://）", &settings_tls_, tls_option);
         settings_ok_ = Button("确定", [this] { save_settings(); }, action);
         settings_cancel_ = Button("取消", [this] { close_settings(); }, action);
-        settings_form_ = Container::Vertical({address_, tls_, settings_ok_, settings_cancel_});
+        // TLS is shown but not offered: the client has no TLS connection yet.
+        settings_form_ = Container::Vertical({address_, settings_ok_, settings_cancel_});
         // One focus chain (Tab and ↑↓ go through every field); the three buttons are drawn in a row.
         login_form_ = Container::Vertical({username_, password_, login_, register_, server_settings_});
         // The settings form takes the keys while open; one of the two is active at a time.
@@ -1020,12 +1019,13 @@ public:
             if (settings_open_)
             {
                 page = dbox({page, vbox({text("服务器") | bold, separator(), text("地址（IP:端口）"), address_->Render(),
-                                         tls_->Render(),
+                                         text("☐ TLS（wss://）暂不支持") | dim,
+                                         settings_notice_.empty() ? text("") : paragraph(settings_notice_) | dim,
                                          // An error is about what was saved; typing or pasting a change hides it.
-                                         settings_error_.empty() || settings_error_for_ != std::pair{settings_address_, settings_tls_}
+                                         settings_error_.empty() || settings_error_for_ != settings_address_
                                              ? text("") : paragraph(settings_error_) | bold,
                                          hbox({settings_ok_->Render(), text("  "), settings_cancel_->Render()}),
-                                         text("Tab 切换 · Space 勾选 · Enter 确认 · Esc 取消") | dim}) |
+                                         paragraph("Tab 切换 · Enter 确认 · Esc 取消") | dim}) |
                                        size(WIDTH, GREATER_THAN, 34) | border | clear_under | center});
             }
         }
@@ -1618,8 +1618,9 @@ private:
     {
         auto const parts = split_server_url(app_.server_url).value_or(server_address{"127.0.0.1:18080", false, "/ws"});
         settings_address_ = parts.host_port;
-        settings_tls_ = parts.tls;
-        settings_path_ = parts.path;
+        // A wss:// address (from the command line or the last sign-in) cannot be used yet.
+        settings_notice_ = parts.tls ? "原地址使用 wss://，暂不支持 TLS；保存后改用 ws://" : "";
+        settings_target_ = parts.target;
         settings_error_.clear();
         address_field_.cursor = static_cast<int>(settings_address_.size());
         settings_open_ = true;
@@ -1634,8 +1635,8 @@ private:
     }
     void save_settings()
     {
-        auto url = join_server_url(settings_address_, settings_tls_, settings_path_);
-        if (!url) { settings_error_ = url.error(); settings_error_for_ = {settings_address_, settings_tls_}; return; }
+        auto url = join_server_url(settings_address_, false, settings_target_);
+        if (!url) { settings_error_ = url.error(); settings_error_for_ = settings_address_; return; }
         app_.server_url = std::move(*url);
         close_settings();
         app_.notify("服务器：" + app_.server_url);
@@ -1870,12 +1871,12 @@ private:
     }
     app& app_;
     std::function<void()> quit_;
-    Component address_, tls_, settings_ok_, settings_cancel_, settings_form_;
+    Component address_, settings_ok_, settings_cancel_, settings_form_;
     std::string settings_address_;
-    bool settings_tls_ = false;
-    std::string settings_path_ = "/ws";
+    std::string settings_target_ = "/ws";
+    std::string settings_notice_;
     std::string settings_error_;
-    std::pair<std::string, bool> settings_error_for_;
+    std::string settings_error_for_;
     bool settings_open_ = false;
     int login_tab_ = 0;
     Component username_, password_, login_, register_, server_settings_, login_form_, compose_, command_, prompt_;

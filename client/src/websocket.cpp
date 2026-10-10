@@ -1,5 +1,7 @@
 #include "websocket.hpp"
 
+#include <chat/server_url.hpp>
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -21,7 +23,6 @@
 #include <boost/http/field.hpp>
 #include <boost/http/response_parser.hpp>
 #include <boost/http/status.hpp>
-#include <boost/url/parse.hpp>
 #include <boost/corosio/socket_option.hpp>
 
 namespace chat::detail
@@ -161,27 +162,16 @@ boost::capy::io_task<> websocket_client::connect(std::string_view url)
     reading_ = false;
     messages_.clear();
 
-    auto parsed = boost::urls::parse_uri(url);
-    if (!parsed || parsed->scheme() != "ws" || !parsed->has_authority() || parsed->host_address().empty() || parsed->has_fragment() ||
-        parsed->has_userinfo())
+    auto parsed = parse_server_url(url);
+    if (!parsed)
     {
         co_return std::make_error_code(std::errc::invalid_argument);
     }
 
-    auto host = parsed->host_address();
-    auto service = parsed->has_port() ? std::string(parsed->port()) : std::string("80");
-    auto target = std::string(parsed->encoded_target());
-    if (target.empty())
-    {
-        target = "/";
-    }
-
-    auto host_header = std::string(parsed->encoded_host());
-    if (parsed->has_port())
-    {
-        host_header.push_back(':');
-        host_header.append(parsed->port());
-    }
+    auto const& host = parsed->host;
+    auto service = parsed->port.empty() ? std::string("80") : parsed->port;
+    auto target = parsed->target.empty() ? std::string("/") : parsed->target;
+    auto const& host_header = parsed->host_header;
 
     auto [resolve_ec, endpoints] = co_await resolver_.resolve(host, service);
     if (resolve_ec)

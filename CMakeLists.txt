@@ -65,6 +65,7 @@ find_package(Threads REQUIRED)
 
 add_library(chat_client STATIC
     client/src/client.cpp
+    client/src/server_url.cpp
     client/src/websocket.cpp
 )
 

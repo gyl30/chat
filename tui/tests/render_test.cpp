@@ -930,23 +930,21 @@ int main()
         };
         auto shown = screen_text();
         ok &= expect(shown.find("地址（IP:端口）") != std::string::npos && shown.find("127.0.0.1:18080") != std::string::npos &&
-                     shown.find("ws://") == std::string::npos && shown.find("TLS") != std::string::npos,
-                     "Settings show the IP and port, and TLS as a box");
-        // The cursor starts after the address: Backspace edits the port.
+                     shown.find("ws://1") == std::string::npos && shown.find("暂不支持") != std::string::npos,
+                     "Settings show the IP and port, and TLS as not yet available");
+        // The cursor starts after the address: Backspace edits the port. TLS is not in the Tab order.
         for (int i = 0; i < 5; ++i) { component->OnEvent(ftxui::Event::Backspace); }
         component->OnEvent(ftxui::Event::Character("9000"));
-        component->OnEvent(ftxui::Event::Tab);                // TLS
-        component->OnEvent(ftxui::Event::Character(' '));
         component->OnEvent(ftxui::Event::Tab);                // 确定
         component->OnEvent(ftxui::Event::Return);
-        ok &= expect(application.server_url == "wss://127.0.0.1:9000/ws", "Saving makes a wss:// URL from the address and TLS");
+        ok &= expect(application.server_url == "ws://127.0.0.1:9000/ws", "Saving makes a ws:// URL from the address");
         // An address that cannot be used is explained in the form, which stays open.
         component->OnEvent(ftxui::Event::Return);             // 设置 again
         ok &= expect(screen_text().find("127.0.0.1:9000") != std::string::npos, "Settings reopen with the saved address");
         component->OnEvent(ftxui::Event::Character("x"));
         component->OnEvent(ftxui::Event::Return);             // Enter in the address saves
         shown = screen_text();
-        ok &= expect(application.server_url == "wss://127.0.0.1:9000/ws" && shown.find("端口须为") != std::string::npos &&
+        ok &= expect(application.server_url == "ws://127.0.0.1:9000/ws" && shown.find("端口须为") != std::string::npos &&
                      shown.find("地址（IP:端口）") != std::string::npos,
                      "A bad port is explained in the open form and changes nothing");
         // The error is about what was saved: changing the address hides it.
@@ -959,16 +957,9 @@ int main()
         component->OnEvent(ftxui::Event::Character("1"));
         component->OnEvent(ftxui::Event::Special("\x1b[201~"));
         ok &= expect(screen_text().find("端口须为") == std::string::npos, "Pasting into the address hides its old error");
-        component->OnEvent(ftxui::Event::Return);                  // still bad ("...x1"): the error shows
-        ok &= expect(screen_text().find("端口须为") != std::string::npos, "A bad pasted address is explained");
-        component->OnEvent(ftxui::Event::Tab);                     // TLS
-        component->OnEvent(ftxui::Event::Character(' '));
-        ok &= expect(screen_text().find("端口须为") == std::string::npos, "Switching TLS hides the old error");
-        component->OnEvent(ftxui::Event::Character(' '));
-        component->OnEvent(ftxui::Event::TabReverse);              // back to the address
         for (int i = 0; i < 2; ++i) { component->OnEvent(ftxui::Event::Backspace); }
         component->OnEvent(ftxui::Event::Escape);
-        ok &= expect(application.server_url == "wss://127.0.0.1:9000/ws" && screen_text().find("地址（IP:端口）") == std::string::npos,
+        ok &= expect(application.server_url == "ws://127.0.0.1:9000/ws" && screen_text().find("地址（IP:端口）") == std::string::npos,
                      "Esc closes the settings without saving");
         // Background events (wakeups, expiring notices) leave an open form its keys.
         component->OnEvent(ftxui::Event::Return);  // 设置
@@ -981,28 +972,61 @@ int main()
         component->OnEvent(ftxui::Event::Custom);
         component->OnEvent(ftxui::Event::Tab);
         component->OnEvent(ftxui::Event::Custom);
-        component->OnEvent(ftxui::Event::Character(' '));  // TLS off
-        component->OnEvent(ftxui::Event::Custom);
-        component->OnEvent(ftxui::Event::Tab);
         component->OnEvent(ftxui::Event::Return);
         ok &= expect(application.server_url == "ws://127.0.0.1:9100/ws", "Settings keep working across background events");
+        // A wss:// address (from the command line or the last sign-in) is explained, and saving
+        // turns it into ws://; signing in with one says why instead of failing to connect.
+        application.server_url = "wss://chat.example:443/ws";
+        application.login();
+        ok &= expect(application.data.link == connection::signed_out && application.data.status.find("暂不支持 TLS") != std::string::npos,
+                     "Signing in with a wss:// address explains TLS is not available");
+        component->OnEvent(ftxui::Event::Return);  // 设置
+        shown = screen_text();
+        ok &= expect(shown.find("chat.example:443") != std::string::npos && shown.find("改用 ws://") != std::string::npos,
+                     "Settings from a wss:// address say it becomes ws://");
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.server_url == "ws://chat.example:443/ws", "Saving a wss:// address makes it ws://");
         component->OnEvent(ftxui::Event::Tab);  // from 设置 back to the username
         component->OnEvent(ftxui::Event::End);
         component->OnEvent(ftxui::Event::Character("四"));
         ok &= expect(application.username == "张三四" && application.password == "secret-password",
                      "Settings keep the typed username and password");
-        // The address and TLS make the URL, and come back out of it.
+        {
+            // At the smallest size the settings hint wraps instead of losing "Esc 取消".
+            component->OnEvent(ftxui::Event::TabReverse);  // from the username back to 设置
+            component->OnEvent(ftxui::Event::Return);
+            ftxui::Screen small(40, 12);
+            ftxui::Render(small, component->Render());
+            ok &= expect(small.ToString().find("Esc 取消") != std::string::npos, "The settings hint is whole on a 40×12 terminal");
+            component->OnEvent(ftxui::Event::Escape);
+        }
+        // The address makes the URL and comes back out of it, by the client's own URL rules.
         {
             auto const plain = join_server_url("192.168.1.5:18080", false);
-            auto const secure = join_server_url(" chat.example:443 ", true);
             auto const six = join_server_url("[::1]:18080", false);
             auto const kept = split_server_url("wss://h:1/custom");
-            ok &= expect(plain && *plain == "ws://192.168.1.5:18080/ws" && secure && *secure == "wss://chat.example:443/ws" &&
-                         six && *six == "ws://[::1]:18080/ws" && kept && kept->host_port == "h:1" && kept->tls && kept->path == "/custom" &&
-                         join_server_url(kept->host_port, kept->tls, kept->path).value_or("") == "wss://h:1/custom",
-                         "IP and port with TLS make the URL, keeping a path from the command line");
-            ok &= expect(join_server_url("[fe80::1]:443", true).value_or("") == "wss://[fe80::1]:443/ws" &&
-                         join_server_url("聊天.example:80", false).has_value(), "IPv6 in brackets and international names are accepted");
+            ok &= expect(plain && *plain == "ws://192.168.1.5:18080/ws" && six && *six == "ws://[::1]:18080/ws" &&
+                         join_server_url("[fe80::1]:443", false).value_or("") == "ws://[fe80::1]:443/ws" &&
+                         kept && kept->host_port == "h:1" && kept->tls && kept->target == "/custom" &&
+                         join_server_url(kept->host_port, false, kept->target).value_or("") == "ws://h:1/custom",
+                         "IP and port make the URL, keeping a path from the command line");
+            ok &= expect(!join_server_url("h:1", true), "A TLS address is refused while the client has no TLS");
+            // Every URL the client accepts comes back the same: the client's default port is
+            // filled in, and an empty or query-only target is kept as it was.
+            auto round_trip = [](std::string_view url, std::string_view host_port, std::string_view saved) {
+                auto const parts = split_server_url(url);
+                return parts && parts->host_port == host_port && join_server_url(parts->host_port, false, parts->target).value_or("") == saved;
+            };
+            ok &= expect(round_trip("ws://chat.example/ws", "chat.example:80", "ws://chat.example:80/ws") &&
+                         round_trip("ws://chat.example:80", "chat.example:80", "ws://chat.example:80") &&
+                         round_trip("ws://chat.example:80?token=abc", "chat.example:80", "ws://chat.example:80?token=abc") &&
+                         round_trip("ws://chat.example:80/custom?token=abc", "chat.example:80", "ws://chat.example:80/custom?token=abc") &&
+                         round_trip("ws://[::1]:9/ws", "[::1]:9", "ws://[::1]:9/ws"),
+                         "Addresses the client accepts round-trip through the settings");
+            auto const unicode = join_server_url("聊天.example:80", false);
+            ok &= expect(!unicode && unicode.error().find("xn--") != std::string::npos &&
+                         join_server_url("xn--fiq228c.example:80", false).has_value(),
+                         "Names are ASCII (punycode for international ones), as the client requires");
             for (auto const* bad : {"127.0.0.1", "127.0.0.1:0", "127.0.0.1:65536", "127.0.0.1:80a", "ws://127.0.0.1:80",
                                     "a b:80", ":80", "::1:80", "h:80/ws", "[garbage]:80", "[[]]:80", "[]:80", "[::1:80",
                                     "h\x01:80", "h|x:80", "h%41:80"})
@@ -2092,8 +2116,9 @@ int main()
             component->OnEvent(ftxui::Event::Character("^"));
             ok &= expect(application.data.draft.starts_with("^"), "Leaving and re-entering one chat's composer keeps the cursor");
         }
-        // A large paste takes time in proportion to its size in every kind of field. The bound is
-        // loose for slow and sanitizer builds; the glyph-by-glyph path took over a minute here.
+        // A large paste takes time in proportion to its size in every kind of field: milliseconds
+        // here, also under ASan; the glyph-by-glyph path took over a minute. The bound stays
+        // under the test's 5 second timeout so it can fail on its own.
         auto timed = [](auto&& action) {
             auto const start = std::chrono::steady_clock::now();
             action();
@@ -2107,7 +2132,7 @@ int main()
             login_ui->OnEvent(ftxui::Event::Character(large));
             login_ui->OnEvent(ftxui::Event::Special("\x1b[201~"));
         });
-        ok &= expect(login.username == large && username_time < std::chrono::seconds(10), "A 64 KiB paste into a single-line field is quick");
+        ok &= expect(login.username == large && username_time < std::chrono::seconds(2), "A 64 KiB paste into a single-line field is quick");
         app chat;
         writable_conversation(chat);
         chat.data.draft = std::string(64 * 1024, 'b');
@@ -2119,7 +2144,7 @@ int main()
             chat_ui->OnEvent(ftxui::Event::Character(large));
             chat_ui->OnEvent(ftxui::Event::Special("\x1b[201~"));
         });
-        ok &= expect(chat.data.draft == large && overwrite_time < std::chrono::seconds(10), "A 64 KiB overwrite paste is quick");
+        ok &= expect(chat.data.draft == large && overwrite_time < std::chrono::seconds(2), "A 64 KiB overwrite paste is quick");
     }
     {
         // Offline the message and member menus offer local actions, and stay open to use them.
@@ -2318,6 +2343,13 @@ int main()
         ok &= expect(application.data.view == page::history &&
                      application.data.history_entries()[static_cast<std::size_t>(application.data.selected)]->id == 2,
                      "Then history, on the message selected before help, however deep help went");
+        // Help keeps its own place when what was opened from it is left.
+        application.command("help");
+        application.data.selected = 14;
+        application.command("my-profile");
+        application.back();
+        ok &= expect(application.data.view == page::help && application.data.selected == 14, "Back to help keeps its scroll position");
+        application.back();
         application.data.view = page::profile;
         application.data.profile = {2, "Bob", {}};
         application.command("my-profile");

@@ -1,4 +1,6 @@
 #include "app.hpp"
+
+#include <chat/server_url.hpp>
 #include <chat/error_text.hpp>
 #include <chat/text.hpp>
 #include <algorithm>
@@ -66,8 +68,9 @@ void app::login(bool registration)
         return;
     }
     if (password.empty() || password.size() > 72) { data.status = "密码须为 1–72 字节"; return; }
-    if (!(server_url.starts_with("ws://") || server_url.starts_with("wss://")))
-    { data.status = "请输入 ws:// 或 wss:// 服务器 URL"; return; }
+    // Checked with the client's own rules, so a refusal says why instead of failing to connect.
+    if (server_url.starts_with("wss://")) { data.status = "暂不支持 TLS（wss://），请在设置中改用 ws://"; return; }
+    if (!parse_server_url(server_url)) { data.status = "服务器地址无效，请在设置中修改"; return; }
     if (data.link == connection::connecting || data.link == connection::authenticating) { return; }
     registering_ = registration;
     reconnect_enabled_ = !registration;
@@ -482,8 +485,9 @@ void app::back()
     if (!pages_.empty()) { entry = std::move(pages_.back()); pages_.pop_back(); }
     data.view = entry.view;
     if (entry.profile && data.view == page::profile) { data.profile = *entry.profile; }
-    // Help is a look-up: the page behind it keeps its selection.
-    data.selected = from_help ? entry.selected : 0;
+    // Help is a look-up: the page behind it keeps its selection, and help itself keeps its
+    // place when something opened from it is left.
+    data.selected = from_help || data.view == page::help ? entry.selected : 0;
     if (from_help && data.view == page::history)
     {
         // Messages may have come or gone meanwhile: return to the same message, not the same row.
