@@ -3887,7 +3887,65 @@ void check_deferred_message_viewport()
     std::cout << "PASS Qt deferred mixed history and in-flight older-page viewport\n";
 }
 
-void check_message_overflow_following(bool latest_current)
+void check_history_home_end_without_current()
+{
+    chat_widget page;
+    page.setStyleSheet(chat_style_sheet());
+    page.resize(1180, 760);
+    page.set_user(QStringLiteral("本人"), 1);
+    conversation_data direct;
+    direct.id = 50; direct.user = 2; direct.username = QStringLiteral("朋友"); direct.can_send = true;
+    page.open_conversation(direct);
+    page.show();
+    auto* list = page.findChild<QListView*>("messageList");
+    auto* scroll = list->verticalScrollBar();
+    list->setFocus();
+    QApplication::processEvents();
+    QList<message_data> history;
+    for (int id = 1; id <= 40; ++id)
+    {
+        message_data item;
+        item.id = id; item.conversation = direct.id; item.from = 2;
+        item.username = direct.username; item.timestamp = id;
+        item.text = QStringLiteral("历史消息 %1\n可滚动的中文正文").arg(id);
+        history.push_back(std::move(item));
+    }
+    page.set_messages(direct.id, std::move(history), {}, false, false, false);
+    auto latest_visible = [&] {
+        auto const rect = list->visualRect(list->model()->index(39, 0));
+        return scroll->maximum() > 200 && scroll->value() == scroll->maximum() &&
+            list->viewport()->rect().contains(rect.center());
+    };
+    wait(latest_visible);
+    // A view can display the newest history without selecting a message.
+    // Model the observed native state, without changing its scroll position.
+    list->setCurrentIndex(QModelIndex());
+    QApplication::processEvents();
+    check(!list->currentIndex().isValid() && latest_visible(),
+          "Scrollable history can show its tail without a current message");
+    QKeyEvent end(QEvent::KeyPress, Qt::Key_End, Qt::NoModifier);
+    QApplication::sendEvent(list, &end);
+    auto first_visible = [&] {
+        auto const rect = list->visualRect(list->model()->index(0, 0));
+        return list->currentIndex().row() == 0 &&
+            list->viewport()->rect().contains(rect.center()) && !latest_visible();
+    };
+    wait(first_visible);
+    check(first_visible(), "End with no current row initializes Qt navigation at the first row");
+    list->setCurrentIndex(QModelIndex());
+    list->scrollToBottom();
+    wait(latest_visible);
+    check(!list->currentIndex().isValid(), "Home-End comparison also starts without a current row");
+    QKeyEvent home(QEvent::KeyPress, Qt::Key_Home, Qt::NoModifier);
+    QApplication::sendEvent(list, &home);
+    QApplication::sendEvent(list, &end);
+    wait(latest_visible);
+    check(list->currentIndex().row() == 39 && latest_visible(),
+          "Home then End selects and reveals the latest row even without an initial current row");
+    std::cout << "PASS Qt history Home-End navigation without a current row\n";
+}
+
+void check_message_overflow_following(bool latest_current, bool read_updates = false)
 {
     chat_widget page;
     page.setStyleSheet(chat_style_sheet());
@@ -3935,6 +3993,11 @@ void check_message_overflow_following(bool latest_current)
                   "Native End focuses the actual last loaded message before a new arrival");
         }
         page.add_message(direct.id, message(id));
+        if (read_updates)
+        {
+            page.set_read_message(direct.id, 1, id - 1);
+            page.set_read_message(direct.id, 2, id - 1);
+        }
         auto latest_visible = [&] {
             auto const latest = list->model()->index(list->model()->rowCount() - 1, 0);
             // Resolving geometry can update the scroll range. Compare it afterwards
@@ -3945,14 +4008,20 @@ void check_message_overflow_following(bool latest_current)
                 list->viewport()->rect().contains(rect.center());
         };
         wait(latest_visible);
+        if (read_updates)
+        {
+            page.set_read_message(direct.id, 1, id);
+            page.set_read_message(direct.id, 2, id);
+        }
         QApplication::processEvents();
         check(latest_visible(), "Incoming messages preserve latest visibility across the first viewport overflow");
         overflowed = overflowed || scroll->maximum() > 0;
     }
     check(overflowed && selected == 1 && older == 0,
           "Incremental messages cross viewport capacity without reopening history or fetching older pages");
-    std::cout << (latest_current ? "PASS Qt native End focus and incremental overflow following\n"
-                                 : "PASS Qt first-row focus and incremental overflow following\n");
+    std::cout << (read_updates ? "PASS Qt read updates and incremental overflow following\n"
+                              : latest_current ? "PASS Qt native End focus and incremental overflow following\n"
+                                               : "PASS Qt first-row focus and incremental overflow following\n");
 }
 
 void check_message_viewport()
@@ -4175,7 +4244,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_group_header_members(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_composer_actions(); check_join_by_code(); check_chat_history_dialog(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_deferred_message_viewport(); check_message_overflow_following(false); check_message_overflow_following(true); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
+        try { check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_group_header_members(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_composer_actions(); check_join_by_code(); check_chat_history_dialog(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_deferred_message_viewport(); check_history_home_end_without_current(); check_message_overflow_following(false); check_message_overflow_following(true); check_message_overflow_following(false, true); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
