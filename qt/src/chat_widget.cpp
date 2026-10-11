@@ -2370,6 +2370,7 @@ void chat_widget::open_conversation(conversation_data conversation)
         else { drafts_.insert(active_conversation_, std::move(text)); }
     }
     active_conversation_ = user;
+    update_chat_presence();
     {
         QSignalBlocker const blocker(message_edit_);
         message_edit_->setPlainText(drafts_.take(user));
@@ -2463,6 +2464,11 @@ void chat_widget::set_members(qint64 conversation, QList<member_data> members, Q
     }
     for (auto const& member : members) { avatars_.observe(member.id, member.avatar); }
     messages_->set_members(members);
+    if (active_group_)
+    {
+        active_member_count_ = members.size();
+        update_chat_presence();
+    }
     update_pinned_message();
     for (auto it = typing_users_.begin(); it != typing_users_.end();)
     {

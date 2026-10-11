@@ -675,6 +675,7 @@ main_window::main_window(QString server_url, QWidget* parent)
                 auto const snapshot = chat_page_->conversation(conversation);
                 if (!snapshot || !snapshot->group) { return; }
                 group_dialog dialog(conversation, self_user, title, snapshot->announcement, snapshot->join_approval, this, &chat_page_->avatars());
+                dialog.set_conversations({*snapshot}, {});
                 connect(&dialog, &group_dialog::user_requested, chat_page_, &chat_widget::show_user_details);
                 connect(client_.get(), &client_bridge::members_received, &dialog, &group_dialog::set_members);
                 connect(client_.get(), &client_bridge::group_action_finished, &dialog, &group_dialog::finish_action);

@@ -1111,7 +1111,86 @@ void check_group_detail_layout()
               "Revoking permission on the active private page leaves a valid public selection");
         std::cout << "PASS Qt private group tabs remove and restore by authoritative role without stale count or duplicate pages\n";
     }
+    {
+        group_dialog pin_dialog(44, 1, QStringLiteral("置顶群"), {}, false, nullptr);
+        auto* label = pin_dialog.findChild<QLabel*>("groupOverviewPinned");
+        conversation_data current;
+        current.id = 44; current.group = true; current.username = QStringLiteral("置顶群");
+        pin_dialog.set_conversations({current}, {});
+        check(label->text() == QStringLiteral("暂无置顶消息"), "Unpinned group overview has explicit empty metadata");
+        current.pinned_message.id = 7; current.pinned_message.username = QStringLiteral("发布者");
+        current.pinned_message.text = QStringLiteral("最初置顶正文");
+        pin_dialog.set_conversations({current}, {});
+        check(label->text().contains(current.pinned_message.text), "A group snapshot supplies the pinned message summary");
+        auto foreign = current; foreign.id = 99; foreign.pinned_message.text = QStringLiteral("其他群不能覆盖");
+        pin_dialog.set_conversations({foreign, current}, {});
+        check(!label->text().contains(foreign.pinned_message.text) && label->text().contains(current.pinned_message.text),
+              "Another group's pinned summary cannot replace the target group's summary");
+        auto failed = current; failed.pinned_message.text = QStringLiteral("失败快照不能覆盖");
+        pin_dialog.set_conversations({failed}, QStringLiteral("请求失败"));
+        check(label->text().contains(current.pinned_message.text), "Failed snapshots preserve known pinned metadata");
+        current.pinned_message.text = QStringLiteral("编辑后的置顶正文"); current.pinned_message.edited_at = 1;
+        pin_dialog.set_conversations({current}, {});
+        check(label->text().contains(current.pinned_message.text) && !label->text().contains(QStringLiteral("最初")),
+              "Editing a pinned message replaces the overview's old body");
+        current.pinned_message.deleted = true;
+        pin_dialog.set_conversations({current}, {});
+        check(label->text().contains(QStringLiteral("消息已删除")) && !label->text().contains(current.pinned_message.text),
+              "A deleted pinned target never leaves its old body visible");
+        current.pinned_message = {};
+        pin_dialog.set_conversations({current}, {});
+        check(label->text() == QStringLiteral("暂无置顶消息"), "Unpin clears the group overview summary");
+    }
     std::cout << "PASS Qt group overview live member avatar and bounded details\n";
+}
+
+void check_group_header_members()
+{
+    chat_widget page;
+    page.resize(980, 640); page.set_user(QStringLiteral("本人"), 1); page.set_connection_available(true); page.show();
+    conversation_data group;
+    group.id = 50; group.group = true; group.username = QStringLiteral("首个群"); group.member_count = 3; group.can_send = true;
+    page.set_conversations({group}); page.open_conversation(group);
+    auto* presence = page.findChild<QLabel*>("chatPresence");
+    auto count_is = [&](int count) {
+        return presence && presence->isVisibleTo(&page) && presence->text() == QStringLiteral("%1 名成员").arg(count);
+    };
+    check(count_is(3), "The first opened group immediately shows its authoritative member count");
+    QList<member_data> members{{1, "owner", chat::member_role::owner, {}},
+                              {2, "admin", chat::member_role::admin, {}}, {3, "member", chat::member_role::member, {}}};
+    auto unknown = group; unknown.id = 51; unknown.member_count = 0;
+    page.set_conversations({group, unknown}); page.open_conversation(unknown);
+    page.set_members(51, members, {});
+    check(count_is(3), "Complete members supply the count when the initial group snapshot has no count");
+    members.push_back({4, "new member", chat::member_role::member, {}});
+    page.set_members(51, members, {});
+    check(count_is(4), "An accepted member result refreshes the open group count");
+    page.set_members(50, {}, {}); page.set_members(51, {}, QStringLiteral("成员请求失败"));
+    check(count_is(4), "Foreign and failed member results cannot erase the active group count");
+    members.resize(2);
+    page.set_members(51, members, {});
+    check(count_is(2), "Member removal updates the open group count without a list refresh");
+    unknown.member_count = 2;
+    page.set_conversations({group, unknown});
+    check(count_is(2), "A conversation snapshot after its matching members preserves the count");
+    unknown.member_count = 3;
+    page.set_conversations({group, unknown});
+    members.push_back({3, "member", chat::member_role::member, {}});
+    page.set_members(51, members, {});
+    check(count_is(3), "Matching member results after a conversation snapshot preserve the count");
+    page.open_conversation(group); page.set_members(51, {}, {});
+    check(count_is(3), "A late result from the previous group cannot update the newly opened group");
+    page.close_conversation(50); page.open_conversation(unknown);
+    check(count_is(3), "Reopening a group from no active conversation restores visible member metadata");
+    conversation_data direct;
+    direct.id = 52; direct.user = 2; direct.username = QStringLiteral("朋友"); direct.can_send = true;
+    page.set_contacts({{2, direct.username, false, 0, {}}});
+    page.set_conversations({group, unknown, direct}); page.open_conversation(direct);
+    auto const direct_text = presence->text();
+    page.set_members(51, members, {}); page.set_members(52, members, {});
+    check(presence->text() == direct_text && !presence->text().contains(QStringLiteral("名成员")),
+          "Member callbacks cannot turn direct presence into group metadata");
+    std::cout << "PASS Qt first group header and authoritative members across refresh, switching and errors\n";
 }
 
 void check_primary_navigation()
@@ -3876,7 +3955,7 @@ int main(int argc, char** argv)
     QApplication app(argc, argv);
     if (widgets_only)
     {
-        try { check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_composer_actions(); check_join_by_code(); check_chat_history_dialog(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
+        try { check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_group_header_members(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_composer_actions(); check_join_by_code(); check_chat_history_dialog(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
@@ -5162,6 +5241,20 @@ int main(int argc, char** argv)
             group_pin_menu(0, 3, false, true);
             for (int i = 0; i < 3; ++i) { wait([&, i] { return pages[i]->conversation(group)->pinned_message.id == mention_message; }); }
             windows[2]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_group_pinned_message.png");
+            bool initial_pin_dialog_opened = false;
+            bool initial_pin_visible = false;
+            QTimer::singleShot(0, windows[2].get(), [&] {
+                auto* modal = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                auto* dialog = qobject_cast<group_dialog*>(modal);
+                initial_pin_dialog_opened = dialog && dialog->objectName() == QStringLiteral("groupDialog");
+                auto* pinned = dialog ? dialog->findChild<QLabel*>("groupOverviewPinned") : nullptr;
+                initial_pin_visible = pinned && pinned->text().contains(edited_pin_text);
+                if (modal) { modal->reject(); }
+            });
+            windows[2]->findChild<QPushButton*>("chatHeaderButton")->click();
+            check(initial_pin_dialog_opened, "Pinned group opens its real details dialog");
+            check(initial_pin_visible,
+                  "A real group's first details view uses its known pin before another conversation refresh");
 
             set_preference(2, group, false);
             activate(2);
