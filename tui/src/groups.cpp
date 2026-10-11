@@ -124,7 +124,8 @@ void app::finish_pick()
         ask("创建群聊 · 下一步：群名称", group_title_, [this, view, picked = std::move(picked)](std::string title) mutable {
             if (!valid_group_title(title)) { data.status = "群名称须为 1–256 UTF-8 字节且不能只有空白或含 NUL"; return; }
             group_title_ = title;
-            confirm("创建群聊「" + title + "」 · " + std::to_string(picked.size() + 1) + " 位成员？",
+            auto confirmation = "创建群聊「" + title + "」 · " + std::to_string(picked.size() + 1) + " 位成员？";
+            confirm(std::move(confirmation),
                 [this, view, title = std::move(title), picked = std::move(picked)]() mutable {
                     if (view_ != view || data.view != page::pick_contacts || !online()) { return; }
                     std::erase_if(picked, [this](auto id) { return !data.is_contact(id); });

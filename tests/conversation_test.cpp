@@ -3235,6 +3235,8 @@ int run_tui_tests()
         require(app.dialog && !app.dialog->confirmation, "Group selection leads to title step");
         app.submit_prompt();
         require(app.dialog && app.dialog->confirmation, "Group title requires final confirmation");
+        require(app.dialog->title == "创建群聊「终端 测试群」 · 2 位成员？ [y/N]",
+                "Group confirmation preserves the entered Unicode title and selected member count");
         app.dialog->text = "y";
         app.submit_prompt();
         pump([&] { return app.data.active_conversation() && app.data.active_conversation()->kind == chat::conversation_kind::group; });
