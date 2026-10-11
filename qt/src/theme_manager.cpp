@@ -173,7 +173,8 @@ QHash<QRgb, QColor> role_map(roles const& r)
     assign({"#5D6C64", "#6E7A74", "#747C78", "#78897F", "#465B52", "#586A61"}, r.text_secondary);
     assign({"#8B918D", "#858D88", "#8C948F", "#89918D", "#96A29C", "#6E8877"}, r.text_muted);
     assign({"#315A4B", "#365E4B"}, r.accent);
-    assign({"#294D40", "#234536"}, r.accent_hover);
+    assign({"#294D40"}, r.accent_hover);
+    assign({"#234536"}, mix(r.accent_hover, r.text, 0.88));
     assign({"#AEBDB6"}, r.accent_disabled);
     assign({"#4F8A70", "#4C876C"}, r.online);
     assign({"#277399"}, r.link);
@@ -452,7 +453,8 @@ QString theme_manager::style_sheet(QString classic) const
         }
         QPushButton#registerButton { color: %10; text-decoration: underline; }
         QPushButton#registerButton:hover:enabled { color: %7; }
-        QPushButton#registerButton:pressed:enabled { background: %11; }
+        QPushButton#registerButton:pressed:enabled { background: %11; color: %10; }
+        QPushButton#registerButton:pressed:hover:enabled { color: %7; }
         QPushButton#registerButton:disabled { color: %12; text-decoration: none; }
 )").arg(mix(r.accent, r.text, 0.94).name(), mix(r.accent, r.panel, 0.96).name(),
             r.accent_hover.name(), mix(r.accent_hover, r.accent, 0.65).name(),

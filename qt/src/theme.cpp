@@ -289,7 +289,7 @@ QString classic_style_sheet()
         }
         QListWidget#groupSelectedContacts::item {
             background: #E7EEE9;
-            color: #315A4B;
+            color: #27332E;
             border-radius: 8px;
             padding: 0 8px;
         }
@@ -479,6 +479,10 @@ QString classic_style_sheet()
         QPushButton#registerButton:hover, QPushButton#registrationCancelButton:hover {
             background: #F0F4F1;
         }
+        QPushButton#registerButton:pressed {
+            background: #E7EEE9;
+            color: #27332E;
+        }
         QPushButton#registerButton:focus, QPushButton#registrationCancelButton:focus {
             border-color: #547C68;
         }
@@ -578,6 +582,7 @@ QString classic_style_sheet()
         }
         QMenu#chatsActionsMenu::item:selected {
             background: #EEF1ED;
+            color: #27332E;
         }
         QLabel#subtleText {
             color: #8B918D;

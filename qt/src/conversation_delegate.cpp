@@ -162,8 +162,7 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
         painter->setBrush(muted ? themed("#AEBDB6") : theme_manager::instance().highlight());
         painter->drawRoundedRect(badge_rect, chat_theme::dialog_unread_height / 2.0,
                                  chat_theme::dialog_unread_height / 2.0);
-        painter->setPen(muted && theme_manager::instance().dark()
-                            ? themed("#27332E") : theme_manager::instance().on_accent());
+        painter->setPen(muted ? themed("#27332E") : theme_manager::instance().on_accent());
         painter->drawText(badge_rect, Qt::AlignCenter, badge_text);
     }
 

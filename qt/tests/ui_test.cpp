@@ -2295,6 +2295,76 @@ void check_themes()
         }
         return logical_pixel(image, QPoint(page.width() - 40, page.height() / 2));
     };
+    auto check_light_controls = [&](QString const& name) {
+        auto readable = [&](QImage const& image, QRect region, QColor ground, char const* message) {
+            auto const scale = image.devicePixelRatio();
+            region = QRect(qFloor(region.x() * scale), qFloor(region.y() * scale),
+                           qCeil(region.width() * scale), qCeil(region.height() * scale)).intersected(image.rect());
+            QHash<QRgb, int> colors;
+            for (int y = region.top(); y <= region.bottom(); ++y)
+                for (int x = region.left(); x <= region.right(); ++x)
+                    if (auto const ink = image.pixelColor(x, y); ink.alpha() == 255 && ink != ground) { ++colors[ink.rgb()]; }
+            QColor ink;
+            int count = 0;
+            for (auto it = colors.cbegin(); it != colors.cend(); ++it)
+                if (it.value() > count) { ink = QColor::fromRgb(it.key()); count = it.value(); }
+            std::cout << "Light " << name.toStdString() << ' ' << message << " ink=" << ink.name().toStdString()
+                      << " ground=" << ground.name().toStdString() << " contrast=" << contrast(ink, ground) << '\n';
+            check(count >= 3 && contrast(ink, ground) >= 4.5, message);
+        };
+        QFont font = QApplication::font(); font.setStyleStrategy(QFont::NoAntialias);
+        conversation_model model;
+        conversation_data conversation;
+        conversation.id = 50; conversation.username = QStringLiteral("朋友"); conversation.muted = true; conversation.unread = 8;
+        model.set_conversations({conversation});
+        conversation_delegate delegate;
+        QStyleOptionViewItem row; row.font = font; row.rect = QRect(0, 0, 320, chat_theme::dialog_row_height);
+        QImage badge(row.rect.size(), QImage::Format_ARGB32); badge.fill(themed("#FCFBF7"));
+        QPainter badge_painter(&badge); delegate.paint(&badge_painter, row, model.index(0, 0)); badge_painter.end();
+        auto const right = row.rect.right() - chat_theme::dialog_right + 1;
+        QRect badge_rect(right - chat_theme::dialog_unread_height, chat_theme::dialog_preview_top,
+                         chat_theme::dialog_unread_height, chat_theme::dialog_unread_height);
+        readable(badge, badge_rect.adjusted(4, 3, -4, -3),
+                 badge.pixelColor(badge_rect.center().x(), badge_rect.top() + 2), "Light muted unread count is readable");
+        QDialog dialog; dialog.setStyleSheet(chat_style_sheet()); dialog.setFont(font);
+        auto* layout = new QVBoxLayout(&dialog);
+        auto* chips = new QListWidget(&dialog); chips->setObjectName(QStringLiteral("groupSelectedContacts"));
+        chips->setFlow(QListView::LeftToRight); chips->setFocusPolicy(Qt::NoFocus); layout->addWidget(chips);
+        auto* chip = new QListWidgetItem(QStringLiteral("HHHHHHHH"), chips); chip->setSizeHint(QSize(210, 32));
+        dialog.resize(360, 100); dialog.show(); QApplication::processEvents();
+        auto const chip_image = chips->viewport()->grab().toImage(); auto const chip_rect = chips->visualItemRect(chip);
+        readable(chip_image, chip_rect.adjusted(8, 5, -8, -5),
+                 logical_pixel(chip_image, QPoint(chip_rect.right() - 8, chip_rect.center().y())), "Light selected contact text is readable");
+        QMenu menu(&dialog); menu.setObjectName(QStringLiteral("chatsActionsMenu")); menu.ensurePolished();
+        QStyleOptionMenuItem item; item.initFrom(&menu); item.rect = QRect(0, 0, 240, 40);
+        item.menuItemType = QStyleOptionMenuItem::Normal; item.text = QStringLiteral("HHHHHHHH");
+        item.font = font; item.fontMetrics = QFontMetrics(font); item.state = QStyle::State_Selected | QStyle::State_Enabled;
+        QImage selected(item.rect.size(), QImage::Format_ARGB32); selected.fill(Qt::transparent);
+        QPainter menu_painter(&selected); menu_painter.setFont(font);
+        menu.style()->drawControl(QStyle::CE_MenuItem, &item, &menu_painter, &menu); menu_painter.end();
+        readable(selected, QRect(15, 12, 130, 17), selected.pixelColor(220, 20), "Light new-action selected menu text is readable");
+        for (auto const* object_name : {"loginButton", "registerButton"})
+        {
+            QPushButton button(QStringLiteral("HHHHHHHH"), &dialog); button.setObjectName(QString::fromLatin1(object_name));
+            button.resize(200, 48); button.ensurePolished(); button.setFont(font);
+            auto paint = [&](QStyle::State state) {
+                QStyleOptionButton option; option.initFrom(&button); option.rect = button.rect(); option.text = button.text();
+                option.fontMetrics = QFontMetrics(button.font()); option.state = QStyle::State_Enabled | state;
+                QImage image(button.size(), QImage::Format_ARGB32); image.fill(themed("#FCFBF7"));
+                QPainter painter(&image); painter.setFont(button.font());
+                button.style()->drawControl(QStyle::CE_PushButton, &option, &painter, &button); painter.end(); return image;
+            };
+            auto const hover = paint(QStyle::State_MouseOver), pressed = paint(QStyle::State_MouseOver | QStyle::State_Sunken);
+            auto const point = QPoint(button.width() / 2, 6);
+            std::cout << "Light " << name.toStdString() << ' ' << object_name << " hover=" << hover.pixelColor(point).name().toStdString()
+                      << " pressed=" << pressed.pixelColor(point).name().toStdString() << '\n';
+            check(hover.pixelColor(point) != pressed.pixelColor(point),
+                  "Light authentication actions distinguish pressing from hovering");
+            if (button.objectName() == QStringLiteral("registerButton"))
+                readable(pressed, QRect(48, 15, 105, 19), pressed.pixelColor(point),
+                         "Light registration keeps readable text while pressed");
+        }
+    };
     check(render(QStringLiteral("classic")).lightness() > 200, "Classic chat background is light");
     for (auto const& info : theme_manager::themes())
     {
@@ -2308,6 +2378,7 @@ void check_themes()
         check(chat_style_sheet() == light_sheet, "Each light theme restores its exact stylesheet after night mode");
         for (std::size_t i = 0; i < sources.size(); ++i)
             check(themed(sources[i]) == light_colors[i], "Night mode leaves every light theme's semantic colors unchanged");
+        check_light_controls(info.key);
         auto const background = render(info.key);
         check(background.lightness() > 200, "Every light theme renders a light chat background");
         if (info.id != chat_theme_id::classic)
