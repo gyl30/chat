@@ -122,7 +122,7 @@ roles night_roles()
     r.canvas = QColor(QStringLiteral("#142737"));
     r.canvas_hover = QColor(QStringLiteral("#2B4B5D"));
     r.panel = QColor(QStringLiteral("#1A3445"));
-    r.surface = QColor(QStringLiteral("#213B4B"));
+    r.surface = QColor(QStringLiteral("#26414F"));
     r.subtle = QColor(QStringLiteral("#243F50"));
     r.text = QColor(QStringLiteral("#EDF4F7"));
     r.text_secondary = QColor(QStringLiteral("#B2C5CF"));
@@ -133,7 +133,7 @@ roles night_roles()
     r.link = QColor(QStringLiteral("#9ACDE1"));
     r.online = QColor(QStringLiteral("#8DCBB5"));
     r.selected = QColor(QStringLiteral("#294D61"));
-    r.bubble_out = QColor(QStringLiteral("#294957"));
+    r.bubble_out = QColor(QStringLiteral("#2F4D5D"));
     r.reaction_own = QColor(QStringLiteral("#426C7C"));
     r.border = QColor(QStringLiteral("#344F60"));
     r.border_strong = QColor(QStringLiteral("#577587"));
@@ -425,15 +425,40 @@ QString theme_manager::style_sheet(QString classic) const
         }
         QFrame#loginCard QLineEdit:focus { border-color: %8; }
         QToolButton#navigationSelected, QMenu#chatsActionsMenu::item:selected { color: %9; }
+        QListWidget#groupSelectedContacts::item { color: %9; }
+        QListWidget#groupContactPicker::indicator:checked, QDialog#groupInviteDialog QListWidget::indicator:checked {
+            background: %13;
+        }
         QLineEdit, QPlainTextEdit { placeholder-text-color: %10; }
         QWidget#windowTitleBar QToolButton#windowCloseButton:hover { background: %12; }
-        QPushButton#loginButton:disabled, QPushButton#registrationSubmitButton:disabled {
-            color: %10;
-        }
 )").arg(r.panel.name(), r.canvas.name(), glow.name(), r.nav.name(),
             mix(r.surface, r.panel, 0.65).name(), r.surface.name(), r.border.name(),
             r.focus.name(), r.nav_text.name(), r.text_muted.name(), mix(r.panel, r.canvas, 0.6).name(),
-            r.danger_soft.name());
+            r.danger_soft.name(), r.selected.name());
+        translucent += QStringLiteral(R"(
+        QPushButton#loginButton, QPushButton#registrationSubmitButton {
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 %1, stop: 1 %2);
+        }
+        QPushButton#loginButton:hover:enabled, QPushButton#registrationSubmitButton:hover:enabled {
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 %3, stop: 1 %4);
+        }
+        QPushButton#loginButton:pressed:enabled, QPushButton#registrationSubmitButton:pressed:enabled {
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 %5, stop: 1 %6);
+        }
+        QPushButton#loginButton:focus, QPushButton#registrationSubmitButton:focus { border-color: %7; }
+        QPushButton#loginButton:disabled, QPushButton#registrationSubmitButton:disabled {
+            background: %8;
+            color: %9;
+        }
+        QPushButton#registerButton { color: %10; text-decoration: underline; }
+        QPushButton#registerButton:hover:enabled { color: %7; }
+        QPushButton#registerButton:pressed:enabled { background: %11; }
+        QPushButton#registerButton:disabled { color: %12; text-decoration: none; }
+)").arg(mix(r.accent, r.text, 0.94).name(), mix(r.accent, r.panel, 0.96).name(),
+            r.accent_hover.name(), mix(r.accent_hover, r.accent, 0.65).name(),
+            mix(r.accent, r.panel, 0.88).name(), mix(r.accent, r.panel, 0.84).name(),
+            r.text.name(), r.accent_disabled.name(), r.text_secondary.name(), r.link.name(),
+            r.selected.name(), r.text_muted.name());
     }
     if (theme_ == chat_theme_id::terminal && !dark())
     {

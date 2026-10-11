@@ -17,6 +17,7 @@
 #include <QGlyphRun>
 #include <QHeaderView>
 #include <QImage>
+#include <QHash>
 #include <QPainter>
 #include <QLineEdit>
 #include <QListView>
@@ -67,6 +68,7 @@
 #include "message_search_dialog.hpp"
 #include "attachment_dialog.hpp"
 #include "conversation_model.hpp"
+#include "conversation_delegate.hpp"
 #include "user_delegate.hpp"
 #include "message_delegate.hpp"
 #include "theme.hpp"
@@ -2250,6 +2252,79 @@ void check_themes()
         check(contrast(themed("#88A697"), themed(ground)) >= 3.0, "Night focus color stays distinct from its control ground");
     }
     check(contrast(themes.on_accent(), themed("#315A4B")) >= 4.5, "Night primary actions have readable text on their accent fill");
+    {
+        auto painted_contrast = [&](QImage const& image, QRect region, QColor ground, double minimum, char const* message) {
+            auto const scale = image.devicePixelRatio();
+            region = QRect(qFloor(region.x() * scale), qFloor(region.y() * scale),
+                           qCeil(region.width() * scale), qCeil(region.height() * scale)).intersected(image.rect());
+            QHash<QRgb, int> colors;
+            for (int y = region.top(); y <= region.bottom(); ++y)
+                for (int x = region.left(); x <= region.right(); ++x)
+                    if (auto const ink = image.pixelColor(x, y); ink.alpha() == 255 && ink != ground) { ++colors[ink.rgba()]; }
+            QColor ink;
+            int count = 0;
+            for (auto it = colors.cbegin(); it != colors.cend(); ++it)
+                if (it.value() > count) { ink = QColor::fromRgba(it.key()); count = it.value(); }
+            auto const ratio = contrast(ink, ground);
+            std::cout << "Night " << message << " ink=" << ink.name().toStdString()
+                      << " ground=" << ground.name().toStdString() << " contrast=" << ratio << '\n';
+            check(count >= 3 && ratio >= minimum, message);
+        };
+        QFont font = QApplication::font();
+        font.setStyleStrategy(QFont::NoAntialias);
+        conversation_model model;
+        conversation_data conversation;
+        conversation.id = 50; conversation.username = QStringLiteral("朋友"); conversation.muted = true; conversation.unread = 8;
+        model.set_conversations({conversation});
+        conversation_delegate delegate;
+        QStyleOptionViewItem option;
+        option.font = font; option.rect = QRect(0, 0, 320, chat_theme::dialog_row_height);
+        QImage badge(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
+        badge.fill(themed("#FCFBF7"));
+        QPainter painter(&badge); delegate.paint(&painter, option, model.index(0, 0)); painter.end();
+        auto const right = option.rect.right() - chat_theme::dialog_right + 1;
+        QRect badge_rect(right - chat_theme::dialog_unread_height, chat_theme::dialog_preview_top,
+                         chat_theme::dialog_unread_height, chat_theme::dialog_unread_height);
+        painted_contrast(badge, badge_rect.adjusted(4, 3, -4, -3), themed("#AEBDB6"), 4.5,
+                         "Muted unread count stays readable on its quiet badge");
+        QDialog dialog;
+        dialog.setObjectName(QStringLiteral("createGroupDialog")); dialog.setStyleSheet(chat_style_sheet()); dialog.setFont(font);
+        auto* layout = new QVBoxLayout(&dialog);
+        auto* chips = new QListWidget(&dialog);
+        chips->setObjectName(QStringLiteral("groupSelectedContacts")); chips->setFlow(QListView::LeftToRight);
+        chips->setWrapping(true); chips->setFocusPolicy(Qt::NoFocus); layout->addWidget(chips);
+        auto* chip = new QListWidgetItem(QStringLiteral("HHHHHHHH ×"), chips); chip->setSizeHint(QSize(210, 32));
+        auto* picker = new QListWidget(&dialog);
+        picker->setObjectName(QStringLiteral("groupContactPicker")); picker->setFocusPolicy(Qt::NoFocus); layout->addWidget(picker);
+        auto* member = new QListWidgetItem(QStringLiteral("HHHHHHHH"), picker);
+        member->setFlags(member->flags() | Qt::ItemIsUserCheckable); member->setCheckState(Qt::Checked); member->setSizeHint(QSize(280, 44));
+        dialog.resize(360, 180); dialog.show(); QApplication::processEvents();
+        auto const chip_image = chips->viewport()->grab().toImage();
+        auto const chip_rect = chips->visualItemRect(chip);
+        painted_contrast(chip_image, chip_rect.adjusted(8, 5, -8, -5),
+                         logical_pixel(chip_image, QPoint(chip_rect.right() - 8, chip_rect.center().y())), 4.5,
+                         "Selected group member chip text stays readable");
+        QStyleOptionViewItem check_option;
+        check_option.initFrom(picker); check_option.widget = picker; check_option.rect = picker->visualItemRect(member);
+        check_option.features = QStyleOptionViewItem::HasCheckIndicator | QStyleOptionViewItem::HasDisplay;
+        check_option.checkState = Qt::Checked; check_option.text = member->text(); check_option.font = picker->font();
+        check_option.fontMetrics = QFontMetrics(check_option.font);
+        auto const indicator = picker->style()->subElementRect(QStyle::SE_ItemViewItemCheckIndicator, &check_option, picker);
+        auto const check_image = picker->viewport()->grab().toImage();
+        auto const check_ground = logical_pixel(check_image, indicator.topLeft() + QPoint(2, 2));
+        auto const scale = check_image.devicePixelRatio();
+        QRect const check_region(qFloor(indicator.x() * scale), qFloor(indicator.y() * scale),
+                                 qCeil(indicator.width() * scale), qCeil(indicator.height() * scale));
+        int stroke_pixels = 0;
+        double stroke_contrast = 21.0;
+        for (int y = check_region.top(); y <= check_region.bottom(); ++y)
+            for (int x = check_region.left(); x <= check_region.right(); ++x)
+                if (auto const ink = check_image.pixelColor(x, y);
+                    ink.alpha() == 255 && ink.red() > 200 && ink.green() > 200 && ink.blue() > 200)
+                { ++stroke_pixels; stroke_contrast = std::min(stroke_contrast, contrast(ink, check_ground)); }
+        std::cout << "Night group checkmark stroke_pixels=" << stroke_pixels << " contrast=" << stroke_contrast << '\n';
+        check(stroke_pixels >= 3 && stroke_contrast >= 3.0, "Selected group member checkmark stays distinguishable");
+    }
     auto const night_sheet = chat_style_sheet();
     themes.set_theme(chat_theme_id::terminal);
     check(chat_style_sheet() == night_sheet, "In night mode the chosen theme cannot change the night theme");
@@ -2295,6 +2370,63 @@ void check_themes()
             auto const placeholder = username->palette().color(QPalette::PlaceholderText);
             check(placeholder == themed("#8B918D") && contrast(placeholder, username->palette().color(QPalette::Base)) >= 4.5,
                   "Night login keeps opaque readable placeholder text after stylesheet polishing");
+            auto* login = window.findChild<QPushButton*>("loginButton");
+            auto* registration = window.findChild<QPushButton*>("registerButton");
+            check(login && registration && login->isEnabled(), "Night login actions are available");
+            auto paint_action = [](QPushButton* button, QStyle::State state) {
+                QStyleOptionButton option;
+                option.initFrom(button);
+                option.rect = button->rect();
+                option.text = button->text();
+                option.fontMetrics = QFontMetrics(button->font());
+                option.state &= ~(QStyle::State_MouseOver | QStyle::State_Sunken | QStyle::State_HasFocus);
+                option.state |= QStyle::State_Enabled | state;
+                QImage image(button->size(), QImage::Format_ARGB32_Premultiplied);
+                image.fill(Qt::transparent);
+                QPainter painter(&image);
+                painter.setFont(button->font());
+                button->style()->drawControl(QStyle::CE_PushButton, &option, &painter, button);
+                return image;
+            };
+            auto const normal = paint_action(login, {});
+            auto const hover = paint_action(login, QStyle::State_MouseOver);
+            auto const pressed = paint_action(login, QStyle::State_MouseOver | QStyle::State_Sunken);
+            auto const sample = QPoint(login->width() / 2, 6);
+            for (auto const& image : {normal, hover, pressed})
+            {
+                bool text_visible = false;
+                for (int y = 10; y < image.height() - 10; ++y)
+                    for (int x = 12; x < image.width() - 12; ++x)
+                        text_visible |= image.pixelColor(x, y) == themes.on_accent();
+                check(text_visible && contrast(themes.on_accent(), image.pixelColor(sample)) >= 4.5,
+                      "Night login paints readable text in normal, hover and pressed states");
+            }
+            std::cout << "Night login hover=" << hover.pixelColor(sample).name().toStdString()
+                      << " pressed=" << pressed.pixelColor(sample).name().toStdString() << '\n';
+            check(hover.pixelColor(sample) != pressed.pixelColor(sample),
+                  "Night login gives pressing distinct feedback from hovering");
+            auto const focused = paint_action(login, QStyle::State_HasFocus);
+            bool focus_edge = false;
+            for (int x = 12; x < focused.width() - 12; ++x)
+                focus_edge |= focused.pixelColor(x, 1) != normal.pixelColor(x, 1);
+            check(focus_edge, "Night login paints a visible keyboard-focus boundary");
+            for (auto state : {QStyle::State_None, QStyle::State_MouseOver})
+            {
+                auto const image = paint_action(registration, state);
+                auto ground = image.pixelColor(6, image.height() / 2);
+                if (ground.alpha() == 0)
+                    ground = logical_pixel(window.grab().toImage(), registration->mapTo(&window, QPoint(6, image.height() / 2)));
+                QHash<QRgb, int> colors;
+                for (int y = 6; y < image.height() - 6; ++y)
+                    for (int x = 12; x < image.width() - 12; ++x)
+                        if (auto const ink = image.pixelColor(x, y); ink.alpha() == 255 && ink != ground) { ++colors[ink.rgba()]; }
+                QColor ink;
+                int count = 0;
+                for (auto it = colors.cbegin(); it != colors.cend(); ++it)
+                    if (it.value() > count) { ink = QColor::fromRgba(it.key()); count = it.value(); }
+                check(count >= 3 && contrast(ink, ground) >= 4.5,
+                      "Night registration paints visible readable text in normal and hover states");
+            }
         }
         check(window.size() == chat_theme::login_window_size && window.minimumSize() == chat_theme::login_window_size &&
                   username->geometry() == user_rect && password->geometry() == password_rect,
