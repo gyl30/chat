@@ -425,12 +425,6 @@ QMainWindow {
         QFrame#navigationPanel {
             background: ${nav};
         }
-        QLabel#brandLabel {
-            background: transparent;
-            color: ${nav_text};
-            font-size: 19px;
-            font-weight: 700;
-        }
         QLabel#profileAvatar {
             background: ${selected};
             color: ${accent};
@@ -535,7 +529,7 @@ QMainWindow {
         }
         QLabel#chatPresence, QLabel#chatPresenceOnline {
             background: transparent;
-            font-size: 12px;
+            font-size: 13px;
         }
         QLabel#chatPresence {
             color: ${text_muted};
@@ -1016,3 +1010,9 @@ QPushButton#contactCardMessageButton:disabled { color: ${text_secondary}; }
 QLineEdit, QPlainTextEdit, QTextEdit { placeholder-text-color: ${text_muted}; }
 
 QPushButton#emptyAddFriendButton:focus { border-color: ${on_accent}; }
+
+/* Readable supporting identity and quiet, explicit contact guidance. */
+QLabel#groupOverviewCount { font-size: 14px; }
+QLabel#groupOverviewAnnouncement[empty="true"] { color: ${text_secondary}; font-size: 13px; }
+QLabel#contactEmptyTitle { color: ${text}; font-size: 18px; font-weight: 600; }
+QLabel#contactEmptyHint { color: ${text_secondary}; font-size: 14px; }

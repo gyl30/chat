@@ -763,6 +763,13 @@ void check_group_detail_layout()
                            {3, "member", chat::member_role::member, {}}}, {});
     dialog.show();
     QApplication::processEvents();
+    check(dialog.size() == QSize(520, 580) && dialog.minimumSize() == QSize(420, 400),
+          "Group details use their compact default and preserve the existing minimum window size");
+    auto const section_headings = dialog.findChildren<QLabel*>("groupSectionHeading");
+    check(std::any_of(section_headings.begin(), section_headings.end(), [](auto* heading) { return heading->text() == QStringLiteral("成员"); }),
+          "Group overview gives its member preview an explicit section heading");
+    check(dialog.findChild<QLabel*>("groupOverviewAnnouncement")->property("empty").toBool(),
+          "An absent group announcement exposes its quiet empty presentation");
     QImage avatar(16, 16, QImage::Format_RGB32);
     QColor const color(QStringLiteral("#C05656"));
     avatar.fill(color);
@@ -2940,6 +2947,188 @@ void check_quiet_status()
     page.findChild<QToolButton*>("sendButton")->click();
     check(!status_text().contains(QStringLiteral("正在发送")), "Sending does not flash a status line");
 }
+void check_final_polish_keyboard_actions()
+{
+    auto& themes = theme_manager::instance();
+    auto const original_appearance = themes.appearance();
+    auto key = [](QWidget* widget, int code, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+        if (!widget) { return; }
+        QKeyEvent press(QEvent::KeyPress, code, modifiers), release(QEvent::KeyRelease, code, modifiers);
+        QApplication::sendEvent(widget, &press); QApplication::sendEvent(widget, &release);
+        QApplication::processEvents();
+    };
+    for (auto const appearance : {chat_appearance::light, chat_appearance::dark})
+    {
+        themes.set_appearance(appearance);
+        chat_widget page;
+        page.setStyleSheet(chat_style_sheet()); page.resize(980, 640);
+        QString const username = QStringLiteral("账号 中文 é 👩‍💻");
+        page.set_user(username, 1); page.set_connection_available(true);
+        page.show(); page.activateWindow(); QApplication::processEvents();
+        auto* navigation = page.findChild<QFrame*>("navigationPanel");
+        auto buttons = navigation->findChildren<QToolButton*>();
+        auto* chats = *std::find_if(buttons.begin(), buttons.end(), [](auto* button) {
+            return button->accessibleName() == QStringLiteral("聊天");
+        });
+        auto* contacts = *std::find_if(buttons.begin(), buttons.end(), [](auto* button) {
+            return button->accessibleName() == QStringLiteral("联系人");
+        });
+        auto* avatar = page.findChild<QToolButton*>("profileAvatar");
+        chats->setFocus(Qt::TabFocusReason); QApplication::processEvents();
+        auto const contacts_unfocused = contacts->grab().toImage();
+        key(QApplication::focusWidget(), Qt::Key_Tab);
+        check(contacts->hasFocus() && contacts->grab().toImage() != contacts_unfocused,
+              "Tab reaches Contacts with a visible focus treatment in each theme");
+        key(QApplication::focusWidget(), Qt::Key_Backtab, Qt::ShiftModifier);
+        check(chats->hasFocus(), "Shift+Tab returns from Contacts to Chats");
+        key(QApplication::focusWidget(), Qt::Key_Tab); key(QApplication::focusWidget(), Qt::Key_Tab);
+        check(avatar->hasFocus(), "The next navigation Tab reaches the account avatar");
+        bool profile_opened = false, copy_reached = false, copied = false;
+        QGuiApplication::clipboard()->setText(QStringLiteral("previous clipboard"));
+        QTimer::singleShot(0, &page, [&] {
+            auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+            profile_opened = dialog && dialog->objectName() == QStringLiteral("profileDialog");
+            if (!dialog) { return; }
+            QToolButton* copy = nullptr;
+            for (auto* action : dialog->findChildren<QToolButton*>())
+                if (action->text() == QStringLiteral("复制用户名")) { copy = action; }
+            for (int step = 0; copy && !copy->hasFocus() && step < 12; ++step)
+                key(QApplication::focusWidget(), Qt::Key_Tab);
+            copy_reached = copy && copy->hasFocus();
+            if (copy_reached) { key(QApplication::focusWidget(), Qt::Key_Space); }
+            copied = QGuiApplication::clipboard()->text().toUtf8() == username.toUtf8();
+            key(dialog, Qt::Key_Escape);
+        });
+        key(QApplication::focusWidget(), Qt::Key_Space);
+        check(profile_opened && copy_reached && copied && !QApplication::activeModalWidget(),
+              "Keyboard avatar activation copies the exact Unicode username and Escape closes the profile");
+        // Offscreen has no window manager to reactivate the parent. The native
+        // X11 review verifies avatar focus after Escape and real Tab/Shift+Tab.
+        if (QGuiApplication::platformName() != QStringLiteral("offscreen"))
+            check(avatar->hasFocus(), "Escape restores the keyboard avatar's invoking focus");
+        page.activateWindow(); QApplication::processEvents();
+        auto* actions = page.findChild<QToolButton*>("chatsActionsButton");
+        actions->setFocus(Qt::TabFocusReason); QApplication::processEvents();
+        bool menu_opened = false, menu_selection = false;
+        QTimer::singleShot(0, &page, [&] {
+            auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+            menu_opened = menu && menu == actions->menu();
+            if (!menu) { return; }
+            key(menu, Qt::Key_Down);
+            menu_selection = menu->activeAction() && menu->activeAction()->isEnabled() &&
+                             !menu->activeAction()->text().isEmpty();
+            key(menu, Qt::Key_Escape);
+        });
+        key(QApplication::focusWidget(), Qt::Key_Space);
+        check(menu_opened && menu_selection && !QApplication::activePopupWidget(),
+              "Keyboard New menu supports arrow selection and Escape closes without submitting an action");
+        if (QGuiApplication::platformName() != QStringLiteral("offscreen"))
+            check(actions->hasFocus(), "Escape restores the New menu invoking control focus");
+        check(page.active_conversation() == 0,
+              "Navigation, profile copy and cancelled menus never open an unchosen conversation");
+    }
+    themes.set_appearance(original_appearance);
+}
+
+void check_final_polish_empty_states()
+{
+    auto& themes = theme_manager::instance();
+    auto const original_appearance = themes.appearance();
+    bool correct = true;
+    auto verify = [&](bool value, char const* detail) {
+        std::cout << (value ? "PASS" : "RED") << " Qt final polish " << detail << '\n';
+        correct = correct && value;
+    };
+    main_window chrome(QStringLiteral("ws://127.0.0.1:18769/ws"));
+    auto* title_bar = chrome.findChild<QWidget*>("windowTitleBar");
+    auto* title = chrome.findChild<QLabel*>("windowTitle");
+    verify(title_bar && title && title->text() == QStringLiteral("Chat") &&
+           title_bar->findChild<QToolButton*>("windowMinimizeButton") &&
+           title_bar->findChild<QToolButton*>("windowCloseButton"), "window title and controls retain the product identity");
+    for (auto const appearance : {chat_appearance::light, chat_appearance::dark})
+    {
+        themes.set_appearance(appearance);
+        for (auto const size : {QSize(980, 640), QSize(1180, 760), QSize(1440, 900)})
+        {
+            chat_widget page;
+            page.setStyleSheet(chat_style_sheet());
+            page.resize(size);
+            page.set_user(QStringLiteral("本人"), 1);
+            page.set_connection_available(true);
+            page.show(); QApplication::processEvents();
+            auto* navigation = page.findChild<QFrame*>("navigationPanel");
+            auto buttons = navigation->findChildren<QToolButton*>();
+            auto* chats = *std::find_if(buttons.begin(), buttons.end(), [](auto* button) {
+                return button->accessibleName() == QStringLiteral("聊天");
+            });
+            auto* contacts = *std::find_if(buttons.begin(), buttons.end(), [](auto* button) {
+                return button->accessibleName() == QStringLiteral("联系人");
+            });
+            verify(page.findChildren<QLabel*>("brandLabel").isEmpty() &&
+                   chats->geometry().top() == navigation->layout()->contentsMargins().top(),
+                   "navigation starts at its first action without a duplicate Chat label or reserved brand gap");
+            contacts->click(); QApplication::processEvents();
+            auto views = page.findChildren<QListView*>("userList");
+            auto* list = *std::find_if(views.begin(), views.end(), [](auto* view) {
+                return view->accessibleName() == QStringLiteral("联系人列表");
+            });
+            auto* status = list->parentWidget()->findChild<QLabel*>("subtleText");
+            auto* placeholder = page.findChild<QLabel*>("contactDetailPlaceholder");
+            auto* heading = page.findChild<QLabel*>("contactEmptyTitle");
+            auto* hint = page.findChild<QLabel*>("contactEmptyHint");
+            auto* add = page.findChild<QToolButton*>("sidebarTextButton");
+            verify(status && status->isVisibleTo(&page) && status->wordWrap() &&
+                   status->text() == QStringLiteral("暂无联系人，可从右上方“新的朋友”添加好友") &&
+                   add->isVisibleTo(&page) && add->isEnabled() && add->accessibleName() == QStringLiteral("新的朋友"),
+                   "empty contacts explain the existing reachable Add friend action");
+            add->click(); QApplication::processEvents();
+            auto* add_friend = page.findChild<QPushButton*>("emptyAddFriendButton");
+            verify(add_friend && add_friend->isVisibleTo(&page) && add_friend->isEnabled() &&
+                   add_friend->text() == QStringLiteral("添加好友"),
+                   "New friends exposes the actual second-step Add friend action");
+            contacts->click(); QApplication::processEvents();
+            verify(placeholder && placeholder->isVisibleTo(&page) && !placeholder->pixmap().isNull() &&
+                   placeholder->pixmap().width() / placeholder->pixmap().devicePixelRatio() == 48 &&
+                   heading && heading->isVisibleTo(&page) && heading->text() == QStringLiteral("联系人") &&
+                   hint && hint->isVisibleTo(&page) && hint->wordWrap() &&
+                   hint->text() == QStringLiteral("从左侧选择好友，查看资料或发消息。\n还没有好友？打开右上方“新的朋友”，再添加好友。") &&
+                   QFontMetrics(heading->font()).height() > QFontMetrics(hint->font()).height(),
+                   "unselected contact detail has a 48px icon, stronger heading and accurate wrapped guidance");
+            if (heading && hint)
+            {
+                auto const visible_rect = page.rect();
+                verify(visible_rect.contains(QRect(heading->mapTo(&page, QPoint{}), heading->size())) &&
+                       visible_rect.contains(QRect(hint->mapTo(&page, QPoint{}), hint->size())),
+                       "contact guidance remains fully inside each supported window size");
+                verify(hint->height() >= hint->heightForWidth(hint->width()), "wrapped contact guidance has enough height to paint every line without clipping");
+            }
+            page.set_loading();
+            verify(status->text() == QStringLiteral("正在加载联系人…"), "contacts loading is distinct from an empty result");
+            page.set_contacts({{2, QStringLiteral("好友 中文 🙂"), false, 0, {}}});
+            QApplication::processEvents();
+            verify(list->model()->rowCount() == 1 && !list->currentIndex().isValid() && status->text().isEmpty() &&
+                   placeholder->isVisibleTo(&page) && page.active_conversation() == 0,
+                   "loaded contacts do not automatically select a user or open a conversation");
+            auto inputs = page.findChildren<QLineEdit*>("userSearchEdit");
+            auto* search = *std::find_if(inputs.begin(), inputs.end(), [](auto* input) {
+                return input->accessibleName() == QStringLiteral("搜索联系人");
+            });
+            search->setText(QStringLiteral("没有匹配的名字")); QApplication::processEvents();
+            auto* find_user = page.findChild<QPushButton*>("findUserButton");
+            verify(list->model()->rowCount() == 0 && status->text().contains(QStringLiteral("没有匹配的联系人")) &&
+                   status->text().contains(QStringLiteral("可按 Enter 查找用户")) &&
+                   find_user->isVisibleTo(&page) && find_user->isEnabled() && page.active_conversation() == 0,
+                   "unmatched contacts keep their distinct state and the existing find-user action");
+            search->clear(); page.set_contacts({}); QApplication::processEvents();
+            verify(status->text() == QStringLiteral("暂无联系人，可从右上方“新的朋友”添加好友") &&
+                   list->model()->rowCount() == 0 && placeholder->isVisibleTo(&page),
+                   "clearing search and removing the last contact restores actual empty guidance");
+        }
+    }
+    themes.set_appearance(original_appearance);
+    check(correct, "Brand and contact empty/loading/unmatched states remain accurate across both themes and window sizes");
+}
+
 void check_chat_empty_guidance()
 {
     chat_widget page;
@@ -4497,7 +4686,7 @@ int main(int argc, char** argv)
     }
     if (widgets_only)
     {
-        try { check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_group_header_members(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_composer_actions(); check_join_by_code(); check_chat_history_dialog(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_deferred_message_viewport(); check_history_home_end_without_current(); check_message_overflow_following(false); check_message_overflow_following(true); check_message_overflow_following(false, true); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
+        try { check_final_polish_empty_states(); check_final_polish_keyboard_actions(); check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_group_header_members(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_composer_actions(); check_join_by_code(); check_chat_history_dialog(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_deferred_message_viewport(); check_history_home_end_without_current(); check_message_overflow_following(false); check_message_overflow_following(true); check_message_overflow_following(false, true); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;

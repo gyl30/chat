@@ -38,7 +38,7 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
 {
     setObjectName(QStringLiteral("groupDialog"));
     setWindowTitle(title + QStringLiteral(" · 群资料"));
-    resize(520, 680);
+    resize(520, 580);
     setMinimumSize(420, 400);
     auto* outer = new QVBoxLayout(this);
     outer->setContentsMargins(16, 16, 16, 16);
@@ -82,6 +82,7 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     overview_layout->addWidget(announcement_heading);
     overview_announcement_ = new QLabel(announcement.isEmpty() ? QStringLiteral("暂无公告") : announcement, overview);
     overview_announcement_->setObjectName(QStringLiteral("groupOverviewAnnouncement"));
+    overview_announcement_->setProperty("empty", announcement.isEmpty());
     overview_announcement_->setTextFormat(Qt::PlainText);
     overview_announcement_->setWordWrap(true);
     overview_announcement_->setMaximumHeight(120);
@@ -130,6 +131,9 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     overview_copy_invite_->setAutoDefault(false);
     invite_overview_row->addWidget(overview_copy_invite_);
     overview_layout->addLayout(invite_overview_row);
+    auto* members_heading = new QLabel(QStringLiteral("成员"), overview);
+    members_heading->setObjectName(QStringLiteral("groupSectionHeading"));
+    overview_layout->addWidget(members_heading);
     preview_ = new QListWidget(overview);
     preview_->setObjectName(QStringLiteral("groupMemberPreview"));
     overview_layout->addWidget(preview_);
@@ -145,7 +149,6 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     overview_actions->addWidget(manage_button_);
     overview_layout->addLayout(overview_actions);
     connect(manage_button_, &QPushButton::clicked, this, [this] { tabs_->setCurrentWidget(management_scroll_); });
-    overview_layout->addStretch();
     tabs_->addTab(overview_scroll, QStringLiteral("群资料"));
     management_scroll_ = new QScrollArea(tabs_);
     management_scroll_->setObjectName(QStringLiteral("groupManagementScroll"));
@@ -332,7 +335,9 @@ group_dialog::group_dialog(qint64 conversation, qint64 self_user, QString const&
     leave_button_ = new QPushButton(QStringLiteral("退出群聊"), this);
     leave_button_->setObjectName(QStringLiteral("groupLeaveButton"));
     leave_button_->setAutoDefault(false);
+    overview_layout->addSpacing(chat_theme::dialog_spacing);
     overview_layout->addWidget(leave_button_, 0, Qt::AlignLeft);
+    overview_layout->addStretch();
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
     buttons->button(QDialogButtonBox::Close)->setText(QStringLiteral("关闭"));
     buttons->button(QDialogButtonBox::Close)->setIcon({});
@@ -700,6 +705,13 @@ void group_dialog::set_conversations(QList<conversation_data> conversations, QSt
         if (!modified) { announcement_edit_->setPlainText(announcement_); }
     }
     overview_announcement_->setText(announcement_.isEmpty() ? QStringLiteral("暂无公告") : announcement_);
+    if (overview_announcement_->property("empty").toBool() != announcement_.isEmpty())
+    {
+        overview_announcement_->setProperty("empty", announcement_.isEmpty());
+        overview_announcement_->style()->unpolish(overview_announcement_);
+        overview_announcement_->style()->polish(overview_announcement_);
+        overview_announcement_->update();
+    }
     read_announcement_button_->setVisible(!announcement_.isEmpty());
     overview_pin_->setText(found->pinned_message.id > 0
         ? QStringLiteral("置顶消息 · %1：%2").arg(found->pinned_message.username,

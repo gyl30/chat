@@ -1119,16 +1119,40 @@ class NativeGui:
         box = self.window_box(actor)
         if box is None:
             raise RuntimeError('Owned native window box unavailable')
+        scroll_box = clip_box = box
+        for scrollbar in self.nodes(actor):
+            try:
+                if scrollbar.get_role() != self.Atspi.Role.SCROLL_BAR:
+                    continue
+                parent = scrollbar.get_parent()
+                if parent.get_role() != self.Atspi.Role.FILLER:
+                    continue  # QPlainTextEdit's inner scrollbar belongs to TEXT.
+                rect = scrollbar.get_component_iface().get_extents(self.Atspi.CoordType.SCREEN)
+                viewport = parent.get_component_iface().get_extents(self.Atspi.CoordType.SCREEN)
+                if 0 < rect.width < rect.height and box['x'] <= viewport.x and box['y'] <= viewport.y and \
+                        viewport.x + viewport.width <= box['x'] + box['width'] and \
+                        viewport.y + viewport.height <= box['y'] + box['height']:
+                    scroll_box = dict(x=rect.x, y=rect.y, width=rect.width, height=rect.height)
+                    clip_box = dict(x=viewport.x, y=viewport.y, width=viewport.width, height=viewport.height)
+                    emit('native-scroll-target', actor=actor, action=name, role='vertical-scrollbar',
+                         parent_role=parent.get_role_name(), rectangle=scroll_box, viewport=clip_box)
+                    break
+            except self.GLib.GError:
+                # A role update can dispose a proxy after walk() enumerates it.
+                continue
         for _ in range(10):
-            node = self.field(actor, name, under)
+            node = self.find(actor, name, under)
+            if node is None:
+                self.wheel_down(actor, scroll_box)
+                continue
             component = node.get_component_iface()
             rect = component.get_extents(self.Atspi.CoordType.SCREEN) if component else None
             if rect is not None and rect.width > 0 and rect.height > 0 and \
-                    box['x'] <= rect.x and rect.y >= box['y'] and \
+                    box['x'] <= rect.x and rect.y >= clip_box['y'] and \
                     rect.x + rect.width <= box['x'] + box['width'] and \
-                    rect.y + rect.height <= box['y'] + box['height']:
+                    rect.y + rect.height <= clip_box['y'] + clip_box['height']:
                 return node
-            self.wheel_down(actor, box)
+            self.wheel_down(actor, scroll_box)
         raise RuntimeError('Native wheel did not bring the target into the window: ' + name)
 
 
@@ -1979,7 +2003,7 @@ class NativeGui:
         def metadata():
             self.open_room(identity, group_title)
             self.click(identity, self.field(identity, '聊天信息'))
-            self.click(identity, self.field(identity, '群管理'))
+            self.click(identity, self.reachable(identity, '群管理'))
             self.paste(identity, self.editable(identity, '群名称'), renamed)
             self.click(identity, self.field(identity, '保存群名'))
             self.wait(lambda: self.text(self.editable(identity, '群名称')) == renamed and
@@ -1989,14 +2013,15 @@ class NativeGui:
             self.paste(identity, self.editable(identity, '群公告'), announcement)
             # QPlainTextEdit keeps Tab for indentation, so the focus chain cannot pass the
             # announcement editor; the buttons below it are reached with the native pointer.
-            self.click(identity, self.field(identity, '保存公告'))
+            self.click(identity, self.reachable(identity, '保存公告'))
             self.escape(identity)
             self.open_room(identity, renamed)
             self.click(identity, self.field(identity, '聊天信息'))
             self.field(identity, announcement)
             self.capture(identity, 'daily-announcement')
-            self.click(identity, self.field(identity, '群管理'))
-            self.click(identity, self.field(identity, '清空公告'))
+            self.click(identity, self.reachable(identity, '群管理'))
+            self.capture(identity, 'daily-management-before-clear')
+            self.click(identity, self.reachable(identity, '清空公告'))
             self.escape(identity)
             self.open_room(identity, renamed)
             self.click(identity, self.field(identity, '聊天信息'))
@@ -2014,7 +2039,7 @@ class NativeGui:
             def members(actor):
                 self.open_room(actor, renamed)
                 self.click(actor, self.field(actor, '聊天信息'))
-                self.click(actor, self.field(actor, '查看全部成员'))
+                self.click(actor, self.reachable(actor, '查看全部成员'))
                 self.field(actor, '群成员')
 
             def member_action(actor, name, action, actions):
@@ -2072,7 +2097,7 @@ class NativeGui:
             nonlocal invite_code
             self.open_room(identity, renamed)
             self.click(identity, self.field(identity, '聊天信息'))
-            self.click(identity, self.field(identity, '群管理'))
+            self.click(identity, self.reachable(identity, '群管理'))
             self.redact_invite_ui = True
             self.click(identity, self.reachable(identity, '生成邀请码'))
             invite_code = self.wait(lambda: self.text(self.field(identity, '群邀请码')) or None,
@@ -2087,7 +2112,7 @@ class NativeGui:
         def leave_join():
             self.open_room(receiver, renamed)
             self.click(receiver, self.field(receiver, '聊天信息'))
-            self.click(receiver, self.field(receiver, '退出群聊'))
+            self.click(receiver, self.reachable(receiver, '退出群聊'))
             self.click(receiver, self.confirmation_button(receiver, '退出群聊'))
             self.wait(lambda: not self.find(receiver, '退出群聊'), 'Left group profile remained open')
             self.click(receiver, self.field(receiver, '聊天'))
