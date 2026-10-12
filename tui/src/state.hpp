@@ -67,6 +67,9 @@ struct state
     message const* selected_message() const;
     bool can_send() const;
     member_role self_role() const;
+    // A group role comes only from the current member list. An empty list means that list has not
+    // arrived yet, which must not be reported as being an ordinary member.
+    bool members_loaded() const;
     // The actions offered for a message or a group member, following the permission matrix in
     // docs/tui-redesign.html. The server still checks every request; this only hides what cannot work.
     std::vector<menu_item> message_actions(message const& value) const;

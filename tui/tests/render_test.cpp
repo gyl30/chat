@@ -648,6 +648,23 @@ int main()
                 }
             }
         }
+        {
+            // An empty member list means the authoritative list has not arrived yet. The page
+            // must not turn that into a role statement about the person using it.
+            auto pending = s;
+            pending.selected = 0;
+            pending.status.clear();
+            pending.members.clear();
+            for (int columns : {60, 80, 120, 160})
+            {
+                auto const output = draw(pending, columns, 24);
+                ok &= expect(output.find("我的身份：正在加载群成员") != std::string::npos &&
+                             output.find("我的身份：成员") == std::string::npos &&
+                             output.find("我的身份：管理员") == std::string::npos &&
+                             output.find("我的身份：群主") == std::string::npos,
+                             "Group page waits for the member list instead of claiming a role");
+            }
+        }
         auto long_preview = s;
         long_preview.selected = 0;
         long_preview.status.clear();

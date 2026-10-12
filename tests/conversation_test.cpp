@@ -3499,6 +3499,95 @@ int run_tui_tests()
         app.open_conversation(direct);
         pump([&] { return !app.data.messages.empty(); });
 
+        // A group role comes only from the authoritative member list. While that list has not been
+        // applied the role is unknown, so a management command must not report a missing permission,
+        // and a member response belonging to another group must not set this group's role.
+        {
+            app.command("create-group 权限时序群");
+            choose_contact(peer_id);
+            app.finish_pick();
+            app.submit_prompt();
+            require(app.dialog && app.dialog->confirmation, "Own group reaches the confirmation step");
+            app.dialog->text = "y";
+            app.submit_prompt();
+            pump([&] { return app.data.active_conversation() &&
+                              app.data.active_conversation()->kind == chat::conversation_kind::group; });
+            auto const owned = app.data.active;
+            data.groups.push_back(owned);
+            pump([&] { return app.data.self_role() == chat::member_role::owner && app.data.members.size() == 2; });
+            auto const joined = call<std::int64_t>([&](auto handler) { peer.create_group("权限时序旁证群", {self}, handler); });
+            require(joined.has_value(), "Peer creates the ordinary-member group");
+            data.groups.push_back(*joined);
+            app.conversations();
+            pump([&] { return std::ranges::any_of(app.data.conversations,
+                                     [&](auto const& value) { return value.id == *joined; }); });
+
+            // Opening a group clears the member list and only draining can apply the response, so
+            // using a management command right here is a fixed order rather than a timed race.
+            app.open_conversation(owned);
+            require(app.data.members.empty(), "Opening a group clears the member list");
+            app.command("invite");
+            require(app.data.status != "仅群主和管理员可执行该操作",
+                    "An unknown group role is not reported as an ordinary member permission");
+            require(app.data.view != page::pick_contacts, "No management flow starts while the role is unknown");
+            // The authoritative list then arrives by itself; nothing has to be reopened.
+            pump([&] { return app.data.self_role() == chat::member_role::owner; });
+            app.command("invite");
+            require(app.data.view == page::pick_contacts, "The owner invites once the member list is applied");
+
+            // A response for the group that was left behind cannot grant its role here.
+            app.open_conversation(owned);
+            app.open_conversation(*joined);
+            pump([&] { return app.data.active == *joined && app.data.members.size() == 2; });
+            require(app.data.self_role() == chat::member_role::member,
+                    "A late owner response for another group cannot grant management in this one");
+            app.command("rename 权限时序旁证群");
+            require(app.data.status == "仅群主和管理员可执行该操作",
+                    "A known ordinary member is still told the real permission rule");
+            // The reverse order must not keep the ordinary role either.
+            app.open_conversation(*joined);
+            app.open_conversation(owned);
+            pump([&] { return app.data.self_role() == chat::member_role::owner; });
+            app.command("rename 权限时序群 改名");
+            pump([&] { return app.data.active_conversation()->username == "权限时序群 改名"; });
+
+            // A member list the server refuses is an error, not a statement about permissions, and
+            // the existing reopen path recovers once the membership is back. The membership is
+            // removed by SQL so no event reaches the app and its group stays open on screen.
+            data.execute("DELETE FROM conversation_members WHERE conversation_id=" + std::to_string(*joined) +
+                         " AND user_id=" + std::to_string(self));
+            app.data.status.clear(); app.data.status_error = false;
+            app.open_conversation(*joined);
+            pump([&] { return app.data.status_error && !app.data.status.empty(); });
+            require(app.data.members.empty(), "A refused member list keeps no role");
+            app.command("rename 权限时序旁证群");
+            require(app.data.status != "仅群主和管理员可执行该操作",
+                    "A refused member list is not reported as a missing permission");
+            data.execute("INSERT INTO conversation_members(conversation_id,user_id) VALUES(" + std::to_string(*joined) +
+                         "," + std::to_string(self) + ")");
+            app.open_conversation(*joined);
+            pump([&] { return app.data.members.size() == 2; });
+            app.command("rename 权限时序旁证群");
+            require(app.data.status == "仅群主和管理员可执行该操作",
+                    "Reopening a group restores the authoritative role instead of a waiting state");
+
+            // A real demotion keeps the two answers apart: the role is known, so the permission
+            // rule is the accurate reply and no loading state is implied.
+            require(call<bool>([&](auto handler) { peer.set_group_admin(*joined, self, true, handler); }).has_value(),
+                    "Peer promotes the ordinary member for the demotion fixture");
+            app.open_conversation(*joined);
+            pump([&] { return app.data.self_role() == chat::member_role::admin; });
+            require(call<bool>([&](auto handler) { peer.set_group_admin(*joined, self, false, handler); }).has_value(),
+                    "Peer demotes the administrator");
+            pump([&] { return app.data.self_role() == chat::member_role::member; });
+            app.command("rename 权限时序旁证群");
+            require(app.data.status == "仅群主和管理员可执行该操作",
+                    "A demoted member is told the permission rule, not a loading state");
+            app.open_conversation(direct);
+            pump([&] { return !app.data.messages.empty(); });
+        }
+        std::cout << "PASS TUI group role waits for the authoritative member list\n";
+
         auto const avatar_path = directory / "avatar.png";
         auto avatar_bytes = chat::detail::decode_base64(avatar_png_base64);
         require(avatar_bytes.has_value(), "Decode existing avatar fixture");

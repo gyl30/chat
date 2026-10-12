@@ -93,6 +93,12 @@ member_role state::self_role() const
     return found == members.end() ? member_role::member : found->role;
 }
 
+bool state::members_loaded() const
+{
+    // The server always lists the caller, so a group member list is never empty once it arrives.
+    return !members.empty();
+}
+
 std::vector<menu_item> state::message_actions(message const& value) const
 {
     bool const online = link == connection::online;

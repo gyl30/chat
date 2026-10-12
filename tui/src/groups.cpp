@@ -257,6 +257,8 @@ void app::group_command(std::string const& name, std::string argument)
         });
         return;
     }
+    // Without the member list the role is unknown, so no permission claim about it is a fact yet.
+    if (!data.members_loaded()) { data.status = "正在加载群成员，请稍候"; return; }
     if (role == member_role::member) { data.status = "仅群主和管理员可执行该操作"; return; }
     if (name == "invite")
     {

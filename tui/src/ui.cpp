@@ -683,7 +683,10 @@ Element secondary(state const& s, int width, int message_scroll)
             title = c ? "群聊 · " + c->username : "群聊";
             if (c)
             {
-                rows.push_back(text("成员 " + std::to_string(s.members.size()) + " 人 · 我的身份：" + role_label(s.self_role())));
+                // Naming a role before the member list arrives would claim a permission the person
+                // may well have.
+                auto const role = s.members_loaded() ? role_label(s.self_role()) : std::string("正在加载群成员…");
+                rows.push_back(text("成员 " + std::to_string(s.members.size()) + " 人 · 我的身份：" + role));
                 auto const preview_count = std::min<std::size_t>(3, s.members.size());
                 std::string preview = "前 " + std::to_string(preview_count) + " 位成员（共 " + std::to_string(s.members.size()) + " 位）：";
                 for (std::size_t i = 0; i < preview_count; ++i)
