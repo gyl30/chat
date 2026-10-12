@@ -609,7 +609,7 @@ class NativeToolsTest(unittest.TestCase):
         experiment.args = SimpleNamespace(mode='tui', openbox='openbox', shard_size=40,
             seed=1, pilot_seconds=30, deep_pilot=False, lifecycle_pilot=False,
             job_control_pilot=False, daily_pilot=False,
-            role_pilot=False, blackhole_pilot=False)
+            role_pilot=False, blackhole_pilot=False, read_pilot=False)
         experiment.config = {'worker_seconds': 32, 'history_diagnostic': False}
         experiment.safety = {'mem_available_min_kib': 1, 'disk_free_min_bytes': 1}
         experiment.url = 'ws://127.0.0.1:12345'
@@ -640,7 +640,7 @@ class NativeToolsTest(unittest.TestCase):
                 experiment.args = SimpleNamespace(mode='gui', openbox=requested, shard_size=40,
                     seed=1, pilot_seconds=30, deep_pilot=False, lifecycle_pilot=False,
                     job_control_pilot=False, daily_pilot=False,
-            role_pilot=False, blackhole_pilot=False)
+            role_pilot=False, blackhole_pilot=False, read_pilot=False)
                 experiment.config = {'worker_seconds': 32, 'history_diagnostic': False}
                 experiment.safety = {'mem_available_min_kib': 1, 'disk_free_min_bytes': 1}
                 experiment.url = 'ws://127.0.0.1:12345'
@@ -669,7 +669,7 @@ class NativeToolsTest(unittest.TestCase):
         experiment.args = SimpleNamespace(mode='gui', openbox='missing-openbox', shard_size=40,
             seed=1, pilot_seconds=30, deep_pilot=False, lifecycle_pilot=False,
             job_control_pilot=False, daily_pilot=False,
-            role_pilot=False, blackhole_pilot=False)
+            role_pilot=False, blackhole_pilot=False, read_pilot=False)
         experiment.config = {'worker_seconds': 32, 'history_diagnostic': False}
         experiment.safety = {'mem_available_min_kib': 1, 'disk_free_min_bytes': 1}
         experiment.url = 'ws://127.0.0.1:12345'

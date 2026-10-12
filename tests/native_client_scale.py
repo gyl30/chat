@@ -153,6 +153,7 @@ class Experiment:
                        'daily_pilot': args.daily_pilot,
                        'role_pilot': args.role_pilot,
                        'blackhole_pilot': args.blackhole_pilot,
+                       'read_pilot': args.read_pilot,
                        'history_diagnostic': args.mode=='gui' and args.count==2 and args.pilot_seconds is not None and not args.daily_pilot,
                        'test_tool_sha256': {p.name: digest(p) for p in (self.repo/'tests').glob('native_*.py')},
                        'build': str(Path(args.build).resolve()), 'build_kind': args.build_kind,
@@ -300,6 +301,7 @@ class Experiment:
                     'daily_pilot': self.args.daily_pilot,
                     'role_pilot': self.args.role_pilot,
                     'blackhole_pilot': self.args.blackhole_pilot,
+                    'read_pilot': self.args.read_pilot,
                     'history_diagnostic': self.config['history_diagnostic']}
             if window_manager is not None:
                 config.update(openbox=window_manager, openbox_data=str(Path(window_manager).parents[1]/'share'))
@@ -777,7 +779,8 @@ def main():
     parser.add_argument('--job-control-pilot',action='store_true',help='Separate two-TUI Ctrl+Z/fg and terminal restoration scenario')
     parser.add_argument('--daily-pilot',action='store_true',help='Separate two-native-client account and create/join group scenario')
     parser.add_argument('--role-pilot',action='store_true',help='Separate TUI group-role scenario: owner, admin and ordinary member')
-    parser.add_argument('--blackhole-pilot',action='store_true',help='Separate two-TUI silent link loss, catch-up and recovery scenario')
+    parser.add_argument('--blackhole-pilot',action='store_true',help='Separate two-client silent link loss, catch-up and recovery scenario in TUI or Qt')
+    parser.add_argument('--read-pilot',action='store_true',help='Separate two-Qt unread, read receipt and state consistency scenario')
     parser.add_argument('--deep-pilot',action='store_true',help='Exercise deeper native UI scenarios during a non-capacity pilot')
     parser.add_argument('--openbox', default='openbox', help='Openbox executable for private X11 shards; use an explicit path for a private installation')
     args=parser.parse_args()
@@ -785,7 +788,8 @@ def main():
     if args.job_control_pilot and (args.mode!='tui' or args.count!=2 or args.pilot_seconds is None or args.lifecycle_pilot):parser.error('Job control pilot requires TUI, exactly 2 clients, --pilot-seconds, and no --lifecycle-pilot')
     if args.daily_pilot and (args.count!=2 or args.pilot_seconds is None or not args.deep_pilot or args.lifecycle_pilot or args.job_control_pilot):parser.error('Daily pilot requires exactly 2 clients, --pilot-seconds, --deep-pilot, and no lifecycle/job-control pilot')
     if args.role_pilot and (args.mode!='tui' or args.count!=10 or args.pilot_seconds is None or args.lifecycle_pilot or args.job_control_pilot or args.daily_pilot):parser.error('Role pilot requires TUI, ten clients, --pilot-seconds, and no other pilot')
-    if args.blackhole_pilot and (args.mode!='tui' or args.count!=2 or args.pilot_seconds is None or args.lifecycle_pilot or args.job_control_pilot or args.daily_pilot or args.role_pilot):parser.error('Blackhole pilot requires TUI, two clients, --pilot-seconds, and no other pilot')
+    if args.blackhole_pilot and (args.mode not in {'tui','gui'} or args.count!=2 or args.pilot_seconds is None or args.lifecycle_pilot or args.job_control_pilot or args.daily_pilot or args.role_pilot or args.read_pilot):parser.error('Blackhole pilot requires TUI or GUI, two clients, --pilot-seconds, and no other pilot')
+    if args.read_pilot and (args.mode!='gui' or args.count!=2 or args.pilot_seconds is None or args.lifecycle_pilot or args.job_control_pilot or args.daily_pilot or args.role_pilot or args.blackhole_pilot):parser.error('Read pilot requires GUI, two clients, --pilot-seconds, and no other pilot')
     if args.count==2 and args.pilot_seconds is None:parser.error('2 clients is a pilot only')
     if args.build_kind!='RelWithDebInfo' and args.pilot_seconds is None:parser.error('Formal capacity measurements require the optimization build')
     if not 2<=args.shard_size<=40 or args.shard_size%10:parser.error('Shard size must be 10, 20, 30 or 40 to keep peer/group boundaries intact')

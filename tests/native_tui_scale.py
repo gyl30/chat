@@ -1231,7 +1231,8 @@ class Worker:
         if not all(int(actor['group_id']) == group for actor in self.actors[:3]):
             raise AssertionError('Role pilot needs one shared fixture group')
         waiting, refused, prompt = '正在加载群成员', '仅群主和管理员可执行该操作', '修改群名称'
-        observed = {'waiting': 0, 'ready': 0}
+        observed = {'waiting': 0, 'ready': 0, 'leave-confirm': 0, 'leave-waiting': 0,
+                    'leave-transfer': 0, 'page-waiting': 0, 'page-loaded': 0}
 
         def answer(actor, label):
             # The first answer the client shows is the observation: the loading text only exists
@@ -1294,6 +1295,74 @@ class Worker:
                        lambda: refuses(ordinary, 'rename-refused-member'), conversation=group)
         self.operation(owner, 'role-allows-owner', lambda: allows(owner, 'rename-prompt-owner'), conversation=group)
 
+        def first_answer(actor, label, outcomes):
+            # The first answer the client shows is the observation: a waiting line only exists
+            # while the member request is still in flight, so it is polled, never forced.
+            for _ in range(60):
+                frame = self.capture(actor)
+                for word, name in outcomes:
+                    if word in frame:
+                        self.screenshot(actor, f'{label}-{name}')
+                        return name, frame
+                time.sleep(.05)
+            raise AssertionError('The native command produced no answer: ' + label)
+
+        def leave_request(actor, label, owner_role):
+            # Leaving is the permission question the owner must never be asked, so a confirmation
+            # here while the role is unknown is the defect.
+            self.open_chat(actor, actor['peer_username'], actor['direct_id'])
+            self.open_chat(actor, title, group)
+            self.key(actor, 'BTab', ':', 'l', 'e', 'a', 'v', 'e', 'Enter')
+            name, _ = first_answer(actor, 'leave-' + label, (('退出当前群聊？', 'confirm'),
+                                                             ('正在加载群成员', 'waiting'),
+                                                             ('群主须先转让', 'transfer')))
+            self.key(actor, 'Escape')
+            if name == 'confirm' and owner_role:
+                raise AssertionError('The owner was asked to confirm leaving while its role was unknown')
+            observed['leave-' + name] += 1
+
+        def group_page(actor, label, expected):
+            # The group page is where a member count, a subset preview and a leave action would
+            # appear, so only the state the frame actually reached is asserted against.
+            self.open_chat(actor, actor['peer_username'], actor['direct_id'])
+            self.open_chat(actor, title, group)
+            self.key(actor, 'BTab', ':', 'g', 'r', 'o', 'u', 'p', 'Enter')
+            name, frame = first_answer(actor, 'group-page-' + label,
+                                       (('群成员信息加载中', 'waiting'), ('我的身份：', 'loaded')))
+            self.key(actor, 'Escape')
+            if name == 'waiting':
+                if '成员 0 人' in frame or '退出群聊' in frame:
+                    raise AssertionError('The group page showed a member count or a leave action it cannot know')
+                observed['page-waiting'] += 1
+            elif '我的身份：' + expected not in frame:
+                raise AssertionError('The group page did not show the real role for ' + label)
+            else:
+                observed['page-loaded'] += 1
+
+        for actor, label, owner_role, expected in ((owner, 'owner', True, '群主'),
+                                                   (manager, 'admin', False, '管理员'),
+                                                   (ordinary, 'member', False, '成员')):
+            self.operation(actor, 'role-leave-while-unknown',
+                           lambda a=actor, l=label, o=owner_role: leave_request(a, l, o), conversation=group)
+            self.operation(actor, 'role-group-page-while-unknown',
+                           lambda a=actor, l=label, e=expected: group_page(a, l, e), conversation=group)
+
+        def leave_as_owner():
+            self.command(owner, 'leave')
+            self.wait(owner, '群主须先转让')
+            self.screenshot(owner, 'leave-owner-refused')
+        self.operation(owner, 'role-owner-cannot-leave', leave_as_owner, conversation=group)
+
+        def leave_as_manager(actor, label):
+            self.command(actor, 'leave')
+            self.wait(actor, '退出当前群聊？')
+            self.screenshot(actor, label)
+            self.key(actor, 'Escape')
+        self.operation(manager, 'role-admin-can-leave',
+                       lambda: leave_as_manager(manager, 'leave-admin-confirms'), conversation=group)
+        self.operation(ordinary, 'role-member-can-leave',
+                       lambda: leave_as_manager(ordinary, 'leave-member-confirms'), conversation=group)
+
         def demote():
             self.choose_member(owner, manager)
             self.command(owner, 'admin')
@@ -1326,11 +1395,24 @@ class Worker:
             self.screenshot(manager, 'identity-admin-restored')
             self.key(manager, 'Escape')
         self.operation(manager, 'role-restored-admin-identity', restored, conversation=group)
+
+        def narrow():
+            # A narrow terminal is where the group page would have to truncate a count or an
+            # identity line, so the real window is resized rather than a state fixture.
+            self.tmux('resize-window', '-t', self.pane(owner), '-x', '60', '-y', '30')
+            self.key_barrier(owner)
+            self.command(owner, 'group')
+            self.wait(owner, '我的身份：群主')
+            self.screenshot(owner, 'group-page-60-columns')
+            self.key(owner, 'Escape')
+            self.tmux('resize-window', '-t', self.pane(owner), '-x', '120', '-y', '40')
+            self.key_barrier(owner)
+        self.operation(owner, 'role-group-page-narrow', narrow, conversation=group)
         # Hand the three clients back to the shared flow in the state it expects.
         for current in self.actors[:3]:
             self.open_chat(current, current['peer_username'], current['direct_id'])
         self.emit('role-pilot-observed', group=group, unknown_window=observed['waiting'],
-                  already_loaded=observed['ready'])
+                  already_loaded=observed['ready'], observations=observed)
 
     def blackhole_pilot(self):
         """One client silently loses its link; the peer keeps working and both catch up."""

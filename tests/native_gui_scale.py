@@ -12,6 +12,7 @@ import ctypes.util
 import json
 import os
 import pathlib
+import re
 import selectors
 import signal
 import tempfile
@@ -19,6 +20,9 @@ import subprocess
 import sys
 import time
 import traceback
+from urllib.parse import urlsplit
+
+from native_network import Blackhole
 
 
 _private_values = set()
@@ -102,6 +106,7 @@ class NativeGui:
         self.work = pathlib.Path(config['work']).resolve()
         self.work.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.processes, self.clients, self.apps = [], {}, {}
+        self.relays = {}
         self.rooms = {}
         self.last_focus = None
         self.receipt_context = None
@@ -974,7 +979,8 @@ class NativeGui:
         private = self.work / 'config' / str(identity)
         private.mkdir(parents=True, exist_ok=True)
         env['XDG_CONFIG_HOME'] = str(private)
-        process = self.spawn([self.cfg['binary'], self.cfg['server_url']], 'qt-' + str(identity), env=env)
+        process = self.spawn([self.cfg['binary'], actor.get('relay_url', self.cfg['server_url'])],
+                             'qt-' + str(identity), env=env)
         self.clients[identity] = process
         emit('started', actor=identity, pid=process.pid, starttime=starttime(process.pid), display=self.display)
         self.authenticate_existing(actor, password)
@@ -1141,6 +1147,296 @@ class NativeGui:
         instruction = json.loads(sys.stdin.readline())
         if instruction.get('command') != 'preference-observed':
             raise RuntimeError('Expected coordinator read-only preference observation barrier')
+
+    def blackhole_pilot(self, seed):
+        # A silent TCP blackhole is the one link failure the client cannot see in its own socket.
+        # What matters is what the native window still owes the user while the link is down: an
+        # unsent draft, the messages the server accepted meanwhile, and the unread counts.
+        actors = self.cfg['actors']
+        if len(actors) != 2:
+            raise RuntimeError('blackhole_pilot requires exactly two native peers')
+        isolated, peer = sorted(actors, key=lambda actor: int(actor['id']))
+        sender_id, group, direct = isolated['id'], isolated['group_title'], isolated['peer_username']
+        relay = self.relays.get(int(isolated['id']))
+        if relay is None:
+            raise RuntimeError('Blackhole pilot has no relay for the isolated client')
+        observed = {}
+        operations = 0
+
+        def step(kind, action, conversation):
+            nonlocal operations
+            operations += 1
+            begin = time.monotonic()
+            try:
+                result = action()
+            except Exception as error:
+                self.capture(sender_id, 'blackhole-' + kind + '-failure')
+                emit('operation', kind='blackhole-' + kind, actor=sender_id, marker='blackhole',
+                     conversation=conversation, elapsed_ms=(time.monotonic() - begin) * 1000, ok=False,
+                     error=str(error)[:240])
+                raise
+            emit('operation', kind='blackhole-' + kind, actor=sender_id, marker='blackhole',
+                 conversation=conversation, elapsed_ms=(time.monotonic() - begin) * 1000, ok=True)
+            return result
+
+        def draft(value=None):
+            editor = self.field(sender_id, '消息输入')
+            if value is None:
+                return self.text(editor)
+            self.paste(sender_id, editor, value)
+            self.key('End')
+
+        def accepted(sender, title, marker):
+            # The sender's own native history is the proof the server accepted the message; the
+            # client behind the blackhole is never asked to confirm what it cannot have received.
+            # A direct room is titled with the other person's name, so each side opens its own.
+            self.open_room(sender['id'], title)
+            self.send(sender['id'], marker)
+
+        def absent(marker):
+            # A link that is really down must not show the message yet; without this check the
+            # later catch-up assertion could be satisfied by a message that never left.
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline:
+                if self.message(sender_id, marker) is not None:
+                    raise AssertionError('A blackholed client received a message through the paused relay')
+                time.sleep(.2)
+
+        def read_receipt(marker):
+            # The read receipt is part of the sender's own message row, so the peer's window
+            # states authoritatively that this client has read the message it just caught up on.
+            self.open_room(peer['id'], group)
+            row = self.expect_message(peer['id'], marker, 'The peer lost its own group message')
+            self.wait(lambda: re.search(r'已读 [1-9]', row.get_name()) is not None,
+                      'The peer never saw the reconnected client read the message', timeout=20)
+            observed['read_receipt_name'] = row.get_name()
+
+        def send_while_blackholed():
+            marker = f'native-{seed}-blackhole-pending'
+            draft(marker)
+            self.key('Return')
+            cleared = True
+            try:
+                self.wait(lambda: draft() == '', 'A blackholed client cleared its draft', timeout=5)
+            except Exception:
+                cleared = False
+            observed['blackholed_send_cleared_draft'] = cleared
+            if cleared:
+                raise AssertionError('A blackholed client sent a message without a server acknowledgement')
+            return marker
+
+        def check_draft():
+            current = draft()
+            observed['draft_preserved'] = current == pending
+            if current != pending:
+                raise AssertionError('The native draft did not survive the blackhole: ' + repr(current))
+
+        def send_pending():
+            # Recovery is proven by the preserved draft actually reaching the server, not by a
+            # status label.  A client that already re-sent on its own has an empty editor.
+            if draft() == pending:
+                self.key('Return')
+            self.wait(lambda: draft() == '', 'The preserved draft did not send after recovery', timeout=20)
+            self.expect_message(sender_id, pending, 'The draft sent after recovery never reached the native history')
+
+        def catch_up(group_marker, direct_marker):
+            # The missing rows arriving is the only proof of recovery; the unread badge cannot
+            # speak for it because Qt paints it inside a tool button, outside the a11y tree.
+            self.open_room(sender_id, group)
+            self.expect_message(sender_id, group_marker, 'Reconnected native history lost the group message')
+            self.open_room(sender_id, direct)
+            self.expect_message(sender_id, direct_marker, 'Reconnected native history lost the direct message')
+
+        def send_after_recovery():
+            # A usable link is proven in both directions: the peer must see what this client
+            # sends after it reconnected, not only the other way round.
+            marker = f'native-{seed}-blackhole-after-recovery'
+            self.open_room(sender_id, group)
+            self.send(sender_id, marker)
+            self.open_room(peer['id'], group)
+            self.expect_message(peer['id'], marker, 'The peer never saw the reconnected client')
+            return marker
+
+        def relogin():
+            process = self.clients.pop(sender_id)
+            process.terminate()
+            self.wait(lambda: process.poll() is not None, 'Blackhole pilot Qt client did not stop')
+            # The old process owns the cached AT-SPI application and window mapping; a new one
+            # has to be discovered again by its own pid.
+            self.apps.pop(sender_id, None)
+            self.rooms.pop(sender_id, None)
+            self.login(isolated, self.cfg['password'])
+            self.open_room(sender_id, group)
+            self.expect_message(sender_id, group_marker, 'Re-logged-in native history lost the group message')
+            self.capture(sender_id, 'blackhole-relogin')
+
+        group_marker = f'native-{seed}-blackhole-group'
+        direct_marker = f'native-{seed}-blackhole-direct'
+        pending = f'native-{seed}-blackhole-pending'
+        step('open-group', lambda: self.open_room(sender_id, group), isolated['group_id'])
+        step('cut', relay.pause, isolated['group_id'])
+        step('open-direct', lambda: self.open_room(sender_id, direct), isolated['direct_id'])
+        step('draft', lambda: draft(pending), isolated['direct_id'])
+        step('group-message-while-blackholed', lambda: accepted(peer, group, group_marker), isolated['group_id'])
+        step('direct-message-while-blackholed',
+             lambda: accepted(peer, peer['peer_username'], direct_marker), isolated['direct_id'])
+        step('direct-message-still-absent', lambda: absent(direct_marker), isolated['direct_id'])
+        step('draft-survives-blackhole', check_draft, isolated['direct_id'])
+        step('send-while-blackholed', send_while_blackholed, isolated['direct_id'])
+        step('restore', relay.resume, isolated['group_id'])
+        step('pending-draft-sends-after-recovery', send_pending, isolated['direct_id'])
+        step('catch-up', lambda: catch_up(group_marker, direct_marker), isolated['group_id'])
+        step('read-receipt-after-recovery', lambda: read_receipt(group_marker), isolated['group_id'])
+        step('send-after-recovery', send_after_recovery, isolated['group_id'])
+        step('relogin-after-recovery', relogin, isolated['group_id'])
+        self.capture(sender_id, 'blackhole-pilot-complete')
+        emit('blackhole-pilot-observed', actor=sender_id, group=isolated['group_id'],
+             relayed_bytes=relay.relayed, relay_paused=relay.paused, observations=observed)
+        return operations
+
+    def read_pilot(self, seed):
+        # A conversation that is not open must not be reported as read, and a receipt must not
+        # move twice.  Only the sender's own message row states that authoritatively, because Qt
+        # paints unread counts inside the conversation row without any accessible object.
+        actors = self.cfg['actors']
+        if len(actors) != 2:
+            raise RuntimeError('read_pilot requires exactly two native peers')
+        watcher, writer = sorted(actors, key=lambda actor: int(actor['id']))
+        group = watcher['group_title']
+        relay = self.relays.get(int(watcher['id']))
+        if relay is None:
+            raise RuntimeError('Read pilot has no relay for the watching client')
+        observed = {}
+        operations = 0
+
+        def step(kind, action, conversation):
+            nonlocal operations
+            operations += 1
+            begin = time.monotonic()
+            try:
+                result = action()
+            except Exception as error:
+                self.capture(watcher['id'], 'read-' + kind + '-failure')
+                emit('operation', kind='read-' + kind, actor=watcher['id'], marker='read',
+                     conversation=conversation, elapsed_ms=(time.monotonic() - begin) * 1000, ok=False,
+                     error=str(error)[:240])
+                raise
+            emit('operation', kind='read-' + kind, actor=watcher['id'], marker='read',
+                 conversation=conversation, elapsed_ms=(time.monotonic() - begin) * 1000, ok=True)
+            return result
+
+        def receipt(marker):
+            row = self.expect_message(writer['id'], marker, 'The sender lost its own message')
+            found = re.search(r'已读 (\d+) 人', row.get_name())
+            if found is None:
+                raise AssertionError('The native message row carries no read count: ' + row.get_name())
+            return int(found.group(1))
+
+        def occurrences(actor, marker):
+            view = self.field(actor, '消息记录')
+            return sum(1 for node in self.walk(view)
+                       if self.visible(node) and message_name_matches(node.get_name(), marker))
+
+        def row_top(actor, marker):
+            view = self.field(actor, '消息记录')
+            rows = [node for node in self.walk(view)
+                    if self.visible(node) and message_name_matches(node.get_name(), marker)]
+            if not rows:
+                raise AssertionError('Message absent from the native history: ' + marker)
+            return min(row.get_component_iface().get_extents(self.Atspi.CoordType.WINDOW).y for row in rows)
+
+        first = f'native-{seed}-read-first'
+        second = f'native-{seed}-read-second'
+        third = f'native-{seed}-read-third'
+
+        def send_both():
+            self.open_room(writer['id'], group)
+            self.send(writer['id'], first)
+            self.send(writer['id'], second)
+
+        def unread_state():
+            # The count cannot move while the other client keeps the conversation closed.
+            self.open_room(writer['id'], group)
+            before = {marker: receipt(marker) for marker in (first, second)}
+            if any(before[m] != receipt(m) for m in (first, second)):
+                raise AssertionError('A closed native conversation was reported as read')
+            return before
+
+        def open_group():
+            self.open_room(watcher['id'], group)
+            for marker in (first, second):
+                self.expect_message(watcher['id'], marker, 'The opened conversation lost a message')
+
+        def receipt_advances(before):
+            self.open_room(writer['id'], group)
+            for marker in (first, second):
+                self.wait(lambda marker=marker: receipt(marker) == before[marker] + 1,
+                          'The native read receipt did not advance by exactly one reader', timeout=20)
+
+        def switch_back_and_forth():
+            # Repeated switching must not duplicate, reorder or drop a row, and a draft belongs
+            # to its own conversation only.
+            draft = f'native-{seed}-read-draft'
+            self.open_room(watcher['id'], watcher['peer_username'])
+            editor = self.field(watcher['id'], '消息输入')
+            self.paste(watcher['id'], editor, draft)
+            for _ in range(2):
+                self.open_room(watcher['id'], group)
+                self.open_room(watcher['id'], watcher['peer_username'])
+            if self.text(editor) != draft:
+                raise AssertionError('A native draft did not stay with its own conversation')
+            self.open_room(watcher['id'], group)
+            if self.text(editor):
+                raise AssertionError('A native draft leaked into another conversation')
+            for marker in (first, second):
+                if occurrences(watcher['id'], marker) != 1:
+                    raise AssertionError('Switching conversations duplicated a native message row: ' + marker)
+            if row_top(watcher['id'], first) >= row_top(watcher['id'], second):
+                raise AssertionError('Switching conversations reordered the native history')
+            self.capture(watcher['id'], 'read-history-after-switching')
+
+        def blip():
+            # A silent link that returns must leave the same history and the same receipt behind;
+            # the conversation switch below is what keeps the link down long enough to matter.
+            relay.pause()
+            self.open_room(watcher['id'], watcher['peer_username'])
+            self.open_room(watcher['id'], group)
+            relay.resume()
+            # A reconnect may rebuild the model, so the rows are waited for; what must never
+            # change is that each of them exists exactly once.
+            for marker in (first, second):
+                self.expect_message(watcher['id'], marker, 'A reconnect lost a native message')
+            for marker in (first, second):
+                if occurrences(watcher['id'], marker) != 1:
+                    raise AssertionError('A reconnect duplicated a native message row: ' + marker)
+
+        def receipt_after_reconnect(before):
+            self.open_room(writer['id'], group)
+            for marker in (first, second):
+                if receipt(marker) != before[marker] + 1:
+                    raise AssertionError('A reconnect changed the native read receipt')
+            self.send(writer['id'], third)
+            self.expect_message(watcher['id'], third, 'The conversation open across a reconnect lost a message')
+            # A client only marks read what it really shows: viewing_latest() requires the active
+            # window scrolled to the last row, so the reading side has to come to the foreground.
+            self.open_room(watcher['id'], group)
+            self.wait(lambda: receipt(third) == before[first] + 1,
+                      'A message shown in the active conversation was not read', timeout=20)
+
+        step('watcher-keeps-group-closed', lambda: self.open_room(watcher['id'], watcher['peer_username']),
+             watcher['direct_id'])
+        step('writer-sends-two', send_both, watcher['group_id'])
+        before = step('unread-while-closed', unread_state, watcher['group_id'])
+        step('watcher-opens-group', open_group, watcher['group_id'])
+        step('receipt-advances-once', lambda: receipt_advances(before), watcher['group_id'])
+        step('switching-preserves-state', switch_back_and_forth, watcher['group_id'])
+        step('receipt-stable-after-switching', lambda: receipt_advances(before), watcher['group_id'])
+        step('link-blip', blip, watcher['group_id'])
+        step('state-after-reconnect', lambda: receipt_after_reconnect(before), watcher['group_id'])
+        self.capture(watcher['id'], 'read-pilot-complete')
+        emit('read-pilot-observed', actor=watcher['id'], group=watcher['group_id'],
+             relayed_bytes=relay.relayed, observations=observed)
+        return operations
 
     def daily_pilot(self, password, seed):
         actors = self.cfg['actors']
@@ -1672,11 +1968,21 @@ def run(config):
     seed = int(config.get('seed', 1))
     gui = NativeGui.__new__(NativeGui)
     # Partly initialized driver can still clean children after startup failures.
-    gui.processes, gui.clients, gui.native = [], {}, None
+    gui.processes, gui.clients, gui.native, gui.relays = [], {}, None, {}
     completed = False
     operation_count = 0
     try:
         gui.__init__(config)
+        if config.get('blackhole_pilot', False) or config.get('read_pilot', False):
+            if len(actors) != 2:
+                raise ValueError('A link pilot needs exactly two native GUI clients')
+            # One relay per client so a single native client can lose its link while the other
+            # keeps its direct connection to the server.
+            target = urlsplit(config['server_url'])
+            for actor in actors:
+                relay = Blackhole(target.hostname, target.port)
+                gui.relays[int(actor['id'])] = relay
+                actor['relay_url'] = relay.url
         for actor in actors:
             gui.login(actor, config['password'])
         for actor in actors:
@@ -1855,6 +2161,14 @@ def run(config):
         if config.get('lifecycle_pilot', False):
             unsupported.remove('network-and-process-lifecycle')
             unsupported.extend(['network-blackhole', 'crash-during-transfer', 'TLS-specific-faults'])
+        if config.get('blackhole_pilot', False):
+            # The relay covers the silent link, and the pilot restarts the client afterwards.
+            unsupported.remove('network-and-process-lifecycle')
+            unsupported.remove('read-unread-authoritative-checks')
+            unsupported.extend(['crash-during-transfer', 'TLS-specific-faults'])
+        if config.get('read_pilot', False):
+            unsupported.remove('read-unread-authoritative-checks')
+            unsupported.append('network-blackhole')
         for kind in unsupported:
             emit('unsupported', kind=kind, reason='Not covered by the configured native scenario')
         emit('prewarm-start', actors=len(actors))
@@ -1882,6 +2196,10 @@ def run(config):
                 deep_cursor += 1
         if config.get('daily_pilot', False):
             operation_count += gui.daily_pilot(config['password'], seed)
+        if config.get('blackhole_pilot', False):
+            operation_count += gui.blackhole_pilot(seed)
+        if config.get('read_pilot', False):
+            operation_count += gui.read_pilot(seed)
         if config.get('lifecycle_pilot', False):
             operation_count += gui.lifecycle_pilot(seed)
         medium_groups = {}
