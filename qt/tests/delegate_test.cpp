@@ -4,6 +4,7 @@
 #include <QApplication>
 #include <QBuffer>
 #include <QClipboard>
+#include <QDateTime>
 #include <QFontDatabase>
 #include <QFontMetrics>
 #include <QImage>
@@ -170,7 +171,7 @@ bool check_emoji_display_policy()
     return true;
 }
 
-bool check_message_selection_raster()
+bool check_message_selection_raster(chat_appearance appearance, bool attached)
 {
     message_model model;
     model.set_self_user(1);
@@ -180,6 +181,7 @@ bool check_message_selection_raster()
     message.conversation = 50;
     message.from = 2;
     message.username = QStringLiteral("朋友");
+    message.timestamp = 1770000000000;
     message.text = QStringLiteral("搜索结果 é 👩‍💻");
     model.add_message(message);
     message_delegate delegate;
@@ -187,18 +189,28 @@ bool check_message_selection_raster()
     selectable.setSelectionMode(QAbstractItemView::SingleSelection);
     QListView normal;
     normal.setSelectionMode(QAbstractItemView::NoSelection);
+    auto& themes = theme_manager::instance();
+    auto const original_appearance = themes.appearance();
+    themes.set_appearance(appearance);
     for (int width : {320, 640})
     {
         for (auto origin : {QPoint(0, 0), QPoint(17, 23)})
         {
-            for (qreal ratio : {1.0, 2.0})
+            for (qreal ratio : {1.0, 1.25, 2.0})
             {
                 for (bool outgoing : {false, true})
                 {
                     message.from = outgoing ? 1 : 2;
                     model.reset(50);
+                    if (attached)
+                    {
+                        auto previous = message;
+                        previous.id = message.id - 1;
+                        previous.timestamp = message.timestamp - 1;
+                        model.add_message(previous);
+                    }
                     model.add_message(message);
-                    auto const index = model.index(0, 0);
+                    auto const index = model.index(attached ? 1 : 0, 0);
                     QStyleOptionViewItem option;
                     option.font = QApplication::font();
                     option.font.setPixelSize(14);
@@ -245,22 +257,50 @@ bool check_message_selection_raster()
                         std::cerr << "FAIL current message keyboard focus is invisible without selection\n";
                         return false;
                     }
-                    QRect const inner(qRound((option.rect.left() + 8) * ratio),
-                                      qRound((option.rect.top() + 8) * ratio),
-                                      qRound((option.rect.width() - 16) * ratio),
-                                      qRound((option.rect.height() - 16) * ratio));
-                    if (plain.copy(inner) != selected.copy(inner) || plain.copy(inner) != combined.copy(inner))
-                    {
-                        std::cerr << "FAIL message selection recolors its body instead of an outline\n";
-                        return false;
-                    }
                     QRect const row(qRound(option.rect.left() * ratio), qRound(option.rect.top() * ratio),
                                     qRound(option.rect.width() * ratio), qRound(option.rect.height() * ratio));
                     for (int y = 0; y < plain.height(); ++y)
                     {
                         for (int x = 0; x < plain.width(); ++x)
                         {
-                            if (!row.contains(x, y) && plain.pixel(x, y) != combined.pixel(x, y))
+                            // Focus and selection may change only the bubble boundary,
+                            // never the avatar, date pill, text, or empty row margins.
+                            auto const changed = plain.pixel(x, y) != combined.pixel(x, y)
+                                || plain.pixel(x, y) != selected.pixel(x, y);
+                            if (changed)
+                            {
+                                auto const background = themed(outgoing ? "bubble_out" : "bubble_in");
+                                // The thin antialiased tail can have no solid fill at its tip.
+                                auto const radius = qCeil(chat_theme::message_tail_width * ratio);
+                                bool near_bubble = false;
+                                for (int dy = -radius; dy <= radius && !near_bubble; ++dy)
+                                {
+                                    for (int dx = -radius; dx <= radius; ++dx)
+                                    {
+                                        auto const px = x + dx, py = y + dy;
+                                        if (px >= 0 && py >= 0 && px < plain.width() && py < plain.height()
+                                            && plain.pixelColor(px, py) == background)
+                                        {
+                                            near_bubble = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (!near_bubble)
+                                {
+                                    std::cerr << "FAIL message focus or selection paints row whitespace outside its bubble at "
+                                              << x << ',' << y << "\n";
+                                    return false;
+                                }
+                                if (plain.pixelColor(x, y) == themed("text")
+                                    || plain.pixelColor(x, y) == themed("message_sender")
+                                    || plain.pixelColor(x, y) == themed("message_muted"))
+                                {
+                                    std::cerr << "FAIL message outline changes its body or metadata ink\n";
+                                    return false;
+                                }
+                            }
+                            if (!row.contains(x, y) && changed)
                             {
                                 std::cerr << "FAIL message outline escapes its row\n";
                                 return false;
@@ -271,7 +311,131 @@ bool check_message_selection_raster()
             }
         }
     }
-    std::cout << "PASS Qt message selection and keyboard focus outlines with unchanged unfocused rendering\n";
+    themes.set_appearance(original_appearance);
+    std::cout << "PASS Qt bubble-local selection and keyboard focus outlines at 125% with unchanged body and row whitespace\n";
+    return true;
+}
+
+bool check_message_metadata_layout()
+{
+    auto& themes = theme_manager::instance();
+    auto const original_appearance = themes.appearance();
+    auto const png = QByteArray::fromBase64(QByteArray(avatar_png_base64.data(), avatar_png_base64.size()));
+    for (auto appearance : {chat_appearance::light, chat_appearance::dark})
+    {
+        themes.set_appearance(appearance);
+        for (int width : {320, 640})
+        {
+            for (int kind : {0, 1, 2, 3, 4, 5})
+            {
+                message_images pictures;
+                message_model model(nullptr, nullptr, &pictures);
+                model.set_self_user(1);
+                model.reset(70, true);
+                model.set_members({{1, "self", {}, {}}, {2, "peer", {}, {}}});
+                message_data message;
+                message.id = 1;
+                message.conversation = 70;
+                message.from = 1;
+                message.timestamp = 1700000000000;
+                message.edited_at = message.timestamp + 1000;
+                message.text = kind == 1 ? QStringLiteral("长正文 é 👩‍💻 ").repeated(12) : QStringLiteral("收到");
+                if (kind == 2 || kind == 3)
+                {
+                    message.attachment = attachment_data{kind == 2 ? "notes.txt" : "photo.png",
+                        kind == 2 ? "text/plain" : "image/png", png.size()};
+                }
+                if (kind == 4) { message.reply = {9, QStringLiteral("朋友"), QStringLiteral("引用正文\n第二行"), 0, false}; }
+                model.add_message(message);
+                if (kind == 3) { pictures.receive(70, message.id, png, {}); }
+                if (kind == 5) { model.set_reactions(message.id, 1, {{QStringLiteral("👍"), {1, 2}}}); }
+                message_delegate delegate;
+                QStyleOptionViewItem option;
+                option.font = QApplication::font();
+                option.font.setPixelSize(14);
+                option.font.setStyleStrategy(QFont::NoAntialias);
+                option.rect = QRect(17, 23, width, 2000);
+                auto const index = model.index(0, 0);
+                option.rect.setHeight(delegate.sizeHint(option, index).height());
+                bool clicked = false;
+                QObject::connect(&delegate, &message_delegate::read_details_clicked, &delegate,
+                    [&](QModelIndex const&) { clicked = true; });
+                auto hit = [&](QPoint const& point) {
+                    clicked = false;
+                    QMouseEvent event(QEvent::MouseButtonRelease, QPointF(point), QPointF(point),
+                                      Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+                    delegate.editorEvent(&event, &model, option, index);
+                    return clicked;
+                };
+                QPoint point(-1, -1);
+                // Metadata follows the body, so search from the bottom without
+                // repeatedly laying out every line of the long fixture.
+                for (int y = option.rect.bottom(); y >= option.rect.top() && point.x() < 0; y -= 4)
+                {
+                    for (int x = option.rect.left(); x <= option.rect.right(); x += 4)
+                    {
+                        if (hit(QPoint(x, y))) { point = QPoint(x, y); break; }
+                    }
+                }
+                if (point.x() < 0) { std::cerr << "FAIL metadata has no read-count hit target\n"; return false; }
+                int left = point.x(), right = point.x(), top = point.y(), bottom = point.y();
+                while (hit(QPoint(left - 1, point.y()))) { --left; }
+                while (hit(QPoint(right + 1, point.y()))) { ++right; }
+                while (hit(QPoint(point.x(), top - 1))) { --top; }
+                while (hit(QPoint(point.x(), bottom + 1))) { ++bottom; }
+                QFont font = option.font;
+                font.setPixelSize(13);
+                QFontMetrics metrics(font);
+                auto const read_label = QStringLiteral("已读 0 人");
+                if (right - left + 1 != metrics.horizontalAdvance(read_label) || bottom - top + 1 != metrics.height())
+                {
+                    std::cerr << "FAIL 13px metadata paint and click metrics disagree: " << kind << '/' << width << "\n";
+                    return false;
+                }
+                for (qreal ratio : {1.0, 1.25, 2.0})
+                {
+                    QSize size(qCeil((option.rect.right() + 20) * ratio), qCeil((option.rect.bottom() + 20) * ratio));
+                    QImage actual(size, QImage::Format_ARGB32_Premultiplied);
+                    actual.setDevicePixelRatio(ratio);
+                    actual.fill(themed("canvas"));
+                    QPainter painter(&actual);
+                    delegate.paint(&painter, option, index);
+                    painter.end();
+                    QImage expected(size, actual.format());
+                    expected.setDevicePixelRatio(ratio);
+                    expected.fill(themed("bubble_out"));
+                    QPainter reference(&expected);
+                    reference.setFont(font);
+                    reference.setPen(themed("message_muted"));
+                    auto const label = read_label + QStringLiteral(" · 已编辑 · ")
+                        + QDateTime::fromMSecsSinceEpoch(message.timestamp).toLocalTime().toString(QStringLiteral("HH:mm"));
+                    auto const text_width = metrics.horizontalAdvance(label);
+                    reference.drawText(QRect(left, top, text_width, metrics.height()),
+                                       Qt::AlignRight | Qt::AlignVCenter, label);
+                    reference.end();
+                    QRect ink(qCeil(left * ratio), qCeil(top * ratio),
+                              qFloor((left + text_width) * ratio) - qCeil(left * ratio),
+                              qFloor((bottom + 1) * ratio) - qCeil(top * ratio));
+                    QImage focused(size, actual.format());
+                    focused.setDevicePixelRatio(ratio);
+                    focused.fill(themed("canvas"));
+                    QPainter focus_painter(&focused);
+                    option.state = QStyle::State_Enabled | QStyle::State_HasFocus;
+                    delegate.paint(&focus_painter, option, index);
+                    focus_painter.end();
+                    option.state = QStyle::State_None;
+                    if (actual.copy(ink) != expected.copy(ink) || focused.copy(ink) != actual.copy(ink))
+                    {
+                        std::cerr << "FAIL 13px metadata is clipped, overlaps content, or changes under focus: "
+                                  << kind << '/' << width << '/' << ratio << "\n";
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    themes.set_appearance(original_appearance);
+    std::cout << "PASS 13px metadata raster and hit target for short/long/attachment/image/reply/reaction in both themes at 125%\n";
     return true;
 }
 
@@ -375,7 +539,7 @@ bool check_night_message_text_contrast()
             while (hit(point.x(), top - 1)) { --top; }
             while (hit(point.x(), bottom + 1)) { ++bottom; }
             QFont count_font = option.font;
-            count_font.setPixelSize(12);
+            count_font.setPixelSize(13);
             auto const count_width = QFontMetrics(count_font).horizontalAdvance(QStringLiteral("8"));
             QRect count_region(right - 8 - count_width, top + 5, count_width + 1, bottom - top - 9);
             passed = check_ink(mine ? "own reaction count" : "other reaction count", image, count_region,
@@ -391,7 +555,14 @@ int main(int argc, char** argv)
 {
     QApplication app(argc, argv);
     if (!check_emoji_display_policy()) { return 1; }
-    if (!check_message_selection_raster()) { return 1; }
+    for (auto appearance : {chat_appearance::light, chat_appearance::dark})
+    {
+        for (bool attached : {false, true})
+        {
+            if (!check_message_selection_raster(appearance, attached)) { return 1; }
+        }
+    }
+    if (!check_message_metadata_layout()) { return 1; }
     if (!check_night_message_text_contrast()) { return 1; }
     auto const chat_icon = svg_icon(QStringLiteral("chat"), themed("accent"));
     for (qreal ratio : {1.0, 1.25, 1.5, 2.0})

@@ -129,7 +129,7 @@ QFont name_font(QStyleOptionViewItem const& option)
 QFont time_font(QStyleOptionViewItem const& option)
 {
     auto font = option.font;
-    font.setPixelSize(12);
+    font.setPixelSize(13);
     return font;
 }
 
@@ -480,7 +480,8 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     painter->setBrush(layout.outgoing
                           ? themed("bubble_out")
                           : themed("bubble_in"));
-    painter->drawPath(bubble_path(bubble, layout.outgoing, layout.group_start, layout.group_end));
+    auto const path = bubble_path(bubble, layout.outgoing, layout.group_start, layout.group_end);
+    painter->drawPath(path);
 
     auto content_top = bubble.top() + chat_theme::message_padding_vertical;
     auto const content_left = bubble.left() + chat_theme::message_padding_horizontal;
@@ -578,10 +579,11 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
          (option.state & QStyle::State_Selected)))
     {
         auto const focused = option.state & QStyle::State_HasFocus;
-        painter->setPen(QPen(themed(focused ? "message_focus" : "border_strong"),
-                             focused ? 2 : 1));
+        painter->setPen(QPen(themed("message_focus"), focused ? 1.5 : 1.0));
         painter->setBrush(Qt::NoBrush);
-        painter->drawRoundedRect(option.rect.adjusted(2, 2, -3, -3), 4, 4);
+        // Attached bubbles meet the row's top edge; keep the centered stroke in its own item.
+        painter->setClipRect(option.rect, Qt::IntersectClip);
+        painter->drawPath(path);
     }
 
     painter->restore();
