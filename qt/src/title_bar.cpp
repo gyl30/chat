@@ -40,7 +40,7 @@ title_bar::title_bar(QWidget* parent) : QWidget(parent)
     title_->setObjectName(QStringLiteral("windowTitle"));
     layout->addWidget(title_);
     layout->addStretch();
-    QColor const icon_color(QStringLiteral("#3F4542"));
+    auto const icon_color = themed("text");
     minimize_ = make_button(this, QStringLiteral("windowMinimizeButton"), QStringLiteral("最小化"));
     minimize_->setIcon(svg_icon(u"window-minimize", icon_color, QSize(18, 18)));
     maximize_ = make_button(this, QStringLiteral("windowMaximizeButton"), QStringLiteral("最大化"));
@@ -67,7 +67,7 @@ void title_bar::add_tool_button(QToolButton* button)
 
 void title_bar::refresh_theme()
 {
-    QColor const icon_color(QStringLiteral("#3F4542"));
+    auto const icon_color = themed("text");
     minimize_->setIcon(svg_icon(u"window-minimize", icon_color, QSize(18, 18)));
     close_->setIcon(svg_icon(u"close", icon_color, QSize(18, 18)));
     update_maximize_button();
@@ -121,7 +121,7 @@ void title_bar::toggle_maximized()
 void title_bar::update_maximize_button()
 {
     auto const maximized = window()->isMaximized();
-    maximize_->setIcon(svg_icon(maximized ? u"window-restore" : u"window-maximize", QColor(QStringLiteral("#3F4542")), QSize(18, 18)));
+    maximize_->setIcon(svg_icon(maximized ? u"window-restore" : u"window-maximize", themed("text"), QSize(18, 18)));
     auto const name = maximized ? QStringLiteral("还原") : QStringLiteral("最大化");
     maximize_->setAccessibleName(name);
     maximize_->setToolTip(name);

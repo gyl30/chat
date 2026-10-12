@@ -1,0 +1,1018 @@
+/* Shared widget geometry and interaction states.
+   Named color tokens read the selected JSON palette; RGB tokens also support alpha overlays.
+   The selected daylight.qss / midnight.qss is appended to this sheet.
+   The check indicator SVG is materialized with the same on_accent color as painted icons. */
+QMainWindow {
+            background: ${canvas};
+        }
+        QWidget {
+            background: transparent;
+            color: ${text};
+            font-size: 14px;
+        }
+        QDialog {
+            background: ${panel};
+        }
+        QFileDialog QComboBox {
+            background: ${surface};
+            color: ${text};
+            border: 1px solid ${input_border};
+            border-radius: 6px;
+            min-height: 32px;
+            padding: 0 8px;
+        }
+        QFileDialog QComboBox:focus {
+            border-color: ${focus};
+        }
+        QFileDialog QComboBox QAbstractItemView {
+            background: ${surface};
+            color: ${text};
+            border: 1px solid ${border_strong};
+            selection-background-color: ${accent};
+            selection-color: ${surface};
+        }
+        QFileDialog QHeaderView::section {
+            background: ${subtle};
+            color: ${text};
+            border: 0;
+            border-bottom: 1px solid ${border};
+            padding: 4px 8px;
+        }
+        QFileDialog QToolButton {
+            background: transparent;
+            color: ${text};
+            border: 2px solid transparent;
+            border-radius: 6px;
+            padding: 2px;
+        }
+        QFileDialog QToolButton:hover {
+            background: ${subtle};
+        }
+        QFileDialog QToolButton:pressed {
+            background: ${selected};
+        }
+        QFileDialog QToolButton:focus {
+            border-color: ${focus};
+        }
+        QMenu {
+            background: ${panel};
+            color: ${text};
+            border: 1px solid ${border};
+            border-radius: 8px;
+            padding: 6px;
+        }
+        QMenu::item {
+            padding: 8px 28px 8px 12px;
+            border-radius: 4px;
+        }
+        QMenu::item:selected {
+            background: ${accent};
+            color: ${on_accent};
+        }
+        QMenu::item:disabled {
+            color: ${text_muted};
+        }
+        QMenu::separator {
+            height: 1px;
+            background: ${border};
+            margin: 4px 8px;
+        }
+        QDialog#groupDialog QListWidget, QTabWidget#groupTabs::pane {
+            background: transparent;
+            border: 0;
+        }
+        QTabWidget#groupTabs QTabBar::tab {
+            background: transparent;
+            color: ${text_secondary};
+            border: 0;
+            border-bottom: 2px solid transparent;
+            padding: 10px 12px;
+        }
+        QTabWidget#groupTabs QTabBar::tab:selected {
+            color: ${accent};
+            border-bottom-color: ${accent};
+        }
+        QTabWidget#groupTabs QTabBar::tab:hover {
+            background: ${subtle};
+        }
+        QLabel#groupOverviewTitle {
+            font-size: 22px;
+            font-weight: 600;
+            color: ${text};
+        }
+        QLabel#groupOverviewCount, QLabel#groupOverviewPinned, QLabel#groupOverviewInvite,
+        QLabel#groupDetailHint, QLabel#groupJoinRequestsStatus, QLabel#groupStatus,
+        QLabel#messageSearchStatus, QLabel#messageSearchHelp, QLabel#messageSearchCount, QLabel#attachmentStatus {
+            font-size: 13px;
+            color: ${text_secondary};
+        }
+        QLabel#groupSectionHeading {
+            font-size: 13px;
+            font-weight: 600;
+            color: ${text_secondary};
+        }
+        QPlainTextEdit#groupAnnouncementEdit, QPlainTextEdit#editMessageText {
+            background: ${surface};
+            border: 1px solid ${input_border};
+            border-radius: 10px;
+            padding: 8px;
+        }
+        QPlainTextEdit#groupAnnouncementEdit:focus, QPlainTextEdit#editMessageText:focus {
+            border-color: ${focus};
+        }
+        QDialog QPushButton, QToolButton#unpinMessageButton {
+            min-height: 32px;
+            padding: 0 12px;
+            background: ${surface};
+            color: ${accent};
+            border: 1px solid ${border_strong};
+            border-radius: 8px;
+        }
+        QDialog QPushButton:disabled, QToolButton#unpinMessageButton:disabled {
+            color: ${text_muted};
+            border-color: ${border};
+        }
+        QToolButton#unpinMessageButton:hover {
+            background: ${subtle};
+        }
+        QToolButton#unpinMessageButton:pressed {
+            background: ${selected};
+        }
+        QToolButton#unpinMessageButton:focus {
+            border-color: ${focus};
+        }
+        QDialog#createGroupDialog QPushButton:hover, QDialog#joinGroupDialog QPushButton:hover,
+        QDialog#groupInviteDialog QPushButton:hover, QDialog#confirmationDialog QPushButton:hover,
+        QDialog#editMessageDialog QPushButton:hover {
+            background: ${subtle};
+        }
+        QDialog#createGroupDialog QPushButton:focus, QDialog#joinGroupDialog QPushButton:focus,
+        QDialog#groupInviteDialog QPushButton:focus, QDialog#confirmationDialog QPushButton:focus,
+        QDialog#editMessageDialog QPushButton:focus {
+            border-color: ${focus};
+        }
+        QDialog#createGroupDialog QPushButton#groupNextButton, QDialog#joinGroupDialog QPushButton#joinGroupButton,
+        QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton,
+        QDialog#editMessageDialog QPushButton#editMessageButton {
+            background: ${accent};
+            color: ${on_accent};
+            border: 2px solid transparent;
+        }
+        QDialog#createGroupDialog QPushButton#groupNextButton:hover, QDialog#joinGroupDialog QPushButton#joinGroupButton:hover,
+        QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton:hover,
+        QDialog#editMessageDialog QPushButton#editMessageButton:hover {
+            background: ${accent_hover};
+        }
+        QDialog#createGroupDialog QPushButton#groupNextButton:focus, QDialog#joinGroupDialog QPushButton#joinGroupButton:focus,
+        QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton:focus,
+        QDialog#editMessageDialog QPushButton#editMessageButton:focus {
+            border-color: ${on_accent};
+        }
+        QDialog#createGroupDialog QPushButton#groupNextButton:disabled, QDialog#joinGroupDialog QPushButton#joinGroupButton:disabled,
+        QDialog#groupInviteDialog QPushButton#groupInviteSubmitButton:disabled,
+        QDialog#editMessageDialog QPushButton#editMessageButton:disabled {
+            background: ${selected};
+            color: ${text_secondary};
+        }
+        QListWidget#groupContactPicker, QListWidget#groupNamingMembers, QListWidget#groupSelectedContacts {
+            background: transparent;
+            border: 0;
+            outline: 0;
+        }
+        QListWidget#groupContactPicker::item, QListWidget#groupNamingMembers::item {
+            padding: 0 8px;
+            border-radius: 8px;
+        }
+        QListWidget#groupContactPicker::item:hover { background: ${subtle}; }
+        QListWidget#groupNamingMembers:focus { border: 1px solid ${focus}; border-radius: 8px; }
+        QListWidget#groupContactPicker::item:selected { background: ${selected}; color: ${text}; }
+        QListWidget#groupContactPicker::indicator, QDialog#groupInviteDialog QListWidget::indicator {
+            width: 16px;
+            height: 16px;
+            border: 1px solid ${border_strong};
+            border-radius: 4px;
+            background: ${surface};
+        }
+        QListWidget#groupContactPicker::indicator:checked, QDialog#groupInviteDialog QListWidget::indicator:checked {
+            background: ${accent};
+            border-color: ${accent};
+            image: url("${check_icon}");
+        }
+        QListWidget#groupSelectedContacts::item {
+            background: ${selected};
+            color: ${text};
+            border-radius: 8px;
+            padding: 0 8px;
+        }
+        QLabel#groupSelectedCount, QLabel#groupNamingSummary { color: ${text_secondary}; font-size: 13px; }
+        QDialog#confirmationDialog QLabel#qt_msgbox_label {
+            min-width: 340px;
+            max-width: 430px;
+        }
+        QDialog#confirmationDialog QPushButton#confirmationActionButton {
+            background: ${danger};
+            color: ${on_accent};
+            border: 2px solid transparent;
+        }
+        QDialog#confirmationDialog QPushButton#confirmationActionButton:hover { background: ${danger_hover}; }
+        QDialog#confirmationDialog QPushButton#confirmationActionButton:focus { border-color: ${danger_soft}; }
+        QDialog#groupDialog QPushButton:hover,
+        QDialog#messageSearchDialog QPushButton:hover, QDialog#attachmentDialog QPushButton:hover {
+            background: ${subtle};
+        }
+        QDialog#groupDialog QPushButton:pressed,
+        QDialog#messageSearchDialog QPushButton:pressed, QDialog#attachmentDialog QPushButton:pressed {
+            background: ${selected};
+        }
+        QDialog#groupDialog QPushButton:focus,
+        QDialog#messageSearchDialog QPushButton:focus, QDialog#attachmentDialog QPushButton:focus {
+            border-color: ${focus};
+        }
+        QDialog#groupDialog QPushButton#groupReadAnnouncementButton,
+        QDialog#groupDialog QPushButton#groupAllMembersButton,
+        QDialog#groupDialog QPushButton#groupManageButton,
+        QDialog#groupDialog QPushButton#groupLeaveButton {
+            background: transparent;
+            border: 2px solid transparent;
+            padding: 0 8px;
+        }
+        QDialog#groupDialog QPushButton#groupReadAnnouncementButton:hover,
+        QDialog#groupDialog QPushButton#groupAllMembersButton:hover,
+        QDialog#groupDialog QPushButton#groupManageButton:hover {
+            background: ${subtle};
+        }
+        QDialog#groupDialog QPushButton#groupReadAnnouncementButton:focus,
+        QDialog#groupDialog QPushButton#groupAllMembersButton:focus,
+        QDialog#groupDialog QPushButton#groupManageButton:focus,
+        QDialog#groupDialog QPushButton#groupLeaveButton:focus {
+            border-color: ${focus};
+        }
+        QDialog#groupDialog QPushButton#groupRenameButton,
+        QDialog#groupDialog QPushButton#groupAnnouncementButton,
+        QDialog#groupDialog QPushButton#groupAcceptRequestButton,
+        QDialog#messageSearchDialog QPushButton#searchMessagesButton,
+        QDialog#attachmentDialog QPushButton#saveAttachmentButton {
+            background: ${accent};
+            color: ${on_accent};
+            border: 2px solid transparent;
+        }
+        QDialog#groupDialog QPushButton#groupRenameButton:hover,
+        QDialog#groupDialog QPushButton#groupAnnouncementButton:hover,
+        QDialog#groupDialog QPushButton#groupAcceptRequestButton:hover,
+        QDialog#messageSearchDialog QPushButton#searchMessagesButton:hover,
+        QDialog#attachmentDialog QPushButton#saveAttachmentButton:hover {
+            background: ${accent_hover};
+        }
+        QDialog#groupDialog QPushButton#groupRenameButton:focus,
+        QDialog#groupDialog QPushButton#groupAnnouncementButton:focus,
+        QDialog#groupDialog QPushButton#groupAcceptRequestButton:focus,
+        QDialog#messageSearchDialog QPushButton#searchMessagesButton:focus,
+        QDialog#attachmentDialog QPushButton#saveAttachmentButton:focus {
+            border-color: ${on_accent};
+        }
+        QDialog#groupDialog QPushButton#groupRenameButton:disabled,
+        QDialog#groupDialog QPushButton#groupAnnouncementButton:disabled,
+        QDialog#groupDialog QPushButton#groupAcceptRequestButton:disabled,
+        QDialog#messageSearchDialog QPushButton#searchMessagesButton:disabled,
+        QDialog#attachmentDialog QPushButton#saveAttachmentButton:disabled {
+            background: ${selected};
+            color: ${text_secondary};
+        }
+        QDialog#groupDialog QPushButton#groupLeaveButton,
+        QDialog#groupDialog QPushButton#groupRevokeInviteButton,
+        QDialog#groupDialog QPushButton#groupClearAnnouncementButton {
+            color: ${danger};
+        }
+        QDialog#groupDialog QPushButton#groupRevokeInviteButton:disabled,
+        QDialog#groupDialog QPushButton#groupClearAnnouncementButton:disabled {
+            color: ${text_muted};
+        }
+        QWidget#loginPage {
+            background: transparent;
+        }
+        QWidget#windowFrame {
+            background: ${canvas};
+            border: 1px solid ${border};
+        }
+        QWidget#windowFrame[login="true"] {
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                stop: 0 ${selected}, stop: 0.42 ${canvas}, stop: 1 ${canvas});
+        }
+        QWidget#windowTitleBar {
+            background: ${canvas};
+            border-bottom: 1px solid ${border};
+        }
+        QWidget#windowTitleBar[login="true"] {
+            background: transparent;
+            border-bottom: 0;
+        }
+        QLabel#windowTitle {
+            color: ${text};
+            font-size: 13px;
+            font-weight: 600;
+        }
+        QWidget#windowTitleBar QToolButton {
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+        }
+        QWidget#windowTitleBar QToolButton:hover {
+            background: rgba(${text.rgb}, 0.08);
+        }
+        QWidget#windowTitleBar QToolButton#windowCloseButton:hover {
+            background: ${danger_soft};
+        }
+        QFrame#loginCard {
+            background: transparent;
+            border: 0;
+        }
+        QLabel#loginAvatar {
+            border-radius: 44px;
+            background: transparent;
+        }
+        QLabel#loginAvatar[empty="true"] {
+            background: ${accent};
+        }
+        QLabel#authSubtitle {
+            color: ${text_secondary};
+            font-size: 13px;
+        }
+        QFrame#loginCard QLineEdit {
+            min-height: 42px;
+            border-color: ${input_border};
+            font-size: 15px;
+        }
+        QFrame#loginCard QLabel#subtleText, QDialog#registrationDialog QLabel#subtleText {
+            color: ${text_secondary};
+            font-size: 13px;
+        }
+        QLineEdit {
+            min-height: 38px;
+            padding: 0 12px;
+            background: ${surface};
+            border: 1px solid ${input_border};
+            border-radius: 10px;
+            selection-background-color: ${accent};
+        }
+        QLineEdit:focus {
+            border-color: ${focus};
+        }
+        QFrame#loginCard QLineEdit:focus, QDialog#registrationDialog QLineEdit:focus {
+            border-color: ${focus};
+        }
+        QPushButton#loginButton, QPushButton#registrationSubmitButton {
+            min-height: 44px;
+            background: ${accent};
+            color: ${on_accent};
+            border: 2px solid transparent;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+        QPushButton#loginButton:hover, QPushButton#registrationSubmitButton:hover {
+            background: ${accent_hover};
+        }
+        QPushButton#loginButton:pressed, QPushButton#registrationSubmitButton:pressed {
+            background: ${accent_pressed};
+        }
+        QPushButton#loginButton:focus, QPushButton#registrationSubmitButton:focus {
+            border-color: ${focus};
+        }
+        QPushButton#loginButton:disabled, QPushButton#registrationSubmitButton:disabled {
+            background: ${accent_disabled};
+        }
+        QPushButton#registerButton, QPushButton#registrationCancelButton {
+            min-height: 28px;
+            background: transparent;
+            color: ${accent};
+            border: 2px solid transparent;
+            border-radius: 8px;
+        }
+        QPushButton#registerButton:hover, QPushButton#registrationCancelButton:hover {
+            background: ${subtle};
+        }
+        QPushButton#registerButton:pressed {
+            background: ${selected};
+            color: ${text};
+        }
+        QPushButton#registerButton:focus, QPushButton#registrationCancelButton:focus {
+            border-color: ${focus};
+        }
+        QPushButton#registerButton:disabled, QPushButton#registrationCancelButton:disabled {
+            color: ${text_muted};
+        }
+        QLabel#registrationTitle {
+            font-size: 22px;
+            font-weight: 700;
+            color: ${text};
+        }
+        QToolButton#serverSettingsButton {
+            padding: 0;
+            background: transparent;
+            color: ${text_secondary};
+            border: 2px solid transparent;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+        QToolButton#serverSettingsButton:hover {
+            background: ${subtle};
+        }
+        QToolButton#serverSettingsButton:checked, QToolButton#serverSettingsButton:pressed {
+            background: ${selected};
+        }
+        QToolButton#serverSettingsButton:focus {
+            border-color: ${focus};
+        }
+        QFrame#navigationPanel {
+            background: ${nav};
+        }
+        QLabel#brandLabel {
+            background: transparent;
+            color: ${nav_text};
+            font-size: 19px;
+            font-weight: 700;
+        }
+        QLabel#profileAvatar {
+            background: ${selected};
+            color: ${accent};
+            border-radius: 22px;
+            font-size: 18px;
+            font-weight: 700;
+        }
+        QToolButton#navigationSelected, QToolButton#navigationButton {
+            border: 0;
+            border-radius: 12px;
+            padding: 0;
+            color: ${nav_text};
+            background: transparent;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        QToolButton#navigationSelected {
+            background: ${nav_selected};
+            color: ${on_accent};
+        }
+        QToolButton#navigationButton:disabled {
+            color: rgba(${nav_text.rgb}, 0.43);
+        }
+        QFrame#conversationPanel {
+            background: ${panel};
+        }
+        QFrame#chatPanel {
+            background: ${canvas};
+        }
+        QLabel#sectionTitle {
+            font-size: 20px;
+            font-weight: 700;
+            color: ${text};
+        }
+        QToolButton#sidebarHeaderButton, QToolButton#sidebarTextButton, QToolButton#chatsActionsButton {
+            border: 0;
+            background: transparent;
+            color: ${accent};
+            font-weight: 600;
+        }
+        QToolButton#sidebarHeaderButton, QToolButton#chatsActionsButton {
+            font-size: 26px;
+        }
+        QToolButton#sidebarTextButton {
+            padding: 6px 4px;
+            font-size: 13px;
+        }
+        QToolButton#sidebarHeaderButton:hover, QToolButton#sidebarTextButton:hover, QToolButton#chatsActionsButton:hover {
+            background: ${subtle};
+            border-radius: 8px;
+        }
+        QMenu#chatsActionsMenu {
+            background: ${panel};
+            color: ${text};
+            border: 1px solid ${border};
+            padding: 4px;
+        }
+        QMenu#chatsActionsMenu::item {
+            padding: 8px 16px;
+        }
+        QMenu#chatsActionsMenu::item:selected {
+            background: ${subtle};
+            color: ${text};
+        }
+        QLabel#subtleText {
+            color: ${text_muted};
+        }
+        QLabel#sidebarNotice {
+            margin: 0 12px 8px 12px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            background: ${subtle};
+            color: ${accent};
+            font-size: 13px;
+        }
+        QLabel#friendRequestsStatus, QLabel#friendRequestHeading {
+            color: ${text_secondary};
+            font-size: 13px;
+        }
+        QLabel#friendRequestHeading {
+            font-weight: 600;
+        }
+        QFrame#chatHeader {
+            background: transparent;
+        }
+        QPushButton#chatHeaderButton {
+            min-height: 38px;
+            padding: 0 10px 0 2px;
+            border: 0;
+            border-radius: 12px;
+            background: transparent;
+            color: ${text};
+            text-align: left;
+            font-size: 17px;
+            font-weight: 700;
+        }
+        QPushButton#chatHeaderButton:hover:enabled {
+            background: ${canvas_hover};
+        }
+        QPushButton#chatHeaderButton:disabled {
+            color: ${text};
+        }
+        QLabel#chatPresence, QLabel#chatPresenceOnline {
+            background: transparent;
+            font-size: 12px;
+        }
+        QLabel#chatPresence {
+            color: ${text_muted};
+        }
+        QLabel#chatPresenceOnline {
+            color: ${online};
+        }
+        QToolButton#connectionStatusButton {
+            min-height: 26px;
+            padding: 0 10px;
+            border: 0;
+            border-radius: 13px;
+            background: ${canvas_hover};
+            color: ${text_secondary};
+            font-size: 12px;
+            font-weight: 500;
+        }
+        QToolButton#connectionStatusButton:hover:enabled {
+            background: ${subtle};
+            color: ${accent};
+        }
+        QToolButton#connectionStatusButton:disabled {
+            color: ${text_secondary};
+        }
+        QToolButton#headerActionButton {
+            border: 0;
+            border-radius: 18px;
+            background: transparent;
+        }
+        QToolButton#headerActionButton:hover:enabled {
+            background: ${canvas_hover};
+        }
+        QDialog#profileDialog {
+            border: 1px solid ${border};
+            border-radius: 12px;
+        }
+        QFrame#profileHeaderSection, QFrame#profileInfoSection {
+            background: ${panel};
+            border: 0;
+        }
+        QFrame#profileSectionSeparator {
+            background: ${canvas_hover};
+            border: 0;
+        }
+        QToolButton#profileCloseButton {
+            border: 0;
+            border-radius: 18px;
+            background: transparent;
+        }
+        QToolButton#profileCloseButton:hover {
+            background: ${canvas_hover};
+        }
+        QLabel#profileDialogAvatar {
+            background: ${selected};
+            color: ${accent};
+            border-radius: 52px;
+            font-size: 34px;
+            font-weight: 700;
+        }
+        QLabel#profileDialogName {
+            color: ${text};
+            font-size: 22px;
+            font-weight: 600;
+        }
+        QLabel#profileRelationship {
+            color: ${text_secondary};
+            font-size: 13px;
+        }
+        QLabel#addFriendBadge {
+            min-width: 16px;
+            padding: 0 4px;
+            border-radius: 8px;
+            background: ${danger};
+            color: ${on_accent};
+            font-size: 11px;
+            font-weight: 700;
+        }
+        QLabel#navigationBadge, QLabel#chatsBadge {
+            min-width: 16px;
+            padding: 0 4px;
+            border-radius: 8px;
+            background: ${danger};
+            color: ${on_accent};
+            font-size: 11px;
+            font-weight: 700;
+        }
+        QPushButton#findUserButton {
+            min-height: 56px;
+            padding: 0 0 0 18px;
+            text-align: left;
+            background: ${panel};
+            color: ${accent};
+            border: 0;
+            border-bottom: 1px solid ${border};
+            border-radius: 0;
+            font-size: 14px;
+        }
+        QPushButton#findUserButton:hover, QPushButton#findUserButton:focus {
+            background: ${subtle};
+        }
+        QPushButton#emptyAddFriendButton {
+            min-height: 36px;
+            padding: 0 22px;
+            background: ${accent};
+            color: ${on_accent};
+            border: 2px solid transparent;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+        QPushButton#emptyAddFriendButton:hover {
+            background: ${accent_hover};
+        }
+        QPushButton#contactCardProfileButton[danger="true"] {
+            color: ${danger};
+        }
+        QLabel#profileSectionTitle {
+            color: ${text};
+            font-size: 14px;
+            font-weight: 600;
+        }
+        QLabel#themeLockedHint {
+            color: ${text_muted};
+            font-size: 12px;
+        }
+        QComboBox {
+            min-height: 34px;
+            padding: 0 10px;
+            background: ${surface};
+            color: ${text};
+            border: 1px solid ${input_border};
+            border-radius: 8px;
+        }
+        QComboBox#appearanceModeCombo, QComboBox#themeCombo {
+            padding-right: 32px;
+        }
+        QComboBox#appearanceModeCombo::drop-down, QComboBox#themeCombo::drop-down {
+            subcontrol-origin: padding;
+            subcontrol-position: top right;
+            width: 28px;
+            background: transparent;
+            border: none;
+        }
+        QComboBox#appearanceModeCombo::down-arrow, QComboBox#themeCombo::down-arrow {
+            image: url("${chevron_icon}");
+            width: 12px;
+            height: 12px;
+        }
+        QComboBox:focus {
+            border-color: ${focus};
+        }
+        QComboBox:disabled {
+            color: ${text_muted};
+            background: ${canvas_hover};
+        }
+        QComboBox QAbstractItemView {
+            background: ${surface};
+            color: ${text};
+            selection-background-color: ${selected};
+            selection-color: ${text};
+        }
+        QStackedWidget#contactDetail, QWidget#contactCard, QLabel#contactDetailPlaceholder {
+            background: ${canvas};
+        }
+        QLabel#contactCardName {
+            color: ${text};
+            font-size: 22px;
+            font-weight: 700;
+        }
+        QLabel#contactCardStatus {
+            color: ${text_muted};
+            font-size: 13px;
+        }
+        QLabel#contactCardOnline {
+            color: ${online};
+            font-size: 13px;
+        }
+        QPushButton#contactCardMessageButton, QPushButton#contactCardProfileButton {
+            border: 2px solid transparent;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        QPushButton#contactCardMessageButton {
+            background: ${accent};
+            color: ${on_accent};
+        }
+        QPushButton#contactCardMessageButton:hover {
+            background: ${accent_hover};
+        }
+        QPushButton#contactCardMessageButton:disabled {
+            background: ${accent_disabled};
+        }
+        QPushButton#contactCardProfileButton {
+            background: ${subtle};
+            color: ${accent};
+        }
+        QPushButton#contactCardProfileButton:hover {
+            background: ${subtle};
+        }
+        QPushButton#contactCardMessageButton:focus, QPushButton#contactCardProfileButton:focus {
+            border-color: ${focus};
+        }
+        QToolButton#profileActionButton {
+            padding: 0 12px;
+            background: transparent;
+            color: ${accent};
+            border: 2px solid transparent;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        QToolButton#profileActionButton:hover {
+            background: ${subtle};
+        }
+        QToolButton#profileActionButton:pressed {
+            background: ${selected};
+        }
+        QToolButton#profileActionButton:focus {
+            border-color: ${focus};
+        }
+        QDialog#profileDialog QPushButton {
+            background: transparent;
+            border: 2px solid transparent;
+        }
+        QToolButton#profileActionButton[primary="true"], QDialog#profileDialog QPushButton#changeAvatarButton {
+            background: ${accent};
+            color: ${on_accent};
+            border: 2px solid transparent;
+        }
+        QToolButton#profileActionButton[primary="true"]:hover, QDialog#profileDialog QPushButton#changeAvatarButton:hover {
+            background: ${accent_hover};
+        }
+        QToolButton#profileActionButton[primary="true"]:focus, QDialog#profileDialog QPushButton#changeAvatarButton:focus {
+            border-color: ${focus};
+        }
+        QToolButton#profileActionButton[primary="true"]:disabled, QDialog#profileDialog QPushButton#changeAvatarButton:disabled {
+            background: ${selected};
+            color: ${text_secondary};
+        }
+        QDialog#profileDialog QPushButton#profileLogoutButton, QDialog#profileDialog QPushButton#removeContactButton,
+        QDialog#profileDialog QPushButton#rejectFriendRequestButton, QDialog#profileDialog QPushButton#cancelFriendRequestButton {
+            color: ${danger};
+        }
+        QDialog#profileDialog QPushButton:hover {
+            background: ${subtle};
+        }
+        QDialog#profileDialog QPushButton:focus {
+            border-color: ${focus};
+        }
+        QDialog#profileDialog QPushButton:disabled,
+        QDialog#profileDialog QPushButton#profileLogoutButton:disabled, QDialog#profileDialog QPushButton#removeContactButton:disabled,
+        QDialog#profileDialog QPushButton#rejectFriendRequestButton:disabled, QDialog#profileDialog QPushButton#cancelFriendRequestButton:disabled {
+            color: ${text_muted};
+        }
+        QFrame#separator {
+            background: ${canvas_hover};
+            border: 0;
+        }
+        QListView#conversationList, QListView#userList, QListView#messageList, QListView#messageSearchResults,
+        QListWidget#incomingFriendRequests, QListWidget#outgoingFriendRequests {
+            border: 0;
+            outline: 0;
+            background: transparent;
+        }
+        QListView#conversationList, QListView#userList {
+            padding: 0;
+        }
+        QLineEdit#userSearchEdit {
+            margin: 0 12px 0 12px;
+            min-height: 36px;
+            background: ${canvas_hover};
+            border: 0;
+            border-radius: 18px;
+            padding: 0 14px;
+        }
+        QLineEdit#userSearchEdit:focus {
+            border: 1px solid ${focus};
+        }
+        QListView#messageList {
+            padding: 0 2px 6px 2px;
+        }
+        QScrollBar:vertical {
+            width: 6px;
+            margin: 6px 1px;
+            background: transparent;
+        }
+        QScrollBar::handle:vertical {
+            min-height: 32px;
+            background: ${border_strong};
+            border-radius: 3px;
+        }
+        QScrollBar::handle:vertical:hover {
+            background: ${input_hover};
+        }
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+            width: 0;
+            height: 0;
+            background: transparent;
+        }
+        QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+            background: transparent;
+        }
+        QScrollBar:horizontal {
+            height: 0;
+        }
+        QFrame#horizontalSeparator {
+            background: ${canvas_hover};
+            border: 0;
+            max-height: 1px;
+        }
+        QFrame#inputBar {
+            background: ${panel};
+            border: 0;
+            border-radius: 0;
+        }
+        QPlainTextEdit#messageEdit {
+            min-height: 36px;
+            padding: 0 4px;
+            background: transparent;
+            border: 0;
+            border-radius: 0;
+        }
+        QPlainTextEdit#messageEdit:focus {
+            border: 0;
+        }
+        QToolButton#sendButton {
+            border: 0;
+            border-radius: 20px;
+            background: transparent;
+        }
+        QToolButton#sendButton:hover:enabled {
+            background: ${subtle};
+        }
+        QToolButton#sendButton:disabled {
+            background: transparent;
+        }
+        QToolButton#cancelReplyButton {
+            border: 1px solid transparent;
+            border-radius: 18px;
+            background: transparent;
+        }
+        QToolButton#cancelReplyButton:hover {
+            background: ${subtle};
+        }
+        QToolButton#cancelReplyButton:focus {
+            border-color: ${focus};
+        }
+            QLineEdit#conversationSearchEdit, QLineEdit#userSearchEdit[header="true"] {
+            margin: 0;
+            min-height: 34px;
+            padding: 0 10px 0 4px;
+            background: ${canvas_hover};
+            border: 1px solid transparent;
+            border-radius: 17px;
+            font-size: 13px;
+        }
+        QLineEdit#conversationSearchEdit:focus, QLineEdit#userSearchEdit[header="true"]:focus {
+            background: ${surface};
+            border-color: ${focus};
+        }
+        QToolButton#chatsActionsButton, QToolButton#sidebarTextButton {
+            padding: 0;
+            border: 1px solid ${border};
+            border-radius: 17px;
+            background: ${surface};
+        }
+        QToolButton#chatsActionsButton::menu-indicator {
+            image: none;
+            width: 0;
+        }
+        QToolButton#chatMoreButton, QToolButton#sendAttachmentButton,
+        QToolButton#emojiButton, QToolButton#chatHistoryButton {
+            padding: 0;
+            border: 0;
+            border-radius: 18px;
+            background: transparent;
+        }
+        QToolButton#chatMoreButton:hover:enabled,
+        QToolButton#sendAttachmentButton:hover:enabled, QToolButton#emojiButton:hover:enabled,
+        QToolButton#chatHistoryButton:hover:enabled {
+            background: ${canvas_hover};
+        }
+        QFrame#emojiPicker {
+            background: ${surface};
+            border: 1px solid ${border};
+            border-radius: 12px;
+        }
+        QToolButton#emojiChoice {
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            font-family: "Noto Color Emoji";
+            font-size: 22px;
+        }
+        QToolButton#emojiChoice:hover {
+            background: ${canvas_hover};
+        }
+        QFrame#inputBar {
+            margin: 4px 14px 14px 14px;
+            background: ${surface};
+            border: 1px solid ${border};
+            border-radius: 14px;
+        }
+        QToolButton#sendButton {
+            margin: 4px 2px;
+            border: 0;
+            border-radius: 10px;
+            background: ${accent};
+        }
+        QToolButton#sendButton:hover:enabled {
+            background: ${accent_hover};
+        }
+        QToolButton#sendButton:disabled {
+            background: ${accent_disabled};
+        }
+        QLineEdit#historySearchEdit {
+            min-height: 34px;
+            padding: 0 10px 0 4px;
+            background: ${canvas_hover};
+            border: 1px solid transparent;
+            border-radius: 17px;
+        }
+        QLineEdit#historySearchEdit:focus {
+            background: ${surface};
+            border-color: ${focus};
+        }
+        QTabBar#historyTabs::tab {
+            padding: 6px 14px;
+            margin-right: 4px;
+            background: transparent;
+            color: ${text_secondary};
+            border: 0;
+            border-bottom: 2px solid transparent;
+        }
+        QTabBar#historyTabs::tab:selected {
+            color: ${accent};
+            font-weight: 600;
+            border-bottom-color: ${accent};
+        }
+        QTabBar#historyTabs::tab:hover:!selected {
+            color: ${text};
+        }
+        QListWidget#historyList {
+            background: transparent;
+        }
+        QLabel#historyStatus {
+            color: ${text_muted};
+            padding: 24px 0;
+        }
+
+QLineEdit:hover:!focus, QTextEdit:hover:!focus, QPlainTextEdit:hover:!focus, QComboBox:hover:!focus { border-color: ${input_hover}; }
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QComboBox:focus { border-color: ${focus}; }
+QPushButton:pressed:enabled, QToolButton:pressed:enabled { background: ${selected}; }
+QPushButton:focus, QToolButton:focus { border-color: ${focus}; }
+QPushButton:disabled, QToolButton:disabled { color: ${text_muted}; }
+QFrame#inputBar { border-color: ${input_border}; }
+QToolButton#navigationButton { background: transparent; color: ${nav_text}; }
+QToolButton#navigationButton:hover { background: ${nav_hover}; }
+
+QToolButton#navigationSelected { background: ${nav_selected}; color: ${nav_selected_text}; }
+QToolButton#navigationButton:hover { background: ${nav_hover}; }
+QToolButton#navigationButton:pressed { background: ${selected}; }
+QToolButton#navigationSelected:focus, QToolButton#navigationButton:focus { border: 2px solid ${focus}; }
+QPushButton#loginButton:disabled, QPushButton#registrationSubmitButton:disabled { color: ${text_secondary}; }
+QPushButton#loginButton:focus, QPushButton#registrationSubmitButton:focus, QToolButton#sendButton:focus { border: 2px solid ${on_accent}; }
+
+QToolButton#navigationSelected:focus { border-color: ${nav_selected_text}; }
+QToolButton#profileActionButton[primary="true"]:focus,
+QDialog#profileDialog QPushButton#changeAvatarButton:focus,
+QPushButton#contactCardMessageButton:focus { border-color: ${on_accent}; }
+QPlainTextEdit#messageEdit:focus { border: 1px solid ${focus}; border-radius: 8px; }
+QToolButton#sidebarHeaderButton:focus, QToolButton#chatsActionsButton:focus,
+QToolButton#chatMoreButton:focus, QToolButton#composeToolButton:focus,
+QPushButton#chatHeaderButton:focus { border: 1px solid ${focus}; }
+
+QPushButton#contactCardMessageButton:disabled { color: ${text_secondary}; }
+
+QLineEdit, QPlainTextEdit, QTextEdit { placeholder-text-color: ${text_muted}; }
+
+QPushButton#emptyAddFriendButton:focus { border-color: ${on_accent}; }

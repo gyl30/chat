@@ -213,7 +213,7 @@ bool check_message_selection_raster()
                                            qCeil((hint.height() + origin.y() + 20) * ratio)),
                                      QImage::Format_ARGB32_Premultiplied);
                         image.setDevicePixelRatio(ratio);
-                        image.fill(QColor(QStringLiteral("#F7F5EF")));
+                        image.fill(themed("canvas"));
                         QPainter painter(&image);
                         delegate.paint(&painter, option, index);
                         return image;
@@ -393,7 +393,7 @@ int main(int argc, char** argv)
     if (!check_emoji_display_policy()) { return 1; }
     if (!check_message_selection_raster()) { return 1; }
     if (!check_night_message_text_contrast()) { return 1; }
-    auto const chat_icon = svg_icon(QStringLiteral("chat"), QColor(QStringLiteral("#315A4B")));
+    auto const chat_icon = svg_icon(QStringLiteral("chat"), themed("accent"));
     for (qreal ratio : {1.0, 1.25, 1.5, 2.0})
     {
         auto const pixels = chat_icon.pixmap(QSize(20, 20), ratio);
@@ -645,7 +645,7 @@ int main(int argc, char** argv)
                         if (!long_message.mentions.isEmpty())
                         {
                             QTextCharFormat format;
-                            format.setForeground(QColor(QStringLiteral("#277399")));
+                            format.setForeground(themed("link"));
                             reference_formats.push_back({static_cast<int>(body_start), static_cast<int>(long_message.text.size()), format});
                         }
                         reference_layout.setFormats(reference_formats);
@@ -675,24 +675,24 @@ int main(int argc, char** argv)
                         QImage actual(QSize(qCeil((width + origin.x() * 2) * ratio), qCeil((hint.height() + origin.y() * 2 + 20) * ratio)),
                                       QImage::Format_ARGB32_Premultiplied);
                         actual.setDevicePixelRatio(ratio);
-                        actual.fill(QColor(QStringLiteral("#F7F5EF")));
+                        actual.fill(themed("canvas"));
                         QPainter actual_painter(&actual);
                         long_delegate.paint(&actual_painter, long_option, index);
                         actual_painter.end();
                         QImage expected_long(actual.size(), actual.format());
                         expected_long.setDevicePixelRatio(ratio);
-                        auto const bubble_color = QColor(outgoing ? QStringLiteral("#D6EAD9") : QStringLiteral("#FFFFFF"));
+                        auto const bubble_color = themed(outgoing ? "bubble_out" : "bubble_in");
                         expected_long.fill(bubble_color);
                         QPainter expected_painter(&expected_long);
                         expected_painter.setRenderHint(QPainter::Antialiasing);
-                        expected_painter.setPen(QColor(QStringLiteral("#26342E")));
+                        expected_painter.setPen(themed("text"));
                         auto const left =
                             outgoing ? width - chat_theme::message_side_margin - text_width - chat_theme::message_padding_horizontal
                                      : chat_theme::message_side_margin + chat_theme::message_avatar_skip + chat_theme::message_padding_horizontal;
                         reference_layout.draw(&expected_painter,
                                               origin + QPoint(left, chat_theme::message_margin_top + chat_theme::message_padding_vertical));
                         expected_painter.end();
-                        for (auto const color : {QColor(QStringLiteral("#26342E")), QColor(QStringLiteral("#277399"))})
+                        for (auto const color : {themed("text"), themed("link")})
                         {
                             for (int y = 0; y < actual.height(); ++y)
                             {
@@ -701,7 +701,7 @@ int main(int argc, char** argv)
                                     auto const actual_pixel = actual.pixelColor(x, y);
                                     auto const expected_pixel = expected_long.pixelColor(x, y);
                                     if ((actual_pixel == color) != (expected_pixel == color)
-                                        || (color == QColor(QStringLiteral("#26342E"))
+                                        || (color == themed("text")
                                             && expected_pixel != bubble_color && actual_pixel != expected_pixel))
                                     {
                                         std::cerr << "FAIL long message retains complete body inside its bubble: " << width << '/' << outgoing << '/'
@@ -735,7 +735,7 @@ int main(int argc, char** argv)
     option.font = QApplication::font();
     option.font.setPixelSize(14);
     QImage rendered(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
-    rendered.fill(QColor(QStringLiteral("#F7F5EF")));
+    rendered.fill(themed("canvas"));
     QPainter painter(&rendered);
     message_delegate delegate;
     delegate.paint(&painter, option, messages.index(0, 0));
@@ -851,7 +851,7 @@ int main(int argc, char** argv)
     mentioned.edited_at = 200;
     messages.update_message(mentioned);
     if (messages.index(0, 0).data(message_model::text_role).toString().toUtf8() != mentioned.text.toUtf8()) { return 1; }
-    rendered.fill(QColor(QStringLiteral("#F7F5EF")));
+    rendered.fill(themed("canvas"));
     QPainter mention_painter(&rendered);
     delegate.paint(&mention_painter, option, messages.index(0, 0));
     mention_painter.end();
@@ -860,7 +860,7 @@ int main(int argc, char** argv)
     {
         for (int x = 0; x < rendered.width(); ++x)
         {
-            blue_pixels += rendered.pixelColor(x, y) == QColor(QStringLiteral("#277399"));
+            blue_pixels += rendered.pixelColor(x, y) == themed("link");
         }
     }
     if (blue_pixels < 10 || delegate.sizeHint(option, messages.index(0, 0)).height() <= 100)
@@ -871,7 +871,7 @@ int main(int argc, char** argv)
     messages.reset(1, true);
     messages.add_message(message);
     // Keep the edited-message rendering assertion on its original image.
-    rendered.fill(QColor(QStringLiteral("#F7F5EF")));
+    rendered.fill(themed("canvas"));
     QPainter message_painter(&rendered);
     delegate.paint(&message_painter, option, messages.index(0, 0));
     message_painter.end();
@@ -880,11 +880,11 @@ int main(int argc, char** argv)
     if (!avatars.image(2).isNull()) { return 1; }
     QFontMetrics metrics(option.font);
     QImage expected(metrics.horizontalAdvance(message.text), metrics.height(), rendered.format());
-    expected.fill(Qt::white);
+    expected.fill(themed("bubble_in"));
     QPainter reference(&expected);
     reference.setRenderHint(QPainter::Antialiasing);
     reference.setFont(option.font);
-    reference.setPen(QColor(QStringLiteral("#26342E")));
+    reference.setPen(themed("text"));
     reference.drawText(expected.rect(), Qt::AlignLeft | Qt::AlignTop | Qt::TextSingleLine, message.text);
     reference.end();
 

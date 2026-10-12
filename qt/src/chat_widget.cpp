@@ -118,7 +118,7 @@ QToolButton* make_navigation_button(
     button->setToolButtonStyle(Qt::ToolButtonIconOnly);
     button->setIcon(svg_icon(
         icon,
-        selected && !theme_manager::instance().dark() ? QColor(Qt::white) : QColor(QStringLiteral("#C4D2CB")),
+        themed(selected ? "nav_selected_text" : "nav_text"),
         QSize(24, 24)));
     button->setIconSize(QSize(24, 24));
     button->setEnabled(enabled);
@@ -131,7 +131,7 @@ void set_navigation_button(QToolButton* button, QStringView icon, bool selected)
 {
     button->setObjectName(selected ? QStringLiteral("navigationSelected") : QStringLiteral("navigationButton"));
     button->setIcon(svg_icon(
-        icon, selected && !theme_manager::instance().dark() ? QColor(Qt::white) : QColor(QStringLiteral("#C4D2CB")), QSize(24, 24)));
+        icon, themed(selected ? "nav_selected_text" : "nav_text"), QSize(24, 24)));
     button->style()->unpolish(button);
     button->style()->polish(button);
 }
@@ -208,7 +208,11 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     conversation_search_->setObjectName(QStringLiteral("conversationSearchEdit"));
     conversation_search_->setPlaceholderText(QStringLiteral("搜索"));
     conversation_search_->setAccessibleName(QStringLiteral("搜索聊天"));
-    conversation_search_->addAction(svg_icon(u"search", QColor(QStringLiteral("#8B918D")), QSize(16, 16)), QLineEdit::LeadingPosition);
+    auto* conversation_search_icon = conversation_search_->addAction(
+        svg_icon(u"search", themed("text_muted"), QSize(16, 16)), QLineEdit::LeadingPosition);
+    connect(&theme_manager::instance(), &theme_manager::changed, conversation_search_, [conversation_search_icon] {
+        conversation_search_icon->setIcon(svg_icon(u"search", themed("text_muted"), QSize(16, 16)));
+    });
     conversation_header_layout->addWidget(conversation_search_, 1);
     // Contacts use the same row: their own search box beside the add-friend icon, as in WeChat.
     contact_search_ = new QLineEdit(conversation_header);
@@ -218,7 +222,11 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     contact_search_->setToolTip(QStringLiteral("搜索联系人，或按 Enter 查找用户"));
     contact_search_->setClearButtonEnabled(false);
     contact_search_->setProperty("header", true);
-    contact_search_->addAction(svg_icon(u"search", QColor(QStringLiteral("#8B918D")), QSize(16, 16)), QLineEdit::LeadingPosition);
+    auto* contact_search_icon = contact_search_->addAction(
+        svg_icon(u"search", themed("text_muted"), QSize(16, 16)), QLineEdit::LeadingPosition);
+    connect(&theme_manager::instance(), &theme_manager::changed, contact_search_, [contact_search_icon] {
+        contact_search_icon->setIcon(svg_icon(u"search", themed("text_muted"), QSize(16, 16)));
+    });
     contact_search_->hide();
     conversation_header_layout->addWidget(contact_search_, 1);
     conversation_header_layout->addStretch();
@@ -227,7 +235,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     add_contact_button_->setText(QStringLiteral("添加好友"));
     add_contact_button_->setToolTip(QStringLiteral("添加好友"));
     add_contact_button_->setAccessibleName(QStringLiteral("添加好友"));
-    add_contact_button_->setIcon(svg_icon(u"user-plus", QColor(QStringLiteral("#315A4B")), QSize(18, 18)));
+    add_contact_button_->setIcon(svg_icon(u"user-plus", themed("accent"), QSize(18, 18)));
     add_contact_button_->setIconSize(QSize(18, 18));
     add_contact_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
     add_contact_button_->setFixedSize(34, 34);
@@ -242,7 +250,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     chats_actions_ = new QToolButton(conversation_header);
     chats_actions_->setObjectName(QStringLiteral("chatsActionsButton"));
     chats_actions_->setText(QStringLiteral("+"));
-    chats_actions_->setIcon(svg_icon(u"plus", QColor(QStringLiteral("#315A4B")), QSize(18, 18)));
+    chats_actions_->setIcon(svg_icon(u"plus", themed("accent"), QSize(18, 18)));
     chats_actions_->setIconSize(QSize(18, 18));
     chats_actions_->setToolButtonStyle(Qt::ToolButtonIconOnly);
     chats_actions_->setAccessibleName(QStringLiteral("聊天操作"));
@@ -298,7 +306,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     // While searching, the first row offers to find new people by the query.
     find_user_button_ = new QPushButton(contacts_page);
     find_user_button_->setObjectName(QStringLiteral("findUserButton"));
-    find_user_button_->setIcon(svg_icon(u"search", QColor(QStringLiteral("#315A4B")), QSize(18, 18)));
+    find_user_button_->setIcon(svg_icon(u"search", themed("accent"), QSize(18, 18)));
     find_user_button_->setCursor(Qt::PointingHandCursor);
     find_user_button_->hide();
     contacts_layout->addWidget(find_user_button_);
@@ -492,7 +500,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     chat_more_button_->setObjectName(QStringLiteral("chatMoreButton"));
     chat_more_button_->setToolTip(QStringLiteral("聊天信息"));
     chat_more_button_->setAccessibleName(QStringLiteral("聊天信息"));
-    chat_more_button_->setIcon(svg_icon(u"more", QColor(QStringLiteral("#3F4542")), QSize(20, 20)));
+    chat_more_button_->setIcon(svg_icon(u"more", themed("text"), QSize(20, 20)));
     chat_more_button_->setIconSize(QSize(20, 20));
     chat_more_button_->setFixedSize(36, 36);
     chat_more_button_->setCursor(Qt::PointingHandCursor);
@@ -582,7 +590,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     cancel_reply->setObjectName(QStringLiteral("cancelReplyButton"));
     cancel_reply->setAccessibleName(QStringLiteral("取消回复"));
     cancel_reply->setToolTip(QStringLiteral("取消回复"));
-    cancel_reply->setIcon(svg_icon(QStringLiteral("close"), QColor(QStringLiteral("#3F4542")), QSize(20, 20)));
+    cancel_reply->setIcon(svg_icon(QStringLiteral("close"), themed("text"), QSize(20, 20)));
     cancel_reply->setIconSize(QSize(20, 20));
     cancel_reply->setFixedSize(36, 36);
     cancel_reply->setCursor(Qt::PointingHandCursor);
@@ -786,7 +794,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     attachment_button_->setText(QStringLiteral("文件/图片"));
     attachment_button_->setToolTip(QStringLiteral("发送文件或图片"));
     attachment_button_->setAccessibleName(QStringLiteral("发送文件或图片"));
-    attachment_button_->setIcon(svg_icon(u"attach", QColor(QStringLiteral("#3F4542")), QSize(22, 22)));
+    attachment_button_->setIcon(svg_icon(u"attach", themed("text"), QSize(22, 22)));
     attachment_button_->setIconSize(QSize(22, 22));
     attachment_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
     attachment_button_->setFixedSize(chat_theme::compose_button_width, chat_theme::compose_button_height);
@@ -798,7 +806,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
         button->setObjectName(name);
         button->setToolTip(label);
         button->setAccessibleName(label);
-        button->setIcon(svg_icon(icon, QColor(QStringLiteral("#3F4542")), QSize(22, 22)));
+        button->setIcon(svg_icon(icon, themed("text"), QSize(22, 22)));
         button->setIconSize(QSize(22, 22));
         button->setToolButtonStyle(Qt::ToolButtonIconOnly);
         button->setFixedSize(chat_theme::compose_button_width, chat_theme::compose_button_height);
@@ -857,7 +865,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     });
     send_button_ = new QToolButton(input_bar);
     send_button_->setObjectName(QStringLiteral("sendButton"));
-    send_button_->setIcon(svg_icon(QStringLiteral("send"), QColor(Qt::white), QSize(20, 20)));
+    send_button_->setIcon(svg_icon(QStringLiteral("send"), themed("on_accent"), QSize(20, 20)));
     send_button_->setIconSize(QSize(20, 20));
     send_button_->setToolTip(QStringLiteral("发送消息（Enter）"));
     send_button_->setAccessibleName(QStringLiteral("发送消息"));
@@ -880,7 +888,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     contact_placeholder_ = contact_placeholder;
     contact_placeholder->setObjectName(QStringLiteral("contactDetailPlaceholder"));
     contact_placeholder->setAlignment(Qt::AlignCenter);
-    contact_placeholder->setPixmap(svg_icon(u"contacts", QColor(QStringLiteral("#D6D2C8")), QSize(72, 72)).pixmap(72, 72));
+    contact_placeholder->setPixmap(svg_icon(u"contacts", themed("border"), QSize(72, 72)).pixmap(72, 72));
     contact_detail_->addWidget(contact_placeholder);
     auto* card = new QWidget(contact_detail_);
     card->setObjectName(QStringLiteral("contactCard"));
@@ -1983,16 +1991,16 @@ void chat_widget::refresh_theme()
         (sidebar_pages_->currentIndex() == 2 && add_friend_parent_ == sidebar_parent::chats);
     set_navigation_button(chats_navigation_, QStringLiteral("chat"), chats);
     set_navigation_button(contacts_navigation_, QStringLiteral("contacts"), !chats);
-    cancel_reply_button_->setIcon(svg_icon(QStringLiteral("close"), QColor(QStringLiteral("#3F4542")), QSize(20, 20)));
-    send_button_->setIcon(svg_icon(QStringLiteral("send"), QColor(Qt::white), QSize(20, 20)));
-    chat_more_button_->setIcon(svg_icon(u"more", QColor(QStringLiteral("#3F4542")), QSize(20, 20)));
-    attachment_button_->setIcon(svg_icon(u"attach", QColor(QStringLiteral("#3F4542")), QSize(22, 22)));
-    emoji_button_->setIcon(svg_icon(u"emoji", QColor(QStringLiteral("#3F4542")), QSize(22, 22)));
-    history_button_->setIcon(svg_icon(u"history", QColor(QStringLiteral("#3F4542")), QSize(22, 22)));
-    chats_actions_->setIcon(svg_icon(u"plus", QColor(QStringLiteral("#315A4B")), QSize(18, 18)));
-    find_user_button_->setIcon(svg_icon(u"search", QColor(QStringLiteral("#315A4B")), QSize(18, 18)));
-    add_contact_button_->setIcon(svg_icon(u"user-plus", QColor(QStringLiteral("#315A4B")), QSize(18, 18)));
-    contact_placeholder_->setPixmap(svg_icon(u"contacts", QColor(QStringLiteral("#D6D2C8")), QSize(72, 72)).pixmap(72, 72));
+    cancel_reply_button_->setIcon(svg_icon(QStringLiteral("close"), themed("text"), QSize(20, 20)));
+    send_button_->setIcon(svg_icon(QStringLiteral("send"), themed("on_accent"), QSize(20, 20)));
+    chat_more_button_->setIcon(svg_icon(u"more", themed("text"), QSize(20, 20)));
+    attachment_button_->setIcon(svg_icon(u"attach", themed("text"), QSize(22, 22)));
+    emoji_button_->setIcon(svg_icon(u"emoji", themed("text"), QSize(22, 22)));
+    history_button_->setIcon(svg_icon(u"history", themed("text"), QSize(22, 22)));
+    chats_actions_->setIcon(svg_icon(u"plus", themed("accent"), QSize(18, 18)));
+    find_user_button_->setIcon(svg_icon(u"search", themed("accent"), QSize(18, 18)));
+    add_contact_button_->setIcon(svg_icon(u"user-plus", themed("accent"), QSize(18, 18)));
+    contact_placeholder_->setPixmap(svg_icon(u"contacts", themed("border"), QSize(72, 72)).pixmap(72, 72));
     profile_avatar_->setIcon(avatar_icon(profile_avatar_->toolTip(), 44, avatars_.image(self_user_)));
     if (active_conversation_ > 0) { update_chat_header(active_username_); }
     update_contact_card();
@@ -2861,7 +2869,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
     close_button->setObjectName(QStringLiteral("profileCloseButton"));
     close_button->setAccessibleName(QStringLiteral("关闭资料"));
     close_button->setToolTip(QStringLiteral("关闭资料"));
-    close_button->setIcon(svg_icon(QStringLiteral("close"), QColor(QStringLiteral("#3F4542")), QSize(22, 22)));
+    close_button->setIcon(svg_icon(QStringLiteral("close"), themed("text"), QSize(22, 22)));
     close_button->setIconSize(QSize(22, 22));
     close_button->setFixedSize(36, 36);
     close_button->setCursor(Qt::PointingHandCursor);
@@ -2908,9 +2916,16 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
         button->setCursor(Qt::PointingHandCursor);
         return button;
     };
-    auto* message_button = make_action(QStringLiteral("消息"), QStringLiteral("chat"), QColor(Qt::white));
+    auto* message_button = make_action(QStringLiteral("消息"), QStringLiteral("chat"), themed("on_accent"));
     message_button->setProperty("primary", true);
-    auto* copy_username_button = make_action(QStringLiteral("复制用户名"), QStringLiteral("copy"), themed("#315A4B"));
+    auto* copy_username_button = make_action(QStringLiteral("复制用户名"), QStringLiteral("copy"), themed("accent"));
+    connect(&theme_manager::instance(), &theme_manager::changed, &dialog,
+            [this, close_button, message_button, copy_username_button, avatar, user, username] {
+        close_button->setIcon(svg_icon(u"close", themed("text"), QSize(22, 22)));
+        message_button->setIcon(svg_icon(u"chat", themed("on_accent"), QSize(20, 20)));
+        copy_username_button->setIcon(svg_icon(u"copy", themed("accent"), QSize(20, 20)));
+        avatar->setPixmap(avatar_icon(username, 104, avatars_.image(user)).pixmap(104, 104));
+    });
     actions->addWidget(message_button);
     actions->addWidget(copy_username_button);
     actions->addStretch();
@@ -3061,43 +3076,22 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
         mode->setObjectName(QStringLiteral("appearanceModeCombo"));
         mode->setAccessibleName(QStringLiteral("外观模式"));
         mode->addItem(QStringLiteral("跟随系统"), static_cast<int>(chat_appearance::system));
-        mode->addItem(QStringLiteral("浅色"), static_cast<int>(chat_appearance::light));
-        mode->addItem(QStringLiteral("夜间"), static_cast<int>(chat_appearance::dark));
+        mode->addItem(QStringLiteral("Daylight"), static_cast<int>(chat_appearance::light));
+        mode->addItem(QStringLiteral("Midnight"), static_cast<int>(chat_appearance::dark));
         mode->setCurrentIndex(mode->findData(static_cast<int>(themes.appearance())));
-        auto* theme = new QComboBox(info);
-        theme->setObjectName(QStringLiteral("themeCombo"));
-        theme->setAccessibleName(QStringLiteral("主题"));
-        for (auto const& item : theme_manager::themes()) { theme->addItem(item.name, static_cast<int>(item.id)); }
-        theme->setCurrentIndex(theme->findData(static_cast<int>(themes.theme())));
         auto* mode_label = new QLabel(QStringLiteral("外观"), info);
         mode_label->setObjectName(QStringLiteral("profileSectionTitle"));
         mode_label->setBuddy(mode);
-        auto* theme_label = new QLabel(QStringLiteral("主题"), info);
-        theme_label->setObjectName(QStringLiteral("profileSectionTitle"));
-        theme_label->setBuddy(theme);
         appearance_row->addWidget(mode_label);
         appearance_row->addWidget(mode, 1);
-        appearance_row->addSpacing(8);
-        appearance_row->addWidget(theme_label);
-        appearance_row->addWidget(theme, 1);
         info_layout->addLayout(appearance_row);
-        auto* theme_hint = new QLabel(QStringLiteral("夜间模式下固定使用夜间主题"), info);
-        theme_hint->setObjectName(QStringLiteral("themeLockedHint"));
-        info_layout->addWidget(theme_hint);
-        // Night mode has a single theme of its own, so the theme choice waits for light mode.
-        auto update_theme_lock = [theme, theme_hint] {
-            auto const night = theme_manager::instance().dark();
-            theme->setEnabled(!night);
-            theme_hint->setVisible(night);
-        };
-        update_theme_lock();
         connect(mode, &QComboBox::currentIndexChanged, &dialog, [mode](int) {
             theme_manager::instance().set_appearance(static_cast<chat_appearance>(mode->currentData().toInt()));
         });
-        connect(theme, &QComboBox::currentIndexChanged, &dialog, [theme](int) {
-            theme_manager::instance().set_theme(static_cast<chat_theme_id>(theme->currentData().toInt()));
+        connect(&themes, &theme_manager::changed, &dialog, [mode] {
+            QSignalBlocker blocker(mode);
+            mode->setCurrentIndex(mode->findData(static_cast<int>(theme_manager::instance().appearance())));
         });
-        connect(&themes, &theme_manager::changed, &dialog, update_theme_lock);
         auto* logout = new QPushButton(QStringLiteral("退出登录"), info);
         logout->setObjectName(QStringLiteral("profileLogoutButton"));
         info_layout->addWidget(logout);

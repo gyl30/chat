@@ -1,0 +1,6 @@
+/* Daylight: neutral daylight surfaces. Colors are defined in daylight.json. */
+QMainWindow, QFrame#loginCard { background: ${canvas}; }
+QPushButton#loginButton { background: ${accent}; color: ${on_accent}; }
+QPushButton#loginButton:hover:enabled { background: ${accent_hover}; }
+QPushButton#loginButton:pressed:enabled { background: ${accent_pressed}; }
+QPushButton#loginButton:disabled { background: ${accent_disabled}; color: ${text_secondary}; }

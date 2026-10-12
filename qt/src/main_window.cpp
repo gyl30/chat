@@ -124,7 +124,7 @@ main_window::main_window(QString server_url, QWidget* parent)
 
     auto* server_settings = new QToolButton(title_bar_);
     server_settings->setObjectName(QStringLiteral("serverSettingsButton"));
-    server_settings->setIcon(svg_icon(u"settings", QColor(QStringLiteral("#5D6C64"))));
+    server_settings->setIcon(svg_icon(u"settings", themed("text_secondary")));
     server_settings->setToolTip(QStringLiteral("服务器设置"));
     server_settings->setAccessibleName(QStringLiteral("服务器设置"));
     server_settings->setToolButtonStyle(Qt::ToolButtonIconOnly);
@@ -165,7 +165,7 @@ main_window::main_window(QString server_url, QWidget* parent)
     password_edit_->setEchoMode(QLineEdit::Password);
     password_edit_->setAlignment(Qt::AlignCenter);
     recent_accounts_action_ = username_edit_->addAction(
-        svg_icon(u"chevron-down", QColor(QStringLiteral("#5D6C64")), QSize(18, 18)), QLineEdit::TrailingPosition);
+        svg_icon(u"chevron-down", themed("text_secondary"), QSize(18, 18)), QLineEdit::TrailingPosition);
     recent_accounts_action_->setToolTip(QStringLiteral("选择已登录过的账号"));
     connect(recent_accounts_action_, &QAction::triggered, this, [this] {
         QMenu menu(username_edit_);
@@ -281,7 +281,7 @@ main_window::main_window(QString server_url, QWidget* parent)
     chat_page_ = new chat_widget(pages_);
     chat_page_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
 
-    tray_ = new QSystemTrayIcon(svg_icon(u"chat", QColor(QStringLiteral("#365E4B")), QSize(32, 32)), this);
+    tray_ = new QSystemTrayIcon(svg_icon(u"chat", themed("accent"), QSize(32, 32)), this);
     tray_->setObjectName(QStringLiteral("notificationTray"));
     tray_->setToolTip(QStringLiteral("Chat"));
     auto restore_window = [this] { showNormal(); raise(); activateWindow(); };
@@ -1011,9 +1011,9 @@ main_window::main_window(QString server_url, QWidget* parent)
     update_window_chrome();
     connect(&theme_manager::instance(), &theme_manager::changed, this, [this] {
         setStyleSheet(chat_style_sheet());
-        server_settings_->setIcon(svg_icon(u"settings", QColor(QStringLiteral("#5D6C64"))));
-        recent_accounts_action_->setIcon(svg_icon(u"chevron-down", QColor(QStringLiteral("#5D6C64")), QSize(18, 18)));
-        tray_->setIcon(svg_icon(u"chat", QColor(QStringLiteral("#365E4B")), QSize(32, 32)));
+        server_settings_->setIcon(svg_icon(u"settings", themed("text_secondary")));
+        recent_accounts_action_->setIcon(svg_icon(u"chevron-down", themed("text_secondary"), QSize(18, 18)));
+        tray_->setIcon(svg_icon(u"chat", themed("accent"), QSize(32, 32)));
         update_login_identity();
         title_bar_->refresh_theme();
         chat_page_->refresh_theme();
@@ -1098,7 +1098,7 @@ void main_window::update_login_identity()
     auto const username = username_edit_->text();
     auto const size = chat_theme::login_avatar_size;
     login_avatar_->setPixmap(username.isEmpty()
-        ? svg_icon(u"chat", Qt::white, QSize(size / 2, size / 2)).pixmap(size / 2, size / 2)
+        ? svg_icon(u"chat", themed("on_accent"), QSize(size / 2, size / 2)).pixmap(size / 2, size / 2)
         : avatar_icon(username, size).pixmap(size, size));
     login_avatar_->setProperty("empty", username.isEmpty());
     login_avatar_->style()->unpolish(login_avatar_);

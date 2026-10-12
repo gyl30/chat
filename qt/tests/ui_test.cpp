@@ -12,6 +12,13 @@
 #include <QDialogButtonBox>
 #include <QDateTime>
 #include <QFile>
+#include <QDir>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QStandardPaths>
+#include <QProcessEnvironment>
+#include <QRegularExpression>
 #include <QFileDialog>
 #include <QFontDatabase>
 #include <QGlyphRun>
@@ -42,6 +49,7 @@
 #include <QScrollArea>
 #include <QSystemTrayIcon>
 #include <QStyle>
+#include <QStyleHints>
 #include <QStyleOptionButton>
 #include <QStyleOptionMenuItem>
 #include <QTextBlock>
@@ -339,7 +347,7 @@ void check_authentication_username_fonts()
     auto& themes = theme_manager::instance();
     auto const saved_theme = themes.theme();
     auto const saved_appearance = themes.appearance();
-    themes.set_theme(chat_theme_id::classic);
+    themes.set_theme(chat_theme_id::daylight);
     main_window window(QStringLiteral("ws://127.0.0.1:18769/ws"));
     window.show();
     window.activateWindow();
@@ -1300,7 +1308,7 @@ void check_primary_navigation()
                 list->item(0)->setCheckState(Qt::Checked);
                 auto const pixels = dialog->grab().toImage();
                 auto const primary = logical_pixel(pixels, next->mapTo(dialog, QPoint(next->width() - 12, next->height() / 2)));
-                check(primary.lightness() < 100, "Enabled group progression is visibly primary");
+                check(primary == themed("accent") || primary == themed("accent_hover"), "Enabled group progression uses the semantic primary action fill");
                 auto* chips = dialog->findChild<QListWidget*>("groupSelectedContacts");
                 check(chips->count() == 1 && chips->item(0)->text().contains(contacts[0].username), "Long Unicode selection remains intact");
                 if (count >= 3)
@@ -1588,7 +1596,7 @@ void check_profile_layout()
         auto const profile_pixels = dialog->grab().toImage();
         auto const change_background = logical_pixel(profile_pixels, change->mapTo(dialog, QPoint(change->width() - 12, change->height() / 2)));
         auto const logout_background = logical_pixel(profile_pixels, logout->mapTo(dialog, QPoint(logout->width() - 12, logout->height() / 2)));
-        check(change_background.lightness() < 100 && logout_background.lightness() > 200,
+        check((change_background == themed("accent") || change_background == themed("accent_hover")) && logout_background.lightness() > 200,
               ("Account action hierarchy: change=" + change_background.name().toStdString() +
                " logout=" + logout_background.name().toStdString()).c_str());
         dialog->reject();
@@ -1703,18 +1711,18 @@ void check_message_editor()
             check(save->text() == QStringLiteral("保存") && buttons->button(QDialogButtonBox::Cancel)->text() == QStringLiteral("取消"),
                   "Message editing names both decisions");
             for (auto* button : buttons->buttons()) { check(button->icon().isNull(), "Message editing has no platform button icons"); }
-            check(logical_pixel(save->grab().toImage(), QPoint(save->width() / 2, 4)) == QColor("#315A4B"),
+            check(logical_pixel(save->grab().toImage(), QPoint(save->width() / 2, 4)) == themed("accent"),
                   "Message save is visibly the primary action");
             editor->setFocus();
             auto editor_image = editor->grab().toImage();
-            check(editor_image.pixelColor(0, editor_image.height() / 2) == QColor("#547C68"),
+            check(editor_image.pixelColor(0, editor_image.height() / 2) == themed("focus"),
                   "Message editing has a visible input focus boundary");
             QKeyEvent tab(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier);
             QApplication::sendEvent(editor, &tab);
             check(QApplication::focusWidget() == save && editor->toPlainText() == message.text,
                   "Tab reaches Save without mutating the body");
             editor_image = editor->grab().toImage();
-            check(editor_image.pixelColor(0, editor_image.height() / 2) == QColor("#DDD9D0"),
+            check(editor_image.pixelColor(0, editor_image.height() / 2) == themed("input_border"),
                   "Message editing retains its unfocused input boundary");
             if (choice == 0)
             {
@@ -1884,9 +1892,9 @@ void check_reply_and_read_details_controls()
         for (int x = 0; x < 4; ++x)
         {
             auto const color = cancel_image.pixelColor(x, y);
-            if (color.rgb() == QColor("#547C68").rgb() && color.alpha() >= 200) { ++focus_pixels; }
+            if (color.rgb() == themed("focus").rgb() && color.alpha() >= 200) { ++focus_pixels; }
             auto const unfocused_color = unfocused_image.pixelColor(x, y);
-            if (unfocused_color.rgb() == QColor("#547C68").rgb() && unfocused_color.alpha() >= 200) { ++unfocused_pixels; }
+            if (unfocused_color.rgb() == themed("focus").rgb() && unfocused_color.alpha() >= 200) { ++unfocused_pixels; }
         }
     }
     check(focus_pixels > 0 && unfocused_pixels == 0,
@@ -1934,7 +1942,7 @@ void check_reply_and_read_details_controls()
         auto const row_rect = list->visualItemRect(list->currentItem());
         check(row_rect.height() == chat_theme::dialog_row_height, "Read members use shared user row metrics");
         auto const list_image = list->viewport()->grab().toImage();
-        check(logical_pixel(list_image, QPoint(row_rect.right() - 6, row_rect.bottom() - 6)) == QColor("#E7EEE9"),
+        check(logical_pixel(list_image, QPoint(row_rect.right() - 6, row_rect.bottom() - 6)) == themed("selected"),
               "The selected read member uses the cream and green user-list palette");
         list->setCurrentRow(13);
         list->verticalScrollBar()->setValue(list->verticalScrollBar()->maximum() / 2);
@@ -2112,7 +2120,7 @@ bool check_pinned_unicode_boundaries(QString const& artifact_directory = {})
     check(unpin && unpin->isVisible(), "The actual group owner can see the unpin control");
     auto const unpin_image = unpin->grab().toImage();
     check(logical_pixel(unpin_image, QPoint(5, unpin->height() / 2)).lightness() >= 230 &&
-              unpin->palette().color(QPalette::ButtonText) == QColor("#315A4B"),
+              unpin->palette().color(QPalette::ButtonText) == themed("accent"),
           "The unpin control has a readable cream-surface secondary-action palette");
     return intact;
 }
@@ -2224,13 +2232,247 @@ void check_image_preview_resolution()
     check(image->pixmap().width() > 640 && image->pixmap().width() <= 1600,
           "Image preview shows the original resolution rather than the 640x480 bubble thumbnail");
 }
+QString semantic_theme_sheet(QString sheet)
+{
+    // A successful reload owns a fresh SVG path so Qt cannot reuse a previous color cache.
+    // Normalize only the generated SVG directories; every other URL and QSS byte is retained.
+    static QRegularExpression const generated_icon(QStringLiteral(R"icon(url\("/[^"]*/((?:check|chevron-down)\.svg)"\))icon"));
+    return sheet.replace(generated_icon, QStringLiteral("url(\"/<generated>/\\1\")"));
+}
+
+void check_theme_files()
+{
+    QTemporaryDir config;
+    check(config.isValid(), "Theme override fixture has a private configuration directory");
+    qputenv("XDG_CONFIG_HOME", config.path().toUtf8());
+    auto& themes = theme_manager::instance();
+    themes.set_appearance(chat_appearance::light);
+    check(themes.valid() && themes.last_error().isEmpty(), "Copied packaged Daylight loads without overrides");
+    QDir packaged(QCoreApplication::applicationDirPath() + QStringLiteral("/themes"));
+    auto read = [&](QString const& path) {
+        QFile file(path); check(file.open(QIODevice::ReadOnly), "Theme fixture input is readable"); return file.readAll();
+    };
+    auto write = [&](QString const& path, QByteArray const& bytes) {
+        QFile file(path); check(file.open(QIODevice::WriteOnly | QIODevice::Truncate), "Theme fixture output opens");
+        check(file.write(bytes) == bytes.size(), "Theme fixture output is complete"); file.close();
+    };
+    auto const original_json = read(packaged.filePath(QStringLiteral("daylight.json")));
+    auto const original_sheet = themes.style_sheet();
+    auto const original_canvas = themed("canvas");
+    auto const original_highlight = themes.highlight();
+    auto const original_palette = qApp->palette();
+    auto const override_directory = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) + QStringLiteral("/themes");
+    check(QDir().mkpath(override_directory), "Private theme override directory exists");
+    auto const json_path = override_directory + QStringLiteral("/daylight.json");
+    auto const qss_path = override_directory + QStringLiteral("/daylight.qss");
+    auto document = QJsonDocument::fromJson(original_json).object();
+    auto colors = document.value(QStringLiteral("colors")).toObject();
+    colors.insert(QStringLiteral("canvas"), QStringLiteral("#D5E6F4"));
+    colors.insert(QStringLiteral("highlight"), QStringLiteral("#7A3CA8"));
+    document.insert(QStringLiteral("colors"), colors);
+    auto const edited_json = QJsonDocument(document).toJson();
+
+    main_window login(QStringLiteral("ws://127.0.0.1:18769/ws"));
+    login.show(); login.activateWindow(); QApplication::processEvents();
+    auto* username = login.findChild<QLineEdit*>("loginUsernameEdit");
+    auto* password = login.findChild<QLineEdit*>("loginPasswordEdit");
+    username->setText(QStringLiteral("主题配置草稿")); password->setText(QStringLiteral("masked-input"));
+    username->setFocus(); QApplication::processEvents();
+    auto const user_rect = username->geometry(), password_rect = password->geometry();
+    auto const window_rect = login.geometry();
+    auto* focused = QApplication::focusWidget();
+    int changed = 0, failures = 0;
+    auto changed_connection = QObject::connect(&themes, &theme_manager::changed, &login, [&] { ++changed; });
+    auto failure_connection = QObject::connect(&themes, &theme_manager::load_failed, &login, [&](QString) { ++failures; });
+    write(json_path, edited_json);
+    check(themes.reload() && themes.last_error().isEmpty() && changed == 1,
+          "Editing an external JSON palette applies once without rebuilding");
+    check(themed("canvas") == QColor(QStringLiteral("#D5E6F4")) && themes.highlight() == QColor(QStringLiteral("#7A3CA8")),
+          "JSON-only overrides update painter and application palette roles together");
+    check(qApp->palette().color(QPalette::Window) == themed("canvas") && themes.style_sheet().contains(themed("canvas").name()),
+          "Palette and expanded QSS use the same edited external role");
+    QApplication::processEvents();
+    check(username->text() == QStringLiteral("主题配置草稿") && password->text() == QStringLiteral("masked-input") &&
+              password->echoMode() == QLineEdit::Password && QApplication::focusWidget() == focused &&
+              username->geometry() == user_rect && password->geometry() == password_rect && login.geometry() == window_rect,
+          "Live JSON reload preserves input, masking, focus and window/control geometry");
+    conversation_model model; conversation_data room;
+    room.id = 1; room.username = QStringLiteral("未读配色"); room.unread = 3;
+    model.set_conversations({room}); conversation_delegate delegate;
+    QStyleOptionViewItem option; option.rect = QRect(0, 0, 320, chat_theme::dialog_row_height); option.font = QApplication::font();
+    QImage image(option.rect.size(), QImage::Format_ARGB32); image.fill(themed("panel"));
+    QPainter painter(&image); delegate.paint(&painter, option, model.index(0, 0)); painter.end();
+    int edited_badge_pixels = 0;
+    for (int y = 0; y < image.height(); ++y) for (int x = image.width() - 70; x < image.width(); ++x)
+        edited_badge_pixels += image.pixelColor(x, y) == themes.highlight();
+    check(edited_badge_pixels > 40, "Unread painter visibly uses the edited JSON highlight role");
+
+    write(qss_path, QByteArray("QWidget { color: ${missing_role}; }"));
+    check(themes.reload() && !themes.last_error().isEmpty() && failures == 1 &&
+              themed("canvas") == original_canvas && themes.highlight() == original_highlight && semantic_theme_sheet(themes.style_sheet()) == semantic_theme_sheet(original_sheet),
+          "Invalid override QSS discards the whole edited override pair and uses complete packaged Daylight");
+    for (auto const& malformed : {QByteArray("QWidget { color: ${text};"), QByteArray("/* unclosed theme comment")})
+    {
+        write(qss_path, malformed);
+        check(themes.reload() && !themes.last_error().isEmpty() && themes.valid() &&
+                  themed("canvas") == original_canvas && themes.highlight() == original_highlight &&
+                  semantic_theme_sheet(themes.style_sheet()) == semantic_theme_sheet(original_sheet) && qApp->palette() == original_palette,
+              "Malformed QSS syntax rejects the whole edited override pair and preserves a complete packaged fallback");
+    }
+    QFile::remove(qss_path);
+    QList<QByteArray> invalid_json{QByteArray("{broken"), QByteArray("[]")};
+    for (auto const* key : {"canvas", "highlight"})
+    {
+        auto broken = QJsonDocument::fromJson(original_json).object();
+        auto broken_colors = broken.value(QStringLiteral("colors")).toObject();
+        if (QString::fromLatin1(key) == QStringLiteral("canvas")) { broken_colors.remove(QStringLiteral("canvas")); }
+        else { broken_colors.insert(QStringLiteral("highlight"), QStringLiteral("not-a-color")); }
+        broken.insert(QStringLiteral("colors"), broken_colors); invalid_json.push_back(QJsonDocument(broken).toJson());
+    }
+    auto broken_avatars = QJsonDocument::fromJson(original_json).object();
+    broken_avatars.insert(QStringLiteral("avatars"), QJsonArray{QStringLiteral("broken")});
+    invalid_json.push_back(QJsonDocument(broken_avatars).toJson());
+    for (auto const& bytes : invalid_json)
+    {
+        write(json_path, bytes);
+        check(themes.reload() && !themes.last_error().isEmpty() && themes.valid() &&
+                  themed("canvas") == original_canvas && semantic_theme_sheet(themes.style_sheet()) == semantic_theme_sheet(original_sheet) && qApp->palette() == original_palette,
+              "Malformed JSON, missing roles and invalid palette/avatars use one complete packaged fallback");
+    }
+    QFile::remove(json_path);
+    write(qss_path, QByteArray("QPushButton#loginButton { background: ${danger}; }"));
+    check(themes.reload() && themes.last_error().isEmpty() && themes.highlight() == original_highlight,
+          "QSS-only override validates with the complete packaged JSON palette");
+    QApplication::processEvents();
+    auto* button = login.findChild<QPushButton*>("loginButton");
+    check(logical_pixel(button->grab().toImage(), QPoint(button->width() / 2, 5)) == themed("danger"),
+          "Editing external QSS changes the real login action without rebuilding");
+    QFile::remove(qss_path); check(themes.reload(), "Removing overrides restores packaged Daylight");
+    auto const stable_palette = qApp->palette(); auto const stable_sheet = themes.style_sheet(); auto const stable_appearance = themes.appearance();
+    auto const midnight_qss_path = packaged.filePath(QStringLiteral("midnight.qss"));
+    auto const midnight_qss = read(midnight_qss_path);
+    for (auto const& malformed : {QByteArray("QWidget { color: ${text};"), QByteArray("/* unclosed theme comment")})
+    {
+        auto const failure_count = failures; auto const change_count = changed;
+        write(midnight_qss_path, malformed);
+        themes.set_appearance(chat_appearance::dark);
+        check(themes.appearance() == stable_appearance && themes.theme() == chat_theme_id::daylight &&
+                  qApp->palette() == stable_palette && themes.style_sheet() == stable_sheet &&
+                  changed == change_count && failures == failure_count + 1 && !themes.last_error().isEmpty(),
+              "A malformed packaged stylesheet retains the exact current appearance, palette and stylesheet");
+    }
+    write(midnight_qss_path, midnight_qss);
+    {
+        auto const failure_count = failures; auto const change_count = changed;
+        check(QFile::remove(midnight_qss_path), "Disposable packaged theme can simulate a missing stylesheet");
+        themes.set_appearance(chat_appearance::dark);
+        check(themes.appearance() == stable_appearance && qApp->palette() == stable_palette &&
+                  themes.style_sheet() == stable_sheet && changed == change_count && failures == failure_count + 1 &&
+                  !themes.last_error().isEmpty(),
+              "A missing packaged stylesheet reports a load error and retains the exact complete current theme");
+        write(midnight_qss_path, midnight_qss);
+    }
+    auto const failure_count = failures; auto const change_count = changed;
+    write(packaged.filePath(QStringLiteral("midnight.json")), QByteArray("{broken"));
+    themes.set_appearance(chat_appearance::dark);
+    check(themes.appearance() == stable_appearance && themes.theme() == chat_theme_id::daylight &&
+              qApp->palette() == stable_palette && themes.style_sheet() == stable_sheet && changed == change_count && failures == failure_count + 1,
+          "A corrupt packaged target cannot partly apply its appearance, palette or stylesheet");
+    write(packaged.filePath(QStringLiteral("daylight.json")), QByteArray("{broken"));
+    check(!themes.reload() && themes.valid() && !themes.last_error().isEmpty() &&
+              qApp->palette() == stable_palette && themes.style_sheet() == stable_sheet && changed == change_count,
+          "Failed packaged reload reports failure and retains the previous complete applied theme");
+    QObject::disconnect(changed_connection); QObject::disconnect(failure_connection);
+}
+
+void check_isolated_theme_files()
+{
+    QTemporaryDir package;
+    check(package.isValid(), "Theme fault tests use a disposable application package");
+    QDir source(QCoreApplication::applicationDirPath() + QStringLiteral("/themes"));
+    check(source.exists(), "Theme tests use packaged build assets beside the executable");
+    check(QDir().mkpath(package.path() + QStringLiteral("/themes")), "Disposable theme package exists");
+    for (auto const& name : source.entryList(QDir::Files))
+        check(QFile::copy(source.filePath(name), package.path() + QStringLiteral("/themes/") + name), "Packaged theme fixture copies completely");
+    auto const binary = package.path() + QStringLiteral("/chat_qt_ui_test");
+    check(QFile::copy(QCoreApplication::applicationFilePath(), binary), "Theme fixture uses a copied real test executable");
+    QProcess child;
+    auto environment = QProcessEnvironment::systemEnvironment();
+    environment.insert(QStringLiteral("QT_QPA_PLATFORM"), QStringLiteral("offscreen"));
+    environment.insert(QStringLiteral("XDG_CONFIG_HOME"), package.path() + QStringLiteral("/config"));
+    child.setProcessEnvironment(environment); child.setProcessChannelMode(QProcess::MergedChannels);
+    child.start(binary, {QStringLiteral("--theme-files-only")});
+    check(child.waitForStarted() && child.waitForFinished(30000), "Isolated theme fault subprocess completes");
+    auto const output = child.readAll(); std::cout << output.constData();
+    check(child.exitStatus() == QProcess::NormalExit && child.exitCode() == 0,
+          "External edit, atomic override fallback and packaged failure tests pass in an isolated package");
+}
+
+void check_system_appearance_and_migration()
+{
+    auto& themes = theme_manager::instance();
+    auto* hints = QGuiApplication::styleHints();
+    auto const actual_scheme = hints->colorScheme();
+    auto scheme = [&](Qt::ColorScheme value) {
+        check(QMetaObject::invokeMethod(hints, "colorSchemeChanged", Qt::DirectConnection,
+                                       Q_ARG(Qt::ColorScheme, value)),
+              "System color-scheme event reaches the public Qt signal");
+        QApplication::processEvents();
+    };
+    themes.set_appearance(chat_appearance::system);
+    scheme(Qt::ColorScheme::Dark);
+    check(themes.appearance() == chat_appearance::system && themes.theme() == chat_theme_id::midnight,
+          "Following system routes dark events to Midnight");
+    scheme(Qt::ColorScheme::Light);
+    check(themes.appearance() == chat_appearance::system && themes.theme() == chat_theme_id::daylight,
+          "Following system routes light events to Daylight");
+    themes.set_appearance(chat_appearance::light);
+    scheme(Qt::ColorScheme::Dark);
+    check(themes.appearance() == chat_appearance::light && !themes.dark(),
+          "Explicit Daylight remains active after a system dark event");
+    themes.set_appearance(chat_appearance::dark);
+    scheme(Qt::ColorScheme::Light);
+    check(themes.appearance() == chat_appearance::dark && themes.dark(),
+          "Explicit Midnight remains active after a system light event");
+    scheme(actual_scheme);
+    QTemporaryDir config;
+    check(config.isValid(), "Appearance migration uses private settings");
+    auto const saved_config = qgetenv("XDG_CONFIG_HOME");
+    auto const saved_organization = QCoreApplication::organizationName();
+    auto const saved_application = QCoreApplication::applicationName();
+    qputenv("XDG_CONFIG_HOME", config.path().toUtf8());
+    QCoreApplication::setOrganizationName(QStringLiteral("theme_migration"));
+    QCoreApplication::setApplicationName(QStringLiteral("account"));
+    for (auto const appearance : {chat_appearance::light, chat_appearance::dark, chat_appearance::system})
+    {
+        QString const key = appearance == chat_appearance::light ? QStringLiteral("light")
+            : appearance == chat_appearance::dark ? QStringLiteral("dark") : QStringLiteral("system");
+        QSettings settings;
+        settings.setValue(QStringLiteral("appearance/mode"), key);
+        settings.setValue(QStringLiteral("appearance/theme"), QStringLiteral("terminal"));
+        settings.sync();
+        themes.load_settings();
+        settings.sync();
+        check(themes.appearance() == appearance && settings.value(QStringLiteral("appearance/mode")).toString() == key &&
+                  !settings.contains(QStringLiteral("appearance/theme")),
+              "Legacy palette selection migrates without discarding explicit light, dark or system appearance");
+        check(themes.dark() == (appearance == chat_appearance::dark ||
+              (appearance == chat_appearance::system && actual_scheme == Qt::ColorScheme::Dark)),
+              "Migrated appearance selects its matching complete external theme");
+    }
+    QCoreApplication::setOrganizationName(saved_organization);
+    QCoreApplication::setApplicationName(saved_application);
+    if (saved_config.isNull()) { qunsetenv("XDG_CONFIG_HOME"); } else { qputenv("XDG_CONFIG_HOME", saved_config); }
+    themes.set_appearance(chat_appearance::light);
+}
+
 void check_themes()
 {
     auto& themes = theme_manager::instance();
-    check(themes.theme() == chat_theme_id::classic && !themes.dark(), "Tests start from the classic light theme");
+    check(themes.theme() == chat_theme_id::daylight && !themes.dark(), "Tests start from packaged Daylight");
     auto const classic = chat_style_sheet();
-    check(classic.contains(QStringLiteral("#315A4B")) && classic.contains(QStringLiteral("#F7F5EF")),
-          "The classic theme keeps the original palette exactly");
+    check(themes.valid() && !classic.contains(QStringLiteral("${")),
+          "Packaged Daylight validates and expands semantic stylesheet tokens");
     auto luminance = [](QColor const& color) {
         auto linear = [](qreal value) { return value <= 0.04045 ? value / 12.92 : qPow((value + 0.055) / 1.055, 2.4); };
         return 0.2126 * linear(color.redF()) + 0.7152 * linear(color.greenF()) + 0.0722 * linear(color.blueF());
@@ -2268,16 +2510,17 @@ void check_themes()
         {
             auto const top = logical_pixel(image, QPoint(page.width() - 12, 100));
             auto const bottom = logical_pixel(image, QPoint(page.width() - 12, page.height() - 100));
-            check(top.blue() > top.red() && bottom.blue() > bottom.red() && top != bottom,
-                  "Night chat uses a subtly varying blue-gray background");
+            check(top.alpha() == 255 && bottom.alpha() == 255 && contrast(themed("text"), top) >= 4.5 && contrast(themed("text"), bottom) >= 4.5,
+                  "Midnight chat paints opaque backgrounds with readable text");
             auto const icon = page.findChild<QToolButton*>("navigationSelected")->icon().pixmap(24, 24).toImage();
             bool visible_ink = false;
             for (int y = 0; y < icon.height(); ++y)
                 for (int x = 0; x < icon.width(); ++x)
                     if (auto const ink = icon.pixelColor(x, y); ink.alpha() > 240)
-                    { visible_ink = true; check(contrast(ink, themed("#294F40")) >= 3.0, "Selected navigation icon stays visible on its dark rail"); }
+                    { visible_ink = true; check(contrast(ink, themed("nav_selected")) >= 3.0, "Selected navigation icon stays visible on its dark rail"); }
             check(visible_ink, "Selected navigation has a painted icon");
-            check(page.findChild<QPlainTextEdit*>("messageEdit")->palette().color(QPalette::PlaceholderText) == themed("#8B918D"),
+            std::cout << "Midnight composer placeholder actual=" << page.findChild<QPlainTextEdit*>("messageEdit")->palette().color(QPalette::PlaceholderText).name(QColor::HexArgb).toStdString() << " expected=" << themed("text_muted").name(QColor::HexArgb).toStdString() << '\n';
+            check(page.findChild<QPlainTextEdit*>("messageEdit")->palette().color(QPalette::PlaceholderText) == themed("text_muted"),
                   "Night composer preserves the explicit readable placeholder color");
             QMenu menu(&page); menu.setObjectName(QStringLiteral("chatsActionsMenu")); menu.ensurePolished();
             QStyleOptionMenuItem option; option.initFrom(&menu); option.rect = QRect(0, 0, 200, 36);
@@ -2289,13 +2532,13 @@ void check_themes()
             bool painted_text = false;
             for (int y = 0; y < selected.height(); ++y)
                 for (int x = 0; x < selected.width(); ++x)
-                    painted_text |= selected.pixelColor(x, y) == themed("#27332E");
-            check(painted_text && contrast(themed("#27332E"), selected.pixelColor(180, 18)) >= 4.5,
+                    painted_text |= selected.pixelColor(x, y) == themed("text");
+            check(painted_text && contrast(themed("text"), selected.pixelColor(180, 18)) >= 4.5,
                   "New-action menu paints readable light text on its selected dark background");
         }
         return logical_pixel(image, QPoint(page.width() - 40, page.height() / 2));
     };
-    auto check_light_controls = [&](QString const& name) {
+    auto check_painted_controls = [&](QString const& name) {
         auto readable = [&](QImage const& image, QRect region, QColor ground, char const* message) {
             auto const scale = image.devicePixelRatio();
             region = QRect(qFloor(region.x() * scale), qFloor(region.y() * scale),
@@ -2308,7 +2551,7 @@ void check_themes()
             int count = 0;
             for (auto it = colors.cbegin(); it != colors.cend(); ++it)
                 if (it.value() > count) { ink = QColor::fromRgb(it.key()); count = it.value(); }
-            std::cout << "Light " << name.toStdString() << ' ' << message << " ink=" << ink.name().toStdString()
+            std::cout << "Theme " << name.toStdString() << ' ' << message << " ink=" << ink.name().toStdString()
                       << " ground=" << ground.name().toStdString() << " contrast=" << contrast(ink, ground) << '\n';
             check(count >= 3 && contrast(ink, ground) >= 4.5, message);
         };
@@ -2319,13 +2562,13 @@ void check_themes()
         model.set_conversations({conversation});
         conversation_delegate delegate;
         QStyleOptionViewItem row; row.font = font; row.rect = QRect(0, 0, 320, chat_theme::dialog_row_height);
-        QImage badge(row.rect.size(), QImage::Format_ARGB32); badge.fill(themed("#FCFBF7"));
+        QImage badge(row.rect.size(), QImage::Format_ARGB32); badge.fill(themed("panel"));
         QPainter badge_painter(&badge); delegate.paint(&badge_painter, row, model.index(0, 0)); badge_painter.end();
         auto const right = row.rect.right() - chat_theme::dialog_right + 1;
         QRect badge_rect(right - chat_theme::dialog_unread_height, chat_theme::dialog_preview_top,
                          chat_theme::dialog_unread_height, chat_theme::dialog_unread_height);
         readable(badge, badge_rect.adjusted(4, 3, -4, -3),
-                 badge.pixelColor(badge_rect.center().x(), badge_rect.top() + 2), "Light muted unread count is readable");
+                 badge.pixelColor(badge_rect.center().x(), badge_rect.top() + 2), "Muted unread count is readable");
         QDialog dialog; dialog.setStyleSheet(chat_style_sheet()); dialog.setFont(font);
         auto* layout = new QVBoxLayout(&dialog);
         auto* chips = new QListWidget(&dialog); chips->setObjectName(QStringLiteral("groupSelectedContacts"));
@@ -2334,7 +2577,7 @@ void check_themes()
         dialog.resize(360, 100); dialog.show(); QApplication::processEvents();
         auto const chip_image = chips->viewport()->grab().toImage(); auto const chip_rect = chips->visualItemRect(chip);
         readable(chip_image, chip_rect.adjusted(8, 5, -8, -5),
-                 logical_pixel(chip_image, QPoint(chip_rect.right() - 8, chip_rect.center().y())), "Light selected contact text is readable");
+                 logical_pixel(chip_image, QPoint(chip_rect.right() - 8, chip_rect.center().y())), "Selected contact text is readable");
         QMenu menu(&dialog); menu.setObjectName(QStringLiteral("chatsActionsMenu")); menu.ensurePolished();
         QStyleOptionMenuItem item; item.initFrom(&menu); item.rect = QRect(0, 0, 240, 40);
         item.menuItemType = QStyleOptionMenuItem::Normal; item.text = QStringLiteral("HHHHHHHH");
@@ -2342,7 +2585,7 @@ void check_themes()
         QImage selected(item.rect.size(), QImage::Format_ARGB32); selected.fill(Qt::transparent);
         QPainter menu_painter(&selected); menu_painter.setFont(font);
         menu.style()->drawControl(QStyle::CE_MenuItem, &item, &menu_painter, &menu); menu_painter.end();
-        readable(selected, QRect(15, 12, 130, 17), selected.pixelColor(220, 20), "Light new-action selected menu text is readable");
+        readable(selected, QRect(15, 12, 130, 17), selected.pixelColor(220, 20), "New-action selected menu text is readable");
         for (auto const* object_name : {"loginButton", "registerButton"})
         {
             QPushButton button(QStringLiteral("HHHHHHHH"), &dialog); button.setObjectName(QString::fromLatin1(object_name));
@@ -2350,58 +2593,55 @@ void check_themes()
             auto paint = [&](QStyle::State state) {
                 QStyleOptionButton option; option.initFrom(&button); option.rect = button.rect(); option.text = button.text();
                 option.fontMetrics = QFontMetrics(button.font()); option.state = QStyle::State_Enabled | state;
-                QImage image(button.size(), QImage::Format_ARGB32); image.fill(themed("#FCFBF7"));
+                QImage image(button.size(), QImage::Format_ARGB32); image.fill(themed("panel"));
                 QPainter painter(&image); painter.setFont(button.font());
                 button.style()->drawControl(QStyle::CE_PushButton, &option, &painter, &button); painter.end(); return image;
             };
             auto const hover = paint(QStyle::State_MouseOver), pressed = paint(QStyle::State_MouseOver | QStyle::State_Sunken);
             auto const point = QPoint(button.width() / 2, 6);
-            std::cout << "Light " << name.toStdString() << ' ' << object_name << " hover=" << hover.pixelColor(point).name().toStdString()
+            std::cout << "Theme " << name.toStdString() << ' ' << object_name << " hover=" << hover.pixelColor(point).name().toStdString()
                       << " pressed=" << pressed.pixelColor(point).name().toStdString() << '\n';
             check(hover.pixelColor(point) != pressed.pixelColor(point),
-                  "Light authentication actions distinguish pressing from hovering");
+                  "Authentication actions distinguish pressing from hovering");
             if (button.objectName() == QStringLiteral("registerButton"))
                 readable(pressed, QRect(48, 15, 105, 19), pressed.pixelColor(point),
-                         "Light registration keeps readable text while pressed");
+                         "Registration keeps readable text while pressed");
         }
     };
-    check(render(QStringLiteral("classic")).lightness() > 200, "Classic chat background is light");
+    auto const daylight = render(QStringLiteral("daylight"));
+    check(daylight.lightness() > 200, "Daylight chat background is light");
+    check(theme_manager::themes().size() == 2, "Exactly Daylight and Midnight are available");
     for (auto const& info : theme_manager::themes())
     {
         themes.set_theme(info.id);
-        auto const light_sheet = chat_style_sheet();
-        std::array<char const*, 8> const sources{"#F7F5EF", "#FFFEFA", "#FFFFFF", "#27332E", "#5D6C64", "#315A4B", "#D6EAD9", "#294F40"};
-        std::vector<QColor> light_colors;
-        for (auto const* source : sources) { light_colors.push_back(themed(source)); }
-        themes.set_appearance(chat_appearance::dark);
-        themes.set_appearance(chat_appearance::light);
-        check(chat_style_sheet() == light_sheet, "Each light theme restores its exact stylesheet after night mode");
+        auto const original_sheet = chat_style_sheet();
+        std::array<char const*, 8> const sources{"canvas", "panel", "surface", "text", "text_secondary", "accent", "bubble_out", "nav"};
+        std::vector<QColor> original_colors;
+        for (auto const* source : sources) { original_colors.push_back(themed(source)); }
+        themes.set_appearance(themes.dark() ? chat_appearance::light : chat_appearance::dark);
+        themes.set_theme(info.id);
+        check(semantic_theme_sheet(chat_style_sheet()) == semantic_theme_sheet(original_sheet), "Each packaged theme restores its exact stylesheet after an appearance roundtrip");
         for (std::size_t i = 0; i < sources.size(); ++i)
-            check(themed(sources[i]) == light_colors[i], "Night mode leaves every light theme's semantic colors unchanged");
-        check_light_controls(info.key);
+            check(themed(sources[i]) == original_colors[i], "Appearance roundtrip restores every semantic color");
+        check_painted_controls(info.key);
         auto const background = render(info.key);
-        check(background.lightness() > 200, "Every light theme renders a light chat background");
-        if (info.id != chat_theme_id::classic)
-        {
-            check(chat_style_sheet() != classic && !chat_style_sheet().contains(QStringLiteral("#315A4B")),
-                  "Other themes replace the classic accent");
-        }
+        check(themes.dark() ? background.lightness() < 60 : background.lightness() > 200,
+              "Daylight and Midnight render visibly different light and dark backgrounds");
     }
-    themes.set_theme(chat_theme_id::paper);
-    themes.set_appearance(chat_appearance::dark);
+    themes.set_theme(chat_theme_id::midnight);
     auto const night = render(QStringLiteral("night"));
     check(themes.dark() && night.lightness() < 60, "Night mode renders a dark chat background");
-    for (auto const* ground : {"#FFFFFF", "#E7EEE9", "#D6EAD9"})
+    for (auto const* ground : {"surface", "selected", "bubble_out"})
     {
-        for (auto const* ink : {"#27332E", "#5D6C64", "#8B918D"})
+        for (auto const* ink : {"text", "text_secondary", "text_muted"})
         {
             auto const ratio = contrast(themed(ink), themed(ground));
             if (ratio < 4.5) { std::cerr << "Night text contrast " << ink << " on " << ground << ": " << ratio << '\n'; }
             check(ratio >= 4.5, "Night body, secondary and metadata text are readable on surface, selection and own bubbles");
         }
-        check(contrast(themed("#88A697"), themed(ground)) >= 3.0, "Night focus color stays distinct from its control ground");
+        check(contrast(themed("focus"), themed(ground)) >= 3.0, "Night focus color stays distinct from its control ground");
     }
-    check(contrast(themes.on_accent(), themed("#315A4B")) >= 4.5, "Night primary actions have readable text on their accent fill");
+    check(contrast(themes.on_accent(), themed("accent")) >= 4.5, "Night primary actions have readable text on their accent fill");
     {
         auto painted_contrast = [&](QImage const& image, QRect region, QColor ground, double minimum, char const* message) {
             auto const scale = image.devicePixelRatio();
@@ -2430,12 +2670,12 @@ void check_themes()
         QStyleOptionViewItem option;
         option.font = font; option.rect = QRect(0, 0, 320, chat_theme::dialog_row_height);
         QImage badge(option.rect.size(), QImage::Format_ARGB32_Premultiplied);
-        badge.fill(themed("#FCFBF7"));
+        badge.fill(themed("panel"));
         QPainter painter(&badge); delegate.paint(&painter, option, model.index(0, 0)); painter.end();
         auto const right = option.rect.right() - chat_theme::dialog_right + 1;
         QRect badge_rect(right - chat_theme::dialog_unread_height, chat_theme::dialog_preview_top,
                          chat_theme::dialog_unread_height, chat_theme::dialog_unread_height);
-        painted_contrast(badge, badge_rect.adjusted(4, 3, -4, -3), themed("#AEBDB6"), 4.5,
+        painted_contrast(badge, badge_rect.adjusted(4, 3, -4, -3), badge.pixelColor(badge_rect.center().x(), badge_rect.top() + 2), 4.5,
                          "Muted unread count stays readable on its quiet badge");
         QDialog dialog;
         dialog.setObjectName(QStringLiteral("createGroupDialog")); dialog.setStyleSheet(chat_style_sheet()); dialog.setFont(font);
@@ -2470,14 +2710,16 @@ void check_themes()
         for (int y = check_region.top(); y <= check_region.bottom(); ++y)
             for (int x = check_region.left(); x <= check_region.right(); ++x)
                 if (auto const ink = check_image.pixelColor(x, y);
-                    ink.alpha() == 255 && ink.red() > 200 && ink.green() > 200 && ink.blue() > 200)
+                    ink.alpha() == 255 &&
+                    std::abs(ink.red() - themes.on_accent().red()) <= 32 &&
+                    std::abs(ink.green() - themes.on_accent().green()) <= 32 &&
+                    std::abs(ink.blue() - themes.on_accent().blue()) <= 32)
                 { ++stroke_pixels; stroke_contrast = std::min(stroke_contrast, contrast(ink, check_ground)); }
+        if (!shots.isEmpty()) { check_image.copy(check_region).save(shots + QStringLiteral("/midnight-checkmark.png")); }
         std::cout << "Night group checkmark stroke_pixels=" << stroke_pixels << " contrast=" << stroke_contrast << '\n';
         check(stroke_pixels >= 3 && stroke_contrast >= 3.0, "Selected group member checkmark stays distinguishable");
     }
-    auto const night_sheet = chat_style_sheet();
-    themes.set_theme(chat_theme_id::terminal);
-    check(chat_style_sheet() == night_sheet, "In night mode the chosen theme cannot change the night theme");
+    check(semantic_theme_sheet(chat_style_sheet()) != semantic_theme_sheet(classic), "Midnight and Daylight have independent external stylesheets");
     {
         chat_widget page;
         page.set_user(QStringLiteral("本人"), 1);
@@ -2487,22 +2729,24 @@ void check_themes()
         QTimer::singleShot(0, &page, [&] {
             auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
             check(dialog && dialog->objectName() == QStringLiteral("profileDialog"), "Own profile opens");
-            auto* theme = dialog->findChild<QComboBox*>("themeCombo");
             auto* mode = dialog->findChild<QComboBox*>("appearanceModeCombo");
-            check(theme && mode && !theme->isEnabled() && dialog->findChild<QLabel*>("themeLockedHint")->isVisibleTo(dialog),
-                  "Night mode locks the theme choice and says why");
+            check(mode && mode->count() == 3 && mode->isEnabled() &&
+                      !dialog->findChild<QComboBox*>("themeCombo") && !dialog->findChild<QLabel*>("themeLockedHint"),
+                  "Account offers system, Daylight and Midnight in one appearance control");
             mode->setCurrentIndex(mode->findData(static_cast<int>(chat_appearance::light)));
-            check(theme->isEnabled() && !themes.dark(), "Light mode unlocks the theme choice");
+            check(!themes.dark() && themes.theme() == chat_theme_id::daylight,
+                  "Choosing Daylight applies its own complete palette");
+            mode->setCurrentIndex(mode->findData(static_cast<int>(chat_appearance::dark)));
+            check(themes.dark() && themes.theme() == chat_theme_id::midnight,
+                  "Choosing Midnight applies its own complete palette");
             inspected = true;
             dialog->reject();
         });
         page.findChild<QToolButton*>("profileAvatar")->click();
         check(inspected, "Appearance settings were inspected in the real profile dialog");
     }
-    check(themes.theme() == chat_theme_id::terminal && chat_style_sheet().contains(QStringLiteral("monospace")),
-          "Leaving night mode restores the theme chosen meanwhile");
-    themes.set_theme(chat_theme_id::classic);
-    check(chat_style_sheet() == classic, "Returning to classic restores the original stylesheet");
+    themes.set_appearance(chat_appearance::light);
+    check(semantic_theme_sheet(chat_style_sheet()) == semantic_theme_sheet(classic), "Returning to Daylight restores its exact external stylesheet");
     main_window window(QStringLiteral("ws://127.0.0.1:18769/ws"));
     window.show();
     QApplication::processEvents();
@@ -2518,7 +2762,7 @@ void check_themes()
         if (themes.dark())
         {
             auto const placeholder = username->palette().color(QPalette::PlaceholderText);
-            check(placeholder == themed("#8B918D") && contrast(placeholder, username->palette().color(QPalette::Base)) >= 4.5,
+            check(placeholder == themed("text_muted") && contrast(placeholder, username->palette().color(QPalette::Base)) >= 4.5,
                   "Night login keeps opaque readable placeholder text after stylesheet polishing");
             auto* login = window.findChild<QPushButton*>("loginButton");
             auto* registration = window.findChild<QPushButton*>("registerButton");
@@ -2585,7 +2829,10 @@ void check_themes()
                   password->echoMode() == QLineEdit::Password,
               "Switching appearance preserves account input and password masking");
     }
+    check_system_appearance_and_migration();
+    check_isolated_theme_files();
 }
+
 void check_friend_flow()
 {
     chat_widget page;
@@ -3380,8 +3627,8 @@ void check_message_search_live_policy()
           help->text().contains(QStringLiteral("重新搜索")) && count && count->text().contains(QStringLiteral("已加载 1")),
           "Search persistently explains live bodies and counts only visible loaded hits");
     check(help->font().pixelSize() == 13 && count->font().pixelSize() == 13 &&
-          help->palette().color(QPalette::WindowText) == QColor(QStringLiteral("#5D6C64")) &&
-          count->palette().color(QPalette::WindowText) == QColor(QStringLiteral("#5D6C64")),
+          help->palette().color(QPalette::WindowText) == themed("text_secondary") &&
+          count->palette().color(QPalette::WindowText) == themed("text_secondary"),
           "Search help and loaded count reuse the secondary-label font and foreground");
     auto last_deleted = matching_edit; last_deleted.deleted = true;
     dialog.update_message(50, last_deleted, {});
@@ -3553,7 +3800,7 @@ void check_message_dialogs()
           earlier->mapTo(&dialog, earlier->rect().center()).y() == search_close->mapTo(&dialog, search_close->rect().center()).y(),
           "Search shares detail padding and keeps secondary pagination in the footer");
     check(search_close->text() == QStringLiteral("关闭") && search_close->icon().isNull() &&
-          logical_pixel(search_button->grab().toImage(), QPoint(search_button->width()/2, 5)) == QColor(49, 90, 75),
+          logical_pixel(search_button->grab().toImage(), QPoint(search_button->width()/2, 5)) == themed("accent"),
           "Search has one primary action and a localized secondary close without a platform icon");
     match.text = QStringLiteral("中文关键词 original é 👩‍💻");
     dialog.set_results(50, QStringLiteral("中文关键词"), 0, {match}, {}, true, {});
@@ -3603,7 +3850,7 @@ void check_message_dialogs()
           save_button->mapTo(&preview, save_button->rect().center()).y() == preview_close->mapTo(&preview, preview_close->rect().center()).y() &&
           preview_close->text() == QStringLiteral("关闭") && preview_close->icon().isNull(),
           "Attachment uses shared padding and one compact footer for save and close");
-    check(logical_pixel(save_button->grab().toImage(), QPoint(save_button->width()/2, 5)) == QColor(49, 90, 75),
+    check(logical_pixel(save_button->grab().toImage(), QPoint(save_button->width()/2, 5)) == themed("accent"),
           "Saving the original attachment is the primary dialog action");
     for (auto size : {QSize(420, 360), QSize(700, 600), QSize(500, 440)})
     {
@@ -3635,21 +3882,21 @@ void check_message_dialogs()
             auto* combo = picker.findChild<QComboBox*>(name);
             check(combo && combo->isVisible(), "Open and Save expose their actual location and file-type controls");
             auto const pixels = combo->grab().toImage();
-            check(logical_pixel(pixels, QPoint(combo->width()/2, 4)) == QColor(QStringLiteral("#FFFFFF")) &&
-                  combo->palette().color(QPalette::ButtonText) == QColor(QStringLiteral("#27332E")),
+            check(logical_pixel(pixels, QPoint(combo->width()/2, 4)) == themed("surface") &&
+                  combo->palette().color(QPalette::ButtonText) == themed("text"),
                   "File chooser location and file type have readable text on a light surface");
             combo->setFocus();
             QApplication::processEvents();
             auto const focused = combo->grab().toImage();
-            check(focused.pixelColor(0, focused.height()/2) == QColor(QStringLiteral("#547C68")),
+            check(focused.pixelColor(0, focused.height()/2) == themed("focus"),
                   "File chooser combos expose their keyboard focus on the light surface");
             combo->showPopup();
             QApplication::processEvents();
             check(combo->view()->isVisible() &&
-                  combo->view()->palette().color(QPalette::Base) == QColor(QStringLiteral("#FFFFFF")) &&
-                  combo->view()->palette().color(QPalette::Text) == QColor(QStringLiteral("#27332E")) &&
-                  combo->view()->palette().color(QPalette::Highlight) == QColor(QStringLiteral("#315A4B")) &&
-                  combo->view()->palette().color(QPalette::HighlightedText) == QColor(QStringLiteral("#FFFFFF")),
+                  combo->view()->palette().color(QPalette::Base) == themed("surface") &&
+                  combo->view()->palette().color(QPalette::Text) == themed("text") &&
+                  combo->view()->palette().color(QPalette::Highlight) == themed("accent") &&
+                  combo->view()->palette().color(QPalette::HighlightedText) == themed("surface"),
                   "File chooser popup lists retain readable unselected and selected text");
             combo->hidePopup();
         }
@@ -3659,15 +3906,15 @@ void check_message_dialogs()
             if (!header->isVisible()) { continue; }
             visible_header = true;
             auto const pixels = header->viewport()->grab().toImage();
-            check(logical_pixel(pixels, QPoint(5, 3)) == QColor(QStringLiteral("#F0F4F1")) &&
-                  header->palette().color(QPalette::ButtonText) == QColor(QStringLiteral("#27332E")),
+            check(logical_pixel(pixels, QPoint(5, 3)) == themed("subtle") &&
+                  header->palette().color(QPalette::ButtonText) == themed("text"),
                   "File chooser column headings remain readable on their own light surface");
         }
         check(visible_header, "The actual file chooser details header was checked");
         auto* details = picker.findChild<QToolButton*>("detailModeButton");
         check(details && details->isVisible() && details->isDown(), "File chooser exposes its current details mode");
         auto const selected_mode = details->grab().toImage();
-        check(logical_pixel(selected_mode, QPoint(5, details->height()/2)) == QColor(QStringLiteral("#E7EEE9")),
+        check(logical_pixel(selected_mode, QPoint(5, details->height()/2)) == themed("selected"),
               "The current file view mode uses the same readable selected surface");
         picker.reject();
     }
@@ -4236,12 +4483,18 @@ void check_conversation_drafts()
 int main(int argc, char** argv)
 {
     bool const widgets_only = argc == 2 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--widgets-only");
-    if (!widgets_only && argc != 3)
+    bool const theme_files_only = argc == 2 && QString::fromLocal8Bit(argv[1]) == QStringLiteral("--theme-files-only");
+    if (!widgets_only && !theme_files_only && argc != 3)
     {
         return 1;
     }
     QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
     QApplication app(argc, argv);
+    if (theme_files_only)
+    {
+        try { check_theme_files(); return 0; }
+        catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
+    }
     if (widgets_only)
     {
         try { check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_group_header_members(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_composer_actions(); check_join_by_code(); check_chat_history_dialog(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_deferred_message_viewport(); check_history_home_end_without_current(); check_message_overflow_following(false); check_message_overflow_following(true); check_message_overflow_following(false, true); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }

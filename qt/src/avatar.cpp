@@ -3,7 +3,6 @@
 #include "emoji_text.hpp"
 #include "theme_manager.hpp"
 
-#include <array>
 #include <algorithm>
 
 #include <QFont>
@@ -21,16 +20,7 @@ QString avatar_initial(QString const& username)
 
 QColor avatar_background(QString const& username)
 {
-    static constexpr std::array<char const*, 6> palette = {
-        "#DCE9E1",
-        "#E9E1D8",
-        "#DDE6EE",
-        "#E7E0EB",
-        "#E9E6D7",
-        "#DCE8E8",
-    };
-    return theme_manager::instance().avatar_background(
-        QColor(QString::fromLatin1(palette[qHash(username.trimmed()) % palette.size()])));
+    return theme_manager::instance().avatar_background(qHash(username.trimmed()));
 }
 
 void paint_avatar(QPainter& painter, QRect const& rect, QString const& username, int font_size, QPixmap const& image)

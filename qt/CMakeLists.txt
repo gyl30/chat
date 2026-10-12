@@ -1,3 +1,4 @@
+include(GNUInstallDirs)
 find_package(Qt6 6.5 REQUIRED COMPONENTS Svg Widgets)
 include("${PROJECT_SOURCE_DIR}/cmake/chat_emoji_scanner.cmake")
 
@@ -113,3 +114,19 @@ add_test(NAME qt_widgets COMMAND chat_qt_ui_test --widgets-only)
 set_tests_properties(qt_widgets PROPERTIES TIMEOUT 60 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 add_test(NAME qt_ui COMMAND chat_qt_ui_test $<TARGET_FILE:chat_server> "${CMAKE_CURRENT_BINARY_DIR}")
 set_tests_properties(qt_ui PROPERTIES TIMEOUT 60 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# Both build-tree and installed clients load editable assets relative to the executable.
+set(chat_theme_files common.qss daylight.qss daylight.json midnight.qss midnight.json)
+foreach(theme_file IN LISTS chat_theme_files)
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/themes/${theme_file}"
+                   "${CMAKE_CURRENT_BINARY_DIR}/themes/${theme_file}" COPYONLY)
+endforeach()
+file(RELATIVE_PATH chat_installed_themes
+     "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
+     "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/chat/themes")
+target_compile_definitions(chat_qt_widgets PRIVATE CHAT_QT_INSTALLED_THEMES="${chat_installed_themes}")
+install(TARGETS chat_qt RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+foreach(theme_file IN LISTS chat_theme_files)
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/themes/${theme_file}"
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/chat/themes")
+endforeach()

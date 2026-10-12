@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <utility>
 
+#include <QAction>
 #include <QClipboard>
 #include <QDateTime>
 #include <QFontMetrics>
@@ -78,7 +79,7 @@ class history_delegate final : public QStyledItemDelegate
         if (option.state & (QStyle::State_Selected | QStyle::State_MouseOver))
         {
             painter->setPen(Qt::NoPen);
-            painter->setBrush(option.state & QStyle::State_Selected ? themed("#E7EEE9") : themed("#F1F3EF"));
+            painter->setBrush(option.state & QStyle::State_Selected ? themed("selected") : themed("subtle"));
             painter->drawRoundedRect(QRectF(rect).adjusted(4, 2, -4, -2), 10, 10);
         }
         auto const sender = index.data(sender_role).toString();
@@ -95,17 +96,17 @@ class history_delegate final : public QStyledItemDelegate
         auto const time = index.data(time_role).toString();
         auto const time_width = QFontMetrics(time_font).horizontalAdvance(time);
         painter->setFont(time_font);
-        painter->setPen(themed("#8C948F"));
+        painter->setPen(themed("text_muted"));
         painter->drawText(QRect(right - time_width, rect.top() + 12, time_width, 18), Qt::AlignRight | Qt::AlignVCenter, time);
         painter->setFont(name_font);
-        painter->setPen(themed("#5D6C64"));
+        painter->setPen(themed("text_secondary"));
         QRect name(left, rect.top() + 12, right - time_width - 12 - left, 18);
         painter->drawText(name, Qt::AlignLeft | Qt::AlignVCenter,
                           QFontMetrics(name_font).elidedText(sender, Qt::ElideRight, name.width()));
         QFont content_font = option.font;
         content_font.setPixelSize(14);
         painter->setFont(content_font);
-        painter->setPen(themed("#27332E"));
+        painter->setPen(themed("text"));
         QRect content(left, rect.top() + 34, right - left, 22);
         painter->drawText(content, Qt::AlignLeft | Qt::AlignVCenter,
                           QFontMetrics(content_font).elidedText(index.data(content_role).toString(), Qt::ElideRight,
@@ -151,7 +152,8 @@ chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& tit
     search_->setPlaceholderText(QStringLiteral("搜索"));
     search_->setAccessibleName(QStringLiteral("搜索聊天记录"));
     search_->setClearButtonEnabled(true);
-    search_->addAction(svg_icon(u"search", QColor(QStringLiteral("#8B918D")), QSize(16, 16)), QLineEdit::LeadingPosition);
+    auto* search_icon = search_->addAction(
+        svg_icon(u"search", themed("text_muted"), QSize(16, 16)), QLineEdit::LeadingPosition);
     layout->addWidget(search_);
     tabs_ = new QTabBar(this);
     tabs_->setObjectName(QStringLiteral("historyTabs"));
@@ -172,6 +174,10 @@ chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& tit
     list_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     list_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     list_->setMouseTracking(true);
+    connect(&theme_manager::instance(), &theme_manager::changed, this, [this, search_icon] {
+        search_icon->setIcon(svg_icon(u"search", themed("text_muted"), QSize(16, 16)));
+        list_->viewport()->update();
+    });
     list_->setContextMenuPolicy(Qt::CustomContextMenu);
     layout->addWidget(list_, 1);
     layout->addWidget(status_);
