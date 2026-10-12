@@ -106,36 +106,6 @@ protected:
     }
 };
 
-QToolButton* make_navigation_button(
-    QString text, QStringView icon, QWidget* parent, bool selected, bool enabled)
-{
-    auto* button = new QToolButton(parent);
-    button->setObjectName(selected ? QStringLiteral("navigationSelected") : QStringLiteral("navigationButton"));
-    // Icons only, like WeChat; the name stays as the tooltip and the accessible name.
-    button->setToolTip(text);
-    button->setAccessibleName(text);
-    button->setText(std::move(text));
-    button->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    button->setIcon(svg_icon(
-        icon,
-        themed(selected ? "nav_selected_text" : "nav_text"),
-        QSize(24, 24)));
-    button->setIconSize(QSize(24, 24));
-    button->setEnabled(enabled);
-    button->setFixedSize(48, 48);
-    button->setCursor(enabled ? Qt::PointingHandCursor : Qt::ArrowCursor);
-    return button;
-}
-
-void set_navigation_button(QToolButton* button, QStringView icon, bool selected)
-{
-    button->setObjectName(selected ? QStringLiteral("navigationSelected") : QStringLiteral("navigationButton"));
-    button->setIcon(svg_icon(
-        icon, themed(selected ? "nav_selected_text" : "nav_text"), QSize(24, 24)));
-    button->style()->unpolish(button);
-    button->style()->polish(button);
-}
-
 QFrame* make_separator(QWidget* parent)
 {
     auto* separator = new QFrame(parent);
@@ -153,29 +123,6 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    auto* navigation_panel = new QFrame(this);
-    navigation_panel->setObjectName(QStringLiteral("navigationPanel"));
-    navigation_panel->setFixedWidth(82);
-    auto* navigation_layout = new QVBoxLayout(navigation_panel);
-    navigation_layout->setContentsMargins(9, 18, 9, 14);
-    navigation_layout->setSpacing(6);
-
-    chats_navigation_ =
-        make_navigation_button(QStringLiteral("聊天"), QStringLiteral("chat"), navigation_panel, true, true);
-    navigation_layout->addWidget(chats_navigation_, 0, Qt::AlignHCenter);
-    contacts_navigation_ =
-        make_navigation_button(QStringLiteral("联系人"), QStringLiteral("contacts"), navigation_panel, false, true);
-    navigation_layout->addWidget(contacts_navigation_, 0, Qt::AlignHCenter);
-    navigation_layout->addStretch();
-
-    profile_avatar_ = new QToolButton(navigation_panel);
-    profile_avatar_->setCursor(Qt::PointingHandCursor);
-    profile_avatar_->setIconSize(QSize(44, 44));
-    profile_avatar_->setObjectName(QStringLiteral("profileAvatar"));
-    profile_avatar_->setAccessibleName(QStringLiteral("我的资料"));
-    profile_avatar_->setFixedSize(44, 44);
-    navigation_layout->addWidget(profile_avatar_, 0, Qt::AlignHCenter);
-
     auto* conversation_panel = new QFrame(this);
     conversation_panel->setObjectName(QStringLiteral("conversationPanel"));
     conversation_panel->setFixedWidth(332);
@@ -187,9 +134,42 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     auto* conversation_header_layout = new QHBoxLayout(conversation_header);
     conversation_header_layout->setContentsMargins(12, 16, 12, 8);
     conversation_header_layout->setSpacing(6);
+    main_menu_button_ = new QToolButton(conversation_header);
+    main_menu_button_->setObjectName(QStringLiteral("mainMenuButton"));
+    main_menu_button_->setAccessibleName(QStringLiteral("主菜单"));
+    main_menu_button_->setToolTip(QStringLiteral("主菜单"));
+    main_menu_button_->setIcon(svg_icon(u"menu", themed("text_secondary"), QSize(22, 22)));
+    main_menu_button_->setIconSize(QSize(22, 22));
+    main_menu_button_->setFixedSize(40, 40);
+    main_menu_button_->setCursor(Qt::PointingHandCursor);
+    main_menu_button_->setPopupMode(QToolButton::InstantPopup);
+    auto* main_menu = new QMenu(main_menu_button_);
+    main_menu->setObjectName(QStringLiteral("mainNavigationMenu"));
+    main_menu->setAccessibleName(QStringLiteral("主菜单"));
+    self_profile_action_ = main_menu->addAction(QStringLiteral("我的资料"));
+    self_profile_action_->setObjectName(QStringLiteral("selfProfileAction"));
+    chats_action_ = main_menu->addAction(QStringLiteral("聊天"));
+    chats_action_->setObjectName(QStringLiteral("showChatsAction"));
+    chats_action_->setIcon(svg_icon(u"chat", themed("text"), QSize(20, 20)));
+    contacts_action_ = main_menu->addAction(QStringLiteral("联系人"));
+    contacts_action_->setObjectName(QStringLiteral("showContactsAction"));
+    contacts_action_->setIcon(svg_icon(u"contacts", themed("text"), QSize(20, 20)));
+    new_friends_action_ = main_menu->addAction(QStringLiteral("新的朋友"));
+    new_friends_action_->setObjectName(QStringLiteral("showNewFriendsAction"));
+    new_friends_action_->setIcon(svg_icon(u"user-plus", themed("text"), QSize(20, 20)));
+    for (auto* action : {chats_action_, contacts_action_, new_friends_action_}) { action->setCheckable(true); }
+    main_menu_button_->setMenu(main_menu);
+    main_menu_badge_ = new QLabel(main_menu_button_);
+    main_menu_badge_->setObjectName(QStringLiteral("mainMenuBadge"));
+    main_menu_badge_->setAlignment(Qt::AlignCenter);
+    main_menu_badge_->setAttribute(Qt::WA_TransparentForMouseEvents);
+    main_menu_badge_->hide();
+    conversation_header_layout->addWidget(main_menu_button_);
     sidebar_back_button_ = new QToolButton(conversation_header);
     sidebar_back_button_->setObjectName(QStringLiteral("sidebarHeaderButton"));
     sidebar_back_button_->setText(QStringLiteral("‹"));
+    sidebar_back_button_->setAccessibleName(QStringLiteral("返回"));
+    sidebar_back_button_->setToolTip(QStringLiteral("返回"));
     sidebar_back_button_->setFixedSize(32, 32);
     sidebar_back_button_->setCursor(Qt::PointingHandCursor);
     sidebar_back_button_->hide();
@@ -197,7 +177,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     section_title_ = new QLabel(QStringLiteral("消息"), conversation_header);
     section_title_->setObjectName(QStringLiteral("sectionTitle"));
     conversation_header_layout->addWidget(section_title_);
-    // The chat list leads with search instead of a title, as WeChat does.
+    // Chats lead with search beside the main menu and New action.
     conversation_search_ = new QLineEdit(conversation_header);
     conversation_search_->setObjectName(QStringLiteral("conversationSearchEdit"));
     conversation_search_->setPlaceholderText(QStringLiteral("搜索"));
@@ -208,7 +188,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
         conversation_search_icon->setIcon(svg_icon(u"search", themed("text_muted"), QSize(16, 16)));
     });
     conversation_header_layout->addWidget(conversation_search_, 1);
-    // Contacts use the same row: their own search box beside the add-friend icon, as in WeChat.
+    // Contacts reuse the header with their own search and New friends shortcut.
     contact_search_ = new QLineEdit(conversation_header);
     contact_search_->setObjectName(QStringLiteral("userSearchEdit"));
     contact_search_->setPlaceholderText(QStringLiteral("搜索"));
@@ -304,7 +284,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     find_user_button_->setCursor(Qt::PointingHandCursor);
     find_user_button_->hide();
     contacts_layout->addWidget(find_user_button_);
-    contacts_status_ = new QLabel(QStringLiteral("暂无联系人，可从右上方“新的朋友”添加好友"), contacts_page);
+    contacts_status_ = new QLabel(QStringLiteral("暂无联系人，可从主菜单“新的朋友”添加好友"), contacts_page);
     contacts_status_->setObjectName(QStringLiteral("subtleText"));
     contacts_status_->setContentsMargins(18, 8, 14, 8);
     contacts_status_->setWordWrap(true);
@@ -870,10 +850,9 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     input_layout->addWidget(send_button_, 0, Qt::AlignBottom);
     chat_layout->addWidget(input_bar);
 
-    layout->addWidget(navigation_panel);
     layout->addWidget(conversation_panel);
     layout->addWidget(make_separator(this));
-    // Like WeChat, the right side follows the primary tab: a chat for Chats, a contact card for Contacts.
+    // The right pane follows the sidebar section: chat history or contact details.
     right_pages_ = new QStackedWidget(this);
     right_pages_->setObjectName(QStringLiteral("rightPages"));
     right_pages_->addWidget(chat_panel);
@@ -896,7 +875,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     contact_empty_title->setAlignment(Qt::AlignCenter);
     contact_empty_layout->addWidget(contact_empty_title, 0, Qt::AlignHCenter);
     auto* contact_empty_hint = new QLabel(
-        QStringLiteral("从左侧选择好友，查看资料或发消息。\n还没有好友？打开右上方“新的朋友”，再添加好友。"), contact_empty);
+        QStringLiteral("从左侧选择好友，查看资料或发消息。\n还没有好友？打开主菜单中的“新的朋友”，再添加好友。"), contact_empty);
     contact_empty_hint->setObjectName(QStringLiteral("contactEmptyHint"));
     contact_empty_hint->setAlignment(Qt::AlignCenter);
     contact_empty_hint->setWordWrap(true);
@@ -948,27 +927,16 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     layout->addWidget(right_pages_, 1);
     connect(contact_card_message_, &QPushButton::clicked, this, [this] { contact_card_primary(); });
     connect(contact_card_profile_, &QPushButton::clicked, this, [this] { contact_card_secondary(); });
-    chats_badge_ = new QLabel(chats_navigation_);
-    chats_badge_->setObjectName(QStringLiteral("chatsBadge"));
-    chats_badge_->setAlignment(Qt::AlignCenter);
-    chats_badge_->setAttribute(Qt::WA_TransparentForMouseEvents);
-    chats_badge_->hide();
     connect(conversation_search_, &QLineEdit::textChanged, this, [this] { filter_conversations(); });
-    connect(conversations_, &QAbstractItemModel::modelReset, this, [this] { filter_conversations(); update_unread_badge(); });
-    connect(conversations_, &QAbstractItemModel::dataChanged, this, [this] { update_unread_badge(); });
-    navigation_badge_ = new QLabel(contacts_navigation_);
-    navigation_badge_->setObjectName(QStringLiteral("navigationBadge"));
-    navigation_badge_->setAlignment(Qt::AlignCenter);
-    navigation_badge_->setAttribute(Qt::WA_TransparentForMouseEvents);
-    navigation_badge_->hide();
-
-    connect(profile_avatar_, &QToolButton::clicked, this, [this] {
-        show_user_details(self_user_, profile_avatar_->toolTip());
+    connect(conversations_, &QAbstractItemModel::modelReset, this, [this] { filter_conversations(); update_main_menu(); });
+    connect(conversations_, &QAbstractItemModel::dataChanged, this, [this] { update_main_menu(); });
+    connect(self_profile_action_, &QAction::triggered, this, [this] {
+        show_user_details(self_user_, self_username_);
     });
     connect(&avatars_, &avatar_cache::changed, this, [this](qint64 user) {
         if (user == self_user_)
         {
-            profile_avatar_->setIcon(avatar_icon(profile_avatar_->toolTip(), 44, avatars_.image(user)));
+            self_profile_action_->setIcon(avatar_icon(self_username_, 24, avatars_.image(user)));
         }
         if (!active_group_ && user == active_peer_) { update_chat_header(active_username_); }
         if (user == contact_card_user_) { update_contact_card(); }
@@ -982,8 +950,9 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
             }
         }
     });
-    connect(chats_navigation_, &QToolButton::clicked, this, [this] { show_conversations_section(); });
-    connect(contacts_navigation_, &QToolButton::clicked, this, [this] { show_contacts_section(); });
+    connect(chats_action_, &QAction::triggered, this, [this] { show_conversations_section(); });
+    connect(contacts_action_, &QAction::triggered, this, [this] { show_contacts_section(); });
+    connect(new_friends_action_, &QAction::triggered, this, [this] { show_new_friends_section(); });
     connect(create_group, &QAction::triggered, this, [this] { this->create_group(); });
     connect(add_friend, &QAction::triggered, this, [this] { show_add_contact_section(); });
     connect(join_group, &QAction::triggered, this, [this] {
@@ -1187,6 +1156,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
             request_older_messages();
         }
     });
+    main_menu_button_->installEventFilter(this);
 }
 
 void chat_widget::set_user(QString const& username, qint64 user)
@@ -1197,10 +1167,10 @@ void chat_widget::set_user(QString const& username, qint64 user)
     avatars_.clear();
     images_.clear();
     avatar_updating_ = false;
-    profile_avatar_->setIcon(avatar_icon(username, 44));
-    profile_avatar_->setToolTip(username);
-    profile_avatar_->setStyleSheet(QStringLiteral("border: none; background: transparent;"));
+    self_username_ = username;
     self_user_ = user;
+    self_profile_action_->setIcon(avatar_icon(username, 24));
+    self_profile_action_->setEnabled(user > 0);
     drafts_.clear();
     message_sending_.clear();
     attachment_sending_ = false;
@@ -1224,7 +1194,7 @@ void chat_widget::set_user(QString const& username, qint64 user)
     set_friend_requests({}, {}, {});
     contacts_filter_->setFilterRegularExpression(QRegularExpression{});
     contact_search_->clear();
-    contacts_status_->setText(QStringLiteral("暂无联系人，可从右上方“新的朋友”添加好友"));
+    contacts_status_->setText(QStringLiteral("暂无联系人，可从主菜单“新的朋友”添加好友"));
     contact_card_user_ = 0;
     contact_card_username_.clear();
     add_users_->set_users({});
@@ -1248,6 +1218,15 @@ void chat_widget::set_user(QString const& username, qint64 user)
 
 bool chat_widget::eventFilter(QObject* object, QEvent* event)
 {
+    if (object == main_menu_button_ && event->type() == QEvent::KeyPress)
+    {
+        auto const* key = static_cast<QKeyEvent*>(event);
+        if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter)
+        {
+            main_menu_button_->showMenu();
+            return true;
+        }
+    }
     if ((object == incoming_friends_->viewport() || object == outgoing_friends_->viewport()) && event->type() == QEvent::Resize)
     {
         auto* list = object == incoming_friends_->viewport() ? incoming_friends_ : outgoing_friends_;
@@ -1828,7 +1807,7 @@ void chat_widget::finish_message_send(qint64 user, qint64 message, qint64 timest
     value.id = message;
     value.conversation = user;
     value.from = self_user_;
-    value.username = profile_avatar_->toolTip();
+    value.username = self_username_;
     value.timestamp = timestamp;
     value.text = std::move(text);
     value.reply = std::move(reply);
@@ -1886,8 +1865,8 @@ void chat_widget::show_conversations_section()
     sidebar_back_button_->hide();
     add_contact_button_->hide();
     chats_actions_->show();
-    set_navigation_button(chats_navigation_, QStringLiteral("chat"), true);
-    set_navigation_button(contacts_navigation_, QStringLiteral("contacts"), false);
+    update_main_menu();
+    conversation_search_->setFocus();
 }
 
 void chat_widget::show_contacts_section()
@@ -1902,8 +1881,7 @@ void chat_widget::show_contacts_section()
     sidebar_back_button_->hide();
     add_contact_button_->show();
     chats_actions_->hide();
-    set_navigation_button(chats_navigation_, QStringLiteral("chat"), false);
-    set_navigation_button(contacts_navigation_, QStringLiteral("contacts"), true);
+    update_main_menu();
     contact_search_->setFocus();
 }
 
@@ -1923,8 +1901,7 @@ void chat_widget::show_add_contact_section()
     sidebar_back_button_->show();
     add_contact_button_->hide();
     chats_actions_->hide();
-    set_navigation_button(chats_navigation_, QStringLiteral("chat"), add_friend_parent_ == sidebar_parent::chats);
-    set_navigation_button(contacts_navigation_, QStringLiteral("contacts"), add_friend_parent_ != sidebar_parent::chats);
+    update_main_menu();
     add_user_search_->setFocus();
 }
 
@@ -1945,8 +1922,8 @@ void chat_widget::show_new_friends_section()
     sidebar_back_button_->show();
     add_contact_button_->show();
     chats_actions_->hide();
-    set_navigation_button(chats_navigation_, QStringLiteral("chat"), false);
-    set_navigation_button(contacts_navigation_, QStringLiteral("contacts"), true);
+    update_main_menu();
+    sidebar_back_button_->setFocus();
 }
 
 void chat_widget::filter_contacts(QString const& query)
@@ -1960,7 +1937,7 @@ void chat_widget::filter_contacts(QString const& query)
 
     if (contacts_->rowCount() == 0)
     {
-        contacts_status_->setText(QStringLiteral("暂无联系人，可从右上方“新的朋友”添加好友"));
+        contacts_status_->setText(QStringLiteral("暂无联系人，可从主菜单“新的朋友”添加好友"));
     }
     else if (contacts_filter_->rowCount() == 0)
     {
@@ -2004,10 +1981,10 @@ void chat_widget::select_contact(QModelIndex const& index)
 
 void chat_widget::refresh_theme()
 {
-    auto const chats = sidebar_pages_->currentIndex() == 0 ||
-        (sidebar_pages_->currentIndex() == 2 && add_friend_parent_ == sidebar_parent::chats);
-    set_navigation_button(chats_navigation_, QStringLiteral("chat"), chats);
-    set_navigation_button(contacts_navigation_, QStringLiteral("contacts"), !chats);
+    main_menu_button_->setIcon(svg_icon(u"menu", themed("text_secondary"), QSize(22, 22)));
+    chats_action_->setIcon(svg_icon(u"chat", themed("text"), QSize(20, 20)));
+    contacts_action_->setIcon(svg_icon(u"contacts", themed("text"), QSize(20, 20)));
+    new_friends_action_->setIcon(svg_icon(u"user-plus", themed("text"), QSize(20, 20)));
     cancel_reply_button_->setIcon(svg_icon(QStringLiteral("close"), themed("text"), QSize(20, 20)));
     send_button_->setIcon(svg_icon(QStringLiteral("send"), themed("on_accent"), QSize(20, 20)));
     chat_more_button_->setIcon(svg_icon(u"more", themed("text"), QSize(20, 20)));
@@ -2018,7 +1995,7 @@ void chat_widget::refresh_theme()
     find_user_button_->setIcon(svg_icon(u"search", themed("accent"), QSize(18, 18)));
     add_contact_button_->setIcon(svg_icon(u"user-plus", themed("accent"), QSize(18, 18)));
     contact_placeholder_->setPixmap(svg_icon(u"contacts", themed("text_muted"), QSize(48, 48)).pixmap(48, 48));
-    profile_avatar_->setIcon(avatar_icon(profile_avatar_->toolTip(), 44, avatars_.image(self_user_)));
+    self_profile_action_->setIcon(avatar_icon(self_username_, 24, avatars_.image(self_user_)));
     if (active_conversation_ > 0) { update_chat_header(active_username_); }
     update_contact_card();
     for (auto* view : findChildren<QAbstractItemView*>()) { view->viewport()->update(); }
@@ -2144,7 +2121,7 @@ void chat_widget::filter_conversations()
     }
 }
 
-void chat_widget::update_unread_badge()
+void chat_widget::update_main_menu()
 {
     quint64 total = 0;
     for (int row = 0; row < conversations_->rowCount(); ++row)
@@ -2152,10 +2129,23 @@ void chat_widget::update_unread_badge()
         auto const index = conversations_->index(row, 0);
         if (!index.data(conversation_model::muted_role).toBool()) { total += index.data(conversation_model::unread_role).toULongLong(); }
     }
-    chats_badge_->setText(total > 99 ? QStringLiteral("99+") : QString::number(total));
-    chats_badge_->setVisible(total > 0);
-    auto const width = std::max(16, chats_badge_->sizeHint().width());
-    chats_badge_->setGeometry(std::min(chats_navigation_->width() - width, 30), 2, width, 16);
+    auto const incoming = incoming_requests_.size();
+    chats_action_->setText(total > 0 ? QStringLiteral("聊天 · %1 条未读").arg(total) : QStringLiteral("聊天"));
+    new_friends_action_->setText(incoming > 0 ? QStringLiteral("新的朋友 · %1").arg(incoming) : QStringLiteral("新的朋友"));
+    auto const parent = sidebar_pages_->currentIndex() == 2 ? add_friend_parent_
+        : sidebar_pages_->currentIndex() == 0 ? sidebar_parent::chats
+        : sidebar_pages_->currentIndex() == 3 ? sidebar_parent::new_friends : sidebar_parent::contacts;
+    chats_action_->setChecked(parent == sidebar_parent::chats);
+    contacts_action_->setChecked(parent == sidebar_parent::contacts);
+    new_friends_action_->setChecked(parent == sidebar_parent::new_friends);
+    auto const count = incoming > 0 ? quint64(incoming) : total;
+    main_menu_badge_->setText(count > 99 ? QStringLiteral("99+") : QString::number(count));
+    main_menu_badge_->setVisible(count > 0);
+    auto const width = std::max(16, main_menu_badge_->sizeHint().width());
+    main_menu_badge_->setGeometry(main_menu_button_->width() - width, 0, width, 16);
+    auto const description = QStringLiteral("主菜单 · %1 条未读消息 · %2 个好友申请").arg(total).arg(incoming);
+    main_menu_button_->setToolTip(description);
+    main_menu_button_->setAccessibleDescription(description);
 }
 
 void chat_widget::show_emoji_picker()
@@ -2242,12 +2232,7 @@ void chat_widget::update_friend_badges()
     auto const badge_width = std::max(16, add_friend_badge_->sizeHint().width());
     add_friend_badge_->setGeometry(add_contact_button_->width() - badge_width + 4, -2, badge_width, 16);
     update_add_friend_tooltip();
-    navigation_badge_->setText(text);
-    navigation_badge_->setVisible(count > 0);
-    // On the icon's upper right corner, overlapping only its edge, as WeChat does.
-    auto const width = std::max(16, navigation_badge_->sizeHint().width());
-    navigation_badge_->setGeometry(std::min(contacts_navigation_->width() - width, 30), 2, width, 16);
-    contacts_navigation_->setToolTip(count > 0 ? QStringLiteral("联系人 · %1 个新的朋友").arg(count) : QStringLiteral("联系人"));
+    update_main_menu();
 }
 
 void chat_widget::select_add_user(QModelIndex const& index)

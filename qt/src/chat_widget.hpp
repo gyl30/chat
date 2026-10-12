@@ -145,7 +145,7 @@ class chat_widget final : public QWidget
     void find_user();
     void filter_conversations();
     void set_list_status(QString text);
-    void update_unread_badge();
+    void update_main_menu();
     void show_loading_status();
     void show_emoji_picker();
     void update_friend_badges();
@@ -173,9 +173,11 @@ class chat_widget final : public QWidget
     avatar_cache avatars_;
     message_images images_;
     bool avatar_updating_ = false;
-    QToolButton* profile_avatar_ = nullptr;
-    QToolButton* chats_navigation_ = nullptr;
-    QToolButton* contacts_navigation_ = nullptr;
+    QToolButton* main_menu_button_ = nullptr;
+    QAction* self_profile_action_ = nullptr;
+    QAction* chats_action_ = nullptr;
+    QAction* contacts_action_ = nullptr;
+    QAction* new_friends_action_ = nullptr;
     QToolButton* chats_actions_ = nullptr;
     QToolButton* sidebar_back_button_ = nullptr;
     QToolButton* add_contact_button_ = nullptr;
@@ -202,8 +204,7 @@ class chat_widget final : public QWidget
     QString contact_card_username_;
     QPushButton* find_user_button_ = nullptr;
     QLabel* add_friend_badge_ = nullptr;
-    QLabel* navigation_badge_ = nullptr;
-    QLabel* chats_badge_ = nullptr;
+    QLabel* main_menu_badge_ = nullptr;
     QLineEdit* conversation_search_ = nullptr;
     QToolButton* chat_more_button_ = nullptr;
     QToolButton* emoji_button_ = nullptr;
@@ -257,6 +258,7 @@ class chat_widget final : public QWidget
     message_model* messages_ = nullptr;
     QHash<qint64, presence_data> presence_;
     qint64 self_user_ = 0;
+    QString self_username_;
     qint64 active_conversation_ = 0;
     qint64 active_peer_ = 0;
     bool active_group_ = false;

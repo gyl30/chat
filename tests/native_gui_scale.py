@@ -630,8 +630,41 @@ class NativeGui:
         if self.cfg.get('history_diagnostic', False):
             self.history_observation(actor, 'after-end')
 
+    def navigate(self, actor, label):
+        actions = ['我的资料', '聊天', '联系人', '新的朋友']
+        if label not in actions:
+            raise ValueError('Unknown native main-menu destination: ' + label)
+        self.click(actor, self.field(actor, '主菜单'))
+        rectangle = self.wait(lambda: self.popup(actor), 'Owned native main navigation menu unavailable')
+        # QMenu exports differ between Qt platform integrations. When Qt exposes
+        # visible items, verify their stable labels; input still uses the actual
+        # owned popup geometry, with four equal rows and no separators.
+        labels = []
+        for node in self.nodes(actor):
+            try:
+                if node.get_role() == self.Atspi.Role.MENU_ITEM:
+                    labels.append(node.get_name())
+            except self.GLib.GError:
+                # Qt can remove a previous transient accessible while opening
+                # this popup. Its owned X11 geometry remains the input target.
+                continue
+        if labels and not all(any(name == action or name.startswith(action + ' ') or
+                                 name.startswith(action + '（') or name.startswith(action + '(')
+                                 for name in labels) for action in actions):
+            raise RuntimeError('Native main menu labels differ from its four destinations: ' + str(labels))
+        index = actions.index(label)
+        px = rectangle['x'] + rectangle['width'] // 2
+        py = round(rectangle['y'] + 7 + (index + .5) * (rectangle['height'] - 14) / len(actions))
+        self.xt.XTestFakeMotionEvent(self.native, -1, px, py, 0)
+        self.xt.XTestFakeButtonEvent(self.native, 1, True, 0)
+        self.xt.XTestFakeButtonEvent(self.native, 1, False, 0)
+        self.lib.XFlush(self.native)
+        emit('main-menu-route', actor=actor, action=label, index=index,
+             context_actions=actions, exported_labels=labels, rectangle=rectangle, target=[px, py])
+        self.wait(lambda: self.popup(actor) is None, 'Native main menu remained open after destination click')
+
     def open_room(self, actor, title):
-        self.click(actor, self.field(actor, '聊天'))
+        self.navigate(actor, '聊天')
         row = self.wait(lambda: next((n for n in self.rows(actor, '会话列表')
                         if n.get_name() == title), None), 'Conversation unavailable ' + title)
         self.click(actor, row)
@@ -846,7 +879,7 @@ class NativeGui:
         self.click(actor, node)
 
     def friend_request(self, actor, peer):
-        self.click(actor, self.field(actor, '聊天'))
+        self.navigate(actor, '聊天')
         self.click(actor, self.field(actor, '聊天操作'))
         rectangle = self.wait(lambda: self.popup(actor), 'Native New action menu unavailable')
         px = rectangle['x'] + rectangle['width']//2
@@ -865,14 +898,13 @@ class NativeGui:
         self.field(actor, '等待验证')
 
     def incoming(self, actor, requester):
-        self.click(actor, self.field(actor, '联系人'))
-        self.click_prefix(actor, '新的朋友')
+        self.navigate(actor, '新的朋友')
         self.click(actor, self.wait_row(actor, '收到的好友申请', requester['username']))
         self.key('Return')
         self.field(actor, '接受')
 
     def remove_friend(self, actor, peer):
-        self.click(actor, self.field(actor, '联系人'))
+        self.navigate(actor, '联系人')
         self.click(actor, self.wait_row(actor, '联系人列表', peer['username']))
         self.key('Return')
         self.click(actor, self.field(actor, '资料'))
@@ -881,7 +913,7 @@ class NativeGui:
         self.wait(lambda: not any(n.get_name() == peer['username'] for n in self.rows(actor, '联系人列表')),
                   'Removed friend remains in contacts')
         for owner, target in [(actor, peer), (peer['id'], {'username': self.cfg_actor(actor)['username']})]:
-            self.click(owner, self.field(owner, '聊天'))
+            self.navigate(owner, '聊天')
             self.wait(lambda o=owner,t=target: not any(n.get_name() == t['username'] for n in self.rows(o, '会话列表')),
                       'Nonfriend direct remains visible')
 
@@ -915,7 +947,7 @@ class NativeGui:
         self.incoming(peer['id'], actor)
         self.click(peer['id'], self.field(peer['id'], '接受'))
         for current, target in [(actor, peer), (peer, actor)]:
-            self.click(current['id'], self.field(current['id'], '联系人'))
+            self.navigate(current['id'], '联系人')
             self.wait_row(current['id'], '联系人列表', target['username'])
             self.open_room(current['id'], target['username'])
             self.expect_message(current['id'], marker + '-before',
@@ -1028,17 +1060,17 @@ class NativeGui:
         if expected_error is not None:
             self.field(identity, expected_error)
             self.wait(lambda: self.field(identity, '登录').get_state_set().contains(
-                self.Atspi.StateType.SENSITIVE) and self.find(identity, '联系人') is None,
+                self.Atspi.StateType.SENSITIVE) and self.find(identity, '主菜单') is None,
                 'Rejected native login did not remain on the usable login page')
             emit('login-rejected', actor=identity, pid=process.pid,
                  reason=expected_error, elapsed_ms=(time.monotonic() - before) * 1000)
             return
-        self.field(identity, '联系人')
+        self.field(identity, '主菜单')
         emit('reauthenticated' if reauthentication else 'authenticated', actor=identity, pid=process.pid,
              login_ms=(time.monotonic() - before) * 1000)
 
     def new_action(self, actor, index):
-        self.click(actor, self.field(actor, '聊天'))
+        self.navigate(actor, '聊天')
         self.click(actor, self.field(actor, '聊天操作'))
         rectangle = self.wait(lambda: self.popup(actor), 'Native New menu unavailable')
         px = rectangle['x'] + rectangle['width']//2
@@ -1205,7 +1237,7 @@ class NativeGui:
         return answer
 
     def daylight_unread_palette(self, actor):
-        self.click(actor, self.field(actor, '我的资料'))
+        self.navigate(actor, '我的资料')
         self.field(actor, '关闭资料')
         mode = self.wait(lambda: next((node for node in self.nodes(actor)
             if node.get_role() == self.Atspi.Role.COMBO_BOX and
@@ -1912,7 +1944,7 @@ class NativeGui:
             png, jpeg = files / 'daily-avatar.png', files / 'daily-avatar.jpg'
             Image.new('RGB', (32, 32), (61, 132, 117)).save(png)
             Image.new('RGB', (32, 32), (121, 161, 182)).save(jpeg)
-            self.click(identity, self.field(identity, '我的资料'))
+            self.navigate(identity, '我的资料')
             hashes = []
             for path in (png, jpeg):
                 self.click(identity, self.field(identity, '更换头像'))
@@ -1939,7 +1971,7 @@ class NativeGui:
         def logout():
             process = self.clients[identity]
             pid = process.pid
-            self.click(identity, self.field(identity, '我的资料'))
+            self.navigate(identity, '我的资料')
             self.click(identity, self.field(identity, '退出登录'))
             self.click(identity, self.confirmation_button(identity, '退出登录', cancel=True))
             self.field(identity, '关闭资料')
@@ -2115,7 +2147,7 @@ class NativeGui:
             self.click(receiver, self.reachable(receiver, '退出群聊'))
             self.click(receiver, self.confirmation_button(receiver, '退出群聊'))
             self.wait(lambda: not self.find(receiver, '退出群聊'), 'Left group profile remained open')
-            self.click(receiver, self.field(receiver, '聊天'))
+            self.navigate(receiver, '聊天')
             self.wait(lambda: not any(n.get_name() == renamed for n in self.rows(receiver, '会话列表')),
                       'Left group remained in Chats')
             self.open_room(identity, renamed)
@@ -2209,7 +2241,7 @@ class NativeGui:
                 self.field(a['id'], str(a['member_count']) + ' 位成员')
                 self.capture(a['id'], 'lifecycle-recovered-group-' + str(a['id']))
                 self.escape(a['id'])
-                self.click(a['id'], self.field(a['id'], '联系人'))
+                self.navigate(a['id'], '联系人')
                 self.wait_row(a['id'], '联系人列表', a['peer_username'])
                 self.open_room(a['id'], a['group_title'])
                 return {'pid': originals[a['id']]['pid'], 'same_process': True,
@@ -2469,7 +2501,7 @@ def run(config):
                     gui.capture(identity, 'group-details-' + str(identity))
                     gui.escape(identity)
                 elif kind == 'list-search':
-                    gui.click(identity, gui.field(identity, '聊天'))
+                    gui.navigate(identity, '聊天')
                     search = gui.field(identity, '搜索聊天')
                     gui.paste(identity, search, actor['group_title'])
                     gui.wait_row(identity, '会话列表', actor['group_title'])
@@ -2477,7 +2509,7 @@ def run(config):
                         for n in gui.rows(identity, '会话列表')), 'Conversation search failed to filter peer')
                     gui.paste(identity, search, '')
                     gui.wait_row(identity, '会话列表', actor['peer_username'])
-                    gui.click(identity, gui.field(identity, '联系人'))
+                    gui.navigate(identity, '联系人')
                     search = gui.field(identity, '搜索联系人')
                     gui.paste(identity, search, actor['peer_username'])
                     gui.wait_row(identity, '联系人列表', actor['peer_username'])
@@ -2506,7 +2538,7 @@ def run(config):
                             raise RuntimeError('Ordinary member exposes group unpin action')
                         evidence = {'permission': 'member cannot manage group pin'}
                 elif kind == 'profile':
-                    gui.click(identity, gui.field(identity, '我的资料'))
+                    gui.navigate(identity, '我的资料')
                     gui.field(identity, '关闭资料')
                     gui.capture(identity, 'account-' + str(identity))
                     gui.click(identity, gui.field(identity, '关闭资料'))

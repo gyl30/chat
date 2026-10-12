@@ -422,32 +422,6 @@ QMainWindow {
         QToolButton#serverSettingsButton:focus {
             border-color: ${focus};
         }
-        QFrame#navigationPanel {
-            background: ${nav};
-        }
-        QLabel#profileAvatar {
-            background: ${selected};
-            color: ${accent};
-            border-radius: 22px;
-            font-size: 18px;
-            font-weight: 700;
-        }
-        QToolButton#navigationSelected, QToolButton#navigationButton {
-            border: 0;
-            border-radius: 12px;
-            padding: 0;
-            color: ${nav_text};
-            background: transparent;
-            font-size: 12px;
-            font-weight: 500;
-        }
-        QToolButton#navigationSelected {
-            background: ${nav_selected};
-            color: ${on_accent};
-        }
-        QToolButton#navigationButton:disabled {
-            color: rgba(${nav_text.rgb}, 0.43);
-        }
         QFrame#conversationPanel {
             background: ${panel};
         }
@@ -607,7 +581,7 @@ QMainWindow {
             font-size: 11px;
             font-weight: 700;
         }
-        QLabel#navigationBadge, QLabel#chatsBadge {
+        QLabel#mainMenuBadge {
             min-width: 16px;
             padding: 0 4px;
             border-radius: 8px;
@@ -986,17 +960,10 @@ QPushButton:pressed:enabled, QToolButton:pressed:enabled { background: ${selecte
 QPushButton:focus, QToolButton:focus { border-color: ${focus}; }
 QPushButton:disabled, QToolButton:disabled { color: ${text_muted}; }
 QFrame#inputBar { border-color: ${input_border}; }
-QToolButton#navigationButton { background: transparent; color: ${nav_text}; }
-QToolButton#navigationButton:hover { background: ${nav_hover}; }
 
-QToolButton#navigationSelected { background: ${nav_selected}; color: ${nav_selected_text}; }
-QToolButton#navigationButton:hover { background: ${nav_hover}; }
-QToolButton#navigationButton:pressed { background: ${selected}; }
-QToolButton#navigationSelected:focus, QToolButton#navigationButton:focus { border: 2px solid ${focus}; }
 QPushButton#loginButton:disabled, QPushButton#registrationSubmitButton:disabled { color: ${text_secondary}; }
 QPushButton#loginButton:focus, QPushButton#registrationSubmitButton:focus, QToolButton#sendButton:focus { border: 2px solid ${on_accent}; }
 
-QToolButton#navigationSelected:focus { border-color: ${nav_selected_text}; }
 QToolButton#profileActionButton[primary="true"]:focus,
 QDialog#profileDialog QPushButton#changeAvatarButton:focus,
 QPushButton#contactCardMessageButton:focus { border-color: ${on_accent}; }
@@ -1016,3 +983,23 @@ QLabel#groupOverviewCount { font-size: 14px; }
 QLabel#groupOverviewAnnouncement[empty="true"] { color: ${text_secondary}; font-size: 13px; }
 QLabel#contactEmptyTitle { color: ${text}; font-size: 18px; font-weight: 600; }
 QLabel#contactEmptyHint { color: ${text_secondary}; font-size: 14px; }
+
+
+/* Sidebar navigation uses the native menu beside search. */
+QToolButton#mainMenuButton {
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: ${text_secondary};
+}
+QToolButton#mainMenuButton:hover { background: ${subtle}; }
+QToolButton#mainMenuButton:pressed, QToolButton#mainMenuButton:open { background: ${selected}; }
+QToolButton#mainMenuButton:focus { border-color: ${focus}; }
+QToolButton#mainMenuButton::menu-indicator { image: none; width: 0; }
+QMenu#mainNavigationMenu { min-width: 180px; }
+QMenu#mainNavigationMenu::item:checked { background: ${subtle}; color: ${text}; }
+QMenu#mainNavigationMenu::item:selected {
+    background: ${selected};
+    color: ${text};
+}

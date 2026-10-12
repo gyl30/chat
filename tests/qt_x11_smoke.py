@@ -22,9 +22,18 @@ import atexit
 import signal
 import ctypes as C, json, os, pathlib, secrets, selectors, subprocess as S, sys, time, urllib.request
 from PIL import ImageGrab
+import shutil
+from native_gui_scale import NativeGui
+if not os.environ.get('DBUS_SESSION_BUS_ADDRESS'):
+    os.execvp('dbus-run-session', ['dbus-run-session', '--', sys.executable, '-B', __file__, *sys.argv[1:]])
 owned = []
+gui = None
 
 def cleanup_processes():
+    global gui
+    if gui is not None:
+        gui.shutdown()
+        gui = None
     for proc in reversed(owned):
         if proc.poll() is None:
             proc.terminate()
@@ -48,6 +57,7 @@ parser.add_argument('--build', default='build')
 parser.add_argument('--port', type=int, default=18881)
 parser.add_argument('--output', default='/tmp/chat-qt-x11-' + time.strftime('%Y%m%d-%H%M%S'))
 parser.add_argument('--keep-db', action='store_true')
+parser.add_argument('--openbox', default=shutil.which('openbox'), help='Verified Openbox binary for the owned X11 display')
 parser.add_argument('--navigation-only', action='store_true', help='Six-user navigation regression instead of the scale scenario')
 args = parser.parse_args()
 work = pathlib.Path(args.output).resolve()
@@ -112,6 +122,8 @@ owned.append(xvfb)
 display = ':' + xvfb.stdout.readline().strip()
 os.environ['DISPLAY'] = display
 os.environ['QT_QPA_PLATFORM'] = 'xcb'
+os.environ['QT_LINUX_ACCESSIBILITY_ALWAYS_ON'] = '1'
+os.environ['QT_ACCESSIBILITY'] = '1'
 # A private settings home: remembered accounts and appearance must not change focus or colors.
 os.environ['XDG_CONFIG_HOME'] = str(work / 'config')
 x = C.CDLL('libX11.so.6')
@@ -128,6 +140,46 @@ xt.XTestFakeKeyEvent.argtypes = [C.c_void_p, C.c_uint, C.c_int, C.c_ulong]
 xt.XTestFakeButtonEvent.argtypes = [C.c_void_p, C.c_uint, C.c_int, C.c_ulong]
 xt.XTestFakeMotionEvent.argtypes = [C.c_void_p, C.c_int, C.c_int, C.c_int, C.c_ulong]
 clients = {}
+# Adopt this driver's existing owned display and clients in the common native
+# helper. Menu, label and row input stays on real Qt/XTest; fixture facts remain
+# in the original SDK/SQL checks below.
+import gi
+gi.require_version('Atspi', '2.0')
+from gi.repository import Atspi, GLib
+S.run(['dbus-update-activation-environment', 'DISPLAY', 'XDG_CONFIG_HOME'], check=True,
+      stdout=S.DEVNULL)
+for name, argtypes, restype in [
+    ('XQueryTree', [C.c_void_p,C.c_ulong,C.POINTER(C.c_ulong),C.POINTER(C.c_ulong),
+        C.POINTER(C.POINTER(C.c_ulong)),C.POINTER(C.c_uint)], C.c_int),
+    ('XGetGeometry', [C.c_void_p,C.c_ulong,C.POINTER(C.c_ulong),C.POINTER(C.c_int),
+        C.POINTER(C.c_int),C.POINTER(C.c_uint),C.POINTER(C.c_uint),
+        C.POINTER(C.c_uint),C.POINTER(C.c_uint)], C.c_int),
+    ('XTranslateCoordinates', [C.c_void_p,C.c_ulong,C.c_ulong,C.c_int,C.c_int,
+        C.POINTER(C.c_int),C.POINTER(C.c_int),C.POINTER(C.c_ulong)], C.c_int),
+    ('XGetWindowAttributes', [C.c_void_p,C.c_ulong,C.c_void_p], C.c_int),
+    ('XInternAtom', [C.c_void_p,C.c_char_p,C.c_int], C.c_ulong),
+    ('XGetWindowProperty', [C.c_void_p,C.c_ulong,C.c_ulong,C.c_long,C.c_long,C.c_int,
+        C.c_ulong,C.POINTER(C.c_ulong),C.POINTER(C.c_int),C.POINTER(C.c_ulong),
+        C.POINTER(C.c_ulong),C.POINTER(C.POINTER(C.c_ubyte))], C.c_int),
+    ('XGetInputFocus', [C.c_void_p,C.POINTER(C.c_ulong),C.POINTER(C.c_int)], C.c_int),
+    ('XFree', [C.c_void_p], C.c_int),
+    ('XCloseDisplay', [C.c_void_p], C.c_int)]:
+    function = getattr(x, name)
+    function.argtypes, function.restype = argtypes, restype
+if not args.openbox:
+    raise RuntimeError('Supply a verified --openbox binary for native menu input')
+wm = S.Popen([args.openbox, '--sm-disable'], stdout=(work/'openbox.log').open('w'), stderr=S.STDOUT)
+owned.append(wm)
+gui = NativeGui.__new__(NativeGui)
+gui.Atspi, gui.GLib, gui.ImageGrab = Atspi, GLib, ImageGrab
+gui.cfg = {'binary':str(build/'qt/chat_qt'), 'actors':list(manifest['actors'].values()) + manifest.get('sdk', [])}
+gui.work, gui.lib, gui.xt, gui.native, gui.display = work, x, xt, d, display
+gui.processes, gui.clients, gui.apps, gui.rooms, gui.relays = [], {}, {}, {}, {}
+gui.clipboard, gui.last_focus, gui.receipt_context = None, None, None
+gui.redact_invite_ui = True
+Atspi.init()
+gui.wait(lambda: gui.property(gui.root(), '_NET_SUPPORTED'), 'Owned Openbox readiness')
+
 
 def actor(alias):
     return manifest['actors'].get(alias) or next((a for a in manifest['sdk'] if a['alias'] == alias))
@@ -143,30 +195,16 @@ def focus(w):
     x.XFlush(d)
     time.sleep(0.12)
 
-def key(name, ctrl=False):
-    if ctrl:
-        xt.XTestFakeKeyEvent(d, x.XKeysymToKeycode(d, x.XStringToKeysym(b'Control_L')), 1, 0)
-    code = x.XKeysymToKeycode(d, x.XStringToKeysym(name.encode()))
-    xt.XTestFakeKeyEvent(d, code, 1, 0)
-    xt.XTestFakeKeyEvent(d, code, 0, 0)
-    if ctrl:
-        xt.XTestFakeKeyEvent(d, x.XKeysymToKeycode(d, x.XStringToKeysym(b'Control_L')), 0, 0)
-    x.XFlush(d)
-
-def paste(text):
-    S.run(['xclip', '-selection', 'clipboard', '-in'], input=text, text=True, stdout=S.DEVNULL, stderr=S.DEVNULL, check=True)
-    key('v', True)
-    time.sleep(0.15)
-
 def capture(label):
     time.sleep(0.2)
     path = work / (label + '.png')
-    ImageGrab.grab(xdisplay=display).save(path)
+    gui.screenshot(path)
     return str(path)
 
 def launch(alias):
     clients[alias] = S.Popen([str(build / 'qt/chat_qt'), url], stdout=(work / ('qt-' + alias + '.log')).open('w'), stderr=S.STDOUT)
     owned.append(clients[alias])
+    gui.clients[actor(alias)['id']] = clients[alias]
     return clients[alias].pid
 
 def click(px, py):
@@ -212,9 +250,6 @@ def window(pid, title='Chat'):
             return int(found[1], 16)
     return None
 
-def modal(alias, contains):
-    return wait(lambda : window(clients[alias].pid, contains), 'modal ' + contains)
-
 def login(alias, offset):
     # Password uses hex key events, never clipboard or process arguments.
     launch(alias)
@@ -222,15 +257,7 @@ def login(alias, offset):
     x.XMoveResizeWindow(d, w, offset, 0, 1180, 760)
     x.XFlush(d)
     focus(w)
-    # Username has initial focus; use the real keyboard order rather than form coordinates.
-    key('a', ctrl=True)
-    paste(actor(alias)['username'])
-    key('Tab')
-    time.sleep(0.1)
-    for char in password:
-        key(char)
-    key('Return')
-    time.sleep(0.2)
+    gui.authenticate_existing(actor(alias), password)
     return w
 
 def members(conversation):
@@ -238,128 +265,145 @@ def members(conversation):
     assert result['ok'], result
     return result['value']
 def run_scale():
-    a = login('A', 0)
-    b = login('S030', 1200)
+    login('A', 0)
+    login('S030', 1200)
+    aid, bid = actor('A')['id'], actor('S030')['id']
+
+    def native_click(identity, label):
+        gui.click(identity, gui.field(identity, label))
+
+    def open_friend_chat(identity, username):
+        gui.navigate(identity, '联系人')
+        gui.paste(identity, gui.field(identity, '搜索联系人'), username)
+        gui.click(identity, gui.wait_row(identity, '联系人列表', username))
+        gui.key('Return')
+        native_click(identity, '发消息')
+        gui.wait(lambda: next((n for n in gui.nodes(identity) if n.get_name() == username
+                 and n.get_role() == gui.Atspi.Role.PUSH_BUTTON), None),
+                 'Native contact card opened exact direct conversation')
+        gui.field(identity, '消息输入')
 
     def online_both():
         result = control('sdk', actor='S005', method='get_presence')
-        return result.get('ok') and all((any((p['user'] == actor(alias)['id'] and p['online'] for p in result['value'])) for alias in ['A', 'S030']))
-    wait(online_both, 'both Qt users online')
+        return result.get('ok') and all(any(p['user'] == actor(alias)['id'] and p['online']
+                                           for p in result['value']) for alias in ['A', 'S030'])
+    wait(online_both, 'Both Qt users online')
     capture('01-two-qt-online')
-    focus(a)
-    click(610, 24)
-    group = modal('A', '群资料')
+    gui.open_room(aid, manifest['group']['title'])
+    native_click(aid, '聊天信息')
+    gui.field(aid, '100 位成员')
     capture('02-group-overview')
     assert len(members(manifest['group']['id'])) == 100
-    info = S.check_output(['xwininfo', '-id', hex(group)], text=True)
-    group_x = int(re.search(r'Absolute upper-left X:\s*(-?\d+)', info)[1])
-    group_y = int(re.search(r'Absolute upper-left Y:\s*(-?\d+)', info)[1])
-    click(group_x + 44, group_y + 35)
-    key('Right')
+    native_click(aid, '成员')
     capture('03-all-members')
-    key('Tab')
-    for char in 's030':
-        key(char)
-    time.sleep(0.2)
-    key('Menu')
-    time.sleep(0.2)
-    key('Down')
-    key('Return')
-    profile = modal('A', actor('S030')['username'])
+    rows = [node for node in gui.walk(gui.field(aid, '群成员'))
+            if node.get_role() in (gui.Atspi.Role.LIST_ITEM, gui.Atspi.Role.TABLE_CELL)]
+    target_name = actor('S030')['username'] + ' · 成员'
+    target_index = next(index for index, row in enumerate(rows) if row.get_name() == target_name)
+    gui.click(aid, gui.field(aid, '群成员'), x_margin=2)
+    gui.key('Home')
+    for _ in range(target_index):
+        gui.key('Down')
+    gui.wait(lambda: gui.wait_row(aid, '群成员', target_name).get_state_set().contains(
+        gui.Atspi.StateType.SELECTED), 'Native keyboard selected the intended group member')
+    gui.key('Menu')
+    rectangle = gui.wait(lambda: gui.popup(aid), 'Native member operation menu')
+    # Existing owner menu has Personal profile, Make admin, Remove member.
+    click(rectangle['x'] + rectangle['width']//2,
+          round(rectangle['y'] + 7 + .5*(rectangle['height']-14)/3))
+    gui.field(aid, '添加好友')
     capture('04-stranger-profile')
-    aid = actor('A')['id']
-    bid = actor('S030')['id']
     relation = f'SELECT count(*) FROM contacts WHERE owner_id={aid} AND contact_id={bid} OR owner_id={bid} AND contact_id={aid}'
     assert sql(relation) == '0'
-    click(510, 382)
+    native_click(aid, '添加好友')
     pending = f'SELECT count(*) FROM friend_requests WHERE requester_id={aid} AND recipient_id={bid}'
-    wait(lambda : sql(pending) == '1', 'friend request recorded')
+    wait(lambda: sql(pending) == '1', 'Friend request recorded')
     query_fact('pending-contact-count', relation)
     capture('05-outgoing-pending')
-    record('hundred-member-overview-and-stranger-request', ['02-group-overview.png', '03-all-members.png', '04-stranger-profile.png', '05-outgoing-pending.png', 'pending-contact-count.txt'])
-    focus(b)
-    click(1240, 170)
+    record('hundred-member-overview-and-stranger-request', [
+        '02-group-overview.png', '03-all-members.png', '04-stranger-profile.png',
+        '05-outgoing-pending.png', 'pending-contact-count.txt'])
+    gui.incoming(bid, actor('A'))
     capture('06-readable-new-friends-entry')
-    click(1430, 73)
     capture('07-incoming-and-outgoing')
-    click(1430, 130)
-    peer_profile = modal('S030', actor('A')['username'])
     capture('08-incoming-profile')
-    click(1708, 366)
-    wait(lambda : sql(relation) == '2' and sql(pending) == '0', 'mutual acceptance')
+    native_click(bid, '接受')
+    wait(lambda: sql(relation) == '2' and sql(pending) == '0', 'Mutual acceptance')
     query_fact('accepted-contact-count', relation)
     capture('09-accepted-profile')
-    click(1708, 366)
-    focus(profile)
-    click(510, 382)
-    focus(group)
-    key('Escape')
-    time.sleep(0.15)
-    focus(a)
-    click(620, 732)
-    paste('X11 Alice to friend 中文')
-    key('Return')
-    focus(b)
-    click(1800, 732)
-    paste('X11 friend to Alice 收到')
-    key('Return')
+    native_click(bid, '发消息')
+    gui.escape(aid)
+    gui.escape(aid)
+    open_friend_chat(aid, actor('S030')['username'])
+    gui.paste(aid, gui.field(aid, '消息输入'), 'X11 Alice to friend 中文')
+    gui.key('Return')
+    open_friend_chat(bid, actor('A')['username'])
+    gui.paste(bid, gui.field(bid, '消息输入'), 'X11 friend to Alice 收到')
+    gui.key('Return')
     messages = "SELECT sender_id,conversation_id,body FROM messages WHERE body IN ('X11 Alice to friend 中文','X11 friend to Alice 收到') ORDER BY id"
-    wait(lambda : len(sql(messages).splitlines()) == 2, 'bidirectional messages')
+    wait(lambda: len(sql(messages).splitlines()) == 2, 'Bidirectional messages')
     query_fact('bidirectional-message-facts', messages)
     capture('10-bidirectional-chat')
-    record('request-accept-and-bidirectional-chat', ['06-readable-new-friends-entry.png', '07-incoming-and-outgoing.png', '08-incoming-profile.png', 'accepted-contact-count.txt', '10-bidirectional-chat.png', 'bidirectional-message-facts.txt'])
-    focus(a)
-    click(41, 95)
-    click(380, 37)
-    click(420, 101)
-    wizard = modal('A', '创建群聊')
+    record('request-accept-and-bidirectional-chat', [
+        '06-readable-new-friends-entry.png', '07-incoming-and-outgoing.png', '08-incoming-profile.png',
+        'accepted-contact-count.txt', '10-bidirectional-chat.png', 'bidirectional-message-facts.txt'])
+    gui.new_action(aid, 1)
+    gui.field(aid, '选择群成员')
     capture('11-contact-picker')
 
-    def pick(name, first=False):
-        click(535, 90)
-        key('a', True)
-        paste(name)
-        click(382, 162 if first else 280)
-    pick('S005', True)
+    def picker_search():
+        def target():
+            dialog = next((node for node in gui.nodes(aid) if node.get_name() == '创建群聊'
+                           and node.get_role() == gui.Atspi.Role.DIALOG), None)
+            return next((node for node in gui.walk(dialog) if gui.visible(node)
+                and node.get_role() in (gui.Atspi.Role.ENTRY, gui.Atspi.Role.TEXT)
+                and node.get_state_set().contains(gui.Atspi.StateType.EDITABLE)), None)
+        return gui.wait(target, 'Native create-group dialog contact search')
+    def pick(alias):
+        gui.paste(aid, picker_search(), actor(alias)['username'])
+        gui.click(aid, gui.wait_row(aid, '选择群成员', actor(alias)['username']))
+        gui.key('space')
+    pick('S005')
     pick('S006')
     capture('12-multiple-selected')
-    click(450, 153)
+    native_click(aid, actor('S005')['username'] + ' ×')
     pick('S007')
     capture('13-search-with-selected-chips')
-    click(535, 90)
-    key('a', True)
-    key('BackSpace')
-    click(745, 593)
+    gui.paste(aid, picker_search(), '')
+    native_click(aid, '下一步')
     capture('14-next-group-name')
-    paste('Qt X11 验证群')
-    click(745, 593)
-    created = wait(lambda : sql("SELECT id FROM conversations WHERE title='Qt X11 验证群'"), 'group created')
+    gui.paste(aid, gui.editable(aid, '群名称', '创建群聊'), 'Qt X11 验证群')
+    native_click(aid, '创建')
+    created = wait(lambda: sql("SELECT id FROM conversations WHERE title='Qt X11 验证群'"), 'Group created')
     actual = members(int(created))
     assert {m['id'] for m in actual} == {aid, actor('S006')['id'], actor('S007')['id']}, actual
+    gui.open_room(aid, 'Qt X11 验证群')
     capture('15-created-group')
-    record('two-step-group-multiselect-search-remove', ['11-contact-picker.png', '12-multiple-selected.png', '13-search-with-selected-chips.png', '14-next-group-name.png', '15-created-group.png'])
-    focus(a)
-    click(41, 724)
-    modal('A', actor('A')['username'])
+    record('two-step-group-multiselect-search-remove', [
+        '11-contact-picker.png', '12-multiple-selected.png', '13-search-with-selected-chips.png',
+        '14-next-group-name.png', '15-created-group.png'])
+    gui.navigate(aid, '我的资料')
+    gui.field(aid, '退出登录')
     capture('16-self-profile')
-    click(580, 596)
-    modal('A', '退出登录')
+    native_click(aid, '退出登录')
+    gui.confirmation_button(aid, '退出登录')
     capture('17-logout-confirmation')
-    click(600, 320)
+    gui.click(aid, gui.confirmation_button(aid, '退出登录', cancel=True))
     capture('18-logout-cancelled')
     assert clients['A'].poll() is None
     assert online_both(), 'Cancelling logout must retain the authenticated session'
-    click(580, 596)
-    modal('A', '退出登录')
-    click(675, 320)
+    native_click(aid, '退出登录')
+    gui.click(aid, gui.confirmation_button(aid, '退出登录'))
 
     def offline():
         result = control('sdk', actor='S005', method='get_presence')
-        return result.get('ok') and any((p['user'] == aid and (not p['online']) for p in result['value']))
+        return result.get('ok') and any(p['user'] == aid and not p['online'] for p in result['value'])
     wait(offline, 'Qt logout authoritative offline')
     assert clients['A'].poll() is None
+    gui.field(aid, '登录')
     capture('19-logout-login-page')
-    record('account-profile-confirmed-logout-keeps-app', ['16-self-profile.png', '17-logout-confirmation.png', '18-logout-cancelled.png', '19-logout-login-page.png'])
+    record('account-profile-confirmed-logout-keeps-app', [
+        '16-self-profile.png', '17-logout-confirmation.png', '18-logout-cancelled.png', '19-logout-login-page.png'])
     return 4
 
 try:

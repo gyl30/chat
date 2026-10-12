@@ -858,7 +858,7 @@ class NativeToolsTest(unittest.TestCase):
             self.assertEqual(emitted.call_args.kwargs['pid'], process.pid)
             self.assertEqual(emitted.call_args.kwargs['reason'], '用户名或密码错误')
             driver.field.assert_any_call(7, '用户名或密码错误')
-            driver.find.assert_called_with(7, '联系人')
+            driver.find.assert_called_with(7, '主菜单')
             driver.authenticate_existing(actor, 'ab')
             self.assertEqual([call.args[0] for call in emitted.call_args_list],
                              ['login-rejected', 'authenticated'])
@@ -877,6 +877,42 @@ class NativeToolsTest(unittest.TestCase):
         for error, expected in cases:
             with self.subTest(error=error):
                 self.assertIs(gui.is_transient_window_property_error(error, window), expected)
+
+    def test_gui_navigation_clicks_owned_main_menu_then_destination(self):
+        for index, label in enumerate(['我的资料', '聊天', '联系人', '新的朋友']):
+            with self.subTest(label=label):
+                driver = gui.NativeGui.__new__(gui.NativeGui)
+                driver.native = object()
+                driver.Atspi = SimpleNamespace(Role=SimpleNamespace(MENU_ITEM='menu-item'))
+                button = object()
+                driver.field = mock.Mock(return_value=button)
+                driver.click = mock.Mock()
+                rectangle = {'window': 12, 'x': 30, 'y': 60, 'width': 180, 'height': 174}
+                driver.popup = mock.Mock(side_effect=[rectangle, None])
+                class RemovedAccessible(Exception):
+                    pass
+                driver.GLib = SimpleNamespace(GError=RemovedAccessible)
+                removed = mock.Mock()
+                removed.get_role.side_effect = RemovedAccessible('Qt transient destroyed')
+                driver.nodes = mock.Mock(return_value=[removed])
+                driver.wait = lambda predicate, description: self.assertTrue(predicate(), description) or rectangle
+                driver.xt, driver.lib = mock.Mock(), mock.Mock()
+                with mock.patch('native_gui_scale.emit'):
+                    driver.navigate(7, label)
+                driver.field.assert_called_once_with(7, '主菜单')
+                driver.click.assert_called_once_with(7, button)
+                driver.xt.XTestFakeMotionEvent.assert_called_once_with(
+                    driver.native, -1, 120, round(67 + (index + .5) * 40), 0)
+                self.assertEqual(driver.xt.XTestFakeButtonEvent.call_args_list,
+                    [mock.call(driver.native, 1, True, 0), mock.call(driver.native, 1, False, 0)])
+                driver.lib.XFlush.assert_called_once_with(driver.native)
+
+    def test_gui_navigation_rejects_unrelated_action_before_any_input(self):
+        driver = gui.NativeGui.__new__(gui.NativeGui)
+        driver.click = mock.Mock()
+        with self.assertRaises(ValueError):
+            driver.navigate(7, '聊天信息')
+        driver.click.assert_not_called()
 
     def test_gui_latest_initializes_native_navigation_before_end(self):
         for diagnostics in (False, True):

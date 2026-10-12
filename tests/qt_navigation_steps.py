@@ -1,140 +1,150 @@
-"""Navigation-only X11 actions sharing qt_x11_smoke's owned fixture and driver."""
-from PIL import Image, ImageChops, ImageGrab
+"""Navigation-only native Qt actions sharing qt_x11_smoke's owned fixture and driver."""
 
 def run(c):
-    control=c['control'];click=c['click'];key=c['key'];paste=c['paste']
-    capture=c['capture'];wait=c['wait'];record=c['record'];modal=c['modal'];focus=c['focus']
-    actor=c['actor'];sql=c['sql'];query_fact=c['query_fact'];manifest=c['manifest']
-    def same_sidebar(reference):
-        current=ImageGrab.grab(xdisplay=c['display'])
-        expected=Image.open(reference)
-        return all(ImageChops.difference(current.crop(box),expected.crop(box)).getbbox() is None
-                   for box in [(12,64,73,210),(130,0,335,55)])
-    def sdk(who,method,**args):
-        reply=control('sdk',actor=who,method=method,**args)
-        assert reply['ok'],reply
+    gui = c['gui']
+    control, capture, wait, record = c['control'], c['capture'], c['wait'], c['record']
+    actor, sql, query_fact = c['actor'], c['sql'], c['query_fact']
+    manifest = c['manifest']
+    c['login']('A', 0)
+    aid, did, eid = (actor(name)['id'] for name in ('A', 'D', 'E'))
+
+    def click(label):
+        gui.click(aid, gui.field(aid, label))
+
+    def sdk(who, method, **args):
+        reply = control('sdk', actor=who, method=method, **args)
+        assert reply['ok'], reply
         return reply['value']
+
     def presence(online):
-        return any(p['user']==actor('A')['id'] and p['online']==online for p in sdk('S005','get_presence'))
-    def profile_action(window, primary=False):
-        info=c['S'].check_output(['xwininfo','-id',hex(window)],text=True)
-        px=int(c['re'].search(r'Absolute upper-left X:\s*(-?\d+)',info)[1])
-        py=int(c['re'].search(r'Absolute upper-left Y:\s*(-?\d+)',info)[1])
-        width=int(c['re'].search(r'Width: (\d+)',info)[1])
-        height=int(c['re'].search(r'Height: (\d+)',info)[1])
-        image=ImageGrab.grab(xdisplay=c['display']).convert('RGB').crop((px,py,px+width,py+height))
-        if primary:
-            rows=[y for y in range(height) if sum(image.getpixel((x,y))==(49,90,75) for x in range(width//2))>100]
-            assert rows,'Visible primary profile action'
-            click(px+174,py+(min(rows)+max(rows))//2)
-        else:
-            pixels=[(x,y) for y in range(height) for x in range(width) if image.getpixel((x,y))==(166,76,72)]
-            assert pixels,'Visible destructive profile action'
-            click(px+(min(x for x,y in pixels)+max(x for x,y in pixels))//2,
-                  py+(min(y for x,y in pixels)+max(y for x,y in pixels))//2)
-    a=c['login']('A',0)
-    wait(lambda:presence(True),'Qt A authenticated')
-    focus(a);chats_reference=capture('nav-01-chats-sidebar')
-    click(41,170);contacts_reference=capture('nav-02-accepted-contacts-only')
-    aid=actor('A')['id'];did=actor('D')['id'];eid=actor('E')['id']
-    expected={actor('C')['id'],actor('S005')['id']}
-    actual={int(v) for v in sql(f'SELECT contact_id FROM contacts WHERE owner_id={aid}').splitlines()}
-    assert actual==expected,actual
-    query_fact('nav-accepted-contact-ids',f'SELECT contact_id FROM contacts WHERE owner_id={aid} ORDER BY contact_id')
-    click(365,37);capture('nav-contacts-add-friend')
-    click(112,37);wait(lambda:same_sidebar(contacts_reference),'Add friend Back restores Contacts and its primary highlight')
+        return any(p['user'] == aid and p['online'] == online for p in sdk('S005', 'get_presence'))
+
+    def restored(section):
+        markers = {'contacts': '搜索联系人', 'new-friends': '收到的好友申请', 'chats': '搜索聊天'}
+        wait(lambda: gui.find(aid, markers[section]), 'Back restores actual ' + section + ' sidebar')
+
+    def back(section):
+        click('返回')
+        restored(section)
+
+    wait(lambda: presence(True), 'Qt A authenticated')
+    gui.navigate(aid, '聊天')
+    capture('nav-01-chats-sidebar')
+    gui.navigate(aid, '联系人')
+    capture('nav-02-accepted-contacts-only')
+    expected = {actor('C')['id'], actor('S005')['id']}
+    actual = {int(v) for v in sql(f'SELECT contact_id FROM contacts WHERE owner_id={aid}').splitlines()}
+    assert actual == expected, actual
+    query_fact('nav-accepted-contact-ids', f'SELECT contact_id FROM contacts WHERE owner_id={aid} ORDER BY contact_id')
+    # Contacts' existing Enter search enters Add friend with Contacts as its Back parent.
+    gui.paste(aid, gui.field(aid, '搜索联系人'), actor('D')['username'])
+    gui.key('Return')
+    gui.field(aid, '搜索用户')
+    capture('nav-contacts-add-friend')
+    back('contacts')
+    gui.paste(aid, gui.field(aid, '搜索联系人'), '')
     capture('nav-contacts-add-back')
-    click(230,73);new_friends_reference=capture('nav-03-new-friends-incoming')
-    click(365,37);capture('nav-new-friends-add-friend')
-    click(112,37);wait(lambda:same_sidebar(new_friends_reference),'Add friend Back restores New friends')
+    gui.navigate(aid, '新的朋友')
+    capture('nav-03-new-friends-incoming')
+    click('添加好友')
+    gui.field(aid, '搜索用户')
+    capture('nav-new-friends-add-friend')
+    back('new-friends')
     capture('nav-new-friends-add-back')
-    click(112,37);wait(lambda:same_sidebar(contacts_reference),'New friends Back restores Contacts')
+    back('contacts')
     capture('nav-new-friends-back-contacts')
-    click(230,73)
+    gui.navigate(aid, '新的朋友')
     # The initial fixture contains exactly one incoming and one outgoing request.
-    click(230,130);profile=modal('A',actor('D')['username']);capture('nav-04-incoming-profile')
-    profile_action(profile,True)
-    relation=f'SELECT count(*) FROM contacts WHERE (owner_id={aid} AND contact_id={did}) OR (owner_id={did} AND contact_id={aid})'
-    wait(lambda:sql(relation)=='2','incoming request accepted bilaterally')
+    gui.click(aid, gui.wait_row(aid, '收到的好友申请', actor('D')['username']))
+    gui.key('Return')
+    gui.field(aid, '接受')
+    capture('nav-04-incoming-profile')
+    click('接受')
+    relation = f'SELECT count(*) FROM contacts WHERE (owner_id={aid} AND contact_id={did}) OR (owner_id={did} AND contact_id={aid})'
+    wait(lambda: sql(relation) == '2', 'Incoming request accepted bilaterally')
     capture('nav-05-accepted-profile')
-    profile_action(profile);modal('A','移除联系人');capture('nav-remove-confirm')
-    key('Left');key('Return');wait(lambda:sql(relation)=='0','remove accepted friend bilaterally')
-    focus(a);capture('nav-removed-friend')
-    click(230,130);profile=modal('A',actor('E')['username']);capture('nav-outgoing-profile')
-    profile_action(profile)
-    pending=f'SELECT count(*) FROM friend_requests WHERE requester_id={aid} AND recipient_id={eid}'
-    wait(lambda:sql(pending)=='0','outgoing request cancelled')
-    capture('nav-cancelled-outgoing');key('Escape');focus(a)
-    record('qt-contacts-pending-isolation-accept-remove-cancel',['nav-02-accepted-contacts-only.png','nav-03-new-friends-incoming.png','nav-04-incoming-profile.png','nav-accepted-contact-ids.txt','nav-05-accepted-profile.png','nav-remove-confirm.png','nav-removed-friend.png','nav-outgoing-profile.png','nav-cancelled-outgoing.png'])
-    click(41,95);click(380,37);capture('nav-06-chats-three-actions')
-    click(420,69);capture('nav-07-add-friend-search')
-    actual=ImageGrab.grab(xdisplay=c['display']).crop((12,64,73,210))
-    expected=Image.open(chats_reference).crop((12,64,73,210))
-    assert ImageChops.difference(actual,expected).getbbox() is None,'Add friend from Chats must retain Chats highlight'
-    click(112,37);wait(lambda:same_sidebar(chats_reference),'Add friend Back restores Chats')
+    click('资料')
+    click('移除联系人')
+    gui.confirmation_button(aid, '移除联系人')
+    capture('nav-remove-confirm')
+    gui.click(aid, gui.confirmation_button(aid, '移除联系人'))
+    wait(lambda: sql(relation) == '0', 'Remove accepted friend bilaterally')
+    gui.key('Escape')
+    capture('nav-removed-friend')
+    gui.navigate(aid, '新的朋友')
+    gui.click(aid, gui.wait_row(aid, '发出的好友申请', actor('E')['username']))
+    gui.key('Return')
+    gui.field(aid, '撤回申请')
+    capture('nav-outgoing-profile')
+    click('撤回申请')
+    pending = f'SELECT count(*) FROM friend_requests WHERE requester_id={aid} AND recipient_id={eid}'
+    wait(lambda: sql(pending) == '0', 'Outgoing request cancelled')
+    capture('nav-cancelled-outgoing')
+    gui.key('Escape')
+    record('qt-contacts-pending-isolation-accept-remove-cancel', [
+        'nav-02-accepted-contacts-only.png', 'nav-03-new-friends-incoming.png', 'nav-04-incoming-profile.png',
+        'nav-accepted-contact-ids.txt', 'nav-05-accepted-profile.png', 'nav-remove-confirm.png',
+        'nav-removed-friend.png', 'nav-outgoing-profile.png', 'nav-cancelled-outgoing.png'])
+    gui.new_action(aid, 0)
+    gui.field(aid, '搜索用户')
+    capture('nav-07-add-friend-search')
+    back('chats')
     capture('nav-chats-add-back')
-    record('qt-secondary-back-preserves-parent',['nav-contacts-add-back.png','nav-new-friends-add-back.png','nav-new-friends-back-contacts.png','nav-chats-add-back.png'])
-    click(380,37);click(420,133)
-    modal('A','加入群聊');capture('nav-08-join-action');key('Escape');focus(a)
-    click(380,37);click(420,101)
-    wizard=modal('A','创建群聊');focus(wizard);capture('nav-09-create-select-contacts')
-    def create_geometry():
-        info=c['S'].check_output(['xwininfo','-id',hex(wizard)],text=True)
-        return (int(c['re'].search(r'Absolute upper-left X:\s*(-?\d+)',info)[1]),
-                int(c['re'].search(r'Absolute upper-left Y:\s*(-?\d+)',info)[1]),
-                int(c['re'].search(r'Width: (\d+)',info)[1]),
-                int(c['re'].search(r'Height: (\d+)',info)[1]))
-    def create_primary():
-        # Re-read the real modal after each step changes its size and button row.
-        def primary_region():
-            px,py,width,height=create_geometry()
-            image=ImageGrab.grab(xdisplay=c['display']).convert('RGB').crop((px,py,px+width,py+height))
-            spans=[]
-            for y in range(max(0,height-80),height):
-                start=None
-                for x in range(width+1):
-                    filled=x<width and image.getpixel((x,y)) in [(49,90,75),(41,77,64)]
-                    if filled and start is None: start=x
-                    elif not filled and start is not None:
-                        if x-start>=50: spans.append((start,x-1,y))
-                        start=None
-            # Green text on secondary actions is not an enabled button fill.
-            if len({y for left,right,y in spans})<6: return None
-            return (px+(min(left for left,right,y in spans)+max(right for left,right,y in spans))//2,
-                    py+(min(y for left,right,y in spans)+max(y for left,right,y in spans))//2)
-        click(*wait(primary_region,'Visible enabled primary create button fill'))
-    paste(actor('S005')['username'])
-    px,py,_,picker_height=create_geometry();click(px+42,py+132)
+    record('qt-secondary-back-preserves-parent', [
+        'nav-contacts-add-back.png', 'nav-new-friends-add-back.png',
+        'nav-new-friends-back-contacts.png', 'nav-chats-add-back.png'])
+    gui.new_action(aid, 2)
+    gui.field(aid, '邀请码')
+    capture('nav-08-join-action')
+    gui.key('Escape')
+    gui.new_action(aid, 1)
+    gui.field(aid, '选择群成员')
+    capture('nav-09-create-select-contacts')
+    gui.click(aid, gui.wait_row(aid, '选择群成员', actor('S005')['username']))
+    gui.key('space')
+    gui.field(aid, actor('S005')['username'] + ' ×')
     capture('nav-10-create-selected')
-    create_primary()
-    wait(lambda:create_geometry()[3]<picker_height,'Create naming step uses its compact layout')
+    click('下一步')
+    gui.wait_row(aid, '已选群成员', actor('S005')['username'])
     capture('nav-11-create-name-step')
-    px,py,width,_=create_geometry();focus(wizard);click(px+width//2,py+95)
-    title='Qt导航创建群_'+manifest['prefix'];key('a',True);paste(title)
-    capture('nav-11-create-title-filled');create_primary()
-    # The observer is an actual selected member and reads the authoritative result.
+    title = 'Qt导航创建群_' + manifest['prefix']
+    gui.paste(aid, gui.editable(aid, '群名称', '创建群聊'), title)
+    capture('nav-11-create-title-filled')
+    click('创建')
     def created():
-        page=sdk('S005','get_conversations')
-        return next((v for v in page['conversations'] if v['username']==title),None)
-    conversation=wait(created,'new group visible to selected member')
-    members=sdk('S005','get_members',conversation=conversation['id'])
-    assert {m['id'] for m in members}=={aid,actor('S005')['id']},members
+        page = sdk('S005', 'get_conversations')
+        return next((v for v in page['conversations'] if v['username'] == title), None)
+    conversation = wait(created, 'New group visible to selected member')
+    members = sdk('S005', 'get_members', conversation=conversation['id'])
+    assert {m['id'] for m in members} == {aid, actor('S005')['id']}, members
+    gui.open_room(aid, title)
     capture('nav-12-created-group-open')
-    click(610,24);modal('A','群资料');capture('nav-13-created-group-header-opens-details');key('Escape');focus(a)
-    record('qt-chats-three-actions-and-two-step-create',['nav-01-chats-sidebar.png','nav-06-chats-three-actions.png','nav-07-add-friend-search.png','nav-08-join-action.png','nav-09-create-select-contacts.png','nav-11-create-name-step.png','nav-11-create-title-filled.png','nav-12-created-group-open.png','nav-13-created-group-header-opens-details.png'])
-    click(41,724);profile=modal('A',actor('A')['username']);capture('nav-14-bottom-account')
-    profile_action(profile);confirmation=modal('A','退出登录');focus(confirmation)
+    click('聊天信息')
+    gui.field(aid, '群资料')
+    capture('nav-13-created-group-header-opens-details')
+    gui.key('Escape')
+    record('qt-chats-three-actions-and-two-step-create', [
+        'nav-01-chats-sidebar.png', 'nav-07-add-friend-search.png', 'nav-08-join-action.png',
+        'nav-09-create-select-contacts.png', 'nav-11-create-name-step.png', 'nav-11-create-title-filled.png',
+        'nav-12-created-group-open.png', 'nav-13-created-group-header-opens-details.png'])
+    gui.navigate(aid, '我的资料')
+    gui.field(aid, '退出登录')
+    capture('nav-14-menu-account')
+    click('退出登录')
+    gui.confirmation_button(aid, '退出登录')
     capture('nav-15-logout-confirmation')
-    # Address the actual modal window; Enter initially activates its safe default.
-    key('Return')
-    wait(lambda:c['window'](c['clients']['A'].pid,'退出登录') is None,'Default Enter cancels logout')
-    assert presence(True),'Cancel must keep authenticated session'
-    focus(profile);capture('nav-16-logout-cancelled')
-    profile_action(profile);confirmation=modal('A','退出登录');focus(confirmation)
-    # An explicit focus change selects the logout action without screen coordinates.
-    key('Tab');capture('nav-16-logout-explicit-confirm-focus');key('Return')
-    wait(lambda:presence(False),'Qt logout authoritative offline')
+    # Default Enter still activates the actual safe confirmation default.
+    gui.key('Return')
+    wait(lambda: gui.find(aid, '退出当前账号？应用会返回登录页。') is None, 'Default Enter cancels logout')
+    assert presence(True), 'Cancel must keep authenticated session'
+    capture('nav-16-logout-cancelled')
+    click('退出登录')
+    gui.click(aid, gui.confirmation_button(aid, '退出登录'))
+    wait(lambda: presence(False), 'Qt logout authoritative offline')
     assert c['clients']['A'].poll() is None
+    gui.field(aid, '登录')
     capture('nav-17-logout-login-page')
-    record('qt-bottom-account-cancel-and-confirm-logout',['nav-14-bottom-account.png','nav-15-logout-confirmation.png','nav-16-logout-cancelled.png','nav-16-logout-explicit-confirm-focus.png','nav-17-logout-login-page.png'])
+    record('qt-menu-account-cancel-and-confirm-logout', [
+        'nav-14-menu-account.png', 'nav-15-logout-confirmation.png', 'nav-16-logout-cancelled.png',
+        'nav-17-logout-login-page.png'])
     return 4
