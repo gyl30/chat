@@ -1003,6 +1003,7 @@ class NativeToolsTest(unittest.TestCase):
         driver.work = Path(self.directory.name) / 'badge'
         driver.work.mkdir()
         driver.display = None
+        driver.badge_rgb = (122, 60, 170)
         driver.Atspi = SimpleNamespace(CoordType=SimpleNamespace(SCREEN=0))
         driver.focus = lambda actor: None
         row = mock.MagicMock()
@@ -1018,7 +1019,7 @@ class NativeToolsTest(unittest.TestCase):
             ImageDraw.Draw(image).text((10, 12), 'peer', fill=(37, 51, 45))
             ImageDraw.Draw(image).ellipse((148, 36, 168, 54), fill=(255, 200, 40))
             if digit is not None:
-                ImageDraw.Draw(image).rounded_rectangle((172, 34, 191, 53), 9, fill=(229, 72, 77))
+                ImageDraw.Draw(image).rounded_rectangle((172, 34, 191, 53), 9, fill=driver.badge_rgb)
                 ImageDraw.Draw(image).text((179, 38), digit, fill=(255, 255, 255))
             return image
 
@@ -1035,6 +1036,19 @@ class NativeToolsTest(unittest.TestCase):
         # A badge showing 1 and a badge showing 3 are indistinguishable here, which is exactly why
         # the driver reports a visual review instead of a numeric pass.
 
+    def test_unread_color_comes_from_each_installed_theme_json(self):
+        root = Path(self.directory.name) / 'theme-product'
+        themes = root / 'themes'
+        themes.mkdir(parents=True)
+        binary = root / 'chat_qt'
+        for name, rgb in (('daylight', (53, 104, 190)), ('midnight', (184, 117, 220))):
+            token = '#' + ''.join(f'{channel:02x}' for channel in rgb)
+            (themes / (name + '.json')).write_text(json.dumps({'colors': {'highlight': token}}))
+            self.assertEqual(gui.theme_highlight_rgb(binary, name), rgb)
+        (themes / 'daylight.json').write_text(json.dumps({'colors': {'highlight': 'broken'}}))
+        with self.assertRaises(ValueError):
+            gui.theme_highlight_rgb(binary)
+
     def test_accent_pixels_separates_a_painted_pill_from_header_decoration(self):
         from PIL import Image, ImageDraw
         band = (0, 0, 300, 52)
@@ -1047,13 +1061,14 @@ class NativeToolsTest(unittest.TestCase):
 
         # A reddish avatar already contributes accent pixels, so only the change caused by a banner
         # can be the signal; and a banner drawn in another colour must not be counted at all.
-        warm = gui.accent_pixels(header((200, 60, 60)), band)
-        cool = gui.accent_pixels(header((60, 120, 200)), band)
+        palette = (200, 70, 80)
+        warm = gui.accent_pixels(header((200, 60, 60)), band, palette)
+        cool = gui.accent_pixels(header((60, 120, 200)), band, palette)
         self.assertEqual(cool, 0)
         decorated = header((200, 60, 60))
-        ImageDraw.Draw(decorated).rounded_rectangle((120, 16, 232, 36), 9, fill=(229, 72, 77))
+        ImageDraw.Draw(decorated).rounded_rectangle((120, 16, 232, 36), 9, fill=palette)
         ImageDraw.Draw(decorated).text((130, 18), '正在连接…', fill=(255, 255, 255))
-        self.assertGreaterEqual(gui.accent_pixels(decorated, band) - warm, 120)
+        self.assertGreaterEqual(gui.accent_pixels(decorated, band, palette) - warm, 120)
 
     def test_heartbeat_pilot_reads_the_notice_from_the_clients_own_tree(self):
         # The notice must come from the same accessibility walk every other check uses, and a failure

@@ -27,21 +27,27 @@ from native_network import Blackhole
 
 _private_values = set()
 
-# Unread badges and the connection banner are painted in the theme's accent colour; the default
-# theme uses this exact red (theme_manager::rebuild). Ordinary text and any emoji in a preview are
-# never this colour, which is what separates "a banner is drawn" from "the text is colourful".
-ACCENT_RGB = (229, 72, 77)
+# Native unread evidence explicitly selects Daylight and reads its installed highlight token.
+# Theme colors are external product data, so the driver must not preserve an obsolete palette.
 ACCENT_TOLERANCE = 32
 # A badge is at least a 19x19 rounded rect, so it contributes far more matching pixels than any
 # antialiased edge can. The threshold only separates "one is drawn" from "none is".
 BADGE_ACCENT_MIN = 40
 
 
-def accent_pixels(image, box):
+def theme_highlight_rgb(binary, theme='daylight'):
+    path = pathlib.Path(binary).resolve().parent / 'themes' / (theme + '.json')
+    value = json.loads(path.read_text())['colors']['highlight']
+    if not isinstance(value, str) or re.fullmatch(r'#[0-9a-fA-F]{6}', value) is None:
+        raise ValueError('Installed theme has no valid highlight color: ' + str(path))
+    return tuple(int(value[index:index + 2], 16) for index in (1, 3, 5))
+
+
+def accent_pixels(image, box, rgb):
     crop = image.crop(box)
     return sum(1 for pixel in crop.convert('RGB').getdata()
                if all(abs(channel - wanted) <= ACCENT_TOLERANCE
-                      for channel, wanted in zip(pixel, ACCENT_RGB)))
+                      for channel, wanted in zip(pixel, rgb)))
 
 
 def redact_text(value):
@@ -126,6 +132,7 @@ class NativeGui:
         self.rooms = {}
         self.last_focus = None
         self.receipt_context = None
+        self.badge_rgb = None
         self.clipboard = None
         self.display = None
         self.native = None
@@ -1173,6 +1180,24 @@ class NativeGui:
             raise RuntimeError('Unexpected answer to a native proof request')
         return answer
 
+    def daylight_unread_palette(self, actor):
+        self.click(actor, self.field(actor, '我的资料'))
+        self.field(actor, '关闭资料')
+        mode = self.wait(lambda: next((node for node in self.nodes(actor)
+            if node.get_role() == self.Atspi.Role.COMBO_BOX and
+            node.get_name() in ('外观模式', '跟随系统', 'Daylight', 'Midnight')), None),
+            'Native appearance selector for unread evidence')
+        self.click(actor, mode)
+        self.key('Home')
+        self.key('Down')
+        self.key('Return')
+        self.wait(lambda: any(node.get_role() == self.Atspi.Role.COMBO_BOX and
+            node.get_name() == 'Daylight' for node in self.nodes(actor)), 'Daylight selection receipt')
+        self.click(actor, self.field(actor, '关闭资料'))
+        self.badge_rgb = theme_highlight_rgb(self.cfg['binary'])
+        emit('unread-palette', actor=actor, theme='daylight', highlight_rgb=self.badge_rgb,
+             source=str(pathlib.Path(self.cfg['binary']).resolve().parent / 'themes' / 'daylight.json'))
+
     def unread_badge(self, actor, title, label=None):
         # The unread number is painted by the conversation delegate and never reaches the
         # accessibility tree, so the only honest automated observation is of the real window
@@ -1188,13 +1213,15 @@ class NativeGui:
         rect = row.get_component_iface().get_extents(self.Atspi.CoordType.SCREEN)
         box = (max(0, rect.x + rect.width - 72), rect.y + 28, max(0, rect.x + rect.width - 4), rect.y + 58)
         crop = image.crop(box)
-        accent = accent_pixels(image, box)
+        if self.badge_rgb is None:
+            raise RuntimeError('Unread pixels require an observed Daylight selection and installed palette')
+        accent = accent_pixels(image, box, self.badge_rgb)
         if label is not None:
             image.save(self.work / (label + '.png'))
             crop.save(self.work / (label + '-badge.png'))
             emit('unread-badge-capture', actor=actor, conversation_title=title, label=label,
                  path=str(self.work / (label + '.png')), crop=str(self.work / (label + '-badge.png')),
-                 region=list(box), accent_pixels=accent, badge_visible=accent > BADGE_ACCENT_MIN)
+                 region=list(box), highlight_rgb=self.badge_rgb, accent_pixels=accent, badge_visible=accent > BADGE_ACCENT_MIN)
         return accent > BADGE_ACCENT_MIN
 
     def heartbeat_pilot(self, seed):
@@ -1561,6 +1588,7 @@ class NativeGui:
         if len(actors) != 2:
             raise RuntimeError('read_pilot requires exactly two native peers')
         watcher, writer = sorted(actors, key=lambda actor: int(actor['id']))
+        self.daylight_unread_palette(watcher['id'])
         group = watcher['group_title']
         relay = self.relays.get(int(watcher['id']))
         if relay is None:
@@ -1749,6 +1777,16 @@ class NativeGui:
             writer_sends(unread_markers[3])
             badge_state('unread-1-again', 1, unread_markers[3])
             self.open_room(watcher['id'], direct)
+            # Opening a room acknowledges its selection before asynchronous history and its
+            # read marker arrive. Observe the actual last row, then require the authoritative
+            # read position to reach zero within the existing receipt deadline.
+            self.expect_message(watcher['id'], unread_markers[3],
+                                'The reopened conversation lost its last unread message')
+            self.wait(lambda: self.proof('read-position', conversation=watcher['direct_id'],
+                                        member=watcher['id'])['unread'] == 0,
+                      'The final native read position never cleared after its message was shown', timeout=20)
+            self.wait(lambda: not self.unread_badge(watcher['id'], direct),
+                      'The final native unread badge never cleared after its message was shown', timeout=20)
             badge_state('unread-0-final', 0, unread_markers[3])
 
         step('badge-baseline', lambda: (self.open_room(watcher['id'], direct),
