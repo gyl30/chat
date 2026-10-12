@@ -3588,6 +3588,78 @@ int run_tui_tests()
         }
         std::cout << "PASS TUI group role waits for the authoritative member list\n";
 
+        // Leaving a group is also a permission claim. While the member list has not arrived the
+        // app cannot know whether this is the owner who has to transfer first, so it may not ask
+        // for a confirmation either.
+        {
+            app.command("create-group 退出时序群");
+            choose_contact(peer_id);
+            app.finish_pick();
+            app.submit_prompt();
+            require(app.dialog && app.dialog->confirmation, "Owner group reaches the leave fixture");
+            app.dialog->text = "y";
+            app.submit_prompt();
+            pump([&] { return app.data.active_conversation() &&
+                              app.data.active_conversation()->kind == chat::conversation_kind::group; });
+            auto const owned = app.data.active;
+            data.groups.push_back(owned);
+            pump([&] { return app.data.self_role() == chat::member_role::owner && app.data.members.size() == 2; });
+            auto const managed = call<std::int64_t>([&](auto handler) { peer.create_group("退出管理员群", {self}, handler); });
+            auto const ordinary = call<std::int64_t>([&](auto handler) { peer.create_group("退出成员群", {self}, handler); });
+            require(managed && ordinary, "Peer creates the administrator and member fixture groups");
+            data.groups.push_back(*managed);
+            data.groups.push_back(*ordinary);
+            require(call<bool>([&](auto handler) { peer.set_group_admin(*managed, self, true, handler); }).has_value(),
+                    "Peer promotes the TUI user in the administrator fixture");
+            app.conversations();
+            pump([&] { return std::ranges::any_of(app.data.conversations,
+                                     [&](auto const& value) { return value.id == *ordinary; }); });
+
+            // Reopening clears the member list and only draining can apply the response, so the
+            // command below runs in a fixed order rather than in a timed race.
+            app.open_conversation(owned);
+            require(app.data.members.empty(), "Reopening the owned group clears the member list");
+            app.command("leave");
+            require(!app.dialog, "An unknown group role does not open the leave confirmation");
+            require(app.data.status.find("正在加载群成员") != std::string::npos,
+                    "The leave command waits for the member list");
+            pump([&] { return app.data.self_role() == chat::member_role::owner; });
+            require(app.data.active == owned, "Waiting for the member list does not leave the group");
+            app.command("leave");
+            require(!app.dialog, "The owner is not asked to confirm leaving");
+            require(app.data.status.find("群主须先转让") != std::string::npos,
+                    "The owner is told the real rule once the role is known");
+
+            // Switching groups must not carry the previous group's role into the next one.
+            app.open_conversation(*managed);
+            require(app.data.members.empty(), "Switching to another group clears the member list");
+            app.command("leave");
+            require(!app.dialog, "An owner role in one group is not a fact in another");
+            pump([&] { return app.data.self_role() == chat::member_role::admin; });
+            app.command("leave");
+            require(app.dialog && app.dialog->confirmation, "An administrator may leave once the list arrived");
+            app.cancel_prompt();
+            require(app.data.active == *managed, "Cancelling the confirmation keeps the group open");
+
+            app.open_conversation(*ordinary);
+            app.command("leave");
+            require(!app.dialog, "An unknown role in the second group does not confirm either");
+            // For an ordinary member self_role() cannot tell "unknown" from "member", so the list
+            // itself is what the test waits for.
+            pump([&] { return app.data.members_loaded() && app.data.self_role() == chat::member_role::member; });
+            app.command("leave");
+            require(app.dialog && app.dialog->confirmation, "An ordinary member may leave once the list arrived");
+            app.dialog->text = "y";
+            app.submit_prompt();
+            pump([&] { return app.data.active == 0; });
+            app.conversations();
+            pump([&] { return !std::ranges::any_of(app.data.conversations,
+                                     [&](auto const& value) { return value.id == *ordinary; }); });
+            app.open_conversation(direct);
+            pump([&] { return !app.data.messages.empty(); });
+        }
+        std::cout << "PASS TUI group leave waits for the authoritative member list\n";
+
         auto const avatar_path = directory / "avatar.png";
         auto avatar_bytes = chat::detail::decode_base64(avatar_png_base64);
         require(avatar_bytes.has_value(), "Decode existing avatar fixture");

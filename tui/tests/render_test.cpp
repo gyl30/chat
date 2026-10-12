@@ -596,8 +596,10 @@ int main()
     s.conversations.front().pinned_message = chat::quoted_message{1, 2, "张 三", "pinned", {}, false};
     s.members = {{1, "Alice", chat::member_role::member, {}}};
     {
-        // The group summary is a bounded subset, not the complete member list.
-        for (int count : {0, 1, 2, 3, 4, 8})
+        // The group summary is a bounded subset, not the complete member list. A group never has
+        // zero members in the authoritative list, so 0 is not modelled here; the waiting page has
+        // its own case below.
+        for (int count : {1, 2, 3, 4, 8})
         {
             auto preview = s;
             preview.selected = 0;
@@ -649,8 +651,8 @@ int main()
             }
         }
         {
-            // An empty member list means the authoritative list has not arrived yet. The page
-            // must not turn that into a role statement about the person using it.
+            // An empty member list means the authoritative list has not arrived. Neither a count,
+            // a subset preview, a role nor a leave action is a fact yet, at any width.
             auto pending = s;
             pending.selected = 0;
             pending.status.clear();
@@ -658,11 +660,13 @@ int main()
             for (int columns : {60, 80, 120, 160})
             {
                 auto const output = draw(pending, columns, 24);
-                ok &= expect(output.find("我的身份：正在加载群成员") != std::string::npos &&
-                             output.find("我的身份：成员") == std::string::npos &&
-                             output.find("我的身份：管理员") == std::string::npos &&
-                             output.find("我的身份：群主") == std::string::npos,
-                             "Group page waits for the member list instead of claiming a role");
+                ok &= expect(output.find("群成员信息加载中") != std::string::npos &&
+                             output.find("成员 0 人") == std::string::npos &&
+                             output.find("前 0 位成员") == std::string::npos &&
+                             output.find("我的身份：") == std::string::npos &&
+                             output.find("退出群聊") == std::string::npos &&
+                             output.find("全部成员") != std::string::npos,
+                             "Group page waits for the member list without inventing a count, a role or a leave action");
             }
         }
         auto long_preview = s;
@@ -1915,6 +1919,38 @@ int main()
         ok &= expect(!application.palette_open && application.data.draft == "kept",
                      "A paste begun in a palette that just closed reaches no composer");
         ftxui::Terminal::SetFallbackSize(fallback);
+    }
+    {
+        // The palette offers leaving a group only for a role the member list has reported. An
+        // unknown role is not an ordinary member who may leave; it is a person whose role is not
+        // known yet, and offering the command would invite a refusal they cannot act on.
+        auto palette_rows = [](std::optional<chat::member_role> role) {
+            app application;
+            writable_conversation(application);
+            application.data.composing = false;
+            if (role)
+            {
+                application.data.members = {{1, "Alice", *role, {}}, {2, "Bob", chat::member_role::owner, {}}};
+            }
+            else { application.data.members.clear(); }
+            ftxui::Terminal::SetFallbackSize({120, 40});
+            auto component = make_ui(application, [] {});
+            component->OnEvent(ftxui::Event::CtrlK);
+            component->OnEvent(ftxui::Event::Character("退"));
+            component->OnEvent(ftxui::Event::Character("出"));
+            ftxui::Screen screen(120, 40);
+            ftxui::Render(screen, component->Render());
+            return screen.ToString();
+        };
+        auto const ordinary = palette_rows(chat::member_role::member);
+        auto const manager = palette_rows(chat::member_role::admin);
+        auto const owner = palette_rows(chat::member_role::owner);
+        auto const unknown = palette_rows(std::nullopt);
+        ok &= expect(ordinary.find("退出群聊") != std::string::npos && ordinary.find("退出登录") != std::string::npos &&
+                     manager.find("退出群聊") != std::string::npos &&
+                     owner.find("退出群聊") == std::string::npos && owner.find("退出登录") != std::string::npos &&
+                     unknown.find("退出群聊") == std::string::npos && unknown.find("退出登录") != std::string::npos,
+                     "The palette offers leaving only for a role the member list reported");
     }
     {
         // The palette fits the supported terminal sizes without hiding its query, chosen entry or keys.

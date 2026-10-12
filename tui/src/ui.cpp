@@ -107,7 +107,9 @@ std::vector<menu_action> actions(state const& s)
         items.push_back({c->join_approval ? "关闭入群审批" : "开启入群审批", "approval"});
         items.push_back({"入群申请", "requests"});
     }
-    if (s.self_role() != member_role::owner) { items.push_back({"退出群聊", "leave"}); }
+    // Leaving is a permission decision too, so it is offered only for a role the member list has
+    // actually reported.
+    if (s.members_loaded() && s.self_role() != member_role::owner) { items.push_back({"退出群聊", "leave"}); }
     return items;
 }
 std::string first_glyph(std::string const& name)
@@ -683,15 +685,21 @@ Element secondary(state const& s, int width, int message_scroll)
             title = c ? "群聊 · " + c->username : "群聊";
             if (c)
             {
-                // Naming a role before the member list arrives would claim a permission the person
-                // may well have.
-                auto const role = s.members_loaded() ? role_label(s.self_role()) : std::string("正在加载群成员…");
-                rows.push_back(text("成员 " + std::to_string(s.members.size()) + " 人 · 我的身份：" + role));
-                auto const preview_count = std::min<std::size_t>(3, s.members.size());
-                std::string preview = "前 " + std::to_string(preview_count) + " 位成员（共 " + std::to_string(s.members.size()) + " 位）：";
-                for (std::size_t i = 0; i < preview_count; ++i)
-                { preview += (i ? "、" : "") + s.members[i].username + " " + role_label(s.members[i].role); }
-                rows.push_back(preview_text(preview, width));
+                // Before the authoritative list arrives there is no member count, no subset to
+                // preview and no role to name, so the page says only what it knows.
+                if (!s.members_loaded())
+                {
+                    rows.push_back(text("群成员信息加载中…"));
+                }
+                else
+                {
+                    rows.push_back(text("成员 " + std::to_string(s.members.size()) + " 人 · 我的身份：" + role_label(s.self_role())));
+                    auto const preview_count = std::min<std::size_t>(3, s.members.size());
+                    std::string preview = "前 " + std::to_string(preview_count) + " 位成员（共 " + std::to_string(s.members.size()) + " 位）：";
+                    for (std::size_t i = 0; i < preview_count; ++i)
+                    { preview += (i ? "、" : "") + s.members[i].username + " " + role_label(s.members[i].role); }
+                    rows.push_back(preview_text(preview, width));
+                }
                 if (c->pinned_message) { rows.push_back(preview_text("置顶：" + c->pinned_message->text, width)); }
                 rows.push_back(wrapped_text("公告：" + (c->announcement.empty() ? "（无）" : c->announcement), width) | size(HEIGHT, LESS_THAN, 3));
                 rows.push_back(text(c->join_approval ? "入群审批：已开启" : "入群审批：已关闭"));
@@ -872,7 +880,7 @@ std::vector<palette_entry> palette_entries(state const& s)
                 entries.push_back({"查看邀请码", "link"});
                 entries.push_back({"入群申请", "requests"});
             }
-            if (s.self_role() != member_role::owner) { entries.push_back({"退出群聊", "leave"}); }
+            if (s.members_loaded() && s.self_role() != member_role::owner) { entries.push_back({"退出群聊", "leave"}); }
         }
     }
     for (auto const& entry : std::initializer_list<palette_entry>{
