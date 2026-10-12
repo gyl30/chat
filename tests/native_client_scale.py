@@ -154,6 +154,7 @@ class Experiment:
                        'role_pilot': args.role_pilot,
                        'blackhole_pilot': args.blackhole_pilot,
                        'read_pilot': args.read_pilot,
+                       'heartbeat_pilot': args.heartbeat_pilot,
                        'history_diagnostic': args.mode=='gui' and args.count==2 and args.pilot_seconds is not None and not args.daily_pilot,
                        'test_tool_sha256': {p.name: digest(p) for p in (self.repo/'tests').glob('native_*.py')},
                        'build': str(Path(args.build).resolve()), 'build_kind': args.build_kind,
@@ -302,6 +303,7 @@ class Experiment:
                     'role_pilot': self.args.role_pilot,
                     'blackhole_pilot': self.args.blackhole_pilot,
                     'read_pilot': self.args.read_pilot,
+                    'heartbeat_pilot': self.args.heartbeat_pilot,
                     'history_diagnostic': self.config['history_diagnostic']}
             if window_manager is not None:
                 config.update(openbox=window_manager, openbox_data=str(Path(window_manager).parents[1]/'share'))
@@ -353,6 +355,32 @@ class Experiment:
             self.event('preference-database-proof',actor=actor,conversation=conversation,field=field,
                        expected=expected,muted=row[0],pinned=row[1],readonly=True)
             self.workers[index].stdin.write('{"command":"preference-observed"}\n')
+            self.workers[index].stdin.flush()
+        elif event=='proof-request':
+            # Facts the native UI cannot state live sit in the server process or the database, and
+            # only this process owns those connections. The same values go to the event log, so a
+            # worker never infers them from the screen.
+            kind=record.get('kind')
+            if kind=='online':
+                value=self.server.snapshot(include_ids=True)
+                self.event('online-proof',stage=record.get('stage'),**value)
+                answer={'command':'proof','kind':'online','online':value['online'],'users':value.get('users')}
+            elif kind=='read-position':
+                conversation=int(record['conversation']);member=int(record['member'])
+                with self.db.cursor() as cur:
+                    cur.execute('SELECT greatest(cm.last_read_message_id,cm.joined_message_id),'
+                                ' count(*) FILTER (WHERE m.id>greatest(cm.last_read_message_id,cm.joined_message_id)'
+                                ' AND NOT m.deleted AND m.sender_id<>cm.user_id)'
+                                ' FROM conversation_members cm LEFT JOIN messages m ON m.conversation_id=cm.conversation_id'
+                                ' WHERE cm.conversation_id=%s AND cm.user_id=%s GROUP BY 1', (conversation,member))
+                    row=cur.fetchone()
+                if row is None:raise AssertionError('Native read-position proof has no member row')
+                self.event('read-position-proof',actor=member,conversation=conversation,
+                           read_position=int(row[0]),unread=int(row[1]),readonly=True)
+                answer={'command':'proof','kind':'read-position','read_position':int(row[0]),'unread':int(row[1])}
+            else:
+                raise AssertionError('Unknown native proof request: '+str(kind))
+            self.workers[index].stdin.write(json.dumps(answer)+'\n')
             self.workers[index].stdin.flush()
         elif event=='lifecycle-ready':self.lifecycle_ready.add(index)
         elif event=='ready':self.ready.add(index)
@@ -781,6 +809,7 @@ def main():
     parser.add_argument('--role-pilot',action='store_true',help='Separate TUI group-role scenario: owner, admin and ordinary member')
     parser.add_argument('--blackhole-pilot',action='store_true',help='Separate two-client silent link loss, catch-up and recovery scenario in TUI or Qt')
     parser.add_argument('--read-pilot',action='store_true',help='Separate two-Qt unread, read receipt and state consistency scenario')
+    parser.add_argument('--heartbeat-pilot',action='store_true',help='Separate two-Qt heartbeat-timeout blackhole with automatic reconnection')
     parser.add_argument('--deep-pilot',action='store_true',help='Exercise deeper native UI scenarios during a non-capacity pilot')
     parser.add_argument('--openbox', default='openbox', help='Openbox executable for private X11 shards; use an explicit path for a private installation')
     args=parser.parse_args()
@@ -789,7 +818,9 @@ def main():
     if args.daily_pilot and (args.count!=2 or args.pilot_seconds is None or not args.deep_pilot or args.lifecycle_pilot or args.job_control_pilot):parser.error('Daily pilot requires exactly 2 clients, --pilot-seconds, --deep-pilot, and no lifecycle/job-control pilot')
     if args.role_pilot and (args.mode!='tui' or args.count!=10 or args.pilot_seconds is None or args.lifecycle_pilot or args.job_control_pilot or args.daily_pilot):parser.error('Role pilot requires TUI, ten clients, --pilot-seconds, and no other pilot')
     if args.blackhole_pilot and (args.mode not in {'tui','gui'} or args.count!=2 or args.pilot_seconds is None or args.lifecycle_pilot or args.job_control_pilot or args.daily_pilot or args.role_pilot or args.read_pilot):parser.error('Blackhole pilot requires TUI or GUI, two clients, --pilot-seconds, and no other pilot')
-    if args.read_pilot and (args.mode!='gui' or args.count!=2 or args.pilot_seconds is None or args.lifecycle_pilot or args.job_control_pilot or args.daily_pilot or args.role_pilot or args.blackhole_pilot):parser.error('Read pilot requires GUI, two clients, --pilot-seconds, and no other pilot')
+    if args.read_pilot and (args.mode!='gui' or args.count!=2 or args.pilot_seconds is None or args.lifecycle_pilot or args.job_control_pilot or args.daily_pilot or args.role_pilot or args.blackhole_pilot or args.heartbeat_pilot):parser.error('Read pilot requires GUI, two clients, --pilot-seconds, and no other pilot')
+    if args.heartbeat_pilot and (args.mode!='gui' or args.count!=2 or args.pilot_seconds is None or args.lifecycle_pilot or args.job_control_pilot or args.daily_pilot or args.role_pilot or args.blackhole_pilot or args.read_pilot):parser.error('Heartbeat pilot requires GUI, two clients, --pilot-seconds, and no other pilot')
+    if sum(1 for pilot in (args.lifecycle_pilot,args.job_control_pilot,args.daily_pilot,args.role_pilot,args.blackhole_pilot,args.read_pilot,args.heartbeat_pilot) if pilot)>1:parser.error('Native pilots run one at a time')
     if args.count==2 and args.pilot_seconds is None:parser.error('2 clients is a pilot only')
     if args.build_kind!='RelWithDebInfo' and args.pilot_seconds is None:parser.error('Formal capacity measurements require the optimization build')
     if not 2<=args.shard_size<=40 or args.shard_size%10:parser.error('Shard size must be 10, 20, 30 or 40 to keep peer/group boundaries intact')

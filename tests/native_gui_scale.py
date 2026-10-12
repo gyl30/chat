@@ -27,6 +27,22 @@ from native_network import Blackhole
 
 _private_values = set()
 
+# Unread badges and the connection banner are painted in the theme's accent colour; the default
+# theme uses this exact red (theme_manager::rebuild). Ordinary text and any emoji in a preview are
+# never this colour, which is what separates "a banner is drawn" from "the text is colourful".
+ACCENT_RGB = (229, 72, 77)
+ACCENT_TOLERANCE = 32
+# A badge is at least a 19x19 rounded rect, so it contributes far more matching pixels than any
+# antialiased edge can. The threshold only separates "one is drawn" from "none is".
+BADGE_ACCENT_MIN = 40
+
+
+def accent_pixels(image, box):
+    crop = image.crop(box)
+    return sum(1 for pixel in crop.convert('RGB').getdata()
+               if all(abs(channel - wanted) <= ACCENT_TOLERANCE
+                      for channel, wanted in zip(pixel, ACCENT_RGB)))
+
 
 def redact_text(value):
     for secret in _private_values:
@@ -1148,6 +1164,249 @@ class NativeGui:
         if instruction.get('command') != 'preference-observed':
             raise RuntimeError('Expected coordinator read-only preference observation barrier')
 
+    def proof(self, kind, **context):
+        # Ask the coordinator for a fact the screen cannot state: it owns the server observer and
+        # the read-only database connection, and it records the same values in its own event log.
+        emit('proof-request', kind=kind, **context)
+        answer = json.loads(sys.stdin.readline())
+        if answer.get('command') != 'proof' or answer.get('kind') != kind:
+            raise RuntimeError('Unexpected answer to a native proof request')
+        return answer
+
+    def unread_badge(self, actor, title, label=None):
+        # The unread number is painted by the conversation delegate and never reaches the
+        # accessibility tree, so the only honest automated observation is of the real window
+        # pixels. A badge is a filled rounded rect in the theme's accent colour while the row's own
+        # text is neutral grey, so the accent colour separates them. Whether the number itself reads
+        # 1 or 3 stays a human judgement, which is why the full window and the badge crop are kept.
+        self.focus(actor)
+        time.sleep(.08)
+        image = self.ImageGrab.grab(xdisplay=self.display)
+        row = next((n for n in self.rows(actor, '会话列表') if n.get_name() == title), None)
+        if row is None:
+            raise AssertionError('The conversation row disappeared from the native list: ' + title)
+        rect = row.get_component_iface().get_extents(self.Atspi.CoordType.SCREEN)
+        box = (max(0, rect.x + rect.width - 72), rect.y + 28, max(0, rect.x + rect.width - 4), rect.y + 58)
+        crop = image.crop(box)
+        accent = accent_pixels(image, box)
+        if label is not None:
+            image.save(self.work / (label + '.png'))
+            crop.save(self.work / (label + '-badge.png'))
+            emit('unread-badge-capture', actor=actor, conversation_title=title, label=label,
+                 path=str(self.work / (label + '.png')), crop=str(self.work / (label + '-badge.png')),
+                 region=list(box), accent_pixels=accent, badge_visible=accent > BADGE_ACCENT_MIN)
+        return accent > BADGE_ACCENT_MIN
+
+    def heartbeat_pilot(self, seed):
+        # The link stays paused longer than the client's own heartbeat may go unanswered, so this
+        # is the scenario where the client has to notice by itself and come back by itself. Nothing
+        # here closes a socket, restarts a process, clicks retry or logs in again.
+        actors = self.cfg['actors']
+        if len(actors) != 2:
+            raise RuntimeError('heartbeat_pilot requires exactly two native peers')
+        isolated, peer = sorted(actors, key=lambda actor: int(actor['id']))
+        sender_id, direct = isolated['id'], isolated['peer_username']
+        relay = self.relays.get(int(sender_id))
+        if relay is None:
+            raise RuntimeError('Heartbeat pilot has no relay for the isolated client')
+        draft = f'qt-heartbeat-draft-{seed} 中文 \U0001f642 '
+        # The three texts the chat header may carry while the client itself believes the link is
+        # down; an empty header means the client considers the connection healthy again.
+        BREAK_STATES = ('正在连接…', '正在恢复会话…', '连接中断')
+        # Staying down past the client's own detection keeps the scenario a heartbeat timeout
+        # instead of a blip: the client has to sit in its retry loop and come back on its own.
+        EXTRA_DOWN_SECONDS = 25
+        states, seen = [], set()
+        missed = f'native-{seed}-heartbeat-missed'
+        timeline = {}
+        observed = {}
+        operations = 0
+
+        def step(kind, action, conversation=None):
+            nonlocal operations
+            operations += 1
+            begin = time.monotonic()
+            try:
+                result = action()
+            except Exception as error:
+                self.capture(sender_id, 'heartbeat-' + kind + '-failure')
+                emit('operation', kind='heartbeat-' + kind, actor=sender_id, marker='heartbeat',
+                     conversation=conversation, elapsed_ms=(time.monotonic() - begin) * 1000, ok=False,
+                     error=str(error)[:240])
+                raise
+            emit('operation', kind='heartbeat-' + kind, actor=sender_id, marker='heartbeat',
+                 conversation=conversation, elapsed_ms=(time.monotonic() - begin) * 1000, ok=True)
+            return result
+
+        def window_of(actor):
+            return [w for w in self.property(self.root(), '_NET_CLIENT_LIST')
+                    if self.property(w, '_NET_WM_PID') == [self.clients[actor].pid]]
+
+        def offline_notice():
+            # The chat header carries a connection button only while the client itself believes the
+            # link is down: an attempt in flight, a scheduled retry, a session being restored. Its
+            # text is the client's own statement, never something the test asserts about it.
+            for node in self.nodes(sender_id):
+                name = node.get_name()
+                if any(name == state or name.startswith(state) for state in BREAK_STATES):
+                    return name
+            return None
+
+        def editor_text():
+            return self.text(self.field(sender_id, '消息输入'))
+
+        def occurrences(marker):
+            view = self.field(sender_id, '消息记录')
+            return sum(1 for node in self.walk(view)
+                       if self.visible(node) and message_name_matches(node.get_name(), marker))
+
+        def absent_down(marker):
+            # A link that is really down must not show the message yet; without this check the
+            # later catch-up could be satisfied by something that was never actually missed.
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline:
+                if occurrences(marker):
+                    raise AssertionError('The paused relay delivered a message anyway')
+                time.sleep(.2)
+
+        def peer_sends(marker):
+            self.open_room(peer['id'], peer['peer_username'])
+            self.send(peer['id'], marker)
+
+        def baseline():
+            self.open_room(sender_id, direct)
+            self.send(sender_id, f'native-{seed}-heartbeat-first')
+            self.open_room(peer['id'], peer['peer_username'])
+            self.expect_message(peer['id'], f'native-{seed}-heartbeat-first', 'The peer never saw the baseline message')
+            self.send(peer['id'], f'native-{seed}-heartbeat-second')
+            self.open_room(sender_id, direct)
+            self.expect_message(sender_id, f'native-{seed}-heartbeat-second', 'The isolated client never saw the peer reply')
+
+        def note_state(name):
+            # Recording each state the client shows, in order, is what separates "the network was
+            # paused" from "the client noticed, retried, re-authenticated and resumed".
+            if name and (not states or states[-1][0] != name):
+                states.append([name, round(time.monotonic() - timeline['paused_at'], 2)])
+                if name not in seen:
+                    seen.add(name)
+                    observed.setdefault('ui_states', []).append(name)
+                    self.screenshot(self.work / f'heartbeat-ui-state-{len(seen)}-{sender_id}.png')
+
+        def visible_words():
+            # What the client's own window actually says at the moment the scenario gives up. The
+            # walk is the same one every other check uses; it runs once, only to explain a failure.
+            found = []
+            for node in self.nodes(sender_id):
+                name = node.get_name()
+                if name and len(name) < 70:
+                    found.append(name)
+                if len(found) >= 40:
+                    break
+            return found
+
+        def deactivation():
+            # Two independent consequences of the same timeout: the server stops counting the old
+            # session, and the client's own heartbeat gives up and draws its notice in the chat
+            # header. Both are observed, neither is assumed from elapsed time. The link then stays
+            # down well past that point, so recovery cannot be the first attempt after a blip.
+            deadline = time.monotonic() + 150
+            released = noticed = probed = None
+            while True:
+                if time.monotonic() > deadline:
+                    observed['window'] = visible_words()
+                    raise AssertionError('No heartbeat deactivation became observable within the budget: '
+                                         + json.dumps(observed, ensure_ascii=False)[:1500])
+                if released is None and (probed is None or time.monotonic() - probed >= 3):
+                    probed = time.monotonic()
+                    if self.proof('online', stage='heartbeat-release')['online'] == 1:
+                        released = time.monotonic()
+                        timeline['server_released_seconds'] = round(released - timeline['paused_at'], 2)
+                drawn = offline_notice()
+                if noticed is None and drawn:
+                    noticed = time.monotonic()
+                    self.capture(sender_id, 'heartbeat-ui-offline')
+                    note_state(drawn)
+                    observed['banner'] = drawn
+                    timeline['ui_offline_seconds'] = round(noticed - timeline['paused_at'], 2)
+                    emit('heartbeat-ui-offline', actor=sender_id, conversation=isolated['direct_id'],
+                         wording=drawn)
+                if released is not None and noticed is not None and time.monotonic() - noticed >= EXTRA_DOWN_SECONDS:
+                    if not offline_notice():
+                        raise AssertionError('The connection banner went away before the link was released')
+                    if occurrences(missed):
+                        raise AssertionError('The paused relay delivered a message during the hold')
+                    timeline['held_down_seconds'] = round(time.monotonic() - noticed, 2)
+                    return
+                time.sleep(1)
+
+        def unchanged():
+            process = self.clients[sender_id]
+            if process.pid != pid or process.poll() is not None:
+                raise AssertionError('The isolated Qt process changed or exited during the blackhole')
+            if window_of(sender_id) != window:
+                raise AssertionError('The isolated Qt window was recreated during the blackhole')
+            if editor_text() != draft:
+                raise AssertionError('The unsent draft did not survive the silent link')
+
+        def recovery():
+            # A message arriving on its own proves the client reconnected, re-authenticated and
+            # caught up without any test-side action, and the header must then stop drawing the
+            # banner it drew while the link was down.
+            deadline = time.monotonic() + 120
+            while not occurrences(missed):
+                if time.monotonic() > deadline:
+                    raise AssertionError('The isolated client never recovered its link by itself')
+                time.sleep(.5)
+            timeline['caught_up_seconds'] = round(time.monotonic() - timeline['resumed_at'], 2)
+            if offline_notice():
+                raise AssertionError('The client caught up but still shows a connection banner')
+            if occurrences(missed) != 1:
+                raise AssertionError('The message sent while the link was down arrived more than once')
+
+        def both_directions():
+            for marker, sender in ((f'native-{seed}-heartbeat-fourth', isolated), (f'native-{seed}-heartbeat-fifth', peer)):
+                if sender['id'] == sender_id:
+                    self.open_room(sender_id, direct)
+                    self.send(sender_id, marker)
+                    self.open_room(peer['id'], peer['peer_username'])
+                    self.expect_message(peer['id'], marker, 'The peer never saw the reconnected client again')
+                else:
+                    self.open_room(peer['id'], peer['peer_username'])
+                    self.send(peer['id'], marker)
+                    self.open_room(sender_id, direct)
+                    self.expect_message(sender_id, marker, 'The reconnected client never saw the peer again')
+
+        pid = self.clients[sender_id].pid
+        window = window_of(sender_id)
+        step('baseline-exchange', baseline, isolated['direct_id'])
+        baseline_online = self.proof('online', stage='heartbeat-baseline')
+        if sorted(baseline_online['users'] or []) != sorted(int(a['id']) for a in actors):
+            raise AssertionError('Heartbeat baseline does not have both native clients online')
+        step('draft', lambda: (self.paste(sender_id, self.field(sender_id, '消息输入'), draft), self.key('End')),
+             isolated['direct_id'])
+        if editor_text() != draft:
+            raise AssertionError('The native composer did not accept the heartbeat draft')
+        step('pause', relay.pause, isolated['direct_id'])
+        timeline['paused_at'] = time.monotonic()
+        step('peer-message-while-down', lambda: peer_sends(missed), isolated['direct_id'])
+        step('message-still-absent', lambda: absent_down(missed), isolated['direct_id'])
+        step('heartbeat-deactivation', deactivation, isolated['direct_id'])
+        step('same-process-and-draft', unchanged, isolated['direct_id'])
+        step('resume', relay.resume, isolated['direct_id'])
+        timeline['resumed_at'] = time.monotonic()
+        timeline['paused_seconds'] = round(timeline['resumed_at'] - timeline['paused_at'], 2)
+        step('automatic-recovery', recovery, isolated['direct_id'])
+        recovered_online = self.proof('online', stage='heartbeat-recovered')
+        if sorted(recovered_online['users'] or []) != sorted(int(a['id']) for a in actors):
+            raise AssertionError('The reconnected server sessions differ from the intended native clients')
+        timeline['recovered_online'] = recovered_online['online']
+        step('draft-after-recovery', unchanged, isolated['direct_id'])
+        step('both-directions-after-recovery', both_directions, isolated['direct_id'])
+        self.capture(sender_id, 'heartbeat-pilot-complete')
+        emit('heartbeat-pilot-timeline', actor=sender_id, pid=pid, window=window, timeline=timeline,
+             ui_states=states, relayed_bytes=relay.relayed, observations=observed)
+        return operations
+
     def blackhole_pilot(self, seed):
         # A silent TCP blackhole is the one link failure the client cannot see in its own socket.
         # What matters is what the native window still owes the user while the link is down: an
@@ -1433,6 +1692,84 @@ class NativeGui:
         step('receipt-stable-after-switching', lambda: receipt_advances(before), watcher['group_id'])
         step('link-blip', blip, watcher['group_id'])
         step('state-after-reconnect', lambda: receipt_after_reconnect(before), watcher['group_id'])
+
+        # The unread number itself. The database states the authoritative read position and the
+        # screenshot states what the native window shows; neither is allowed to stand in for the
+        # other, and the digit itself is left to the saved pixels.
+        direct = watcher['peer_username']
+        unread_markers = [f'native-{seed}-unread-{index}' for index in range(1, 5)]
+
+        def writer_sends(marker):
+            self.open_room(writer['id'], writer['peer_username'])
+            self.send(writer['id'], marker)
+
+        def badge_state(label, expected, marker=None):
+            proof = self.proof('read-position', conversation=watcher['direct_id'], member=watcher['id'])
+            visible = self.unread_badge(watcher['id'], direct, label)
+            observed[label] = {'expected': expected, 'database_unread': proof['unread'],
+                               'read_position': proof['read_position'], 'badge_visible': visible}
+            if proof['unread'] != expected:
+                raise AssertionError(f'The database read position for {label} is not {expected}')
+            if visible != (expected > 0):
+                raise AssertionError(f'The native unread badge for {label} does not match {expected} unread')
+            emit('unread-evidence', actor=watcher['id'], conversation=watcher['direct_id'], label=label,
+                 marker=marker, expected_unread=expected, database_unread=proof['unread'],
+                 read_position=proof['read_position'], badge_visible=visible,
+                 screenshot=str(self.work / (label + '.png')))
+
+        def other_conversation_untouched():
+            self.proof('read-position', conversation=watcher['group_id'], member=watcher['id'])
+            if self.unread_badge(watcher['id'], group, 'unread-3-other-room'):
+                raise AssertionError('The group row shows a badge the direct test did not create')
+            self.open_room(watcher['id'], group)
+            proof = self.proof('read-position', conversation=watcher['direct_id'], member=watcher['id'])
+            if proof['unread'] != 3:
+                raise AssertionError('Opening another conversation cleared the direct unread')
+
+        def read_marked(marker):
+            # A direct conversation reports "已读" without a headcount, so the row is asked whether
+            # it states a read at all, and the exact text is kept as evidence.
+            row = self.expect_message(writer['id'], marker, 'The sender lost its own direct message')
+            observed['direct_read_row'] = row.get_name()
+            return '已读' in row.get_name()
+
+        def clear_by_opening():
+            self.open_room(watcher['id'], direct)
+            for marker in unread_markers[:3]:
+                self.expect_message(watcher['id'], marker, 'Opening the conversation lost an unread message')
+            self.wait(lambda: not self.unread_badge(watcher['id'], direct),
+                      'The native unread badge never cleared after the conversation was opened')
+            badge_state('unread-0-after-read', 0, unread_markers[2])
+            self.open_room(writer['id'], writer['peer_username'])
+            self.wait(lambda: read_marked(unread_markers[2]),
+                      'The sender never saw the reader read the unread messages', timeout=20)
+
+        def unread_again():
+            self.open_room(watcher['id'], group)
+            writer_sends(unread_markers[3])
+            badge_state('unread-1-again', 1, unread_markers[3])
+            self.open_room(watcher['id'], direct)
+            badge_state('unread-0-final', 0, unread_markers[3])
+
+        step('badge-baseline', lambda: (self.open_room(watcher['id'], direct),
+                                        self.open_room(watcher['id'], group)), watcher['direct_id'])
+        step('badge-zero-before', lambda: badge_state('unread-0-before', 0), watcher['direct_id'])
+        step('badge-one-message', lambda: writer_sends(unread_markers[0]), watcher['direct_id'])
+        step('badge-one-checked', lambda: badge_state('unread-1', 1, unread_markers[0]), watcher['direct_id'])
+        step('badge-more-messages', lambda: (writer_sends(unread_markers[1]),
+                                             writer_sends(unread_markers[2])), watcher['direct_id'])
+        step('badge-three-checked', lambda: badge_state('unread-3', 3, unread_markers[2]), watcher['direct_id'])
+        step('badge-other-conversation', other_conversation_untouched, watcher['direct_id'])
+        step('badge-cleared-on-open', clear_by_opening, watcher['direct_id'])
+        step('badge-again-and-cleared', unread_again, watcher['direct_id'])
+        # What the tool can decide and what it cannot are stated separately: presence of a badge is
+        # observed in real pixels, the digit inside it is not machine-readable at all.
+        emit('unread-badge-verdict', digits='visual-review-required',
+             reason='The unread number is painted by the delegate and never reaches the accessibility '
+                   'tree; only badge presence is asserted, the digit needs a visual review',
+             evidence=[str(self.work / (label + '.png')) for label in
+                       ('unread-0-before', 'unread-1', 'unread-3', 'unread-0-after-read',
+                        'unread-1-again', 'unread-0-final')])
         self.capture(watcher['id'], 'read-pilot-complete')
         emit('read-pilot-observed', actor=watcher['id'], group=watcher['group_id'],
              relayed_bytes=relay.relayed, observations=observed)
@@ -1973,7 +2310,7 @@ def run(config):
     operation_count = 0
     try:
         gui.__init__(config)
-        if config.get('blackhole_pilot', False) or config.get('read_pilot', False):
+        if config.get('blackhole_pilot', False) or config.get('read_pilot', False) or config.get('heartbeat_pilot', False):
             if len(actors) != 2:
                 raise ValueError('A link pilot needs exactly two native GUI clients')
             # One relay per client so a single native client can lose its link while the other
@@ -2168,7 +2505,12 @@ def run(config):
             unsupported.extend(['crash-during-transfer', 'TLS-specific-faults'])
         if config.get('read_pilot', False):
             unsupported.remove('read-unread-authoritative-checks')
-            unsupported.append('network-blackhole')
+            unsupported.extend(['network-blackhole', 'unread-badge-digit-recognition'])
+        if config.get('heartbeat_pilot', False):
+            # The client is never restarted here, so this is the automatic-recovery scenario; the
+            # unread number itself stays out of the accessibility tree and is not claimed.
+            unsupported.remove('network-and-process-lifecycle')
+            unsupported.extend(['crash-during-transfer', 'TLS-specific-faults', 'manual-process-restart'])
         for kind in unsupported:
             emit('unsupported', kind=kind, reason='Not covered by the configured native scenario')
         emit('prewarm-start', actors=len(actors))
@@ -2200,6 +2542,8 @@ def run(config):
             operation_count += gui.blackhole_pilot(seed)
         if config.get('read_pilot', False):
             operation_count += gui.read_pilot(seed)
+        if config.get('heartbeat_pilot', False):
+            operation_count += gui.heartbeat_pilot(seed)
         if config.get('lifecycle_pilot', False):
             operation_count += gui.lifecycle_pilot(seed)
         medium_groups = {}

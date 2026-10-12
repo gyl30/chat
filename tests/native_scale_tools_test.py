@@ -11,6 +11,8 @@ import os
 from pathlib import Path
 import selectors
 import socket
+import subprocess
+import sys
 import threading
 import time
 import tempfile
@@ -609,7 +611,7 @@ class NativeToolsTest(unittest.TestCase):
         experiment.args = SimpleNamespace(mode='tui', openbox='openbox', shard_size=40,
             seed=1, pilot_seconds=30, deep_pilot=False, lifecycle_pilot=False,
             job_control_pilot=False, daily_pilot=False,
-            role_pilot=False, blackhole_pilot=False, read_pilot=False)
+            role_pilot=False, blackhole_pilot=False, read_pilot=False, heartbeat_pilot=False)
         experiment.config = {'worker_seconds': 32, 'history_diagnostic': False}
         experiment.safety = {'mem_available_min_kib': 1, 'disk_free_min_bytes': 1}
         experiment.url = 'ws://127.0.0.1:12345'
@@ -640,7 +642,7 @@ class NativeToolsTest(unittest.TestCase):
                 experiment.args = SimpleNamespace(mode='gui', openbox=requested, shard_size=40,
                     seed=1, pilot_seconds=30, deep_pilot=False, lifecycle_pilot=False,
                     job_control_pilot=False, daily_pilot=False,
-            role_pilot=False, blackhole_pilot=False, read_pilot=False)
+            role_pilot=False, blackhole_pilot=False, read_pilot=False, heartbeat_pilot=False)
                 experiment.config = {'worker_seconds': 32, 'history_diagnostic': False}
                 experiment.safety = {'mem_available_min_kib': 1, 'disk_free_min_bytes': 1}
                 experiment.url = 'ws://127.0.0.1:12345'
@@ -669,7 +671,7 @@ class NativeToolsTest(unittest.TestCase):
         experiment.args = SimpleNamespace(mode='gui', openbox='missing-openbox', shard_size=40,
             seed=1, pilot_seconds=30, deep_pilot=False, lifecycle_pilot=False,
             job_control_pilot=False, daily_pilot=False,
-            role_pilot=False, blackhole_pilot=False, read_pilot=False)
+            role_pilot=False, blackhole_pilot=False, read_pilot=False, heartbeat_pilot=False)
         experiment.config = {'worker_seconds': 32, 'history_diagnostic': False}
         experiment.safety = {'mem_available_min_kib': 1, 'disk_free_min_bytes': 1}
         experiment.url = 'ws://127.0.0.1:12345'
@@ -919,6 +921,167 @@ class NativeToolsTest(unittest.TestCase):
         self.assertFalse(experiment.cleanup())
         self.assertTrue(any('late native shutdown failure' in error
                             for error in experiment.summary['cleanup_errors']))
+
+    def driver_source(self, name):
+        source = Path(gui.__file__).read_text()
+        start = source.index(f'    def {name}(self, seed):')
+        return source[start:source.index('\n    def ', start + 10)]
+
+    def test_heartbeat_pilot_arguments_reject_other_modes_and_pilots(self):
+        entry = str(Path(scale.__file__).resolve())
+        base = ['--work', '/tmp/native-tools-arguments', '--build', '/tmp/native-tools-build',
+                '--build-kind', 'Debug-pilot']
+        cases = [
+            ['--mode', 'tui', '--count', '2', '--pilot-seconds', '10', '--heartbeat-pilot'],
+            ['--mode', 'gui', '--count', '10', '--pilot-seconds', '10', '--heartbeat-pilot'],
+            ['--mode', 'gui', '--count', '2', '--heartbeat-pilot'],
+            ['--mode', 'gui', '--count', '2', '--pilot-seconds', '10', '--heartbeat-pilot', '--blackhole-pilot'],
+            ['--mode', 'gui', '--count', '2', '--pilot-seconds', '10', '--heartbeat-pilot', '--read-pilot'],
+        ]
+        for arguments in cases:
+            with self.subTest(arguments=arguments):
+                result = subprocess.run([sys.executable, '-B', entry, *base, *arguments],
+                                        capture_output=True, text=True, timeout=60)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn('pilot', result.stderr.lower())
+
+    def test_heartbeat_pilot_never_restarts_or_reconnects_the_client_it_observes(self):
+        # The scenario is about the client recovering on its own, so the driver may not help it:
+        # no restart, no re-login, and no sever() pretending to be a heartbeat timeout.
+        source = self.driver_source('heartbeat_pilot')
+        for forbidden in ('self.login(', 'authenticate_existing', 'terminate()', '.kill(', 'sever()',
+                          'self.clients.pop'):
+            self.assertNotIn(forbidden, source, f'The heartbeat pilot must not {forbidden}')
+        self.assertIn('relay.pause', source)
+        self.assertIn('relay.resume', source)
+
+    def test_heartbeat_pilot_requires_both_deactivation_signals_before_recovering(self):
+        source = self.driver_source('heartbeat_pilot')
+        self.assertIn("['online'] == 1", source)
+        self.assertIn('EXTRA_DOWN_SECONDS', source)
+        self.assertIn('occurrences(missed)', source)
+        self.assertIn("self.proof('online'", source)
+
+    def test_proof_request_answers_online_from_the_server_observer(self):
+        experiment = self.experiment()
+        output = io.StringIO()
+        experiment.workers = [SimpleNamespace(stdin=output)]
+        experiment.server = mock.MagicMock()
+        experiment.server.snapshot.return_value = {'online': 1, 'users': [8]}
+        experiment.accept_record(0, {'event': 'proof-request', 'kind': 'online',
+                                     'stage': 'heartbeat-release'})
+        self.assertEqual(json.loads(output.getvalue()),
+                         {'command': 'proof', 'kind': 'online', 'online': 1, 'users': [8]})
+        proof = [json.loads(line) for line in experiment.events.getvalue().splitlines()]
+        proof = [record for record in proof if record['event'] == 'online-proof']
+        self.assertEqual([record['stage'] for record in proof], ['heartbeat-release'])
+
+    def test_proof_request_answers_read_position_with_a_readonly_query(self):
+        experiment, cursor, output = self.preference_experiment()
+        cursor.fetchone.return_value = (12, 3)
+        experiment.accept_record(0, {'event': 'proof-request', 'kind': 'read-position',
+                                     'conversation': 23, 'member': 7})
+        statement, parameters = cursor.execute.call_args.args
+        normalized = ' '.join(statement.split()).upper()
+        self.assertTrue(normalized.startswith('SELECT'))
+        self.assertNotIn(';', normalized)
+        self.assertIn('CONVERSATION_MEMBERS', normalized)
+        self.assertEqual(parameters, (23, 7))
+        answer = json.loads(output.getvalue())
+        self.assertEqual((answer['read_position'], answer['unread']), (12, 3))
+
+    def test_proof_request_rejects_unknown_kind_without_reply(self):
+        experiment, cursor, output = self.preference_experiment()
+        with self.assertRaises(AssertionError):
+            experiment.accept_record(0, {'event': 'proof-request', 'kind': 'guess'})
+        self.assertEqual(output.getvalue(), '')
+        cursor.execute.assert_not_called()
+
+    def test_unread_badge_reads_presence_from_real_pixels_and_never_the_digit(self):
+        from PIL import Image, ImageDraw
+        driver = gui.NativeGui.__new__(gui.NativeGui)
+        driver.work = Path(self.directory.name) / 'badge'
+        driver.work.mkdir()
+        driver.display = None
+        driver.Atspi = SimpleNamespace(CoordType=SimpleNamespace(SCREEN=0))
+        driver.focus = lambda actor: None
+        row = mock.MagicMock()
+        row.get_name.return_value = 'peer'
+        extents = row.get_component_iface().get_extents.return_value
+        extents.x, extents.y, extents.width = 0, 0, 200
+        driver.rows = lambda actor, view: [row]
+
+        def picture(digit):
+            image = Image.new('RGB', (200, 62), (248, 248, 246))
+            # With no badge the preview text reaches the right edge, and it may contain a
+            # colourful emoji; a coloured blob must not read as a badge.
+            ImageDraw.Draw(image).text((10, 12), 'peer', fill=(37, 51, 45))
+            ImageDraw.Draw(image).ellipse((148, 36, 168, 54), fill=(255, 200, 40))
+            if digit is not None:
+                ImageDraw.Draw(image).rounded_rectangle((172, 34, 191, 53), 9, fill=(229, 72, 77))
+                ImageDraw.Draw(image).text((179, 38), digit, fill=(255, 255, 255))
+            return image
+
+        for digit, expected in ((None, False), ('1', True), ('3', True)):
+            with self.subTest(digit=digit):
+                driver.ImageGrab = SimpleNamespace(grab=lambda xdisplay=None: picture(digit))
+                with contextlib.redirect_stdout(io.StringIO()) as captured:
+                    self.assertEqual(driver.unread_badge(7, 'peer', 'badge-under-test'), expected)
+                record = json.loads(captured.getvalue().strip().splitlines()[-1])
+                self.assertEqual(record['event'], 'unread-badge-capture')
+                self.assertEqual(record['badge_visible'], expected)
+                self.assertTrue(Path(record['path']).exists())
+                self.assertTrue(Path(record['crop']).exists())
+        # A badge showing 1 and a badge showing 3 are indistinguishable here, which is exactly why
+        # the driver reports a visual review instead of a numeric pass.
+
+    def test_accent_pixels_separates_a_painted_pill_from_header_decoration(self):
+        from PIL import Image, ImageDraw
+        band = (0, 0, 300, 52)
+
+        def header(colour):
+            image = Image.new('RGB', (300, 52), (248, 248, 246))
+            ImageDraw.Draw(image).ellipse((8, 8, 44, 44), fill=colour)
+            ImageDraw.Draw(image).text((60, 16), 'peer 中文', fill=(37, 51, 45))
+            return image
+
+        # A reddish avatar already contributes accent pixels, so only the change caused by a banner
+        # can be the signal; and a banner drawn in another colour must not be counted at all.
+        warm = gui.accent_pixels(header((200, 60, 60)), band)
+        cool = gui.accent_pixels(header((60, 120, 200)), band)
+        self.assertEqual(cool, 0)
+        decorated = header((200, 60, 60))
+        ImageDraw.Draw(decorated).rounded_rectangle((120, 16, 232, 36), 9, fill=(229, 72, 77))
+        ImageDraw.Draw(decorated).text((130, 18), '正在连接…', fill=(255, 255, 255))
+        self.assertGreaterEqual(gui.accent_pixels(decorated, band) - warm, 120)
+
+    def test_heartbeat_pilot_reads_the_notice_from_the_clients_own_tree(self):
+        # The notice must come from the same accessibility walk every other check uses, and a failure
+        # has to record what the window really showed instead of only saying nothing was found.
+        source = Path(gui.__file__).read_text()
+        start = source.index('    def heartbeat_pilot(self, seed):')
+        body = source[start:source.index('\n    def ', start + 10)]
+        self.assertIn('for node in self.nodes(sender_id)', body)
+        self.assertIn('BREAK_STATES', body)
+        self.assertIn("observed['window'] = visible_words()", body)
+
+    def test_read_pilot_reports_badge_digits_as_visual_review_not_as_pass(self):
+        source = self.driver_source('read_pilot')
+        self.assertIn("digits='visual-review-required'", source)
+        self.assertIn('unread-badge-digit-recognition', Path(gui.__file__).read_text())
+
+    def test_unread_evidence_payloads_are_redacted_like_every_other_event(self):
+        private = set(gui._private_values)
+        try:
+            gui._private_values.clear()
+            gui._private_values.update({'S3cr3t-Marker'})
+            with contextlib.redirect_stdout(io.StringIO()) as captured:
+                gui.emit('unread-evidence', actor=7, conversation=23, label='unread-1',
+                         screenshot='/tmp/S3cr3t-Marker.png', read_position=12)
+            self.assertNotIn('S3cr3t-Marker', captured.getvalue())
+        finally:
+            gui._private_values.clear()
+            gui._private_values.update(private)
 
 
 if __name__ == '__main__':
