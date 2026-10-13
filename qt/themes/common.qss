@@ -433,35 +433,22 @@ QMainWindow {
             font-weight: 700;
             color: ${text};
         }
-        QToolButton#sidebarHeaderButton, QToolButton#sidebarTextButton, QToolButton#chatsActionsButton {
+        QToolButton#sidebarHeaderButton, QToolButton#sidebarTextButton {
             border: 0;
             background: transparent;
             color: ${accent};
             font-weight: 600;
         }
-        QToolButton#sidebarHeaderButton, QToolButton#chatsActionsButton {
+        QToolButton#sidebarHeaderButton {
             font-size: 26px;
         }
         QToolButton#sidebarTextButton {
             padding: 6px 4px;
             font-size: 13px;
         }
-        QToolButton#sidebarHeaderButton:hover, QToolButton#sidebarTextButton:hover, QToolButton#chatsActionsButton:hover {
+        QToolButton#sidebarHeaderButton:hover, QToolButton#sidebarTextButton:hover {
             background: ${subtle};
             border-radius: 8px;
-        }
-        QMenu#chatsActionsMenu {
-            background: ${panel};
-            color: ${text};
-            border: 1px solid ${border};
-            padding: 4px;
-        }
-        QMenu#chatsActionsMenu::item {
-            padding: 8px 16px;
-        }
-        QMenu#chatsActionsMenu::item:selected {
-            background: ${subtle};
-            color: ${text};
         }
         QLabel#subtleText {
             color: ${text_muted};
@@ -589,20 +576,6 @@ QMainWindow {
             color: ${on_accent};
             font-size: 11px;
             font-weight: 700;
-        }
-        QPushButton#findUserButton {
-            min-height: 56px;
-            padding: 0 0 0 18px;
-            text-align: left;
-            background: ${panel};
-            color: ${accent};
-            border: 0;
-            border-bottom: 1px solid ${border};
-            border-radius: 0;
-            font-size: 14px;
-        }
-        QPushButton#findUserButton:hover, QPushButton#findUserButton:focus {
-            background: ${subtle};
         }
         QPushButton#emptyAddFriendButton {
             min-height: 36px;
@@ -864,15 +837,11 @@ QMainWindow {
             background: ${surface};
             border-color: ${focus};
         }
-        QToolButton#chatsActionsButton, QToolButton#sidebarTextButton {
+        QToolButton#sidebarTextButton {
             padding: 0;
             border: 1px solid ${border};
             border-radius: 17px;
             background: ${surface};
-        }
-        QToolButton#chatsActionsButton::menu-indicator {
-            image: none;
-            width: 0;
         }
         QToolButton#chatMoreButton, QToolButton#sendAttachmentButton,
         QToolButton#emojiButton, QToolButton#chatHistoryButton {
@@ -968,7 +937,7 @@ QToolButton#profileActionButton[primary="true"]:focus,
 QDialog#profileDialog QPushButton#changeAvatarButton:focus,
 QPushButton#contactCardMessageButton:focus { border-color: ${on_accent}; }
 QPlainTextEdit#messageEdit:focus { border: 1px solid ${focus}; border-radius: 8px; }
-QToolButton#sidebarHeaderButton:focus, QToolButton#chatsActionsButton:focus,
+QToolButton#sidebarHeaderButton:focus,
 QToolButton#chatMoreButton:focus, QToolButton#composeToolButton:focus,
 QPushButton#chatHeaderButton:focus { border: 1px solid ${focus}; }
 

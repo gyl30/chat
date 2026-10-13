@@ -168,7 +168,11 @@ for name, argtypes, restype in [
     function.argtypes, function.restype = argtypes, restype
 if not args.openbox:
     raise RuntimeError('Supply a verified --openbox binary for native menu input')
-wm = S.Popen([args.openbox, '--sm-disable'], stdout=(work/'openbox.log').open('w'), stderr=S.STDOUT)
+wm_env = os.environ.copy()
+wm_env['XDG_DATA_DIRS'] = str(pathlib.Path(args.openbox).resolve().parents[1] / 'share') + ':' + os.environ.get(
+    'XDG_DATA_DIRS', '/usr/local/share:/usr/share')
+wm = S.Popen([args.openbox, '--sm-disable'], stdout=(work/'openbox.log').open('w'), stderr=S.STDOUT,
+             env=wm_env)
 owned.append(wm)
 gui = NativeGui.__new__(NativeGui)
 gui.Atspi, gui.GLib, gui.ImageGrab = Atspi, GLib, ImageGrab
@@ -277,7 +281,6 @@ def run_scale():
         gui.paste(identity, gui.field(identity, '搜索联系人'), username)
         gui.click(identity, gui.wait_row(identity, '联系人列表', username))
         gui.key('Return')
-        native_click(identity, '发消息')
         gui.wait(lambda: next((n for n in gui.nodes(identity) if n.get_name() == username
                  and n.get_role() == gui.Atspi.Role.PUSH_BUTTON), None),
                  'Native contact card opened exact direct conversation')
@@ -347,7 +350,7 @@ def run_scale():
     record('request-accept-and-bidirectional-chat', [
         '06-readable-new-friends-entry.png', '07-incoming-and-outgoing.png', '08-incoming-profile.png',
         'accepted-contact-count.txt', '10-bidirectional-chat.png', 'bidirectional-message-facts.txt'])
-    gui.new_action(aid, 1)
+    gui.navigate(aid, '新建群组')
     gui.field(aid, '选择群成员')
     capture('11-contact-picker')
 

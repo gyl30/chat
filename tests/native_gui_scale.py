@@ -631,14 +631,14 @@ class NativeGui:
             self.history_observation(actor, 'after-end')
 
     def navigate(self, actor, label):
-        actions = ['我的资料', '聊天', '联系人', '新的朋友']
+        actions = ['我的资料', '聊天', '联系人', '新的朋友', '添加联系人', '新建群组', '加入群组']
         if label not in actions:
-            raise ValueError('Unknown native main-menu destination: ' + label)
+            raise ValueError('Unknown native main-menu action: ' + label)
         self.click(actor, self.field(actor, '主菜单'))
         rectangle = self.wait(lambda: self.popup(actor), 'Owned native main navigation menu unavailable')
         # QMenu exports differ between Qt platform integrations. When Qt exposes
         # visible items, verify their stable labels; input still uses the actual
-        # owned popup geometry, with four equal rows and no separators.
+        # owned popup geometry: seven equal rows with one separator after the first four.
         labels = []
         for node in self.nodes(actor):
             try:
@@ -651,10 +651,14 @@ class NativeGui:
         if labels and not all(any(name == action or name.startswith(action + ' ') or
                                  name.startswith(action + '（') or name.startswith(action + '(')
                                  for name in labels) for action in actions):
-            raise RuntimeError('Native main menu labels differ from its four destinations: ' + str(labels))
+            raise RuntimeError('Native main menu labels differ from its seven actions: ' + str(labels))
         index = actions.index(label)
         px = rectangle['x'] + rectangle['width'] // 2
-        py = round(rectangle['y'] + 7 + (index + .5) * (rectangle['height'] - 14) / len(actions))
+        scale = float(os.environ.get('QT_SCALE_FACTOR', '1'))
+        padding, separator = 7 * scale, 9 * scale
+        row_height = (rectangle['height'] - 2 * padding - separator) / len(actions)
+        py = round(rectangle['y'] + padding + (index + .5) * row_height +
+                   (separator if index >= 4 else 0))
         self.xt.XTestFakeMotionEvent(self.native, -1, px, py, 0)
         self.xt.XTestFakeButtonEvent(self.native, 1, True, 0)
         self.xt.XTestFakeButtonEvent(self.native, 1, False, 0)
@@ -879,17 +883,7 @@ class NativeGui:
         self.click(actor, node)
 
     def friend_request(self, actor, peer):
-        self.navigate(actor, '聊天')
-        self.click(actor, self.field(actor, '聊天操作'))
-        rectangle = self.wait(lambda: self.popup(actor), 'Native New action menu unavailable')
-        px = rectangle['x'] + rectangle['width']//2
-        py = round(rectangle['y'] + 7 + .5*(rectangle['height']-14)/3)
-        emit('menu-route', actor=actor, action='添加好友', index=0,
-             context_actions=['添加好友', '发起群聊', '加入群聊'], rectangle=rectangle, target=[px,py])
-        self.xt.XTestFakeMotionEvent(self.native,-1,px,py,0)
-        self.xt.XTestFakeButtonEvent(self.native,1,True,0)
-        self.xt.XTestFakeButtonEvent(self.native,1,False,0)
-        self.lib.XFlush(self.native)
+        self.navigate(actor, '添加联系人')
         self.paste(actor, self.field(actor, '搜索用户'), peer['username'])
         self.key('Return')
         self.click(actor, self.wait_row(actor, '用户搜索结果', peer['username']))
@@ -906,12 +900,14 @@ class NativeGui:
     def remove_friend(self, actor, peer):
         self.navigate(actor, '联系人')
         self.click(actor, self.wait_row(actor, '联系人列表', peer['username']))
-        self.key('Return')
         self.click(actor, self.field(actor, '资料'))
         self.click(actor, self.field(actor, '移除联系人'))
         self.click(actor, self.field(actor, '移除联系人'))
         self.wait(lambda: not any(n.get_name() == peer['username'] for n in self.rows(actor, '联系人列表')),
                   'Removed friend remains in contacts')
+        if not self.rows(actor, '联系人列表'):
+            self.capture(actor, 'friendship-empty-contacts-' + str(actor))
+            emit('friendship-empty-contacts', actor=actor, accepted_rows=0)
         for owner, target in [(actor, peer), (peer['id'], {'username': self.cfg_actor(actor)['username']})]:
             self.navigate(owner, '聊天')
             self.wait(lambda o=owner,t=target: not any(n.get_name() == t['username'] for n in self.rows(o, '会话列表')),
@@ -1068,19 +1064,6 @@ class NativeGui:
         self.field(identity, '主菜单')
         emit('reauthenticated' if reauthentication else 'authenticated', actor=identity, pid=process.pid,
              login_ms=(time.monotonic() - before) * 1000)
-
-    def new_action(self, actor, index):
-        self.navigate(actor, '聊天')
-        self.click(actor, self.field(actor, '聊天操作'))
-        rectangle = self.wait(lambda: self.popup(actor), 'Native New menu unavailable')
-        px = rectangle['x'] + rectangle['width']//2
-        py = round(rectangle['y'] + 7 + (index+.5)*(rectangle['height']-14)/3)
-        self.xt.XTestFakeMotionEvent(self.native, -1, px, py, 0)
-        self.xt.XTestFakeButtonEvent(self.native, 1, True, 0)
-        self.xt.XTestFakeButtonEvent(self.native, 1, False, 0)
-        self.lib.XFlush(self.native)
-        emit('menu-route', actor=actor, action=['添加好友', '发起群聊', '加入群聊'][index],
-             index=index, rectangle=rectangle, target=[px, py])
 
     def editable(self, actor, name, dialog=None):
         def target():
@@ -2011,7 +1994,7 @@ class NativeGui:
         announcement = f'Native notice {seed}\n中文公告 🙂'
 
         def create():
-            self.new_action(identity, 1)
+            self.navigate(identity, '新建群组')
             self.field(identity, '创建群聊')
             self.click(identity, self.wait_row(identity, '选择群成员', peer['username']))
             self.key('space')
@@ -2154,7 +2137,7 @@ class NativeGui:
             self.click(identity, self.field(identity, '聊天信息'))
             self.field(identity, '1 位成员')
             self.escape(identity)
-            self.new_action(receiver, 2)
+            self.navigate(receiver, '加入群组')
             self.paste(receiver, self.editable(receiver, '邀请码', '加入群聊'), invite_code)
             self.click(receiver, self.field(receiver, '加入'))
             self.open_room(receiver, renamed)

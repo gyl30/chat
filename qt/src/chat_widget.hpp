@@ -142,7 +142,6 @@ class chat_widget final : public QWidget
     void contact_card_primary();
     void contact_card_secondary();
     void request_friend_action(qint64 user, QString const& username, int action);
-    void find_user();
     void filter_conversations();
     void set_list_status(QString text);
     void update_main_menu();
@@ -178,7 +177,6 @@ class chat_widget final : public QWidget
     QAction* chats_action_ = nullptr;
     QAction* contacts_action_ = nullptr;
     QAction* new_friends_action_ = nullptr;
-    QToolButton* chats_actions_ = nullptr;
     QToolButton* sidebar_back_button_ = nullptr;
     QToolButton* add_contact_button_ = nullptr;
     QAction* message_search_action_ = nullptr;
@@ -193,6 +191,8 @@ class chat_widget final : public QWidget
     QLabel* conversations_status_ = nullptr;
     QStackedWidget* right_pages_ = nullptr;
     QLabel* contact_placeholder_ = nullptr;
+    QLabel* contact_empty_title_ = nullptr;
+    QLabel* contact_empty_hint_ = nullptr;
     QToolButton* cancel_reply_button_ = nullptr;
     QStackedWidget* contact_detail_ = nullptr;
     QLabel* contact_card_avatar_ = nullptr;
@@ -202,7 +202,6 @@ class chat_widget final : public QWidget
     QPushButton* contact_card_profile_ = nullptr;
     qint64 contact_card_user_ = 0;
     QString contact_card_username_;
-    QPushButton* find_user_button_ = nullptr;
     QLabel* add_friend_badge_ = nullptr;
     QLabel* main_menu_badge_ = nullptr;
     QLineEdit* conversation_search_ = nullptr;

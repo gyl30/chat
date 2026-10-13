@@ -36,17 +36,41 @@ def run(c):
     actual = {int(v) for v in sql(f'SELECT contact_id FROM contacts WHERE owner_id={aid}').splitlines()}
     assert actual == expected, actual
     query_fact('nav-accepted-contact-ids', f'SELECT contact_id FROM contacts WHERE owner_id={aid} ORDER BY contact_id')
-    # Contacts' existing Enter search enters Add friend with Contacts as its Back parent.
+    expected_names = {actor(name)['username'] for name in ('C', 'S005')}
+    gui.wait(lambda: {row.get_name() for row in gui.rows(aid, '联系人列表')} == expected_names,
+             'Native contacts show accepted users without pending requests')
+    # Search only filters accepted contacts; a nonfriend must not enter Add contact.
     gui.paste(aid, gui.field(aid, '搜索联系人'), actor('D')['username'])
     gui.key('Return')
+    gui.wait(lambda: not gui.rows(aid, '联系人列表'), 'Nonfriend search has no accepted result')
+    assert gui.find(aid, '搜索用户') is None
+    capture('nav-contacts-no-match')
+    gui.paste(aid, gui.field(aid, '搜索联系人'), actor('C')['username'])
+    gui.key('Return')
+    gui.wait(lambda: gui.field(aid, '联系人列表').get_state_set().contains(gui.Atspi.StateType.FOCUSED),
+             'Search Enter focuses matched contact list')
+    gui.key('Return')
+    gui.field(aid, '消息输入')
+    capture('nav-contacts-enter-direct')
+    gui.navigate(aid, '联系人')
+    gui.paste(aid, gui.field(aid, '搜索联系人'), '')
+    gui.click(aid, gui.wait_row(aid, '联系人列表', actor('C')['username']))
+    gui.field(aid, '资料')
+    capture('nav-contacts-single-click-card')
+    gui.click(aid, gui.field(aid, '搜索联系人'))
+    gui.click(aid, gui.wait_row(aid, '联系人列表', actor('C')['username']))
+    gui.click(aid, gui.wait_row(aid, '联系人列表', actor('C')['username']))
+    gui.field(aid, '消息输入')
+    capture('nav-contacts-double-click-direct')
+    gui.navigate(aid, '联系人')
+    gui.navigate(aid, '添加联系人')
     gui.field(aid, '搜索用户')
     capture('nav-contacts-add-friend')
     back('contacts')
-    gui.paste(aid, gui.field(aid, '搜索联系人'), '')
     capture('nav-contacts-add-back')
     gui.navigate(aid, '新的朋友')
     capture('nav-03-new-friends-incoming')
-    click('添加好友')
+    gui.navigate(aid, '添加联系人')
     gui.field(aid, '搜索用户')
     capture('nav-new-friends-add-friend')
     back('new-friends')
@@ -85,7 +109,8 @@ def run(c):
         'nav-02-accepted-contacts-only.png', 'nav-03-new-friends-incoming.png', 'nav-04-incoming-profile.png',
         'nav-accepted-contact-ids.txt', 'nav-05-accepted-profile.png', 'nav-remove-confirm.png',
         'nav-removed-friend.png', 'nav-outgoing-profile.png', 'nav-cancelled-outgoing.png'])
-    gui.new_action(aid, 0)
+    gui.navigate(aid, '聊天')
+    gui.navigate(aid, '添加联系人')
     gui.field(aid, '搜索用户')
     capture('nav-07-add-friend-search')
     back('chats')
@@ -93,11 +118,11 @@ def run(c):
     record('qt-secondary-back-preserves-parent', [
         'nav-contacts-add-back.png', 'nav-new-friends-add-back.png',
         'nav-new-friends-back-contacts.png', 'nav-chats-add-back.png'])
-    gui.new_action(aid, 2)
+    gui.navigate(aid, '加入群组')
     gui.field(aid, '邀请码')
     capture('nav-08-join-action')
     gui.key('Escape')
-    gui.new_action(aid, 1)
+    gui.navigate(aid, '新建群组')
     gui.field(aid, '选择群成员')
     capture('nav-09-create-select-contacts')
     gui.click(aid, gui.wait_row(aid, '选择群成员', actor('S005')['username']))

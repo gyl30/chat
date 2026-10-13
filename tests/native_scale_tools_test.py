@@ -879,33 +879,35 @@ class NativeToolsTest(unittest.TestCase):
                 self.assertIs(gui.is_transient_window_property_error(error, window), expected)
 
     def test_gui_navigation_clicks_owned_main_menu_then_destination(self):
-        for index, label in enumerate(['我的资料', '聊天', '联系人', '新的朋友']):
-            with self.subTest(label=label):
-                driver = gui.NativeGui.__new__(gui.NativeGui)
-                driver.native = object()
-                driver.Atspi = SimpleNamespace(Role=SimpleNamespace(MENU_ITEM='menu-item'))
-                button = object()
-                driver.field = mock.Mock(return_value=button)
-                driver.click = mock.Mock()
-                rectangle = {'window': 12, 'x': 30, 'y': 60, 'width': 180, 'height': 174}
-                driver.popup = mock.Mock(side_effect=[rectangle, None])
-                class RemovedAccessible(Exception):
-                    pass
-                driver.GLib = SimpleNamespace(GError=RemovedAccessible)
-                removed = mock.Mock()
-                removed.get_role.side_effect = RemovedAccessible('Qt transient destroyed')
-                driver.nodes = mock.Mock(return_value=[removed])
-                driver.wait = lambda predicate, description: self.assertTrue(predicate(), description) or rectangle
-                driver.xt, driver.lib = mock.Mock(), mock.Mock()
-                with mock.patch('native_gui_scale.emit'):
-                    driver.navigate(7, label)
-                driver.field.assert_called_once_with(7, '主菜单')
-                driver.click.assert_called_once_with(7, button)
-                driver.xt.XTestFakeMotionEvent.assert_called_once_with(
-                    driver.native, -1, 120, round(67 + (index + .5) * 40), 0)
-                self.assertEqual(driver.xt.XTestFakeButtonEvent.call_args_list,
-                    [mock.call(driver.native, 1, True, 0), mock.call(driver.native, 1, False, 0)])
-                driver.lib.XFlush.assert_called_once_with(driver.native)
+        for scale, width, height, px, ys in [(1, 180, 303, 120, [87,127,167,207,256,296,336]),
+                                             (1.25, 225, 379, 142, [94,144,194,244,305,355,405])]:
+            for index, label in enumerate(['我的资料', '聊天', '联系人', '新的朋友', '添加联系人', '新建群组', '加入群组']):
+                with self.subTest(label=label, scale=scale):
+                    driver = gui.NativeGui.__new__(gui.NativeGui)
+                    driver.native = object()
+                    driver.Atspi = SimpleNamespace(Role=SimpleNamespace(MENU_ITEM='menu-item'))
+                    button = object()
+                    driver.field = mock.Mock(return_value=button)
+                    driver.click = mock.Mock()
+                    rectangle = {'window': 12, 'x': 30, 'y': 60, 'width': width, 'height': height}
+                    driver.popup = mock.Mock(side_effect=[rectangle, None])
+                    class RemovedAccessible(Exception):
+                        pass
+                    driver.GLib = SimpleNamespace(GError=RemovedAccessible)
+                    removed = mock.Mock()
+                    removed.get_role.side_effect = RemovedAccessible('Qt transient destroyed')
+                    driver.nodes = mock.Mock(return_value=[removed])
+                    driver.wait = lambda predicate, description: self.assertTrue(predicate(), description) or rectangle
+                    driver.xt, driver.lib = mock.Mock(), mock.Mock()
+                    with mock.patch('native_gui_scale.emit'), mock.patch.dict(os.environ, {'QT_SCALE_FACTOR':str(scale)}):
+                        driver.navigate(7, label)
+                    driver.field.assert_called_once_with(7, '主菜单')
+                    driver.click.assert_called_once_with(7, button)
+                    driver.xt.XTestFakeMotionEvent.assert_called_once_with(
+                        driver.native, -1, px, ys[index], 0)
+                    self.assertEqual(driver.xt.XTestFakeButtonEvent.call_args_list,
+                        [mock.call(driver.native, 1, True, 0), mock.call(driver.native, 1, False, 0)])
+                    driver.lib.XFlush.assert_called_once_with(driver.native)
 
     def test_gui_navigation_rejects_unrelated_action_before_any_input(self):
         driver = gui.NativeGui.__new__(gui.NativeGui)

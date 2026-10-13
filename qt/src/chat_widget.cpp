@@ -36,7 +36,6 @@
 #include <QModelIndex>
 #include <QPushButton>
 #include <QPlainTextEdit>
-#include <QRegularExpression>
 #include <QSortFilterProxyModel>
 #include <QScrollBar>
 #include <QSize>
@@ -158,6 +157,16 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     new_friends_action_->setObjectName(QStringLiteral("showNewFriendsAction"));
     new_friends_action_->setIcon(svg_icon(u"user-plus", themed("text"), QSize(20, 20)));
     for (auto* action : {chats_action_, contacts_action_, new_friends_action_}) { action->setCheckable(true); }
+    main_menu->addSeparator();
+    auto* add_friend = main_menu->addAction(QStringLiteral("添加联系人"));
+    add_friend->setObjectName(QStringLiteral("addFriendAction"));
+    add_friend->setIcon(svg_icon(u"user-plus", themed("text"), QSize(20, 20)));
+    auto* create_group = main_menu->addAction(QStringLiteral("新建群组"));
+    create_group->setObjectName(QStringLiteral("createGroupAction"));
+    create_group->setIcon(svg_icon(u"groups", themed("text"), QSize(20, 20)));
+    auto* join_group = main_menu->addAction(QStringLiteral("加入群组"));
+    join_group->setObjectName(QStringLiteral("joinGroupAction"));
+    join_group->setIcon(svg_icon(u"groups", themed("text"), QSize(20, 20)));
     main_menu_button_->setMenu(main_menu);
     main_menu_badge_ = new QLabel(main_menu_button_);
     main_menu_badge_->setObjectName(QStringLiteral("mainMenuBadge"));
@@ -176,8 +185,8 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     conversation_header_layout->addWidget(sidebar_back_button_);
     section_title_ = new QLabel(QStringLiteral("消息"), conversation_header);
     section_title_->setObjectName(QStringLiteral("sectionTitle"));
-    conversation_header_layout->addWidget(section_title_);
-    // Chats lead with search beside the main menu and New action.
+    conversation_header_layout->addWidget(section_title_, 1);
+    // Chats lead with search beside the global menu.
     conversation_search_ = new QLineEdit(conversation_header);
     conversation_search_->setObjectName(QStringLiteral("conversationSearchEdit"));
     conversation_search_->setPlaceholderText(QStringLiteral("搜索"));
@@ -188,22 +197,6 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
         conversation_search_icon->setIcon(svg_icon(u"search", themed("text_muted"), QSize(16, 16)));
     });
     conversation_header_layout->addWidget(conversation_search_, 1);
-    // Contacts reuse the header with their own search and New friends shortcut.
-    contact_search_ = new QLineEdit(conversation_header);
-    contact_search_->setObjectName(QStringLiteral("userSearchEdit"));
-    contact_search_->setPlaceholderText(QStringLiteral("搜索"));
-    contact_search_->setAccessibleName(QStringLiteral("搜索联系人"));
-    contact_search_->setToolTip(QStringLiteral("搜索联系人，或按 Enter 查找用户"));
-    contact_search_->setClearButtonEnabled(false);
-    contact_search_->setProperty("header", true);
-    auto* contact_search_icon = contact_search_->addAction(
-        svg_icon(u"search", themed("text_muted"), QSize(16, 16)), QLineEdit::LeadingPosition);
-    connect(&theme_manager::instance(), &theme_manager::changed, contact_search_, [contact_search_icon] {
-        contact_search_icon->setIcon(svg_icon(u"search", themed("text_muted"), QSize(16, 16)));
-    });
-    contact_search_->hide();
-    conversation_header_layout->addWidget(contact_search_, 1);
-    conversation_header_layout->addStretch();
     add_contact_button_ = new QToolButton(conversation_header);
     add_contact_button_->setObjectName(QStringLiteral("sidebarTextButton"));
     add_contact_button_->setText(QStringLiteral("添加好友"));
@@ -221,27 +214,6 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     add_contact_button_->setCursor(Qt::PointingHandCursor);
     add_contact_button_->hide();
     conversation_header_layout->addWidget(add_contact_button_);
-    chats_actions_ = new QToolButton(conversation_header);
-    chats_actions_->setObjectName(QStringLiteral("chatsActionsButton"));
-    chats_actions_->setText(QStringLiteral("+"));
-    chats_actions_->setIcon(svg_icon(u"plus", themed("accent"), QSize(18, 18)));
-    chats_actions_->setIconSize(QSize(18, 18));
-    chats_actions_->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    chats_actions_->setAccessibleName(QStringLiteral("聊天操作"));
-    chats_actions_->setToolTip(QStringLiteral("添加好友、发起群聊或加入群聊"));
-    chats_actions_->setFixedSize(34, 34);
-    chats_actions_->setCursor(Qt::PointingHandCursor);
-    chats_actions_->setPopupMode(QToolButton::InstantPopup);
-    auto* actions = new QMenu(chats_actions_);
-    actions->setObjectName(QStringLiteral("chatsActionsMenu"));
-    auto* add_friend = actions->addAction(QStringLiteral("添加好友"));
-    add_friend->setObjectName(QStringLiteral("addFriendAction"));
-    auto* create_group = actions->addAction(QStringLiteral("发起群聊"));
-    create_group->setObjectName(QStringLiteral("createGroupAction"));
-    auto* join_group = actions->addAction(QStringLiteral("加入群聊"));
-    join_group->setObjectName(QStringLiteral("joinGroupAction"));
-    chats_actions_->setMenu(actions);
-    conversation_header_layout->addWidget(chats_actions_);
     conversation_layout->addWidget(conversation_header);
 
     sidebar_pages_ = new QStackedWidget(conversation_panel);
@@ -276,15 +248,23 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     auto* contacts_layout = new QVBoxLayout(contacts_page);
     contacts_layout->setContentsMargins(0, 0, 0, 0);
     contacts_layout->setSpacing(0);
-    // One search box, as in WeChat: it filters friends as you type and offers to find new people.
-    // While searching, the first row offers to find new people by the query.
-    find_user_button_ = new QPushButton(contacts_page);
-    find_user_button_->setObjectName(QStringLiteral("findUserButton"));
-    find_user_button_->setIcon(svg_icon(u"search", themed("accent"), QSize(18, 18)));
-    find_user_button_->setCursor(Qt::PointingHandCursor);
-    find_user_button_->hide();
-    contacts_layout->addWidget(find_user_button_);
-    contacts_status_ = new QLabel(QStringLiteral("暂无联系人，可从主菜单“新的朋友”添加好友"), contacts_page);
+    contact_search_ = new QLineEdit(contacts_page);
+    contact_search_->setObjectName(QStringLiteral("userSearchEdit"));
+    contact_search_->setPlaceholderText(QStringLiteral("搜索联系人"));
+    contact_search_->setAccessibleName(QStringLiteral("搜索联系人"));
+    contact_search_->setToolTip(QStringLiteral("搜索已确认的好友，按 Enter 选择结果"));
+    contact_search_->setClearButtonEnabled(false);
+    contact_search_->setProperty("header", true);
+    auto* contact_search_icon = contact_search_->addAction(
+        svg_icon(u"search", themed("text_muted"), QSize(16, 16)), QLineEdit::LeadingPosition);
+    connect(&theme_manager::instance(), &theme_manager::changed, contact_search_, [contact_search_icon] {
+        contact_search_icon->setIcon(svg_icon(u"search", themed("text_muted"), QSize(16, 16)));
+    });
+    auto* contact_search_layout = new QHBoxLayout;
+    contact_search_layout->setContentsMargins(12, 0, 12, 8);
+    contact_search_layout->addWidget(contact_search_);
+    contacts_layout->addLayout(contact_search_layout);
+    contacts_status_ = new QLabel(QStringLiteral("暂无联系人，可从主菜单“添加联系人”发起好友申请"), contacts_page);
     contacts_status_->setObjectName(QStringLiteral("subtleText"));
     contacts_status_->setContentsMargins(18, 8, 14, 8);
     contacts_status_->setWordWrap(true);
@@ -295,6 +275,9 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     contacts_filter_->setSourceModel(contacts_);
     contacts_filter_->setFilterRole(user_model::username_role);
     contacts_filter_->setFilterCaseSensitivity(Qt::CaseInsensitive);
+    contacts_filter_->setSortRole(user_model::username_role);
+    contacts_filter_->setSortLocaleAware(true);
+    contacts_filter_->sort(0);
     contacts_view_ = new QListView(contacts_page);
     contacts_view_->setObjectName(QStringLiteral("userList"));
     contacts_view_->setAccessibleName(QStringLiteral("联系人列表"));
@@ -308,10 +291,14 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     contacts_view_->setMouseTracking(true);
     contacts_view_->verticalScrollBar()->setSingleStep(24);
     contacts_layout->addWidget(contacts_view_, 1);
-    // Takes the free height when the list is hidden, so rows above keep their size.
-    contacts_layout->addStretch();
-    connect(find_user_button_, &QPushButton::clicked, this, [this] { find_user(); });
-    connect(contact_search_, &QLineEdit::returnPressed, this, [this] { find_user(); });
+    connect(contact_search_, &QLineEdit::returnPressed, this, [this] {
+        if (contacts_filter_->rowCount() == 0) { return; }
+        auto index = contacts_view_->currentIndex();
+        if (!index.isValid()) { index = contacts_filter_->index(0, 0); }
+        contacts_view_->setCurrentIndex(index);
+        contacts_view_->setFocus();
+        select_contact(index);
+    });
     sidebar_pages_->addWidget(contacts_page);
 
     auto* add_contacts_page = new QWidget(sidebar_pages_);
@@ -870,17 +857,17 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     contact_placeholder->setAlignment(Qt::AlignCenter);
     contact_placeholder->setPixmap(svg_icon(u"contacts", themed("text_muted"), QSize(48, 48)).pixmap(48, 48));
     contact_empty_layout->addWidget(contact_placeholder, 0, Qt::AlignHCenter);
-    auto* contact_empty_title = new QLabel(QStringLiteral("联系人"), contact_empty);
-    contact_empty_title->setObjectName(QStringLiteral("contactEmptyTitle"));
-    contact_empty_title->setAlignment(Qt::AlignCenter);
-    contact_empty_layout->addWidget(contact_empty_title, 0, Qt::AlignHCenter);
-    auto* contact_empty_hint = new QLabel(
-        QStringLiteral("从左侧选择好友，查看资料或发消息。\n还没有好友？打开主菜单中的“新的朋友”，再添加好友。"), contact_empty);
-    contact_empty_hint->setObjectName(QStringLiteral("contactEmptyHint"));
-    contact_empty_hint->setAlignment(Qt::AlignCenter);
-    contact_empty_hint->setWordWrap(true);
-    contact_empty_hint->setFixedWidth(360);
-    contact_empty_layout->addWidget(contact_empty_hint, 0, Qt::AlignHCenter);
+    contact_empty_title_ = new QLabel(QStringLiteral("联系人"), contact_empty);
+    contact_empty_title_->setObjectName(QStringLiteral("contactEmptyTitle"));
+    contact_empty_title_->setAlignment(Qt::AlignCenter);
+    contact_empty_layout->addWidget(contact_empty_title_, 0, Qt::AlignHCenter);
+    contact_empty_hint_ = new QLabel(
+        QStringLiteral("从左侧选择好友查看资料，或双击进入聊天。"), contact_empty);
+    contact_empty_hint_->setObjectName(QStringLiteral("contactEmptyHint"));
+    contact_empty_hint_->setAlignment(Qt::AlignCenter);
+    contact_empty_hint_->setWordWrap(true);
+    contact_empty_hint_->setFixedWidth(360);
+    contact_empty_layout->addWidget(contact_empty_hint_, 0, Qt::AlignHCenter);
     contact_empty_layout->addStretch(3);
     contact_detail_->addWidget(contact_empty);
     auto* card = new QWidget(contact_detail_);
@@ -1003,8 +990,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     });
     connect(contact_search_, &QLineEdit::textChanged, this, [this](QString const& query) { filter_contacts(query); });
     connect(contacts_delegate, &user_delegate::body_clicked, this, [this](QModelIndex const& index) { select_contact(index); });
-    connect(contacts_view_, &QListView::activated, this, &chat_widget::select_contact);
-    connect(contacts_view_, &QListView::doubleClicked, this, [this](QModelIndex const& index) {
+    connect(contacts_view_, &QListView::activated, this, [this](QModelIndex const& index) {
         auto const* item = contacts_->user_at(contacts_filter_->mapToSource(index));
         if (item) { open_chat(item->id, item->username); }
     });
@@ -1192,9 +1178,9 @@ void chat_widget::set_user(QString const& username, qint64 user)
     pending_friend_actions_.clear();
     handled_requests_.clear();
     set_friend_requests({}, {}, {});
-    contacts_filter_->setFilterRegularExpression(QRegularExpression{});
+    contacts_filter_->setFilterFixedString(QString{});
     contact_search_->clear();
-    contacts_status_->setText(QStringLiteral("暂无联系人，可从主菜单“新的朋友”添加好友"));
+    contacts_status_->setText(QStringLiteral("暂无联系人，可从主菜单“添加联系人”发起好友申请"));
     contact_card_user_ = 0;
     contact_card_username_.clear();
     add_users_->set_users({});
@@ -1311,6 +1297,7 @@ void chat_widget::set_loading()
 {
     contacts_status_->setText(QStringLiteral("正在加载联系人…"));
     contacts_status_->show();
+    update_contact_card();
     set_list_status(QStringLiteral("正在加载…"));
     if (active_conversation_ == 0) { set_message_status(QStringLiteral("正在加载会话…")); }
 }
@@ -1368,8 +1355,12 @@ void chat_widget::set_connection_available(bool available)
     {
         messages_->set_read_positions({});
     }
-    chats_actions_->setEnabled(available);
-    for (auto* action : chats_actions_->menu()->actions()) { action->setEnabled(available); }
+    for (auto* action : main_menu_button_->menu()->actions())
+    {
+        if (action->objectName() == QStringLiteral("addFriendAction") ||
+            action->objectName() == QStringLiteral("createGroupAction") ||
+            action->objectName() == QStringLiteral("joinGroupAction")) { action->setEnabled(available); }
+    }
     messages_loading_ = available && active_conversation_ > 0;
     update_compose_state();
     add_contact_button_->setEnabled(available);
@@ -1378,7 +1369,6 @@ void chat_widget::set_connection_available(bool available)
     update_pinned_message();
     update_contact_card();
     add_user_search_->setEnabled(available);
-    find_user_button_->setEnabled(available);
 }
 
 void chat_widget::set_connection_status(QString text, bool retry_enabled)
@@ -1428,7 +1418,7 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
     {
         set_list_status(QStringLiteral("暂无会话"));
         conversations_view_->setCurrentIndex({});
-        if (active_conversation_ == 0) { set_message_status(QStringLiteral("暂无会话，点击左侧「+」开始聊天")); }
+        if (active_conversation_ == 0) { set_message_status(QStringLiteral("暂无会话，可从主菜单添加联系人或新建群组")); }
         return;
     }
 
@@ -1461,7 +1451,24 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
 
 void chat_widget::set_contacts(QList<user_data> contacts)
 {
+    auto const selected = contacts_view_->currentIndex().data(user_model::id_role).toLongLong();
+    auto const scroll = contacts_view_->verticalScrollBar()->value();
     contacts_->set_users(std::move(contacts));
+    contacts_status_->setText(contacts_->rowCount() == 0
+        ? QStringLiteral("暂无联系人，可从主菜单“添加联系人”发起好友申请") : QString{});
+    if (selected > 0)
+    {
+        for (int row = 0; row < contacts_filter_->rowCount(); ++row)
+        {
+            auto const index = contacts_filter_->index(row, 0);
+            if (index.data(user_model::id_role).toLongLong() == selected)
+            {
+                contacts_view_->setCurrentIndex(index);
+                break;
+            }
+        }
+    }
+    contacts_view_->verticalScrollBar()->setValue(scroll);
     for (auto it = presence_.begin(); it != presence_.end();)
     {
         if (!is_contact(it.key()))
@@ -1521,6 +1528,8 @@ void chat_widget::set_contacts_error(QString message)
 {
     set_contacts({});
     contacts_status_->setText(std::move(message));
+    contacts_status_->setVisible(!contacts_status_->text().isEmpty());
+    update_contact_card();
 }
 
 void chat_widget::set_add_contact_search_results(QList<user_data> users)
@@ -1864,7 +1873,6 @@ void chat_widget::show_conversations_section()
     right_pages_->setCurrentIndex(0);
     sidebar_back_button_->hide();
     add_contact_button_->hide();
-    chats_actions_->show();
     update_main_menu();
     conversation_search_->setFocus();
 }
@@ -1872,7 +1880,7 @@ void chat_widget::show_conversations_section()
 void chat_widget::show_contacts_section()
 {
     section_title_->setText(QStringLiteral("联系人"));
-    section_title_->hide();
+    section_title_->show();
     conversation_search_->hide();
     contact_search_->show();
     sidebar_pages_->setCurrentIndex(1);
@@ -1880,8 +1888,8 @@ void chat_widget::show_contacts_section()
     right_pages_->setCurrentIndex(1);
     sidebar_back_button_->hide();
     add_contact_button_->show();
-    chats_actions_->hide();
     update_main_menu();
+    update_contact_card();
     contact_search_->setFocus();
 }
 
@@ -1900,8 +1908,8 @@ void chat_widget::show_add_contact_section()
     right_pages_->setCurrentIndex(1);
     sidebar_back_button_->show();
     add_contact_button_->hide();
-    chats_actions_->hide();
     update_main_menu();
+    update_contact_card();
     add_user_search_->setFocus();
 }
 
@@ -1921,33 +1929,22 @@ void chat_widget::show_new_friends_section()
     right_pages_->setCurrentIndex(1);
     sidebar_back_button_->show();
     add_contact_button_->show();
-    chats_actions_->hide();
     update_main_menu();
+    update_contact_card();
     sidebar_back_button_->setFocus();
 }
 
 void chat_widget::filter_contacts(QString const& query)
 {
-    auto const trimmed = query.trimmed();
-    find_user_button_->setText(QStringLiteral("查找用户“%1”").arg(trimmed));
-    find_user_button_->setVisible(!trimmed.isEmpty());
-    find_user_button_->setEnabled(connection_available_);
     contacts_filter_->setFilterFixedString(query);
-    contacts_filter_->setFilterCaseSensitivity(Qt::CaseInsensitive);
-
-    if (contacts_->rowCount() == 0)
+    if (contacts_->rowCount() > 0)
     {
-        contacts_status_->setText(QStringLiteral("暂无联系人，可从主菜单“新的朋友”添加好友"));
+        contacts_status_->setText(contacts_filter_->rowCount() == 0
+            ? QStringLiteral("没有匹配的联系人") : QString{});
     }
-    else if (contacts_filter_->rowCount() == 0)
-    {
-        contacts_status_->setText(QStringLiteral("没有匹配的联系人，可按 Enter 查找用户"));
-    }
-    else
-    {
-        contacts_status_->clear();
-    }
+    // With an empty model, the request result owns loading, error or empty feedback.
     contacts_status_->setVisible(!contacts_status_->text().isEmpty());
+    update_contact_card();
 }
 
 void chat_widget::search_users()
@@ -1991,8 +1988,18 @@ void chat_widget::refresh_theme()
     attachment_button_->setIcon(svg_icon(u"attach", themed("text"), QSize(22, 22)));
     emoji_button_->setIcon(svg_icon(u"emoji", themed("text"), QSize(22, 22)));
     history_button_->setIcon(svg_icon(u"history", themed("text"), QSize(22, 22)));
-    chats_actions_->setIcon(svg_icon(u"plus", themed("accent"), QSize(18, 18)));
-    find_user_button_->setIcon(svg_icon(u"search", themed("accent"), QSize(18, 18)));
+    for (auto* action : main_menu_button_->menu()->actions())
+    {
+        if (action->objectName() == QStringLiteral("addFriendAction"))
+        {
+            action->setIcon(svg_icon(u"user-plus", themed("text"), QSize(20, 20)));
+        }
+        else if (action->objectName() == QStringLiteral("createGroupAction") ||
+                 action->objectName() == QStringLiteral("joinGroupAction"))
+        {
+            action->setIcon(svg_icon(u"groups", themed("text"), QSize(20, 20)));
+        }
+    }
     add_contact_button_->setIcon(svg_icon(u"user-plus", themed("accent"), QSize(18, 18)));
     contact_placeholder_->setPixmap(svg_icon(u"contacts", themed("text_muted"), QSize(48, 48)).pixmap(48, 48));
     self_profile_action_->setIcon(avatar_icon(self_username_, 24, avatars_.image(self_user_)));
@@ -2010,9 +2017,24 @@ void chat_widget::show_contact_card(qint64 user, QString const& username)
 
 void chat_widget::update_contact_card()
 {
+    if (sidebar_pages_->currentIndex() == 1 && !is_contact(contact_card_user_))
+    {
+        contact_card_user_ = 0;
+        contact_card_username_.clear();
+    }
     if (contact_card_user_ <= 0)
     {
         contact_detail_->setCurrentIndex(0);
+        auto const page = sidebar_pages_->currentIndex();
+        contact_empty_title_->setText(page == 2 ? QStringLiteral("添加联系人")
+            : page == 3 ? QStringLiteral("新的朋友") : QStringLiteral("联系人"));
+        contact_empty_hint_->setText(page == 2
+            ? QStringLiteral("在左侧按用户名查找用户，发送好友申请。")
+            : page == 3
+                ? QStringLiteral("在左侧处理收到的好友申请，或查看已发送的申请。")
+                : contacts_->rowCount() > 0
+                    ? QStringLiteral("从左侧选择好友查看资料，或双击进入聊天。")
+                    : contacts_status_->text());
         return;
     }
     contact_card_avatar_->setPixmap(avatar_icon(contact_card_username_, 88, avatars_.image(contact_card_user_)).pixmap(88, 88));
@@ -2202,15 +2224,6 @@ void chat_widget::show_loading_status()
 {
     set_message_status({});
     loading_status_timer_->start();
-}
-
-void chat_widget::find_user()
-{
-    auto const query = contact_search_->text().trimmed();
-    if (query.isEmpty() || !connection_available_) { return; }
-    show_add_contact_section();
-    add_user_search_->setText(query);
-    search_users();
 }
 
 // The icon opens New friends from Contacts and finds new people from New friends.
@@ -2446,7 +2459,7 @@ void chat_widget::close_conversation(qint64 conversation)
     attachment_button_->setEnabled(false);
     chat_more_button_->setEnabled(false);
     set_message_status(conversations_->rowCount() == 0
-        ? QStringLiteral("暂无会话，点击左侧「+」开始聊天") : QStringLiteral("选择一个会话开始聊天"));
+        ? QStringLiteral("暂无会话，可从主菜单添加联系人或新建群组") : QStringLiteral("选择一个会话开始聊天"));
 }
 
 void chat_widget::update_pinned_message()
