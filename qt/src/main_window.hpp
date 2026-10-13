@@ -8,6 +8,7 @@
 #include <QStringList>
 #if defined(Q_OS_LINUX)
 #include <QSet>
+#include <QAbstractNativeEventFilter>
 #endif
 #include "message_data.hpp"
 
@@ -29,6 +30,9 @@ class title_bar;
 class client_bridge;
 
 class main_window final : public QMainWindow
+#if defined(Q_OS_LINUX)
+    , private QAbstractNativeEventFilter
+#endif
 {
     Q_OBJECT
    public:
@@ -42,6 +46,9 @@ class main_window final : public QMainWindow
     void changeEvent(QEvent* event) override;
     void closeEvent(QCloseEvent* event) override;
     bool eventFilter(QObject* object, QEvent* event) override;
+#if defined(Q_OS_LINUX)
+    bool nativeEventFilter(QByteArray const& event_type, void* message, qintptr* result) override;
+#endif
 
    private slots:
 #if defined(Q_OS_LINUX)

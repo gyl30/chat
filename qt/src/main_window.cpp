@@ -36,9 +36,11 @@
 #if defined(Q_OS_LINUX)
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
+#include <QDBusServiceWatcher>
 #include <QDBusMessage>
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
+#include <xcb/xcb.h>
 #endif
 
 #include "avatar.hpp"
@@ -331,7 +333,11 @@ main_window::main_window(QString server_url, QWidget* parent)
     connect(restore_action, &QAction::triggered, this, restore);
     auto* quit = tray_menu->addAction(QStringLiteral("退出 Chat"));
     quit->setObjectName(QStringLiteral("trayQuitAction"));
-    connect(quit, &QAction::triggered, qApp, &QCoreApplication::quit);
+    connect(quit, &QAction::triggered, this, [this] {
+        // Explicit Quit must not be cancelled by QApplication closing its windows to the tray.
+        close_to_tray_ = false;
+        qApp->quit();
+    });
     tray_->setContextMenu(tray_menu);
     connect(tray_, &QSystemTrayIcon::messageClicked, this, restore);
     connect(tray_, &QSystemTrayIcon::activated, this, [restore](QSystemTrayIcon::ActivationReason reason) {
@@ -1076,6 +1082,15 @@ main_window::main_window(QString server_url, QWidget* parent)
         title_bar_->refresh_theme();
         chat_page_->refresh_theme();
     });
+#if defined(Q_OS_LINUX)
+    qApp->installNativeEventFilter(this);
+    auto* tray_watcher = new QDBusServiceWatcher(QStringLiteral("org.kde.StatusNotifierWatcher"),
+        QDBusConnection::sessionBus(), QDBusServiceWatcher::WatchForUnregistration, this);
+    connect(tray_watcher, &QDBusServiceWatcher::serviceUnregistered, this, [this] {
+        // The active SNI host is gone even if a separate XEmbed host remains available.
+        if (!isVisible() && pages_->currentWidget() == chat_page_) { restore_window(); }
+    }, Qt::QueuedConnection);
+#endif
     username_edit_->ensurePolished();
     username_edit_->setFont(emoji_input_font(username_edit_->font()));
     registration_username_edit_->ensurePolished();
@@ -1171,6 +1186,26 @@ bool main_window::eventFilter(QObject* object, QEvent* event)
     return QMainWindow::eventFilter(object, event);
 }
 
+#if defined(Q_OS_LINUX)
+bool main_window::nativeEventFilter(QByteArray const& event_type, void* message, qintptr*)
+{
+    if (event_type == "xcb_generic_event_t" &&
+        (static_cast<xcb_generic_event_t*>(message)->response_type & 0x7f) == XCB_DESTROY_NOTIFY &&
+        !isVisible() && pages_->currentWidget() == chat_page_)
+    {
+        // Qt updates its tray tracker after native filters run; observe availability after dispatch.
+        QMetaObject::invokeMethod(this, [this] {
+            if (!isVisible() && pages_->currentWidget() == chat_page_ &&
+                !QSystemTrayIcon::isSystemTrayAvailable())
+            {
+                restore_window();
+            }
+        }, Qt::QueuedConnection);
+    }
+    return false;
+}
+#endif
+
 void main_window::place_resize_grips()
 {
     auto const border = chat_theme::window_resize_border;
@@ -1192,7 +1227,14 @@ void main_window::place_resize_grips()
     }
 }
 
-main_window::~main_window() { clear_desktop_notifications(); client_.reset(); }
+main_window::~main_window()
+{
+#if defined(Q_OS_LINUX)
+    qApp->removeNativeEventFilter(this);
+#endif
+    clear_desktop_notifications();
+    client_.reset();
+}
 
 QStringList main_window::recent_accounts() const
 {

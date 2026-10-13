@@ -50,6 +50,10 @@
 #include <QScrollBar>
 #include <QScrollArea>
 #include <QSystemTrayIcon>
+#if defined(Q_OS_LINUX)
+#include <QAbstractEventDispatcher>
+#include <xcb/xcb.h>
+#endif
 #include <QStyle>
 #include <QStyleHints>
 #include <QStyleOptionButton>
@@ -3181,6 +3185,41 @@ void check_settings_persistence_and_pages()
         dialog->reject();
         QCloseEvent event; event.ignore(); QApplication::sendEvent(&restored, &event);
         check(event.isAccepted(), "The login window accepts normal close even with a stored tray preference");
+#if defined(Q_OS_LINUX)
+        if (!QSystemTrayIcon::isSystemTrayAvailable())
+        {
+            auto dispatch_host_loss = [] {
+                xcb_destroy_notify_event_t destroyed{};
+                destroyed.response_type = XCB_DESTROY_NOTIFY;
+                qintptr result = 0;
+                QAbstractEventDispatcher::instance()->filterNativeEvent("xcb_generic_event_t", &destroyed, &result);
+                QCoreApplication::sendPostedEvents(nullptr, QEvent::MetaCall);
+                QApplication::processEvents();
+            };
+            restored.hide();
+            dispatch_host_loss();
+            check(!restored.isVisible(), "A native tray-host change cannot reopen the hidden login page");
+            auto* chat = restored.findChild<chat_widget*>();
+            auto* stack = qobject_cast<QStackedWidget*>(chat->parentWidget());
+            check(stack, "The deterministic tray fixture reuses the existing authenticated UI stack");
+            stack->setCurrentWidget(chat);
+            restored.showNormal();
+            QApplication::processEvents();
+            dispatch_host_loss();
+            check(restored.isVisible(), "Host loss leaves an already visible authenticated window usable");
+            auto* composer = restored.findChild<QPlainTextEdit*>("messageEdit");
+            QString const draft = QStringLiteral("托盘恢复保留草稿 中文 🙂");
+            composer->setPlainText(draft);
+            restored.showMaximized();
+            QApplication::processEvents();
+            restored.hide();
+            dispatch_host_loss();
+            check(restored.isVisible() && restored.isMaximized(),
+                  "A hidden authenticated window becomes accessible and keeps its maximized state when its tray host disappears");
+            check(composer->toPlainText() == draft && QSettings().value("window/close_behavior").toString() == QStringLiteral("tray"),
+                  "Host-loss recovery preserves the existing composer and saved close preference");
+        }
+#endif
     }
     {
         auto const organization = QCoreApplication::organizationName(), application = QCoreApplication::applicationName();
