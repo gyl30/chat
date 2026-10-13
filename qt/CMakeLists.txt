@@ -116,7 +116,9 @@ add_executable(chat_qt_ui_test tests/ui_test.cpp)
 target_include_directories(chat_qt_ui_test PRIVATE src)
 target_link_libraries(chat_qt_ui_test PRIVATE chat_qt_widgets PostgreSQL::PostgreSQL)
 add_test(NAME qt_widgets COMMAND chat_qt_ui_test --widgets-only)
-set_tests_properties(qt_widgets PROPERTIES TIMEOUT 60 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+# Message-box wrapping depends on screen width; exercise a desktop-sized screen.
+set_tests_properties(qt_widgets PROPERTIES TIMEOUT 60
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen:configfile=${CMAKE_CURRENT_SOURCE_DIR}/tests/offscreen-desktop.json")
 add_test(NAME qt_ui COMMAND chat_qt_ui_test $<TARGET_FILE:chat_server> "${CMAKE_CURRENT_BINARY_DIR}")
 set_tests_properties(qt_ui PROPERTIES TIMEOUT 60 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 

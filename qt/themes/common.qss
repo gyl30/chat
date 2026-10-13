@@ -205,10 +205,6 @@ QMainWindow {
             padding: 0 8px;
         }
         QLabel#groupSelectedCount, QLabel#groupNamingSummary { color: ${text_secondary}; font-size: 13px; }
-        QDialog#confirmationDialog QLabel#qt_msgbox_label {
-            min-width: 340px;
-            max-width: 430px;
-        }
         QDialog#confirmationDialog QPushButton#confirmationActionButton {
             background: ${danger};
             color: ${on_accent};

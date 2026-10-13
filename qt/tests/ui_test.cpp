@@ -1629,37 +1629,79 @@ void check_profile_layout()
 
 void check_confirmation_dialogs()
 {
-    QWidget parent;
-    parent.setStyleSheet(chat_style_sheet());
-    parent.show();
-    for (auto const& action : {QStringLiteral("删除"), QStringLiteral("移除联系人"), QStringLiteral("退出登录"),
-                              QStringLiteral("转让群主"), QStringLiteral("移除成员"), QStringLiteral("退出群聊")})
+    QWidget parent; parent.show();
+    auto& themes = theme_manager::instance(); auto const original_appearance = themes.appearance();
+    auto const shots = qEnvironmentVariable("CHAT_THEME_SHOTS");
+    for (auto const appearance : {chat_appearance::light, chat_appearance::dark})
     {
-        for (int choice = 0; choice < 4; ++choice)
+        themes.set_appearance(appearance); parent.setStyleSheet(chat_style_sheet());
+        for (auto const& action : {QStringLiteral("删除"), QStringLiteral("移除联系人"), QStringLiteral("退出登录"),
+                                  QStringLiteral("转让群主"), QStringLiteral("移除成员"), QStringLiteral("退出群聊")})
         {
-            QTimer::singleShot(0, [&] {
-                auto* dialog = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
-                check(dialog && dialog->objectName() == "confirmationDialog", "Shared confirmation remains a real message box");
-                check(dialog->icon() == QMessageBox::NoIcon && dialog->textFormat() == Qt::PlainText,
-                    "Confirmation does not add a platform icon or interpret user identity as markup");
-                check(dialog->button(QMessageBox::Yes)->text() == action &&
-                    dialog->button(QMessageBox::No)->text() == QStringLiteral("取消"), "Confirmation names both decisions");
-                check(dialog->defaultButton() == dialog->button(QMessageBox::No) &&
-                    dialog->escapeButton() == dialog->button(QMessageBox::No), "Dangerous actions default to cancellation");
-                for (auto* button : dialog->buttons()) { check(button->icon().isNull(), "Confirmation buttons have no platform icons"); }
-                if (choice < 2)
-                {
-                    QKeyEvent key(QEvent::KeyPress, choice == 0 ? Qt::Key_Return : Qt::Key_Escape, Qt::NoModifier);
-                    QApplication::sendEvent(dialog, &key);
-                }
-                else if (choice == 2) { dialog->close(); }
-                else { dialog->button(QMessageBox::Yes)->click(); }
-            });
-            check(confirm_action(&parent, action, QStringLiteral("测试用户 <b>张三😀</b> 的操作后果"), action) == (choice == 3),
-                "Enter, Escape and closing cancel; only an explicit positive selection confirms");
+            for (int choice = 0; choice < 4; ++choice)
+            {
+                auto const body = choice == 0 ? QStringLiteral("测试用户 <b>张三😀</b> 的操作后果") :
+                    QStringLiteral("删除与 %1 的好友关系？双方将无法继续发送新消息，聊天记录和群成员资格会保留。")
+                        .arg(choice == 1 ? QStringLiteral("好友A") : QString(64, QChar('W')));
+                bool geometry_fits = true;
+                QTimer::singleShot(0, [&] {
+                    auto* dialog = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+                    check(dialog && dialog->objectName() == "confirmationDialog", "Shared confirmation remains a real message box");
+                    check(dialog->icon() == QMessageBox::NoIcon && dialog->textFormat() == Qt::PlainText,
+                        "Confirmation does not add a platform icon or interpret user identity as markup");
+                    auto* confirm = dialog->button(QMessageBox::Yes); auto* cancel = dialog->button(QMessageBox::No);
+                    check(confirm->text() == action && cancel->text() == QStringLiteral("取消"), "Confirmation names both decisions");
+                    check(dialog->defaultButton() == cancel && dialog->escapeButton() == cancel,
+                          "Dangerous actions default to cancellation");
+                    auto* label = dialog->findChild<QLabel*>("qt_msgbox_label");
+                    check(label && label->isVisible() && label->text() == body,
+                          "The real message box shows the complete literal Chinese consequence and user identity");
+                    QRect const body_rect(label->mapTo(dialog, QPoint{}), label->size());
+                    int const required_height = std::max(QFontMetrics(label->font()).height(), label->heightForWidth(label->width()));
+                    bool fits = dialog->rect().contains(body_rect) && label->height() >= required_height &&
+                        (label->wordWrap() || QFontMetrics(label->font()).horizontalAdvance(body) <= label->contentsRect().width());
+                    for (auto* button : dialog->buttons())
+                    {
+                        check(button->icon().isNull(), "Confirmation buttons have no platform icons");
+                        QRect const button_rect(button->mapTo(dialog, QPoint{}), button->size());
+                        QStyleOptionButton option; option.initFrom(button); option.text = button->text();
+                        auto const contents = button->style()->subElementRect(QStyle::SE_PushButtonContents, &option, button);
+                        fits = fits && button->isVisible() && dialog->rect().contains(button_rect) && !button_rect.intersects(body_rect) &&
+                            contents.width() >= QFontMetrics(button->font()).horizontalAdvance(button->text()) &&
+                            contents.height() >= QFontMetrics(button->font()).height();
+                    }
+                    fits = fits && !QRect(confirm->mapTo(dialog, QPoint{}), confirm->size())
+                        .intersects(QRect(cancel->mapTo(dialog, QPoint{}), cancel->size()));
+                    if (!shots.isEmpty() && ((!fits) || (action == QStringLiteral("移除联系人") && choice < 2)))
+                        dialog->grab().save(shots + QStringLiteral("/confirmation-%1-%2.png")
+                            .arg(appearance == chat_appearance::dark ? QStringLiteral("midnight") : QStringLiteral("daylight")).arg(choice));
+                    if (!fits)
+                        std::cerr << "Confirmation geometry action=" << action.toStdString() << " choice=" << choice
+                                  << " theme=" << int(appearance) << " dialog=" << dialog->width() << 'x' << dialog->height()
+                                  << " body=" << body_rect.x() << ',' << body_rect.y() << ',' << body_rect.width() << ',' << body_rect.height()
+                                  << " required_height=" << required_height << " word_wrap=" << label->wordWrap()
+                                  << " natural_width=" << QFontMetrics(label->font()).horizontalAdvance(body)
+                                  << " contents_width=" << label->contentsRect().width()
+                                  << " confirm=" << confirm->width() << 'x' << confirm->height()
+                                  << " cancel=" << cancel->width() << 'x' << cancel->height() << '\n';
+                    geometry_fits = fits;
+                    if (!fits) { cancel->click(); return; }
+                    if (choice < 2)
+                    {
+                        QKeyEvent key(QEvent::KeyPress, choice == 0 ? Qt::Key_Return : Qt::Key_Escape, Qt::NoModifier);
+                        QApplication::sendEvent(dialog, &key);
+                    }
+                    else if (choice == 2) { dialog->close(); }
+                    else { confirm->click(); }
+                });
+                auto const approved = confirm_action(&parent, action, body, action);
+                check(geometry_fits, "The real confirmation body and named buttons fit their painted geometry without clipping or overlap");
+                check(approved == (choice == 3), "Enter, Escape and closing cancel; only an explicit positive selection confirms");
+            }
         }
     }
-    std::cout << "PASS Qt named confirmation actions and safe keyboard defaults\n";
+    themes.set_appearance(original_appearance);
+    std::cout << "PASS Qt real Chinese confirmation geometry and named actions with safe keyboard defaults in both themes\n";
 }
 
 void check_message_editor()
