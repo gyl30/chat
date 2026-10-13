@@ -45,3 +45,17 @@ CMake 还链接本机安装的 **Boost 1.92.0、OpenSSL、PostgreSQL/libpq、lib
 分发产物时需记录实际软件包版本，并保留所用发行包附带的许可及版权文件。
 Qt 的具体模块、构建和许可选择取决于所用 Qt 发行包；本项目不替使用者指定许可选项。
 TLS 证书测试额外调用 OpenSSL 命令行程序。
+
+## 可选 Fcitx5 Qt6 输入法插件
+
+Linux 原生输入法集成可单独部署 [fcitx5-qt](https://github.com/fcitx/fcitx5-qt)
+的 Qt6 platform input context plugin；它不属于 Chat 源码、子模块或编译依赖，
+预编译插件不提交到本仓库。Qt 6.5.3 已验证的来源为 tag `5.0.10`，提交
+`814bc3980fa4f1e0451242c723b437459f82f8cb`，`BUILD_ONLY_PLUGIN=ON`。
+
+上游按源文件 SPDX 标记许可；该构建包含 BSD-3-Clause 和 LGPL-2.1-or-later 声明，
+分发时保留上游 `LICENSES/BSD-3-Clause.txt`、`LICENSES/LGPL-2.1-or-later.txt`
+及相应源文件版权声明，并按适用许可履行源代码等分发义务。不能把整个插件仅标为 BSD。
+plugin-only 构建静态整合上游 DBusAddons，声明也覆盖这些编入组件。
+Fcitx5 daemon 是系统提供的独立运行服务，并未被 Chat 安装或打包。
+Qt 自身和动态运行库的许可义务仍按上文所用发行包处理。

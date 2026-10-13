@@ -7,7 +7,7 @@ C++ 聊天服务器、共享客户端 SDK、Qt Widgets 桌面客户端和 FTXUI 
 
 需要 CMake 3.30+、支持 C++26 `-freflection` 的 GCC 16、**Boost 1.92.0**
 CMake package，以及 OpenSSL、PostgreSQL/libpq、libpng、libjpeg 开发包。
-Qt 客户端需要 Qt 6.5+ Widgets/Svg；TUI 使用仓库固定的 FTXUI 子模块。
+Qt 客户端需要 Qt 6.5+ Widgets/Svg（Linux 还需要 DBus）；TUI 使用仓库固定的 FTXUI 子模块。
 Qt/TUI 构建还会下载固定版本的 Unicode 依赖，Qt 另下载 emoji-segmenter；
 离线配置见 [共享 Unicode 依赖](cmake/README.md)。
 
@@ -20,6 +20,83 @@ cmake --build build -j12
 
 首次配置可用 `CC` / `CXX` 选择编译器，用 `CMAKE_PREFIX_PATH` 指定非默认
 Boost/Qt 安装目录。当前经过验证的具体工具链见 [完整验证说明](docs/verification.md)。
+
+## 安装与独立运行
+
+标准安装包含已启用的客户端、服务端和 Qt 主题：
+
+```sh
+cmake --build build -j4
+chat_prefix="$HOME/.local/chat"
+cmake --install build --prefix "$chat_prefix"
+cd /tmp
+"$chat_prefix/bin/chat_server" 18080 32 8
+# 在其他终端启动客户端：
+"$chat_prefix/bin/chat_tui" ws://127.0.0.1:18080/ws
+"$chat_prefix/bin/chat_qt" ws://127.0.0.1:18080/ws
+```
+
+默认目录布局为 `bin/chat_server`、`bin/chat_tui`、`bin/chat_qt` 和
+`share/chat/themes/{common.qss,daylight.qss,daylight.json,midnight.qss,midnight.json}`。
+Qt/TUI 关闭构建时不安装对应客户端。Qt 从可执行程序位置相对查找主题，SVG 图标编入
+程序，不需要源码、构建目录或特定工作目录。用户主题覆盖仍在 Qt 用户配置目录下。
+安装不创建数据库、不执行迁移；启动前仍需按下一节准备数据库和 libpq 连接配置。
+
+这是**依赖宿主运行库的安装**，不是自包含包。运行库包括匹配的 GCC 16 libstdc++、
+Boost 1.92.0、OpenSSL，以及服务器使用的 libpq/libpng/libjpeg；Qt 客户端还需要与
+构建版本兼容的 Qt Core/Gui/Widgets/Svg/DBus、XCB 平台插件和其图形系统依赖。
+Qt SDK 只提供库和插件时，不要求运行机器重新安装编译器或开发头文件。
+系统有较旧 Qt 库并不代表满足这些要求。
+
+安装目标保留 CMake 发现的外部链接目录作为 RUNPATH；不引用项目源码/构建产物。
+使用非系统 Qt SDK 构建时，它的运行库和平台插件仍是外部依赖，该 SDK 路径需要继续
+存在。整体移动安装前缀时，主题随前缀移动，无需修改路径；外部运行库不会自动
+打包或重定位。
+如更换运行库位置，按新依赖位置重新配置并安装；部署者也可使用标准
+`CMAKE_INSTALL_RPATH` 指定优先路径，自动保留的外部链接目录仍会追加。不要用
+指向构建产物的 `LD_LIBRARY_PATH` 掩盖缺少依赖。Linux 可用 `readelf -d`、`ldd`、`ldd -r` 核对每个安装程序。
+
+### Linux 原生 Fcitx5 Qt6 插件
+
+Fcitx5 输入法是可选运行集成，不是 Chat 编译依赖。Qt5 插件不能给 Qt6 使用。
+`QT_IM_MODULE=fcitx` 需要匹配当前 Qt SDK 的
+`libfcitx5platforminputcontextplugin.so`；标准 Chat install 不会从开发机自动搜集它。
+有已经验证、匹配此 Qt 版本的插件时，单独部署到可执行程序旁：
+
+```sh
+install -Dm755 /path/to/verified/libfcitx5platforminputcontextplugin.so \
+    "$chat_prefix/bin/platforminputcontexts/libfcitx5platforminputcontextplugin.so"
+QT_IM_MODULE=fcitx "$chat_prefix/bin/chat_qt" ws://127.0.0.1:18080/ws
+```
+
+无需设置 `QT_PLUGIN_PATH`，不覆盖系统 Qt5 插件或修改 SDK。用于本机 Qt 6.5.3 的
+已验证构建来自上游 [fcitx5-qt 5.0.10](https://github.com/fcitx/fcitx5-qt/tree/5.0.10)，
+提交 `814bc3980fa4f1e0451242c723b437459f82f8cb`。重新构建的最小流程：
+
+```sh
+# 在 Chat 工作区外，qt_prefix 指向实际 Qt SDK。
+qt_prefix=/path/to/qt-sdk
+plugin_source=/path/to/fcitx5-qt
+plugin_build=/path/to/fcitx5-qt-build
+# 获取官方 tag 5.0.10；需 ECM、XCB/XKBCommon/X11 开发依赖及此 SDK 的 GuiPrivate。
+cmake -S "$plugin_source" -B "$plugin_build" -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_PREFIX_PATH="$qt_prefix" \
+    -DENABLE_QT4=OFF -DENABLE_QT5=OFF -DENABLE_QT6=ON \
+    -DBUILD_ONLY_PLUGIN=ON \
+    -DCMAKE_INSTALL_PREFIX="$chat_prefix" \
+    -DCMAKE_INSTALL_QT6PLUGINDIR="$chat_prefix/bin"
+cmake --build "$plugin_build" -j4
+cmake --install "$plugin_build"
+```
+
+ECM 可来自已安装开发包或工作区外的原包解压目录（用 `ECM_DIR` 指定）；不必安装整套
+系统 Qt。此模式静态整合上游 DBusAddons，无需额外复制 Fcitx Qt 运行库。插件使用 Qt
+私有 API，换 Qt minor 版本后必须重新核对兼容性。分发插件时同时保留上游完整许可与
+版权声明，见 [THIRD_PARTY.md](THIRD_PARTY.md)。
+
+验证时使用真实 Fcitx5 daemon 和图形会话：`QT_DEBUG_PLUGINS=1 QT_IM_MODULE=fcitx`
+日志必须显示该原生 `.so` 实际加载，并通过真实拼音候选和发送测试；只发现 metadata、
+加载 Compose 或改为 IBus 不算原生 Fcitx 验收。
 
 ## 数据库与启动
 

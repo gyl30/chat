@@ -39,3 +39,20 @@ tests/verify.sh
 当前没有接入远端 CI。Qt offscreen 和 PostgreSQL service 可在 hosted runner 上使用，主要缺口是经过项目完整验证的工具链分发：本机使用经过验证的 GCC 16 构建和自行安装的 Boost 1.92，仓库还没有可复用的固定工具链镜像或安装基线。[GCC 官方](https://gcc.gnu.org/gcc-16/changes.html) 已记录反射支持，但 C++26 支持仍属实验能力；[Ubuntu 24.04 runner 清单](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md) 的预装 GCC 最高为 14，不能直接构建当前项目。Boost 1.92 已有[官方发布](https://www.boost.org/releases/1.92.0/)，不能用 runner 自带的旧版本替代。
 
 本阶段先保留已经实际跑通的本地入口，不提交依赖滚动 PPA 或未经验证编译器组合的 workflow。以后若建立固定且可复现的 GCC/Boost 获取方式，CI 应使用 PostgreSQL service 初始化空测试库并调用同一入口，保持服务器、Qt 和 sanitizer 全部测试；不以删测试或关闭静态反射来迁就 runner。
+
+## 独立安装验收
+
+启用所需客户端构建后，用 `cmake --install build --prefix <独立目录>` 验证安装，
+不要只检查构建树可运行。默认应有三个 `bin/chat_*` 和五个 `share/chat/themes` 文件；
+关闭 Qt/TUI 时对应目标不安装。原生 Fcitx5 Qt6 插件作为 README 描述的独立部署步骤。
+
+从源码/构建目录外启动安装程序，清除开发环境的 `LD_LIBRARY_PATH`、`QT_PLUGIN_PATH`
+和平台插件路径覆盖；保留正常桌面会话、隔离测试库的 libpq 配置和 WSS 所需的有效信任库。
+记录 `ldd`、`ldd -r`、`readelf -d` 与实际进程加载位置。外部 SDK 的运行库/插件仍须存在，
+不得将普通 CMake install 描述为自包含包。Qt 主题应来自安装目录，SVG 来自内置资源。
+
+用真实安装版 Qt/X11、TUI/PTY 或 tmux及安装版服务器验证 WS/WSS 基本收发、亮暗主题、
+原生 Fcitx 候选与两种发送键。仅夹具建立/最终事实检查可复用 SDK/SQL；被测消息通过原生
+客户端操作。使用专用测试数据库与临时证书，不修改业务库、系统输入法或 Qt SDK。
+记录失败、修复、进程退出及资源清理。安装规则改变时保留原有 Normal/sanitizer 回归；
+仅外部插件复制无需重复执行全部服务器测试。
