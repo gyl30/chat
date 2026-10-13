@@ -1,4 +1,3 @@
-include(GNUInstallDirs)
 find_package(Qt6 6.5 REQUIRED COMPONENTS Svg Widgets)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_package(Qt6 6.5 REQUIRED COMPONENTS DBus)
@@ -144,6 +143,7 @@ file(RELATIVE_PATH chat_installed_themes
      "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
      "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/chat/themes")
 target_compile_definitions(chat_qt_widgets PRIVATE CHAT_QT_INSTALLED_THEMES="${chat_installed_themes}")
+set_target_properties(chat_qt PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 install(TARGETS chat_qt RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 foreach(theme_file IN LISTS chat_theme_files)
     install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/themes/${theme_file}"

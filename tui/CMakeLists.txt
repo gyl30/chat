@@ -7,7 +7,10 @@ include(cmake/ftxui_unicode.cmake)
 
 add_executable(chat_tui src/main.cpp)
 target_link_libraries(chat_tui PRIVATE chat_tui_ui)
-set_target_properties(chat_tui PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}")
+set_target_properties(chat_tui PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+    INSTALL_RPATH_USE_LINK_PATH TRUE)
+install(TARGETS chat_tui RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
 add_executable(chat_tui_render_test tests/render_test.cpp)
 target_link_libraries(chat_tui_render_test PRIVATE chat_tui_ui)
