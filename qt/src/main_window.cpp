@@ -62,9 +62,9 @@ namespace
 auto const notification_service = QStringLiteral("org.freedesktop.Notifications");
 auto const notification_path = QStringLiteral("/org/freedesktop/Notifications");
 
-void close_desktop_notification(uint id)
+void close_desktop_notification(QString const& owner, uint id)
 {
-    auto message = QDBusMessage::createMethodCall(notification_service, notification_path,
+    auto message = QDBusMessage::createMethodCall(owner, notification_path,
         notification_service, QStringLiteral("CloseNotification"));
     message << id;
     QDBusConnection::sessionBus().asyncCall(message);
@@ -351,6 +351,21 @@ main_window::main_window(QString server_url, QWidget* parent)
         this, SLOT(desktop_notification_activated(uint,QString)));
     bus.connect(notification_service, notification_path, notification_service, QStringLiteral("NotificationClosed"),
         this, SLOT(desktop_notification_closed(uint,uint)));
+    auto* notification_watcher = new QDBusServiceWatcher(notification_service, bus,
+        QDBusServiceWatcher::WatchForOwnerChange, this);
+    connect(notification_watcher, &QDBusServiceWatcher::serviceOwnerChanged, this,
+        [this](QString const&, QString const& old_owner, QString const&) {
+            if (desktop_notification_owner_ == old_owner)
+            {
+                desktop_notification_ids_.clear();
+                desktop_notification_owner_.clear();
+            }
+            for (auto* pending : findChildren<QDBusPendingCallWatcher*>(QStringLiteral("desktopNotificationPending"),
+                Qt::FindDirectChildrenOnly))
+            {
+                if (pending->property("notificationOwner").toString() == old_owner) { pending->setProperty("cancelled", true); }
+            }
+        });
 #endif
     connect(chat_page_, &chat_widget::read_requested, client_.get(), &client_bridge::mark_read);
     connect(chat_page_, &chat_widget::mute_requested, client_.get(), &client_bridge::set_conversation_muted);
@@ -1133,6 +1148,7 @@ void main_window::show_settings()
         });
         connect(settings_, &settings_dialog::message_preview_changed, this, [this](bool enabled) {
             message_preview_ = enabled;
+            if (!enabled) { clear_desktop_notifications(); }
             save_setting(QStringLiteral("notifications/show_preview"), enabled);
         });
         connect(settings_, &settings_dialog::control_enter_changed, this, [this](bool enabled) {
@@ -1297,9 +1313,10 @@ void main_window::show_desktop_notification(QString const& title, QString const&
 {
 #if defined(Q_OS_LINUX)
     auto bus = QDBusConnection::sessionBus();
-    if (bus.interface() && bus.interface()->isServiceRegistered(notification_service))
+    auto const owner = bus.interface() ? bus.interface()->serviceOwner(notification_service).value() : QString();
+    if (!owner.isEmpty())
     {
-        auto message = QDBusMessage::createMethodCall(notification_service, notification_path,
+        auto message = QDBusMessage::createMethodCall(owner, notification_path,
             notification_service, QStringLiteral("Notify"));
         QVariantMap hints{{QStringLiteral("urgency"), QVariant::fromValue(uchar(1))}};
         message << QCoreApplication::applicationName() << uint(0) << QStringLiteral("dialog-information")
@@ -1307,17 +1324,22 @@ void main_window::show_desktop_notification(QString const& title, QString const&
             << hints << 10000;
         auto* pending = new QDBusPendingCallWatcher(bus.asyncCall(message), this);
         pending->setObjectName(QStringLiteral("desktopNotificationPending"));
-        connect(pending, &QDBusPendingCallWatcher::finished, this, [this, pending] {
+        pending->setProperty("notificationOwner", owner);
+        connect(pending, &QDBusPendingCallWatcher::finished, this, [this, pending, owner] {
             QDBusPendingReply<uint> reply = *pending;
             pending->deleteLater();
             if (reply.isError()) { qWarning() << "Desktop notification delivery failed:" << reply.error().name(); return; }
             auto const id = reply.value();
-            if (pending->property("cancelled").toBool() || !desktop_notifications_ ||
+            auto const bus = QDBusConnection::sessionBus();
+            auto const current_owner = bus.interface() ? bus.interface()->serviceOwner(notification_service).value() : QString();
+            if (current_owner != owner || pending->property("cancelled").toBool() || !desktop_notifications_ ||
                 pages_->currentWidget() != chat_page_ || chat_page_->self_user() == 0)
             {
-                close_desktop_notification(id);
+                close_desktop_notification(owner, id);
                 return;
             }
+            if (desktop_notification_owner_ != owner) { desktop_notification_ids_.clear(); }
+            desktop_notification_owner_ = owner;
             desktop_notification_ids_.insert(id);
         });
         return;
@@ -1332,7 +1354,8 @@ void main_window::show_desktop_notification(QString const& title, QString const&
 void main_window::clear_desktop_notifications()
 {
 #if defined(Q_OS_LINUX)
-    for (auto id : std::exchange(desktop_notification_ids_, {})) { close_desktop_notification(id); }
+    auto const owner = std::exchange(desktop_notification_owner_, {});
+    for (auto id : std::exchange(desktop_notification_ids_, {})) { close_desktop_notification(owner, id); }
     for (auto* pending : findChildren<QDBusPendingCallWatcher*>(QStringLiteral("desktopNotificationPending"),
         Qt::FindDirectChildrenOnly)) { pending->setProperty("cancelled", true); }
 #endif
@@ -1341,7 +1364,9 @@ void main_window::clear_desktop_notifications()
 #if defined(Q_OS_LINUX)
 void main_window::desktop_notification_activated(uint id, QString const& action)
 {
-    if (desktop_notification_ids_.contains(id) && action == QStringLiteral("default") &&
+    auto const bus = QDBusConnection::sessionBus();
+    auto const owner = bus.interface() ? bus.interface()->serviceOwner(notification_service).value() : QString();
+    if (owner == desktop_notification_owner_ && desktop_notification_ids_.contains(id) && action == QStringLiteral("default") &&
         desktop_notifications_ && pages_->currentWidget() == chat_page_ && chat_page_->self_user() != 0)
     {
         restore_window();

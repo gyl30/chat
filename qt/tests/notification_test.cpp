@@ -4,6 +4,9 @@
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusArgument>
+#include <QDBusConnectionInterface>
+#include <QDBusPendingCallWatcher>
+#include <QDBusPendingReply>
 #include <QDBusVirtualObject>
 #include <QElapsedTimer>
 #include <QMessageBox>
@@ -166,7 +169,42 @@ int main(int argc, char* argv[])
         wait([&] { return window.findChildren<QObject*>(QStringLiteral("desktopNotificationPending")).isEmpty(); }, "New valid notification remains functional");
         window.hide(); service.action(service.last_id, QStringLiteral("default"));
         wait([&] { return window.isVisible(); }, "New session default activation is accepted");
-        check(connection.unregisterService(service_name), "Notification fixture service stops");
+        bool const pending_owner = application.arguments().contains(QStringLiteral("--pending-owner-reset"));
+        auto const stale_id = service.last_id + uint(pending_owner);
+        if (pending_owner)
+        {
+            service.defer = true;
+            notice(QStringLiteral("pending reply from old daemon"));
+            window.findChild<QAction*>("showSettingsAction")->trigger();
+            window.findChild<QPushButton*>("settingsNotificationsButton")->click();
+            window.findChild<QCheckBox*>("settingsDesktopNotifications")->click();
+            window.findChild<QCheckBox*>("settingsDesktopNotifications")->click();
+            window.findChild<QDialog*>("settingsDialog")->reject();
+        }
+        check(connection.unregisterService(service_name), "Old notification daemon stops without sending close signals");
+        auto replacement_connection = QDBusConnection::connectToBus(QString::fromLocal8Bit(qgetenv("DBUS_SESSION_BUS_ADDRESS")), QStringLiteral("notification-test-replacement"));
+        notification_service replacement(replacement_connection);
+        replacement.last_id = stale_id - 1;
+        check(replacement_connection.registerService(service_name) && replacement_connection.registerVirtualObject(service_path, &replacement), "New daemon registers with a different unique owner");
+        check(replacement_connection.baseService() != connection.baseService(), "Daemon owners are distinct");
+        auto foreign = QDBusMessage::createMethodCall(service_name, service_path, service_name, QStringLiteral("Notify"));
+        foreign << QStringLiteral("Other application") << uint(0) << QString() << QStringLiteral("Unrelated notification") << QStringLiteral("Other content")
+            << QStringList{QStringLiteral("default"), QStringLiteral("Open other application")} << QVariantMap{} << 10000;
+        auto other_connection = QDBusConnection::connectToBus(QString::fromLocal8Bit(qgetenv("DBUS_SESSION_BUS_ADDRESS")), QStringLiteral("notification-test-other-app"));
+        QDBusPendingCallWatcher other_notice(other_connection.asyncCall(foreign));
+        wait([&] { return other_notice.isFinished(); }, "Other application receives its replacement-daemon ID");
+        QDBusPendingReply<uint> foreign_reply = other_notice;
+        check(!foreign_reply.isError() && foreign_reply.value() == stale_id, "New daemon reuses the old numeric ID for another application");
+        if (pending_owner) { check(service.finish_pending() == stale_id, "Old daemon replies with its cancelled ID after replacement"); }
+        window.hide();
+        replacement.action(stale_id, QStringLiteral("default"));
+        auto const replacement_count = replacement.notifications.size();
+        window.notification_requested(7, QStringLiteral("Chat"), QStringLiteral("new-owner dispatch barrier"));
+        wait([&] { return replacement.notifications.size() == replacement_count + 1 && window.findChildren<QObject*>(QStringLiteral("desktopNotificationPending")).isEmpty(); }, "New-owner round trip drains prior action");
+        check(!replacement.closed.contains(stale_id), "Cancelled late old-owner reply cannot close a new daemon notification");
+        check(!window.isVisible(), "New daemon cannot reactivate Chat using an old owner's ID");
+        check(replacement_connection.unregisterService(service_name), "Notification fixture service stops");
+        window.show();
         window.notification_requested(7, QStringLiteral("Chat"), QStringLiteral("No daemon"));
         QApplication::processEvents();
         check(window.isVisible(), "Missing notification service keeps the application usable");

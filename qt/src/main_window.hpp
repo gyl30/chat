@@ -129,6 +129,7 @@ class main_window final : public QMainWindow
     QList<message_data> pending_notifications_;
 #if defined(Q_OS_LINUX)
     QSet<uint> desktop_notification_ids_;
+    QString desktop_notification_owner_;
 #endif
 
     bool connected_ = false;
