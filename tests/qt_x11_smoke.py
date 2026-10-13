@@ -384,9 +384,9 @@ def run_scale():
     record('two-step-group-multiselect-search-remove', [
         '11-contact-picker.png', '12-multiple-selected.png', '13-search-with-selected-chips.png',
         '14-next-group-name.png', '15-created-group.png'])
-    gui.navigate(aid, '我的资料')
+    gui.navigate(aid, '设置')
     gui.field(aid, '退出登录')
-    capture('16-self-profile')
+    capture('16-settings-home')
     native_click(aid, '退出登录')
     gui.confirmation_button(aid, '退出登录')
     capture('17-logout-confirmation')

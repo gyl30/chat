@@ -10,6 +10,7 @@
 #include <chat/text.hpp>
 
 #include <QDialog>
+#include <QCloseEvent>
 #include <QWindow>
 #include <QMouseEvent>
 #include <QStyle>
@@ -43,9 +44,16 @@
 #include "theme.hpp"
 #include "title_bar.hpp"
 #include "icons.hpp"
+#include "settings_dialog.hpp"
 
 namespace
 {
+
+void save_setting(QString const& key, QVariant const& value)
+{
+    if (QCoreApplication::organizationName().isEmpty() || QCoreApplication::applicationName().isEmpty()) { return; }
+    QSettings().setValue(key, value);
+}
 
 // A transparent strip of the frame border; it hands resizing to the window system.
 class resize_grip final : public QWidget
@@ -280,11 +288,36 @@ main_window::main_window(QString server_url, QWidget* parent)
 
     chat_page_ = new chat_widget(pages_);
     chat_page_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+    if (!QCoreApplication::organizationName().isEmpty() && !QCoreApplication::applicationName().isEmpty())
+    {
+        QSettings preferences;
+        desktop_notifications_ = preferences.value(QStringLiteral("notifications/desktop_enabled"), true).toBool();
+        message_preview_ = preferences.value(QStringLiteral("notifications/show_preview"), true).toBool();
+        close_to_tray_ = preferences.value(QStringLiteral("window/close_behavior")).toString() == QStringLiteral("tray");
+        chat_page_->set_control_enter_send(
+            preferences.value(QStringLiteral("chat/send_key")).toString() == QStringLiteral("ctrl_enter"));
+    }
+    else { chat_page_->set_control_enter_send(false); }
 
     tray_ = new QSystemTrayIcon(svg_icon(u"chat", themed("accent"), QSize(32, 32)), this);
     tray_->setObjectName(QStringLiteral("notificationTray"));
     tray_->setToolTip(QStringLiteral("Chat"));
-    auto restore_window = [this] { showNormal(); raise(); activateWindow(); };
+    auto restore_window = [this] {
+        if (isMinimized()) { setWindowState(windowState() & ~Qt::WindowMinimized); }
+        show();
+        raise();
+        activateWindow();
+    };
+    auto* tray_menu = new QMenu(this);
+    tray_menu->setObjectName(QStringLiteral("trayMenu"));
+    tray_menu->setAccessibleName(QStringLiteral("Chat 托盘菜单"));
+    auto* restore = tray_menu->addAction(QStringLiteral("显示 Chat"));
+    restore->setObjectName(QStringLiteral("trayRestoreAction"));
+    connect(restore, &QAction::triggered, this, restore_window);
+    auto* quit = tray_menu->addAction(QStringLiteral("退出 Chat"));
+    quit->setObjectName(QStringLiteral("trayQuitAction"));
+    connect(quit, &QAction::triggered, qApp, &QCoreApplication::quit);
+    tray_->setContextMenu(tray_menu);
     connect(tray_, &QSystemTrayIcon::messageClicked, this, restore_window);
     connect(tray_, &QSystemTrayIcon::activated, this, [restore_window](QSystemTrayIcon::ActivationReason reason) {
         if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick) { restore_window(); }
@@ -613,7 +646,7 @@ main_window::main_window(QString server_url, QWidget* parent)
             [this](presence_data user) { chat_page_->set_presence(std::move(user)); },
             Qt::AutoConnection);
 
-    connect(chat_page_, &chat_widget::logout_requested, this, [this] { logout(); });
+    connect(chat_page_, &chat_widget::settings_requested, this, &main_window::show_settings);
 
     connect(chat_page_, &chat_widget::add_contact_search_requested, this,
             [this](QString query, quint64 request) { client_->search_users(std::move(query), request); });
@@ -676,7 +709,9 @@ main_window::main_window(QString server_url, QWidget* parent)
                 if (!snapshot || !snapshot->group) { return; }
                 group_dialog dialog(conversation, self_user, title, snapshot->announcement, snapshot->join_approval, this, &chat_page_->avatars());
                 dialog.set_conversations({*snapshot}, {});
-                connect(&dialog, &group_dialog::user_requested, chat_page_, &chat_widget::show_user_details);
+                connect(&dialog, &group_dialog::user_requested, chat_page_, [this](qint64 user, QString const& name) {
+                    chat_page_->show_user_details(user, name);
+                });
                 connect(client_.get(), &client_bridge::members_received, &dialog, &group_dialog::set_members);
                 connect(client_.get(), &client_bridge::group_action_finished, &dialog, &group_dialog::finish_action);
                 connect(client_.get(), &client_bridge::group_invite_received, &dialog, &group_dialog::set_invite);
@@ -1014,6 +1049,11 @@ main_window::main_window(QString server_url, QWidget* parent)
         server_settings_->setIcon(svg_icon(u"settings", themed("text_secondary")));
         recent_accounts_action_->setIcon(svg_icon(u"chevron-down", themed("text_secondary"), QSize(18, 18)));
         tray_->setIcon(svg_icon(u"chat", themed("accent"), QSize(32, 32)));
+        if (settings_)
+        {
+            settings_->set_account(session_username_,
+                avatar_icon(session_username_, 48, chat_page_->avatars().image(chat_page_->self_user())));
+        }
         update_login_identity();
         title_bar_->refresh_theme();
         chat_page_->refresh_theme();
@@ -1023,6 +1063,69 @@ main_window::main_window(QString server_url, QWidget* parent)
     registration_username_edit_->ensurePolished();
     registration_username_edit_->setFont(emoji_input_font(registration_username_edit_->font()));
     (username_edit_->text().isEmpty() ? username_edit_ : password_edit_)->setFocus();
+}
+
+void main_window::closeEvent(QCloseEvent* event)
+{
+    if (close_to_tray_ && pages_->currentWidget() == chat_page_ &&
+        QSystemTrayIcon::isSystemTrayAvailable() && tray_->isVisible())
+    {
+        if (settings_) { settings_->reject(); }
+        hide();
+        event->ignore();
+        return;
+    }
+    QMainWindow::closeEvent(event);
+}
+
+void main_window::show_settings()
+{
+    if (!settings_)
+    {
+        settings_ = new settings_dialog(this);
+        connect(settings_, &settings_dialog::account_requested, this, [this] {
+            chat_page_->show_user_details(chat_page_->self_user(), session_username_, settings_);
+        });
+        connect(settings_, &settings_dialog::logout_requested, this, [this] {
+            if (confirm_action(settings_, QStringLiteral("退出登录"),
+                QStringLiteral("退出当前账号？应用会返回登录页。"), QStringLiteral("退出登录")))
+            {
+                logout();
+            }
+        });
+        connect(settings_, &settings_dialog::desktop_notifications_changed, this, [this](bool enabled) {
+            desktop_notifications_ = enabled;
+            if (!enabled) { pending_notifications_.clear(); }
+            save_setting(QStringLiteral("notifications/desktop_enabled"), enabled);
+        });
+        connect(settings_, &settings_dialog::message_preview_changed, this, [this](bool enabled) {
+            message_preview_ = enabled;
+            save_setting(QStringLiteral("notifications/show_preview"), enabled);
+        });
+        connect(settings_, &settings_dialog::control_enter_changed, this, [this](bool enabled) {
+            chat_page_->set_control_enter_send(enabled);
+            save_setting(QStringLiteral("chat/send_key"), enabled ? QStringLiteral("ctrl_enter") : QStringLiteral("enter"));
+        });
+        connect(settings_, &settings_dialog::close_to_tray_changed, this, [this](bool enabled) {
+            close_to_tray_ = enabled;
+            save_setting(QStringLiteral("window/close_behavior"), enabled ? QStringLiteral("tray") : QStringLiteral("quit"));
+        });
+        connect(&chat_page_->avatars(), &avatar_cache::changed, settings_, [this](qint64 user) {
+            if (user == chat_page_->self_user())
+            {
+                settings_->set_account(session_username_, avatar_icon(session_username_, 48, chat_page_->avatars().image(user)));
+            }
+        });
+    }
+    settings_->set_account(session_username_, avatar_icon(session_username_, 48, chat_page_->avatars().image(chat_page_->self_user())));
+    settings_->set_options(desktop_notifications_, message_preview_, chat_page_->control_enter_send(),
+        close_to_tray_, QSystemTrayIcon::isSystemTrayAvailable());
+    if (settings_->isVisible())
+    {
+        settings_->raise();
+        settings_->activateWindow();
+    }
+    else { settings_->open(); }
 }
 
 void main_window::update_window_chrome()
@@ -1124,7 +1227,7 @@ bool main_window::reading_conversation(qint64 conversation) const
 
 void main_window::notify_message(message_data const& message)
 {
-    if (!connected_ || reconnecting_ || pages_->currentWidget() != chat_page_ ||
+    if (!desktop_notifications_ || !connected_ || reconnecting_ || pages_->currentWidget() != chat_page_ ||
         message.deleted || message.from == chat_page_->self_user() || reading_conversation(message.conversation)) { return; }
     auto const conversation = chat_page_->conversation(message.conversation);
     if (!conversation)
@@ -1133,6 +1236,11 @@ void main_window::notify_message(message_data const& message)
         return;
     }
     if (conversation->muted) { return; }
+    if (!message_preview_)
+    {
+        emit notification_requested(message.conversation, QStringLiteral("Chat"), QStringLiteral("收到新消息"));
+        return;
+    }
     auto const title = conversation->group
         ? QStringLiteral("%1 · %2").arg(grapheme_prefix(conversation->username, 80), grapheme_prefix(message.username, 80))
         : grapheme_prefix(message.username, 80);
@@ -1247,6 +1355,7 @@ void main_window::register_user()
 
 void main_window::logout()
 {
+    if (settings_) { settings_->reject(); }
     pending_notifications_.clear();
     tray_->hide();
     auto const should_close = connected_ || reconnecting_ || pending_action_ == pending_action::reconnect;
@@ -1448,6 +1557,7 @@ void main_window::stop_reconnect()
 
 void main_window::return_to_login(QString message)
 {
+    if (settings_) { settings_->reject(); }
     pending_notifications_.clear();
     tray_->hide();
     auto const username = session_username_;

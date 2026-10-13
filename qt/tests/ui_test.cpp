@@ -4,6 +4,7 @@
 #include <QAction>
 #include <QFrame>
 #include <QClipboard>
+#include <QCloseEvent>
 #include <QTabBar>
 #include <QStackedWidget>
 #include <QElapsedTimer>
@@ -69,6 +70,7 @@
 #include <iostream>
 #include <unistd.h>
 #include "main_window.hpp"
+#include "settings_dialog.hpp"
 #include "chat_history_dialog.hpp"
 #include "chat_widget.hpp"
 #include "group_dialog.hpp"
@@ -1242,7 +1244,7 @@ void check_primary_navigation()
     QApplication::processEvents();
     auto* navigation = page.findChild<QMenu*>("mainNavigationMenu");
     auto buttons = navigation->actions();
-    check(buttons.size() == 8, "Main menu contains navigation, one separator and the three existing business actions");
+    check(buttons.size() == 10, "Main menu retains its eight commands and the two separating rules");
     check(page.findChild<QAction*>("selfProfileAction")->text() == QStringLiteral("我的资料") &&
           page.findChild<QListView*>("conversationList")->accessibleName() == QStringLiteral("会话列表") &&
           page.findChild<QListView*>("messageList")->accessibleName() == QStringLiteral("消息记录"),
@@ -1614,13 +1616,12 @@ void check_profile_layout()
         for (auto* action : dialog->findChildren<QToolButton*>("profileActionButton"))
         { check(!action->isVisible() || action->height() <= 48, "Profile actions use compact desktop buttons rather than oversized tiles"); }
         auto* change = dialog->findChild<QPushButton*>("changeAvatarButton");
-        auto* logout = dialog->findChild<QPushButton*>("profileLogoutButton");
+        check(!dialog->findChild<QPushButton*>("profileLogoutButton") && !dialog->findChild<QComboBox*>("appearanceModeCombo"),
+              "Own profile keeps account media and identity without duplicate preferences or logout");
         auto const profile_pixels = dialog->grab().toImage();
         auto const change_background = logical_pixel(profile_pixels, change->mapTo(dialog, QPoint(change->width() - 12, change->height() / 2)));
-        auto const logout_background = logical_pixel(profile_pixels, logout->mapTo(dialog, QPoint(logout->width() - 12, logout->height() / 2)));
-        check((change_background == themed("accent") || change_background == themed("accent_hover")) && logout_background.lightness() > 200,
-              ("Account action hierarchy: change=" + change_background.name().toStdString() +
-               " logout=" + logout_background.name().toStdString()).c_str());
+        check(change_background == themed("accent") || change_background == themed("accent_hover"),
+              "Changing the account avatar remains the primary account-media action");
         dialog->reject();
     });
     page.show_user_details(1, username);
@@ -2743,29 +2744,22 @@ void check_themes()
     }
     check(semantic_theme_sheet(chat_style_sheet()) != semantic_theme_sheet(classic), "Midnight and Daylight have independent external stylesheets");
     {
-        chat_widget page;
-        page.set_user(QStringLiteral("本人"), 1);
-        page.set_connection_available(true);
-        page.show();
-        bool inspected = false;
-        QTimer::singleShot(0, &page, [&] {
-            auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
-            check(dialog && dialog->objectName() == QStringLiteral("profileDialog"), "Own profile opens");
-            auto* mode = dialog->findChild<QComboBox*>("appearanceModeCombo");
-            check(mode && mode->count() == 3 && mode->isEnabled() &&
-                      !dialog->findChild<QComboBox*>("themeCombo") && !dialog->findChild<QLabel*>("themeLockedHint"),
-                  "Account offers system, Daylight and Midnight in one appearance control");
-            mode->setCurrentIndex(mode->findData(static_cast<int>(chat_appearance::light)));
-            check(!themes.dark() && themes.theme() == chat_theme_id::daylight,
-                  "Choosing Daylight applies its own complete palette");
-            mode->setCurrentIndex(mode->findData(static_cast<int>(chat_appearance::dark)));
-            check(themes.dark() && themes.theme() == chat_theme_id::midnight,
-                  "Choosing Midnight applies its own complete palette");
-            inspected = true;
-            dialog->reject();
-        });
-        page.findChild<QAction*>("selfProfileAction")->trigger();
-        check(inspected, "Appearance settings were inspected in the real profile dialog");
+        isolated_login_settings settings;
+        main_window window(QStringLiteral("ws://127.0.0.1:18769/ws"));
+        auto* page = window.findChild<chat_widget*>();
+        page->findChild<QAction*>("showSettingsAction")->trigger(); QApplication::processEvents();
+        auto* dialog = window.findChild<settings_dialog*>("settingsDialog");
+        check(dialog && dialog->isVisible(), "The menu opens the real Settings dialog for appearance controls");
+        dialog->findChild<QPushButton*>("settingsAppearanceChatButton")->click();
+        auto* mode = dialog->findChild<QComboBox*>("settingsAppearanceMode");
+        check(mode && mode->count() == 3 && mode->isEnabled() &&
+              !dialog->findChild<QComboBox*>("themeCombo") && !dialog->findChild<QLabel*>("themeLockedHint"),
+              "Settings offers system, Daylight and Midnight in its appearance control");
+        mode->setCurrentIndex(mode->findData(static_cast<int>(chat_appearance::light)));
+        check(!themes.dark() && themes.theme() == chat_theme_id::daylight, "Choosing Daylight applies its own complete palette");
+        mode->setCurrentIndex(mode->findData(static_cast<int>(chat_appearance::dark)));
+        check(themes.dark() && themes.theme() == chat_theme_id::midnight, "Choosing Midnight applies its own complete palette");
+        dialog->reject();
     }
     themes.set_appearance(chat_appearance::light);
     check(semantic_theme_sheet(chat_style_sheet()) == semantic_theme_sheet(classic), "Returning to Daylight restores its exact external stylesheet");
@@ -2968,6 +2962,237 @@ void check_quiet_status()
     page.findChild<QToolButton*>("sendButton")->click();
     check(!status_text().contains(QStringLiteral("正在发送")), "Sending does not flash a status line");
 }
+settings_dialog* open_settings(main_window& window)
+{
+    window.findChild<chat_widget*>()->findChild<QAction*>("showSettingsAction")->trigger();
+    QApplication::processEvents();
+    auto* dialog = window.findChild<settings_dialog*>("settingsDialog");
+    check(dialog && dialog->isVisible(), "The existing Settings action opens its chat-owned dialog");
+    if (QGuiApplication::platformName() == QStringLiteral("offscreen")) { dialog->activateWindow(); }
+    QApplication::processEvents();
+    return dialog;
+}
+
+void check_settings_persistence_and_pages()
+{
+    isolated_login_settings isolated;
+    auto& themes = theme_manager::instance(); auto const original = themes.appearance();
+    auto key = [](QWidget* widget, int code) {
+        QKeyEvent down(QEvent::KeyPress, code, Qt::NoModifier), up(QEvent::KeyRelease, code, Qt::NoModifier);
+        QApplication::sendEvent(widget, &down); QApplication::sendEvent(widget, &up); QApplication::processEvents();
+    };
+    auto luminance = [](QColor const& color) {
+        auto linear = [](qreal value) { return value <= 0.04045 ? value / 12.92 : qPow((value + 0.055) / 1.055, 2.4); };
+        return 0.2126 * linear(color.redF()) + 0.7152 * linear(color.greenF()) + 0.0722 * linear(color.blueF());
+    };
+    auto contrast = [&](QColor const& first, QColor const& second) {
+        auto const a = luminance(first), b = luminance(second);
+        return (std::max(a, b) + 0.05) / (std::min(a, b) + 0.05);
+    };
+    QSettings().clear();
+    {
+        main_window window(QStringLiteral("ws://127.0.0.1:18769/ws")); window.show();
+        auto* page = window.findChild<chat_widget*>(); auto* dialog = open_settings(window);
+        auto* pages = dialog->findChild<QStackedWidget*>("settingsPages");
+        auto* back = dialog->findChild<QToolButton*>("settingsBackButton");
+        auto* close = dialog->findChild<QToolButton*>("settingsCloseButton");
+        check(dialog->size() == QSize(520, 580) && dialog->minimumSize() == QSize(420, 400) &&
+              pages && pages->count() == 5 && pages->currentIndex() == 0 && !back->isVisible() &&
+              close->accessibleName() == QStringLiteral("关闭设置"),
+              "Settings opens its five-page compact dialog with named close and bounded minimum size");
+        QList<QString> const entries{"settingsNotificationsButton", "settingsAppearanceChatButton", "settingsDesktopWindowButton", "settingsAboutButton"};
+        QList<QString> const titles{QStringLiteral("通知"), QStringLiteral("外观与聊天"), QStringLiteral("桌面与窗口"), QStringLiteral("关于Chat")};
+        for (int row = 0; row < entries.size(); ++row) {
+            auto* entry = dialog->findChild<QPushButton*>(entries[row]);
+            auto* title = entry ? entry->findChild<QLabel*>("settingsSectionLabel") : nullptr;
+            check(entry && title && title->text() == titles[row] && entry->accessibleName() == titles[row], "Settings home names each existing preference section");
+            entry->setFocus(Qt::TabFocusReason); key(entry, Qt::Key_Space);
+            check(pages->currentIndex() == row + 1 && back->isVisible() && back->accessibleName() == QStringLiteral("返回设置首页") &&
+                  dialog->findChild<QLabel*>("settingsTitle")->text() == titles[row], "A Settings section opens its own page and explicit Back control");
+            key(dialog, Qt::Key_Escape);
+            check(dialog->isVisible() && pages->currentIndex() == 0 && !back->isVisible(), "Section Escape returns to Settings home without closing the dialog");
+        }
+        auto* desktop = dialog->findChild<QCheckBox*>("settingsDesktopNotifications");
+        auto* preview = dialog->findChild<QCheckBox*>("settingsMessagePreview");
+        auto* control = dialog->findChild<QCheckBox*>("settingsControlEnter");
+        auto* tray = dialog->findChild<QCheckBox*>("settingsCloseToTray");
+        for (auto const appearance : {chat_appearance::light, chat_appearance::dark}) {
+            themes.set_appearance(appearance);
+            dialog->findChild<QPushButton*>("settingsAppearanceChatButton")->click(); back->setFocus();
+            QApplication::processEvents();
+            QStyleOptionButton option; option.initFrom(control); option.rect = control->rect();
+            auto const indicator = control->style()->subElementRect(QStyle::SE_CheckBoxIndicator, &option, control);
+            auto inspect = [&](QColor expected) {
+                auto const image = control->grab().toImage(); int count = 0;
+                for (int y = indicator.top(); y <= indicator.bottom(); ++y)
+                    for (int x = indicator.left(); x <= indicator.right(); ++x)
+                        if (logical_pixel(image, QPoint(x, y)) == expected) { ++count; }
+                return count;
+            };
+            check(!control->isChecked() && !control->hasFocus() && inspect(themed("border_strong")) >= 3 &&
+                  contrast(themed("border_strong"), themed("surface")) >= 3.0,
+                  "Each theme paints a visible 3:1 Settings checkbox boundary while unchecked and unfocused");
+            control->click(); back->setFocus(); QApplication::processEvents();
+            auto const checked = control->grab().toImage(); int glyph_pixels = 0;
+            auto const inner = indicator.adjusted(2, 2, -2, -2);
+            for (int y = inner.top(); y <= inner.bottom(); ++y)
+                for (int x = inner.left(); x <= inner.right(); ++x) {
+                    auto const ink = logical_pixel(checked, QPoint(x, y));
+                    auto const target = themes.on_accent();
+                    if (ink.alpha() == 255 && std::abs(ink.red() - target.red()) <= 32 &&
+                        std::abs(ink.green() - target.green()) <= 32 && std::abs(ink.blue() - target.blue()) <= 32 &&
+                        contrast(ink, themed("accent")) >= 3.0) { ++glyph_pixels; }
+                }
+            check(control->isChecked() && glyph_pixels >= 3 && inspect(themed("accent")) >= 3,
+                  "Each theme paints a checked Settings checkbox with a distinguishable 3:1 interior checkmark beyond its color fill");
+            control->click(); back->click();
+        }
+        themes.set_appearance(original);
+        check(desktop->isChecked() && preview->isChecked() && preview->isEnabled() && !control->isChecked() &&
+              !tray->isChecked() && !page->control_enter_send(), "Default preferences preserve desktop previews, Enter sending and normal close");
+        dialog->findChild<QPushButton*>("settingsNotificationsButton")->click(); preview->click(); desktop->click();
+        check(!desktop->isChecked() && !preview->isChecked() && !preview->isEnabled(), "Disabling notifications keeps the stored preview choice while disabling its control");
+        back->click(); dialog->findChild<QPushButton*>("settingsAppearanceChatButton")->click(); control->click();
+        check(page->control_enter_send(), "The real Settings send-key checkbox updates the existing composer preference");
+        auto* mode = dialog->findChild<QComboBox*>("settingsAppearanceMode");
+        check(mode->accessibleName() == QStringLiteral("外观主题") && mode->count() == 3 &&
+              mode->itemText(0) == QStringLiteral("跟随系统") && mode->itemText(1) == QStringLiteral("浅色 · Daylight") &&
+              mode->itemText(2) == QStringLiteral("深色 · Midnight") && mode->itemData(0).toInt() == static_cast<int>(chat_appearance::system) &&
+              mode->itemData(1).toInt() == static_cast<int>(chat_appearance::light) && mode->itemData(2).toInt() == static_cast<int>(chat_appearance::dark),
+              "Settings appearance choices keep semantic data and clearly named system/light/dark modes");
+        mode->setCurrentIndex(2);
+        QSettings saved; saved.sync();
+        check(saved.status() == QSettings::NoError && !saved.value("notifications/desktop_enabled", true).toBool() &&
+              !saved.value("notifications/show_preview", true).toBool() && saved.value("chat/send_key").toString() == QStringLiteral("ctrl_enter") &&
+              saved.value("appearance/mode").toString() == QStringLiteral("dark"), "Settings checkbox and appearance changes persist their explicit local preference keys");
+        close->click();
+        check(!dialog->isVisible() && pages->currentIndex() == 0, "Every Settings close resets its next opening to the home page");
+        check(open_settings(window) == dialog && pages->currentIndex() == 0, "Reopening reuses the same dialog and starts at Settings home");
+        key(dialog, Qt::Key_Escape);
+        check(!dialog->isVisible(), "Settings home Escape closes the dialog");
+        window.showMaximized(); QApplication::processEvents();
+        check(window.isMaximized(), "The real window enters maximized state before the tray restore regression");
+        window.hide();
+        auto* restore = window.findChild<QAction*>("trayRestoreAction");
+        check(restore, "The existing tray menu exposes its actual restore action");
+        restore->trigger(); QApplication::processEvents();
+        check(window.isVisible() && window.isMaximized(), "The real tray restore action shows a hidden maximized window without losing its maximized state");
+
+    }
+    // A stored tray preference must remain visible when this test platform has no tray.
+    QSettings().setValue("window/close_behavior", QStringLiteral("tray"));
+    {
+        main_window restored(QStringLiteral("ws://127.0.0.1:18769/ws")); auto* dialog = open_settings(restored);
+        auto* desktop = dialog->findChild<QCheckBox*>("settingsDesktopNotifications");
+        auto* preview = dialog->findChild<QCheckBox*>("settingsMessagePreview");
+        auto* control = dialog->findChild<QCheckBox*>("settingsControlEnter");
+        auto* tray = dialog->findChild<QCheckBox*>("settingsCloseToTray");
+        check(!desktop->isChecked() && !preview->isChecked() && !preview->isEnabled() && control->isChecked() &&
+              restored.findChild<chat_widget*>()->control_enter_send() && tray->isChecked(), "A fresh window restores all local preferences without silently dropping a saved tray choice");
+        int changes = 0;
+        QObject::connect(dialog, &settings_dialog::desktop_notifications_changed, dialog, [&](bool) { ++changes; });
+        QObject::connect(dialog, &settings_dialog::message_preview_changed, dialog, [&](bool) { ++changes; });
+        QObject::connect(dialog, &settings_dialog::control_enter_changed, dialog, [&](bool) { ++changes; });
+        QObject::connect(dialog, &settings_dialog::close_to_tray_changed, dialog, [&](bool) { ++changes; });
+        dialog->set_options(true, true, false, false, QSystemTrayIcon::isSystemTrayAvailable());
+        dialog->set_options(false, false, true, true, QSystemTrayIcon::isSystemTrayAvailable());
+        check(changes == 0 && QSettings().value("chat/send_key").toString() == QStringLiteral("ctrl_enter"),
+              "Refreshing Settings options blocks all change signals and cannot rewrite stored preferences");
+        dialog->findChild<QPushButton*>("settingsDesktopWindowButton")->click();
+        if (!QSystemTrayIcon::isSystemTrayAvailable())
+            check(!tray->isEnabled() && dialog->findChild<QLabel*>("settingsTrayUnavailableHint")->isVisible(),
+                  "A genuinely unavailable tray disables its option and explains the fallback while retaining its saved value");
+        dialog->reject();
+        QCloseEvent event; event.ignore(); QApplication::sendEvent(&restored, &event);
+        check(event.isAccepted(), "The login window accepts normal close even with a stored tray preference");
+    }
+    {
+        auto const organization = QCoreApplication::organizationName(), application = QCoreApplication::applicationName();
+        QCoreApplication::setOrganizationName({}); QCoreApplication::setApplicationName({});
+        QSettings unnamed; auto const before = unnamed.allKeys();
+        main_window window(QStringLiteral("ws://127.0.0.1:18769/ws")); auto* dialog = open_settings(window);
+        auto* desktop = dialog->findChild<QCheckBox*>("settingsDesktopNotifications");
+        check(desktop->isChecked() && !window.findChild<chat_widget*>()->control_enter_send(), "An unnamed test application loads defaults rather than another application's preferences");
+        desktop->click(); dialog->findChild<QCheckBox*>("settingsControlEnter")->click(); unnamed.sync();
+        check(unnamed.allKeys() == before, "The main-window identity guard prevents saving preferences without organization/application identity");
+        dialog->reject();
+        QCoreApplication::setOrganizationName(organization); QCoreApplication::setApplicationName(application);
+    }
+    themes.set_appearance(original);
+    std::cout << "PASS Qt Settings pages, isolated persistence, send-key wiring and no-tray login close\n";
+}
+
+void check_send_key_preferences()
+{
+    auto key = [](QWidget* widget, int code, Qt::KeyboardModifiers modifiers) {
+        QKeyEvent down(QEvent::KeyPress, code, modifiers), up(QEvent::KeyRelease, code, modifiers);
+        QApplication::sendEvent(widget, &down); QApplication::sendEvent(widget, &up); QApplication::processEvents();
+    };
+    QList<Qt::KeyboardModifiers> const modifiers{Qt::NoModifier, Qt::ControlModifier, Qt::ShiftModifier,
+        Qt::ControlModifier | Qt::ShiftModifier, Qt::AltModifier, Qt::ControlModifier | Qt::AltModifier,
+        Qt::MetaModifier, Qt::ControlModifier | Qt::MetaModifier};
+    QString const text = QStringLiteral("发送模式 中文 é 👩‍💻");
+    for (bool const control_mode : {false, true}) for (int const code : {Qt::Key_Return, Qt::Key_Enter})
+    {
+        for (auto const modifier : modifiers) {
+            chat_widget page; page.set_user(QStringLiteral("本人"), 1); page.set_connection_available(true);
+            conversation_data direct; direct.id = 50; direct.user = 2; direct.username = QStringLiteral("好友"); direct.can_send = true;
+            page.open_conversation(direct); page.set_control_enter_send(control_mode);
+            auto* edit = page.findChild<QPlainTextEdit*>("messageEdit"); edit->setPlainText(text); edit->moveCursor(QTextCursor::End);
+            int sends = 0; QString sent;
+            QObject::connect(&page, &chat_widget::send_message_requested, &page, [&](qint64 id, QString value, qint64) {
+                check(id == direct.id, "A send shortcut retains the selected conversation identity"); ++sends; sent = value;
+            });
+            bool const blocked = modifier & (Qt::ShiftModifier | Qt::AltModifier | Qt::MetaModifier);
+            bool const should_send = !blocked && (!control_mode || modifier & Qt::ControlModifier);
+            key(edit, code, modifier);
+            check(page.control_enter_send() == control_mode && sends == (should_send ? 1 : 0) &&
+                  (should_send ? sent.toUtf8() == text.toUtf8() : edit->toPlainText().startsWith(text)),
+                  "The selected send-key mode honors plain/Ctrl/Shift/Alt/Meta Return and keypad Enter without unintended sends");
+            if (modifier == Qt::ShiftModifier ||
+                (control_mode && modifier == Qt::NoModifier))
+                check(edit->toPlainText() == text + QLatin1Char('\n'), "Plain Ctrl-mode Enter and Shift shortcuts insert a newline without sending");
+        }
+        chat_widget page; page.set_user(QStringLiteral("本人"), 1); page.set_connection_available(true);
+        conversation_data direct; direct.id = 50; direct.user = 2; direct.username = QStringLiteral("好友"); direct.can_send = true;
+        page.open_conversation(direct); page.set_control_enter_send(control_mode);
+        auto* edit = page.findChild<QPlainTextEdit*>("messageEdit"); edit->setPlainText(text); edit->moveCursor(QTextCursor::End);
+        int sends = 0; QString sent;
+        QObject::connect(&page, &chat_widget::send_message_requested, &page, [&](qint64, QString value, qint64) { ++sends; sent = value; });
+        for (auto const modifier : modifiers) {
+            QInputMethodEvent preedit(QStringLiteral("中文候选 é 👩‍💻"), {}); QApplication::sendEvent(edit, &preedit);
+            key(edit, code, modifier);
+            check(sends == 0 && edit->toPlainText().toUtf8() == text.toUtf8(), "Every Return modifier consumes an uncommitted IME composition without sending or inserting a newline");
+        }
+        QInputMethodEvent commit; QString const composed = QStringLiteral("中文 é 👩‍💻"); commit.setCommitString(composed);
+        QApplication::sendEvent(edit, &commit);
+        key(edit, code, control_mode ? Qt::ControlModifier : Qt::NoModifier);
+        check(sends == 1 && sent.toUtf8() == (text + composed).toUtf8() && edit->textCursor().block().layout()->preeditAreaText().isEmpty(),
+              "After committing IME text the configured shortcut sends the exact Unicode draft once");
+        page.set_connection_available(false); page.finish_message_send(direct.id, 0, 0, sent, {}, {}, QStringLiteral("离线"));
+        auto const draft = edit->toPlainText(); key(edit, code, control_mode ? Qt::ControlModifier : Qt::NoModifier);
+        check(sends == 1 && edit->toPlainText() == draft, "The configured send shortcut remains blocked offline and preserves its draft");
+    }
+    std::cout << "PASS Qt send-key preference modifier matrix, Unicode IME and offline guard\n";
+}
+
+void check_settings_entry_contract()
+{
+    isolated_login_settings settings;
+    main_window window(QStringLiteral("ws://127.0.0.1:18769/ws"));
+    auto* page = window.findChild<chat_widget*>();
+    auto* action = page->findChild<QAction*>("showSettingsAction");
+    bool const entry = action && action->text() == QStringLiteral("设置") &&
+        page->findChild<QMenu*>("mainNavigationMenu")->actions().contains(action);
+    std::cout << (entry ? "PASS" : "RED") << " Qt Settings independent main-menu command" << std::endl;
+    if (action) { action->trigger(); QApplication::processEvents(); }
+    auto* dialog = window.findChild<QDialog*>("settingsDialog");
+    bool const opened = dialog && dialog->isVisible() && dialog->accessibleName() == QStringLiteral("设置");
+    std::cout << (opened ? "PASS" : "RED") << " Qt Settings independent accessible dialog" << std::endl;
+    if (dialog) { dialog->reject(); }
+    check(entry && opened, "Settings has its own main-menu command and independent dialog");
+}
+
 void check_independent_contact_dialog_contract()
 {
     chat_widget page; page.setStyleSheet(chat_style_sheet()); page.resize(980, 640);
@@ -3202,9 +3427,9 @@ void check_unified_menu_and_local_contacts_contract()
         check(!page.findChild<QWidget*>("chatsActionsButton") && button && menu && button->menu() == menu,
               "The unified header menu retains all business commands without the retired action control");
         QList<QString> const names{"selfProfileAction", "showChatsAction", "showContactsAction", "showNewFriendsAction",
-                                  {}, "addFriendAction", "createGroupAction", "joinGroupAction"};
+                                  {}, "addFriendAction", "createGroupAction", "joinGroupAction", {}, "showSettingsAction"};
         auto const actions = menu->actions();
-        check(actions.size() == names.size(), "The existing main menu retains its eight entries");
+        check(actions.size() == names.size(), "The main menu retains its original commands and adds independent Settings after the second separator");
         for (int row = 0; row < names.size(); ++row)
             check(names[row].isEmpty() ? actions[row]->isSeparator() : actions[row] == page.findChild<QAction*>(names[row]),
                   "Navigation and the three existing commands keep their established ordering");
@@ -3388,7 +3613,7 @@ void check_main_menu_two_column_contract()
         verify(profile && profile->text() == QStringLiteral("我的资料") && !profile->icon().isNull() &&
                chats && chats->isCheckable() && contacts && !contacts->isCheckable() &&
                requests && requests->isCheckable() && chats->isChecked() && !contacts->isChecked() && !requests->isChecked() &&
-               menu && menu->actions().size() == 8, "the menu exposes account, Contacts dialog and checkable Chats and New friends actions");
+               menu && menu->actions().size() == 10, "the menu exposes account, Contacts dialog and checkable Chats and New friends actions");
         conversation_data direct;
         direct.id = 50; direct.user = 2; direct.username = QStringLiteral("好友"); direct.unread = 4;
         page.set_conversations({direct});
@@ -3586,6 +3811,21 @@ void check_main_menu_keyboard_actions()
         back->click(); QApplication::processEvents();
         check(chats->isChecked() && button->isVisibleTo(&page) && retained(), "New friends Back restores Chats with the menu and draft intact");
         navigate(chats, 1, Qt::Key_Enter);
+        int settings_requests = 0;
+        QObject::connect(&page, &chat_widget::settings_requested, &page, [&] { ++settings_requests; });
+        bool settings_keyboard = false;
+        button->setFocus(Qt::TabFocusReason);
+        QTimer::singleShot(0, &page, [&] {
+            auto* popup = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+            if (popup != menu) { return; }
+            for (int step = 0; popup->activeAction() != profile && step < 8; ++step) { key(popup, Qt::Key_Down); }
+            for (int step = 0; step < 7; ++step) { key(popup, Qt::Key_Down); }
+            settings_keyboard = popup->activeAction() == page.findChild<QAction*>("showSettingsAction");
+            key(popup, Qt::Key_Return);
+        });
+        key(button, Qt::Key_Return);
+        check(settings_keyboard && settings_requests == 1 && !QApplication::activePopupWidget() && chats->isChecked() && retained(),
+              "Enter/Down/Enter reaches Settings exactly once without changing the checked page, conversation or Unicode draft");
         bool profile_opened = false, identity = false, copy_reached = false, copied = false;
         QGuiApplication::clipboard()->setText(QStringLiteral("previous clipboard"));
         button->setFocus(Qt::TabFocusReason);
@@ -5262,7 +5502,7 @@ int main(int argc, char** argv)
     }
     if (widgets_only)
     {
-        try { check_independent_contact_dialog_contract(); check_add_contact_dialog_lifetime(); check_unified_menu_and_local_contacts_contract(); check_contacts_state_sort_and_identity(); check_main_menu_two_column_contract(); check_final_polish_empty_states(); check_main_menu_keyboard_actions(); check_main_menu_paint(); check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_group_header_members(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_composer_actions(); check_join_by_code(); check_chat_history_dialog(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_deferred_message_viewport(); check_history_home_end_without_current(); check_message_overflow_following(false); check_message_overflow_following(true); check_message_overflow_following(false, true); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
+        try { check_settings_entry_contract(); check_settings_persistence_and_pages(); check_send_key_preferences(); check_independent_contact_dialog_contract(); check_add_contact_dialog_lifetime(); check_unified_menu_and_local_contacts_contract(); check_contacts_state_sort_and_identity(); check_main_menu_two_column_contract(); check_final_polish_empty_states(); check_main_menu_keyboard_actions(); check_main_menu_paint(); check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_group_header_members(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_composer_actions(); check_join_by_code(); check_chat_history_dialog(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_deferred_message_viewport(); check_history_home_end_without_current(); check_message_overflow_following(false); check_message_overflow_following(true); check_message_overflow_following(false, true); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
@@ -5526,6 +5766,41 @@ int main(int argc, char** argv)
                       "Authentication expands the compact login window into the chat workspace");
                 pages.push_back(page);
                 windows.push_back(std::move(w));
+            }
+            {
+                auto& themes = theme_manager::instance(); auto const original = themes.appearance();
+                auto* settings = open_settings(*windows[0]);
+                auto* picture = settings->findChild<QLabel*>("settingsAccountAvatar");
+                check(pages[0]->avatars().image(ids[0]).isNull() && picture &&
+                      picture->pixmap().toImage() == avatar_icon(names[0], 48, pages[0]->avatars().image(ids[0])).pixmap(56, 56).toImage(),
+                      "The authenticated Settings account starts with its exact semantic fallback avatar");
+                auto const before = picture->pixmap().toImage();
+                themes.set_appearance(themes.dark() ? chat_appearance::light : chat_appearance::dark);
+                QApplication::processEvents();
+                auto const expected = avatar_icon(names[0], 48, pages[0]->avatars().image(ids[0])).pixmap(56, 56).toImage();
+                check(before != expected && picture->pixmap().toImage() == expected,
+                      "An open authenticated Settings account refreshes its cached fallback avatar after a theme change");
+                themes.set_appearance(original);
+                check(settings->findChild<QLabel*>("settingsAccountName")->text() == names[0], "Settings identifies the authenticated account without markup");
+                bool account_opened = false;
+                QTimer::singleShot(0, settings, [&] {
+                    auto* profile = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                    account_opened = profile && profile->objectName() == QStringLiteral("profileDialog") && profile->parentWidget() == settings &&
+                        profile->findChild<QLabel*>("profileDialogName")->text() == names[0] &&
+                        !profile->findChild<QComboBox*>("appearanceModeCombo") && !profile->findChild<QToolButton*>("profileLogoutButton");
+                    if (profile) { profile->reject(); }
+                });
+                settings->findChild<QToolButton*>("settingsAccountButton")->click();
+                check(account_opened && settings->isVisible() && pages[0]->isVisible(), "Settings account opens its parented profile and returns without moving preferences or logging out");
+                QTimer::singleShot(0, settings, [&] {
+                    auto* confirmation = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+                    check(confirmation, "Settings logout still asks for confirmation"); confirmation->button(QMessageBox::No)->click();
+                });
+                settings->findChild<QPushButton*>("settingsLogoutButton")->click();
+                check(settings->isVisible() && pages[0]->isVisible(), "Cancelling Settings logout preserves the authenticated workspace and dialog");
+                settings->reject();
+                std::cout << "PASS Qt authenticated Settings theme avatar, parented account and cancelled logout\n";
+
             }
             auto activate = [&](int actor) {
                 windows[actor]->showNormal();
@@ -7538,9 +7813,41 @@ int main(int argc, char** argv)
                 "Personal direct mute preserves realtime activity and unread");
             windows[1]->grab().save(QString::fromLocal8Bit(argv[2]) + "/qt_conversation_mute.png");
             set_preference(1, direct, false);
+            {
+                auto* settings = open_settings(*windows[1]);
+                settings->findChild<QPushButton*>("settingsNotificationsButton")->click();
+                auto* desktop = settings->findChild<QCheckBox*>("settingsDesktopNotifications");
+                auto* preview = settings->findChild<QCheckBox*>("settingsMessagePreview");
+                check(desktop->isChecked() && preview->isChecked(), "The live notification fixture starts with enabled desktop previews");
+                desktop->click();
+                auto const suppressed = notifications[1].size(); auto const unread = pages[1]->conversation(direct)->unread;
+                QString const body = QStringLiteral("关闭桌面通知仍到达 中文 é 👩‍💻");
+                pages[0]->send_message_requested(direct, body, 0);
+                wait([&] { return pages[1]->conversation(direct)->last_text == body && pages[1]->conversation(direct)->unread > unread; });
+                check(notifications[1].size() == suppressed, "Disabling desktop notifications preserves actual message delivery and unread without emitting a notification");
+                desktop->click(); preview->click();
+                auto generic = [&](qsizetype before) {
+                    wait([&] { return notifications[1].size() == before + 1; });
+                    auto const& value = notifications[1].back();
+                    check(value.conversation == direct && value.title == QStringLiteral("Chat") && value.summary == QStringLiteral("收到新消息"),
+                        "Disabled previews emit only the generic app title and new-message summary without identities, body or filename");
+                };
+                auto const text_notices = notifications[1].size();
+                QString const private_text = QStringLiteral("PRIVATE 名字 内容 é 👩‍💻"); pages[0]->send_message_requested(direct, private_text, 0);
+                generic(text_notices); wait([&] { return pages[1]->conversation(direct)->last_text == private_text; });
+                check(pages[1]->conversation(direct)->last_text == private_text, "Privacy changes only the notification and preserves the actual message body");
+                auto const file_notices = notifications[1].size();
+                pages[0]->attachment_send_requested(direct, "PRIVATE-secret-name.txt", QByteArray("PRIVATE attachment body"), 0);
+                generic(file_notices);
+                wait([&] { return pages[1]->conversation(direct)->last_text.contains(QStringLiteral("PRIVATE-secret-name.txt")); });
+                check(pages[1]->conversation(direct)->last_text.contains(QStringLiteral("PRIVATE-secret-name.txt")), "Private attachment notifications preserve the authoritative attachment filename in chat");
+                preview->click(); settings->reject();
+                std::cout << "PASS Qt live notification OFF/unread delivery and generic text/attachment previews\n";
+            }
+            auto const foreground_other_notices = notifications[1].size();
             activate(1);
             pages[0]->send_message_requested(direct, QStringLiteral("前台查看其他会话"), 0);
-            wait([&] { return notifications[1].size() == other_conversation_notices + 1; });
+            wait([&] { return notifications[1].size() == foreground_other_notices + 1; });
             check(notifications[1].back().conversation == direct && notifications[1].back().title == names[0],
                 "Foreground window still notifies for another conversation");
             auto* direct_list = windows[1]->findChild<QListView*>("conversationList");
@@ -7622,17 +7929,15 @@ int main(int argc, char** argv)
             wait([&] { return pages[0]->avatars().state(ids[0]) == chat::avatar_state{4, true} && !pages[0]->avatars().image(ids[0]).isNull(); });
             windows[0]->activateWindow();
             QApplication::processEvents();
+            windows[0]->findChild<QAction*>("showSettingsAction")->trigger(); QApplication::processEvents();
+            auto* account_settings = windows[0]->findChild<settings_dialog*>("settingsDialog");
+            check(account_settings && account_settings->isVisible(), "Logout is reached from the independent Settings home");
             QTimer::singleShot(20, [&] {
-                auto* profile = qobject_cast<QDialog*>(QApplication::activeModalWidget());
-                check(profile && profile->objectName() == "profileDialog", "Account opens from bottom avatar");
-                QTimer::singleShot(20, [] {
-                    auto* confirmation = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
-                    check(confirmation && confirmation->text().contains(QStringLiteral("登录页")), "Logout confirmation");
-                    confirmation->button(QMessageBox::Yes)->click();
-                });
-                profile->findChild<QPushButton*>("profileLogoutButton")->click();
+                auto* confirmation = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+                check(confirmation && confirmation->text().contains(QStringLiteral("登录页")), "Logout retains its explicit confirmation");
+                confirmation->button(QMessageBox::Yes)->click();
             });
-            windows[0]->findChild<QAction*>("selfProfileAction")->trigger();
+            account_settings->findChild<QPushButton*>("settingsLogoutButton")->click();
             wait([&] { return !pages[0]->isVisible() && windows[0]->findChild<QPushButton*>("loginButton")->isEnabled(); });
             windows[0]->activateWindow();
             QApplication::processEvents();
@@ -7640,6 +7945,8 @@ int main(int argc, char** argv)
                   "Logout restores the compact login window");
             check(windows[0]->findChild<QLineEdit*>("loginUsernameEdit")->hasFocus(),
                   "Confirmed logout returns keyboard focus to the login identity field");
+            QCloseEvent logged_out_close; logged_out_close.ignore(); QApplication::sendEvent(windows[0].get(), &logged_out_close);
+            check(logged_out_close.isAccepted() && !account_settings->isVisible(), "After logout normal close is accepted and Settings has closed");
             check(pages[0]->avatars().image(ids[0]).isNull(), "Logout clears current account cache");
             check(pages[0]->images().bytes(pages[2]->latest_message_id()).isEmpty(), "Logout clears image cache");
             for (auto* input : windows[0]->findChildren<QLineEdit*>())

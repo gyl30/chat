@@ -162,7 +162,7 @@ def run(c):
         'nav-01-chats-sidebar.png', 'nav-07-add-friend-search.png', 'nav-08-join-action.png',
         'nav-09-create-select-contacts.png', 'nav-11-create-name-step.png', 'nav-11-create-title-filled.png',
         'nav-12-created-group-open.png', 'nav-13-created-group-header-opens-details.png'])
-    gui.navigate(aid, '我的资料')
+    gui.navigate(aid, '设置')
     gui.field(aid, '退出登录')
     capture('nav-14-menu-account')
     click('退出登录')

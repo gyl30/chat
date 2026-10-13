@@ -10,6 +10,8 @@
 
 class QAction;
 class QDialog;
+class QCloseEvent;
+class settings_dialog;
 class QLabel;
 class feedback_label;
 class QLineEdit;
@@ -35,6 +37,7 @@ class main_window final : public QMainWindow
 
    protected:
     void changeEvent(QEvent* event) override;
+    void closeEvent(QCloseEvent* event) override;
     bool eventFilter(QObject* object, QEvent* event) override;
 
    private:
@@ -52,6 +55,7 @@ class main_window final : public QMainWindow
     void authenticate();
     void register_user();
     void logout();
+    void show_settings();
     void set_login_busy(bool busy);
     void set_registration_busy(bool busy);
     void show_login_error(QString message);
@@ -99,6 +103,10 @@ class main_window final : public QMainWindow
     QTimer* reconnect_notice_timer_ = nullptr;
     QTimer* reconnect_recovered_timer_ = nullptr;
     QSystemTrayIcon* tray_ = nullptr;
+    settings_dialog* settings_ = nullptr;
+    bool desktop_notifications_ = true;
+    bool message_preview_ = true;
+    bool close_to_tray_ = false;
     QList<message_data> pending_notifications_;
 
     bool connected_ = false;

@@ -653,15 +653,22 @@ class NativeGui:
                       'Native contact dialog did not close: ' + label)
 
     def navigate(self, actor, label):
-        actions = ['我的资料', '聊天', '联系人', '新的朋友', '添加联系人', '新建群组', '加入群组']
+        actions = ['我的资料', '聊天', '联系人', '新的朋友', '添加联系人', '新建群组', '加入群组', '设置']
         if label not in actions:
             raise ValueError('Unknown native main-menu action: ' + label)
         self.close_contact_dialogs(actor)
+        if self.dialog(actor, '设置') is not None:
+            if self.find(actor, '关闭资料') is not None:
+                raise RuntimeError('Finish the active account profile before main-menu navigation')
+            self.focus(actor)
+            self.key('Escape')
+            self.wait(lambda: self.dialog(actor, '设置') is None,
+                      'Native Settings dialog did not close')
         self.click(actor, self.field(actor, '主菜单'))
         rectangle = self.wait(lambda: self.popup(actor), 'Owned native main navigation menu unavailable')
         # QMenu exports differ between Qt platform integrations. When Qt exposes
         # visible items, verify their stable labels; input still uses the actual
-        # owned popup geometry: seven equal rows with one separator after the first four.
+        # owned popup geometry: eight equal rows, with separators after the first four and before Settings.
         labels = []
         for node in self.nodes(actor):
             try:
@@ -674,14 +681,14 @@ class NativeGui:
         if labels and not all(any(name == action or name.startswith(action + ' ') or
                                  name.startswith(action + '（') or name.startswith(action + '(')
                                  for name in labels) for action in actions):
-            raise RuntimeError('Native main menu labels differ from its seven actions: ' + str(labels))
+            raise RuntimeError('Native main menu labels differ from its eight actions: ' + str(labels))
         index = actions.index(label)
         px = rectangle['x'] + rectangle['width'] // 2
         scale = float(os.environ.get('QT_SCALE_FACTOR', '1'))
         padding, separator = 7 * scale, 9 * scale
-        row_height = (rectangle['height'] - 2 * padding - separator) / len(actions)
+        row_height = (rectangle['height'] - 2 * padding - 2 * separator) / len(actions)
         py = round(rectangle['y'] + padding + (index + .5) * row_height +
-                   (separator if index >= 4 else 0))
+                   (separator if index >= 4 else 0) + (separator if index >= 7 else 0))
         self.xt.XTestFakeMotionEvent(self.native, -1, px, py, 0)
         self.xt.XTestFakeButtonEvent(self.native, 1, True, 0)
         self.xt.XTestFakeButtonEvent(self.native, 1, False, 0)
@@ -1245,19 +1252,19 @@ class NativeGui:
         return answer
 
     def daylight_unread_palette(self, actor):
-        self.navigate(actor, '我的资料')
-        self.field(actor, '关闭资料')
+        self.navigate(actor, '设置')
+        self.click(actor, self.field(actor, '外观与聊天'))
         mode = self.wait(lambda: next((node for node in self.nodes(actor)
             if node.get_role() == self.Atspi.Role.COMBO_BOX and
-            node.get_name() in ('外观模式', '跟随系统', 'Daylight', 'Midnight')), None),
+            node.get_name() in ('外观主题', '跟随系统', '浅色 · Daylight', '深色 · Midnight')), None),
             'Native appearance selector for unread evidence')
         self.click(actor, mode)
         self.key('Home')
         self.key('Down')
         self.key('Return')
         self.wait(lambda: any(node.get_role() == self.Atspi.Role.COMBO_BOX and
-            node.get_name() == 'Daylight' for node in self.nodes(actor)), 'Daylight selection receipt')
-        self.click(actor, self.field(actor, '关闭资料'))
+            node.get_name() == '浅色 · Daylight' for node in self.nodes(actor)), 'Daylight selection receipt')
+        self.click(actor, self.field(actor, '关闭设置'))
         self.badge_rgb = theme_highlight_rgb(self.cfg['binary'])
         emit('unread-palette', actor=actor, theme='daylight', highlight_rgb=self.badge_rgb,
              source=str(pathlib.Path(self.cfg['binary']).resolve().parent / 'themes' / 'daylight.json'))
@@ -1979,10 +1986,10 @@ class NativeGui:
         def logout():
             process = self.clients[identity]
             pid = process.pid
-            self.navigate(identity, '我的资料')
+            self.navigate(identity, '设置')
             self.click(identity, self.field(identity, '退出登录'))
             self.click(identity, self.confirmation_button(identity, '退出登录', cancel=True))
-            self.field(identity, '关闭资料')
+            self.field(identity, '关闭设置')
             self.click(identity, self.field(identity, '退出登录'))
             self.click(identity, self.confirmation_button(identity, '退出登录'))
             self.field(identity, '注册账号')

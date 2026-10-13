@@ -609,17 +609,17 @@ QMainWindow {
             border: 1px solid ${input_border};
             border-radius: 8px;
         }
-        QComboBox#appearanceModeCombo, QComboBox#themeCombo {
+        QComboBox#settingsAppearanceMode {
             padding-right: 32px;
         }
-        QComboBox#appearanceModeCombo::drop-down, QComboBox#themeCombo::drop-down {
+        QComboBox#settingsAppearanceMode::drop-down {
             subcontrol-origin: padding;
             subcontrol-position: top right;
             width: 28px;
             background: transparent;
             border: none;
         }
-        QComboBox#appearanceModeCombo::down-arrow, QComboBox#themeCombo::down-arrow {
+        QComboBox#settingsAppearanceMode::down-arrow {
             image: url("${chevron_icon}");
             width: 12px;
             height: 12px;
@@ -1001,3 +1001,61 @@ QPushButton#addContactSearchButton:focus { border-color: ${on_accent}; }
 QPushButton#addContactSearchButton:disabled {
     background: ${accent_disabled}; color: ${text_muted}; border-color: ${border};
 }
+
+/* Settings uses the same compact dialog surfaces and focus language as Contacts. */
+QDialog#settingsDialog {
+    background: ${panel}; border: 1px solid ${border};
+}
+QDialog#settingsDialog QScrollArea, QStackedWidget#settingsPages {
+    background: ${panel}; border: 0;
+}
+QWidget#settingsHomePage, QWidget#settingsNotificationsPage,
+QWidget#settingsAppearanceChatPage, QWidget#settingsDesktopWindowPage,
+QWidget#settingsAboutPage { background: ${panel}; }
+QLabel#settingsTitle { color: ${text}; font-size: 20px; font-weight: 600; }
+QLabel#settingsAccountName { color: ${text}; font-size: 16px; font-weight: 600; }
+QLabel#settingsAccountCaption, QLabel#settingsHint, QLabel#settingsTrayUnavailableHint {
+    color: ${text_secondary}; font-size: 13px;
+}
+QLabel#settingsSectionHeading { color: ${text_secondary}; font-size: 14px; font-weight: 600; }
+QLabel#settingsAboutText, QLabel#settingsRepositoryLink { color: ${text}; font-size: 14px; }
+QToolButton#settingsAccountButton, QPushButton[settingsSection="true"] {
+    background: transparent; color: ${text}; border: 1px solid transparent;
+    border-radius: 8px; text-align: left;
+}
+QPushButton[settingsSection="true"] { padding: 8px 16px; font-size: 15px; }
+QToolButton#settingsAccountButton:hover, QPushButton[settingsSection="true"]:hover { background: ${subtle}; }
+QToolButton#settingsAccountButton:pressed, QPushButton[settingsSection="true"]:pressed { background: ${selected}; }
+QToolButton#settingsAccountButton:focus, QPushButton[settingsSection="true"]:focus { border-color: ${focus}; }
+QToolButton#settingsBackButton, QToolButton#settingsCloseButton {
+    background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 0;
+}
+QToolButton#settingsBackButton:hover, QToolButton#settingsCloseButton:hover { background: ${subtle}; }
+QToolButton#settingsBackButton:pressed, QToolButton#settingsCloseButton:pressed { background: ${selected}; }
+QToolButton#settingsBackButton:focus, QToolButton#settingsCloseButton:focus { border-color: ${focus}; }
+QPushButton#settingsLogoutButton {
+    background: transparent; color: ${danger}; border: 1px solid transparent;
+    border-radius: 8px; text-align: left; padding: 8px 16px;
+}
+QPushButton#settingsLogoutButton:hover, QPushButton#settingsLogoutButton:pressed { background: ${danger_soft}; }
+QPushButton#settingsLogoutButton:focus { border-color: ${danger}; }
+QDialog#settingsDialog QCheckBox {
+    color: ${text}; font-size: 14px; spacing: 12px; padding: 10px 6px;
+    border: 1px solid transparent; border-radius: 6px;
+}
+QDialog#settingsDialog QCheckBox:hover:enabled { background: ${subtle}; }
+QDialog#settingsDialog QCheckBox:focus { border-color: ${focus}; }
+QDialog#settingsDialog QCheckBox:disabled { color: ${text_muted}; }
+QDialog#settingsDialog QCheckBox::indicator {
+    width: 18px; height: 18px; border: 1px solid ${border_strong};
+    border-radius: 4px; background: ${surface};
+}
+QDialog#settingsDialog QCheckBox::indicator:checked {
+    background: ${accent}; border-color: ${accent}; image: url("${check_icon}");
+}
+QDialog#settingsDialog QCheckBox::indicator:disabled { border-color: ${border}; }
+QDialog#settingsDialog QCheckBox::indicator:checked:disabled {
+    background: ${accent_disabled}; border-color: ${border_strong};
+}
+
+QLabel#settingsSectionLabel { color: ${text}; font-size: 15px; }

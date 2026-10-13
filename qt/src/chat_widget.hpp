@@ -93,7 +93,9 @@ class chat_widget final : public QWidget
     std::optional<conversation_data> conversation(qint64 id) const;
     void set_conversation_muted(qint64 conversation, bool muted);
     void set_conversation_pinned(qint64 conversation, bool pinned);
-    void show_user_details(qint64 user, QString const& username);
+    void show_user_details(qint64 user, QString const& username, QWidget* profile_parent = nullptr);
+    void set_control_enter_send(bool enabled);
+    bool control_enter_send() const { return control_enter_send_; }
 
    signals:
     void avatar_set_requested(QByteArray data);
@@ -112,7 +114,7 @@ class chat_widget final : public QWidget
     void friendship_updated();
     void contact_remove_requested(qint64 user);
     void contact_add_finished(qint64 user, QString error);
-    void logout_requested();
+    void settings_requested();
     void reconnect_requested();
     void direct_conversation_requested(qint64 user, QString username);
     void group_create_requested(QString title, QList<qint64> members);
@@ -274,6 +276,7 @@ class chat_widget final : public QWidget
     qint64 attachment_reply_ = 0;
     QString attachment_reply_text_;
     int locate_pages_ = 0;
+    bool control_enter_send_ = false;
     bool connection_available_ = true;
     bool attachment_sending_ = false;
 };

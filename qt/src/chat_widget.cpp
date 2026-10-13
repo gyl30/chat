@@ -167,6 +167,12 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     auto* join_group = main_menu->addAction(QStringLiteral("加入群组"));
     join_group->setObjectName(QStringLiteral("joinGroupAction"));
     join_group->setIcon(svg_icon(u"groups", themed("text"), QSize(20, 20)));
+    main_menu->addSeparator();
+    auto* settings = main_menu->addAction(QStringLiteral("设置"));
+    settings->setObjectName(QStringLiteral("showSettingsAction"));
+    settings->setToolTip(QStringLiteral("设置"));
+    settings->setIcon(svg_icon(u"settings", themed("text"), QSize(20, 20)));
+    connect(settings, &QAction::triggered, this, &chat_widget::settings_requested);
     main_menu_button_->setMenu(main_menu);
     main_menu_badge_ = new QLabel(main_menu_button_);
     main_menu_badge_->setObjectName(QStringLiteral("mainMenuBadge"));
@@ -1305,16 +1311,20 @@ bool chat_widget::eventFilter(QObject* object, QEvent* event)
     if (object == message_edit_ && event->type() == QEvent::KeyPress)
     {
         auto* key = static_cast<QKeyEvent*>(event);
-        if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) &&
-            !(key->modifiers() & Qt::ShiftModifier))
+        if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter)
         {
             if (!message_edit_->textCursor().block().layout()->preeditAreaText().isEmpty())
             {
                 QGuiApplication::inputMethod()->commit();
                 return true;
             }
-            send_current_message();
-            return true;
+            auto const modifiers = key->modifiers();
+            if (!(modifiers & (Qt::ShiftModifier | Qt::AltModifier | Qt::MetaModifier)) &&
+                (!control_enter_send_ || (modifiers & Qt::ControlModifier)))
+            {
+                send_current_message();
+                return true;
+            }
         }
     }
     if (object == messages_view_ && event->type() == QEvent::KeyPress &&
@@ -2078,6 +2088,10 @@ void chat_widget::refresh_theme()
         if (action->objectName() == QStringLiteral("addFriendAction"))
         {
             action->setIcon(svg_icon(u"user-plus", themed("text"), QSize(20, 20)));
+        }
+        else if (action->objectName() == QStringLiteral("showSettingsAction"))
+        {
+            action->setIcon(svg_icon(u"settings", themed("text"), QSize(20, 20)));
         }
         else if (action->objectName() == QStringLiteral("createGroupAction") ||
                  action->objectName() == QStringLiteral("joinGroupAction"))
@@ -2920,14 +2934,23 @@ void chat_widget::update_typing_label()
     typing_label_->setVisible(!names.isEmpty());
 }
 
-void chat_widget::show_user_details(qint64 user, QString const& username)
+void chat_widget::set_control_enter_send(bool enabled)
+{
+    control_enter_send_ = enabled;
+    message_edit_->setAccessibleDescription(enabled
+        ? QStringLiteral("Ctrl+Enter 发送；Enter 或 Shift+Enter 换行")
+        : QStringLiteral("Enter 发送；Shift+Enter 换行"));
+    send_button_->setToolTip(enabled ? QStringLiteral("发送（Ctrl+Enter）") : QStringLiteral("发送（Enter）"));
+}
+
+void chat_widget::show_user_details(qint64 user, QString const& username, QWidget* profile_parent)
 {
     if (user <= 0 || username.isEmpty())
     {
         return;
     }
 
-    QDialog dialog(add_contact_dialog_->isVisible() ? add_contact_dialog_
+    QDialog dialog(profile_parent ? profile_parent : add_contact_dialog_->isVisible() ? add_contact_dialog_
         : contacts_dialog_->isVisible() ? contacts_dialog_ : static_cast<QWidget*>(this));
     dialog.setObjectName(QStringLiteral("profileDialog"));
     dialog.setWindowTitle(username);
@@ -3152,39 +3175,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username)
             update();
             emit avatar_clear_requested();
         });
-        auto& themes = theme_manager::instance();
-        auto* appearance_row = new QHBoxLayout;
-        appearance_row->setSpacing(8);
-        auto* mode = new QComboBox(info);
-        mode->setObjectName(QStringLiteral("appearanceModeCombo"));
-        mode->setAccessibleName(QStringLiteral("外观模式"));
-        mode->addItem(QStringLiteral("跟随系统"), static_cast<int>(chat_appearance::system));
-        mode->addItem(QStringLiteral("Daylight"), static_cast<int>(chat_appearance::light));
-        mode->addItem(QStringLiteral("Midnight"), static_cast<int>(chat_appearance::dark));
-        mode->setCurrentIndex(mode->findData(static_cast<int>(themes.appearance())));
-        auto* mode_label = new QLabel(QStringLiteral("外观"), info);
-        mode_label->setObjectName(QStringLiteral("profileSectionTitle"));
-        mode_label->setBuddy(mode);
-        appearance_row->addWidget(mode_label);
-        appearance_row->addWidget(mode, 1);
-        info_layout->addLayout(appearance_row);
-        connect(mode, &QComboBox::currentIndexChanged, &dialog, [mode](int) {
-            theme_manager::instance().set_appearance(static_cast<chat_appearance>(mode->currentData().toInt()));
-        });
-        connect(&themes, &theme_manager::changed, &dialog, [mode] {
-            QSignalBlocker blocker(mode);
-            mode->setCurrentIndex(mode->findData(static_cast<int>(theme_manager::instance().appearance())));
-        });
-        auto* logout = new QPushButton(QStringLiteral("退出登录"), info);
-        logout->setObjectName(QStringLiteral("profileLogoutButton"));
-        info_layout->addWidget(logout);
-        connect(logout, &QPushButton::clicked, &dialog, [this, &dialog] {
-            if (!confirm_action(&dialog, QStringLiteral("退出登录"),
-                QStringLiteral("退出当前账号？应用会返回登录页。"),
-                QStringLiteral("退出登录"))) { return; }
-            dialog.accept();
-            emit logout_requested();
-        });
+
     }
     layout->addWidget(info);
 

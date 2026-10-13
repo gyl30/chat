@@ -55,14 +55,31 @@ class BlackholeRelayTest(unittest.TestCase):
 
     @staticmethod
     def _echo(peer):
-        while True:
-            try:
-                data = peer.recv(4096)
-                if not data:
+        with peer:
+            while True:
+                try:
+                    data = peer.recv(4096)
+                    if not data:
+                        return
+                    peer.sendall(data)
+                except OSError:
                     return
-                peer.sendall(data)
-            except OSError:
-                return
+
+    def test_echo_closes_its_accepted_peer_after_eof(self):
+        peer, client = socket.socketpair()
+        worker = threading.Thread(target=self._echo, args=(peer,), daemon=True)
+        try:
+            worker.start()
+            client.settimeout(2)
+            client.sendall(b'echo')
+            self.assertEqual(client.recv(16), b'echo')
+            client.shutdown(socket.SHUT_WR)
+            worker.join(timeout=2)
+            self.assertFalse(worker.is_alive())
+            self.assertEqual(peer.fileno(), -1)
+        finally:
+            client.close()
+            peer.close()
 
     def _client(self):
         client = socket.create_connection(('127.0.0.1', self.link.port))
@@ -879,9 +896,9 @@ class NativeToolsTest(unittest.TestCase):
                 self.assertIs(gui.is_transient_window_property_error(error, window), expected)
 
     def test_gui_navigation_clicks_owned_main_menu_then_destination(self):
-        for scale, width, height, px, ys in [(1, 180, 303, 120, [87,127,167,207,256,296,336]),
-                                             (1.25, 225, 379, 142, [94,144,194,244,305,355,405])]:
-            for index, label in enumerate(['我的资料', '聊天', '联系人', '新的朋友', '添加联系人', '新建群组', '加入群组']):
+        for scale, width, height, px, ys in [(1, 180, 352, 120, [87,127,167,207,256,296,336,385]),
+                                             (1.25, 225, 440, 142, [94,144,194,244,305,355,405,466])]:
+            for index, label in enumerate(['我的资料', '聊天', '联系人', '新的朋友', '添加联系人', '新建群组', '加入群组', '设置']):
                 with self.subTest(label=label, scale=scale):
                     driver = gui.NativeGui.__new__(gui.NativeGui)
                     driver.native = object()
@@ -889,6 +906,7 @@ class NativeToolsTest(unittest.TestCase):
                     button = object()
                     driver.field = mock.Mock(return_value=button)
                     driver.close_contact_dialogs = mock.Mock()
+                    driver.dialog = mock.Mock(return_value=None)
                     driver.click = mock.Mock()
                     rectangle = {'window': 12, 'x': 30, 'y': 60, 'width': width, 'height': height}
                     driver.popup = mock.Mock(side_effect=[rectangle, None])
