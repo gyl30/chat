@@ -33,6 +33,13 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QWidget>
+#if defined(Q_OS_LINUX)
+#include <QDBusConnection>
+#include <QDBusConnectionInterface>
+#include <QDBusMessage>
+#include <QDBusPendingCallWatcher>
+#include <QDBusPendingReply>
+#endif
 
 #include "avatar.hpp"
 #include "chat_history_dialog.hpp"
@@ -48,6 +55,19 @@
 
 namespace
 {
+
+#if defined(Q_OS_LINUX)
+auto const notification_service = QStringLiteral("org.freedesktop.Notifications");
+auto const notification_path = QStringLiteral("/org/freedesktop/Notifications");
+
+void close_desktop_notification(uint id)
+{
+    auto message = QDBusMessage::createMethodCall(notification_service, notification_path,
+        notification_service, QStringLiteral("CloseNotification"));
+    message << id;
+    QDBusConnection::sessionBus().asyncCall(message);
+}
+#endif
 
 void save_setting(QString const& key, QVariant const& value)
 {
@@ -302,32 +322,30 @@ main_window::main_window(QString server_url, QWidget* parent)
     tray_ = new QSystemTrayIcon(svg_icon(u"chat", themed("accent"), QSize(32, 32)), this);
     tray_->setObjectName(QStringLiteral("notificationTray"));
     tray_->setToolTip(QStringLiteral("Chat"));
-    auto restore_window = [this] {
-        if (isMinimized()) { setWindowState(windowState() & ~Qt::WindowMinimized); }
-        show();
-        raise();
-        activateWindow();
-    };
+    auto restore = [this] { restore_window(); };
     auto* tray_menu = new QMenu(this);
     tray_menu->setObjectName(QStringLiteral("trayMenu"));
     tray_menu->setAccessibleName(QStringLiteral("Chat 托盘菜单"));
-    auto* restore = tray_menu->addAction(QStringLiteral("显示 Chat"));
-    restore->setObjectName(QStringLiteral("trayRestoreAction"));
-    connect(restore, &QAction::triggered, this, restore_window);
+    auto* restore_action = tray_menu->addAction(QStringLiteral("显示 Chat"));
+    restore_action->setObjectName(QStringLiteral("trayRestoreAction"));
+    connect(restore_action, &QAction::triggered, this, restore);
     auto* quit = tray_menu->addAction(QStringLiteral("退出 Chat"));
     quit->setObjectName(QStringLiteral("trayQuitAction"));
     connect(quit, &QAction::triggered, qApp, &QCoreApplication::quit);
     tray_->setContextMenu(tray_menu);
-    connect(tray_, &QSystemTrayIcon::messageClicked, this, restore_window);
-    connect(tray_, &QSystemTrayIcon::activated, this, [restore_window](QSystemTrayIcon::ActivationReason reason) {
-        if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick) { restore_window(); }
+    connect(tray_, &QSystemTrayIcon::messageClicked, this, restore);
+    connect(tray_, &QSystemTrayIcon::activated, this, [restore](QSystemTrayIcon::ActivationReason reason) {
+        if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick) { restore(); }
     });
-    connect(this, &main_window::notification_requested, tray_, [this](qint64, QString const& title, QString const& summary) {
-        if (QSystemTrayIcon::isSystemTrayAvailable() && QSystemTrayIcon::supportsMessages())
-        {
-            tray_->showMessage(title, summary, QSystemTrayIcon::Information);
-        }
-    });
+    connect(this, &main_window::notification_requested, this,
+        [this](qint64, QString const& title, QString const& summary) { show_desktop_notification(title, summary); });
+#if defined(Q_OS_LINUX)
+    auto bus = QDBusConnection::sessionBus();
+    bus.connect(notification_service, notification_path, notification_service, QStringLiteral("ActionInvoked"),
+        this, SLOT(desktop_notification_activated(uint,QString)));
+    bus.connect(notification_service, notification_path, notification_service, QStringLiteral("NotificationClosed"),
+        this, SLOT(desktop_notification_closed(uint,uint)));
+#endif
     connect(chat_page_, &chat_widget::read_requested, client_.get(), &client_bridge::mark_read);
     connect(chat_page_, &chat_widget::mute_requested, client_.get(), &client_bridge::set_conversation_muted);
     connect(client_.get(), &client_bridge::mute_finished, this, [this](qint64 conversation, bool muted, QString error) {
@@ -1095,7 +1113,7 @@ void main_window::show_settings()
         });
         connect(settings_, &settings_dialog::desktop_notifications_changed, this, [this](bool enabled) {
             desktop_notifications_ = enabled;
-            if (!enabled) { pending_notifications_.clear(); }
+            if (!enabled) { pending_notifications_.clear(); clear_desktop_notifications(); }
             save_setting(QStringLiteral("notifications/desktop_enabled"), enabled);
         });
         connect(settings_, &settings_dialog::message_preview_changed, this, [this](bool enabled) {
@@ -1174,7 +1192,7 @@ void main_window::place_resize_grips()
     }
 }
 
-main_window::~main_window() { client_.reset(); }
+main_window::~main_window() { clear_desktop_notifications(); client_.reset(); }
 
 QStringList main_window::recent_accounts() const
 {
@@ -1224,6 +1242,76 @@ bool main_window::reading_conversation(qint64 conversation) const
     return connected_ && !reconnecting_ &&
         pages_->currentWidget() == chat_page_ && chat_page_->active_conversation() == conversation && chat_page_->viewing_latest();
 }
+
+void main_window::restore_window()
+{
+    if (isMinimized()) { setWindowState(windowState() & ~Qt::WindowMinimized); }
+    show();
+    raise();
+    activateWindow();
+}
+
+void main_window::show_desktop_notification(QString const& title, QString const& summary)
+{
+#if defined(Q_OS_LINUX)
+    auto bus = QDBusConnection::sessionBus();
+    if (bus.interface() && bus.interface()->isServiceRegistered(notification_service))
+    {
+        auto message = QDBusMessage::createMethodCall(notification_service, notification_path,
+            notification_service, QStringLiteral("Notify"));
+        QVariantMap hints{{QStringLiteral("urgency"), QVariant::fromValue(uchar(1))}};
+        message << QCoreApplication::applicationName() << uint(0) << QStringLiteral("dialog-information")
+            << title << summary << QStringList{QStringLiteral("default"), QStringLiteral("显示 Chat")}
+            << hints << 10000;
+        auto* pending = new QDBusPendingCallWatcher(bus.asyncCall(message), this);
+        pending->setObjectName(QStringLiteral("desktopNotificationPending"));
+        connect(pending, &QDBusPendingCallWatcher::finished, this, [this, pending] {
+            QDBusPendingReply<uint> reply = *pending;
+            pending->deleteLater();
+            if (reply.isError()) { qWarning() << "Desktop notification delivery failed:" << reply.error().name(); return; }
+            auto const id = reply.value();
+            if (pending->property("cancelled").toBool() || !desktop_notifications_ ||
+                pages_->currentWidget() != chat_page_ || chat_page_->self_user() == 0)
+            {
+                close_desktop_notification(id);
+                return;
+            }
+            desktop_notification_ids_.insert(id);
+        });
+        return;
+    }
+#endif
+    if (QSystemTrayIcon::isSystemTrayAvailable() && QSystemTrayIcon::supportsMessages())
+    {
+        tray_->showMessage(title, summary, QSystemTrayIcon::Information);
+    }
+}
+
+void main_window::clear_desktop_notifications()
+{
+#if defined(Q_OS_LINUX)
+    for (auto id : std::exchange(desktop_notification_ids_, {})) { close_desktop_notification(id); }
+    for (auto* pending : findChildren<QDBusPendingCallWatcher*>(QStringLiteral("desktopNotificationPending"),
+        Qt::FindDirectChildrenOnly)) { pending->setProperty("cancelled", true); }
+#endif
+}
+
+#if defined(Q_OS_LINUX)
+void main_window::desktop_notification_activated(uint id, QString const& action)
+{
+    if (desktop_notification_ids_.contains(id) && action == QStringLiteral("default") &&
+        desktop_notifications_ && pages_->currentWidget() == chat_page_ && chat_page_->self_user() != 0)
+    {
+        restore_window();
+    }
+}
+
+void main_window::desktop_notification_closed(uint id, uint reason)
+{
+    (void)reason;
+    desktop_notification_ids_.remove(id);
+}
+#endif
 
 void main_window::notify_message(message_data const& message)
 {
@@ -1355,6 +1443,7 @@ void main_window::register_user()
 
 void main_window::logout()
 {
+    clear_desktop_notifications();
     if (settings_) { settings_->reject(); }
     pending_notifications_.clear();
     tray_->hide();
@@ -1557,6 +1646,7 @@ void main_window::stop_reconnect()
 
 void main_window::return_to_login(QString message)
 {
+    clear_desktop_notifications();
     if (settings_) { settings_->reject(); }
     pending_notifications_.clear();
     tray_->hide();

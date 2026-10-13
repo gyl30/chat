@@ -1,5 +1,8 @@
 include(GNUInstallDirs)
 find_package(Qt6 6.5 REQUIRED COMPONENTS Svg Widgets)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(Qt6 6.5 REQUIRED COMPONENTS DBus)
+endif()
 include("${PROJECT_SOURCE_DIR}/cmake/chat_emoji_scanner.cmake")
 
 add_library(chat_qt_widgets OBJECT
@@ -97,6 +100,15 @@ target_link_libraries(chat_qt_widgets
         utf8proc::utf8proc
         chat_emoji_scanner
 )
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(chat_qt_widgets PUBLIC Qt6::DBus)
+    add_executable(chat_qt_notifications_test tests/notification_test.cpp)
+    target_include_directories(chat_qt_notifications_test PRIVATE src)
+    target_link_libraries(chat_qt_notifications_test PRIVATE chat_qt_widgets)
+    add_test(NAME qt_notifications COMMAND chat_qt_notifications_test)
+    set_tests_properties(qt_notifications PROPERTIES TIMEOUT 15 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
 
 add_executable(chat_qt_models_test tests/models_test.cpp)
 target_include_directories(chat_qt_models_test PRIVATE src)

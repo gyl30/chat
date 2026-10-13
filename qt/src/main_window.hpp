@@ -6,6 +6,9 @@
 #include <QMainWindow>
 #include <QString>
 #include <QStringList>
+#if defined(Q_OS_LINUX)
+#include <QSet>
+#endif
 #include "message_data.hpp"
 
 class QAction;
@@ -40,6 +43,12 @@ class main_window final : public QMainWindow
     void closeEvent(QCloseEvent* event) override;
     bool eventFilter(QObject* object, QEvent* event) override;
 
+   private slots:
+#if defined(Q_OS_LINUX)
+    void desktop_notification_activated(uint id, QString const& action);
+    void desktop_notification_closed(uint id, uint reason);
+#endif
+
    private:
     enum class pending_action
     {
@@ -70,6 +79,9 @@ class main_window final : public QMainWindow
     void return_to_login(QString message);
     bool reading_conversation(qint64 conversation) const;
     void notify_message(message_data const& message);
+    void show_desktop_notification(QString const& title, QString const& summary);
+    void clear_desktop_notifications();
+    void restore_window();
     QStringList recent_accounts() const;
     void remember_login(QString const& username, QString const& server);
     void update_login_identity();
@@ -108,6 +120,9 @@ class main_window final : public QMainWindow
     bool message_preview_ = true;
     bool close_to_tray_ = false;
     QList<message_data> pending_notifications_;
+#if defined(Q_OS_LINUX)
+    QSet<uint> desktop_notification_ids_;
+#endif
 
     bool connected_ = false;
     bool logout_pending_ = false;
