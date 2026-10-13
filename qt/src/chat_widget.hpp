@@ -22,6 +22,7 @@
 #include "message_images.hpp"
 
 class QAction;
+class QDialog;
 class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
@@ -66,8 +67,8 @@ class chat_widget final : public QWidget
     void set_presences(QList<presence_data> users);
     void set_presence(presence_data user);
     void set_contacts_error(QString message);
-    void set_add_contact_search_results(QList<user_data> users);
-    void set_add_contact_search_error(QString message);
+    void set_add_contact_search_results(QList<user_data> users, quint64 request);
+    void set_add_contact_search_error(QString message, quint64 request);
     void finish_add_contact(qint64 user, QString error);
     void set_messages(qint64 conversation, QList<message_data> messages, read_positions positions, bool older,
                       bool recovering, bool has_more);
@@ -104,7 +105,7 @@ class chat_widget final : public QWidget
     void delete_message_requested(qint64 conversation, qint64 message);
     void edit_message_requested(qint64 conversation, qint64 message, QString text);
     void reaction_requested(qint64 conversation, qint64 message, QString emoji);
-    void add_contact_search_requested(QString query);
+    void add_contact_search_requested(QString query, quint64 request);
     void contact_add_requested(qint64 user);
     void friend_request_respond_requested(qint64 user, bool accept);
     void friend_request_cancel_requested(qint64 user);
@@ -132,9 +133,9 @@ class chat_widget final : public QWidget
 
    private:
     void show_conversations_section();
-    void show_contacts_section();
+    void show_contacts_dialog();
     void show_new_friends_section();
-    void show_add_contact_section();
+    void show_add_contact_dialog();
     void filter_contacts(QString const& query);
     void search_users();
     void select_contact(QModelIndex const& index);
@@ -185,8 +186,11 @@ class chat_widget final : public QWidget
     QToolButton* attachment_button_ = nullptr;
     QLabel* section_title_ = nullptr;
     QStackedWidget* sidebar_pages_ = nullptr;
-    enum class sidebar_parent { chats, contacts, new_friends };
-    sidebar_parent add_friend_parent_ = sidebar_parent::contacts;
+    QDialog* contacts_dialog_ = nullptr;
+    QDialog* add_contact_dialog_ = nullptr;
+    QToolButton* contacts_add_button_ = nullptr;
+    QPushButton* add_search_button_ = nullptr;
+    quint64 add_search_request_ = 0;
     QListView* conversations_view_ = nullptr;
     QLabel* conversations_status_ = nullptr;
     QStackedWidget* right_pages_ = nullptr;

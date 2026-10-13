@@ -280,7 +280,6 @@ def run_scale():
         gui.navigate(identity, '联系人')
         gui.paste(identity, gui.field(identity, '搜索联系人'), username)
         gui.click(identity, gui.wait_row(identity, '联系人列表', username))
-        gui.key('Return')
         gui.wait(lambda: next((n for n in gui.nodes(identity) if n.get_name() == username
                  and n.get_role() == gui.Atspi.Role.PUSH_BUTTON), None),
                  'Native contact card opened exact direct conversation')

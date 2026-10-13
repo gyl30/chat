@@ -972,3 +972,32 @@ QMenu#mainNavigationMenu::item:selected {
     background: ${selected};
     color: ${text};
 }
+
+/* Compact contact windows share the existing semantic palette. */
+QDialog#contactsDialog, QDialog#addContactDialog {
+    background: ${panel};
+    border: 1px solid ${border};
+}
+QLabel#dialogTitle { color: ${text}; font-size: 20px; font-weight: 700; }
+QLabel#contactsStatus, QLabel#addUsersStatus { color: ${text_secondary}; font-size: 13px; }
+QToolButton#contactDialogCloseButton, QToolButton#contactsAddButton {
+    background: transparent; border: 1px solid transparent; border-radius: 8px;
+}
+QToolButton#contactDialogCloseButton:hover, QToolButton#contactsAddButton:hover {
+    background: ${subtle};
+}
+QToolButton#contactDialogCloseButton:pressed, QToolButton#contactsAddButton:pressed {
+    background: ${selected};
+}
+QToolButton#contactDialogCloseButton:focus, QToolButton#contactsAddButton:focus {
+    border-color: ${focus};
+}
+QPushButton#addContactSearchButton {
+    background: ${accent}; color: ${on_accent}; border: 1px solid ${accent};
+}
+QPushButton#addContactSearchButton:hover { background: ${accent_hover}; }
+QPushButton#addContactSearchButton:pressed { background: ${accent_pressed}; }
+QPushButton#addContactSearchButton:focus { border-color: ${on_accent}; }
+QPushButton#addContactSearchButton:disabled {
+    background: ${accent_disabled}; color: ${text_muted}; border-color: ${border};
+}

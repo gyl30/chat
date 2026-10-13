@@ -31,7 +31,8 @@ QRect action_rect(QStyleOptionViewItem const& option, QString const& text)
 
 }
 
-user_delegate::user_delegate(QObject* parent) : QStyledItemDelegate(parent) {}
+user_delegate::user_delegate(QObject* parent, std::function<QString(QModelIndex const&)> status)
+    : QStyledItemDelegate(parent), status_(std::move(status)) {}
 
 bool user_delegate::editorEvent(QEvent* event, QAbstractItemModel* model,
                                 QStyleOptionViewItem const& option, QModelIndex const& index)
@@ -100,13 +101,14 @@ void user_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option,
                       QFontMetrics(username_font).elidedText(username, Qt::ElideRight, username_rect.width()));
 
     auto const request_status = index.data(Qt::StatusTipRole);
-    auto const status = request_status.isValid() ? request_status.toString() : presence_text(online, last_seen);
+    auto const status = status_ ? status_(index)
+        : request_status.isValid() ? request_status.toString() : presence_text(online, last_seen);
     if (!status.isEmpty())
     {
         QFont status_font = option.font;
         status_font.setPixelSize(13);
         painter->setFont(status_font);
-        painter->setPen(themed(request_status.isValid() ? "text_secondary" : online ? "online" : "text_muted"));
+        painter->setPen(themed((status_ || request_status.isValid()) ? "text_secondary" : online ? "online" : "text_muted"));
         QRect status_rect(left, rect.top() + chat_theme::dialog_preview_top, right - left,
                           QFontMetrics(status_font).height());
         painter->drawText(status_rect, Qt::AlignLeft | Qt::AlignVCenter,

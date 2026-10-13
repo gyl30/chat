@@ -616,16 +616,16 @@ main_window::main_window(QString server_url, QWidget* parent)
     connect(chat_page_, &chat_widget::logout_requested, this, [this] { logout(); });
 
     connect(chat_page_, &chat_widget::add_contact_search_requested, this,
-            [this](QString query) { client_->search_users(std::move(query)); });
+            [this](QString query, quint64 request) { client_->search_users(std::move(query), request); });
 
     connect(client_.get(), &client_bridge::users_received, this,
-            [this](QList<user_data> users, QString const& error_message) {
+            [this](QList<user_data> users, QString const& error_message, quint64 request) {
                 if (!error_message.isEmpty())
                 {
-                    chat_page_->set_add_contact_search_error(error_message);
+                    chat_page_->set_add_contact_search_error(error_message, request);
                     return;
                 }
-                chat_page_->set_add_contact_search_results(std::move(users));
+                chat_page_->set_add_contact_search_results(std::move(users), request);
             },
             Qt::AutoConnection);
 

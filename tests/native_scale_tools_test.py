@@ -888,6 +888,7 @@ class NativeToolsTest(unittest.TestCase):
                     driver.Atspi = SimpleNamespace(Role=SimpleNamespace(MENU_ITEM='menu-item'))
                     button = object()
                     driver.field = mock.Mock(return_value=button)
+                    driver.close_contact_dialogs = mock.Mock()
                     driver.click = mock.Mock()
                     rectangle = {'window': 12, 'x': 30, 'y': 60, 'width': width, 'height': height}
                     driver.popup = mock.Mock(side_effect=[rectangle, None])
@@ -901,6 +902,7 @@ class NativeToolsTest(unittest.TestCase):
                     driver.xt, driver.lib = mock.Mock(), mock.Mock()
                     with mock.patch('native_gui_scale.emit'), mock.patch.dict(os.environ, {'QT_SCALE_FACTOR':str(scale)}):
                         driver.navigate(7, label)
+                    driver.close_contact_dialogs.assert_called_once_with(7)
                     driver.field.assert_called_once_with(7, '主菜单')
                     driver.click.assert_called_once_with(7, button)
                     driver.xt.XTestFakeMotionEvent.assert_called_once_with(
@@ -908,6 +910,32 @@ class NativeToolsTest(unittest.TestCase):
                     self.assertEqual(driver.xt.XTestFakeButtonEvent.call_args_list,
                         [mock.call(driver.native, 1, True, 0), mock.call(driver.native, 1, False, 0)])
                     driver.lib.XFlush.assert_called_once_with(driver.native)
+
+    def test_gui_navigation_closes_nested_contact_dialogs_with_native_escape(self):
+        driver = gui.NativeGui.__new__(gui.NativeGui)
+        visible = {'添加联系人': object(), '联系人': object()}
+        driver.dialog = lambda actor, label: visible.get(label)
+        driver.find = mock.Mock(return_value=None)
+        driver.focus = mock.Mock()
+        def key(name):
+            self.assertEqual(name, 'Escape')
+            visible.pop(next(iter(visible)))
+        driver.key = mock.Mock(side_effect=key)
+        driver.wait = lambda predicate, description: self.assertTrue(predicate(), description)
+        driver.close_contact_dialogs(7)
+        self.assertEqual(driver.focus.call_args_list, [mock.call(7), mock.call(7)])
+        self.assertEqual(driver.key.call_args_list, [mock.call('Escape'), mock.call('Escape')])
+        self.assertEqual(visible, {})
+
+    def test_gui_navigation_does_not_dismiss_active_profile(self):
+        driver = gui.NativeGui.__new__(gui.NativeGui)
+        driver.dialog = mock.Mock(return_value=object())
+        driver.find = mock.Mock(return_value=object())
+        driver.focus, driver.key = mock.Mock(), mock.Mock()
+        with self.assertRaisesRegex(RuntimeError, 'Finish the active profile'):
+            driver.close_contact_dialogs(7)
+        driver.focus.assert_not_called()
+        driver.key.assert_not_called()
 
     def test_gui_navigation_rejects_unrelated_action_before_any_input(self):
         driver = gui.NativeGui.__new__(gui.NativeGui)

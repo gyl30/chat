@@ -2,12 +2,13 @@
 #define CHAT_QT_SRC_USER_DELEGATE_HPP
 
 #include <QStyledItemDelegate>
+#include <functional>
 
 class user_delegate final : public QStyledItemDelegate
 {
     Q_OBJECT
    public:
-    explicit user_delegate(QObject* parent = nullptr);
+    explicit user_delegate(QObject* parent = nullptr, std::function<QString(QModelIndex const&)> status = {});
     // Text of an inline action (such as accepting a request) drawn at the end of the row.
     static constexpr int action_role = Qt::UserRole + 20;
 
@@ -15,6 +16,9 @@ class user_delegate final : public QStyledItemDelegate
     QSize sizeHint(QStyleOptionViewItem const& option, QModelIndex const& index) const override;
     bool editorEvent(QEvent* event, QAbstractItemModel* model,
                      QStyleOptionViewItem const& option, QModelIndex const& index) override;
+
+   private:
+    std::function<QString(QModelIndex const&)> status_;
 
    signals:
     void avatar_clicked(QModelIndex index);

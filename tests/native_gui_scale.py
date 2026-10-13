@@ -630,10 +630,33 @@ class NativeGui:
         if self.cfg.get('history_diagnostic', False):
             self.history_observation(actor, 'after-end')
 
+    def dialog(self, actor, label):
+        for node in self.nodes(actor):
+            try:
+                if node.get_role() == self.Atspi.Role.DIALOG and node.get_name() == label and self.visible(node):
+                    return node
+            except self.GLib.GError:
+                continue
+        return None
+
+    def close_contact_dialogs(self, actor):
+        # Only these two persistent contact dialogs may be dismissed before a
+        # main-menu action. A nested profile must be completed by its caller.
+        for label in ('添加联系人', '联系人'):
+            if self.dialog(actor, label) is None:
+                continue
+            if self.find(actor, '关闭资料') is not None:
+                raise RuntimeError('Finish the active profile before main-menu navigation')
+            self.focus(actor)
+            self.key('Escape')
+            self.wait(lambda: self.dialog(actor, label) is None,
+                      'Native contact dialog did not close: ' + label)
+
     def navigate(self, actor, label):
         actions = ['我的资料', '聊天', '联系人', '新的朋友', '添加联系人', '新建群组', '加入群组']
         if label not in actions:
             raise ValueError('Unknown native main-menu action: ' + label)
+        self.close_contact_dialogs(actor)
         self.click(actor, self.field(actor, '主菜单'))
         rectangle = self.wait(lambda: self.popup(actor), 'Owned native main navigation menu unavailable')
         # QMenu exports differ between Qt platform integrations. When Qt exposes
@@ -887,8 +910,8 @@ class NativeGui:
         self.paste(actor, self.field(actor, '搜索用户'), peer['username'])
         self.key('Return')
         self.click(actor, self.wait_row(actor, '用户搜索结果', peer['username']))
-        self.key('Return')
-        self.click(actor, self.field(actor, '添加到通讯录'))
+        self.field(actor, '关闭资料')
+        self.click(actor, self.field(actor, '添加好友'))
         self.field(actor, '等待验证')
 
     def incoming(self, actor, requester):
@@ -899,10 +922,10 @@ class NativeGui:
 
     def remove_friend(self, actor, peer):
         self.navigate(actor, '联系人')
-        self.click(actor, self.wait_row(actor, '联系人列表', peer['username']))
-        self.click(actor, self.field(actor, '资料'))
+        self.click(actor, self.wait_row(actor, '联系人列表', peer['username']), x_margin=24)
+        self.field(actor, '关闭资料')
         self.click(actor, self.field(actor, '移除联系人'))
-        self.click(actor, self.field(actor, '移除联系人'))
+        self.click(actor, self.confirmation_button(actor, '移除联系人'))
         self.wait(lambda: not any(n.get_name() == peer['username'] for n in self.rows(actor, '联系人列表')),
                   'Removed friend remains in contacts')
         if not self.rows(actor, '联系人列表'):
@@ -928,20 +951,22 @@ class NativeGui:
         self.friend_request(identity, peer)
         self.incoming(peer['id'], actor)
         self.click(peer['id'], self.field(peer['id'], '拒绝'))
-        self.field(identity, '添加到通讯录')
+        self.field(identity, '添加好友')
         emit('friendship-state', actor=identity, peer=peer['id'], state='rejected')
-        self.click(identity, self.field(identity, '添加到通讯录'))
+        self.click(identity, self.field(identity, '添加好友'))
         self.field(identity, '等待验证')
-        self.click(identity, self.field(identity, '撤回申请'))
-        self.field(identity, '添加到通讯录')
+        self.click(identity, self.field(identity, '取消申请'))
+        self.field(identity, '添加好友')
         # The UI deliberately retains a handled rejection row for feedback.
         # Verify the relationship action returns to stranger, not absence of that row.
         self.field(peer['id'], '添加到通讯录')
         emit('friendship-state', actor=identity, peer=peer['id'], state='cancelled')
-        self.click(identity, self.field(identity, '添加到通讯录'))
+        self.click(identity, self.field(identity, '添加好友'))
         self.field(identity, '等待验证')
         self.incoming(peer['id'], actor)
         self.click(peer['id'], self.field(peer['id'], '接受'))
+        self.field(identity, '消息')
+        self.click(identity, self.field(identity, '关闭资料'))
         for current, target in [(actor, peer), (peer, actor)]:
             self.navigate(current['id'], '联系人')
             self.wait_row(current['id'], '联系人列表', target['username'])

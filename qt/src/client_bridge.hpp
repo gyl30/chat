@@ -66,7 +66,7 @@ class client_bridge final : public QObject
     void delete_message(qint64 conversation, qint64 message);
     void edit_message(qint64 conversation, qint64 message, QString text);
     void set_message_reaction(qint64 conversation, qint64 message, QString emoji);
-    void search_users(QString query);
+    void search_users(QString query, quint64 request);
     void search_messages(qint64 conversation, QString query, qint64 before = 0);
     // History pages for the chat history window; independent of the open chat's own paging.
     void get_history(qint64 conversation, qint64 before = 0);
@@ -117,7 +117,7 @@ class client_bridge final : public QObject
     void conversation_changed(qint64 conversation, bool removed);
     void message_sent(qint64 user, QString text, qint64 message, qint64 timestamp, bool realtime,
                       quoted_message_data reply, QList<mention_data> mentions, QString error_message);
-    void users_received(QList<user_data> users, QString error_message);
+    void users_received(QList<user_data> users, QString error_message, quint64 request);
     void contact_added(user_data user, QString error_message);
     void contact_removed(QString error_message);
     void attachment_sent(qint64 conversation, message_data message, QString error_message);

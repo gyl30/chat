@@ -759,14 +759,14 @@ void client_bridge::set_message_reaction(qint64 conversation, qint64 message, QS
         });
 }
 
-void client_bridge::search_users(QString query)
+void client_bridge::search_users(QString query, quint64 request)
 {
     auto const generation = connection_generation_.load();
-    client_->search_users(to_utf8(query), [this, generation](auto result) {
-        post_result(generation, [this, result = std::move(result)] {
+    client_->search_users(to_utf8(query), [this, generation, request](auto result) {
+        post_result(generation, [this, request, result = std::move(result)] {
             if (!result)
             {
-                emit users_received({}, display_error(result.error()));
+                emit users_received({}, display_error(result.error()), request);
                 return;
             }
 
@@ -780,7 +780,7 @@ void client_bridge::search_users(QString query)
                 value.avatar = item.avatar;
                 users.push_back(std::move(value));
             }
-            emit users_received(std::move(users), {});
+            emit users_received(std::move(users), {}, request);
         });
     });
 }
