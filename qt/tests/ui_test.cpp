@@ -2657,6 +2657,48 @@ void check_themes()
                 readable(pressed, QRect(48, 15, 105, 19), pressed.pixelColor(point),
                          "Registration keeps readable text while pressed");
         }
+        QDialog profile;
+        profile.setObjectName(QStringLiteral("profileDialog"));
+        profile.setStyleSheet(chat_style_sheet());
+        QToolButton send(&profile), message(&profile);
+        QPushButton avatar(&profile);
+        send.setObjectName(QStringLiteral("sendButton"));
+        message.setObjectName(QStringLiteral("profileActionButton"));
+        message.setProperty("primary", true);
+        avatar.setObjectName(QStringLiteral("changeAvatarButton"));
+        for (auto* button : std::array<QAbstractButton*, 3>{&send, &message, &avatar})
+        {
+            button->resize(200, 44);
+            button->ensurePolished();
+            auto paint = [&](QStyle::State state) {
+                QImage image(button->size(), QImage::Format_ARGB32);
+                image.fill(themed("panel"));
+                QPainter painter(&image);
+                if (auto* tool = qobject_cast<QToolButton*>(button))
+                {
+                    QStyleOptionToolButton option;
+                    option.initFrom(tool); option.rect = tool->rect();
+                    option.state = QStyle::State_Enabled | state;
+                    tool->style()->drawComplexControl(QStyle::CC_ToolButton, &option, &painter, tool);
+                }
+                else
+                {
+                    QStyleOptionButton option;
+                    option.initFrom(button); option.rect = button->rect();
+                    option.state = QStyle::State_Enabled | state;
+                    button->style()->drawControl(QStyle::CE_PushButton, &option, &painter, button);
+                }
+                painter.end();
+                return image;
+            };
+            auto const point = QPoint(button->width() - 12, button->height() / 2);
+            auto const hover = paint(QStyle::State_MouseOver);
+            auto const pressed = paint(QStyle::State_MouseOver | QStyle::State_Sunken);
+            check(logical_pixel(hover, point) == themed("accent_hover") &&
+                  logical_pixel(pressed, point) == themed("accent_pressed") &&
+                  logical_pixel(hover, point) != logical_pixel(pressed, point),
+                  "Send and profile primary actions distinguish pressing from hovering in each external theme");
+        }
     };
     auto const daylight = render(QStringLiteral("daylight"));
     check(daylight.lightness() > 200, "Daylight chat background is light");
@@ -3040,6 +3082,9 @@ void check_settings_persistence_and_pages()
             entry->setFocus(Qt::TabFocusReason); key(entry, Qt::Key_Space);
             check(pages->currentIndex() == row + 1 && back->isVisible() && back->accessibleName() == QStringLiteral("返回设置首页") &&
                   dialog->findChild<QLabel*>("settingsTitle")->text() == titles[row], "A Settings section opens its own page and explicit Back control");
+            auto* heading = dialog->findChild<QLabel*>("settingsTitle");
+            check(heading->geometry().left() >= back->geometry().right() + 8,
+                  "Settings section titles keep readable space after the focused Back button");
             key(dialog, Qt::Key_Escape);
             check(dialog->isVisible() && pages->currentIndex() == 0 && !back->isVisible(), "Section Escape returns to Settings home without closing the dialog");
         }

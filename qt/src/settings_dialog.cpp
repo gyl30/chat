@@ -45,6 +45,7 @@ settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
     outer->setSpacing(0);
     auto* header = new QHBoxLayout;
     header->setContentsMargins(12, 12, 12, 8);
+    header->setSpacing(8);
     back_ = new QToolButton(this);
     back_->setObjectName(QStringLiteral("settingsBackButton"));
     back_->setAccessibleName(QStringLiteral("返回设置首页"));

@@ -617,6 +617,9 @@ QMainWindow {
         QToolButton#profileActionButton[primary="true"]:hover, QDialog#profileDialog QPushButton#changeAvatarButton:hover {
             background: ${accent_hover};
         }
+        QToolButton#profileActionButton[primary="true"]:pressed:enabled, QDialog#profileDialog QPushButton#changeAvatarButton:pressed:enabled {
+            background: ${accent_pressed};
+        }
         QToolButton#profileActionButton[primary="true"]:focus, QDialog#profileDialog QPushButton#changeAvatarButton:focus {
             border-color: ${focus};
         }
@@ -786,6 +789,9 @@ QMainWindow {
         }
         QToolButton#sendButton:hover:enabled {
             background: ${accent_hover};
+        }
+        QToolButton#sendButton:pressed:enabled {
+            background: ${accent_pressed};
         }
         QToolButton#sendButton:disabled {
             background: ${accent_disabled};
