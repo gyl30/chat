@@ -428,28 +428,6 @@ QMainWindow {
         QFrame#chatPanel {
             background: ${canvas};
         }
-        QLabel#sectionTitle {
-            font-size: 20px;
-            font-weight: 700;
-            color: ${text};
-        }
-        QToolButton#sidebarHeaderButton, QToolButton#sidebarTextButton {
-            border: 0;
-            background: transparent;
-            color: ${accent};
-            font-weight: 600;
-        }
-        QToolButton#sidebarHeaderButton {
-            font-size: 26px;
-        }
-        QToolButton#sidebarTextButton {
-            padding: 6px 4px;
-            font-size: 13px;
-        }
-        QToolButton#sidebarHeaderButton:hover, QToolButton#sidebarTextButton:hover {
-            background: ${subtle};
-            border-radius: 8px;
-        }
         QLabel#subtleText {
             color: ${text_muted};
         }
@@ -559,15 +537,6 @@ QMainWindow {
             color: ${text_secondary};
             font-size: 13px;
         }
-        QLabel#addFriendBadge {
-            min-width: 16px;
-            padding: 0 4px;
-            border-radius: 8px;
-            background: ${danger};
-            color: ${on_accent};
-            font-size: 11px;
-            font-weight: 700;
-        }
         QLabel#mainMenuBadge {
             min-width: 16px;
             padding: 0 4px;
@@ -576,21 +545,6 @@ QMainWindow {
             color: ${on_accent};
             font-size: 11px;
             font-weight: 700;
-        }
-        QPushButton#emptyAddFriendButton {
-            min-height: 36px;
-            padding: 0 22px;
-            background: ${accent};
-            color: ${on_accent};
-            border: 2px solid transparent;
-            border-radius: 10px;
-            font-weight: 600;
-        }
-        QPushButton#emptyAddFriendButton:hover {
-            background: ${accent_hover};
-        }
-        QPushButton#contactCardProfileButton[danger="true"] {
-            color: ${danger};
         }
         QLabel#profileSectionTitle {
             color: ${text};
@@ -636,48 +590,6 @@ QMainWindow {
             color: ${text};
             selection-background-color: ${selected};
             selection-color: ${text};
-        }
-        QStackedWidget#contactDetail, QWidget#contactCard, QLabel#contactDetailPlaceholder {
-            background: ${canvas};
-        }
-        QLabel#contactCardName {
-            color: ${text};
-            font-size: 22px;
-            font-weight: 700;
-        }
-        QLabel#contactCardStatus {
-            color: ${text_muted};
-            font-size: 13px;
-        }
-        QLabel#contactCardOnline {
-            color: ${online};
-            font-size: 13px;
-        }
-        QPushButton#contactCardMessageButton, QPushButton#contactCardProfileButton {
-            border: 2px solid transparent;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 600;
-        }
-        QPushButton#contactCardMessageButton {
-            background: ${accent};
-            color: ${on_accent};
-        }
-        QPushButton#contactCardMessageButton:hover {
-            background: ${accent_hover};
-        }
-        QPushButton#contactCardMessageButton:disabled {
-            background: ${accent_disabled};
-        }
-        QPushButton#contactCardProfileButton {
-            background: ${subtle};
-            color: ${accent};
-        }
-        QPushButton#contactCardProfileButton:hover {
-            background: ${subtle};
-        }
-        QPushButton#contactCardMessageButton:focus, QPushButton#contactCardProfileButton:focus {
-            border-color: ${focus};
         }
         QToolButton#profileActionButton {
             padding: 0 12px;
@@ -837,12 +749,6 @@ QMainWindow {
             background: ${surface};
             border-color: ${focus};
         }
-        QToolButton#sidebarTextButton {
-            padding: 0;
-            border: 1px solid ${border};
-            border-radius: 17px;
-            background: ${surface};
-        }
         QToolButton#chatMoreButton, QToolButton#sendAttachmentButton,
         QToolButton#emojiButton, QToolButton#chatHistoryButton {
             padding: 0;
@@ -934,24 +840,18 @@ QPushButton#loginButton:disabled, QPushButton#registrationSubmitButton:disabled 
 QPushButton#loginButton:focus, QPushButton#registrationSubmitButton:focus, QToolButton#sendButton:focus { border: 2px solid ${on_accent}; }
 
 QToolButton#profileActionButton[primary="true"]:focus,
-QDialog#profileDialog QPushButton#changeAvatarButton:focus,
-QPushButton#contactCardMessageButton:focus { border-color: ${on_accent}; }
+QDialog#profileDialog QPushButton#changeAvatarButton:focus { border-color: ${on_accent}; }
 QPlainTextEdit#messageEdit:focus { border: 1px solid ${focus}; border-radius: 8px; }
-QToolButton#sidebarHeaderButton:focus,
 QToolButton#chatMoreButton:focus, QToolButton#composeToolButton:focus,
 QPushButton#chatHeaderButton:focus { border: 1px solid ${focus}; }
 
-QPushButton#contactCardMessageButton:disabled { color: ${text_secondary}; }
 
 QLineEdit, QPlainTextEdit, QTextEdit { placeholder-text-color: ${text_muted}; }
 
-QPushButton#emptyAddFriendButton:focus { border-color: ${on_accent}; }
 
 /* Readable supporting identity and quiet, explicit contact guidance. */
 QLabel#groupOverviewCount { font-size: 14px; }
 QLabel#groupOverviewAnnouncement[empty="true"] { color: ${text_secondary}; font-size: 13px; }
-QLabel#contactEmptyTitle { color: ${text}; font-size: 18px; font-weight: 600; }
-QLabel#contactEmptyHint { color: ${text_secondary}; font-size: 14px; }
 
 
 /* Sidebar navigation uses the native menu beside search. */
@@ -978,7 +878,7 @@ QDialog#contactsDialog, QDialog#addContactDialog {
     background: ${panel};
     border: 1px solid ${border};
 }
-QLabel#dialogTitle { color: ${text}; font-size: 20px; font-weight: 700; }
+QLabel#dialogTitle, QLabel#contactsTitle { color: ${text}; font-size: 20px; font-weight: 700; }
 QLabel#contactsStatus, QLabel#addUsersStatus { color: ${text_secondary}; font-size: 13px; }
 QToolButton#contactDialogCloseButton, QToolButton#contactsAddButton {
     background: transparent; border: 1px solid transparent; border-radius: 8px;
@@ -1059,3 +959,49 @@ QDialog#settingsDialog QCheckBox::indicator:checked:disabled {
 }
 
 QLabel#settingsSectionLabel { color: ${text}; font-size: 15px; }
+
+
+/* Friend requests share the contacts row rhythm and existing semantic colors. */
+QPushButton#contactsRequestsButton {
+    background: transparent; border: 1px solid transparent; border-radius: 0;
+    padding: 0; min-height: 62px; max-height: 62px; text-align: left;
+}
+QPushButton#contactsRequestsButton:hover { background: ${subtle}; }
+QPushButton#contactsRequestsButton:pressed { background: ${selected}; }
+QPushButton#contactsRequestsButton:focus { border-color: ${focus}; }
+QPushButton#contactsRequestsButton QLabel { background: transparent; border: none; }
+QPushButton#contactsRequestsButton QLabel#contactsRequestsIcon { background: ${subtle}; border-radius: 20px; }
+QLabel#contactsRequestsTitle { color: ${text}; font-size: 14px; font-weight: 600; }
+QLabel#contactsRequestsSummary { color: ${text_secondary}; font-size: 13px; }
+QPushButton#contactsRequestsButton QLabel#contactsRequestsBadge {
+    background: ${danger}; color: ${on_accent};
+    min-width: 18px; max-height: 20px; padding: 0 4px;
+    border-radius: 10px; font-size: 12px; font-weight: 600;
+}
+QToolButton#contactsBackButton {
+    background: transparent; border: 1px solid transparent; border-radius: 8px;
+}
+QToolButton#contactsBackButton:hover { background: ${subtle}; }
+QToolButton#contactsBackButton:pressed { background: ${selected}; }
+QToolButton#contactsBackButton:focus { border-color: ${focus}; }
+QLabel#contactsRequestFeedback {
+    margin: 4px 12px 8px 12px; padding: 8px 12px;
+    background: ${subtle}; color: ${text_secondary}; border-radius: 8px; font-size: 13px;
+}
+QDialog#contactsDialog QPushButton#friendRequestAcceptButton {
+    background: ${accent}; color: ${on_accent}; border-color: transparent;
+}
+QDialog#contactsDialog QPushButton#friendRequestAcceptButton:hover:enabled { background: ${accent_hover}; }
+QDialog#contactsDialog QPushButton#friendRequestAcceptButton:pressed:enabled { background: ${accent_pressed}; }
+QDialog#contactsDialog QPushButton#friendRequestAcceptButton:disabled { background: ${accent_disabled}; color: ${text_muted}; }
+QDialog#contactsDialog QPushButton#friendRequestAcceptButton:focus { border-color: ${on_accent}; }
+QDialog#contactsDialog QPushButton#friendRequestRejectButton,
+QDialog#contactsDialog QPushButton#friendRequestCancelButton { color: ${danger}; }
+QDialog#contactsDialog QPushButton#friendRequestRejectButton:hover:enabled,
+QDialog#contactsDialog QPushButton#friendRequestCancelButton:hover:enabled { background: ${subtle}; }
+QDialog#contactsDialog QPushButton#friendRequestRejectButton:pressed:enabled,
+QDialog#contactsDialog QPushButton#friendRequestCancelButton:pressed:enabled { background: ${selected}; }
+QDialog#contactsDialog QPushButton#friendRequestRejectButton:focus,
+QDialog#contactsDialog QPushButton#friendRequestCancelButton:focus { border-color: ${focus}; }
+QDialog#contactsDialog QPushButton#friendRequestRejectButton:disabled,
+QDialog#contactsDialog QPushButton#friendRequestCancelButton:disabled { color: ${text_muted}; }

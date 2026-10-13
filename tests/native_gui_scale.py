@@ -648,12 +648,15 @@ class NativeGui:
             if self.find(actor, '关闭资料') is not None:
                 raise RuntimeError('Finish the active profile before main-menu navigation')
             self.focus(actor)
+            if label == '联系人' and self.find(actor, '返回联系人') is not None:
+                self.key('Escape')
+                self.wait(lambda: self.find(actor, '搜索联系人'), 'Escape returns Contacts home from requests')
             self.key('Escape')
             self.wait(lambda: self.dialog(actor, label) is None,
                       'Native contact dialog did not close: ' + label)
 
     def navigate(self, actor, label):
-        actions = ['我的资料', '聊天', '联系人', '新的朋友', '添加联系人', '新建群组', '加入群组', '设置']
+        actions = ['我的资料', '聊天', '联系人', '添加联系人', '新建群组', '加入群组', '设置']
         if label not in actions:
             raise ValueError('Unknown native main-menu action: ' + label)
         self.close_contact_dialogs(actor)
@@ -668,7 +671,7 @@ class NativeGui:
         rectangle = self.wait(lambda: self.popup(actor), 'Owned native main navigation menu unavailable')
         # QMenu exports differ between Qt platform integrations. When Qt exposes
         # visible items, verify their stable labels; input still uses the actual
-        # owned popup geometry: eight equal rows, with separators after the first four and before Settings.
+        # owned popup geometry: seven equal rows, with separators after Contacts and before Settings.
         labels = []
         for node in self.nodes(actor):
             try:
@@ -681,14 +684,14 @@ class NativeGui:
         if labels and not all(any(name == action or name.startswith(action + ' ') or
                                  name.startswith(action + '（') or name.startswith(action + '(')
                                  for name in labels) for action in actions):
-            raise RuntimeError('Native main menu labels differ from its eight actions: ' + str(labels))
+            raise RuntimeError('Native main menu labels differ from its seven actions: ' + str(labels))
         index = actions.index(label)
         px = rectangle['x'] + rectangle['width'] // 2
         scale = float(os.environ.get('QT_SCALE_FACTOR', '1'))
         padding, separator = 7 * scale, 9 * scale
         row_height = (rectangle['height'] - 2 * padding - 2 * separator) / len(actions)
         py = round(rectangle['y'] + padding + (index + .5) * row_height +
-                   (separator if index >= 4 else 0) + (separator if index >= 7 else 0))
+                   (separator if index >= 3 else 0) + (separator if index >= 6 else 0))
         self.xt.XTestFakeMotionEvent(self.native, -1, px, py, 0)
         self.xt.XTestFakeButtonEvent(self.native, 1, True, 0)
         self.xt.XTestFakeButtonEvent(self.native, 1, False, 0)
@@ -921,11 +924,16 @@ class NativeGui:
         self.click(actor, self.field(actor, '添加好友'))
         self.field(actor, '等待验证')
 
+    def open_friend_requests(self, actor):
+        self.navigate(actor, '联系人')
+        self.click_prefix(actor, '好友申请')
+        self.field(actor, '返回联系人')
+
     def incoming(self, actor, requester):
-        self.navigate(actor, '新的朋友')
+        self.open_friend_requests(actor)
         self.click(actor, self.wait_row(actor, '收到的好友申请', requester['username']))
-        self.key('Return')
-        self.field(actor, '接受')
+        self.field(actor, '关闭资料')
+        self.field(actor, '接受申请')
 
     def remove_friend(self, actor, peer):
         self.navigate(actor, '联系人')
@@ -957,23 +965,24 @@ class NativeGui:
         emit('friendship-state', actor=identity, peer=peer['id'], state='removed-hidden')
         self.friend_request(identity, peer)
         self.incoming(peer['id'], actor)
-        self.click(peer['id'], self.field(peer['id'], '拒绝'))
+        self.click(peer['id'], self.field(peer['id'], '拒绝申请'))
         self.field(identity, '添加好友')
         emit('friendship-state', actor=identity, peer=peer['id'], state='rejected')
         self.click(identity, self.field(identity, '添加好友'))
         self.field(identity, '等待验证')
         self.click(identity, self.field(identity, '取消申请'))
         self.field(identity, '添加好友')
-        # The UI deliberately retains a handled rejection row for feedback.
-        # Verify the relationship action returns to stranger, not absence of that row.
-        self.field(peer['id'], '添加到通讯录')
+        # The nested profile reflects the handled request's stranger relation.
+        self.field(peer['id'], '添加好友')
+        self.click(peer['id'], self.field(peer['id'], '关闭资料'))
         emit('friendship-state', actor=identity, peer=peer['id'], state='cancelled')
         self.click(identity, self.field(identity, '添加好友'))
         self.field(identity, '等待验证')
         self.incoming(peer['id'], actor)
-        self.click(peer['id'], self.field(peer['id'], '接受'))
+        self.click(peer['id'], self.field(peer['id'], '接受申请'))
         self.field(identity, '消息')
         self.click(identity, self.field(identity, '关闭资料'))
+        self.click(peer['id'], self.field(peer['id'], '关闭资料'))
         for current, target in [(actor, peer), (peer, actor)]:
             self.navigate(current['id'], '联系人')
             self.wait_row(current['id'], '联系人列表', target['username'])

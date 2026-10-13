@@ -896,9 +896,9 @@ class NativeToolsTest(unittest.TestCase):
                 self.assertIs(gui.is_transient_window_property_error(error, window), expected)
 
     def test_gui_navigation_clicks_owned_main_menu_then_destination(self):
-        for scale, width, height, px, ys in [(1, 180, 352, 120, [87,127,167,207,256,296,336,385]),
-                                             (1.25, 225, 440, 142, [94,144,194,244,305,355,405,466])]:
-            for index, label in enumerate(['我的资料', '聊天', '联系人', '新的朋友', '添加联系人', '新建群组', '加入群组', '设置']):
+        for scale, width, height, px, ys in [(1, 180, 312, 120, [87,127,167,216,256,296,345]),
+                                             (1.25, 225, 390, 142, [94,144,194,255,305,355,416])]:
+            for index, label in enumerate(['我的资料', '聊天', '联系人', '添加联系人', '新建群组', '加入群组', '设置']):
                 with self.subTest(label=label, scale=scale):
                     driver = gui.NativeGui.__new__(gui.NativeGui)
                     driver.native = object()

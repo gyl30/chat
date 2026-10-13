@@ -20,12 +20,8 @@ def run(c):
         return any(p['user'] == aid and p['online'] == online for p in sdk('S005', 'get_presence'))
 
     def restored(section):
-        markers = {'contacts': '搜索联系人', 'new-friends': '收到的好友申请', 'chats': '搜索聊天'}
-        wait(lambda: gui.find(aid, markers[section]), 'Back restores actual ' + section + ' sidebar')
-
-    def back(section):
-        click('返回')
-        restored(section)
+        markers = {'contacts': '搜索联系人', 'requests': '收到的好友申请', 'chats': '搜索聊天'}
+        wait(lambda: gui.find(aid, markers[section]), 'Close restores actual ' + section + ' page')
 
     wait(lambda: presence(True), 'Qt A authenticated')
     gui.navigate(aid, '聊天')
@@ -74,28 +70,31 @@ def run(c):
     gui.wait(lambda: gui.dialog(aid, '添加联系人') is None, 'Cancel Add contact dialog')
     gui.wait(lambda: gui.dialog(aid, '联系人'), 'Nested Add cancel restores Contacts')
     capture('nav-contacts-add-back')
-    gui.navigate(aid, '新的朋友')
-    capture('nav-03-new-friends-incoming')
-    gui.navigate(aid, '添加联系人')
-    gui.field(aid, '搜索用户')
-    capture('nav-new-friends-add-friend')
+    gui.open_friend_requests(aid)
+    capture('nav-03-contacts-requests')
     gui.key('Escape')
-    gui.wait(lambda: gui.dialog(aid, '添加联系人') is None, 'Add cancel restores underlying New friends')
-    restored('new-friends')
-    capture('nav-new-friends-add-back')
-    back('chats')
-    capture('nav-new-friends-back-chats')
-    gui.navigate(aid, '新的朋友')
+    restored('contacts')
+    capture('nav-requests-back-contacts')
+    click('添加联系人')
+    gui.field(aid, '搜索用户')
+    capture('nav-requests-add-friend')
+    gui.key('Escape')
+    gui.wait(lambda: gui.dialog(aid, '添加联系人') is None, 'Add cancel restores underlying Contacts home')
+    restored('contacts')
+    capture('nav-requests-add-back')
+    gui.key('Escape')
+    restored('chats')
+    capture('nav-requests-close-chat')
+    gui.open_friend_requests(aid)
     # The initial fixture contains exactly one incoming and one outgoing request.
     gui.click(aid, gui.wait_row(aid, '收到的好友申请', actor('D')['username']))
-    gui.key('Return')
-    gui.field(aid, '接受')
+    gui.field(aid, '关闭资料')
+    gui.field(aid, '接受申请')
     capture('nav-04-incoming-profile')
-    click('接受')
+    click('接受申请')
     relation = f'SELECT count(*) FROM contacts WHERE (owner_id={aid} AND contact_id={did}) OR (owner_id={did} AND contact_id={aid})'
     wait(lambda: sql(relation) == '2', 'Incoming request accepted bilaterally')
     capture('nav-05-accepted-profile')
-    click('资料')
     click('移除联系人')
     gui.confirmation_button(aid, '移除联系人')
     capture('nav-remove-confirm')
@@ -103,18 +102,18 @@ def run(c):
     wait(lambda: sql(relation) == '0', 'Remove accepted friend bilaterally')
     gui.key('Escape')
     capture('nav-removed-friend')
-    gui.navigate(aid, '新的朋友')
+    gui.open_friend_requests(aid)
     gui.click(aid, gui.wait_row(aid, '发出的好友申请', actor('E')['username']))
-    gui.key('Return')
-    gui.field(aid, '撤回申请')
+    gui.field(aid, '关闭资料')
+    gui.field(aid, '取消申请')
     capture('nav-outgoing-profile')
-    click('撤回申请')
+    click('取消申请')
     pending = f'SELECT count(*) FROM friend_requests WHERE requester_id={aid} AND recipient_id={eid}'
     wait(lambda: sql(pending) == '0', 'Outgoing request cancelled')
     capture('nav-cancelled-outgoing')
     gui.key('Escape')
     record('qt-contacts-pending-isolation-accept-remove-cancel', [
-        'nav-02-accepted-contacts-only.png', 'nav-03-new-friends-incoming.png', 'nav-04-incoming-profile.png',
+        'nav-02-accepted-contacts-only.png', 'nav-03-contacts-requests.png', 'nav-04-incoming-profile.png',
         'nav-accepted-contact-ids.txt', 'nav-05-accepted-profile.png', 'nav-remove-confirm.png',
         'nav-removed-friend.png', 'nav-outgoing-profile.png', 'nav-cancelled-outgoing.png'])
     gui.navigate(aid, '聊天')
@@ -126,8 +125,8 @@ def run(c):
     restored('chats')
     capture('nav-chats-add-back')
     record('qt-secondary-close-preserves-parent', [
-        'nav-contacts-add-back.png', 'nav-new-friends-add-back.png',
-        'nav-new-friends-back-chats.png', 'nav-chats-add-back.png'])
+        'nav-contacts-add-back.png', 'nav-requests-add-back.png',
+        'nav-requests-close-chat.png', 'nav-chats-add-back.png'])
     gui.navigate(aid, '加入群组')
     gui.field(aid, '邀请码')
     capture('nav-08-join-action')

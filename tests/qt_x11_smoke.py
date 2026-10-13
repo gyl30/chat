@@ -325,15 +325,18 @@ def run_scale():
     record('hundred-member-overview-and-stranger-request', [
         '02-group-overview.png', '03-all-members.png', '04-stranger-profile.png',
         '05-outgoing-pending.png', 'pending-contact-count.txt'])
-    gui.incoming(bid, actor('A'))
-    capture('06-readable-new-friends-entry')
+    gui.open_friend_requests(bid)
+    capture('06-contacts-requests-page')
     capture('07-incoming-and-outgoing')
+    gui.click(bid, gui.wait_row(bid, '收到的好友申请', actor('A')['username']))
+    gui.field(bid, '关闭资料')
+    gui.field(bid, '接受申请')
     capture('08-incoming-profile')
-    native_click(bid, '接受')
+    native_click(bid, '接受申请')
     wait(lambda: sql(relation) == '2' and sql(pending) == '0', 'Mutual acceptance')
     query_fact('accepted-contact-count', relation)
     capture('09-accepted-profile')
-    native_click(bid, '发消息')
+    native_click(bid, '消息')
     gui.escape(aid)
     gui.escape(aid)
     open_friend_chat(aid, actor('S030')['username'])
@@ -347,7 +350,7 @@ def run_scale():
     query_fact('bidirectional-message-facts', messages)
     capture('10-bidirectional-chat')
     record('request-accept-and-bidirectional-chat', [
-        '06-readable-new-friends-entry.png', '07-incoming-and-outgoing.png', '08-incoming-profile.png',
+        '06-contacts-requests-page.png', '07-incoming-and-outgoing.png', '08-incoming-profile.png',
         'accepted-contact-count.txt', '10-bidirectional-chat.png', 'bidirectional-message-facts.txt'])
     gui.navigate(aid, '新建群组')
     gui.field(aid, '选择群成员')
@@ -405,7 +408,7 @@ def run_scale():
     gui.field(aid, '登录')
     capture('19-logout-login-page')
     record('account-profile-confirmed-logout-keeps-app', [
-        '16-self-profile.png', '17-logout-confirmation.png', '18-logout-cancelled.png', '19-logout-login-page.png'])
+        '16-settings-home.png', '17-logout-confirmation.png', '18-logout-cancelled.png', '19-logout-login-page.png'])
     return 4
 
 try:
