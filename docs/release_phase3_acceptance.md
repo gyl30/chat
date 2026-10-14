@@ -1,5 +1,7 @@
 # Release Readiness Phase 3 验收记录
 
+第 1–8 节保留原始发布包的历史验收；第 9 节记录独立审查修复后的新包与有界复验。
+
 ## 1. 版本与范围
 
 - BASE_HEAD：`28f588a3d1b7300eeffdd459f9863ce8042d5328`。
@@ -186,5 +188,76 @@ manifest 文件的 SHA256；不包含已清理的私有凭据。原始证据受�
 
 整体结论 **CONDITIONAL GO**：以上明确平台上的实际运行与搬运通过；原生 Fcitx
 和 Qt SDK 完整源码对应来源仍有明确限制，不宣称所有桌面/发行版或公开分发条件
-全部通过。本轮仅本地提交，不 push：用户授权是在全部验收通过后推送，当前尚未达到
-无条件完整发布结论。没有 force push、依赖升级或后续功能开发。
+全部通过。原始验收结束时只作本地提交，尚未推送。后续审查收口获得了明确的源码推送
+授权，许可限制不阻止已验证源码正常推送；不创建 GitHub Release 或上传二进制资产。
+后续结果见第 9 节，没有 force push、依赖升级或后续功能开发。
+
+## 9. 独立审查收口与新包复验
+
+本轮从 `753361c87e6f67bf7526c1bffc0c63bd6fa143bf` 开始，开始时远端为
+`28f588a3d1b7300eeffdd459f9863ce8042d5328`。没有改动应用 C++、SDK、SQL、TUI
+或第三方子模块。新增源码提交：
+
+- `fd4038e`：两阶段共用 ldd 解析器，支持空格路径并明确拒绝不可解析记录；按源码
+  SQL 文件名/连续编号/逐文件 SHA 校验安装集合；构建前固定 Qt 6.5.3 与三份源码归档 SHA。
+- `7dc53d7`：真实打包发现 ICU 数据 ELF 没有 DT_NEEDED，ldd 正常输出
+  `statically linked`；精确接受这一独立状态行，继续拒绝未知输出和未解析依赖。
+
+旧实现配新增测试的 RED 为 24 项中 14 个失败；原有 5 项守卫仍通过。
+首份测试夹具重复输出目录错误保留，修正后完整 RED 无驱动错误。
+ICU 合法状态行的第二次 RED 为 26 项中 1 个预期错误；最终 CLI **26/26 PASS**。
+SQL 和普通文件使用真实临时文件及真实 SHA，仅外部命令与大归档身份 mock；
+离线结果不替代实际发布包验收。真实 Qt SDK 为 6.5.3，三归档实测哈希均与部署文档固定值一致。
+
+首个修复包 `review-fix/package-01/` 因上述 ICU 状态行拒绝而失败，日志和诊断保留。
+成功的新包与历史 package-07/08 分开：
+
+```text
+文件：chat-7dc53d7cf572-linux-x86_64.tar.gz
+manifest HEAD：7dc53d7cf5728f0f46a514cad2dfe7c0ff9be1fa
+大小：231177386 bytes
+SHA256：06a8d3e01ab4d8b3f2e7435751676fc38cb33677f1e2e25258a296f9bd819234
+打包脚本 SHA256：4ad8b28c3e932a451d6693ce3c37cec2ca457e5c1e6089bb65dcfe82913e75f0
+DEV：/home/gyl/chat-review/release-phase3/review-fix/package-02/
+TEST：/home/gyl/chat-review/release-phase3/review-fix/native-test/
+```
+
+本轮包内 237 个文件、22 个私有库、9 个 Qt 插件及 27 个 SQL 与 manifest/源码核对通过。
+DEV 与 TEST 归档 SHA 一致；各自解压并迁移到带空格的新目录，严格检查全部 34 个 ELF。
+两机 ldd -r 无未解析依赖或符号，私有库均从包内加载；RPATH 为 `$ORIGIN` 相对路径，
+没有开发机绝对路径。旧外部检查器也使用了漏掉空格的 regex；本轮改为复用已提交的
+共享解析器，不能把旧检查器的有限断言冒充为新严格核验。
+
+本轮有界原生复验：DEV `native-dev/ws-03/result.json` 与 TEST
+`native-test/ws-02/result.json` 均为 PASS。两机分别从带空格的重定位包和非源码 cwd
+启动实际 Server、Qt/XCB 与 TUI/PTY；各进行一条 Qt→TUI 和一条 TUI→Qt 的
+中文/Emoji WS 消息，实际界面及正文一致性通过。包内 XCB/Qt 映射核验通过；
+Qt 正常关闭、TUI 正常退出并恢复终端、Server TERM 后 exit 0。
+`readonly-message-facts.json` 对四条最终消息逐一 SELECT 核对：DEV ID 2/3、
+TEST ID 4/5，真实发送用户为 7/8、会话 ID 1，正文精确一致；驱动槽位 1/2 不当作数据库用户 ID。
+TEST Server 连接本轮 DEV 私有测试库，这不是独立 TEST 数据库部署验收，
+也不是跨两机 Qt/TUI 消息通信、物理桌面或输入法验收。
+
+失败记录没有覆盖：初始 SDK 夹具返回 `ok=false`，原始错误正文未保存，原因未确定，
+不能推断产品通信缺陷；改用真实 Qt 注册两账号、发送及接受好友申请建立前置关系。
+DEV 第二次驱动误把已正常退出的注册用 Qt 同伴保留在活跃列表中；修正外部驱动后复验。
+TEST 首次连接因实际路由源地址与 SSH 地址不同，被本轮私有 PG 单地址白名单拒绝，
+Qt 显示服务器错误、TUI 未启动；核准源地址后仅修改该私有集群白名单，未修改系统配置。
+三类失败均有独立脱敏记录，未以重跑覆盖，也未为这些测试问题修改产品代码。
+
+最终 `cleanup.json` 与 `TEST-cleanup.json` 均为 PASS：核对本轮 PID/starttime 后，
+Server、Qt、TUI、Xvfb/Openbox、tmux 与运行时辅助进程均无残留；本轮私有数据库
+已 DROP，私有 PG 正常停止、端口关闭，凭据、客户端配置、PG 数据和重定位副本删除。
+原始/新发布包、脱敏日志、截图、失败记录及只读核对结果保留；原有构建、依赖缓存、
+历史证据、既有服务与数据库未删除或修改。公开文本扫描没有本轮已知测试秘密匹配。
+
+三个应用 ELF 的 SHA 与原始 package-07 完全相同。原始 Normal/ASan/UBSan 的
+29/29 × 3 记录仍对应第 1–8 节的原始验收与 `28f588a` 的应用代码，
+本轮仅 Python 发布工具及文档变化，未重编三套 sanitizer，也未重复原 85 分钟
+Qt↔Qt、TUI↔TUI、Qt↔TUI 的 WS/WSS、附件和重连完整矩阵；历史结果不改写成新包测试数字。
+本轮未重新进行重复归档可重复性实验、物理桌面或原生 Fcitx5 验收。
+
+结论仍为 **CONDITIONAL GO**：指定 Ubuntu 平台有界运行复验，不是无条件公开发行。
+原 Qt SDK 完整对应源码来源、构建配置与补丁 provenance 及公开二进制分发许可未闭合；
+可选原生 Fcitx5 插件未捆绑、未验收，不以 IBus/Compose 替代。
+本轮原始证据位于独立 `review-fix/`，历史包、原日志和证据不覆盖，原始资料不提交 Git。
