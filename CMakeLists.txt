@@ -169,6 +169,8 @@ target_link_libraries(chat_server
 # Keep external dependency locations discovered by CMake in installed binaries.
 set_target_properties(chat_server PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 install(TARGETS chat_server RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+install(DIRECTORY sql/ DESTINATION "${CMAKE_INSTALL_DATADIR}/chat/sql"
+    FILES_MATCHING PATTERN "[0-9][0-9][0-9]_*.sql")
 
 add_executable(chat_migration_test tests/migration_test.cpp)
 target_link_libraries(chat_migration_test PRIVATE PostgreSQL::PostgreSQL)
