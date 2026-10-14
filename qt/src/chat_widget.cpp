@@ -861,10 +861,12 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     input_separator->hide();
 
     auto* input_bar = new QFrame(chat_panel);
+    input_bar_ = input_bar;
+    input_bar->hide();
     input_bar->setObjectName(QStringLiteral("inputBar"));
     input_bar->setMinimumHeight(chat_theme::compose_height);
     auto* input_layout = new QHBoxLayout(input_bar);
-    input_layout->setContentsMargins(12, 5, 8, 5);
+    input_layout->setContentsMargins(8, 5, 8, 5);
     input_layout->setSpacing(4);
     message_edit_ = new QPlainTextEdit(input_bar);
     message_edit_->setObjectName(QStringLiteral("messageEdit"));
@@ -877,7 +879,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     message_edit_->installEventFilter(this);
     message_edit_->setEnabled(false);
     new emoji_highlighter(message_edit_);
-    input_layout->addWidget(message_edit_, 1, Qt::AlignBottom);
+    input_layout->addWidget(message_edit_, 1, Qt::AlignVCenter);
     auto const resize_composer = [this] {
         auto* document = message_edit_->document();
         auto height = 2 * document->documentMargin() + 1;
@@ -1256,10 +1258,18 @@ void chat_widget::set_user(QString const& username, qint64 user)
     history_button_->setEnabled(false);
     attachment_button_->setEnabled(false);
     chat_more_button_->setEnabled(false);
+    update_compose_state();
 }
 
 bool chat_widget::eventFilter(QObject* object, QEvent* event)
 {
+    if (object == message_edit_ && (event->type() == QEvent::FocusIn || event->type() == QEvent::FocusOut))
+    {
+        input_bar_->setProperty("editorFocused", event->type() == QEvent::FocusIn);
+        input_bar_->style()->unpolish(input_bar_);
+        input_bar_->style()->polish(input_bar_);
+        input_bar_->update();
+    }
     if ((object == contacts_requests_button_ || object == contacts_back_button_ || object == incoming_accept_button_ ||
          object == incoming_reject_button_ || object == outgoing_cancel_button_) && event->type() == QEvent::KeyPress)
     {
@@ -2277,6 +2287,7 @@ bool chat_widget::can_send() const
 
 void chat_widget::update_compose_state()
 {
+    input_bar_->setVisible(active_conversation_ > 0);
     auto const current = conversation(active_conversation_);
     auto const allowed = can_send();
     message_edit_->setEnabled(allowed);
@@ -2438,6 +2449,7 @@ void chat_widget::close_conversation(qint64 conversation)
     chat_more_button_->setEnabled(false);
     set_message_status(conversations_->rowCount() == 0
         ? QStringLiteral("暂无会话，可从主菜单添加联系人或新建群组") : QStringLiteral("选择一个会话开始聊天"));
+    update_compose_state();
 }
 
 void chat_widget::update_pinned_message()

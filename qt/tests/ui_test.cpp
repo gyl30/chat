@@ -23,6 +23,7 @@
 #include <QRegularExpression>
 #include <QFileDialog>
 #include <QFontDatabase>
+#include <QFontMetricsF>
 #include <QGlyphRun>
 #include <QHeaderView>
 #include <QImage>
@@ -4214,6 +4215,9 @@ void check_chat_empty_guidance()
     QApplication::processEvents();
     auto* list = page.findChild<QListView*>("conversationList");
     auto* history = page.findChild<QListView*>("messageList");
+    auto* input_bar = page.findChild<QFrame*>("inputBar");
+    check(input_bar, "Chat owns its named composer bar");
+    check(!input_bar->isVisibleTo(&page), "A fresh account with no selected conversation hides the entire input bar");
     auto const labels = history->parentWidget()->findChildren<QLabel*>("subtleText", Qt::FindDirectChildrenOnly);
     auto has_hint = [&](QString const& expected) {
         return std::any_of(labels.begin(), labels.end(), [&](auto* label) {
@@ -4231,15 +4235,17 @@ void check_chat_empty_guidance()
     QObject::connect(&page, &chat_widget::conversation_selected, &page, [&](qint64, bool) { ++opens; });
     QObject::connect(&page, &chat_widget::read_requested, &page, [&](qint64, qint64) { ++reads; });
     page.set_loading();
-    transition(has_hint(QStringLiteral("正在加载会话…")) && !has_hint(empty_hint), "loading");
+    transition(has_hint(QStringLiteral("正在加载会话…")) && !has_hint(empty_hint) &&
+                   !input_bar->isVisibleTo(&page), "loading");
     page.set_conversations({});
     transition(has_hint(empty_hint) && list->model()->rowCount() == 0 &&
-                   page.findChild<QToolButton*>("mainMenuButton")->isVisibleTo(&page), "empty response");
+                   page.findChild<QToolButton*>("mainMenuButton")->isVisibleTo(&page) &&
+                   !input_bar->isVisibleTo(&page), "empty response");
     conversation_data first;
     first.id = 50; first.user = 2; first.username = QStringLiteral("林小满");
     page.set_conversations({first});
-    transition(has_hint(selection_hint) && page.active_conversation() == 0 && opens == 0 && reads == 0,
-               "nonempty without selection");
+    transition(has_hint(selection_hint) && page.active_conversation() == 0 && opens == 0 && reads == 0 &&
+                   !input_bar->isVisibleTo(&page), "nonempty without selection");
     auto* search = page.findChild<QLineEdit*>("conversationSearchEdit");
     search->setText(QStringLiteral("没有匹配的名字"));
     page.set_conversations({first});
@@ -4249,10 +4255,12 @@ void check_chat_empty_guidance()
     page.open_conversation(first);
     page.set_conversations({});
     transition(page.active_conversation() == 0 && has_hint(empty_hint) &&
-                   !page.findChild<QPlainTextEdit*>("messageEdit")->isEnabled(), "last conversation removed");
+                   !page.findChild<QPlainTextEdit*>("messageEdit")->isEnabled() &&
+                   !input_bar->isVisibleTo(&page), "last conversation removed");
     page.set_conversations({first});
     transition(has_hint(selection_hint) && !has_hint(empty_hint) && page.active_conversation() == 0 &&
-                   !list->currentIndex().isValid() && opens == 1 && reads == 0, "repopulated without automatic selection");
+                   !list->currentIndex().isValid() && opens == 1 && reads == 0 &&
+                   !input_bar->isVisibleTo(&page), "repopulated without automatic selection");
     QString const failed = QStringLiteral("会话列表加载失败");
     auto* list_status = list->parentWidget()->findChild<QLabel*>("subtleText");
     page.set_loading();
@@ -4268,6 +4276,7 @@ void check_chat_empty_guidance()
     transition(has_hint(selection_hint) && !has_hint(failed) && list_status->text().isEmpty() &&
                    !list->isRowHidden(0), "matching response recovers after failure");
     page.open_conversation(first);
+    check(input_bar->isVisibleTo(&page), "Selecting a conversation reveals the entire input bar");
     message_data message;
     message.id = 1001; message.conversation = first.id; message.from = first.user; message.text = QStringLiteral("保留已加载的历史");
     page.set_messages(first.id, {message}, {}, false, false, false);
@@ -4279,7 +4288,7 @@ void check_chat_empty_guidance()
     page.set_conversations_error(failed);
     transition(page.active_conversation() == first.id && history->model()->rowCount() == 1 &&
                    history->model()->index(0, 0).data(message_model::id_role).toLongLong() == message.id &&
-                   editor->toPlainText() == QStringLiteral("保留草稿") && !has_hint(failed) &&
+                   editor->toPlainText() == QStringLiteral("保留草稿") && input_bar->isVisibleTo(&page) && !has_hint(failed) &&
                    !has_hint(QStringLiteral("正在加载会话…")) && list_status->text() == failed &&
                    opens == opens_before_failure && reads == reads_before_failure,
                "selected history survives list failure");
@@ -4397,8 +4406,155 @@ void check_chat_list_search()
               search_messages->shortcut() == QKeySequence(QKeySequence::Find) && page.findChild<QToolButton*>("chatMoreButton"),
           "The chat header has no search icon; keyword search is Ctrl+F");
 }
+QRect composer_rect_in(QWidget* widget, QWidget* parent)
+{
+    return QRect(widget->mapTo(parent, QPoint(0, 0)), widget->size());
+}
+
+QRectF composer_text_ink(QPlainTextEdit* edit)
+{
+    auto const image = edit->viewport()->grab().toImage();
+    auto const background = image.pixelColor(0, 0);
+    auto const foreground = edit->palette().color(
+        edit->toPlainText().isEmpty() ? QPalette::PlaceholderText : QPalette::Text);
+    auto difference = [](QColor const& a, QColor const& b) {
+        return std::max({qAbs(a.red() - b.red()), qAbs(a.green() - b.green()), qAbs(a.blue() - b.blue())});
+    };
+    auto const contrast = difference(foreground, background);
+    check(contrast > 0, "Composer text has a distinguishable painted foreground");
+    QRect ink;
+    for (int y = 0; y < image.height(); ++y)
+        for (int x = 0; x < image.width(); ++x)
+            if (difference(image.pixelColor(x, y), background) * 3 > contrast)
+                ink = ink.isNull() ? QRect(x, y, 1, 1) : ink.united(QRect(x, y, 1, 1));
+    check(!ink.isEmpty(), "The real composer viewport paints the placeholder or draft");
+    auto const ratio = image.devicePixelRatio();
+    return QRectF(ink.x() / ratio, ink.y() / ratio, ink.width() / ratio, ink.height() / ratio);
+}
+
+void check_composer_single_line_geometry(chat_widget& page, QPlainTextEdit* edit)
+{
+    auto* attach = page.findChild<QToolButton*>("sendAttachmentButton");
+    auto* send = page.findChild<QToolButton*>("sendButton");
+    attach->setFocus(); // Hide the editor caret so its painted bounds contain only the text.
+    QApplication::processEvents();
+    QApplication::processEvents();
+    auto focus_geometry = [&] {
+        return std::array<QRect, 3>{composer_rect_in(edit, &page),
+                                   composer_rect_in(edit->viewport(), &page), edit->cursorRect()};
+    };
+    auto describe = [](QRect const& rect) {
+        return QStringLiteral("(%1,%2 %3x%4)").arg(rect.x()).arg(rect.y()).arg(rect.width()).arg(rect.height()).toStdString();
+    };
+    auto const unfocused = focus_geometry();
+    edit->setFocus(Qt::OtherFocusReason);
+    QApplication::processEvents();
+    QApplication::processEvents();
+    auto const focused = focus_geometry();
+    std::cout << "Composer focus geometry editor=" << describe(unfocused[0]) << " -> " << describe(focused[0])
+              << " viewport=" << describe(unfocused[1]) << " -> " << describe(focused[1])
+              << " cursor=" << describe(unfocused[2]) << " -> " << describe(focused[2]) << '\n';
+    check(edit->hasFocus(), "The composer geometry comparison actually focuses the editor");
+    check(focused == unfocused,
+          "Focusing the composer leaves actual editor, viewport and cursor geometry unchanged");
+    attach->setFocus();
+    QApplication::processEvents();
+    QApplication::processEvents();
+    check(focus_geometry() == unfocused,
+          "Moving focus back to a composer action preserves the editor, viewport and cursor geometry");
+    check(edit->document()->blockCount() == 1 &&
+              edit->document()->firstBlock().layout()->lineCount() == 1,
+          "The centering sample remains a real single visual line");
+    auto const viewport = QRectF(composer_rect_in(edit->viewport(), &page));
+    auto const editor = QRectF(composer_rect_in(edit, &page));
+    auto const button = QRectF(composer_rect_in(send, &page));
+    auto const ink = composer_text_ink(edit).translated(viewport.topLeft());
+    auto const cursor = QRectF(edit->cursorRect()).translated(viewport.topLeft());
+    auto const sample = edit->toPlainText().isEmpty() ? edit->placeholderText() : edit->toPlainText();
+    QTextLayout natural_text(sample, edit->font());
+    natural_text.beginLayout();
+    auto natural_line = natural_text.createLine();
+    natural_line.setLineWidth(edit->viewport()->width());
+    natural_text.endLayout();
+    check(natural_line.isValid(), "The actual placeholder or text has measurable font layout");
+    QRectF natural_ink;
+    for (auto const& run : natural_text.glyphRuns())
+    {
+        auto const glyphs = run.glyphIndexes();
+        auto const positions = run.positions();
+        for (qsizetype i = 0; i < glyphs.size(); ++i)
+        {
+            auto const bounds = run.rawFont().boundingRect(glyphs[i]).translated(positions[i]);
+            if (!bounds.isEmpty()) { natural_ink = natural_ink.isEmpty() ? bounds : natural_ink.united(bounds); }
+        }
+    }
+    check(!natural_ink.isEmpty(), "The placeholder or draft has actual font glyph bounds");
+    // Glyph ink need not be symmetric inside its line box. Derive its natural displacement
+    // from the current font and fallback glyphs rather than imposing a font-specific offset.
+    auto const natural_offset = natural_ink.center().y() - natural_line.height() / 2;
+    auto const pixel = 1.0 / edit->devicePixelRatioF();
+    auto const line_rounding = qAbs(natural_line.height() - cursor.height()) / 2;
+    auto const paint_tolerance = pixel + line_rounding + qAbs(natural_line.leading()) / 2;
+    auto const painted_center = ink.center().y() - natural_offset;
+    QFontMetricsF const metrics(edit->font());
+    std::cout << "Composer centering measured editor=" << editor.center().y()
+              << " viewport=" << viewport.center().y() << " cursor=" << cursor.center().y()
+              << " ink=" << ink.center().y() << " naturalInkOffset=" << natural_offset
+              << " send=" << button.center().y() << " lineHeight=" << natural_line.height()
+              << " cursorHeight=" << cursor.height() << " fontAscent=" << metrics.ascent()
+              << " fontDescent=" << metrics.descent() << " fontLeading=" << metrics.leading()
+              << " lineLeading=" << natural_line.leading() << " paintTolerance=" << paint_tolerance
+              << " placeholder=" << edit->toPlainText().isEmpty() << '\n';
+    if (qAbs(viewport.center().y() - editor.center().y()) > pixel ||
+        qAbs(cursor.center().y() - viewport.center().y()) > pixel + line_rounding ||
+        qAbs(painted_center - viewport.center().y()) > paint_tolerance ||
+        qAbs(editor.center().y() - button.center().y()) > pixel)
+        std::cerr << "Composer actual centers editor=" << editor.center().y()
+                  << " viewport=" << viewport.center().y() << " cursor=" << cursor.center().y()
+                  << " text=" << ink.center().y() << " natural ink offset=" << natural_offset
+                  << " send=" << button.center().y() << " placeholder=" << edit->toPlainText().isEmpty() << '\n';
+    check(qAbs(viewport.center().y() - editor.center().y()) <= pixel,
+          "Single-line editor viewport is vertically centered inside the actual editor");
+    check(qAbs(cursor.center().y() - viewport.center().y()) <= pixel + line_rounding,
+          "The actual single-line cursor and line box are vertically centered in the viewport");
+    check(qAbs(painted_center - viewport.center().y()) <= paint_tolerance,
+          "Actual placeholder and draft paint follow the centered line box with only measured font ink displacement");
+    for (auto* name : {"sendAttachmentButton", "emojiButton", "chatHistoryButton", "sendButton"})
+        check(qAbs(QRectF(composer_rect_in(page.findChild<QToolButton*>(name), &page)).center().y() -
+                   editor.center().y()) <= pixel,
+              "Single-line editor and every composer action share the same actual vertical center");
+}
+
+void check_composer_multiline_bottom_geometry(chat_widget& page, QPlainTextEdit* edit)
+{
+    auto* bar = page.findChild<QFrame*>("inputBar");
+    auto* send = page.findChild<QToolButton*>("sendButton");
+    QApplication::processEvents();
+    QApplication::processEvents();
+    auto const slot = bar->layout()->contentsRect();
+    auto const send_rect = composer_rect_in(send, bar);
+    auto const edit_rect = composer_rect_in(edit, bar);
+    check(edit->document()->blockCount() > 1 && edit->height() > send->height(),
+          "The multiline geometry sample actually grows above the action row");
+    check(edit_rect.bottom() == slot.bottom() && send_rect.bottom() == slot.bottom(),
+          "Multiline editor and action row reach the real layout content bottom");
+    check(send_rect.top() > edit_rect.top(),
+          "Multiline actions stay beside the bottom of the editor instead of its first line");
+    for (auto* name : {"sendAttachmentButton", "emojiButton", "chatHistoryButton", "sendButton"})
+    {
+        auto* action = page.findChild<QToolButton*>(name);
+        auto const rect = composer_rect_in(action, bar);
+        check(rect.height() == send_rect.height() && rect.bottom() == slot.bottom() &&
+                  QRectF(rect).center().y() == QRectF(send_rect).center().y() && bar->rect().contains(rect),
+              "Every multiline composer action shares the actual bottom slot, height and vertical center");
+    }
+}
+
 void check_composer_actions()
 {
+    auto& themes = theme_manager::instance();
+    auto const original_appearance = themes.appearance();
+    themes.set_appearance(chat_appearance::light);
     chat_widget page;
     page.setStyleSheet(chat_style_sheet());
     page.resize(1180, 720);
@@ -4417,6 +4573,9 @@ void check_composer_actions()
     auto* emoji = page.findChild<QToolButton*>("emojiButton");
     auto* history = page.findChild<QToolButton*>("chatHistoryButton");
     auto* send = page.findChild<QToolButton*>("sendButton");
+    auto* bar = page.findChild<QFrame*>("inputBar");
+    check(edit && attach && emoji && history && send && bar && bar->isVisibleTo(&page),
+          "The selected conversation exposes its full composer and named actions");
     auto x = [](QWidget* widget) { return widget->mapTo(widget->window(), QPoint(0, 0)).x(); };
     // Every composer icon sits on one line: same height, same top and the same vertical ink center.
     auto ink_center = [](QWidget* button) {
@@ -4439,6 +4598,52 @@ void check_composer_actions()
           "The composer puts attach left of the text and emoji, history and send on its right");
     check(emoji->isEnabled() && history->isEnabled() && emoji->toolTip() == QStringLiteral("表情") &&
               history->toolTip() == QStringLiteral("聊天记录"), "Composer actions are named and available in an open chat");
+    auto geometry = [&] {
+        QList<QRect> rectangles{page.geometry(), composer_rect_in(bar, &page),
+                                composer_rect_in(edit, &page), composer_rect_in(edit->viewport(), &page)};
+        for (auto* button : {attach, emoji, history, send}) { rectangles.push_back(composer_rect_in(button, &page)); }
+        return rectangles;
+    };
+    // Check actual paint for an empty placeholder and a committed single line in both themes.
+    for (auto const& sample : {QString{}, QStringLiteral("中文 Agjp 012345")})
+    {
+        themes.set_appearance(chat_appearance::light);
+        page.setStyleSheet(chat_style_sheet());
+        edit->setPlainText(sample);
+        QApplication::processEvents();
+        QApplication::processEvents();
+        check_composer_single_line_geometry(page, edit);
+        auto const before = geometry();
+        themes.set_appearance(chat_appearance::dark);
+        page.setStyleSheet(chat_style_sheet());
+        QApplication::processEvents();
+        QApplication::processEvents();
+        check(edit->toPlainText() == sample && geometry() == before,
+              "Light-to-dark theme changes preserve actual single-line bar, viewport and action geometry");
+        check_composer_single_line_geometry(page, edit);
+        themes.set_appearance(chat_appearance::light);
+        page.setStyleSheet(chat_style_sheet());
+        QApplication::processEvents();
+        QApplication::processEvents();
+        check(geometry() == before, "Returning to light restores paint without moving the single-line composer");
+    }
+    edit->setPlainText(QStringLiteral("第一行\n第二行\n第三行\n第四行"));
+    QApplication::processEvents();
+    QApplication::processEvents();
+    check_composer_multiline_bottom_geometry(page, edit);
+    auto const multiline_geometry = geometry();
+    themes.set_appearance(chat_appearance::dark);
+    page.setStyleSheet(chat_style_sheet());
+    QApplication::processEvents();
+    QApplication::processEvents();
+    check(geometry() == multiline_geometry,
+          "A theme switch leaves the expanded editor, viewport and bottom action row in exactly the same geometry");
+    check_composer_multiline_bottom_geometry(page, edit);
+    themes.set_appearance(chat_appearance::light);
+    page.setStyleSheet(chat_style_sheet());
+    QApplication::processEvents();
+    QApplication::processEvents();
+    check(geometry() == multiline_geometry, "Returning to light preserves multiline bottom-row geometry");
     edit->setPlainText(QStringLiteral("晚上见"));
     edit->moveCursor(QTextCursor::End);
     bool picked = false;
@@ -4466,7 +4671,31 @@ void check_composer_actions()
     history->click();
     check(histories == 1, "Chat history opens the current conversation's history window");
     page.close_conversation(50);
-    check(!emoji->isEnabled() && !history->isEnabled(), "Without a conversation the composer actions are unavailable");
+    QApplication::processEvents();
+    check(!emoji->isEnabled() && !history->isEnabled() && !bar->isVisibleTo(&page),
+          "Closing the current conversation hides the entire composer and disables its actions");
+    page.open_conversation(direct);
+    page.set_messages(50, {}, {}, false, false, false);
+    QApplication::processEvents();
+    check(bar->isVisibleTo(&page) && edit->isEnabled() && emoji->isEnabled() && history->isEnabled(),
+          "Reopening the conversation reveals the existing composer and restores online actions");
+    edit->setPlainText(QStringLiteral("离线保留草稿"));
+    page.set_connection_available(false);
+    QApplication::processEvents();
+    check(bar->isVisibleTo(&page) && edit->isVisibleTo(&page) && edit->toPlainText() == QStringLiteral("离线保留草稿") &&
+              !edit->isEnabled() && !attach->isEnabled() && !emoji->isEnabled() && !history->isEnabled() && !send->isEnabled(),
+          "Going offline keeps the selected conversation and visible draft while disabling every composer action");
+    page.set_connection_available(true);
+    QApplication::processEvents();
+    check(bar->isVisibleTo(&page) && edit->toPlainText() == QStringLiteral("离线保留草稿") &&
+              edit->isEnabled() && attach->isEnabled() && emoji->isEnabled() && history->isEnabled() && send->isEnabled(),
+          "Reconnection keeps the same visible draft and restores composer actions without resubmission");
+    page.set_user(QStringLiteral("另一账号"), 9);
+    QApplication::processEvents();
+    check(page.active_conversation() == 0 && !bar->isVisibleTo(&page) && edit->toPlainText().isEmpty() &&
+              !edit->isEnabled() && !send->isEnabled(),
+          "Changing accounts clears the previous draft and hides the entire input bar until a new selection");
+    themes.set_appearance(original_appearance);
 }
 void check_chat_history_dialog()
 {
@@ -5271,10 +5500,12 @@ void check_message_composer()
     auto* bar = page.findChild<QFrame*>("inputBar");
     wait([&] { return bar->rect().contains(send->geometry()) && bar->rect().contains(edit->geometry()); });
     auto const draft = edit->toPlainText();
+    check(bar->isVisibleTo(&page), "An open conversation keeps its resized composer visible");
     page.set_connection_available(false);
     QApplication::sendEvent(edit, &enter);
-    check(sent == 1 && !edit->isEnabled() && !send->isEnabled() && edit->toPlainText() == draft,
-          "Offline composer preserves the draft and refuses sending");
+    check(sent == 1 && bar->isVisibleTo(&page) && edit->isVisibleTo(&page) &&
+              !edit->isEnabled() && !send->isEnabled() && edit->toPlainText() == draft,
+          "Offline composer remains visible, preserves the draft and refuses sending");
     page.set_connection_available(true);
     check_preedit_display(edit);
     edit->setPlainText(QStringLiteral("准备 "));

@@ -699,19 +699,20 @@ QMainWindow {
             max-height: 1px;
         }
         QFrame#inputBar {
-            background: ${panel};
-            border: 0;
-            border-radius: 0;
+            margin: 4px 14px 14px 14px;
+            background: ${surface};
+            border: 1px solid ${input_border};
+            border-radius: 14px;
         }
-        QPlainTextEdit#messageEdit {
+        QFrame#inputBar[editorFocused="true"] {
+            border-color: ${focus};
+        }
+        QPlainTextEdit#messageEdit, QPlainTextEdit#messageEdit:focus {
             min-height: 36px;
             padding: 0 4px;
             background: transparent;
             border: 0;
             border-radius: 0;
-        }
-        QPlainTextEdit#messageEdit:focus {
-            border: 0;
         }
         QToolButton#sendButton {
             border: 0;
@@ -775,12 +776,6 @@ QMainWindow {
         QToolButton#emojiChoice:hover {
             background: ${canvas_hover};
         }
-        QFrame#inputBar {
-            margin: 4px 14px 14px 14px;
-            background: ${surface};
-            border: 1px solid ${border};
-            border-radius: 14px;
-        }
         QToolButton#sendButton {
             margin: 4px 2px;
             border: 0;
@@ -836,14 +831,12 @@ QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QComboBox:focus { border
 QPushButton:pressed:enabled, QToolButton:pressed:enabled { background: ${selected}; }
 QPushButton:focus, QToolButton:focus { border-color: ${focus}; }
 QPushButton:disabled, QToolButton:disabled { color: ${text_muted}; }
-QFrame#inputBar { border-color: ${input_border}; }
 
 QPushButton#loginButton:disabled, QPushButton#registrationSubmitButton:disabled { color: ${text_secondary}; }
 QPushButton#loginButton:focus, QPushButton#registrationSubmitButton:focus, QToolButton#sendButton:focus { border: 2px solid ${on_accent}; }
 
 QToolButton#profileActionButton[primary="true"]:focus,
 QDialog#profileDialog QPushButton#changeAvatarButton:focus { border-color: ${on_accent}; }
-QPlainTextEdit#messageEdit:focus { border: 1px solid ${focus}; border-radius: 8px; }
 QToolButton#chatMoreButton:focus, QToolButton#composeToolButton:focus,
 QPushButton#chatHeaderButton:focus { border: 1px solid ${focus}; }
 

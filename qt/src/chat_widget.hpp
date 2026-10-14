@@ -236,6 +236,7 @@ class chat_widget final : public QWidget
     QToolButton* connection_status_ = nullptr;
     QLabel* message_status_ = nullptr;
     QListView* messages_view_ = nullptr;
+    QWidget* input_bar_ = nullptr;
     QPlainTextEdit* message_edit_ = nullptr;
     QHash<qint64, QString> drafts_;
     QSet<qint64> message_sending_;
