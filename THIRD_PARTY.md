@@ -53,9 +53,12 @@ Linux 原生输入法集成可单独部署 [fcitx5-qt](https://github.com/fcitx/
 预编译插件不提交到本仓库。Qt 6.5.3 已验证的来源为 tag `5.0.10`，提交
 `814bc3980fa4f1e0451242c723b437459f82f8cb`，`BUILD_ONLY_PLUGIN=ON`。
 
-上游按源文件 SPDX 标记许可；该构建包含 BSD-3-Clause 和 LGPL-2.1-or-later 声明，
-分发时保留上游 `LICENSES/BSD-3-Clause.txt`、`LICENSES/LGPL-2.1-or-later.txt`
-及相应源文件版权声明，并按适用许可履行源代码等分发义务。不能把整个插件仅标为 BSD。
+上游按源文件 SPDX 标记许可；该构建包含 BSD-3-Clause、LGPL-2.1-or-later，
+以及通过 Qt6 目录符号链接编入的 Qt5 `platforminputcontext/font.cpp`、`font.h`
+中的 GPL-2.0-or-later 声明。不能将整个插件仅标为 BSD 或 BSD/LGPL。
+分发前必须核对全部编入组件的版权、适用许可及源代码分发义务，
+不能仅凭两份许可文件就认为插件的分发条件已经闭合。
+Phase 3 可搬运发布包暂不捆绑该可选插件；原生 Fcitx5 分发及验收另行确认。
 plugin-only 构建静态整合上游 DBusAddons，声明也覆盖这些编入组件。
 Fcitx5 daemon 是系统提供的独立运行服务，并未被 Chat 安装或打包。
 Qt 自身和动态运行库的许可义务仍按上文所用发行包处理。
