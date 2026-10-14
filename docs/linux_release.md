@@ -23,9 +23,11 @@ CMake、Git、GNU tar/gzip、ldd、readelf 和 patchelf；目标机不需要开�
 - `sources/`：本工具当前对应的三个完整源码归档：
   `qtbase-everywhere-src-6.5.3.tar.xz`、`qtsvg-everywhere-src-6.5.3.tar.xz`、
   `gcc-16.2.0.tar.xz`。它们一起放入发布包 `licenses/sources/`。
-- 核对实际 Qt SDK 的版本、edition、来源和许可证。官方同版本源码已随本轮包提供，
-  但原 SDK 的下载 manifest、构建配置和补丁历史不完整，不能宣称已经证明 SDK 的
-  完整源码对应或字节级重建。此限制不应被普通运行验收隐藏。
+- 核对实际 Qt SDK 的版本、来源和许可证。后续[来源与许可工程审查](release_compliance.md)
+  已取得本包所用 SDK 中 7 个 Qt 库、9 个插件、3 个 ICU 库与官方 6.5.3 归档
+  逐字节对应证据；Qt 打包后的 RPATH 重定位另行核对。
+  SDK 元数据变更符合官方开源安装脚本。完整厂商源码/补丁/构建关联及分发材料充分性
+  仍待确认，不能仅凭 edition、版本号或运行通过宣称许可闭合；不要求普遍的字节级重建。
 
 本轮源码归档 SHA-256：
 

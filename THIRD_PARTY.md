@@ -44,6 +44,9 @@ CMake 还链接本机安装的 **Boost 1.92.0、OpenSSL、PostgreSQL/libpq、lib
 启用 Qt 客户端时链接 **Qt 6.5+**。它们不是上述子模块或固定下载包；
 分发产物时需记录实际软件包版本，并保留所用发行包附带的许可及版权文件。
 Qt 的具体模块、构建和许可选择取决于所用 Qt 发行包；本项目不替使用者指定许可选项。
+已验收 Linux 包实际包含 Qt 6.5.3 Core/DBus/Gui/Widgets/OpenGL/XcbQpa/Svg 及九个插件；
+官方二进制来源、源码覆盖、第三方声明和待确认分发条件见
+[发布来源与许可工程审查](docs/release_compliance.md)。该报告不构成公开分发的最终法律确认。
 TLS 证书测试额外调用 OpenSSL 命令行程序。
 
 ## 可选 Fcitx5 Qt6 输入法插件
