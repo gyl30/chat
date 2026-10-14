@@ -44,6 +44,9 @@ def parse_ldd(output, binary):
     for line in output.splitlines():
         if not line.strip():
             continue
+        # ldd also emits this for data ELFs with no DT_NEEDED entries (e.g. ICU data).
+        if line.strip() == 'statically linked':
+            continue
         match = re.fullmatch(r'\s*(\S+)\s+=>\s+(/.+?)\s+\(0x[0-9a-fA-F]+\)\s*', line)
         if match:
             dependencies.append(match.groups())

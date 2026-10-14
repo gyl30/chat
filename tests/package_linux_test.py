@@ -189,6 +189,15 @@ class PackageGuards(unittest.TestCase):
             self.invoke_mocked(build_ldd=f'libQt6Core.so.6 => {origin} (0x123)\n',
                                runtime_ldd=f'libQt6Core.so.6 => {outside} (0x456)\n')
 
+    def test_static_data_elf_dependency_output_is_accepted(self):
+        root, _ = self.invoke_mocked(runtime_ldd='\tstatically linked\n')
+        manifest = json.loads((root / 'manifest.json').read_text())
+        self.assertEqual(manifest['ldd_r']['bin/chat_qt'], '\tstatically linked\n')
+
+    def test_not_dynamic_executable_output_is_rejected(self):
+        with self.assertRaisesRegex(RuntimeError, 'unparseable.*dependency'):
+            self.invoke_mocked(runtime_ldd='not a dynamic executable\n')
+
     def test_vdso_loader_and_system_dependencies_are_accepted(self):
         root, _ = self.invoke_mocked()
         self.assertTrue((root / 'manifest.json').is_file())
