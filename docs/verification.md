@@ -42,6 +42,10 @@ tests/verify.sh
 
 ## 独立安装验收
 
+Phase 3 可搬运 tar.gz 的生成、依赖边界和跨机器验收另见
+[Linux 发布包](linux_release.md) 与 [验收记录](release_phase3_acceptance.md)。
+不要把普通 install、可搬运运行库验收、原生 Fcitx 分发审核视为同一个结论。
+
 启用所需客户端构建后，用 `cmake --install build --prefix <独立目录>` 验证安装，
 不要只检查构建树可运行。默认应有三个 `bin/chat_*` 和五个 `share/chat/themes` 文件；
 关闭 Qt/TUI 时对应目标不安装。原生 Fcitx5 Qt6 插件作为 README 描述的独立部署步骤。
