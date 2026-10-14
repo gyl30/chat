@@ -23,7 +23,7 @@ Boost/Qt 安装目录。当前经过验证的具体工具链见 [完整验证说
 
 ## 安装与独立运行
 
-标准安装包含已启用的客户端、服务端和 Qt 主题：
+标准安装包含已启用的客户端、服务端、SQL 迁移和 Qt 主题：
 
 ```sh
 cmake --build build -j4
@@ -36,7 +36,8 @@ cd /tmp
 "$chat_prefix/bin/chat_qt" ws://127.0.0.1:18080/ws
 ```
 
-默认目录布局为 `bin/chat_server`、`bin/chat_tui`、`bin/chat_qt` 和
+默认目录布局为 `bin/chat_server`、`bin/chat_tui`、`bin/chat_qt`、
+`share/chat/sql/001_*.sql` 至 `027_*.sql`，以及
 `share/chat/themes/{common.qss,daylight.qss,daylight.json,midnight.qss,midnight.json}`。
 Qt/TUI 关闭构建时不安装对应客户端。Qt 从可执行程序位置相对查找主题，SVG 图标编入
 程序，不需要源码、构建目录或特定工作目录。用户主题覆盖仍在 Qt 用户配置目录下。
@@ -115,6 +116,42 @@ ECM 可来自已安装开发包或工作区外的原包解压目录（用 `ECM_D
 ```
 
 既有数据库只执行尚未应用的迁移。当前迁移编号为 001–027；服务器不会自动迁移。
+
+安装版使用 `"$chat_prefix"/share/chat/sql/[0-9][0-9][0-9]_*.sql` 作为上述循环的输入，
+无需源码目录。执行前核对 libpq 的目标地址、端口、数据库和角色；任何脚本失败立即停止。
+迁移是人工部署步骤，安装和服务端启动都不会自动应用 SQL。
+
+### 升级、备份与恢复
+
+升级前停止连接此数据库的 Chat 服务端，记录已应用的迁移编号并先备份。
+例如已有 025 数据库，只按顺序执行 `026_create_friend_requests.sql` 和
+`027_short_group_invite_codes.sql`，每条命令都使用 `psql -v ON_ERROR_STOP=1`；
+当前没有自动迁移历史表，已应用编号须由部署记录确认，不能靠重放脚本探测。
+不要对已有库重放 001–025。026 保留双向联系人，将单向联系人转为待确认申请；
+027 撤销旧群邀请码，升级后由群主或管理员重新生成。其他历史会话与数据应保留。
+
+使用与服务端版本兼容的 PostgreSQL 官方工具。以下 `$PGDATABASE` 必须明确指向
+要备份的应用库，`chat_restored` 是新建的独立空恢复库；部署者须核对名称和所有权：
+
+```sh
+(
+    set -eu
+    : "${PGDATABASE:?请先核对并设置待备份数据库}"
+    umask 077
+    backup_dir=$(mktemp -d "$HOME/chat-backup.XXXXXXXX")
+    pg_dump --format=custom --file="$backup_dir/chat.dump" "$PGDATABASE"
+    createdb --template=template0 chat_restored
+    pg_restore --single-transaction --exit-on-error --no-owner --no-privileges \
+        --dbname=chat_restored "$backup_dir/chat.dump"
+)
+```
+
+备份写入新建的私有目录，含账号密码哈希、消息和附件，应限制读取权限并安全保管。
+`--no-owner --no-privileges` 不恢复原所有者和授权，对象归执行恢复的角色所有；
+须选用预期的应用角色。
+恢复后核对关键 ID、关系、已读位置以及附件字节，再将服务端连接配置指向恢复库启动验证。
+同版本恢复包含已有 schema 与数据，**不能再执行全部迁移**；恢复历史版本备份时只在
+恢复完成后补尚未应用的迁移。不使用 `--clean` 覆盖现有数据库；业务库的覆盖恢复应另行规划。
 
 ```sh
 # 三个位置参数依次为端口、连接处理单元数、数据库连接数。
