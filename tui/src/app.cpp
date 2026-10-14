@@ -86,7 +86,8 @@ void app::start_connection()
     ++list_request_;
     ++search_request_;
     client_.reset(); // UI-thread destruction joins the previous network thread.
-    conversations_busy_ = history_busy_ = older_again_ = search_busy_ = requests_busy_ = sending_ = false;
+    conversations_busy_ = history_busy_ = older_again_ = search_busy_ = requests_busy_ = false;
+    sending_.clear();
     requests_again_ = false;
     conversations_again_ = false;
     reconnect_at_.reset();
@@ -182,6 +183,11 @@ void app::start_connection()
             if (asked != join_destinations_.end()) { join_destinations_.erase(asked); }
             conversations();
         }
+        else if (value.user == data.self.id && value.state == group_join_request_state::rejected)
+        {
+            join_destinations_.erase(value.conversation);
+            data.status = "入群申请被拒绝";
+        }
         if (value.conversation == data.active && data.view == page::requests) { requests(); }
     }));
     client_->connect(server_url);
@@ -199,6 +205,7 @@ void app::logout()
     reconnect_at_.reset();
     timer_->schedule({});
     client_.reset();
+    sending_.clear();
     password.clear();
     data = state{};
     pages_.clear(); drafts_.clear(); typing_.clear();
@@ -220,13 +227,15 @@ void app::disconnected()
     data.friends = {}; data.pick_query.clear();
     data.presences.clear(); data.members.clear(); data.requests.clear(); data.search_results.clear(); data.search_before.reset();
     data.messages.clear(); data.history_before.reset(); data.history_more = false;
-    data.read_positions.clear(); data.reply.reset(); data.editing = 0; marked_read_ = 0;
+    cancel_edit();
+    data.read_positions.clear(); data.reply.reset(); marked_read_ = 0;
     for (auto& conversation : data.conversations) { conversation.can_send = false; }
     dialog.reset(); prompt_action_ = {}; command_mode = false;
     data.view = data.active ? page::conversation : page::conversations;
     pages_.clear(); data.copy_text.clear(); data.picked_contacts.clear();
     pick_action_.clear(); group_title_.clear();
-    conversations_busy_ = history_busy_ = older_again_ = search_busy_ = requests_busy_ = sending_ = false;
+    conversations_busy_ = history_busy_ = older_again_ = search_busy_ = requests_busy_ = false;
+    sending_.clear();
     requests_again_ = false;
     if (reconnect_enabled_ && !password.empty())
     {
@@ -333,6 +342,12 @@ void app::apply_conversation_snapshot(conversations_result result, bool append)
         auto const found = std::ranges::find(result.conversations, data.active, &chat::conversation::id);
         if (found != result.conversations.end() ? !found->can_send : !append) { before_input_change(); }
     }
+    if (data.editing)
+    {
+        auto const found = std::ranges::find(result.conversations, data.active, &chat::conversation::id);
+        if (found != result.conversations.end() ? !found->can_send : !append && !result.next)
+        { cancel_edit(); }
+    }
     data.apply_conversations(std::move(result), append);
     if (!append && !data.next_conversations && data.active && !data.active_conversation())
     {
@@ -342,7 +357,7 @@ void app::apply_conversation_snapshot(conversations_result result, bool append)
         data.select_conversation(0);
         data.view = page::conversations;
         pages_.clear(); cancel_prompt();
-        history_busy_ = older_again_ = search_busy_ = requests_busy_ = sending_ = false;
+        history_busy_ = older_again_ = search_busy_ = requests_busy_ = false;
         requests_again_ = false;
         marked_read_ = 0;
         notify("当前会话已不可访问，已刷新会话列表");
@@ -367,9 +382,10 @@ void app::open_conversation(std::int64_t id)
     if (!online()) { return; }
     stop_typing();
     if (before_input_change) { before_input_change(); }
+    cancel_edit();
     if (data.active) { drafts_[data.active] = data.draft; }
     ++view_; ++search_request_;
-    history_busy_ = older_again_ = search_busy_ = requests_busy_ = sending_ = false;
+    history_busy_ = older_again_ = search_busy_ = requests_busy_ = false;
     requests_again_ = false;
     data.select_conversation(id);
     data.draft = drafts_[id];
@@ -379,7 +395,7 @@ void app::open_conversation(std::int64_t id)
     typing_.clear(); cancel_prompt();
     history(); members();
 }
-void app::history(bool older)
+void app::history(bool older, std::int64_t locate)
 {
     if (!online() || !data.active) { return; }
     // PgUp while a page is still loading is kept, and asked for once that page has arrived.
@@ -389,12 +405,30 @@ void app::history(bool older)
     auto const request = ++history_request_;
     auto const conversation = data.active; auto const view = view_;
     auto before = older ? data.history_before : std::nullopt;
-    client_->get_messages(conversation, before, callback([this, conversation, view, older, request](auto value) {
+    auto const* selected = data.selected_message();
+    auto const anchor = selected ? selected->id : 0;
+    client_->get_messages(conversation, before, callback([this, conversation, view, older, request, locate, anchor, before](auto value) {
         if (view != view_ || conversation != data.active || request != history_request_) { return; }
         history_busy_ = false;
         if (!value) { older_again_ = false; error(value.error()); return; }
+        auto const* current = data.selected_message();
+        bool const locating = locate && data.selecting && !data.composing && !data.at_latest &&
+                              (!anchor || (current && current->id == anchor));
         data.apply_history(std::move(*value), older);
         mark_visible_read();
+        if (locating)
+        {
+            auto const found = std::ranges::find(data.messages, locate, &message::id);
+            if (found != data.messages.end())
+            {
+                data.message_selected = static_cast<int>(found - data.messages.begin());
+                data.at_latest = found + 1 == data.messages.end();
+            }
+            else if (data.history_more && data.history_before && *data.history_before > locate &&
+                     (!before || *data.history_before < *before))
+            { history(true, locate); return; }
+            else { data.status = "未能定位该消息，请重新搜索"; }
+        }
         if (std::exchange(older_again_, false)) { data.at_latest = false; history(true); }
     }));
 }
@@ -439,10 +473,28 @@ app::page_entry app::leaving() const
         if (data.selected >= 0 && static_cast<std::size_t>(data.selected) < entries.size())
         { entry.message = entries[static_cast<std::size_t>(data.selected)]->id; }
     }
+    if (data.view == page::search && data.selected >= 0 &&
+        static_cast<std::size_t>(data.selected) < data.search_results.size())
+    { entry.message = data.search_results[static_cast<std::size_t>(data.selected)].id; }
+    if (auto const* selected = data.selected_user()) { entry.profile = *selected; }
+    if (data.view == page::friend_requests || data.view == page::friend_sent)
+    {
+        if (auto const [request, received] = data.friend_request_at(data.selected); request)
+        { (void)received; entry.profile = request->user; }
+    }
+    if (data.view == page::members && data.selected >= 0 &&
+        static_cast<std::size_t>(data.selected) < data.members.size())
+    {
+        auto const& member = data.members[data.selected];
+        entry.profile = user{member.id, member.username, member.avatar};
+    }
+    if (data.view == page::requests && data.selected >= 0 &&
+        static_cast<std::size_t>(data.selected) < data.requests.size())
+    { entry.profile = data.requests[data.selected].applicant; }
     if (data.view == page::profile) { entry.profile = data.profile; }
     return entry;
 }
-void app::navigate(page target)
+void app::navigate(page target, std::int64_t locate)
 {
     assert_ui();
     claim_destination();
@@ -452,7 +504,7 @@ void app::navigate(page target)
     if (data.view != target)
     {
         ++view_; ++search_request_;
-        history_busy_ = older_again_ = search_busy_ = requests_busy_ = sending_ = false;
+        history_busy_ = older_again_ = search_busy_ = requests_busy_ = false;
         requests_again_ = false;
         bool const primary = target == page::conversations || target == page::contacts;
         bool const chat_tab = data.view == page::conversations && target == page::conversation;
@@ -465,7 +517,22 @@ void app::navigate(page target)
         if (target == page::conversation) { data.selecting = false; }
     }
     cancel_prompt();
-    if (target == page::conversation && data.active) { history(); members(); }
+    if (target == page::conversation && data.active)
+    {
+        if (locate)
+        {
+            data.selecting = true;
+            data.at_latest = false;
+            auto const found = std::ranges::find(data.messages, locate, &message::id);
+            if (found != data.messages.end())
+            {
+                data.message_selected = static_cast<int>(found - data.messages.begin());
+                locate = 0;
+            }
+        }
+        history(false, locate);
+        members();
+    }
 }
 void app::back()
 {
@@ -477,7 +544,7 @@ void app::back()
     ++destination_;
     // Going back to another page ends the visit a pending ":friend-sent" belonged to.
     data.focus_sent = false;
-    ++view_; ++search_request_; history_busy_ = older_again_ = search_busy_ = requests_busy_ = sending_ = false;
+    ++view_; ++search_request_; history_busy_ = older_again_ = search_busy_ = requests_busy_ = false;
     requests_again_ = false;
     bool const from_help = data.view == page::help;
     page_entry entry;
@@ -495,8 +562,39 @@ void app::back()
         if (found != entries.end()) { data.selected = static_cast<int>(found - entries.begin()); }
         else { data.selected = std::clamp(data.selected, 0, std::max(0, static_cast<int>(entries.size()) - 1)); }
     }
+    if (data.view == page::search)
+    {
+        auto const found = std::ranges::find(data.search_results, entry.message, &message::id);
+        data.selected = found == data.search_results.end()
+            ? std::clamp(data.selected, 0, std::max(0, static_cast<int>(data.search_results.size()) - 1))
+            : static_cast<int>(found - data.search_results.begin());
+    }
+    if (entry.profile && data.view != page::profile)
+    {
+        // Lists may refresh while a profile is open. Restore the person, not an obsolete row.
+        std::vector<std::int64_t> users;
+        int const offset = data.view == page::contacts ? 1 : 0;
+        if (data.view == page::contacts)
+        { for (auto const* value : data.visible_contacts()) { users.push_back(value->id); } }
+        else if (data.view == page::users)
+        { for (auto const& value : data.users) { users.push_back(value.id); } }
+        else if (data.view == page::members)
+        { for (auto const& value : data.members) { users.push_back(value.id); } }
+        else if (data.view == page::requests)
+        { for (auto const& value : data.requests) { users.push_back(value.applicant.id); } }
+        else if (data.view == page::friend_requests || data.view == page::friend_sent)
+        {
+            for (auto const& value : data.friends.incoming) { users.push_back(value.user.id); }
+            for (auto const& value : data.friends.outgoing) { users.push_back(value.user.id); }
+        }
+        auto const found = std::ranges::find(users, entry.profile->id);
+        data.selected = found == users.end()
+            ? std::clamp(entry.selected, 0, std::max(0, static_cast<int>(users.size()) - 1 + offset))
+            : static_cast<int>(found - users.begin()) + offset;
+    }
     // A page whose first load was dropped while away asks again.
     if (data.view == page::history && (data.messages.empty() || !data.history_before)) { history(); }
+    if (data.view == page::search && data.search_results.empty()) { search(data.search_query); }
     if (data.view == page::conversation) { history(); members(); }
     mark_visible_read();
 }
@@ -544,8 +642,12 @@ void app::activate()
         if (auto const [request, received] = data.friend_request_at(data.selected); request)
         { (void)received; data.profile = request->user; navigate(page::profile); }
     }
+    else if (data.view == page::requests) { command("profile"); }
     else if (data.view == page::pick_contacts) { finish_pick(); }
-    else if (data.view == page::search) { command("copy"); }
+    else if (data.view == page::search)
+    {
+        if (auto const* selected = data.selected_message()) { navigate(page::conversation, selected->id); }
+    }
 }
 void app::command(std::string text)
 {

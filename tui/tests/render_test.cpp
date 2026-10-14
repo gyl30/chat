@@ -310,7 +310,7 @@ int main()
         {
             auto output = draw(search, columns, rows);
             ok &= expect(output.find("搜索：") != std::string::npos &&
-                         output.find("Enter 或 y 显示可复制文本") != std::string::npos &&
+                         output.find("Enter 定位到聊天 · y 复制") != std::string::npos &&
                          output.find("matching message") != std::string::npos,
                          "Long search queries do not clip the action hint or hide their selected result");
             ok &= expect(output.find("显示已加载的结果") != std::string::npos &&
@@ -2102,6 +2102,100 @@ int main()
         ftxui::Terminal::SetFallbackSize(fallback);
     }
     {
+        // The join-request list opens the selected applicant, as the new-friends list does.
+        for (bool via_enter : {true, false})
+        {
+            app application;
+            application.data.self = {1, "Alice", {}};
+            application.data.profile = application.data.self;
+            application.data.requests = {{{2, "OtherApplicant", {}}, 1}, {{42, "SelectedApplicant", {}}, 2}};
+            application.data.view = page::requests;
+            application.data.selected = 1;
+            auto const fallback = ftxui::Terminal::Size();
+            ftxui::Terminal::SetFallbackSize({80, 24});
+            auto component = make_ui(application, [] {});
+            if (via_enter) { component->OnEvent(ftxui::Event::Return); }
+            else { application.command("profile"); }
+            ok &= expect(application.data.view == page::profile && application.data.profile.id == 42 &&
+                         application.data.profile.username == "SelectedApplicant",
+                         via_enter ? "Enter on a join request opens the selected applicant"
+                                   : "The profile command on a join request opens the selected applicant");
+            application.data.requests.erase(application.data.requests.begin());
+            component->OnEvent(ftxui::Event::Escape);
+            ok &= expect(application.data.view == page::requests && application.data.selected == 0 &&
+                         application.data.requests[application.data.selected].applicant.id == 42,
+                         "Returning from a profile follows its applicant after an earlier row disappears");
+            application.data.requests.push_back({{3, "RemainingApplicant", {}}, 3});
+            application.activate();
+            application.data.requests.erase(application.data.requests.begin());
+            application.back();
+            ok &= expect(application.data.view == page::requests && application.data.selected == 0 &&
+                         application.data.requests[application.data.selected].applicant.id == 3,
+                         "A removed applicant falls back to a valid request row on return");
+            ftxui::Terminal::SetFallbackSize(fallback);
+        }
+    }
+    {
+        app application;
+        auto& s = application.data;
+        s.self = {1, "Alice", {}};
+        s.active = 7;
+        chat::message hit;
+        hit.id = 10; hit.conversation = 7; hit.from = 2; hit.username = "Bob"; hit.text = "search target";
+        auto newest = hit; newest.id = 20; newest.text = "newest";
+        s.messages = {hit, newest};
+        s.search_results = {hit};
+        s.search_query = "target";
+        s.draft = "keep unsent 中文 👩‍🚀";
+        s.view = page::search;
+        s.selected = 0;
+        auto const fallback = ftxui::Terminal::Size();
+        ftxui::Terminal::SetFallbackSize({80, 24});
+        auto component = make_ui(application, [] {});
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(s.view == page::conversation && s.selecting && s.selected_message() &&
+                     s.selected_message()->id == hit.id && s.draft == "keep unsent 中文 👩‍🚀",
+                     "Enter on a search result locates that message and preserves the ordinary draft");
+        application.back();
+        ok &= expect(s.view == page::search && s.search_query == "target" && s.selected == 0,
+                     "Escape from a located message can return to its search results");
+        s.search_results.clear();
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(s.view == page::search, "Enter on empty search results does not open a chat");
+        ftxui::Terminal::SetFallbackSize(fallback);
+    }
+    {
+        // Profiles are temporary: return to the same person, even after a preceding row changes.
+        for (auto view : {page::contacts, page::users, page::members, page::friend_requests})
+        for (bool changed : {false, true})
+        {
+            app application;
+            auto& s = application.data;
+            s.self = {1, "Alice", {}};
+            s.contacts = {{2, "Other", {}}, {42, "Selected", {}}};
+            s.users = s.contacts;
+            s.members = {{2, "Other", {}, {}}, {42, "Selected", {}, {}}};
+            s.friends.incoming = {{{2, "Other", {}}, 1}};
+            s.friends.outgoing = {{{42, "Selected", {}}, 2}};
+            s.view = view;
+            s.selected = view == page::contacts ? 2 : 1;
+            application.command("profile");
+            ok &= expect(s.view == page::profile && s.profile.id == 42,
+                         "A profile opens the selected person from each user list");
+            if (changed)
+            {
+                s.contacts.erase(s.contacts.begin());
+                s.users.erase(s.users.begin());
+                s.members.erase(s.members.begin());
+                s.friends.incoming.clear();
+            }
+            application.back();
+            int const expected = (view == page::contacts ? 2 : 1) - (changed ? 1 : 0);
+            ok &= expect(s.view == view && s.selected == expected,
+                         "Profile return restores the same person in unchanged and reordered user lists");
+        }
+    }
+    {
         // Phase 5: one new-friends list in two groups; y and n answer received requests only.
         app application;
         application.data.self = {1, "Alice", {}};
@@ -2552,6 +2646,32 @@ int main()
         component->OnEvent(ftxui::Event::Character('p'));
         ok &= expect(!application.menu_open && application.data.view == page::profile && application.data.profile.id == 1,
                      "The account menu opens the signed-in profile");
+    }
+    {
+        app application;
+        writable_conversation(application);
+        auto make = [](std::int64_t id) {
+            chat::message message;
+            message.id = id;
+            message.conversation = 10;
+            message.from = 2;
+            message.username = "Bob";
+            message.text = "needle " + std::to_string(id);
+            return message;
+        };
+        application.navigate(page::search);
+        application.data.search_query = "needle";
+        application.data.search_results = {make(30), make(20), make(10)};
+        application.data.selected = 1;
+        application.command("help");
+        auto removed = make(30);
+        removed.deleted = true;
+        application.data.apply_message(std::move(removed));
+        application.back();
+        ok &= expect(application.data.view == page::search &&
+                     application.data.search_results.size() == 2 &&
+                     application.data.search_results[static_cast<std::size_t>(application.data.selected)].id == 20,
+                     "Back from help keeps the same search message selected after an earlier result is deleted");
     }
     {
         // With the last username filled in, typing goes straight to the password.

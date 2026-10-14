@@ -47,7 +47,7 @@ void app::sync_focus()
 void app::send()
 {
     assert_ui();
-    if (sending_ || !writable()) { return; }
+    if (sending_.contains(data.active) || !writable()) { return; }
     if (data.draft.empty()) { data.status = "消息不能为空"; return; }
     auto const conversation = data.active;
     auto const view = view_;
@@ -65,29 +65,36 @@ void app::send()
         if (!target || target->from != data.self.id || target->deleted || target->attachment)
         { data.status = "只能编辑自己未删除的文字消息"; return; }
     }
-    sending_ = true;
+    sending_.insert(conversation);
     auto complete = [this, conversation, view, draft, editing, reply](auto value) {
+        sending_.erase(conversation);
         if (value)
         {
-            if (conversation == data.active)
+            if (editing)
+            {
+                if (conversation == data.active && data.editing == editing && data.draft == draft)
+                { cancel_edit(); }
+            }
+            else if (conversation == data.active)
             {
                 auto const current_reply = data.reply ? std::optional(data.reply->id) : std::nullopt;
                 if (data.draft == draft &&
-                    ((data.editing == editing && current_reply == reply) ||
+                    ((!data.editing && current_reply == reply) ||
                      (view != view_ && !data.editing && !current_reply)))
                 {
                     data.draft.clear();
                     data.reply.reset();
-                    data.editing = 0;
                     stop_typing();
                 }
             }
-            else if (auto saved = drafts_.find(conversation); saved != drafts_.end() && saved->second == draft)
-            { saved->second.clear(); }
+            if (!editing)
+            {
+                auto saved = drafts_.find(conversation);
+                if (saved != drafts_.end() && saved->second == draft) { saved->second.clear(); }
+            }
         }
         if (view != view_ || conversation != data.active)
         { if (value) { conversations(); } return; }
-        sending_ = false;
         if (!value) { error(value.error()); return; }
         if constexpr (std::is_same_v<typename decltype(value)::value_type, chat::message>)
         {
@@ -113,6 +120,15 @@ void app::send()
     };
     if (editing) { client_->edit_message(conversation, editing, draft, callback(std::move(complete))); }
     else { client_->send_message(conversation, draft, callback(std::move(complete)), reply); }
+}
+
+void app::cancel_edit()
+{
+    assert_ui();
+    if (!data.editing) { return; }
+    data.editing = 0;
+    data.draft = saved_draft(data.active);
+    stop_typing();
 }
 
 void app::mark_visible_read()
@@ -167,6 +183,7 @@ void app::incoming(chat::message value)
 void app::updated(chat::message value)
 {
     assert_ui();
+    if (value.deleted && value.id == data.editing) { cancel_edit(); }
     data.apply_message(std::move(value));
     conversations();
 }
@@ -204,24 +221,34 @@ void app::message_command(std::string const& name, std::string argument)
     if (name == "read") { mark_visible_read(); return; }
     if (name == "file")
     {
-        if (!writable() || sending_) { return; }
+        if (!writable() || sending_.contains(data.active)) { return; }
         auto const conversation = data.active;
         auto const view = view_;
         auto action = [this, conversation, view](std::string path) {
-            if (view != view_ || conversation != data.active || !writable() || sending_) { return; }
+            if (view != view_ || conversation != data.active || !writable() || sending_.contains(conversation)) { return; }
             auto bytes = read_local_file(path, chat::max_attachment_size);
             if (!bytes) { data.status = bytes.error(); return; }
             auto filename = std::filesystem::path(path).filename().string();
             auto const reply = data.reply ? std::optional(data.reply->id) : std::nullopt;
-            sending_ = true;
+            sending_.insert(conversation);
             notify("正在上传附件…", true);
             client_->send_attachment(conversation, std::move(filename), std::move(*bytes),
                 callback([this, conversation, view, reply](auto value) {
-                    if (view != view_ || conversation != data.active) { return; }
-                    sending_ = false;
+                    sending_.erase(conversation);
+                    if (value && conversation == data.active && data.reply && reply && data.reply->id == *reply)
+                    { data.reply.reset(); }
+                    if (view != view_ || conversation != data.active)
+                    {
+                        if (data.status == "正在上传附件…")
+                        {
+                            if (value) { notify("附件已发送"); }
+                            else { error(value.error()); }
+                        }
+                        if (value) { conversations(); }
+                        return;
+                    }
                     if (!value) { error(value.error()); return; }
                     data.apply_message(std::move(*value));
-                    if (data.reply && reply && data.reply->id == *reply) { data.reply.reset(); }
                     notify("附件已发送");
                     conversations();
                     mark_visible_read();
@@ -247,6 +274,7 @@ void app::message_command(std::string const& name, std::string argument)
     {
         if (!writable()) { return; }
         if (message.deleted) { data.status = "无法回复已删除消息"; return; }
+        cancel_edit();
         navigate(page::conversation);
         data.reply = quoted_message{message.id, message.from, message.username, message.text, message.edited_at, false};
         data.editing = 0;
@@ -260,6 +288,7 @@ void app::message_command(std::string const& name, std::string argument)
         if (message.from != data.self.id || message.deleted || message.attachment)
         { data.status = "只能编辑自己未删除的文字消息"; return; }
         navigate(page::conversation);
+        if (!data.editing) { drafts_[data.active] = data.draft; }
         data.editing = message.id;
         data.reply.reset();
         data.draft = message.text;

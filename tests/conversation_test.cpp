@@ -2891,6 +2891,33 @@ int run_tui_tests()
         pump([&] { return app.data.draft.empty() && app.data.messages.back().reply.has_value(); });
         auto const reply_id = app.data.messages.back().id;
         require(app.data.messages.back().reply->id == own_message, "TUI reply round trip");
+        auto const normal_draft = std::string("UNSENT normal é 👩‍🚀\n第二行 ");
+        std::string cancelled_edit_draft, acknowledged_edit_draft;
+        {
+            auto ui = chat::tui::make_ui(app, [] {});
+            app.data.draft = normal_draft;
+            select(reply_id);
+            app.command("edit");
+            require(app.data.editing == reply_id, "Real own-message edit opens over the normal draft");
+            ui->OnEvent(ftxui::Event::Escape);
+            require(app.data.editing == 0, "Real Escape cancels editing");
+            cancelled_edit_draft = app.data.draft;
+            // A fresh normal draft independently checks successful editing, even after a failed cancel.
+            app.data.draft = normal_draft;
+            select(reply_id);
+            app.command("edit");
+            require(app.data.editing == reply_id, "Real own-message edit opens before the success case");
+            app.data.draft = "edit ACK keeps normal draft";
+            app.send();
+            pump([&] {
+                auto found = std::ranges::find(app.data.messages, reply_id, &chat::message::id);
+                return found != app.data.messages.end() && found->text == "edit ACK keeps normal draft" && !app.data.editing;
+            });
+            acknowledged_edit_draft = app.data.draft;
+            std::cout << "TUI normal draft: edit_cancel=" << (cancelled_edit_draft == normal_draft)
+                      << ", edit_ACK=" << (acknowledged_edit_draft == normal_draft) << '\n';
+            app.data.draft.clear();
+        }
         select(reply_id);
         app.command("edit");
         app.data.draft = "edited from TUI";
@@ -2990,12 +3017,14 @@ int run_tui_tests()
             }
             throw std::runtime_error("TUI RPC did not reach the held conversation lock");
         };
-        std::array<bool, 3> round_trip_cleared{};
+        std::array<bool, 3> round_trip_draft_matches{};
         auto const actions = std::array{"compose", "reply", "edit"};
         for (std::size_t index = 0; index < actions.size(); ++index)
         {
             app.open_conversation(direct);
             pump([&] { return std::ranges::find(app.data.messages, reply_id, &chat::message::id) != app.data.messages.end(); });
+            if (index == 2) { app.data.draft = "UNSENT before pending edit é 👩‍🚀\n第二行 "; }
+            auto const original_normal_draft = app.data.draft;
             select(reply_id);
             app.command(actions[index]);
             auto const text = "ACK round trip " + std::string(actions[index]);
@@ -3006,11 +3035,24 @@ int run_tui_tests()
             wait_blocked(data);
             app.open_conversation(other_direct);
             app.open_conversation(direct);
-            require(app.data.draft == text && !app.data.reply && app.data.editing == 0,
-                    "Round trip restores only the draft while the RPC is still blocked");
+            auto const expected_restored_draft = index == 2 ? original_normal_draft : text;
+            require(app.data.draft == expected_restored_draft && !app.data.reply && app.data.editing == 0,
+                    "A blocked round trip preserves submitted normal/reply text or restores the exact pre-edit normal draft");
+            // Another Enter after returning must not submit the still-pending draft again.
+            app.send();
+            // This real response is queued after that Enter on the same SDK connection.
+            // Observe it before checking persisted rows, so a duplicate cannot evade the check.
+            auto const contact_count = app.data.contacts.size();
+            require(contact_count > 0, "Pending-send round trip has accepted contacts");
+            app.data.contacts.clear();
+            app.contacts();
             data.execute("COMMIT");
+            pump([&] { return app.data.contacts.size() == contact_count; });
             pump([&] { return std::ranges::any_of(app.data.messages, [&](auto const& value) { return value.text == text; }); });
             auto history = call<chat::messages_result>([&](auto h) { peer.get_messages(direct, std::nullopt, h); });
+            require(history.has_value(), "Pending round trip authoritative history is available");
+            std::cout << "TUI pending round trip " << actions[index] << ": persisted="
+                      << std::ranges::count(history->messages, text, &chat::message::text) << '\n';
             require(history && std::ranges::count(history->messages, text, &chat::message::text) == 1,
                     "Normal/reply persists once and edit preserves one authoritative message");
             auto found = std::ranges::find(history->messages, text, &chat::message::text);
@@ -3025,11 +3067,14 @@ int run_tui_tests()
                 require(std::ranges::count(peer_events.updates, text, &chat::message::text) == 1,
                         "Round-trip edit produces one authoritative realtime update");
             }
-            round_trip_cleared[index] = app.data.draft.empty();
-            std::cout << "TUI ACK round trip " << actions[index] << ": persisted=1, draft_cleared=" << round_trip_cleared[index] << '\n';
+            auto const expected_ack_draft = index == 2 ? original_normal_draft : std::string{};
+            round_trip_draft_matches[index] = app.data.draft == expected_ack_draft;
+            std::cout << "TUI ACK round trip " << actions[index] << ": persisted=1, exact_draft_matches="
+                      << round_trip_draft_matches[index] << '\n';
         }
-        require(round_trip_cleared[0], "Normal send round trip clears the successfully submitted draft");
-        require(round_trip_cleared[1] && round_trip_cleared[2], "Reply and edit round trips clear successfully submitted drafts after their UI contexts reset");
+        require(round_trip_draft_matches[0], "Normal send round trip clears the successfully submitted draft");
+        require(round_trip_draft_matches[1], "Reply send round trip clears the successfully submitted draft");
+        require(round_trip_draft_matches[2], "Edit ACK after navigation preserves the exact nonempty pre-edit normal draft");
 
         for (auto const* action : {"reply", "edit"})
         {
@@ -3051,6 +3096,7 @@ int run_tui_tests()
             pump([&] { return std::ranges::any_of(app.data.messages, [&](auto const& value) { return value.text == text; }); });
             require(app.data.draft == later, "Reply/edit acknowledgement preserves a later draft after a conversation round trip");
 
+            auto const failure_normal_draft = app.data.draft;
             select(reply_id);
             app.command(action);
             auto const failed_text = "ACK failed " + std::string(action);
@@ -3074,7 +3120,9 @@ int run_tui_tests()
             add_contact(peer_name, peer_id);
             app.command("message");
             pump([&] { return app.data.active == direct && app.data.can_send() && !app.data.messages.empty(); });
-            require(app.data.draft == failed_text, "Failed reply/edit RPC preserves its draft after hiding and reopening the direct");
+            auto const expected_failed_draft = std::string_view(action) == "edit" ? failure_normal_draft : failed_text;
+            require(app.data.draft == expected_failed_draft,
+                    "Rejected reply preserves its submitted draft; a cancelled edit restores the exact prior normal draft");
         }
 
         auto seeded = call<chat::send_message_result>([&](auto h) { other.send_message(other_direct, "ACK B history barrier", h); });
@@ -3084,6 +3132,64 @@ int run_tui_tests()
             auto found = std::ranges::find(app.data.conversations, other_direct, &chat::conversation::id);
             return !app.data.messages.empty() && found != app.data.conversations.end() && found->last.id == seeded->message_id;
         });
+        // The attachment ACK must finish its reply context even while Help covers the chat.
+        app.open_conversation(direct);
+        pump([&] { return std::ranges::find(app.data.messages, reply_id, &chat::message::id) != app.data.messages.end(); });
+        select(reply_id);
+        app.command("reply");
+        require(app.data.reply && app.data.reply->id == reply_id, "Attachment starts with the actual reply target");
+        data.execute("BEGIN");
+        data.execute("SELECT id FROM conversations WHERE id=" + std::to_string(direct) + " FOR UPDATE");
+        app.command("file " + upload.string());
+        wait_blocked(data);
+        app.command("help");
+        data.execute("COMMIT");
+        pump([&] { return !app.data.reply; });
+        auto attachment_history = call<chat::messages_result>([&](auto h) { peer.get_messages(direct, {}, h); });
+        require(attachment_history && std::ranges::any_of(attachment_history->messages, [&](auto const& value) {
+            return value.attachment && value.reply && value.reply->id == reply_id;
+        }), "The real attachment RPC persists its actual reply target");
+        require(app.data.view == page::help, "Attachment ACK keeps the newer Help destination");
+        require(app.data.status != "正在上传附件…", "An acknowledged attachment finishes its upload status while Help is open");
+        app.back();
+        bool const attachment_reply_cleared = !app.data.reply;
+        std::cout << "TUI attachment reply: cleared_after_Help_ACK=" << attachment_reply_cleared << '\n';
+        require(cancelled_edit_draft == normal_draft, "Cancelling a real edit restores the prior normal draft exactly");
+        require(acknowledged_edit_draft == normal_draft, "A successful real edit restores the prior normal draft exactly");
+        require(attachment_reply_cleared, "An acknowledged attachment clears its reply after returning from Help");
+        // Editing another message while a normal send waits must not resurrect that sent draft.
+        app.open_conversation(direct);
+        pump([&] { return std::ranges::find(app.data.messages, reply_id, &chat::message::id) != app.data.messages.end(); });
+        app.data.draft.clear();
+        app.send();
+        require(app.data.status == "消息不能为空", "The next normal-send ACK has a distinct prior status");
+        auto const pending_normal = std::string("ACK before edit cancel é 👩‍🚀\n第二行 ");
+        app.data.draft = pending_normal;
+        data.execute("BEGIN");
+        data.execute("SELECT id FROM conversations WHERE id=" + std::to_string(direct) + " FOR UPDATE");
+        app.send();
+        wait_blocked(data);
+        {
+            auto ui = chat::tui::make_ui(app, [] {});
+            select(reply_id);
+            app.command("edit");
+            require(app.data.editing == reply_id, "A real own-message edit opens while the normal send awaits its ACK");
+            data.execute("COMMIT");
+            // notify is at the end of the real normal-send completion handler, after draft cleanup.
+            pump([&] { return app.data.status == "消息已发送" && std::ranges::any_of(app.data.messages,
+                [&](auto const& value) { return value.text == pending_normal; }); });
+            require(app.data.editing == reply_id, "The normal-send ACK preserves the newer edit context");
+            ui->OnEvent(ftxui::Event::Escape);
+            require(app.data.editing == 0, "Real Escape cancels the newer edit after the normal-send ACK");
+            auto pending_history = call<chat::messages_result>([&](auto h) { peer.get_messages(direct, {}, h); });
+            require(pending_history && std::ranges::count(pending_history->messages, pending_normal, &chat::message::text) == 1,
+                    "The normal send before editing persists exactly once");
+            std::cout << "TUI normal-send/edit overlap: sent_draft_empty=" << app.data.draft.empty() << '\n';
+            require(app.data.draft.empty(), "Cancelling the newer edit cannot resurrect the already acknowledged normal-send draft");
+        }
+        // Restore the existing independent-A/B fixture destination.
+        app.open_conversation(direct);
+        pump([&] { return !app.data.messages.empty(); });
         fixture busy_b;
         data.execute("BEGIN");
         data.execute("SELECT id FROM conversations WHERE id=" + std::to_string(direct) + " FOR UPDATE");
@@ -3837,6 +3943,43 @@ int run_tui_tests()
             ftxui::Terminal::SetFallbackSize(fallback);
         }
         std::cout << "PASS TUI real UI typing, backslash line break and visible-only read\n";
+        // SDK sends prepare older history; search and activation use the actual TUI app/UI.
+        auto const locate_marker = "TUI_LOCATE_" + suffix;
+        auto old_hit = call<chat::send_message_result>([&](auto h) { peer.send_message(direct, locate_marker, h); });
+        require(old_hit.has_value(), "Seed the real older message for TUI search positioning");
+        auto const locate_target = old_hit->message_id;
+        auto const locate_fill = "TUI_LOCATE_FILL_" + suffix + "_";
+        std::int64_t locate_last = 0;
+        for (int i = 0; i < 51; ++i)
+        {
+            auto later = call<chat::send_message_result>([&](auto h) { peer.send_message(direct, locate_fill + std::to_string(i), h); });
+            require(later.has_value(), "Seed more than one server history page after the target");
+            locate_last = later->message_id;
+        }
+        // Drain the ordered realtime seed events before reopening clears the history cache.
+        pump([&] { return std::ranges::find(app.data.messages, locate_last, &chat::message::id) != app.data.messages.end() &&
+                          std::ranges::find(app.data.messages, locate_target, &chat::message::id) != app.data.messages.end(); });
+        app.open_conversation(direct);
+        pump([&] { return app.data.messages.size() == 50 && app.data.messages.back().id == locate_last; });
+        require(std::ranges::find(app.data.messages, locate_target, &chat::message::id) == app.data.messages.end(),
+                "The actual search target starts outside the freshly loaded 50-message history page");
+        auto const locate_draft = std::string("UNSENT while locating é 👩‍🚀\n第二行 ");
+        app.data.draft = locate_draft;
+        app.command("search " + locate_marker);
+        pump([&] { return app.data.view == page::search && app.data.search_results.size() == 1 &&
+                          app.data.search_results.front().id == locate_target; });
+        {
+            auto ui = chat::tui::make_ui(app, [] {});
+            ui->OnEvent(ftxui::Event::Return);
+            require(app.data.view == page::conversation, "Real Enter on a search result opens the conversation for positioning");
+            pump([&] { auto const* selected = app.data.selected_message(); return selected && selected->id == locate_target; });
+            require(app.data.selecting && !app.data.at_latest, "An older located search hit has message focus without following newest");
+            require(app.data.selected_message()->text == locate_marker, "The positioned target is the authoritative historical message");
+            require(app.data.draft == locate_draft, "Searching and positioning preserve the exact unsent Unicode draft");
+            require(std::ranges::count_if(app.data.messages, [&](auto const& value) { return value.text.starts_with(locate_fill); }) == 51,
+                    "Locating the older hit retains contiguous intervening history rather than injecting a search snapshot");
+        }
+
         std::size_t offline_before_logout = 0;
         {
             std::lock_guard lock(peer_events.mutex);

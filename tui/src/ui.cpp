@@ -673,7 +673,7 @@ Element secondary(state const& s, int width, int message_scroll)
             break;
         case page::search:
             title = "搜索：" + s.search_query;
-            hint = s.search_results.empty() ? "/ 重新搜索" : "Enter 或 y 显示可复制文本";
+            hint = s.search_results.empty() ? "/ 重新搜索" : "Enter 定位到聊天 · y 复制";
             rows.push_back(text("显示已加载的结果，重新搜索可获取最新匹配") | dim);
             if (s.search_results.empty()) { rows.push_back(text("已加载的结果中没有匹配项") | dim); }
             for (std::size_t i = 0; i < s.search_results.size(); ++i) { rows.push_back(message_item(s, s.search_results[i], s.selected == static_cast<int>(i), width, message_scroll)); rows.push_back(text("")); }
@@ -1286,7 +1286,7 @@ private:
             if (event == Event::Escape)
             {
                 // One level at a time: a reply or edit first, then back to the list.
-                if (s.editing || s.reply) { s.editing = 0; s.reply.reset(); return true; }
+                if (s.editing || s.reply) { app_.cancel_edit(); s.reply.reset(); return true; }
                 app_.stop_composing();
                 app_.back();
                 return true;
@@ -1323,7 +1323,7 @@ private:
         {
             // A reply or edit is cancelled first, wherever the focus is; the draft stays.
             if ((s.view == page::conversation || s.view == page::conversations) && (s.editing || s.reply))
-            { s.editing = 0; s.reply.reset(); return true; }
+            { app_.cancel_edit(); s.reply.reset(); return true; }
             // From the messages Esc returns to the composer when there is one.
             if (s.view == page::conversation && s.selecting && s.can_send()) { s.selecting = false; return true; }
             app_.back();

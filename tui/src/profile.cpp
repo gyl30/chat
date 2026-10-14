@@ -37,6 +37,11 @@ void app::profile_command(std::string const& name, std::string argument)
                 if (auto const [request, received] = data.friend_request_at(data.selected); request)
                 { (void)received; data.profile = request->user; }
             }
+            else if (data.view == page::requests)
+            {
+                if (data.selected < 0 || static_cast<std::size_t>(data.selected) >= data.requests.size()) { return; }
+                data.profile = data.requests[data.selected].applicant;
+            }
             else if (data.view == page::members)
             {
                 if (data.selected >= 0 && static_cast<std::size_t>(data.selected) < data.members.size())

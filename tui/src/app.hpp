@@ -12,6 +12,7 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace chat::tui
 {
@@ -67,7 +68,7 @@ public:
     void friend_requests();
     void presence();
     void open_conversation(std::int64_t id);
-    void history(bool older = false);
+    void history(bool older = false, std::int64_t locate = 0);
     // A newer destination than any page a pending request would still open (the account menu):
     // conversations opened by earlier "message", "create group" or "join" requests are dropped.
     void claim_destination();
@@ -77,7 +78,7 @@ public:
     void search(std::string query, bool more = false);
     void members();
     void requests(bool more = false);
-    void navigate(page target);
+    void navigate(page target, std::int64_t locate = 0);
     void back();
     void activate();
     void command(std::string text);
@@ -85,6 +86,8 @@ public:
     void cancel_prompt();
     void compose_changed();
     void send();
+    // Editing borrows the composer; cancel restores its conversation draft.
+    void cancel_edit();
     void stop_composing();
     void sync_focus();
     // Applies an authoritative conversation list (a refresh or a further page).
@@ -144,7 +147,8 @@ private:
     bool search_busy_ = false;
     bool requests_busy_ = false;
     bool requests_again_ = false;
-    bool sending_ = false;
+    // An unacknowledged send belongs to its conversation, even while another page is open.
+    std::unordered_set<std::int64_t> sending_;
     bool typing_sent_ = false;
     int retry_ = 0;
     std::optional<clock::time_point> reconnect_at_;
@@ -159,7 +163,7 @@ private:
     std::unordered_map<std::int64_t, std::pair<std::string, clock::time_point>> typing_;
     std::unordered_map<std::int64_t, std::string> drafts_;
     // A page to go back to, as it was left: its selection, the message selected in a history
-    // list and the person a profile showed, so returning restores what was on screen.
+    // list and the selected person or profile, so returning restores what was on screen.
     struct page_entry
     {
         page view = page::conversations;
