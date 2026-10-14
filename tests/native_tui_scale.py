@@ -736,7 +736,7 @@ class Worker:
                        self.wait(actor, lambda text: '搜索：' in text and edited in text)), conversation=actor['direct_id'])
         self.screenshot(actor, 'message-search')
         self.operation(actor, 'message-search-copy', lambda:
-                       (self.key(actor, 'Enter'), self.wait(actor, lambda text:
+                       (self.key(actor, 'y'), self.wait(actor, lambda text:
                         '可复制文本' in text and edited in text)), conversation=actor['direct_id'])
         self.screenshot(actor, 'message-search-copy')
         self.key(actor, 'Escape')

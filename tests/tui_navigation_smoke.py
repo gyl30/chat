@@ -137,6 +137,57 @@ def _late_profile_message(d):
 
 
 
+def pending_search_help(d):
+    from tui_lifecycle_smoke import _eventually, _server_receive_queue
+
+    with d.case('pending-search-help-return',
+                'Returning from Help restores results whose real search RPC completed while Help was open'):
+        marker = 'HELP_SEARCH_' + d.args.run_id
+        d.select_chat('A', d.title)
+        d.wait('A', chat_open)
+        d.send('A', marker)
+        matches = d.query('S005', 'search_messages', conversation=d.group, query=marker)['messages']
+        assert len(matches) == 1 and matches[0]['text'] == marker, matches
+        pid = int(d.tmux('display-message', '-p', '-t', d.panes['A'], '#{pane_pid}').stdout.strip())
+        assert d.server is not None and d.server.poll() is None
+        server_pid = d.server.pid
+        os.kill(server_pid, signal.SIGSTOP)
+        try:
+            _eventually(lambda: any(line.startswith('State:') and line.split()[1] in ('T', 't')
+                                    for line in Path(f'/proc/{server_pid}/status').read_text().splitlines()),
+                        'The isolated server did not enter the stopped state')
+            initial_bytes = _server_receive_queue(pid, d.args.port)
+            d.command('A', 'search ' + marker)
+            d.wait('A', '搜索：' + marker)
+            queued = _eventually(lambda: (size if (size := _server_receive_queue(pid, d.args.port)) > initial_bytes else None),
+                                 'The real search RPC did not reach the paused isolated server')
+            d.keys('A', 'F1')
+            d.wait('A', '键盘帮助')
+            capture_terminal(d, 'A', 'help-before-search-response')
+            d.evidence('search-rpc-pending', {'tui_pid': pid, 'isolated_server_pid': server_pid,
+                       'server_receive_queue_before': initial_bytes, 'server_receive_queue_after': queued,
+                       'expected_message': matches[0]['id'], 'query': marker})
+        finally:
+            os.kill(server_pid, signal.SIGCONT)
+        _eventually(lambda: _server_receive_queue(pid, d.args.port) == 0,
+                    'The isolated server did not consume the real search request')
+        # Keep Help open while the response is processed, as in the existing delayed-profile case.
+        started = time.monotonic()
+        observations = 0
+        while time.monotonic() - started < 3:
+            assert '键盘帮助' in d.capture('A'), 'A search response replaced the newer Help destination'
+            observations += 1
+            time.sleep(.05)
+        d.evidence('help-response-observation', {'seconds': time.monotonic() - started,
+                   'observations': observations, 'server_receive_queue': _server_receive_queue(pid, d.args.port)})
+        d.keys('A', 'Escape')
+        d.wait('A', '搜索：' + marker)
+        # The title contains the query too; demand its second occurrence in an actual result row.
+        d.wait('A', lambda screen: screen.count(marker) >= 2,
+               description='The pending search result was lost after returning from Help')
+        capture_terminal(d, 'A', 'search-result-after-help')
+
+
 def hidden_direct_restoration(d):
     try:
         _hidden_direct_restoration(d)
@@ -550,6 +601,7 @@ def main():
     parser.add_argument('--work-dir',default='/tmp/chat-navigation-'+time.strftime('%m%d%H%M%S'))
     parser.add_argument('--red-only',action='store_true',help='Only Chats/focus regression')
     parser.add_argument('--late-profile-only',action='store_true',help='Only delayed Message versus Account navigation regression')
+    parser.add_argument('--pending-search-help-only',action='store_true',help='Only a pending real search returning from Help')
     parser.add_argument('--hidden-direct-only',action='store_true',help='Only two-client hidden direct and Unicode draft restoration regression')
     parser.add_argument('--keep-database',action='store_true')
     args=parser.parse_args()
@@ -573,7 +625,9 @@ def main():
                 subprocess.run(['psql','-X','-v','ON_ERROR_STOP=1','-f',str(migration)],check=True,stdout=log,stderr=subprocess.STDOUT)
         print('Evidence:',work,flush=True)
         driver=NavigationDriver(args);driver.setup();driver.login('A')
-        if args.late_profile_only:
+        if args.pending_search_help_only:
+            pending_search_help(driver)
+        elif args.late_profile_only:
             late_profile_message(driver)
         elif args.hidden_direct_only:
             hidden_direct_restoration(driver)
