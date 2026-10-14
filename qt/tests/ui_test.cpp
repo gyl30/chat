@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QAbstractTextDocumentLayout>
 #include <QAccessible>
 #include <QBuffer>
 #include <QAction>
@@ -4523,6 +4524,127 @@ void check_composer_single_line_geometry(chat_widget& page, QPlainTextEdit* edit
         check(qAbs(QRectF(composer_rect_in(page.findChild<QToolButton*>(name), &page)).center().y() -
                    editor.center().y()) <= pixel,
               "Single-line editor and every composer action share the same actual vertical center");
+
+    // Use exactly the same string in both modes. Differencing focused and unfocused
+    // viewport captures measures the painted caret, whose height can differ from cursorRect().
+    auto const original_text = edit->toPlainText();
+    auto const original_placeholder = edit->placeholderText();
+    auto const original_cursor = edit->textCursor();
+    auto const paired_sample = original_text.isEmpty() ? original_placeholder : original_text;
+    auto const flash_time = QApplication::cursorFlashTime();
+    QApplication::setCursorFlashTime(0);
+    auto paired_measurement = [&](bool placeholder) {
+        edit->setPlainText(placeholder ? QString{} : paired_sample);
+        // textChanged updates the real compose state and its placeholder synchronously.
+        // Install the controlled comparison string after that state update.
+        edit->setPlaceholderText(paired_sample);
+        QTextCursor first(edit->document());
+        first.setPosition(0);
+        edit->setTextCursor(first);
+        attach->setFocus();
+        QApplication::processEvents();
+        QApplication::processEvents();
+        check(edit->placeholderText() == paired_sample &&
+                  edit->toPlainText() == (placeholder ? QString{} : paired_sample),
+              "The real composer keeps the exact controlled placeholder and body sample before paired capture");
+        auto const viewport_rect = QRectF(composer_rect_in(edit->viewport(), &page));
+        auto const editor_rect = QRectF(composer_rect_in(edit, &page));
+        auto const painted_ink = composer_text_ink(edit).translated(viewport_rect.topLeft());
+        auto const without_caret = edit->viewport()->grab().toImage();
+        auto const without_palette = edit->palette();
+        auto const cursor_zero = edit->cursorRect(first);
+        auto const first_block = edit->document()->firstBlock();
+        auto const block_rect = edit->document()->documentLayout()->blockBoundingRect(first_block);
+        auto const* layout = first_block.layout();
+        auto const first_line = layout->lineAt(0);
+        edit->setFocus(Qt::OtherFocusReason);
+        QApplication::processEvents();
+        QApplication::processEvents();
+        auto const with_caret = edit->viewport()->grab().toImage();
+        check(with_caret.size() == without_caret.size() && edit->hasFocus() &&
+                  edit->placeholderText() == paired_sample &&
+                  !edit->textCursor().hasSelection() &&
+                  without_palette.color(QPalette::Text) == edit->palette().color(QPalette::Text) &&
+                  without_palette.color(QPalette::PlaceholderText) == edit->palette().color(QPalette::PlaceholderText),
+              "The painted-caret comparison focuses the unchanged viewport without selection or foreground-color changes");
+        auto const ratio = with_caret.devicePixelRatio();
+        // Isolate the actual cursor's horizontal strip, allowing only one device pixel
+        // of raster rounding. The glyph bearing is deliberately not treated as cursor x.
+        int const caret_left = qFloor(cursor_zero.left() * ratio) - 1;
+        int const caret_right = qCeil((cursor_zero.right() + 1) * ratio) + 1;
+        int outside_caret_pixels = 0;
+        QRect caret_pixels;
+        for (int y = 0; y < with_caret.height(); ++y)
+            for (int x = 0; x < with_caret.width(); ++x)
+                if (with_caret.pixel(x, y) != without_caret.pixel(x, y))
+                {
+                    if (x < caret_left || x > caret_right) { ++outside_caret_pixels; continue; }
+                    caret_pixels = caret_pixels.isNull() ? QRect(x, y, 1, 1) :
+                                                          caret_pixels.united(QRect(x, y, 1, 1));
+                }
+        auto const painted_caret = QRectF(caret_pixels.x() / ratio, caret_pixels.y() / ratio,
+                                         caret_pixels.width() / ratio, caret_pixels.height() / ratio)
+                                       .translated(viewport_rect.topLeft());
+        std::cout << "Composer paired " << (placeholder ? "placeholder" : "body")
+                  << " pairedSample=" << paired_sample.toStdString()
+                  << " actualPlaceholder=" << edit->placeholderText().toStdString()
+                  << " editor=" << describe(editor_rect.toAlignedRect())
+                  << " viewport=" << describe(viewport_rect.toAlignedRect())
+                  << " ink=" << describe(painted_ink.toAlignedRect())
+                  << " cursor0=" << describe(cursor_zero)
+                  << " caretPixels=" << describe(painted_caret.toAlignedRect())
+                  << " nonCaretDifferencePixels=" << outside_caret_pixels
+                  << " block=" << describe(block_rect.toAlignedRect())
+                  << " layoutPosition=" << layout->position().x() << ',' << layout->position().y()
+                  << " lineX=" << first_line.x() << " lineY=" << first_line.y()
+                  << " lineAscent=" << first_line.ascent() << " lineDescent=" << first_line.descent()
+                  << " lineLeading=" << first_line.leading() << " lineHeight=" << first_line.height()
+                  << " lineBaselineFromCursorBox=" << cursor_zero.top() + first_line.ascent()
+                  << " widgetFont=" << edit->font().toString().toStdString()
+                  << " documentFont=" << edit->document()->defaultFont().toString().toStdString()
+                  << " blockLayoutFont=" << layout->font().toString().toStdString() << '\n';
+        std::cout << "Composer paired " << (placeholder ? "placeholder" : "body") << " actual block glyph fonts:";
+        for (auto const& run : layout->glyphRuns())
+            std::cout << ' ' << run.rawFont().familyName().toStdString()
+                      << "(ascent=" << run.rawFont().ascent() << ",descent=" << run.rawFont().descent()
+                      << ",leading=" << run.rawFont().leading() << ')';
+        std::cout << '\n';
+        check(outside_caret_pixels == 0, "Focus comparison changes only the measured caret strip inside the viewport");
+        if (auto const shots = qEnvironmentVariable("CHAT_THEME_SHOTS"); !shots.isEmpty())
+        {
+            auto const stem = QStringLiteral("/composer-paired-%1-%2-%3")
+                                  .arg(theme_manager::instance().dark() ? QStringLiteral("dark") : QStringLiteral("light"),
+                                       placeholder ? QStringLiteral("placeholder") : QStringLiteral("body"),
+                                       original_text.isEmpty() ? QStringLiteral("hint") :
+                                           original_text.front().unicode() < 128 ? QStringLiteral("ascii") : QStringLiteral("mixed"));
+            without_caret.save(shots + stem + QStringLiteral("-text.png"));
+            with_caret.save(shots + stem + QStringLiteral("-caret.png"));
+        }
+        return std::array<QRectF, 4>{editor_rect, viewport_rect, painted_ink,
+                                    caret_pixels.isEmpty() ? QRectF{} : painted_caret};
+    };
+    auto const placeholder_geometry = paired_measurement(true);
+    auto const body_geometry = paired_measurement(false);
+    QApplication::setCursorFlashTime(flash_time);
+    edit->setPlainText(original_text);
+    edit->setPlaceholderText(original_placeholder);
+    edit->setTextCursor(original_cursor);
+    attach->setFocus();
+    QApplication::processEvents();
+    QApplication::processEvents();
+    check(!placeholder_geometry[3].isEmpty() && !body_geometry[3].isEmpty(),
+          "Both empty and typed composer states paint a real measured caret");
+    check(placeholder_geometry[0] == body_geometry[0] && placeholder_geometry[1] == body_geometry[1],
+          "Typing the same single-line sample does not move or resize the actual editor or viewport");
+    check(qAbs(placeholder_geometry[2].left() - body_geometry[2].left()) <= pixel,
+          "The same placeholder and committed text keep the same actual horizontal ink origin");
+    check(qAbs(placeholder_geometry[2].top() - body_geometry[2].top()) <= pixel &&
+              qAbs(placeholder_geometry[2].bottom() - body_geometry[2].bottom()) <= pixel,
+          "The same placeholder and committed text keep their actual vertical ink and baseline position");
+    check(qAbs(placeholder_geometry[3].left() - body_geometry[3].left()) <= pixel &&
+              qAbs(placeholder_geometry[3].top() - body_geometry[3].top()) <= pixel &&
+              qAbs(placeholder_geometry[3].bottom() - body_geometry[3].bottom()) <= pixel,
+          "Typing the placeholder sample leaves the painted caret at the same horizontal origin and baseline span");
 }
 
 void check_composer_multiline_bottom_geometry(chat_widget& page, QPlainTextEdit* edit)
@@ -4605,7 +4727,7 @@ void check_composer_actions()
         return rectangles;
     };
     // Check actual paint for an empty placeholder and a committed single line in both themes.
-    for (auto const& sample : {QString{}, QStringLiteral("中文 Agjp 012345")})
+    for (auto const& sample : {QString{}, QStringLiteral("Agjp 012345 中文"), QStringLiteral("中文 Agjp 012345")})
     {
         themes.set_appearance(chat_appearance::light);
         page.setStyleSheet(chat_style_sheet());

@@ -708,6 +708,7 @@ QMainWindow {
             border-color: ${focus};
         }
         QPlainTextEdit#messageEdit, QPlainTextEdit#messageEdit:focus {
+            font-family: "Noto Sans CJK SC", sans-serif;
             min-height: 36px;
             padding: 0 4px;
             background: transparent;
