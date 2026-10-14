@@ -27,6 +27,57 @@ def sha(path):
     return digest.hexdigest()
 
 
+QT_VERSION = '6.5.3'
+# Reviewed Phase 3 source companion checksums; filenames alone do not establish identity.
+SOURCE_ARCHIVES = {
+    'qtbase-everywhere-src-6.5.3.tar.xz': 'df2f4a230be4ea04f9798f2c19ab1413a3b8ec6a80bef359f50284235307b546',
+    'qtsvg-everywhere-src-6.5.3.tar.xz': 'fc41c47b69ca1f80473cd4b11996394155781105345392961d064d04f95d5bef',
+    'gcc-16.2.0.tar.xz': 'e6738e29597f733270731aa90600f37ffdc045079dfc27ec7e8192cc81085c3e',
+}
+
+
+def parse_ldd(output, binary):
+    """Read dependencies in both ldd stages without silently omitting a path."""
+    if re.search(r'not found|undefined symbol', output, re.IGNORECASE):
+        raise RuntimeError(f'unresolved dependency for {binary}:\n{output}')
+    dependencies = []
+    for line in output.splitlines():
+        if not line.strip():
+            continue
+        match = re.fullmatch(r'\s*(\S+)\s+=>\s+(/.+?)\s+\(0x[0-9a-fA-F]+\)\s*', line)
+        if match:
+            dependencies.append(match.groups())
+        elif re.fullmatch(r'\s*(?:linux-vdso\.so\.\d+|linux-gate\.so\.\d+)\s+\(0x[0-9a-fA-F]+\)\s*', line):
+            continue
+        elif re.fullmatch(r'\s*/.*/(?:ld-linux[^/]*\.so(?:\.\d+)*|ld(?:64)?\.so(?:\.\d+)*)\s+\(0x[0-9a-fA-F]+\)\s*', line):
+            continue
+        else:
+            raise RuntimeError(f'unparseable dependency for {binary}: {line}')
+    return dependencies
+
+
+def source_sql_checksums(directory):
+    files = sorted(directory.glob('*.sql'))
+    numbers = []
+    for path in files:
+        match = re.fullmatch(r'([0-9]{3})_.+\.sql', path.name)
+        if not match or not path.is_file():
+            raise RuntimeError(f'source SQL must contain regular migrations 001–027: {path}')
+        numbers.append(int(match[1]))
+    if numbers != list(range(1, 28)):
+        raise RuntimeError('source SQL must contain continuous migrations 001–027 without duplicate numbers')
+    return {path.name: sha(path) for path in files}
+
+
+def check_installed_sql(directory, expected):
+    files = list(directory.iterdir())
+    if {path.name for path in files} != set(expected) or any(not path.is_file() for path in files):
+        raise RuntimeError('installed SQL filenames must exactly match source migrations 001–027')
+    for path in files:
+        if sha(path) != expected[path.name]:
+            raise RuntimeError(f'installed SQL SHA-256 differs from source: {path.name}')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=pathlib.Path, required=True)
@@ -44,10 +95,8 @@ def main():
     if args.output.exists():
         parser.error('output already exists; choose a new directory')
     for required in (source / 'THIRD_PARTY.md', build / 'CMakeCache.txt',
-                     qt / 'plugins/platforms/libqxcb.so', args.notices / 'README.md',
-                     *(args.sources / name for name in ('qtbase-everywhere-src-6.5.3.tar.xz',
-                                                       'qtsvg-everywhere-src-6.5.3.tar.xz',
-                                                       'gcc-16.2.0.tar.xz'))):
+                     qt / 'plugins/platforms/libqxcb.so', qt / 'bin/qmake', args.notices / 'README.md',
+                     *(args.sources / name for name in SOURCE_ARCHIVES)):
         if not required.is_file():
             parser.error(f'missing required input: {required}')
     if run('git', '-C', str(source), 'status', '--porcelain', '--untracked-files=all').strip():
@@ -59,6 +108,13 @@ def main():
     compiler = re.search(r'^CMAKE_CXX_COMPILER:FILEPATH=(.*)$', cache, re.MULTILINE)
     if not compiler:
         parser.error('build cache does not identify its C++ compiler')
+    qt_version = run(str(qt / 'bin/qmake'), '-query', 'QT_VERSION').strip()
+    if qt_version != QT_VERSION:
+        raise RuntimeError(f'Qt version must be {QT_VERSION}; received {qt_version}')
+    for name, expected in SOURCE_ARCHIVES.items():
+        if sha(args.sources / name) != expected:
+            raise RuntimeError(f'source archive SHA-256 mismatch: {name}')
+    sql_checksums = source_sql_checksums(source / 'sql')
     head = run('git', '-C', str(source), 'rev-parse', 'HEAD').strip()
     epoch = run('git', '-C', str(source), 'show', '-s', '--format=%ct', 'HEAD').strip()
     # Refresh the exact build before assigning its source revision to the release.
@@ -73,8 +129,7 @@ def main():
     for name in ('chat_server', 'chat_tui', 'chat_qt'):
         if not (root / 'bin' / name).is_file():
             raise RuntimeError(f'install missing {name}; enable both clients and rebuild')
-    if len(list((root / 'share/chat/sql').glob('[0-9][0-9][0-9]_*.sql'))) != 27:
-        raise RuntimeError('install must contain SQL 001–027')
+    check_installed_sql(root / 'share/chat/sql', sql_checksums)
     plugins = []
     plugin_files = {
         'platforms': ('libqxcb.so', 'libqoffscreen.so'),
@@ -102,13 +157,7 @@ def main():
     executables = [root / 'bin' / name for name in ('chat_server', 'chat_tui', 'chat_qt')]
     for binary in executables + [qt / 'plugins' / binary.relative_to(root / 'plugins') for binary in plugins]:
         dependencies = run('ldd', str(binary))
-        if 'not found' in dependencies:
-            raise RuntimeError(f'unresolved build-host dependency for {binary}:\n{dependencies}')
-        for line in dependencies.splitlines():
-            match = re.match(r'\s*(\S+) => (/\S+) \(', line)
-            if not match:
-                continue
-            name, origin = match.groups()
+        for name, origin in parse_ldd(dependencies, binary):
             if not private_library.match(name):
                 if not origin.startswith(('/lib/', '/usr/lib/')):
                     raise RuntimeError(f'undeclared private dependency: {name}: {origin}')
@@ -132,7 +181,7 @@ def main():
         run(args.patchelf, '--force-rpath', '--set-rpath', '$ORIGIN/../../lib', str(binary))
     shutil.copytree(args.notices, root / 'licenses')
     (root / 'licenses/sources').mkdir()
-    for name in ('qtbase-everywhere-src-6.5.3.tar.xz', 'qtsvg-everywhere-src-6.5.3.tar.xz', 'gcc-16.2.0.tar.xz'):
+    for name in SOURCE_ARCHIVES:
         shutil.copy2(args.sources / name, root / 'licenses/sources' / name)
     shutil.copy2(source / 'THIRD_PARTY.md', root / 'licenses/CHAT-THIRD-PARTY.md')
     (root / 'README.md').write_text(
@@ -155,8 +204,7 @@ def main():
     checks = {}
     for binary in executables + list(library_dir.iterdir()) + plugins:
         result = run('ldd', '-r', str(binary))
-        if 'not found' in result or 'undefined symbol:' in result:
-            raise RuntimeError(f'unresolved packaged ELF {binary}:\n{result}')
+        resolved_dependencies = parse_ldd(result, binary)
         dynamic = run('readelf', '-d', str(binary))
         for line in dynamic.splitlines():
             if 'NEEDED' in line and '/' in line.split('[', 1)[1].split(']', 1)[0]:
@@ -164,10 +212,9 @@ def main():
             if 'RPATH' in line or 'RUNPATH' in line:
                 if '/home/' in line or '/usr/local/' in line or str(build) in line:
                     raise RuntimeError(f'development RUNPATH remains: {binary}: {line}')
-        for line in result.splitlines():
-            match = re.match(r'\s*(\S+) => (/\S+) \(', line)
-            if match and match[1] in provided and pathlib.Path(match[2]).resolve() != (library_dir / match[1]).resolve():
-                raise RuntimeError(f'private dependency resolved outside package: {binary}: {line}')
+        for name, origin in resolved_dependencies:
+            if name in provided and pathlib.Path(origin).resolve() != (library_dir / name).resolve():
+                raise RuntimeError(f'private dependency resolved outside package: {binary}: {name}: {origin}')
         checks[str(binary.relative_to(root))] = re.sub(r' \(0x[0-9a-f]+\)', '', result).replace(str(root), '$PACKAGE')
     manifest = {
         'head': head, 'dirty': False,
@@ -181,7 +228,7 @@ def main():
         'build_configuration': [line for line in (build / 'CMakeCache.txt').read_text().splitlines()
                                 if re.match(r'(CMAKE_(C|CXX)_COMPILER|CMAKE_BUILD_TYPE|Boost_DIR|Qt6_DIR):', line)],
         'build_flags_sha256': sha(build / 'CMakeFiles/chat_server.dir/flags.make'),
-        'qt_version': run(str(qt / 'bin/qmake'), '-query', 'QT_VERSION').strip(),
+        'qt_version': qt_version,
         'provided_libraries': [{'name': name, 'origin': origin, 'original_sha256': sha(pathlib.Path(origin)),
                                 'packaged_sha256': sha(library_dir / name)}
                                for name, origin in sorted(provided.items())],
