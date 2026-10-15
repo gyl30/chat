@@ -1378,6 +1378,19 @@ int run_group_tests()
         require(first_file && second_file && first_file->attachment->filename == "queued-1.bin" &&
                     second_file->attachment->filename == "queued-2.bin" && first_file->id < second_file->id,
                 "Queued uploads both stored in submission order");
+        // Sending the same attachment again returns the stored message, then its tombstone once deleted,
+        // and the upload after it still goes through.
+        auto resent_file = call<chat::message>([&](auto handler) {
+            a.send_attachment(group, "queued-2.bin", "second", handler, {}, second_file->client_id);
+        });
+        auto deleted_queued = call<chat::message>([&](auto handler) { a.delete_message(group, second_file->id, handler); });
+        auto resent_deleted = call<chat::message>([&](auto handler) {
+            a.send_attachment(group, "queued-2.bin", "second", handler, {}, second_file->client_id);
+        });
+        auto after_resend = call<chat::message>([&](auto handler) { a.send_attachment(group, "queued-3.bin", "third", handler); });
+        require(resent_file && resent_file->id == second_file->id && resent_file->attachment && deleted_queued &&
+                    resent_deleted && resent_deleted->id == second_file->id && resent_deleted->deleted &&
+                    after_resend && after_resend->id > second_file->id, "Attachment resend returns the stored message and tombstone");
         auto forbidden_download = call<std::string>(
             [&](auto handler) { d.get_attachment(group, file->id, handler); });
         auto wrong_conversation_download = call<std::string>(

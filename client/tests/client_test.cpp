@@ -662,8 +662,11 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             auto const* text = params->as_object().if_contains("text");
             bool const boundary = text && text->is_string() && text->as_string().starts_with("request-boundary:") &&
                 payload.size() == 64 * 1024;
+            // Results that do not describe the sent message: another conversation, client_id or kind.
+            bool const mismatched = text && text->is_string() && (text->as_string() == "wrong-conversation" ||
+                text->as_string() == "wrong-client" || text->as_string() == "wrong-kind");
             if (!user || !user->is_int64() || user->as_int64() != 2 || !text || !text->is_string() ||
-                (text->as_string() != "outgoing" && !boundary))
+                (text->as_string() != "outgoing" && !boundary && !mismatched))
             {
                 co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false};
             }
@@ -677,6 +680,12 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 {"avatar_revision", 0}, {"has_avatar", false}, {"timestamp", 1700000120000}, {"text", *text},
                 {"reaction_revision", 0}, {"reactions", boost::json::array{}}, {"client_id", *client_id}};
             result.emplace("mentions", boost::json::array{});
+            if (text->as_string() == "wrong-conversation") { result["conversation"] = 3; }
+            if (text->as_string() == "wrong-client") { result["client_id"] = client_id->as_int64() + 1; }
+            if (text->as_string() == "wrong-kind")
+            {
+                result["attachment"] = boost::json::object{{"filename", "wrong-kind"}, {"media_type", "application/octet-stream"}, {"size", 1}};
+            }
             response.emplace("result", std::move(result));
             auto [response_ec] = co_await send_text(connection, std::move(response));
             if (response_ec)
@@ -684,7 +693,7 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 co_return boost::capy::io_result<bool>{response_ec, false};
             }
 
-            if (boundary) { co_return boost::capy::io_result<bool>{std::error_code{}, true}; }
+            if (boundary || mismatched) { co_return boost::capy::io_result<bool>{std::error_code{}, true}; }
 
             boost::json::object notification_params;
             notification_params.emplace("conversation", 2);
@@ -709,8 +718,32 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
 
         if (method->as_string() == "begin_attachment")
         {
-            // Never answered: the upload is still waiting when the connection closes.
-            co_return boost::capy::io_result<bool>{std::error_code{}, true};
+            // stored.bin and deleted.bin are already stored under their client_id; wrong.bin answers for
+            // another client_id. Any other upload is never answered and still waits when the connection closes.
+            auto const& fields = params->as_object();
+            auto const filename = fields.at("filename").as_string();
+            auto const client_id = fields.at("client_id").as_int64();
+            if (filename != "stored.bin" && filename != "deleted.bin" && filename != "wrong.bin")
+            {
+                co_return boost::capy::io_result<bool>{std::error_code{}, true};
+            }
+            boost::json::object stored{{"id", 30}, {"conversation", 2}, {"from", 1}, {"username", "alice"},
+                {"avatar_revision", 0}, {"has_avatar", false}, {"timestamp", 1700000130000}, {"text", filename},
+                {"reaction_revision", 0}, {"reactions", boost::json::array{}}, {"mentions", boost::json::array{}},
+                {"client_id", filename == "wrong.bin" ? client_id + 1 : client_id}};
+            if (filename == "deleted.bin")
+            {
+                stored["text"] = "";
+                stored["deleted"] = true;
+            }
+            else
+            {
+                stored["attachment"] = boost::json::object{{"filename", filename}, {"media_type", "application/octet-stream"},
+                    {"size", 4}};
+            }
+            response.emplace("result", boost::json::object{{"message", std::move(stored)}});
+            auto [response_ec] = co_await send_text(connection, std::move(response));
+            co_return boost::capy::io_result<bool>{response_ec, !response_ec};
         }
 
         if (method->as_string() == "mark_read")
@@ -1635,13 +1668,54 @@ int main()
     }
     std::cout << "PASS client reconnect\n";
 
-    // The server holds one upload per connection: the second waits in the client and fails with the first.
-    std::vector<std::string> upload_results;
-    for (auto const* name : {"first.bin", "second.bin"})
+    // A send result for another conversation, client_id or kind is not this message.
+    std::vector<std::string> mismatch_results;
+    for (auto const* text : {"wrong-conversation", "wrong-client", "wrong-kind"})
+    {
+        client.send_message(2, text, [&](std::expected<chat::message, chat::error> result) {
+            std::lock_guard lock(state.mutex);
+            mismatch_results.push_back(!result && result.error().kind == chat::error_kind::protocol ? "protocol" : "other");
+            state.condition.notify_all();
+        });
+    }
+    if (!state.wait([&] { return mismatch_results.size() == 3; }) ||
+        mismatch_results != std::vector<std::string>(3, "protocol"))
+    {
+        std::cerr << "FAIL client rejects a send result that is not the sent message\n";
+        return 1;
+    }
+    std::cout << "PASS client rejects a send result that is not the sent message\n";
+
+    // A stored attachment is returned by begin_attachment, including its tombstone, without uploading;
+    // a mismatched one fails, and the queue moves on either way.
+    std::vector<std::string> stored_results;
+    for (auto const* name : {"wrong.bin", "stored.bin", "deleted.bin"})
     {
         client.send_attachment(2, name, "data", [&, name](std::expected<chat::message, chat::error> result) {
             std::lock_guard lock(state.mutex);
-            upload_results.push_back(std::string(name) + (!result && result.error().kind == chat::error_kind::transport ? ":transport" : ":other"));
+            stored_results.push_back(std::string(name) + (!result ? (result.error().kind == chat::error_kind::protocol ? ":protocol" : ":other")
+                : result->deleted ? ":deleted" : result->id == 30 && result->client_id == 77 ? ":stored" : ":other"));
+            state.condition.notify_all();
+        }, {}, 77);
+    }
+    if (!state.wait([&] { return stored_results.size() == 3; }) ||
+        stored_results != std::vector<std::string>{"wrong.bin:protocol", "stored.bin:stored", "deleted.bin:deleted"})
+    {
+        std::cerr << "FAIL client stored attachment returned by begin\n";
+        return 1;
+    }
+    std::cout << "PASS client stored attachment returned by begin, tombstone and mismatch\n";
+
+    // The server holds one upload per connection: the rest wait in the client and fail with the first,
+    // however many there are.
+    constexpr int queued_uploads = 100000;
+    int upload_transport = 0;
+    int upload_other = 0;
+    for (int i = 0; i <= queued_uploads; ++i)
+    {
+        client.send_attachment(2, "queued-" + std::to_string(i) + ".bin", "data", [&](std::expected<chat::message, chat::error> result) {
+            std::lock_guard lock(state.mutex);
+            ++(!result && result.error().kind == chat::error_kind::transport ? upload_transport : upload_other);
             state.condition.notify_all();
         });
     }
@@ -1653,8 +1727,8 @@ int main()
         close_error_called = !result && result.error().kind == chat::error_kind::transport;
         state.condition.notify_all();
     });
-    if (!state.wait([&] { return close_error_called && state.disconnected == 2 && upload_results.size() == 2; }) ||
-        upload_results != std::vector<std::string>{"first.bin:transport", "second.bin:transport"})
+    if (!state.wait([&] { return close_error_called && state.disconnected == 2 && upload_transport + upload_other == queued_uploads + 1; }) ||
+        upload_other != 0)
     {
         std::cerr << "FAIL client pending request and queued upload close\n";
         return 1;

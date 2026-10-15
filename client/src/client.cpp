@@ -1547,6 +1547,18 @@ struct client::impl
         auto job = std::move(uploads_.front());
         uploads_.pop_front();
         job->handler(std::move(result));
+        if (state_ != connection_state::connected || closing_)
+        {
+            // A request now fails at once; failing each waiting job through it would recurse once per job.
+            auto waiting = std::move(uploads_);
+            uploads_.clear();
+            for (auto& next : waiting)
+            {
+                if (suppress_callbacks_.load()) { return; }
+                next->handler(std::unexpected(make_error(error_kind::transport, "Not connected")));
+            }
+            return;
+        }
         if (!uploads_.empty())
         {
             begin_upload(uploads_.front());
