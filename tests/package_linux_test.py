@@ -37,7 +37,7 @@ class PackageGuards(unittest.TestCase):
             directory.mkdir(parents=True)
         (self.source / 'THIRD_PARTY.md').touch()
         (self.source / 'sql').mkdir()
-        for number in range(1, 28):
+        for number in range(1, 29):
             (self.source / 'sql' / f'{number:03}_fixture.sql').write_text(f'-- migration {number}\n')
         (self.build / 'CMakeFiles/chat_server.dir').mkdir(parents=True)
         (self.build / 'CMakeFiles/chat_server.dir/flags.make').touch()
@@ -135,6 +135,17 @@ class PackageGuards(unittest.TestCase):
         subprocess.run(['git', '-C', str(self.source), '-c', 'user.name=Package test',
                         '-c', 'user.email=package@example.invalid', 'commit', '-qm', 'changed fixture'], check=True)
 
+    def test_repository_sql_migrations_match_release_policy(self):
+        spec = importlib.util.spec_from_file_location('package_linux', SCRIPT)
+        package = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(package)
+        sql = SCRIPT.parents[1] / 'sql'
+        checksums = package.source_sql_checksums(sql)
+        self.assertEqual(len(checksums), 28)
+        self.assertEqual(set(checksums), {path.name for path in sql.glob('*.sql')})
+        self.assertEqual(checksums['028_add_message_client_id.sql'],
+                         package.sha(sql / '028_add_message_client_id.sql'))
+
     def test_private_dependency_path_with_spaces_is_collected(self):
         origin = self.qt / 'lib with spaces/libQt6Core.so.6'
         origin.parent.mkdir()
@@ -201,16 +212,17 @@ class PackageGuards(unittest.TestCase):
     def test_vdso_loader_and_system_dependencies_are_accepted(self):
         root, _ = self.invoke_mocked()
         self.assertTrue((root / 'manifest.json').is_file())
+        self.assertIn('share/chat/sql/001–028', (root / 'README.md').read_text())
 
     def test_sql_install_same_count_with_missing_and_extra_file_is_rejected(self):
         def change(sql):
-            (sql / '027_fixture.sql').rename(sql / '028_extra.sql')
+            (sql / '028_fixture.sql').rename(sql / '029_extra.sql')
         with self.assertRaisesRegex(RuntimeError, 'SQL.*filenames'):
             self.invoke_mocked(installed_sql=change)
 
     def test_sql_install_missing_migration_is_rejected(self):
         def change(sql):
-            (sql / '027_fixture.sql').unlink()
+            (sql / '028_fixture.sql').unlink()
         with self.assertRaises(RuntimeError):
             self.invoke_mocked(installed_sql=change)
 
@@ -221,26 +233,26 @@ class PackageGuards(unittest.TestCase):
             self.invoke_mocked(installed_sql=change)
 
     def test_sql_source_duplicate_number_is_rejected(self):
-        (self.source / 'sql/027_fixture.sql').rename(self.source / 'sql/026_duplicate.sql')
+        (self.source / 'sql/028_fixture.sql').rename(self.source / 'sql/027_duplicate.sql')
         self.commit_source()
         with self.assertRaisesRegex(RuntimeError, 'SQL.*001'):
             self.invoke_mocked()
 
     def test_sql_source_gap_is_rejected(self):
-        (self.source / 'sql/027_fixture.sql').rename(self.source / 'sql/028_extra.sql')
+        (self.source / 'sql/028_fixture.sql').rename(self.source / 'sql/029_extra.sql')
         self.commit_source()
         with self.assertRaisesRegex(RuntimeError, 'SQL.*001'):
             self.invoke_mocked()
 
     def test_sql_install_duplicate_number_is_rejected(self):
         def change(sql):
-            (sql / '027_fixture.sql').rename(sql / '026_duplicate.sql')
+            (sql / '028_fixture.sql').rename(sql / '027_duplicate.sql')
         with self.assertRaisesRegex(RuntimeError, 'SQL.*filenames'):
             self.invoke_mocked(installed_sql=change)
 
     def test_sql_install_extra_file_is_rejected(self):
         def change(sql):
-            (sql / '028_extra.sql').touch()
+            (sql / '029_extra.sql').touch()
         with self.assertRaises(RuntimeError):
             self.invoke_mocked(installed_sql=change)
 

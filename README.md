@@ -37,7 +37,7 @@ cd /tmp
 ```
 
 默认目录布局为 `bin/chat_server`、`bin/chat_tui`、`bin/chat_qt`、
-`share/chat/sql/001_*.sql` 至 `027_*.sql`，以及
+`share/chat/sql/001_*.sql` 至 `028_*.sql`，以及
 `share/chat/themes/{common.qss,daylight.qss,daylight.json,midnight.qss,midnight.json}`。
 Qt/TUI 关闭构建时不安装对应客户端。Qt 从可执行程序位置相对查找主题，SVG 图标编入
 程序，不需要源码、构建目录或特定工作目录。用户主题覆盖仍在 Qt 用户配置目录下。
@@ -119,7 +119,7 @@ ECM 可来自已安装开发包或工作区外的原包解压目录（用 `ECM_D
 )
 ```
 
-既有数据库只执行尚未应用的迁移。当前迁移编号为 001–027；服务器不会自动迁移。
+既有数据库只执行尚未应用的迁移。当前迁移编号为 001–028；服务器不会自动迁移。
 
 安装版使用 `"$chat_prefix"/share/chat/sql/[0-9][0-9][0-9]_*.sql` 作为上述循环的输入，
 无需源码目录。执行前核对 libpq 的目标地址、端口、数据库和角色；任何脚本失败立即停止。
@@ -128,11 +128,13 @@ ECM 可来自已安装开发包或工作区外的原包解压目录（用 `ECM_D
 ### 升级、备份与恢复
 
 升级前停止连接此数据库的 Chat 服务端，记录已应用的迁移编号并先备份。
-例如已有 025 数据库，只按顺序执行 `026_create_friend_requests.sql` 和
-`027_short_group_invite_codes.sql`，每条命令都使用 `psql -v ON_ERROR_STOP=1`；
+例如已有 025 数据库，只按顺序执行 `026_create_friend_requests.sql`、
+`027_short_group_invite_codes.sql` 和 `028_add_message_client_id.sql`，
+每条命令都使用 `psql -v ON_ERROR_STOP=1`；
 当前没有自动迁移历史表，已应用编号须由部署记录确认，不能靠重放脚本探测。
 不要对已有库重放 001–025。026 保留双向联系人，将单向联系人转为待确认申请；
-027 撤销旧群邀请码，升级后由群主或管理员重新生成。其他历史会话与数据应保留。
+027 撤销旧群邀请码，升级后由群主或管理员重新生成；028 为消息增加发送者侧的
+`client_id` 和唯一索引，历史消息该字段保持为空。其他历史会话与数据应保留。
 
 使用与服务端版本兼容的 PostgreSQL 官方工具。以下 `$PGDATABASE` 必须明确指向
 要备份的应用库，`chat_restored` 是新建的独立空恢复库；部署者须核对名称和所有权：

@@ -28,6 +28,7 @@ def sha(path):
 
 
 QT_VERSION = '6.5.3'
+LATEST_MIGRATION = 28
 # Reviewed Phase 3 source companion checksums; filenames alone do not establish identity.
 SOURCE_ARCHIVES = {
     'qtbase-everywhere-src-6.5.3.tar.xz': 'df2f4a230be4ea04f9798f2c19ab1413a3b8ec6a80bef359f50284235307b546',
@@ -65,17 +66,17 @@ def source_sql_checksums(directory):
     for path in files:
         match = re.fullmatch(r'([0-9]{3})_.+\.sql', path.name)
         if not match or not path.is_file():
-            raise RuntimeError(f'source SQL must contain regular migrations 001–027: {path}')
+            raise RuntimeError(f'source SQL must contain regular migrations 001–{LATEST_MIGRATION:03}: {path}')
         numbers.append(int(match[1]))
-    if numbers != list(range(1, 28)):
-        raise RuntimeError('source SQL must contain continuous migrations 001–027 without duplicate numbers')
+    if numbers != list(range(1, LATEST_MIGRATION + 1)):
+        raise RuntimeError(f'source SQL must contain continuous migrations 001–{LATEST_MIGRATION:03} without duplicate numbers')
     return {path.name: sha(path) for path in files}
 
 
 def check_installed_sql(directory, expected):
     files = list(directory.iterdir())
     if {path.name for path in files} != set(expected) or any(not path.is_file() for path in files):
-        raise RuntimeError('installed SQL filenames must exactly match source migrations 001–027')
+        raise RuntimeError(f'installed SQL filenames must exactly match source migrations 001–{LATEST_MIGRATION:03}')
     for path in files:
         if sha(path) != expected[path.name]:
             raise RuntimeError(f'installed SQL SHA-256 differs from source: {path.name}')
@@ -193,7 +194,7 @@ def main():
         'Extract and run bin/chat_server PORT WORKERS DB_CONNECTIONS, '
         'bin/chat_tui ws://HOST:PORT/ws or bin/chat_qt ws://HOST:PORT/ws.\n'
         'The server needs an independent PostgreSQL database and libpq connection '
-        'configuration. Apply share/chat/sql/001–027 only to a new empty database.\n'
+        f'configuration. Apply share/chat/sql/001–{LATEST_MIGRATION:03} only to a new empty database.\n'
         'For WSS use a valid server certificate and client trust store; no TLS bypass.\n'
         'Qt uses bundled libraries/plugins via relative RPATH and bin/qt.conf. '
         'System X11/XCB/OpenGL drivers, display access, fonts and optional Fcitx5 '
