@@ -5,6 +5,7 @@
 #include <chrono>
 #include <algorithm>
 #include <array>
+#include <span>
 #include <ctime>
 #include <string_view>
 #include <optional>
@@ -24,40 +25,61 @@ namespace
 {
 using namespace ftxui;
 struct shortcut { std::string_view key, description; };
-constexpr std::array shortcuts{
+struct shortcut_group { std::string_view title; std::span<shortcut const> items; };
+constexpr std::array general_shortcuts{
+    shortcut{"Ctrl+K", "命令面板：搜索并执行命令，草稿保留"},
+    shortcut{":", "输入命令（:help 查看命令列表）"},
+    shortcut{"F1 / ?", "帮助；? 在输入框以外使用"},
+    shortcut{"Esc", "依次：清除错误 / 取消回复或编辑 / 回到输入框 / 返回列表"},
+    shortcut{"h / c / u", "聊天 / 联系人 / 账号"},
+    shortcut{"N", "新建（Shift+n）：添加好友 / 创建群聊 / 加入群聊"},
+    shortcut{"Ctrl+C / :quit", "安全退出；有未发送的消息时先确认"},
+};
+constexpr std::array composer_shortcuts{
     shortcut{"直接输入", "打开会话后直接输入；输入框中所有字符都是正文"},
-    shortcut{"Enter", "发送消息 / 打开所选 / 确认"},
+    shortcut{"Enter", "发送；消息立即显示为发送中，可以接着输入"},
     shortcut{"\\ 后 Enter", "换行：只对刚键入的 \\ 生效；先按 → 等任意键再 Enter 可发送结尾的 \\"},
     shortcut{"Alt+Enter", "换行（已在 tmux 中验证；WezTerm 默认用它切换全屏）"},
-    shortcut{"Esc", "依次：清除错误 / 取消回复或编辑 / 回到输入框 / 返回列表"},
+    shortcut{"↑", "输入框为空时：选择消息"},
+    shortcut{"PgUp", "转到消息并加载更早的消息，草稿保留"},
     shortcut{"Tab / Shift+Tab", "宽屏在列表、消息、输入框之间切换；窄屏在消息与输入框之间切换"},
-    shortcut{"↑（输入框为空）", "选择消息"},
-    shortcut{"PgUp（输入框中）", "转到消息并加载更早的消息，草稿保留"},
-    shortcut{"Ctrl+K", "命令面板：搜索并执行命令，草稿保留；:命令 照常可用"},
-    shortcut{"F1；不在输入框时也可按 ?", "帮助"},
-    shortcut{":history", "聊天记录：全部、图片、文件、链接；也可在命令面板选择"},
-    shortcut{"Ctrl+C / :quit", "安全退出"},
-    shortcut{"以下按键在消息或列表中使用", ""},
+};
+constexpr std::array message_shortcuts{
     shortcut{"j / ↓，k / ↑", "移动选择"},
-    shortcut{"Enter（消息、成员）", "打开操作菜单：只列出当前可用的操作，菜单中字母直接执行"},
+    shortcut{"Enter", "操作菜单：只列出可用操作，字母直接执行；发送失败的消息可重发或删除"},
     shortcut{"i", "回到输入框"},
     shortcut{"r / e / d", "回复 / 编辑 / 删除（需确认）"},
     shortcut{"a", "表情回应（0 取消）"},
     shortcut{"y / s", "显示可复制文本 / 保存附件"},
     shortcut{"/", "搜索当前会话"},
-    shortcut{"PgUp / PgDn", "加载更早的消息 / 加载更多搜索结果或申请"},
+    shortcut{"PgUp / PgDn", "加载更早的消息 / 加载更多搜索结果"},
     shortcut{"G", "回到最新消息"},
     shortcut{"[ / ]", "在长消息内逐行滚动"},
+    shortcut{":history", "聊天记录：全部、图片、文件、链接"},
+};
+constexpr std::array conversation_shortcuts{
+    shortcut{"j / k，Enter", "移动选择，打开会话"},
     shortcut{"m / p", "免打扰 / 置顶会话"},
-    shortcut{"h / c / u", "聊天 / 联系人 / 账号"},
-    shortcut{"N（Shift+n）", "新建：添加好友 / 创建群聊 / 加入群聊"},
+    shortcut{"PgDn", "加载更多会话"},
+};
+constexpr std::array group_shortcuts{
     shortcut{"g", "当前群聊的操作"},
-    shortcut{"A / O / D（成员页）", "设置或取消管理员 / 转让群主 / 移除成员"},
-    shortcut{"y / n（申请页）", "接受 / 拒绝所选申请"},
-    shortcut{"y / n / x（新的朋友）", "接受 / 拒绝收到的申请，撤回发出的申请"},
-    shortcut{"/（联系人、选择好友）", "按名称筛选好友"},
-    shortcut{"Space / Enter（选择好友）", "勾选成员 / 完成选择"},
-    shortcut{":", "输入命令（:help 查看命令列表）"},
+    shortcut{"Enter", "成员页：成员的操作菜单"},
+    shortcut{"A / O / D", "成员页：设置或取消管理员 / 转让群主 / 移除成员"},
+    shortcut{"y / n", "入群申请页：接受 / 拒绝所选申请"},
+};
+constexpr std::array contact_shortcuts{
+    shortcut{"y / n / x", "新的朋友：接受 / 拒绝收到的申请，撤回发出的申请"},
+    shortcut{"/", "联系人、选择好友：按名称筛选好友"},
+    shortcut{"Space / Enter", "选择好友：勾选成员 / 完成选择"},
+};
+constexpr std::array shortcut_groups{
+    shortcut_group{"通用", general_shortcuts},
+    shortcut_group{"输入框", composer_shortcuts},
+    shortcut_group{"消息（选择消息时）", message_shortcuts},
+    shortcut_group{"会话列表", conversation_shortcuts},
+    shortcut_group{"群聊与成员", group_shortcuts},
+    shortcut_group{"联系人", contact_shortcuts},
 };
 struct menu_action { std::string label, command; };
 std::vector<menu_action> actions(state const& s)
@@ -138,50 +160,56 @@ Element wrapped_text(std::string const& value, int width, int* line_count = null
 }
 Element help_content(int width, int* line_count = nullptr)
 {
+    width = std::max(1, width);
+    // Two columns: the keys as wide as the widest (at most a third of the page), the description
+    // wrapping in the rest.
+    int key_width = 1;
+    for (auto const& group : shortcut_groups)
+    {
+        for (auto const& item : group.items) { key_width = std::max(key_width, DisplayWidth(std::string(item.key))); }
+    }
+    key_width = std::clamp(key_width, 1, std::max(1, width / 3));
+    auto const description_width = std::max(1, width - key_width - 3);
     Elements rows;
-    if (line_count) { *line_count = 1; } // The separator contributes one row.
-    auto wrap = [width, line_count, &rows](std::string_view value) {
-        std::string output;
-        int column = 0;
-        int lines = 1;
-        std::size_t start = 0;
-        while (start < value.size())
+    for (auto const& group : shortcut_groups)
+    {
+        if (!rows.empty()) { rows.push_back(text("")); }
+        rows.push_back(text(std::string(group.title)) | bold);
+        for (auto const& item : group.items)
         {
-            auto const end = value.find(' ', start);
-            auto const word = value.substr(start, end == std::string_view::npos ? value.size() - start : end - start);
-            if (!word.empty())
-            {
-                auto const cells = DisplayWidth(word);
-                if (column && column + 1 + cells > width)
-                { if (!line_count) { output += '\n'; } column = 0; ++lines; }
-                else if (column) { if (!line_count) { output += ' '; } ++column; }
-                if (cells <= width - column) { if (!line_count) { output += word; } column += cells; }
-                else
-                {
-                    // Chinese text has no spaces to break at.
-                    for (auto const& glyph : Utf8ToGlyphs(std::string(word)))
-                    {
-                        if (glyph.empty()) { continue; }
-                        auto const glyph_cells = DisplayWidth(glyph);
-                        if (column && column + glyph_cells > width)
-                        { if (!line_count) { output += '\n'; } column = 0; ++lines; }
-                        if (!line_count) { output += glyph; }
-                        column += glyph_cells;
-                    }
-                }
-            }
-            if (end == std::string_view::npos) { break; }
-            start = end + 1;
+            int key_lines = 1;
+            int description_lines = 1;
+            auto key = wrapped_text(std::string(item.key), key_width, &key_lines);
+            auto description = wrapped_text(std::string(item.description), description_width, &description_lines);
+            // The column rule is drawn as text, one per line, so it never joins the page's frame lines.
+            Elements rule;
+            for (int line = 0; line < std::max(key_lines, description_lines); ++line) { rule.push_back(text(" │ ") | dim); }
+            rows.push_back(hbox({key | size(WIDTH, EQUAL, key_width), vbox(std::move(rule)), description}));
         }
-        if (line_count) { *line_count += lines; return; }
-        rows.push_back(text(output));
-    };
-    for (auto const& shortcut : shortcuts)
-    { wrap(std::string(shortcut.key) + "  " + std::string(shortcut.description)); }
-    if (!line_count) { rows.push_back(separator()); }
-    wrap("命令：new, chats, contacts, friend-requests, friend-sent, accept-friend, reject-friend, cancel-friend, filter, add-contact, profile, account, create-group, join, file, save, members, invite, rename, announcement, show-announcement, pinned, pin-message, unpin-message, link, link-create, link-revoke, approval, requests, avatar, avatar-clear, logout, quit");
-    wrap("复制：在可复制文本页用终端自带的选择功能复制。");
-    return line_count ? Element{} : vbox(std::move(rows));
+    }
+    rows.push_back(text(""));
+    rows.push_back(text("命令") | bold);
+    constexpr std::array commands{"new", "chats", "contacts", "friend-requests", "friend-sent", "accept-friend", "reject-friend",
+        "cancel-friend", "filter", "add-contact", "profile", "account", "create-group", "join", "file", "save", "members", "invite",
+        "rename", "announcement", "show-announcement", "pinned", "pin-message", "unpin-message", "link", "link-create",
+        "link-revoke", "approval", "requests", "avatar", "avatar-clear", "logout", "quit"};
+    // Lines break between commands, never inside one.
+    std::string line;
+    for (std::size_t i = 0; i < commands.size(); ++i)
+    {
+        auto const piece = std::string(commands[i]) + (i + 1 < commands.size() ? ", " : "");
+        if (!line.empty() && DisplayWidth(line + piece) > width) { rows.push_back(text(line)); line.clear(); }
+        line += piece;
+    }
+    rows.push_back(text(line));
+    rows.push_back(wrapped_text("复制：在可复制文本页用终端自带的选择功能复制。", width));
+    auto content = vbox(std::move(rows));
+    if (line_count)
+    {
+        content->ComputeRequirement();
+        *line_count = content->requirement().min_y;
+    }
+    return content;
 }
 Element preview_text(std::string value, int width)
 {

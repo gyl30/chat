@@ -717,6 +717,39 @@ int main()
     ok &= expect(draw(s, 120, 40).find("生成新邀请码") != std::string::npos, "owner management actions");
     s.view = page::help;
     ok &= expect(draw(s, 120, 40).find("Ctrl+C") != std::string::npos, "keyboard help");
+    {
+        // Shortcuts are grouped tables: a title per group, then key │ description on one line.
+        auto help = s;
+        help.selected = 0;
+        auto const top = draw(help, 120, 80);
+        bool keyed_row = false;
+        std::istringstream lines(top);
+        for (std::string line; std::getline(lines, line);)
+        {
+            keyed_row = keyed_row || (line.find("Ctrl+K") != std::string::npos && line.find("│") != std::string::npos &&
+                                      line.find("命令面板") != std::string::npos);
+        }
+        ok &= expect(keyed_row && top.find("通用") < top.find("输入框") && top.find("输入框") < top.find("消息（选择消息时）") &&
+                     top.find("会话列表") != std::string::npos && top.find("群聊与成员") != std::string::npos,
+                     "Help lists shortcuts by group as key and description columns");
+        // The scroll height matches what is drawn: the end of the command list is reachable on a narrow page,
+        // and commands wrap between names, never inside one.
+        help.selected = 100000;
+        auto const end = draw(help, 50, 24);
+        ok &= expect(end.find("logout, quit") != std::string::npos && end.find("复制：") != std::string::npos,
+                     "The end of help is reachable on a narrow page");
+        bool split = false;
+        for (int scroll = 0; scroll < 120; scroll += 5)
+        {
+            help.selected = scroll;
+            std::istringstream narrow(draw(help, 50, 24));
+            for (std::string line; std::getline(narrow, line);)
+            {
+                split = split || line.find("friend-s ") != std::string::npos || line.find("friend-s│") != std::string::npos;
+            }
+        }
+        ok &= expect(!split, "Command names are never split across lines");
+    }
     for (int columns : {60, 70, 80, 100, 120, 160})
     {
         for (int rows : {24, 45})
@@ -730,11 +763,11 @@ int main()
             ftxui::Terminal::SetFallbackSize({columns, rows});
             auto component = make_ui(application, [] {});
             auto top = draw(application.data, columns, rows);
-            ok &= expect(top.find("直接输入") != std::string::npos,
+            ok &= expect(top.find("Ctrl+K") != std::string::npos,
                          "Help opens at its first shortcut");
             for (int i = 0; i < 200; ++i) { component->OnEvent(ftxui::Event::Character('j')); }
             auto output = draw(application.data, columns, rows);
-            auto const start = output.find("命令：");
+            auto const start = output.find("new, chats");
             auto const end = output.find("复制：", start);
             ok &= expect(start != std::string::npos && end != std::string::npos,
                          "Keyboard scrolling reaches the complete Help command section");
