@@ -1881,14 +1881,16 @@ void chat_widget::update_message(message_data message)
     }
     if (reply_to_ == message.id)
     {
-        if (message.deleted)
+        // The model kept whichever version is newer, so the preview follows it, not this copy.
+        auto const current = quote(message.id);
+        if (current.deleted)
         {
             reply_to_ = 0;
             reply_bar_->hide();
         }
         else
         {
-            reply_preview_->setText(QStringLiteral("回复 %1：%2").arg(message.username, grapheme_prefix(message.text, 80)));
+            reply_preview_->setText(QStringLiteral("回复 %1：%2").arg(current.username, grapheme_prefix(current.text, 80)));
         }
     }
 }
@@ -2853,7 +2855,7 @@ quoted_message_data chat_widget::quote(qint64 message) const
         if (index.data(message_model::id_role).toLongLong() != message) { continue; }
         return {message, index.data(message_model::sender_name_role).toString(),
                 grapheme_prefix(index.data(message_model::text_role).toString(), 160),
-                index.data(message_model::edited_at_role).toLongLong(), false};
+                index.data(message_model::edited_at_role).toLongLong(), index.data(message_model::deleted_role).toBool()};
     }
     return {message, {}, {}, 0, false};
 }

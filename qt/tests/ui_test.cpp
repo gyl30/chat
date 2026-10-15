@@ -5631,9 +5631,25 @@ void check_message_composer()
         page.finish_send(direct.id, sent_client, edited, {}, false);
         check(list->model()->index(1, 0).data(message_model::text_role).toString() == edited.text,
               "A newer acknowledgement updates the message the history page brought");
+        // Replying to it, an older copy does not take the reply preview back to the old text either.
+        QTimer::singleShot(20, [] {
+            auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+            check(menu, "Message menu for replying");
+            auto const actions = menu->actions();
+            auto const reply = std::ranges::find_if(actions, [](auto* action) { return action->text() == QStringLiteral("回复"); });
+            check(reply != actions.end(), "The stored message can be replied to");
+            menu->setActiveAction(*reply);
+            QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+            QApplication::sendEvent(menu, &enter);
+        });
+        list->customContextMenuRequested(list->visualRect(list->model()->index(1, 0)).center());
+        auto* preview = page.findChild<QLabel*>("replyPreview");
+        check(preview->isVisible() && preview->text().contains(edited.text), "The reply preview shows the newer text");
         page.finish_send(direct.id, sent_client, from_history, {}, false);
-        check(list->model()->index(1, 0).data(message_model::text_role).toString() == edited.text,
-              "An older copy does not undo the newer version");
+        check(list->model()->index(1, 0).data(message_model::text_role).toString() == edited.text &&
+                  preview->text().contains(edited.text),
+              "An older copy undoes neither the message nor its reply preview");
+        page.findChild<QToolButton*>("cancelReplyButton")->click();
     }
     wait([&] { return edit->height() == compact_height; });
     check(!send->isEnabled(), "Cleared composer disables sending");
