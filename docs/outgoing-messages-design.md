@@ -1,6 +1,6 @@
 # 发送中消息（参考 Telegram）
 
-状态：已与 Codex 评审三轮，第 3 轮 APPROVE；分阶段实施中（阶段 1 服务端、SQL、SDK，阶段 2 TUI 已完成；阶段 3 Qt）。
+状态：已与 Codex 评审三轮，第 3 轮 APPROVE；已分四个阶段实施（服务端、SQL、SDK；TUI；Qt；文档与验证）。
 
 ## 目标
 
