@@ -43,7 +43,6 @@ class client
     using message_result_handler = std::function<void(std::expected<message, error>)>;
     using attachment_handler = std::function<void(std::expected<std::string, error>)>;
     using messages_handler = std::function<void(std::expected<messages_result, error>)>;
-    using send_message_handler = std::function<void(std::expected<send_message_result, error>)>;
     using users_handler = std::function<void(std::expected<std::vector<user>, error>)>;
     using members_handler = std::function<void(std::expected<std::vector<conversation_member>, error>)>;
     using group_action_handler = std::function<void(std::expected<bool, error>)>;
@@ -125,13 +124,18 @@ class client
                       std::optional<std::int64_t> after = {});
     void search_messages(std::int64_t conversation, std::string query, std::optional<std::int64_t> before,
                          messages_handler handler);
-    void send_message(std::int64_t conversation, std::string text, send_message_handler handler,
-                      std::optional<std::int64_t> reply_to = {});
+    // A message sent again with the same client_id is stored once; the result is its current state.
+    // Without one, a fresh ID is used.
+    static std::int64_t new_client_id();
+    void send_message(std::int64_t conversation, std::string text, message_result_handler handler,
+                      std::optional<std::int64_t> reply_to = {}, std::optional<std::int64_t> client_id = {});
     void delete_message(std::int64_t conversation, std::int64_t message, message_result_handler handler);
     void set_message_reaction(std::int64_t conversation, std::int64_t message, std::string emoji,
                               reaction_result_handler handler);
+    // Attachments upload one at a time in submission order.
     void send_attachment(std::int64_t conversation, std::string filename, std::string data,
-                         message_result_handler handler, std::optional<std::int64_t> reply_to = {});
+                         message_result_handler handler, std::optional<std::int64_t> reply_to = {},
+                         std::optional<std::int64_t> client_id = {});
     void get_attachment(std::int64_t conversation, std::int64_t message, attachment_handler handler);
     void edit_message(std::int64_t conversation, std::int64_t message, std::string text,
                       message_result_handler handler);

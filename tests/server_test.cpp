@@ -1043,7 +1043,7 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         std::cout << "PASS invalid send message rejected\n";
 
         constexpr std::string_view unavailable_send_message =
-            R"({"jsonrpc":"2.0","method":"send_message","params":{"conversation":9223372036854775807,"text":"hello"},"id":"send-unavailable"})";
+            R"({"jsonrpc":"2.0","method":"send_message","params":{"conversation":9223372036854775807,"text":"hello","client_id":1},"id":"send-unavailable"})";
         auto [unavailable_send_message_write_ec] = co_await send_websocket_text(socket, unavailable_send_message);
         if (unavailable_send_message_write_ec)
         {
@@ -1084,7 +1084,7 @@ boost::capy::task<int> run_client(boost::corosio::io_context& io_context, chat_s
         if (self_message_ec || !self_message_row) { co_return 1; }
         std::string self_send_message = R"({"jsonrpc":"2.0","method":"send_message","params":{"conversation":)";
         self_send_message.append(self_conversation);
-        self_send_message.append(R"(,"text":"new self communication"},"id":"send-self"})");
+        self_send_message.append(R"(,"text":"new self communication","client_id":2},"id":"send-self"})");
         auto [self_write_ec] = co_await send_websocket_text(socket, self_send_message);
         if (self_write_ec) { co_return 1; }
         auto self_reply = co_await receive_websocket_text(socket);
@@ -1625,9 +1625,9 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return 1;
     }
 
-    auto attachment_begin = "{\"conversation\":" + direct_conversation + ",\"filename\":\"probe.bin\",\"size\":3}";
+    auto attachment_begin = "{\"conversation\":" + direct_conversation + ",\"filename\":\"probe.bin\",\"size\":3,\"client_id\":5}";
     auto forged_mentions = co_await peer_rpc("send_message", "{\"conversation\":" + direct_conversation +
-        ",\"text\":\"@user\",\"mentions\":[{\"user\":1,\"username\":\"user\"}]}");
+        ",\"text\":\"@user\",\"client_id\":6,\"mentions\":[{\"user\":1,\"username\":\"user\"}]}");
     if (!json_matches(forged_mentions, R"({"error":{"code":-32602}})"))
     {
         std::cerr << "FAIL client cannot supply authoritative mention targets\n";
@@ -1804,8 +1804,8 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         {"upload_attachment", "{\"upload\":" + upload_id + ",\"offset\":0,\"data\":\"AAEC\"}", R"({"error":{"code":-32602}})"},
         {"cancel_attachment", "{\"upload\":" + upload_id + "}", R"({"result":{"cancelled":true}})"},
         {"cancel_attachment", "{\"upload\":" + upload_id + "}", R"({"result":{"cancelled":false}})"},
-        {"begin_attachment", "{\"conversation\":" + direct_conversation + ",\"filename\":\"../bad\",\"size\":3}", R"({"error":{"code":-32602}})"},
-        {"begin_attachment", "{\"conversation\":" + direct_conversation + ",\"filename\":\"big\",\"size\":10485761}", R"({"error":{"code":-32602}})"}
+        {"begin_attachment", "{\"conversation\":" + direct_conversation + ",\"filename\":\"../bad\",\"size\":3,\"client_id\":5}", R"({"error":{"code":-32602}})"},
+        {"begin_attachment", "{\"conversation\":" + direct_conversation + ",\"filename\":\"big\",\"size\":10485761,\"client_id\":5}", R"({"error":{"code":-32602}})"}
     };
     for (auto const& test : attachment_cases)
     {
@@ -1863,8 +1863,10 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         std::cerr << "FAIL attachment leave fixture\n";
         co_return 1;
     }
+    auto before_leave = co_await peer_rpc("send_message", "{\"conversation\":" + lifecycle_group +
+        ",\"text\":\"before leave\",\"client_id\":7005}");
     auto group_upload_reply = co_await peer_rpc("begin_attachment", "{\"conversation\":" + lifecycle_group +
-        ",\"filename\":\"leave.bin\",\"size\":3}");
+        ",\"filename\":\"leave.bin\",\"size\":3,\"client_id\":5}");
     auto group_upload = boost::json::parse(group_upload_reply).at("result").at("upload").as_int64();
     co_await peer_rpc("upload_attachment", "{\"upload\":" + std::to_string(group_upload) +
         ",\"offset\":0,\"data\":\"AAEC\"}");
@@ -1882,6 +1884,15 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return 1;
     }
     co_await peer_rpc("cancel_attachment", "{\"upload\":3}");
+    // A former member's resend reports the conversation as unavailable instead of returning the message.
+    auto left_resend = co_await peer_rpc("send_message", "{\"conversation\":" + lifecycle_group +
+        ",\"text\":\"before leave\",\"client_id\":7005}");
+    if (!json_matches(before_leave, R"({"result":{"text":"before leave","client_id":7005}})") ||
+        !json_matches(left_resend, R"({"error":{"code":-32006}})"))
+    {
+        std::cerr << "FAIL resend after leaving: " << left_resend << '\n';
+        co_return 1;
+    }
     auto [cleanup_group_ec, cleanup_group_row] = co_await fixture_connection.execute_row(
         "DELETE FROM conversations WHERE id=$1::bigint", {lifecycle_group});
     if (cleanup_group_ec)
@@ -1889,6 +1900,131 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return 1;
     }
     std::cout << "PASS attachment interruption, reconnect and group leave cleanup\n";
+    {
+        // A resend under the same client_id returns the stored message in its current state and stores nothing new.
+        auto stored_count = [&](std::string client_id) -> boost::capy::task<std::string> {
+            auto [ec, count] = co_await fixture_connection.execute_scalar(
+                "SELECT count(*)::text FROM messages WHERE sender_id=$1::bigint AND client_id=$2::bigint",
+                {source_user_id, std::move(client_id)});
+            co_return ec ? std::string{} : count;
+        };
+        auto reconnect_source = [&]() -> boost::capy::task<bool> {
+            // The closed session keeps the user online until its request loop exits.
+            for (int attempt = 0; attempt < 200; ++attempt)
+            {
+                source_socket.close();
+                auto [connect_ec] = co_await connect(source_socket, port);
+                auto [upgrade_ec] = co_await upgrade_websocket(source_socket, source_parser);
+                if (connect_ec || upgrade_ec) { co_return false; }
+                auto [auth_ec] = co_await authenticate_websocket(source_socket, kTestUsername, "client-id-reconnect");
+                if (!auth_ec) { co_return true; }
+            }
+            co_return false;
+        };
+        auto text_params = [&](std::string const& client_id, std::string const& conversation, std::string const& text) {
+            return "{\"conversation\":" + conversation + ",\"text\":\"" + text + "\",\"client_id\":" + client_id + "}";
+        };
+
+        // The acknowledgement is never read: the client only knows the request may have been stored.
+        auto [lost_write_ec] = co_await send_websocket_text(source_socket, "{\"jsonrpc\":\"2.0\",\"method\":\"send_message\","
+            "\"params\":" + text_params("7001", direct_conversation, "lost ack") + ",\"id\":\"lost-ack\"}");
+        bool committed = false;
+        for (int i = 0; i < 1000 && !committed; ++i)
+        {
+            auto count = co_await stored_count("7001");
+            committed = count == "1";
+        }
+        bool reconnected = committed && co_await reconnect_source();
+        if (lost_write_ec || !reconnected)
+        {
+            std::cerr << "FAIL lost acknowledgement fixture\n";
+            co_return 1;
+        }
+        auto resent = co_await peer_rpc("send_message", text_params("7001", direct_conversation, "lost ack"));
+        auto resent_count = co_await stored_count("7001");
+        if (!json_matches(resent, R"({"result":{"text":"lost ack","client_id":7001,"deleted":false}})") || resent_count != "1")
+        {
+            std::cerr << "FAIL resend after lost acknowledgement: " << resent << '\n';
+            co_return 1;
+        }
+        auto const stored = std::to_string(boost::json::parse(resent).at("result").at("id").as_int64());
+        auto edited = co_await peer_rpc("edit_message", "{\"conversation\":" + direct_conversation + ",\"message\":" + stored +
+            ",\"text\":\"edited lost ack\"}");
+        auto resent_edited = co_await peer_rpc("send_message", text_params("7001", direct_conversation, "lost ack"));
+        auto other_conversation = co_await peer_rpc("send_message", text_params("7001", "9223372036854775807", "lost ack"));
+        auto as_attachment = co_await peer_rpc("begin_attachment", "{\"conversation\":" + direct_conversation +
+            ",\"filename\":\"probe.bin\",\"size\":3,\"client_id\":7001}");
+        auto deleted = co_await peer_rpc("delete_message", "{\"conversation\":" + direct_conversation + ",\"message\":" + stored + "}");
+        auto resent_deleted = co_await peer_rpc("send_message", text_params("7001", direct_conversation, "lost ack"));
+        auto final_count = co_await stored_count("7001");
+        if (!json_matches(edited, R"({"result":{"text":"edited lost ack"}})") ||
+            !json_matches(resent_edited, "{\"result\":{\"id\":" + stored + ",\"text\":\"edited lost ack\"}}") ||
+            !json_matches(other_conversation, R"({"error":{"code":-32602}})") ||
+            !json_matches(as_attachment, R"({"error":{"code":-32602}})") ||
+            !json_matches(deleted, R"({"result":{"deleted":true}})") ||
+            !json_matches(resent_deleted, "{\"result\":{\"id\":" + stored + ",\"deleted\":true}}") || final_count != "1")
+        {
+            std::cerr << "FAIL resend returns current state: " << resent_edited << ' ' << resent_deleted << '\n';
+            co_return 1;
+        }
+
+        // An attachment already stored is returned by begin_attachment without opening an upload.
+        auto file_begin = "{\"conversation\":" + direct_conversation + ",\"filename\":\"once.bin\",\"size\":3,\"client_id\":7002}";
+        auto first_begin = co_await peer_rpc("begin_attachment", file_begin);
+        auto file_upload = std::to_string(boost::json::parse(first_begin).at("result").at("upload").as_int64());
+        co_await peer_rpc("upload_attachment", "{\"upload\":" + file_upload + ",\"offset\":0,\"data\":\"AAEC\"}");
+        auto finished = co_await peer_rpc("finish_attachment", "{\"upload\":" + file_upload + "}");
+        auto again = co_await peer_rpc("begin_attachment", file_begin);
+        auto as_text = co_await peer_rpc("send_message", text_params("7002", direct_conversation, "once.bin"));
+        auto next_begin = co_await peer_rpc("begin_attachment", "{\"conversation\":" + direct_conversation +
+            ",\"filename\":\"next.bin\",\"size\":3,\"client_id\":7004}");
+        auto const file_id = boost::json::parse(finished).at("result").at("id").as_int64();
+        auto file_count = co_await stored_count("7002");
+        if (!json_matches(finished, R"({"result":{"attachment":{"filename":"once.bin"},"client_id":7002}})") ||
+            !json_matches(again, "{\"result\":{\"message\":{\"id\":" + std::to_string(file_id) +
+                ",\"attachment\":{\"filename\":\"once.bin\",\"size\":3},\"client_id\":7002}}}") ||
+            !json_matches(as_text, R"({"error":{"code":-32602}})") ||
+            !json_matches(next_begin, R"({"result":{"upload":2}})") || file_count != "1")
+        {
+            std::cerr << "FAIL stored attachment returned by begin: " << again << ' ' << next_begin << '\n';
+            co_return 1;
+        }
+        co_await peer_rpc("cancel_attachment", "{\"upload\":2}");
+
+        // Disconnected while the insert waits on the conversation lock: the resend still stores one message.
+        co_await fixture_connection.execute_row("BEGIN");
+        co_await fixture_connection.execute_row("SELECT id FROM conversations WHERE id=$1::bigint FOR UPDATE", {direct_conversation});
+        auto [blocked_write_ec] = co_await send_websocket_text(source_socket, "{\"jsonrpc\":\"2.0\",\"method\":\"send_message\","
+            "\"params\":" + text_params("7003", direct_conversation, "blocked send") + ",\"id\":\"blocked-send\"}");
+        bool waiting = false;
+        for (int i = 0; i < 1000 && !waiting; ++i)
+        {
+            auto [wait_ec, blocked] = co_await fixture_connection.execute_scalar(
+                "SELECT (count(*)>=1)::text FROM pg_stat_activity WHERE datname=current_database() "
+                "AND wait_event_type='Lock' AND cardinality(pg_blocking_pids(pid))>0");
+            waiting = !wait_ec && blocked == "true";
+        }
+        source_socket.close();
+        co_await fixture_connection.execute_row("COMMIT");
+        bool rejoined = waiting && co_await reconnect_source();
+        if (blocked_write_ec || !rejoined)
+        {
+            std::cerr << "FAIL blocked send fixture\n";
+            co_return 1;
+        }
+        auto resent_blocked = co_await peer_rpc("send_message", text_params("7003", direct_conversation, "blocked send"));
+        auto blocked_count = co_await stored_count("7003");
+        if (!json_matches(resent_blocked, R"({"result":{"text":"blocked send","client_id":7003}})") || blocked_count != "1")
+        {
+            std::cerr << "FAIL resend after disconnect during insert: " << resent_blocked << '\n';
+            co_return 1;
+        }
+        // Later checks count the direct conversation's unread messages from a clean state.
+        auto [cleanup_ec, cleanup_row] = co_await fixture_connection.execute_row(
+            "DELETE FROM messages WHERE sender_id=$1::bigint AND client_id IN (7001,7002,7003)", {source_user_id});
+        if (cleanup_ec) { co_return 1; }
+        std::cout << "PASS client_id resend after lost acknowledgement, current state, kind and conversation checks\n";
+    }
     {
         auto [create_ec, removal_group] = co_await fixture_connection.execute_scalar(
             "WITH c AS (INSERT INTO conversations(kind,title,owner_id) VALUES('group','removal upload',$1::bigint) RETURNING id), "
@@ -1908,7 +2044,7 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         for (bool finishing : {false, true})
         {
             auto begin = co_await peer_rpc("begin_attachment", "{\"conversation\":" + removal_group +
-                ",\"filename\":\"race.bin\",\"size\":3}");
+                ",\"filename\":\"race.bin\",\"size\":3,\"client_id\":" + std::to_string(finishing ? 9 : 8) + "}");
             auto upload = boost::json::parse(begin).at("result").at("upload").as_int64();
             co_await peer_rpc("upload_attachment", "{\"upload\":" + std::to_string(upload) +
                 ",\"offset\":0,\"data\":\"AAEC\"}");
@@ -2223,7 +2359,7 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
 
     std::string offline_send_request = R"({"jsonrpc":"2.0","method":"send_message","params":{"conversation":)";
     offline_send_request.append(direct_conversation);
-    offline_send_request.append(R"(,"text":"offline hello"},"id":"peer-offline"})");
+    offline_send_request.append(R"(,"text":"offline hello","client_id":3},"id":"peer-offline"})");
     auto offline_send_write_result = co_await send_websocket_text(source_socket, offline_send_request);
     auto& [offline_send_write_ec] = offline_send_write_result;
     if (offline_send_write_ec)
@@ -2256,11 +2392,11 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return 1;
     }
 
-    std::string expected_offline_send_reply = R"({"jsonrpc":"2.0","result":{"message":)";
+    std::string expected_offline_send_reply = R"({"jsonrpc":"2.0","result":{"id":)";
     expected_offline_send_reply.append(offline_message->at(0));
     expected_offline_send_reply.append(R"(,"timestamp":)");
     expected_offline_send_reply.append(offline_message->at(2));
-    expected_offline_send_reply.append(R"(,"realtime":false},"id":"peer-offline"})");
+    expected_offline_send_reply.append(R"(,"text":"offline hello","client_id":3},"id":"peer-offline"})");
     if (!json_matches(offline_send_reply, expected_offline_send_reply))
     {
         std::cerr << "FAIL offline message response\n";
@@ -2473,7 +2609,7 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
 
     std::string send_request_json = R"({"jsonrpc":"2.0","method":"send_message","params":{"conversation":)";
     send_request_json.append(direct_conversation);
-    send_request_json.append(R"(,"text":"peer hello"},"id":"peer-send"})");
+    send_request_json.append(R"(,"text":"peer hello","client_id":4},"id":"peer-send"})");
     auto send_write_result = co_await send_websocket_text(source_socket, send_request_json);
     auto& [send_write_ec] = send_write_result;
     if (send_write_ec)
@@ -2509,11 +2645,11 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     }
     std::cout << "PASS peer message persistence\n";
 
-    std::string expected_send_reply = R"({"jsonrpc":"2.0","result":{"message":)";
+    std::string expected_send_reply = R"({"jsonrpc":"2.0","result":{"id":)";
     expected_send_reply.append(persisted_peer_message->front());
     expected_send_reply.append(R"(,"timestamp":)");
     expected_send_reply.append(persisted_peer_message->at(1));
-    expected_send_reply.append(R"(,"realtime":true},"id":"peer-send"})");
+    expected_send_reply.append(R"(,"client_id":4},"id":"peer-send"})");
     if (!json_matches(send_reply, expected_send_reply))
     {
         std::cerr << "FAIL peer routing send response\n";
@@ -2536,7 +2672,9 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     expected_notification.append(R"(,"timestamp":)");
     expected_notification.append(persisted_peer_message->at(1));
     expected_notification.append(R"(,"text":"peer hello"}})");
-    if (!json_matches(notification, expected_notification))
+    auto const notification_value = boost::json::parse(notification);
+    auto const* notification_client_id = notification_value.as_object().at("params").as_object().if_contains("client_id");
+    if (!json_matches(notification, expected_notification) || (notification_client_id && !notification_client_id->is_null()))
     {
         std::cerr << "FAIL peer message notification\n";
         co_return 1;

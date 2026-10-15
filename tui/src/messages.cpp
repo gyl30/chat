@@ -96,24 +96,7 @@ void app::send()
         if (view != view_ || conversation != data.active)
         { if (value) { conversations(); } return; }
         if (!value) { error(value.error()); return; }
-        if constexpr (std::is_same_v<typename decltype(value)::value_type, chat::message>)
-        {
-            data.apply_message(std::move(*value));
-        }
-        else
-        {
-            chat::message sent;
-            sent.id = value->message_id;
-            sent.conversation = conversation;
-            sent.from = data.self.id;
-            sent.username = data.self.username;
-            sent.timestamp = value->timestamp;
-            sent.text = draft;
-            sent.reply = std::move(value->reply);
-            sent.mentions = std::move(value->mentions);
-            sent.avatar = data.self.avatar;
-            data.apply_message(std::move(sent));
-        }
+        data.apply_message(std::move(*value));
         notify(editing ? "消息已编辑" : "消息已发送");
         history();
         conversations();

@@ -9,6 +9,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <random>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -313,6 +314,15 @@ bool parse_message(boost::json::object const& object, message& value)
             return false;
         }
         value.attachment = attachment_info{std::string(filename->as_string()), std::string(type), *size};
+    }
+    auto const* client_id = object.if_contains("client_id");
+    if (client_id && !client_id->is_null())
+    {
+        value.client_id = parse_int64(*client_id);
+        if (!value.client_id || *value.client_id <= 0)
+        {
+            return false;
+        }
     }
     return parse_avatar_state(object, value.avatar) && parse_quote(object, "reply", value.reply) && parse_edited_at(object, value.edited_at) &&
            parse_deleted(object, value.deleted) && parse_reactions(object, value.reaction_revision, value.reactions) &&
@@ -1488,57 +1498,32 @@ struct client::impl
         co_return;
     }
 
-    boost::capy::task<> send_message(std::int64_t conversation, std::string text, send_message_handler handler,
-                                     std::optional<std::int64_t> reply_to)
+    boost::capy::task<> send_message(std::int64_t conversation, std::string text, message_result_handler handler,
+                                     std::optional<std::int64_t> reply_to, std::int64_t client_id)
     {
         boost::json::object params;
         params.emplace("conversation", conversation);
         params.emplace("text", std::move(text));
+        params.emplace("client_id", client_id);
         if (reply_to)
         {
             params.emplace("reply_to", *reply_to);
         }
 
-        send_request("send_message", std::move(params), [handler = std::move(handler)](auto response) mutable {
+        send_request("send_message", std::move(params), [handler = std::move(handler), conversation, client_id](auto response) mutable {
             if (!response)
             {
                 handler(std::unexpected(std::move(response.error())));
                 return;
             }
-            if (!response->is_object())
+            message value;
+            if (!response->is_object() || !parse_message(response->as_object(), value) || value.conversation != conversation ||
+                value.client_id != client_id || (!value.deleted && value.attachment))
             {
                 handler(std::unexpected(make_error(error_kind::protocol, "Invalid send_message result")));
                 return;
             }
-
-            auto const& object = response->as_object();
-            auto const* message_value = object.if_contains("message");
-            auto const* timestamp_value = object.if_contains("timestamp");
-            auto const* realtime_value = object.if_contains("realtime");
-            if (!message_value || !timestamp_value || !realtime_value || !realtime_value->is_bool())
-            {
-                handler(std::unexpected(make_error(error_kind::protocol, "Invalid send_message result")));
-                return;
-            }
-
-            auto message_id = parse_int64(*message_value);
-            auto timestamp = parse_int64(*timestamp_value);
-            if (!message_id || *message_id <= 0 || !timestamp || *timestamp <= 0)
-            {
-                handler(std::unexpected(make_error(error_kind::protocol, "Invalid send_message result")));
-                return;
-            }
-
-            send_message_result result;
-            result.message_id = *message_id;
-            result.timestamp = *timestamp;
-            result.realtime = realtime_value->as_bool();
-            if (!parse_quote(object, "reply", result.reply) || !parse_mentions(object, result.mentions))
-            {
-                handler(std::unexpected(make_error(error_kind::protocol, "Invalid send metadata")));
-                return;
-            }
-            handler(result);
+            handler(std::move(value));
         });
 
         co_return;
@@ -1552,8 +1537,21 @@ struct client::impl
         std::string data;
         std::size_t offset = 0;
         std::optional<std::int64_t> reply_to;
+        std::int64_t client_id = 0;
         message_result_handler handler;
     };
+
+    // The server holds one upload per connection, so the front job runs and the rest wait.
+    void finish_upload(std::expected<message, error> result)
+    {
+        auto job = std::move(uploads_.front());
+        uploads_.pop_front();
+        job->handler(std::move(result));
+        if (!uploads_.empty())
+        {
+            begin_upload(uploads_.front());
+        }
+    }
 
     void fail_upload(std::shared_ptr<upload_job> const& job, error value)
     {
@@ -1561,7 +1559,14 @@ struct client::impl
         {
             send_request("cancel_attachment", {{"upload", job->upload}}, [](auto) {});
         }
-        job->handler(std::unexpected(std::move(value)));
+        finish_upload(std::unexpected(std::move(value)));
+    }
+
+    bool valid_upload_result(upload_job const& job, message const& value) const
+    {
+        return value.conversation == job.conversation && value.client_id == job.client_id &&
+               (value.deleted || (value.attachment && value.attachment->filename == job.filename &&
+                                  value.attachment->size == static_cast<std::int64_t>(job.data.size())));
     }
 
     void upload_next(std::shared_ptr<upload_job> job)
@@ -1580,15 +1585,12 @@ struct client::impl
                     return;
                 }
                 message value;
-                if (!response->is_object() || !parse_message(response->as_object(), value) ||
-                    value.conversation != job->conversation || value.deleted || !value.attachment ||
-                    value.attachment->filename != job->filename ||
-                    value.attachment->size != static_cast<std::int64_t>(job->data.size()))
+                if (!response->is_object() || !parse_message(response->as_object(), value) || !valid_upload_result(*job, value))
                 {
                     fail_upload(job, make_error(error_kind::protocol, "Invalid attachment message"));
                     return;
                 }
-                job->handler(std::move(value));
+                finish_upload(std::move(value));
             });
             return;
         }
@@ -1613,8 +1615,44 @@ struct client::impl
             });
     }
 
+    void begin_upload(std::shared_ptr<upload_job> job)
+    {
+        send_request("begin_attachment", {{"conversation", job->conversation}, {"filename", job->filename},
+                                           {"size", job->data.size()}, {"client_id", job->client_id}}, [this, job](auto response) {
+            if (!response)
+            {
+                fail_upload(job, std::move(response.error()));
+                return;
+            }
+            auto const* object = response->is_object() ? &response->as_object() : nullptr;
+            auto const* sent = object ? object->if_contains("message") : nullptr;
+            if (sent)
+            {
+                // Already stored under this client_id: nothing to upload.
+                message value;
+                if (!sent->is_object() || !parse_message(sent->as_object(), value) || !valid_upload_result(*job, value))
+                {
+                    fail_upload(job, make_error(error_kind::protocol, "Invalid attachment message"));
+                    return;
+                }
+                finish_upload(std::move(value));
+                return;
+            }
+            auto const* field = object ? object->if_contains("upload") : nullptr;
+            auto upload = field ? parse_int64(*field) : std::nullopt;
+            if (!upload || *upload <= 0)
+            {
+                fail_upload(job, make_error(error_kind::protocol, "Invalid attachment upload id"));
+                return;
+            }
+            job->upload = *upload;
+            upload_next(job);
+        });
+    }
+
     boost::capy::task<> send_attachment(std::int64_t conversation, std::string filename, std::string data,
-                                       message_result_handler handler, std::optional<std::int64_t> reply_to)
+                                       message_result_handler handler, std::optional<std::int64_t> reply_to,
+                                       std::int64_t client_id)
     {
         if (data.size() > max_attachment_size)
         {
@@ -1626,24 +1664,13 @@ struct client::impl
         job->filename = std::move(filename);
         job->data = std::move(data);
         job->reply_to = reply_to;
+        job->client_id = client_id;
         job->handler = std::move(handler);
-        send_request("begin_attachment", {{"conversation", conversation}, {"filename", job->filename},
-                                           {"size", job->data.size()}}, [this, job](auto response) {
-            if (!response)
-            {
-                fail_upload(job, std::move(response.error()));
-                return;
-            }
-            auto const* field = response->is_object() ? response->as_object().if_contains("upload") : nullptr;
-            auto upload = field ? parse_int64(*field) : std::nullopt;
-            if (!upload || *upload <= 0)
-            {
-                fail_upload(job, make_error(error_kind::protocol, "Invalid attachment upload id"));
-                return;
-            }
-            job->upload = *upload;
-            upload_next(job);
-        });
+        uploads_.push_back(job);
+        if (uploads_.size() == 1)
+        {
+            begin_upload(std::move(job));
+        }
         co_return;
     }
 
@@ -2158,6 +2185,7 @@ struct client::impl
 
     std::int64_t next_request_id_ = 1;
     std::unordered_map<std::int64_t, response_handler> pending_;
+    std::deque<std::shared_ptr<upload_job>> uploads_;
     std::deque<std::string> outgoing_;
     connection_state state_ = connection_state::disconnected;
     bool closing_ = false;
@@ -2451,18 +2479,27 @@ void client::search_messages(std::int64_t conversation, std::string query, std::
         impl_->get_messages(conversation, before, std::move(handler), {}, std::move(query)));
 }
 
-void client::send_message(std::int64_t user, std::string text, send_message_handler handler,
-                          std::optional<std::int64_t> reply_to)
+std::int64_t client::new_client_id()
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(
-        impl_->send_message(user, std::move(text), std::move(handler), reply_to));
+    static std::mutex mutex;
+    static std::mt19937_64 engine{std::random_device{}()};
+    std::lock_guard lock(mutex);
+    return static_cast<std::int64_t>(engine() >> 1) | 1;
+}
+
+void client::send_message(std::int64_t conversation, std::string text, message_result_handler handler,
+                          std::optional<std::int64_t> reply_to, std::optional<std::int64_t> client_id)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->send_message(
+        conversation, std::move(text), std::move(handler), reply_to, client_id ? *client_id : new_client_id()));
 }
 
 void client::send_attachment(std::int64_t conversation, std::string filename, std::string data,
-                            message_result_handler handler, std::optional<std::int64_t> reply_to)
+                            message_result_handler handler, std::optional<std::int64_t> reply_to,
+                            std::optional<std::int64_t> client_id)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(
-        impl_->send_attachment(conversation, std::move(filename), std::move(data), std::move(handler), reply_to));
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->send_attachment(
+        conversation, std::move(filename), std::move(data), std::move(handler), reply_to, client_id ? *client_id : new_client_id()));
 }
 
 void client::get_attachment(std::int64_t conversation, std::int64_t message, attachment_handler handler)

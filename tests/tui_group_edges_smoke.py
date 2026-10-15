@@ -94,12 +94,12 @@ def run(d):
             cursor = min(ids)
         assert collected[edited_id]['text'] == edited_text and collected[edited_id]['edited_at'] is not None
         assert collected[deleted_id]['deleted'] and not collected[deleted_id]['text']
-        assert collected[reply['message_id']]['reply']['id'] == deleted_id
-        assert collected[reply['message_id']]['reply']['deleted']
+        assert collected[reply['id']]['reply']['id'] == deleted_id
+        assert collected[reply['id']]['reply']['deleted']
         assert set(item['id'] for item in d.manifest['messages']).issubset(collected)
-        assert all(identity not in pages[0] for identity in (edited_id, deleted_id, reply['message_id']))
+        assert all(identity not in pages[0] for identity in (edited_id, deleted_id, reply['id']))
         d.evidence('mixed-history-pages', {'pages': pages, 'edited': collected[edited_id],
-                                         'deleted': collected[deleted_id], 'reply': collected[reply['message_id']]})
+                                         'deleted': collected[deleted_id], 'reply': collected[reply['id']]})
 
         d.open_main('C')
         # The sixty newer messages force these states out of the first page.
@@ -107,7 +107,7 @@ def run(d):
         # arrival before the next PgUp; an input barrier alone cannot prove RPC
         # completion. Additional earlier smoke actions may have added messages.
         required = max(index for index, ids in enumerate(pages)
-                       if any(identity in ids for identity in (edited_id, deleted_id, reply['message_id'])))
+                       if any(identity in ids for identity in (edited_id, deleted_id, reply['id'])))
         for index in range(1, required + 1):
             sentinel = next(collected[identity]['text'].split()[0]
                             for identity in reversed(pages[index])
@@ -229,8 +229,8 @@ def prepare_reconnect(d):
         after = _membership(d)
         assert after['muted'] and after['unread'] == 1 and after['last_read'] == before['last_read']
         d.screenshot('A', 'muted-live-unread')
-        d.evidence('muted-no-auto-read', {'before': before, 'after': after, 'message': sent['message_id']})
-        d._group_edge_mute = {'message': sent['message_id'], 'marker': marker}
+        d.evidence('muted-no-auto-read', {'before': before, 'after': after, 'message': sent['id']})
+        d._group_edge_mute = {'message': sent['id'], 'marker': marker}
         d.resize('A', 160, 45)
 
 

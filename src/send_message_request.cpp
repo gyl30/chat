@@ -14,6 +14,7 @@
 #include "chat_session.hpp"
 #include "message_payload.hpp"
 #include "message_mentions.hpp"
+#include "message_query.hpp"
 #include "pg_connection_pool.hpp"
 
 namespace
@@ -27,15 +28,7 @@ struct [[= simdjson::deny_unknown_fields]] send_message_params
     std::string text;
     std::optional<std::int64_t> reply_to;
     std::optional<std::int64_t> upload;
-};
-
-struct send_message_result
-{
-    std::int64_t message = 0;
-    std::int64_t timestamp = 0;
-    bool realtime = false;
-    std::optional<quoted_message_payload> reply;
-    std::vector<chat::mention> mentions;
+    std::optional<std::int64_t> client_id;
 };
 
 struct message_notification
@@ -94,27 +87,6 @@ simdjson::error_code parse_send_message_params(json_rpc_params& params, send_mes
     return simdjson::SUCCESS;
 }
 
-simdjson::error_code serialize_send_message_result(std::int64_t message, std::int64_t timestamp, bool realtime,
-                                                   std::optional<quoted_message_payload> reply, std::vector<chat::mention> mentions, json_rpc_id id,
-                                                   std::string& response)
-{
-    send_message_result result{};
-    result.message = message;
-    result.timestamp = timestamp;
-    result.realtime = realtime;
-    result.reply = std::move(reply);
-    result.mentions = std::move(mentions);
-
-    std::string result_json;
-    auto error = simdjson::builder::to_json_string(result).get(result_json);
-    if (error)
-    {
-        return error;
-    }
-
-    return serialize_json_rpc_success(result_json, std::move(id), response);
-}
-
 }    // namespace
 
 boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_rpc_request& request, std::string& response)
@@ -132,7 +104,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
     bool const attaching = request.method == "finish_attachment";
     auto params_error = parse_send_message_params(request.params, params, attaching);
     if (params_error || (attaching ? (!params.upload || *params.upload <= 0 || params.conversation != 0 || !params.text.empty())
-        : (params.upload || params.conversation <= 0 || params.text.empty() || params.text.find('\0') != std::string::npos)))
+        : (params.upload || params.conversation <= 0 || params.text.empty() || params.text.find('\0') != std::string::npos ||
+           !params.client_id || *params.client_id <= 0)))
     {
         if (request.id.present)
         {
@@ -140,6 +113,36 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         }
         co_return simdjson::SUCCESS;
     }
+    if (!attaching)
+    {
+        // A message already stored under this client_id is returned as it is now, without checks for a new send.
+        auto sent = co_await find_sent_message(*params.client_id);
+        if (!sent)
+        {
+            if (request.id.present)
+            {
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            co_return simdjson::SUCCESS;
+        }
+        if (*sent)
+        {
+            if (!request.id.present)
+            {
+                co_return simdjson::SUCCESS;
+            }
+            if ((*sent)->conversation != params.conversation || (!(*sent)->deleted && (*sent)->attachment))
+            {
+                co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+            }
+            if (!(*sent)->member)
+            {
+                co_return serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response);
+            }
+            co_return serialize_json_rpc_success((*sent)->json, std::move(request.id), response);
+        }
+    }
+
     std::optional<attachment_upload> attachment;
     if (attaching)
     {
@@ -153,6 +156,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
             co_return serialize_json_rpc_error(-32008, "Attachment upload incomplete", std::move(request.id), response);
         }
         params.conversation = upload_->conversation;
+        params.client_id = upload_->client_id;
         params.text = upload_->filename;
         // 请求持有内容，成员移除可以清理 session 而不破坏挂起的 finish。
         attachment = std::move(upload_);
@@ -276,12 +280,13 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         parameters.emplace_back(attaching ? notification.params.attachment->media_type : "");
         parameters.emplace_back(attaching ? std::to_string(attachment->size) : "0");
         parameters.emplace_back(attaching ? chat::detail::encode_base64(attachment->content) : "");
+        parameters.emplace_back(std::to_string(*params.client_id));
         auto query_result = co_await lease.connection().execute_row(
             "WITH locked AS (UPDATE conversations SET activity=(extract(epoch FROM clock_timestamp())*1000)::bigint "
             "WHERE id=$2::bigint AND EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=$2::bigint AND "
             "user_id=$1::bigint) RETURNING id), "
-            "inserted AS (INSERT INTO messages(sender_id,conversation_id,body,reply_to_id) SELECT "
-            "$1::bigint,id,$3,NULLIF($4,'')::bigint FROM locked "
+            "inserted AS (INSERT INTO messages(sender_id,conversation_id,body,reply_to_id,client_id) SELECT "
+            "$1::bigint,id,$3,NULLIF($4,'')::bigint,$9::bigint FROM locked "
             "RETURNING id,created_at), "
             "attached AS (INSERT INTO message_attachments(message_id,filename,media_type,size,data) "
             "SELECT id,$5,$6,$7::bigint,decode($8,'base64') FROM inserted WHERE $5<>'' RETURNING message_id) "
@@ -388,23 +393,46 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         co_return error;
     }
 
-    auto const realtime = co_await publish_conversation(params.conversation, std::move(notification_json));
+    co_await publish_conversation(params.conversation, std::move(notification_json));
 
     if (!request.id.present)
     {
         co_return simdjson::SUCCESS;
     }
-    if (attaching)
+    notification.params.client_id = params.client_id;
+    std::string payload;
+    error = simdjson::builder::to_json_string(notification.params).get(payload);
+    if (error)
     {
-        std::string payload;
-        error = simdjson::builder::to_json_string(notification.params).get(payload);
-        if (error)
-        {
-            co_return error;
-        }
-        co_return serialize_json_rpc_success(payload, std::move(request.id), response);
+        co_return error;
     }
+    co_return serialize_json_rpc_success(payload, std::move(request.id), response);
+}
 
-    co_return serialize_send_message_result(notification.params.id, notification.params.timestamp, realtime.value_or(false),
-                                            std::move(notification.params.reply), std::move(notification.params.mentions), std::move(request.id), response);
+boost::capy::task<std::expected<std::optional<chat_session::sent_message>, std::error_code>>
+chat_session::find_sent_message(std::int64_t client_id)
+{
+    auto lease = co_await database_.acquire();
+    if (lease.error())
+    {
+        co_return std::unexpected(lease.error());
+    }
+    std::string query = "SELECT v.conversation::text,v.deleted::text,(v.attachment IS NOT NULL)::text,"
+        "EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=v.conversation AND user_id=$1::bigint)::text,"
+        "row_to_json(v)::text FROM (";
+    query += kMessageRow;
+    query += "m.sender_id=$1::bigint AND m.client_id=$2::bigint) v";
+    auto result = co_await lease.connection().execute_row(std::move(query), {std::to_string(*user_id_), std::to_string(client_id)});
+    auto& [ec, row] = result;
+    if (ec || (row && row->size() != 5))
+    {
+        lease.connection().close();
+        co_return std::unexpected(ec ? ec : std::make_error_code(std::errc::bad_message));
+    }
+    if (!row)
+    {
+        co_return std::optional<sent_message>{};
+    }
+    co_return sent_message{std::stoll(row->at(0)), row->at(1) == "true", row->at(2) == "true", row->at(3) == "true",
+                           std::move(row->at(4))};
 }

@@ -33,6 +33,8 @@ struct message_payload
     std::int64_t reaction_revision = 0;
     std::vector<chat::reaction> reactions;
     std::vector<chat::mention> mentions;
+    // Only in the sender's own acknowledgement, never in the shared notification.
+    std::optional<std::int64_t> client_id;
 };
 
 #endif

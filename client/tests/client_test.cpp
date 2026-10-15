@@ -668,10 +668,14 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
                 co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false};
             }
 
-            boost::json::object result;
-            result.emplace("message", 20);
-            result.emplace("timestamp", 1700000120000);
-            result.emplace("realtime", true);
+            auto const* client_id = params->as_object().if_contains("client_id");
+            if (!client_id || !client_id->is_int64() || client_id->as_int64() <= 0)
+            {
+                co_return boost::capy::io_result<bool>{std::make_error_code(std::errc::protocol_error), false};
+            }
+            boost::json::object result{{"id", 20}, {"conversation", 2}, {"from", 1}, {"username", "alice"},
+                {"avatar_revision", 0}, {"has_avatar", false}, {"timestamp", 1700000120000}, {"text", *text},
+                {"reaction_revision", 0}, {"reactions", boost::json::array{}}, {"client_id", *client_id}};
             result.emplace("mentions", boost::json::array{});
             response.emplace("result", std::move(result));
             auto [response_ec] = co_await send_text(connection, std::move(response));
@@ -701,6 +705,12 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             notification.emplace("params", std::move(notification_params));
             auto [notification_ec] = co_await send_text(connection, std::move(notification));
             co_return boost::capy::io_result<bool>{notification_ec, !notification_ec};
+        }
+
+        if (method->as_string() == "begin_attachment")
+        {
+            // Never answered: the upload is still waiting when the connection closes.
+            co_return boost::capy::io_result<bool>{std::error_code{}, true};
         }
 
         if (method->as_string() == "mark_read")
@@ -1484,10 +1494,10 @@ int main()
         // The fixture accepts this request only when the complete JSON frame is exactly 64 KiB.
         std::string boundary_text = "request-boundary:";
         boost::json::object envelope{{"jsonrpc", "2.0"}, {"method", "send_message"},
-            {"params", boost::json::object{{"conversation", 2}, {"text", boundary_text}}}, {"id", 1}};
+            {"params", boost::json::object{{"conversation", 2}, {"text", boundary_text}, {"client_id", 7}}}, {"id", 1}};
         boundary_text.append(64 * 1024 - boost::json::serialize(envelope).size(), 'x');
-        auto accepted = avatar_call.operator()<chat::send_message_result>([&](auto h) {
-            boundary_client.send_message(2, boundary_text, h);
+        auto accepted = avatar_call.operator()<chat::message>([&](auto h) {
+            boundary_client.send_message(2, boundary_text, h, {}, 7);
         });
         if (!accepted) { std::cerr << "FAIL client exact 64 KiB request boundary\n"; return 1; }
 
@@ -1495,7 +1505,7 @@ int main()
         for (int i = 0; i < 21846; ++i) { cjk += "中"; }
         for (auto const& text : {std::string(65536, 'x'), cjk, std::string(32768, '\\')})
         {
-            auto rejected = avatar_call.operator()<chat::send_message_result>([&](auto h) {
+            auto rejected = avatar_call.operator()<chat::message>([&](auto h) {
                 boundary_client.send_message(2, text, [&, h](auto result) mutable {
                     ++callbacks;
                     h(std::move(result));
@@ -1504,7 +1514,7 @@ int main()
             if (rejected || rejected.error().kind != chat::error_kind::protocol ||
                 chat::error_text(rejected.error()) != "内容过长，请缩短后重试")
             { std::cerr << "FAIL client oversize request must return an explicit local protocol error\n"; return 1; }
-            auto next = avatar_call.operator()<chat::send_message_result>([&](auto h) {
+            auto next = avatar_call.operator()<chat::message>([&](auto h) {
                 boundary_client.send_message(2, "outgoing", h);
             });
             if (!next || disconnected != 0)
@@ -1515,8 +1525,8 @@ int main()
     }
 
     bool send_called = false;
-    chat::send_message_result send_result;
-    client.send_message(2, "outgoing", [&](std::expected<chat::send_message_result, chat::error> result) {
+    chat::message send_result;
+    client.send_message(2, "outgoing", [&](std::expected<chat::message, chat::error> result) {
         std::lock_guard lock(state.mutex);
         send_called = true;
         if (result)
@@ -1525,8 +1535,9 @@ int main()
         }
         state.condition.notify_all();
     });
-    if (!state.wait([&] { return send_called && !state.messages.empty(); }) || send_result.message_id != 20 ||
-        send_result.timestamp != 1700000120000 || !send_result.realtime || state.messages.back().id != 21 ||
+    if (!state.wait([&] { return send_called && !state.messages.empty(); }) || send_result.id != 20 ||
+        send_result.timestamp != 1700000120000 || send_result.text != "outgoing" || !send_result.client_id ||
+        state.messages.back().id != 21 ||
         state.messages.back().from != 2 || state.messages.back().timestamp != 1700000180000 ||
         state.messages.back().text != "incoming @alice" || state.messages.back().mentions.size() != 1 ||
         state.messages.back().mentions.front().user != 1)
@@ -1624,6 +1635,16 @@ int main()
     }
     std::cout << "PASS client reconnect\n";
 
+    // The server holds one upload per connection: the second waits in the client and fails with the first.
+    std::vector<std::string> upload_results;
+    for (auto const* name : {"first.bin", "second.bin"})
+    {
+        client.send_attachment(2, name, "data", [&, name](std::expected<chat::message, chat::error> result) {
+            std::lock_guard lock(state.mutex);
+            upload_results.push_back(std::string(name) + (!result && result.error().kind == chat::error_kind::transport ? ":transport" : ":other"));
+            state.condition.notify_all();
+        });
+    }
     bool close_error_called = false;
     client.authenticate("close", "secret",
                         [&](std::expected<chat::authentication_result, chat::error> result)
@@ -1632,12 +1653,13 @@ int main()
         close_error_called = !result && result.error().kind == chat::error_kind::transport;
         state.condition.notify_all();
     });
-    if (!state.wait([&] { return close_error_called && state.disconnected == 2; }))
+    if (!state.wait([&] { return close_error_called && state.disconnected == 2 && upload_results.size() == 2; }) ||
+        upload_results != std::vector<std::string>{"first.bin:transport", "second.bin:transport"})
     {
-        std::cerr << "FAIL client pending request close\n";
+        std::cerr << "FAIL client pending request and queued upload close\n";
         return 1;
     }
-    std::cout << "PASS client pending request close\n";
+    std::cout << "PASS client pending request and queued upload close\n";
     std::atomic_int destructor_callbacks = 0;
     {
         chat::client shutting_down;

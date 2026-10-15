@@ -92,8 +92,6 @@ template<class T> json::value dto(T const& v)
             {"reply", dto(v.reply)}, {"attachment", dto(v.attachment)}, {"mentions", dto(v.mentions)},
             {"reaction_revision", v.reaction_revision}, {"reactions", dto(v.reactions)}};
     }
-    else if constexpr (std::same_as<T, chat::send_message_result>)
-    { return json::object{{"message_id", v.message_id}, {"timestamp", v.timestamp}, {"realtime", v.realtime}, {"reply", dto(v.reply)}, {"mentions", dto(v.mentions)}}; }
     else if constexpr (std::same_as<T, chat::reaction_update>)
     { return json::object{{"conversation", v.conversation}, {"message", v.message}, {"revision", v.revision}, {"reactions", dto(v.reactions)}}; }
     else if constexpr (std::same_as<T, chat::messages_result>)
@@ -439,7 +437,7 @@ public:
             connected("A").open_direct_conversation(actor("B").id, done);
         });
         auto marker = "readonly_history_" + prefix_;
-        auto message = rpc<chat::send_message_result>([&](auto done) {
+        auto message = rpc<chat::message>([&](auto done) {
             connected("A").send_message(direct.conversation, marker, done);
         });
         rpc<bool>([&](auto done) { connected("A").remove_contact(actor("B").id, done); });
@@ -459,7 +457,7 @@ public:
         manifest_ = {{"prefix", prefix_}, {"url", url_}, {"actors", std::move(actors)},
             {"sdk", json::array{actor("S005").description()}}, {"group", json::object{{"id", group_}, {"title", title}}},
             {"invite_token", *invite}, {"navigation", json::object{{"readonly_conversation", direct.conversation},
-                {"history_message", message.message_id}, {"history_marker", marker},
+                {"history_message", message.id}, {"history_marker", marker},
                 {"accepted", json::array{"C", "S005"}}, {"incoming", "D"}, {"outgoing", "E"}}}};
         for (auto const* alias : {"A", "B", "C", "D", "E"}) { disconnect_actor(alias); }
         return manifest_;
@@ -621,10 +619,10 @@ public:
         for (int i = 0; i < message_count; ++i)
         {
             auto marker = (i < search_count ? search_query : "other_" + prefix_) + "_" + std::to_string(i + 1);
-            auto value = rpc<chat::send_message_result>([&](auto done) {
+            auto value = rpc<chat::message>([&](auto done) {
                 owner.client->send_message(group_, marker + " 中文群消息 @" + actor("C").username, done);
             });
-            messages.push_back(json::object{{"id", value.message_id}, {"marker", marker}});
+            messages.push_back(json::object{{"id", value.id}, {"marker", marker}});
         }
         rpc<bool>([&](auto done) { owner.client->set_group_join_approval(group_, true, done); });
         json::array pending;
@@ -670,19 +668,19 @@ public:
             {
                 auto const& sender = direction == 0 ? first : second;
                 auto const& recipient = direction == 0 ? second : first;
-                auto message = rpc<chat::send_message_result>([&](auto done) {
+                auto message = rpc<chat::message>([&](auto done) {
                     connected(sender).send_message(room, "好友双向验证 " + sender + " → " + recipient, done);
                 });
                 auto edited = rpc<chat::message>([&](auto done) {
-                    connected(sender).edit_message(room, message.message_id, "已编辑的好友消息 " + sender, done);
+                    connected(sender).edit_message(room, message.id, "已编辑的好友消息 " + sender, done);
                 });
                 require(edited.edited_at.has_value(), "Friend edit missing authoritative revision");
-                auto reply = rpc<chat::send_message_result>([&](auto done) {
-                    connected(recipient).send_message(room, "回复 " + sender, done, message.message_id);
+                auto reply = rpc<chat::message>([&](auto done) {
+                    connected(recipient).send_message(room, "回复 " + sender, done, message.id);
                 });
-                require(reply.reply && reply.reply->id == message.message_id, "Friend reply missing quote");
+                require(reply.reply && reply.reply->id == message.id, "Friend reply missing quote");
                 auto reaction = rpc<chat::reaction_update>([&](auto done) {
-                    connected(recipient).set_message_reaction(room, message.message_id, "👍", done);
+                    connected(recipient).set_message_reaction(room, message.id, "👍", done);
                 });
                 require(reaction.revision > 0, "Friend reaction missing revision");
                 auto typed = rpc<bool>([&](auto done) { connected(sender).set_typing(room, true, done); });
@@ -699,10 +697,10 @@ public:
                 require(std::ranges::any_of(history.read_positions, [&](auto const& read) {
                     return read.user == actor(recipient).id && read.message >= file.id;
                 }), "Friend read position did not persist");
-                auto deleted = rpc<chat::message>([&](auto done) { connected(sender).delete_message(room, message.message_id, done); });
+                auto deleted = rpc<chat::message>([&](auto done) { connected(sender).delete_message(room, message.id, done); });
                 require(deleted.deleted, "Friend delete missing tombstone");
                 directions.push_back(json::object{{"sender", sender}, {"recipient", recipient},
-                    {"message", message.message_id}, {"reply", reply.message_id}, {"attachment", file.id},
+                    {"message", message.id}, {"reply", reply.id}, {"attachment", file.id},
                     {"reaction_revision", reaction.revision}, {"read", file.id}, {"deleted", true}});
             }
             evidence.push_back(json::object{{"conversation", room}, {"directions", std::move(directions)}});
@@ -712,17 +710,16 @@ public:
         auto second = std::string(pair.at("actors").as_array()[1].as_string());
         auto room = pair.at("conversation").as_int64();
         disconnect_actor(second);
-        auto offline = rpc<chat::send_message_result>([&](auto done) {
+        auto offline = rpc<chat::message>([&](auto done) {
             connected(first).send_message(room, "offline_delivery_" + prefix_, done);
         });
-        require(!offline.realtime, "Offline friend unexpectedly reported realtime delivery");
         connect_actor(second);
         auto recovered = rpc<chat::messages_result>([&](auto done) { connected(second).get_messages(room, {}, done); });
-        require(std::ranges::find(recovered.messages, offline.message_id, &chat::message::id) != recovered.messages.end(),
+        require(std::ranges::find(recovered.messages, offline.id, &chat::message::id) != recovered.messages.end(),
                 "Offline friend message missing after reconnect");
         return json::object{{"pairs", std::move(evidence)}, {"pair_count", 10}, {"directions", 20},
-            {"offline", json::object{{"sender", first}, {"recipient", second}, {"message", offline.message_id},
-                {"realtime", offline.realtime}, {"recovered", true}}}};
+            {"offline", json::object{{"sender", first}, {"recipient", second}, {"message", offline.id},
+                {"recovered", true}}}};
     }
 
     json::value measure_sizes()
@@ -792,10 +789,10 @@ public:
                 auto members_done = clock_type::now();
                 auto history = rpc<chat::messages_result>([&](auto done) { owner.get_messages(group.id, {}, done); });
                 auto history_done = clock_type::now();
-                auto sent = rpc<chat::send_message_result>([&](auto done) { owner.send_message(group.id, "规模样本", done); });
+                auto sent = rpc<chat::message>([&](auto done) { owner.send_message(group.id, "规模样本", done); });
                 auto send_done = clock_type::now();
                 require(listed.size() == static_cast<std::size_t>(group.size) &&
-                    history.read_positions.size() == static_cast<std::size_t>(group.size) && sent.message_id > 0,
+                    history.read_positions.size() == static_cast<std::size_t>(group.size) && sent.id > 0,
                     "Member/read/publish paths must remain complete at measured size");
                 auto members_elapsed = std::chrono::duration<double, std::milli>(members_done - start).count();
                 auto history_elapsed = std::chrono::duration<double, std::milli>(history_done - members_done).count();
@@ -804,7 +801,7 @@ public:
                 history_ms += history_elapsed / 3;
                 send_ms += send_elapsed / 3;
                 samples.push_back(json::object{{"members", listed.size()}, {"read_positions", history.read_positions.size()},
-                    {"message", sent.message_id}, {"get_members_ms", members_elapsed},
+                    {"message", sent.id}, {"get_members_ms", members_elapsed},
                     {"history_ms", history_elapsed}, {"send_ms", send_elapsed}});
             }
             results.push_back(json::object{{"size", group.size}, {"conversation", group.id}, {"samples", std::move(samples)},
@@ -948,7 +945,7 @@ public:
         if (method == "get_presence") { return measured<std::vector<chat::presence>>([&](auto done) { client.get_presence(done); }); }
         if (method == "get_messages") { return measured<chat::messages_result>([&](auto done) { client.get_messages(room, cursor(input, "before"), done, cursor(input, "after")); }); }
         if (method == "search_messages") { return measured<chat::messages_result>([&](auto done) { client.search_messages(room, text(input, "query"), cursor(input, "before"), done); }); }
-        if (method == "send_message") { return measured<chat::send_message_result>([&](auto done) { client.send_message(room, text(input, "text"), done, cursor(input, "reply_to")); }); }
+        if (method == "send_message") { return measured<chat::message>([&](auto done) { client.send_message(room, text(input, "text"), done, cursor(input, "reply_to")); }); }
         if (method == "mark_read") { return measured<std::int64_t>([&](auto done) { client.mark_read(room, message, done); }); }
         if (method == "set_typing") { return measured<bool>([&](auto done) { client.set_typing(room, flag(input, "typing"), done); }); }
         if (method == "set_message_reaction") { return measured<chat::reaction_update>([&](auto done) { client.set_message_reaction(room, message, text(input, "emoji"), done); }); }

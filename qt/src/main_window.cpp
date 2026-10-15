@@ -1055,7 +1055,7 @@ main_window::main_window(QString server_url, QWidget* parent)
 
     connect(
         client_.get(), &client_bridge::message_sent, this,
-        [this](qint64 user, QString text, qint64 message, qint64 timestamp, bool realtime, quoted_message_data reply,
+        [this](qint64 user, QString text, qint64 message, qint64 timestamp, quoted_message_data reply,
                QList<mention_data> mentions, QString const& error_message)
         {
             chat_page_->finish_message_send(user, message, timestamp, std::move(text), std::move(reply), std::move(mentions),
@@ -1065,7 +1065,6 @@ main_window::main_window(QString server_url, QWidget* parent)
                 return;
             }
 
-            (void)realtime;
             client_->get_conversations();
             client_->get_presence();
         },

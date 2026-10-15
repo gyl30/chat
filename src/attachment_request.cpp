@@ -34,14 +34,33 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
             std::int64_t conversation = 0;
             std::string filename;
             std::int64_t size = -1;
+            std::int64_t client_id = 0;
         };
         begin_params params;
-        if (document.get(params) || !document.at_end() || params.conversation <= 0 || params.size < 0 ||
+        if (document.get(params) || !document.at_end() || params.conversation <= 0 || params.client_id <= 0 || params.size < 0 ||
             params.size > static_cast<std::int64_t>(chat::max_attachment_size) || params.filename.empty() ||
             params.filename.size() > 255 || params.filename.find_first_of("/\\") != std::string::npos ||
             std::ranges::any_of(params.filename, [](unsigned char value) { return value < 32 || value == 127; }))
         {
             co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+        }
+        // An attachment already stored under this client_id is returned instead of uploaded again.
+        auto sent = co_await find_sent_message(params.client_id);
+        if (!sent)
+        {
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        if (*sent)
+        {
+            if ((*sent)->conversation != params.conversation || (!(*sent)->deleted && !(*sent)->attachment))
+            {
+                co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+            }
+            if (!(*sent)->member)
+            {
+                co_return serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response);
+            }
+            co_return serialize_json_rpc_success("{\"message\":" + (*sent)->json + "}", std::move(request.id), response);
         }
         if (upload_)
         {
@@ -70,7 +89,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
         auto const upload = next_upload_id_;
         if (*allowed)
         {
-            upload_.emplace(next_upload_id_++, params.conversation, std::move(params.filename), params.size, std::string{});
+            upload_.emplace(next_upload_id_++, params.conversation, params.client_id, std::move(params.filename), params.size,
+                            std::string{});
         }
         auto ended = co_await connection.execute_row(*allowed ? "COMMIT" : "ROLLBACK");
         if (std::get<0>(ended))

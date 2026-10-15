@@ -949,7 +949,7 @@ def stage_terminal_messages(d):
         sent = d.query('S005', 'send_message', conversation=d.group, text=body)
         stored = d.query('S005', 'search_messages', conversation=d.group, query='ANSI_HEAD_' + d.args.run_id)['messages'][0]
         assert stored['text'] == body and '\x1b' in stored['text'] and '\a' in stored['text']
-        d.evidence('stored-control-message', {'message': sent['message_id'], 'utf8_bytes': len(body.encode()),
+        d.evidence('stored-control-message', {'message': sent['id'], 'utf8_bytes': len(body.encode()),
                                             'sha256': hashlib.sha256(body.encode()).hexdigest(),
                                             'esc_count': body.count('\x1b'), 'bel_count': body.count('\a')})
         d.open_main('C')
@@ -975,7 +975,7 @@ def stage_terminal_messages(d):
         d.keys('C', 'Enter')
         d.wait('C', chat_open)
         d.resize('C', 160,45)
-        d.query('S005', 'delete_message', conversation=d.group, message=sent['message_id'])
+        d.query('S005', 'delete_message', conversation=d.group, message=sent['id'])
 
 
 def stage_large_text(d):
@@ -1389,7 +1389,7 @@ def stage_group_management(d):
             d.wait('D', d.title)
             member_id = int(d.manifest['actors']['D']['id'])
             boundary = read_only_sql(f'SELECT joined_message_id,last_read_message_id FROM conversation_members WHERE conversation_id={int(d.group)} AND user_id={member_id}')
-            assert len(boundary) == 1 and int(boundary[0][0]) >= gap['message_id'] and int(boundary[0][1]) <= int(boundary[0][0]), boundary
+            assert len(boundary) == 1 and int(boundary[0][0]) >= gap['id'] and int(boundary[0][1]) <= int(boundary[0][0]), boundary
             d.command('D', 'help')
             d.wait('D', '键盘帮助')
             post = d.query('S005', 'send_message', conversation=d.group, text='postjoin_' + page + '_' + d.args.run_id)
@@ -1403,7 +1403,7 @@ def stage_group_management(d):
             # The unread count ends the summary line of the conversation's list row.
             d.wait('D', lambda text: re.search(r'\s1\s*$', list_row(text, d.title)) is not None)
             d.screenshot('D', 'only-postjoin-message-unread-' + page)
-            d.evidence('rejoin-watermark-' + page, {'gap_message': gap['message_id'], 'membership': boundary, 'new_message':post['message_id'], 'unread':1})
+            d.evidence('rejoin-watermark-' + page, {'gap_message': gap['id'], 'membership': boundary, 'new_message':post['id'], 'unread':1})
             d.open_main('D')
             deadline = time.monotonic() + 10
             while read_only_sql(unread_sql) != [['0']]:

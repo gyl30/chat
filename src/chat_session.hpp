@@ -70,6 +70,16 @@ class chat_session
 
     boost::capy::task<std::expected<bool, std::error_code>> check_conversation_send(pg_connection& connection,
                                                                                 std::int64_t conversation);
+    struct sent_message
+    {
+        std::int64_t conversation;
+        bool deleted;
+        bool attachment;
+        bool member;
+        std::string json;
+    };
+    // The caller's message already stored under client_id, in its current state.
+    boost::capy::task<std::expected<std::optional<sent_message>, std::error_code>> find_sent_message(std::int64_t client_id);
     boost::capy::task<std::expected<bool, std::error_code>> publish_conversation(std::int64_t conversation,
         std::string notification, bool require_sender_permission = false);
     boost::capy::task<void> publish_join_request(std::int64_t conversation, std::int64_t user, std::string state);
@@ -87,6 +97,7 @@ class chat_session
     {
         std::int64_t id;
         std::int64_t conversation;
+        std::int64_t client_id;
         std::string filename;
         std::int64_t size;
         std::string content;

@@ -96,7 +96,7 @@ int main(int argc, char** argv)
               "018_add_conversation_pin.sql", "019_create_message_mentions.sql", "020_add_group_pinned_message.sql",
               "021_add_group_announcement.sql", "022_add_group_invite.sql", "023_create_group_join_requests.sql",
               "024_validate_identity_and_group_title.sql", "025_validate_username_edges.sql", "026_create_friend_requests.sql",
-              "027_short_group_invite_codes.sql"};
+              "027_short_group_invite_codes.sql", "028_add_message_client_id.sql"};
         check_migration_files(argv[1], migrations);
         if (PQstatus(connection.get()) != CONNECTION_OK)
         {
@@ -161,6 +161,28 @@ int main(int argc, char** argv)
                 if (std::string(PQgetvalue(revoked.get(), 0, 0)) != "1") { throw std::runtime_error("Short invite codes kept an old link"); }
                 execute("DELETE FROM conversation_members WHERE conversation_id IN (SELECT id FROM conversations WHERE title='legacy invite'); "
                         "DELETE FROM conversations WHERE title='legacy invite'");
+            }
+            if (std::string(name).starts_with("028"))
+            {
+                // Existing messages keep no client_id; a sender may reuse an ID only after it was never stored.
+                auto legacy = execute("SELECT count(*)>0 AND bool_and(client_id IS NULL) FROM messages");
+                if (std::string(PQgetvalue(legacy.get(), 0, 0)) != "t") { throw std::runtime_error("Client IDs on existing messages"); }
+                // Explicit IDs keep the identity sequence that later fixtures rely on.
+                execute("INSERT INTO messages(id,sender_id,conversation_id,body,client_id) OVERRIDING SYSTEM VALUE "
+                        "SELECT 900001,1,conversation_id,'first',42 FROM messages WHERE sender_id=1 LIMIT 1");
+                execute("INSERT INTO messages(id,sender_id,conversation_id,body,client_id) OVERRIDING SYSTEM VALUE "
+                        "SELECT 900002,2,conversation_id,'other sender',42 FROM messages WHERE sender_id=2 LIMIT 1");
+                for (auto const* query : {
+                    "INSERT INTO messages(id,sender_id,conversation_id,body,client_id) OVERRIDING SYSTEM VALUE "
+                    "SELECT 900003,1,conversation_id,'again',42 FROM messages LIMIT 1",
+                    "INSERT INTO messages(id,sender_id,conversation_id,body,client_id) OVERRIDING SYSTEM VALUE "
+                    "SELECT 900004,1,conversation_id,'zero',0 FROM messages LIMIT 1"})
+                {
+                    bool rejected = false;
+                    try { execute(query); } catch (std::runtime_error const&) { rejected = true; }
+                    if (!rejected) { throw std::runtime_error("Client ID must be positive and unique per sender"); }
+                }
+                execute("DELETE FROM messages WHERE client_id=42");
             }
             if (std::string(name).starts_with("026"))
             {
@@ -408,7 +430,7 @@ int main(int argc, char** argv)
         execute("SET search_path TO public");
         execute("DROP SCHEMA " + schema + " CASCADE");
         created = false;
-        std::cout << "PASS fresh 001-027 schema and populated identity/direct/friend-request migration\n";
+        std::cout << "PASS fresh 001-028 schema and populated identity/direct/friend-request migration\n";
         return 0;
     }
     catch (std::exception const& error)

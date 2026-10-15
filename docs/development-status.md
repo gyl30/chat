@@ -171,15 +171,15 @@ TUI 一级为 Chats、Contacts、Account，常驻键位 `h/c/u`；`N`（Shift+n�
 | `set_group_join_approval` | `conversation, required`；当前群主/管理员设置链接加入模式，返回 `changed` |
 | `get_group_join_requests` | `conversation, before?`；当前群主/管理员获取申请人 metadata、创建时间及 `next`，每页最多 50 条，按 user ID 降序 |
 | `respond_group_join_request` | `conversation, user, accept`；当前群主/管理员接受或拒绝，原子结束 pending 关系，返回 `changed` |
-| `send_message` / `edit_message` / `delete_message` | 会话、真实消息或回复 ID；编辑/删除仅作者且仍为当前成员 |
+| `send_message` / `edit_message` / `delete_message` | 会话、真实消息或回复 ID；编辑/删除仅作者且仍为当前成员。`send_message` 必带正整数 `client_id`，返回完整消息；同一发送者重发已保存的 `client_id` 时返回该消息当前状态（含编辑和墓碑），不再写入或推送，见 `outgoing-messages-design.md` |
 | `search_messages` | 会话、字面查询和 `before` cursor |
 | `set_message_reaction` | `conversation, message, emoji`；六种表情之一，显式空字符串清除；返回 reaction snapshot |
-| 附件 RPC | begin/upload/finish/cancel/get；32 KiB 分块，单文件最多 10 MiB |
+| 附件 RPC | begin/upload/finish/cancel/get；32 KiB 分块，单文件最多 10 MiB；每连接同时一个上传，SDK 按提交顺序排队。`begin_attachment` 必带 `client_id`，已保存时直接返回 `{message}` 而不建立上传 |
 | `set_typing` | 会话、开始/结束；不写消息或阅读位置 |
 
 消息、编辑删除、已读和输入提示分别使用 `message/message_updated/read/typing` notification。群变化使用 `conversation` notification，包含真实会话 ID；事务提交后通知当前成员，退出者或被移除者额外收到一次 `removed: true` 的会话变化通知。之后的群访问被成员权限检查拒绝，后续群消息不再发送给该用户。client library 的 conversation handler 接收 `(conversation, removed)`，不保留旧签名兼容层。
 
-消息、发送确认、历史、搜索和会话最新消息携带 `mentions:[{user,username}]`。目标由服务器在会话锁事务内解析当前群成员，不能由客户端指定；没有独立提及 notification。静音抑制包括提及在内的全部桌面通知。
+消息、发送确认、历史、搜索和会话最新消息携带 `mentions:[{user,username}]`。发送确认、历史和搜索只对发送者本人携带 `client_id`，notification 不带。目标由服务器在会话锁事务内解析当前群成员，不能由客户端指定；没有独立提及 notification。静音抑制包括提及在内的全部桌面通知。
 
 Qt 收到群变化后刷新会话、成员及实际阅读位置；关闭已退出的活动群，清除历史、回复、草稿、输入提示并禁用发送。重连刷新权威快照，并从已加载历史的起点向前分页，恢复新增消息以及已加载消息的编辑/删除。群消息在至少一位其他成员实际阅读到该消息时显示已读，入群水位不产生已读回执。
 

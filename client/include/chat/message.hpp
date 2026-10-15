@@ -44,6 +44,8 @@ struct message
     std::int64_t reaction_revision = 0;
     std::vector<reaction> reactions;
     std::vector<mention> mentions;
+    // Present only on the caller's own messages: the ID it sent them with.
+    std::optional<std::int64_t> client_id;
 };
 
 struct read_position
@@ -57,15 +59,6 @@ struct messages_result
     std::vector<message> messages;
     std::vector<read_position> read_positions;
     bool has_more = false;
-};
-
-struct send_message_result
-{
-    std::int64_t message_id = 0;
-    std::int64_t timestamp = 0;
-    bool realtime = false;
-    std::optional<quoted_message> reply;
-    std::vector<mention> mentions;
 };
 
 }    // namespace chat

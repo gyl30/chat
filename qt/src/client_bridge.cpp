@@ -668,8 +668,8 @@ void client_bridge::send_message(qint64 user, QString text, qint64 reply_to)
         [this, user, generation, text = std::move(text)](auto result) mutable {
             QMetaObject::invokeMethod(this, [this, user, generation, text = std::move(text), result = std::move(result)]() mutable {
                 if (generation != connection_generation_) { return; }
-                emit message_sent(user, std::move(text), result ? result->message_id : 0, result ? result->timestamp : 0,
-                    result && result->realtime, result ? to_reply_data(result->reply) : quoted_message_data{},
+                emit message_sent(user, std::move(text), result ? result->id : 0, result ? result->timestamp : 0,
+                    result ? to_reply_data(result->reply) : quoted_message_data{},
                     result ? to_mentions(result->mentions) : QList<mention_data>{},
                     result ? QString{} : display_error(result.error()));
             }, Qt::QueuedConnection);
