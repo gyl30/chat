@@ -1249,6 +1249,20 @@ int main()
         d.apply_message(settled);
         ok &= expect(std::ranges::count(d.messages, std::string("PENDING_BODY"), &chat::message::text) == 1,
                      "A late acknowledgement of a settled send does not show it twice");
+        // A history page that already has the stored message settles its send the same way, keeps the
+        // selection, and the acknowledgement arriving after it adds nothing.
+        auto from_history = settled;
+        from_history.id = 8; from_history.text = "HISTORY_BODY"; from_history.client_id = 14;
+        auto pending_history = sending;
+        pending_history.client_id = 14; pending_history.text = "HISTORY_BODY";
+        d.outgoing.push_back(pending_history);
+        d.apply_history(chat::messages_result{{from_history}, {}, false}, false);
+        ok &= expect(d.selected_outgoing() && d.selected_outgoing()->client_id == 12 && d.outgoing.size() == 2 &&
+                     std::ranges::none_of(d.outgoing, [](auto const& item) { return item.client_id == 14; }),
+                     "A history page settles the send it already stores and keeps the selection");
+        d.apply_message(from_history);
+        ok &= expect(std::ranges::count(d.messages, std::string("HISTORY_BODY"), &chat::message::text) == 1,
+                     "The acknowledgement after the history page does not show the message twice");
         d.outgoing.insert(d.outgoing.begin(), sending);
         d.message_selected = static_cast<int>(d.messages.size()) + 1;
         bool quit = false;
