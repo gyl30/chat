@@ -1332,8 +1332,8 @@ int main()
         ok &= expect(quit && application.exiting, "Confirming quits even with unconfirmed sends");
     }
     {
-        // A long unconfirmed send scrolls line by line like a message; a complete conversation list,
-        // also one completed by its last page, discards the unconfirmed sends of conversations not in it.
+        // A long unconfirmed send scrolls line by line like a message. A conversation list,
+        // including its last page, cannot establish that an absent conversation is inaccessible.
         app application;
         writable_conversation(application);
         auto& d = application.data;
@@ -1357,15 +1357,28 @@ int main()
         ftxui::Terminal::SetFallbackSize(fallback);
 
         outgoing_message gone;
-        gone.client_id = 22; gone.conversation = 99; gone.text = "GONE";
+        gone.client_id = 22; gone.conversation = 99; gone.text = "KEEP missing 待发\n正文";
+        gone.failed = true; gone.file = std::string("raw\0bytes", 9);
+        gone.reply = chat::quoted_message{7, 2, "peer", "quoted", {}, false};
         d.outgoing.push_back(gone);
         auto first_page = d.conversations;
         application.apply_conversation_snapshot({first_page, chat::conversation_cursor{}}, false);
         ok &= expect(d.outgoing.size() == 2, "A partial list says nothing about conversations beyond it");
         application.apply_conversation_snapshot({{}, std::nullopt}, true);
-        ok &= expect(d.outgoing.size() == 1 && d.outgoing.front().client_id == 21 &&
-                     d.status.find("1 条未发送的消息已丢弃") != std::string::npos,
-                     "The last page completes the list and discards sends of conversations not in it");
+        auto kept_missing = [&] {
+            auto item = std::ranges::find(d.outgoing, gone.client_id, &outgoing_message::client_id);
+            return d.outgoing.size() == 2 && item != d.outgoing.end() &&
+                item->conversation == gone.conversation && item->text == gone.text && item->failed &&
+                item->file == gone.file && item->reply && item->reply->id == gone.reply->id &&
+                d.status.find("已丢弃") == std::string::npos;
+        };
+        ok &= expect(kept_missing(), "A final appended page preserves an absent conversation's exact unsent content");
+        application.apply_conversation_snapshot({{}, std::nullopt}, false);
+        ok &= expect(!d.active && kept_missing(), "A complete refresh with no active conversation preserves absent unsent content");
+        application.command("logout");
+        ok &= expect(application.dialog && application.dialog->confirmation &&
+                     application.dialog->title.find("2 条消息未发送") != std::string::npos,
+                     "Hidden unsent content still counts in the logout confirmation");
     }
     {
         // Errors stay until the next key press; notices are not errors and are not dismissed by keys.

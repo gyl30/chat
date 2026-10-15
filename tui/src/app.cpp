@@ -372,15 +372,8 @@ void app::apply_conversation_snapshot(conversations_result result, bool append)
         history_busy_ = older_again_ = search_busy_ = requests_busy_ = false;
         requests_again_ = false;
         marked_read_ = 0;
-        notify("当前会话已不可访问，已刷新会话列表");
-    }
-    if (!data.next_conversations)
-    {
-        // The complete list, after a refresh or its last page: unconfirmed sends of a conversation
-        // no longer in it cannot go anywhere.
-        drop_outgoing([this](std::int64_t conversation) {
-            return std::ranges::find(data.conversations, conversation, &chat::conversation::id) == data.conversations.end();
-        });
+        observe_status();
+        if (!data.status_error) { notify("当前会话已不可访问，已刷新会话列表"); }
     }
     if (data.active && !data.can_send()) { stop_composing(); }
     if (pending_open_)

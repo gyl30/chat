@@ -6,6 +6,8 @@
 namespace chat
 {
 
+inline constexpr int conversation_unavailable = -32006;
+
 enum class error_kind
 {
     transport,

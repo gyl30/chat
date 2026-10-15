@@ -100,7 +100,12 @@ void app::follow_outgoing()
 void app::submit(outgoing_message const& item)
 {
     auto const reply = item.reply ? std::optional(item.reply->id) : std::nullopt;
-    auto done = callback([this, client_id = item.client_id](std::expected<chat::message, chat::error> value) {
+    auto done = callback([this, client_id = item.client_id, conversation = item.conversation](std::expected<chat::message, chat::error> value) {
+        if (!value && value.error().kind == error_kind::rpc && value.error().code == chat::conversation_unavailable)
+        {
+            drop_outgoing([conversation](std::int64_t id) { return id == conversation; });
+            return;
+        }
         finish_outgoing(client_id, std::move(value));
     });
     if (item.file) { client_->send_attachment(item.conversation, item.text, *item.file, std::move(done), reply, item.client_id); }

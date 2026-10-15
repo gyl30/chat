@@ -3178,14 +3178,29 @@ int run_tui_tests()
             select(reply_id);
             app.command("reply");
             app.data.draft = "refused reply";
+            chat::tui::outgoing_message earlier;
+            earlier.client_id = chat::client::new_client_id(); earlier.conversation = direct;
+            earlier.text = "earlier refused text"; earlier.failed = true;
+            auto earlier_file = earlier;
+            earlier_file.client_id = chat::client::new_client_id(); earlier_file.text = "earlier refused.bin";
+            earlier_file.file = std::string("raw\0bytes", 9);
+            auto unrelated = earlier;
+            unrelated.client_id = chat::client::new_client_id(); unrelated.conversation = other_direct;
+            unrelated.text = "keep other conversation 待发";
+            require(app.data.outgoing.empty(), "No earlier send remains before the unavailable-send fixture");
+            app.data.outgoing = {earlier, earlier_file, unrelated};
             require(call<bool>([&](auto h) { peer.remove_contact(self, h); }).has_value(), "Remove friendship before the UI sees it");
             require(app.data.can_send(), "The refusal comes from the server, not the old UI snapshot");
             app.send();
-            require(app.data.draft.empty() && pending_in(direct) == 1, "The refused reply is pending until the server answers");
+            require(app.data.draft.empty() && pending_in(direct) == 3, "All sends remain pending until the server answers");
             app.contacts();  // a fresh result after the refused send on this connection
             pump([&] { return !app.data.is_contact(peer_id) && app.data.active == 0 && pending_in(direct) == 0; });
             require(app.data.status.find("未发送的消息已丢弃") != std::string::npos, "Discarding unsent messages is reported");
             require(persisted("refused reply") == 0, "A refused reply is not stored");
+            require(app.data.outgoing.size() == 1 && app.data.outgoing.front().client_id == unrelated.client_id &&
+                        app.data.outgoing.front().text == unrelated.text && app.data.outgoing.front().failed,
+                    "The unavailable send clears its conversation's text and attachment but preserves another conversation");
+            app.data.outgoing.clear(); // Remove only the remaining test fixture; no send was submitted for it.
             add_contact(peer_name, peer_id);
             app.command("message");
             pump([&] { return app.data.active == direct && app.data.can_send() && !app.data.messages.empty(); });
@@ -3741,6 +3756,32 @@ int run_tui_tests()
         require(app.dialog && app.dialog->confirmation, "Demoted member can leave");
         app.dialog->text = "y"; app.submit_prompt();
         pump([&] { return app.data.active == 0; });
+        {
+            // An explicit removal, unlike absence from a paginated list, is authoritative.
+            auto const removed_group = call<std::int64_t>([&](auto h) { peer.create_group("待发移除事件测试", {self}, h); });
+            require(removed_group.has_value(), "Peer creates the explicit removal fixture");
+            data.groups.push_back(*removed_group);
+            app.conversations();
+            pump([&] { return std::ranges::find(app.data.conversations, *removed_group, &chat::conversation::id) != app.data.conversations.end(); });
+            chat::tui::outgoing_message pending;
+            pending.client_id = chat::client::new_client_id(); pending.conversation = *removed_group; pending.text = "removed text";
+            auto failed_file = pending;
+            failed_file.client_id = chat::client::new_client_id(); failed_file.failed = true;
+            failed_file.text = "removed.bin"; failed_file.file = std::string("raw\0bytes", 9);
+            auto unrelated = pending;
+            unrelated.client_id = chat::client::new_client_id(); unrelated.conversation = direct;
+            unrelated.text = "keep on explicit removal"; unrelated.failed = true;
+            require(app.data.outgoing.empty(), "No earlier send remains before the explicit removal fixture");
+            app.data.outgoing = {pending, failed_file, unrelated};
+            require(call<bool>([&](auto h) { peer.remove_group_member(*removed_group, self, h); }).has_value(),
+                    "Owner explicitly removes the online TUI member");
+            pump([&] { return pending_in(*removed_group) == 0; });
+            require(app.data.outgoing.size() == 1 && app.data.outgoing.front().client_id == unrelated.client_id &&
+                        app.data.outgoing.front().text == unrelated.text && app.data.outgoing.front().failed &&
+                        app.data.status.find("2 条未发送的消息已丢弃") != std::string::npos,
+                    "Explicit removal clears only that conversation's pending text and failed attachment");
+            app.data.outgoing.clear(); // Remove the unrelated test fixture without submitting it.
+        }
         auto external = call<std::int64_t>([&](auto handler) { peer.create_group("加入流程测试", {other_id}, handler); });
         require(external.has_value(), "Peer creates admission fixture");
         data.groups.push_back(*external);
