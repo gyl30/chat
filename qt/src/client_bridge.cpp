@@ -100,6 +100,7 @@ client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::ma
     qRegisterMetaType<conversation_data>();
     qRegisterMetaType<read_positions>();
     qRegisterMetaType<message_data>();
+    qRegisterMetaType<send_status>();
     qRegisterMetaType<QList<message_data>>();
     qRegisterMetaType<QList<reaction_data>>();
     qRegisterMetaType<QList<mention_data>>();
@@ -677,9 +678,17 @@ std::function<void(std::expected<chat::message, chat::error>)> client_bridge::se
     // A result of an earlier connection is dropped: the message is sent again after reconnecting.
     return [this, conversation, client_id, generation = connection_generation_.load()](auto result) {
         post_result(generation, [this, conversation, client_id, result = std::move(result)] {
+            auto status = send_status::sent;
+            if (!result)
+            {
+                auto const& error = result.error();
+                if (error.kind == chat::error_kind::transport) { status = send_status::lost; }
+                else if (error.kind == chat::error_kind::rpc && error.code == chat::conversation_unavailable)
+                { status = send_status::unavailable; }
+                else { status = send_status::refused; }
+            }
             emit send_finished(conversation, client_id, result ? to_message_data(*result) : message_data{},
-                               result ? QString{} : display_error(result.error()),
-                               !result && result.error().kind == chat::error_kind::transport);
+                               result ? QString{} : display_error(result.error()), status);
         });
     };
 }

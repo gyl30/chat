@@ -1487,24 +1487,7 @@ void chat_widget::set_connection_status(QString text, bool retry_enabled)
 void chat_widget::set_conversations(QList<conversation_data> conversations)
 {
     auto const previous_user = active_conversation_;
-    // A direct hidden by an ended friendship returns with its history once re-accepted, so it keeps its draft.
-    QSet<qint64> groups;
-    for (int row = 0; row < conversations_->rowCount(); ++row)
-    {
-        auto const* item = conversations_->conversation_at(conversations_->index(row, 0));
-        if (item && item->group) { groups.insert(item->id); }
-    }
     conversations_->set_conversations(std::move(conversations));
-    for (auto it = drafts_.begin(); it != drafts_.end();)
-    {
-        if (!conversations_->index_for_conversation(it.key()).isValid() && groups.contains(it.key())) { it = drafts_.erase(it); }
-        else { ++it; }
-    }
-    // The complete list: unconfirmed sends of a conversation no longer in it cannot go anywhere.
-    auto const dropped = outgoing_.removeIf([this](outgoing const& item) {
-        return !conversations_->index_for_conversation(item.conversation).isValid();
-    });
-    if (dropped > 0) { set_error(QStringLiteral("%1 条未发送的消息已丢弃：会话已不可访问").arg(dropped)); }
     update_compose_state();
     update_pinned_message();
     for (auto const& item : presence_)
@@ -1513,8 +1496,8 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
     }
     if (previous_user > 0 && !conversations_->index_for_conversation(previous_user).isValid())
     {
-        auto draft = groups.contains(previous_user) ? QString{} : message_edit_->toPlainText();
-        close_conversation(previous_user);
+        auto draft = message_edit_->toPlainText();
+        leave_conversation(previous_user);
         if (!draft.isEmpty()) { drafts_.insert(previous_user, std::move(draft)); }
     }
     if (conversations_->rowCount() == 0)
@@ -1900,10 +1883,15 @@ bool chat_widget::set_reactions(qint64 conversation, qint64 message, qint64 revi
     return conversation != active_conversation_ || messages_->set_reactions(message, revision, std::move(reactions));
 }
 
-void chat_widget::finish_send(qint64 conversation, qint64 client_id, message_data message, QString error, bool lost)
+void chat_widget::finish_send(qint64 conversation, qint64 client_id, message_data message, QString error, send_status status)
 {
-    auto found = std::ranges::find(outgoing_, client_id, &outgoing::client_id);
-    if (error.isEmpty())
+    if (status == send_status::unavailable)
+    {
+        drop_outgoing(conversation);
+        if (conversation == active_conversation_) { show_outgoing(); }
+        return;
+    }
+    if (status == send_status::sent)
     {
         // A history page may have shown it already: merge by version first, then insert it if new.
         // settle() through add_message() takes it off the unconfirmed list.
@@ -1912,7 +1900,8 @@ void chat_widget::finish_send(qint64 conversation, qint64 client_id, message_dat
         return;
     }
     // A dropped connection leaves it sending: it is sent again after reconnecting.
-    if (found == outgoing_.end() || lost) { return; }
+    auto found = std::ranges::find(outgoing_, client_id, &outgoing::client_id);
+    if (found == outgoing_.end() || status == send_status::lost) { return; }
     found->failed = true;
     found->error = error;
     if (conversation != active_conversation_) { return; }
@@ -2381,6 +2370,11 @@ void chat_widget::close_conversation(qint64 conversation)
 {
     drafts_.remove(conversation);
     drop_outgoing(conversation);
+    leave_conversation(conversation);
+}
+
+void chat_widget::leave_conversation(qint64 conversation)
+{
     if (conversation != active_conversation_)
     {
         images_.remove(conversation);

@@ -73,6 +73,7 @@
 #include <memory>
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <iostream>
 #include <unistd.h>
 #include "main_window.hpp"
@@ -5611,7 +5612,7 @@ void check_message_composer()
     message_data confirmed;
     confirmed.id = 1; confirmed.conversation = direct.id; confirmed.from = 1; confirmed.timestamp = 1;
     confirmed.text = sent_text; confirmed.client_id = sent_client;
-    page.finish_send(direct.id, sent_client, confirmed, {}, false);
+    page.finish_send(direct.id, sent_client, confirmed, {}, send_status::sent);
     check(page.unsent_count() == 0 && list->model()->rowCount() == 1 &&
               list->model()->index(0, 0).data(message_model::send_state_role).toInt() == message_model::sent,
           "Confirmation replaces the sending row with the stored message");
@@ -5628,7 +5629,7 @@ void check_message_composer()
         auto edited = from_history;
         edited.text = QStringLiteral("版本合并（已编辑）");
         edited.edited_at = 5;
-        page.finish_send(direct.id, sent_client, edited, {}, false);
+        page.finish_send(direct.id, sent_client, edited, {}, send_status::sent);
         check(list->model()->index(1, 0).data(message_model::text_role).toString() == edited.text,
               "A newer acknowledgement updates the message the history page brought");
         // Replying to it, an older copy does not take the reply preview back to the old text either.
@@ -5645,7 +5646,7 @@ void check_message_composer()
         list->customContextMenuRequested(list->visualRect(list->model()->index(1, 0)).center());
         auto* preview = page.findChild<QLabel*>("replyPreview");
         check(preview->isVisible() && preview->text().contains(edited.text), "The reply preview shows the newer text");
-        page.finish_send(direct.id, sent_client, from_history, {}, false);
+        page.finish_send(direct.id, sent_client, from_history, {}, send_status::sent);
         check(list->model()->index(1, 0).data(message_model::text_role).toString() == edited.text &&
                   preview->text().contains(edited.text),
               "An older copy undoes neither the message nor its reply preview");
@@ -5960,7 +5961,7 @@ void check_message_viewport()
         message_data stored;
         stored.id = id; stored.conversation = direct.id; stored.from = 1; stored.timestamp = id;
         stored.text = last_text; stored.client_id = last_client;
-        page.finish_send(direct.id, last_client, stored, {}, false);
+        page.finish_send(direct.id, last_client, stored, {}, send_status::sent);
     };
     QList<message_data> history;
     for (int i = 1; i <= 40; ++i)
@@ -6123,12 +6124,12 @@ void check_pending_message_identity()
             auto confirmed = stored;
             confirmed.id = 11; confirmed.from = 1; confirmed.text = QStringLiteral("pending A");
             confirmed.client_id = requests[0];
-            page.finish_send(direct.id, requests[0], confirmed, {}, false);
+            page.finish_send(direct.id, requests[0], confirmed, {}, send_status::sent);
         }
         else if (transition == 1)
         {
             page.finish_send(direct.id, requests[0], {},
-                             QStringLiteral("服务器拒绝：请检查会话权限和回复目标后重新发送。").repeated(6), false);
+                             QStringLiteral("服务器拒绝：请检查会话权限和回复目标后重新发送。").repeated(6), send_status::refused);
         }
         else
         {
@@ -6249,6 +6250,176 @@ void check_history_message_identity()
     std::cout << "PASS Qt history insertion preserves stored and pending message identities\n";
 }
 
+void check_snapshot_content_retention()
+{
+    bool retained = true;
+    auto record = [&](bool value, char const* description) {
+        if (!value) { std::cerr << "FAIL Qt snapshot retention: " << description << '\n'; }
+        retained &= value;
+    };
+    // Absence from an activity-paginated list says nothing authoritative about access.
+    for (int mode = 0; mode < 3; ++mode)
+    {
+        chat_widget page;
+        page.resize(1180, 760);
+        page.set_user(QStringLiteral("本人"), 1);
+        conversation_data missing;
+        missing.id = 50; missing.user = mode == 2 ? 2 : 0;
+        missing.group = mode != 2; missing.can_send = true;
+        missing.username = QStringLiteral("暂时缺席");
+        auto other = missing;
+        other.id = 60; other.group = true; other.user = 0; other.username = QStringLiteral("仍在列表");
+        page.set_conversations({missing, other});
+        page.open_conversation(missing);
+        auto* edit = page.findChild<QPlainTextEdit*>("messageEdit");
+        auto const draft = QStringLiteral("暂存草稿 é 👩‍🚀\n第二行 ") + QString::number(mode);
+        edit->setPlainText(draft);
+        if (mode == 0) { page.open_conversation(other); }
+        page.set_conversations({other});
+        if (mode != 0) { record(page.active_conversation() == 0, "missing current conversation still leaves the UI"); }
+        page.set_conversations({missing, other});
+        page.open_conversation(missing);
+        record(edit->toPlainText() == draft, mode == 0 ? "inactive group draft"
+            : mode == 1 ? "active group draft" : "active direct draft");
+        page.close_conversation(missing.id);
+        page.open_conversation(missing);
+        check(edit->toPlainText().isEmpty(), "Explicit close still discards the conversation's draft");
+    }
+    for (bool current : {false, true})
+    {
+        chat_widget page;
+        page.resize(1180, 760);
+        page.set_user(QStringLiteral("本人"), 1);
+        conversation_data missing;
+        missing.id = 50; missing.group = true; missing.can_send = true; missing.username = QStringLiteral("待发会话");
+        auto other = missing;
+        other.id = 60; other.username = QStringLiteral("另一会话");
+        page.set_conversations({missing, other});
+        page.open_conversation(missing);
+        auto* edit = page.findChild<QPlainTextEdit*>("messageEdit");
+        auto* send = page.findChild<QToolButton*>("sendButton");
+        auto* list = page.findChild<QListView*>("messageList");
+        qint64 client_id = 0;
+        QObject::connect(&page, &chat_widget::send_message_requested, &page,
+                         [&](qint64, QString, qint64, qint64 id) { client_id = id; });
+        auto const text = QStringLiteral("失败待发 é 👩‍🚀\n完整正文 ");
+        edit->setPlainText(text); send->click();
+        check(client_id > 0 && page.unsent_count() == 1, "The snapshot fixture actually queues a send");
+        page.finish_send(missing.id, client_id, {}, QStringLiteral("Invalid params"), send_status::refused);
+        auto const newer_draft = QStringLiteral("发送后新草稿\n保留");
+        edit->setPlainText(newer_draft);
+        if (!current) { page.open_conversation(other); }
+        page.set_conversations({other});
+        record(page.unsent_count() == 1, current ? "current missing outbox count" : "inactive missing outbox count");
+        if (current) { record(page.active_conversation() == 0, "current outbox absence only closes the UI"); }
+        page.set_conversations({missing, other});
+        page.open_conversation(missing);
+        auto const item = list->model()->index(0, 0);
+        record(page.unsent_count() == 1 && item.data(message_model::client_id_role).toLongLong() == client_id &&
+                   item.data(message_model::text_role).toString() == text &&
+                   item.data(message_model::send_state_role).toInt() == message_model::failed &&
+                   edit->toPlainText() == newer_draft,
+               current ? "current failed body and newer draft return" : "inactive failed body and draft return");
+        page.close_conversation(missing.id);
+        check(page.unsent_count() == 0, "Explicit close still discards the conversation's unsent message");
+    }
+    check(retained, "Snapshot absence must preserve group/direct drafts and failed outgoing content");
+    std::cout << "PASS Qt snapshot absence retains drafts and unsent content\n";
+}
+
+void check_unavailable_send_cleanup()
+{
+    QTemporaryDir directory;
+    check(directory.isValid(), "Unavailable-send attachment fixture directory");
+    auto const path = directory.filePath(QStringLiteral("unavailable.bin"));
+    auto const bytes = QByteArray("raw\0bytes", 9);
+    QFile file(path);
+    check(file.open(QIODevice::WriteOnly) && file.write(bytes) == bytes.size(), "Write exact attachment fixture");
+    file.close();
+    for (bool settled : {false, true})
+    {
+        chat_widget page;
+        page.resize(1180, 760);
+        page.set_user(QStringLiteral("本人"), 1);
+        conversation_data target;
+        target.id = 50; target.group = true; target.can_send = true; target.username = QStringLiteral("目标会话");
+        auto other = target;
+        other.id = 60; other.username = QStringLiteral("另一会话");
+        page.set_conversations({target, other});
+        page.open_conversation(target);
+        page.show();
+        QApplication::processEvents();
+        auto* edit = page.findChild<QPlainTextEdit*>("messageEdit");
+        auto* send = page.findChild<QToolButton*>("sendButton");
+        auto* list = page.findChild<QListView*>("messageList");
+        QList<qint64> requested;
+        qint64 file_id = 0;
+        int file_requests = 0;
+        QObject::connect(&page, &chat_widget::send_message_requested, &page,
+                         [&](qint64, QString, qint64, qint64 id) { requested.push_back(id); });
+        QObject::connect(&page, &chat_widget::attachment_send_requested, &page,
+                         [&](qint64 conversation, QString filename, QByteArray data, qint64, qint64 id) {
+            check(conversation == target.id && filename == QStringLiteral("unavailable.bin") && data == bytes,
+                  "Attachment retries retain the exact conversation, filename and binary bytes");
+            if (file_id) { check(file_id == id, "Attachment retry keeps its client_id"); }
+            file_id = id; ++file_requests;
+        });
+        edit->setPlainText(QStringLiteral("first outgoing")); send->click();
+        auto const first_id = requested.back();
+        edit->setPlainText(QStringLiteral("refused outgoing")); send->click();
+        page.finish_send(target.id, requested.back(), {}, QStringLiteral("Invalid params"), send_status::refused);
+        QTimer::singleShot(0, &page, [path] {
+            auto* picker = qobject_cast<QFileDialog*>(QApplication::activeModalWidget());
+            check(picker, "Unavailable-send fixture uses the actual attachment picker");
+            picker->selectFile(path);
+            check(QMetaObject::invokeMethod(picker, "accept", Qt::DirectConnection), "Accept attachment fixture");
+        });
+        page.findChild<QToolButton*>("sendAttachmentButton")->click();
+        check(requested.size() == 2 && file_requests == 1 && file_id > 0 && page.unsent_count() == 3,
+              "The target conversation actually contains two texts and one pending attachment");
+        if (settled)
+        {
+            message_data stored;
+            stored.id = 10; stored.conversation = target.id; stored.from = 1;
+            stored.text = QStringLiteral("first outgoing"); stored.client_id = first_id;
+            page.set_messages(target.id, {stored}, {}, false, false, false);
+            check(page.unsent_count() == 2, "History really settles the client_id whose later RPC will deny access");
+        }
+        auto const target_draft = QStringLiteral("目标新草稿 é 👩‍🚀\n第二行 ");
+        edit->setPlainText(target_draft);
+        page.open_conversation(other);
+        edit->setPlainText(QStringLiteral("unrelated pending")); send->click();
+        auto const unrelated_id = requested.back();
+        auto const other_draft = QStringLiteral("另一会话新草稿");
+        edit->setPlainText(other_draft);
+        auto const expected = settled ? 3 : 4;
+        page.set_conversations({other});
+        check(page.unsent_count() == expected, "List absence preserves pending text and binary attachment");
+        page.set_conversations({target, other});
+        page.open_conversation(target);
+        check(edit->toPlainText() == target_draft, "Reappearing target restores its newer exact draft");
+        page.resend_outgoing();
+        check(file_requests == 2 && page.unsent_count() == expected,
+              "The attachment survives absence and resubmits with its original bytes");
+        page.finish_send(target.id, first_id, {}, QStringLiteral("会话不可访问"), send_status::unavailable);
+        check(page.unsent_count() == 1 && list->model()->rowCount() == 0 &&
+                  edit->toPlainText() == target_draft &&
+                  page.findChild<QLabel*>("sidebarNotice")->text().contains(
+                      QStringLiteral("%1 条未发送的消息已丢弃").arg(settled ? 2 : 3)),
+              "Unavailable clears all target outgoing rows and reports it without touching the newer draft");
+        page.open_conversation(other);
+        check(edit->toPlainText() == other_draft && list->model()->rowCount() == 1 &&
+                  list->model()->index(0, 0).data(message_model::client_id_role).toLongLong() == unrelated_id &&
+                  list->model()->index(0, 0).data(message_model::text_role).toString() == QStringLiteral("unrelated pending"),
+              "Unavailable preserves the other conversation's pending message and newer draft");
+        page.close_conversation(other.id);
+        check(page.unsent_count() == 0, "Explicit close still clears the unrelated pending fixture");
+        page.open_conversation(other);
+        check(edit->toPlainText().isEmpty(), "Explicit close still clears its draft");
+    }
+    std::cout << "PASS Qt authoritative unavailable cleanup including history-settled IDs and attachments\n";
+}
+
 void check_conversation_drafts()
 {
     chat_widget page;
@@ -6281,9 +6452,9 @@ void check_conversation_drafts()
     page.close_conversation(first.id);
     page.open_conversation(first);
     check(edit->toPlainText().isEmpty(), "Closing an inactive conversation discards its draft");
-    page.set_conversations({first});
+    page.close_conversation(second.id);
     page.open_conversation(second);
-    check(edit->toPlainText().isEmpty(), "Authoritative removal discards an inactive group's draft");
+    check(edit->toPlainText().isEmpty(), "Explicit removal discards an inactive group's draft");
     edit->setPlainText(QStringLiteral("上一个账号的草稿"));
     page.open_conversation(first);
     page.set_user(QStringLiteral("另一账号"), 3);
@@ -6309,7 +6480,7 @@ void check_conversation_drafts()
               state_of_last() == message_model::sending,
           "Sending lists the message at once and frees the composer; Enter on it empty sends nothing");
     edit->setPlainText(QStringLiteral("等待期间写的新草稿"));
-    page.finish_send(second.id, requests[0], {}, QStringLiteral("Invalid params"), false);
+    page.finish_send(second.id, requests[0], {}, QStringLiteral("Invalid params"), send_status::refused);
     check(edit->toPlainText() == QStringLiteral("等待期间写的新草稿") && page.unsent_count() == 1 &&
               state_of_last() == message_model::failed,
           "A refusal marks the message failed and leaves the newer draft alone");
@@ -6329,7 +6500,7 @@ void check_conversation_drafts()
     list->customContextMenuRequested(list->visualRect(refused_row).center());
     check(requests.size() == 2 && requests[1] == requests[0] && state_of_last() == message_model::sending,
           "Sending again reuses the client_id and shows it sending");
-    page.finish_send(second.id, requests[1], {}, QStringLiteral("Invalid params"), false);
+    page.finish_send(second.id, requests[1], {}, QStringLiteral("Invalid params"), send_status::refused);
     auto const background_text = QStringLiteral("发给群的消息");
     edit->setPlainText(background_text);
     send->click();
@@ -6338,7 +6509,7 @@ void check_conversation_drafts()
     message_data stored;
     stored.id = 2; stored.conversation = second.id; stored.from = 3; stored.timestamp = 2;
     stored.text = background_text; stored.client_id = requests[2];
-    page.finish_send(second.id, requests[2], stored, {}, false);
+    page.finish_send(second.id, requests[2], stored, {}, send_status::sent);
     check(edit->toPlainText() == QStringLiteral("另一会话的草稿") && page.unsent_count() == 1,
           "Background confirmation finishes its message without touching the current conversation");
     page.open_conversation(second);
@@ -6346,7 +6517,7 @@ void check_conversation_drafts()
           "Reopening lists only the refused message, ready to send again or discard");
     edit->setPlainText(QStringLiteral("断线时发送"));
     send->click();
-    page.finish_send(second.id, requests[3], {}, QStringLiteral("连接已断开"), true);
+    page.finish_send(second.id, requests[3], {}, QStringLiteral("连接已断开"), send_status::lost);
     page.set_connection_available(false);
     check(page.unsent_count() == 2 && state_of_last() == message_model::sending && !edit->isEnabled(),
           "A dropped connection leaves the message sending");
@@ -6361,7 +6532,14 @@ void check_conversation_drafts()
     send->click();
     check(page.unsent_count() == 1, "A message sent in the remaining conversation is pending");
     page.set_conversations({});
-    check(page.unsent_count() == 0, "A conversation missing from the complete list loses its unsent messages");
+    check(page.unsent_count() == 1, "Snapshot absence preserves the remaining conversation's unsent message");
+    page.set_conversations({first});
+    page.open_conversation(first);
+    check(page.unsent_count() == 1 &&
+              list->model()->index(0, 0).data(message_model::text_role).toString() == QStringLiteral("会话消失前未确认"),
+          "The hidden outgoing message returns when the conversation is listed again");
+    page.close_conversation(first.id);
+    check(page.unsent_count() == 0, "Explicit removal still discards that hidden outgoing message");
     std::cout << "PASS Qt conversation draft ownership, closure and account isolation\n";
 }
 
@@ -6382,7 +6560,7 @@ int main(int argc, char** argv)
     }
     if (widgets_only)
     {
-        try { check_integrated_contact_requests_contract(); check_settings_entry_contract(); check_settings_persistence_and_pages(); check_send_key_preferences(); check_independent_contact_dialog_contract(); check_add_contact_dialog_lifetime(); check_unified_menu_and_local_contacts_contract(); check_contacts_state_sort_and_identity(); check_main_menu_two_column_contract(); check_final_polish_empty_states(); check_main_menu_keyboard_actions(); check_main_menu_paint(); check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_group_header_members(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_composer_actions(); check_join_by_code(); check_chat_history_dialog(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_deferred_message_viewport(); check_history_home_end_without_current(); check_message_overflow_following(false); check_message_overflow_following(true); check_message_overflow_following(false, true); check_conversation_drafts(); check_pending_message_identity(); check_history_message_identity(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
+        try { check_integrated_contact_requests_contract(); check_settings_entry_contract(); check_settings_persistence_and_pages(); check_send_key_preferences(); check_independent_contact_dialog_contract(); check_add_contact_dialog_lifetime(); check_unified_menu_and_local_contacts_contract(); check_contacts_state_sort_and_identity(); check_main_menu_two_column_contract(); check_final_polish_empty_states(); check_main_menu_keyboard_actions(); check_main_menu_paint(); check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_group_header_members(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_composer_actions(); check_join_by_code(); check_chat_history_dialog(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_deferred_message_viewport(); check_history_home_end_without_current(); check_message_overflow_following(false); check_message_overflow_following(true); check_message_overflow_following(false, true); check_snapshot_content_retention(); check_unavailable_send_cleanup(); check_conversation_drafts(); check_pending_message_identity(); check_history_message_identity(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
@@ -6612,6 +6790,43 @@ int main(int argc, char** argv)
             c.close();
             check(closed.get_future().wait_for(std::chrono::seconds(5)) == std::future_status::ready, "Close setup");
             QThread::msleep(100);
+        }
+        {
+            // Standalone bridge before any Qt window signs in: no duplicate account session.
+            client_bridge bridge;
+            bool connected = false;
+            bool authenticated = false;
+            bool auth_done = false;
+            QObject::connect(&bridge, &client_bridge::connected, &bridge, [&] { connected = true; });
+            QObject::connect(&bridge, &client_bridge::authentication_finished, &bridge,
+                [&](bool ok, qint64 user, QString error, bool, chat::avatar_state) {
+                    authenticated = ok && user == ids[0] && error.isEmpty(); auth_done = true;
+                });
+            struct result_record { qint64 conversation; qint64 client_id; message_data message; QString error; send_status status; };
+            QList<result_record> results;
+            QObject::connect(&bridge, &client_bridge::send_finished, &bridge,
+                [&](qint64 conversation, qint64 client_id, message_data message, QString error, send_status status) {
+                    results.push_back({conversation, client_id, std::move(message), std::move(error), status});
+                });
+            bridge.connect_to_server(QString::fromStdString(url));
+            wait([&] { return connected; });
+            bridge.authenticate(names[0], QStringLiteral("ui password"));
+            wait([&] { return auth_done; });
+            check(authenticated, "Standalone bridge authenticates after setup SDK has closed");
+            auto const absent = std::numeric_limits<qint64>::max();
+            for (int mode = 0; mode < 3; ++mode)
+            {
+                auto const id = chat::client::new_client_id();
+                if (mode == 1) { bridge.send_attachment(absent, QStringLiteral("unavailable.bin"), QByteArray("raw\0bytes", 9), 0, id); }
+                else { bridge.send_message(absent, mode == 2 ? QString{} : QStringLiteral("unavailable text"), 0, id); }
+                wait([&] { return std::ranges::find(results, id, &result_record::client_id) != results.end(); });
+                auto const found = std::ranges::find(results, id, &result_record::client_id);
+                check(found->conversation == absent && found->message.id == 0 && !found->error.isEmpty() &&
+                          found->status == (mode == 2 ? send_status::refused : send_status::unavailable),
+                      "Real RPC text/file access denial maps to unavailable; invalid params remains refused");
+            }
+            bridge.close();
+            std::cout << "PASS Qt real bridge RPC text/attachment unavailable and ordinary refusal classification\n";
         }
         {
             check_login_settings_save(QString::fromStdString(url), names[0]);

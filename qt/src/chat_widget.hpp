@@ -78,8 +78,8 @@ class chat_widget final : public QWidget
     void add_message(qint64 user, message_data message);
     void update_message(message_data message);
     bool set_reactions(qint64 conversation, qint64 message, qint64 revision, QList<reaction_data> reactions);
-    // The answer to a text or attachment send; lost means the connection dropped first.
-    void finish_send(qint64 conversation, qint64 client_id, message_data message, QString error, bool lost);
+    // The text or attachment result distinguishes sent, lost, refused, and unavailable.
+    void finish_send(qint64 conversation, qint64 client_id, message_data message, QString error, send_status status);
     // After signing in again: the sends the link dropped go out again, in the order they were made.
     void resend_outgoing();
     // Sends not confirmed yet, which quitting or signing out would lose.
@@ -185,6 +185,7 @@ class chat_widget final : public QWidget
     // A stored message carrying an unconfirmed send's client_id finishes it.
     void settle(message_data const& message);
     void drop_outgoing(qint64 conversation);
+    void leave_conversation(qint64 conversation);
     void show_outgoing_menu(QModelIndex const& index, QPoint position);
     quoted_message_data quote(qint64 message) const;
     void show_read_details(qint64 conversation, qint64 message);

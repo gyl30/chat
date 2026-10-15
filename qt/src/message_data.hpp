@@ -9,6 +9,9 @@
 #include <QHash>
 #include <optional>
 
+enum class send_status { sent, lost, refused, unavailable };
+Q_DECLARE_METATYPE(send_status)
+
 struct attachment_data
 {
     QString filename;

@@ -942,9 +942,9 @@ main_window::main_window(QString server_url, QWidget* parent)
                 client_->send_attachment(conversation, std::move(filename), std::move(data), reply, client_id);
             });
     connect(client_.get(), &client_bridge::send_finished, this,
-            [this](qint64 conversation, qint64 client_id, message_data message, QString const& error, bool lost) {
-        auto const sent = error.isEmpty();
-        chat_page_->finish_send(conversation, client_id, std::move(message), error, lost);
+            [this](qint64 conversation, qint64 client_id, message_data message, QString const& error, send_status status) {
+        auto const sent = status == send_status::sent;
+        chat_page_->finish_send(conversation, client_id, std::move(message), error, status);
         if (sent)
         {
             client_->get_conversations();

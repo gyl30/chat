@@ -121,8 +121,8 @@ class client_bridge final : public QObject
     void group_pin_finished(qint64 conversation, QString error_message);
     void conversation_changed(qint64 conversation, bool removed);
     // A text or attachment send finished: the stored message, or why it failed. lost means the
-    // connection dropped before an answer, so whether it was stored is unknown.
-    void send_finished(qint64 conversation, qint64 client_id, message_data message, QString error_message, bool lost);
+    // connection dropped before an answer; unavailable means the server denied conversation access.
+    void send_finished(qint64 conversation, qint64 client_id, message_data message, QString error_message, send_status status);
     void users_received(QList<user_data> users, QString error_message, quint64 request);
     void contact_added(user_data user, QString error_message);
     void contact_removed(QString error_message);
