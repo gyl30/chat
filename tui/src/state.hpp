@@ -21,6 +21,22 @@ struct menu_item
     std::string disabled;
 };
 
+// A message this client sent that the server has not confirmed yet. It owns its text or file and
+// its reply; the composer was cleared when it was sent (docs/outgoing-messages-design.md).
+struct outgoing_message
+{
+    std::int64_t client_id = 0;
+    std::int64_t conversation = 0;
+    // The text, or the file name of an attachment.
+    std::string text;
+    std::optional<std::string> file;
+    std::optional<quoted_message> reply;
+    // Refused by the server: kept for the person to send again or discard. Otherwise it is
+    // still sending, and is sent again after a reconnect.
+    bool failed = false;
+    std::string error;
+};
+
 // Mutated exclusively by the UI event loop. SDK callbacks only enqueue payloads.
 struct state
 {
@@ -38,6 +54,9 @@ struct state
     std::unordered_map<std::int64_t, presence> presences;
     std::int64_t active = 0;
     std::vector<message> messages, search_results;
+    // Unconfirmed sends of every conversation, oldest first. The open conversation's are listed
+    // after its messages, and the message selection continues onto them.
+    std::vector<outgoing_message> outgoing;
     std::vector<read_position> read_positions;
     std::vector<conversation_member> members;
     std::vector<group_join_request> requests;
@@ -65,6 +84,10 @@ struct state
     chat::conversation const* active_conversation() const;
     chat::conversation* active_conversation();
     message const* selected_message() const;
+    std::vector<outgoing_message const*> active_outgoing() const;
+    outgoing_message const* selected_outgoing() const;
+    // Removes the unconfirmed send this stored message answers.
+    void settle(message const& value);
     bool can_send() const;
     member_role self_role() const;
     // A group role comes only from the current member list. An empty list means that list has not
@@ -74,6 +97,7 @@ struct state
     // docs/tui-redesign.html. The server still checks every request; this only hides what cannot work.
     std::vector<menu_item> message_actions(message const& value) const;
     std::vector<menu_item> member_actions(conversation_member const& value) const;
+    std::vector<menu_item> outgoing_actions(outgoing_message const& value) const;
     // The account menu: own profile, avatar, copying the username and signing out.
     std::vector<menu_item> account_actions() const;
     bool is_contact(std::int64_t id) const;

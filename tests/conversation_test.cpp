@@ -3057,112 +3057,139 @@ int run_tui_tests()
             }
             throw std::runtime_error("TUI RPC did not reach the held conversation lock");
         };
-        std::array<bool, 3> round_trip_draft_matches{};
-        auto const actions = std::array{"compose", "reply", "edit"};
-        for (std::size_t index = 0; index < actions.size(); ++index)
+        auto pending_in = [&](std::int64_t conversation) {
+            return std::ranges::count(app.data.outgoing, conversation, &chat::tui::outgoing_message::conversation);
+        };
+        auto persisted = [&](std::string const& text) {
+            auto history = call<chat::messages_result>([&](auto h) { peer.get_messages(direct, std::nullopt, h); });
+            require(history.has_value(), "Authoritative history is available");
+            return std::ranges::count(history->messages, text, &chat::message::text);
+        };
+        auto shown = [&](std::string const& text) { return std::ranges::count(app.data.messages, text, &chat::message::text); };
+        auto hold = [](fixture& holder, std::int64_t conversation) {
+            holder.execute("BEGIN");
+            holder.execute("SELECT id FROM conversations WHERE id=" + std::to_string(conversation) + " FOR UPDATE");
+        };
+
+        for (auto const* action : {"compose", "reply"})
         {
             app.open_conversation(direct);
             pump([&] { return std::ranges::find(app.data.messages, reply_id, &chat::message::id) != app.data.messages.end(); });
-            if (index == 2) { app.data.draft = "UNSENT before pending edit é 👩‍🚀\n第二行 "; }
+            select(reply_id);
+            app.command(action);
+            auto const text = "pending " + std::string(action);
+            app.data.draft = text;
+            hold(data, direct);
+            app.send();
+            wait_blocked(data);
+            // The message takes its text and reply with it; the composer is free for the next one at once.
+            require(app.data.draft.empty() && !app.data.reply && pending_in(direct) == 1 && !app.data.outgoing.back().failed &&
+                        app.data.outgoing.back().text == text &&
+                        (std::string_view(action) == "compose" || app.data.outgoing.back().reply->id == reply_id),
+                    "Sending moves the draft and its reply into a pending message");
+            app.send();
+            require(app.data.status == "消息不能为空" && pending_in(direct) == 1, "Enter on the emptied composer sends nothing again");
+            // The same target chosen again while the first reply waits is a new reply the acknowledgement leaves alone.
+            select(reply_id);
+            app.command("reply");
+            auto const later = "later draft " + std::string(action);
+            app.data.draft = later;
+            data.execute("COMMIT");
+            pump([&] { return pending_in(direct) == 0 && shown(text) == 1; });
+            require(app.data.reply && app.data.reply->id == reply_id && app.data.draft == later,
+                    "An acknowledgement keeps the reply and draft chosen after sending");
+            require(persisted(text) == 1, "A pending send persists exactly once");
+            if (std::string_view(action) == "reply")
+            {
+                auto history = call<chat::messages_result>([&](auto h) { peer.get_messages(direct, std::nullopt, h); });
+                auto found = std::ranges::find(history->messages, text, &chat::message::text);
+                require(found->reply && found->reply->id == reply_id, "Server persisted the real reply target");
+            }
+            app.data.reply.reset();
+            app.data.draft.clear();
+        }
+        {
+            // A pending message stays with its conversation across navigation, and is shown once acknowledged.
+            app.open_conversation(direct);
+            pump([&] { return !app.data.messages.empty(); });
+            app.data.draft = "pending across pages";
+            hold(data, direct);
+            app.send();
+            wait_blocked(data);
+            app.open_conversation(other_direct);
+            require(pending_in(other_direct) == 0 && app.data.active_outgoing().empty(), "Another conversation lists none of it");
+            app.open_conversation(direct);
+            require(app.data.draft.empty() && app.data.active_outgoing().size() == 1, "Returning lists the pending message, not a draft");
+            data.execute("COMMIT");
+            pump([&] { return pending_in(direct) == 0 && shown("pending across pages") == 1; });
+            require(persisted("pending across pages") == 1, "Navigation does not send it twice");
+        }
+
+        {
+            // An edit still waits for its acknowledgement and restores the normal draft it borrowed the composer from.
+            app.open_conversation(direct);
+            pump([&] { return std::ranges::find(app.data.messages, reply_id, &chat::message::id) != app.data.messages.end(); });
+            app.data.draft = "UNSENT before pending edit é 👩‍🚀\n第二行 ";
             auto const original_normal_draft = app.data.draft;
             select(reply_id);
-            app.command(actions[index]);
-            auto const text = "ACK round trip " + std::string(actions[index]);
+            app.command("edit");
+            auto const text = std::string("ACK round trip edit");
             app.data.draft = text;
-            data.execute("BEGIN");
-            data.execute("SELECT id FROM conversations WHERE id=" + std::to_string(direct) + " FOR UPDATE");
+            hold(data, direct);
             app.send();
             wait_blocked(data);
             app.open_conversation(other_direct);
             app.open_conversation(direct);
-            auto const expected_restored_draft = index == 2 ? original_normal_draft : text;
-            require(app.data.draft == expected_restored_draft && !app.data.reply && app.data.editing == 0,
-                    "A blocked round trip preserves submitted normal/reply text or restores the exact pre-edit normal draft");
-            // Another Enter after returning must not submit the still-pending draft again.
-            app.send();
-            // This real response is queued after that Enter on the same SDK connection.
-            // Observe it before checking persisted rows, so a duplicate cannot evade the check.
-            auto const contact_count = app.data.contacts.size();
-            require(contact_count > 0, "Pending-send round trip has accepted contacts");
-            app.data.contacts.clear();
-            app.contacts();
+            require(app.data.draft == original_normal_draft && !app.data.reply && app.data.editing == 0,
+                    "Leaving a pending edit restores the exact pre-edit normal draft");
             data.execute("COMMIT");
-            pump([&] { return app.data.contacts.size() == contact_count; });
+            peer_events.wait([&] {
+                return std::ranges::any_of(peer_events.updates, [&](auto const& value) { return value.id == reply_id && value.text == text; });
+            });
             pump([&] { return std::ranges::any_of(app.data.messages, [&](auto const& value) { return value.text == text; }); });
-            auto history = call<chat::messages_result>([&](auto h) { peer.get_messages(direct, std::nullopt, h); });
-            require(history.has_value(), "Pending round trip authoritative history is available");
-            std::cout << "TUI pending round trip " << actions[index] << ": persisted="
-                      << std::ranges::count(history->messages, text, &chat::message::text) << '\n';
-            require(history && std::ranges::count(history->messages, text, &chat::message::text) == 1,
-                    "Normal/reply persists once and edit preserves one authoritative message");
-            auto found = std::ranges::find(history->messages, text, &chat::message::text);
-            if (index == 1) { require(found->reply && found->reply->id == reply_id, "Server persisted the real reply target"); }
-            if (index == 2)
+            require(persisted(text) == 1, "The edit changes the one authoritative message");
             {
-                require(found->id == reply_id && found->edited_at > 0, "Server edited the original message");
-                peer_events.wait([&] {
-                    return std::ranges::any_of(peer_events.updates, [&](auto const& value) { return value.id == reply_id && value.text == text; });
-                });
                 std::lock_guard lock(peer_events.mutex);
-                require(std::ranges::count(peer_events.updates, text, &chat::message::text) == 1,
-                        "Round-trip edit produces one authoritative realtime update");
+                require(std::ranges::count(peer_events.updates, text, &chat::message::text) == 1, "One authoritative realtime update");
             }
-            auto const expected_ack_draft = index == 2 ? original_normal_draft : std::string{};
-            round_trip_draft_matches[index] = app.data.draft == expected_ack_draft;
-            std::cout << "TUI ACK round trip " << actions[index] << ": persisted=1, exact_draft_matches="
-                      << round_trip_draft_matches[index] << '\n';
-        }
-        require(round_trip_draft_matches[0], "Normal send round trip clears the successfully submitted draft");
-        require(round_trip_draft_matches[1], "Reply send round trip clears the successfully submitted draft");
-        require(round_trip_draft_matches[2], "Edit ACK after navigation preserves the exact nonempty pre-edit normal draft");
+            require(app.data.draft == original_normal_draft, "Edit acknowledgement after navigation keeps the pre-edit normal draft");
+            app.data.draft.clear();
 
-        for (auto const* action : {"reply", "edit"})
+            select(reply_id);
+            app.command("edit");
+            app.data.draft = "ACK later draft edit";
+            hold(data, direct);
+            app.send();
+            wait_blocked(data);
+            app.send();  // the edit is still waiting: a second Enter submits nothing
+            app.open_conversation(other_direct);
+            app.open_conversation(direct);
+            app.data.draft = "keep new unsent edit";
+            data.execute("COMMIT");
+            pump([&] { return std::ranges::any_of(app.data.messages, [&](auto const& value) { return value.text == "ACK later draft edit"; }); });
+            require(app.data.draft == "keep new unsent edit", "Edit acknowledgement preserves a later draft after a conversation round trip");
+            app.data.draft.clear();
+        }
+
         {
+            // A refused reply whose direct conversation disappears is discarded with a notice; nothing is stored.
             app.open_conversation(direct);
             pump([&] { return std::ranges::find(app.data.messages, reply_id, &chat::message::id) != app.data.messages.end(); });
             select(reply_id);
-            app.command(action);
-            auto const text = "ACK later draft " + std::string(action);
-            app.data.draft = text;
-            data.execute("BEGIN");
-            data.execute("SELECT id FROM conversations WHERE id=" + std::to_string(direct) + " FOR UPDATE");
+            app.command("reply");
+            app.data.draft = "refused reply";
+            require(call<bool>([&](auto h) { peer.remove_contact(self, h); }).has_value(), "Remove friendship before the UI sees it");
+            require(app.data.can_send(), "The refusal comes from the server, not the old UI snapshot");
             app.send();
-            wait_blocked(data);
-            app.open_conversation(other_direct);
-            app.open_conversation(direct);
-            app.data.draft = "keep new unsent " + std::string(action);
-            auto const later = app.data.draft;
-            data.execute("COMMIT");
-            pump([&] { return std::ranges::any_of(app.data.messages, [&](auto const& value) { return value.text == text; }); });
-            require(app.data.draft == later, "Reply/edit acknowledgement preserves a later draft after a conversation round trip");
-
-            auto const failure_normal_draft = app.data.draft;
-            select(reply_id);
-            app.command(action);
-            auto const failed_text = "ACK failed " + std::string(action);
-            app.data.draft = failed_text;
-            require(call<bool>([&](auto h) { peer.remove_contact(self, h); }).has_value(), "Remove friendship before consuming the UI notification");
-            require(app.data.can_send(), "Failure test uses the old UI snapshot, leaving the server authoritative");
-            data.execute("BEGIN");
-            data.execute("SELECT id FROM conversations WHERE id=" + std::to_string(direct) + " FOR UPDATE");
-            app.send();
-            wait_blocked(data);
-            app.open_conversation(other_direct);
-            app.open_conversation(direct);
-            data.execute("COMMIT");
-            // This new contacts result follows the rejected RPC on the same connection.
-            // Invalidate older snapshots so the predicate also waits for its failure ACK.
-            app.contacts();
-            pump([&] { return !app.data.is_contact(peer_id) && app.data.active == 0; });
-            auto history = call<chat::messages_result>([&](auto h) { peer.get_messages(direct, {}, h); });
-            require(history && std::ranges::none_of(history->messages, [&](auto const& value) { return value.text == failed_text; }),
-                    "Rejected reply/edit does not change persisted messages");
+            require(app.data.draft.empty() && pending_in(direct) == 1, "The refused reply is pending until the server answers");
+            app.contacts();  // a fresh result after the refused send on this connection
+            pump([&] { return !app.data.is_contact(peer_id) && app.data.active == 0 && pending_in(direct) == 0; });
+            require(app.data.status.find("未发送的消息已丢弃") != std::string::npos, "Discarding unsent messages is reported");
+            require(persisted("refused reply") == 0, "A refused reply is not stored");
             add_contact(peer_name, peer_id);
             app.command("message");
             pump([&] { return app.data.active == direct && app.data.can_send() && !app.data.messages.empty(); });
-            auto const expected_failed_draft = std::string_view(action) == "edit" ? failure_normal_draft : failed_text;
-            require(app.data.draft == expected_failed_draft,
-                    "Rejected reply preserves its submitted draft; a cancelled edit restores the exact prior normal draft");
+            require(app.data.draft.empty() && pending_in(direct) == 0, "Reopening brings back neither a draft nor the discarded message");
         }
 
         auto seeded = call<chat::message>([&](auto h) { other.send_message(other_direct, "ACK B history barrier", h); });
@@ -3172,99 +3199,144 @@ int run_tui_tests()
             auto found = std::ranges::find(app.data.conversations, other_direct, &chat::conversation::id);
             return !app.data.messages.empty() && found != app.data.conversations.end() && found->last.id == seeded->id;
         });
-        // The attachment ACK must finish its reply context even while Help covers the chat.
-        app.open_conversation(direct);
-        pump([&] { return std::ranges::find(app.data.messages, reply_id, &chat::message::id) != app.data.messages.end(); });
-        select(reply_id);
-        app.command("reply");
-        require(app.data.reply && app.data.reply->id == reply_id, "Attachment starts with the actual reply target");
-        data.execute("BEGIN");
-        data.execute("SELECT id FROM conversations WHERE id=" + std::to_string(direct) + " FOR UPDATE");
-        app.command("file " + upload.string());
-        wait_blocked(data);
-        app.command("help");
-        data.execute("COMMIT");
-        pump([&] { return !app.data.reply; });
-        auto attachment_history = call<chat::messages_result>([&](auto h) { peer.get_messages(direct, {}, h); });
-        require(attachment_history && std::ranges::any_of(attachment_history->messages, [&](auto const& value) {
-            return value.attachment && value.reply && value.reply->id == reply_id;
-        }), "The real attachment RPC persists its actual reply target");
-        require(app.data.view == page::help, "Attachment ACK keeps the newer Help destination");
-        require(app.data.status != "正在上传附件…", "An acknowledged attachment finishes its upload status while Help is open");
-        app.back();
-        bool const attachment_reply_cleared = !app.data.reply;
-        std::cout << "TUI attachment reply: cleared_after_Help_ACK=" << attachment_reply_cleared << '\n';
+        {
+            // An attachment takes its reply when it starts; the acknowledgement leaves a reply chosen meanwhile,
+            // even one to the same message, and arrives while Help covers the chat.
+            app.open_conversation(direct);
+            pump([&] { return std::ranges::find(app.data.messages, reply_id, &chat::message::id) != app.data.messages.end(); });
+            select(reply_id);
+            app.command("reply");
+            hold(data, direct);
+            app.command("file " + upload.string());
+            require(!app.data.reply && pending_in(direct) == 1 && app.data.outgoing.back().file &&
+                        app.data.outgoing.back().reply && app.data.outgoing.back().reply->id == reply_id,
+                    "The attachment takes its reply when it starts uploading");
+            wait_blocked(data);
+            select(reply_id);
+            app.command("reply");
+            app.command("help");
+            data.execute("COMMIT");
+            pump([&] { return pending_in(direct) == 0; });
+            auto attachment_history = call<chat::messages_result>([&](auto h) { peer.get_messages(direct, {}, h); });
+            require(attachment_history && std::ranges::any_of(attachment_history->messages, [&](auto const& value) {
+                return value.attachment && value.reply && value.reply->id == reply_id;
+            }), "The real attachment RPC persists its actual reply target");
+            require(app.data.view == page::help, "Attachment ACK keeps the newer Help destination");
+            app.back();
+            require(app.data.reply && app.data.reply->id == reply_id, "The attachment acknowledgement keeps the reply chosen afterwards");
+            app.data.reply.reset();
+        }
         require(cancelled_edit_draft == normal_draft, "Cancelling a real edit restores the prior normal draft exactly");
         require(acknowledged_edit_draft == normal_draft, "A successful real edit restores the prior normal draft exactly");
-        require(attachment_reply_cleared, "An acknowledged attachment clears its reply after returning from Help");
-        // Editing another message while a normal send waits must not resurrect that sent draft.
-        app.open_conversation(direct);
-        pump([&] { return std::ranges::find(app.data.messages, reply_id, &chat::message::id) != app.data.messages.end(); });
-        app.data.draft.clear();
-        app.send();
-        require(app.data.status == "消息不能为空", "The next normal-send ACK has a distinct prior status");
-        auto const pending_normal = std::string("ACK before edit cancel é 👩‍🚀\n第二行 ");
-        app.data.draft = pending_normal;
-        data.execute("BEGIN");
-        data.execute("SELECT id FROM conversations WHERE id=" + std::to_string(direct) + " FOR UPDATE");
-        app.send();
-        wait_blocked(data);
         {
+            // Editing another message while a normal send waits must not resurrect that sent draft.
+            app.open_conversation(direct);
+            pump([&] { return std::ranges::find(app.data.messages, reply_id, &chat::message::id) != app.data.messages.end(); });
+            app.data.draft.clear();
+            app.send();
+            require(app.data.status == "消息不能为空", "The next normal-send ACK has a distinct prior status");
+            auto const pending_normal = std::string("ACK before edit cancel é 👩‍🚀\n第二行 ");
+            app.data.draft = pending_normal;
+            hold(data, direct);
+            app.send();
+            wait_blocked(data);
             auto ui = chat::tui::make_ui(app, [] {});
             select(reply_id);
             app.command("edit");
-            require(app.data.editing == reply_id, "A real own-message edit opens while the normal send awaits its ACK");
+            require(app.data.editing == reply_id, "A real own-message edit opens while the normal send waits");
             data.execute("COMMIT");
-            // notify is at the end of the real normal-send completion handler, after draft cleanup.
-            pump([&] { return app.data.status == "消息已发送" && std::ranges::any_of(app.data.messages,
-                [&](auto const& value) { return value.text == pending_normal; }); });
+            pump([&] { return app.data.status == "消息已发送" && shown(pending_normal) == 1; });
             require(app.data.editing == reply_id, "The normal-send ACK preserves the newer edit context");
             ui->OnEvent(ftxui::Event::Escape);
-            require(app.data.editing == 0, "Real Escape cancels the newer edit after the normal-send ACK");
-            auto pending_history = call<chat::messages_result>([&](auto h) { peer.get_messages(direct, {}, h); });
-            require(pending_history && std::ranges::count(pending_history->messages, pending_normal, &chat::message::text) == 1,
-                    "The normal send before editing persists exactly once");
-            std::cout << "TUI normal-send/edit overlap: sent_draft_empty=" << app.data.draft.empty() << '\n';
-            require(app.data.draft.empty(), "Cancelling the newer edit cannot resurrect the already acknowledged normal-send draft");
+            require(app.data.editing == 0 && app.data.draft.empty(),
+                    "Cancelling the newer edit cannot resurrect the already sent normal draft");
+            require(persisted(pending_normal) == 1, "The normal send before editing persists exactly once");
         }
-        // Restore the existing independent-A/B fixture destination.
-        app.open_conversation(direct);
-        pump([&] { return !app.data.messages.empty(); });
-        fixture busy_b;
-        data.execute("BEGIN");
-        data.execute("SELECT id FROM conversations WHERE id=" + std::to_string(direct) + " FOR UPDATE");
-        busy_b.execute("BEGIN");
-        busy_b.execute("SELECT id FROM conversations WHERE id=" + std::to_string(other_direct) + " FOR UPDATE");
-        app.data.draft = "ACK busy A";
-        app.send();
-        wait_blocked(data);
-        app.open_conversation(other_direct);
-        app.data.draft = "ACK busy B";
-        app.send();
-        data.execute("COMMIT");
-        wait_blocked(busy_b);
-        // B's history request precedes its send; its result follows A's ACK on the same connection.
-        pump([&] { return std::ranges::find(app.data.messages, seeded->id, &chat::message::id) != app.data.messages.end(); });
-        app.data.draft = "ACK blocked third send";
-        app.send();
-        busy_b.execute("COMMIT");
-        other_events.wait([&] {
-            return std::ranges::any_of(other_events.messages, [](auto const& value) { return value.text == "ACK busy B"; });
-        });
-        auto b_history = call<chat::messages_result>([&](auto h) { other.get_messages(other_direct, {}, h); });
-        require(b_history.has_value(), "Read authoritative B send result");
-        auto b_message = std::ranges::find(b_history->messages, std::string("ACK busy B"), &chat::message::text);
-        require(b_message != b_history->messages.end(), "B's original send committed");
-        pump([&] {
-            return std::ranges::any_of(app.data.read_positions, [&](auto const& position) {
-                return position.user == self && position.message >= b_message->id;
-            });
-        });
-        require(app.data.draft == "ACK blocked third send", "A's old acknowledgement cannot release B's pending send protection");
-        b_history = call<chat::messages_result>([&](auto h) { other.get_messages(other_direct, {}, h); });
-        require(b_history && std::ranges::count(b_history->messages, std::string("ACK busy B"), &chat::message::text) == 1 &&
-                std::ranges::none_of(b_history->messages, [](auto const& value) { return value.text == "ACK blocked third send"; }),
-                "While B waits for its ACK the third send is blocked, and B persists exactly once");
+        {
+            // Sends in two conversations and several in one go out without waiting for each other.
+            app.open_conversation(direct);
+            pump([&] { return !app.data.messages.empty(); });
+            fixture busy_b;
+            hold(data, direct);
+            hold(busy_b, other_direct);
+            app.data.draft = "ACK busy A";
+            app.send();
+            wait_blocked(data);
+            app.open_conversation(other_direct);
+            app.data.draft = "ACK busy B";
+            app.send();
+            app.data.draft = "ACK third send";
+            app.send();
+            require(app.data.draft.empty() && pending_in(other_direct) == 2 && pending_in(direct) == 1,
+                    "A second send in a conversation does not wait for the first");
+            data.execute("COMMIT");
+            wait_blocked(busy_b);
+            busy_b.execute("COMMIT");
+            pump([&] { return pending_in(direct) == 0 && pending_in(other_direct) == 0; });
+            auto b_history = call<chat::messages_result>([&](auto h) { other.get_messages(other_direct, {}, h); });
+            require(b_history.has_value(), "Read authoritative B send result");
+            auto b_message = std::ranges::find(b_history->messages, std::string("ACK busy B"), &chat::message::text);
+            auto third = std::ranges::find(b_history->messages, std::string("ACK third send"), &chat::message::text);
+            require(b_message != b_history->messages.end() && third != b_history->messages.end() && b_message->id < third->id &&
+                        std::ranges::count(b_history->messages, std::string("ACK busy B"), &chat::message::text) == 1 &&
+                        std::ranges::count(b_history->messages, std::string("ACK third send"), &chat::message::text) == 1,
+                    "Both sends persist once, in the order they were sent");
+            require(persisted("ACK busy A") == 1, "A persists once");
+        }
+        {
+            // Committed after the connection dropped, so its acknowledgement was lost: sent again after
+            // signing in, stored once, shown once. Two drops in a row change nothing.
+            for (int drops : {1, 2})
+            {
+                app.open_conversation(direct);
+                pump([&] { return !app.data.messages.empty(); });
+                auto const text = "resent after " + std::to_string(drops) + " drops";
+                app.data.draft = text;
+                hold(data, direct);
+                app.send();
+                wait_blocked(data);
+                app.reconnect();
+                // The next connection is refused while the old session still waits on the lock: a second drop.
+                if (drops == 2) { pump([&] { return app.data.status == "旧连接正在释放，稍后重新认证…"; }); }
+                require(pending_in(direct) == 1 && !app.data.outgoing.back().failed, "A dropped connection leaves the message sending");
+                data.execute("COMMIT");
+                pump([&] { return app.data.link == connection::online && pending_in(direct) == 0 && shown(text) == 1; });
+                require(persisted(text) == 1, "A resend after a lost acknowledgement is stored once");
+            }
+        }
+        {
+            // Refused because its reply target was deleted: sent again as it was, then without the reply,
+            // or discarded.
+            app.open_conversation(direct);
+            pump([&] { return !app.data.messages.empty(); });
+            auto refuse = [&](std::string const& text) {
+                auto target = call<chat::message>([&](auto h) { peer.send_message(direct, "deleted target " + text, h); });
+                require(target.has_value(), "Peer sends a reply target");
+                pump([&] { return std::ranges::find(app.data.messages, target->id, &chat::message::id) != app.data.messages.end(); });
+                select(target->id);
+                app.command("reply");
+                app.data.draft = text;
+                // Deleted before the UI applies the update, so the server is the one that refuses.
+                require(call<chat::message>([&](auto h) { peer.delete_message(direct, target->id, h); }).has_value(), "Delete the target");
+                app.send();
+                pump([&] { return pending_in(direct) == 1 && app.data.outgoing.back().failed; });
+                app.data.message_selected = static_cast<int>(app.data.messages.size());
+                require(app.data.selected_outgoing() && app.data.selected_outgoing()->text == text, "The refused message is selectable");
+            };
+            refuse("retried reply");
+            app.command("retry");
+            pump([&] { return pending_in(direct) == 1 && app.data.outgoing.back().failed; });
+            app.data.message_selected = static_cast<int>(app.data.messages.size());
+            app.command("retry-without-reply");
+            pump([&] { return pending_in(direct) == 0 && shown("retried reply") == 1; });
+            auto history = call<chat::messages_result>([&](auto h) { peer.get_messages(direct, std::nullopt, h); });
+            auto found = std::ranges::find(history->messages, std::string("retried reply"), &chat::message::text);
+            require(found != history->messages.end() && !found->reply && persisted("retried reply") == 1,
+                    "Sent again without its reply, it is stored once without one");
+            refuse("discarded reply");
+            app.command("discard");
+            require(pending_in(direct) == 0 && persisted("discarded reply") == 0, "A discarded refused message is never stored");
+        }
 
         app.open_conversation(direct);
         pump([&] { return !app.data.messages.empty(); });
@@ -3274,8 +3346,8 @@ int run_tui_tests()
         peer_events.wait([&] {
             return std::ranges::any_of(peer_events.messages, [](auto const& value) { return value.text == "sent before leaving page"; });
         });
-        pump([&] { return app.data.draft.empty(); });
-        require(app.data.view == page::contacts, "Send acknowledgement clears its draft without reopening the conversation");
+        pump([&] { return app.data.outgoing.empty(); });
+        require(app.data.view == page::contacts, "Send acknowledgement does not reopen the conversation");
 
         app.open_conversation(direct);
         pump([&] { return !app.data.messages.empty(); });
@@ -3296,7 +3368,7 @@ int run_tui_tests()
         pump([&] {
             return std::ranges::any_of(app.data.messages, [](auto const& value) { return value.text == "sent before switching conversation"; });
         });
-        require(app.data.draft.empty(), "Successful send clears the saved draft of its original conversation");
+        require(app.data.draft.empty(), "A sent message leaves no saved draft in its conversation");
 
         app.data.draft = "sent before typing another draft";
         app.send();
@@ -3311,18 +3383,6 @@ int run_tui_tests()
         });
         require(app.data.draft == "keep later unsent draft", "Send acknowledgement does not clear a newer draft");
 
-        app.open_conversation(direct);
-        pump([&] { return !app.data.messages.empty(); });
-        require(call<bool>([&](auto h) { peer.remove_contact(self, h); }).has_value(), "Peer removes friendship before the UI consumes the notification");
-        require(app.data.can_send(), "TUI still has its prior snapshot before draining callbacks");
-        app.data.draft = "rejected send keeps draft";
-        app.send();
-        app.contacts(); // A fresh result follows the failed send ACK on this connection.
-        pump([&] { return !app.data.is_contact(peer_id) && app.data.active == 0; });
-        add_contact(peer_name, peer_id);
-        app.command("message");
-        pump([&] { return app.data.active == direct && app.data.can_send() && !app.data.messages.empty(); });
-        require(app.data.draft == "rejected send keeps draft", "Asynchronous send rejection preserves the draft after hiding and reopening the direct");
         app.open_conversation(other_direct);
         app.refresh();
         pump([&] { return app.data.active == other_direct && app.data.presences.contains(other_id); });
@@ -4026,10 +4086,11 @@ int run_tui_tests()
             offline_before_logout = std::ranges::count_if(peer_events.presences, [&](auto const& value) { return value.user == self && !value.online; });
         }
         app.command("file " + upload.string());
-        require(app.data.status == "正在上传附件…", "Attachment request pending at logout");
+        require(app.data.outgoing.size() == 1 && app.data.outgoing.front().file, "Attachment pending at logout");
         app.logout();
         app.drain();
-        require(app.data.link == connection::signed_out && app.password.empty() && app.data.messages.empty(), "Logout clears account and credentials");
+        require(app.data.link == connection::signed_out && app.password.empty() && app.data.messages.empty() &&
+                    app.data.outgoing.empty(), "Logout clears account, credentials and unsent messages");
         app.shutdown();
         app.shutdown();
         peer_events.wait([&] {

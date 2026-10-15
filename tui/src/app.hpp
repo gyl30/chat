@@ -59,6 +59,8 @@ public:
     // Queues work for the UI thread as an SDK callback would; tests use it to stand in for one.
     void post(std::function<void()> task) { inbox_->post(std::move(task)); }
     void shutdown();
+    // Quits, after confirming when unconfirmed sends would be lost with the program.
+    void quit();
     void login(bool registration = false);
     void logout();
     void reconnect();
@@ -147,8 +149,8 @@ private:
     bool search_busy_ = false;
     bool requests_busy_ = false;
     bool requests_again_ = false;
-    // An unacknowledged send belongs to its conversation, even while another page is open.
-    std::unordered_set<std::int64_t> sending_;
+    // An unacknowledged edit belongs to its conversation, even while another page is open.
+    std::unordered_set<std::int64_t> saving_edit_;
     bool typing_sent_ = false;
     int retry_ = 0;
     std::optional<clock::time_point> reconnect_at_;
@@ -195,6 +197,10 @@ private:
     bool writable();
     void group_done(bool left = false);
     void stop_typing();
+    void submit(outgoing_message const& item);
+    void finish_outgoing(std::int64_t client_id, std::expected<chat::message, chat::error> value);
+    // Unconfirmed sends of conversations that are gone for good cannot be sent or shown.
+    void drop_outgoing(std::function<bool(std::int64_t conversation)> const& gone);
     void incoming(chat::message value);
     void updated(chat::message value);
     void changed(std::int64_t conversation, bool removed);

@@ -74,6 +74,11 @@ def run(d):
 
     def stop_tui(label):
         d.keys(actor, 'C-c')
+        if label == 'attachment':
+            # An unsent attachment would be lost: Ctrl+C asks first, and confirming quits.
+            d.wait(actor, '条消息未发送')
+            d.keys(actor, 'y')
+            d.keys(actor, 'Enter')
         info = _eventually(lambda: (value if (value := _pane_state(d, actor))['dead'] else None),
                           f'TUI did not exit from {label}')
         terminal = d.tmux('capture-pane', '-p', '-S', '-2000', '-t', d.panes[actor]).stdout
@@ -152,7 +157,7 @@ def run(d):
                     d.keys(actor, 'PPage')
                 elif state == 'attachment':
                     d.command(actor, 'file ' + str(payload))
-                    d.wait(actor, '正在上传附件')
+                    d.wait(actor, '发送中…')
                 else:
                     d.command(actor, 'requests')
                     d.wait(actor, '待处理的入群申请')

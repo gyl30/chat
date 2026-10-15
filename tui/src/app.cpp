@@ -31,6 +31,12 @@ void app::shutdown()
     if (client_) { client_->close(); client_.reset(); }
     password.clear();
 }
+void app::quit()
+{
+    assert_ui();
+    if (data.outgoing.empty()) { shutdown(); return; }
+    confirm("还有 " + std::to_string(data.outgoing.size()) + " 条消息未发送，退出后会丢失。仍要退出？", [this] { shutdown(); });
+}
 bool app::online()
 {
     if (data.link == connection::online && client_) { return true; }
@@ -87,7 +93,7 @@ void app::start_connection()
     ++search_request_;
     client_.reset(); // UI-thread destruction joins the previous network thread.
     conversations_busy_ = history_busy_ = older_again_ = search_busy_ = requests_busy_ = false;
-    sending_.clear();
+    saving_edit_.clear();
     requests_again_ = false;
     conversations_again_ = false;
     reconnect_at_.reset();
@@ -137,6 +143,12 @@ void app::start_connection()
             if (std::exchange(remember_login_, false) && on_signed_in) { on_signed_in(username, server_url); }
             notify(retry_ ? "已恢复连接" : "已连接");
             retry_ = 0;
+            // Sends the link dropped go out again, in order and before the recovery requests;
+            // the server stores each client_id once.
+            for (auto const& item : data.outgoing)
+            {
+                if (!item.failed) { submit(item); }
+            }
             refresh();
         }));
     })]() mutable { cb(true); });
@@ -205,7 +217,7 @@ void app::logout()
     reconnect_at_.reset();
     timer_->schedule({});
     client_.reset();
-    sending_.clear();
+    saving_edit_.clear();
     password.clear();
     data = state{};
     pages_.clear(); drafts_.clear(); typing_.clear();
@@ -235,7 +247,7 @@ void app::disconnected()
     pages_.clear(); data.copy_text.clear(); data.picked_contacts.clear();
     pick_action_.clear(); group_title_.clear();
     conversations_busy_ = history_busy_ = older_again_ = search_busy_ = requests_busy_ = false;
-    sending_.clear();
+    saving_edit_.clear();
     requests_again_ = false;
     if (reconnect_enabled_ && !password.empty())
     {
@@ -361,6 +373,13 @@ void app::apply_conversation_snapshot(conversations_result result, bool append)
         requests_again_ = false;
         marked_read_ = 0;
         notify("当前会话已不可访问，已刷新会话列表");
+    }
+    if (!append && !data.next_conversations)
+    {
+        // The complete list: unconfirmed sends of a conversation no longer in it cannot go anywhere.
+        drop_outgoing([this](std::int64_t conversation) {
+            return std::ranges::find(data.conversations, conversation, &chat::conversation::id) == data.conversations.end();
+        });
     }
     if (data.active && !data.can_send()) { stop_composing(); }
     if (pending_open_)
@@ -657,8 +676,14 @@ void app::command(std::string text)
     auto const split = text.find(' ');
     auto const name = text.substr(0, split);
     auto argument = split == std::string::npos ? std::string{} : text.substr(split + 1);
-    if (name == "quit") { shutdown(); return; }
-    if (name == "logout") { confirm("退出当前账号？", [this] { logout(); }); return; }
+    if (name == "quit") { quit(); return; }
+    if (name == "logout")
+    {
+        auto const unsent = data.outgoing.empty() ? std::string{}
+            : "还有 " + std::to_string(data.outgoing.size()) + " 条消息未发送，会丢失。";
+        confirm(unsent + "退出当前账号？", [this] { logout(); });
+        return;
+    }
     if (name == "reconnect") { reconnect(); return; }
     if (name == "help")
     {
@@ -696,8 +721,8 @@ void app::command(std::string text)
         if (data.messages.empty() || !data.history_before) { history(); }
         return;
     }
-    // Copying text and opening a known profile use local data, so they work offline too.
-    if (data.self.id && name == "copy") { message_command(name, std::move(argument)); return; }
+    // Copying text, discarding an unsent message and opening a known profile use local data, so they work offline too.
+    if (data.self.id && (name == "copy" || name == "discard")) { message_command(name, std::move(argument)); return; }
     if (data.self.id && (name == "profile" || name == "copy-self" || name == "my-profile")) { profile_command(name, std::move(argument)); return; }
     if (!online()) { return; }
     if (name == "friend-requests" || name == "friend-sent")
@@ -763,6 +788,7 @@ void app::changed(std::int64_t conversation, bool removed)
         stop_composing(); ++view_; data.select_conversation(0); data.view = page::conversations;
         pages_.clear(); cancel_prompt(); notify("已离开该群");
     }
+    if (removed) { drop_outgoing([conversation](std::int64_t value) { return value == conversation; }); }
     conversations();
     if (!removed && conversation == data.active)
     {

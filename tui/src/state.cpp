@@ -55,6 +55,26 @@ int bounded(int index, std::size_t size)
     return size == 0 ? 0 : std::clamp(index, 0, static_cast<int>(size) - 1);
 }
 
+// The client_id of the unconfirmed send selected below the messages, or 0.
+std::int64_t selected_client_id(state const& s)
+{
+    if (s.message_selected < static_cast<int>(s.messages.size())) { return 0; }
+    auto const values = s.active_outgoing();
+    auto const index = static_cast<std::size_t>(s.message_selected) - s.messages.size();
+    return index < values.size() ? values[index]->client_id : 0;
+}
+
+// Selects a message by id, else the same unconfirmed send, else the nearest valid position.
+int reselect(state const& s, std::int64_t id, std::int64_t client_id)
+{
+    auto found = std::ranges::find(s.messages, id, &message::id);
+    if (id && found != s.messages.end()) { return static_cast<int>(found - s.messages.begin()); }
+    auto const values = s.active_outgoing();
+    auto pending = std::ranges::find(values, client_id, &outgoing_message::client_id);
+    if (client_id && pending != values.end()) { return static_cast<int>(s.messages.size() + (pending - values.begin())); }
+    return bounded(s.message_selected, s.messages.size() + values.size());
+}
+
 bool friend_matches(std::string const& username, std::string const& query)
 {
     return query.empty() || std::search(username.begin(), username.end(), query.begin(), query.end(), [](unsigned char a, unsigned char b) {
@@ -79,6 +99,30 @@ message const* state::selected_message() const
     auto const& values = view == page::search ? search_results : messages;
     auto index = view == page::search ? selected : message_selected;
     return index < 0 || static_cast<std::size_t>(index) >= values.size() ? nullptr : &values[index];
+}
+
+std::vector<outgoing_message const*> state::active_outgoing() const
+{
+    std::vector<outgoing_message const*> values;
+    for (auto const& item : outgoing)
+    {
+        if (item.conversation == active) { values.push_back(&item); }
+    }
+    return values;
+}
+
+outgoing_message const* state::selected_outgoing() const
+{
+    if (view != page::conversation || message_selected < static_cast<int>(messages.size())) { return nullptr; }
+    auto const values = active_outgoing();
+    auto const index = static_cast<std::size_t>(message_selected) - messages.size();
+    return index < values.size() ? values[index] : nullptr;
+}
+
+void state::settle(message const& value)
+{
+    if (!value.client_id) { return; }
+    std::erase_if(outgoing, [&](outgoing_message const& item) { return item.client_id == *value.client_id; });
 }
 
 bool state::can_send() const
@@ -121,6 +165,21 @@ std::vector<menu_item> state::message_actions(message const& value) const
         bool const pinned = current->pinned_message && current->pinned_message->id == value.id;
         items.push_back({pinned ? "取消群置顶" : "置顶到群", 't', pinned ? "unpin-message" : "pin-message", {}});
     }
+    return items;
+}
+
+std::vector<menu_item> state::outgoing_actions(outgoing_message const& value) const
+{
+    std::vector<menu_item> items;
+    if (value.failed)
+    {
+        // Sending again needs the connection; the server decides whether it is allowed now.
+        auto const offline = link == connection::online ? std::string{} : std::string("未连接");
+        items.push_back({"重新发送", 'r', "retry", offline});
+        if (value.reply) { items.push_back({"不带回复重新发送", 'R', "retry-without-reply", offline}); }
+        items.push_back({"删除", 'd', "discard", {}});
+    }
+    items.push_back({"复制", 'y', "copy", {}});
     return items;
 }
 
@@ -320,6 +379,7 @@ void state::apply_history(messages_result result, bool older)
 {
     auto selected_id = message_selected >= 0 && static_cast<std::size_t>(message_selected) < messages.size()
         ? messages[message_selected].id : 0;
+    auto const selected_client = selected_client_id(*this);
     std::optional<std::int64_t> page_before;
     for (auto const& value : result.messages)
     {
@@ -340,12 +400,7 @@ void state::apply_history(messages_result result, bool older)
     }
     read_positions = std::move(result.read_positions);
     if (at_latest && !older) { message_selected = bounded(static_cast<int>(messages.size()) - 1, messages.size()); }
-    else
-    {
-        auto found = std::ranges::find(messages, selected_id, &message::id);
-        message_selected = found == messages.end() ? bounded(message_selected, messages.size())
-            : static_cast<int>(found - messages.begin());
-    }
+    else { message_selected = reselect(*this, selected_id, selected_client); }
 }
 
 void state::apply_search(messages_result result, bool append)
@@ -382,6 +437,7 @@ void state::apply_search(messages_result result, bool append)
 
 void state::apply_message(message value)
 {
+    settle(value);
     if (value.conversation != active) { return; }
     auto const selected_search_id = view == page::search && selected >= 0 &&
         static_cast<std::size_t>(selected) < search_results.size() ? search_results[selected].id : 0;
@@ -394,6 +450,7 @@ void state::apply_message(message value)
     }
     auto selected_id = message_selected >= 0 && static_cast<std::size_t>(message_selected) < messages.size()
         ? messages[message_selected].id : 0;
+    auto const selected_client = selected_client_id(*this);
     auto found = std::ranges::lower_bound(messages, value.id, {}, &message::id);
     if (found == messages.end() || found->id != value.id) { found = messages.insert(found, std::move(value)); }
     else { merge(*found, value); }
@@ -427,12 +484,7 @@ void state::apply_message(message value)
     if (editing == authoritative.id && authoritative.deleted) { editing = 0; }
     if (auto* conversation = active_conversation()) { update_quote(conversation->pinned_message, authoritative); }
     if (at_latest) { message_selected = bounded(static_cast<int>(messages.size()) - 1, messages.size()); }
-    else
-    {
-        auto selected_item = std::ranges::find(messages, selected_id, &message::id);
-        message_selected = selected_item == messages.end() ? bounded(message_selected, messages.size())
-            : static_cast<int>(selected_item - messages.begin());
-    }
+    else { message_selected = reselect(*this, selected_id, selected_client); }
 }
 
 void state::apply_reaction(reaction_update value)
@@ -483,8 +535,9 @@ void state::select_conversation(std::int64_t id)
 void state::move_message(int delta)
 {
     if (view == page::search) { selected = bounded(selected + delta, search_results.size()); return; }
-    message_selected = bounded(message_selected + delta, messages.size());
-    at_latest = messages.empty() || message_selected == static_cast<int>(messages.size()) - 1;
+    message_selected = bounded(message_selected + delta, messages.size() + active_outgoing().size());
+    // The unconfirmed sends below the newest message count as the latest too.
+    at_latest = messages.empty() || message_selected >= static_cast<int>(messages.size()) - 1;
 }
 
 layout_mode state::layout(int width, int height)

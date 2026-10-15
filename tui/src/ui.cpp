@@ -427,6 +427,32 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
     }
     return m.from == s.self.id ? hbox({filler(), item}) : hbox({item, filler()});
 }
+// An unconfirmed send, below the messages: its own text or file and reply, and whether it is still
+// sending or was refused.
+Element outgoing_item(outgoing_message const& m, bool highlighted, bool focused, int width, int scroll_line, bool heading)
+{
+    auto const content_width = std::max(1, width * 3 / 4);
+    Elements lines;
+    if (heading) { lines.push_back(text("我") | bold); }
+    if (m.reply)
+    {
+        lines.push_back(preview_text("↪ " + m.reply->username + ": " + (m.reply->deleted ? "消息已删除" : m.reply->text), content_width) | dim);
+    }
+    if (m.file) { lines.push_back(text("[文件] " + m.text + " · " + file_size(static_cast<std::int64_t>(m.file->size())))); }
+    else { lines.push_back(wrapped_text(m.text, content_width)); }
+    if (m.failed) { lines.push_back(preview_text("发送失败：" + m.error + " · Enter 重发或删除", content_width) | bold); }
+    else { lines.push_back(text("发送中…") | dim); }
+    auto item = vbox(std::move(lines)) | size(WIDTH, LESS_THAN, content_width);
+    if (highlighted)
+    {
+        item->ComputeRequirement();
+        auto const last_line = std::max(1, item->requirement().min_y - 1);
+        float position = static_cast<float>(scroll_line < 0 ? last_line : std::clamp(scroll_line, 0, last_line)) / last_line;
+        if (focused) { item = item | inverted; }
+        item = item | focusPositionRelative(0.f, position);
+    }
+    return hbox({filler(), item});
+}
 // The chat history; rows is how many lines it gets on screen.
 Element history(state const& s, int width, int rows, int message_scroll)
 {
@@ -442,7 +468,8 @@ Element history(state const& s, int width, int rows, int message_scroll)
         total += height;
         items.push_back(std::move(item));
     };
-    if (s.messages.empty()) { add(text("暂无消息") | dim); }
+    auto const pending = s.active_outgoing();
+    if (s.messages.empty() && pending.empty()) { add(text("暂无消息") | dim); }
     if (s.history_more) { add(text("PgUp 加载更早的消息") | dim); }
     int day = 0;
     for (std::size_t i = 0; i < s.messages.size(); ++i)
@@ -458,6 +485,13 @@ Element history(state const& s, int width, int rows, int message_scroll)
         if (heading && i > 0) { add(text("")); }
         add(message_item(s, m, s.message_selected == static_cast<int>(i), width, message_scroll, heading, rows == 1),
             static_cast<int>(i), heading);
+    }
+    for (std::size_t i = 0; i < pending.size(); ++i)
+    {
+        bool const heading = i == 0 && (s.messages.empty() || s.messages.back().from != s.self.id);
+        if (heading && !s.messages.empty()) { add(text("")); }
+        add(outgoing_item(*pending[i], s.message_selected == static_cast<int>(s.messages.size() + i),
+                          s.view == page::conversation && !s.composing, width, message_scroll, heading));
     }
     auto list = scroll(std::move(items));
     // With two rows, an own message has only its body and delivery state visible. A pinned
@@ -1179,8 +1213,9 @@ private:
         auto& s = app_.data;
         if (event == Event::CtrlC)
         {
-            app_.shutdown();
-            quit_();
+            // Unconfirmed sends would be lost: quitting asks first and may be cancelled.
+            app_.quit();
+            if (app_.exiting) { quit_(); }
             return true;
         }
         if (app_.exiting) { quit_(); return true; }
@@ -1241,6 +1276,7 @@ private:
                 app_.dialog->text = prompt_text_;
                 app_.submit_prompt();
                 prompt_active_ = false;
+                if (app_.exiting) { quit_(); }
                 return true;
             }
             return prompt_->OnEvent(event);
@@ -1487,7 +1523,8 @@ private:
     // promote into demote) because the target changed meanwhile; such a change closes the menu.
     struct menu_state
     {
-        enum class kind { message, member, account } kind;
+        // An outgoing menu's target is the client_id of an unconfirmed send.
+        enum class kind { message, outgoing, member, account } kind;
         std::int64_t target = 0;
         std::string title;
         std::vector<menu_item> items;
@@ -1510,11 +1547,27 @@ private:
             auto found = std::ranges::find(s.messages, menu_->target, &message::id);
             return found == s.messages.end() ? std::vector<menu_item>{} : s.message_actions(*found);
         }
+        if (menu_->kind == menu_state::kind::outgoing)
+        {
+            auto const pending = s.active_outgoing();
+            auto found = std::ranges::find(pending, menu_->target, &outgoing_message::client_id);
+            return found == pending.end() ? std::vector<menu_item>{} : s.outgoing_actions(**found);
+        }
         auto found = std::ranges::find(s.members, menu_->target, &conversation_member::id);
         return found == s.members.end() ? std::vector<menu_item>{} : s.member_actions(*found);
     }
     void open_message_menu()
     {
+        if (auto const* pending = app_.data.selected_outgoing())
+        {
+            auto preview = pending->text;
+            for (char& c : preview) { if (c == '\n') { c = ' '; } }
+            menu_ = menu_state{menu_state::kind::outgoing, pending->client_id,
+                               (pending->failed ? "发送失败 · " : "发送中 · ") + preview, app_.data.outgoing_actions(*pending), 0};
+            menu_->link = app_.data.link;
+            app_.menu_open = true;
+            return;
+        }
         auto const* message = app_.data.selected_message();
         if (!message) { app_.data.status = "请先选择消息"; return; }
         auto preview = message->deleted ? std::string("消息已删除") : message->attachment && message->text.empty()
@@ -1703,7 +1756,8 @@ private:
     {
         if (!menu_) { return; }
         auto const& s = app_.data;
-        auto const page_ok = menu_->kind == menu_state::kind::account || (menu_->kind == menu_state::kind::message ? s.view == page::conversation : s.view == page::members);
+        auto const page_ok = menu_->kind == menu_state::kind::account || (menu_->kind == menu_state::kind::message || menu_->kind == menu_state::kind::outgoing
+            ? s.view == page::conversation : s.view == page::members);
         auto const link_ok = menu_->kind == menu_state::kind::account || s.link == menu_->link;
         if (!page_ok || !link_ok || app_.dialog || app_.command_mode) { close_menu(); return; }
         auto const now = current_items();
@@ -1744,6 +1798,14 @@ private:
         {
             if (s.self.id != target.target) { return; }
             now = s.account_actions();
+        }
+        else if (target.kind == menu_state::kind::outgoing)
+        {
+            auto const pending = s.active_outgoing();
+            auto found = std::ranges::find(pending, target.target, &outgoing_message::client_id);
+            if (found == pending.end()) { s.status = "该消息已发送或已删除，操作已取消"; return; }
+            s.message_selected = static_cast<int>(s.messages.size() + (found - pending.begin()));
+            now = s.outgoing_actions(**found);
         }
         else if (target.kind == menu_state::kind::message)
         {
@@ -1864,7 +1926,9 @@ private:
     {
         auto const& s = app_.data;
         auto const* current = s.selected_message();
-        auto const id = current ? current->id : 0;
+        auto const* pending = s.selected_outgoing();
+        // An unconfirmed send is told apart from messages by its negated client_id.
+        auto const id = current ? current->id : pending ? -pending->client_id : 0;
         auto const index = static_cast<std::size_t>(std::max(0, s.message_selected));
         bool const heading = s.view != page::conversation || index >= s.messages.size() || starts_group(s.messages, index);
         if (scroll_conversation_ != s.active || scroll_message_ != id || scroll_page_ != s.view)

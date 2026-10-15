@@ -1209,6 +1209,55 @@ int main()
         ok &= expect(quit && application.exiting, "Ctrl+C shuts down before exit");
     }
     {
+        // Unconfirmed sends follow the messages of their own conversation: selectable, with a menu of
+        // their own. Quitting while any exist asks first and can be cancelled.
+        app application;
+        writable_conversation(application);
+        auto& d = application.data;
+        chat::message last;
+        last.id = 5; last.conversation = d.active; last.from = 2; last.username = "peer";
+        last.text = "PEER_BODY"; last.timestamp = 1700000000000;
+        d.messages = {last};
+        outgoing_message sending;
+        sending.client_id = 11; sending.conversation = d.active; sending.text = "PENDING_BODY";
+        auto failed = sending;
+        failed.client_id = 12; failed.text = "FAILED_BODY"; failed.failed = true; failed.error = "回复的消息已删除";
+        failed.reply = chat::quoted_message{5, 2, "peer", "PEER_BODY", {}, false};
+        auto other = sending;
+        other.client_id = 13; other.conversation = d.active + 1; other.text = "OTHER_BODY";
+        d.outgoing = {sending, failed, other};
+        d.composing = false; d.selecting = true; d.message_selected = 0;
+        auto output = draw(d, 120, 40);
+        ok &= expect(output.find("PEER_BODY") < output.find("PENDING_BODY") && output.find("PENDING_BODY") < output.find("发送中…") &&
+                     output.find("发送中…") < output.find("FAILED_BODY") &&
+                     output.find("FAILED_BODY") < output.find("发送失败：回复的消息已删除") &&
+                     output.find("OTHER_BODY") == std::string::npos,
+                     "Unconfirmed sends of the open conversation follow its messages with their state");
+        d.move_message(5);
+        ok &= expect(d.selected_outgoing() && d.selected_outgoing()->client_id == 12 && !d.selected_message() && d.at_latest,
+                     "The selection continues onto unconfirmed sends and stops at the last");
+        bool quit = false;
+        auto component = make_ui(application, [&] { quit = true; });
+        component->OnEvent(ftxui::Event::Return);
+        ftxui::Screen menu_screen(120, 40);
+        ftxui::Render(menu_screen, component->Render());
+        auto const menu = menu_screen.ToString();
+        ok &= expect(application.menu_open && menu.find("重新发送") != std::string::npos &&
+                     menu.find("不带回复重新发送") != std::string::npos && menu.find("删除") != std::string::npos,
+                     "A refused send offers sending again, without its reply, or discarding");
+        component->OnEvent(ftxui::Event::Character('d'));
+        ok &= expect(d.outgoing.size() == 2 && d.outgoing[0].client_id == 11 && d.outgoing[1].client_id == 13,
+                     "Discarding removes only the selected refused send");
+        component->OnEvent(ftxui::Event::CtrlC);
+        ok &= expect(application.dialog && !application.exiting && !quit, "Ctrl+C with unconfirmed sends asks first");
+        component->OnEvent(ftxui::Event::Escape);
+        ok &= expect(!application.dialog && !application.exiting && !quit, "Quitting with unconfirmed sends can be cancelled");
+        component->OnEvent(ftxui::Event::CtrlC);
+        component->OnEvent(ftxui::Event::Character('y'));
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(quit && application.exiting, "Confirming quits even with unconfirmed sends");
+    }
+    {
         // Errors stay until the next key press; notices are not errors and are not dismissed by keys.
         app application;
         application.data.self = {1, "Alice", {}};
