@@ -45,6 +45,8 @@ class main_window final : public QMainWindow
    protected:
     void changeEvent(QEvent* event) override;
     void closeEvent(QCloseEvent* event) override;
+    // Unsent messages are lost on quitting: asks first when there are any.
+    bool confirm_quit();
     bool eventFilter(QObject* object, QEvent* event) override;
 #if defined(Q_OS_LINUX)
     bool nativeEventFilter(QByteArray const& event_type, void* message, qintptr* result) override;
@@ -126,6 +128,8 @@ class main_window final : public QMainWindow
     bool desktop_notifications_ = true;
     bool message_preview_ = true;
     bool close_to_tray_ = false;
+    // The tray's Quit already asked about unsent messages; closing the window then does not ask again.
+    bool quit_confirmed_ = false;
     QList<message_data> pending_notifications_;
 #if defined(Q_OS_LINUX)
     QSet<uint> desktop_notification_ids_;

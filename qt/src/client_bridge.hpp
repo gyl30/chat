@@ -5,8 +5,12 @@
 #include <atomic>
 #include <optional>
 #include <cstdint>
+#include <expected>
+#include <functional>
 #include <utility>
 #include <chat/conversation.hpp>
+#include <chat/error.hpp>
+#include <chat/message.hpp>
 
 #include <QObject>
 #include <QString>
@@ -62,7 +66,8 @@ class client_bridge final : public QObject
     void cancel_friend_request(qint64 user);
     void get_presence();
     void get_messages(qint64 conversation, std::optional<qint64> before = {}, std::optional<qint64> after = {});
-    void send_message(qint64 user, QString text, qint64 reply_to = 0);
+    // The result arrives as send_finished; the same client_id sent again is stored once.
+    void send_message(qint64 conversation, QString text, qint64 reply_to, qint64 client_id);
     void delete_message(qint64 conversation, qint64 message);
     void edit_message(qint64 conversation, qint64 message, QString text);
     void set_message_reaction(qint64 conversation, qint64 message, QString emoji);
@@ -72,7 +77,7 @@ class client_bridge final : public QObject
     void get_history(qint64 conversation, qint64 before = 0);
     void add_contact(qint64 user);
     void remove_contact(qint64 user);
-    void send_attachment(qint64 conversation, QString filename, QByteArray data, qint64 reply_to = 0);
+    void send_attachment(qint64 conversation, QString filename, QByteArray data, qint64 reply_to, qint64 client_id);
     void get_attachment(qint64 conversation, qint64 message);
     void get_message_image(qint64 conversation, qint64 message);
     void mark_read(qint64 user, qint64 message);
@@ -115,12 +120,12 @@ class client_bridge final : public QObject
     void group_join_requests_received(qint64 conversation, QList<user_data> users, qint64 next, bool older, QString error_message);
     void group_pin_finished(qint64 conversation, QString error_message);
     void conversation_changed(qint64 conversation, bool removed);
-    void message_sent(qint64 user, QString text, qint64 message, qint64 timestamp, quoted_message_data reply,
-                      QList<mention_data> mentions, QString error_message);
+    // A text or attachment send finished: the stored message, or why it failed. lost means the
+    // connection dropped before an answer, so whether it was stored is unknown.
+    void send_finished(qint64 conversation, qint64 client_id, message_data message, QString error_message, bool lost);
     void users_received(QList<user_data> users, QString error_message, quint64 request);
     void contact_added(user_data user, QString error_message);
     void contact_removed(QString error_message);
-    void attachment_sent(qint64 conversation, message_data message, QString error_message);
     void attachment_received(qint64 conversation, qint64 message, QByteArray data, QString error_message);
     void message_image_received(qint64 conversation, qint64 message, QByteArray data, QString error_message);
     void history_received(qint64 conversation, qint64 before, QList<message_data> messages, bool has_more,
@@ -130,6 +135,7 @@ class client_bridge final : public QObject
     void read_marked(qint64 user, qint64 message, QString error_message);
 
    private:
+    std::function<void(std::expected<chat::message, chat::error>)> send_result(qint64 conversation, qint64 client_id);
     template <class F> void post_result(std::uint64_t generation, F result)
     {
         QMetaObject::invokeMethod(this, [this, generation, result = std::move(result)]() mutable {
@@ -144,7 +150,6 @@ class client_bridge final : public QObject
      std::uint64_t messages_generation_ = 0;
      std::uint64_t search_generation_ = 0;
      std::uint64_t history_generation_ = 0;
-     std::uint64_t upload_generation_ = 0;
      std::uint64_t download_generation_ = 0;
     std::atomic_uint64_t connection_generation_ = 0;
     std::unique_ptr<chat::client> client_;

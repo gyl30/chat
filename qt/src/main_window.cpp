@@ -334,6 +334,8 @@ main_window::main_window(QString server_url, QWidget* parent)
     auto* quit = tray_menu->addAction(QStringLiteral("退出 Chat"));
     quit->setObjectName(QStringLiteral("trayQuitAction"));
     connect(quit, &QAction::triggered, this, [this] {
+        if (!confirm_quit()) { return; }
+        quit_confirmed_ = true;
         // Explicit Quit must not be cancelled by QApplication closing its windows to the tray.
         close_to_tray_ = false;
         qApp->quit();
@@ -930,20 +932,23 @@ main_window::main_window(QString server_url, QWidget* parent)
             [this](qint64 user, qint64 before) { client_->get_messages(user, before); });
 
     connect(chat_page_, &chat_widget::send_message_requested, this,
-            [this](qint64 user, QString text, qint64 reply) { client_->send_message(user, std::move(text), reply); });
+            [this](qint64 conversation, QString text, qint64 reply, qint64 client_id) {
+                client_->send_message(conversation, std::move(text), reply, client_id);
+            });
     connect(chat_page_, &chat_widget::typing_requested, client_.get(), &client_bridge::set_typing);
     connect(client_.get(), &client_bridge::typing_changed, chat_page_, &chat_widget::set_typing, Qt::AutoConnection);
     connect(chat_page_, &chat_widget::attachment_send_requested, this,
-            [this](qint64 conversation, QString filename, QByteArray data, qint64 reply) {
-                client_->send_attachment(conversation, std::move(filename), std::move(data), reply);
+            [this](qint64 conversation, QString filename, QByteArray data, qint64 reply, qint64 client_id) {
+                client_->send_attachment(conversation, std::move(filename), std::move(data), reply, client_id);
             });
-    connect(client_.get(), &client_bridge::attachment_sent, this,
-            [this](qint64 conversation, message_data message, QString const& error) {
-        chat_page_->finish_attachment_send(conversation, error);
-        if (error.isEmpty())
+    connect(client_.get(), &client_bridge::send_finished, this,
+            [this](qint64 conversation, qint64 client_id, message_data message, QString const& error, bool lost) {
+        auto const sent = error.isEmpty();
+        chat_page_->finish_send(conversation, client_id, std::move(message), error, lost);
+        if (sent)
         {
-            chat_page_->add_message(conversation, std::move(message));
             client_->get_conversations();
+            client_->get_presence();
         }
     }, Qt::AutoConnection);
     connect(chat_page_, &chat_widget::attachment_open_requested, this,
@@ -1053,23 +1058,6 @@ main_window::main_window(QString server_url, QWidget* parent)
         client_.get(), &client_bridge::messages_read, this, [this](qint64 conversation, qint64 user, qint64 message)
         { chat_page_->set_read_message(conversation, user, message); }, Qt::AutoConnection);
 
-    connect(
-        client_.get(), &client_bridge::message_sent, this,
-        [this](qint64 user, QString text, qint64 message, qint64 timestamp, quoted_message_data reply,
-               QList<mention_data> mentions, QString const& error_message)
-        {
-            chat_page_->finish_message_send(user, message, timestamp, std::move(text), std::move(reply), std::move(mentions),
-                                            error_message);
-            if (!error_message.isEmpty())
-            {
-                return;
-            }
-
-            client_->get_conversations();
-            client_->get_presence();
-        },
-        Qt::AutoConnection);
-
     connect(client_.get(), &client_bridge::read_marked, this,
             [this](qint64 user, qint64 message, QString const& error_message) {
                 if (!error_message.isEmpty())
@@ -1122,7 +1110,19 @@ void main_window::closeEvent(QCloseEvent* event)
         event->ignore();
         return;
     }
+    if (!quit_confirmed_ && !confirm_quit())
+    {
+        event->ignore();
+        return;
+    }
     QMainWindow::closeEvent(event);
+}
+
+bool main_window::confirm_quit()
+{
+    auto const unsent = chat_page_->unsent_count();
+    return unsent == 0 || confirm_action(this, QStringLiteral("退出 Chat"),
+        QStringLiteral("还有 %1 条消息未发送，退出后会丢失。仍要退出？").arg(unsent), QStringLiteral("退出"));
 }
 
 void main_window::show_settings()
@@ -1134,8 +1134,10 @@ void main_window::show_settings()
             chat_page_->show_user_details(chat_page_->self_user(), session_username_, settings_);
         });
         connect(settings_, &settings_dialog::logout_requested, this, [this] {
+            auto const unsent = chat_page_->unsent_count();
+            auto const warning = unsent == 0 ? QString{} : QStringLiteral("还有 %1 条消息未发送，会丢失。").arg(unsent);
             if (confirm_action(settings_, QStringLiteral("退出登录"),
-                QStringLiteral("退出当前账号？应用会返回登录页。"), QStringLiteral("退出登录")))
+                warning + QStringLiteral("退出当前账号？应用会返回登录页。"), QStringLiteral("退出登录")))
             {
                 logout();
             }
@@ -1686,13 +1688,17 @@ void main_window::finish_reconnect()
     }
     reconnect_notice_visible_ = false;
 
+    // The recovery cursor is taken before resending, so no acknowledgement can move it past
+    // messages others sent while the link was down.
+    auto const user = chat_page_->active_conversation();
+    auto const cursor = chat_page_->recovery_cursor();
+    chat_page_->resend_outgoing();
     client_->get_conversations();
     client_->get_contacts();
     client_->get_friend_requests();
-    auto const user = chat_page_->active_conversation();
     if (user > 0)
     {
-        client_->get_messages(user, {}, chat_page_->recovery_cursor());
+        client_->get_messages(user, {}, cursor);
         client_->get_members(user);
     }
 }

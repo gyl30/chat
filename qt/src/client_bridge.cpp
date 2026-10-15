@@ -72,6 +72,7 @@ message_data to_message_data(chat::message const& value)
     message.edited_at = value.edited_at.value_or(0);
     message.deleted = value.deleted;
     message.reply = to_reply_data(value.reply);
+    message.client_id = value.client_id.value_or(0);
     if (value.attachment)
     {
         message.attachment = attachment_data{from_utf8(value.attachment->filename), from_utf8(value.attachment->media_type),
@@ -172,7 +173,6 @@ void client_bridge::connect_to_server(QString const& url)
     ++messages_generation_;
     ++conversations_generation_;
     ++search_generation_;
-    ++upload_generation_;
     ++download_generation_;
     ++connection_generation_;
     client_->connect(to_utf8(url));
@@ -183,7 +183,6 @@ void client_bridge::close()
     ++messages_generation_;
     ++conversations_generation_;
     ++search_generation_;
-    ++upload_generation_;
     ++download_generation_;
     ++connection_generation_;
     client_->close();
@@ -660,36 +659,29 @@ void client_bridge::set_typing(qint64 conversation, bool typing)
     client_->set_typing(conversation, typing, [](auto) {});
 }
 
-void client_bridge::send_message(qint64 user, QString text, qint64 reply_to)
+void client_bridge::send_message(qint64 conversation, QString text, qint64 reply_to, qint64 client_id)
 {
-    auto const generation = connection_generation_.load();
-    auto request_text = to_utf8(text);
-    client_->send_message(user, std::move(request_text),
-        [this, user, generation, text = std::move(text)](auto result) mutable {
-            QMetaObject::invokeMethod(this, [this, user, generation, text = std::move(text), result = std::move(result)]() mutable {
-                if (generation != connection_generation_) { return; }
-                emit message_sent(user, std::move(text), result ? result->id : 0, result ? result->timestamp : 0,
-                    result ? to_reply_data(result->reply) : quoted_message_data{},
-                    result ? to_mentions(result->mentions) : QList<mention_data>{},
-                    result ? QString{} : display_error(result.error()));
-            }, Qt::QueuedConnection);
-        }, reply_to > 0 ? std::optional<std::int64_t>(reply_to) : std::nullopt);
+    client_->send_message(conversation, to_utf8(text), send_result(conversation, client_id),
+                          reply_to > 0 ? std::optional<std::int64_t>(reply_to) : std::nullopt, client_id);
 }
 
-void client_bridge::send_attachment(qint64 conversation, QString filename, QByteArray data, qint64 reply_to)
+void client_bridge::send_attachment(qint64 conversation, QString filename, QByteArray data, qint64 reply_to, qint64 client_id)
 {
-    auto const generation = ++upload_generation_;
     client_->send_attachment(conversation, to_utf8(filename), {data.constData(), static_cast<std::size_t>(data.size())},
-        [this, conversation, generation](auto result) mutable {
-            QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)]() mutable {
-                if (generation != upload_generation_)
-                {
-                    return;
-                }
-                emit attachment_sent(conversation, result ? to_message_data(*result) : message_data{},
-                                     result ? QString{} : display_error(result.error()));
-            }, Qt::QueuedConnection);
-        }, reply_to > 0 ? std::optional<std::int64_t>{reply_to} : std::nullopt);
+                             send_result(conversation, client_id),
+                             reply_to > 0 ? std::optional<std::int64_t>{reply_to} : std::nullopt, client_id);
+}
+
+std::function<void(std::expected<chat::message, chat::error>)> client_bridge::send_result(qint64 conversation, qint64 client_id)
+{
+    // A result of an earlier connection is dropped: the message is sent again after reconnecting.
+    return [this, conversation, client_id, generation = connection_generation_.load()](auto result) {
+        post_result(generation, [this, conversation, client_id, result = std::move(result)] {
+            emit send_finished(conversation, client_id, result ? to_message_data(*result) : message_data{},
+                               result ? QString{} : display_error(result.error()),
+                               !result && result.error().kind == chat::error_kind::transport);
+        });
+    };
 }
 
 void client_bridge::get_attachment(qint64 conversation, qint64 message)

@@ -56,6 +56,8 @@ struct message_data
     qint64 reaction_revision = 0;
     QList<reaction_data> reactions;
     QList<mention_data> mentions;
+    // Only on one's own messages: the ID they were sent with.
+    qint64 client_id = 0;
 };
 
 Q_DECLARE_METATYPE(message_data)

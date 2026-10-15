@@ -37,6 +37,22 @@ class message_model final : public QAbstractListModel
         mentioned_role,
         image_role,
         image_status_role,
+        client_id_role,
+        send_state_role,
+        send_error_role,
+    };
+    enum send_state
+    {
+        sent,
+        sending,
+        failed,
+    };
+    // A message sent from here that the server has not confirmed: listed after the stored messages.
+    struct pending_message
+    {
+        message_data message;
+        bool failed = false;
+        QString error;
     };
 
     explicit message_model(QObject* parent = nullptr, avatar_cache* avatars = nullptr, message_images* images = nullptr);
@@ -46,6 +62,7 @@ class message_model final : public QAbstractListModel
 
     void set_self_user(qint64 user);
     void reset(qint64 conversation, bool group = false);
+    void set_pending(QList<pending_message> pending);
     int merge_messages(QList<message_data> messages);
     bool add_message(message_data message);
     void update_message(message_data const& message);
@@ -63,6 +80,7 @@ class message_model final : public QAbstractListModel
     avatar_cache* avatars_;
     message_images* images_;
     QList<message_data> messages_;
+    QList<pending_message> pending_;
     qint64 self_user_ = 0;
     qint64 conversation_ = 0;
     bool group_ = false;

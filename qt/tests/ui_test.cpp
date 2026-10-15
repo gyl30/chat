@@ -3286,7 +3286,7 @@ void check_send_key_preferences()
         key(edit, code, control_mode ? Qt::ControlModifier : Qt::NoModifier);
         check(sends == 1 && sent.toUtf8() == (text + composed).toUtf8() && edit->textCursor().block().layout()->preeditAreaText().isEmpty(),
               "After committing IME text the configured shortcut sends the exact Unicode draft once");
-        page.set_connection_available(false); page.finish_message_send(direct.id, 0, 0, sent, {}, {}, QStringLiteral("离线"));
+        page.set_connection_available(false);
         auto const draft = edit->toPlainText(); key(edit, code, control_mode ? Qt::ControlModifier : Qt::NoModifier);
         check(sends == 1 && edit->toPlainText() == draft, "The configured send shortcut remains blocked offline and preserves its draft");
     }
@@ -5558,11 +5558,13 @@ void check_message_composer()
           "Empty composer is compact, named and cannot send");
     int sent = 0;
     QString sent_text;
+    qint64 sent_client = 0;
     QObject::connect(&page, &chat_widget::send_message_requested, &page,
-        [&](qint64 conversation, QString text, qint64 reply) {
-            check(conversation == direct.id && reply == 0, "Composer sends to the active conversation");
+        [&](qint64 conversation, QString text, qint64 reply, qint64 client_id) {
+            check(conversation == direct.id && reply == 0 && client_id > 0, "Composer sends to the active conversation");
             ++sent;
             sent_text = std::move(text);
+            sent_client = client_id;
         });
     edit->setFocus();
     auto const text = QStringLiteral("第一行 中文 0123456789 é\n第二行 ❤︎ ❤️ 1️⃣7️⃣#️⃣*️⃣\n第三行 👩‍💻 👨‍👩‍👧‍👦 👍️🏽 \U0001faff A🏽");
@@ -5600,10 +5602,19 @@ void check_message_composer()
           "Shift+Enter inserts a newline without sending");
     QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier, "\r");
     QApplication::sendEvent(edit, &enter);
-    check(sent == 1 && sent_text == text + QStringLiteral("\n尾行") && edit->toPlainText() == sent_text && !send->isEnabled(),
-          "Enter submits the complete multiline draft and retains it until confirmation");
-    page.finish_message_send(direct.id, 1, 1, sent_text, {}, {}, {});
-    check(edit->toPlainText().isEmpty(), "Confirmed sending clears the matching draft");
+    auto* list = page.findChild<QListView*>("messageList");
+    check(sent == 1 && sent_text == text + QStringLiteral("\n尾行") && edit->toPlainText().isEmpty() && !send->isEnabled() &&
+              list->model()->rowCount() == 1 &&
+              list->model()->index(0, 0).data(message_model::send_state_role).toInt() == message_model::sending &&
+              list->model()->index(0, 0).data(message_model::text_role).toString() == sent_text,
+          "Enter submits the complete multiline draft, clears the composer and lists it as sending");
+    message_data confirmed;
+    confirmed.id = 1; confirmed.conversation = direct.id; confirmed.from = 1; confirmed.timestamp = 1;
+    confirmed.text = sent_text; confirmed.client_id = sent_client;
+    page.finish_send(direct.id, sent_client, confirmed, {}, false);
+    check(page.unsent_count() == 0 && list->model()->rowCount() == 1 &&
+              list->model()->index(0, 0).data(message_model::send_state_role).toInt() == message_model::sent,
+          "Confirmation replaces the sending row with the stored message");
     wait([&] { return edit->height() == compact_height; });
     check(!send->isEnabled(), "Cleared composer disables sending");
     auto const long_text = QStringLiteral("长内容 中文 🙂\n").repeated(20);
@@ -5901,6 +5912,19 @@ void check_message_viewport()
     direct.can_send = true;
     page.open_conversation(direct);
     page.show();
+    QString last_text;
+    qint64 last_client = 0;
+    QObject::connect(&page, &chat_widget::send_message_requested, &page, [&](qint64, QString text, qint64, qint64 client_id) {
+        last_text = std::move(text);
+        last_client = client_id;
+    });
+    // The server's answer to the last send, stored under the given ID.
+    auto confirm_last = [&](qint64 id) {
+        message_data stored;
+        stored.id = id; stored.conversation = direct.id; stored.from = 1; stored.timestamp = id;
+        stored.text = last_text; stored.client_id = last_client;
+        page.finish_send(direct.id, last_client, stored, {}, false);
+    };
     QList<message_data> history;
     for (int i = 1; i <= 40; ++i)
     {
@@ -5926,7 +5950,7 @@ void check_message_viewport()
     QApplication::processEvents();
     check(scroll->value() == scroll->maximum(),
           "Sending feedback preserves the latest-message position in scrollable history");
-    page.finish_message_send(direct.id, 41, 41, edit->toPlainText(), {}, {}, {});
+    confirm_last(41);
     wait([&] { return scroll->value() == scroll->maximum(); });
     page.set_typing(direct.id, 2, direct.username, true);
     QApplication::processEvents();
@@ -5991,7 +6015,7 @@ void check_message_viewport()
     QApplication::processEvents();
     check(scroll->value() == history_position && scroll->value() < scroll->maximum(),
           "Sending and typing feedback do not pull a history reader to the latest message");
-    page.finish_message_send(direct.id, 43, 43, edit->toPlainText(), {}, {}, {});
+    confirm_last(43);
     incoming.id = 44;
     page.add_message(direct.id, incoming);
     QApplication::processEvents();
@@ -6058,42 +6082,75 @@ void check_conversation_drafts()
     page.open_conversation(second);
     check(edit->toPlainText().isEmpty(), "Changing accounts cannot restore the previous account's draft");
     auto* send = page.findChild<QToolButton*>("sendButton");
-    int requests = 0;
-    QObject::connect(&page, &chat_widget::send_message_requested, &page, [&](auto...) { ++requests; });
+    auto* list = page.findChild<QListView*>("messageList");
+    QList<qint64> requests;
+    QObject::connect(&page, &chat_widget::send_message_requested, &page,
+                     [&](qint64, QString, qint64, qint64 client_id) { requests.push_back(client_id); });
+    auto state_of_last = [&] {
+        return list->model()->index(list->model()->rowCount() - 1, 0).data(message_model::send_state_role).toInt();
+    };
     auto const failed_text = QStringLiteral("失败后继续编辑");
     edit->setPlainText(failed_text);
     send->click();
     QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier, "\r");
     QApplication::sendEvent(edit, &enter);
-    check(requests == 1 && !send->isEnabled() && edit->isEnabled() && edit->toPlainText() == failed_text,
-          "Pending sending preserves editable text and prevents duplicate submission");
-    page.finish_message_send(second.id, 0, 0, failed_text, {}, {}, QStringLiteral("Invalid params"));
-    check(send->isEnabled() && edit->toPlainText() == failed_text, "Rejected sending leaves the draft ready for manual correction");
-    send->click();
+    check(requests.size() == 1 && edit->isEnabled() && edit->toPlainText().isEmpty() && page.unsent_count() == 1 &&
+              state_of_last() == message_model::sending,
+          "Sending lists the message at once and frees the composer; Enter on it empty sends nothing");
     edit->setPlainText(QStringLiteral("等待期间写的新草稿"));
-    page.finish_message_send(second.id, 1, 1, failed_text, {}, {}, {});
-    check(requests == 2 && send->isEnabled() && edit->toPlainText() == QStringLiteral("等待期间写的新草稿"),
-          "Confirmation cannot erase text edited after submission");
+    page.finish_send(second.id, requests[0], {}, QStringLiteral("Invalid params"), false);
+    check(edit->toPlainText() == QStringLiteral("等待期间写的新草稿") && page.unsent_count() == 1 &&
+              state_of_last() == message_model::failed,
+          "A refusal marks the message failed and leaves the newer draft alone");
+    // Its menu sends it again under the same client_id.
+    page.show();
+    QTimer::singleShot(20, [] {
+        auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+        check(menu, "Refused message menu");
+        auto const actions = menu->actions();
+        auto const retry = std::ranges::find_if(actions, [](auto* action) { return action->text() == QStringLiteral("重新发送"); });
+        check(retry != actions.end(), "A refused message can be sent again");
+        menu->setActiveAction(*retry);
+        QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+        QApplication::sendEvent(menu, &enter);
+    });
+    auto const refused_row = list->model()->index(list->model()->rowCount() - 1, 0);
+    list->customContextMenuRequested(list->visualRect(refused_row).center());
+    check(requests.size() == 2 && requests[1] == requests[0] && state_of_last() == message_model::sending,
+          "Sending again reuses the client_id and shows it sending");
+    page.finish_send(second.id, requests[1], {}, QStringLiteral("Invalid params"), false);
     auto const background_text = QStringLiteral("发给群的消息");
     edit->setPlainText(background_text);
     send->click();
     page.open_conversation(first);
     edit->setPlainText(QStringLiteral("另一会话的草稿"));
-    page.finish_message_send(second.id, 2, 2, background_text, {}, {}, {});
-    check(edit->toPlainText() == QStringLiteral("另一会话的草稿"), "Background confirmation does not modify the current conversation");
+    message_data stored;
+    stored.id = 2; stored.conversation = second.id; stored.from = 3; stored.timestamp = 2;
+    stored.text = background_text; stored.client_id = requests[2];
+    page.finish_send(second.id, requests[2], stored, {}, false);
+    check(edit->toPlainText() == QStringLiteral("另一会话的草稿") && page.unsent_count() == 1,
+          "Background confirmation finishes its message without touching the current conversation");
     page.open_conversation(second);
-    check(edit->toPlainText().isEmpty(), "Background confirmation clears only the submitted conversation's matching draft");
-    edit->setPlainText(failed_text);
+    check(edit->toPlainText().isEmpty() && list->model()->rowCount() == 1 && state_of_last() == message_model::failed,
+          "Reopening lists only the refused message, ready to send again or discard");
+    edit->setPlainText(QStringLiteral("断线时发送"));
     send->click();
-    page.open_conversation(first);
-    page.finish_message_send(second.id, 0, 0, failed_text, {}, {}, QStringLiteral("Invalid params"));
-    page.open_conversation(second);
-    check(edit->toPlainText() == failed_text && send->isEnabled(), "Background rejection retains the original conversation's draft");
-    send->click();
+    page.finish_send(second.id, requests[3], {}, QStringLiteral("连接已断开"), true);
     page.set_connection_available(false);
-    check(edit->toPlainText() == failed_text && !edit->isEnabled(), "Disconnect keeps unconfirmed text");
+    check(page.unsent_count() == 2 && state_of_last() == message_model::sending && !edit->isEnabled(),
+          "A dropped connection leaves the message sending");
     page.set_connection_available(true);
-    check(edit->toPlainText() == failed_text && send->isEnabled(), "Reconnect leaves the draft available without automatic resending");
+    page.resend_outgoing();
+    check(requests.size() == 5 && requests[4] == requests[3],
+          "Reconnecting sends again only the unrefused message, under its client_id");
+    page.close_conversation(second.id);
+    check(page.unsent_count() == 0, "A removed conversation's unsent messages are discarded");
+    page.open_conversation(first);
+    edit->setPlainText(QStringLiteral("会话消失前未确认"));
+    send->click();
+    check(page.unsent_count() == 1, "A message sent in the remaining conversation is pending");
+    page.set_conversations({});
+    check(page.unsent_count() == 0, "A conversation missing from the complete list loses its unsent messages");
     std::cout << "PASS Qt conversation draft ownership, closure and account isolation\n";
 }
 
@@ -6242,7 +6299,7 @@ int main(int argc, char** argv)
             std::promise<void> failed_connect;
             client_bridge bridge;
             int stale_results = 0;
-            QObject::connect(&bridge, &client_bridge::attachment_sent, &bridge, [&](auto...) { ++stale_results; });
+            QObject::connect(&bridge, &client_bridge::send_finished, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::attachment_received, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::message_search_received, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::reaction_changed, &bridge, [&](auto...) { ++stale_results; });
@@ -6250,7 +6307,6 @@ int main(int argc, char** argv)
             QObject::connect(&bridge, &client_bridge::read_marked, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::mute_finished, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::pin_finished, &bridge, [&](auto...) { ++stale_results; });
-            QObject::connect(&bridge, &client_bridge::message_sent, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::message_updated, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::group_pin_finished, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::group_action_finished, &bridge, [&](auto...) { ++stale_results; });
@@ -6267,13 +6323,13 @@ int main(int argc, char** argv)
             QObject::connect(&bridge, &client_bridge::contact_added, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::contact_removed, &bridge, [&](auto...) { ++stale_results; });
             QObject::connect(&bridge, &client_bridge::error, &bridge, [&](auto) { failed_connect.set_value(); }, Qt::DirectConnection);
-            bridge.send_attachment(1, "stale.bin", "old upload");
+            bridge.send_attachment(1, "stale.bin", "old upload", 0, 1);
             bridge.get_attachment(1, 1);
             bridge.get_message_image(1, 1);
             bridge.mark_read(1, 1);
             bridge.set_conversation_muted(1, true);
             bridge.set_conversation_pinned(1, true);
-            bridge.send_message(1, "stale @user", 0);
+            bridge.send_message(1, "stale @user", 0, 2);
             bridge.edit_message(1, 1, "stale edit @user");
             bridge.delete_message(1, 1);
             bridge.set_group_pinned_message(1, 1);
@@ -6449,7 +6505,7 @@ int main(int argc, char** argv)
                         int resets = 0;
                         auto const capture = QObject::connect(view->model(), &QAbstractItemModel::modelReset, menu, [&] { ++resets; });
                         auto const text = pin ? QStringLiteral("置顶菜单打开时的列表刷新") : QStringLiteral("静音菜单打开时的列表刷新");
-                        pages[0]->send_message_requested(conversation, text, 0);
+                        pages[0]->send_message_requested(conversation, text, 0, chat::client::new_client_id());
                         wait([&] { return resets > 0 && pages[actor]->conversation(conversation)->last_text == text; });
                         QObject::disconnect(capture);
                     }
@@ -6543,7 +6599,8 @@ int main(int argc, char** argv)
             for (int i = 0; i < 3; ++i)
             {
                 auto* view = windows[i]->findChild<QListView*>("messageList");
-                wait([&] { return view->model()->rowCount() == 1; });
+                // The sender's row is the stored message once confirmed, not while it is sending.
+                wait([&] { return view->model()->rowCount() == 1 && pages[i]->unsent_count() == 0; });
                 check(view->model()->index(0, 0).data(message_model::outgoing_role).toBool() == (i == 0),
                       "Real author identity");
             }
@@ -6556,9 +6613,26 @@ int main(int argc, char** argv)
                     return label->text().contains(QStringLiteral("请求参数无效"));
                 });
             });
-            check(edit->toPlainText() == rejected_draft && receipt_view->model()->rowCount() == 1,
-                "Server rejection preserves the complete draft without adding a message");
-            edit->clear();
+            auto const refused = receipt_view->model()->index(receipt_view->model()->rowCount() - 1, 0);
+            check(edit->toPlainText().isEmpty() && receipt_view->model()->rowCount() == 2 &&
+                      refused.data(message_model::send_state_role).toInt() == message_model::failed &&
+                      refused.data(message_model::text_role).toString() == rejected_draft && pages[0]->unsent_count() == 1,
+                "Server rejection keeps the complete text as a failed message without storing it");
+            // Its own menu: sending again or discarding instead of message actions.
+            QTimer::singleShot(20, [] {
+                auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+                check(menu, "Failed message context menu");
+                QStringList labels;
+                for (auto* action : menu->actions()) { labels.push_back(action->text()); }
+                check(labels == QStringList{QStringLiteral("复制"), QStringLiteral("重新发送"), QStringLiteral("删除")},
+                      "A refused message offers copying, sending again and discarding only");
+                menu->setActiveAction(menu->actions().back());
+                QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+                QApplication::sendEvent(menu, &enter);
+            });
+            receipt_view->scrollTo(refused);
+            receipt_view->customContextMenuRequested(receipt_view->visualRect(refused).center());
+            wait([&] { return pages[0]->unsent_count() == 0 && receipt_view->model()->rowCount() == 1; });
             auto const reaction_message = receipt_view->model()->index(0, 0).data(message_model::id_role).toLongLong();
             wait([&] { return notifications[2].size() == 1; });
             check(notifications[0].isEmpty() && notifications[1].isEmpty() &&
@@ -7171,7 +7245,7 @@ int main(int argc, char** argv)
             for (int i = 0; i < 3; ++i)
             {
                 auto* view = windows[i]->findChild<QListView*>("messageList");
-                wait([&] { return view->model()->rowCount() == 2; });
+                wait([&] { return view->model()->rowCount() == 2 && pages[i]->unsent_count() == 0; });
                 check(view->model()->index(1, 0).data(message_model::reply_id_role).toLongLong() ==
                           view->model()->index(0, 0).data(message_model::id_role).toLongLong(),
                       "Qt reply target");
@@ -7286,7 +7360,7 @@ int main(int argc, char** argv)
             windows[2]->findChild<QToolButton*>("sendButton")->click();
             for (int i = 0; i < 3; ++i)
             {
-                wait([&, i] { return windows[i]->findChild<QListView*>("messageList")->model()->rowCount() == 3; });
+                wait([&, i] { return windows[i]->findChild<QListView*>("messageList")->model()->rowCount() == 3 && pages[i]->unsent_count() == 0; });
             }
             auto const retained_message = receipt_view->model()->index(2, 0).data(message_model::id_role).toLongLong();
             pages[0]->reaction_requested(group, retained_message, QStringLiteral("😂"));
@@ -7375,7 +7449,9 @@ int main(int argc, char** argv)
             windows[1]->findChild<QToolButton*>("sendButton")->click();
             for (int i = 0; i < 3; ++i)
             {
-                wait([&, i] { return windows[i]->findChild<QListView*>("messageList")->model()->rowCount() == 4; });
+                // The sender's row is stored once its client_id is confirmed, not while it is sending.
+                wait([&, i] { return windows[i]->findChild<QListView*>("messageList")->model()->rowCount() == 4 &&
+                                     pages[i]->unsent_count() == 0; });
             }
             wait([&] { return pages[2]->conversation(group)->last_id == pages[2]->latest_message_id(); });
             check(notifications[2].size() == muted_group_notices && pages[2]->conversation(group)->unread > 0,
@@ -7514,7 +7590,8 @@ int main(int argc, char** argv)
                   "An authoritative snapshot preserves a newly opened empty direct chat");
             windows[0]->findChild<QPlainTextEdit*>("messageEdit")->setPlainText(QStringLiteral("保留单聊历史"));
             windows[0]->findChild<QToolButton*>("sendButton")->click();
-            wait([&] { return windows[0]->findChild<QListView*>("messageList")->model()->rowCount() == 1; });
+            // Stored once confirmed: the row is the server's message, not the sending one.
+            wait([&] { return windows[0]->findChild<QListView*>("messageList")->model()->rowCount() == 1 && pages[0]->unsent_count() == 0; });
             wait([&] {
                 return std::ranges::any_of(notifications[1], [&](auto const& value) {
                     return value.conversation == direct && value.title == names[0] && value.summary == QStringLiteral("保留单聊历史");
@@ -8103,7 +8180,7 @@ int main(int argc, char** argv)
                 if (modal == "attachmentDialog")
                 {
                     auto const before_file = pages[0]->latest_message_id();
-                    pages[0]->attachment_send_requested(group, "removal.bin", QByteArray("group file"), 0);
+                    pages[0]->attachment_send_requested(group, "removal.bin", QByteArray("group file"), 0, chat::client::new_client_id());
                     wait([&] { return pages[0]->latest_message_id() > before_file && pages[2]->latest_message_id() > before_file; });
                     file_message = pages[2]->latest_message_id();
                 }
@@ -8111,7 +8188,7 @@ int main(int argc, char** argv)
                 {
                     // Read details belong to the sender, so the removed member opens them on its own message.
                     auto const before_own = pages[2]->latest_message_id();
-                    pages[2]->send_message_requested(group, QStringLiteral("移除前自己的消息"), 0);
+                    pages[2]->send_message_requested(group, QStringLiteral("移除前自己的消息"), 0, chat::client::new_client_id());
                     wait([&] { return pages[2]->latest_message_id() > before_own; });
                 }
                 QTimer::singleShot(50, [&] {
@@ -8384,7 +8461,7 @@ int main(int argc, char** argv)
                     !windows[i]->findChild<QPushButton*>("pinnedMessageButton")->isVisible(); });
             }
             auto const before_group_image = pages[0]->latest_message_id();
-            pages[0]->attachment_send_requested(group, "group.png", image_bytes, 0);
+            pages[0]->attachment_send_requested(group, "group.png", image_bytes, 0, chat::client::new_client_id());
             auto* group_images = windows[2]->findChild<QListView*>("messageList");
             wait([&] {
                 auto const index = group_images->model()->index(group_images->model()->rowCount() - 1, 0);
@@ -8417,7 +8494,7 @@ int main(int argc, char** argv)
             auto* pinned_list = windows[1]->findChild<QListView*>("conversationList");
             wait([&] { return pinned_list->model()->index(0, 0).data(conversation_model::id_role).toLongLong() == direct; });
             check(!pages[0]->conversation(direct)->pinned, "Qt pin is private");
-            pages[0]->send_message_requested(group, QStringLiteral("新群消息不挤掉个人置顶"), 0);
+            pages[0]->send_message_requested(group, QStringLiteral("新群消息不挤掉个人置顶"), 0, chat::client::new_client_id());
             wait([&] { return pages[1]->conversation(group)->last_text == QStringLiteral("新群消息不挤掉个人置顶"); });
             check(pinned_list->model()->index(0, 0).data(conversation_model::id_role).toLongLong() == direct,
                 "New ordinary conversation activity stays below pinned tier");
@@ -8427,7 +8504,7 @@ int main(int argc, char** argv)
             set_preference(1, direct, true, false, true);
             auto const other_conversation_notices = notifications[1].size();
             activate(0);
-            pages[0]->send_message_requested(direct, QStringLiteral("静音单聊仍实时到达"), 0);
+            pages[0]->send_message_requested(direct, QStringLiteral("静音单聊仍实时到达"), 0, chat::client::new_client_id());
             wait([&] { return pages[1]->conversation(direct)->last_text == QStringLiteral("静音单聊仍实时到达") &&
                 pages[1]->conversation(direct)->unread > 0; });
             check(notifications[1].size() == other_conversation_notices && !pages[0]->conversation(direct)->muted,
@@ -8443,7 +8520,7 @@ int main(int argc, char** argv)
                 desktop->click();
                 auto const suppressed = notifications[1].size(); auto const unread = pages[1]->conversation(direct)->unread;
                 QString const body = QStringLiteral("关闭桌面通知仍到达 中文 é 👩‍💻");
-                pages[0]->send_message_requested(direct, body, 0);
+                pages[0]->send_message_requested(direct, body, 0, chat::client::new_client_id());
                 wait([&] { return pages[1]->conversation(direct)->last_text == body && pages[1]->conversation(direct)->unread > unread; });
                 check(notifications[1].size() == suppressed, "Disabling desktop notifications preserves actual message delivery and unread without emitting a notification");
                 desktop->click(); preview->click();
@@ -8454,11 +8531,11 @@ int main(int argc, char** argv)
                         "Disabled previews emit only the generic app title and new-message summary without identities, body or filename");
                 };
                 auto const text_notices = notifications[1].size();
-                QString const private_text = QStringLiteral("PRIVATE 名字 内容 é 👩‍💻"); pages[0]->send_message_requested(direct, private_text, 0);
+                QString const private_text = QStringLiteral("PRIVATE 名字 内容 é 👩‍💻"); pages[0]->send_message_requested(direct, private_text, 0, chat::client::new_client_id());
                 generic(text_notices); wait([&] { return pages[1]->conversation(direct)->last_text == private_text; });
                 check(pages[1]->conversation(direct)->last_text == private_text, "Privacy changes only the notification and preserves the actual message body");
                 auto const file_notices = notifications[1].size();
-                pages[0]->attachment_send_requested(direct, "PRIVATE-secret-name.txt", QByteArray("PRIVATE attachment body"), 0);
+                pages[0]->attachment_send_requested(direct, "PRIVATE-secret-name.txt", QByteArray("PRIVATE attachment body"), 0, chat::client::new_client_id());
                 generic(file_notices);
                 wait([&] { return pages[1]->conversation(direct)->last_text.contains(QStringLiteral("PRIVATE-secret-name.txt")); });
                 check(pages[1]->conversation(direct)->last_text.contains(QStringLiteral("PRIVATE-secret-name.txt")), "Private attachment notifications preserve the authoritative attachment filename in chat");
@@ -8467,7 +8544,7 @@ int main(int argc, char** argv)
             }
             auto const foreground_other_notices = notifications[1].size();
             activate(1);
-            pages[0]->send_message_requested(direct, QStringLiteral("前台查看其他会话"), 0);
+            pages[0]->send_message_requested(direct, QStringLiteral("前台查看其他会话"), 0, chat::client::new_client_id());
             wait([&] { return notifications[1].size() == foreground_other_notices + 1; });
             check(notifications[1].back().conversation == direct && notifications[1].back().title == names[0],
                 "Foreground window still notifies for another conversation");
@@ -8486,14 +8563,14 @@ int main(int argc, char** argv)
             windows[1]->showMinimized();
             wait([&] { return windows[1]->isMinimized(); });
             auto const minimized_notices = notifications[1].size();
-            pages[0]->send_message_requested(direct, QStringLiteral("最小化后的消息"), 0);
+            pages[0]->send_message_requested(direct, QStringLiteral("最小化后的消息"), 0, chat::client::new_client_id());
             wait([&] { return notifications[1].size() == minimized_notices + 1; });
             auto* tray = windows[1]->findChild<QSystemTrayIcon*>("notificationTray");
             check(tray && QMetaObject::invokeMethod(tray, "messageClicked", Qt::DirectConnection), "Notification restore signal wiring");
             wait([&] { return !windows[1]->isMinimized() && windows[1]->isActiveWindow(); });
             auto const foreground_notices = notifications[1].size();
             auto const long_message = QStringLiteral("history line\n").repeated(60);
-            pages[0]->send_message_requested(direct, long_message, 0);
+            pages[0]->send_message_requested(direct, long_message, 0, chat::client::new_client_id());
             auto* direct_messages = windows[1]->findChild<QListView*>("messageList");
             auto* read_model = dynamic_cast<message_model*>(direct_messages->model());
             check(read_model, "Real conversation message model");
@@ -8509,7 +8586,7 @@ int main(int argc, char** argv)
             auto const history_scroll = direct_scroll->value();
             auto const previous_read = pages[1]->latest_message_id();
             auto const sender_notices = notifications[0].size();
-            pages[0]->send_message_requested(direct, long_message + QStringLiteral("\n历史阅读时的新消息"), 0);
+            pages[0]->send_message_requested(direct, long_message + QStringLiteral("\n历史阅读时的新消息"), 0, chat::client::new_client_id());
             wait([&] { return notifications[1].size() == foreground_notices + 1 && pages[1]->latest_message_id() > previous_read; });
             check(direct_scroll->value() == history_scroll && notifications[1].back().summary.size() == 120 &&
                 notifications[0].size() == sender_notices, "History scroll stays fixed; notification is compact and sender is excluded");
@@ -8682,6 +8759,85 @@ int main(int argc, char** argv)
             }
             check(pinned_unicode_ok && notification_unicode_ok,
                   "Pinned controls and real notification arguments omit incomplete boundary clusters without changing original Unicode");
+            {
+                // Two attachments submitted together both finish: the client queues them and the bridge
+                // no longer keeps only the latest upload's result.
+                activate(0);
+                pages[0]->open_conversation(*pages[0]->conversation(group));
+                wait([&] { return pages[0]->active_conversation() == group && pages[0]->messages_ready(); });
+                auto* sender_view = windows[0]->findChild<QListView*>("messageList");
+                auto shows = [&](QString const& filename) {
+                    for (int row = 0; row < sender_view->model()->rowCount(); ++row)
+                    {
+                        auto const index = sender_view->model()->index(row, 0);
+                        if (index.data(message_model::attachment_name_role).toString() == filename &&
+                            index.data(message_model::send_state_role).toInt() == message_model::sent) { return true; }
+                    }
+                    return false;
+                };
+                pages[0]->attachment_send_requested(group, "queued-1.bin", QByteArray(70000, 'q'), 0, chat::client::new_client_id());
+                pages[0]->attachment_send_requested(group, "queued-2.bin", QByteArray("second"), 0, chat::client::new_client_id());
+                wait([&] { return shows("queued-1.bin") && shows("queued-2.bin"); });
+
+                // A send still waiting on the server when it stops is sent again after reconnecting, once.
+                auto const resent_text = QStringLiteral("重连后自动重发 é 👩‍💻");
+                std::unique_ptr<PGresult, decltype(&PQclear)> held(PQexec(db,
+                    ("BEGIN; SELECT id FROM conversations WHERE id=" + std::to_string(group) + " FOR UPDATE").c_str()), &PQclear);
+                check(held && PQresultStatus(held.get()) == PGRES_TUPLES_OK, "Hold the group conversation lock");
+                windows[0]->findChild<QPlainTextEdit*>("messageEdit")->setPlainText(resent_text);
+                windows[0]->findChild<QToolButton*>("sendButton")->click();
+                check(pages[0]->unsent_count() == 1 && windows[0]->findChild<QPlainTextEdit*>("messageEdit")->toPlainText().isEmpty(),
+                      "The send is listed at once and the composer is free");
+                wait([&] {
+                    std::unique_ptr<PGresult, decltype(&PQclear)> blocked(PQexec(db,
+                        "SELECT pg_stat_clear_snapshot(); SELECT EXISTS(SELECT 1 FROM pg_stat_activity "
+                        "WHERE datname=current_database() AND pg_backend_pid()=ANY(pg_blocking_pids(pid)))"), &PQclear);
+                    return blocked && PQresultStatus(blocked.get()) == PGRES_TUPLES_OK &&
+                        std::string_view(PQgetvalue(blocked.get(), 0, 0)) == "t";
+                });
+                server.terminate();
+                check(server.waitForFinished(3000), "Stop server with a send waiting");
+                std::unique_ptr<PGresult, decltype(&PQclear)> released(PQexec(db, "COMMIT"), &PQclear);
+                check(released && PQresultStatus(released.get()) == PGRES_COMMAND_OK, "Release the group conversation lock");
+                wait([&] { return !windows[0]->findChild<QPlainTextEdit*>("messageEdit")->isEnabled(); });
+                check(pages[0]->unsent_count() == 1, "A dropped connection leaves the message sending");
+                // Quitting would lose it: closing the window and the tray's Quit both ask, and cancelling keeps running.
+                for (bool tray : {false, true})
+                {
+                    bool asked = false;
+                    QTimer::singleShot(50, [&] {
+                        auto* confirmation = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+                        asked = confirmation && confirmation->text().contains(QStringLiteral("1 条消息未发送"));
+                        if (confirmation) { confirmation->button(QMessageBox::No)->click(); }
+                    });
+                    if (tray) { windows[0]->findChild<QAction*>("trayQuitAction")->trigger(); }
+                    else
+                    {
+                        QCloseEvent close;
+                        QApplication::sendEvent(windows[0].get(), &close);
+                        check(!close.isAccepted(), "A cancelled close keeps the window");
+                    }
+                    check(asked && windows[0]->isVisible() && pages[0]->unsent_count() == 1,
+                          tray ? "The tray's Quit asks before losing unsent messages" : "Closing the window asks before losing unsent messages");
+                }
+                start();
+                wait([&] {
+                    if (pages[0]->unsent_count() != 0) { return false; }
+                    for (int row = 0; row < sender_view->model()->rowCount(); ++row)
+                    {
+                        auto const index = sender_view->model()->index(row, 0);
+                        if (index.data(message_model::text_role).toString() == resent_text) { return true; }
+                    }
+                    return false;
+                });
+                // The fixture text has no quote characters, so it is a literal as it is.
+                auto const count_sql = "SELECT count(*) FROM messages WHERE conversation_id=" + std::to_string(group) +
+                    " AND body='" + resent_text.toUtf8().toStdString() + "'";
+                std::unique_ptr<PGresult, decltype(&PQclear)> stored(PQexec(db, count_sql.c_str()), &PQclear);
+                check(stored && PQresultStatus(stored.get()) == PGRES_TUPLES_OK && std::string_view(PQgetvalue(stored.get(), 0, 0)) == "1",
+                      "The message resent after reconnecting is stored once");
+                std::cout << "PASS Qt queued attachments and resend after reconnect\n";
+            }
         }
         std::cout << "PASS three real Qt windows: login, contacts group creation, member list, message author, "
                      "realtime, server restart and automatic recovery\n";

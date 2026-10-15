@@ -2,6 +2,7 @@
 #define CHAT_QT_SRC_CHAT_WIDGET_HPP
 
 #include <QHash>
+#include <QPoint>
 #include <QDeadlineTimer>
 #include <QElapsedTimer>
 #include <QList>
@@ -77,10 +78,13 @@ class chat_widget final : public QWidget
     void add_message(qint64 user, message_data message);
     void update_message(message_data message);
     bool set_reactions(qint64 conversation, qint64 message, qint64 revision, QList<reaction_data> reactions);
-    void finish_message_send(qint64 user, qint64 message, qint64 timestamp, QString text, quoted_message_data reply,
-                             QList<mention_data> mentions, QString error);
+    // The answer to a text or attachment send; lost means the connection dropped first.
+    void finish_send(qint64 conversation, qint64 client_id, message_data message, QString error, bool lost);
+    // After signing in again: the sends the link dropped go out again, in the order they were made.
+    void resend_outgoing();
+    // Sends not confirmed yet, which quitting or signing out would lose.
+    qsizetype unsent_count() const { return outgoing_.size(); }
     void set_message_error(qint64 user, QString message);
-    void finish_attachment_send(qint64 conversation, QString error_message);
 
     qint64 active_conversation() const noexcept;
     qint64 latest_message_id() const;
@@ -102,7 +106,7 @@ class chat_widget final : public QWidget
     void avatar_update_finished(QString error);
     void conversation_selected(qint64 user, bool group);
     void older_messages_requested(qint64 user, qint64 before);
-    void send_message_requested(qint64 user, QString text, qint64 reply_to);
+    void send_message_requested(qint64 conversation, QString text, qint64 reply_to, qint64 client_id);
     void delete_message_requested(qint64 conversation, qint64 message);
     void edit_message_requested(qint64 conversation, qint64 message, QString text);
     void reaction_requested(qint64 conversation, qint64 message, QString emoji);
@@ -122,7 +126,7 @@ class chat_widget final : public QWidget
     void message_search_requested(qint64 conversation, qint64 self_user, bool group, QString title, QString query);
     void chat_history_requested(qint64 conversation, QString title);
     void group_message_pin_requested(qint64 conversation, std::optional<qint64> message);
-    void attachment_send_requested(qint64 conversation, QString filename, QByteArray data, qint64 reply_to);
+    void attachment_send_requested(qint64 conversation, QString filename, QByteArray data, qint64 reply_to, qint64 client_id);
     void attachment_open_requested(qint64 conversation, qint64 message, QString filename, bool preview);
     void typing_requested(qint64 conversation, bool typing);
     void read_requested(qint64 conversation, qint64 message);
@@ -133,6 +137,21 @@ class chat_widget final : public QWidget
     bool eventFilter(QObject* object, QEvent* event) override;
 
    private:
+    // A send owns its text or file and its reply from the moment it is made (docs/outgoing-messages-design.md).
+    struct outgoing
+    {
+        qint64 client_id = 0;
+        qint64 conversation = 0;
+        QString text;
+        // An attachment has a file name and its bytes.
+        QString filename;
+        QByteArray data;
+        quoted_message_data reply;
+        qint64 created = 0;
+        // Refused by the server; otherwise still sending, and sent again after a reconnect.
+        bool failed = false;
+        QString error;
+    };
     void show_conversations_section();
     void show_contacts_dialog();
     void show_contacts_home();
@@ -159,6 +178,15 @@ class chat_widget final : public QWidget
     void request_older_messages();
     void continue_locate();
     void send_current_message();
+    void queue_outgoing(outgoing item);
+    void submit(outgoing const& item);
+    // Shows the open conversation's unconfirmed sends after its messages.
+    void show_outgoing();
+    // A stored message carrying an unconfirmed send's client_id finishes it.
+    void settle(message_data const& message);
+    void drop_outgoing(qint64 conversation);
+    void show_outgoing_menu(QModelIndex const& index, QPoint position);
+    quoted_message_data quote(qint64 message) const;
     void show_read_details(qint64 conversation, qint64 message);
     void update_chat_header(QString const& username);
     void update_pinned_message();
@@ -239,7 +267,7 @@ class chat_widget final : public QWidget
     QWidget* input_bar_ = nullptr;
     QPlainTextEdit* message_edit_ = nullptr;
     QHash<qint64, QString> drafts_;
-    QSet<qint64> message_sending_;
+    QList<outgoing> outgoing_;
     QWidget* reply_bar_ = nullptr;
     QLabel* reply_preview_ = nullptr;
     qint64 reply_to_ = 0;
@@ -261,12 +289,9 @@ class chat_widget final : public QWidget
     bool messages_loading_ = false;
     bool history_exhausted_ = false;
     qint64 pending_locate_ = 0;
-    qint64 attachment_reply_ = 0;
-    QString attachment_reply_text_;
     int locate_pages_ = 0;
     bool control_enter_send_ = false;
     bool connection_available_ = true;
-    bool attachment_sending_ = false;
 };
 
 #endif

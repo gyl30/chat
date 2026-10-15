@@ -66,22 +66,49 @@ bool message_model::can_manage_group() const
 
 int message_model::rowCount(QModelIndex const& parent) const
 {
-    return parent.isValid() ? 0 : messages_.size();
+    return parent.isValid() ? 0 : messages_.size() + pending_.size();
 }
 
 QVariant message_model::data(QModelIndex const& index, int role) const
 {
-    if (!index.isValid() || index.row() < 0 || index.row() >= messages_.size())
+    if (!index.isValid() || index.row() < 0 || index.row() >= rowCount())
     {
         return {};
     }
 
-    auto const& message = messages_[index.row()];
+    auto const pending = index.row() >= messages_.size();
+    if (pending)
+    {
+        // Not stored yet: no ID, no readers, reactions or image, only its sending state.
+        auto const& item = pending_[index.row() - messages_.size()];
+        switch (role)
+        {
+            case send_state_role:
+                return item.failed ? failed : sending;
+            case send_error_role:
+                return item.error;
+            case read_role:
+                return false;
+            case read_count_role:
+            case image_role:
+            case image_status_role:
+                return {};
+            default:
+                break;
+        }
+    }
+    auto const& message = pending ? pending_[index.row() - messages_.size()].message : messages_[index.row()];
     auto const outgoing = message.from == self_user_;
     switch (role)
     {
         case id_role:
             return message.id;
+        case client_id_role:
+            return message.client_id;
+        case send_state_role:
+            return sent;
+        case send_error_role:
+            return QString{};
         case from_role:
             return message.from;
         case timestamp_role:
@@ -215,7 +242,22 @@ void message_model::reset(qint64 conversation, bool group)
     read_positions_.clear();
     members_.clear();
     messages_.clear();
+    pending_.clear();
     endResetModel();
+}
+
+void message_model::set_pending(QList<pending_message> pending)
+{
+    if (!pending_.isEmpty())
+    {
+        beginRemoveRows({}, messages_.size(), messages_.size() + pending_.size() - 1);
+        pending_.clear();
+        endRemoveRows();
+    }
+    if (pending.isEmpty()) { return; }
+    beginInsertRows({}, messages_.size(), messages_.size() + pending.size() - 1);
+    pending_ = std::move(pending);
+    endInsertRows();
 }
 
 int message_model::merge_messages(QList<message_data> messages)

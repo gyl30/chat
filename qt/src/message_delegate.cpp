@@ -206,6 +206,17 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
         result.time = QStringLiteral("提及你 · ") + result.time;
     }
     result.read = result.outgoing && read_at(index);
+    switch (index.data(message_model::send_state_role).toInt())
+    {
+        case message_model::sending:
+            result.time = QStringLiteral("发送中…");
+            break;
+        case message_model::failed:
+            result.time = QStringLiteral("发送失败：%1").arg(index.data(message_model::send_error_role).toString());
+            break;
+        default:
+            break;
+    }
     result.day_start = starts_day(index);
     result.group_start = starts_group(index);
     result.group_end = ends_group(index);

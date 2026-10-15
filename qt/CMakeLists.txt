@@ -131,7 +131,8 @@ add_test(NAME qt_widgets COMMAND chat_qt_ui_test --widgets-only)
 set_tests_properties(qt_widgets PROPERTIES TIMEOUT 60
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen:configfile=${CMAKE_CURRENT_SOURCE_DIR}/tests/offscreen-desktop.json")
 add_test(NAME qt_ui COMMAND chat_qt_ui_test $<TARGET_FILE:chat_server> "${CMAKE_CURRENT_BINARY_DIR}")
-set_tests_properties(qt_ui PROPERTIES TIMEOUT 60 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+# The three-window real-server smoke restarts the server several times; under sanitizers it takes about a minute.
+set_tests_properties(qt_ui PROPERTIES TIMEOUT 120 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 # Both build-tree and installed clients load editable assets relative to the executable.
 set(chat_theme_files common.qss daylight.qss daylight.json midnight.qss midnight.json)

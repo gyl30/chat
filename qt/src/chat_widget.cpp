@@ -54,6 +54,7 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <chat/attachment.hpp>
+#include <chat/client.hpp>
 #include <chat/reaction.hpp>
 
 #include "avatar.hpp"
@@ -717,6 +718,11 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
             [this](QPoint position)
             {
                 auto const index = messages_view_->indexAt(position);
+                if (index.isValid() && index.data(message_model::send_state_role).toInt() != message_model::sent)
+                {
+                    show_outgoing_menu(index, position);
+                    return;
+                }
                 if (!index.isValid() || !connection_available_ || index.data(message_model::deleted_role).toBool())
                 {
                     return;
@@ -961,17 +967,16 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                                                      : QStringLiteral("连接已断开，请重新发送文件。"));
             return;
         }
-        auto const reply = reply_to_;
-        // Kept until the result, so a failed upload can restore the reply like a failed text send keeps it.
-        attachment_reply_ = reply;
-        attachment_reply_text_ = reply_preview_->text();
+        // The file takes the reply with it, as a text message does.
+        outgoing item;
+        item.client_id = chat::client::new_client_id();
+        item.conversation = active_conversation_;
+        item.filename = QFileInfo(path).fileName();
+        item.data = std::move(data);
+        item.reply = quote(reply_to_);
         reply_to_ = 0;
         reply_bar_->hide();
-        attachment_sending_ = true;
-        stop_typing();
-        attachment_button_->setEnabled(false);
-        set_message_status(QStringLiteral("正在发送 %1…").arg(QFileInfo(path).fileName()));
-        emit attachment_send_requested(active_conversation_, QFileInfo(path).fileName(), std::move(data), reply);
+        queue_outgoing(std::move(item));
     });
     send_button_ = new QToolButton(input_bar);
     send_button_->setObjectName(QStringLiteral("sendButton"));
@@ -1219,9 +1224,7 @@ void chat_widget::set_user(QString const& username, qint64 user)
     self_profile_action_->setIcon(avatar_icon(username, 24));
     self_profile_action_->setEnabled(user > 0);
     drafts_.clear();
-    message_sending_.clear();
-    attachment_sending_ = false;
-    attachment_reply_ = 0;
+    outgoing_.clear();
     active_peer_ = 0;
     active_group_ = false;
     reply_to_ = 0;
@@ -1422,11 +1425,10 @@ void chat_widget::set_connection_available(bool available)
         set_presences({});
         typing_users_.clear();
         update_typing_label();
-        if (message_sending_.contains(active_conversation_))
+        if (std::ranges::any_of(outgoing_, [](outgoing const& item) { return !item.failed; }))
         {
-            set_message_status(QStringLiteral("连接已断开，消息可能未发出，草稿已保留"));
+            set_message_status(QStringLiteral("连接已断开，未发送的消息会在重新连接后自动发送"));
         }
-        message_sending_.clear();
     }
     if (!available && avatar_updating_)
     {
@@ -1436,11 +1438,6 @@ void chat_widget::set_connection_available(bool available)
     emit friendship_updated();
     images_.retry();
     if (available) { QTimer::singleShot(0, messages_view_, [this] { load_visible_images(); }); }
-    if (!available && attachment_sending_)
-    {
-        attachment_sending_ = false;
-        set_message_status(QStringLiteral("连接已断开，请重新发送文件。"));
-    }
     if (!available && active_group_)
     {
         messages_->set_read_positions({});
@@ -1503,7 +1500,11 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
         if (!conversations_->index_for_conversation(it.key()).isValid() && groups.contains(it.key())) { it = drafts_.erase(it); }
         else { ++it; }
     }
-    message_sending_.removeIf([this](qint64 id) { return !conversations_->index_for_conversation(id).isValid(); });
+    // The complete list: unconfirmed sends of a conversation no longer in it cannot go anywhere.
+    auto const dropped = outgoing_.removeIf([this](outgoing const& item) {
+        return !conversations_->index_for_conversation(item.conversation).isValid();
+    });
+    if (dropped > 0) { set_error(QStringLiteral("%1 条未发送的消息已丢弃：会话已不可访问").arg(dropped)); }
     update_compose_state();
     update_pinned_message();
     for (auto const& item : presence_)
@@ -1760,6 +1761,7 @@ void chat_widget::set_messages(qint64 user, QList<message_data> messages, read_p
         return;
     }
 
+    for (auto const& message : messages) { settle(message); }
     auto* scroll = messages_view_->verticalScrollBar();
     auto const old_maximum = scroll->maximum();
     auto const old_value = scroll->value();
@@ -1845,6 +1847,7 @@ void chat_widget::reset_read_positions(qint64 conversation)
 
 void chat_widget::add_message(qint64 user, message_data message)
 {
+    settle(message);
     if (user != active_conversation_)
     {
         return;
@@ -1895,66 +1898,30 @@ bool chat_widget::set_reactions(qint64 conversation, qint64 message, qint64 revi
     return conversation != active_conversation_ || messages_->set_reactions(message, revision, std::move(reactions));
 }
 
-void chat_widget::finish_message_send(qint64 user, qint64 message, qint64 timestamp, QString text,
-                                      quoted_message_data reply, QList<mention_data> mentions, QString error)
+void chat_widget::finish_send(qint64 conversation, qint64 client_id, message_data message, QString error, bool lost)
 {
-    if (message_sending_.remove(user) && error.isEmpty())
+    auto found = std::ranges::find(outgoing_, client_id, &outgoing::client_id);
+    if (error.isEmpty())
     {
-        if (user == active_conversation_)
-        {
-            if (message_edit_->toPlainText() == text && reply_to_ == reply.id)
-            {
-                stop_typing();
-                message_edit_->clear();
-                reply_to_ = 0;
-                reply_bar_->hide();
-            }
-        }
-        else if (drafts_.value(user) == text) { drafts_.remove(user); }
-    }
-    update_compose_state();
-    if (!error.isEmpty())
-    {
-        set_message_error(user, QStringLiteral("发送失败：%1。草稿已保留。").arg(error));
+        // settle() through add_message() takes it off the unconfirmed list.
+        add_message(conversation, std::move(message));
         return;
     }
-    if (user != active_conversation_)
-    {
-        return;
-    }
-
-    message_data value;
-    value.id = message;
-    value.conversation = user;
-    value.from = self_user_;
-    value.username = self_username_;
-    value.timestamp = timestamp;
-    value.text = std::move(text);
-    value.reply = std::move(reply);
-    value.mentions = std::move(mentions);
-    add_message(user, std::move(value));
+    // A dropped connection leaves it sending: it is sent again after reconnecting.
+    if (found == outgoing_.end() || lost) { return; }
+    found->failed = true;
+    found->error = error;
+    if (conversation != active_conversation_) { return; }
+    show_outgoing();
+    set_message_error(conversation, QStringLiteral("发送失败：%1。右键该消息可重新发送或删除。").arg(error));
 }
 
-void chat_widget::finish_attachment_send(qint64 conversation, QString error_message)
+void chat_widget::resend_outgoing()
 {
-    attachment_sending_ = false;
-    auto const reply = std::exchange(attachment_reply_, 0);
-    auto reply_text = std::exchange(attachment_reply_text_, {});
-    update_compose_state();
-    if (conversation != active_conversation_) { return; }
-    if (!error_message.isEmpty() && reply > 0 && reply_to_ == 0 && can_send())
+    for (auto const& item : outgoing_)
     {
-        for (int row = 0; row < messages_->rowCount(); ++row)
-        {
-            auto const index = messages_->index(row, 0);
-            if (index.data(message_model::id_role).toLongLong() != reply || index.data(message_model::deleted_role).toBool()) { continue; }
-            reply_to_ = reply;
-            reply_preview_->setText(std::move(reply_text));
-            reply_bar_->show();
-            break;
-        }
+        if (!item.failed) { submit(item); }
     }
-    set_message_status(std::move(error_message));
 }
 
 void chat_widget::set_message_error(qint64 user, QString message)
@@ -2291,8 +2258,8 @@ void chat_widget::update_compose_state()
     auto const current = conversation(active_conversation_);
     auto const allowed = can_send();
     message_edit_->setEnabled(allowed);
-    send_button_->setEnabled(allowed && !message_sending_.contains(active_conversation_) && !message_edit_->toPlainText().isEmpty());
-    attachment_button_->setEnabled(allowed && !attachment_sending_);
+    send_button_->setEnabled(allowed && !message_edit_->toPlainText().isEmpty());
+    attachment_button_->setEnabled(allowed);
     emoji_button_->setEnabled(allowed);
     auto hint = QStringLiteral("输入消息…");
     if (current && !current->group && !current->can_send)
@@ -2392,6 +2359,7 @@ void chat_widget::open_conversation(conversation_data conversation)
     history_button_->setEnabled(connection_available_);
     chat_more_button_->setEnabled(true);
     messages_->reset(active_conversation_, active_group_);
+    show_outgoing();
     update_pinned_message();
     messages_loaded_ = false;
     messages_loading_ = true;
@@ -2408,7 +2376,7 @@ void chat_widget::open_conversation(conversation_data conversation)
 void chat_widget::close_conversation(qint64 conversation)
 {
     drafts_.remove(conversation);
-    message_sending_.remove(conversation);
+    drop_outgoing(conversation);
     if (conversation != active_conversation_)
     {
         images_.remove(conversation);
@@ -2423,8 +2391,6 @@ void chat_widget::close_conversation(qint64 conversation)
     active_group_ = false;
     active_member_count_ = 0;
     active_username_.clear();
-    attachment_sending_ = false;
-    attachment_reply_ = 0;
     messages_loaded_ = false;
     messages_loading_ = false;
     history_exhausted_ = false;
@@ -2791,17 +2757,141 @@ void chat_widget::request_older_messages()
 
 void chat_widget::send_current_message()
 {
-    if (!can_send() || message_sending_.contains(active_conversation_) || message_edit_->toPlainText().isEmpty())
+    if (!can_send() || message_edit_->toPlainText().isEmpty())
     {
         return;
     }
 
-    auto text = message_edit_->toPlainText();
+    // The message takes its text and reply with it; the composer is free for the next one at once.
+    outgoing item;
+    item.client_id = chat::client::new_client_id();
+    item.conversation = active_conversation_;
+    item.text = message_edit_->toPlainText();
+    item.reply = quote(reply_to_);
+    reply_to_ = 0;
+    reply_bar_->hide();
+    {
+        QSignalBlocker const blocker(message_edit_);
+        message_edit_->clear();
+    }
+    queue_outgoing(std::move(item));
+}
+
+void chat_widget::queue_outgoing(outgoing item)
+{
     stop_typing();
-    message_sending_.insert(active_conversation_);
+    item.created = QDateTime::currentMSecsSinceEpoch();
+    outgoing_.push_back(std::move(item));
+    // Like a new message: followed at the bottom, while someone reading history keeps their place.
+    auto* scroll = messages_view_->verticalScrollBar();
+    auto const at_bottom = scroll->value() == scroll->maximum();
+    show_outgoing();
     update_compose_state();
-    auto const reply = reply_to_;
-    emit send_message_requested(active_conversation_, std::move(text), reply);
+    if (at_bottom) { QTimer::singleShot(0, messages_view_, [this] { messages_view_->scrollToBottom(); }); }
+    submit(outgoing_.back());
+}
+
+void chat_widget::submit(outgoing const& item)
+{
+    if (item.filename.isEmpty())
+    {
+        emit send_message_requested(item.conversation, item.text, item.reply.id, item.client_id);
+    }
+    else
+    {
+        emit attachment_send_requested(item.conversation, item.filename, item.data, item.reply.id, item.client_id);
+    }
+}
+
+void chat_widget::show_outgoing()
+{
+    QList<message_model::pending_message> pending;
+    for (auto const& item : outgoing_)
+    {
+        if (item.conversation != active_conversation_) { continue; }
+        message_data message;
+        message.conversation = item.conversation;
+        message.from = self_user_;
+        message.username = self_username_;
+        message.timestamp = item.created;
+        message.text = item.text;
+        message.reply = item.reply;
+        message.client_id = item.client_id;
+        if (!item.filename.isEmpty())
+        {
+            message.attachment = attachment_data{item.filename, QStringLiteral("application/octet-stream"), item.data.size()};
+        }
+        pending.push_back({std::move(message), item.failed, item.error});
+    }
+    messages_->set_pending(std::move(pending));
+}
+
+void chat_widget::settle(message_data const& message)
+{
+    if (message.client_id <= 0) { return; }
+    if (outgoing_.removeIf([&](outgoing const& item) { return item.client_id == message.client_id; }) > 0 &&
+        message.conversation == active_conversation_)
+    {
+        show_outgoing();
+    }
+}
+
+void chat_widget::drop_outgoing(qint64 conversation)
+{
+    auto const dropped = outgoing_.removeIf([conversation](outgoing const& item) { return item.conversation == conversation; });
+    if (dropped > 0) { set_error(QStringLiteral("%1 条未发送的消息已丢弃：会话已不可访问").arg(dropped)); }
+}
+
+quoted_message_data chat_widget::quote(qint64 message) const
+{
+    if (message <= 0) { return {}; }
+    for (int row = 0; row < messages_->rowCount(); ++row)
+    {
+        auto const index = messages_->index(row, 0);
+        if (index.data(message_model::id_role).toLongLong() != message) { continue; }
+        return {message, index.data(message_model::sender_name_role).toString(),
+                grapheme_prefix(index.data(message_model::text_role).toString(), 160),
+                index.data(message_model::edited_at_role).toLongLong(), false};
+    }
+    return {message, {}, {}, 0, false};
+}
+
+void chat_widget::show_outgoing_menu(QModelIndex const& index, QPoint position)
+{
+    auto const client_id = index.data(message_model::client_id_role).toLongLong();
+    auto const failed = index.data(message_model::send_state_role).toInt() == message_model::failed;
+    auto const found = std::ranges::find(outgoing_, client_id, &outgoing::client_id);
+    if (found == outgoing_.end()) { return; }
+    auto const text = found->filename.isEmpty() ? found->text : found->filename;
+    auto const has_reply = found->reply.id > 0;
+    QMenu menu(this);
+    auto* copy = menu.addAction(QStringLiteral("复制"));
+    // Sending again needs the connection; discarding is local and works offline too.
+    auto* retry = failed && can_send() ? menu.addAction(QStringLiteral("重新发送")) : nullptr;
+    auto* retry_plain = failed && can_send() && has_reply ? menu.addAction(QStringLiteral("不带回复重新发送")) : nullptr;
+    auto* discard = failed ? menu.addAction(QStringLiteral("删除")) : nullptr;
+    auto* selected = menu.exec(messages_view_->viewport()->mapToGlobal(position));
+    if (selected == copy)
+    {
+        QGuiApplication::clipboard()->setText(text);
+        return;
+    }
+    // Act on the send as it is now: it may have been confirmed or dropped while the menu was open.
+    auto item = std::ranges::find(outgoing_, client_id, &outgoing::client_id);
+    if (!selected || item == outgoing_.end() || !item->failed) { return; }
+    if (selected == discard)
+    {
+        outgoing_.erase(item);
+        show_outgoing();
+        return;
+    }
+    if ((selected != retry && selected != retry_plain) || !can_send() || item->conversation != active_conversation_) { return; }
+    // The same client_id: whatever reached the server before is not stored twice.
+    item->failed = false;
+    item->error.clear();
+    if (selected == retry_plain) { item->reply = {}; }
+    show_outgoing();
+    submit(*item);
 }
 
 void chat_widget::stop_typing()
