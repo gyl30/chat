@@ -3361,6 +3361,50 @@ int run_tui_tests()
             app.command("discard");
             require(pending_in(direct) == 0 && persisted("discarded reply") == 0, "A discarded refused message is never stored");
         }
+        {
+            // A refused attachment sent again queues behind one already uploading, so after a dropped
+            // connection the earlier send is retried ahead of a later one the server already stored.
+            // The history page then settles the later one before its own resend, and each is stored once.
+            auto const first_file = directory / "first queued.txt";
+            auto const second_file = directory / "second queued.txt";
+            { std::ofstream stream(first_file, std::ios::binary); stream << "first"; require(bool(stream), "Write first file"); }
+            { std::ofstream stream(second_file, std::ios::binary); stream << "second"; require(bool(stream), "Write second file"); }
+            auto stored_files = [&](std::string const& name) {
+                auto history = call<chat::messages_result>([&](auto h) { peer.get_messages(direct, std::nullopt, h); });
+                require(history.has_value(), "Authoritative history is available");
+                return std::ranges::count_if(history->messages, [&](auto const& value) {
+                    return value.attachment && value.attachment->filename == name;
+                });
+            };
+            app.open_conversation(direct);
+            pump([&] { return !app.data.messages.empty(); });
+            auto target = call<chat::message>([&](auto h) { peer.send_message(direct, "deleted file target", h); });
+            require(target.has_value(), "Peer sends a reply target for the file");
+            pump([&] { return std::ranges::find(app.data.messages, target->id, &chat::message::id) != app.data.messages.end(); });
+            select(target->id);
+            app.command("reply");
+            require(call<chat::message>([&](auto h) { peer.delete_message(direct, target->id, h); }).has_value(), "Delete the file's target");
+            app.command("file " + first_file.string());
+            pump([&] { return pending_in(direct) == 1 && app.data.outgoing.back().failed; });
+            // The second file's finish waits to store its bytes; reading and uploading are not blocked.
+            data.execute("BEGIN");
+            data.execute("LOCK TABLE message_attachments IN SHARE MODE");
+            app.command("file " + second_file.string());
+            wait_blocked(data);
+            app.data.message_selected = static_cast<int>(app.data.messages.size());
+            require(app.data.selected_outgoing() && app.data.selected_outgoing()->text == "first queued.txt", "The refused file is selected");
+            app.command("retry-without-reply");
+            app.reconnect();
+            require(pending_in(direct) == 2 && std::ranges::none_of(app.data.outgoing, &chat::tui::outgoing_message::failed),
+                    "Both files are sending after the connection dropped");
+            data.execute("COMMIT");
+            pump([&] { return app.data.link == connection::online && pending_in(direct) == 0; });
+            require(stored_files("first queued.txt") == 1 && stored_files("second queued.txt") == 1,
+                    "Retried ahead of a stored later file, each file is stored once");
+            require(std::ranges::count_if(app.data.messages, [](auto const& value) {
+                        return value.attachment && value.attachment->filename == "second queued.txt"; }) == 1,
+                    "The later file is shown once though both the history page and its resend returned it");
+        }
 
         app.open_conversation(direct);
         pump([&] { return !app.data.messages.empty(); });
