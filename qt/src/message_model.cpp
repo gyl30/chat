@@ -315,9 +315,21 @@ int message_model::merge_messages(QList<message_data> messages)
     for (auto& message : merged) { merge_reply(message.reply, merged); }
     std::sort(merged.begin(), merged.end(), [](message_data const& lhs, message_data const& rhs) { return lhs.id < rhs.id; });
     auto const inserted = merged.size() - messages_.size();
-    beginResetModel();
-    messages_ = std::move(merged);
-    endResetModel();
+    // History adds messages; existing IDs and their persistent keyboard indexes survive.
+    for (int row = 0; row < merged.size(); ++row)
+    {
+        if (row < messages_.size() && messages_[row].id == merged[row].id)
+        {
+            messages_[row] = std::move(merged[row]);
+        }
+        else
+        {
+            beginInsertRows({}, row, row);
+            messages_.insert(row, std::move(merged[row]));
+            endInsertRows();
+        }
+    }
+    emit dataChanged(index(0, 0), index(messages_.size() - 1, 0));
     return inserted;
 }
 

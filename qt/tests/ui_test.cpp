@@ -6185,6 +6185,70 @@ void check_pending_message_identity()
     std::cout << "PASS Qt pending-message focus, copy identity and accessible send states\n";
 }
 
+void check_history_message_identity()
+{
+    bool focus_ok = true;
+    for (bool pending : {false, true})
+    {
+        chat_widget page;
+        page.resize(980, 640);
+        page.set_user(QStringLiteral("本人"), 1);
+        conversation_data direct;
+        direct.id = 50; direct.user = 2; direct.username = QStringLiteral("朋友"); direct.can_send = true;
+        page.open_conversation(direct);
+        page.show();
+        auto* list = page.findChild<QListView*>("messageList");
+        auto* edit = page.findChild<QPlainTextEdit*>("messageEdit");
+        auto* send = page.findChild<QToolButton*>("sendButton");
+        qint64 client_id = 0;
+        QObject::connect(&page, &chat_widget::send_message_requested, &page,
+                         [&](qint64, QString, qint64, qint64 id) { client_id = id; });
+        message_data first;
+        first.id = 20; first.conversation = direct.id; first.from = 2; first.timestamp = 1;
+        first.username = direct.username; first.text = QStringLiteral("first stored");
+        auto selected = first;
+        selected.id = 40; selected.text = QStringLiteral("selected stored");
+        page.set_messages(direct.id, {first, selected}, {}, false, false, false);
+        if (pending)
+        {
+            edit->setPlainText(QStringLiteral("selected pending")); send->click();
+        }
+        QApplication::processEvents();
+        list->setFocus();
+        list->setCurrentIndex(list->model()->index(pending ? 1 : 0, 0));
+        QKeyEvent down(QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier);
+        QApplication::sendEvent(list, &down);
+        auto const expected_text = pending ? QStringLiteral("selected pending") : selected.text;
+        auto copy_current = [&] {
+            QApplication::clipboard()->setText(QStringLiteral("unchanged sentinel"));
+            QKeyEvent copy(QEvent::KeyPress, Qt::Key_C, Qt::ControlModifier);
+            QApplication::sendEvent(list, &copy);
+            return QApplication::clipboard()->text();
+        };
+        check(copy_current() == expected_text, "The keyboard selects the history-merge copy target");
+        QPersistentModelIndex const focused(list->currentIndex());
+        auto older = first;
+        older.id = 10; older.text = QStringLiteral("older stored");
+        auto middle = first;
+        middle.id = 30; middle.text = QStringLiteral("middle stored");
+        page.set_messages(direct.id, {middle, older}, {}, true, false, false);
+        QApplication::processEvents();
+        auto const current = list->currentIndex();
+        auto const kept = list->hasFocus() && focused.isValid() && current == focused &&
+            (pending ? current.data(message_model::client_id_role).toLongLong() == client_id
+                     : current.data(message_model::id_role).toLongLong() == selected.id) &&
+            copy_current() == expected_text;
+        if (!kept) { std::cerr << "FAIL Qt history focus/copy pending=" << pending << '\n'; }
+        focus_ok &= kept;
+        check(list->model()->rowCount() == (pending ? 5 : 4) &&
+                  list->model()->index(0, 0).data(message_model::id_role).toLongLong() == older.id &&
+                  list->model()->index(2, 0).data(message_model::id_role).toLongLong() == middle.id,
+              "An unsorted older page inserts messages in ID order without losing existing rows");
+    }
+    check(focus_ok, "History insertion retains stored and pending keyboard focus and copy targets");
+    std::cout << "PASS Qt history insertion preserves stored and pending message identities\n";
+}
+
 void check_conversation_drafts()
 {
     chat_widget page;
@@ -6318,7 +6382,7 @@ int main(int argc, char** argv)
     }
     if (widgets_only)
     {
-        try { check_integrated_contact_requests_contract(); check_settings_entry_contract(); check_settings_persistence_and_pages(); check_send_key_preferences(); check_independent_contact_dialog_contract(); check_add_contact_dialog_lifetime(); check_unified_menu_and_local_contacts_contract(); check_contacts_state_sort_and_identity(); check_main_menu_two_column_contract(); check_final_polish_empty_states(); check_main_menu_keyboard_actions(); check_main_menu_paint(); check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_group_header_members(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_composer_actions(); check_join_by_code(); check_chat_history_dialog(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_deferred_message_viewport(); check_history_home_end_without_current(); check_message_overflow_following(false); check_message_overflow_following(true); check_message_overflow_following(false, true); check_conversation_drafts(); check_pending_message_identity(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
+        try { check_integrated_contact_requests_contract(); check_settings_entry_contract(); check_settings_persistence_and_pages(); check_send_key_preferences(); check_independent_contact_dialog_contract(); check_add_contact_dialog_lifetime(); check_unified_menu_and_local_contacts_contract(); check_contacts_state_sort_and_identity(); check_main_menu_two_column_contract(); check_final_polish_empty_states(); check_main_menu_keyboard_actions(); check_main_menu_paint(); check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_group_header_members(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_composer_actions(); check_join_by_code(); check_chat_history_dialog(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_deferred_message_viewport(); check_history_home_end_without_current(); check_message_overflow_following(false); check_message_overflow_following(true); check_message_overflow_following(false, true); check_conversation_drafts(); check_pending_message_identity(); check_history_message_identity(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;
