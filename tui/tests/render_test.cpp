@@ -8,6 +8,7 @@
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/loop.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <ctime>
@@ -1236,6 +1237,20 @@ int main()
         d.move_message(5);
         ok &= expect(d.selected_outgoing() && d.selected_outgoing()->client_id == 12 && !d.selected_message() && d.at_latest,
                      "The selection continues onto unconfirmed sends and stops at the last");
+        // The selected unconfirmed send stays selected while other messages arrive or settle.
+        chat::message incoming = last;
+        incoming.id = 6; incoming.text = "NEW_PEER_BODY";
+        d.apply_message(incoming);
+        auto settled = last;
+        settled.id = 7; settled.from = 1; settled.username = "Alice"; settled.text = "PENDING_BODY"; settled.client_id = 11;
+        d.apply_message(settled);
+        ok &= expect(d.selected_outgoing() && d.selected_outgoing()->client_id == 12 && d.outgoing.size() == 2,
+                     "A message carrying a pending client_id settles it, and the selected one stays selected");
+        d.apply_message(settled);
+        ok &= expect(std::ranges::count(d.messages, std::string("PENDING_BODY"), &chat::message::text) == 1,
+                     "A late acknowledgement of a settled send does not show it twice");
+        d.outgoing.insert(d.outgoing.begin(), sending);
+        d.message_selected = static_cast<int>(d.messages.size()) + 1;
         bool quit = false;
         auto component = make_ui(application, [&] { quit = true; });
         component->OnEvent(ftxui::Event::Return);
@@ -1248,6 +1263,18 @@ int main()
         component->OnEvent(ftxui::Event::Character('d'));
         ok &= expect(d.outgoing.size() == 2 && d.outgoing[0].client_id == 11 && d.outgoing[1].client_id == 13,
                      "Discarding removes only the selected refused send");
+        // Every way to quit asks first while unconfirmed sends exist: the command line and the palette too.
+        component->OnEvent(ftxui::Event::Character(':'));
+        component->OnEvent(ftxui::Event::Character("quit"));
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.dialog && !application.exiting && !quit, ":quit with unconfirmed sends asks first");
+        component->OnEvent(ftxui::Event::Escape);
+        component->OnEvent(ftxui::Event::CtrlK);
+        component->OnEvent(ftxui::Event::Character("退出程序"));
+        component->OnEvent(ftxui::Event::Return);
+        ok &= expect(application.dialog && !application.exiting && !quit, "The palette's quit asks first too");
+        component->OnEvent(ftxui::Event::Escape);
+        ok &= expect(!application.dialog && !application.exiting && !quit, "Cancelling keeps the program running");
         component->OnEvent(ftxui::Event::CtrlC);
         ok &= expect(application.dialog && !application.exiting && !quit, "Ctrl+C with unconfirmed sends asks first");
         component->OnEvent(ftxui::Event::Escape);
@@ -1256,6 +1283,42 @@ int main()
         component->OnEvent(ftxui::Event::Character('y'));
         component->OnEvent(ftxui::Event::Return);
         ok &= expect(quit && application.exiting, "Confirming quits even with unconfirmed sends");
+    }
+    {
+        // A long unconfirmed send scrolls line by line like a message; a complete conversation list,
+        // also one completed by its last page, discards the unconfirmed sends of conversations not in it.
+        app application;
+        writable_conversation(application);
+        auto& d = application.data;
+        outgoing_message long_send;
+        long_send.client_id = 21; long_send.conversation = d.active; long_send.failed = true; long_send.error = "拒绝";
+        for (int line = 0; line < 40; ++line) { long_send.text += "LONG_LINE_" + std::to_string(line) + "\n"; }
+        long_send.text += "LONG_END";
+        d.outgoing = {long_send};
+        d.composing = false; d.selecting = true; d.message_selected = 0;
+        auto const fallback = ftxui::Terminal::Size();
+        ftxui::Terminal::SetFallbackSize({120, 20});
+        auto component = make_ui(application, [] {});
+        auto screen_text = [&] {
+            ftxui::Screen screen(120, 20);
+            ftxui::Render(screen, component->Render());
+            return screen.ToString();
+        };
+        ok &= expect(screen_text().find("LONG_LINE_0") == std::string::npos, "A long unconfirmed send first shows its end");
+        for (int i = 0; i < 45; ++i) { component->OnEvent(ftxui::Event::Character('[')); }
+        ok &= expect(screen_text().find("LONG_LINE_0") != std::string::npos, "[ scrolls a long unconfirmed send back to its start");
+        ftxui::Terminal::SetFallbackSize(fallback);
+
+        outgoing_message gone;
+        gone.client_id = 22; gone.conversation = 99; gone.text = "GONE";
+        d.outgoing.push_back(gone);
+        auto first_page = d.conversations;
+        application.apply_conversation_snapshot({first_page, chat::conversation_cursor{}}, false);
+        ok &= expect(d.outgoing.size() == 2, "A partial list says nothing about conversations beyond it");
+        application.apply_conversation_snapshot({{}, std::nullopt}, true);
+        ok &= expect(d.outgoing.size() == 1 && d.outgoing.front().client_id == 21 &&
+                     d.status.find("1 条未发送的消息已丢弃") != std::string::npos,
+                     "The last page completes the list and discards sends of conversations not in it");
     }
     {
         // Errors stay until the next key press; notices are not errors and are not dismissed by keys.

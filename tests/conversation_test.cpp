@@ -3285,7 +3285,8 @@ int run_tui_tests()
         }
         {
             // Committed after the connection dropped, so its acknowledgement was lost: sent again after
-            // signing in, stored once, shown once. Two drops in a row change nothing.
+            // signing in, stored once, shown once. The second round drops the connection again after the
+            // resend went out, while that resend still waits on the server.
             for (int drops : {1, 2})
             {
                 app.open_conversation(direct);
@@ -3294,12 +3295,35 @@ int run_tui_tests()
                 app.data.draft = text;
                 hold(data, direct);
                 app.send();
+                require(app.data.selected_outgoing() && app.data.selected_outgoing()->text == text && app.data.at_latest,
+                        "The view follows the message just sent");
                 wait_blocked(data);
+                std::size_t offline_before = 0;
+                {
+                    std::lock_guard lock(peer_events.mutex);
+                    offline_before = std::ranges::count_if(peer_events.presences, [&](auto const& value) { return value.user == self && !value.online; });
+                }
                 app.reconnect();
-                // The next connection is refused while the old session still waits on the lock: a second drop.
-                if (drops == 2) { pump([&] { return app.data.status == "旧连接正在释放，稍后重新认证…"; }); }
                 require(pending_in(direct) == 1 && !app.data.outgoing.back().failed, "A dropped connection leaves the message sending");
                 data.execute("COMMIT");
+                if (drops == 2)
+                {
+                    // The old session finishes its queued requests and goes offline first; only then is the
+                    // lookup blocked, and the TUI has not reconnected yet because nothing was pumped.
+                    peer_events.wait([&] {
+                        return static_cast<std::size_t>(std::ranges::count_if(peer_events.presences,
+                            [&](auto const& value) { return value.user == self && !value.online; })) > offline_before;
+                    });
+                    // The next sign-in resends it; its lookup of the stored message reads reactions and waits
+                    // behind this lock until the second drop. Sending itself never touches reactions.
+                    data.execute("BEGIN");
+                    data.execute("LOCK TABLE message_reactions IN ACCESS EXCLUSIVE MODE");
+                    pump([&] { return app.data.link == connection::online; });
+                    wait_blocked(data);
+                    app.reconnect();
+                    require(pending_in(direct) == 1 && !app.data.outgoing.back().failed, "A second drop leaves it sending");
+                    data.execute("COMMIT");
+                }
                 pump([&] { return app.data.link == connection::online && pending_in(direct) == 0 && shown(text) == 1; });
                 require(persisted(text) == 1, "A resend after a lost acknowledgement is stored once");
             }

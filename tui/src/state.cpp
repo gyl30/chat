@@ -64,15 +64,18 @@ std::int64_t selected_client_id(state const& s)
     return index < values.size() ? values[index]->client_id : 0;
 }
 
-// Selects a message by id, else the same unconfirmed send, else the nearest valid position.
-int reselect(state const& s, std::int64_t id, std::int64_t client_id)
+// After the list changed: the same unconfirmed send stays selected while it is listed; otherwise the
+// last row when following the latest, else the same message, else the nearest valid position.
+int reselect(state const& s, std::int64_t id, std::int64_t client_id, bool latest)
 {
-    auto found = std::ranges::find(s.messages, id, &message::id);
-    if (id && found != s.messages.end()) { return static_cast<int>(found - s.messages.begin()); }
     auto const values = s.active_outgoing();
     auto pending = std::ranges::find(values, client_id, &outgoing_message::client_id);
     if (client_id && pending != values.end()) { return static_cast<int>(s.messages.size() + (pending - values.begin())); }
-    return bounded(s.message_selected, s.messages.size() + values.size());
+    auto const total = s.messages.size() + values.size();
+    if (latest) { return bounded(static_cast<int>(total) - 1, total); }
+    auto found = std::ranges::find(s.messages, id, &message::id);
+    if (id && found != s.messages.end()) { return static_cast<int>(found - s.messages.begin()); }
+    return bounded(s.message_selected, total);
 }
 
 bool friend_matches(std::string const& username, std::string const& query)
@@ -399,8 +402,7 @@ void state::apply_history(messages_result result, bool older)
         if (previous != read_positions.end()) { position.message = std::max(position.message, previous->message); }
     }
     read_positions = std::move(result.read_positions);
-    if (at_latest && !older) { message_selected = bounded(static_cast<int>(messages.size()) - 1, messages.size()); }
-    else { message_selected = reselect(*this, selected_id, selected_client); }
+    message_selected = reselect(*this, selected_id, selected_client, at_latest && !older);
 }
 
 void state::apply_search(messages_result result, bool append)
@@ -437,6 +439,10 @@ void state::apply_search(messages_result result, bool append)
 
 void state::apply_message(message value)
 {
+    // Who is selected is read before settle() removes an unconfirmed send and shifts the rows.
+    auto selected_id = message_selected >= 0 && static_cast<std::size_t>(message_selected) < messages.size()
+        ? messages[message_selected].id : 0;
+    auto const selected_client = selected_client_id(*this);
     settle(value);
     if (value.conversation != active) { return; }
     auto const selected_search_id = view == page::search && selected >= 0 &&
@@ -448,9 +454,6 @@ void state::apply_message(message value)
         auto const entries = history_entries();
         if (selected >= 0 && static_cast<std::size_t>(selected) < entries.size()) { selected_history_id = entries[selected]->id; }
     }
-    auto selected_id = message_selected >= 0 && static_cast<std::size_t>(message_selected) < messages.size()
-        ? messages[message_selected].id : 0;
-    auto const selected_client = selected_client_id(*this);
     auto found = std::ranges::lower_bound(messages, value.id, {}, &message::id);
     if (found == messages.end() || found->id != value.id) { found = messages.insert(found, std::move(value)); }
     else { merge(*found, value); }
@@ -483,8 +486,7 @@ void state::apply_message(message value)
     }
     if (editing == authoritative.id && authoritative.deleted) { editing = 0; }
     if (auto* conversation = active_conversation()) { update_quote(conversation->pinned_message, authoritative); }
-    if (at_latest) { message_selected = bounded(static_cast<int>(messages.size()) - 1, messages.size()); }
-    else { message_selected = reselect(*this, selected_id, selected_client); }
+    message_selected = reselect(*this, selected_id, selected_client, at_latest);
 }
 
 void state::apply_reaction(reaction_update value)

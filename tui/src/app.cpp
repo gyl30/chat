@@ -374,9 +374,10 @@ void app::apply_conversation_snapshot(conversations_result result, bool append)
         marked_read_ = 0;
         notify("当前会话已不可访问，已刷新会话列表");
     }
-    if (!append && !data.next_conversations)
+    if (!data.next_conversations)
     {
-        // The complete list: unconfirmed sends of a conversation no longer in it cannot go anywhere.
+        // The complete list, after a refresh or its last page: unconfirmed sends of a conversation
+        // no longer in it cannot go anywhere.
         drop_outgoing([this](std::int64_t conversation) {
             return std::ranges::find(data.conversations, conversation, &chat::conversation::id) == data.conversations.end();
         });

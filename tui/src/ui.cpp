@@ -1435,12 +1435,16 @@ private:
             (s.view == page::conversation || s.view == page::search))
         {
             auto const* message = s.selected_message();
-            if (!message) { return true; }
+            auto const* pending = s.view == page::conversation ? s.selected_outgoing() : nullptr;
+            if (!message && !pending) { return true; }
             auto width = app_.viewport_width - (s.view == page::conversation && state::layout(app_.viewport_width, app_.viewport_height) == layout_mode::wide ? 34 : 3);
             // Same height as drawn: a message within a group has no heading line.
             auto const index = static_cast<std::size_t>(s.message_selected);
-            auto const heading = s.view != page::conversation || index >= s.messages.size() || starts_group(s.messages, index);
-            auto item = message_item(s, *message, false, width, -1, heading);
+            auto const heading = pending
+                ? index == s.messages.size() && (s.messages.empty() || s.messages.back().from != s.self.id)
+                : s.view != page::conversation || index >= s.messages.size() || starts_group(s.messages, index);
+            auto item = message ? message_item(s, *message, false, width, -1, heading)
+                                : outgoing_item(*pending, false, false, width, -1, heading);
             item->ComputeRequirement();
             int last = std::max(0, item->requirement().min_y - 1);
             int current = message_scroll_ < 0 ? last : message_scroll_;
@@ -1448,8 +1452,8 @@ private:
             message_scroll_ = current == last ? -1 : current;
             if (s.view == page::conversation)
             {
-                s.at_latest = message_scroll_ < 0 && !s.messages.empty() &&
-                    s.message_selected == static_cast<int>(s.messages.size()) - 1;
+                s.at_latest = message_scroll_ < 0 && (pending || (!s.messages.empty() &&
+                    s.message_selected == static_cast<int>(s.messages.size()) - 1));
                 app_.mark_visible_read();
             }
             return true;

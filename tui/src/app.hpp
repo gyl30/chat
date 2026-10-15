@@ -198,6 +198,7 @@ private:
     void group_done(bool left = false);
     void stop_typing();
     void submit(outgoing_message const& item);
+    void follow_outgoing();
     void finish_outgoing(std::int64_t client_id, std::expected<chat::message, chat::error> value);
     // Unconfirmed sends of conversations that are gone for good cannot be sent or shown.
     void drop_outgoing(std::function<bool(std::int64_t conversation)> const& gone);

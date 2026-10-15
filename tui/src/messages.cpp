@@ -60,6 +60,7 @@ void app::send()
         item.reply = std::exchange(data.reply, {});
         data.outgoing.push_back(std::move(item));
         stop_typing();
+        follow_outgoing();
         submit(data.outgoing.back());
         return;
     }
@@ -87,6 +88,13 @@ void app::send()
         history();
         conversations();
     }));
+}
+
+void app::follow_outgoing()
+{
+    // The view follows what was just sent, so its state stays in sight.
+    data.at_latest = true;
+    data.message_selected = static_cast<int>(data.messages.size() + data.active_outgoing().size()) - 1;
 }
 
 void app::submit(outgoing_message const& item)
@@ -223,7 +231,7 @@ void app::message_command(std::string const& name, std::string argument)
     if (name == "latest")
     {
         data.at_latest = true;
-        data.message_selected = data.messages.empty() ? 0 : static_cast<int>(data.messages.size()) - 1;
+        data.message_selected = std::max(0, static_cast<int>(data.messages.size() + data.active_outgoing().size()) - 1);
         older_again_ = false;  // G replaces a PgUp still waiting on a page
         history();
         return;
@@ -246,6 +254,7 @@ void app::message_command(std::string const& name, std::string argument)
             item.file = std::move(*bytes);
             item.reply = std::exchange(data.reply, {});
             data.outgoing.push_back(std::move(item));
+            follow_outgoing();
             submit(data.outgoing.back());
         };
         if (argument.empty()) { ask("发送附件：本地文件路径（最多 10 MiB）", {}, std::move(action)); }
