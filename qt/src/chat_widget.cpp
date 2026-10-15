@@ -1903,7 +1903,9 @@ void chat_widget::finish_send(qint64 conversation, qint64 client_id, message_dat
     auto found = std::ranges::find(outgoing_, client_id, &outgoing::client_id);
     if (error.isEmpty())
     {
+        // A history page may have shown it already: merge by version first, then insert it if new.
         // settle() through add_message() takes it off the unconfirmed list.
+        update_message(message);
         add_message(conversation, std::move(message));
         return;
     }

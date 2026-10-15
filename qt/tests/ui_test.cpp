@@ -5615,6 +5615,26 @@ void check_message_composer()
     check(page.unsent_count() == 0 && list->model()->rowCount() == 1 &&
               list->model()->index(0, 0).data(message_model::send_state_role).toInt() == message_model::sent,
           "Confirmation replaces the sending row with the stored message");
+    {
+        // A history page may store the message before its acknowledgement arrives. The acknowledgement
+        // then merges by version: a newer edit wins, an older copy does not undo it.
+        edit->setPlainText(QStringLiteral("版本合并"));
+        QApplication::sendEvent(edit, &enter);
+        message_data from_history;
+        from_history.id = 2; from_history.conversation = direct.id; from_history.from = 1; from_history.timestamp = 2;
+        from_history.text = sent_text; from_history.client_id = sent_client;
+        page.set_messages(direct.id, {from_history}, {}, false, false, false);
+        check(page.unsent_count() == 0 && list->model()->rowCount() == 2, "A history page settles the pending send");
+        auto edited = from_history;
+        edited.text = QStringLiteral("版本合并（已编辑）");
+        edited.edited_at = 5;
+        page.finish_send(direct.id, sent_client, edited, {}, false);
+        check(list->model()->index(1, 0).data(message_model::text_role).toString() == edited.text,
+              "A newer acknowledgement updates the message the history page brought");
+        page.finish_send(direct.id, sent_client, from_history, {}, false);
+        check(list->model()->index(1, 0).data(message_model::text_role).toString() == edited.text,
+              "An older copy does not undo the newer version");
+    }
     wait([&] { return edit->height() == compact_height; });
     check(!send->isEnabled(), "Cleared composer disables sending");
     auto const long_text = QStringLiteral("长内容 中文 🙂\n").repeated(20);
@@ -5634,9 +5654,10 @@ void check_message_composer()
     wait([&] { return bar->rect().contains(send->geometry()) && bar->rect().contains(edit->geometry()); });
     auto const draft = edit->toPlainText();
     check(bar->isVisibleTo(&page), "An open conversation keeps its resized composer visible");
+    auto const sent_before_offline = sent;
     page.set_connection_available(false);
     QApplication::sendEvent(edit, &enter);
-    check(sent == 1 && bar->isVisibleTo(&page) && edit->isVisibleTo(&page) &&
+    check(sent == sent_before_offline && bar->isVisibleTo(&page) && edit->isVisibleTo(&page) &&
               !edit->isEnabled() && !send->isEnabled() && edit->toPlainText() == draft,
           "Offline composer remains visible, preserves the draft and refuses sending");
     page.set_connection_available(true);
@@ -5656,7 +5677,7 @@ void check_message_composer()
               edit->textCursor().block().layout()->preeditAreaText() == emoji_preedit,
           "Unicode preedit remains a display composition without raw-text or undo mutations");
     QApplication::sendEvent(edit, &enter);
-    check(sent == 1, "Enter cannot send an uncommitted Unicode composition");
+    check(sent == sent_before_offline, "Enter cannot send an uncommitted Unicode composition");
     QInputMethodEvent emoji_commit;
     emoji_commit.setCommitString(emoji_preedit);
     QApplication::sendEvent(edit, &emoji_commit);
@@ -5672,12 +5693,12 @@ void check_message_composer()
     QInputMethodEvent preedit(QStringLiteral("zhong"), {});
     QApplication::sendEvent(edit, &preedit);
     QApplication::sendEvent(edit, &enter);
-    check(sent == 1, "Enter cannot send while the input method has uncommitted text");
+    check(sent == sent_before_offline, "Enter cannot send while the input method has uncommitted text");
     QInputMethodEvent commit;
     commit.setCommitString(QStringLiteral("中"));
     QApplication::sendEvent(edit, &commit);
     QApplication::sendEvent(edit, &enter);
-    check(sent == 2 && sent_text == QStringLiteral("准备 中"), "Committed input method text can be sent normally");
+    check(sent == sent_before_offline + 1 && sent_text == QStringLiteral("准备 中"), "Committed input method text can be sent normally");
     std::cout << "PASS Qt multiline composer, keyboard, bounded wrapping, offline and input method\n";
 }
 
