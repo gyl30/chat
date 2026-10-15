@@ -824,8 +824,9 @@ def stage_messages(d):
             d.wait('C', d.manifest['messages'][boundary]['marker'] + ' 中文群消息')
         d.keys('C', 'j', repeat=140)
         d.barrier('C')
+        # Enter on a result opens the conversation located at that message.
         d.keys('C', 'Enter')
-        d.wait('C', '可复制文本')
+        d.wait('C', '正在浏览历史')
         d.wait('C', d.manifest['messages'][0]['marker'] + ' 中文群消息')
         d.screenshot('C', 'last-search-result')
         history = d.query('S005', 'get_messages', conversation=d.group)
