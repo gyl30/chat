@@ -6075,6 +6075,116 @@ void check_message_viewport()
     std::cout << "PASS Qt latest-message following and explicit history reading\n";
 }
 
+void check_pending_message_identity()
+{
+    bool focus_ok = true;
+    for (int transition = 0; transition < 3; ++transition)
+    {
+        chat_widget page;
+        page.resize(980, 640);
+        page.set_user(QStringLiteral("本人"), 1);
+        conversation_data direct;
+        direct.id = 50;
+        direct.user = 2;
+        direct.username = QStringLiteral("朋友");
+        direct.can_send = true;
+        page.open_conversation(direct);
+        page.show();
+        auto* edit = page.findChild<QPlainTextEdit*>("messageEdit");
+        auto* send = page.findChild<QToolButton*>("sendButton");
+        auto* list = page.findChild<QListView*>("messageList");
+        QList<qint64> requests;
+        QObject::connect(&page, &chat_widget::send_message_requested, &page,
+                         [&](qint64, QString, qint64, qint64 client_id) { requests.push_back(client_id); });
+        message_data stored;
+        stored.id = 10; stored.conversation = direct.id; stored.from = 2;
+        stored.username = direct.username; stored.timestamp = 1; stored.text = QStringLiteral("stored");
+        page.set_messages(direct.id, {stored}, {}, false, false, false);
+        edit->setPlainText(QStringLiteral("pending A")); send->click();
+        edit->setPlainText(QStringLiteral("pending B")); send->click();
+        QApplication::processEvents();
+        list->setFocus();
+        list->setCurrentIndex(list->model()->index(1, 0));
+        QKeyEvent down(QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier);
+        QApplication::sendEvent(list, &down);
+        check(requests.size() == 2 && list->currentIndex().data(message_model::client_id_role).toLongLong() == requests[1],
+              "The Down key focuses the second pending message");
+        auto copy_current = [&] {
+            QApplication::clipboard()->setText(QStringLiteral("unchanged sentinel"));
+            QKeyEvent copy(QEvent::KeyPress, Qt::Key_C, Qt::ControlModifier);
+            QApplication::sendEvent(list, &copy);
+            return QApplication::clipboard()->text();
+        };
+        check(copy_current() == QStringLiteral("pending B"), "Copy initially addresses the keyboard-focused pending message");
+        QPersistentModelIndex const focused(list->currentIndex());
+        auto const sending_height = list->visualRect(list->model()->index(1, 0)).height();
+        if (transition == 0)
+        {
+            auto confirmed = stored;
+            confirmed.id = 11; confirmed.from = 1; confirmed.text = QStringLiteral("pending A");
+            confirmed.client_id = requests[0];
+            page.finish_send(direct.id, requests[0], confirmed, {}, false);
+        }
+        else if (transition == 1)
+        {
+            page.finish_send(direct.id, requests[0], {},
+                             QStringLiteral("服务器拒绝：请检查会话权限和回复目标后重新发送。").repeated(6), false);
+        }
+        else
+        {
+            edit->setPlainText(QStringLiteral("pending C")); send->click();
+        }
+        QApplication::processEvents();
+        if (transition == 1)
+        {
+            auto const failed_index = list->model()->index(1, 0);
+            QStyleOptionViewItem option;
+            option.initFrom(list);
+            option.rect = list->viewport()->rect();
+            auto const expected_height = list->itemDelegate()->sizeHint(option, failed_index).height();
+            check(expected_height > sending_height, "A long send error needs a taller metadata row");
+            wait([&] { return list->visualRect(failed_index).height() == expected_height; });
+            check(list->visualRect(failed_index).height() == expected_height,
+                  "The failed row is relaid out to the delegate height after dataChanged");
+        }
+        auto const kept = list->hasFocus() && focused.isValid() &&
+            focused.data(message_model::client_id_role).toLongLong() == requests[1] &&
+            list->currentIndex().data(message_model::client_id_role).toLongLong() == requests[1] &&
+            copy_current() == QStringLiteral("pending B");
+        if (!kept) { std::cerr << "FAIL Qt pending focus/copy transition " << transition << '\n'; }
+        focus_ok &= kept;
+    }
+
+    message_model model;
+    model.set_self_user(1);
+    model.reset(50);
+    message_data message;
+    message.conversation = 50; message.from = 1; message.text = QStringLiteral("pending accessible body");
+    message.client_id = 100;
+    model.set_pending({{message, false, {}}});
+    auto name = [&] { return model.index(0, 0).data(Qt::AccessibleTextRole).toString(); };
+    auto const sending_accessible = name().contains(message.text) && name().contains(QStringLiteral("发送中"));
+    QList<int> changed_roles;
+    QObject::connect(&model, &QAbstractItemModel::dataChanged, &model,
+                     [&](QModelIndex, QModelIndex, QList<int> const& roles) { changed_roles = roles; });
+    auto const error = QStringLiteral("Refused accessible test");
+    model.set_pending({{message, true, error}});
+    auto const failed_accessible = name().contains(message.text) && name().contains(QStringLiteral("发送失败")) &&
+        name().contains(error) && changed_roles.contains(Qt::AccessibleTextRole);
+    changed_roles.clear();
+    model.set_pending({{message, false, {}}});
+    auto const retry_accessible = name().contains(QStringLiteral("发送中")) && !name().contains(error) &&
+        !name().contains(QStringLiteral("发送失败")) && changed_roles.contains(Qt::AccessibleTextRole);
+    if (!sending_accessible || !failed_accessible || !retry_accessible)
+    {
+        std::cerr << "FAIL Qt pending accessible states sending=" << sending_accessible
+                  << " failed=" << failed_accessible << " retry=" << retry_accessible << '\n';
+    }
+    check(focus_ok && sending_accessible && failed_accessible && retry_accessible,
+          "Pending-message changes retain the focused client identity and expose sending/failure states");
+    std::cout << "PASS Qt pending-message focus, copy identity and accessible send states\n";
+}
+
 void check_conversation_drafts()
 {
     chat_widget page;
@@ -6208,7 +6318,7 @@ int main(int argc, char** argv)
     }
     if (widgets_only)
     {
-        try { check_integrated_contact_requests_contract(); check_settings_entry_contract(); check_settings_persistence_and_pages(); check_send_key_preferences(); check_independent_contact_dialog_contract(); check_add_contact_dialog_lifetime(); check_unified_menu_and_local_contacts_contract(); check_contacts_state_sort_and_identity(); check_main_menu_two_column_contract(); check_final_polish_empty_states(); check_main_menu_keyboard_actions(); check_main_menu_paint(); check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_group_header_members(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_composer_actions(); check_join_by_code(); check_chat_history_dialog(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_deferred_message_viewport(); check_history_home_end_without_current(); check_message_overflow_following(false); check_message_overflow_following(true); check_message_overflow_following(false, true); check_conversation_drafts(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
+        try { check_integrated_contact_requests_contract(); check_settings_entry_contract(); check_settings_persistence_and_pages(); check_send_key_preferences(); check_independent_contact_dialog_contract(); check_add_contact_dialog_lifetime(); check_unified_menu_and_local_contacts_contract(); check_contacts_state_sort_and_identity(); check_main_menu_two_column_contract(); check_final_polish_empty_states(); check_main_menu_keyboard_actions(); check_main_menu_paint(); check_login_settings_restore(); check_authentication_username_fonts(); check_authentication_layout(); check_friend_request_layout(); check_group_detail_layout(); check_group_header_members(); check_primary_navigation(); check_profile_layout(); check_confirmation_dialogs(); check_message_editor(); check_reply_and_read_details_controls(); check_message_action_targets(); check_message_copy(); check_friend_flow(); check_chat_empty_guidance(); check_chat_list_search(); check_composer_actions(); check_join_by_code(); check_chat_history_dialog(); check_quiet_status(); check_message_locate(); check_image_preview_resolution(); check_message_dialogs(); check_message_composer(); check_message_viewport(); check_deferred_message_viewport(); check_history_home_end_without_current(); check_message_overflow_following(false); check_message_overflow_following(true); check_message_overflow_following(false, true); check_conversation_drafts(); check_pending_message_identity(); check_message_search_keyboard_visibility(); check_message_search_live_policy(); check(check_pinned_unicode_boundaries(), "Pinned summaries and older-message queries omit every incomplete boundary cluster"); check_themes(); return 0; }
         catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
     }
     QProcess server;

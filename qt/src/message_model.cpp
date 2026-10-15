@@ -127,6 +127,11 @@ QVariant message_model::data(QModelIndex const& index, int role) const
                     message.reply.deleted ? QStringLiteral("消息已删除") : message.reply.text));
             }
             parts.push_back(data(index, text_role).toString());
+            if (pending)
+            {
+                auto const& item = pending_[index.row() - messages_.size()];
+                parts.push_back(item.failed ? QStringLiteral("发送失败：%1").arg(item.error) : QStringLiteral("发送中…"));
+            }
             if (!message.deleted)
             {
                 if (message.edited_at > 0) { parts.push_back(QStringLiteral("已编辑")); }
@@ -248,16 +253,36 @@ void message_model::reset(qint64 conversation, bool group)
 
 void message_model::set_pending(QList<pending_message> pending)
 {
-    if (!pending_.isEmpty())
+    // Sends retain their relative order. Keep surviving client IDs in place so an unrelated
+    // confirmation or failure cannot change the keyboard-focused message.
+    for (int row = pending_.size() - 1; row >= 0; --row)
     {
-        beginRemoveRows({}, messages_.size(), messages_.size() + pending_.size() - 1);
-        pending_.clear();
+        auto const client_id = pending_[row].message.client_id;
+        if (std::ranges::any_of(pending, [client_id](auto const& item) { return item.message.client_id == client_id; }))
+        {
+            continue;
+        }
+        beginRemoveRows({}, messages_.size() + row, messages_.size() + row);
+        pending_.removeAt(row);
         endRemoveRows();
     }
-    if (pending.isEmpty()) { return; }
-    beginInsertRows({}, messages_.size(), messages_.size() + pending.size() - 1);
-    pending_ = std::move(pending);
-    endInsertRows();
+    for (int row = 0; row < pending.size(); ++row)
+    {
+        auto& item = pending[row];
+        if (row == pending_.size() || pending_[row].message.client_id != item.message.client_id)
+        {
+            beginInsertRows({}, messages_.size() + row, messages_.size() + row);
+            pending_.insert(row, std::move(item));
+            endInsertRows();
+        }
+        else
+        {
+            pending_[row] = std::move(item);
+            auto const changed = index(messages_.size() + row, 0);
+            emit dataChanged(changed, changed, {Qt::DisplayRole, Qt::AccessibleTextRole, text_role,
+                send_state_role, send_error_role, reply_id_role, reply_text_role});
+        }
+    }
 }
 
 int message_model::merge_messages(QList<message_data> messages)
