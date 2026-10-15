@@ -43,6 +43,9 @@ namespace
 
 using namespace std::chrono_literals;
 
+std::mutex queue_begin_mutex;
+std::vector<std::string> queue_begins;
+
 std::string_view as_string_view(boost::core::string_view value) { return {value.data(), value.size()}; }
 
 class client_test_worker final : public boost::corosio::tcp_server::worker_base
@@ -723,7 +726,12 @@ class client_test_worker final : public boost::corosio::tcp_server::worker_base
             auto const& fields = params->as_object();
             auto const filename = fields.at("filename").as_string();
             auto const client_id = fields.at("client_id").as_int64();
-            if (filename != "stored.bin" && filename != "deleted.bin" && filename != "wrong.bin")
+            if (std::string_view(filename).starts_with("queue-"))
+            {
+                std::lock_guard lock(queue_begin_mutex);
+                queue_begins.emplace_back(filename);
+            }
+            else if (filename != "stored.bin" && filename != "deleted.bin" && filename != "wrong.bin")
             {
                 co_return boost::capy::io_result<bool>{std::error_code{}, true};
             }
@@ -1705,6 +1713,119 @@ int main()
         return 1;
     }
     std::cout << "PASS client stored attachment returned by begin, tombstone and mismatch\n";
+
+    // Queue all initial jobs in one network-thread turn, before A can receive a reply.
+    // Completing a job may append another one or close the client from its callback.
+    for (int scenario = 0; scenario < 3; ++scenario)
+    {
+        bool const prequeued = scenario != 0;
+        bool const close_in_handler = scenario == 2;
+        std::string const prefix = scenario == 0 ? "queue-chain-" : scenario == 1 ? "queue-pending-" : "queue-close-";
+        test_state queue_state;
+        chat::client queued;
+        std::vector<std::string> completed;
+        bool finished = false;
+        bool barrier_ok = false;
+        int errors = 0;
+        auto record = [&](char name, std::expected<chat::message, chat::error> result) {
+            auto const client_id = 100 + name - 'A';
+            bool const success = result && result->client_id == client_id && result->attachment &&
+                result->attachment->filename == prefix + name + ".bin" && result->attachment->size == 4;
+            bool const transport = !result && result.error().kind == chat::error_kind::transport;
+            {
+                std::lock_guard lock(queue_state.mutex);
+                completed.push_back(std::string(1, name) + (success ? ":ok" : transport ? ":transport" : ":unexpected"));
+                queue_state.condition.notify_all();
+            }
+            if (!close_in_handler && name == (prequeued ? 'D' : 'B'))
+            {
+                // This same-connection reply follows every begin result already sent by the mock.
+                // Waiting for it prevents destruction from hiding an extra result for the last job.
+                queued.authenticate("alice", "secret", [&](auto barrier) {
+                    std::lock_guard lock(queue_state.mutex);
+                    barrier_ok = barrier && barrier->authenticated;
+                    finished = true;
+                    queue_state.condition.notify_all();
+                });
+            }
+        };
+        queued.set_error_handler([&](auto const&) {
+            std::lock_guard lock(queue_state.mutex);
+            ++errors;
+            queue_state.condition.notify_all();
+        });
+        queued.set_disconnected_handler([&] {
+            std::lock_guard lock(queue_state.mutex);
+            if (close_in_handler) { finished = true; }
+            queue_state.condition.notify_all();
+        });
+        queued.set_connected_handler([&] {
+            queued.send_attachment(2, prefix + "A.bin", "data", [&](auto result) {
+                record('A', std::move(result));
+                if (close_in_handler) { queued.close(); }
+                else if (prequeued)
+                {
+                    queued.send_attachment(2, prefix + "D.bin", "data", [&](auto next) {
+                        record('D', std::move(next));
+                    }, {}, 103);
+                }
+                else
+                {
+                    queued.send_attachment(2, prefix + "B.bin", "data", [&](auto next) {
+                        record('B', std::move(next));
+                    }, {}, 101);
+                }
+            }, {}, 100);
+            if (prequeued)
+            {
+                queued.send_attachment(2, prefix + "B.bin", "data", [&](auto result) {
+                    record('B', std::move(result));
+                }, {}, 101);
+                queued.send_attachment(2, prefix + "C.bin", "data", [&](auto result) {
+                    record('C', std::move(result));
+                }, {}, 102);
+            }
+        });
+        queued.connect(url);
+        if (!queue_state.wait([&] { return finished; }))
+        {
+            std::cerr << "FAIL client upload callback queue barrier: " << prefix << '\n';
+            return 1;
+        }
+        std::vector<std::string> const expected = close_in_handler
+            ? std::vector<std::string>{"A:ok", "B:transport", "C:transport"}
+            : prequeued ? std::vector<std::string>{"A:ok", "B:ok", "C:ok", "D:ok"}
+                        : std::vector<std::string>{"A:ok", "B:ok"};
+        if (completed != expected || errors != 0 || (!close_in_handler && !barrier_ok))
+        {
+            std::cerr << "FAIL client upload callback order/results: " << prefix << '\n';
+            return 1;
+        }
+        std::vector<std::string> begun;
+        {
+            std::lock_guard lock(queue_begin_mutex);
+            for (auto const& name : queue_begins)
+            {
+                if (name.starts_with(prefix)) { begun.push_back(name); }
+            }
+        }
+        std::vector<std::string> expected_begins{prefix + "A.bin"};
+        if (!close_in_handler)
+        {
+            expected_begins.push_back(prefix + "B.bin");
+            if (prequeued)
+            {
+                expected_begins.push_back(prefix + "C.bin");
+                expected_begins.push_back(prefix + "D.bin");
+            }
+        }
+        if (begun != expected_begins)
+        {
+            std::cerr << "FAIL client upload begins exactly once, in order: " << prefix << '\n';
+            return 1;
+        }
+        std::cout << "PASS client upload completion callback queue: " << prefix << '\n';
+    }
 
     // The server holds one upload per connection: the rest wait in the client and fail with the first,
     // however many there are.

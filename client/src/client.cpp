@@ -1544,9 +1544,10 @@ struct client::impl
     // The server holds one upload per connection, so the front job runs and the rest wait.
     void finish_upload(std::expected<message, error> result)
     {
-        auto job = std::move(uploads_.front());
-        uploads_.pop_front();
+        // Keep this job in front while its handler runs, so a reentrant send waits.
+        auto job = uploads_.front();
         job->handler(std::move(result));
+        uploads_.pop_front();
         if (state_ != connection_state::connected || closing_)
         {
             // A request now fails at once; failing each waiting job through it would recurse once per job.
