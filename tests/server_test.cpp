@@ -1609,7 +1609,8 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         auto& [read, reply] = accepted;
         if (read || !json_matches(reply, R"({"result":{"state":"accepted"}})")) { co_return false; }
         accepting.close();
-        auto [offline_ec, offline] = co_await receive_websocket_text(source_socket);
+        auto offline_result = co_await receive_websocket_text(source_socket);
+        auto& [offline_ec, offline] = offline_result;
         if (offline_ec || !json_matches(offline, R"({"method":"presence","params":{"online":false}})"))
         { co_return false; }
         peer_last_seen = std::to_string(boost::json::parse(offline).at("params").at("last_seen").as_int64());
@@ -1854,10 +1855,11 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         co_return 1;
     }
     co_await peer_rpc("cancel_attachment", "{\"upload\":1}");
-    auto [group_ec, lifecycle_group] = co_await fixture_connection.execute_scalar(
+    auto group_result = co_await fixture_connection.execute_scalar(
         "WITH c AS (INSERT INTO conversations(kind,title,owner_id) VALUES('group','upload lifecycle',$1::bigint) RETURNING id), "
         "members AS (INSERT INTO conversation_members(conversation_id,user_id) SELECT id,$1::bigint FROM c "
         "UNION ALL SELECT id,$2::bigint FROM c) SELECT id::text FROM c", {peer_user_id, source_user_id});
+    auto& [group_ec, lifecycle_group] = group_result;
     if (group_ec || lifecycle_group.empty())
     {
         std::cerr << "FAIL attachment leave fixture\n";
@@ -1893,8 +1895,9 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         std::cerr << "FAIL resend after leaving: " << left_resend << '\n';
         co_return 1;
     }
-    auto [cleanup_group_ec, cleanup_group_row] = co_await fixture_connection.execute_row(
+    auto cleanup_group_result = co_await fixture_connection.execute_row(
         "DELETE FROM conversations WHERE id=$1::bigint", {lifecycle_group});
+    auto& [cleanup_group_ec, cleanup_group_row] = cleanup_group_result;
     if (cleanup_group_ec)
     {
         co_return 1;
@@ -1903,9 +1906,10 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     {
         // A resend under the same client_id returns the stored message in its current state and stores nothing new.
         auto stored_count = [&](std::string client_id) -> boost::capy::task<std::string> {
-            auto [ec, count] = co_await fixture_connection.execute_scalar(
+            auto count_result = co_await fixture_connection.execute_scalar(
                 "SELECT count(*)::text FROM messages WHERE sender_id=$1::bigint AND client_id=$2::bigint",
                 {source_user_id, std::move(client_id)});
+            auto& [ec, count] = count_result;
             co_return ec ? std::string{} : count;
         };
         auto reconnect_source = [&]() -> boost::capy::task<bool> {
@@ -1999,9 +2003,10 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         bool waiting = false;
         for (int i = 0; i < 1000 && !waiting; ++i)
         {
-            auto [wait_ec, blocked] = co_await fixture_connection.execute_scalar(
+            auto wait_result = co_await fixture_connection.execute_scalar(
                 "SELECT (count(*)>=1)::text FROM pg_stat_activity WHERE datname=current_database() "
                 "AND wait_event_type='Lock' AND cardinality(pg_blocking_pids(pid))>0");
+            auto& [wait_ec, blocked] = wait_result;
             waiting = !wait_ec && blocked == "true";
         }
         source_socket.close();
@@ -2020,16 +2025,18 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
             co_return 1;
         }
         // Later checks count the direct conversation's unread messages from a clean state.
-        auto [cleanup_ec, cleanup_row] = co_await fixture_connection.execute_row(
+        auto resend_cleanup_result = co_await fixture_connection.execute_row(
             "DELETE FROM messages WHERE sender_id=$1::bigint AND client_id IN (7001,7002,7003)", {source_user_id});
+        auto& [cleanup_ec, cleanup_row] = resend_cleanup_result;
         if (cleanup_ec) { co_return 1; }
         std::cout << "PASS client_id resend after lost acknowledgement, current state, kind and conversation checks\n";
     }
     {
-        auto [create_ec, removal_group] = co_await fixture_connection.execute_scalar(
+        auto create_result = co_await fixture_connection.execute_scalar(
             "WITH c AS (INSERT INTO conversations(kind,title,owner_id) VALUES('group','removal upload',$1::bigint) RETURNING id), "
             "members AS (INSERT INTO conversation_members(conversation_id,user_id) SELECT id,$1::bigint FROM c "
             "UNION ALL SELECT id,$2::bigint FROM c) SELECT id::text FROM c", {peer_user_id, source_user_id});
+        auto& [create_ec, removal_group] = create_result;
         boost::corosio::tcp_socket owner_socket(io_context);
         boost::http::response_parser owner_parser(parser_config);
         auto [owner_connect_ec] = co_await connect(owner_socket, port);
@@ -2064,9 +2071,10 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
                     bool waiting = false;
                     for (int i = 0; i < 100 && !waiting; ++i)
                     {
-                        auto [wait_ec, count] = co_await fixture_connection.execute_scalar(
+                        auto wait_result = co_await fixture_connection.execute_scalar(
                             "SELECT (count(*)>=$1::int)::text FROM pg_stat_activity WHERE datname=current_database() "
                             "AND wait_event_type='Lock' AND cardinality(pg_blocking_pids(pid))>0", {std::to_string(contenders)});
+                        auto& [wait_ec, count] = wait_result;
                         waiting = !wait_ec && count == "true";
                     }
                     if (!waiting)
@@ -2117,17 +2125,19 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
                     {removal_group, source_user_id});
             }
         }
-        auto [files_ec, files] = co_await fixture_connection.execute_scalar(
+        auto files_result = co_await fixture_connection.execute_scalar(
             "SELECT count(*)::text FROM messages WHERE conversation_id=$1::bigint", {removal_group});
+        auto& [files_ec, files] = files_result;
         if (files_ec || files != "0") { co_return 1; }
         co_await fixture_connection.execute_row("DELETE FROM conversations WHERE id=$1::bigint", {removal_group});
         owner_socket.close();
         bool owner_closed = false;
         for (int i = 0; i < 100 && !owner_closed; ++i)
         {
-            auto [seen_ec, seen] = co_await fixture_connection.execute_scalar(
+            auto seen_result = co_await fixture_connection.execute_scalar(
                 "SELECT ((extract(epoch FROM last_seen_at)*1000)::bigint)::text FROM users WHERE id=$1::bigint",
                 {peer_user_id});
+            auto& [seen_ec, seen] = seen_result;
             owner_closed = !seen_ec && seen != peer_last_seen;
             if (owner_closed) { peer_last_seen = std::move(seen); }
         }
@@ -2166,11 +2176,14 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     auto [removing_upgraded] = co_await upgrade_websocket(removing, removing_parser);
     auto [removing_authenticated] = co_await authenticate_websocket(removing, kPeerUsername, "friend-remove-race-auth");
     if (removing_connected || removing_upgraded || removing_authenticated) { co_return 1; }
-    auto [online_ec, online_notice] = co_await receive_websocket_text(source_socket);
+    auto online_result = co_await receive_websocket_text(source_socket);
+    auto& [online_ec, online_notice] = online_result;
     if (online_ec || !json_matches(online_notice, R"({"method":"presence","params":{"online":true}})")) { co_return 1; }
-    auto [begun_ec, begun_row] = co_await fixture_connection.execute_row("BEGIN");
-    auto [locked_ec, locked_row] = co_await fixture_connection.execute_row(
+    auto begun_result = co_await fixture_connection.execute_row("BEGIN");
+    auto& [begun_ec, begun_row] = begun_result;
+    auto locked_result = co_await fixture_connection.execute_row(
         "SELECT id FROM conversations WHERE id=$1::bigint FOR UPDATE", {direct_conversation});
+    auto& [locked_ec, locked_row] = locked_result;
     if (begun_ec || locked_ec || !locked_row) { co_return 1; }
     auto [remove_sent] = co_await send_websocket_text(removing,
         "{\"jsonrpc\":\"2.0\",\"method\":\"remove_contact\",\"params\":{\"user\":" +
@@ -2181,9 +2194,10 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
         bool waiting = false;
         for (int i = 0; i < 100 && !waiting; ++i)
         {
-            auto [wait_ec, count] = co_await fixture_connection.execute_scalar(
+            auto wait_result = co_await fixture_connection.execute_scalar(
                 "SELECT (count(*)>=$1::int)::text FROM pg_stat_activity WHERE datname=current_database() "
                 "AND wait_event_type='Lock' AND cardinality(pg_blocking_pids(pid))>0", {std::to_string(contenders)});
+            auto& [wait_ec, count] = wait_result;
             waiting = !wait_ec && count == "true";
         }
         if (!waiting)
@@ -2200,7 +2214,8 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
             if (finish_sent) { co_return 1; }
         }
     }
-    auto [commit_ec, commit_row] = co_await fixture_connection.execute_row("COMMIT");
+    auto commit_result = co_await fixture_connection.execute_row("COMMIT");
+    auto& [commit_ec, commit_row] = commit_result;
     if (commit_ec) { co_return 1; }
     auto removed_result = co_await receive_websocket_text(removing);
     auto& [removed_ec, removed_reply] = removed_result;
@@ -2214,9 +2229,10 @@ boost::capy::task<int> run_peer_routing(boost::corosio::io_context& io_context,
     bool removing_closed = false;
     for (int i = 0; i < 100 && !removing_closed; ++i)
     {
-        auto [seen_ec, seen] = co_await fixture_connection.execute_scalar(
+        auto seen_result = co_await fixture_connection.execute_scalar(
             "SELECT ((extract(epoch FROM last_seen_at)*1000)::bigint)::text FROM users WHERE id=$1::bigint",
             {peer_user_id});
+        auto& [seen_ec, seen] = seen_result;
         removing_closed = !seen_ec && seen != peer_last_seen;
         if (removing_closed) { peer_last_seen = std::move(seen); }
     }
