@@ -239,8 +239,7 @@ void app::disconnected()
     data.friends = {}; data.pick_query.clear();
     data.presences.clear(); data.members.clear(); data.requests.clear(); data.search_results.clear(); data.search_before.reset();
     data.messages.clear(); data.history_before.reset(); data.history_more = false;
-    cancel_edit();
-    data.read_positions.clear(); data.reply.reset(); marked_read_ = 0;
+    data.read_positions.clear(); marked_read_ = 0;
     for (auto& conversation : data.conversations) { conversation.can_send = false; }
     dialog.reset(); prompt_action_ = {}; command_mode = false;
     data.view = data.active ? page::conversation : page::conversations;
@@ -414,34 +413,47 @@ void app::history(bool older, std::int64_t locate)
     // PgUp while a page is still loading is kept, and asked for once that page has arrived.
     if (history_busy_) { older_again_ = older_again_ || older; return; }
     if (older && (!data.history_more || !data.history_before)) { return; }
+    bool const composer = !locate && (data.editing || data.reply);
+    if (composer) { locate = data.editing ? data.editing : data.reply->id; }
     history_busy_ = true;
     auto const request = ++history_request_;
     auto const conversation = data.active; auto const view = view_;
     auto before = older ? data.history_before : std::nullopt;
     auto const* selected = data.selected_message();
     auto const anchor = selected ? selected->id : 0;
-    client_->get_messages(conversation, before, callback([this, conversation, view, older, request, locate, anchor, before](auto value) {
+    client_->get_messages(conversation, before, callback([this, conversation, view, older, request, locate, composer, anchor, before](auto value) {
         if (view != view_ || conversation != data.active || request != history_request_) { return; }
         history_busy_ = false;
         if (!value) { older_again_ = false; error(value.error()); return; }
         auto const* current = data.selected_message();
-        bool const locating = locate && data.selecting && !data.composing && !data.at_latest &&
+        bool const recovering = composer && (data.editing == locate || (data.reply && data.reply->id == locate));
+        bool const locating = !composer && locate && data.selecting && !data.composing && !data.at_latest &&
                               (!anchor || (current && current->id == anchor));
+        if (data.editing && std::ranges::any_of(value->messages, [this](auto const& message) {
+                return message.id == data.editing && message.deleted;
+            }))
+        { cancel_edit(); }
         data.apply_history(std::move(*value), older);
         mark_visible_read();
-        if (locating)
+        if (locating || recovering)
         {
             auto const found = std::ranges::find(data.messages, locate, &message::id);
             if (found != data.messages.end())
             {
-                data.message_selected = static_cast<int>(found - data.messages.begin());
-                data.at_latest = found + 1 == data.messages.end();
+                if (locating)
+                {
+                    data.message_selected = static_cast<int>(found - data.messages.begin());
+                    data.at_latest = found + 1 == data.messages.end();
+                }
             }
             else if (data.history_more && data.history_before && *data.history_before > locate &&
                      (!before || *data.history_before < *before))
-            { history(true, locate); return; }
+            { history(true, composer ? 0 : locate); return; }
             else { data.status = "未能定位该消息，请重新搜索"; }
         }
+        auto const target = data.editing ? data.editing : data.reply ? data.reply->id : 0;
+        if (locating && target && std::ranges::find(data.messages, target, &message::id) == data.messages.end())
+        { history(true); return; }
         if (std::exchange(older_again_, false)) { data.at_latest = false; history(true); }
     }));
 }

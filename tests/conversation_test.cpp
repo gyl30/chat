@@ -3477,6 +3477,199 @@ int run_tui_tests()
         app.reconnect();
         pump([&] { return app.data.link == connection::online && app.data.active == direct && app.data.can_send() && !app.data.messages.empty(); });
         require(app.data.draft == "reconnect draft", "Reconnect preserves draft and refreshes authoritative history");
+        {
+            // A transport interruption is not an explicit cancellation of the composer.
+            app.data.draft = "composer reconnect edit target";
+            app.send();
+            pump([&] { return app.data.outgoing.empty() && app.data.messages.back().text == "composer reconnect edit target"; });
+            auto const target = app.data.messages.back().id;
+            app.data.draft = normal_draft;
+            select(target);
+            app.command("edit");
+            app.data.draft = "编辑中 é 👩‍🚀 reconnect";
+            auto const edited = app.data.draft;
+            app.reconnect();
+            bool const edit_disconnected = app.data.editing == target && app.data.draft == edited;
+            pump([&] { return app.data.link == connection::online && app.data.can_send() && !app.data.messages.empty(); });
+            bool const edit_reconnected = app.data.editing == target && app.data.draft == edited;
+            if (edit_disconnected && edit_reconnected)
+            {
+                app.send();
+                pump([&] {
+                    auto found = std::ranges::find(app.data.messages, target, &chat::message::id);
+                    return found != app.data.messages.end() && found->text == edited && !app.data.editing;
+                });
+                require(app.data.draft == normal_draft, "Completing a reconnected edit restores the ordinary draft");
+                select(target);
+                app.command("edit");
+                app.data.draft = "cancel after reconnect";
+                app.reconnect();
+                pump([&] { return app.data.link == connection::online && app.data.can_send() && !app.data.messages.empty(); });
+                app.cancel_edit();
+                require(!app.data.editing && app.data.draft == normal_draft,
+                        "Cancelling a reconnected edit restores the draft saved before editing");
+            }
+            app.cancel_edit();
+            select(target);
+            app.command("reply");
+            app.data.draft = "回复中 中文 👩‍🚀 reconnect";
+            auto const reply_text = app.data.draft;
+            app.reconnect();
+            bool const reply_disconnected = app.data.reply && app.data.reply->id == target && app.data.draft == reply_text;
+            pump([&] { return app.data.link == connection::online && app.data.can_send() && !app.data.messages.empty(); });
+            bool const reply_reconnected = app.data.reply && app.data.reply->id == target && app.data.draft == reply_text;
+            if (reply_disconnected && reply_reconnected)
+            {
+                app.send();
+                pump([&] {
+                    return app.data.outgoing.empty() && app.data.messages.back().text == reply_text;
+                });
+                require(app.data.messages.back().reply && app.data.messages.back().reply->id == target,
+                        "A reconnected reply is stored as a reply to the original target");
+            }
+            std::cout << "TUI composer reconnect: edit_disconnect=" << edit_disconnected
+                      << ", edit_reconnect=" << edit_reconnected
+                      << ", reply_disconnect=" << reply_disconnected
+                      << ", reply_reconnect=" << reply_reconnected << '\n';
+            require(edit_disconnected && edit_reconnected, "Disconnect and reconnect preserve the edit target and modified body");
+            require(reply_disconnected && reply_reconnected, "Disconnect and reconnect preserve the reply target and body");
+            app.data.draft.clear();
+        }
+        {
+            app.data.draft = "old composer target";
+            app.send();
+            pump([&] { return app.data.outgoing.empty() && app.data.messages.back().text == "old composer target"; });
+            auto const target = app.data.messages.back().id;
+            app.data.draft = normal_draft;
+            select(target);
+            app.command("edit");
+            app.data.draft = "edit older than reconnect page";
+            auto quote = call<chat::message>([&](auto h) { peer.send_message(direct, "quote deleted offline", h); });
+            require(quote.has_value(), "Peer creates a quote older than the reconnect page");
+            for (int i = 0; i < 51; ++i)
+            {
+                require(call<chat::message>([&](auto h) { peer.send_message(direct, "composer history fill " + std::to_string(i), h); }).has_value(),
+                        "Fill a full latest page while the old target is being edited");
+            }
+            auto latest = call<chat::messages_result>([&](auto h) { peer.get_messages(direct, {}, h); });
+            require(latest && latest->has_more && std::ranges::none_of(latest->messages, [target](auto const& value) { return value.id == target; }),
+                    "The reconnect latest page really excludes the composer target");
+            app.reconnect();
+            // drain() applies a bounded batch: authentication has queued history but not applied it.
+            pump([&] { return app.data.link == connection::online; });
+            require(app.data.messages.empty(), "History is still pending immediately after reauthentication");
+            app.command("help");
+            app.back();
+            pump([&] {
+                return app.data.can_send() &&
+                    std::ranges::any_of(app.data.messages, [target](auto const& value) { return value.id == target; });
+            });
+            require(app.data.selected_message() && app.data.selected_message()->id != target,
+                    "Recovering a composer target does not jump the selected message to it");
+            require(app.data.editing == target && app.data.draft == "edit older than reconnect page",
+                    "An older edit target and modified body survive history recovery");
+            app.reconnect();
+            pump([&] { return app.data.link == connection::online; });
+            require(app.data.messages.empty(), "Old edit recovery is pending before locating another message");
+            app.command("search composer history fill 50");
+            pump([&] { return app.data.search_results.size() == 1; });
+            auto const located = app.data.search_results.front().id;
+            {
+                auto ui = chat::tui::make_ui(app, [] {});
+                ui->OnEvent(ftxui::Event::Return);
+            }
+            pump([&] {
+                return app.data.selected_message() && app.data.selected_message()->id == located &&
+                    std::ranges::any_of(app.data.messages, [target](auto const& value) { return value.id == target; });
+            });
+            require(app.data.editing == target && app.data.draft == "edit older than reconnect page",
+                    "Locating another message still recovers the active edit without changing its body");
+            app.send();
+            pump([&] { return !app.data.editing; });
+            require(app.data.draft == normal_draft, "Completing an older reconnected edit restores the ordinary draft");
+            auto stored = call<chat::messages_result>([&](auto h) { peer.get_messages(direct, target + 1, h); });
+            require(stored && stored->messages.back().id == target && stored->messages.back().text == "edit older than reconnect page",
+                    "The older target is actually edited on the server");
+            select(target);
+            app.command("reply");
+            app.data.draft = "reply to older reconnected target";
+            app.reconnect();
+            pump([&] { return app.data.link == connection::online; });
+            require(app.data.messages.empty(), "The old reply target has not been reloaded before searching");
+            app.command("search edit older than reconnect page");
+            pump([&] { return app.data.search_results.size() == 1 && app.data.search_results.front().id == target; });
+            {
+                auto ui = chat::tui::make_ui(app, [] {});
+                ui->OnEvent(ftxui::Event::Return);
+            }
+            pump([&] { return app.data.selected_message() && app.data.selected_message()->id == target; });
+            require(app.data.selecting && !app.data.at_latest && app.data.reply && app.data.reply->id == target &&
+                        app.data.draft == "reply to older reconnected target",
+                    "Explicit search location still selects the message while preserving the reconnected reply");
+            app.send();
+            pump([&] { return app.data.outgoing.empty() && app.data.messages.back().text == "reply to older reconnected target"; });
+            require(app.data.messages.back().reply && app.data.messages.back().reply->id == target,
+                    "Sending after older history recovery preserves the reply relationship");
+            auto const reply_message = app.data.messages.back().id;
+
+            // The replacement signs in only after the old connection left, before pumping reconnect.
+            app.data.draft = normal_draft;
+            select(target);
+            app.command("edit");
+            app.data.draft = "edit removed while offline";
+            std::ptrdiff_t offline_count;
+            {
+                std::lock_guard lock(peer_events.mutex);
+                offline_count = std::ranges::count_if(peer_events.presences, [self](auto const& value) { return value.user == self && !value.online; });
+            }
+            app.reconnect();
+            peer_events.wait([&] {
+                return std::ranges::count_if(peer_events.presences, [self](auto const& value) { return value.user == self && !value.online; }) > offline_count;
+            });
+            chat::client replacement;
+            events replacement_events;
+            replacement_events.attach(replacement);
+            replacement.connect(server.url);
+            replacement_events.wait([&] { return replacement_events.connected == 1; });
+            auto signed_in = call<chat::authentication_result>([&](auto h) { replacement.authenticate(account, "test password", h); });
+            require(signed_in && signed_in->authenticated, "Only the replacement client owns the offline account");
+            require(call<chat::message>([&](auto h) { replacement.delete_message(direct, target, h); }).has_value(),
+                    "Delete the older edit target while the app is disconnected");
+            replacement.close();
+            peer_events.wait([&] {
+                return std::ranges::count_if(peer_events.presences, [self](auto const& value) { return value.user == self && !value.online; }) > offline_count + 1;
+            });
+            pump([&] { return app.data.link == connection::online && app.data.can_send() && !app.data.editing; });
+            require(app.data.draft == normal_draft, "An offline-deleted older edit target restores the ordinary draft");
+
+            select(quote->id);
+            app.command("reply");
+            app.data.draft = "reply body survives offline target deletion";
+            app.reconnect();
+            require(call<chat::message>([&](auto h) { peer.delete_message(direct, quote->id, h); }).has_value(),
+                    "Peer deletes the quote before the app reconnects");
+            pump([&] { return app.data.link == connection::online && app.data.can_send() && !app.data.reply; });
+            require(app.data.draft == "reply body survives offline target deletion", "Deleting a quote clears only the reply context");
+
+            select(reply_message);
+            app.command("reply");
+            require(app.data.reply && app.data.reply->id == reply_message, "A reply is active before switching conversations");
+            app.open_conversation(other_direct);
+            require(!app.data.reply && !app.data.editing, "Conversation switching clears the previous composer targets");
+            app.open_conversation(direct);
+            pump([&] { return !app.data.messages.empty(); });
+            require(app.data.draft == "reply body survives offline target deletion", "Conversation switching keeps the ordinary draft");
+            select(reply_message);
+            app.command("edit");
+            require(app.data.editing == reply_message, "An edit is active before switching conversations");
+            app.data.draft = "discard edit on conversation switch";
+            app.open_conversation(other_direct);
+            require(!app.data.reply && !app.data.editing, "Conversation switching clears an edit target");
+            app.open_conversation(direct);
+            pump([&] { return !app.data.messages.empty(); });
+            require(app.data.draft == "reply body survives offline target deletion", "Leaving an edit restores the original ordinary draft");
+            app.data.draft.clear();
+        }
         auto after_reconnect = call<chat::message>([&](auto handler) { peer.send_message(direct, "after reconnect", handler); });
         require(after_reconnect.has_value(), "Peer sends after reconnect");
         pump([&] { return std::ranges::any_of(app.data.messages, [&](auto const& value) { return value.id == after_reconnect->id; }); });
@@ -3801,6 +3994,11 @@ int run_tui_tests()
         pump([&] { return app.data.members.size() == 3; });
         app.command("link");
         require(app.data.view != page::copy && app.data.status.find("仅群主") != std::string::npos, "Ordinary member cannot fetch invite secret");
+        app.data.draft = "composer before removed conversation";
+        app.send();
+        pump([&] { return app.data.outgoing.empty() && !app.data.messages.empty(); });
+        app.command("edit");
+        require(app.data.editing != 0, "An edit is active before the conversation is removed offline");
         app.command("search old search");
         require(app.data.view == page::search, "Search page is active before disconnect");
         app.reconnect();
@@ -3811,6 +4009,8 @@ int run_tui_tests()
         pump([&] { return app.data.link == connection::online && app.data.active == 0; });
         require(app.data.messages.empty() && app.data.view == page::conversations,
                 "Reconnect authoritatively closes group removed while offline");
+        require(!app.data.editing && !app.data.reply && app.data.draft.empty(),
+                "A removed conversation clears edit and reply even when disconnect preserved them");
         app.open_conversation(direct);
         pump([&] { return !app.data.messages.empty(); });
 
@@ -4196,8 +4396,13 @@ int run_tui_tests()
         }
         app.command("file " + upload.string());
         require(app.data.outgoing.size() == 1 && app.data.outgoing.front().file, "Attachment pending at logout");
+        select(app.data.messages.back().id);
+        app.command("reply");
+        require(app.data.reply.has_value(), "A reply is active immediately before logout");
         app.logout();
         app.drain();
+        require(!app.data.reply && !app.data.editing && app.data.draft.empty(),
+                "Logout clears all composer context before another account can sign in");
         require(app.data.link == connection::signed_out && app.password.empty() && app.data.messages.empty() &&
                     app.data.outgoing.empty(), "Logout clears account, credentials and unsent messages");
         app.shutdown();
