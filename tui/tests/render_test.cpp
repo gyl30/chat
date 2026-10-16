@@ -196,6 +196,82 @@ int main()
     s.self = {1, "Alice", {}};
     s.link = connection::online;
     {
+        auto const fallback = ftxui::Terminal::Size();
+        for (auto const& [columns, rows] : {std::pair{100,30}, {80,24}, {40,12}})
+        {
+            app application;
+            writable_conversation(application);
+            auto component = make_ui(application, [] {});
+            auto shown = [&] {
+                ftxui::Terminal::SetFallbackSize({columns,rows});
+                ftxui::Screen frame(columns,rows);
+                ftxui::Render(frame,component->Render());
+                return frame;
+            };
+            auto cursor = [&](ftxui::Screen const& frame) {
+                auto const position = frame.cursor();
+                bool const visible = position.shape == ftxui::Screen::Cursor::BarBlinking &&
+                    position.x > 0 && position.x < columns - 1 && position.y > 0 && position.y < rows - 1;
+                ok &= expect(visible, "The real focused Input exposes its visible native cursor within the composer");
+                if (visible)
+                {
+                    auto const& cell = frame.CellAt(position.x,position.y);
+                    ok &= expect(cell.background_color != ftxui::Color::Default,
+                                 "The native cursor remains inside the continuous editor background");
+                    bool prompt = false;
+                    for (int x = 0; x < position.x; ++x) { prompt |= frame.CellAt(x,position.y).character == "›"; }
+                    ok &= expect(prompt || application.data.draft.contains('\n'),
+                                 "The single-line prompt, text and native cursor occupy the same row");
+                }
+                return position;
+            };
+            auto empty = shown();
+            auto start = cursor(empty);
+            component->OnEvent(ftxui::Event::Character("abc"));
+            auto end = cursor(shown());
+            ok &= expect(end.x == start.x + 3 && end.y == start.y,
+                         "The rendered cursor follows the actual three-character input");
+            component->OnEvent(ftxui::Event::ArrowLeft);
+            auto left = cursor(shown());
+            ok &= expect(left.x == end.x - 1 && left.y == end.y, "ArrowLeft moves the real cursor one cell");
+            component->OnEvent(ftxui::Event::Character("X"));
+            auto inserted = cursor(shown());
+            ok &= expect(application.data.draft == "abXc" && inserted.x == left.x + 1,
+                         "Insertion occurs at the visible cursor rather than only changing the draft tail");
+            component->OnEvent(ftxui::Event::Home);
+            ok &= expect(cursor(shown()).x == start.x, "Home returns the visible cursor to the text start");
+            component->OnEvent(ftxui::Event::Delete);
+            component->OnEvent(ftxui::Event::End);
+            component->OnEvent(ftxui::Event::Backspace);
+            ok &= expect(application.data.draft == "bX" && cursor(shown()).x == start.x + 2,
+                         "Home, End, Delete and Backspace retain their editing and cursor semantics");
+            component->OnEvent(ftxui::Event::Character("中文🙂é"));
+            auto unicode = cursor(shown());
+            ok &= expect(unicode.x == start.x + ftxui::string_width(application.data.draft),
+                         "CJK, Emoji and a combining mark use their actual terminal cell widths");
+            component->OnEvent(ftxui::Event::F1);
+            component->OnEvent(ftxui::Event::Escape);
+            ok &= expect(cursor(shown()).x == unicode.x, "Leaving Help restores the actual editor cursor");
+            component->OnEvent(ftxui::Event::CtrlK);
+            component->OnEvent(ftxui::Event::Escape);
+            ok &= expect(cursor(shown()).x == unicode.x, "Closing the command palette restores the actual editor cursor");
+            component->OnEvent(ftxui::Event::TabReverse);
+            component->OnEvent(ftxui::Event::Escape);
+            ok &= expect(cursor(shown()).x == unicode.x, "Returning from message selection restores the actual editor cursor");
+            component->OnEvent(ftxui::Event::Special("\x1b\r"));
+            component->OnEvent(ftxui::Event::Character("第二行"));
+            auto multiline = shown();
+            auto next_line = cursor(multiline);
+            ok &= expect(application.data.draft.contains('\n') && next_line.x == start.x + 6 &&
+                         next_line.y == start.y + (rows > 12 ? 1 : 0) &&
+                         multiline.CellAt(next_line.x - 6,next_line.y).character == "第",
+                         "A newline places the real cursor after the second line, with narrow viewports scrolling around it");
+            component->OnEvent(ftxui::Event::Character("\nL3\nL4\nL5\nL6"));
+            cursor(shown());
+        }
+        ftxui::Terminal::SetFallbackSize(fallback);
+    }
+    {
         auto visual = s;
         chat::conversation direct;
         direct.id = 10; direct.user = 2; direct.username = "Direct title";
@@ -251,6 +327,77 @@ int main()
                      "Two-line chat rows reserve identity and preview instead of a long presence sentence");
         ok &= expect(sidebar.find("▸ Direct title") != std::string::npos,
                      "The open chat remains marked while the composer owns keyboard focus");
+        // Check actual cells: direction alone cannot prove the message/background hierarchy.
+        auto locate = [&](ftxui::Screen const& frame, std::string const& value, int begin, int end) {
+            std::pair<int,int> point{-1,-1};
+            for (int y = 0; y < frame.dimy(); ++y)
+            {
+                for (int x = begin; x < end; ++x)
+                {
+                    std::string cells;
+                    for (int cell = x; cell < end && static_cast<int>(cells.size()) < static_cast<int>(value.size()); ++cell)
+                    { cells += frame.CellAt(cell,y).character; }
+                    if (cells.starts_with(value)) { point = {x,y}; }
+                }
+            }
+            return point;
+        };
+        auto const [peer_x, peer_y] = locate(screen,"PEER_BODY",32,119);
+        auto const [own_x, own_y] = locate(screen,"OWN_BODY",32,119);
+        ok &= expect(peer_x >= 0 && own_x > peer_x, "Both bubble bodies are visible in their own directions");
+        if (peer_x >= 2 && peer_y >= 1 && own_x >= 2 && own_y >= 1)
+        {
+            auto const peer_background = screen.CellAt(peer_x,peer_y).background_color;
+            auto const own_background = screen.CellAt(own_x,own_y).background_color;
+            ok &= expect(peer_background != ftxui::Color::Default && own_background != ftxui::Color::Default &&
+                         peer_background != own_background, "Incoming and outgoing bubbles have distinct real background cells");
+            for (auto const& [x,y] : {std::pair{peer_x,peer_y}, std::pair{own_x,own_y}})
+            {
+                ok &= expect(screen.CellAt(x-2,y-1).character == "╭",
+                             "A message bubble has a real rounded upper-left corner");
+                ok &= expect(screen.CellAt(x-1,y).background_color == screen.CellAt(x,y).background_color &&
+                             screen.CellAt(x-1,y).character == " ", "Bubble padding shares its body background");
+                ok &= expect(screen.CellAt(x,y).foreground_color != screen.CellAt(x,y+1).foreground_color,
+                             "Body and metadata use distinct foreground brightness");
+            }
+        }
+        auto const [active_x, active_y] = locate(screen,"Direct title",1,30);
+        ok &= expect(active_x >= 0, "The active conversation name is visible in the sidebar");
+        if (active_x >= 0)
+        {
+            auto const active_background = screen.CellAt(active_x,active_y).background_color;
+            ok &= expect(active_background != ftxui::Color::Default &&
+                         active_background == screen.CellAt(28,active_y).background_color &&
+                         active_background == screen.CellAt(28,active_y+1).background_color &&
+                         !screen.CellAt(active_x,active_y).inverted,
+                         "The active conversation has a continuous two-row background while typing");
+        }
+        auto choosing = visual;
+        auto other = direct;
+        other.id = 11;
+        other.username = "Other chat";
+        choosing.conversations.push_back(other);
+        choosing.view = page::conversations;
+        choosing.composing = false;
+        choosing.conversation_selected = 1;
+        ftxui::Screen choices(120,40);
+        ftxui::Render(choices,render(choosing,120,40));
+        auto const [opened_x, opened_y] = locate(choices,"Direct title",1,30);
+        auto const [chosen_x, chosen_y] = locate(choices,"Other chat",1,30);
+        ok &= expect(opened_x >= 0 && chosen_x >= 0 &&
+                     choices.CellAt(opened_x,opened_y).background_color != ftxui::Color::Default &&
+                     !choices.CellAt(opened_x,opened_y).inverted && choices.CellAt(chosen_x,chosen_y).inverted,
+                     "The open chat background and a different keyboard-selected chat remain distinct");
+        auto const [compose_x, compose_y] = locate(screen,"› ",32,119);
+        ok &= expect(compose_x >= 0 && compose_y + 1 < 40, "The roomy composer is visible");
+        if (compose_x >= 0 && compose_y + 1 < 40)
+        {
+            auto const background = screen.CellAt(compose_x,compose_y).background_color;
+            ok &= expect(background != ftxui::Color::Default &&
+                         background == screen.CellAt(compose_x,compose_y+1).background_color &&
+                         background == screen.CellAt(117,compose_y+1).background_color,
+                         "The editor background continues across padding and all its empty rows");
+        }
         visual.composing = false;
         visual.message_selected = 0;
         auto peer_footer = draw(visual,160,45);
@@ -821,10 +968,29 @@ int main()
     s.view = page::help;
     ok &= expect(draw(s, 120, 40).find("Ctrl+C") != std::string::npos, "keyboard help");
     {
-        // Shortcuts are grouped tables: a title per group, then key │ description on one line.
+        // Shortcuts are grouped tables: a title per group, then separate key and description columns.
         auto help = s;
         help.selected = 0;
-        auto const top = draw(help, 120, 80);
+        ftxui::Screen wide_help(160,80);
+        ftxui::Render(wide_help,render(help,160,80));
+        auto heading = [&](std::string const& value) {
+            std::pair<int,int> point{-1,-1};
+            for (int y = 0; y < 80; ++y)
+            {
+                for (int x = 1; x < 159; ++x)
+                {
+                    std::string row;
+                    for (int cell = x; cell < 159; ++cell) { row += wide_help.CellAt(cell,y).character; }
+                    if (row.starts_with(value)) { point = {x,y}; }
+                }
+            }
+            return point;
+        };
+        auto const [left_x,left_y] = heading("通用");
+        auto const [right_x,right_y] = heading("消息（选择消息时）");
+        ok &= expect(left_x > 0 && right_x > 80 && left_y == right_y,
+                     "A wide Help page renders its shortcut groups in two actual side-by-side columns");
+        auto const top = draw(help, 100, 80);
         bool keyed_row = false;
         std::istringstream lines(top);
         for (std::string line; std::getline(lines, line);)
@@ -868,6 +1034,16 @@ int main()
             auto top = draw(application.data, columns, rows);
             ok &= expect(top.find("Ctrl+K") != std::string::npos,
                          "Help opens at its first shortcut");
+            component->OnEvent(ftxui::Event::PageDown);
+            ok &= expect(application.data.selected > 0 && draw(application.data,columns,rows) != top,
+                         "PageDown changes the actual visible Help content");
+            component->OnEvent(ftxui::Event::PageUp);
+            ok &= expect(application.data.selected == 0 && draw(application.data,columns,rows) == top,
+                         "PageUp returns Help to its original viewport");
+            component->OnEvent(ftxui::Event::ArrowDown);
+            ok &= expect(application.data.selected == 1, "ArrowDown moves the Help scroll target");
+            component->OnEvent(ftxui::Event::ArrowUp);
+            ok &= expect(application.data.selected == 0, "ArrowUp restores the Help scroll target");
             for (int i = 0; i < 200; ++i) { component->OnEvent(ftxui::Event::Character('j')); }
             auto output = draw(application.data, columns, rows);
             auto const start = output.find("new, chats");
@@ -1822,7 +1998,7 @@ int main()
         chat.messages[1].edited_at = 1;
         chat.messages[4].deleted = true;
         chat.message_selected = 5;
-        auto output = draw(chat, 120, 40);
+        auto output = draw(chat, 120, 60);
         auto count = [&](std::string const& value) {
             std::size_t n = 0;
             for (auto at = output.find(value); at != std::string::npos; at = output.find(value, at + 1)) { ++n; }
@@ -2063,7 +2239,17 @@ int main()
         ftxui::Terminal::SetFallbackSize({120, 40});
         auto component = make_ui(application, [] {});
         auto type = [&](std::string const& value) { component->OnEvent(ftxui::Event::Character(value)); };
-        auto screen_text = [&] { ftxui::Screen screen(120, 40); ftxui::Render(screen, component->Render()); return screen.ToString(); };
+        auto screen_text = [&] {
+            ftxui::Screen screen(120, 40);
+            ftxui::Render(screen, component->Render());
+            std::string text;
+            for (int y = 0; y < 40; ++y)
+            {
+                for (int x = 0; x < 120; ++x) { text += screen.CellAt(x,y).character; }
+                text += '\n';
+            }
+            return text;
+        };
         component->OnEvent(ftxui::Event::Custom);
         application.data.draft = "ab";
         component->OnEvent(ftxui::Event::Home);

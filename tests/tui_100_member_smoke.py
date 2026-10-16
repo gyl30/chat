@@ -1482,7 +1482,7 @@ def stage_group_management(d):
 
 def prompt_line(line):
     """A composer line that currently has the keys: it starts with the › prompt."""
-    return re.search(r'(^|│)› ', line) is not None
+    return re.search(r'(^|│) *› ', line) is not None
 
 
 def composing(screen):

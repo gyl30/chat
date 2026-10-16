@@ -24,6 +24,13 @@ namespace chat::tui
 namespace
 {
 using namespace ftxui;
+Color const body_color = Color::RGB(193, 229, 201);
+Color const metadata_color = Color::RGB(126, 164, 139);
+Color const incoming_background = Color::RGB(18, 31, 24);
+Color const outgoing_background = Color::RGB(21, 48, 32);
+Color const bubble_edge = Color::RGB(48, 88, 61);
+Color const active_background = Color::RGB(20, 43, 28);
+Color const composer_background = Color::RGB(12, 23, 16);
 struct shortcut { std::string_view key, description; };
 struct shortcut_group { std::string_view title; std::span<shortcut const> items; };
 constexpr std::array general_shortcuts{
@@ -177,33 +184,65 @@ Element wrapped_text(std::string const& value, int width, int* line_count = null
 }
 Element help_content(int width, int* line_count = nullptr)
 {
-    width = std::max(1, width);
-    // Two columns: the keys as wide as the widest (at most a third of the page), the description
-    // wrapping in the rest.
+    width = std::max(1, width - 1);
     int key_width = 1;
     for (auto const& group : shortcut_groups)
     {
         for (auto const& item : group.items) { key_width = std::max(key_width, DisplayWidth(std::string(item.key))); }
     }
-    key_width = std::clamp(key_width, 1, std::max(1, width / 3));
-    auto const description_width = std::max(1, width - key_width - 3);
-    Elements rows;
+    constexpr int column_gap = 4;
+    // Each column needs the keys, a gap and enough room for a short description.
+    bool const two_columns = width >= 2 * (key_width + 3 + 32) + column_gap;
+    auto const column_width = two_columns ? (width - column_gap) / 2 : width;
+    key_width = std::clamp(key_width, 1, std::max(1, column_width / 3));
+    auto const description_width = std::max(1, column_width - key_width - 3);
+    Elements groups;
+    std::vector<int> heights;
+    int total = 0;
     for (auto const& group : shortcut_groups)
     {
-        if (!rows.empty()) { rows.push_back(text("")); }
-        rows.push_back(text(std::string(group.title)) | bold);
+        Elements entries{text(std::string(group.title)) | color(body_color) | bold};
         for (auto const& item : group.items)
         {
-            int key_lines = 1;
-            int description_lines = 1;
-            auto key = wrapped_text(std::string(item.key), key_width, &key_lines);
-            auto description = wrapped_text(std::string(item.description), description_width, &description_lines);
-            // The column rule is drawn as text, one per line, so it never joins the page's frame lines.
-            Elements rule;
-            for (int line = 0; line < std::max(key_lines, description_lines); ++line) { rule.push_back(text(" │ ") | dim); }
-            rows.push_back(hbox({key | size(WIDTH, EQUAL, key_width), vbox(std::move(rule)), description}));
+            auto key = wrapped_text(std::string(item.key), key_width) | color(body_color);
+            auto description = wrapped_text(std::string(item.description), description_width) | color(metadata_color);
+            entries.push_back(hbox({key | size(WIDTH, EQUAL, key_width), text("   "), description}));
+        }
+        auto section = vbox(std::move(entries));
+        section->ComputeRequirement();
+        heights.push_back(section->requirement().min_y + 1);
+        total += heights.back();
+        groups.push_back(std::move(section));
+    }
+    auto split = groups.size();
+    if (two_columns)
+    {
+        int left = 0, best = total;
+        for (std::size_t i = 0; i + 1 < groups.size(); ++i)
+        {
+            left += heights[i];
+            if (std::max(left, total - left) < best)
+            {
+                best = std::max(left, total - left);
+                split = i + 1;
+            }
         }
     }
+    std::array<Elements, 2> columns;
+    for (std::size_t i = 0; i < groups.size(); ++i)
+    {
+        auto& column = columns[i < split ? 0 : 1];
+        if (!column.empty()) { column.push_back(text("")); }
+        column.push_back(std::move(groups[i]));
+    }
+    Elements rows;
+    if (two_columns)
+    {
+        rows.push_back(hbox({vbox(std::move(columns[0])) | size(WIDTH, EQUAL, column_width),
+                             text(std::string(column_gap, ' ')),
+                             vbox(std::move(columns[1])) | size(WIDTH, EQUAL, column_width)}));
+    }
+    else { rows.push_back(vbox(std::move(columns[0]))); }
     rows.push_back(text(""));
     rows.push_back(text("命令") | bold);
     constexpr std::array commands{"new", "chats", "contacts", "friend-requests", "friend-sent", "accept-friend", "reject-friend",
@@ -371,11 +410,12 @@ Element conversation_list(state const& s, int width)
         auto const name_width = width - DisplayWidth(when);
         auto unread_mark = text(unread);
         if (!unread.empty() && !c.muted) { unread_mark = unread_mark | bold; }
-        rows.push_back(selected(vbox({
+        auto row = vbox({
             hbox({preview_text(label, name_width) | bold | flex, text(when) | dim}),
             hbox({text("  "), preview_text(summary, width - 2 - DisplayWidth(flags) - DisplayWidth(unread)) | dim | flex,
-                  text(flags) | dim, unread_mark})}),
-            current, s.view == page::conversations));
+                  text(flags) | dim, unread_mark})});
+        if (c.id == s.active) { row = row | bgcolor(active_background) | color(body_color); }
+        rows.push_back(selected(std::move(row), current, s.view == page::conversations));
     }
     if (s.next_conversations) { rows.push_back(text("↓ 更多会话") | dim); }
     return vbox({text("聊天 (" + std::to_string(s.conversations.size()) + ")") | bold, separator(), scroll(std::move(rows))}) | flex;
@@ -393,24 +433,25 @@ bool starts_group(std::vector<message> const& values, std::size_t index)
 }
 std::string message_heading(state const& s, message const& m)
 {
-    // Search results span days, so they keep the date; history has day separators instead.
+    // A clipped bubble keeps its sender context, rather than a detached time.
     auto const* c = s.active_conversation();
-    auto const sender = c && c->kind == conversation_kind::group && m.from != s.self.id ? m.username + " " : std::string{};
-    return sender + (s.view == page::search ? timestamp(m.timestamp) : clock_time(m.timestamp));
+    auto const sender = c && c->kind == conversation_kind::group && m.from != s.self.id
+        ? m.username + " " : m.from == s.self.id ? "自己的消息 · " : m.username + " · ";
+    return sender + clock_time(m.timestamp);
 }
 Element message_item(state const& s, message const& m, bool highlighted, int width, int scroll_line, bool heading = true, bool body_focus = false)
 {
-    auto const content_width = std::max(1, (width - 2) * 3 / 4);
+    auto const content_width = std::max(1, (width - 2) * 3 / 4 - 4);
     Elements lines;
     auto const* conversation = s.active_conversation();
     if (heading && conversation && conversation->kind == conversation_kind::group && m.from != s.self.id)
     { lines.push_back(preview_text(m.username, content_width) | bold); }
     if (m.reply)
     {
-        lines.push_back(preview_text("↪ " + m.reply->username + ": " + (m.reply->deleted ? "消息已删除" : m.reply->text), content_width) | dim);
+        lines.push_back(preview_text("↪ " + m.reply->username + ": " + (m.reply->deleted ? "消息已删除" : m.reply->text), content_width) | color(metadata_color));
     }
     int body_line = 0;
-    if (m.deleted) { lines.push_back(text("消息已删除") | dim); }
+    if (m.deleted) { lines.push_back(text("消息已删除") | color(metadata_color)); }
     else
     {
         // The edited mark belongs to its own message, wherever the shared heading is.
@@ -419,8 +460,8 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
         if (m.attachment)
         {
             auto const& a = *m.attachment;
-            lines.push_back(text(std::string(a.media_type.starts_with("image/") ? "[图片] " : "[文件] ") + a.filename + " · " + file_size(a.size) +
-                                 (m.text.empty() ? edited : std::string{})));
+            lines.push_back(wrapped_text(std::string(a.media_type.starts_with("image/") ? "[图片] " : "[文件] ") + a.filename + " · " + file_size(a.size) +
+                                 (m.text.empty() ? edited : std::string{}), content_width));
         }
     }
     if (body_focus && highlighted)
@@ -438,12 +479,12 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
             if (std::ranges::find(reaction.users, s.self.id) != reaction.users.end()) { reaction_text += "*"; }
             reaction_text += "  ";
         }
-        if (!reaction_text.empty()) { lines.push_back(text(reaction_text)); }
+        if (!reaction_text.empty()) { lines.push_back(wrapped_text(reaction_text, content_width)); }
         if (!m.mentions.empty())
         {
             std::string mentions = "提及：";
             for (auto const& value : m.mentions) { mentions += " @" + value.username; }
-            lines.push_back(text(mentions) | dim);
+            lines.push_back(wrapped_text(mentions, content_width) | color(metadata_color));
         }
     }
     auto metadata = s.view == page::search ? timestamp(m.timestamp) : clock_time(m.timestamp);
@@ -458,45 +499,48 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
         if (!metadata.empty()) { metadata += " · "; }
         metadata += c && c->kind == conversation_kind::group ? "已读 " + std::to_string(read_count) + " 人" : read_count ? "已读" : "已发送";
     }
-    if (!metadata.empty()) { lines.push_back(text(metadata) | dim); }
-    auto item = vbox(std::move(lines)) | size(WIDTH, LESS_THAN, content_width);
+    if (!metadata.empty()) { lines.push_back(text(metadata) | color(metadata_color)); }
+    auto item = vbox(std::move(lines)) | color(body_color) | size(WIDTH, LESS_THAN, content_width);
     if (highlighted)
     {
         item->ComputeRequirement();
-        auto const last_line = std::max(1, item->requirement().min_y - 1);
+        auto const last_line = std::max(0, item->requirement().min_y - 1);
         // A one-row viewport prioritizes content over trailing receipts/reactions; explicit
         // scrolling still addresses the complete message, with the same stable selection.
         auto const default_line = body_focus ? body_line : last_line;
-        float position = static_cast<float>(scroll_line < 0 ? default_line : std::clamp(scroll_line, 0, last_line)) / last_line;
+        float position = static_cast<float>(scroll_line < 0 ? default_line : std::clamp(scroll_line, 0, last_line)) / (last_line + 1);
         // While typing, the newest message keeps the view at the bottom without a highlight.
         if ((s.view == page::conversation && !s.composing) || s.view == page::search) { item = item | inverted; }
         item = item | focusPositionRelative(0.f, position);
     }
+    item = hbox({text(" "), item, text(" ")}) | borderStyled(ROUNDED, bubble_edge) |
+        bgcolor(m.from == s.self.id ? outgoing_background : incoming_background);
     return m.from == s.self.id ? hbox({text(" "), filler(), item, text(" ")}) : hbox({text(" "), item, filler(), text(" ")});
 }
 // An unconfirmed send, below the messages: its own text or file and reply, and whether it is still
 // sending or was refused.
 Element outgoing_item(outgoing_message const& m, bool highlighted, bool focused, int width, int scroll_line)
 {
-    auto const content_width = std::max(1, (width - 2) * 3 / 4);
+    auto const content_width = std::max(1, (width - 2) * 3 / 4 - 4);
     Elements lines;
     if (m.reply)
     {
-        lines.push_back(preview_text("↪ " + m.reply->username + ": " + (m.reply->deleted ? "消息已删除" : m.reply->text), content_width) | dim);
+        lines.push_back(preview_text("↪ " + m.reply->username + ": " + (m.reply->deleted ? "消息已删除" : m.reply->text), content_width) | color(metadata_color));
     }
-    if (m.file) { lines.push_back(text("[文件] " + m.text + " · " + file_size(static_cast<std::int64_t>(m.file->size())))); }
+    if (m.file) { lines.push_back(wrapped_text("[文件] " + m.text + " · " + file_size(static_cast<std::int64_t>(m.file->size())), content_width)); }
     else { lines.push_back(wrapped_text(m.text, content_width)); }
     if (m.failed) { lines.push_back(preview_text("发送失败：" + m.error + " · Enter 重发或删除", content_width) | bold); }
-    else { lines.push_back(text("发送中…") | dim); }
-    auto item = vbox(std::move(lines)) | size(WIDTH, LESS_THAN, content_width);
+    else { lines.push_back(text("发送中…") | color(metadata_color)); }
+    auto item = vbox(std::move(lines)) | color(body_color) | size(WIDTH, LESS_THAN, content_width);
     if (highlighted)
     {
         item->ComputeRequirement();
-        auto const last_line = std::max(1, item->requirement().min_y - 1);
-        float position = static_cast<float>(scroll_line < 0 ? last_line : std::clamp(scroll_line, 0, last_line)) / last_line;
+        auto const last_line = std::max(0, item->requirement().min_y - 1);
+        float position = static_cast<float>(scroll_line < 0 ? last_line : std::clamp(scroll_line, 0, last_line)) / (last_line + 1);
         if (focused) { item = item | inverted; }
         item = item | focusPositionRelative(0.f, position);
     }
+    item = hbox({text(" "), item, text(" ")}) | borderStyled(ROUNDED, bubble_edge) | bgcolor(outgoing_background);
     return hbox({text(" "), filler(), item, text(" ")});
 }
 // The chat history; rows is how many lines it gets on screen.
@@ -531,7 +575,7 @@ Element history(state const& s, int width, int rows, int message_scroll)
         auto const heading = starts_group(s.messages, i);
         // Groups are separated by a blank line; messages within a group follow each other.
         if (heading && i > 0) { add(text("")); }
-        add(message_item(s, m, s.message_selected == static_cast<int>(i), width, message_scroll, heading, rows == 1),
+        add(message_item(s, m, s.message_selected == static_cast<int>(i), width, message_scroll, heading, rows <= 2),
             static_cast<int>(i), heading);
     }
     for (std::size_t i = 0; i < pending.size(); ++i)
@@ -614,12 +658,12 @@ Element conversation_view(state const& s, Element input, std::string typing, int
         if (input)
         {
             auto const lines = composer_lines(s, width, height, !typing.empty());
-            items.push_back(hbox({text("› "), input | flex}) | size(HEIGHT, EQUAL, lines));
+            items.push_back(hbox({text(" › "), input | xflex, text(" ")}) | vcenter | size(HEIGHT, EQUAL, lines) | bgcolor(composer_background) | color(body_color));
         }
         else
         {
-            auto preview = preview_text(s.composing ? "› " + s.draft : s.draft.empty() ? "按 i 输入消息" : "按 i 继续输入 · " + s.draft, width);
-            items.push_back(preview | size(HEIGHT, EQUAL, s.composing ? composer_lines(s, width, height, !typing.empty()) : 1));
+            auto preview = preview_text(s.composing ? "› " + s.draft : s.draft.empty() ? "按 i 输入消息" : "按 i 继续输入 · " + s.draft, width - 2);
+            items.push_back(hbox({text(" "), preview | flex, text(" ")}) | size(HEIGHT, EQUAL, s.composing ? composer_lines(s, width, height, !typing.empty()) : 1) | bgcolor(composer_background) | color(body_color));
         }
     }
     return vbox(std::move(items)) | flex;
@@ -825,7 +869,7 @@ Element secondary(state const& s, int width, int message_scroll)
         }
         case page::help:
             title = "键盘帮助";
-            hint = "j/k 滚动 · Esc 返回";
+            hint = "↑↓ / j/k 滚动 · PgUp/PgDn 翻页 · Esc 返回";
             rows.push_back(help_content(width));
             break;
         case page::copy:
@@ -1112,6 +1156,9 @@ public:
         Add(Container::Tab({login_form_, settings_form_}, &login_tab_));
         auto compose_option = single;
         compose_option.multiline = true;
+        compose_option.transform = [](InputState state) {
+            return state.is_placeholder ? state.element | color(metadata_color) : state.element;
+        };
         compose_option.on_change = [this] { app_.compose_changed(); };
         compose_option.cursor_position = &compose_cursor_;
         compose_option.insert = &compose_insert_;
@@ -1130,6 +1177,14 @@ public:
         username_field_.cursor = static_cast<int>(app_.username.size());
     }
     ~terminal_ui() override { app_.before_input_change = nullptr; }
+    Component ActiveChild() override
+    {
+        if (palette_open_) { return palette_input_; }
+        if (app_.dialog) { return prompt_; }
+        if (app_.command_mode) { return command_; }
+        if (app_.data.composing) { return compose_; }
+        return ComponentBase::ActiveChild();
+    }
     Element OnRender() override
     {
         flush_paste();
@@ -1507,6 +1562,7 @@ private:
         {
             if (s.view == page::conversation) { s.at_latest = false; app_.history(true); }
             else if (s.view == page::search) { app_.search(s.search_query, true); }
+            else if (s.view == page::help) { move(-std::max(1, app_.viewport_height - 9)); }
             return true;
         }
         if (event == Event::PageDown)
@@ -1514,6 +1570,7 @@ private:
             if (s.view == page::search) { app_.search(s.search_query, true); }
             else if (s.view == page::requests) { app_.requests(true); }
             else if (s.view == page::conversations) { app_.conversations(true); }
+            else if (s.view == page::help) { move(std::max(1, app_.viewport_height - 9)); }
             return true;
         }
         if ((event == Event::Character('[') || event == Event::Character(']')) &&
@@ -1531,7 +1588,7 @@ private:
             auto item = message ? message_item(s, *message, false, width, -1, heading)
                                 : outgoing_item(*pending, false, false, width, -1);
             item->ComputeRequirement();
-            int last = std::max(0, item->requirement().min_y - 1);
+            int last = std::max(0, item->requirement().min_y - 3);
             int current = message_scroll_ < 0 ? last : message_scroll_;
             current = std::clamp(current + (event == Event::Character('[') ? -1 : 1), 0, last);
             message_scroll_ = current == last ? -1 : current;
