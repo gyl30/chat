@@ -28,12 +28,16 @@ struct shortcut { std::string_view key, description; };
 struct shortcut_group { std::string_view title; std::span<shortcut const> items; };
 constexpr std::array general_shortcuts{
     shortcut{"Ctrl+K", "命令面板：搜索并执行命令，草稿保留"},
-    shortcut{":", "输入命令（:help 查看命令列表）"},
-    shortcut{"F1 / ?", "帮助；? 在输入框以外使用"},
+    shortcut{":", "输入命令（输入框以外；:help 查看命令列表）"},
+    shortcut{"F1", "帮助"},
+    shortcut{"?", "帮助（输入框以外）"},
     shortcut{"Esc", "依次：清除错误 / 取消回复或编辑 / 回到输入框 / 返回列表"},
-    shortcut{"h / c / u", "聊天 / 联系人 / 账号"},
+    shortcut{"h", "聊天（输入框以外）"},
+    shortcut{"c", "联系人（输入框以外）"},
+    shortcut{"u", "账号（输入框以外）"},
     shortcut{"N", "新建（Shift+n）：添加好友 / 创建群聊 / 加入群聊"},
-    shortcut{"Ctrl+C / :quit", "安全退出；有未发送的消息时先确认"},
+    shortcut{"Ctrl+C", "安全退出；有待确认的发送时先确认"},
+    shortcut{":quit", "安全退出；有待确认的发送时先确认"},
 };
 constexpr std::array composer_shortcuts{
     shortcut{"直接输入", "打开会话后直接输入；输入框中所有字符都是正文"},
@@ -42,36 +46,49 @@ constexpr std::array composer_shortcuts{
     shortcut{"Alt+Enter", "换行（已在 tmux 中验证；WezTerm 默认用它切换全屏）"},
     shortcut{"↑", "输入框为空时：选择消息"},
     shortcut{"PgUp", "转到消息并加载更早的消息，草稿保留"},
-    shortcut{"Tab / Shift+Tab", "宽屏在列表、消息、输入框之间切换；窄屏在消息与输入框之间切换"},
+    shortcut{"Tab", "切换到下一个焦点；宽屏包含聊天列表"},
+    shortcut{"Shift+Tab", "切换到上一个焦点"},
 };
 constexpr std::array message_shortcuts{
     shortcut{"j / ↓，k / ↑", "移动选择"},
     shortcut{"Enter", "操作菜单：只列出可用操作，字母直接执行；发送失败的消息可重发或删除"},
     shortcut{"i", "回到输入框"},
-    shortcut{"r / e / d", "回复 / 编辑 / 删除（需确认）"},
+    shortcut{"r", "回复"},
+    shortcut{"e", "编辑自己的文字消息"},
+    shortcut{"d", "删除自己的消息（需确认）"},
     shortcut{"a", "表情回应（0 取消）"},
-    shortcut{"y / s", "显示可复制文本 / 保存附件"},
+    shortcut{"y", "显示可复制文本"},
+    shortcut{"s", "保存附件"},
     shortcut{"/", "搜索当前会话"},
-    shortcut{"PgUp / PgDn", "加载更早的消息 / 加载更多搜索结果"},
+    shortcut{"PgUp", "加载更早的消息"},
+    shortcut{"PgDn", "搜索页：加载更多结果"},
     shortcut{"G", "回到最新消息"},
     shortcut{"[ / ]", "在长消息内逐行滚动"},
     shortcut{":history", "聊天记录：全部、图片、文件、链接"},
 };
 constexpr std::array conversation_shortcuts{
-    shortcut{"j / k，Enter", "移动选择，打开会话"},
-    shortcut{"m / p", "免打扰 / 置顶会话"},
+    shortcut{"j / k", "移动选择"},
+    shortcut{"Enter", "打开会话"},
+    shortcut{"m", "免打扰"},
+    shortcut{"p", "置顶会话"},
     shortcut{"PgDn", "加载更多会话"},
 };
 constexpr std::array group_shortcuts{
     shortcut{"g", "当前群聊的操作"},
     shortcut{"Enter", "成员页：成员的操作菜单"},
-    shortcut{"A / O / D", "成员页：设置或取消管理员 / 转让群主 / 移除成员"},
-    shortcut{"y / n", "入群申请页：接受 / 拒绝所选申请"},
+    shortcut{"A", "成员页：设置或取消管理员"},
+    shortcut{"O", "成员页：转让群主"},
+    shortcut{"D", "成员页：移除成员"},
+    shortcut{"y", "入群申请页：接受所选申请"},
+    shortcut{"n", "入群申请页：拒绝所选申请"},
 };
 constexpr std::array contact_shortcuts{
-    shortcut{"y / n / x", "新的朋友：接受 / 拒绝收到的申请，撤回发出的申请"},
+    shortcut{"y", "新的朋友：接受收到的申请"},
+    shortcut{"n", "新的朋友：拒绝收到的申请"},
+    shortcut{"x", "新的朋友：撤回发出的申请"},
     shortcut{"/", "联系人、选择好友：按名称筛选好友"},
-    shortcut{"Space / Enter", "选择好友：勾选成员 / 完成选择"},
+    shortcut{"Space", "选择好友：勾选成员"},
+    shortcut{"Enter", "选择好友：完成选择"},
 };
 constexpr std::array shortcut_groups{
     shortcut_group{"通用", general_shortcuts},
@@ -342,13 +359,8 @@ Element conversation_list(state const& s, int width)
         auto const& c = s.conversations[i];
         bool const current = s.conversation_selected == static_cast<int>(i);
         // A text mark as well as reverse video, so the focus survives monochrome terminals.
-        std::string const mark = current && s.view == page::conversations ? "> " : "  ";
+        std::string const mark = current && s.view == page::conversations ? "> " : c.id == s.active ? "▸ " : "  ";
         auto label = mark + c.username;
-        if (c.kind == conversation_kind::direct)
-        {
-            auto presence = presence_label(s, c.user);
-            if (!presence.empty()) { label += " · " + presence; }
-        }
         // Text marks, not only color, so they survive monochrome terminals.
         std::string flags;
         if (c.pinned) { flags += " 置顶"; }
@@ -356,16 +368,17 @@ Element conversation_list(state const& s, int width)
         auto const when = " " + list_time(c.last.timestamp);
         auto const unread = c.unread ? " " + std::to_string(c.unread) : std::string{};
         auto summary = c.last.deleted ? "消息已删除" : c.last.attachment ? "[文件] " + c.last.attachment->filename : c.last.text;
-        auto const name_width = width - DisplayWidth(when) - DisplayWidth(flags);
+        auto const name_width = width - DisplayWidth(when);
         auto unread_mark = text(unread);
         if (!unread.empty() && !c.muted) { unread_mark = unread_mark | bold; }
         rows.push_back(selected(vbox({
-            hbox({preview_text(label, name_width) | bold | flex, text(flags) | dim, text(when) | dim}),
-            hbox({text("  "), preview_text(summary, width - 2 - DisplayWidth(unread)) | dim | flex, unread_mark})}),
+            hbox({preview_text(label, name_width) | bold | flex, text(when) | dim}),
+            hbox({text("  "), preview_text(summary, width - 2 - DisplayWidth(flags) - DisplayWidth(unread)) | dim | flex,
+                  text(flags) | dim, unread_mark})}),
             current, s.view == page::conversations));
     }
     if (s.next_conversations) { rows.push_back(text("↓ 更多会话") | dim); }
-    return vbox({text("聊天") | bold, separator(), scroll(std::move(rows))}) | flex;
+    return vbox({text("聊天 (" + std::to_string(s.conversations.size()) + ")") | bold, separator(), scroll(std::move(rows))}) | flex;
 }
 // A new group starts with another sender, another day, after five quiet minutes, or after a
 // deleted message. Only the heading is shared; every message stays selectable on its own.
@@ -381,14 +394,17 @@ bool starts_group(std::vector<message> const& values, std::size_t index)
 std::string message_heading(state const& s, message const& m)
 {
     // Search results span days, so they keep the date; history has day separators instead.
-    return (m.from == s.self.id ? "我" : m.username) + " " +
-        (s.view == page::search ? timestamp(m.timestamp) : clock_time(m.timestamp));
+    auto const* c = s.active_conversation();
+    auto const sender = c && c->kind == conversation_kind::group && m.from != s.self.id ? m.username + " " : std::string{};
+    return sender + (s.view == page::search ? timestamp(m.timestamp) : clock_time(m.timestamp));
 }
 Element message_item(state const& s, message const& m, bool highlighted, int width, int scroll_line, bool heading = true, bool body_focus = false)
 {
-    auto const content_width = std::max(1, width * 3 / 4);
+    auto const content_width = std::max(1, (width - 2) * 3 / 4);
     Elements lines;
-    if (heading) { lines.push_back(preview_text(message_heading(s, m), content_width) | bold); }
+    auto const* conversation = s.active_conversation();
+    if (heading && conversation && conversation->kind == conversation_kind::group && m.from != s.self.id)
+    { lines.push_back(preview_text(m.username, content_width) | bold); }
     if (m.reply)
     {
         lines.push_back(preview_text("↪ " + m.reply->username + ": " + (m.reply->deleted ? "消息已删除" : m.reply->text), content_width) | dim);
@@ -430,6 +446,7 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
             lines.push_back(text(mentions) | dim);
         }
     }
+    auto metadata = s.view == page::search ? timestamp(m.timestamp) : clock_time(m.timestamp);
     if (m.from == s.self.id)
     {
         auto c = s.active_conversation();
@@ -438,8 +455,10 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
             return !c || c->kind != conversation_kind::group ||
                 std::ranges::find(s.members, p.user, &conversation_member::id) != s.members.end();
         });
-        lines.push_back(text(c && c->kind == conversation_kind::group ? "已读 " + std::to_string(read_count) + " 人" : read_count ? "已读" : "已发送") | dim);
+        if (!metadata.empty()) { metadata += " · "; }
+        metadata += c && c->kind == conversation_kind::group ? "已读 " + std::to_string(read_count) + " 人" : read_count ? "已读" : "已发送";
     }
+    if (!metadata.empty()) { lines.push_back(text(metadata) | dim); }
     auto item = vbox(std::move(lines)) | size(WIDTH, LESS_THAN, content_width);
     if (highlighted)
     {
@@ -453,15 +472,14 @@ Element message_item(state const& s, message const& m, bool highlighted, int wid
         if ((s.view == page::conversation && !s.composing) || s.view == page::search) { item = item | inverted; }
         item = item | focusPositionRelative(0.f, position);
     }
-    return m.from == s.self.id ? hbox({filler(), item}) : hbox({item, filler()});
+    return m.from == s.self.id ? hbox({text(" "), filler(), item, text(" ")}) : hbox({text(" "), item, filler(), text(" ")});
 }
 // An unconfirmed send, below the messages: its own text or file and reply, and whether it is still
 // sending or was refused.
-Element outgoing_item(outgoing_message const& m, bool highlighted, bool focused, int width, int scroll_line, bool heading)
+Element outgoing_item(outgoing_message const& m, bool highlighted, bool focused, int width, int scroll_line)
 {
-    auto const content_width = std::max(1, width * 3 / 4);
+    auto const content_width = std::max(1, (width - 2) * 3 / 4);
     Elements lines;
-    if (heading) { lines.push_back(text("我") | bold); }
     if (m.reply)
     {
         lines.push_back(preview_text("↪ " + m.reply->username + ": " + (m.reply->deleted ? "消息已删除" : m.reply->text), content_width) | dim);
@@ -479,7 +497,7 @@ Element outgoing_item(outgoing_message const& m, bool highlighted, bool focused,
         if (focused) { item = item | inverted; }
         item = item | focusPositionRelative(0.f, position);
     }
-    return hbox({filler(), item});
+    return hbox({text(" "), filler(), item, text(" ")});
 }
 // The chat history; rows is how many lines it gets on screen.
 Element history(state const& s, int width, int rows, int message_scroll)
@@ -506,7 +524,9 @@ Element history(state const& s, int width, int rows, int message_scroll)
         if (auto const when = m.timestamp; when > 0 && day_number(local_time(when)) != day)
         {
             day = day_number(local_time(when));
-            add(hbox({filler(), text("── " + day_label(when) + " ──") | dim, filler()}));
+            std::string rule;
+            for (int cell = 0; cell < std::clamp(width / 8, 2, 8); ++cell) { rule += "─"; }
+            add(hbox({filler(), text(rule + " " + day_label(when) + " " + rule) | dim, filler()}));
         }
         auto const heading = starts_group(s.messages, i);
         // Groups are separated by a blank line; messages within a group follow each other.
@@ -519,7 +539,7 @@ Element history(state const& s, int width, int rows, int message_scroll)
         bool const heading = i == 0 && (s.messages.empty() || s.messages.back().from != s.self.id);
         if (heading && !s.messages.empty()) { add(text("")); }
         add(outgoing_item(*pending[i], s.message_selected == static_cast<int>(s.messages.size() + i),
-                          s.view == page::conversation && !s.composing, width, message_scroll, heading));
+                          s.view == page::conversation && !s.composing, width, message_scroll));
     }
     auto list = scroll(std::move(items));
     // With two rows, an own message has only its body and delivery state visible. A pinned
@@ -558,20 +578,20 @@ int chat_chrome(state const& s, int width, bool typing)
     if (s.editing) { ++rows; }
     return rows;
 }
-// The composer grows with its lines up to four, but returns to one line while that
-// would leave the history fewer than eight rows.
+// A roomy editor starts with two rows and grows to four; short terminals keep history readable.
 int composer_lines(state const& s, int width, int height, bool typing)
 {
-    auto const wanted = std::clamp(static_cast<int>(std::ranges::count(s.draft, '\n')) + 1, 1, 4);
+    auto const wanted = std::clamp(static_cast<int>(std::ranges::count(s.draft, '\n')) + 1, 2, 4);
     return height - chat_chrome(s, width, typing) - wanted < 8 ? 1 : wanted;
 }
 Element conversation_view(state const& s, Element input, std::string typing, int width, int height, int message_scroll)
 {
     auto c = s.active_conversation();
     if (!c) { return text("选择一个会话，按 Enter 打开") | center | flex; }
-    auto detail = c->kind == conversation_kind::group ? " · " + std::to_string(c->member_count) + " 位成员" : presence_label(s, c->user);
-    if (c->kind == conversation_kind::direct && !detail.empty()) { detail = " · " + detail; }
-    Elements items{hbox({preview_text(c->username, width - DisplayWidth(detail)) | bold | flex, text(detail) | dim})};
+    auto const detail = c->kind == conversation_kind::group ? std::to_string(c->member_count) + " 位成员" : presence_label(s, c->user);
+    auto const detail_width = std::min(DisplayWidth(detail), width / 2);
+    Elements items{hbox({preview_text(c->username, width - detail_width - 1) | bold | flex, text(" "),
+                        preview_text(detail, detail_width) | dim})};
     // Pinned message and announcement share one line; the full announcement is in the group page.
     if (c->pinned_message)
     {
@@ -581,7 +601,7 @@ Element conversation_view(state const& s, Element input, std::string typing, int
     else if (!c->announcement.empty()) { items.push_back(preview_text("公告：" + c->announcement, width) | dim); }
     items.push_back(separator());
     auto const rows = height - chat_chrome(s, width, !typing.empty()) -
-        (input ? composer_lines(s, width, height, !typing.empty()) : s.can_send() ? 1 : 0);
+        (s.composing ? composer_lines(s, width, height, !typing.empty()) : s.can_send() ? 1 : 0);
     items.push_back(history(s, width, rows, message_scroll));
     if (!typing.empty()) { items.push_back(text(typing) | dim); }
     if (s.at_latest) { items.push_back(separator()); }
@@ -596,7 +616,11 @@ Element conversation_view(state const& s, Element input, std::string typing, int
             auto const lines = composer_lines(s, width, height, !typing.empty());
             items.push_back(hbox({text("› "), input | flex}) | size(HEIGHT, EQUAL, lines));
         }
-        else { items.push_back(preview_text(s.composing ? "› " + s.draft : s.draft.empty() ? "按 i 输入消息" : "按 i 继续输入 · " + s.draft, width)); }
+        else
+        {
+            auto preview = preview_text(s.composing ? "› " + s.draft : s.draft.empty() ? "按 i 输入消息" : "按 i 继续输入 · " + s.draft, width);
+            items.push_back(preview | size(HEIGHT, EQUAL, s.composing ? composer_lines(s, width, height, !typing.empty()) : 1));
+        }
     }
     return vbox(std::move(items)) | flex;
 }
@@ -903,12 +927,45 @@ Element render_impl(state const& s, int width, int height, Element compose = {},
     else { content = secondary(s, width - 3, message_scroll); }
     auto link = " " + link_label(s.link);
     std::string const help = " Esc 返回 · F1 帮助";
-    std::string keys = "h 聊天 · c 联系人 · u 账号 · N 新建 · : 命令";
-    if (s.view == page::conversation && s.composing) { keys = "Enter 发送 · \\ Enter 换行 · Shift+Tab 选择消息"; }
-    else if (s.view == page::conversation) { keys = "↑↓ 选择 · Enter 操作 · r 回复 · e 编辑 · y 复制 · i 输入"; }
-    else if (s.view == page::conversations) { keys = "Enter 打开 · Tab 切换焦点 · N 新建 · : 命令"; }
-    auto status = s.status.empty() ? preview_text(keys, width - 2 - DisplayWidth(help)) | dim
-                                   : preview_text(s.status, width - 2 - DisplayWidth(help));
+    std::vector<std::string> hints{"h 聊天", "c 联系人", "u 账号", "N 新建", "Ctrl+K 命令面板"};
+    if (s.view == page::conversation && s.composing)
+    { hints = {"Enter 发送", "\\ Enter 换行", "Tab 切换焦点", "Ctrl+K 命令面板"}; }
+    else if (s.view == page::conversation)
+    {
+        hints = {"j/k 移动"};
+        if (s.selected_message() || s.selected_outgoing()) { hints.push_back("Enter 操作"); }
+        if (auto const* message = s.selected_message())
+        {
+            for (auto const& action : s.message_actions(*message))
+            {
+                if (action.command == "reply") { hints.push_back("r 回复"); }
+                if (action.command == "edit") { hints.push_back("e 编辑"); }
+                if (action.command == "delete") { hints.push_back("d 删除"); }
+            }
+        }
+        if (s.can_send()) { hints.push_back("i 输入"); }
+    }
+    else if (s.view == page::conversations)
+    {
+        hints = {"j/k 移动"};
+        if (!s.conversations.empty() && s.link == connection::online)
+        { hints.insert(hints.end(), {"Enter 打开", "m 免打扰", "p 置顶"}); }
+        hints.push_back("N 新建");
+    }
+    auto const hint_width = width - 2 - DisplayWidth(help);
+    bool const show_notice = !s.status.empty() && !s.status_error &&
+        DisplayWidth(s.status) + DisplayWidth(hints.front()) + 3 <= hint_width;
+    auto const key_width = hint_width - (show_notice ? DisplayWidth(s.status) + 3 : 0);
+    std::string keys;
+    for (auto const& hint : hints)
+    {
+        auto const next = keys.empty() ? hint : keys + " · " + hint;
+        if (DisplayWidth(next) > key_width) { break; }
+        keys = next;
+    }
+    if (show_notice) { keys += " · " + s.status; }
+    auto status = s.status_error || (!s.status.empty() && !show_notice)
+        ? preview_text(s.status, hint_width) : text(keys) | dim;
     if (s.status_error) { status = status | bold; }
     return vbox({hbox({preview_text("Chat · " + s.self.username, width - 2 - DisplayWidth(link)) | bold | flex, text(link)}), separator(), content, separator(), hbox({status | flex, text(help) | dim})}) | border;
 }
@@ -1472,7 +1529,7 @@ private:
                 ? index == s.messages.size() && (s.messages.empty() || s.messages.back().from != s.self.id)
                 : s.view != page::conversation || index >= s.messages.size() || starts_group(s.messages, index);
             auto item = message ? message_item(s, *message, false, width, -1, heading)
-                                : outgoing_item(*pending, false, false, width, -1, heading);
+                                : outgoing_item(*pending, false, false, width, -1);
             item->ComputeRequirement();
             int last = std::max(0, item->requirement().min_y - 1);
             int current = message_scroll_ < 0 ? last : message_scroll_;

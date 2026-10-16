@@ -196,6 +196,103 @@ int main()
     s.self = {1, "Alice", {}};
     s.link = connection::online;
     {
+        auto visual = s;
+        chat::conversation direct;
+        direct.id = 10; direct.user = 2; direct.username = "Direct title";
+        direct.kind = chat::conversation_kind::direct; direct.can_send = true;
+        direct.last.text = "Preview body";
+        direct.last.timestamp = static_cast<std::int64_t>(std::time(nullptr)) * 1000;
+        visual.conversations = {direct};
+        visual.contacts = {{2, "PeerLabel", {}}};
+        visual.presences.emplace(2, chat::presence{2, false, direct.last.timestamp});
+        visual.select_conversation(10);
+        chat::message peer;
+        peer.id = 100; peer.conversation = 10; peer.from = 2; peer.username = "PeerLabel";
+        peer.text = "PEER_BODY"; peer.timestamp = direct.last.timestamp;
+        auto own = peer;
+        own.id = 101; own.from = 1; own.username = "Alice"; own.text = "OWN_BODY";
+        visual.messages = {peer, own};
+        visual.message_selected = 1;
+        for (auto const& [columns, rows] : {std::pair{160,45}, {100,30}, {80,24}, {40,12}})
+        {
+            auto output = draw(visual, columns, rows);
+            ok &= expect(output.find("PeerLabel") == std::string::npos && output.find("我 ") == std::string::npos,
+                         "Direct history uses direction instead of repeated sender headings");
+            if (rows >= 24)
+            {
+                std::istringstream lines(output);
+                std::string previous;
+                bool metadata_below_body = false;
+                for (std::string line; std::getline(lines, line);)
+                {
+                    metadata_below_body = metadata_below_body ||
+                        (previous.find("OWN_BODY") != std::string::npos && line.find("已发送") != std::string::npos &&
+                         line.find(':') != std::string::npos);
+                    previous = line;
+                }
+                ok &= expect(metadata_below_body, "Own timestamp and delivery state share the line below the body");
+            }
+            visual.composing = true;
+            auto composing = draw(visual, columns, rows);
+            ok &= expect(composing.find("Enter 发送") != std::string::npos && composing.find("Esc 返回") != std::string::npos &&
+                         composing.find("F1 帮助") != std::string::npos, "Composer footer retains send and stable escape/help hints");
+            visual.composing = false;
+        }
+        visual.composing = true;
+        ftxui::Screen screen(120,40);
+        ftxui::Render(screen, render(visual,120,40));
+        std::string sidebar;
+        for (int y = 0; y < 40; ++y)
+        {
+            for (int x = 1; x < 30; ++x) { sidebar += screen.CellAt(x,y).character; }
+            sidebar += '\n';
+        }
+        ok &= expect(sidebar.find("最后在线") == std::string::npos && sidebar.find("Preview body") != std::string::npos,
+                     "Two-line chat rows reserve identity and preview instead of a long presence sentence");
+        ok &= expect(sidebar.find("▸ Direct title") != std::string::npos,
+                     "The open chat remains marked while the composer owns keyboard focus");
+        visual.composing = false;
+        visual.message_selected = 0;
+        auto peer_footer = draw(visual,160,45);
+        ok &= expect(peer_footer.find("r 回复") != std::string::npos && peer_footer.find("e 编辑") == std::string::npos &&
+                     peer_footer.find("d 删除") == std::string::npos, "Message footer only offers actions valid for its selected peer");
+        visual.status = "附件已保存：/a/long/download/path/that/exceeds/the/available/footer/width/file.txt";
+        auto notice = draw(visual,80,24);
+        ok &= expect(notice.find("附件已保存：") != std::string::npos && notice.find("Esc 返回") != std::string::npos &&
+                     notice.find("F1 帮助") != std::string::npos, "Long result notices remain visible alongside stable escape/help hints");
+        visual.status.clear();
+        visual.link = connection::reconnecting;
+        auto offline = draw(visual,160,45);
+        ok &= expect(offline.find("r 回复") == std::string::npos && offline.find("i 输入") == std::string::npos,
+                     "Offline message footer does not advertise unavailable composer actions");
+        visual.view = page::help;
+        auto help = draw(visual,100,120);
+        for (auto const* combined : {"h / c / u", "r / e / d", "y / s", "A / O / D", "y / n / x", "Space / Enter"})
+        { ok &= expect(help.find(combined) == std::string::npos, "Help gives different actions separate shortcut rows"); }
+    }
+    {
+        auto const fallback = ftxui::Terminal::Size();
+        ftxui::Terminal::SetFallbackSize({100,30});
+        app application;
+        writable_conversation(application);
+        auto component = make_ui(application, [] {});
+        ftxui::Screen screen(100,30);
+        ftxui::Render(screen, component->Render());
+        bool roomy_composer = false;
+        for (int y = 0; y + 1 < 30; ++y)
+        {
+            std::string line, next;
+            for (int x = 32; x < 99; ++x)
+            {
+                line += screen.CellAt(x,y).character;
+                next += screen.CellAt(x,y+1).character;
+            }
+            if (line.find("› ") != std::string::npos) { roomy_composer = next.find("─") == std::string::npos; }
+        }
+        ok &= expect(roomy_composer, "A roomy terminal gives the one-line editor a second row without another frame");
+        ftxui::Terminal::SetFallbackSize(fallback);
+    }
+    {
         auto contact = s;
         contact.contacts = {{2, "Bob", {}}};
         contact.profile = contact.contacts.front();
@@ -223,8 +320,14 @@ int main()
             for (auto view : {page::conversations, page::contacts, page::conversation})
             {
                 contact.view = view;
-                ok &= expect(draw(contact, columns, 30).find(" · 在线") != std::string::npos,
-                             "Appended presence remains separated from identity");
+                auto const output = draw(contact, columns, 30);
+                if (view == page::conversations && columns < 100)
+                { ok &= expect(output.find("在线") == std::string::npos, "A narrow chat list keeps presence out of its identity row"); }
+                else
+                {
+                    ok &= expect(output.find(view == page::contacts ? " · 在线" : "在线") != std::string::npos,
+                                 "Contact rows and chat headers retain their existing presence data");
+                }
             }
         }
     }
@@ -530,8 +633,8 @@ int main()
                 }
             ok &= expect(peer_x >= 0 && own_x > peer_x + 8, "Own messages align right and peer messages left at narrow and wide widths");
             ok &= expect(own_x - peer_x > (columns - peer_x - 2) / 2, "Short own messages shrink toward the right edge");
-            ok &= expect(screen.ToString().find("我 ") != std::string::npos && screen.ToString().find("已读") != std::string::npos,
-                         "Message alignment retains own heading and group read state");
+            ok &= expect(screen.ToString().find("我 ") == std::string::npos && screen.ToString().find("已读") != std::string::npos,
+                         "Right alignment identifies own messages while retaining group read state");
         }
     }
     s.view = page::profile;
@@ -1725,9 +1828,10 @@ int main()
             for (auto at = output.find(value); at != std::string::npos; at = output.find(value, at + 1)) { ++n; }
             return n;
         };
-        ok &= expect(count("peer 12:00") == 1 && count("peer 12:02") == 0, "A sender's messages within five minutes share one heading");
-        ok &= expect(count("peer 12:09") == 1, "A gap of more than five minutes starts a new group");
-        ok &= expect(count("other 12:09") == 2, "Another sender starts a group, and so does the message after a deleted one");
+        ok &= expect(count("peer") == 2 && count("12:00") == 1 && count("12:02") == 1,
+                     "Consecutive group messages share the sender heading but retain individual timestamps");
+        ok &= expect(count("12:09") == 4, "Every message after a time gap retains its own timestamp");
+        ok &= expect(count("other") == 2, "Another sender starts a group, and so does the message after a deleted one");
         ok &= expect(output.find("G1_SECOND（已编辑）") != std::string::npos, "The edited mark stays with its own message in a group");
         // Scrolled so the group's heading is above the view: the sender is pinned at the top.
         chat.messages.clear();
