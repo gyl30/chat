@@ -263,13 +263,182 @@ int main()
             auto multiline = shown();
             auto next_line = cursor(multiline);
             ok &= expect(application.data.draft.contains('\n') && next_line.x == start.x + 6 &&
-                         next_line.y == start.y + (rows > 12 ? 1 : 0) &&
+                         next_line.y == start.y &&
                          multiline.CellAt(next_line.x - 6,next_line.y).character == "第",
                          "A newline places the real cursor after the second line, with narrow viewports scrolling around it");
             component->OnEvent(ftxui::Event::Character("\nL3\nL4\nL5\nL6"));
             cursor(shown());
         }
         ftxui::Terminal::SetFallbackSize(fallback);
+    }
+    {
+        auto const fallback = ftxui::Terminal::Size();
+        for (auto const& [columns, rows] : {std::pair{160,45}, {100,30}, {80,24}, {40,12}})
+        {
+            app application;
+            writable_conversation(application);
+            application.data.self.username = "ACCOUNT_MARKER";
+            application.data.conversations.front().username = "TARGET";
+            auto component = make_ui(application, [] {});
+            auto shown = [&] {
+                ftxui::Terminal::SetFallbackSize({columns,rows});
+                ftxui::Screen frame(columns,rows);
+                ftxui::Render(frame,component->Render());
+                return frame;
+            };
+            auto row_text = [&](ftxui::Screen const& frame, int y) {
+                std::string value;
+                for (int x = 0; x < columns; ++x) { value += frame.CellAt(x,y).character; }
+                return value;
+            };
+            auto editor_bounds = [&](ftxui::Screen const& frame) {
+                std::pair<int,int> bounds{rows,-1};
+                for (int y = 1; y < rows - 1; ++y)
+                {
+                    if (frame.CellAt(columns-2,y).background_color == ftxui::Color::RGB(12,23,16))
+                    { bounds.first = std::min(bounds.first,y); bounds.second = y; }
+                }
+                return bounds;
+            };
+            auto empty = shown();
+            auto const bounds = editor_bounds(empty);
+            auto const cursor = empty.cursor();
+            int const editor_height = rows > 12 ? 3 : 1;
+            ok &= expect(bounds.second - bounds.first + 1 == editor_height,
+                         "A single-line composer has symmetric padding, compressing only in a short terminal");
+            ok &= expect(cursor.y == bounds.first + editor_height/2 &&
+                         empty.CellAt(cursor.x-2,cursor.y).character == "›",
+                         "The real placeholder, prompt and cursor share the vertically centered row");
+            if (rows > 12)
+            {
+                ok &= expect(row_text(empty,bounds.first).find("›") == std::string::npos &&
+                             row_text(empty,bounds.second).find("输入消息") == std::string::npos,
+                             "The editor paints an empty background row above and below its text");
+            }
+            ok &= expect(row_text(empty,1).find("ACCOUNT_MARKER") == std::string::npos &&
+                         row_text(empty,rows-2).find("● 已连接") != std::string::npos,
+                         "The account banner is removed and the actual connection state is in the footer");
+            if (columns == 40)
+            {
+                ok &= expect(row_text(empty,rows-2).find("已连接 ·") == std::string::npos,
+                             "A compact footer has no orphan separator when no contextual shortcut fits");
+            }
+            int const pane_left = columns >= 100 ? 32 : 1;
+            auto title_x = [&](ftxui::Screen const& frame) {
+                for (int x = pane_left; x + 6 < columns; ++x)
+                {
+                    std::string value;
+                    for (int i = 0; i < 6; ++i) { value += frame.CellAt(x+i,1).character; }
+                    if (value == "TARGET") { return x; }
+                }
+                return -1;
+            };
+            int const centered = title_x(empty);
+            ok &= expect(centered >= 0 && std::abs(2*centered+5-(pane_left+columns-2)) <= 1,
+                         "The chat title is centered against the complete right pane, not the remaining status space");
+            application.data.conversations.front().kind = chat::conversation_kind::direct;
+            application.data.conversations.front().user = 2;
+            application.data.contacts = {{2,"Peer",{}}};
+            application.data.presences[2].online = true;
+            auto online = shown();
+            application.data.presences[2].online = false;
+            application.data.presences[2].last_seen = 1700000000000;
+            auto offline = shown();
+            ok &= expect(title_x(online) == centered && title_x(offline) == centered,
+                         "Direct presence length does not shift the centered title");
+            application.data.conversations.front().kind = chat::conversation_kind::group;
+            component->OnEvent(ftxui::Event::Character("123"));
+            auto entered = shown();
+            ok &= expect(editor_bounds(entered) == bounds && entered.cursor().y == cursor.y &&
+                         entered.cursor().x == cursor.x+3,
+                         "Typing preserves the editor bounds and moves the native cursor on the centered row");
+            auto const history_rows = application.history_rows;
+            application.data.composing = false;
+            application.data.selecting = true;
+            auto preview = shown();
+            ok &= expect(editor_bounds(preview) == bounds &&
+                         row_text(preview,cursor.y).find("按 i 继续输入 · 123") != std::string::npos &&
+                         application.history_rows == history_rows,
+                         "Message focus keeps the same editor height, preview baseline and history budget");
+            if (columns >= 100)
+            {
+                application.data.view = page::conversations;
+                auto listed = shown();
+                ok &= expect(editor_bounds(listed) == bounds &&
+                             row_text(listed,cursor.y).find("按 i 继续输入 · 123") != std::string::npos,
+                             "List focus preserves the same composer region in a wide terminal");
+            }
+            application.data.view = page::conversation;
+            application.data.selecting = false;
+            for (auto const& value : {"中文🙂\nSecond", "中文🙂\nSecond\nThird",
+                                      "L1\nL2\nL3\nL4\nL5\nL6"})
+            {
+                application.data.draft = value;
+                auto multi = shown();
+                auto const area = editor_bounds(multi);
+                auto const position = multi.cursor();
+                auto const wanted = rows > 12 ? std::min(4,1+static_cast<int>(std::ranges::count(application.data.draft,'\n')))+2 : 1;
+                ok &= expect(area.second-area.first+1 == wanted &&
+                             position.shape != ftxui::Screen::Cursor::Hidden &&
+                             position.y >= area.first && position.y <= area.second,
+                             "Multiline input preserves bounded content, padding and the real scrolled cursor");
+                component->OnEvent(ftxui::Event::TabReverse);
+                auto paused = shown();
+                ok &= expect(!application.data.composing && application.data.selecting &&
+                             editor_bounds(paused) == area &&
+                             row_text(paused, area.first + (wanted > 1 ? 1 : 0)).find("按 i 继续输入") != std::string::npos,
+                             "A multiline draft keeps the same region and padded preview when input focus leaves");
+                component->OnEvent(ftxui::Event::Tab);
+            }
+            for (auto link : {connection::connecting, connection::authenticating, connection::reconnecting})
+            {
+                application.data.link = link;
+                auto frame = shown();
+                ok &= expect(row_text(frame,rows-2).find(link == connection::connecting ? "正在连接" :
+                             link == connection::authenticating ? "正在认证" : "正在重连") != std::string::npos &&
+                             row_text(frame,rows-2).find("Esc 返回") != std::string::npos &&
+                             row_text(frame,rows-2).find("F1 帮助") != std::string::npos,
+                             "A narrow footer preserves live connection and escape/help before secondary shortcuts");
+            }
+        }
+        ftxui::Terminal::SetFallbackSize(fallback);
+        for (int count : {20,100})
+        {
+            state list = s;
+            list.view = page::conversations;
+            for (int i = 0; i < count; ++i)
+            {
+                chat::conversation value;
+                value.id = i+1; value.username = "CHAT_"+std::to_string(i);
+                value.last.text = "HIDDEN_PREVIEW"; value.last.timestamp = 1700000000000;
+                value.unread = 987; value.pinned = true; value.muted = true;
+                list.conversations.push_back(value);
+            }
+            list.active = 1;
+            for (int chosen : {0,count-1})
+            {
+                list.conversation_selected = chosen;
+                ftxui::Screen frame(100,30);
+                ftxui::Render(frame,render(list,100,30));
+                std::string sidebar;
+                int first = -1, second = -1;
+                for (int y = 1; y < 28; ++y)
+                {
+                    std::string row;
+                    for (int x = 1; x < 30; ++x) { row += frame.CellAt(x,y).character; }
+                    if (row.find("CHAT_0") != std::string::npos) { first = y; }
+                    if (second < 0 && row.find("CHAT_1") != std::string::npos) { second = y; }
+                    sidebar += row+'\n';
+                }
+                ok &= expect(sidebar.find("CHAT_"+std::to_string(chosen)) != std::string::npos &&
+                             sidebar.find("HIDDEN_PREVIEW") == std::string::npos &&
+                             sidebar.find("987") == std::string::npos && sidebar.find("置顶") == std::string::npos &&
+                             sidebar.find("免打扰") == std::string::npos,
+                             "Twenty and one hundred chats scroll by name without previews, times or flags");
+                if (chosen == 0)
+                { ok &= expect(first > 0 && second == first+1, "Each conversation occupies exactly one terminal row"); }
+            }
+        }
     }
     {
         auto visual = s;
@@ -310,7 +479,7 @@ int main()
             }
             visual.composing = true;
             auto composing = draw(visual, columns, rows);
-            ok &= expect(composing.find("Enter 发送") != std::string::npos && composing.find("Esc 返回") != std::string::npos &&
+            ok &= expect((columns < 80 || composing.find("Enter 发送") != std::string::npos) && composing.find("● 已连接") != std::string::npos && composing.find("Esc 返回") != std::string::npos &&
                          composing.find("F1 帮助") != std::string::npos, "Composer footer retains send and stable escape/help hints");
             visual.composing = false;
         }
@@ -323,8 +492,8 @@ int main()
             for (int x = 1; x < 30; ++x) { sidebar += screen.CellAt(x,y).character; }
             sidebar += '\n';
         }
-        ok &= expect(sidebar.find("最后在线") == std::string::npos && sidebar.find("Preview body") != std::string::npos,
-                     "Two-line chat rows reserve identity and preview instead of a long presence sentence");
+        ok &= expect(sidebar.find("最后在线") == std::string::npos && sidebar.find("Preview body") == std::string::npos,
+                     "Single-line chat rows show only identity, without preview or presence");
         ok &= expect(sidebar.find("▸ Direct title") != std::string::npos,
                      "The open chat remains marked while the composer owns keyboard focus");
         // Check actual cells: direction alone cannot prove the message/background hierarchy.
@@ -368,9 +537,9 @@ int main()
             auto const active_background = screen.CellAt(active_x,active_y).background_color;
             ok &= expect(active_background != ftxui::Color::Default &&
                          active_background == screen.CellAt(28,active_y).background_color &&
-                         active_background == screen.CellAt(28,active_y+1).background_color &&
+                         screen.CellAt(28,active_y+1).background_color != active_background &&
                          !screen.CellAt(active_x,active_y).inverted,
-                         "The active conversation has a continuous two-row background while typing");
+                         "The active conversation has a continuous one-row background while typing");
         }
         auto choosing = visual;
         auto other = direct;
@@ -512,9 +681,9 @@ int main()
         ftxui::Screen screen(60, 24);
         ftxui::Render(screen, render(long_account, 60, 24));
         std::string header;
-        for (int x = 0; x < 60; ++x) { header += screen.CellAt(x, 1).character; }
-        ok &= expect(header.find("… ● 已连接") != std::string::npos,
-                     "A clipped account identity stays separated from connection status");
+        for (int x = 0; x < 60; ++x) { header += screen.CellAt(x, 22).character; }
+        ok &= expect(header.find("● 已连接") != std::string::npos && header.find(std::string(8, 'A')) == std::string::npos,
+                     "A long account identity is absent from the footer connection status");
     }
     {
         auto output = draw(s, 60, 20);
@@ -631,11 +800,19 @@ int main()
         item.pinned = true; item.muted = true; item.unread = 100;
         for (auto const& [columns, rows] : {std::pair{80, 24}, {160, 45}})
         {
-            auto output = draw(status_list, columns, rows);
-            ok &= expect(output.find("置顶") != std::string::npos, "long conversation title keeps personal pin visible");
-            ok &= expect(output.find("免打扰") != std::string::npos, "long conversation title keeps mute visible");
-            ok &= expect(output.find(" 100") != std::string::npos, "long conversation title keeps unread count visible");
-            ok &= expect(output.find("百人验") != std::string::npos, "conversation status leaves an identifiable title prefix");
+            ftxui::Screen screen(columns, rows);
+            ftxui::Render(screen, render(status_list, columns, rows));
+            std::string name_row;
+            for (int y = 1; y < rows - 2; ++y)
+            {
+                std::string row;
+                for (int x = 1; x < (columns >= 100 ? 30 : columns - 1); ++x)
+                { row += screen.CellAt(x,y).character; }
+                if (row.find("百人验") != std::string::npos) { name_row = std::move(row); break; }
+            }
+            ok &= expect(!name_row.empty() && name_row.find("置顶") == std::string::npos &&
+                         name_row.find("免打扰") == std::string::npos && name_row.find("100") == std::string::npos,
+                         "A long conversation name keeps its prefix and omits pin, mute and unread decorations");
         }
     }
     {
@@ -722,9 +899,8 @@ int main()
             ftxui::Screen screen(columns, 30);
             ftxui::Render(screen, render(long_title, columns, 30));
             auto output = screen.ToString();
-            ok &= expect(output.find("长中文群名称") != std::string::npos &&
-                         output.find("3 位成员") != std::string::npos,
-                         "Long group headers retain identity and member count at every terminal width");
+            ok &= expect(output.find("长中文群名称") != std::string::npos,
+                         "Long group headers prioritize identity over secondary member count");
             if (columns < 160)
             { ok &= expect(output.find("…") != std::string::npos, "Clipped group identities have a visible ellipsis"); }
             for (int y = 1; y < 29; ++y)
@@ -2544,7 +2720,7 @@ int main()
                 ok &= expect(output.find("正文 BODY中文") != std::string::npos &&
                              output.find("DRAFT é 👩‍🚀") != std::string::npos &&
                              output.find(edit ? "正在编辑消息" : mode == 0 ? "回复 " : "公告 NOTICE") != std::string::npos,
-                             "One-row group history keeps content, Unicode draft and reply/edit/announcement mode visible");
+                             "Short group history keeps content, Unicode draft and reply/edit/announcement mode visible");
                 ok &= expect(application.data.selected_message() && application.data.selected_message()->id == 77,
                              "One-row content priority preserves the selected message identity");
                 if (own && mode == 0)
@@ -3286,7 +3462,9 @@ int main()
         latest.id = 3; latest.conversation = 10; latest.from = 2; latest.text = "UNSEEN";
         application.data.messages = {latest};
         frame(40, 12);
-        ok &= expect(application.history_rows < 1, "Pinned, reply and composer can leave no history row at 40x12");
+        ok &= expect(application.history_rows == 2, "Removing the banner releases two history rows at 40x12");
+        frame(40, 10);
+        ok &= expect(application.history_rows < 1, "A terminal below the supported minimum can leave no history row");
         // A read request is decided after the event with the current rows: none here, so the
         // (absent) client is never used.
         application.mark_visible_read();

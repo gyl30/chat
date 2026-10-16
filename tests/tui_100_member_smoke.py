@@ -536,7 +536,7 @@ class Driver:
     def resize(self, actor, width, height):
         self.tmux('resize-window', '-t', self.panes[actor], '-x', str(width), '-y', str(height))
         self.wait(actor, (lambda text: '终端太小' in text) if width < 40 or height < 12 else
-                  (lambda text: 'Chat ·' in text and '终端太小' not in text))
+                  (lambda text: 'Esc 返回' in text and 'F1 帮助' in text and '终端太小' not in text))
 
     def evidence(self, label, value):
         path = self.work / (self.case_id + '-' + label + '.json')
@@ -1400,8 +1400,9 @@ def stage_group_management(d):
             assert unread == [['1']], unread
             d.resize('D', 80,24)
             d.command('D', 'conversations')
-            # The unread count ends the summary line of the conversation's list row.
-            d.wait('D', lambda text: re.search(r'\s1\s*$', list_row(text, d.title)) is not None)
+            # The compact list shows names only; the database checks above and below
+            # still verify the unread watermark before and after opening the chat.
+            d.wait('D', lambda text: d.title.split('_', 1)[0] in list_row(text, d.title))
             d.screenshot('D', 'only-postjoin-message-unread-' + page)
             d.evidence('rejoin-watermark-' + page, {'gap_message': gap['id'], 'membership': boundary, 'new_message':post['id'], 'unread':1})
             d.open_main('D')
@@ -1468,8 +1469,15 @@ def stage_group_management(d):
             while read_only_sql(f'SELECT pinned FROM conversation_members WHERE conversation_id={int(d.group)} AND user_id={owner_id}') != [[flag]]:
                 assert time.monotonic() < deadline, 'Personal pin RPC did not complete'
                 time.sleep(.1)
-            # The list row shows the personal pin even while the conversation has the focus.
-            d.wait('A', lambda text: ('置顶' in list_row(text, d.title)) == (flag == 't'))
+            # The compact list omits pin metadata; the action label still reflects
+            # the client's current personal pin state.
+            d.keys('A', 'C-k')
+            d.wait('A', '命令面板')
+            d.paste('A', '置顶会话')
+            expected = '取消置顶会话' if flag == 't' else '置顶会话'
+            d.wait('A', lambda text: expected in inverse_text(d.capture('A', styled=True)) and
+                   (flag == 't' or '取消置顶会话' not in inverse_text(d.capture('A', styled=True))))
+            d.keys('A', 'Escape')
         d.command('A', 'conversations')
         d.keys('A', 'k', repeat=150)
         d.barrier('A')
@@ -1495,13 +1503,11 @@ def chat_open(screen):
 
 
 def list_row(screen, title):
-    """The two sidebar lines of a conversation in the wide layout."""
-    lines = screen.splitlines()
-    for index, line in enumerate(lines):
+    """The single sidebar row of a conversation in the wide layout."""
+    for line in screen.splitlines():
         cells = line.split('│')
         if len(cells) > 2 and title.split('_', 1)[0] in cells[1]:
-            following = lines[index + 1].split('│') if index + 1 < len(lines) else []
-            return cells[1] + (following[1] if len(following) > 2 else '')
+            return cells[1]
     return ''
 
 

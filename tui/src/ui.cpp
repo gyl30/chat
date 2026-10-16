@@ -31,6 +31,7 @@ Color const outgoing_background = Color::RGB(21, 48, 32);
 Color const bubble_edge = Color::RGB(48, 88, 61);
 Color const active_background = Color::RGB(20, 43, 28);
 Color const composer_background = Color::RGB(12, 23, 16);
+constexpr int page_chrome = 4; // Outer frame, footer separator and footer.
 struct shortcut { std::string_view key, description; };
 struct shortcut_group { std::string_view title; std::span<shortcut const> items; };
 constexpr std::array general_shortcuts{
@@ -328,22 +329,6 @@ std::string day_label(std::int64_t value)
     auto now = std::time(nullptr); std::tm current{}; localtime_r(&now, &current);
     return format_time(time, time.tm_year == current.tm_year ? "%m月%d日" : "%Y年%m月%d日");
 }
-// The time column of the chat list: today's time, yesterday, a weekday this week, else the date.
-std::string list_time(std::int64_t value)
-{
-    if (value <= 0) { return {}; }
-    auto const time = local_time(value);
-    auto const days = today() - day_number(time);
-    if (days == 0) { return format_time(time, "%H:%M"); }
-    if (days == 1) { return "昨天"; }
-    if (days > 1 && days < 7)
-    {
-        constexpr std::array<char const*, 7> weekdays{"周日", "周一", "周二", "周三", "周四", "周五", "周六"};
-        return weekdays[static_cast<std::size_t>(time.tm_wday)];
-    }
-    auto now = std::time(nullptr); std::tm current{}; localtime_r(&now, &current);
-    return format_time(time, time.tm_year == current.tm_year ? "%m-%d" : "%Y-%m-%d");
-}
 std::string file_size(std::int64_t bytes)
 {
     std::array<char, 32> output{};
@@ -399,21 +384,7 @@ Element conversation_list(state const& s, int width)
         bool const current = s.conversation_selected == static_cast<int>(i);
         // A text mark as well as reverse video, so the focus survives monochrome terminals.
         std::string const mark = current && s.view == page::conversations ? "> " : c.id == s.active ? "▸ " : "  ";
-        auto label = mark + c.username;
-        // Text marks, not only color, so they survive monochrome terminals.
-        std::string flags;
-        if (c.pinned) { flags += " 置顶"; }
-        if (c.muted) { flags += " 免打扰"; }
-        auto const when = " " + list_time(c.last.timestamp);
-        auto const unread = c.unread ? " " + std::to_string(c.unread) : std::string{};
-        auto summary = c.last.deleted ? "消息已删除" : c.last.attachment ? "[文件] " + c.last.attachment->filename : c.last.text;
-        auto const name_width = width - DisplayWidth(when);
-        auto unread_mark = text(unread);
-        if (!unread.empty() && !c.muted) { unread_mark = unread_mark | bold; }
-        auto row = vbox({
-            hbox({preview_text(label, name_width) | bold | flex, text(when) | dim}),
-            hbox({text("  "), preview_text(summary, width - 2 - DisplayWidth(flags) - DisplayWidth(unread)) | dim | flex,
-                  text(flags) | dim, unread_mark})});
+        auto row = preview_text(mark + c.username, width) | bold;
         if (c.id == s.active) { row = row | bgcolor(active_background) | color(body_color); }
         rows.push_back(selected(std::move(row), current, s.view == page::conversations));
     }
@@ -575,7 +546,7 @@ Element history(state const& s, int width, int rows, int message_scroll)
         auto const heading = starts_group(s.messages, i);
         // Groups are separated by a blank line; messages within a group follow each other.
         if (heading && i > 0) { add(text("")); }
-        add(message_item(s, m, s.message_selected == static_cast<int>(i), width, message_scroll, heading, rows <= 2),
+        add(message_item(s, m, s.message_selected == static_cast<int>(i), width, message_scroll, heading, rows <= 3),
             static_cast<int>(i), heading);
     }
     for (std::size_t i = 0; i < pending.size(); ++i)
@@ -614,7 +585,7 @@ int chat_chrome(state const& s, int width, bool typing)
 {
     auto const* c = s.active_conversation();
     if (!c) { return 0; }
-    int rows = 6 + 3;  // frame, app header, separators and status; chat title and both history separators
+    int rows = page_chrome + 3; // Chat title and both history separators.
     if (c->pinned_message || !c->announcement.empty()) { ++rows; }
     if (typing) { ++rows; }
     if (!s.can_send()) { return rows + wrapped_lines(send_hint(s, *c), width); }
@@ -622,10 +593,10 @@ int chat_chrome(state const& s, int width, bool typing)
     if (s.editing) { ++rows; }
     return rows;
 }
-// A roomy editor starts with two rows and grows to four; short terminals keep history readable.
+// Up to four content rows, with a blank row on each side; short terminals keep history readable.
 int composer_lines(state const& s, int width, int height, bool typing)
 {
-    auto const wanted = std::clamp(static_cast<int>(std::ranges::count(s.draft, '\n')) + 1, 2, 4);
+    auto const wanted = std::clamp(static_cast<int>(std::ranges::count(s.draft, '\n')) + 1, 1, 4) + 2;
     return height - chat_chrome(s, width, typing) - wanted < 8 ? 1 : wanted;
 }
 Element conversation_view(state const& s, Element input, std::string typing, int width, int height, int message_scroll)
@@ -633,9 +604,11 @@ Element conversation_view(state const& s, Element input, std::string typing, int
     auto c = s.active_conversation();
     if (!c) { return text("选择一个会话，按 Enter 打开") | center | flex; }
     auto const detail = c->kind == conversation_kind::group ? std::to_string(c->member_count) + " 位成员" : presence_label(s, c->user);
-    auto const detail_width = std::min(DisplayWidth(detail), width / 2);
-    Elements items{hbox({preview_text(c->username, width - detail_width - 1) | bold | flex, text(" "),
-                        preview_text(detail, detail_width) | dim})};
+    auto const detail_width = std::max(0, (width - std::min(width, DisplayWidth(c->username))) / 2 - 1);
+    Elements header{preview_text(c->username, width) | bold | hcenter};
+    if (detail_width > 0 && !detail.empty())
+    { header.push_back(hbox({filler(), preview_text(detail, detail_width) | dim})); }
+    Elements items{dbox(std::move(header))};
     // Pinned message and announcement share one line; the full announcement is in the group page.
     if (c->pinned_message)
     {
@@ -645,7 +618,7 @@ Element conversation_view(state const& s, Element input, std::string typing, int
     else if (!c->announcement.empty()) { items.push_back(preview_text("公告：" + c->announcement, width) | dim); }
     items.push_back(separator());
     auto const rows = height - chat_chrome(s, width, !typing.empty()) -
-        (s.composing ? composer_lines(s, width, height, !typing.empty()) : s.can_send() ? 1 : 0);
+        (s.can_send() ? composer_lines(s, width, height, !typing.empty()) : 0);
     items.push_back(history(s, width, rows, message_scroll));
     if (!typing.empty()) { items.push_back(text(typing) | dim); }
     if (s.at_latest) { items.push_back(separator()); }
@@ -655,16 +628,11 @@ Element conversation_view(state const& s, Element input, std::string typing, int
     {
         if (s.reply) { items.push_back(preview_text("回复 " + s.reply->username + "：" + s.reply->text, width) | dim); }
         if (s.editing) { items.push_back(text("正在编辑消息 · Esc 保留草稿") | dim); }
-        if (input)
-        {
-            auto const lines = composer_lines(s, width, height, !typing.empty());
-            items.push_back(hbox({text(" › "), input | xflex, text(" ")}) | vcenter | size(HEIGHT, EQUAL, lines) | bgcolor(composer_background) | color(body_color));
-        }
-        else
-        {
-            auto preview = preview_text(s.composing ? "› " + s.draft : s.draft.empty() ? "按 i 输入消息" : "按 i 继续输入 · " + s.draft, width - 2);
-            items.push_back(hbox({text(" "), preview | flex, text(" ")}) | size(HEIGHT, EQUAL, s.composing ? composer_lines(s, width, height, !typing.empty()) : 1) | bgcolor(composer_background) | color(body_color));
-        }
+        auto const lines = composer_lines(s, width, height, !typing.empty());
+        auto editor = input ? hbox({text(" › "), input | xflex, text(" ")})
+            : hbox({text(" "), wrapped_text(s.composing ? "› " + s.draft : s.draft.empty() ? "按 i 输入消息" : "按 i 继续输入 · " + s.draft, width - 2) | xflex, text(" ")});
+        items.push_back(editor | size(HEIGHT, LESS_THAN, std::max(1, lines - 2)) | vcenter |
+                        size(HEIGHT, EQUAL, lines) | bgcolor(composer_background) | color(body_color));
     }
     return vbox(std::move(items)) | flex;
 }
@@ -969,7 +937,7 @@ Element render_impl(state const& s, int width, int height, Element compose = {},
         content = hbox({conversation_list(s, 29) | size(WIDTH, EQUAL, 30), separator(), secondary(s, width - 34, message_scroll) | flex}) | flex;
     }
     else { content = secondary(s, width - 3, message_scroll); }
-    auto link = " " + link_label(s.link);
+    auto const link = link_label(s.link);
     std::string const help = " Esc 返回 · F1 帮助";
     std::vector<std::string> hints{"h 聊天", "c 联系人", "u 账号", "N 新建", "Ctrl+K 命令面板"};
     if (s.view == page::conversation && s.composing)
@@ -996,7 +964,7 @@ Element render_impl(state const& s, int width, int height, Element compose = {},
         { hints.insert(hints.end(), {"Enter 打开", "m 免打扰", "p 置顶"}); }
         hints.push_back("N 新建");
     }
-    auto const hint_width = width - 2 - DisplayWidth(help);
+    auto const hint_width = std::max(0, width - 2 - DisplayWidth(link) - 3 - DisplayWidth(help));
     bool const show_notice = !s.status.empty() && !s.status_error &&
         DisplayWidth(s.status) + DisplayWidth(hints.front()) + 3 <= hint_width;
     auto const key_width = hint_width - (show_notice ? DisplayWidth(s.status) + 3 : 0);
@@ -1011,7 +979,7 @@ Element render_impl(state const& s, int width, int height, Element compose = {},
     auto status = s.status_error || (!s.status.empty() && !show_notice)
         ? preview_text(s.status, hint_width) : text(keys) | dim;
     if (s.status_error) { status = status | bold; }
-    return vbox({hbox({preview_text("Chat · " + s.self.username, width - 2 - DisplayWidth(link)) | bold | flex, text(link)}), separator(), content, separator(), hbox({status | flex, text(help) | dim})}) | border;
+    return vbox({content, separator(), hbox({text(link), text(hint_width && (!keys.empty() || !s.status.empty()) ? " · " : ""), status | flex, text(help) | dim})}) | border;
 }
 // One command palette entry; an empty command inserts a line break in the composer.
 struct palette_entry
@@ -1562,7 +1530,7 @@ private:
         {
             if (s.view == page::conversation) { s.at_latest = false; app_.history(true); }
             else if (s.view == page::search) { app_.search(s.search_query, true); }
-            else if (s.view == page::help) { move(-std::max(1, app_.viewport_height - 9)); }
+            else if (s.view == page::help) { move(-std::max(1, app_.viewport_height - page_chrome - 3)); }
             return true;
         }
         if (event == Event::PageDown)
@@ -1570,7 +1538,7 @@ private:
             if (s.view == page::search) { app_.search(s.search_query, true); }
             else if (s.view == page::requests) { app_.requests(true); }
             else if (s.view == page::conversations) { app_.conversations(true); }
-            else if (s.view == page::help) { move(std::max(1, app_.viewport_height - 9)); }
+            else if (s.view == page::help) { move(std::max(1, app_.viewport_height - page_chrome - 3)); }
             return true;
         }
         if ((event == Event::Character('[') || event == Event::Character(']')) &&
@@ -1982,7 +1950,7 @@ private:
         auto const width = terminal.dimx - (wide ? 34 : 3);
         // Without send permission the hint (counted in the chrome) replaces the composer.
         app_.history_rows = terminal.dimy - chat_chrome(s, width, typing) -
-            (s.composing ? composer_lines(s, width, terminal.dimy, typing) : s.can_send() ? 1 : 0);
+            (s.can_send() ? composer_lines(s, width, terminal.dimy, typing) : 0);
     }
     // Called at each redraw and before queued results (final = false), and when the paste ends.
     void flush_paste(bool final = false)

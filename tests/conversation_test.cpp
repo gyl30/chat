@@ -4313,11 +4313,11 @@ int run_tui_tests()
                 ui_pump([&] { return !app.data.contacts.empty(); });
             };
             ui_pump([&] { return app.history_rows > 0; });
-            // A reply target and an edit in progress take two rows: 40x12 then has no history row.
+            // Below the supported minimum, a reply and edit leave no visible history row.
             auto const& own = app.data.messages.back();
             app.data.reply = chat::quoted_message{own.id, own.from, own.username, own.text, {}, false};
             app.data.editing = own.id;
-            ftxui::Terminal::SetFallbackSize({40, 12});
+            ftxui::Terminal::SetFallbackSize({40, 10});
             auto unseen = call<chat::message>([&](auto handler) { peer.send_message(direct, "unseen while hidden", handler); });
             require(unseen.has_value(), "Peer sends while the terminal shrinks");
             // Let the delivery reach the queue so the shrink and the message usually share one

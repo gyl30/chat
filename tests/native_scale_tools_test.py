@@ -25,6 +25,7 @@ import native_gui_scale as gui
 import native_tui_scale as tui
 import native_server_observer as observer
 import native_network
+import tui_100_member_smoke as tui_smoke
 
 
 class BlackholeRelayTest(unittest.TestCase):
@@ -159,6 +160,25 @@ class FinishedWorker:
 
 
 class NativeToolsTest(unittest.TestCase):
+    def test_tui_resize_recognizes_footer_without_account_banner(self):
+        driver = tui_smoke.Driver.__new__(tui_smoke.Driver)
+        driver.panes = {'A': 'pane'}
+        driver.tmux = mock.Mock()
+        driver.wait = mock.Mock()
+        driver.resize('A', 100, 30)
+        predicate = driver.wait.call_args.args[1]
+        self.assertTrue(predicate('│● 已连接 · Enter 发送     Esc 返回 · F1 帮助│'))
+        self.assertFalse(predicate('│Chat · account│'))
+        self.assertFalse(predicate('终端太小 Esc 返回 F1 帮助'))
+        driver.resize('A', 40, 10)
+        self.assertTrue(driver.wait.call_args.args[1]('终端太小'))
+
+    def test_tui_sidebar_row_does_not_include_next_conversation(self):
+        screen = '│▸ Alice  │messages│\n│  Bob    │messages│'
+        self.assertEqual(tui_smoke.list_row(screen, 'Alice'), '▸ Alice  ')
+        self.assertEqual(tui_smoke.list_row(screen, 'Bob'), '  Bob    ')
+        self.assertEqual(tui_smoke.list_row(screen, 'missing'), '')
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix='chat-native-tools-test-')
         self.experiments = []
