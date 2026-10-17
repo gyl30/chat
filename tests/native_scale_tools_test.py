@@ -26,6 +26,7 @@ import native_tui_scale as tui
 import native_server_observer as observer
 import native_network
 import tui_100_member_smoke as tui_smoke
+import tui_group_edges_smoke as group_edges
 
 
 class BlackholeRelayTest(unittest.TestCase):
@@ -200,6 +201,96 @@ class NativeToolsTest(unittest.TestCase):
             self.assertEqual(worker.active[1], 17)
             self.assertEqual(worker.key.call_args.args[1], 'Enter')
             self.assertEqual(worker.key.call_count, 2)
+
+    def test_tui_chat_header_uses_top_pane_and_full_name(self):
+        for wide in (False, True):
+            for title, detail, expected in (
+                    ('Scale 1', '', True), ('Scale 1', '在线', True),
+                    ('Scale 1', '最后在线 10-17 12:34', True),
+                    ('Scale 1', '12 位成员', True), ('Scale 1', '最后…', True),
+                    ('Scale 10', '在线', False), ('Scale 1-user', '', False),
+                    ('Scale 1 extra', '', False), ('Scale 1  extra', '', False)):
+                header = '       ' + title + '       ' + detail
+                frame = ('╭────────┬────────────────────────────────────────╮\n'
+                         '│▸ Other │' + header + '│\n│        ├────────────────────┤\n') if wide else (
+                         '╭────────────────────────────────────────╮\n│' + header + '│\n├────────────────────┤\n')
+                frame += '│ Scale 1 in a message body │\n│Esc 返回 · F1 帮助│'
+                with self.subTest(wide=wide, title=title, detail=detail):
+                    self.assertEqual(tui.chat_header_matches(frame, 'Scale 1'), expected)
+        self.assertTrue(tui.chat_header_matches('╭──────╮\n│    项目 中文🙂       3 位成员│', '项目 中文🙂'))
+        self.assertFalse(tui.chat_header_matches('╭──────╮\n│▸ Scale 1│ Other │\n│ Scale 1 │', 'Scale 1'))
+        self.assertFalse(tui.chat_header_matches('注册账号 Scale 1', 'Scale 1'))
+
+    def test_tui_muted_unread_observes_membership_without_list_summary(self):
+        for unread, last_read, succeeds in ((1, 20, True), (0, 20, False), (1, 21, False)):
+            with self.subTest(unread=unread, last_read=last_read):
+                sent = []
+                before = {'muted': True, 'unread': 0, 'last_read': 20}
+                after = {'muted': True, 'unread': unread, 'last_read': last_read}
+                driver = mock.MagicMock()
+                driver.args.run_id = 'unit'
+                driver.group = 7
+                driver.case.return_value = contextlib.nullcontext()
+                def wait(actor, predicate):
+                    self.assertTrue(predicate('│> Group│\n│● 已连接 · m 免打扰  Esc 返回 · F1 帮助│'))
+                driver.wait.side_effect = wait
+                driver.capture.return_value = '│> Group│\n│● 已连接  Esc 返回 · F1 帮助│'
+                driver.query.side_effect = lambda *args, **kwargs: sent.append(21) or {'id': 21}
+                def eventually(predicate, description, **kwargs):
+                    value = predicate()
+                    if not value:
+                        raise AssertionError(description)
+                    return value
+                with mock.patch.object(group_edges, '_membership',
+                                       side_effect=lambda d: dict(after if sent else before)), \
+                     mock.patch.object(group_edges, '_eventually', side_effect=eventually):
+                    if succeeds:
+                        group_edges.prepare_reconnect(driver)
+                        proof = driver.evidence.call_args.args[1]
+                        self.assertEqual(proof['after'], after)
+                        self.assertEqual(proof['before'], before)
+                        self.assertEqual(proof['message'], 21)
+                    else:
+                        with self.assertRaises(AssertionError):
+                            group_edges.prepare_reconnect(driver)
+
+    def test_tui_unread_row_uses_authoritative_proof(self):
+        for unread in (0, 1):
+            worker = tui.Worker.__new__(tui.Worker)
+            worker.key = mock.Mock()
+            worker.key_barrier = mock.Mock()
+            worker.capture = mock.Mock(return_value='│\x1b[7m> Scale 1\x1b[0m│')
+            worker.screenshot = mock.Mock()
+            worker.proof = mock.Mock(return_value={'read_position': 20, 'unread': unread})
+            worker.emit = mock.Mock()
+            worker.wait = lambda actor, predicate, **kwargs: self.assertTrue(predicate('no unread digit'))
+            actor = {'id': 2, 'direct_id': 7}
+            if unread:
+                worker.unread_row(actor, 'Scale 1', 'unread')
+                worker.proof.assert_called_once_with('read-position', conversation=7, member=2)
+                worker.screenshot.assert_called_once()
+            else:
+                with self.assertRaises(AssertionError):
+                    worker.unread_row(actor, 'Scale 1', 'unread')
+
+    def test_tui_proof_uses_existing_coordinator_protocol(self):
+        worker = tui.Worker.__new__(tui.Worker)
+        worker.emit = mock.Mock()
+        answer = {'command': 'proof', 'kind': 'read-position', 'read_position': 20, 'unread': 1}
+        with mock.patch.object(tui.sys, 'stdin', io.StringIO(json.dumps(answer)+'\n')):
+            self.assertEqual(worker.proof('read-position', conversation=7, member=2), answer)
+        worker.emit.assert_called_once_with('proof-request', kind='read-position', conversation=7, member=2)
+        with mock.patch.object(tui.sys, 'stdin', io.StringIO('{"command":"proof","kind":"online"}\n')):
+            with self.assertRaises(RuntimeError):
+                worker.proof('read-position', conversation=7, member=2)
+
+    def test_tui_right_pane_follows_current_outer_frame(self):
+        driver = tui_smoke.Driver.__new__(tui_smoke.Driver)
+        driver.capture = mock.Mock(return_value='╭────────┬──────────╮\n│中文🙂  │资料 · Bob│\n│left    ├──────────┤\n│Alice   │Bob right │\n╰────────┴──────────╯')
+        pane = driver.right_pane('A')
+        self.assertIn('资料 · Bob', pane)
+        self.assertIn('Bob right', pane)
+        self.assertNotIn('Alice', pane)
 
     def test_tui_sidebar_row_does_not_include_next_conversation(self):
         screen = '│▸ Alice  │messages│\n│  Bob    │messages│'
@@ -806,6 +897,12 @@ class NativeToolsTest(unittest.TestCase):
         self.assertEqual(tui.sidebar_step(frame.replace('Medium 1', 'Medium …'),
                                           'Medium 1'), 'Down')
 
+    def test_tui_sidebar_title_excludes_scrollbar_cell(self):
+        for edge in ('┃', '╻', '╹'):
+            with self.subTest(edge=edge):
+                self.assertTrue(tui.sidebar_title_matches('> Scale 1        ' + edge, 'Scale 1'))
+                self.assertFalse(tui.sidebar_title_matches('> Scale 10       ' + edge, 'Scale 1'))
+
     def test_tui_sidebar_title_requires_full_name_boundary(self):
         cases = (
             ('> Scale 1               13:33', 'Scale 1', True),
@@ -819,25 +916,32 @@ class NativeToolsTest(unittest.TestCase):
             with self.subTest(label=label, title=title):
                 self.assertEqual(tui.sidebar_title_matches(label, title), expected)
 
+    def test_tui_receipt_matches_current_bubble_metadata(self):
+        line = ('  \x1b[38;2;48;88;61m\x1b[48;2;21;48;32m│\x1b[39m '
+                '\x1b[38;2;126;164;139m15:11 · 已读     \x1b[39m '
+                '\x1b[38;2;48;88;61m│\x1b[39m\x1b[49m  │')
+        self.assertTrue(tui.receipt_metadata_matches(line, '已读'))
+        self.assertFalse(tui.receipt_metadata_matches(line, '已发送'))
+
     def test_tui_receipt_metadata_accepts_native_edge_glyphs(self):
         for edge, state in [('┃│', '已读'), ('╻│', '已发送'), ('╹│', '已读'), ('│', '已发送')]:
             with self.subTest(edge=edge, state=state):
-                line = '                               \x1b[2m' + state + '                                                   \x1b[0m' + edge
+                line = '                               \x1b[38;2;126;164;139m15:11 · ' + state + '                                                   \x1b[0m' + edge
                 self.assertTrue(tui.receipt_metadata_matches(line, state))
-        self.assertTrue(tui.receipt_metadata_matches('  \x1b[0;2m已读\x1b[0m┃│', '已读'))
+        self.assertTrue(tui.receipt_metadata_matches('  \x1b[38;2;126;164;139m10-17 15:11 · 已读\x1b[0m┃│', '已读'))
 
     def test_tui_receipt_metadata_requires_exact_state(self):
-        for line in ['  \x1b[2m已发送\x1b[0m┃│',
-                     '  \x1b[2m已读 多余正文\x1b[0m┃│',
-                     '  \x1b[2mmarker 已读\x1b[0m┃│',
-                     '  \x1b[2m已读回复\x1b[0m┃│']:
+        for line in ['  \x1b[38;2;126;164;139m15:11 · 已发送\x1b[0m┃│',
+                     '  \x1b[38;2;126;164;139m15:11 · 已读 多余正文\x1b[0m┃│',
+                     '  \x1b[38;2;126;164;139mmarker 15:11 · 已读\x1b[0m┃│',
+                     '  \x1b[38;2;126;164;139m15:11 · 已读回复\x1b[0m┃│']:
             with self.subTest(line=line):
                 self.assertFalse(tui.receipt_metadata_matches(line, '已读'))
 
     def test_tui_receipt_metadata_rejects_body_and_truecolor_digit_two(self):
         for line in ['  已读 │', '  已读 ┃│',
-                     '  \x1b[38;2;100;200;150m已读\x1b[0m┃│',
-                     '  \x1b[1m已读\x1b[0m│']:
+                     '  \x1b[38;2;100;200;150m15:11 · 已读\x1b[0m┃│',
+                     '  \x1b[1m15:11 · 已读\x1b[0m│']:
             with self.subTest(line=line):
                 self.assertFalse(tui.receipt_metadata_matches(line, '已读'))
 

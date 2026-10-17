@@ -484,9 +484,8 @@ class Driver:
         raise LookupError(f'{actor}: conversation {title!r} missing')
 
     def right_pane(self, actor):
-        # The detail pane of a wide layout: what lies right of the list column's divider, found
-        # by its display column (CJK takes two cells) on the "├───┬───┤" line under the title.
-        # The whole screen when the layout is a single column.
+        # 从最外层顶边框确定分栏位置，按显示列计数（中文占两列）。
+        # 单栏时整个屏幕均为详情区域。
         import unicodedata
         def cells(text):
             out = []
@@ -496,7 +495,7 @@ class Driver:
                     out.append('')
             return out
         lines = [cells(line) for line in self.capture(actor).splitlines()]
-        divider = next((row.index('┬') for row in lines if row and row[0] == '├' and '┬' in row), None)
+        divider = next((row.index('┬') for row in lines if row and row[0] == '╭' and '┬' in row), None)
         if divider is None:
             return '\n'.join(''.join(row) for row in lines)
         return '\n'.join(''.join(row[divider + 1:]) for row in lines if len(row) > divider + 1)

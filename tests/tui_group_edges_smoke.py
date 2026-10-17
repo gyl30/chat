@@ -1,7 +1,6 @@
 """Focused real-TUI group edge cases sharing the scale driver's fixture."""
 from __future__ import annotations
 
-import re
 import time
 
 from tui_scale_observer import read_only_sql
@@ -219,16 +218,18 @@ def prepare_reconnect(d):
         _eventually(lambda: _membership(d)['muted'], 'Real UI mute did not reach the server')
         d.resize('A', 80, 30)
         d.command('A', 'conversations')
-        d.wait('A', lambda text: conversation_list_visible(text) and '免打扰' in text)
+        d.wait('A', conversation_list_visible)
         d.barrier('A')
         before = _membership(d)
         assert before['muted']
         marker = 'mute_edge_' + d.args.run_id
         sent = d.query('S030', 'send_message', conversation=d.group, text=marker)
-        # The unread count ends the summary row of the list.
-        d.wait('A', lambda text: '免打扰' in text and any(marker in line and re.search(r'\s1\s*│', line) for line in text.splitlines()))
-        after = _membership(d)
-        assert after['muted'] and after['unread'] == 1 and after['last_read'] == before['last_read']
+        def unread_without_read():
+            value = _membership(d)
+            return value if (value['muted'] and value['unread'] == 1 and
+                             value['last_read'] == before['last_read']) else None
+        after = _eventually(unread_without_read, 'Muted live message must remain unread without advancing last_read')
+        assert conversation_list_visible(d.capture('A')), 'Owner must remain on the conversation list'
         d.screenshot('A', 'muted-live-unread')
         d.evidence('muted-no-auto-read', {'before': before, 'after': after, 'message': sent['id']})
         d._group_edge_mute = {'message': sent['id'], 'marker': marker}
@@ -241,11 +242,10 @@ def verify_reconnect(d):
         saved = d._group_edge_mute
         after = _membership(d)
         assert after['muted'], 'Server reconnect lost the personal mute'
-        # Inspect the full-width conversation list before returning to the
-        # selected history. Wide-sidebar badge layout has separate coverage.
+        # 返回历史前先确认仍在列表，静音状态由数据库验证。
         d.resize('A', 80, 30)
         d.command('A', 'conversations')
-        d.wait('A', lambda text: conversation_list_visible(text) and '免打扰' in text)
+        d.wait('A', conversation_list_visible)
         d.screenshot('A', 'mute-survived-restarts-list')
         d.resize('A', 160, 45)
         d.open_main('A')

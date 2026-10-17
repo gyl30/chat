@@ -38,20 +38,20 @@ class Cancelled(Exception):
 
 def chat_header_matches(screen, title):
     """Check the visible native chat header, never a truncated sidebar prefix."""
-    lines = screen.splitlines()
-    if len(lines) < 4:
-        return False
-    cells = lines[3].split('│')
+    # 顶部首个内容行是标题；取最右栏，排除侧栏同名项。
+    row = next((line for line in screen.splitlines() if line.startswith('│')), '')
+    cells = row.split('│')
     if len(cells) < 3:
         return False
-    header = cells[2] if len(cells) > 3 else cells[1]
-    return re.fullmatch(re.escape(title) + r'(?:\s+·\s+.*)?', header.strip()) is not None
+    header = cells[-2].strip()
+    detail = r'(?:在线|离线|最后在线 [-0-9: ]+|\d+ 位成员|\S*(?: \S*)?…)'
+    return re.fullmatch(re.escape(title) + r'(?:\s{2,}' + detail + r')?', header) is not None
 
 
 def sidebar_title_matches(label, title):
     # Match the complete name followed only by the native list's metadata.
     # "Scale 1" must not open "Scale 10" or a different longer username.
-    name = label.strip().removeprefix('> ').removeprefix('▸ ').strip()
+    name = label.strip(' │┃╻╹').removeprefix('> ').removeprefix('▸ ').strip()
     presence = r'(?:\s+·\s+(?:在线|离线|最后在线\s+\d{2}-\d{2}\s+\d{2}:\d{2}))?'
     flags = r'(?:\s+(?:置顶|免打扰))*'
     when = r'(?:\s+(?:\d{2}:\d{2}|昨天|周[日一二三四五六]|(?:\d{4}-)?\d{2}-\d{2}))?'
@@ -75,11 +75,11 @@ def sidebar_step(screen, title):
 
 
 def receipt_metadata_matches(line, expected):
-    # Receipt text is dim in the actual native renderer. A body line containing
-    # “已读” is not a receipt; scrollbar cells are framing, not metadata text.
-    if CSI.sub('', line).strip(' │┃╻╹') != expected:
+    # 时间和回执共用气泡的辅助文字颜色，正文中的“已读”不能冒充回执。
+    metadata = r'(?:\d{2}-\d{2} )?\d{2}:\d{2} · ' + re.escape(expected)
+    if re.fullmatch(metadata, CSI.sub('', line).strip(' │┃╻╹')) is None:
         return False
-    return re.search(r'\x1b\[(?:0;)?2m\s*' + re.escape(expected) +
+    return re.search(r'\x1b\[38;2;126;164;139m\s*' + metadata +
                      r'(?=\s|\x1b|[│┃╻╹]|$)', line) is not None
 
 
@@ -793,16 +793,24 @@ class Worker:
         self.emit('not-verified', kinds=kinds,
                   reason='Not part of this worker path; requires separately scheduled native UI scenario')
 
+    def proof(self, kind, **context):
+        self.emit('proof-request', kind=kind, **context)
+        answer = json.loads(sys.stdin.readline())
+        if answer.get('command') != 'proof' or answer.get('kind') != kind:
+            raise RuntimeError('Unexpected answer to a native proof request')
+        return answer
+
     def unread_row(self, actor, username, label):
-        # The unread count is only readable on the highlighted row, so the list is walked
-        # with the keyboard until the wanted peer is the selected row.
+        # 列表仅显示名称；由协调器通过现有只读数据库连接确认未读。
         self.key(actor, 'Up', repeat=25)
         self.key_barrier(actor)
         for _ in range(18):
             selected = inverse_text(self.capture(actor, True))
-            if username in selected:
-                self.wait(actor, lambda text: re.search(r'\s[1-9][0-9]*\s*$',
-                          inverse_text(self.capture(actor, True)), re.M) is not None)
+            if any(sidebar_title_matches(line.strip(' │'), username) for line in selected.splitlines()):
+                proof = self.proof('read-position', conversation=actor['direct_id'], member=actor['id'])
+                assert proof['unread'] > 0, 'Selected conversation must have authoritative unread messages'
+                self.emit('unread-observed', actor=actor['id'], conversation=actor['direct_id'],
+                          read_position=proof['read_position'], unread=proof['unread'])
                 self.screenshot(actor, label)
                 return
             self.key(actor, 'Down')
