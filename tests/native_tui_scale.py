@@ -51,7 +51,7 @@ def chat_header_matches(screen, title):
 def sidebar_title_matches(label, title):
     # Match the complete name followed only by the native list's metadata.
     # "Scale 1" must not open "Scale 10" or a different longer username.
-    name = label.strip().removeprefix('> ').strip()
+    name = label.strip().removeprefix('> ').removeprefix('▸ ').strip()
     presence = r'(?:\s+·\s+(?:在线|离线|最后在线\s+\d{2}-\d{2}\s+\d{2}:\d{2}))?'
     flags = r'(?:\s+(?:置顶|免打扰))*'
     when = r'(?:\s+(?:\d{2}:\d{2}|昨天|周[日一二三四五六]|(?:\d{4}-)?\d{2}-\d{2}))?'
@@ -67,7 +67,7 @@ def sidebar_step(screen, title):
         if len(cells) <= 2:
             continue
         label = cells[1]
-        if label.lstrip().startswith('> '):
+        if label.lstrip().startswith('> ') or (selected is None and label.lstrip().startswith('▸ ')):
             selected = index
         if sidebar_title_matches(label, title):
             target = index
@@ -350,7 +350,7 @@ class Worker:
             self.key(actor, 'Tab')
             self.paste(actor, self.password)
             self.key(actor, 'Enter')
-            self.wait(actor, lambda text: '已连接' in text and '聊天' in text, timeout=45)
+            self.wait(actor, lambda text: '已连接' in text and 'Esc 返回' in text, timeout=45)
             self.emit('authenticated', actor=identity, login_ms=(time.monotonic()-start)*1000,
                       pid=pid, starttime=state['start_ticks'])
         self.screenshot(self.actors[0], 'authenticated')
@@ -376,8 +376,9 @@ class Worker:
             for _ in range(18):
                 frame = self.capture(actor)
                 selected = inverse_text(self.capture(actor, True))
-                label = next((line.split('│')[1] for line in frame.splitlines()
-                              if len(line.split('│')) > 2 and line.split('│')[1].lstrip().startswith('> ')), '')
+                label = next((line.split('│')[1] for prefix in ('> ', '▸ ')
+                              for line in frame.splitlines() if len(line.split('│')) > 2
+                              and line.split('│')[1].lstrip().startswith(prefix)), '')
                 if sidebar_title_matches(label, title):
                     # Keep the original fast path for fully visible fixture
                     # names; verify the full header rather than a body match.
@@ -978,7 +979,7 @@ class Worker:
             # as verified by the existing native login smoke.
             self.paste(actor, self.password)
             self.key(actor, 'Enter')
-            self.wait(actor, lambda text: '已连接' in text and '聊天' in text, timeout=45)
+            self.wait(actor, lambda text: '已连接' in text and 'Esc 返回' in text, timeout=45)
             current = process_sample(original['pid'])
             if (not current.get('alive') or current.get('start_ticks') != original['start_ticks']):
                 raise AssertionError('Logout/login replaced the native client process')

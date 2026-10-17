@@ -173,6 +173,34 @@ class NativeToolsTest(unittest.TestCase):
         driver.resize('A', 40, 10)
         self.assertTrue(driver.wait.call_args.args[1]('终端太小'))
 
+    def test_tui_conversation_rows_without_title(self):
+        footer = '\n│● 已连接             Esc 返回 · F1 帮助│'
+        self.assertTrue(tui_smoke.conversation_list_visible('│▸ 名称🙂│'+footer))
+        self.assertTrue(tui_smoke.conversation_list_visible('│  \n│> Other│'+footer))
+        self.assertTrue(tui_smoke.conversation_list_visible('│暂无聊天│'+footer))
+        self.assertFalse(tui_smoke.conversation_list_visible('│用户名│'+footer))
+        self.assertTrue(tui.sidebar_title_matches('▸ Scale 1', 'Scale 1'))
+        self.assertFalse(tui.sidebar_title_matches('▸ Scale 10', 'Scale 1'))
+        screen = '│> Other│message│\n│▸ Active│message│'
+        self.assertEqual(tui.sidebar_step(screen, 'Active'), 'Down')
+
+    def test_tui_open_current_active_conversation(self):
+        for frame in ('│▸ Active│messages│', '│▸ Active│messages│\n│> Other│messages│'):
+            worker = tui.Worker.__new__(tui.Worker)
+            worker.active = {}
+            worker.operation = lambda actor, kind, action, **kwargs: action()
+            worker.command = mock.Mock()
+            worker.key = mock.Mock()
+            worker.key_barrier = mock.Mock()
+            worker.capture = mock.Mock(return_value=frame)
+            worker.wait = mock.Mock()
+            with mock.patch.object(tui, 'chat_header_matches', return_value=True):
+                title = 'Other' if '> Other' in frame else 'Active'
+                worker.open_chat({'id': 1}, title, 17)
+            self.assertEqual(worker.active[1], 17)
+            self.assertEqual(worker.key.call_args.args[1], 'Enter')
+            self.assertEqual(worker.key.call_count, 2)
+
     def test_tui_sidebar_row_does_not_include_next_conversation(self):
         screen = '│▸ Alice  │messages│\n│  Bob    │messages│'
         self.assertEqual(tui_smoke.list_row(screen, 'Alice'), '▸ Alice  ')

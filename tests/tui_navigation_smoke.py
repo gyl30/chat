@@ -13,7 +13,7 @@ import sys
 import time
 
 sys.dont_write_bytecode = True
-from tui_100_member_smoke import Driver, inverse_text, choose_row, chat_open, composing, prompt_line
+from tui_100_member_smoke import Driver, inverse_text, choose_row, chat_open, composing, prompt_line, conversation_list_visible
 
 
 class NavigationDriver(Driver):
@@ -42,11 +42,11 @@ class NavigationDriver(Driver):
         if first and self.name(actor) not in self.capture(actor):
             self.paste(actor,self.name(actor)); self.keys(actor,'Tab')
         self.paste(actor,self.password); self.keys(actor,'Enter')
-        self.wait(actor,lambda s:'已连接' in s and ('聊天' in s or '聊天' in s))
+        self.wait(actor,lambda s:'已连接' in s and 'Esc 返回' in s)
 
     def chats(self,actor):
         self.command(actor,'conversations')
-        self.wait(actor,lambda s:'聊天' in s or '聊天' in s)
+        self.wait(actor,conversation_list_visible)
 
     def select_chat(self,actor,title):
         self.chats(actor)
@@ -229,7 +229,7 @@ def _hidden_direct_restoration(d):
         d.command('A', 'remove-contact')
         d.confirm('A', '删除好友')
         for actor, peer in (('A', 'C'), ('C', 'A')):
-            d.wait(actor, lambda screen: '聊天' in screen and not chat_open(screen) and '资料 ·' not in screen)
+            d.wait(actor, lambda screen: conversation_list_visible(screen) and not chat_open(screen) and '资料 ·' not in screen)
             d.resize(actor, 80, 24)
             d.barrier(actor)
             assert d.name(peer) not in d.capture(actor), 'A removed direct remained in Chats'
@@ -304,7 +304,7 @@ def chat_navigation(d):
         d.wait('A',lambda s:marker in s and chat_open(s))
         d.screenshot('A','narrow-group-enter')
         d.keys('A','Escape')
-        d.wait('A',lambda s:('聊天' in s or '聊天' in s) and not chat_open(s))
+        d.wait('A',lambda s:conversation_list_visible(s) and not chat_open(s))
         d.screenshot('A','narrow-escape-list')
         # Returning by the top-level Chats action must have the same root
         # semantics. Esc at that root cannot reveal the prior message view.
@@ -312,7 +312,7 @@ def chat_navigation(d):
         d.wait('A',chat_open)
         d.chats('A')
         d.keys('A','Escape')
-        d.wait('A',lambda s:('聊天' in s or '聊天' in s) and not chat_open(s))
+        d.wait('A',lambda s:conversation_list_visible(s) and not chat_open(s))
         d.screenshot('A','narrow-root-escape-stable')
         d.resize('A',160,45)
         d.select_chat('A',d.title)
@@ -356,9 +356,9 @@ def tab_navigation(d):
         d.keys('A','Home','Up','Home')
         d.keys('A','DC',repeat=32)
         d.keys('A','Escape')
-        d.wait('A',lambda s:('聊天' in s or '聊天' in s) and not chat_open(s))
+        d.wait('A',lambda s:conversation_list_visible(s) and not chat_open(s))
         d.keys('A','Escape')
-        d.wait('A',lambda s:('聊天' in s or '聊天' in s) and not chat_open(s))
+        d.wait('A',lambda s:conversation_list_visible(s) and not chat_open(s))
         d.screenshot('A','tab-chat-root-stable')
         d.keys('A','c'); d.wait('A','新的朋友 (1)')
         # One page lists received and sent requests; Tab no longer switches between them.

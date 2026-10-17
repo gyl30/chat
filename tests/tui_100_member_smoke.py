@@ -353,7 +353,7 @@ class Driver:
             self.screenshot(actor, 'bad-password')
         self.paste(actor, self.password)
         self.keys(actor, 'Enter')
-        self.wait(actor, lambda screen: '已连接' in screen and '聊天' in screen, timeout=25)
+        self.wait(actor, lambda screen: '已连接' in screen and 'Esc 返回' in screen, timeout=25)
 
     def registration_edges(self, actor):
         self.paste(actor, ' Alice')
@@ -393,7 +393,7 @@ class Driver:
     def open_main(self, actor):
         self.keys(actor, 'Escape')
         self.command(actor, 'conversations')
-        self.wait(actor, '聊天')
+        self.wait(actor, conversation_list_visible)
         self.keys(actor, 'k', repeat=200)
         self.barrier(actor)
         # The part before '_' is unique and survives clipping beside the pin and mute marks.
@@ -467,7 +467,7 @@ class Driver:
     def open_named(self, actor, title):
         self.keys(actor, 'Escape')
         self.command(actor, 'conversations')
-        self.wait(actor, '聊天')
+        self.wait(actor, conversation_list_visible)
         self.keys(actor, 'k', repeat=200)
         self.barrier(actor)
         for _ in range(200):
@@ -1216,7 +1216,7 @@ def stage_removed_friend(d, files):
         d.command('B', 'remove-contact')
         d.confirm('B', '删除好友')
         for actor in 'BC':
-            d.wait(actor, lambda screen: '聊天' in screen and not chat_open(screen) and '资料 ·' not in screen)
+            d.wait(actor, lambda screen: conversation_list_visible(screen) and not chat_open(screen) and '资料 ·' not in screen)
             d.screenshot(actor, 'removed-direct-closed')
 
         def hidden(actor, peer, label):
@@ -1264,7 +1264,7 @@ def stage_admin_friend_invite(d):
         d.choose_member('A', 'D')
         d.command('A', 'kick')
         d.confirm('A', '移除群成员')
-        d.wait('D', lambda text: '聊天' in text and d.title not in text)
+        d.wait('D', lambda text: conversation_list_visible(text) and d.title not in text)
         d.open_main('B')
         d.command('B', 'group')
         d.wait('B', '我的身份：管理员')
@@ -1370,7 +1370,7 @@ def stage_group_management(d):
             d.choose_member('A', 'D')
             d.command('A', 'kick')
             d.confirm('A', '移除群成员')
-            d.wait('D', lambda text: '聊天' in text and d.title not in text)
+            d.wait('D', lambda text: conversation_list_visible(text) and d.title not in text)
             d.screenshot('D', 'removed-' + page)
             gap = d.query('S005', 'send_message', conversation=d.group, text='removed_gap_' + page + '_' + d.args.run_id)
             if page == 'conversation':
@@ -1502,6 +1502,13 @@ def chat_open(screen):
     return composing(screen) or '按 i ' in screen
 
 
+def conversation_list_visible(screen):
+    """Recognize conversation rows or the empty state without a list heading."""
+    return ('Esc 返回' in screen and
+            ('暂无聊天' in screen or
+             any(re.match(r'^│\s*[>▸] ', line) for line in screen.splitlines())))
+
+
 def list_row(screen, title):
     """The single sidebar row of a conversation in the wide layout."""
     for line in screen.splitlines():
@@ -1569,7 +1576,7 @@ def stage_resize(d):
                 d.paste('A', 'resize_draft')
             elif page != 'conversation':
                 d.command('A', page)
-            heading = {'conversations':'聊天', 'members':'群成员 (100)',
+            heading = {'conversations':conversation_list_visible, 'members':'群成员 (100)',
                        'conversation':d.title, 'search':'搜索：', 'requests':'待处理的入群申请',
                        'account':'账号 ·', 'help':'键盘帮助', 'compose':'resize_draft'}[page]
             d.wait('A', heading)
@@ -1577,7 +1584,7 @@ def stage_resize(d):
                 d.resize('A', width,height)
                 d.wait('A', '终端太小' if width < 40 else heading)
                 if width >= 100 and page in ('conversations','conversation','compose'):
-                    d.wait('A', '聊天')
+                    d.wait('A', conversation_list_visible)
                 d.screenshot('A', f'{page}-{width}x{height}')
             d.resize('A', 160,45)
             d.wait('A', heading)
@@ -1586,7 +1593,7 @@ def stage_resize(d):
             d.resize(actor, 80,24)
             d.open_main(actor)
             d.wait(actor, chat_open)
-            d.escape_until(actor, lambda text: '聊天' in text and not chat_open(text))
+            d.escape_until(actor, lambda text: conversation_list_visible(text) and not chat_open(text))
             d.keys(actor, 'Enter')
             d.resize(actor, 160,45)
 

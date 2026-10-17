@@ -197,6 +197,116 @@ int main()
     s.link = connection::online;
     {
         auto const fallback = ftxui::Terminal::Size();
+        for (int count : {20,100})
+        {
+            app application;
+            writable_conversation(application);
+            application.data.conversations.clear();
+            for (int i = 0; i < count; ++i)
+            {
+                chat::conversation c;
+                c.id = i+1; c.username = "ROW_" + std::to_string(i);
+                if (i == 0) { c.username += " 中文🙂 é 👩‍🚀 " + std::string(40, 'x'); }
+                c.can_send = true; c.kind = chat::conversation_kind::group;
+                c.last.text = "HIDDEN_SUMMARY"; c.unread = 987;
+                application.data.conversations.push_back(c);
+            }
+            application.data.active = 1;
+            application.data.view = page::conversations;
+            application.data.composing = false;
+            application.data.conversation_selected = count-2;
+            auto ui = make_ui(application, [] {});
+            for (auto const& [columns,rows] : {std::pair{160,45},{120,35},{100,30},{80,24},{40,12},{160,45}})
+            {
+                ftxui::Terminal::SetFallbackSize({columns,rows});
+                auto shown = [&] {
+                    ftxui::Screen frame(columns,rows);
+                    ftxui::Render(frame,ui->Render());
+                    return frame;
+                };
+                int const sidebar = columns >= 100 ? std::clamp(columns/5,22,28) : columns-2;
+                int const item_rows = rows >= 28 ? 3 : rows >= 20 ? 2 : 1;
+                auto locate = [&](ftxui::Screen const& frame,std::string const& label) {
+                    for (int y = 1; y < rows-2; ++y)
+                    {
+                        std::string line;
+                        for (int x = 1; x <= sidebar; ++x) { line += frame.CellAt(x,y).character; }
+                        if (line.find(label) != std::string::npos) { return y; }
+                    }
+                    return -1;
+                };
+                auto selected_frame = shown();
+                int const selected_y = locate(selected_frame,"ROW_"+std::to_string(count-2));
+                int const selected_top = selected_y-(item_rows-1)/2;
+                for (int y = selected_top; y < selected_top+item_rows; ++y)
+                {
+                    ok &= expect(y > 0 && y < rows-2 &&
+                                 selected_frame.CellAt(2,y).inverted &&
+                                 selected_frame.CellAt(sidebar-1,y).inverted,
+                                 "The entire selected item remains visible and highlighted after scrolling and resize");
+                }
+                ok &= expect(selected_y > 0 &&
+                             application.data.active == 1 &&
+                             application.data.conversations[application.data.conversation_selected].id == count-1,
+                             "Resize keeps the active ID and keyboard-selected ID, scrolling the complete selected item into view");
+                ui->OnEvent(ftxui::Event::Character('k'));
+                ok &= expect(application.data.conversation_selected == count-3,"k moves one conversation, not one padding row");
+                ui->OnEvent(ftxui::Event::Character('j'));
+                ok &= expect(application.data.conversation_selected == count-2,"j moves one conversation, not one padding row");
+                application.data.conversation_selected = 0;
+                application.data.view = page::conversation;
+                application.data.selecting = false;
+                auto frame = shown();
+                int const first = locate(frame,"ROW_0");
+                int const second = locate(frame,"ROW_1");
+                if (columns < 100)
+                {
+                    application.data.view = page::conversations;
+                    frame = shown();
+                }
+                int const name_y = locate(frame,"ROW_0");
+                int const next_y = locate(frame,"ROW_1");
+                ok &= expect(name_y == (item_rows == 3 ? 3 : item_rows == 2 ? 2 : 1) &&
+                             next_y-name_y == item_rows,
+                             "Conversation rows use measured three/two/one-row spacing and shrink top padding");
+                std::string sidebar_text;
+                for (int y = 1; y < rows-2; ++y)
+                {
+                    for (int x = 1; x <= sidebar; ++x) { sidebar_text += frame.CellAt(x,y).character; }
+                }
+                ok &= expect(sidebar_text.find("聊天") == std::string::npos &&
+                             sidebar_text.find("HIDDEN_SUMMARY") == std::string::npos &&
+                             sidebar_text.find("987") == std::string::npos,
+                             "The sidebar has only conversation names, with no heading, count or preview");
+                if (columns >= 100)
+                {
+                    ok &= expect(frame.CellAt(sidebar+1,1).character == "│" &&
+                                 frame.CellAt(sidebar+1,rows-4).character == "│",
+                                 "The actual sidebar divider follows the proportional clamped width");
+                    int const start = first-1;
+                    for (int y = start; y < start+3 && y > 0; ++y)
+                    {
+                        ok &= expect(frame.CellAt(2,y).background_color == ftxui::Color::RGB(20,43,28) &&
+                                     frame.CellAt(sidebar-1,y).background_color == ftxui::Color::RGB(20,43,28),
+                                     "The active background covers all three rows and the full sidebar width");
+                    }
+                    ok &= expect(second > first && frame.CellAt(2,second).background_color == ftxui::Color::Default &&
+                                 !frame.CellAt(2,first).inverted,
+                                 "Ordinary conversations stay black while the open conversation has its own background");
+                    auto const cursor = frame.cursor();
+                    ok &= expect(cursor.shape != ftxui::Screen::Cursor::Hidden && cursor.x > sidebar+1 &&
+                                 cursor.x < columns-1 && cursor.y < rows-2,
+                                 "The adaptive sidebar leaves the real composer cursor inside the right pane");
+                }
+                application.data.view = page::conversations;
+                application.data.conversation_selected = count-2;
+                application.data.selecting = true;
+            }
+        }
+        ftxui::Terminal::SetFallbackSize(fallback);
+    }
+    {
+        auto const fallback = ftxui::Terminal::Size();
         for (auto const& [columns, rows] : {std::pair{100,30}, {80,24}, {40,12}})
         {
             app application;
@@ -323,7 +433,7 @@ int main()
                 ok &= expect(row_text(empty,rows-2).find("已连接 ·") == std::string::npos,
                              "A compact footer has no orphan separator when no contextual shortcut fits");
             }
-            int const pane_left = columns >= 100 ? 32 : 1;
+            int const pane_left = columns >= 100 ? std::clamp(columns/5,22,28)+2 : 1;
             auto title_x = [&](ftxui::Screen const& frame) {
                 for (int x = pane_left; x + 6 < columns; ++x)
                 {
@@ -436,7 +546,7 @@ int main()
                              sidebar.find("免打扰") == std::string::npos,
                              "Twenty and one hundred chats scroll by name without previews, times or flags");
                 if (chosen == 0)
-                { ok &= expect(first > 0 && second == first+1, "Each conversation occupies exactly one terminal row"); }
+                { ok &= expect(first > 0 && second == first+3, "Each spacious conversation occupies three terminal rows"); }
             }
         }
     }
@@ -511,8 +621,8 @@ int main()
             }
             return point;
         };
-        auto const [peer_x, peer_y] = locate(screen,"PEER_BODY",32,119);
-        auto const [own_x, own_y] = locate(screen,"OWN_BODY",32,119);
+        auto const [peer_x, peer_y] = locate(screen,"PEER_BODY",26,119);
+        auto const [own_x, own_y] = locate(screen,"OWN_BODY",26,119);
         ok &= expect(peer_x >= 0 && own_x > peer_x, "Both bubble bodies are visible in their own directions");
         if (peer_x >= 2 && peer_y >= 1 && own_x >= 2 && own_y >= 1)
         {
@@ -536,10 +646,10 @@ int main()
         {
             auto const active_background = screen.CellAt(active_x,active_y).background_color;
             ok &= expect(active_background != ftxui::Color::Default &&
-                         active_background == screen.CellAt(28,active_y).background_color &&
-                         screen.CellAt(28,active_y+1).background_color != active_background &&
+                         active_background == screen.CellAt(23,active_y-1).background_color &&
+                         active_background == screen.CellAt(23,active_y+1).background_color &&
                          !screen.CellAt(active_x,active_y).inverted,
-                         "The active conversation has a continuous one-row background while typing");
+                         "The active conversation has a continuous three-row background while typing");
         }
         auto choosing = visual;
         auto other = direct;
@@ -557,7 +667,7 @@ int main()
                      choices.CellAt(opened_x,opened_y).background_color != ftxui::Color::Default &&
                      !choices.CellAt(opened_x,opened_y).inverted && choices.CellAt(chosen_x,chosen_y).inverted,
                      "The open chat background and a different keyboard-selected chat remain distinct");
-        auto const [compose_x, compose_y] = locate(screen,"› ",32,119);
+        auto const [compose_x, compose_y] = locate(screen,"› ",26,119);
         ok &= expect(compose_x >= 0 && compose_y + 1 < 40, "The roomy composer is visible");
         if (compose_x >= 0 && compose_y + 1 < 40)
         {
@@ -598,7 +708,7 @@ int main()
         for (int y = 0; y + 1 < 30; ++y)
         {
             std::string line, next;
-            for (int x = 32; x < 99; ++x)
+            for (int x = 24; x < 99; ++x)
             {
                 line += screen.CellAt(x,y).character;
                 next += screen.CellAt(x,y+1).character;
@@ -768,7 +878,7 @@ int main()
     s.contacts.clear();
     ok &= expect(draw(s, 20, 4).find("终端太小") != std::string::npos, "too small fallback");
     s.view = page::conversations;
-    ok &= expect(draw(s, 60, 20).find("聊天") != std::string::npos, "narrow list navigation");
+    ok &= expect(draw(s, 60, 20).find("▸ 张 三") != std::string::npos, "narrow list navigation");
     ok &= expect(draw(s, 60, 20).find("你们目前不是好友") == std::string::npos, "narrow list does not squeeze conversation");
     {
         auto long_name_list = s;
@@ -787,7 +897,7 @@ int main()
             {
                 std::string row;
                 for (int x = 1; x < 30; ++x) { row += screen.CellAt(x, y).character; }
-                if (row.starts_with("> 长中文") || row.starts_with("  长中文")) { visible_ellipsis = row.find("…") != std::string::npos; }
+                if (row.starts_with("> 长中文") || row.starts_with("▸ 长中文") || row.starts_with("  长中文")) { visible_ellipsis = row.find("…") != std::string::npos; }
             }
             ok &= expect(visible_ellipsis, "The sidebar scroll indicator cannot hide a clipped title's ellipsis");
         }
@@ -847,11 +957,11 @@ int main()
             for (int y = 0; y < 40; ++y)
                 for (int x = 1; x < 119; ++x)
                     if (screen.CellAt(x, y).inverted)
-                    { (x < 31 ? list_focus : history_focus) = true; }
+                    { (x < 25 ? list_focus : history_focus) = true; }
             ok &= expect(list_focus == (view == page::conversations), "only Chats keyboard focus highlights its list");
             ok &= expect(history_focus == (view == page::conversation), "Esc removes conversation keyboard highlight even when read only");
-            ok &= expect((screen.ToString().find("> 张 三") != std::string::npos) == (view == page::conversations),
-                         "The focused list row also has a text mark");
+            ok &= expect(screen.ToString().find("▸ 张 三") != std::string::npos,
+                         "The active conversation keeps its text mark in either keyboard context");
         }
     }
     s.view = page::conversation;

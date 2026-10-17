@@ -370,8 +370,13 @@ Element scroll(Elements items)
     if (items.empty()) { items.push_back(text("暂无内容") | dim); }
     return vbox(std::move(items)) | vscroll_indicator | yframe | flex;
 }
-Element conversation_list(state const& s, int width)
+int sidebar_width(int width)
 {
+    return std::clamp(width / 5, 22, 28);
+}
+Element conversation_list(state const& s, int width, int height)
+{
+    auto const item_height = std::clamp((height - page_chrome) / 8, 1, 3);
     Elements rows;
     if (s.conversations.empty())
     {
@@ -383,13 +388,16 @@ Element conversation_list(state const& s, int width)
         auto const& c = s.conversations[i];
         bool const current = s.conversation_selected == static_cast<int>(i);
         // A text mark as well as reverse video, so the focus survives monochrome terminals.
-        std::string const mark = current && s.view == page::conversations ? "> " : c.id == s.active ? "▸ " : "  ";
-        auto row = preview_text(mark + c.username, width) | bold;
+        std::string const mark = c.id == s.active ? "▸ " : current && s.view == page::conversations ? "> " : "  ";
+        auto row = preview_text(mark + c.username, width) | bold | vcenter | size(HEIGHT, EQUAL, item_height);
         if (c.id == s.active) { row = row | bgcolor(active_background) | color(body_color); }
         rows.push_back(selected(std::move(row), current, s.view == page::conversations));
     }
     if (s.next_conversations) { rows.push_back(text("↓ 更多会话") | dim); }
-    return vbox({text("聊天 (" + std::to_string(s.conversations.size()) + ")") | bold, separator(), scroll(std::move(rows))}) | flex;
+    Elements content;
+    if (item_height > 1) { content.push_back(text("")); }
+    content.push_back(scroll(std::move(rows)));
+    return vbox(std::move(content)) | flex;
 }
 // A new group starts with another sender, another day, after five quiet minutes, or after a
 // deleted message. Only the heading is shared; every message stays selectable on its own.
@@ -921,9 +929,11 @@ Element render_impl(state const& s, int width, int height, Element compose = {},
     {
         if (state::layout(width, height) == layout_mode::wide)
         {
-            content = hbox({conversation_list(s, 29) | size(WIDTH, EQUAL, 30), separator(), conversation_view(s, compose, std::move(typing), width - 34, height, message_scroll)}) | flex;
+            auto const sidebar = sidebar_width(width);
+            content = hbox({conversation_list(s, sidebar - 1, height) | size(WIDTH, EQUAL, sidebar), separator(),
+                            conversation_view(s, compose, std::move(typing), width - sidebar - 4, height, message_scroll)}) | flex;
         }
-        else { content = s.view == page::conversations ? conversation_list(s, width - 3) : conversation_view(s, compose, std::move(typing), width - 3, height, message_scroll); }
+        else { content = s.view == page::conversations ? conversation_list(s, width - 3, height) : conversation_view(s, compose, std::move(typing), width - 3, height, message_scroll); }
     }
     else if (state::layout(width, height) == layout_mode::wide && people_page(s.view))
     {
@@ -934,7 +944,9 @@ Element render_impl(state const& s, int width, int height, Element compose = {},
     else if (state::layout(width, height) == layout_mode::wide && group_page(s.view))
     {
         // Group information opens beside the chat list, as a panel rather than a new screen.
-        content = hbox({conversation_list(s, 29) | size(WIDTH, EQUAL, 30), separator(), secondary(s, width - 34, message_scroll) | flex}) | flex;
+        auto const sidebar = sidebar_width(width);
+        content = hbox({conversation_list(s, sidebar - 1, height) | size(WIDTH, EQUAL, sidebar), separator(),
+                        secondary(s, width - sidebar - 4, message_scroll) | flex}) | flex;
     }
     else { content = secondary(s, width - 3, message_scroll); }
     auto const link = link_label(s.link);
@@ -1547,7 +1559,7 @@ private:
             auto const* message = s.selected_message();
             auto const* pending = s.view == page::conversation ? s.selected_outgoing() : nullptr;
             if (!message && !pending) { return true; }
-            auto width = app_.viewport_width - (s.view == page::conversation && state::layout(app_.viewport_width, app_.viewport_height) == layout_mode::wide ? 34 : 3);
+            auto width = app_.viewport_width - (s.view == page::conversation && state::layout(app_.viewport_width, app_.viewport_height) == layout_mode::wide ? sidebar_width(app_.viewport_width) + 4 : 3);
             // Same height as drawn: a message within a group has no heading line.
             auto const index = static_cast<std::size_t>(s.message_selected);
             auto const heading = pending
@@ -1947,7 +1959,7 @@ private:
         // Read receipts need at least one history row on screen.
         auto const typing = !app_.typing_text().empty();
         auto const wide = state::layout(terminal.dimx, terminal.dimy) == layout_mode::wide;
-        auto const width = terminal.dimx - (wide ? 34 : 3);
+        auto const width = terminal.dimx - (wide ? sidebar_width(terminal.dimx) + 4 : 3);
         // Without send permission the hint (counted in the chrome) replaces the composer.
         app_.history_rows = terminal.dimy - chat_chrome(s, width, typing) -
             (s.can_send() ? composer_lines(s, width, terminal.dimy, typing) : 0);

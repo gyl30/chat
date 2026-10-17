@@ -5,6 +5,7 @@ import re
 import time
 
 from tui_scale_observer import read_only_sql
+from tui_100_member_smoke import conversation_list_visible
 
 
 def _eventually(predicate, description, timeout=15):
@@ -218,7 +219,7 @@ def prepare_reconnect(d):
         _eventually(lambda: _membership(d)['muted'], 'Real UI mute did not reach the server')
         d.resize('A', 80, 30)
         d.command('A', 'conversations')
-        d.wait('A', lambda text: '聊天' in text and '免打扰' in text)
+        d.wait('A', lambda text: conversation_list_visible(text) and '免打扰' in text)
         d.barrier('A')
         before = _membership(d)
         assert before['muted']
@@ -244,7 +245,7 @@ def verify_reconnect(d):
         # selected history. Wide-sidebar badge layout has separate coverage.
         d.resize('A', 80, 30)
         d.command('A', 'conversations')
-        d.wait('A', lambda text: '聊天' in text and '免打扰' in text)
+        d.wait('A', lambda text: conversation_list_visible(text) and '免打扰' in text)
         d.screenshot('A', 'mute-survived-restarts-list')
         d.resize('A', 160, 45)
         d.open_main('A')
