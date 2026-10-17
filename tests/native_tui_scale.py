@@ -362,11 +362,11 @@ class Worker:
         # same page; no application hooks, RPCs or fixed network sleeps.
         nonce = 'ui_ack_' + secrets.token_hex(4)
         self.key(actor, 'C-k')
-        self.wait(actor, '命令面板')
+        self.wait(actor, lambda text: ':命令 直接执行' in text)
         self.paste(actor, nonce)
         self.wait(actor, nonce)
         self.key(actor, 'Escape')
-        self.wait(actor, lambda text: '命令面板' not in text and nonce not in text)
+        self.wait(actor, lambda text: ':命令 直接执行' not in text and nonce not in text)
 
     def open_chat(self, actor, title, conversation):
         def action():
@@ -958,7 +958,11 @@ class Worker:
             current = process_sample(original['pid'])
             if not current.get('alive') or current.get('start_ticks') != original['start_ticks']:
                 raise AssertionError('Rejected login replaced the native client process')
-            self.wait(peer, lambda text: '已连接' in text and peer['username'] in text)
+            self.command(peer, 'account')
+            self.wait(peer, lambda text: '账号 · ' + peer['username'] in text and
+                      '退出登录' in text and '已连接' in text)
+            self.key(peer, 'Escape')
+            self.wait(peer, lambda text: '账号 · ' not in text and '已连接' in text)
             self.screenshot(actor, evidence)
         def wrong_password():
             # Password focus is retained by the actual login form after logout;
@@ -1000,12 +1004,24 @@ class Worker:
         for current in self.actors:
             self.send(current, extra='logout login group 中文 😀', kind='group-message')
         self.open_chat(actor, actor['peer_username'], actor['direct_id'])
-        for command, flag in (('mute', '免打扰'), ('pin', '置顶')):
+        for command, flag in (('mute', '免打扰'), ('pin', '置顶会话')):
             for enabled in (True, False):
                 def toggle(name=command, label=flag, expected=enabled):
                     self.command(actor, name)
-                    self.command(actor, 'chats')
-                    self.wait(actor, lambda text: (label in text) == expected)
+                    self.emit('preference-observe', actor=actor['id'], conversation=actor['direct_id'],
+                              field='muted' if name == 'mute' else 'pinned', expected=expected)
+                    answer = json.loads(sys.stdin.readline())
+                    if answer.get('command') != 'preference-observed':
+                        raise RuntimeError('Expected coordinator read-only preference observation barrier')
+                    self.key(actor, 'C-k')
+                    self.wait(actor, ':命令 直接执行')
+                    self.paste(actor, label)
+                    action = '取消' + label if expected else label
+                    self.wait(actor, lambda text: action in inverse_text(self.capture(actor, True)) and
+                              (expected or '取消' + label not in inverse_text(self.capture(actor, True))))
+                    self.screenshot(actor, 'daily-' + name + '-' + str(expected).lower())
+                    self.key(actor, 'Escape')
+                    self.wait(actor, lambda text: ':命令 直接执行' not in text)
                 self.operation(actor, 'personal-' + command + ('-enable' if enabled else '-restore'),
                                toggle, conversation=actor['direct_id'])
                 self.open_chat(actor, actor['peer_username'], actor['direct_id'])

@@ -337,8 +337,8 @@ class Experiment:
         elif event=='preference-observe':
             field=record.get('field');expected=record.get('expected')
             actor=record.get('actor');conversation=record.get('conversation')
-            if self.args.mode!='gui' or not getattr(self.args,'daily_pilot',False):
-                raise AssertionError('Preference observation outside the GUI daily pilot')
+            if self.args.mode not in ('gui','tui') or not getattr(self.args,'daily_pilot',False):
+                raise AssertionError('Preference observation outside the native daily pilot')
             if field not in ('muted','pinned') or not isinstance(expected,bool) or not any(
                     a['id']==actor and conversation in (a['direct_id'],a['group_id']) for a in self.actors):
                 raise AssertionError('Invalid native preference observation context')

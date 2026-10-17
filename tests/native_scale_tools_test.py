@@ -185,6 +185,52 @@ class NativeToolsTest(unittest.TestCase):
         screen = '│> Other│message│\n│▸ Active│message│'
         self.assertEqual(tui.sidebar_step(screen, 'Active'), 'Down')
 
+    def test_tui_key_barrier_distinguishes_palette_from_footer(self):
+        worker = tui.Worker.__new__(tui.Worker)
+        worker.key = mock.Mock()
+        worker.paste = mock.Mock()
+        nonce = 'ui_ack_fixture'
+        frames = iter(('│命令面板├\n│> 输入命令或关键字│\n│:命令 直接执行 · Esc 关闭│',
+                       '│命令面板├\n│> '+nonce+'│\n│:命令 直接执行 · Esc 关闭│',
+                       '│群成员 (2)│\n│Ctrl+K 命令面板  Esc 返回 · F1 帮助│'))
+        def wait(actor, predicate):
+            frame = next(frames)
+            if callable(predicate) and worker.key.call_args.args[1] == 'C-k':
+                self.assertFalse(predicate('│Ctrl+K 命令面板  Esc 返回 · F1 帮助│'))
+            elif callable(predicate) and worker.key.call_args.args[1] == 'Escape':
+                self.assertFalse(predicate('│命令面板├\n│:命令 直接执行 · Esc 关闭│'))
+            self.assertTrue(predicate(frame) if callable(predicate) else predicate in frame)
+        worker.wait = wait
+        with mock.patch.object(tui.secrets, 'token_hex', return_value='fixture'):
+            worker.key_barrier({'id': 1})
+        self.assertEqual(worker.key.call_args.args[1], 'Escape')
+
+    def test_tui_daily_peer_identity_uses_account_not_removed_banner(self):
+        worker = tui.Worker.__new__(tui.Worker)
+        actor = {'id': 1, 'username': 'Actor', 'peer_username': 'Peer', 'direct_id': 23}
+        peer = {'id': 2, 'username': 'Peer', 'peer_username': 'Actor', 'direct_id': 23}
+        worker.actors = [actor, peer]
+        worker.processes = {1: {'pid': 123, 'start_ticks': 9}}
+        worker.password = 'fixture'
+        worker.open_chat = worker.key = worker.paste = worker.screenshot = mock.Mock()
+        worker.command = mock.Mock()
+        frames = iter(('注册账号 用户名或密码错误', '账号 · Peer 退出登录 已连接', '已连接'))
+        def wait(current, predicate, **kwargs):
+            frame = next(frames)
+            self.assertTrue(predicate(frame) if callable(predicate) else predicate in frame)
+        worker.wait = wait
+        class Finished(Exception):
+            pass
+        def operation(current, kind, action, **kwargs):
+            if kind == 'account-wrong-password-rejected':
+                action()
+                raise Finished()
+        worker.operation = operation
+        with mock.patch.object(tui, 'process_sample', return_value={'alive': True, 'start_ticks': 9}):
+            with self.assertRaises(Finished):
+                worker.daily_pilot()
+        worker.command.assert_called_with(peer, 'account')
+
     def test_tui_open_current_active_conversation(self):
         for frame in ('│▸ Active│messages│', '│▸ Active│messages│\n│> Other│messages│'):
             worker = tui.Worker.__new__(tui.Worker)
@@ -426,6 +472,16 @@ class NativeToolsTest(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0]['command'], 'preference-observed')
 
+    def test_preference_barrier_accepts_tui_daily_readonly_observation(self):
+        experiment, cursor, output = self.preference_experiment()
+        experiment.args.mode = 'tui'
+        cursor.fetchone.return_value = (True, False)
+        experiment.accept_record(0, {'event': 'preference-observe', 'actor': 7,
+                                    'conversation': 23, 'field': 'muted', 'expected': True})
+        self.assertEqual(cursor.execute.call_args.args[1], (23, 7))
+        self.assertTrue(cursor.execute.call_args.args[0].startswith('SELECT '))
+        self.assertEqual(json.loads(output.getvalue())['command'], 'preference-observed')
+
     def test_preference_barrier_rejects_invalid_context_without_ack_or_sql(self):
         invalid = [{'field': 'not-a-setting'}, {'expected': 1}, {'expected': 'true'},
                    {'actor': 9}, {'conversation': 99}]
@@ -440,8 +496,8 @@ class NativeToolsTest(unittest.TestCase):
                 cursor.execute.assert_not_called()
                 self.assertEqual(output.getvalue(), '')
 
-    def test_preference_barrier_requires_gui_daily_scope(self):
-        for mode, daily in [('gui', False), ('tui', True)]:
+    def test_preference_barrier_requires_native_daily_scope(self):
+        for mode, daily in [('gui', False), ('tui', False), ('other', True)]:
             with self.subTest(mode=mode, daily=daily):
                 experiment, cursor, output = self.preference_experiment()
                 experiment.args.mode, experiment.args.daily_pilot = mode, daily
@@ -945,6 +1001,14 @@ class NativeToolsTest(unittest.TestCase):
             with self.subTest(line=line):
                 self.assertFalse(tui.receipt_metadata_matches(line, '已读'))
 
+    def test_server_breakpoint_is_independent_of_worktree(self):
+        with tempfile.TemporaryDirectory() as directory:
+            server = observer.Server('owned-test-server', 12345, 128, 8, directory)
+            name, number = server._bind_location().rsplit(':', 1)
+            self.assertEqual(name, 'src/main.cpp')
+            source = Path(observer.__file__).resolve().parent.parent / name
+            self.assertIn('server.bind(', source.read_text().splitlines()[int(number)-1])
+
     def test_closed_event_requires_zero_exit_status(self):
         experiment = self.experiment()
         with self.assertRaises(AssertionError):
@@ -980,6 +1044,56 @@ class NativeToolsTest(unittest.TestCase):
             experiment.accept_record(0, {'event': 'private-runtime', 'path': directory})
             self.assertTrue(experiment.cleanup())
             self.assertFalse(private.exists())
+
+    def test_observer_consumes_exit_notification_before_gdb_exit(self):
+        for code, expected in [('0', 'PASS'), ('00', 'PASS'), ('01', 'FAIL'), (None, 'FAIL')]:
+            with self.subTest(code=code):
+                server = observer.Server('owned-test-server', 12345, 128, 8,
+                                         self.directory.name)
+                server._identity = {'pid': 12345}
+                server._gdb = mock.Mock()
+                server._gdb.poll.return_value = None
+                server._lines.put('=thread-exited,id="1",group-id="i1"')
+                exited = '=thread-group-exited,id="i1"'
+                if code is not None:
+                    exited += ',exit-code="' + code + '"'
+                server._lines.put(exited)
+                with mock.patch.object(server, '_owned', side_effect=[True, False, False, False]), \
+                     mock.patch.object(server, '_resume'), \
+                     mock.patch.object(server, '_command') as command, \
+                     mock.patch('native_server_observer.os.kill') as kill:
+                    result = server.stop()
+                self.assertEqual(result['status'], expected)
+                self.assertEqual(result['inferior_exit_code'], code)
+                self.assertFalse(result['forced_cleanup'])
+                self.assertTrue(server._lines.empty(), 'Consume MI exit before tearing down GDB')
+                command.assert_called_once_with('-gdb-exit', timeout=5)
+                kill.assert_called_once_with(12345, observer.signal.SIGTERM)
+
+    def test_observer_missing_exit_notification_keeps_cleanup_failure(self):
+        for still_owned in (True, False):
+            with self.subTest(still_owned=still_owned):
+                server = observer.Server('owned-test-server', 12345, 128, 8,
+                                         self.directory.name)
+                server._identity = {'pid': 12345}
+                with mock.patch.object(server, '_owned', side_effect=[True, still_owned, False]), \
+                     mock.patch.object(server, '_resume'), \
+                     mock.patch.object(server, '_line', side_effect=[
+                         '=thread-exited,id="2",group-id="i1"',
+                         observer.ObserverError('MI exit timeout')]) as line, \
+                     mock.patch('native_server_observer.os.kill') as kill:
+                    result = server.stop()
+                self.assertEqual(result['status'], 'FAIL')
+                self.assertEqual(result['forced_cleanup'], still_owned)
+                self.assertIn('MI exit timeout', result['errors'])
+                self.assertIsNone(result['inferior_exit_code'])
+                self.assertEqual(line.call_count, 2)
+                self.assertEqual(line.call_args_list[0], line.call_args_list[1],
+                                 'Unrelated MI records must not extend the deadline')
+                expected = [mock.call(12345, observer.signal.SIGTERM)]
+                if still_owned:
+                    expected.append(mock.call(12345, observer.signal.SIGKILL))
+                self.assertEqual(kill.call_args_list, expected)
 
     def test_observer_already_exited_requires_proven_zero_exit(self):
         for code in ('1', '01', None):

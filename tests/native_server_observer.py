@@ -77,7 +77,7 @@ class Server:
         source = Path(__file__).resolve().parent.parent / 'src/main.cpp'
         for number, line in enumerate(source.read_text().splitlines(), 1):
             if 'server.bind(' in line:
-                return str(source) + ':' + str(number)
+                return 'src/main.cpp:' + str(number)
         raise ObserverError('Cannot locate post-construction server.bind source line')
 
     def _read(self):
@@ -316,12 +316,12 @@ print('NATIVE_SERVER_OBSERVER=' + json.dumps(sorted(ids)))
                 if self._owned():
                     os.kill(self._identity['pid'], signal.SIGTERM)
                     deadline = time.monotonic() + self.timeout
-                    while self._owned() and time.monotonic() < deadline:
-                        time.sleep(0.05)
-                    if self._owned():
-                        forced = True
-                        os.kill(self._identity['pid'], signal.SIGKILL)
-                        errors.append('Owned inferior ignored normal SIGTERM deadline')
+                    # /proc may disappear before GDB publishes the exit status.
+                    # Keep GDB alive until its inferior-exit notification arrives.
+                    while True:
+                        line = self._line(deadline)
+                        if line.startswith('=thread-group-exited,'):
+                            break
             except BaseException as error:
                 errors.append(self._redact(str(error)))
                 if self._owned():
