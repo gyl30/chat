@@ -5,6 +5,7 @@
 #include <chrono>
 #include <algorithm>
 #include <array>
+#include <numeric>
 #include <span>
 #include <ctime>
 #include <string_view>
@@ -183,83 +184,129 @@ Element wrapped_text(std::string const& value, int width, int* line_count = null
     if (line_count) { *line_count = lines; }
     return text(output);
 }
+// A section title followed by a faint rule to the end of its column.
+Element help_heading(std::string_view title, int width)
+{
+    auto const rule = std::max(0, width - DisplayWidth(std::string(title)) - 1);
+    std::string line;
+    for (int i = 0; i < rule; ++i) { line += "─"; }
+    return hbox({text(std::string(title)) | color(body_color) | bold, text(" "), text(line) | color(metadata_color)});
+}
+// Help text wraps between words: a run of ASCII letters and symbols stays on one line, CJK breaks anywhere.
+Element help_text(std::string const& value, int width)
+{
+    width = std::max(1, width);
+    std::vector<std::string> lines{""};
+    int column = 0;
+    std::string word;
+    int word_cells = 0;
+    auto flush = [&] {
+        if (word.empty()) { return; }
+        if (column && column + word_cells > width) { lines.emplace_back(); column = 0; }
+        lines.back() += word;
+        column += word_cells;
+        word.clear();
+        word_cells = 0;
+    };
+    for (auto const& glyph : Utf8ToGlyphs(value))
+    {
+        if (glyph.empty()) { continue; }
+        auto const cells = DisplayWidth(glyph);
+        bool const ascii = glyph.size() == 1 && glyph != " ";
+        if (ascii && word_cells + cells <= width) { word += glyph; word_cells += cells; continue; }
+        flush();
+        if (glyph == " " && column == 0) { continue; }
+        if (column && column + cells > width) { lines.emplace_back(); column = 0; if (glyph == " ") { continue; } }
+        if (ascii) { word = glyph; word_cells = cells; continue; }
+        lines.back() += glyph;
+        column += cells;
+    }
+    flush();
+    Elements rows;
+    for (auto& line : lines) { rows.push_back(text(std::move(line))); }
+    return vbox(std::move(rows));
+}
+// One group as an indented table: bold keys in their own column, descriptions wrapping beside them.
+Element help_group(shortcut_group const& group, int width, int key_width)
+{
+    constexpr int indent = 2;
+    constexpr int gap = 2;
+    auto const description_width = std::max(1, width - indent - key_width - gap);
+    Elements rows{help_heading(group.title, width)};
+    for (auto const& item : group.items)
+    {
+        rows.push_back(hbox({text(std::string(indent, ' ')),
+                             help_text(std::string(item.key), key_width) | color(body_color) | bold | size(WIDTH, EQUAL, key_width),
+                             text(std::string(gap, ' ')), help_text(std::string(item.description), description_width) | color(metadata_color)}));
+    }
+    return vbox(std::move(rows));
+}
 Element help_content(int width, int* line_count = nullptr)
 {
+    // The scroll indicator is drawn over the last column.
     width = std::max(1, width - 1);
+    // Wide pages show the groups in two columns, balanced by height, so less needs scrolling.
+    constexpr int column_gap = 4;
     int key_width = 1;
     for (auto const& group : shortcut_groups)
     {
         for (auto const& item : group.items) { key_width = std::max(key_width, DisplayWidth(std::string(item.key))); }
     }
-    constexpr int column_gap = 4;
-    // Each column needs the keys, a gap and enough room for a short description.
-    bool const two_columns = width >= 2 * (key_width + 3 + 32) + column_gap;
-    auto const column_width = two_columns ? (width - column_gap) / 2 : width;
+    auto const columns = width >= 2 * (key_width + 4 + 32) + column_gap ? 2 : 1;
+    auto const column_width = columns == 2 ? (width - column_gap) / 2 : width;
     key_width = std::clamp(key_width, 1, std::max(1, column_width / 3));
-    auto const description_width = std::max(1, column_width - key_width - 3);
-    Elements groups;
+    std::vector<Element> groups;
     std::vector<int> heights;
-    int total = 0;
     for (auto const& group : shortcut_groups)
     {
-        Elements entries{text(std::string(group.title)) | color(body_color) | bold};
-        for (auto const& item : group.items)
-        {
-            auto key = wrapped_text(std::string(item.key), key_width) | color(body_color);
-            auto description = wrapped_text(std::string(item.description), description_width) | color(metadata_color);
-            entries.push_back(hbox({key | size(WIDTH, EQUAL, key_width), text("   "), description}));
-        }
-        auto section = vbox(std::move(entries));
-        section->ComputeRequirement();
-        heights.push_back(section->requirement().min_y + 1);
-        total += heights.back();
-        groups.push_back(std::move(section));
+        groups.push_back(help_group(group, column_width, key_width));
+        groups.back()->ComputeRequirement();
+        heights.push_back(groups.back()->requirement().min_y + 1);
     }
-    auto split = groups.size();
-    if (two_columns)
+    // Groups stay in order; the split puts the first ones on the left so the taller column is as short as it can be.
+    std::size_t split = groups.size();
+    if (columns == 2)
     {
-        int left = 0, best = total;
+        auto const total = std::accumulate(heights.begin(), heights.end(), 0);
+        int best = total;
+        int left = 0;
         for (std::size_t i = 0; i + 1 < groups.size(); ++i)
         {
             left += heights[i];
-            if (std::max(left, total - left) < best)
-            {
-                best = std::max(left, total - left);
-                split = i + 1;
-            }
+            if (std::max(left, total - left) < best) { best = std::max(left, total - left); split = i + 1; }
         }
     }
-    std::array<Elements, 2> columns;
+    std::array<Elements, 2> sides;
     for (std::size_t i = 0; i < groups.size(); ++i)
     {
-        auto& column = columns[i < split ? 0 : 1];
-        if (!column.empty()) { column.push_back(text("")); }
-        column.push_back(std::move(groups[i]));
+        auto& side = sides[i < split ? 0 : 1];
+        if (!side.empty()) { side.push_back(text("")); }
+        side.push_back(std::move(groups[i]));
     }
     Elements rows;
-    if (two_columns)
+    if (columns == 2)
     {
-        rows.push_back(hbox({vbox(std::move(columns[0])) | size(WIDTH, EQUAL, column_width),
-                             text(std::string(column_gap, ' ')),
-                             vbox(std::move(columns[1])) | size(WIDTH, EQUAL, column_width)}));
+        rows.push_back(hbox({vbox(std::move(sides[0])) | size(WIDTH, EQUAL, column_width), text(std::string(column_gap, ' ')),
+                             vbox(std::move(sides[1])) | size(WIDTH, EQUAL, column_width)}));
     }
-    else { rows.push_back(vbox(std::move(columns[0]))); }
+    else { rows.push_back(vbox(std::move(sides[0]))); }
     rows.push_back(text(""));
-    rows.push_back(text("命令") | bold);
+    rows.push_back(help_heading("命令", width));
     constexpr std::array commands{"new", "chats", "contacts", "friend-requests", "friend-sent", "accept-friend", "reject-friend",
         "cancel-friend", "filter", "add-contact", "profile", "account", "create-group", "join", "file", "save", "members", "invite",
         "rename", "announcement", "show-announcement", "pinned", "pin-message", "unpin-message", "link", "link-create",
         "link-revoke", "approval", "requests", "avatar", "avatar-clear", "logout", "quit"};
     // Lines break between commands, never inside one.
-    std::string line;
+    std::string line = "  ";
     for (std::size_t i = 0; i < commands.size(); ++i)
     {
         auto const piece = std::string(commands[i]) + (i + 1 < commands.size() ? ", " : "");
-        if (!line.empty() && DisplayWidth(line + piece) > width) { rows.push_back(text(line)); line.clear(); }
+        if (line.size() > 2 && DisplayWidth(line + piece) > width) { rows.push_back(text(line)); line = "  "; }
         line += piece;
     }
     rows.push_back(text(line));
-    rows.push_back(wrapped_text("复制：在可复制文本页用终端自带的选择功能复制。", width));
+    rows.push_back(text(""));
+    rows.push_back(help_text("复制：在可复制文本页用终端自带的选择功能复制。", width) | dim);
     auto content = vbox(std::move(rows));
     if (line_count)
     {

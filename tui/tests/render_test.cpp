@@ -1281,12 +1281,19 @@ int main()
         std::istringstream lines(top);
         for (std::string line; std::getline(lines, line);)
         {
-            keyed_row = keyed_row || (line.find("Ctrl+K") != std::string::npos && line.find("│") != std::string::npos &&
-                                      line.find("命令面板") != std::string::npos);
+            keyed_row = keyed_row || (line.find("Ctrl+K") != std::string::npos && line.find("命令面板") != std::string::npos);
         }
         ok &= expect(keyed_row && top.find("通用") < top.find("输入框") && top.find("输入框") < top.find("消息（选择消息时）") &&
                      top.find("会话列表") != std::string::npos && top.find("群聊与成员") != std::string::npos,
                      "Help lists shortcuts by group as key and description columns");
+        // A wide page puts the groups side by side, so all of them fit with less scrolling.
+        bool side_by_side = false;
+        std::istringstream wide(draw(help, 140, 60));
+        for (std::string line; std::getline(wide, line);)
+        {
+            side_by_side = side_by_side || (line.find("通用") != std::string::npos && line.find("消息（选择消息时）") != std::string::npos);
+        }
+        ok &= expect(side_by_side, "A wide help page shows two columns of groups");
         // The scroll height matches what is drawn: the end of the command list is reachable on a narrow page,
         // and commands wrap between names, never inside one.
         help.selected = 100000;
