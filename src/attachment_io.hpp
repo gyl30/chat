@@ -6,30 +6,21 @@
 #include <expected>
 #include <optional>
 #include <string>
-#include <variant>
 
 #include <boost/capy/task.hpp>
 
-#include "message_store.hpp"
-#include "s3_objects.hpp"
-
 class database;
+class s3_objects;
 
-using attachment_io_error = std::variant<sqlite_error, s3_error>;
-
-struct completed_attachment_upload
+struct staged_attachment
 {
-    std::int64_t sender;
-    std::int64_t conversation;
-    std::int64_t client_id;
-    std::optional<std::int64_t> reply_to;
-    std::string filename;
-    std::string media_type;
-    std::string bytes;
+    std::string key;
+    std::string checksum;
 };
 
-boost::capy::task<std::expected<std::variant<message_write, message_write_rejection>, attachment_io_error>>
-publish_attachment(database& db, s3_objects& objects, completed_attachment_upload upload);
+boost::capy::task<std::optional<staged_attachment>> stage_attachment(
+    database& db, s3_objects& objects, std::string bytes, std::string media_type);
+boost::capy::task<void> discard_unpublished_attachment(database& db, s3_objects& objects, std::string const& key);
 
 struct attachment_chunk
 {
@@ -37,8 +28,9 @@ struct attachment_chunk
     std::string bytes;
 };
 
-// Absent result means unavailable or an invalid offset. Object keys remain private.
-boost::capy::task<std::expected<std::optional<attachment_chunk>, attachment_io_error>> download_attachment_chunk(
+enum class attachment_download_error { unavailable, failed };
+
+boost::capy::task<std::expected<attachment_chunk, attachment_download_error>> download_attachment_chunk(
     database& db, s3_objects& objects, std::int64_t user, std::int64_t conversation, std::int64_t message,
     std::size_t offset);
 

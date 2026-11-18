@@ -6,16 +6,16 @@
 #include <utility>
 
 #include <openssl/rand.h>
+#include <spdlog/spdlog.h>
 
 #include <chat/attachment.hpp>
 
 #include "attachment_access.hpp"
 #include "attachment_cleanup.hpp"
 #include "database.hpp"
+#include "s3_objects.hpp"
 
-namespace
-{
-// A failed PUT or SQLite write may have left an S3 object without a message.
+// A failed SQLite publication may have left an S3 object without a message.
 // Check the durable reservation before deleting: a successful commit claims it.
 boost::capy::task<void> discard_unpublished_attachment(database& db, s3_objects& objects, std::string const& key)
 {
@@ -36,49 +36,17 @@ boost::capy::task<void> discard_unpublished_attachment(database& db, s3_objects&
         co_return;
     }
     // Keep the reservation for startup/shutdown recovery if acknowledgement fails.
-    auto acknowledged = co_await db.run([&](sqlite_database& connection) -> std::expected<void, sqlite_error> {
-        if (auto error = acknowledge_attachment_cleanup(connection, key); error)
-        {
-            return std::unexpected(std::move(error));
-        }
-        return {};
-    });
-    (void)acknowledged;
+    co_await db.run([&](sqlite_database& connection) { return acknowledge_attachment_cleanup(connection, key); });
 }
-} // namespace
 
-boost::capy::task<std::expected<std::variant<message_write, message_write_rejection>, attachment_io_error>>
-publish_attachment(database& db, s3_objects& objects, completed_attachment_upload upload)
+boost::capy::task<std::optional<staged_attachment>> stage_attachment(
+    database& db, s3_objects& objects, std::string bytes, std::string media_type)
 {
-    if (upload.bytes.size() > chat::max_attachment_size)
-    {
-        co_return std::unexpected(attachment_io_error{s3_error{0, "attachment exceeds the size limit"}});
-    }
-
-    auto const preflight = [&upload](sqlite_database& connection) {
-        auto snapshot = sqlite_transaction::begin_read(connection);
-        if (!snapshot)
-        {
-            return std::expected<std::optional<message_write_outcome>, sqlite_error>(
-                std::unexpected(std::move(snapshot.error())));
-        }
-        return check_message_write(connection,
-            {upload.sender, upload.conversation, upload.client_id, upload.filename, upload.reply_to}, true);
-    };
-    auto checked = co_await db.run(preflight);
-    if (!checked)
-    {
-        co_return std::unexpected(attachment_io_error{std::move(checked.error())});
-    }
-    if (*checked)
-    {
-        co_return **checked;
-    }
-
     std::array<unsigned char, 16> random{};
     if (RAND_bytes(random.data(), static_cast<int>(random.size())) != 1)
     {
-        co_return std::unexpected(attachment_io_error{s3_error{0, "cannot generate attachment key"}});
+        spdlog::warn("attachment object key generation failed");
+        co_return std::nullopt;
     }
     constexpr std::string_view hex = "0123456789abcdef";
     std::string key = "attachments/";
@@ -90,48 +58,26 @@ publish_attachment(database& db, s3_objects& objects, completed_attachment_uploa
     auto reserve = [&key](sqlite_database& connection) -> std::expected<void, sqlite_error> {
         auto const now = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
-        if (auto error = reserve_attachment_object(connection, key, now); error)
-        {
-            return std::unexpected(std::move(error));
-        }
-        return {};
+        return reserve_attachment_object(connection, key, now);
     };
     if (auto reserved = co_await db.run(reserve); !reserved)
     {
-        co_return std::unexpected(attachment_io_error{std::move(reserved.error())});
+        spdlog::warn("attachment reservation failed (SQLite {})", reserved.error().code);
+        co_return std::nullopt;
     }
 
-    auto const size = static_cast<std::int64_t>(upload.bytes.size());
-    auto checksum = co_await objects.put(key, std::move(upload.bytes), upload.media_type);
+    auto checksum = co_await objects.put(key, std::move(bytes), std::move(media_type));
     if (!checksum)
     {
         // A timed-out PUT can still complete remotely. Keep its reservation
         // for the delayed recovery pass rather than deleting it immediately.
-        co_return std::unexpected(attachment_io_error{std::move(checksum.error())});
+        spdlog::warn("attachment upload failed (S3 status {})", checksum.error().status);
+        co_return std::nullopt;
     }
-
-    auto commit = [&](sqlite_database& connection) {
-        uploaded_attachment const metadata{key, upload.filename, upload.media_type, size, *checksum};
-        return write_message(connection,
-            {upload.sender, upload.conversation, upload.client_id, upload.filename, upload.reply_to}, &metadata);
-    };
-    auto committed = co_await db.run(commit);
-    if (!committed)
-    {
-        auto error = std::move(committed.error());
-        co_await discard_unpublished_attachment(db, objects, key);
-        co_return std::unexpected(attachment_io_error{std::move(error)});
-    }
-    // A rejected write or a duplicate client_id never claims this new object.
-    auto const* message = std::get_if<message_write>(&*committed);
-    if (!message || !message->inserted)
-    {
-        co_await discard_unpublished_attachment(db, objects, key);
-    }
-    co_return std::move(*committed);
+    co_return staged_attachment{std::move(key), std::move(*checksum)};
 }
 
-boost::capy::task<std::expected<std::optional<attachment_chunk>, attachment_io_error>> download_attachment_chunk(
+boost::capy::task<std::expected<attachment_chunk, attachment_download_error>> download_attachment_chunk(
     database& db, s3_objects& objects, std::int64_t user, std::int64_t conversation, std::int64_t message,
     std::size_t offset)
 {
@@ -141,18 +87,20 @@ boost::capy::task<std::expected<std::optional<attachment_chunk>, attachment_io_e
     auto object = co_await db.run(resolve);
     if (!object)
     {
-        co_return std::unexpected(attachment_io_error{std::move(object.error())});
+        spdlog::warn("attachment lookup failed (SQLite {})", object.error().code);
+        co_return std::unexpected(attachment_download_error::failed);
     }
     if (!*object || offset > static_cast<std::size_t>((*object)->size))
     {
-        co_return std::nullopt;
+        co_return std::unexpected(attachment_download_error::unavailable);
     }
     auto const size = static_cast<std::size_t>((*object)->size);
     auto bytes = co_await objects.read(std::move((*object)->key), size, offset,
                                        std::min(chat::attachment_chunk_size, size - offset));
     if (!bytes)
     {
-        co_return std::unexpected(attachment_io_error{std::move(bytes.error())});
+        spdlog::warn("attachment download failed (S3 status {})", bytes.error().status);
+        co_return std::unexpected(attachment_download_error::failed);
     }
     co_return attachment_chunk{size, std::move(*bytes)};
 }
@@ -161,14 +109,14 @@ boost::capy::task<std::int64_t> recover_attachment_objects(
     database& db, s3_objects& objects, std::int64_t cutoff)
 {
     std::int64_t removed = 0;
-    std::optional<attachment_cleanup_entry> after;
+    std::string after;
     bool removal_failed = false;
     for (;;)
     {
-        auto read_batch = [cutoff, after](sqlite_database& connection) {
-            return attachment_cleanup_batch(connection, cutoff, after);
+        auto claim_batch = [&](sqlite_database& connection) {
+            return claim_attachment_cleanup_batch(connection, cutoff, after);
         };
-        auto batch = co_await db.run(read_batch);
+        auto batch = co_await db.run(claim_batch);
         if (!batch)
         {
             co_return -1;
@@ -177,23 +125,18 @@ boost::capy::task<std::int64_t> recover_attachment_objects(
         {
             co_return removal_failed ? -1 : removed;
         }
-        after = batch->back();
+        after = *std::ranges::max_element(*batch);
 
-        for (auto const& entry : *batch)
+        for (auto const& key : *batch)
         {
-            auto const& key = entry.object_key;
             if (auto result = co_await objects.remove(key); !result)
             {
                 removal_failed = true;
                 continue;
             }
 
-            auto acknowledge = [&key](sqlite_database& connection) -> std::expected<void, sqlite_error> {
-                if (auto error = acknowledge_attachment_cleanup(connection, key); error)
-                {
-                    return std::unexpected(std::move(error));
-                }
-                return {};
+            auto acknowledge = [&key](sqlite_database& connection) {
+                return acknowledge_attachment_cleanup(connection, key);
             };
             if (auto result = co_await db.run(acknowledge); !result)
             {

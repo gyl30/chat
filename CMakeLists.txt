@@ -185,5 +185,5 @@ target_link_libraries(chat_sqlite_storage PUBLIC Boost::capy SQLite::SQLite3 Thr
 add_library(chat_attachment_storage STATIC src/attachment_io.cpp src/s3_objects.cpp)
 target_link_libraries(chat_attachment_storage
     PUBLIC chat_sqlite_storage
-    PRIVATE miniocpp::miniocpp OpenSSL::Crypto
+    PRIVATE miniocpp::miniocpp OpenSSL::Crypto spdlog::spdlog_header_only
 )

@@ -79,26 +79,6 @@ std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_
     return std::nullopt;
 }
 
-std::expected<message_write_outcome, sqlite_error> write_message(
-    sqlite_database& db, message_to_write const& message, uploaded_attachment const* attachment)
-{
-    auto transaction = sqlite_transaction::begin_immediate(db);
-    if (!transaction)
-    {
-        return std::unexpected(std::move(transaction.error()));
-    }
-    auto saved = insert_message(db, message, attachment);
-    if (!saved || !std::holds_alternative<message_write>(*saved))
-    {
-        return saved;
-    }
-    if (auto error = transaction->commit(); error)
-    {
-        return std::unexpected(std::move(error));
-    }
-    return saved;
-}
-
 std::expected<message_write_outcome, sqlite_error> insert_message(
     sqlite_database& db, message_to_write const& message, uploaded_attachment const* attachment)
 {
@@ -136,7 +116,8 @@ std::expected<message_write_outcome, sqlite_error> insert_message(
     }
     if (attachment)
     {
-        auto claim = db.prepare("DELETE FROM attachment_cleanup WHERE object_key=?1", attachment->object_key);
+        auto claim = db.prepare("DELETE FROM attachment_cleanup WHERE object_key=?1 AND reserved_at>0",
+                                attachment->object_key);
         if (!claim)
         {
             return std::unexpected(std::move(claim.error()));

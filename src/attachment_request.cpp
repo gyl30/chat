@@ -102,14 +102,12 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
         auto result = co_await download_attachment_chunk(database_, objects_, *user_id_, params.conversation, params.message, offset);
         if (!result)
         {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        if (!*result)
-        {
-            co_return serialize_json_rpc_error(-32007, "Attachment unavailable", std::move(request.id), response);
+            co_return result.error() == attachment_download_error::unavailable
+                ? serialize_json_rpc_error(-32007, "Attachment unavailable", std::move(request.id), response)
+                : serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
         }
         struct chunk { std::size_t offset, size; std::string data; bool has_more; };
-        auto const& bytes = **result;
+        auto const& bytes = *result;
         chunk value{offset, bytes.size, chat::detail::encode_base64(bytes.bytes), bytes.size - offset > bytes.bytes.size()};
         co_return serialize_json_rpc_value(value, std::move(request.id), response);
     }

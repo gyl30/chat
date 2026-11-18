@@ -1,15 +1,11 @@
-#include <charconv>
 #include <cstdint>
-#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <system_error>
 #include <utility>
-#include <vector>
 
 #include <simdjson.h>
-#include <chat/detail/base64.hpp>
+#include <spdlog/spdlog.h>
 
 #include "chat_session.hpp"
 #include "message_payload.hpp"
@@ -98,7 +94,7 @@ struct delivery
 using send_outcome = std::variant<delivery, message_write_rejection>;
 
 std::expected<send_outcome, sqlite_error> format_delivery(sqlite_database& db, std::int64_t user,
-    std::int64_t conversation, message_write_outcome const& outcome)
+    std::int64_t conversation, message_write_outcome const& outcome, json_rpc_id const& request_id)
 {
     if (auto const* rejected = std::get_if<message_write_rejection>(&outcome))
     {
@@ -116,7 +112,7 @@ std::expected<send_outcome, sqlite_error> format_delivery(sqlite_database& db, s
     }
     delivery result;
     auto value = make_message_payload(**message, true);
-    if (simdjson::builder::to_json_string(value).get(result.acknowledgement))
+    if (request_id.present && serialize_json_rpc_value(value, request_id, result.acknowledgement))
     {
         return std::unexpected(sqlite_error{SQLITE_ERROR, "cannot serialize message acknowledgement"});
     }
@@ -133,6 +129,31 @@ std::expected<send_outcome, sqlite_error> format_delivery(sqlite_database& db, s
         }
     }
     return result;
+}
+
+std::expected<send_outcome, sqlite_error> persist_delivery(sqlite_database& db, message_to_write const& message,
+    json_rpc_id const& request_id, uploaded_attachment const* attachment = nullptr)
+{
+    auto transaction = sqlite_transaction::begin_immediate(db);
+    if (!transaction)
+    {
+        return std::unexpected(std::move(transaction.error()));
+    }
+    auto saved = insert_message(db, message, attachment);
+    if (!saved)
+    {
+        return std::unexpected(std::move(saved.error()));
+    }
+    auto formatted = format_delivery(db, message.sender, message.conversation, *saved, request_id);
+    if (!formatted || std::holds_alternative<message_write_rejection>(*formatted))
+    {
+        return formatted;
+    }
+    if (auto error = transaction->commit(); error)
+    {
+        return std::unexpected(std::move(error));
+    }
+    return formatted;
 }
 
 }    // namespace
@@ -162,29 +183,6 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         co_return simdjson::SUCCESS;
     }
     auto const user = *user_id_;
-    auto send_text = [&](sqlite_database& db) -> std::expected<send_outcome, sqlite_error> {
-        auto tx = sqlite_transaction::begin_immediate(db);
-        if (!tx)
-        {
-            return std::unexpected(std::move(tx.error()));
-        }
-        auto result = insert_message(db, {user, params.conversation, *params.client_id, params.text, params.reply_to});
-        if (!result)
-        {
-            return std::unexpected(std::move(result.error()));
-        }
-        auto formatted = format_delivery(db, user, params.conversation, *result);
-        if (!formatted)
-        {
-            return formatted;
-        }
-        if (auto error = tx->commit(); error)
-        {
-            return std::unexpected(std::move(error));
-        }
-        return formatted;
-    };
-
     std::expected<send_outcome, sqlite_error> delivered;
     if (attaching)
     {
@@ -196,39 +194,75 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         {
             co_return serialize_json_rpc_error(-32008, "Attachment upload incomplete", std::move(request.id), response);
         }
-        params.conversation = upload_->conversation;
-        std::string media_type = "application/octet-stream";
-        if (upload_->content.starts_with(std::string_view("\x89PNG\r\n\x1a\n", 8)))
-        {
-            media_type = "image/png";
-        }
-        else if (upload_->content.starts_with(std::string_view("\xff\xd8\xff", 3)))
-        {
-            media_type = "image/jpeg";
-        }
-        completed_attachment_upload contents{user, params.conversation, upload_->client_id, params.reply_to,
-            std::move(upload_->filename), std::move(media_type), std::move(upload_->content)};
+        auto upload = std::move(*upload_);
         upload_.reset();
-        auto published = co_await publish_attachment(database_, objects_, std::move(contents));
-        if (!published)
-        {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        delivered = co_await database_.run([&](sqlite_database& db) {
-            auto tx = sqlite_transaction::begin_read(db);
-            if (!tx)
+        params.conversation = upload.conversation;
+        message_to_write const message{user, upload.conversation, upload.client_id, upload.filename, params.reply_to};
+
+        auto preflight = co_await database_.run([&](sqlite_database& db) -> std::expected<std::optional<send_outcome>, sqlite_error> {
+            auto snapshot = sqlite_transaction::begin_read(db);
+            if (!snapshot)
             {
-                return std::expected<send_outcome, sqlite_error>{std::unexpected(std::move(tx.error()))};
+                return std::unexpected(std::move(snapshot.error()));
             }
-            return format_delivery(db, user, params.conversation, *published);
+            auto checked = check_message_write(db, message, true);
+            if (!checked)
+            {
+                return std::unexpected(std::move(checked.error()));
+            }
+            if (!*checked)
+            {
+                return std::nullopt;
+            }
+            return format_delivery(db, message.sender, message.conversation, **checked, request.id);
         });
+        if (!preflight)
+        {
+            delivered = std::unexpected(std::move(preflight.error()));
+        }
+        else if (*preflight)
+        {
+            delivered = std::move(**preflight);
+        }
+        else
+        {
+            auto const* media_type = "application/octet-stream";
+            if (upload.content.starts_with(std::string_view("\x89PNG\r\n\x1a\n", 8)))
+            {
+                media_type = "image/png";
+            }
+            else if (upload.content.starts_with(std::string_view("\xff\xd8\xff", 3)))
+            {
+                media_type = "image/jpeg";
+            }
+            auto staged = co_await stage_attachment(database_, objects_, std::move(upload.content), media_type);
+            if (!staged)
+            {
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            uploaded_attachment const attachment{staged->key, upload.filename, media_type, upload.size, staged->checksum};
+            delivered = co_await database_.run([&](sqlite_database& db) {
+                return persist_delivery(db, message, request.id, &attachment);
+            });
+            auto const* result = delivered ? std::get_if<delivery>(&*delivered) : nullptr;
+            if (!result || result->notification.empty())
+            {
+                co_await discard_unpublished_attachment(database_, objects_, staged->key);
+            }
+        }
     }
     else
     {
-        delivered = co_await database_.run(send_text);
+        delivered = co_await database_.run([&](sqlite_database& db) {
+            return persist_delivery(db, {user, params.conversation, *params.client_id, params.text, params.reply_to}, request.id);
+        });
     }
     if (!delivered)
     {
+        if (attaching)
+        {
+            spdlog::warn("attachment publication failed (SQLite {})", delivered.error().code);
+        }
         if (!request.id.present)
         {
             co_return simdjson::SUCCESS;
@@ -252,11 +286,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
     {
         co_await publish_conversation(params.conversation, std::move(result.notification));
     }
-    if (!request.id.present)
-    {
-        co_return simdjson::SUCCESS;
-    }
-    co_return serialize_json_rpc_success(result.acknowledgement, std::move(request.id), response);
+    response = std::move(result.acknowledgement);
+    co_return simdjson::SUCCESS;
 }
 
 boost::capy::task<std::expected<std::optional<chat_session::sent_message>, sqlite_error>>

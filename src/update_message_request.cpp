@@ -1,9 +1,9 @@
-#include <limits>
 #include <string>
 #include <string_view>
 #include <utility>
 
 #include <simdjson.h>
+#include <spdlog/spdlog.h>
 
 #include "chat_session.hpp"
 #include "message_payload.hpp"
@@ -98,9 +98,9 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
         co_await publish_conversation(params.conversation, R"({"jsonrpc":"2.0","method":"conversation","params":{"conversation":)" +
             std::to_string(params.conversation) + "}}");
     }
-    if (deleting)
+    if (deleting && (co_await recover_attachment_objects(database_, objects_, 0)) < 0)
     {
-        co_await recover_attachment_objects(database_, objects_, 0);
+        spdlog::warn("attachment cleanup remains pending after message deletion");
     }
     co_return serialize_json_rpc_success(result.payload, std::move(request.id), response);
 }

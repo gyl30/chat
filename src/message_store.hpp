@@ -42,10 +42,6 @@ using message_write_outcome = std::variant<message_write, message_write_rejectio
 std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_write(
     sqlite_database& db, message_to_write const& message, bool attachment);
 
-// The duplicate check, access check, write and activity update share one transaction.
-std::expected<message_write_outcome, sqlite_error> write_message(
-    sqlite_database& db, message_to_write const& message, uploaded_attachment const* attachment = nullptr);
-
 // The caller owns the write transaction and can reject an oversized RPC
 // response before publishing any data.
 std::expected<message_write_outcome, sqlite_error> insert_message(

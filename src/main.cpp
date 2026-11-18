@@ -30,6 +30,7 @@
 #include "tls_config.hpp"
 #include "database.hpp"
 #include "attachment_io.hpp"
+#include "s3_objects.hpp"
 
 namespace
 {
