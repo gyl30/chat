@@ -221,6 +221,7 @@ set_tests_properties(pg_connection PROPERTIES TIMEOUT 15)
 add_executable(chat_database_test
     tests/database_test.cpp
     src/friendship_store.cpp
+    src/message_store.cpp
     src/database.cpp
     src/sqlite_database.cpp
     src/schema.cpp

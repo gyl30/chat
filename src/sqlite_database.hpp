@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <expected>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -58,6 +59,10 @@ class sqlite_database
 
     std::expected<sqlite_statement, sqlite_error> prepare(std::string_view sql);
 
+    template <class... Args>
+        requires (sizeof...(Args) > 0)
+    std::expected<sqlite_statement, sqlite_error> prepare(std::string_view sql, Args const&... args);
+
     // Runs one or more semicolon-separated statements without parameters.
     // Schema bootstrap and PRAGMAs use this; callers must not embed user data.
     sqlite_error exec(std::string_view sql);
@@ -83,6 +88,10 @@ class sqlite_statement
     sqlite_statement& operator=(sqlite_statement const&) = delete;
 
     sqlite_error bind(int index, std::int64_t value);
+    sqlite_error bind(int index, std::optional<std::int64_t> value)
+    {
+        return value ? bind(index, *value) : bind_null(index);
+    }
     sqlite_error bind(int index, int value);
     sqlite_error bind(int index, std::string_view value);
     sqlite_error bind_null(int index);
@@ -115,6 +124,25 @@ class sqlite_statement
     sqlite3* database_ = nullptr;
     std::unique_ptr<sqlite3_stmt, sqlite3_stmt_deleter> statement_;
 };
+
+template <class... Args>
+    requires (sizeof...(Args) > 0)
+std::expected<sqlite_statement, sqlite_error> sqlite_database::prepare(std::string_view sql, Args const&... args)
+{
+    auto statement = prepare(sql);
+    if (!statement)
+    {
+        return statement;
+    }
+
+    sqlite_error error;
+    int index = 0;
+    if (((error = statement->bind(++index, args)) || ...))
+    {
+        return std::unexpected(std::move(error));
+    }
+    return statement;
+}
 
 class sqlite_transaction
 {

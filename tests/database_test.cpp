@@ -18,6 +18,7 @@
 
 #include "database.hpp"
 #include "friendship_store.hpp"
+#include "message_store.hpp"
 #include "schema.hpp"
 
 namespace
@@ -304,6 +305,69 @@ void friendship_tests()
           count(*left, "friend_requests") == 0, "recipient can reject without creating contacts");
 }
 
+void message_write_tests()
+{
+    temporary_database file;
+    auto left = sqlite_database::open(file.path);
+    auto right = sqlite_database::open(file.path);
+    check(left && right && initialize_schema(*left).ok(), "open two SQLite writers for messages");
+    if (!left || !right)
+    {
+        return;
+    }
+    check(left->exec(R"SQL(
+        INSERT INTO users(username,password_hash,last_seen_at)
+            VALUES('Alice',printf('%060d',1),0),('Bob',printf('%060d',2),0);
+        INSERT INTO conversations(kind,activity,direct_user_low,direct_user_high)
+            VALUES('direct',0,1,2),('direct',0,1,1);
+        INSERT INTO conversation_members(conversation_id,user_id) VALUES(1,1),(1,2),(2,1);
+        INSERT INTO contacts(owner_id,contact_id,created_at) VALUES(1,2,0),(2,1,0);
+    )SQL").ok(), "seed direct and self conversations");
+
+    text_message_write draft{1, 1, 9, "original text", {}};
+    std::barrier start(2);
+    auto concurrent = std::async(std::launch::async, [&] {
+        start.arrive_and_wait();
+        return write_text_message(*right, draft);
+    });
+    start.arrive_and_wait();
+    auto first = write_text_message(*left, draft);
+    auto second = concurrent.get();
+    auto const* a = first ? std::get_if<message_write>(&*first) : nullptr;
+    auto const* b = second ? std::get_if<message_write>(&*second) : nullptr;
+    check(a && b && a->id == b->id && a->inserted != b->inserted && count(*left, "messages") == 1,
+          "simultaneous retries commit one message");
+    if (!a || !b)
+    {
+        return;
+    }
+
+    using enum message_write_rejection;
+    auto rejected_as = [](auto const& result, message_write_rejection reason) {
+        auto const* failure = result ? std::get_if<message_write_rejection>(&*result) : nullptr;
+        return failure && *failure == reason;
+    };
+    check(rejected_as(write_text_message(*right, {1, 2, 9, "another conversation", {}}), invalid_client_id),
+          "client ID cannot be reused in a different conversation");
+    check(rejected_as(write_text_message(*right, {1, 2, 10, "cross conversation", a->id}), invalid_reply),
+          "cross-conversation reply is rejected");
+    check(left->exec("UPDATE messages SET deleted=1,body=''").ok(), "mark original target deleted");
+    check(rejected_as(write_text_message(*right, {1, 1, 10, "deleted target", a->id}), invalid_reply),
+          "a new reply cannot point to a deleted message");
+    check(left->exec("DELETE FROM contacts").ok(), "remove friendship without destroying history");
+    auto replay = write_text_message(*right, draft);
+    auto const* replayed = replay ? std::get_if<message_write>(&*replay) : nullptr;
+    check(replayed && replayed->id == a->id && !replayed->inserted,
+          "existing tombstone can settle a replay after friendship ends");
+    check(rejected_as(write_text_message(*right, {1, 1, 10, "new send", {}}), unavailable),
+          "removed friendship denies a new direct send");
+    check(left->exec("DELETE FROM conversation_members WHERE conversation_id=1 AND user_id=1").ok(),
+          "remove sender membership");
+    check(rejected_as(write_text_message(*right, draft), unavailable),
+          "replay cannot bypass membership");
+    check(count(*left, "messages") == 1, "rejected and replayed requests add no persisted rows");
+}
+
 boost::capy::task<> gated_job(database& db, std::promise<void>& started, std::future<void>& gate, std::atomic<int>& done)
 {
     auto result = co_await db.run([&](sqlite_database&) -> std::expected<void, sqlite_error>
@@ -460,6 +524,7 @@ boost::capy::task<> async_tests(temporary_database& file, boost::corosio::io_con
 int main()
 {
     friendship_tests();
+    message_write_tests();
     temporary_database file;
     boost::corosio::io_context io_context;
     int exit_code = 1;
