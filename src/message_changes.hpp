@@ -26,6 +26,7 @@ struct changed_reaction
     bool changed = false;
 };
 
+// The caller owns the write transaction, including serialization of the reply.
 std::expected<std::variant<changed_reaction, message_change_rejection>, sqlite_error> set_message_reaction(
     sqlite_database& db, std::int64_t user, std::int64_t conversation, std::int64_t message, std::string_view emoji);
 

@@ -3,12 +3,10 @@
 #include <utility>
 
 #include <simdjson.h>
-#include <spdlog/spdlog.h>
 
 #include "chat_session.hpp"
 #include "message_payload.hpp"
 #include "message_changes.hpp"
-#include "attachment_io.hpp"
 #include "database.hpp"
 #include <sqlite3.h>
 
@@ -40,7 +38,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
     constexpr std::string_view prefix = R"({"jsonrpc":"2.0","method":"message_updated","params":)";
-    struct update_result { std::string payload; bool cleared_pin; };
+    struct update_result { std::string acknowledgement, notification; bool cleared_pin; };
     using outcome = std::variant<update_result, message_change_rejection>;
     auto update = co_await database_.run([&, user=*user_id_](sqlite_database& db) -> std::expected<outcome, sqlite_error> {
         auto tx = sqlite_transaction::begin_immediate(db);
@@ -63,16 +61,19 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
             return *rejection;
         }
         auto const& saved = std::get<changed_message>(*changed);
-        update_result result{{}, saved.cleared_pin};
+        update_result result{{}, {}, saved.cleared_pin};
         auto value = make_message_payload(saved.message);
-        if (simdjson::builder::to_json_string(value).get(result.payload))
+        std::string payload;
+        if (simdjson::builder::to_json_string(value).get(payload) ||
+            serialize_json_rpc_success(payload, request.id, result.acknowledgement))
         {
             return std::unexpected(sqlite_error{SQLITE_ERROR, "cannot serialize updated message"});
         }
-        if (prefix.size() + result.payload.size() + 1 > 64 * 1024)
+        if (prefix.size() + payload.size() + 1 > 64 * 1024)
         {
             return std::unexpected(sqlite_error{SQLITE_TOOBIG, "updated message exceeds the frame limit"});
         }
+        result.notification = std::string(prefix) + payload + "}";
         if (auto error = tx->commit(); error)
         {
             return std::unexpected(std::move(error));
@@ -92,15 +93,12 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
             unavailable ? "Message unavailable" : "Communication not allowed", std::move(request.id), response);
     }
     auto& result = std::get<update_result>(*update);
-    co_await publish_conversation(params.conversation, std::string(prefix) + result.payload + "}");
+    co_await publish_conversation(params.conversation, std::move(result.notification));
     if (result.cleared_pin)
     {
         co_await publish_conversation(params.conversation, R"({"jsonrpc":"2.0","method":"conversation","params":{"conversation":)" +
             std::to_string(params.conversation) + "}}");
     }
-    if (deleting && (co_await recover_attachment_objects(database_, objects_, 0)) < 0)
-    {
-        spdlog::warn("attachment cleanup remains pending after message deletion");
-    }
-    co_return serialize_json_rpc_success(result.payload, std::move(request.id), response);
+    response = std::move(result.acknowledgement);
+    co_return simdjson::SUCCESS;
 }

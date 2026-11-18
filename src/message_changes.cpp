@@ -97,11 +97,6 @@ std::expected<std::variant<changed_reaction, message_change_rejection>, sqlite_e
     sqlite_database& db, std::int64_t user, std::int64_t conversation, std::int64_t message, std::string_view emoji)
 {
     using enum message_change_rejection;
-    auto transaction = sqlite_transaction::begin_immediate(db);
-    if (!transaction)
-    {
-        return std::unexpected(std::move(transaction.error()));
-    }
     auto original = db.prepare(R"SQL(
         SELECT coalesce((SELECT emoji FROM message_reactions WHERE message_id=?1 AND user_id=?3),'')
         FROM messages m JOIN conversation_members own ON own.conversation_id=m.conversation_id
@@ -156,10 +151,6 @@ std::expected<std::variant<changed_reaction, message_change_rejection>, sqlite_e
     if (!*latest)
     {
         return unavailable;
-    }
-    if (auto error = transaction->commit(); error)
-    {
-        return std::unexpected(std::move(error));
     }
     return changed_reaction{{conversation, message, (*latest)->reaction_revision, std::move((*latest)->reactions)}, changed};
 }

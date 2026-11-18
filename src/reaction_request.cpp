@@ -6,6 +6,7 @@
 
 #include <chat/reaction.hpp>
 #include <simdjson.h>
+#include <sqlite3.h>
 
 #include "chat_session.hpp"
 #include "database.hpp"
@@ -41,8 +42,46 @@ boost::capy::task<simdjson::error_code> chat_session::handle_message_reaction(js
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
-    auto reaction = co_await database_.run([&, user=*user_id_](sqlite_database& db) {
-        return set_message_reaction(db, user, params.conversation, params.message, *params.emoji);
+    struct reaction_result { std::string acknowledgement, notification; };
+    using outcome = std::variant<reaction_result, message_change_rejection>;
+    auto reaction = co_await database_.run([&, user=*user_id_](sqlite_database& db) -> std::expected<outcome, sqlite_error> {
+        auto tx = sqlite_transaction::begin_immediate(db);
+        if (!tx)
+        {
+            return std::unexpected(std::move(tx.error()));
+        }
+        auto changed = set_message_reaction(db, user, params.conversation, params.message, *params.emoji);
+        if (!changed)
+        {
+            return std::unexpected(std::move(changed.error()));
+        }
+        if (auto const* rejected = std::get_if<message_change_rejection>(&*changed))
+        {
+            return *rejected;
+        }
+        auto& change = std::get<changed_reaction>(*changed);
+        struct wire_result
+        {
+            std::int64_t conversation, message, reaction_revision;
+            std::vector<chat::reaction> reactions;
+        };
+        wire_result value{params.conversation, params.message, change.update.revision, std::move(change.update.reactions)};
+        reaction_result result;
+        std::string payload;
+        if (simdjson::builder::to_json_string(value).get(payload) ||
+            serialize_json_rpc_success(payload, request.id, result.acknowledgement))
+        {
+            return std::unexpected(sqlite_error{SQLITE_ERROR, "cannot serialize reaction result"});
+        }
+        if (change.changed)
+        {
+            result.notification = R"({"jsonrpc":"2.0","method":"reaction","params":)" + payload + "}";
+        }
+        if (auto error = tx->commit(); error)
+        {
+            return std::unexpected(std::move(error));
+        }
+        return result;
     });
     if (!reaction)
     {
@@ -54,21 +93,11 @@ boost::capy::task<simdjson::error_code> chat_session::handle_message_reaction(js
         co_return serialize_json_rpc_error(unavailable ? -32007 : -32006,
             unavailable ? "Message unavailable" : "Communication not allowed", std::move(request.id), response);
     }
-    auto& change = std::get<changed_reaction>(*reaction);
-    struct result
+    auto& result = std::get<reaction_result>(*reaction);
+    if (!result.notification.empty())
     {
-        std::int64_t conversation, message, reaction_revision;
-        std::vector<chat::reaction> reactions;
-    };
-    result value{params.conversation, params.message, change.update.revision, std::move(change.update.reactions)};
-    std::string payload;
-    if (auto error = simdjson::builder::to_json_string(value).get(payload))
-    {
-        co_return error;
+        co_await publish_conversation(params.conversation, std::move(result.notification));
     }
-    if (change.changed)
-    {
-        co_await publish_conversation(params.conversation, R"({"jsonrpc":"2.0","method":"reaction","params":)" + payload + "}");
-    }
-    co_return serialize_json_rpc_success(payload, std::move(request.id), response);
+    response = std::move(result.acknowledgement);
+    co_return simdjson::SUCCESS;
 }
