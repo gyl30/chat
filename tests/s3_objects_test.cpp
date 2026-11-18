@@ -20,6 +20,8 @@
 #include <unistd.h>
 
 #include <miniocpp/client.h>
+#include <boost/capy/io_task.hpp>
+#include <boost/capy/when_all.hpp>
 #include <boost/capy/test/run_blocking.hpp>
 
 namespace
@@ -38,6 +40,14 @@ struct socket_handle
         }
     }
 };
+
+using object_result = std::expected<std::string, s3_error>;
+
+boost::capy::io_task<> save_result(boost::capy::task<object_result> work, object_result& result)
+{
+    result = co_await std::move(work);
+    co_return std::error_code{};
+}
 
 boost::capy::task<bool> check_connection_failures(s3_settings settings)
 {
@@ -62,7 +72,6 @@ boost::capy::task<bool> check_connection_failures(s3_settings settings)
     std::cout << "PASS refused S3 connection returns a transport error\n";
 
     std::atomic<bool> accepted_stalled_request = false;
-    std::atomic<bool> release_stall = false;
     std::jthread fault_server([&] {
         pollfd waiting{listener.fd, POLLIN, 0};
         if (poll(&waiting, 1, 5000) <= 0)
@@ -93,29 +102,65 @@ boost::capy::task<bool> check_connection_failures(s3_settings settings)
             return;
         }
         shutdown(incomplete.fd, SHUT_RDWR);
-        if (poll(&waiting, 1, 5000) <= 0)
+        socket_handle stalled(-1);
+        for (int i = 0; i < 2; ++i)
         {
-            return;
+            if (poll(&waiting, 1, 20000) <= 0)
+            {
+                return;
+            }
+            socket_handle remote(accept(listener.fd, nullptr, nullptr));
+            pollfd remote_ready{remote.fd, POLLIN, 0};
+            if (remote.fd < 0 || poll(&remote_ready, 1, 5000) <= 0)
+            {
+                return;
+            }
+            auto const received = recv(remote.fd, request, sizeof(request), 0);
+            if (received <= 0)
+            {
+                return;
+            }
+            if (std::string_view(request, static_cast<std::size_t>(received)).contains("/attachments/stall "))
+            {
+                accepted_stalled_request = true;
+                stalled.fd = std::exchange(remote.fd, -1);
+                continue;
+            }
+            constexpr std::string_view complete =
+                "HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 0-6/7\r\nContent-Length: 7\r\n"
+                "Connection: close\r\n\r\n1234567";
+            if (send(remote.fd, complete.data(), complete.size(), MSG_NOSIGNAL) !=
+                static_cast<ssize_t>(complete.size()))
+            {
+                return;
+            }
         }
-        socket_handle stalled(accept(listener.fd, nullptr, nullptr));
-        if (stalled.fd < 0)
+        pollfd stalled_ready{stalled.fd, POLLIN, 0};
+        if (stalled.fd >= 0)
         {
-            return;
+            poll(&stalled_ready, 1, 17000);
         }
-        accepted_stalled_request = true;
-        release_stall.wait(false);
     });
 
     auto truncated = co_await network_probe.read("attachments/test", 7, 0, 7);
     auto const start = std::chrono::steady_clock::now();
-    auto timeout = co_await network_probe.read("attachments/test", 7, 0, 7);
+    std::chrono::steady_clock::duration fast_elapsed{};
+    object_result timeout, fast;
+    auto timed_read = [&]() -> boost::capy::io_task<> {
+        fast = co_await network_probe.read("attachments/fast", 7, 0, 7);
+        fast_elapsed = std::chrono::steady_clock::now() - start;
+        co_return std::error_code{};
+    };
+    co_await boost::capy::when_all(save_result(network_probe.read("attachments/stall", 7, 0, 7), timeout), timed_read());
     auto const elapsed = std::chrono::steady_clock::now() - start;
-    release_stall = true;
-    release_stall.notify_one();
     bool const deadline = accepted_stalled_request && !timeout && elapsed >= 12s && elapsed < 25s;
+    bool const concurrent = fast && *fast == "1234567" && fast_elapsed < 10s;
     std::cout << (!truncated ? "PASS" : "FAIL") << " incomplete response produces no partial bytes\n";
     std::cout << (deadline ? "PASS" : "FAIL") << " stalled S3 request returns within its deadline\n";
-    co_return !truncated && deadline;
+    std::cout << (concurrent ? "PASS" : "FAIL") << " independent range read completes in "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(fast_elapsed).count()
+              << " ms while another request stalls\n";
+    co_return !truncated && deadline && concurrent;
 }
 } // namespace
 
@@ -166,6 +211,19 @@ boost::capy::task<int> exercise_silo()
         std::cerr << "GET status " << chunk.error().status << ": " << chunk.error().detail << '\n';
     }
     check(chunk && *chunk == bytes.substr(2, 4), "Silo returns an exact binary byte range");
+    auto const concurrent_start = std::chrono::steady_clock::now();
+    object_result first_upload, second_upload, range;
+    co_await boost::capy::when_all(
+        save_result(objects.put("attachments/concurrent-1", bytes, "application/octet-stream"), first_upload),
+        save_result(objects.put("attachments/concurrent-2", bytes, "application/octet-stream"), second_upload),
+        save_result(objects.read(key, bytes.size(), 2, 4), range));
+    auto const concurrent_elapsed = std::chrono::steady_clock::now() - concurrent_start;
+    check(first_upload && second_upload && range && *range == bytes.substr(2, 4),
+          "concurrent Silo uploads and a range read return the expected results");
+    std::cout << "Silo: two uploads and one range read completed in "
+              << std::chrono::duration_cast<std::chrono::microseconds>(concurrent_elapsed).count() << " us\n";
+    check((co_await objects.remove("attachments/concurrent-1")).has_value(), "clean up first concurrent upload");
+    check((co_await objects.remove("attachments/concurrent-2")).has_value(), "clean up second concurrent upload");
     auto wrong_size = co_await objects.read(key, bytes.size() + 1, 2, 4);
     check(!wrong_size, "download rejects mismatched metadata");
     check(!(co_await objects.read(key, bytes.size(), bytes.size() + 1, 0)), "invalid range rejected locally");

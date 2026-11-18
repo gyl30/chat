@@ -1,8 +1,12 @@
 #include "blocking_worker.hpp"
 
-blocking_worker::blocking_worker(std::size_t capacity)
-    : capacity_(capacity), thread_([this] { execute(); })
+blocking_worker::blocking_worker(std::size_t capacity, std::size_t parallelism) : capacity_(capacity)
 {
+    threads_.reserve(parallelism);
+    for (std::size_t i = 0; i < parallelism; ++i)
+    {
+        threads_.emplace_back([this](std::stop_token stop) { execute(stop); });
+    }
 }
 
 blocking_worker::~blocking_worker() { shutdown(); }
@@ -17,8 +21,11 @@ void blocking_worker::shutdown() noexcept
         }
         stopping_ = true;
     }
-    available_.notify_one();
-    thread_.join();
+    available_.notify_all();
+    for (auto& thread : threads_)
+    {
+        thread.join();
+    }
 }
 
 std::size_t blocking_worker::pending_jobs() const
@@ -45,14 +52,14 @@ std::optional<blocking_worker::unavailable> blocking_worker::enqueue(std::move_o
     return std::nullopt;
 }
 
-void blocking_worker::execute()
+void blocking_worker::execute(std::stop_token stop)
 {
     for (;;)
     {
         std::move_only_function<void()> job;
         {
             std::unique_lock lock(mutex_);
-            available_.wait(lock, [this] { return stopping_ || !queue_.empty(); });
+            available_.wait(lock, stop, [this] { return stopping_ || !queue_.empty(); });
             if (queue_.empty())
             {
                 return;

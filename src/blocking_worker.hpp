@@ -11,17 +11,18 @@
 #include <thread>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include <boost/capy/continuation.hpp>
 #include <boost/capy/ex/io_env.hpp>
 #include <boost/capy/task.hpp>
 
-// One thread owns execution of a finite queue. A submitted operation completes
+// A finite queue is drained by the configured number of threads. An operation completes
 // on its caller's executor, which must outlive the operation.
 class blocking_worker
 {
    public:
-    explicit blocking_worker(std::size_t capacity);
+    explicit blocking_worker(std::size_t capacity, std::size_t parallelism = 1);
     blocking_worker(blocking_worker const&) = delete;
     blocking_worker& operator=(blocking_worker const&) = delete;
     ~blocking_worker();
@@ -70,14 +71,14 @@ class blocking_worker
 
    private:
     std::optional<unavailable> enqueue(std::move_only_function<void()> job);
-    void execute();
+    void execute(std::stop_token stop);
 
     std::size_t capacity_;
     mutable std::mutex mutex_;
-    std::condition_variable available_;
+    std::condition_variable_any available_;
     std::deque<std::move_only_function<void()>> queue_;
     bool stopping_ = false;
-    std::thread thread_;
+    std::vector<std::jthread> threads_;
 };
 
 #endif

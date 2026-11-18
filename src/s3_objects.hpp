@@ -44,7 +44,7 @@ class s3_objects
     std::expected<void, s3_error> remove_object(std::string const& key) const;
 
     s3_settings settings_;
-    blocking_worker worker_{8};
+    blocking_worker worker_{8, 2};
 };
 
 #endif
