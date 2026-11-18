@@ -23,6 +23,7 @@
 #include "message_store.hpp"
 #include "message_history.hpp"
 #include "schema.hpp"
+#include "user_store.hpp"
 
 namespace
 {
@@ -482,6 +483,51 @@ void conversation_tests()
           "repeat invite does not recreate the membership");
 }
 
+void account_tests()
+{
+    temporary_database file;
+    auto db = sqlite_database::open(file.path);
+    check(db && initialize_schema(*db).ok(), "prepare SQLite account schema");
+    if (!db)
+    {
+        return;
+    }
+    std::string const hash(60, 'x');
+    auto created = register_account(*db, "张 三", hash);
+    auto duplicate = register_account(*db, "张 三", std::string(60, 'y'));
+    auto account = find_account(*db, "张 三");
+    check(created && *created && duplicate && !*duplicate && account && *account &&
+          (*account)->user.id == **created && (*account)->password_hash == hash &&
+          (*account)->user.avatar == chat::avatar_state{}, "registered identity is unique and stores the original hash");
+    if (!created || !*created)
+    {
+        return;
+    }
+    auto const user = **created;
+    std::string bytes(34 * 1024, 'X');
+    bytes.front() = '\0';
+    bytes.back() = '\0';
+    auto first = save_avatar(*db, user, "image/png", bytes);
+    check(first && first->state == chat::avatar_state{1, true}, "avatar upload creates revision one");
+    auto begin = read_avatar_chunk(*db, user, 1, 0);
+    auto end = read_avatar_chunk(*db, user, 1, 32768);
+    check(begin && *begin && (*begin)->has_more && end && *end && !(*end)->has_more &&
+          (*end)->offset == 32768 && (*begin)->bytes + (*end)->bytes == bytes,
+          "avatar BLOB range reads preserve NUL bytes");
+    auto invalid = save_avatar(*db, user, "text/plain", "bad media");
+    auto preserved = find_account(*db, "张 三");
+    check(!invalid && preserved && *preserved && (*preserved)->user.avatar == chat::avatar_state{1, true},
+          "invalid avatar cannot change the revision");
+    auto cleared = clear_avatar(*db, user);
+    auto noop = clear_avatar(*db, user);
+    auto updated = save_avatar(*db, user, "image/jpeg", bytes);
+    check(cleared && cleared->changed && cleared->state == chat::avatar_state{2, false} && noop && !noop->changed &&
+          updated && updated->state == chat::avatar_state{3, true}, "clear is idempotent and revisions never repeat");
+    auto stale = read_avatar_chunk(*db, user, 1, 32768);
+    check(stale && *stale && (*stale)->state == chat::avatar_state{3, true} && (*stale)->bytes.empty(),
+          "stale avatar request returns current metadata and no bytes");
+}
+
 boost::capy::task<> gated_job(database& db, std::promise<void>& started, std::future<void>& gate, std::atomic<int>& done)
 {
     auto result = co_await db.run([&](sqlite_database&) -> std::expected<void, sqlite_error>
@@ -640,6 +686,7 @@ int main()
     friendship_tests();
     message_write_tests();
     conversation_tests();
+    account_tests();
     temporary_database file;
     boost::corosio::io_context io_context;
     int exit_code = 1;

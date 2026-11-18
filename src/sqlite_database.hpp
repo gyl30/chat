@@ -95,7 +95,7 @@ class sqlite_statement
     sqlite_error bind(int index, int value);
     sqlite_error bind(int index, std::string_view value);
     sqlite_error bind_null(int index);
-    sqlite_error bind_blob(int index, std::span<const std::byte> value);
+    sqlite_error bind(int index, std::span<const std::byte> value);
 
     // true means a row is available, false means the statement finished.
     std::expected<bool, sqlite_error> step();

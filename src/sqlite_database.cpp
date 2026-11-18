@@ -218,7 +218,7 @@ sqlite_error sqlite_statement::bind_null(int index)
     return status == SQLITE_OK ? sqlite_error{} : make_error(statement_.get());
 }
 
-sqlite_error sqlite_statement::bind_blob(int index, std::span<const std::byte> value)
+sqlite_error sqlite_statement::bind(int index, std::span<const std::byte> value)
 {
     int const status = value.empty() ? sqlite3_bind_zeroblob(statement_.get(), index, 0) :
         sqlite3_bind_blob64(statement_.get(), index, value.data(), value.size(), SQLITE_TRANSIENT);

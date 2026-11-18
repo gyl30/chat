@@ -223,6 +223,7 @@ add_executable(chat_database_test
     tests/database_test.cpp
     src/friendship_store.cpp
     src/conversation_store.cpp
+    src/user_store.cpp
     src/message_history.cpp
     src/message_store.cpp
     src/database.cpp
