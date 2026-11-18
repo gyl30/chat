@@ -28,7 +28,6 @@ def sha(path):
 
 
 QT_VERSION = '6.5.3'
-LATEST_MIGRATION = 28
 # Reviewed Phase 3 source companion checksums; filenames alone do not establish identity.
 SOURCE_ARCHIVES = {
     'qtbase-everywhere-src-6.5.3.tar.xz': 'df2f4a230be4ea04f9798f2c19ab1413a3b8ec6a80bef359f50284235307b546',
@@ -58,28 +57,6 @@ def parse_ldd(output, binary):
         else:
             raise RuntimeError(f'unparseable dependency for {binary}: {line}')
     return dependencies
-
-
-def source_sql_checksums(directory):
-    files = sorted(directory.glob('*.sql'))
-    numbers = []
-    for path in files:
-        match = re.fullmatch(r'([0-9]{3})_.+\.sql', path.name)
-        if not match or not path.is_file():
-            raise RuntimeError(f'source SQL must contain regular migrations 001–{LATEST_MIGRATION:03}: {path}')
-        numbers.append(int(match[1]))
-    if numbers != list(range(1, LATEST_MIGRATION + 1)):
-        raise RuntimeError(f'source SQL must contain continuous migrations 001–{LATEST_MIGRATION:03} without duplicate numbers')
-    return {path.name: sha(path) for path in files}
-
-
-def check_installed_sql(directory, expected):
-    files = list(directory.iterdir())
-    if {path.name for path in files} != set(expected) or any(not path.is_file() for path in files):
-        raise RuntimeError(f'installed SQL filenames must exactly match source migrations 001–{LATEST_MIGRATION:03}')
-    for path in files:
-        if sha(path) != expected[path.name]:
-            raise RuntimeError(f'installed SQL SHA-256 differs from source: {path.name}')
 
 
 def main():
@@ -118,7 +95,6 @@ def main():
     for name, expected in SOURCE_ARCHIVES.items():
         if sha(args.sources / name) != expected:
             raise RuntimeError(f'source archive SHA-256 mismatch: {name}')
-    sql_checksums = source_sql_checksums(source / 'sql')
     head = run('git', '-C', str(source), 'rev-parse', 'HEAD').strip()
     epoch = run('git', '-C', str(source), 'show', '-s', '--format=%ct', 'HEAD').strip()
     # Refresh the exact build before assigning its source revision to the release.
@@ -133,7 +109,6 @@ def main():
     for name in ('chat_server', 'chat_tui', 'chat_qt'):
         if not (root / 'bin' / name).is_file():
             raise RuntimeError(f'install missing {name}; enable both clients and rebuild')
-    check_installed_sql(root / 'share/chat/sql', sql_checksums)
     plugins = []
     plugin_files = {
         'platforms': ('libqxcb.so', 'libqoffscreen.so'),
@@ -154,7 +129,7 @@ def main():
     private_library = re.compile(r'^(libQt6.*\.so\.6|libicu.*\.so\.56|'
                                  r'libboost_(json|container|url)\.so\.1\.92\.0|'
                                  r'libstdc\+\+\.so\.6|libgcc_s\.so\.1|libgomp\.so\.1|'
-                                 r'lib(ssl|crypto)\.so\.3|libpq\.so\.5|'
+                                 r'lib(ssl|crypto)\.so\.3|libsqlite3\.so\.0|'
                                  r'libpng16\.so\.16|libjpeg\.so\.8|libz\.so\.1|'
                                  r'libxcb-cursor\.so\.0)$')
     provided, external = {}, {}
@@ -191,10 +166,11 @@ def main():
     (root / 'README.md').write_text(
         '# Chat Linux release\n\n'
         'Ubuntu 22.04 x86_64 / glibc 2.35 is the tested platform, not all Linux.\n'
-        'Extract and run bin/chat_server PORT WORKERS DB_CONNECTIONS, '
+        'Extract and run bin/chat_server PORT WORKERS SQLITE_FILE, '
         'bin/chat_tui ws://HOST:PORT/ws or bin/chat_qt ws://HOST:PORT/ws.\n'
-        'The server needs an independent PostgreSQL database and libpq connection '
-        f'configuration. Apply share/chat/sql/001–{LATEST_MIGRATION:03} only to a new empty database.\n'
+        'The server initializes an SQLite database on first use and requires a private S3/Silo bucket. '
+        'Configure CHAT_S3_ENDPOINT, CHAT_S3_BUCKET, CHAT_S3_ACCESS_KEY, '
+        'CHAT_S3_SECRET_KEY and optionally CHAT_S3_REGION and CHAT_S3_HTTPS.\n'
         'For WSS use a valid server certificate and client trust store; no TLS bypass.\n'
         'Qt uses bundled libraries/plugins via relative RPATH and bin/qt.conf. '
         'System X11/XCB/OpenGL drivers, display access, fonts and optional Fcitx5 '

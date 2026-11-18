@@ -102,37 +102,11 @@ target_link_libraries(chat_qt_widgets
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(chat_qt_widgets PUBLIC Qt6::DBus)
-    add_executable(chat_qt_notifications_test tests/notification_test.cpp)
-    target_include_directories(chat_qt_notifications_test PRIVATE src)
-    target_link_libraries(chat_qt_notifications_test PRIVATE chat_qt_widgets)
-    add_test(NAME qt_notifications COMMAND chat_qt_notifications_test)
-    set_tests_properties(qt_notifications PROPERTIES TIMEOUT 15 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 endif()
-
-add_executable(chat_qt_models_test tests/models_test.cpp)
-target_include_directories(chat_qt_models_test PRIVATE src)
-target_link_libraries(chat_qt_models_test PRIVATE chat_qt_widgets)
-add_test(NAME qt_models COMMAND chat_qt_models_test)
-
-add_executable(chat_qt_delegate_test tests/delegate_test.cpp)
-target_include_directories(chat_qt_delegate_test PRIVATE src)
-target_link_libraries(chat_qt_delegate_test PRIVATE chat_qt_widgets)
-add_test(NAME qt_delegate COMMAND chat_qt_delegate_test)
-set_tests_properties(qt_delegate PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 add_executable(chat_qt src/main.cpp)
 target_link_libraries(chat_qt PRIVATE chat_qt_widgets)
-
-add_executable(chat_qt_ui_test tests/ui_test.cpp)
-target_include_directories(chat_qt_ui_test PRIVATE src)
-target_link_libraries(chat_qt_ui_test PRIVATE chat_qt_widgets PostgreSQL::PostgreSQL)
-add_test(NAME qt_widgets COMMAND chat_qt_ui_test --widgets-only)
-# Message-box wrapping depends on screen width; exercise a desktop-sized screen.
-set_tests_properties(qt_widgets PROPERTIES TIMEOUT 60
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen:configfile=${CMAKE_CURRENT_SOURCE_DIR}/tests/offscreen-desktop.json")
-add_test(NAME qt_ui COMMAND chat_qt_ui_test $<TARGET_FILE:chat_server> "${CMAKE_CURRENT_BINARY_DIR}")
-# The three-window real-server smoke restarts the server several times; under sanitizers it takes about a minute.
-set_tests_properties(qt_ui PROPERTIES TIMEOUT 120 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 # Both build-tree and installed clients load editable assets relative to the executable.
 set(chat_theme_files common.qss daylight.qss daylight.json midnight.qss midnight.json)

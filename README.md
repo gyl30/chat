@@ -5,11 +5,9 @@ C++ 聊天服务器、共享客户端 SDK、Qt Widgets 桌面客户端和 FTXUI 
 
 ## 构建
 
-需要 CMake 3.30+、支持 C++26 `-freflection` 的 GCC 16、**Boost 1.92.0**
-CMake package，以及 OpenSSL、PostgreSQL/libpq、libpng、libjpeg 开发包。
-Qt 客户端需要 Qt 6.5+ Widgets/Svg（Linux 还需要 DBus）；TUI 使用仓库固定的 FTXUI 子模块。
-Qt/TUI 构建还会下载固定版本的 Unicode 依赖，Qt 另下载 emoji-segmenter；
-离线配置见 [共享 Unicode 依赖](cmake/README.md)。
+需要 CMake 3.30+、支持 C++26 `-freflection` 的 GCC 16、Boost 1.92.0、
+SQLite3、MinIO C++ SDK 1.0.1（`miniocpp` CMake 包）、OpenSSL、libpng、libjpeg。
+Qt 客户端需要 Qt 6.5+ Widgets/Svg（Linux 还需要 DBus）；TUI 使用固定的 FTXUI 子模块。
 
 ```sh
 git submodule update --init --recursive
@@ -18,48 +16,21 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
 cmake --build build -j12
 ```
 
-首次配置可用 `CC` / `CXX` 选择编译器，用 `CMAKE_PREFIX_PATH` 指定非默认
-Boost/Qt 安装目录。当前经过验证的具体工具链见 [完整验证说明](docs/verification.md)。
+默认只构建生产程序及其依赖，不构建或运行任何第一方测试目标。
+离线依赖配置参见 [共享 Unicode 依赖](cmake/README.md)。
 
 ## 安装与独立运行
 
-标准安装包含已启用的客户端、服务端、SQL 迁移和 Qt 主题：
-
 ```sh
-cmake --build build -j4
-chat_prefix="$HOME/.local/chat"
-cmake --install build --prefix "$chat_prefix"
-cd /tmp
-"$chat_prefix/bin/chat_server" 18080 32 8
-# 在其他终端启动客户端：
-"$chat_prefix/bin/chat_tui" ws://127.0.0.1:18080/ws
-"$chat_prefix/bin/chat_qt" ws://127.0.0.1:18080/ws
+cmake --install build --prefix "$HOME/.local/chat"
 ```
 
-默认目录布局为 `bin/chat_server`、`bin/chat_tui`、`bin/chat_qt`、
-`share/chat/sql/001_*.sql` 至 `028_*.sql`，以及
-`share/chat/themes/{common.qss,daylight.qss,daylight.json,midnight.qss,midnight.json}`。
-Qt/TUI 关闭构建时不安装对应客户端。Qt 从可执行程序位置相对查找主题，SVG 图标编入
-程序，不需要源码、构建目录或特定工作目录。用户主题覆盖仍在 Qt 用户配置目录下。
-安装不创建数据库、不执行迁移；启动前仍需按下一节准备数据库和 libpq 连接配置。
+安装包括启用的 `chat_server`、`chat_qt`、`chat_tui` 和 Qt 主题；
+SQLite 数据库由服务端首次打开时初始化。附件存储使用独立的 Silo/S3 服务。
+标准 CMake install 不会自动打包外部运行时依赖，也不部署 Silo。
 
-需要跨机器搬运时，使用 [Linux 发布包流程](docs/linux_release.md)；
-它在标准安装之上收集匹配运行库、Qt 插件、许可和源码，并验证相对路径。
-当前仅验收 Ubuntu 22.04.5 / x86_64，不捆绑可选 Fcitx5 插件。
-
-以下标准 `cmake --install` 本身仍是**依赖宿主运行库的安装**，不是自包含包。运行库包括匹配的 GCC 16 libstdc++、
-Boost 1.92.0、OpenSSL，以及服务器使用的 libpq/libpng/libjpeg；Qt 客户端还需要与
-构建版本兼容的 Qt Core/Gui/Widgets/Svg/DBus、XCB 平台插件和其图形系统依赖。
-Qt SDK 只提供库和插件时，不要求运行机器重新安装编译器或开发头文件。
-系统有较旧 Qt 库并不代表满足这些要求。
-
-安装目标保留 CMake 发现的外部链接目录作为 RUNPATH；不引用项目源码/构建产物。
-使用非系统 Qt SDK 构建时，它的运行库和平台插件仍是外部依赖，该 SDK 路径需要继续
-存在。整体移动安装前缀时，主题随前缀移动，无需修改路径；外部运行库不会自动
-打包或重定位。
-如更换运行库位置，按新依赖位置重新配置并安装；部署者也可使用标准
-`CMAKE_INSTALL_RPATH` 指定优先路径，自动保留的外部链接目录仍会追加。不要用
-指向构建产物的 `LD_LIBRARY_PATH` 掩盖缺少依赖。Linux 可用 `readelf -d`、`ldd`、`ldd -r` 核对每个安装程序。
+跨机器可搬运打包工具见 `tools/package_linux.py`；其 Qt/GCC 固定版本及依赖要求
+仍需依照实际构建环境核对。无需 PostgreSQL、libpq 或旧 SQL 迁移文件。
 
 ### Linux 原生 Fcitx5 Qt6 插件
 
@@ -103,86 +74,40 @@ ECM 可来自已安装开发包或工作区外的原包解压目录（用 `ECM_D
 日志必须显示该原生 `.so` 实际加载，并通过真实拼音候选和发送测试；只发现 metadata、
 加载 Compose 或改为 IBus 不算原生 Fcitx 验收。
 
-## 数据库与启动
+## SQLite 与 Silo 启动
 
-服务端和数据库测试使用 libpq 的连接配置，包括 `PGHOST` / `PGHOSTADDR`、
-`PGPORT`、`PGDATABASE`、`PGUSER` 和 `.pgpass` / `PGPASSWORD`。
-先建立应用数据库并配置连接；不要把密码写入命令参数或仓库文件。
-仅对**新建的空数据库**依序应用迁移：
+服务端命令行参数为 `<port> <max-workers> <sqlite-file>`，数据库由服务端打开，
+并通过文件锁防止同一个数据库文件被两个服务进程并发使用。
 
-```sh
-(
-    set -e
-    for migration in sql/[0-9][0-9][0-9]_*.sql; do
-        psql -v ON_ERROR_STOP=1 -f "$migration"
-    done
-)
-```
-
-既有数据库只执行尚未应用的迁移。当前迁移编号为 001–028；服务器不会自动迁移。
-
-安装版使用 `"$chat_prefix"/share/chat/sql/[0-9][0-9][0-9]_*.sql` 作为上述循环的输入，
-无需源码目录。执行前核对 libpq 的目标地址、端口、数据库和角色；任何脚本失败立即停止。
-迁移是人工部署步骤，安装和服务端启动都不会自动应用 SQL。
-
-### 升级、备份与恢复
-
-升级前停止连接此数据库的 Chat 服务端，记录已应用的迁移编号并先备份。
-例如已有 025 数据库，只按顺序执行 `026_create_friend_requests.sql`、
-`027_short_group_invite_codes.sql` 和 `028_add_message_client_id.sql`，
-每条命令都使用 `psql -v ON_ERROR_STOP=1`；
-当前没有自动迁移历史表，已应用编号须由部署记录确认，不能靠重放脚本探测。
-不要对已有库重放 001–025。026 保留双向联系人，将单向联系人转为待确认申请；
-027 撤销旧群邀请码，升级后由群主或管理员重新生成；028 为消息增加发送者侧的
-`client_id` 和唯一索引，历史消息该字段保持为空。其他历史会话与数据应保留。
-
-使用与服务端版本兼容的 PostgreSQL 官方工具。以下 `$PGDATABASE` 必须明确指向
-要备份的应用库，`chat_restored` 是新建的独立空恢复库；部署者须核对名称和所有权：
+设置运行环境（请使用独立、私有的 S3 桶和受保护的凭据）：
 
 ```sh
-(
-    set -eu
-    : "${PGDATABASE:?请先核对并设置待备份数据库}"
-    umask 077
-    backup_dir=$(mktemp -d "$HOME/chat-backup.XXXXXXXX")
-    pg_dump --format=custom --file="$backup_dir/chat.dump" "$PGDATABASE"
-    createdb --template=template0 chat_restored
-    pg_restore --single-transaction --exit-on-error --no-owner --no-privileges \
-        --dbname=chat_restored "$backup_dir/chat.dump"
-)
-```
+export CHAT_S3_ENDPOINT='127.0.0.1:9000'
+export CHAT_S3_BUCKET='chat-private'
+export CHAT_S3_ACCESS_KEY='your-access-key'
+export CHAT_S3_SECRET_KEY='your-secret-key'
+export CHAT_S3_REGION='us-east-1'
+export CHAT_S3_HTTPS=0  # 本地 HTTP；生产环境应使用 HTTPS
 
-备份写入新建的私有目录，含账号密码哈希、消息和附件，应限制读取权限并安全保管。
-`--no-owner --no-privileges` 不恢复原所有者和授权，对象归执行恢复的角色所有；
-须选用预期的应用角色。
-恢复后核对关键 ID、关系、已读位置以及附件字节，再将服务端连接配置指向恢复库启动验证。
-同版本恢复包含已有 schema 与数据，**不能再执行全部迁移**；恢复历史版本备份时只在
-恢复完成后补尚未应用的迁移。不使用 `--clean` 覆盖现有数据库；业务库的覆盖恢复应另行规划。
-
-```sh
-# 三个位置参数依次为端口、连接处理单元数、数据库连接数。
-./build/chat_server 18080 32 8
-./build/qt/chat_qt ws://127.0.0.1:18080/ws
+mkdir -p "$HOME/chat-data"
+./build/chat_server 18080 32 "$HOME/chat-data/chat.sqlite3"
 ./build/chat_tui ws://127.0.0.1:18080/ws
+./build/qt/chat_qt ws://127.0.0.1:18080/ws
 ```
 
-在客户端登录页注册账号或输入已有账号、密码；TUI 登录后按 `F1` 查看键盘帮助，按 `Ctrl+K` 打开命令面板。
-未传客户端 URL 时优先恢复最近成功登录的服务器，否则使用本机 18080；密码不保存。
+SQLite 使用 WAL、`synchronous=FULL` 和外键约束。部署时确保数据库目录可写，
+数据库文件及其 `-wal`、`-shm` 文件均得到适当保护；备份应在数据库一致性边界内进行。
+附件对象为私有 key，S3 写入后由 SQLite 事务发布元数据。服务启动与正常退出会恢复可清理对象。
 
-公网或不受信网络连接可使用 TLS。服务器接受成对的 PEM 完整证书链和未加密私钥，
-链中首张证书须为服务端证书，证书 SAN 应包含客户端实际访问的域名或 IP：
+公网或不受信网络可启用 TLS，使用成对的证书和私钥：
 
 ```sh
-./build/chat_server 18443 32 8 --tls-cert /path/fullchain.pem --tls-key /path/key.pem
-./build/qt/chat_qt wss://chat.example:18443/ws
+./build/chat_server 18443 32 "$HOME/chat-data/chat.sqlite3" \
+    --tls-cert /path/fullchain.pem --tls-key /path/key.pem
 ./build/chat_tui wss://chat.example:18443/ws
 ```
 
-该端口只提供 HTTPS / WSS；无 TLS 参数时提供 HTTP / WS。
-客户端验证证书链和主机名，不提供跳过验证或回退明文的选项。
-私有 CA 可通过 `SSL_CERT_FILE` / `SSL_CERT_DIR` 指定信任库。
-证书更新后需要重启服务器加载；证书签发和续期由部署者管理。
-`GET /health` 是健康检查入口。
+`GET /health` 提供 HTTP 健康检查；它不代表 S3 服务一定可用。
 
 ## WebSocket 协议约束
 
@@ -199,11 +124,7 @@ request `id` 及 JSON 转义产生的内容；不是消息正文的字符数上�
 失活连接会被结束并正常释放对应在线会话。WS / WSS 行为相同；这些是当前固定行为，
 没有新增心跳配置参数，也不改变严格单账号在线规则。
 
-## 验证与依赖声明
+## 依赖与分发声明
 
-[完整验证说明](docs/verification.md) 介绍专用测试数据库、迁移、Qt offscreen
-和 normal / ASan / UBSan 全量验证。执行 `tests/verify.sh` 前须准备该环境；
-TLS 测试还需要 **OpenSSL 命令行工具**。不要对真实业务数据库运行集成测试。
-
-第三方源码、固定依赖和分发时需保留的原始声明见 [THIRD_PARTY.md](THIRD_PARTY.md)。
-当前能力、限制及实际验证范围见 [开发状态](docs/development-status.md)。
+第三方依赖、固定源码和分发注意事项见 [THIRD_PARTY.md](THIRD_PARTY.md)。
+历史发布审查文档涉及 PostgreSQL 的内容仅供归档，不适用于当前 SQLite/Silo 服务端。

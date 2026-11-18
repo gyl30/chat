@@ -1,5 +1,0 @@
-BEGIN;
-
-ALTER TABLE conversation_members ADD COLUMN muted BOOLEAN NOT NULL DEFAULT false;
-
-COMMIT;

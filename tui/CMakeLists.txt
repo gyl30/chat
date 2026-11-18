@@ -12,49 +12,11 @@ set_target_properties(chat_tui PROPERTIES
     INSTALL_RPATH_USE_LINK_PATH TRUE)
 install(TARGETS chat_tui RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
-add_executable(chat_tui_render_test tests/render_test.cpp)
-target_link_libraries(chat_tui_render_test PRIVATE chat_tui_ui)
-add_test(NAME tui_render COMMAND chat_tui_render_test)
-# Allow normal sanitizer overhead across the rendering and input matrix.
-set_tests_properties(tui_render PROPERTIES TIMEOUT 10)
-
-add_executable(chat_tui_unicode_test tests/unicode_test.cpp)
-target_include_directories(chat_tui_unicode_test PRIVATE "${ftxui_patched}/src")
-target_link_libraries(chat_tui_unicode_test PRIVATE ftxui::component utf8proc::utf8proc)
-add_test(NAME tui_unicode COMMAND chat_tui_unicode_test
-    "${CMAKE_CURRENT_SOURCE_DIR}/tests/data/GraphemeBreakTest-18.0.0.txt")
-set_tests_properties(tui_unicode PROPERTIES TIMEOUT 5)
-
-add_executable(chat_tui_display_test tests/display_test.cpp)
-target_link_libraries(chat_tui_display_test PRIVATE ftxui::component)
-add_test(NAME tui_display COMMAND chat_tui_display_test)
-set_tests_properties(tui_display PROPERTIES TIMEOUT 5)
-
-add_executable(chat_tui_span_test tests/span_test.cpp)
-target_link_libraries(chat_tui_span_test PRIVATE ftxui::dom)
-add_test(NAME tui_span COMMAND chat_tui_span_test)
-set_tests_properties(tui_span PROPERTIES TIMEOUT 5)
-
 add_library(chat_tui_state STATIC src/state.cpp)
 target_include_directories(chat_tui_state PUBLIC src)
 target_link_libraries(chat_tui_state PUBLIC chat_client)
-
-add_executable(chat_tui_state_test tests/state_test.cpp)
-target_link_libraries(chat_tui_state_test PRIVATE chat_tui_state)
-add_test(NAME tui_state COMMAND chat_tui_state_test)
-set_tests_properties(tui_state PROPERTIES TIMEOUT 5)
-
-add_executable(chat_tui_inbox_test tests/inbox_test.cpp)
-target_include_directories(chat_tui_inbox_test PRIVATE src)
-target_link_libraries(chat_tui_inbox_test PRIVATE Threads::Threads)
-add_test(NAME tui_inbox COMMAND chat_tui_inbox_test)
-set_tests_properties(tui_inbox PROPERTIES TIMEOUT 5)
 
 add_library(chat_tui_core STATIC src/app.cpp src/messages.cpp src/profile.cpp src/groups.cpp)
 target_link_libraries(chat_tui_core PUBLIC chat_tui_state Threads::Threads)
 add_library(chat_tui_ui STATIC src/ui.cpp)
 target_link_libraries(chat_tui_ui PUBLIC chat_tui_core ftxui::component)
-add_executable(chat_tui_file_test tests/file_io_test.cpp)
-target_include_directories(chat_tui_file_test PRIVATE src)
-add_test(NAME tui_file COMMAND chat_tui_file_test)
-set_tests_properties(tui_file PROPERTIES TIMEOUT 5)

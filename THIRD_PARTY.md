@@ -40,7 +40,7 @@ emoji-segmenter 下载目录中的完整 `LICENSE` 也由 CMake 核验；
 
 ## 外部软件包
 
-CMake 还链接本机安装的 **Boost 1.92.0、OpenSSL、PostgreSQL/libpq、libpng、libjpeg**，
+CMake 还链接本机安装的 **Boost 1.92.0、OpenSSL、SQLite3、MinIO C++ SDK、libpng、libjpeg**，
 启用 Qt 客户端时链接 **Qt 6.5+**。它们不是上述子模块或固定下载包；
 分发产物时需记录实际软件包版本，并保留所用发行包附带的许可及版权文件。
 Qt 的具体模块、构建和许可选择取决于所用 Qt 发行包；本项目不替使用者指定许可选项。
@@ -49,9 +49,9 @@ Qt 的具体模块、构建和许可选择取决于所用 Qt 发行包；本项�
 [发布来源与许可工程审查](docs/release_compliance.md)。该报告不构成公开分发的最终法律确认。
 TLS 证书测试额外调用 OpenSSL 命令行程序。
 
-SQLite 与 Silo 阶段测试使用 [SQLite3](https://sqlite.org/copyright.html) 官方 C API
+SQLite 与 Silo 存储层使用 [SQLite3](https://sqlite.org/copyright.html) 官方 C API
 和 [MinIO C++ SDK 1.0.1](https://github.com/minio/minio-cpp/tree/v1.0.1)（Apache-2.0）。
-Silo 是单独运行的存储服务，未链接进客户端或服务端。
+Silo 是单独运行的存储服务，服务端通过 MinIO C++ SDK 访问其 S3 API。
 
 ## 可选 Fcitx5 Qt6 输入法插件
 
