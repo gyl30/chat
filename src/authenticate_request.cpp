@@ -1,6 +1,5 @@
 #include <charconv>
 #include <cstdint>
-#include <exception>
 #include <optional>
 #include <string>
 #include <utility>
@@ -9,9 +8,10 @@
 #include <system_error>
 
 #include <simdjson.h>
-#include <boost/http/bcrypt.hpp>
 
 #include "chat_session.hpp"
+#include "blocking_worker.hpp"
+#include "password_hash.hpp"
 #include "pg_connection_pool.hpp"
 
 namespace
@@ -152,12 +152,9 @@ boost::capy::task<simdjson::error_code> chat_session::handle_authenticate(json_r
         password_hash = (*row)[1];
     }
 
-    bool password_matches = false;
-    try
-    {
-        password_matches = co_await boost::http::bcrypt::compare_async(params.password, password_hash);
-    }
-    catch (std::exception const&)
+    auto password_matches = co_await passwords_.run([&] { return check_password(params.password, password_hash); },
+        [](blocking_worker::unavailable) { return std::make_error_code(std::errc::resource_unavailable_try_again); });
+    if (!password_matches)
     {
         if (request.id.present)
         {
@@ -167,7 +164,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_authenticate(json_r
     }
 
     bool authenticated = false;
-    if (row && password_matches)
+    if (row && *password_matches)
     {
         std::int64_t user_id = 0;
         auto const& id = (*row)[0];

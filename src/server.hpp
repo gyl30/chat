@@ -14,6 +14,7 @@
 #include <boost/http/server/router.hpp>
 
 #include "invite_attempts.hpp"
+#include "blocking_worker.hpp"
 #include "online_users.hpp"
 #include "pg_connection_pool.hpp"
 
@@ -41,6 +42,7 @@ class chat_server
    private:
     online_users users_;
     invite_attempts invite_attempts_;
+    blocking_worker passwords_{64, 2};
     pg_connection_pool database_;
     boost::corosio::tcp_server server_;
 };

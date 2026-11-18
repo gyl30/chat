@@ -138,6 +138,8 @@ add_executable(chat_server
     src/register_request.cpp
     src/send_message_request.cpp
     src/search_users_request.cpp
+    src/password_hash.cpp
+    src/blocking_worker.cpp
     src/invite_attempts.cpp
     src/json_rpc.cpp
     src/online_users.cpp
@@ -157,6 +159,7 @@ target_link_libraries(chat_server
         Boost::capy
         Boost::corosio
         Boost::http
+        Threads::Threads
         OpenSSL::Crypto
         PostgreSQL::PostgreSQL
         PNG::PNG
@@ -323,6 +326,8 @@ add_executable(chat_server_test
     src/register_request.cpp
     src/send_message_request.cpp
     src/search_users_request.cpp
+    src/password_hash.cpp
+    src/blocking_worker.cpp
     src/invite_attempts.cpp
     src/json_rpc.cpp
     src/online_users.cpp
@@ -344,6 +349,7 @@ target_link_libraries(chat_server_test
         Boost::capy
         Boost::corosio
         Boost::http
+        Threads::Threads
         OpenSSL::Crypto
         PostgreSQL::PostgreSQL
         PNG::PNG

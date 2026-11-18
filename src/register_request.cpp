@@ -1,22 +1,20 @@
 #include <charconv>
 #include <cstdint>
-#include <exception>
 #include <string>
 #include <utility>
 #include <vector>
 #include <system_error>
 
 #include <simdjson.h>
-#include <boost/http/bcrypt.hpp>
 #include <chat/text.hpp>
 
 #include "chat_session.hpp"
+#include "blocking_worker.hpp"
+#include "password_hash.hpp"
 #include "pg_connection_pool.hpp"
 
 namespace
 {
-
-constexpr unsigned kBcryptCost = 12;
 
 struct [[= simdjson::deny_unknown_fields]] register_params
 {
@@ -93,12 +91,9 @@ boost::capy::task<simdjson::error_code> chat_session::handle_register(json_rpc_r
         co_return simdjson::SUCCESS;
     }
 
-    boost::http::bcrypt::result password_hash;
-    try
-    {
-        password_hash = co_await boost::http::bcrypt::hash_async(params.password, kBcryptCost, boost::http::bcrypt::version::v2b);
-    }
-    catch (std::exception const&)
+    auto password_hash = co_await passwords_.run([&] { return hash_password(params.password); },
+        [](blocking_worker::unavailable) { return std::make_error_code(std::errc::resource_unavailable_try_again); });
+    if (!password_hash)
     {
         if (request.id.present)
         {
@@ -119,7 +114,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_register(json_rpc_r
 
     std::vector<std::string> parameters;
     parameters.emplace_back(std::move(params.username));
-    parameters.emplace_back(password_hash.data(), password_hash.size());
+    parameters.emplace_back(std::move(*password_hash));
     auto query_result = co_await lease.connection().execute_row(
         "INSERT INTO users (username, password_hash) VALUES ($1, $2) "
         "ON CONFLICT (username) DO NOTHING RETURNING id::text",

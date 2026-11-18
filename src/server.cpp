@@ -38,6 +38,7 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
                       boost::http::shared_serializer_config serializer_config,
                       online_users& users,
                       invite_attempts& invite_attempts,
+                      blocking_worker& passwords,
                       pg_connection_pool& database,
                       std::optional<boost::corosio::tls_context> const& tls,
                       chat::detail::websocket_heartbeat_config heartbeat)
@@ -48,6 +49,7 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
           router_(std::move(router)),
           users_(users),
           invite_attempts_(invite_attempts),
+          passwords_(passwords),
           database_(database),
           parser_(std::move(parser_config)),
           serializer_(std::move(serializer_config))
@@ -152,7 +154,7 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
                 if (!upgrade_ec)
                 {
                     websocket_connection connection(socket_, boost::capy::any_stream(&stream_), heartbeat_config_);
-                    chat_session session(connection, users_, invite_attempts_, database_);
+                    chat_session session(connection, users_, invite_attempts_, passwords_, database_);
                     co_await session.run();
                 }
                 break;
@@ -185,6 +187,7 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
     boost::http::router<boost::http::route_params> router_;
     online_users& users_;
     invite_attempts& invite_attempts_;
+    blocking_worker& passwords_;
     pg_connection_pool& database_;
     boost::http::route_params params_;
     boost::http::request_parser parser_;
@@ -211,7 +214,7 @@ chat_server::chat_server(boost::corosio::io_context& io_context,
     for (std::size_t i = 0; i < worker_count; ++i)
     {
         workers.push_back(std::make_unique<connection_worker>(
-            io_context, router, parser_config, serializer_config, users_, invite_attempts_, database_, tls, heartbeat));
+            io_context, router, parser_config, serializer_config, users_, invite_attempts_, passwords_, database_, tls, heartbeat));
     }
     server_.set_workers(std::move(workers));
 }
