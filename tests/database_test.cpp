@@ -380,7 +380,24 @@ void message_write_tests()
         INSERT INTO messages(conversation_id,sender_id,body,created_at,client_id)
         SELECT 2,1,'page '||n,n,100+n FROM ids;
     )SQL").ok(), "seed a multi-page conversation");
+    check(left->exec(R"SQL(
+        INSERT INTO message_reactions(message_id,user_id,emoji)
+        SELECT id,3,'👍' FROM messages WHERE conversation_id=2 AND client_id IN (102,106,155);
+        INSERT INTO message_mentions(message_id,user_id)
+        SELECT id,3 FROM messages WHERE conversation_id=2 AND client_id IN (102,106,155);
+    )SQL").ok(), "seed interactions on both history pages");
+    int statements = 0;
+    sqlite3_trace_v2(left->handle(), SQLITE_TRACE_STMT, [](unsigned, void* count, void*, void*) {
+        ++*static_cast<int*>(count);
+        return 0;
+    }, &statements);
+    auto const history_start = std::chrono::steady_clock::now();
     auto latest = read_message_history(*left, 1, 2, {}, {});
+    auto const history_elapsed = std::chrono::steady_clock::now() - history_start;
+    sqlite3_trace_v2(left->handle(), 0, nullptr, nullptr);
+    std::cout << "50-message history: " << statements << " statements, "
+              << std::chrono::duration_cast<std::chrono::microseconds>(history_elapsed).count() << " us\n";
+    check(statements <= 6, "history fetches interactions in a fixed number of statements");
     check(latest && *latest && (*latest)->messages.size() == 50 && (*latest)->has_more,
           "latest history returns 50 messages and the older page indicator");
     if (!latest || !*latest || (*latest)->messages.size() != 50)
@@ -391,6 +408,17 @@ void message_write_tests()
     auto const last_id = (*latest)->messages.back().id;
     check((*latest)->messages.front().client_id == 106 && (*latest)->messages.back().client_id == 155,
           "latest history is ascending and includes sender-owned client IDs");
+    bool interactions_match = true;
+    for (auto const& message : (*latest)->messages)
+    {
+        bool const has_interactions = message.id == first_id || message.id == last_id;
+        interactions_match &= has_interactions
+            ? message.reactions.size() == 1 && message.reactions.front().emoji == "👍" &&
+              message.reactions.front().users == std::vector<std::int64_t>{3} &&
+              message.mentions.size() == 1 && message.mentions.front().user == 3
+            : message.reactions.empty() && message.mentions.empty();
+    }
+    check(interactions_match, "history associates reactions and mentions with the correct message");
     auto older = read_message_history(*right, 3, 2, first_id, {});
     check(older && *older && (*older)->messages.size() == 5 && !(*older)->has_more &&
           (*older)->messages.back().id < first_id && !(*older)->messages.front().client_id,
