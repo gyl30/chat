@@ -442,6 +442,20 @@ void message_write_tests()
     check(snapshot && *snapshot && (*snapshot)->messages.empty() && (*snapshot)->read_positions.size() == 2 &&
           (*snapshot)->read_positions.back().user == 3 && (*snapshot)->read_positions.back().message == last_id,
           "empty incremental history still returns authoritative reading positions");
+    check(left->exec(R"SQL(
+        UPDATE messages SET body='Élodie_% shared text' WHERE conversation_id=2 AND client_id IN (102,155);
+        UPDATE messages SET body='élodie1X' WHERE conversation_id=2 AND client_id=104;
+        UPDATE messages SET body='',deleted=1 WHERE conversation_id=2 AND client_id=105;
+    )SQL").ok(), "seed sparse case-insensitive literal search results");
+    auto search = read_message_history(*left, 3, 2, {}, {}, "éLODIE_%");
+    auto other_page = read_message_history(*left, 3, 2, last_id, {}, "éLODIE_%");
+    auto unauthorized_search = read_message_history(*left, 2, 2, {}, {}, "éLODIE_%");
+    check(search && *search && (*search)->messages.size() == 2 && (*search)->messages.back().id == last_id &&
+          (*search)->messages.back().mentions.size() == 1 && (*search)->messages.front().reactions.size() == 1 &&
+          other_page && *other_page && (*other_page)->messages.size() == 1 &&
+          (*other_page)->messages.front().id == (*search)->messages.front().id &&
+          unauthorized_search && !*unauthorized_search,
+          "search preserves member-only access, literal Unicode matching, exclusive cursors and sparse interactions");
 }
 
 void mention_tests()

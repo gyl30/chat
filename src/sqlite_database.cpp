@@ -1,6 +1,9 @@
 #include <sqlite3.h>
+#include <utf8proc.h>
 
 #include <utility>
+
+#include <boost/locale/utf.hpp>
 
 #include "sqlite_database.hpp"
 
@@ -33,6 +36,33 @@ sqlite_error make_error(sqlite3_stmt* statement)
     sqlite3* database = statement ? sqlite3_db_handle(statement) : nullptr;
     int code = statement ? sqlite3_errcode(database) : SQLITE_MISUSE;
     return make_error(database, code);
+}
+
+void unicode_lower(sqlite3_context* context, int, sqlite3_value** arguments)
+{
+    auto const* text = reinterpret_cast<char const*>(sqlite3_value_text(arguments[0]));
+    if (!text)
+    {
+        sqlite3_result_null(context);
+        return;
+    }
+    auto const size = sqlite3_value_bytes(arguments[0]);
+    auto const* end = text + size;
+    std::string lowered;
+    lowered.reserve(size);
+    while (text != end)
+    {
+        auto value = boost::locale::utf::utf_traits<char>::decode(text, end);
+        if (value > 0x10ffff)
+        {
+            sqlite3_result_null(context);
+            return;
+        }
+        utf8proc_uint8_t encoded[4];
+        auto const length = utf8proc_encode_char(utf8proc_tolower(value), encoded);
+        lowered.append(reinterpret_cast<char const*>(encoded), length);
+    }
+    sqlite3_result_text64(context, lowered.data(), lowered.size(), SQLITE_TRANSIENT, SQLITE_UTF8);
 }
 
 }    // namespace
@@ -68,6 +98,12 @@ std::expected<sqlite_database, sqlite_error> sqlite_database::open(std::string c
     }
 
     sqlite3_extended_result_codes(handle, 1);
+    if (auto code = sqlite3_create_function_v2(handle, "chat_lower", 1, SQLITE_UTF8 | SQLITE_DETERMINISTIC,
+                                                nullptr, unicode_lower, nullptr, nullptr, nullptr);
+        code != SQLITE_OK)
+    {
+        return std::unexpected(make_error(handle, code));
+    }
 
     if (auto error = result.exec("PRAGMA foreign_keys=ON"); error)
     {
@@ -128,6 +164,12 @@ std::expected<sqlite_database, sqlite_error> sqlite_database::open_read_only(std
     }
 
     sqlite3_extended_result_codes(handle, 1);
+    if (auto code = sqlite3_create_function_v2(handle, "chat_lower", 1, SQLITE_UTF8 | SQLITE_DETERMINISTIC,
+                                                nullptr, unicode_lower, nullptr, nullptr, nullptr);
+        code != SQLITE_OK)
+    {
+        return std::unexpected(make_error(handle, code));
+    }
     if (auto error = result.exec("PRAGMA foreign_keys=ON"); error)
     {
         return std::unexpected(std::move(error));

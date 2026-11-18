@@ -25,23 +25,29 @@ std::optional<std::int64_t> optional_integer(sqlite_statement const& row, int co
     return row.column_is_null(column) ? std::nullopt : std::optional(row.column_int64(column));
 }
 
-std::expected<void, sqlite_error> populate_interactions(
-    sqlite_database& db, std::int64_t conversation, std::span<chat::message> messages)
+std::expected<void, sqlite_error> populate_interactions(sqlite_database& db, std::span<chat::message> messages)
 {
     if (messages.empty())
     {
         return {};
     }
-    // The history page contains every message of this conversation between these IDs,
-    // including tombstones. Exclude the lookahead row and messages in other conversations.
-    auto const first = messages.front().id;
-    auto const last = messages.back().id;
+    // Search pages can omit IDs between their bounds. Bind exactly the IDs
+    // selected by the page, excluding any lookahead row.
+    std::string ids = "[";
+    for (auto const& message : messages)
+    {
+        if (ids.size() != 1)
+        {
+            ids.push_back(',');
+        }
+        ids.append(std::to_string(message.id));
+    }
+    ids.push_back(']');
     auto reactions = db.prepare(R"SQL(
-        SELECT m.id,r.emoji,r.user_id
-        FROM messages m JOIN message_reactions r ON r.message_id=m.id
-        WHERE m.conversation_id=?1 AND m.id BETWEEN ?2 AND ?3
-        ORDER BY m.id,r.emoji,r.user_id
-    )SQL", conversation, first, last);
+        SELECT r.message_id,r.emoji,r.user_id
+        FROM json_each(?1) page JOIN message_reactions r ON r.message_id=page.value
+        ORDER BY r.message_id,r.emoji,r.user_id
+    )SQL", ids);
     if (!reactions)
     {
         return std::unexpected(std::move(reactions.error()));
@@ -67,12 +73,11 @@ std::expected<void, sqlite_error> populate_interactions(
     }
 
     auto mentions = db.prepare(R"SQL(
-        SELECT m.id,u.id,u.username
-        FROM messages m JOIN message_mentions mention ON mention.message_id=m.id
+        SELECT mention.message_id,u.id,u.username
+        FROM json_each(?1) page JOIN message_mentions mention ON mention.message_id=page.value
         JOIN users u ON u.id=mention.user_id
-        WHERE m.conversation_id=?1 AND m.id BETWEEN ?2 AND ?3
-        ORDER BY m.id,u.id
-    )SQL", conversation, first, last);
+        ORDER BY mention.message_id,u.id
+    )SQL", ids);
     if (!mentions)
     {
         return std::unexpected(std::move(mentions.error()));
@@ -127,7 +132,7 @@ chat::message read_message_row(sqlite_statement const& row, std::int64_t user, s
 
 std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_history(
     sqlite_database& db, std::int64_t user, std::int64_t conversation,
-    std::optional<std::int64_t> before, std::optional<std::int64_t> after)
+    std::optional<std::int64_t> before, std::optional<std::int64_t> after, std::string_view search)
 {
     auto snapshot = sqlite_transaction::begin_read(db);
     if (!snapshot)
@@ -165,11 +170,11 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
     }
 
     std::string query(kMessageColumns);
-    query += "WHERE m.conversation_id=?1 AND ";
+    query += "WHERE m.conversation_id=?1 AND (?4='' OR (m.deleted=0 AND instr(chat_lower(m.body),chat_lower(?4))>0)) AND ";
     query += after ? "m.id>?2 ORDER BY m.id ASC" : "m.id<?2 ORDER BY m.id DESC";
     query += " LIMIT ?3";
     auto page = db.prepare(query, conversation, after.value_or(before.value_or(std::numeric_limits<std::int64_t>::max())),
-                           static_cast<std::int64_t>(kPageSize + 1));
+                           static_cast<std::int64_t>(kPageSize + 1), search);
     if (!page)
     {
         return std::unexpected(std::move(page.error()));
@@ -197,7 +202,7 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
     {
         std::ranges::reverse(result.messages);
     }
-    if (auto populated = populate_interactions(db, conversation, result.messages); !populated)
+    if (auto populated = populate_interactions(db, result.messages); !populated)
     {
         return std::unexpected(std::move(populated.error()));
     }
@@ -231,7 +236,7 @@ std::expected<std::optional<chat::message>, sqlite_error> read_message(
         return std::nullopt;
     }
     auto result = read_message_row(*statement, user, conversation);
-    if (auto populated = populate_interactions(db, conversation, std::span(&result, 1)); !populated)
+    if (auto populated = populate_interactions(db, std::span(&result, 1)); !populated)
     {
         return std::unexpected(std::move(populated.error()));
     }

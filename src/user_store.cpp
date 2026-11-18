@@ -4,9 +4,7 @@
 #include <utility>
 
 #include <sqlite3.h>
-#include <utf8proc.h>
 #include <chat/attachment.hpp>
-#include <chat/text.hpp>
 
 namespace
 {
@@ -14,29 +12,6 @@ std::int64_t timestamp()
 {
     return std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
-}
-
-// Match a literal, case-insensitive prefix without changing account identity.
-// SQLite lower() folds ASCII only, so compare decoded Unicode code points.
-bool matches_prefix(std::string_view username, std::string_view prefix)
-{
-    using boost::locale::utf::utf_traits;
-    auto character = username.begin();
-    auto needle = prefix.begin();
-    while (needle != prefix.end())
-    {
-        if (character == username.end())
-        {
-            return false;
-        }
-        auto const x = utf_traits<char>::decode(character, username.end());
-        auto const y = utf_traits<char>::decode(needle, prefix.end());
-        if (x > 0x10ffff || y > 0x10ffff || utf8proc_tolower(x) != utf8proc_tolower(y))
-        {
-            return false;
-        }
-    }
-    return true;
 }
 
 std::expected<std::int64_t, sqlite_error> avatar_revision(sqlite_database& db, std::int64_t user, bool advance)
@@ -130,15 +105,15 @@ std::expected<std::vector<chat::user>, sqlite_error> search_accounts(
     auto statement = db.prepare(R"SQL(
         SELECT u.id,u.username,u.avatar_revision,a.user_id IS NOT NULL
         FROM users u LEFT JOIN user_avatars a ON a.user_id=u.id WHERE u.id<>?1
-        ORDER BY u.username,u.id
-    )SQL", user);
+          AND instr(chat_lower(u.username),chat_lower(?2))=1
+        ORDER BY u.username,u.id LIMIT 20
+    )SQL", user, prefix);
     if (!statement)
     {
         return std::unexpected(std::move(statement.error()));
     }
-    constexpr std::size_t limit = 20;
     std::vector<chat::user> matches;
-    while (matches.size() < limit)
+    for (;;)
     {
         auto row = statement->step();
         if (!row)
@@ -147,16 +122,11 @@ std::expected<std::vector<chat::user>, sqlite_error> search_accounts(
         }
         if (!*row)
         {
-            break;
+            return matches;
         }
-        auto const candidate = statement->column_text(1);
-        if (matches_prefix(candidate, prefix))
-        {
-            matches.push_back({statement->column_int64(0), std::string(candidate),
-                {statement->column_int64(2), statement->column_int64(3) != 0}});
-        }
+        matches.push_back({statement->column_int64(0), std::string(statement->column_text(1)),
+            {statement->column_int64(2), statement->column_int64(3) != 0}});
     }
-    return matches;
 }
 
 std::expected<std::optional<avatar_chunk>, sqlite_error> read_avatar_chunk(
