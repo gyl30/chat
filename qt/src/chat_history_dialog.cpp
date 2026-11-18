@@ -225,11 +225,22 @@ chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& tit
 
 void chat_history_dialog::start() { request_more(); }
 
+void chat_history_dialog::interrupt_loading()
+{
+    if (!loading_) { return; }
+    loading_ = false;
+    status_->setText(QStringLiteral("连接已断开，恢复后可重新加载。"));
+    status_->show();
+    more_->setText(QStringLiteral("重新加载"));
+    more_->setVisible(has_more_);
+}
+
 void chat_history_dialog::request_more()
 {
     if (loading_ || !has_more_) { return; }
     loading_ = true;
     auto const before = messages_.isEmpty() ? 0 : messages_.back().id;
+    more_->setText(QStringLiteral("加载更早的记录"));
     rebuild();
     if (query_.isEmpty()) { emit history_requested(before); }
     else { emit search_requested(query_, before); }

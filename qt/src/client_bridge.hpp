@@ -142,8 +142,8 @@ class client_bridge final : public QObject
             if (generation == connection_generation_) { result(); }
         }, Qt::QueuedConnection);
     }
-     void get_conversations_page(std::optional<chat::conversation_cursor> before,
-                                 QList<conversation_data> conversations, std::uint64_t generation);
+    void get_conversations_page(std::optional<chat::conversation_cursor> before, QList<conversation_data> conversations,
+                                std::uint64_t generation, std::uint64_t connection);
      std::uint64_t conversations_generation_ = 0;
      std::uint64_t contacts_generation_ = 0;
      std::uint64_t friend_requests_generation_ = 0;

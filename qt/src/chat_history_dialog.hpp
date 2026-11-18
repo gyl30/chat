@@ -37,6 +37,7 @@ class chat_history_dialog final : public QDialog
     static bool matches(message_data const& message, category kind);
     // Requests the newest page; call once the request signals are connected.
     void start();
+    void interrupt_loading();
 
    signals:
     void history_requested(qint64 before);

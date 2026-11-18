@@ -1,5 +1,6 @@
 #include "client_bridge.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -171,20 +172,12 @@ client_bridge::~client_bridge() { client_.reset(); }
 
 void client_bridge::connect_to_server(QString const& url)
 {
-    ++messages_generation_;
-    ++conversations_generation_;
-    ++search_generation_;
-    ++download_generation_;
     ++connection_generation_;
     client_->connect(to_utf8(url));
 }
 
 void client_bridge::close()
 {
-    ++messages_generation_;
-    ++conversations_generation_;
-    ++search_generation_;
-    ++download_generation_;
     ++connection_generation_;
     client_->close();
 }
@@ -218,75 +211,62 @@ void client_bridge::register_user(QString const& username, QString const& passwo
 
 void client_bridge::get_conversations()
 {
-    get_conversations_page({}, {}, ++conversations_generation_);
+    get_conversations_page({}, {}, ++conversations_generation_, connection_generation_.load());
 }
 
-void client_bridge::get_conversations_page(std::optional<chat::conversation_cursor> before,
-                                           QList<conversation_data> conversations, std::uint64_t generation)
+void client_bridge::get_conversations_page(std::optional<chat::conversation_cursor> before, QList<conversation_data> conversations,
+                                           std::uint64_t generation, std::uint64_t connection)
 {
-    client_->get_conversations(
-        before,
-        [this, generation, conversations = std::move(conversations)](
-            std::expected<chat::conversations_result, chat::error> result) mutable
-        {
-            QMetaObject::invokeMethod(
-                this,
-                [this, generation, conversations = std::move(conversations), result = std::move(result)]() mutable
+    client_->get_conversations(before, [this, generation, connection, conversations = std::move(conversations)](auto result) mutable {
+        post_result(connection, [this, generation, connection, conversations = std::move(conversations),
+                                 result = std::move(result)]() mutable {
+            if (generation != conversations_generation_)
+            {
+                return;
+            }
+            if (!result)
+            {
+                emit conversations_received({}, display_error(result.error()));
+                return;
+            }
+            for (auto const& item : result->conversations)
+            {
+                conversation_data value;
+                value.id = item.id;
+                value.group = item.kind == chat::conversation_kind::group;
+                value.user = item.user;
+                value.username = from_utf8(item.username);
+                value.avatar = item.avatar;
+                value.member_count = item.member_count;
+                value.last_id = item.last.id;
+                value.last_from = item.last.from;
+                value.last_timestamp = item.last.timestamp;
+                value.last_text = item.last.deleted ? QStringLiteral("消息已删除") : from_utf8(item.last.text);
+                value.unread = item.unread;
+                value.muted = item.muted;
+                value.pinned = item.pinned;
+                value.pinned_message = to_reply_data(item.pinned_message);
+                value.announcement = from_utf8(item.announcement);
+                value.join_approval = item.join_approval;
+                value.can_send = item.can_send;
+                if (std::ranges::find(conversations, value.id, &conversation_data::id) == conversations.end())
                 {
-                    if (generation != conversations_generation_)
-                    {
-                        return;
-                    }
-        if (!result)
-        {
-            emit conversations_received({}, display_error(result.error()));
-            return;
-        }
-                    for (auto const& item : result->conversations)
-        {
-            conversation_data value;
-                        value.id = item.id;
-                        value.group = item.kind == chat::conversation_kind::group;
-            value.user = item.user;
-            value.username = from_utf8(item.username);
-            value.avatar = item.avatar;
-                        value.member_count = item.member_count;
-            value.last_id = item.last.id;
-            value.last_from = item.last.from;
-            value.last_timestamp = item.last.timestamp;
-            value.last_text = item.last.deleted ? QStringLiteral("消息已删除") : from_utf8(item.last.text);
-            value.unread = item.unread;
-            value.muted = item.muted;
-            value.pinned = item.pinned;
-            value.pinned_message = to_reply_data(item.pinned_message);
-            value.announcement = from_utf8(item.announcement);
-            value.join_approval = item.join_approval;
-            value.can_send = item.can_send;
-                        bool found = false;
-                        for (auto const& existing : conversations)
-                        {
-                            if (existing.id == value.id)
-                            {
-                                found = true;
-                                break;
-                            }
-                        }
-                        if (!found)
-                        {
-            conversations.push_back(std::move(value));
-        }
-                    }
-                    if (result->next)
-                    {
-                        get_conversations_page(result->next, std::move(conversations), generation);
-                    }
-                    else
-                    {
-        emit conversations_received(std::move(conversations), {});
-                    }
-                },
-                Qt::QueuedConnection);
+                    conversations.push_back(std::move(value));
+                }
+            }
+            if (result->next)
+            {
+                if (connection == connection_generation_)
+                {
+                    get_conversations_page(result->next, std::move(conversations), generation, connection);
+                }
+            }
+            else
+            {
+                emit conversations_received(std::move(conversations), {});
+            }
         });
+    });
 }
 
 void client_bridge::set_conversation_muted(qint64 conversation, bool muted)
@@ -613,46 +593,39 @@ void client_bridge::get_presence()
 void client_bridge::get_messages(qint64 conversation, std::optional<qint64> before, std::optional<qint64> after)
 {
     auto const generation = ++messages_generation_;
-    client_->get_messages(
-        conversation, before,
-        [this, conversation, before, after,
-         generation](std::expected<chat::messages_result, chat::error> result) mutable
-        {
-            QMetaObject::invokeMethod(
-                this,
-                [this, conversation, before, after, generation, result = std::move(result)]() mutable
-                {
-                    if (generation != messages_generation_)
-                    {
-                        return;
-                    }
-        if (!result)
-        {
-                        emit messages_received(conversation, {}, {}, before.has_value(), after.has_value(), false,
-                                               display_error(result.error()));
-            return;
-        }
-        QList<message_data> messages;
-                    for (auto const& value : result->messages)
-        {
-                        messages.push_back(to_message_data(value));
-        }
-                    read_positions positions;
-                    for (auto const& position : result->read_positions)
-                    {
-                        positions.insert(position.user, position.message);
-                    }
-                    auto const next = result->messages.empty() ? 0 : result->messages.back().id;
-                    emit messages_received(conversation, std::move(messages), std::move(positions), before.has_value(),
-                                           after.has_value(), result->has_more, {});
-                    if (after && result->has_more && next > *after)
-                    {
-                        get_messages(conversation, {}, next);
-                    }
-                },
-                Qt::QueuedConnection);
-        },
-        after);
+    auto const connection = connection_generation_.load();
+    client_->get_messages(conversation, before, [this, conversation, before, after, generation, connection](auto result) {
+        post_result(connection, [this, conversation, before, after, generation, connection, result = std::move(result)]() mutable {
+            if (generation != messages_generation_)
+            {
+                return;
+            }
+            if (!result)
+            {
+                emit messages_received(conversation, {}, {}, before.has_value(), after.has_value(), false,
+                                       display_error(result.error()));
+                return;
+            }
+            QList<message_data> messages;
+            for (auto const& value : result->messages)
+            {
+                messages.push_back(to_message_data(value));
+            }
+            read_positions positions;
+            for (auto const& position : result->read_positions)
+            {
+                positions.insert(position.user, position.message);
+            }
+            auto const next = result->messages.empty() ? 0 : result->messages.back().id;
+            emit messages_received(conversation, std::move(messages), std::move(positions), before.has_value(),
+                                   after.has_value(), result->has_more, {});
+            if (after && result->has_more && next > *after &&
+                generation == messages_generation_ && connection == connection_generation_)
+            {
+                get_messages(conversation, {}, next);
+            }
+        });
+    }, after);
 }
 
 void client_bridge::set_typing(qint64 conversation, bool typing)
@@ -696,8 +669,9 @@ std::function<void(std::expected<chat::message, chat::error>)> client_bridge::se
 void client_bridge::get_attachment(qint64 conversation, qint64 message)
 {
     auto const generation = ++download_generation_;
-    client_->get_attachment(conversation, message, [this, conversation, message, generation](auto result) mutable {
-        QMetaObject::invokeMethod(this, [this, conversation, message, generation, result = std::move(result)]() mutable {
+    auto const connection = connection_generation_.load();
+    client_->get_attachment(conversation, message, [this, conversation, message, generation, connection](auto result) {
+        post_result(connection, [this, conversation, message, generation, result = std::move(result)]() mutable {
             if (generation != download_generation_)
             {
                 return;
@@ -705,7 +679,7 @@ void client_bridge::get_attachment(qint64 conversation, qint64 message)
             emit attachment_received(conversation, message,
                 result ? QByteArray(result->data(), static_cast<qsizetype>(result->size())) : QByteArray{},
                 result ? QString{} : display_error(result.error()));
-        }, Qt::QueuedConnection);
+        });
     });
 }
 
@@ -790,10 +764,11 @@ void client_bridge::search_messages(qint64 conversation, QString query, qint64 b
 {
     auto request_query = to_utf8(query);
     auto const generation = ++search_generation_;
+    auto const connection = connection_generation_.load();
     client_->search_messages(conversation, std::move(request_query),
         before > 0 ? std::optional<std::int64_t>{before} : std::nullopt,
-        [this, conversation, query = std::move(query), before, generation](auto result) mutable {
-            QMetaObject::invokeMethod(this, [this, conversation, query = std::move(query), before, generation,
+        [this, conversation, query = std::move(query), before, generation, connection](auto result) mutable {
+            post_result(connection, [this, conversation, query = std::move(query), before, generation,
                                             result = std::move(result)]() mutable {
                 if (generation != search_generation_)
                 {
@@ -817,16 +792,17 @@ void client_bridge::search_messages(qint64 conversation, QString query, qint64 b
                 }
                 emit message_search_received(conversation, std::move(query), before, std::move(messages),
                                              std::move(positions), result->has_more, {});
-            }, Qt::QueuedConnection);
+            });
         });
 }
 
 void client_bridge::get_history(qint64 conversation, qint64 before)
 {
     auto const generation = ++history_generation_;
+    auto const connection = connection_generation_.load();
     client_->get_messages(conversation, before > 0 ? std::optional<std::int64_t>{before} : std::nullopt,
-        [this, conversation, before, generation](std::expected<chat::messages_result, chat::error> result) mutable {
-            QMetaObject::invokeMethod(this, [this, conversation, before, generation, result = std::move(result)]() mutable {
+        [this, conversation, before, generation, connection](auto result) {
+            post_result(connection, [this, conversation, before, generation, result = std::move(result)]() mutable {
                 if (generation != history_generation_) { return; }
                 if (!result)
                 {
@@ -836,7 +812,7 @@ void client_bridge::get_history(qint64 conversation, qint64 before)
                 QList<message_data> messages;
                 for (auto const& value : result->messages) { messages.push_back(to_message_data(value)); }
                 emit history_received(conversation, before, std::move(messages), result->has_more, {});
-            }, Qt::QueuedConnection);
+            });
         });
 }
 

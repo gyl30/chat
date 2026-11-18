@@ -840,12 +840,15 @@ main_window::main_window(QString server_url, QWidget* parent)
     });
     connect(chat_page_, &chat_widget::chat_history_requested, this, [this](qint64 conversation, QString const& title) {
         chat_history_dialog dialog(conversation, title, this, &chat_page_->avatars());
-        connect(&dialog, &chat_history_dialog::history_requested, &dialog, [this, conversation](qint64 before) {
-            client_->get_history(conversation, before);
+        connect(&dialog, &chat_history_dialog::history_requested, &dialog, [this, conversation, &dialog](qint64 before) {
+            if (connected_ && !reconnecting_) { client_->get_history(conversation, before); }
+            else { dialog.interrupt_loading(); }
         });
-        connect(&dialog, &chat_history_dialog::search_requested, &dialog, [this, conversation](QString query, qint64 before) {
-            client_->search_messages(conversation, std::move(query), before);
+        connect(&dialog, &chat_history_dialog::search_requested, &dialog, [this, conversation, &dialog](QString query, qint64 before) {
+            if (connected_ && !reconnecting_) { client_->search_messages(conversation, std::move(query), before); }
+            else { dialog.interrupt_loading(); }
         });
+        connect(client_.get(), &client_bridge::disconnected, &dialog, &chat_history_dialog::interrupt_loading);
         connect(client_.get(), &client_bridge::history_received, &dialog, &chat_history_dialog::set_history);
         connect(client_.get(), &client_bridge::message_search_received, &dialog, &chat_history_dialog::set_search_results);
         connect(client_.get(), &client_bridge::conversation_changed, &dialog, [&dialog, conversation](qint64 id, bool removed) {
