@@ -220,12 +220,13 @@ set_tests_properties(pg_connection PROPERTIES TIMEOUT 15)
 
 add_executable(chat_database_test
     tests/database_test.cpp
+    src/friendship_store.cpp
     src/database.cpp
     src/sqlite_database.cpp
     src/schema.cpp
 )
 
-target_include_directories(chat_database_test PRIVATE src)
+target_include_directories(chat_database_test PRIVATE src client/include)
 
 target_link_libraries(chat_database_test
     PRIVATE

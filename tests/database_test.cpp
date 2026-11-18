@@ -1,4 +1,5 @@
 #include <atomic>
+#include <barrier>
 #include <chrono>
 #include <sqlite3.h>
 #include <unistd.h>
@@ -16,6 +17,7 @@
 #include <boost/corosio/io_context.hpp>
 
 #include "database.hpp"
+#include "friendship_store.hpp"
 #include "schema.hpp"
 
 namespace
@@ -224,6 +226,84 @@ boost::capy::task<> low_level_tests(temporary_database& file)
     co_return;
 }
 
+void friendship_tests()
+{
+    using enum friendship_action;
+    using chat::friendship_state;
+    temporary_database file;
+    auto left = sqlite_database::open(file.path);
+    check(left && initialize_schema(*left).ok(), "open friendship schema");
+    if (!left)
+    {
+        return;
+    }
+    check(left->exec(
+        "INSERT INTO users(username,password_hash,last_seen_at)"
+        " VALUES('Alice',printf('%060d',1),0),('Bob',printf('%060d',2),0)").ok(), "seed two users");
+    auto right = sqlite_database::open(file.path);
+    check(right.has_value(), "open independent friendship writer");
+    if (!right)
+    {
+        return;
+    }
+
+    std::barrier start(2);
+    auto opposite = std::async(std::launch::async, [&] {
+        start.arrive_and_wait();
+        return change_friendship(*right, 2, 1, request);
+    });
+    start.arrive_and_wait();
+    auto first = change_friendship(*left, 1, 2, request);
+    auto second = opposite.get();
+    auto const state = [](auto const& result) {
+        auto const* change = result ? std::get_if<friendship_change>(&*result) : nullptr;
+        return change ? change->result.state : friendship_state::none;
+    };
+    auto const first_state = state(first);
+    auto const second_state = state(second);
+    bool const first_sent = first_state == friendship_state::outgoing_pending;
+    check((first_sent && second_state == friendship_state::incoming_pending) ||
+          (second_state == friendship_state::outgoing_pending && first_state == friendship_state::incoming_pending),
+          "opposite requests leave one pending request and never auto-accept");
+    auto const sender = first_sent ? 1 : 2;
+    auto const recipient = first_sent ? 2 : 1;
+    auto requests = read_friend_requests(*left, recipient);
+    check(requests && requests->incoming.size() == 1 && requests->outgoing.empty() &&
+          requests->incoming.front().user.id == sender && requests->incoming.front().created_at > 0,
+          "recipient sees a single pending request with millisecond timestamp");
+    auto const not_contacts = read_contacts(*left, recipient);
+    check(not_contacts && not_contacts->empty(), "pending request is not a contact");
+    auto duplicate = change_friendship(*left, sender, recipient, request);
+    check(state(duplicate) == friendship_state::outgoing_pending &&
+          std::get<friendship_change>(*duplicate).previous == friendship_state::outgoing_pending,
+          "same direction request is idempotent");
+
+    // Fail after the request deletion to prove the transaction restores it.
+    check(left->exec("CREATE TRIGGER fail_contacts BEFORE INSERT ON contacts "
+                     "BEGIN SELECT RAISE(ABORT,'test failure'); END;").ok(), "install SQLite failure fixture");
+    auto failed_acceptance = change_friendship(*left, recipient, sender, accept);
+    check(!failed_acceptance && failed_acceptance.error().code == SQLITE_CONSTRAINT_TRIGGER &&
+          count(*left, "friend_requests") == 1 && count(*left, "contacts") == 0,
+          "acceptance failure restores the request and creates no contact");
+    check(left->exec("DROP TRIGGER fail_contacts").ok(), "remove SQLite failure fixture");
+
+    auto accepted = change_friendship(*left, recipient, sender, accept);
+    check(state(accepted) == friendship_state::accepted && count(*left, "friend_requests") == 0 &&
+          count(*left, "contacts") == 2, "acceptance commits both contact directions atomically");
+    auto reciprocal = read_contacts(*right, sender);
+    check(reciprocal && reciprocal->size() == 1 && reciprocal->front().id == recipient,
+          "second database connection observes both committed contacts");
+    auto removed = change_friendship(*right, sender, recipient, remove);
+    check(state(removed) == friendship_state::none && count(*left, "contacts") == 0,
+          "removal clears both directions");
+    check(state(change_friendship(*left, sender, recipient, request)) == friendship_state::outgoing_pending &&
+          state(change_friendship(*right, sender, recipient, cancel)) == friendship_state::none &&
+          count(*left, "friend_requests") == 0, "requester can cancel a new request");
+    check(state(change_friendship(*left, sender, recipient, request)) == friendship_state::outgoing_pending &&
+          state(change_friendship(*right, recipient, sender, reject)) == friendship_state::none &&
+          count(*left, "friend_requests") == 0, "recipient can reject without creating contacts");
+}
+
 boost::capy::task<> gated_job(database& db, std::promise<void>& started, std::future<void>& gate, std::atomic<int>& done)
 {
     auto result = co_await db.run([&](sqlite_database&) -> std::expected<void, sqlite_error>
@@ -379,6 +459,7 @@ boost::capy::task<> async_tests(temporary_database& file, boost::corosio::io_con
 
 int main()
 {
+    friendship_tests();
     temporary_database file;
     boost::corosio::io_context io_context;
     int exit_code = 1;
