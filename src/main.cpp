@@ -61,14 +61,14 @@ boost::capy::task<void> recover_objects(database& db, s3_objects& objects)
     // on shutdown too, not just during startup recovery.
     auto const cutoff = std::chrono::duration_cast<std::chrono::milliseconds>(
         (std::chrono::system_clock::now() - std::chrono::minutes(1)).time_since_epoch()).count();
-    auto result = co_await recover_attachment_objects(db, objects, cutoff);
-    if (!result)
+    auto const removed = co_await recover_attachment_objects(db, objects, cutoff);
+    if (removed < 0)
     {
         spdlog::warn("attachment cleanup remains pending");
     }
-    else if (*result)
+    else if (removed > 0)
     {
-        spdlog::info("removed {} abandoned attachment objects", *result);
+        spdlog::info("removed {} abandoned attachment objects", removed);
     }
 }
 

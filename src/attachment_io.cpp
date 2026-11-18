@@ -157,12 +157,12 @@ boost::capy::task<std::expected<std::optional<attachment_chunk>, attachment_io_e
     co_return attachment_chunk{size, std::move(*bytes)};
 }
 
-boost::capy::task<std::expected<std::size_t, attachment_io_error>> recover_attachment_objects(
+boost::capy::task<std::int64_t> recover_attachment_objects(
     database& db, s3_objects& objects, std::int64_t cutoff)
 {
-    std::size_t removed = 0;
+    std::int64_t removed = 0;
     std::optional<attachment_cleanup_entry> after;
-    std::optional<s3_error> removal_error;
+    bool removal_failed = false;
     for (;;)
     {
         auto read_batch = [cutoff, after](sqlite_database& connection) {
@@ -171,15 +171,11 @@ boost::capy::task<std::expected<std::size_t, attachment_io_error>> recover_attac
         auto batch = co_await db.run(read_batch);
         if (!batch)
         {
-            co_return std::unexpected(attachment_io_error{std::move(batch.error())});
+            co_return -1;
         }
         if (batch->empty())
         {
-            if (removal_error)
-            {
-                co_return std::unexpected(attachment_io_error{std::move(*removal_error)});
-            }
-            co_return removed;
+            co_return removal_failed ? -1 : removed;
         }
         after = batch->back();
 
@@ -188,10 +184,7 @@ boost::capy::task<std::expected<std::size_t, attachment_io_error>> recover_attac
             auto const& key = entry.object_key;
             if (auto result = co_await objects.remove(key); !result)
             {
-                if (!removal_error)
-                {
-                    removal_error.emplace(std::move(result.error()));
-                }
+                removal_failed = true;
                 continue;
             }
 
@@ -204,7 +197,7 @@ boost::capy::task<std::expected<std::size_t, attachment_io_error>> recover_attac
             };
             if (auto result = co_await db.run(acknowledge); !result)
             {
-                co_return std::unexpected(attachment_io_error{std::move(result.error())});
+                co_return -1;
             }
             ++removed;
         }

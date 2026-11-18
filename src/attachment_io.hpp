@@ -44,7 +44,8 @@ boost::capy::task<std::expected<std::optional<attachment_chunk>, attachment_io_e
 
 // Run before admitting uploads. The cutoff excludes PUTs that may still be
 // completing remotely after an interrupted connection.
-boost::capy::task<std::expected<std::size_t, attachment_io_error>> recover_attachment_objects(
+// Returns the number removed, or -1 when a cleanup pass could not fully complete.
+boost::capy::task<std::int64_t> recover_attachment_objects(
     database& db, s3_objects& objects, std::int64_t cutoff);
 
 #endif
