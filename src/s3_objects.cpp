@@ -36,7 +36,7 @@ std::expected<minio::http::Response, s3_error> execute_object_request(
     auto result = http.Execute();
     if (!result)
     {
-        return std::unexpected(s3_error{result.status_code, result.Error().String()});
+        return std::unexpected(s3_error{result.status_code, "object request failed"});
     }
     return result;
 }

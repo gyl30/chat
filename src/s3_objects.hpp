@@ -21,7 +21,7 @@ struct s3_settings
 struct s3_error
 {
     int status;
-    std::string detail;
+    std::string_view reason;
 };
 
 class s3_objects

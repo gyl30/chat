@@ -158,21 +158,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
         }
         if (inviting)
         {
-            auto invited = invite_group_members(db, conversation, actor, members);
-            if (!invited)
-            {
-                return std::unexpected(std::move(invited.error()));
-            }
-            if (auto const* value = std::get_if<bool>(&*invited))
-            {
-                return *value;
-            }
-            switch (std::get<group_invite_rejection>(*invited))
-            {
-                case group_invite_rejection::unavailable: return group_member_rejection::unavailable;
-                case group_invite_rejection::permission_denied: return group_member_rejection::permission_denied;
-                case group_invite_rejection::contact_required: return group_member_rejection::member_not_found;
-            }
+            return invite_group_members(db, conversation, actor, members);
         }
         auto action = group_member_action::leave;
         if (setting_admin)
@@ -211,7 +197,11 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
                 break;
             case group_member_rejection::member_not_found:
                 code = -32005;
-                message = inviting ? "Invitees must be your contacts" : "Member unavailable";
+                message = "Member unavailable";
+                break;
+            case group_member_rejection::contact_required:
+                code = -32005;
+                message = "Invitees must be your contacts";
                 break;
             case group_member_rejection::admin_limit: code = -32010; message = "At most three administrators are allowed"; break;
         }

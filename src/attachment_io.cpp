@@ -71,7 +71,7 @@ boost::capy::task<std::optional<staged_attachment>> stage_attachment(
     {
         // A timed-out PUT can still complete remotely. Keep its reservation
         // for the delayed recovery pass rather than deleting it immediately.
-        spdlog::warn("attachment upload failed (S3 status {})", checksum.error().status);
+        spdlog::warn("attachment upload failed: {} (S3 status {})", checksum.error().reason, checksum.error().status);
         co_return std::nullopt;
     }
     co_return staged_attachment{std::move(key), std::move(*checksum)};
@@ -99,7 +99,7 @@ boost::capy::task<std::expected<attachment_chunk, attachment_download_error>> do
                                        std::min(chat::attachment_chunk_size, size - offset));
     if (!bytes)
     {
-        spdlog::warn("attachment download failed (S3 status {})", bytes.error().status);
+        spdlog::warn("attachment download failed: {} (S3 status {})", bytes.error().reason, bytes.error().status);
         co_return std::unexpected(attachment_download_error::failed);
     }
     co_return attachment_chunk{size, std::move(*bytes)};

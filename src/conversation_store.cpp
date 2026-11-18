@@ -373,7 +373,7 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_grou
     return changed;
 }
 
-std::expected<std::variant<bool, group_invite_rejection>, sqlite_error> invite_group_members(
+std::expected<std::variant<bool, group_member_rejection>, sqlite_error> invite_group_members(
     sqlite_database& db, std::int64_t group, std::int64_t actor, std::span<std::int64_t const> invitees)
 {
     auto transaction = sqlite_transaction::begin_immediate(db);
@@ -402,11 +402,11 @@ std::expected<std::variant<bool, group_invite_rejection>, sqlite_error> invite_g
         }
         if (!*row)
         {
-            return group_invite_rejection::unavailable;
+            return group_member_rejection::unavailable;
         }
         if (group_state->column_int64(0) == 0)
         {
-            return group_invite_rejection::permission_denied;
+            return group_member_rejection::permission_denied;
         }
         watermark = group_state->column_int64(1);
     }
@@ -417,7 +417,7 @@ std::expected<std::variant<bool, group_invite_rejection>, sqlite_error> invite_g
     }
     if (!*allowed)
     {
-        return group_invite_rejection::contact_required;
+        return group_member_rejection::contact_required;
     }
 
     bool added = false;
