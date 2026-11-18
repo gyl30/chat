@@ -53,7 +53,7 @@ std::expected<std::variant<message_write, message_write_rejection>, sqlite_error
         auto access = db.prepare(R"SQL(
             SELECT c.kind FROM conversations c
             JOIN conversation_members own ON c.id=own.conversation_id AND own.user_id=?1
-            WHERE c.id=?2 AND (c.kind='group' OR c.direct_user_low=c.direct_user_high OR EXISTS(
+            WHERE c.id=?2 AND (c.kind='group' OR EXISTS(
                 SELECT 1 FROM contacts WHERE owner_id=?1
                     AND contact_id=CASE WHEN c.direct_user_low=?1 THEN c.direct_user_high ELSE c.direct_user_low END))
         )SQL", message.sender, message.conversation);

@@ -294,6 +294,15 @@ sqlite_transaction::~sqlite_transaction()
     }
 }
 
+std::expected<sqlite_transaction, sqlite_error> sqlite_transaction::begin_read(sqlite_database& database)
+{
+    if (auto error = database.exec("BEGIN"); error)
+    {
+        return std::unexpected(std::move(error));
+    }
+    return sqlite_transaction(&database);
+}
+
 std::expected<sqlite_transaction, sqlite_error> sqlite_transaction::begin_immediate(sqlite_database& database)
 {
     if (auto error = database.exec("BEGIN IMMEDIATE"); error)

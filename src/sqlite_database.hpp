@@ -154,6 +154,8 @@ class sqlite_transaction
     sqlite_transaction& operator=(sqlite_transaction const&) = delete;
     ~sqlite_transaction();
 
+    static std::expected<sqlite_transaction, sqlite_error> begin_read(sqlite_database& database);
+
     // BEGIN IMMEDIATE takes the write lock before the first read so a
     // check-then-write sequence cannot interleave with another writer.
     static std::expected<sqlite_transaction, sqlite_error> begin_immediate(sqlite_database& database);

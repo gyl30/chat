@@ -89,9 +89,10 @@ boost::capy::task<int> exercise_silo()
             if (db)
             {
                 check(db->exec(R"SQL(
-                    INSERT INTO users(username,password_hash,last_seen_at) VALUES('Alice',printf('%060d',1),0);
-                    INSERT INTO conversations(kind,activity,direct_user_low,direct_user_high) VALUES('direct',0,1,1);
-                    INSERT INTO conversation_members(conversation_id,user_id) VALUES(1,1);
+                    INSERT INTO users(username,password_hash,last_seen_at) VALUES('Alice',printf('%060d',1),0),('Bob',printf('%060d',2),0);
+                    INSERT INTO conversations(kind,activity,direct_user_low,direct_user_high) VALUES('direct',0,1,2);
+                    INSERT INTO conversation_members(conversation_id,user_id) VALUES(1,1),(1,2);
+                    INSERT INTO contacts(owner_id,contact_id,created_at) VALUES(1,2,0),(2,1,0);
                     CREATE TABLE failure(message INTEGER REFERENCES messages(id) DEFERRABLE INITIALLY DEFERRED);
                     CREATE TRIGGER fail_attachment_commit AFTER INSERT ON message_attachments
                     BEGIN INSERT INTO failure(message) VALUES(-1); END;

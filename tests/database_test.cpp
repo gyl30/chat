@@ -19,6 +19,7 @@
 #include "database.hpp"
 #include "friendship_store.hpp"
 #include "message_store.hpp"
+#include "message_history.hpp"
 #include "schema.hpp"
 
 namespace
@@ -317,12 +318,12 @@ void message_write_tests()
     }
     check(left->exec(R"SQL(
         INSERT INTO users(username,password_hash,last_seen_at)
-            VALUES('Alice',printf('%060d',1),0),('Bob',printf('%060d',2),0);
+            VALUES('Alice',printf('%060d',1),0),('Bob',printf('%060d',2),0),('Carol',printf('%060d',3),0);
         INSERT INTO conversations(kind,activity,direct_user_low,direct_user_high)
-            VALUES('direct',0,1,2),('direct',0,1,1);
-        INSERT INTO conversation_members(conversation_id,user_id) VALUES(1,1),(1,2),(2,1);
-        INSERT INTO contacts(owner_id,contact_id,created_at) VALUES(1,2,0),(2,1,0);
-    )SQL").ok(), "seed direct and self conversations");
+            VALUES('direct',0,1,2),('direct',0,1,3),('direct',0,1,1);
+        INSERT INTO conversation_members(conversation_id,user_id) VALUES(1,1),(1,2),(2,1),(2,3),(3,1);
+        INSERT INTO contacts(owner_id,contact_id,created_at) VALUES(1,2,0),(2,1,0),(1,3,0),(3,1,0);
+    )SQL").ok(), "seed direct conversations and historical self conversation");
 
     message_to_write draft{1, 1, 9, "original text", {}};
     std::barrier start(2);
@@ -351,6 +352,8 @@ void message_write_tests()
           "client ID cannot be reused in a different conversation");
     check(rejected_as(write_message(*right, {1, 2, 10, "cross conversation", a->id}), invalid_reply),
           "cross-conversation reply is rejected");
+    check(rejected_as(write_message(*right, {1, 3, 10, "new self communication", {}}), unavailable),
+          "historical self conversation remains read-only");
     check(left->exec("UPDATE messages SET deleted=1,body=''").ok(), "mark original target deleted");
     check(rejected_as(write_message(*right, {1, 1, 10, "deleted target", a->id}), invalid_reply),
           "a new reply cannot point to a deleted message");
@@ -366,6 +369,45 @@ void message_write_tests()
     check(rejected_as(write_message(*right, draft), unavailable),
           "replay cannot bypass membership");
     check(count(*left, "messages") == 1, "rejected and replayed requests add no persisted rows");
+
+    check(left->exec(R"SQL(
+        WITH RECURSIVE ids(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM ids WHERE n<55)
+        INSERT INTO messages(conversation_id,sender_id,body,created_at,client_id)
+        SELECT 2,1,'page '||n,n,100+n FROM ids;
+    )SQL").ok(), "seed a multi-page conversation");
+    auto latest = read_message_history(*left, 1, 2, {}, {});
+    check(latest && *latest && (*latest)->messages.size() == 50 && (*latest)->has_more,
+          "latest history returns 50 messages and the older page indicator");
+    if (!latest || !*latest || (*latest)->messages.size() != 50)
+    {
+        return;
+    }
+    auto const first_id = (*latest)->messages.front().id;
+    auto const last_id = (*latest)->messages.back().id;
+    check((*latest)->messages.front().client_id == 106 && (*latest)->messages.back().client_id == 155,
+          "latest history is ascending and includes sender-owned client IDs");
+    auto older = read_message_history(*right, 3, 2, first_id, {});
+    check(older && *older && (*older)->messages.size() == 5 && !(*older)->has_more &&
+          (*older)->messages.back().id < first_id && !(*older)->messages.front().client_id,
+          "older history is exclusive, complete and hides another user's client ID");
+    auto after = read_message_history(*left, 3, 2, {}, first_id);
+    check(after && *after && (*after)->messages.size() == 49 && !(*after)->has_more &&
+          (*after)->messages.front().id > first_id && (*after)->messages.back().id == last_id,
+          "reconnect cursor returns newer messages in ascending order");
+    auto outsider = read_message_history(*left, 2, 2, {}, {});
+    check(outsider && !*outsider, "non-member cannot query history");
+    auto recorded = update_read_position(*left, 3, 2, last_id);
+    auto lower = update_read_position(*right, 3, 2, first_id);
+    auto cross_conversation = update_read_position(*right, 3, 2, a->id);
+    auto unauthorized = update_read_position(*right, 2, 2, last_id);
+    check(recorded && *recorded == last_id && lower && *lower == last_id,
+          "read position persists and cannot regress after an older acknowledgement");
+    check(cross_conversation && !*cross_conversation && unauthorized && !*unauthorized,
+          "read update requires membership and a message in the same conversation");
+    auto snapshot = read_message_history(*left, 3, 2, {}, last_id);
+    check(snapshot && *snapshot && (*snapshot)->messages.empty() && (*snapshot)->read_positions.size() == 2 &&
+          (*snapshot)->read_positions.back().user == 3 && (*snapshot)->read_positions.back().message == last_id,
+          "empty incremental history still returns authoritative reading positions");
 }
 
 boost::capy::task<> gated_job(database& db, std::promise<void>& started, std::future<void>& gate, std::atomic<int>& done)
