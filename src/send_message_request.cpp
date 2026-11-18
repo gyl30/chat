@@ -13,9 +13,11 @@
 
 #include "chat_session.hpp"
 #include "message_payload.hpp"
-#include "message_mentions.hpp"
-#include "message_query.hpp"
-#include "pg_connection_pool.hpp"
+#include "attachment_io.hpp"
+#include "database.hpp"
+#include "message_history.hpp"
+#include "message_store.hpp"
+#include <sqlite3.h>
 
 namespace
 {
@@ -87,6 +89,52 @@ simdjson::error_code parse_send_message_params(json_rpc_params& params, send_mes
     return simdjson::SUCCESS;
 }
 
+struct delivery
+{
+    std::string acknowledgement;
+    std::string notification;
+};
+
+using send_outcome = std::variant<delivery, message_write_rejection>;
+
+std::expected<send_outcome, sqlite_error> format_delivery(sqlite_database& db, std::int64_t user,
+    std::int64_t conversation, message_write_outcome const& outcome)
+{
+    if (auto const* rejected = std::get_if<message_write_rejection>(&outcome))
+    {
+        return *rejected;
+    }
+    auto const& sent = std::get<message_write>(outcome);
+    auto message = read_message(db, user, conversation, sent.id);
+    if (!message)
+    {
+        return std::unexpected(std::move(message.error()));
+    }
+    if (!*message)
+    {
+        return message_write_rejection::unavailable;
+    }
+    delivery result;
+    auto value = make_message_payload(**message, true);
+    if (simdjson::builder::to_json_string(value).get(result.acknowledgement))
+    {
+        return std::unexpected(sqlite_error{SQLITE_ERROR, "cannot serialize message acknowledgement"});
+    }
+    if (sent.inserted)
+    {
+        value.client_id.reset();
+        if (simdjson::builder::to_json_string(message_notification{"2.0", "message", std::move(value)}).get(result.notification))
+        {
+            return std::unexpected(sqlite_error{SQLITE_ERROR, "cannot serialize message notification"});
+        }
+        if (result.notification.size() > kMaxMessageSize)
+        {
+            return std::unexpected(sqlite_error{SQLITE_TOOBIG, "message exceeds the frame limit"});
+        }
+    }
+    return result;
+}
+
 }    // namespace
 
 boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_rpc_request& request, std::string& response)
@@ -113,326 +161,147 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         }
         co_return simdjson::SUCCESS;
     }
-    if (!attaching)
-    {
-        // A message already stored under this client_id is returned as it is now, without checks for a new send.
-        auto sent = co_await find_sent_message(*params.client_id);
-        if (!sent)
+    auto const user = *user_id_;
+    auto send_text = [&](sqlite_database& db) -> std::expected<send_outcome, sqlite_error> {
+        auto tx = sqlite_transaction::begin_immediate(db);
+        if (!tx)
         {
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            co_return simdjson::SUCCESS;
+            return std::unexpected(std::move(tx.error()));
         }
-        if (*sent)
+        auto result = insert_message(db, {user, params.conversation, *params.client_id, params.text, params.reply_to});
+        if (!result)
         {
-            if (!request.id.present)
-            {
-                co_return simdjson::SUCCESS;
-            }
-            if ((*sent)->conversation != params.conversation || (!(*sent)->deleted && (*sent)->attachment))
-            {
-                co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
-            }
-            if (!(*sent)->member)
-            {
-                co_return serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response);
-            }
-            co_return serialize_json_rpc_success((*sent)->json, std::move(request.id), response);
+            return std::unexpected(std::move(result.error()));
         }
-    }
+        auto formatted = format_delivery(db, user, params.conversation, *result);
+        if (!formatted)
+        {
+            return formatted;
+        }
+        if (auto error = tx->commit(); error)
+        {
+            return std::unexpected(std::move(error));
+        }
+        return formatted;
+    };
 
-    std::optional<attachment_upload> attachment;
+    std::expected<send_outcome, sqlite_error> delivered;
     if (attaching)
     {
         if (!request.id.present)
         {
             co_return simdjson::SUCCESS;
         }
-        if (!upload_ || upload_->id != *params.upload ||
-            upload_->content.size() != static_cast<std::size_t>(upload_->size))
+        if (!upload_ || upload_->id != *params.upload || upload_->content.size() != static_cast<std::size_t>(upload_->size))
         {
             co_return serialize_json_rpc_error(-32008, "Attachment upload incomplete", std::move(request.id), response);
         }
         params.conversation = upload_->conversation;
-        params.client_id = upload_->client_id;
-        params.text = upload_->filename;
-        // 请求持有内容，成员移除可以清理 session 而不破坏挂起的 finish。
-        attachment = std::move(upload_);
-        upload_.reset();
-    }
-
-    message_notification notification{};
-    notification.params.id = std::numeric_limits<std::int64_t>::max();
-    notification.params.conversation = params.conversation;
-    notification.params.from = *user_id_;
-    notification.params.username = username_;
-    notification.params.timestamp = std::numeric_limits<std::int64_t>::max();
-    notification.params.text = std::move(params.text);
-    if (attaching)
-    {
         std::string media_type = "application/octet-stream";
-        std::string_view bytes(attachment->content);
-        if (bytes.starts_with(std::string_view("\x89PNG\r\n\x1a\n", 8)))
+        if (upload_->content.starts_with(std::string_view("\x89PNG\r\n\x1a\n", 8)))
         {
             media_type = "image/png";
         }
-        else if (bytes.starts_with(std::string_view("\xff\xd8\xff", 3)))
+        else if (upload_->content.starts_with(std::string_view("\xff\xd8\xff", 3)))
         {
             media_type = "image/jpeg";
         }
-        notification.params.attachment = chat::attachment_info{attachment->filename, std::move(media_type), attachment->size};
-    }
-
-    std::string notification_json;
-    auto error = simdjson::builder::to_json_string(notification).get(notification_json);
-    if (error)
-    {
-        co_return error;
-    }
-    if (notification_json.size() > kMaxMessageSize)
-    {
-        if (request.id.present)
-        {
-            co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
-        }
-        co_return simdjson::SUCCESS;
-    }
-
-    std::string id_text;
-    std::string timestamp_text;
-    {
-        auto lease = co_await database_.acquire();
-        if (lease.error())
-        {
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            co_return simdjson::SUCCESS;
-        }
-
-        auto& connection = lease.connection();
-        auto begun = co_await connection.execute_row("BEGIN");
-        auto locked = co_await connection.execute_row("SELECT id::text FROM conversations WHERE id=$1::bigint FOR UPDATE",
-            {std::to_string(params.conversation)});
-        if (std::get<0>(begun) || std::get<0>(locked))
-        {
-            connection.close();
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            co_return simdjson::SUCCESS;
-        }
-        auto allowed = co_await check_conversation_send(connection, params.conversation);
-        if (!allowed || !*allowed)
-        {
-            auto rolled_back = co_await connection.execute_row("ROLLBACK");
-            if (std::get<0>(rolled_back)) { connection.close(); }
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_error(allowed ? -32006 : -32000,
-                    allowed ? "Communication not allowed" : "Server error", std::move(request.id), response);
-            }
-            co_return simdjson::SUCCESS;
-        }
-
-        if (params.reply_to)
-        {
-            auto quoted = co_await connection.execute_row(
-                "SELECT r.id::text,r.sender_id::text,u.username,left(r.body,160),COALESCE(((extract(epoch FROM "
-                "r.edited_at)*1000)::bigint)::text,'') FROM messages r JOIN users u ON u.id=r.sender_id "
-                "WHERE r.id=$1::bigint AND r.conversation_id=$2::bigint AND NOT r.deleted",
-                {std::to_string(*params.reply_to), std::to_string(params.conversation)});
-            auto& [quote_ec, quote] = quoted;
-            if (quote_ec)
-            {
-                connection.close();
-                if (request.id.present)
-                {
-                    co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-                }
-                co_return simdjson::SUCCESS;
-            }
-            if (!quote)
-            {
-                auto rolled_back = co_await connection.execute_row("ROLLBACK");
-                if (std::get<0>(rolled_back)) { connection.close(); }
-                if (request.id.present)
-                {
-                    co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
-                }
-                co_return simdjson::SUCCESS;
-            }
-            notification.params.reply = quoted_message_payload{
-                std::stoll(quote->at(0)), std::stoll(quote->at(1)), quote->at(2), quote->at(3),
-                quote->at(4).empty() ? std::nullopt : std::optional<std::int64_t>(std::stoll(quote->at(4))), false};
-        }
-
-        std::vector<std::string> parameters;
-        parameters.emplace_back(std::to_string(*user_id_));
-        parameters.emplace_back(std::to_string(params.conversation));
-        parameters.emplace_back(notification.params.text);
-        parameters.emplace_back(params.reply_to ? std::to_string(*params.reply_to) : "");
-        parameters.emplace_back(attaching ? attachment->filename : "");
-        parameters.emplace_back(attaching ? notification.params.attachment->media_type : "");
-        parameters.emplace_back(attaching ? std::to_string(attachment->size) : "0");
-        parameters.emplace_back(attaching ? chat::detail::encode_base64(attachment->content) : "");
-        parameters.emplace_back(std::to_string(*params.client_id));
-        auto query_result = co_await lease.connection().execute_row(
-            "WITH locked AS (UPDATE conversations SET activity=(extract(epoch FROM clock_timestamp())*1000)::bigint "
-            "WHERE id=$2::bigint AND EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=$2::bigint AND "
-            "user_id=$1::bigint) RETURNING id), "
-            "inserted AS (INSERT INTO messages(sender_id,conversation_id,body,reply_to_id,client_id) SELECT "
-            "$1::bigint,id,$3,NULLIF($4,'')::bigint,$9::bigint FROM locked "
-            "RETURNING id,created_at), "
-            "attached AS (INSERT INTO message_attachments(message_id,filename,media_type,size,data) "
-            "SELECT id,$5,$6,$7::bigint,decode($8,'base64') FROM inserted WHERE $5<>'' RETURNING message_id) "
-            "SELECT inserted.id::text,((extract(epoch FROM "
-            "created_at)*1000)::bigint)::text,u.username,u.avatar_revision::text,"
-            "EXISTS(SELECT 1 FROM user_avatars WHERE user_id=u.id)::text "
-            "FROM inserted JOIN users u ON u.id=$1::bigint",
-            std::move(parameters));
-        auto& [query_ec, row] = query_result;
-        if (query_ec)
-        {
-            connection.close();
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            co_return simdjson::SUCCESS;
-        }
-        if (!row)
-        {
-            connection.close();
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response);
-            }
-            co_return simdjson::SUCCESS;
-        }
-        if (row->size() != 5)
-        {
-            connection.close();
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            co_return simdjson::SUCCESS;
-        }
-        id_text = std::move(row->at(0));
-        timestamp_text = std::move(row->at(1));
-        notification.params.username = std::move(row->at(2));
-        notification.params.avatar_revision = std::stoll(row->at(3));
-        notification.params.has_avatar = row->at(4) == "true";
-        auto mentioned = co_await refresh_message_mentions(connection, params.conversation,
-            std::stoll(id_text), attaching ? std::string{} : notification.params.text);
-        auto& [mention_ec, mentions] = mentioned;
-        if (mention_ec)
-        {
-            connection.close();
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            co_return simdjson::SUCCESS;
-        }
-        notification.params.mentions = std::move(mentions);
-        notification_json.clear();
-        error = simdjson::builder::to_json_string(notification).get(notification_json);
-        if (error || notification_json.size() > kMaxMessageSize)
-        {
-            connection.close();
-            if (error) { co_return error; }
-            if (request.id.present) { co_return serialize_json_rpc_invalid_params(std::move(request.id), response); }
-            co_return simdjson::SUCCESS;
-        }
-        auto ended = co_await connection.execute_row("COMMIT");
-        if (std::get<0>(ended))
-        {
-            connection.close();
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            co_return simdjson::SUCCESS;
-        }
-
-    }
-    auto const* first = id_text.data();
-    auto const* last = first + id_text.size();
-    auto [end, parse_error] = std::from_chars(first, last, notification.params.id);
-    if (parse_error != std::errc{} || end != last)
-    {
-        if (request.id.present)
+        completed_attachment_upload contents{user, params.conversation, upload_->client_id, params.reply_to,
+            std::move(upload_->filename), std::move(media_type), std::move(upload_->content)};
+        upload_.reset();
+        auto published = co_await publish_attachment(database_, objects_, std::move(contents));
+        if (!published)
         {
             co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
         }
-        co_return simdjson::SUCCESS;
+        delivered = co_await database_.run([&](sqlite_database& db) {
+            auto tx = sqlite_transaction::begin_read(db);
+            if (!tx)
+            {
+                return std::expected<send_outcome, sqlite_error>{std::unexpected(std::move(tx.error()))};
+            }
+            return format_delivery(db, user, params.conversation, *published);
+        });
     }
-
-    first = timestamp_text.data();
-    last = first + timestamp_text.size();
-    auto [timestamp_end, timestamp_error] = std::from_chars(first, last, notification.params.timestamp);
-    if (timestamp_error != std::errc{} || timestamp_end != last)
+    else
     {
-        if (request.id.present)
+        delivered = co_await database_.run(send_text);
+    }
+    if (!delivered)
+    {
+        if (!request.id.present)
         {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            co_return simdjson::SUCCESS;
         }
-        co_return simdjson::SUCCESS;
+        co_return delivered.error().code == SQLITE_TOOBIG
+            ? serialize_json_rpc_invalid_params(std::move(request.id), response)
+            : serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
-
-    notification_json.clear();
-    error = simdjson::builder::to_json_string(notification).get(notification_json);
-    if (error)
+    if (auto const* rejected = std::get_if<message_write_rejection>(&*delivered))
     {
-        co_return error;
+        if (!request.id.present)
+        {
+            co_return simdjson::SUCCESS;
+        }
+        co_return *rejected == message_write_rejection::unavailable
+            ? serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response)
+            : serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
-
-    co_await publish_conversation(params.conversation, std::move(notification_json));
-
+    auto& result = std::get<delivery>(*delivered);
+    if (!result.notification.empty())
+    {
+        co_await publish_conversation(params.conversation, std::move(result.notification));
+    }
     if (!request.id.present)
     {
         co_return simdjson::SUCCESS;
     }
-    notification.params.client_id = params.client_id;
-    std::string payload;
-    error = simdjson::builder::to_json_string(notification.params).get(payload);
-    if (error)
-    {
-        co_return error;
-    }
-    co_return serialize_json_rpc_success(payload, std::move(request.id), response);
+    co_return serialize_json_rpc_success(result.acknowledgement, std::move(request.id), response);
 }
 
-boost::capy::task<std::expected<std::optional<chat_session::sent_message>, std::error_code>>
+boost::capy::task<std::expected<std::optional<chat_session::sent_message>, sqlite_error>>
 chat_session::find_sent_message(std::int64_t client_id)
 {
-    auto lease = co_await database_.acquire();
-    if (lease.error())
-    {
-        co_return std::unexpected(lease.error());
-    }
-    std::string query = "SELECT v.conversation::text,v.deleted::text,(v.attachment IS NOT NULL)::text,"
-        "EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=v.conversation AND user_id=$1::bigint)::text,"
-        "row_to_json(v)::text FROM (";
-    query += kMessageRow;
-    query += "m.sender_id=$1::bigint AND m.client_id=$2::bigint) v";
-    auto result = co_await lease.connection().execute_row(std::move(query), {std::to_string(*user_id_), std::to_string(client_id)});
-    auto& [ec, row] = result;
-    if (ec || (row && row->size() != 5))
-    {
-        lease.connection().close();
-        co_return std::unexpected(ec ? ec : std::make_error_code(std::errc::bad_message));
-    }
-    if (!row)
-    {
-        co_return std::optional<sent_message>{};
-    }
-    co_return sent_message{std::stoll(row->at(0)), row->at(1) == "true", row->at(2) == "true", row->at(3) == "true",
-                           std::move(row->at(4))};
+    co_return co_await database_.run([=, user=*user_id_](sqlite_database& db)
+        -> std::expected<std::optional<sent_message>, sqlite_error> {
+        auto snapshot = sqlite_transaction::begin_read(db);
+        if (!snapshot)
+        {
+            return std::unexpected(std::move(snapshot.error()));
+        }
+        auto query = db.prepare(R"SQL(
+            SELECT id,conversation_id,deleted,
+                EXISTS(SELECT 1 FROM message_attachments WHERE message_id=m.id)
+            FROM messages m WHERE sender_id=?1 AND client_id=?2
+        )SQL", user, client_id);
+        if (!query)
+        {
+            return std::unexpected(std::move(query.error()));
+        }
+        auto row = query->step();
+        if (!row)
+        {
+            return std::unexpected(std::move(row.error()));
+        }
+        if (!*row)
+        {
+            return std::nullopt;
+        }
+        sent_message result{query->column_int64(1), query->column_int64(2) != 0, query->column_int64(3) != 0, false, {}};
+        auto current = read_message(db, user, result.conversation, query->column_int64(0));
+        if (!current)
+        {
+            return std::unexpected(std::move(current.error()));
+        }
+        if (*current)
+        {
+            result.member = true;
+            auto value = make_message_payload(**current, true);
+            if (simdjson::builder::to_json_string(value).get(result.json))
+            {
+                return std::unexpected(sqlite_error{SQLITE_ERROR, "cannot serialize stored message"});
+            }
+        }
+        return result;
+    });
 }

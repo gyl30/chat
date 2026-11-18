@@ -39,7 +39,8 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
                       online_users& users,
                       invite_attempts& invite_attempts,
                       blocking_worker& passwords,
-                      pg_connection_pool& database,
+                      database& storage,
+                      s3_objects& objects,
                       std::optional<boost::corosio::tls_context> const& tls,
                       chat::detail::websocket_heartbeat_config heartbeat)
         : io_context_(io_context),
@@ -50,7 +51,8 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
           users_(users),
           invite_attempts_(invite_attempts),
           passwords_(passwords),
-          database_(database),
+          database_(storage),
+          objects_(objects),
           parser_(std::move(parser_config)),
           serializer_(std::move(serializer_config))
     {
@@ -154,7 +156,7 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
                 if (!upgrade_ec)
                 {
                     websocket_connection connection(socket_, boost::capy::any_stream(&stream_), heartbeat_config_);
-                    chat_session session(connection, users_, invite_attempts_, passwords_, database_);
+                    chat_session session(connection, users_, invite_attempts_, passwords_, database_, objects_);
                     co_await session.run();
                 }
                 break;
@@ -188,7 +190,8 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
     online_users& users_;
     invite_attempts& invite_attempts_;
     blocking_worker& passwords_;
-    pg_connection_pool& database_;
+    database& database_;
+    s3_objects& objects_;
     boost::http::route_params params_;
     boost::http::request_parser parser_;
     boost::http::serializer serializer_;
@@ -200,12 +203,11 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
 chat_server::chat_server(boost::corosio::io_context& io_context,
                          std::size_t worker_count,
                          boost::http::router<boost::http::route_params> router,
-                         std::string database_connection_string,
-                         std::size_t database_connection_count,
+                         database& storage,
+                         s3_objects& objects,
                          std::optional<boost::corosio::tls_context> tls,
                          chat::detail::websocket_heartbeat_config heartbeat)
-    : database_(io_context, std::move(database_connection_string), database_connection_count),
-      server_(io_context, io_context.get_executor())
+    : server_(io_context, io_context.get_executor())
 {
     auto parser_config = boost::http::make_parser_config(boost::http::parser_config{true});
     auto serializer_config = boost::http::make_serializer_config(boost::http::serializer_config{});
@@ -214,7 +216,7 @@ chat_server::chat_server(boost::corosio::io_context& io_context,
     for (std::size_t i = 0; i < worker_count; ++i)
     {
         workers.push_back(std::make_unique<connection_worker>(
-            io_context, router, parser_config, serializer_config, users_, invite_attempts_, passwords_, database_, tls, heartbeat));
+            io_context, router, parser_config, serializer_config, users_, invite_attempts_, passwords_, storage, objects, tls, heartbeat));
     }
     server_.set_workers(std::move(workers));
 }

@@ -11,7 +11,8 @@
 
 #include "chat_session.hpp"
 #include "avatar_image.hpp"
-#include "pg_connection_pool.hpp"
+#include "database.hpp"
+#include "user_store.hpp"
 
 boost::capy::task<simdjson::error_code> chat_session::handle_avatar(json_rpc_request& request, std::string& response)
 {
@@ -95,32 +96,34 @@ boost::capy::task<simdjson::error_code> chat_session::handle_avatar(json_rpc_req
         {
             co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
         }
-        auto lease = co_await database_.acquire();
-        if (lease.error())
+        auto image = co_await database_.run([&](sqlite_database& db) {
+            return read_avatar_chunk(db, params.user, params.revision, params.offset);
+        });
+        if (!image)
         {
             co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
         }
-        auto result = co_await lease.connection().execute_row(
-            "SELECT json_build_object('user',u.id,'avatar_revision',u.avatar_revision,'has_avatar',a.user_id IS NOT NULL,"
-            "'offset',CASE WHEN u.avatar_revision=$2::bigint AND a.user_id IS NOT NULL THEN $3::bigint ELSE 0 END,"
-            "'size',CASE WHEN u.avatar_revision=$2::bigint THEN COALESCE(a.size,0) ELSE 0 END,"
-            "'media_type',CASE WHEN u.avatar_revision=$2::bigint THEN COALESCE(a.media_type,'') ELSE '' END,"
-            "'data',CASE WHEN u.avatar_revision=$2::bigint THEN COALESCE("
-            "replace(encode(substring(a.data FROM $3::int+1 FOR 32768),'base64'),chr(10),''),'') ELSE '' END,"
-            "'has_more',u.avatar_revision=$2::bigint AND $3::bigint+32768<COALESCE(a.size,0))::text "
-            "FROM users u LEFT JOIN user_avatars a ON a.user_id=u.id WHERE u.id=$1::bigint "
-            "AND (u.avatar_revision<>$2::bigint OR $3::bigint<=COALESCE(a.size,0))",
-            {std::to_string(params.user), std::to_string(params.revision), std::to_string(params.offset)});
-        auto& [ec, row] = result;
-        if (ec)
-        {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        if (!row)
+        if (!*image)
         {
             co_return serialize_json_rpc_error(-32010, "Avatar unavailable", std::move(request.id), response);
         }
-        co_return serialize_json_rpc_success(row->front(), std::move(request.id), response);
+        struct avatar_result
+        {
+            std::int64_t user, avatar_revision;
+            bool has_avatar;
+            std::int64_t offset, size;
+            std::string media_type, data;
+            bool has_more;
+        };
+        auto const& chunk = **image;
+        avatar_result value{params.user, chunk.state.revision, chunk.state.present, chunk.offset, chunk.size,
+                            chunk.media_type, chat::detail::encode_base64(chunk.bytes), chunk.has_more};
+        std::string payload;
+        if (auto error = simdjson::builder::to_json_string(value).get(payload))
+        {
+            co_return error;
+        }
+        co_return serialize_json_rpc_success(payload, std::move(request.id), response);
     }
     if (request.method == "cancel_avatar_upload")
     {
@@ -177,109 +180,32 @@ boost::capy::task<simdjson::error_code> chat_session::handle_avatar(json_rpc_req
             co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
         }
     }
-    auto lease = co_await database_.acquire();
-    if (lease.error())
+    auto changed = co_await database_.run([&, user=*user_id_](sqlite_database& db) {
+        return clearing ? clear_avatar(db, user) : save_avatar(db, user, media_type, content);
+    });
+    if (!changed)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
-    auto& connection = lease.connection();
-    auto begun = co_await connection.execute_row("BEGIN");
-    if (std::get<0>(begun))
+    std::string state = "{\"avatar_revision\":" + std::to_string(changed->state.revision) +
+        ",\"has_avatar\":" + (changed->state.present ? "true}" : "false}");
+    if (changed->changed)
     {
-        connection.close();
-        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-    }
-    if (clearing)
-    {
-        auto locked = co_await connection.execute_scalar(
-            "SELECT avatar_revision::text FROM users WHERE id=$1::bigint FOR UPDATE", {std::to_string(*user_id_)});
-        if (std::get<0>(locked))
+        std::string notification =
+            "{\"jsonrpc\":\"2.0\",\"method\":\"avatar\",\"params\":{\"user\":" + std::to_string(*user_id_) + "," + state.substr(1) + "}";
+        enqueue_message(notification);
+        auto recipients = co_await database_.run([user=*user_id_](sqlite_database& db) {
+            return read_avatar_recipients(db, user);
+        });
+        if (recipients)
         {
-            connection.close();
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        auto removed = co_await connection.execute_row(
-            "DELETE FROM user_avatars WHERE user_id=$1::bigint RETURNING user_id::text", {std::to_string(*user_id_)});
-        if (std::get<0>(removed))
-        {
-            connection.close();
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        if (!std::get<1>(removed))
-        {
-            auto committed = co_await connection.execute_row("COMMIT");
-            if (std::get<0>(committed))
-            {
-                connection.close();
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            co_return serialize_json_rpc_success(
-                "{\"avatar_revision\":" + std::get<1>(locked) + ",\"has_avatar\":false}", std::move(request.id), response);
-        }
-    }
-    auto revised = co_await connection.execute_scalar(
-        "UPDATE users SET avatar_revision=avatar_revision+1 WHERE id=$1::bigint RETURNING avatar_revision::text", {std::to_string(*user_id_)});
-    auto& [revision_ec, revision] = revised;
-    if (revision_ec)
-    {
-        connection.close();
-        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-    }
-    if (!clearing)
-    {
-        auto written = co_await connection.execute_row(
-            "INSERT INTO user_avatars(user_id,media_type,size,data) VALUES($1::bigint,$2,$3::bigint,decode($4,'base64')) "
-            "ON CONFLICT(user_id) DO UPDATE SET media_type=EXCLUDED.media_type,size=EXCLUDED.size,data=EXCLUDED.data,"
-            "updated_at=CURRENT_TIMESTAMP",
-            {std::to_string(*user_id_), media_type, std::to_string(content.size()), chat::detail::encode_base64(content)});
-        if (std::get<0>(written))
-        {
-            connection.close();
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-    }
-    auto committed = co_await connection.execute_row("COMMIT");
-    if (std::get<0>(committed))
-    {
-        connection.close();
-        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-    }
-    std::string state = "{\"avatar_revision\":" + revision + ",\"has_avatar\":" + (clearing ? "false}" : "true}");
-    std::string notification =
-        "{\"jsonrpc\":\"2.0\",\"method\":\"avatar\",\"params\":{\"user\":" + std::to_string(*user_id_) + "," + state.substr(1) + "}";
-    enqueue_message(notification);
-    auto watchers_result = co_await connection.execute_scalar(
-        "SELECT COALESCE(string_agg(peer::text,',' ORDER BY peer),'') FROM ("
-        "SELECT CASE WHEN owner_id=$1::bigint THEN contact_id ELSE owner_id END AS peer FROM contacts "
-        "WHERE owner_id=$1::bigint OR contact_id=$1::bigint UNION "
-        "SELECT CASE WHEN direct_user_low=$1::bigint THEN direct_user_high ELSE direct_user_low END "
-        "FROM conversations WHERE kind='direct' AND (direct_user_low=$1::bigint OR direct_user_high=$1::bigint) UNION "
-        "SELECT m.user_id FROM conversation_members own JOIN conversation_members m ON m.conversation_id=own.conversation_id "
-        "JOIN conversations c ON c.id=own.conversation_id WHERE own.user_id=$1::bigint AND c.kind='group'"
-        ") peers WHERE peer<>$1::bigint",
-        {std::to_string(*user_id_)});
-    auto& [watchers_ec, watchers] = watchers_result;
-    if (!watchers_ec)
-    {
-        std::string_view remaining = watchers;
-        while (!remaining.empty())
-        {
-            auto const separator = remaining.find(',');
-            auto token = remaining.substr(0, separator);
-            std::int64_t peer = 0;
-            auto const [end, ec] = std::from_chars(token.data(), token.data() + token.size(), peer);
-            if (ec == std::errc{} && end == token.data() + token.size())
+            for (auto const peer : *recipients)
             {
                 if (auto* session = users_.find(peer))
                 {
                     session->enqueue_message(notification);
                 }
             }
-            if (separator == std::string_view::npos)
-            {
-                break;
-            }
-            remaining.remove_prefix(separator + 1);
         }
     }
     co_return serialize_json_rpc_success(state, std::move(request.id), response);

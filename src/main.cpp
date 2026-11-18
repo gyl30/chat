@@ -7,6 +7,12 @@
 #include <string_view>
 #include <system_error>
 #include <optional>
+#include <chrono>
+#include <limits>
+
+#include <fcntl.h>
+#include <sys/file.h>
+#include <unistd.h>
 
 #include <spdlog/spdlog.h>
 #include <boost/capy/task.hpp>
@@ -21,12 +27,48 @@
 
 #include "server.hpp"
 #include "tls_config.hpp"
+#include "database.hpp"
+#include "attachment_io.hpp"
 
 namespace
 {
 
 constexpr std::string_view kHealthBody = R"({"status":"ok"})";
 constexpr std::string_view kNotFoundBody = "not found";
+
+struct database_lock
+{
+    int descriptor;
+    ~database_lock()
+    {
+        if (descriptor >= 0)
+        {
+            close(descriptor);
+        }
+    }
+};
+
+std::string environment(char const* name)
+{
+    auto const* value = std::getenv(name);
+    return value ? value : "";
+}
+
+boost::capy::task<void> recover_objects(database& db, s3_objects& objects, bool final_pass)
+{
+    auto const cutoff = final_pass ? std::numeric_limits<std::int64_t>::max()
+        : std::chrono::duration_cast<std::chrono::milliseconds>(
+            (std::chrono::system_clock::now() - std::chrono::minutes(1)).time_since_epoch()).count();
+    auto result = co_await recover_attachment_objects(db, objects, cutoff);
+    if (!result)
+    {
+        spdlog::warn("attachment cleanup remains pending");
+    }
+    else if (*result)
+    {
+        spdlog::info("removed {} abandoned attachment objects", *result);
+    }
+}
 
 template <class T>
 bool parse_positive(std::string_view input, T& value)
@@ -83,13 +125,12 @@ int main(int argc, char* argv[])
 {
     if (argc < 4)
     {
-        spdlog::error("usage: {} <port> <max-workers> <database-connections> [--tls-cert fullchain.pem --tls-key key.pem]", argv[0]);
+        spdlog::error("usage: {} <port> <max-workers> <sqlite-file> [--tls-cert fullchain.pem --tls-key key.pem]", argv[0]);
         return EXIT_FAILURE;
     }
 
     std::uint16_t port = 0;
     std::size_t max_workers = 0;
-    std::size_t database_connections = 0;
     if (!parse_positive(argv[1], port))
     {
         spdlog::error("invalid port: {}", argv[1]);
@@ -100,12 +141,6 @@ int main(int argc, char* argv[])
         spdlog::error("invalid max-workers: {}", argv[2]);
         return EXIT_FAILURE;
     }
-    if (!parse_positive(argv[3], database_connections))
-    {
-        spdlog::error("invalid database-connections: {}", argv[3]);
-        return EXIT_FAILURE;
-    }
-
     std::optional<std::string_view> certificate_file;
     std::optional<std::string_view> private_key_file;
     for (int i = 4; i < argc; ++i)
@@ -141,13 +176,45 @@ int main(int argc, char* argv[])
         tls.emplace(std::move(*context));
     }
 
+    s3_settings settings{environment("CHAT_S3_ENDPOINT"), environment("CHAT_S3_BUCKET"),
+                         environment("CHAT_S3_ACCESS_KEY"), environment("CHAT_S3_SECRET_KEY"),
+                         environment("CHAT_S3_REGION"), true};
+    auto const https = environment("CHAT_S3_HTTPS");
+    if (settings.endpoint.empty() || settings.bucket.empty() || settings.access_key.empty() ||
+        settings.secret_key.empty() || (!https.empty() && https != "0" && https != "1"))
+    {
+        spdlog::error("set CHAT_S3_ENDPOINT, CHAT_S3_BUCKET, CHAT_S3_ACCESS_KEY, and CHAT_S3_SECRET_KEY. "
+                      "CHAT_S3_HTTPS is optional and accepts 0 or 1");
+        return EXIT_FAILURE;
+    }
+    settings.https = https != "0";
+    if (settings.region.empty())
+    {
+        settings.region = "us-east-1";
+    }
+    database_lock lock{open(argv[3], O_CREAT | O_RDWR | O_CLOEXEC, 0600)};
+    if (lock.descriptor < 0 || flock(lock.descriptor, LOCK_EX | LOCK_NB) != 0)
+    {
+        spdlog::error("cannot open or exclusively lock SQLite file {}", argv[3]);
+        return EXIT_FAILURE;
+    }
+    auto storage = database::open(argv[3]);
+    if (!storage)
+    {
+        spdlog::error("SQLite startup failed: {}", storage.error().message);
+        return EXIT_FAILURE;
+    }
+    s3_objects objects(std::move(settings));
     boost::corosio::io_context io_context;
+    boost::capy::run_async(io_context.get_executor())(recover_objects(**storage, objects, false));
+    io_context.run();
+    io_context.restart();
 
     boost::http::router<boost::http::route_params> router;
     router.add(boost::http::method::get, "/health", health_handler);
     router.use(not_found_handler);
 
-    chat_server server(io_context, max_workers, std::move(router), {}, database_connections, tls);
+    chat_server server(io_context, max_workers, std::move(router), **storage, objects, tls);
     if (auto ec = server.bind(boost::corosio::endpoint(port)))
     {
         spdlog::error("bind failed: {}", ec.message());
@@ -166,13 +233,16 @@ int main(int argc, char* argv[])
         return EXIT_FAILURE;
     }
 
-    spdlog::info("chat server listening on port {} ({}) with {} workers and {} database connections", port, tls ? "TLS" : "plain", max_workers, database_connections);
+    spdlog::info("chat server listening on port {} ({}) with {} workers", port, tls ? "TLS" : "plain", max_workers);
     server.start();
 
     int exit_code = EXIT_FAILURE;
     boost::capy::run_async(io_context.get_executor(), [&exit_code](int result) { exit_code = result; })(wait_for_shutdown(signals, server));
     io_context.run();
     server.join();
+    io_context.restart();
+    boost::capy::run_async(io_context.get_executor())(recover_objects(**storage, objects, true));
+    io_context.run();
 
     return exit_code;
 }

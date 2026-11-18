@@ -16,7 +16,8 @@
 #include "invite_attempts.hpp"
 #include "blocking_worker.hpp"
 #include "online_users.hpp"
-#include "pg_connection_pool.hpp"
+class database;
+class s3_objects;
 
 class chat_server
 {
@@ -24,8 +25,8 @@ class chat_server
     chat_server(boost::corosio::io_context& io_context,
                 std::size_t worker_count,
                 boost::http::router<boost::http::route_params> router,
-                std::string database_connection_string,
-                std::size_t database_connection_count,
+                database& storage,
+                s3_objects& objects,
                 std::optional<boost::corosio::tls_context> tls = std::nullopt,
                 chat::detail::websocket_heartbeat_config heartbeat = {});
 
@@ -43,7 +44,6 @@ class chat_server
     online_users users_;
     invite_attempts invite_attempts_;
     blocking_worker passwords_{64, 2};
-    pg_connection_pool database_;
     boost::corosio::tcp_server server_;
 };
 

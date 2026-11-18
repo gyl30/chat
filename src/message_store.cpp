@@ -87,7 +87,21 @@ std::expected<message_write_outcome, sqlite_error> write_message(
     {
         return std::unexpected(std::move(transaction.error()));
     }
+    auto saved = insert_message(db, message, attachment);
+    if (!saved || !std::holds_alternative<message_write>(*saved))
+    {
+        return saved;
+    }
+    if (auto error = transaction->commit(); error)
+    {
+        return std::unexpected(std::move(error));
+    }
+    return saved;
+}
 
+std::expected<message_write_outcome, sqlite_error> insert_message(
+    sqlite_database& db, message_to_write const& message, uploaded_attachment const* attachment)
+{
     auto preflight = check_message_write(db, message, attachment != nullptr);
     if (!preflight)
     {
@@ -157,10 +171,6 @@ std::expected<message_write_outcome, sqlite_error> write_message(
     if (auto result = activity->step(); !result)
     {
         return std::unexpected(std::move(result.error()));
-    }
-    if (auto error = transaction->commit(); error)
-    {
-        return std::unexpected(std::move(error));
     }
     return message_write{id, true};
 }

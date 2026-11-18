@@ -125,7 +125,6 @@ add_executable(chat_server
     src/authenticate_request.cpp
     src/update_message_request.cpp
     src/reaction_request.cpp
-    src/message_mentions.cpp
     src/conversation_preference_request.cpp
     src/typing_request.cpp
     src/echo_request.cpp
@@ -143,8 +142,6 @@ add_executable(chat_server
     src/invite_attempts.cpp
     src/json_rpc.cpp
     src/online_users.cpp
-    src/pg_connection.cpp
-    src/pg_connection_pool.cpp
     src/server.cpp
     src/tls_config.cpp
     src/websocket.cpp
@@ -161,7 +158,7 @@ target_link_libraries(chat_server
         Boost::http
         Threads::Threads
         OpenSSL::Crypto
-        PostgreSQL::PostgreSQL
+        chat_attachment_storage
         PNG::PNG
         JPEG::JPEG
         simdjson::simdjson

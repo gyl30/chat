@@ -10,12 +10,13 @@
 #include <boost/capy/task.hpp>
 #include "json_rpc.hpp"
 #include "online_users.hpp"
+#include "sqlite_database.hpp"
 #include "websocket.hpp"
 
 class invite_attempts;
 class blocking_worker;
-class pg_connection_pool;
-class pg_connection;
+class database;
+class s3_objects;
 
 class chat_session
 {
@@ -24,7 +25,8 @@ class chat_session
                  online_users& users,
                  invite_attempts& invite_attempts,
                  blocking_worker& passwords,
-                 pg_connection_pool& database);
+                 database& storage,
+                 s3_objects& objects);
 
     boost::capy::task<void> run();
 
@@ -70,8 +72,6 @@ class chat_session
 
     boost::capy::task<void> publish_presence(bool online);
 
-    boost::capy::task<std::expected<bool, std::error_code>> check_conversation_send(pg_connection& connection,
-                                                                                std::int64_t conversation);
     struct sent_message
     {
         std::int64_t conversation;
@@ -81,8 +81,8 @@ class chat_session
         std::string json;
     };
     // The caller's message already stored under client_id, in its current state.
-    boost::capy::task<std::expected<std::optional<sent_message>, std::error_code>> find_sent_message(std::int64_t client_id);
-    boost::capy::task<std::expected<bool, std::error_code>> publish_conversation(std::int64_t conversation,
+    boost::capy::task<std::expected<std::optional<sent_message>, sqlite_error>> find_sent_message(std::int64_t client_id);
+    boost::capy::task<std::expected<bool, sqlite_error>> publish_conversation(std::int64_t conversation,
         std::string notification, bool require_sender_permission = false);
     boost::capy::task<void> publish_join_request(std::int64_t conversation, std::int64_t user, std::string state);
 
@@ -92,7 +92,8 @@ class chat_session
     online_users& users_;
     invite_attempts& invite_attempts_;
     blocking_worker& passwords_;
-    pg_connection_pool& database_;
+    database& database_;
+    s3_objects& objects_;
     std::optional<std::int64_t> user_id_;
     std::string username_;
     std::deque<std::string> outgoing_messages_;

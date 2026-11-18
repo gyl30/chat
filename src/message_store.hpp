@@ -46,4 +46,9 @@ std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_
 std::expected<message_write_outcome, sqlite_error> write_message(
     sqlite_database& db, message_to_write const& message, uploaded_attachment const* attachment = nullptr);
 
+// The caller owns the write transaction and can reject an oversized RPC
+// response before publishing any data.
+std::expected<message_write_outcome, sqlite_error> insert_message(
+    sqlite_database& db, message_to_write const& message, uploaded_attachment const* attachment = nullptr);
+
 #endif

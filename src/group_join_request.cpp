@@ -7,7 +7,8 @@
 #include <simdjson.h>
 
 #include "chat_session.hpp"
-#include "pg_connection_pool.hpp"
+#include "database.hpp"
+#include "group_access_store.hpp"
 
 boost::capy::task<simdjson::error_code> chat_session::handle_group_join_request(json_rpc_request& request, std::string& response)
 {
@@ -51,137 +52,117 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_join_request(
     if (parse_error || !document.at_end() || conversation <= 0 || (before && *before <= 0) ||
         ((configuring || responding) && !choice.has_value()) || (responding && user <= 0))
     { co_return serialize_json_rpc_invalid_params(std::move(request.id), response); }
-    auto lease = co_await database_.acquire();
-    if (lease.error()) { co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response); }
-    auto& connection = lease.connection();
-    auto begun = co_await connection.execute_row("BEGIN");
-    auto locked = co_await connection.execute_row(
-        "SELECT kind,coalesce(owner_id,0)::text FROM conversations WHERE id=$1::bigint FOR UPDATE", {std::to_string(conversation)});
-    auto actor = co_await connection.execute_row(
-        "SELECT is_admin::text FROM conversation_members WHERE conversation_id=$1::bigint AND user_id=$2::bigint",
-        {std::to_string(conversation), std::to_string(*user_id_)});
-    if (std::get<0>(begun) || std::get<0>(locked) || std::get<0>(actor))
+    auto const actor = *user_id_;
+    auto group_error = [&](group_member_rejection reason) {
+        bool const unavailable = reason == group_member_rejection::unavailable;
+        return serialize_json_rpc_error(unavailable ? -32006 : -32009,
+            unavailable ? "Group unavailable" : "Group permission denied", std::move(request.id), response);
+    };
+    if (!configuring && !responding)
     {
-        connection.close();
+        auto requests = co_await database_.run([=](sqlite_database& db) {
+            return read_group_join_requests(db, conversation, actor, before);
+        });
+        if (!requests)
+        {
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        if (auto const* rejected = std::get_if<group_member_rejection>(&*requests))
+        {
+            co_return group_error(*rejected);
+        }
+        auto& page = std::get<chat::group_join_requests_result>(*requests);
+        struct applicant
+        {
+            std::int64_t id;
+            std::string username;
+            std::int64_t avatar_revision;
+            bool has_avatar;
+            std::int64_t created_at;
+        };
+        struct result { std::vector<applicant> requests; std::optional<std::int64_t> next; };
+        result payload{{}, page.next};
+        for (auto& item : page.requests)
+        {
+            auto& user = item.applicant;
+            payload.requests.push_back({user.id, std::move(user.username), user.avatar.revision, user.avatar.present, item.created_at});
+        }
+        co_return serialize_json_rpc_value(payload, std::move(request.id), response);
+    }
+    auto updated = co_await database_.run([=](sqlite_database& db) {
+        return configuring ? set_group_join_approval(db, conversation, actor, *choice) :
+            respond_to_group_join_request(db, conversation, actor, user, *choice);
+    });
+    if (!updated)
+    {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
-    auto const& group = std::get<1>(locked);
-    int error = 0;
-    std::string message, result;
-    bool changed = false;
-    if (!group || (*group)[0] != "group" || !std::get<1>(actor)) { error = -32006; message = "Group unavailable"; }
-    else if ((*group)[1] != std::to_string(*user_id_) && std::get<1>(actor)->front() != "true")
-    { error = -32009; message = "Group permission denied"; }
-    else if (configuring)
+    if (auto const* rejected = std::get_if<group_member_rejection>(&*updated))
     {
-        auto updated = co_await connection.execute_row(
-            "UPDATE conversations SET join_approval=$2::boolean WHERE id=$1::bigint AND join_approval IS DISTINCT FROM $2::boolean RETURNING id::text",
-            {std::to_string(conversation), *choice ? "true" : "false"});
-        if (std::get<0>(updated))
-        {
-            connection.close();
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        changed = std::get<1>(updated).has_value();
+        co_return group_error(*rejected);
     }
-    else if (responding)
+    bool const changed = std::get<bool>(*updated);
+    if (changed)
     {
-        auto removed = co_await connection.execute_row(
-            "DELETE FROM group_join_requests WHERE conversation_id=$1::bigint AND user_id=$2::bigint RETURNING user_id::text",
-            {std::to_string(conversation), std::to_string(user)});
-        if (std::get<0>(removed))
+        if (responding)
         {
-            connection.close();
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            co_await publish_join_request(conversation, user, *choice ? "accepted" : "rejected");
         }
-        changed = std::get<1>(removed).has_value();
-        if (changed && *choice)
+        if (configuring || *choice)
         {
-            auto added = co_await connection.execute_row(
-                "INSERT INTO conversation_members(conversation_id,user_id,joined_message_id) VALUES($1::bigint,$2::bigint,"
-                "(SELECT coalesce(max(id),0) FROM messages WHERE conversation_id=$1::bigint)) ON CONFLICT DO NOTHING",
-                {std::to_string(conversation), std::to_string(user)});
-            if (std::get<0>(added))
-            {
-                connection.close();
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
+            co_await publish_conversation(conversation, R"({"jsonrpc":"2.0","method":"conversation","params":{"conversation":)" +
+                std::to_string(conversation) + "}}");
         }
     }
-    else
-    {
-        auto listed = co_await connection.execute_scalar(R"sql(
-            WITH page AS (
-                SELECT * FROM group_join_requests WHERE conversation_id=$1::bigint
-                AND ($2='' OR user_id<NULLIF($2,'')::bigint) ORDER BY user_id DESC LIMIT 51
-            ), visible AS (SELECT * FROM page ORDER BY user_id DESC LIMIT 50)
-            SELECT json_build_object('requests',coalesce((SELECT json_agg(json_build_object(
-                'id',u.id,'username',u.username,'avatar_revision',u.avatar_revision,
-                'has_avatar',EXISTS(SELECT 1 FROM user_avatars WHERE user_id=u.id),
-                'created_at',(extract(epoch FROM v.created_at)*1000)::bigint) ORDER BY v.user_id DESC)
-                FROM visible v JOIN users u ON u.id=v.user_id),'[]'::json),
-                'next',CASE WHEN (SELECT count(*) FROM page)>50 THEN (SELECT min(user_id) FROM visible) END)::text
-        )sql", {std::to_string(conversation), before ? std::to_string(*before) : std::string{}});
-        if (std::get<0>(listed))
-        {
-            connection.close();
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        result = std::move(std::get<1>(listed));
-    }
-    auto ended = co_await connection.execute_row(error ? "ROLLBACK" : "COMMIT");
-    if (std::get<0>(ended))
-    {
-        connection.close();
-        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-    }
-    lease = {};
-    if (error) { co_return serialize_json_rpc_error(error, message, std::move(request.id), response); }
-    if (changed && responding)
-    {
-        co_await publish_join_request(conversation, user, *choice ? "accepted" : "rejected");
-        if (*choice) { co_await publish_conversation(conversation, "{\"jsonrpc\":\"2.0\",\"method\":\"conversation\",\"params\":{\"conversation\":" + std::to_string(conversation) + "}}"); }
-    }
-    else if (changed)
-    { co_await publish_conversation(conversation, "{\"jsonrpc\":\"2.0\",\"method\":\"conversation\",\"params\":{\"conversation\":" + std::to_string(conversation) + "}}"); }
-    if (configuring || responding) { result = changed ? "{\"changed\":true}" : "{\"changed\":false}"; }
-    co_return serialize_json_rpc_success(result, std::move(request.id), response);
+    co_return serialize_json_rpc_success(changed ? "{\"changed\":true}" : "{\"changed\":false}",
+                                         std::move(request.id), response);
 }
 
 boost::capy::task<void> chat_session::publish_join_request(std::int64_t conversation, std::int64_t user, std::string state)
 {
-    auto lease = co_await database_.acquire();
-    if (lease.error()) { co_return; }
-    auto& connection = lease.connection();
-    auto begun = co_await connection.execute_row("BEGIN");
-    auto locked = co_await connection.execute_row("SELECT id::text FROM conversations WHERE id=$1::bigint FOR UPDATE", {std::to_string(conversation)});
-    auto recipients = co_await connection.execute_scalar(R"sql(
-        SELECT coalesce(string_agg(id::text,','),'') FROM (
-            SELECT m.user_id AS id FROM conversation_members m JOIN conversations c ON c.id=m.conversation_id
-            WHERE m.conversation_id=$1::bigint AND (m.is_admin OR m.user_id=c.owner_id)
-            UNION SELECT $2::bigint
-        ) targets WHERE CASE $3
-            WHEN 'pending' THEN EXISTS(SELECT 1 FROM group_join_requests WHERE conversation_id=$1::bigint AND user_id=$2::bigint)
-            WHEN 'accepted' THEN EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=$1::bigint AND user_id=$2::bigint)
-            WHEN 'rejected' THEN NOT EXISTS(SELECT 1 FROM group_join_requests WHERE conversation_id=$1::bigint AND user_id=$2::bigint)
-                AND NOT EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=$1::bigint AND user_id=$2::bigint)
-        END
-    )sql", {std::to_string(conversation), std::to_string(user), state});
-    if (std::get<0>(begun) || std::get<0>(locked) || std::get<0>(recipients)) { connection.close(); co_return; }
-    auto const notification = "{\"jsonrpc\":\"2.0\",\"method\":\"join_request\",\"params\":{\"conversation\":" +
-        std::to_string(conversation) + ",\"user\":" + std::to_string(user) + ",\"state\":\"" + state + "\"}}";
-    std::string_view remaining = std::get<1>(recipients);
-    while (!remaining.empty())
+    auto recipients = co_await database_.run([&](sqlite_database& db) -> std::expected<std::vector<std::int64_t>, sqlite_error> {
+        auto query = db.prepare(R"SQL(
+            WITH current AS (
+                SELECT EXISTS(SELECT 1 FROM group_join_requests WHERE conversation_id=?1 AND user_id=?2) AS pending,
+                       EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=?1 AND user_id=?2) AS member
+            ), recipients AS (
+                SELECT m.user_id FROM conversation_members m JOIN conversations c ON c.id=m.conversation_id
+                WHERE c.id=?1 AND (m.is_admin OR m.user_id=c.owner_id)
+                UNION SELECT ?2
+            )
+            SELECT user_id FROM recipients,current WHERE
+              CASE ?3 WHEN 'pending' THEN pending WHEN 'accepted' THEN member ELSE NOT pending AND NOT member END
+        )SQL", conversation, user, state);
+        if (!query)
+        {
+            return std::unexpected(std::move(query.error()));
+        }
+        std::vector<std::int64_t> result;
+        for (;;)
+        {
+            auto row = query->step();
+            if (!row)
+            {
+                return std::unexpected(std::move(row.error()));
+            }
+            if (!*row)
+            {
+                return result;
+            }
+            result.push_back(query->column_int64(0));
+        }
+    });
+    if (!recipients)
     {
-        auto const separator = remaining.find(',');
-        auto const token = remaining.substr(0, separator);
-        std::int64_t recipient = 0;
-        auto const [end, error] = std::from_chars(token.data(), token.data() + token.size(), recipient);
-        if (error == std::errc{} && end == token.data() + token.size())
-        { if (auto* session = users_.find(recipient)) { session->enqueue_message(notification); } }
-        if (separator == std::string_view::npos) { break; }
-        remaining.remove_prefix(separator + 1);
+        co_return;
     }
-    auto committed = co_await connection.execute_row("COMMIT");
-    if (std::get<0>(committed)) { connection.close(); }
+    std::string notification = R"({"jsonrpc":"2.0","method":"join_request","params":{"conversation":)" +
+        std::to_string(conversation) + R"(,"user":)" + std::to_string(user) + R"(,"state":")" + state + "\"}}";
+    for (auto const recipient : *recipients)
+    {
+        if (auto* session = users_.find(recipient))
+        {
+            session->enqueue_message(notification);
+        }
+    }
 }

@@ -9,7 +9,8 @@
 #include <chat/text.hpp>
 
 #include "chat_session.hpp"
-#include "pg_connection_pool.hpp"
+#include "database.hpp"
+#include "conversation_store.hpp"
 
 boost::capy::task<simdjson::error_code> chat_session::handle_group_management(json_rpc_request& request,
                                                                           std::string& response)
@@ -144,279 +145,83 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
     {
         announcement->clear();
     }
-    auto lease = co_await database_.acquire();
-    if (lease.error())
-    {
-        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-    }
-    auto& connection = lease.connection();
-    auto begun = co_await connection.execute_row("BEGIN");
-    if (std::get<0>(begun))
-    {
-        connection.close();
-        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-    }
-    auto locked = co_await connection.execute_row(
-        "SELECT kind,coalesce(owner_id,0)::text,coalesce(title,'') FROM conversations WHERE id=$1::bigint FOR UPDATE",
-        {std::to_string(conversation)});
-    auto& [lock_ec, group] = locked;
-    if (lock_ec)
-    {
-        connection.close();
-        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-    }
-    // 等待会话锁之后重新查询成员，避免使用等待期间已经失效的角色或阅读水位。
-    auto actor_result = co_await connection.execute_row(
-        "SELECT is_admin::text FROM conversation_members WHERE conversation_id=$1::bigint AND user_id=$2::bigint",
-        {std::to_string(conversation), std::to_string(*user_id_)});
-    auto& [actor_ec, actor] = actor_result;
-    if (actor_ec)
-    {
-        connection.close();
-        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-    }
-    auto const owner = group && (*group)[1] == std::to_string(*user_id_);
-    int error = 0;
-    std::string message;
-    bool changed = false;
-    if (!group || (*group)[0] != "group" || !actor)
-    {
-        error = -32006;
-        message = "Group unavailable";
-    }
-    else if (((setting_admin || transferring) && !owner) ||
-             ((renaming || inviting || removing || pinning || unpinning || announcing) && !owner && (*actor)[0] != "true") || (leaving && owner))
-    {
-        error = -32009;
-        message = leaving && owner ? "The owner cannot leave without transferring ownership" : "Group permission denied";
-    }
-    else if (pinning || unpinning)
-    {
-        if (pinning)
+    using result = std::expected<std::variant<bool, group_member_rejection>, sqlite_error>;
+    auto changed = co_await database_.run([&, actor=*user_id_](sqlite_database& db) -> result {
+        if (renaming || announcing)
         {
-            auto target = co_await connection.execute_row(
-                "SELECT id::text FROM messages WHERE conversation_id=$1::bigint AND id=$2::bigint AND NOT deleted",
-                {std::to_string(conversation), std::to_string(pinned_message)});
-            if (std::get<0>(target))
+            return set_group_text(db, conversation, actor, renaming ? group_text_field::title : group_text_field::announcement,
+                                  renaming ? title : *announcement);
+        }
+        if (pinning || unpinning)
+        {
+            return set_group_pin(db, conversation, actor, pinning ? std::optional(pinned_message) : std::nullopt);
+        }
+        if (inviting)
+        {
+            auto invited = invite_group_members(db, conversation, actor, members);
+            if (!invited)
             {
-                connection.close();
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+                return std::unexpected(std::move(invited.error()));
             }
-            if (!std::get<1>(target))
+            if (auto const* value = std::get_if<bool>(&*invited))
             {
-                error = -32007;
-                message = "Message unavailable";
+                return *value;
+            }
+            switch (std::get<group_invite_rejection>(*invited))
+            {
+                case group_invite_rejection::unavailable: return group_member_rejection::unavailable;
+                case group_invite_rejection::permission_denied: return group_member_rejection::permission_denied;
+                case group_invite_rejection::contact_required: return group_member_rejection::member_not_found;
             }
         }
-        if (!error)
+        auto action = group_member_action::leave;
+        if (setting_admin)
         {
-            auto updated = co_await connection.execute_row(
-                "UPDATE conversations SET pinned_message_id=NULLIF($2::bigint,0) WHERE id=$1::bigint "
-                "AND pinned_message_id IS DISTINCT FROM NULLIF($2::bigint,0) RETURNING id::text",
-                {std::to_string(conversation), std::to_string(pinned_message)});
-            if (std::get<0>(updated))
-            {
-                connection.close();
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            changed = std::get<1>(updated).has_value();
-        }
-    }
-    else if (announcing)
-    {
-        auto updated = co_await connection.execute_row(
-            "UPDATE conversations SET announcement=$2 WHERE id=$1::bigint "
-            "AND announcement IS DISTINCT FROM $2 RETURNING id::text",
-            {std::to_string(conversation), *announcement});
-        if (std::get<0>(updated))
-        {
-            connection.close();
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        changed = std::get<1>(updated).has_value();
-    }
-    else if (transferring || removing)
-    {
-        auto target_result = co_await connection.execute_row(
-            "SELECT is_admin::text FROM conversation_members WHERE conversation_id=$1::bigint AND user_id=$2::bigint",
-            {std::to_string(conversation), std::to_string(user)});
-        auto& [target_ec, target] = target_result;
-        if (target_ec)
-        {
-            connection.close();
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        if (user == *user_id_)
-        {
-            error = -32602;
-            message = "Use leave_group to leave; ownership must be transferred to another administrator";
-        }
-        else if (!target)
-        {
-            error = -32005;
-            message = "Member unavailable";
-        }
-        else if ((transferring && (*target)[0] != "true") ||
-                 (removing && ((*group)[1] == std::to_string(user) || (!owner && (*target)[0] == "true"))))
-        {
-            error = -32009;
-            message = "Group permission denied";
+            action = admin ? group_member_action::promote : group_member_action::demote;
         }
         else if (transferring)
         {
-            auto roles = co_await connection.execute_row(
-                "UPDATE conversation_members SET is_admin=(user_id=$2::bigint) "
-                "WHERE conversation_id=$1::bigint AND user_id IN ($2::bigint,$3::bigint)",
-                {std::to_string(conversation), std::to_string(*user_id_), std::to_string(user)});
-            auto transferred = co_await connection.execute_row(
-                "UPDATE conversations SET owner_id=$2::bigint WHERE id=$1::bigint",
-                {std::to_string(conversation), std::to_string(user)});
-            if (std::get<0>(roles) || std::get<0>(transferred))
-            {
-                connection.close();
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            changed = true;
+            action = group_member_action::transfer;
         }
-        else
+        else if (removing)
         {
-            auto removed = co_await connection.execute_row(
-                "DELETE FROM conversation_members WHERE conversation_id=$1::bigint AND user_id=$2::bigint",
-                {std::to_string(conversation), std::to_string(user)});
-            if (std::get<0>(removed))
-            {
-                connection.close();
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            changed = true;
+            action = group_member_action::remove;
         }
-    }
-    else if (setting_admin)
+        return change_group_member(db, conversation, actor, action, user);
+    });
+    if (!changed)
     {
-        if (user == *user_id_)
-        {
-            error = -32602;
-            message = "The owner cannot be an administrator";
-        }
-        else
-        {
-            auto target_result = co_await connection.execute_row(
-                "SELECT is_admin::text,(SELECT count(*) FROM conversation_members WHERE conversation_id=$1::bigint "
-                "AND is_admin)::text FROM conversation_members WHERE conversation_id=$1::bigint AND user_id=$2::bigint",
-                {std::to_string(conversation), std::to_string(user)});
-            auto& [target_ec, target] = target_result;
-            if (target_ec)
-            {
-                connection.close();
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            if (!target)
-            {
-                error = -32005;
-                message = "Member unavailable";
-            }
-            else if (((*target)[0] == "true") != admin)
-            {
-                if (admin && std::stoi((*target)[1]) >= 3)
-                {
-                    error = -32010;
-                    message = "At most three administrators are allowed";
-                }
-                else
-                {
-                    auto updated = co_await connection.execute_row(
-                        "UPDATE conversation_members SET is_admin=$3::boolean "
-                        "WHERE conversation_id=$1::bigint AND user_id=$2::bigint RETURNING user_id::text",
-                        {std::to_string(conversation), std::to_string(user), admin ? "true" : "false"});
-                    if (std::get<0>(updated))
-                    {
-                        connection.close();
-                        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-                    }
-                    changed = true;
-                }
-            }
-        }
-    }
-    else if (renaming && (*group)[2] != title)
-    {
-        auto updated = co_await connection.execute_row("UPDATE conversations SET title=$2 WHERE id=$1::bigint RETURNING id::text",
-            {std::to_string(conversation), title});
-        if (std::get<0>(updated))
-        {
-            connection.close();
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        changed = true;
-    }
-    else if (inviting)
-    {
-        std::string ids = "{";
-        for (auto id : members)
-        {
-            if (ids.size() > 1)
-            {
-                ids += ',';
-            }
-            ids += std::to_string(id);
-        }
-        ids += '}';
-        auto targets = co_await connection.execute_scalar(
-            "SELECT count(*)::text FROM contacts WHERE owner_id=$1::bigint AND contact_id=ANY($2::bigint[])",
-            {std::to_string(*user_id_), ids});
-        if (std::get<0>(targets))
-        {
-            connection.close();
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        if (std::get<1>(targets) != std::to_string(members.size()))
-        {
-            error = -32005;
-            message = "Invitees must be your contacts";
-        }
-        else
-        {
-            auto inserted = co_await connection.execute_scalar(
-                "WITH added AS (INSERT INTO conversation_members(conversation_id,user_id,joined_message_id) "
-                "SELECT $1::bigint,id,(SELECT coalesce(max(id),0) FROM messages WHERE conversation_id=$1::bigint) "
-                "FROM unnest($2::bigint[]) AS invited(id) ON CONFLICT DO NOTHING RETURNING user_id) "
-                ", cleared AS (DELETE FROM group_join_requests WHERE conversation_id=$1::bigint "
-                "AND user_id=ANY($2::bigint[]) RETURNING user_id) SELECT count(*)::text FROM added", {std::to_string(conversation), ids});
-            if (std::get<0>(inserted))
-            {
-                connection.close();
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            changed = std::get<1>(inserted) != "0";
-        }
-    }
-    else if (leaving)
-    {
-        auto removed = co_await connection.execute_row(
-            "DELETE FROM conversation_members WHERE conversation_id=$1::bigint AND user_id=$2::bigint RETURNING user_id::text",
-            {std::to_string(conversation), std::to_string(*user_id_)});
-        if (std::get<0>(removed))
-        {
-            connection.close();
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        changed = true;
-    }
-    auto ended = co_await connection.execute_row(error ? "ROLLBACK" : "COMMIT");
-    if (std::get<0>(ended))
-    {
-        connection.close();
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
-    lease = {};
-    if (error)
+    if (auto const* rejected = std::get_if<group_member_rejection>(&*changed))
     {
-        co_return serialize_json_rpc_error(error, message, std::move(request.id), response);
+        int code = -32000;
+        std::string_view message = "Server error";
+        switch (*rejected)
+        {
+            case group_member_rejection::unavailable: code = -32006; message = "Group unavailable"; break;
+            case group_member_rejection::permission_denied:
+                code = -32009;
+                message = leaving ? "The owner cannot leave without transferring ownership" : "Group permission denied";
+                break;
+            case group_member_rejection::invalid_target:
+                code = pinning ? -32007 : -32602;
+                message = pinning ? "Message unavailable" : setting_admin ? "The owner cannot be an administrator" :
+                    "Use leave_group to leave; ownership must be transferred to another administrator";
+                break;
+            case group_member_rejection::member_not_found:
+                code = -32005;
+                message = inviting ? "Invitees must be your contacts" : "Member unavailable";
+                break;
+            case group_member_rejection::admin_limit: code = -32010; message = "At most three administrators are allowed"; break;
+        }
+        co_return serialize_json_rpc_error(code, message, std::move(request.id), response);
     }
-    if (changed)
+    bool const updated = std::get<bool>(*changed);
+    if (updated)
     {
-        std::string notification = "{\"jsonrpc\":\"2.0\",\"method\":\"conversation\",\"params\":{\"conversation\":" +
-            std::to_string(conversation) + "}}";
+        std::string notification = R"({"jsonrpc":"2.0","method":"conversation","params":{"conversation":)" +
+            std::to_string(conversation);
         if (leaving || removing)
         {
             auto* departed = leaving ? this : users_.find(user);
@@ -426,12 +231,11 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
                 {
                     departed->upload_.reset();
                 }
-                departed->enqueue_message("{\"jsonrpc\":\"2.0\",\"method\":\"conversation\",\"params\":{\"conversation\":" +
-                    std::to_string(conversation) + ",\"removed\":true}}");
+                departed->enqueue_message(notification + R"(,"removed":true}})");
             }
         }
-        co_await publish_conversation(conversation, std::move(notification));
+        co_await publish_conversation(conversation, notification + "}}");
     }
-    co_return serialize_json_rpc_success(changed ? "{\"changed\":true}" : "{\"changed\":false}",
+    co_return serialize_json_rpc_success(updated ? "{\"changed\":true}" : "{\"changed\":false}",
                                          std::move(request.id), response);
 }

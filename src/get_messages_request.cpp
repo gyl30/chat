@@ -8,8 +8,9 @@
 #include <simdjson.h>
 
 #include "chat_session.hpp"
-#include "message_query.hpp"
-#include "pg_connection_pool.hpp"
+#include "message_payload.hpp"
+#include "database.hpp"
+#include "message_history.hpp"
 
 namespace
 {
@@ -85,48 +86,30 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
         co_return simdjson::SUCCESS;
     }
 
-    auto lease = co_await database_.acquire();
-    if (lease.error())
-    {
-        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-    }
-    std::string query = "WITH page AS (";
-    query += kMessageRow;
-    query += "m.conversation_id=$2::bigint AND ";
-    if (searching)
-    {
-        query += "NOT m.deleted AND strpos(lower(m.body),lower($4))>0 AND ";
-    }
-    query += params.after ? "m.id>$3::bigint ORDER BY m.id ASC" : "m.id<$3::bigint ORDER BY m.id DESC";
-    query += " LIMIT 51), visible AS (SELECT * FROM page ORDER BY id ";
-    query += params.after ? "ASC" : "DESC";
-    query += R"SQL( LIMIT 50)
-        SELECT json_build_object('messages',COALESCE((SELECT json_agg(row_to_json(v) ORDER BY id) FROM visible v),'[]'::json),
-            'read_positions',(SELECT json_agg(json_build_object('user',user_id,'message',last_read_message_id) ORDER BY user_id)
-                FROM conversation_members WHERE conversation_id=$2::bigint),
-            'has_more',(SELECT count(*) FROM page)>50)::text
-        FROM conversation_members WHERE conversation_id=$2::bigint AND user_id=$1::bigint
-    )SQL";
-    std::vector<std::string> parameters{
-        std::to_string(*user_id_), std::to_string(params.conversation),
-        std::to_string(params.after.value_or(params.before.value_or(std::numeric_limits<std::int64_t>::max())))};
-    if (searching)
-    {
-        parameters.push_back(std::move(*params.query));
-    }
-    auto query_result = co_await lease.connection().execute_row(std::move(query), std::move(parameters));
-    auto& [ec, row] = query_result;
-    if (ec)
-    {
-        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-    }
-    if (!row)
-    {
-        co_return serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response);
-    }
+    auto history = co_await database_.run([&, user=*user_id_](sqlite_database& db) {
+        return read_message_history(db, user, params.conversation, params.before, params.after,
+                                    params.query ? std::string_view(*params.query) : "");
+    });
     if (!request.id.present)
     {
         co_return simdjson::SUCCESS;
     }
-    co_return serialize_json_rpc_success(row->front(), std::move(request.id), response);
+    if (!history || !*history)
+    {
+        co_return history ? serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response)
+                          : serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+    }
+    struct result
+    {
+        std::vector<message_payload> messages;
+        decltype(chat::messages_result::read_positions) read_positions;
+        bool has_more;
+    };
+    result value{{}, std::move((*history)->read_positions), (*history)->has_more};
+    value.messages.reserve((*history)->messages.size());
+    for (auto const& message : (*history)->messages)
+    {
+        value.messages.push_back(make_message_payload(message, true));
+    }
+    co_return serialize_json_rpc_value(value, std::move(request.id), response);
 }

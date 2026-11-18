@@ -11,7 +11,8 @@
 #include "chat_session.hpp"
 #include "blocking_worker.hpp"
 #include "password_hash.hpp"
-#include "pg_connection_pool.hpp"
+#include "database.hpp"
+#include "user_store.hpp"
 
 namespace
 {
@@ -102,59 +103,16 @@ boost::capy::task<simdjson::error_code> chat_session::handle_register(json_rpc_r
         co_return simdjson::SUCCESS;
     }
 
-    auto lease = co_await database_.acquire();
-    if (lease.error())
+    auto created = co_await database_.run([&](sqlite_database& db) {
+        return register_account(db, params.username, *password_hash);
+    });
+    if (!created || !*created)
     {
         if (request.id.present)
         {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        co_return simdjson::SUCCESS;
-    }
-
-    std::vector<std::string> parameters;
-    parameters.emplace_back(std::move(params.username));
-    parameters.emplace_back(std::move(*password_hash));
-    auto query_result = co_await lease.connection().execute_row(
-        "INSERT INTO users (username, password_hash) VALUES ($1, $2) "
-        "ON CONFLICT (username) DO NOTHING RETURNING id::text",
-        std::move(parameters));
-    auto& [query_ec, row] = query_result;
-    if (query_ec)
-    {
-        if (request.id.present)
-        {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        co_return simdjson::SUCCESS;
-    }
-
-    if (!row)
-    {
-        if (request.id.present)
-        {
-            co_return serialize_json_rpc_error(-32002, "Username already exists", std::move(request.id), response);
-        }
-        co_return simdjson::SUCCESS;
-    }
-
-    if (row->size() != 1)
-    {
-        if (request.id.present)
-        {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        co_return simdjson::SUCCESS;
-    }
-
-    std::int64_t user_id = 0;
-    auto const& id = row->front();
-    auto const [ptr, ec] = std::from_chars(id.data(), id.data() + id.size(), user_id);
-    if (ec != std::errc{} || ptr != id.data() + id.size())
-    {
-        if (request.id.present)
-        {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            co_return created
+                ? serialize_json_rpc_error(-32002, "Username already exists", std::move(request.id), response)
+                : serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
         }
         co_return simdjson::SUCCESS;
     }
@@ -164,5 +122,5 @@ boost::capy::task<simdjson::error_code> chat_session::handle_register(json_rpc_r
         co_return simdjson::SUCCESS;
     }
 
-    co_return serialize_register_result(user_id, std::move(request.id), response);
+    co_return serialize_register_result(**created, std::move(request.id), response);
 }

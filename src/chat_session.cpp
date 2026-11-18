@@ -1,13 +1,17 @@
-#include <charconv>
 #include <cstdint>
 #include <string>
+#include <vector>
+
+#include <sqlite3.h>
 #include <utility>
 #include <string_view>
 #include <system_error>
 
 #include "chat_session.hpp"
 #include "invite_attempts.hpp"
-#include "pg_connection_pool.hpp"
+#include "database.hpp"
+#include "conversation_store.hpp"
+#include "user_store.hpp"
 
 namespace
 {
@@ -28,8 +32,9 @@ constexpr std::size_t kMaxQueuedMessages = 64;
 }    // namespace
 
 chat_session::chat_session(websocket_connection& connection, online_users& users, invite_attempts& invite_attempts,
-                           blocking_worker& passwords, pg_connection_pool& database)
-    : connection_(connection), users_(users), invite_attempts_(invite_attempts), passwords_(passwords), database_(database)
+                           blocking_worker& passwords, database& storage, s3_objects& objects)
+    : connection_(connection), users_(users), invite_attempts_(invite_attempts), passwords_(passwords),
+      database_(storage), objects_(objects)
 {
 }
 
@@ -48,147 +53,90 @@ bool chat_session::enqueue_message(std::string message)
 
 boost::capy::task<void> chat_session::publish_presence(bool online)
 {
-    if (!user_id_)
+    auto presence = co_await database_.run([=, user=*user_id_](sqlite_database& db) {
+        return record_presence(db, user, online);
+    });
+    if (!presence)
     {
         co_return;
     }
-
-    auto lease = co_await database_.acquire();
-    if (lease.error())
+    auto notification = R"({"jsonrpc":"2.0","method":"presence","params":{"user":)" + std::to_string(*user_id_) +
+        R"(,"online":)" + (online ? "true" : "false") + R"(,"last_seen":)" + std::to_string(presence->last_seen) + "}}";
+    for (auto const watcher : presence->recipients)
     {
-        co_return;
-    }
-
-    auto const user = std::to_string(*user_id_);
-    std::string last_seen = "0";
-    if (!online)
-    {
-        auto update_result = co_await lease.connection().execute_scalar(
-            "UPDATE users SET last_seen_at = CURRENT_TIMESTAMP WHERE id = $1::bigint "
-            "RETURNING ((extract(epoch from last_seen_at) * 1000)::bigint)::text",
-            {user});
-        auto& [update_ec, value] = update_result;
-        if (update_ec)
+        if (auto* session = users_.find(watcher))
         {
-            lease.connection().close();
-            co_return;
+            session->enqueue_message(notification);
         }
-        last_seen = std::move(value);
     }
-
-    auto begun = co_await lease.connection().execute_row("BEGIN");
-    if (std::get<0>(begun)) { lease.connection().close(); co_return; }
-
-    auto watchers_result = co_await lease.connection().execute_scalar(
-        "WITH watchers AS (SELECT owner_id AS peer FROM contacts WHERE contact_id=$1::bigint "
-        "ORDER BY owner_id FOR KEY SHARE) "
-        "SELECT COALESCE(string_agg(peer::text, ',' ORDER BY peer), '') FROM watchers WHERE peer<>$1::bigint",
-        {user});
-    auto& [watchers_ec, watchers] = watchers_result;
-    if (watchers_ec)
-    {
-        lease.connection().close();
-        co_return;
-    }
-
-    std::string notification = R"({"jsonrpc":"2.0","method":"presence","params":{"user":)";
-    notification.append(user);
-    notification.append(R"(,"online":)");
-    notification.append(online ? "true" : "false");
-    notification.append(R"(,"last_seen":)");
-    notification.append(last_seen);
-    notification.append("}}");
-
-    std::string_view remaining = watchers;
-    while (!remaining.empty())
-    {
-        auto const separator = remaining.find(',');
-        auto const token = remaining.substr(0, separator);
-        std::int64_t watcher = 0;
-        auto const [end, parse_error] = std::from_chars(token.data(), token.data() + token.size(), watcher);
-        if (parse_error == std::errc{} && end == token.data() + token.size())
-        {
-            if (auto* session = users_.find(watcher))
-            {
-                session->enqueue_message(notification);
-            }
-        }
-
-        if (separator == std::string_view::npos)
-        {
-            break;
-        }
-        remaining.remove_prefix(separator + 1);
-    }
-    auto committed = co_await lease.connection().execute_row("COMMIT");
-    if (std::get<0>(committed)) { lease.connection().close(); }
 }
 
-boost::capy::task<std::expected<bool, std::error_code>> chat_session::publish_conversation(
+boost::capy::task<std::expected<bool, sqlite_error>> chat_session::publish_conversation(
     std::int64_t conversation, std::string notification, bool require_sender_permission)
 {
-    auto lease = co_await database_.acquire();
-    if (lease.error())
-    {
-        co_return std::unexpected(lease.error());
-    }
-    auto& connection = lease.connection();
-    // 取得锁后查询当前成员，并在释放锁前入队，避免移除后仍使用旧收件人快照。
-    auto begun = co_await connection.execute_row("BEGIN");
-    auto locked = co_await connection.execute_row(
-        "SELECT id::text FROM conversations WHERE id=$1::bigint FOR UPDATE", {std::to_string(conversation)});
-    if (std::get<0>(begun) || std::get<0>(locked))
-    {
-        connection.close();
-        co_return std::unexpected(std::get<0>(begun) ? std::get<0>(begun) : std::get<0>(locked));
-    }
-    if (require_sender_permission)
-    {
-        auto allowed = co_await check_conversation_send(connection, conversation);
-        if (!allowed || !*allowed)
+    auto recipients = co_await database_.run([=, user=*user_id_](sqlite_database& db)
+        -> std::expected<std::optional<std::vector<std::int64_t>>, sqlite_error> {
+        auto snapshot = sqlite_transaction::begin_read(db);
+        if (!snapshot)
         {
-            auto rolled_back = co_await connection.execute_row("ROLLBACK");
-            if (std::get<0>(rolled_back)) { connection.close(); }
-            co_return std::unexpected(allowed ? std::make_error_code(std::errc::permission_denied) : allowed.error());
+            return std::unexpected(std::move(snapshot.error()));
         }
-    }
-    auto query_result = co_await lease.connection().execute_scalar(
-        "SELECT COALESCE(string_agg(m.user_id::text, ',' ORDER BY m.user_id),'') "
-        "FROM conversation_members m JOIN conversations c ON c.id=m.conversation_id "
-        "WHERE m.conversation_id=$1::bigint AND (m.user_id<>$2::bigint OR "
-        "(c.kind='direct' AND c.direct_user_low=c.direct_user_high))",
-        {std::to_string(conversation), std::to_string(*user_id_)});
-    auto& [ec, recipients] = query_result;
-    if (ec)
-    {
-        connection.close();
-        co_return std::unexpected(ec);
-    }
-    bool realtime = false;
-    std::string_view remaining = recipients;
-    while (!remaining.empty())
-    {
-        auto const separator = remaining.find(',');
-        auto const token = remaining.substr(0, separator);
-        std::int64_t recipient = 0;
-        auto const [end, parse_error] = std::from_chars(token.data(), token.data() + token.size(), recipient);
-        if (parse_error == std::errc{} && end == token.data() + token.size())
+        if (require_sender_permission)
         {
-            if (auto* session = users_.find(recipient))
+            auto allowed = can_send_to_conversation(db, conversation, user);
+            if (!allowed)
             {
-                realtime = session->enqueue_message(notification) || realtime;
+                return std::unexpected(std::move(allowed.error()));
+            }
+            if (!*allowed)
+            {
+                return std::nullopt;
             }
         }
-        if (separator == std::string_view::npos)
+        auto rows = db.prepare(R"SQL(
+            SELECT m.user_id FROM conversation_members m JOIN conversations c ON c.id=m.conversation_id
+            WHERE c.id=?1 AND (m.user_id<>?2 OR c.direct_user_low=c.direct_user_high)
+            ORDER BY m.user_id
+        )SQL", conversation, user);
+        if (!rows)
         {
-            break;
+            return std::unexpected(std::move(rows.error()));
         }
-        remaining.remove_prefix(separator + 1);
-    }
-    auto committed = co_await connection.execute_row("COMMIT");
-    if (std::get<0>(committed))
+        std::vector<std::int64_t> result;
+        for (;;)
+        {
+            auto row = rows->step();
+            if (!row)
+            {
+                return std::unexpected(std::move(row.error()));
+            }
+            if (!*row)
+            {
+                break;
+            }
+            result.push_back(rows->column_int64(0));
+        }
+        if (auto error = snapshot->commit(); error)
+        {
+            return std::unexpected(std::move(error));
+        }
+        return result;
+    });
+    if (!recipients)
     {
-        connection.close();
+        co_return std::unexpected(std::move(recipients.error()));
+    }
+    if (!*recipients)
+    {
+        co_return std::unexpected(sqlite_error{SQLITE_AUTH, "Communication not allowed"});
+    }
+    bool realtime = false;
+    for (auto const recipient : **recipients)
+    {
+        if (auto* session = users_.find(recipient))
+        {
+            realtime = session->enqueue_message(notification) || realtime;
+        }
     }
     co_return realtime;
 }

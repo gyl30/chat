@@ -8,7 +8,8 @@
 #include <simdjson.h>
 
 #include "chat_session.hpp"
-#include "pg_connection_pool.hpp"
+#include "database.hpp"
+#include "conversation_store.hpp"
 
 namespace
 {
@@ -89,64 +90,17 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
         co_return simdjson::SUCCESS;
     }
 
-        auto lease = co_await database_.acquire();
-        if (lease.error())
-        {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        auto query_result = co_await lease.connection().execute_scalar(
-            R"SQL(
-        WITH page AS (
-            SELECT c.*, own.last_read_message_id, own.joined_message_id, own.muted, own.pinned,
-                   CASE WHEN c.direct_user_low=$1::bigint THEN c.direct_user_high ELSE c.direct_user_low END AS peer
-            FROM conversations c JOIN conversation_members own ON own.conversation_id=c.id
-            WHERE own.user_id=$1::bigint
-              AND (c.kind='group' OR EXISTS(SELECT 1 FROM contacts
-                  WHERE owner_id=$1::bigint AND contact_id=
-                      CASE WHEN c.direct_user_low=$1::bigint THEN c.direct_user_high ELSE c.direct_user_low END))
-              AND (own.pinned,c.activity,c.id)<($4::boolean,$2::bigint,$3::bigint)
-            ORDER BY own.pinned DESC,c.activity DESC,c.id DESC LIMIT 51
-        ), visible AS (SELECT * FROM page ORDER BY pinned DESC,activity DESC,id DESC LIMIT 50)
-        SELECT json_build_object(
-            'conversations',COALESCE((SELECT json_agg(json_build_object(
-                'id',c.id,'kind',c.kind,'user',c.peer,'username',COALESCE(c.title,u.username),
-                'avatar_revision',COALESCE(u.avatar_revision,0),'has_avatar',EXISTS(SELECT 1 FROM user_avatars WHERE user_id=u.id),
-                'activity',c.activity,'muted',c.muted,'pinned',c.pinned,'member_count',(SELECT count(*) FROM conversation_members WHERE conversation_id=c.id),
-                'can_send',c.kind='group' OR EXISTS(SELECT 1 FROM contacts WHERE owner_id=$1::bigint AND contact_id=c.peer),
-                'announcement',c.announcement,'join_approval',c.join_approval,
-                'pinned_message',(SELECT json_build_object('id',pm.id,'from',pm.sender_id,'username',pu.username,
-                    'text',left(pm.body,160),'edited_at',(extract(epoch FROM pm.edited_at)*1000)::bigint,'deleted',false)
-                    FROM messages pm JOIN users pu ON pu.id=pm.sender_id
-                    WHERE pm.id=c.pinned_message_id AND pm.conversation_id=c.id AND NOT pm.deleted),
-                'last',(SELECT json_build_object('id',m.id,'conversation',m.conversation_id,'from',m.sender_id,
-                      'avatar_revision',author.avatar_revision,'has_avatar',EXISTS(SELECT 1 FROM user_avatars WHERE user_id=author.id),
-                      'mentions',(SELECT coalesce(json_agg(json_build_object('user',mentioned.id,'username',mentioned.username)
-                          ORDER BY mentioned.id),'[]'::json) FROM message_mentions mm JOIN users mentioned ON mentioned.id=mm.user_id
-                          WHERE mm.message_id=m.id),
-                      'reaction_revision',m.reaction_revision,'reactions',(SELECT coalesce(json_agg(json_build_object('emoji',emoji,'users',users) ORDER BY emoji),'[]'::json)
-                          FROM (SELECT emoji,json_agg(user_id ORDER BY user_id) AS users FROM message_reactions WHERE message_id=m.id GROUP BY emoji) reactions),
-                      'username',author.username,'timestamp',(extract(epoch FROM m.created_at)*1000)::bigint,'text',m.body,'deleted',m.deleted,'edited_at',(extract(epoch FROM m.edited_at)*1000)::bigint,'reply',CASE WHEN r.id IS NULL THEN NULL ELSE json_build_object('id',r.id,'from',r.sender_id,'username',ra.username,'text',left(r.body,160),'edited_at',(extract(epoch FROM r.edited_at)*1000)::bigint,'deleted',r.deleted) END,
-                      'attachment',(SELECT json_build_object('filename',filename,'media_type',media_type,'size',size)
-                                    FROM message_attachments WHERE message_id=m.id AND NOT m.deleted))
-                      FROM messages m JOIN users author ON author.id=m.sender_id LEFT JOIN messages r ON r.id=m.reply_to_id LEFT JOIN users ra ON ra.id=r.sender_id
-                      WHERE m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1),
-                'unread',(SELECT count(*) FROM messages m WHERE m.conversation_id=c.id
-                          AND m.id>GREATEST(c.last_read_message_id,c.joined_message_id) AND NOT m.deleted
-                          AND (m.sender_id<>$1::bigint OR c.direct_user_low=c.direct_user_high))
-            ) ORDER BY c.pinned DESC,c.activity DESC,c.id DESC) FROM visible c LEFT JOIN users u ON u.id=c.peer),'[]'::json),
-            'next',CASE WHEN (SELECT count(*) FROM page)>50 THEN
-                (SELECT json_build_object('pinned',pinned,'activity',activity,'id',id) FROM visible ORDER BY pinned,activity,id LIMIT 1)
-                ELSE NULL END
-        )::text
-    )SQL",
-            {std::to_string(*user_id_),
-             std::to_string(params.before ? params.before->activity : std::numeric_limits<std::int64_t>::max()),
-             std::to_string(params.before ? params.before->id : std::numeric_limits<std::int64_t>::max()),
-             params.before && !*params.before->pinned ? "false" : "true"});
-        auto& [ec, result] = query_result;
-        if (ec)
-        {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-    co_return serialize_json_rpc_success(result, std::move(request.id), response);
+    std::optional<chat::conversation_cursor> cursor;
+    if (params.before)
+    {
+        cursor = chat::conversation_cursor{params.before->activity, params.before->id, *params.before->pinned};
     }
+    auto result = co_await database_.run([=, user=*user_id_](sqlite_database& db) {
+        return read_conversation_list(db, user, cursor);
+    });
+    if (!result)
+    {
+        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+    }
+    co_return serialize_json_rpc_success(*result, std::move(request.id), response);
+}

@@ -7,7 +7,9 @@
 #include <simdjson.h>
 
 #include "chat_session.hpp"
-#include "pg_connection_pool.hpp"
+#include "database.hpp"
+#include "user_store.hpp"
+#include "user_payload.hpp"
 
 namespace
 {
@@ -51,14 +53,6 @@ simdjson::error_code parse_search_users_params(json_rpc_params& params, search_u
     return simdjson::SUCCESS;
 }
 
-simdjson::error_code serialize_search_users_result(std::string_view users, json_rpc_id id, std::string& response)
-{
-    std::string result = R"({"users":)";
-    result.append(users);
-    result.push_back('}');
-    return serialize_json_rpc_success(result, std::move(id), response);
-}
-
 }    // namespace
 
 boost::capy::task<simdjson::error_code> chat_session::handle_search_users(json_rpc_request& request, std::string& response)
@@ -88,36 +82,19 @@ boost::capy::task<simdjson::error_code> chat_session::handle_search_users(json_r
         co_return simdjson::SUCCESS;
     }
 
-    std::string users_json;
+    auto users = co_await database_.run([&, user=*user_id_](sqlite_database& db) {
+        return search_accounts(db, user, params.query);
+    });
+    if (!users)
     {
-        auto lease = co_await database_.acquire();
-        if (lease.error())
-        {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-
-        std::vector<std::string> parameters;
-        parameters.emplace_back(std::to_string(*user_id_));
-        parameters.emplace_back(std::move(params.query));
-        auto query_result = co_await lease.connection().execute_scalar(
-            "SELECT COALESCE("
-            "array_to_json(array_agg(row_to_json(found) ORDER BY found.username, found.id)), "
-            "'[]'::json"
-            ")::text "
-            "FROM ("
-            "SELECT u.id, u.username,u.avatar_revision,EXISTS(SELECT 1 FROM user_avatars WHERE user_id=u.id) AS has_avatar FROM users u "
-            "WHERE u.id <> $1::bigint "
-            "AND starts_with(lower(u.username), lower($2)) "
-            "ORDER BY u.username, u.id LIMIT 20"
-            ") AS found",
-            std::move(parameters));
-        auto& [query_ec, query_json] = query_result;
-        if (query_ec)
-        {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        users_json = std::move(query_json);
+        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
-
-    co_return serialize_search_users_result(users_json, std::move(request.id), response);
+    struct result { std::vector<user_payload> users; };
+    result payload;
+    payload.users.reserve(users->size());
+    for (auto const& user : *users)
+    {
+        payload.users.emplace_back(user);
+    }
+    co_return serialize_json_rpc_value(payload, std::move(request.id), response);
 }

@@ -6,7 +6,8 @@
 #include <simdjson.h>
 
 #include "chat_session.hpp"
-#include "pg_connection_pool.hpp"
+#include "database.hpp"
+#include "message_history.hpp"
 
 namespace
 {
@@ -83,48 +84,19 @@ boost::capy::task<simdjson::error_code> chat_session::handle_mark_read(json_rpc_
         co_return simdjson::SUCCESS;
     }
 
-    std::string read_message;
+    auto position = co_await database_.run([=, user=*user_id_](sqlite_database& db) {
+        return update_read_position(db, user, params.conversation, params.message);
+    });
+    if (!position || !*position)
     {
-        auto lease = co_await database_.acquire();
-        if (lease.error())
+        if (!request.id.present)
         {
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
             co_return simdjson::SUCCESS;
         }
-
-        std::vector<std::string> parameters;
-        parameters.emplace_back(std::to_string(*user_id_));
-        parameters.emplace_back(std::to_string(params.conversation));
-        parameters.emplace_back(std::to_string(params.message));
-
-        auto query_result = co_await lease.connection().execute_row(
-            "UPDATE conversation_members SET last_read_message_id=GREATEST(last_read_message_id,$3::bigint) "
-            "WHERE user_id=$1::bigint AND conversation_id=$2::bigint "
-            "AND EXISTS(SELECT 1 FROM messages WHERE id=$3::bigint AND conversation_id=$2::bigint) "
-            "RETURNING last_read_message_id::text",
-            std::move(parameters));
-        auto& [query_ec, row] = query_result;
-        if (query_ec)
-        {
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            co_return simdjson::SUCCESS;
-        }
-        if (!row || row->size() != 1)
-        {
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
-            }
-            co_return simdjson::SUCCESS;
-        }
-        read_message = std::move(row->front());
+        co_return position ? serialize_json_rpc_invalid_params(std::move(request.id), response)
+                           : serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
+    auto const read_message = std::to_string(**position);
 
     std::string notification = "{\"jsonrpc\":\"2.0\",\"method\":\"read\",\"params\":{\"conversation\":";
     notification.append(std::to_string(params.conversation));

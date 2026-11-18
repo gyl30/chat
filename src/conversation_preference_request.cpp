@@ -6,7 +6,8 @@
 #include <simdjson.h>
 
 #include "chat_session.hpp"
-#include "pg_connection_pool.hpp"
+#include "database.hpp"
+#include "conversation_store.hpp"
 
 namespace
 {
@@ -57,48 +58,15 @@ boost::capy::task<simdjson::error_code> chat_session::handle_conversation_prefer
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
-    auto lease = co_await database_.acquire();
-    if (lease.error())
+    auto updated = co_await database_.run([=, user=*user_id_](sqlite_database& db) {
+        return set_conversation_preference(db, conversation, user,
+            pin ? conversation_preference::pin : conversation_preference::mute, *value);
+    });
+    if (!updated || !*updated)
     {
-        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        co_return updated ? serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response)
+                          : serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
-    auto& connection = lease.connection();
-    auto begun = co_await connection.execute_row("BEGIN");
-    if (std::get<0>(begun))
-    {
-        connection.close();
-        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-    }
-    auto locked = co_await connection.execute_row("SELECT id::text FROM conversations WHERE id=$1::bigint FOR UPDATE",
-                                                 {std::to_string(conversation)});
-    if (std::get<0>(locked))
-    {
-        connection.close();
-        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-    }
-    auto updated = co_await connection.execute_row(
-        pin ?
-        "UPDATE conversation_members SET pinned=$3::boolean WHERE conversation_id=$1::bigint AND user_id=$2::bigint "
-        "RETURNING pinned::text" :
-        "UPDATE conversation_members SET muted=$3::boolean WHERE conversation_id=$1::bigint AND user_id=$2::bigint "
-        "RETURNING muted::text",
-        {std::to_string(conversation), std::to_string(*user_id_), *value ? "true" : "false"});
-    auto& [update_ec, row] = updated;
-    if (update_ec)
-    {
-        connection.close();
-        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-    }
-    auto ended = co_await connection.execute_row(row ? "COMMIT" : "ROLLBACK");
-    if (std::get<0>(ended))
-    {
-        connection.close();
-        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-    }
-    if (!row)
-    {
-        co_return serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response);
-    }
-    co_return serialize_json_rpc_success(std::string(pin ? "{\"pinned\":" : "{\"muted\":") + row->front() + "}",
-                                        std::move(request.id), response);
+    co_return serialize_json_rpc_success(std::string(pin ? "{\"pinned\":" : "{\"muted\":") + (*value ? "true}" : "false}"),
+                                         std::move(request.id), response);
 }

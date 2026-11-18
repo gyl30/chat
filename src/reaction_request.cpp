@@ -8,7 +8,8 @@
 #include <simdjson.h>
 
 #include "chat_session.hpp"
-#include "pg_connection_pool.hpp"
+#include "database.hpp"
+#include "message_changes.hpp"
 
 namespace
 {
@@ -40,87 +41,34 @@ boost::capy::task<simdjson::error_code> chat_session::handle_message_reaction(js
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
-    auto lease = co_await database_.acquire();
-    if (lease.error())
+    auto reaction = co_await database_.run([&, user=*user_id_](sqlite_database& db) {
+        return set_message_reaction(db, user, params.conversation, params.message, *params.emoji);
+    });
+    if (!reaction)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
-    auto& connection = lease.connection();
-    auto begun = co_await connection.execute_row("BEGIN");
-    auto locked = co_await connection.execute_row("SELECT id::text FROM conversations WHERE id=$1::bigint FOR UPDATE",
-                                                 {std::to_string(params.conversation)});
-    if (std::get<0>(begun) || std::get<0>(locked))
+    if (auto const* rejected = std::get_if<message_change_rejection>(&*reaction))
     {
-        connection.close();
-        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        bool const unavailable = *rejected == message_change_rejection::unavailable;
+        co_return serialize_json_rpc_error(unavailable ? -32007 : -32006,
+            unavailable ? "Message unavailable" : "Communication not allowed", std::move(request.id), response);
     }
-    auto original = co_await connection.execute_row(
-        "SELECT coalesce((SELECT emoji FROM message_reactions WHERE message_id=m.id AND user_id=$1::bigint),'') "
-        "FROM messages m JOIN conversation_members own ON own.conversation_id=m.conversation_id "
-        "WHERE m.conversation_id=$2::bigint AND m.id=$3::bigint AND own.user_id=$1::bigint AND NOT m.deleted",
-        {std::to_string(*user_id_), std::to_string(params.conversation), std::to_string(params.message)});
-    auto& [read_ec, row] = original;
-    if (read_ec || !row)
+    auto& change = std::get<changed_reaction>(*reaction);
+    struct result
     {
-        connection.close();
-        co_return serialize_json_rpc_error(read_ec ? -32000 : -32007,
-                                          read_ec ? "Server error" : "Message unavailable", std::move(request.id), response);
+        std::int64_t conversation, message, reaction_revision;
+        std::vector<chat::reaction> reactions;
+    };
+    result value{params.conversation, params.message, change.update.revision, std::move(change.update.reactions)};
+    std::string payload;
+    if (auto error = simdjson::builder::to_json_string(value).get(payload))
+    {
+        co_return error;
     }
-    auto allowed = co_await check_conversation_send(connection, params.conversation);
-    if (!allowed || !*allowed)
+    if (change.changed)
     {
-        auto rolled_back = co_await connection.execute_row("ROLLBACK");
-        if (std::get<0>(rolled_back)) { connection.close(); }
-        co_return serialize_json_rpc_error(allowed ? -32006 : -32000,
-            allowed ? "Communication not allowed" : "Server error", std::move(request.id), response);
-    }
-    auto const changed = row->front() != *params.emoji;
-    if (changed)
-    {
-        auto written = params.emoji->empty()
-            ? co_await connection.execute_row("DELETE FROM message_reactions WHERE message_id=$1::bigint AND user_id=$2::bigint",
-                                               {std::to_string(params.message), std::to_string(*user_id_)})
-            : co_await connection.execute_row(
-                "INSERT INTO message_reactions(message_id,user_id,emoji) VALUES($1::bigint,$2::bigint,$3) "
-                "ON CONFLICT(message_id,user_id) DO UPDATE SET emoji=excluded.emoji",
-                {std::to_string(params.message), std::to_string(*user_id_), *params.emoji});
-        if (std::get<0>(written))
-        {
-            connection.close();
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        auto advanced = co_await connection.execute_row(
-            "UPDATE messages SET reaction_revision=reaction_revision+1 WHERE id=$1::bigint",
-            {std::to_string(params.message)});
-        if (std::get<0>(advanced))
-        {
-            connection.close();
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-    }
-    auto snapshot = co_await connection.execute_scalar(
-        "SELECT json_build_object('conversation',conversation_id,'message',id,'reaction_revision',reaction_revision,"
-        "'reactions',coalesce((SELECT json_agg(json_build_object('emoji',emoji,'users',users) ORDER BY emoji) FROM "
-        "(SELECT emoji,json_agg(user_id ORDER BY user_id) AS users FROM message_reactions WHERE message_id=m.id "
-        "GROUP BY emoji) r),'[]'::json))::text FROM messages m WHERE id=$1::bigint",
-        {std::to_string(params.message)});
-    auto& [snapshot_ec, payload] = snapshot;
-    if (snapshot_ec)
-    {
-        connection.close();
-        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-    }
-    auto committed = co_await connection.execute_row("COMMIT");
-    if (std::get<0>(committed))
-    {
-        connection.close();
-        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-    }
-    lease = {};
-    if (changed)
-    {
-        co_await publish_conversation(params.conversation,
-            R"({"jsonrpc":"2.0","method":"reaction","params":)" + payload + "}");
+        co_await publish_conversation(params.conversation, R"({"jsonrpc":"2.0","method":"reaction","params":)" + payload + "}");
     }
     co_return serialize_json_rpc_success(payload, std::move(request.id), response);
 }

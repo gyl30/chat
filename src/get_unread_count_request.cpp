@@ -6,7 +6,8 @@
 #include <simdjson.h>
 
 #include "chat_session.hpp"
-#include "pg_connection_pool.hpp"
+#include "database.hpp"
+#include "conversation_store.hpp"
 
 namespace
 {
@@ -82,53 +83,17 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_unread_count(js
         co_return simdjson::SUCCESS;
     }
 
-    std::string count;
-    {
-        auto lease = co_await database_.acquire();
-        if (lease.error())
-        {
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            co_return simdjson::SUCCESS;
-        }
-
-        std::vector<std::string> parameters;
-        parameters.emplace_back(std::to_string(*user_id_));
-        parameters.emplace_back(std::to_string(params.conversation));
-
-        auto query_result = co_await lease.connection().execute_row(
-            "SELECT (SELECT count(*) FROM messages m WHERE m.conversation_id=c.id "
-            "AND m.id>GREATEST(own.last_read_message_id,own.joined_message_id) AND NOT m.deleted "
-            "AND (m.sender_id<>$1::bigint OR c.direct_user_low=c.direct_user_high))::text "
-            "FROM conversation_members own JOIN conversations c ON c.id=own.conversation_id "
-            "WHERE own.user_id=$1::bigint AND own.conversation_id=$2::bigint",
-            std::move(parameters));
-        auto& [query_ec, query_count] = query_result;
-        if (query_ec)
-        {
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            co_return simdjson::SUCCESS;
-        }
-        if (!query_count)
-        {
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response);
-            }
-            co_return simdjson::SUCCESS;
-        }
-        count = std::move(query_count->front());
-    }
-
+    auto count = co_await database_.run([=, user=*user_id_](sqlite_database& db) {
+        return read_unread_count(db, params.conversation, user);
+    });
     if (!request.id.present)
     {
         co_return simdjson::SUCCESS;
     }
-
-    co_return serialize_get_unread_count_result(count, std::move(request.id), response);
+    if (!count || !*count)
+    {
+        co_return count ? serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response)
+                        : serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+    }
+    co_return serialize_get_unread_count_result(std::to_string(**count), std::move(request.id), response);
 }

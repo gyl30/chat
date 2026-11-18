@@ -12,7 +12,8 @@
 #include "chat_session.hpp"
 #include "blocking_worker.hpp"
 #include "password_hash.hpp"
-#include "pg_connection_pool.hpp"
+#include "database.hpp"
+#include "user_store.hpp"
 
 namespace
 {
@@ -111,47 +112,13 @@ boost::capy::task<simdjson::error_code> chat_session::handle_authenticate(json_r
         co_return simdjson::SUCCESS;
     }
 
-    std::optional<std::vector<std::string>> row;
+    auto account = co_await database_.run([&](sqlite_database& db) { return find_account(db, params.username); });
+    if (!account)
     {
-        auto lease = co_await database_.acquire();
-        if (lease.error())
-        {
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            co_return simdjson::SUCCESS;
-        }
-
-        auto query_result = co_await lease.connection().execute_row(
-            "SELECT id::text, password_hash,avatar_revision::text,"
-            "EXISTS(SELECT 1 FROM user_avatars WHERE user_id=users.id)::text FROM users WHERE username = $1", {params.username});
-        auto& [query_ec, query_row] = query_result;
-        if (query_ec)
-        {
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            co_return simdjson::SUCCESS;
-        }
-        row = std::move(query_row);
+        co_return request.id.present ? serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response)
+                                     : simdjson::SUCCESS;
     }
-
-    std::string_view password_hash = kDummyPasswordHash;
-    if (row)
-    {
-        if (row->size() != 4)
-        {
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            co_return simdjson::SUCCESS;
-        }
-        password_hash = (*row)[1];
-    }
-
+    std::string_view const password_hash = *account ? std::string_view((*account)->password_hash) : kDummyPasswordHash;
     auto password_matches = co_await passwords_.run([&] { return check_password(params.password, password_hash); },
         [](blocking_worker::unavailable) { return std::make_error_code(std::errc::resource_unavailable_try_again); });
     if (!password_matches)
@@ -164,20 +131,9 @@ boost::capy::task<simdjson::error_code> chat_session::handle_authenticate(json_r
     }
 
     bool authenticated = false;
-    if (row && *password_matches)
+    if (*account && *password_matches)
     {
-        std::int64_t user_id = 0;
-        auto const& id = (*row)[0];
-        auto const [ptr, ec] = std::from_chars(id.data(), id.data() + id.size(), user_id);
-        if (ec != std::errc{} || ptr != id.data() + id.size())
-        {
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            co_return simdjson::SUCCESS;
-        }
-
+        auto const user_id = (*account)->user.id;
         if (!users_.add(user_id, *this))
         {
             if (request.id.present)
@@ -199,5 +155,5 @@ boost::capy::task<simdjson::error_code> chat_session::handle_authenticate(json_r
     }
 
     co_return serialize_authenticate_result(authenticated, user_id_.value_or(0),
-        authenticated ? std::stoll((*row)[2]) : 0, authenticated && (*row)[3] == "true", std::move(request.id), response);
+        authenticated ? (*account)->user.avatar.revision : 0, authenticated && (*account)->user.avatar.present, std::move(request.id), response);
 }

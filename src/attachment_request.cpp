@@ -8,7 +8,9 @@
 #include <simdjson.h>
 
 #include "chat_session.hpp"
-#include "pg_connection_pool.hpp"
+#include "database.hpp"
+#include "attachment_io.hpp"
+#include "conversation_store.hpp"
 
 boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc_request& request,
                                                                     std::string& response)
@@ -66,43 +68,19 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
         {
             co_return serialize_json_rpc_error(-32008, "Attachment upload in progress", std::move(request.id), response);
         }
-        auto lease = co_await database_.acquire();
-        if (lease.error())
-        {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        auto& connection = lease.connection();
-        auto begun = co_await connection.execute_row("BEGIN");
-        auto locked = co_await connection.execute_row(
-            "SELECT id::text FROM conversations WHERE id=$1::bigint FOR UPDATE", {std::to_string(params.conversation)});
-        if (std::get<0>(begun) || std::get<0>(locked))
-        {
-            connection.close();
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        auto allowed = co_await check_conversation_send(connection, params.conversation);
+        auto allowed = co_await database_.run([=, user=*user_id_](sqlite_database& db) {
+            return can_send_to_conversation(db, params.conversation, user);
+        });
         if (!allowed)
         {
-            connection.close();
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        auto const upload = next_upload_id_;
-        if (*allowed)
-        {
-            upload_.emplace(next_upload_id_++, params.conversation, params.client_id, std::move(params.filename), params.size,
-                            std::string{});
-        }
-        auto ended = co_await connection.execute_row(*allowed ? "COMMIT" : "ROLLBACK");
-        if (std::get<0>(ended))
-        {
-            upload_.reset();
-            connection.close();
             co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
         }
         if (!*allowed)
         {
             co_return serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response);
         }
+        auto const upload = next_upload_id_++;
+        upload_.emplace(upload, params.conversation, params.client_id, std::move(params.filename), params.size, std::string{});
         co_return serialize_json_rpc_success("{\"upload\":" + std::to_string(upload) + "}",
                                             std::move(request.id), response);
     }
@@ -120,30 +98,20 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
         {
             co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
         }
-        auto lease = co_await database_.acquire();
-        if (lease.error())
+        auto const offset = static_cast<std::size_t>(params.offset);
+        auto result = co_await download_attachment_chunk(database_, objects_, *user_id_, params.conversation, params.message, offset);
+        if (!result)
         {
             co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
         }
-        auto result = co_await lease.connection().execute_row(
-            "SELECT json_build_object('offset',$3::bigint,'size',a.size,'data',"
-            "replace(encode(substring(a.data FROM $3::int+1 FOR 32768),'base64'),chr(10),''),"
-            "'has_more',$3::bigint+32768<a.size)::text "
-            "FROM message_attachments a JOIN messages m ON m.id=a.message_id JOIN conversation_members own "
-            "ON own.conversation_id=m.conversation_id WHERE m.id=$2::bigint AND m.conversation_id=$4::bigint "
-            "AND own.user_id=$1::bigint AND NOT m.deleted AND $3::bigint<=a.size",
-            {std::to_string(*user_id_), std::to_string(params.message), std::to_string(params.offset),
-             std::to_string(params.conversation)});
-        auto& [ec, row] = result;
-        if (ec)
-        {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        if (!row)
+        if (!*result)
         {
             co_return serialize_json_rpc_error(-32007, "Attachment unavailable", std::move(request.id), response);
         }
-        co_return serialize_json_rpc_success(row->front(), std::move(request.id), response);
+        struct chunk { std::size_t offset, size; std::string data; bool has_more; };
+        auto const& bytes = **result;
+        chunk value{offset, bytes.size, chat::detail::encode_base64(bytes.bytes), bytes.size - offset > bytes.bytes.size()};
+        co_return serialize_json_rpc_value(value, std::move(request.id), response);
     }
     if (request.method == "cancel_attachment")
     {

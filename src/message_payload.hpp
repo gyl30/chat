@@ -37,4 +37,33 @@ struct message_payload
     std::optional<std::int64_t> client_id;
 };
 
+inline message_payload make_message_payload(chat::message const& message, bool include_client_id = false)
+{
+    message_payload value;
+    value.id = message.id;
+    value.conversation = message.conversation;
+    value.from = message.from;
+    value.username = message.username;
+    value.timestamp = message.timestamp;
+    value.text = message.text;
+    if (message.reply)
+    {
+        auto const& reply = *message.reply;
+        value.reply = quoted_message_payload{reply.id, reply.from, reply.username, reply.text, reply.edited_at, reply.deleted};
+    }
+    value.edited_at = message.edited_at;
+    value.deleted = message.deleted;
+    value.attachment = message.attachment;
+    value.avatar_revision = message.avatar.revision;
+    value.has_avatar = message.avatar.present;
+    value.reaction_revision = message.reaction_revision;
+    value.reactions = message.reactions;
+    value.mentions = message.mentions;
+    if (include_client_id)
+    {
+        value.client_id = message.client_id;
+    }
+    return value;
+}
+
 #endif
