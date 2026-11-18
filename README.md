@@ -1,18 +1,18 @@
 # Chat
 
-C++ 聊天服务器、共享客户端 SDK、Qt Widgets 桌面客户端和 FTXUI 终端客户端。
+C++ 聊天服务器、共享客户端 SDK 和 Qt Widgets 桌面客户端。
 支持好友确认后的私聊、群聊、消息历史、回复/编辑、附件，以及 WS / WSS 连接。
 
 ## 构建
 
 需要 CMake 3.30+、支持 C++26 `-freflection` 的 GCC 16、Boost 1.92.0、
 SQLite3、MinIO C++ SDK 1.0.1（`miniocpp` CMake 包）、OpenSSL、libpng、libjpeg。
-Qt 客户端需要 Qt 6.5+ Widgets/Svg（Linux 还需要 DBus）；TUI 使用固定的 FTXUI 子模块。
+Qt 客户端需要 Qt 6.5+ Widgets/Svg（Linux 还需要 DBus）。
 
 ```sh
 git submodule update --init --recursive
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
-    -DCHAT_BUILD_QT_CLIENT=ON -DCHAT_BUILD_TUI_CLIENT=ON
+    -DCHAT_BUILD_QT_CLIENT=ON
 cmake --build build -j12
 ```
 
@@ -25,7 +25,7 @@ cmake --build build -j12
 cmake --install build --prefix "$HOME/.local/chat"
 ```
 
-安装包括启用的 `chat_server`、`chat_qt`、`chat_tui` 和 Qt 主题；
+安装包括 `chat_server`、启用的 `chat_qt` 和 Qt 主题；
 SQLite 数据库由服务端首次打开时初始化。附件存储使用独立的 Silo/S3 服务。
 标准 CMake install 不会自动打包外部运行时依赖，也不部署 Silo。
 
@@ -91,7 +91,6 @@ export CHAT_S3_HTTPS=0  # 本地 HTTP；生产环境应使用 HTTPS
 
 mkdir -p "$HOME/chat-data"
 ./build/chat_server 18080 32 "$HOME/chat-data/chat.sqlite3"
-./build/chat_tui ws://127.0.0.1:18080/ws
 ./build/qt/chat_qt ws://127.0.0.1:18080/ws
 ```
 
@@ -104,7 +103,6 @@ SQLite 使用 WAL、`synchronous=FULL` 和外键约束。部署时确保数据�
 ```sh
 ./build/chat_server 18443 32 "$HOME/chat-data/chat.sqlite3" \
     --tls-cert /path/fullchain.pem --tls-key /path/key.pem
-./build/chat_tui wss://chat.example:18443/ws
 ```
 
 `GET /health` 提供 HTTP 健康检查；它不代表 S3 服务一定可用。

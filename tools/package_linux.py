@@ -106,7 +106,7 @@ def main():
     output.mkdir(parents=True)
     root = output / 'chat'
     run('cmake', '--install', str(build), '--prefix', str(root))
-    for name in ('chat_server', 'chat_tui', 'chat_qt'):
+    for name in ('chat_server', 'chat_qt'):
         if not (root / 'bin' / name).is_file():
             raise RuntimeError(f'install missing {name}; enable both clients and rebuild')
     plugins = []
@@ -133,7 +133,7 @@ def main():
                                  r'libpng16\.so\.16|libjpeg\.so\.8|libz\.so\.1|'
                                  r'libxcb-cursor\.so\.0)$')
     provided, external = {}, {}
-    executables = [root / 'bin' / name for name in ('chat_server', 'chat_tui', 'chat_qt')]
+    executables = [root / 'bin' / name for name in ('chat_server', 'chat_qt')]
     for binary in executables + [qt / 'plugins' / binary.relative_to(root / 'plugins') for binary in plugins]:
         dependencies = run('ldd', str(binary))
         for name, origin in parse_ldd(dependencies, binary):
@@ -167,7 +167,7 @@ def main():
         '# Chat Linux release\n\n'
         'Ubuntu 22.04 x86_64 / glibc 2.35 is the tested platform, not all Linux.\n'
         'Extract and run bin/chat_server PORT WORKERS SQLITE_FILE, '
-        'bin/chat_tui ws://HOST:PORT/ws or bin/chat_qt ws://HOST:PORT/ws.\n'
+        'bin/chat_qt ws://HOST:PORT/ws.\n'
         'The server initializes an SQLite database on first use and requires a private S3/Silo bucket. '
         'Configure CHAT_S3_ENDPOINT, CHAT_S3_BUCKET, CHAT_S3_ACCESS_KEY, '
         'CHAT_S3_SECRET_KEY and optionally CHAT_S3_REGION and CHAT_S3_HTTPS.\n'

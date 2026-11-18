@@ -29,16 +29,13 @@ foreach(source expected_hash IN ZIP_LISTS utf8proc_pinned_files utf8proc_pinned_
     endif()
 endforeach()
 
-if(NOT CHAT_BUILD_TUI_CLIENT AND NOT CHAT_BUILD_QT_CLIENT)
+if(NOT CHAT_BUILD_QT_CLIENT)
     return()
 endif()
 
-set(emoji_property_data "${PROJECT_SOURCE_DIR}/tui/cmake/unicode/emoji-data-18.0.0.txt")
-set(emoji_property_table "${PROJECT_SOURCE_DIR}/tui/cmake/unicode/emoji_properties_18.inc")
+set(emoji_property_data "${PROJECT_SOURCE_DIR}/cmake/unicode/emoji-data-18.0.0.txt")
 file(SHA256 "${emoji_property_data}" emoji_data_hash)
-file(SHA256 "${emoji_property_table}" emoji_table_hash)
-if(NOT emoji_data_hash STREQUAL "80d00f8e616a0ef27fd6b8de3b758c06383b5d917e2977709578e68baf733bf1" OR
-   NOT emoji_table_hash STREQUAL "b200a53eeae768e7e67a2d465936b0cb0e859618cc877b99dac79d454e2e6937")
+if(NOT emoji_data_hash STREQUAL "80d00f8e616a0ef27fd6b8de3b758c06383b5d917e2977709578e68baf733bf1")
     message(FATAL_ERROR "Pinned Unicode18 emoji data/table changed; regenerate and review pins")
 endif()
 
@@ -63,4 +60,4 @@ foreach(property Emoji Emoji_Presentation Emoji_Modifier_Base Emoji_Modifier)
 endforeach()
 string(APPEND emoji_properties_header "}\n")
 file(GENERATE OUTPUT "${chat_unicode_include}/emoji_properties.hpp" CONTENT "${emoji_properties_header}")
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${emoji_property_data}" "${emoji_property_table}")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${emoji_property_data}")

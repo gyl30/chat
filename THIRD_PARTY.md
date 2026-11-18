@@ -17,19 +17,14 @@
 | wslay | [MIT](third/wslay/COPYING) |
 | simdjson | [Apache-2.0](third/simdjson/LICENSE)、[MIT](third/simdjson/LICENSE-MIT)，上游提供双许可 |
 | spdlog | [MIT](third/spdlog/LICENSE)；其内含组件的声明也应保留 |
-| FTXUI | [MIT](third/ftxui/LICENSE) |
-
-FTXUI 的项目补丁在构建目录应用，未改子模块原始源码；
-补丁、版本核验与 Unicode 来源见 [TUI 构建说明](tui/cmake/README.md)。
 
 ## 构建下载与 Unicode 数据
 
 | 依赖 | 固定版本与声明 |
 | --- | --- |
-| utf8proc | 2.12.0 / Unicode 18；[保留的上游许可与数据声明](tui/cmake/utf8proc-LICENSE.md) |
+| utf8proc | 2.12.0 / Unicode 18；[保留的上游许可与数据声明](cmake/utf8proc-LICENSE.md) |
 | Google emoji-segmenter | 0.4.0，提交 `72bdc08c02be6cccdfc8cb1055fea4822a6494c1`，Apache-2.0；下载包完整 `LICENSE` 与生成 scanner 版权声明须保留 |
-| Unicode 属性数据及派生表 | Unicode 18；[Unicode License V3](tui/cmake/unicode/UNICODE-LICENSE.txt) |
-| Unicode 字素测试数据 | Unicode 18；[随测试数据保留的声明](tui/tests/data/UNICODE-LICENSE.txt) |
+| Unicode 属性数据及派生表 | Unicode 18；[Unicode License V3](cmake/unicode/UNICODE-LICENSE.txt) |
 
 utf8proc 与 emoji-segmenter 的下载来源、哈希和离线源码核验由
 [chat_unicode.cmake](cmake/chat_unicode.cmake) 与
