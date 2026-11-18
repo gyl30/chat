@@ -9,13 +9,22 @@
 
 #include "sqlite_database.hpp"
 
-struct text_message_write
+struct message_to_write
 {
     std::int64_t sender;
     std::int64_t conversation;
     std::int64_t client_id;
     std::string_view text;
     std::optional<std::int64_t> reply_to;
+};
+
+struct uploaded_attachment
+{
+    std::string_view object_key;
+    std::string_view filename;
+    std::string_view media_type;
+    std::int64_t size;
+    std::string_view checksum;
 };
 
 enum class message_write_rejection { unavailable, invalid_client_id, invalid_reply };
@@ -27,7 +36,7 @@ struct message_write
 };
 
 // The duplicate check, access check, write and activity update share one transaction.
-std::expected<std::variant<message_write, message_write_rejection>, sqlite_error> write_text_message(
-    sqlite_database& db, text_message_write const& message);
+std::expected<std::variant<message_write, message_write_rejection>, sqlite_error> write_message(
+    sqlite_database& db, message_to_write const& message, uploaded_attachment const* attachment = nullptr);
 
 #endif

@@ -324,14 +324,14 @@ void message_write_tests()
         INSERT INTO contacts(owner_id,contact_id,created_at) VALUES(1,2,0),(2,1,0);
     )SQL").ok(), "seed direct and self conversations");
 
-    text_message_write draft{1, 1, 9, "original text", {}};
+    message_to_write draft{1, 1, 9, "original text", {}};
     std::barrier start(2);
     auto concurrent = std::async(std::launch::async, [&] {
         start.arrive_and_wait();
-        return write_text_message(*right, draft);
+        return write_message(*right, draft);
     });
     start.arrive_and_wait();
-    auto first = write_text_message(*left, draft);
+    auto first = write_message(*left, draft);
     auto second = concurrent.get();
     auto const* a = first ? std::get_if<message_write>(&*first) : nullptr;
     auto const* b = second ? std::get_if<message_write>(&*second) : nullptr;
@@ -347,23 +347,23 @@ void message_write_tests()
         auto const* failure = result ? std::get_if<message_write_rejection>(&*result) : nullptr;
         return failure && *failure == reason;
     };
-    check(rejected_as(write_text_message(*right, {1, 2, 9, "another conversation", {}}), invalid_client_id),
+    check(rejected_as(write_message(*right, {1, 2, 9, "another conversation", {}}), invalid_client_id),
           "client ID cannot be reused in a different conversation");
-    check(rejected_as(write_text_message(*right, {1, 2, 10, "cross conversation", a->id}), invalid_reply),
+    check(rejected_as(write_message(*right, {1, 2, 10, "cross conversation", a->id}), invalid_reply),
           "cross-conversation reply is rejected");
     check(left->exec("UPDATE messages SET deleted=1,body=''").ok(), "mark original target deleted");
-    check(rejected_as(write_text_message(*right, {1, 1, 10, "deleted target", a->id}), invalid_reply),
+    check(rejected_as(write_message(*right, {1, 1, 10, "deleted target", a->id}), invalid_reply),
           "a new reply cannot point to a deleted message");
     check(left->exec("DELETE FROM contacts").ok(), "remove friendship without destroying history");
-    auto replay = write_text_message(*right, draft);
+    auto replay = write_message(*right, draft);
     auto const* replayed = replay ? std::get_if<message_write>(&*replay) : nullptr;
     check(replayed && replayed->id == a->id && !replayed->inserted,
           "existing tombstone can settle a replay after friendship ends");
-    check(rejected_as(write_text_message(*right, {1, 1, 10, "new send", {}}), unavailable),
+    check(rejected_as(write_message(*right, {1, 1, 10, "new send", {}}), unavailable),
           "removed friendship denies a new direct send");
     check(left->exec("DELETE FROM conversation_members WHERE conversation_id=1 AND user_id=1").ok(),
           "remove sender membership");
-    check(rejected_as(write_text_message(*right, draft), unavailable),
+    check(rejected_as(write_message(*right, draft), unavailable),
           "replay cannot bypass membership");
     check(count(*left, "messages") == 1, "rejected and replayed requests add no persisted rows");
 }

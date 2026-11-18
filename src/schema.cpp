@@ -112,6 +112,25 @@ CREATE TABLE message_attachments (
     CHECK (length(CAST(filename AS BLOB)) BETWEEN 1 AND 255)
 );
 
+-- Reservations are durable before PUT. A message claims its object in the
+-- publishing transaction. Removing metadata transfers it back to cleanup.
+CREATE TABLE attachment_cleanup (
+    object_key TEXT PRIMARY KEY NOT NULL,
+    reserved_at INTEGER NOT NULL
+);
+CREATE INDEX attachment_cleanup_age ON attachment_cleanup (reserved_at, object_key);
+
+CREATE TRIGGER queue_deleted_attachment AFTER DELETE ON message_attachments
+BEGIN
+    INSERT INTO attachment_cleanup(object_key,reserved_at) VALUES(OLD.object_key,0);
+END;
+
+CREATE TRIGGER discard_deleted_message_attachment AFTER UPDATE OF deleted ON messages
+WHEN NEW.deleted=1 AND OLD.deleted=0
+BEGIN
+    DELETE FROM message_attachments WHERE message_id=NEW.id;
+END;
+
 CREATE TABLE message_reactions (
     message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

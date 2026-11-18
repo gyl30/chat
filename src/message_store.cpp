@@ -1,10 +1,11 @@
 #include "message_store.hpp"
 
 #include <chrono>
+#include <sqlite3.h>
 #include <utility>
 
-std::expected<std::variant<message_write, message_write_rejection>, sqlite_error> write_text_message(
-    sqlite_database& db, text_message_write const& message)
+std::expected<std::variant<message_write, message_write_rejection>, sqlite_error> write_message(
+    sqlite_database& db, message_to_write const& message, uploaded_attachment const* attachment)
 {
     using enum message_write_rejection;
     if (message.client_id <= 0)
@@ -36,7 +37,7 @@ std::expected<std::variant<message_write, message_write_rejection>, sqlite_error
         if (*row)
         {
             if (query->column_int64(1) != message.conversation ||
-                (query->column_int64(2) == 0 && query->column_int64(3) != 0))
+                (query->column_int64(2) == 0 && ((query->column_int64(3) != 0) != (attachment != nullptr))))
             {
                 return invalid_client_id;
             }
@@ -105,6 +106,35 @@ std::expected<std::variant<message_write, message_write_rejection>, sqlite_error
         return std::unexpected(std::move(result.error()));
     }
     auto const id = db.last_insert_rowid();
+    if (attachment)
+    {
+        auto claim = db.prepare("DELETE FROM attachment_cleanup WHERE object_key=?1", attachment->object_key);
+        if (!claim)
+        {
+            return std::unexpected(std::move(claim.error()));
+        }
+        if (auto result = claim->step(); !result)
+        {
+            return std::unexpected(std::move(result.error()));
+        }
+        if (db.changes() != 1)
+        {
+            return std::unexpected(sqlite_error{SQLITE_CONSTRAINT, "attachment object has no reservation"});
+        }
+        auto metadata = db.prepare(R"SQL(
+            INSERT INTO message_attachments(message_id,object_key,filename,media_type,size,checksum,created_at)
+            VALUES(?1,?2,?3,?4,?5,?6,?7)
+        )SQL", id, attachment->object_key, attachment->filename, attachment->media_type,
+            attachment->size, attachment->checksum, now);
+        if (!metadata)
+        {
+            return std::unexpected(std::move(metadata.error()));
+        }
+        if (auto result = metadata->step(); !result)
+        {
+            return std::unexpected(std::move(result.error()));
+        }
+    }
     auto activity = db.prepare("UPDATE conversations SET activity=max(activity,?1) WHERE id=?2", now, message.conversation);
     if (!activity)
     {

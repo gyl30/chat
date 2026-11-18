@@ -241,9 +241,16 @@ target_link_libraries(chat_database_test
 add_test(NAME database COMMAND chat_database_test)
 set_tests_properties(database PROPERTIES TIMEOUT 30)
 
-add_executable(chat_s3_objects_test tests/s3_objects_test.cpp src/s3_objects.cpp)
+add_executable(chat_s3_objects_test
+    tests/s3_objects_test.cpp
+    src/s3_objects.cpp
+    src/attachment_cleanup.cpp
+    src/message_store.cpp
+    src/schema.cpp
+    src/sqlite_database.cpp
+)
 target_include_directories(chat_s3_objects_test PRIVATE src client/include)
-target_link_libraries(chat_s3_objects_test PRIVATE miniocpp::miniocpp OpenSSL::Crypto)
+target_link_libraries(chat_s3_objects_test PRIVATE miniocpp::miniocpp OpenSSL::Crypto SQLite::SQLite3)
 add_test(NAME s3_objects COMMAND chat_s3_objects_test)
 set_tests_properties(s3_objects PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
 
