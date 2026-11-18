@@ -443,6 +443,48 @@ void message_write_tests()
           "empty incremental history still returns authoritative reading positions");
 }
 
+void mention_tests()
+{
+    temporary_database file;
+    auto db = sqlite_database::open(file.path);
+    check(db && initialize_schema(*db).ok(), "open SQLite mention fixture");
+    if (!db)
+    {
+        return;
+    }
+    check(db->exec(R"SQL(
+        INSERT INTO users(id,username,password_hash,last_seen_at)
+        SELECT i,name,printf('%060d',i),0 FROM (
+            SELECT 1 AS i,'Sender' AS name UNION ALL SELECT 2,'Alice'
+            UNION ALL SELECT 3,'Alice Bob' UNION ALL SELECT 4,'a.b'
+            UNION ALL SELECT 5,'张 三' UNION ALL SELECT 6,'outsider'
+        );
+        INSERT INTO contacts(owner_id,contact_id,created_at) VALUES(1,2,0),(2,1,0),(1,3,0),(1,4,0),(1,5,0);
+    )SQL").ok(), "seed username prefixes, punctuation and Unicode");
+    auto group = create_group(*db, 1, "mentions", std::array<std::int64_t, 4>{2,3,4,5});
+    auto direct = open_direct(*db, 1, 2);
+    if (!group || !*group || !direct || !*direct)
+    {
+        check(false, "open conversations for mention tests");
+        return;
+    }
+    auto group_message = write_message(*db, {1, **group, 1,
+        "@Alice Bob, @a.b, (@张 三), @a.b; fake@Alice, 中@Alice, @@Alice, @Alice_2, @alice, @outsider", {}});
+    auto direct_message = write_message(*db, {1, **direct, 2, "@Alice", {}});
+    auto group_history = read_message_history(*db, 2, **group, {}, {});
+    auto direct_history = read_message_history(*db, 2, **direct, {}, {});
+    check(group_message && std::holds_alternative<message_write>(*group_message) &&
+          group_history && *group_history && (*group_history)->messages.size() == 1 &&
+          (*group_history)->messages.front().mentions.size() == 3 &&
+          (*group_history)->messages.front().mentions[0].username == "Alice Bob" &&
+          (*group_history)->messages.front().mentions[1].username == "a.b" &&
+          (*group_history)->messages.front().mentions[2].username == "张 三",
+          "group message persists longest literal mentions and rejects invalid boundaries");
+    check(direct_message && std::holds_alternative<message_write>(*direct_message) &&
+          direct_history && *direct_history && (*direct_history)->messages.size() == 1 &&
+          (*direct_history)->messages.front().mentions.empty(), "direct messages do not store mentions");
+}
+
 void conversation_tests()
 {
     temporary_database file;
@@ -1005,6 +1047,7 @@ int main()
     stopped_executor_test();
     friendship_tests();
     message_write_tests();
+    mention_tests();
     conversation_tests();
     conversation_list_tests();
     account_tests();

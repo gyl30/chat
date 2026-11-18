@@ -232,6 +232,7 @@ add_library(chat_sqlite_storage STATIC
     src/message_store.cpp
     src/schema.cpp
     src/sqlite_database.cpp
+    src/sqlite_mentions.cpp
     src/user_store.cpp
 )
 target_include_directories(chat_sqlite_storage PUBLIC src client/include)

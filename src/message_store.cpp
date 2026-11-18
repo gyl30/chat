@@ -1,4 +1,5 @@
 #include "message_store.hpp"
+#include "sqlite_mentions.hpp"
 
 #include <chrono>
 #include <sqlite3.h>
@@ -122,6 +123,13 @@ std::expected<message_write_outcome, sqlite_error> write_message(
         return std::unexpected(std::move(result.error()));
     }
     auto const id = db.last_insert_rowid();
+    if (message.text.contains('@'))
+    {
+        if (auto error = replace_message_mentions(db, message.conversation, id, message.text); error)
+        {
+            return std::unexpected(std::move(error));
+        }
+    }
     if (attachment)
     {
         auto claim = db.prepare("DELETE FROM attachment_cleanup WHERE object_key=?1", attachment->object_key);
