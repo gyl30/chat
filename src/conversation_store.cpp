@@ -240,6 +240,23 @@ std::expected<std::optional<std::int64_t>, sqlite_error> read_unread_count(
     return count->column_int64(0);
 }
 
+std::expected<bool, sqlite_error> can_send_to_conversation(
+    sqlite_database& db, std::int64_t conversation, std::int64_t actor)
+{
+    auto access = db.prepare(R"SQL(
+        SELECT 1 FROM conversations c
+        JOIN conversation_members own ON c.id=own.conversation_id AND own.user_id=?1
+        WHERE c.id=?2 AND (c.kind='group' OR EXISTS(
+            SELECT 1 FROM contacts WHERE owner_id=?1
+                AND contact_id=CASE WHEN c.direct_user_low=?1 THEN c.direct_user_high ELSE c.direct_user_low END))
+    )SQL", actor, conversation);
+    if (!access)
+    {
+        return std::unexpected(std::move(access.error()));
+    }
+    return access->step();
+}
+
 std::expected<std::variant<bool, group_invite_rejection>, sqlite_error> invite_group_members(
     sqlite_database& db, std::int64_t group, std::int64_t actor, std::span<std::int64_t const> invitees)
 {

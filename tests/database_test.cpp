@@ -22,6 +22,7 @@
 #include "conversation_store.hpp"
 #include "database.hpp"
 #include "friendship_store.hpp"
+#include "message_changes.hpp"
 #include "message_store.hpp"
 #include "message_history.hpp"
 #include "schema.hpp"
@@ -483,6 +484,103 @@ void mention_tests()
     check(direct_message && std::holds_alternative<message_write>(*direct_message) &&
           direct_history && *direct_history && (*direct_history)->messages.size() == 1 &&
           (*direct_history)->messages.front().mentions.empty(), "direct messages do not store mentions");
+}
+
+void message_change_tests()
+{
+    temporary_database file;
+    auto db = sqlite_database::open(file.path);
+    check(db && initialize_schema(*db).ok(), "open SQLite message mutation fixture");
+    if (!db)
+    {
+        return;
+    }
+    check(db->exec(R"SQL(
+        INSERT INTO users(username,password_hash,last_seen_at)
+            VALUES('Owner',printf('%060d',1),0),('Member',printf('%060d',2),0),('Outsider',printf('%060d',3),0);
+        INSERT INTO contacts(owner_id,contact_id,created_at) VALUES(1,2,0),(2,1,0);
+    )SQL").ok(), "seed a message author, reader and non-member");
+    auto group = create_group(*db, 1, "changes", std::array<std::int64_t, 1>{2});
+    auto direct = open_direct(*db, 1, 2);
+    if (!group || !*group || !direct || !*direct)
+    {
+        check(false, "open conversations for mutation tests");
+        return;
+    }
+    auto sent = write_message(*db, {1, **group, 1, "@Member original", {}});
+    auto direct_sent = write_message(*db, {1, **direct, 2, "friendship history", {}});
+    auto saved = sent ? std::get_if<message_write>(&*sent) : nullptr;
+    auto saved_direct = direct_sent ? std::get_if<message_write>(&*direct_sent) : nullptr;
+    if (!saved || !saved_direct)
+    {
+        check(false, "persist messages for mutation tests");
+        return;
+    }
+    auto reply = write_message(*db, {2, **group, 1, "saved reply", saved->id});
+    auto const* saved_reply = reply ? std::get_if<message_write>(&*reply) : nullptr;
+    auto reaction = set_message_reaction(*db, 2, **group, saved->id, "👍");
+    auto same = set_message_reaction(*db, 2, **group, saved->id, "👍");
+    auto denied = set_message_reaction(*db, 3, **group, saved->id, "👍");
+    auto rejected = [](auto const& result, message_change_rejection expected) {
+        auto const* reason = result ? std::get_if<message_change_rejection>(&*result) : nullptr;
+        return reason && *reason == expected;
+    };
+    auto const* first_reaction = reaction ? std::get_if<changed_reaction>(&*reaction) : nullptr;
+    auto const* unchanged = same ? std::get_if<changed_reaction>(&*same) : nullptr;
+    check(first_reaction && first_reaction->changed && first_reaction->update.revision == 1 &&
+          first_reaction->update.reactions.size() == 1 && unchanged && !unchanged->changed &&
+          unchanged->update.revision == 1 && rejected(denied, message_change_rejection::unavailable),
+          "reaction writes are membership-scoped and unchanged selections keep their revision");
+
+    auto mutate = [&](std::int64_t user, std::int64_t conversation, std::int64_t message,
+                      std::optional<std::string_view> text, bool commit = true)
+        -> std::expected<std::variant<changed_message, message_change_rejection>, sqlite_error> {
+        auto transaction = sqlite_transaction::begin_immediate(*db);
+        if (!transaction)
+        {
+            return std::unexpected(std::move(transaction.error()));
+        }
+        auto changed = change_message_body(*db, user, conversation, message, text);
+        if (commit && changed && std::holds_alternative<changed_message>(*changed))
+        {
+            if (auto error = transaction->commit(); error)
+            {
+                return std::unexpected(std::move(error));
+            }
+        }
+        return changed;
+    };
+    auto wrong_author = mutate(2, **group, saved->id, "other author's text");
+    auto edited = mutate(1, **group, saved->id, "edited with no mention");
+    auto rolled_back = mutate(1, **group, saved->id, "@Member uncommitted", false);
+    auto snapshot = read_message(*db, 2, **group, saved->id);
+    auto const* detail = edited ? std::get_if<changed_message>(&*edited) : nullptr;
+    check(rejected(wrong_author, message_change_rejection::unavailable) && detail &&
+          detail->message.edited_at && detail->message.mentions.empty() && rolled_back &&
+          snapshot && *snapshot && (*snapshot)->text == "edited with no mention" && (*snapshot)->mentions.empty() &&
+          !(*snapshot)->client_id, "editing is author-only and rolling back restores the body and mentions together");
+    auto pin = db->prepare("UPDATE conversations SET pinned_message_id=?1 WHERE id=?2", saved->id, **group);
+    check(pin && pin->step().has_value(), "pin the original message");
+    auto deleted = mutate(1, **group, saved->id, {});
+    auto repeated = mutate(1, **group, saved->id, {});
+    auto const* tombstone = deleted ? std::get_if<changed_message>(&*deleted) : nullptr;
+    auto const* duplicate = repeated ? std::get_if<changed_message>(&*repeated) : nullptr;
+    auto current_reply = saved_reply ? read_message(*db, 2, **group, saved_reply->id) :
+        std::expected<std::optional<chat::message>, sqlite_error>{std::nullopt};
+    check(tombstone && tombstone->cleared_pin && tombstone->message.deleted && tombstone->message.reactions.empty() &&
+          tombstone->message.reaction_revision == 2 && duplicate && !duplicate->cleared_pin &&
+          duplicate->message.reaction_revision == 2 && current_reply && *current_reply &&
+          (*current_reply)->reply && (*current_reply)->reply->deleted,
+          "deletion clears pins and reactions once while existing replies retain the tombstone");
+
+    check(db->exec("DELETE FROM contacts").ok(), "remove friendship after sending");
+    auto no_edit = mutate(1, **direct, saved_direct->id, "disallowed edit");
+    auto no_reaction = set_message_reaction(*db, 2, **direct, saved_direct->id, "👍");
+    auto still_delete = mutate(1, **direct, saved_direct->id, {});
+    check(rejected(no_edit, message_change_rejection::cannot_send) &&
+          rejected(no_reaction, message_change_rejection::cannot_send) &&
+          still_delete && std::holds_alternative<changed_message>(*still_delete),
+          "a former friend cannot edit or react but can delete their own message");
 }
 
 void conversation_tests()
@@ -1048,6 +1146,7 @@ int main()
     friendship_tests();
     message_write_tests();
     mention_tests();
+    message_change_tests();
     conversation_tests();
     conversation_list_tests();
     account_tests();

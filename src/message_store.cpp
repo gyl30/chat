@@ -1,4 +1,5 @@
 #include "message_store.hpp"
+#include "conversation_store.hpp"
 #include "sqlite_mentions.hpp"
 
 #include <chrono>
@@ -45,23 +46,12 @@ std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_
     }
 
     {
-        auto access = db.prepare(R"SQL(
-            SELECT 1 FROM conversations c
-            JOIN conversation_members own ON c.id=own.conversation_id AND own.user_id=?1
-            WHERE c.id=?2 AND (c.kind='group' OR EXISTS(
-                SELECT 1 FROM contacts WHERE owner_id=?1
-                    AND contact_id=CASE WHEN c.direct_user_low=?1 THEN c.direct_user_high ELSE c.direct_user_low END))
-        )SQL", message.sender, message.conversation);
+        auto access = can_send_to_conversation(db, message.conversation, message.sender);
         if (!access)
         {
             return std::unexpected(std::move(access.error()));
         }
-        auto row = access->step();
-        if (!row)
-        {
-            return std::unexpected(std::move(row.error()));
-        }
-        if (!*row)
+        if (!*access)
         {
             return message_write_outcome{unavailable};
         }
@@ -123,7 +113,7 @@ std::expected<message_write_outcome, sqlite_error> write_message(
         return std::unexpected(std::move(result.error()));
     }
     auto const id = db.last_insert_rowid();
-    if (message.text.contains('@'))
+    if (!attachment && message.text.contains('@'))
     {
         if (auto error = replace_message_mentions(db, message.conversation, id, message.text); error)
         {

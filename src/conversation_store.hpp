@@ -33,6 +33,9 @@ std::expected<bool, sqlite_error> set_conversation_preference(
 std::expected<std::optional<std::int64_t>, sqlite_error> read_unread_count(
     sqlite_database& db, std::int64_t conversation, std::int64_t actor);
 
+std::expected<bool, sqlite_error> can_send_to_conversation(
+    sqlite_database& db, std::int64_t conversation, std::int64_t actor);
+
 enum class group_invite_rejection { unavailable, permission_denied, contact_required };
 
 std::expected<std::variant<bool, group_invite_rejection>, sqlite_error> invite_group_members(

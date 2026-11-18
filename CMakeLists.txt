@@ -228,6 +228,7 @@ add_library(chat_sqlite_storage STATIC
     src/conversation_store.cpp
     src/database.cpp
     src/friendship_store.cpp
+    src/message_changes.cpp
     src/message_history.cpp
     src/message_store.cpp
     src/schema.cpp

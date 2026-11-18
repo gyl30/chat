@@ -14,6 +14,10 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
     sqlite_database& db, std::int64_t user, std::int64_t conversation,
     std::optional<std::int64_t> before, std::optional<std::int64_t> after);
 
+// Read within the caller's snapshot or write transaction.
+std::expected<std::optional<chat::message>, sqlite_error> read_message(
+    sqlite_database& db, std::int64_t user, std::int64_t conversation, std::int64_t message);
+
 // Returns the committed position, or null if the message is not in the
 // conversation or the caller is not a member.
 std::expected<std::optional<std::int64_t>, sqlite_error> update_read_position(

@@ -2,11 +2,23 @@
 
 #include <algorithm>
 #include <limits>
+#include <span>
 #include <utility>
 
 namespace
 {
 constexpr std::size_t kPageSize = 50;
+constexpr std::string_view kMessageColumns = R"SQL(
+    SELECT m.id,m.sender_id,u.username,u.avatar_revision,avatar.user_id IS NOT NULL,
+           m.body,m.created_at,m.edited_at,m.deleted,m.reaction_revision,m.client_id,
+           r.id,r.sender_id,author.username,substr(r.body,1,160),r.edited_at,r.deleted,
+           a.filename,a.media_type,a.size
+    FROM messages m JOIN users u ON u.id=m.sender_id
+    LEFT JOIN user_avatars avatar ON avatar.user_id=u.id
+    LEFT JOIN messages r ON r.id=m.reply_to_id
+    LEFT JOIN users author ON author.id=r.sender_id
+    LEFT JOIN message_attachments a ON a.message_id=m.id AND m.deleted=0
+)SQL";
 
 std::optional<std::int64_t> optional_integer(sqlite_statement const& row, int column)
 {
@@ -14,7 +26,7 @@ std::optional<std::int64_t> optional_integer(sqlite_statement const& row, int co
 }
 
 std::expected<void, sqlite_error> populate_interactions(
-    sqlite_database& db, std::int64_t conversation, std::vector<chat::message>& messages)
+    sqlite_database& db, std::int64_t conversation, std::span<chat::message> messages)
 {
     if (messages.empty())
     {
@@ -152,18 +164,8 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
         return std::nullopt;
     }
 
-    std::string query = R"SQL(
-        SELECT m.id,m.sender_id,u.username,u.avatar_revision,avatar.user_id IS NOT NULL,
-               m.body,m.created_at,m.edited_at,m.deleted,m.reaction_revision,m.client_id,
-               r.id,r.sender_id,author.username,substr(r.body,1,160),r.edited_at,r.deleted,
-               a.filename,a.media_type,a.size
-        FROM messages m JOIN users u ON u.id=m.sender_id
-        LEFT JOIN user_avatars avatar ON avatar.user_id=u.id
-        LEFT JOIN messages r ON r.id=m.reply_to_id
-        LEFT JOIN users author ON author.id=r.sender_id
-        LEFT JOIN message_attachments a ON a.message_id=m.id AND m.deleted=0
-        WHERE m.conversation_id=?1 AND
-    )SQL";
+    std::string query(kMessageColumns);
+    query += "WHERE m.conversation_id=?1 AND ";
     query += after ? "m.id>?2 ORDER BY m.id ASC" : "m.id<?2 ORDER BY m.id DESC";
     query += " LIMIT ?3";
     auto page = db.prepare(query, conversation, after.value_or(before.value_or(std::numeric_limits<std::int64_t>::max())),
@@ -202,6 +204,36 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
     if (auto error = snapshot->commit(); error)
     {
         return std::unexpected(std::move(error));
+    }
+    return result;
+}
+
+std::expected<std::optional<chat::message>, sqlite_error> read_message(
+    sqlite_database& db, std::int64_t user, std::int64_t conversation, std::int64_t message)
+{
+    std::string query(kMessageColumns);
+    query += R"SQL(
+        WHERE m.id=?1 AND m.conversation_id=?2 AND EXISTS(
+            SELECT 1 FROM conversation_members WHERE conversation_id=?2 AND user_id=?3)
+    )SQL";
+    auto statement = db.prepare(query, message, conversation, user);
+    if (!statement)
+    {
+        return std::unexpected(std::move(statement.error()));
+    }
+    auto row = statement->step();
+    if (!row)
+    {
+        return std::unexpected(std::move(row.error()));
+    }
+    if (!*row)
+    {
+        return std::nullopt;
+    }
+    auto result = read_message_row(*statement, user, conversation);
+    if (auto populated = populate_interactions(db, conversation, std::span(&result, 1)); !populated)
+    {
+        return std::unexpected(std::move(populated.error()));
     }
     return result;
 }
