@@ -478,9 +478,45 @@ void conversation_tests()
     auto member = before ? before->step() : std::expected<bool, sqlite_error>{false};
     check(member && *member && (before->column_int64(0) == 0 || before->column_int64(0) == saved->id) &&
           before->column_int64(1) == 0, "serialized invite preserves the join watermark without marking any message read");
+    before = sqlite_statement{};
     auto duplicate = invite_group_members(*other, conversation, 1, invitees);
     check(duplicate && std::get_if<bool>(&*duplicate) && !std::get<bool>(*duplicate),
           "repeat invite does not recreate the membership");
+
+    using enum group_member_action;
+    auto changed = [](auto const& result) {
+        auto const* value = result ? std::get_if<bool>(&*result) : nullptr;
+        return value && *value;
+    };
+    auto was_denied = [](auto const& result, group_member_rejection reason) {
+        auto const* value = result ? std::get_if<group_member_rejection>(&*result) : nullptr;
+        return value && *value == reason;
+    };
+    check(was_denied(change_group_member(*db, conversation, 1, leave, 0), group_member_rejection::permission_denied),
+          "owner cannot leave until ownership is transferred");
+    check(was_denied(change_group_member(*db, conversation, 1, transfer, 2), group_member_rejection::permission_denied),
+          "ownership transfer requires a current administrator");
+    check(changed(change_group_member(*other, conversation, 1, promote, 2)), "owner promotes current member");
+    check(was_denied(change_group_member(*db, conversation, 2, remove, 1), group_member_rejection::permission_denied),
+          "administrator cannot remove the owner");
+    std::barrier roles_start(2);
+    auto member_leaves = std::async(std::launch::async, [&] {
+        roles_start.arrive_and_wait();
+        return change_group_member(*other, conversation, 2, leave, 0);
+    });
+    roles_start.arrive_and_wait();
+    auto transferred = change_group_member(*db, conversation, 1, transfer, 2);
+    auto left = member_leaves.get();
+    check((changed(transferred) && was_denied(left, group_member_rejection::permission_denied)) ||
+          (changed(left) && was_denied(transferred, group_member_rejection::member_not_found)),
+          "transfer and leave compete without leaving a group with an absent owner");
+    auto owner = db->prepare(R"SQL(
+        SELECT c.owner_id,m.is_admin FROM conversations c
+        JOIN conversation_members m ON m.conversation_id=c.id AND m.user_id=c.owner_id WHERE c.id=?1
+    )SQL", conversation);
+    auto current = owner ? owner->step() : std::expected<bool, sqlite_error>{false};
+    check(current && *current && owner->column_int64(0) == (changed(transferred) ? 2 : 1) &&
+          owner->column_int64(1) == 0, "owner membership and role survive serialized changes");
 }
 
 void account_tests()

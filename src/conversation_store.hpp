@@ -21,4 +21,10 @@ enum class group_invite_rejection { unavailable, permission_denied, contact_requ
 std::expected<std::variant<bool, group_invite_rejection>, sqlite_error> invite_group_members(
     sqlite_database& db, std::int64_t group, std::int64_t actor, std::span<std::int64_t const> invitees);
 
+enum class group_member_action { promote, demote, transfer, remove, leave };
+enum class group_member_rejection { unavailable, permission_denied, invalid_target, member_not_found, admin_limit };
+
+std::expected<std::variant<bool, group_member_rejection>, sqlite_error> change_group_member(
+    sqlite_database& db, std::int64_t group, std::int64_t actor, group_member_action action, std::int64_t target);
+
 #endif

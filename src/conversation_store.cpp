@@ -226,3 +226,140 @@ std::expected<std::variant<bool, group_invite_rejection>, sqlite_error> invite_g
     }
     return added;
 }
+
+
+std::expected<std::variant<bool, group_member_rejection>, sqlite_error> change_group_member(
+    sqlite_database& db, std::int64_t group, std::int64_t actor, group_member_action action, std::int64_t target)
+{
+    using enum group_member_action;
+    using enum group_member_rejection;
+
+    auto transaction = sqlite_transaction::begin_immediate(db);
+    if (!transaction)
+    {
+        return std::unexpected(std::move(transaction.error()));
+    }
+
+    std::int64_t owner = 0;
+    bool actor_admin = false;
+    bool target_admin = false;
+    bool target_member = false;
+    {
+        auto roles = db.prepare(R"SQL(
+            SELECT c.owner_id,own.is_admin,other.is_admin
+            FROM conversations c
+            JOIN conversation_members own ON own.conversation_id=c.id AND own.user_id=?2
+            LEFT JOIN conversation_members other ON other.conversation_id=c.id AND other.user_id=?3
+            WHERE c.id=?1 AND c.kind='group'
+        )SQL", group, actor, target);
+        if (!roles)
+        {
+            return std::unexpected(std::move(roles.error()));
+        }
+        auto row = roles->step();
+        if (!row)
+        {
+            return std::unexpected(std::move(row.error()));
+        }
+        if (!*row)
+        {
+            return unavailable;
+        }
+        owner = roles->column_int64(0);
+        actor_admin = roles->column_int64(1) != 0;
+        target_member = !roles->column_is_null(2);
+        target_admin = roles->column_int64(2) != 0;
+    }
+
+    bool const owner_action = action == promote || action == demote || action == transfer;
+    if ((owner_action && actor != owner) || (action == remove && actor != owner && !actor_admin) ||
+        (action == leave && actor == owner))
+    {
+        return permission_denied;
+    }
+    if (action != leave)
+    {
+        if (target == actor)
+        {
+            return invalid_target;
+        }
+        if (!target_member)
+        {
+            return member_not_found;
+        }
+    }
+
+    switch (action)
+    {
+        case promote:
+        case demote:
+        {
+            bool const enabled = action == promote;
+            if (enabled == target_admin)
+            {
+                return false;
+            }
+            if (enabled)
+            {
+                auto current = db.prepare(
+                    "SELECT count(*) FROM conversation_members WHERE conversation_id=?1 AND is_admin=1",
+                    group);
+                if (!current)
+                {
+                    return std::unexpected(std::move(current.error()));
+                }
+                auto row = current->step();
+                if (!row)
+                {
+                    return std::unexpected(std::move(row.error()));
+                }
+                if (*row && current->column_int64(0) >= 3)
+                {
+                    return admin_limit;
+                }
+            }
+            if (auto error = write(db, "UPDATE conversation_members SET is_admin=?3 WHERE conversation_id=?1 AND user_id=?2",
+                                    group, target, static_cast<int>(enabled)); error)
+            {
+                return std::unexpected(std::move(error));
+            }
+            break;
+        }
+        case transfer:
+            if (!target_admin)
+            {
+                return permission_denied;
+            }
+            if (auto error = write(db, R"SQL(
+                UPDATE conversation_members SET is_admin=(user_id=?2)
+                WHERE conversation_id=?1 AND user_id IN(?2,?3)
+            )SQL", group, actor, target); error)
+            {
+                return std::unexpected(std::move(error));
+            }
+            if (auto error = write(db, "UPDATE conversations SET owner_id=?2 WHERE id=?1", group, target); error)
+            {
+                return std::unexpected(std::move(error));
+            }
+            break;
+        case remove:
+            if (target == owner || (actor != owner && target_admin))
+            {
+                return permission_denied;
+            }
+            [[fallthrough]];
+        case leave:
+            if (auto error = write(db, "DELETE FROM conversation_members WHERE conversation_id=?1 AND user_id=?2",
+                                    group, action == leave ? actor : target); error)
+            {
+                return std::unexpected(std::move(error));
+            }
+            break;
+    }
+
+    if (auto error = transaction->commit(); error)
+    {
+        return std::unexpected(std::move(error));
+    }
+    return true;
+}
