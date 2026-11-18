@@ -162,12 +162,10 @@ class sqlite_transaction
     static std::expected<sqlite_transaction, sqlite_error> begin_immediate(sqlite_database& database);
 
     sqlite_error commit();
-    sqlite_error rollback();
-
-    [[nodiscard]] bool active() const noexcept { return database_ != nullptr; }
 
    private:
     explicit sqlite_transaction(sqlite_database* database) noexcept : database_(database) {}
+    void rollback();
 
     sqlite_database* database_ = nullptr;
 };

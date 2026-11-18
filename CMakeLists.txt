@@ -180,7 +180,8 @@ add_library(chat_sqlite_storage STATIC
     src/user_store.cpp
 )
 target_include_directories(chat_sqlite_storage PUBLIC src client/include)
-target_link_libraries(chat_sqlite_storage PUBLIC Boost::capy SQLite::SQLite3 Threads::Threads PRIVATE utf8proc OpenSSL::Crypto)
+target_link_libraries(chat_sqlite_storage PUBLIC Boost::capy SQLite::SQLite3 Threads::Threads
+    PRIVATE utf8proc OpenSSL::Crypto spdlog::spdlog_header_only)
 
 add_library(chat_attachment_storage STATIC src/attachment_io.cpp src/s3_objects.cpp)
 target_link_libraries(chat_attachment_storage

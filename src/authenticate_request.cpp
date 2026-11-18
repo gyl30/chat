@@ -1,9 +1,6 @@
-#include <charconv>
 #include <cstdint>
-#include <optional>
 #include <string>
 #include <utility>
-#include <vector>
 #include <string_view>
 #include <system_error>
 
@@ -34,58 +31,12 @@ struct authenticate_result
     bool has_avatar = false;
 };
 
-simdjson::error_code parse_authenticate_params(json_rpc_params& params, authenticate_params& value)
+bool parse_authenticate_params(json_rpc_params& params, authenticate_params& value)
 {
-    if (!params.present)
-    {
-        return simdjson::NO_SUCH_FIELD;
-    }
-
     simdjson::ondemand::parser parser;
     simdjson::ondemand::document document;
-    auto error = parser.iterate(params.json).get(document);
-    if (error)
-    {
-        return error;
-    }
-
-    error = document.get(value);
-    if (error)
-    {
-        return error;
-    }
-
-    if (!document.at_end())
-    {
-        return simdjson::TRAILING_CONTENT;
-    }
-
-    if (value.username.empty() || value.password.empty() || value.password.size() > 72)
-    {
-        return simdjson::INCORRECT_TYPE;
-    }
-
-    return simdjson::SUCCESS;
-}
-
-simdjson::error_code serialize_authenticate_result(bool authenticated, std::int64_t user,
-                                                   std::int64_t revision, bool present, json_rpc_id id,
-                                                   std::string& response)
-{
-    authenticate_result result{};
-    result.authenticated = authenticated;
-    result.user = user;
-    result.avatar_revision = revision;
-    result.has_avatar = present;
-
-    std::string result_json;
-    auto error = simdjson::builder::to_json_string(result).get(result_json);
-    if (error)
-    {
-        return error;
-    }
-
-    return serialize_json_rpc_success(result_json, std::move(id), response);
+    return params.present && !parser.iterate(params.json).get(document) && !document.get(value) &&
+           document.at_end() && !value.username.empty() && !value.password.empty() && value.password.size() <= 72;
 }
 
 }    // namespace
@@ -102,8 +53,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_authenticate(json_r
     }
 
     authenticate_params params{};
-    auto params_error = parse_authenticate_params(request.params, params);
-    if (params_error)
+    if (!parse_authenticate_params(request.params, params))
     {
         if (request.id.present)
         {
@@ -154,6 +104,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_authenticate(json_r
         co_return simdjson::SUCCESS;
     }
 
-    co_return serialize_authenticate_result(authenticated, user_id_.value_or(0),
-        authenticated ? (*account)->user.avatar.revision : 0, authenticated && (*account)->user.avatar.present, std::move(request.id), response);
+    auto const avatar = authenticated ? (*account)->user.avatar : chat::avatar_state{};
+    co_return serialize_json_rpc_value(authenticate_result{authenticated, user_id_.value_or(0), avatar.revision, avatar.present},
+                                       std::move(request.id), response);
 }

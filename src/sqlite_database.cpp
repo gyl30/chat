@@ -1,4 +1,5 @@
 #include <sqlite3.h>
+#include <spdlog/spdlog.h>
 #include <utf8proc.h>
 
 #include <utility>
@@ -362,18 +363,20 @@ sqlite_error sqlite_transaction::commit()
     return error;
 }
 
-sqlite_error sqlite_transaction::rollback()
+void sqlite_transaction::rollback()
 {
     auto* const db = std::exchange(database_, nullptr);
     if (!db || !db->is_open() || sqlite3_get_autocommit(db->handle()))
     {
-        return {};
+        return;
     }
-    auto error = db->exec("ROLLBACK");
-    if (error && !sqlite3_get_autocommit(db->handle()))
+    if (auto error = db->exec("ROLLBACK"); error)
     {
-        // Closing prevents any later job from inheriting a failed transaction.
-        db->database_.reset();
+        if (!sqlite3_get_autocommit(db->handle()))
+        {
+            // Closing prevents any later job from inheriting a failed transaction.
+            db->database_.reset();
+        }
+        spdlog::warn("SQLite rollback failed ({})", error.code);
     }
-    return error;
 }

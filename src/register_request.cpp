@@ -1,8 +1,6 @@
-#include <charconv>
 #include <cstdint>
 #include <string>
 #include <utility>
-#include <vector>
 #include <system_error>
 
 #include <simdjson.h>
@@ -28,53 +26,12 @@ struct register_result
     std::int64_t user = 0;
 };
 
-simdjson::error_code parse_register_params(json_rpc_params& params, register_params& value)
+bool parse_register_params(json_rpc_params& params, register_params& value)
 {
-    if (!params.present)
-    {
-        return simdjson::NO_SUCH_FIELD;
-    }
-
     simdjson::ondemand::parser parser;
     simdjson::ondemand::document document;
-    auto error = parser.iterate(params.json).get(document);
-    if (error)
-    {
-        return error;
-    }
-
-    error = document.get(value);
-    if (error)
-    {
-        return error;
-    }
-
-    if (!document.at_end())
-    {
-        return simdjson::TRAILING_CONTENT;
-    }
-
-    if (!chat::valid_username(value.username) || value.password.empty() || value.password.size() > 72)
-    {
-        return simdjson::INCORRECT_TYPE;
-    }
-
-    return simdjson::SUCCESS;
-}
-
-simdjson::error_code serialize_register_result(std::int64_t user_id, json_rpc_id id, std::string& response)
-{
-    register_result result{};
-    result.user = user_id;
-
-    std::string result_json;
-    auto error = simdjson::builder::to_json_string(result).get(result_json);
-    if (error)
-    {
-        return error;
-    }
-
-    return serialize_json_rpc_success(result_json, std::move(id), response);
+    return params.present && !parser.iterate(params.json).get(document) && !document.get(value) &&
+           document.at_end() && chat::valid_username(value.username) && !value.password.empty() && value.password.size() <= 72;
 }
 
 }    // namespace
@@ -82,8 +39,7 @@ simdjson::error_code serialize_register_result(std::int64_t user_id, json_rpc_id
 boost::capy::task<simdjson::error_code> chat_session::handle_register(json_rpc_request& request, std::string& response)
 {
     register_params params{};
-    auto params_error = parse_register_params(request.params, params);
-    if (params_error)
+    if (!parse_register_params(request.params, params))
     {
         if (request.id.present)
         {
@@ -122,5 +78,5 @@ boost::capy::task<simdjson::error_code> chat_session::handle_register(json_rpc_r
         co_return simdjson::SUCCESS;
     }
 
-    co_return serialize_register_result(**created, std::move(request.id), response);
+    co_return serialize_json_rpc_value(register_result{**created}, std::move(request.id), response);
 }
