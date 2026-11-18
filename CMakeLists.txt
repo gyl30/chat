@@ -87,6 +87,7 @@ target_link_libraries(chat_client
 )
 
 find_package(PostgreSQL REQUIRED)
+find_package(SQLite3 REQUIRED)
 find_package(PNG REQUIRED)
 find_package(JPEG REQUIRED)
 
@@ -216,6 +217,26 @@ target_link_libraries(chat_db_test
 
 add_test(NAME pg_connection COMMAND chat_db_test)
 set_tests_properties(pg_connection PROPERTIES TIMEOUT 15)
+
+add_executable(chat_database_test
+    tests/database_test.cpp
+    src/database.cpp
+    src/sqlite_database.cpp
+    src/schema.cpp
+)
+
+target_include_directories(chat_database_test PRIVATE src)
+
+target_link_libraries(chat_database_test
+    PRIVATE
+        Boost::capy
+        Boost::corosio
+        SQLite::SQLite3
+        Threads::Threads
+)
+
+add_test(NAME database COMMAND chat_database_test)
+set_tests_properties(database PROPERTIES TIMEOUT 30)
 
 add_executable(chat_corosio_timeout_test
     tests/corosio_timeout_test.cpp
