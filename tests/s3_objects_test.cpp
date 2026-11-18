@@ -1,5 +1,6 @@
 #include "s3_objects.hpp"
 #include "attachment_cleanup.hpp"
+#include "attachment_access.hpp"
 #include "message_store.hpp"
 #include "schema.hpp"
 
@@ -192,7 +193,7 @@ boost::capy::task<int> exercise_silo()
             if (db)
             {
                 check(db->exec(R"SQL(
-                    INSERT INTO users(username,password_hash,last_seen_at) VALUES('Alice',printf('%060d',1),0),('Bob',printf('%060d',2),0);
+                    INSERT INTO users(username,password_hash,last_seen_at) VALUES('Alice',printf('%060d',1),0),('Bob',printf('%060d',2),0),('Outsider',printf('%060d',3),0);
                     INSERT INTO conversations(kind,activity,direct_user_low,direct_user_high) VALUES('direct',0,1,2);
                     INSERT INTO conversation_members(conversation_id,user_id) VALUES(1,1),(1,2);
                     INSERT INTO contacts(owner_id,contact_id,created_at) VALUES(1,2,0),(2,1,0);
@@ -241,6 +242,14 @@ boost::capy::task<int> exercise_silo()
                     auto pending = attachment_cleanup_batch(*db, 20);
                     check(published && std::holds_alternative<message_write>(*published) && pending && pending->empty(),
                           "publish message and claim reserved object together");
+                    auto const* saved = published ? std::get_if<message_write>(&*published) : nullptr;
+                    auto const id = saved ? saved->id : 0;
+                    auto allowed = find_attachment_object(*db, 2, 1, id);
+                    auto outsider = find_attachment_object(*db, 3, 1, id);
+                    auto wrong_conversation = find_attachment_object(*db, 2, 99, id);
+                    check(allowed && *allowed && (*allowed)->key == key && (*allowed)->size == static_cast<std::int64_t>(bytes.size()) &&
+                          outsider && !*outsider && wrong_conversation && !*wrong_conversation,
+                          "resolve attachment only for a current member in its own conversation");
                     check(db->exec("UPDATE messages SET deleted=1,body=''").ok(), "delete the message");
                     pending = attachment_cleanup_batch(*db, 20);
                     auto metadata = db->prepare("SELECT count(*) FROM message_attachments");
@@ -248,6 +257,8 @@ boost::capy::task<int> exercise_silo()
                     check(remaining && *remaining && metadata->column_int64(0) == 0 &&
                           pending && *pending == std::vector{key},
                           "message deletion hides metadata and atomically queues object removal");
+                    auto deleted = find_attachment_object(*db, 2, 1, id);
+                    check(deleted && !*deleted, "deleted message denies attachment access before remote cleanup");
                     check((co_await objects.remove(key)) && acknowledge_attachment_cleanup(*db, key).ok(), "finish object cleanup");
                 }
             }
