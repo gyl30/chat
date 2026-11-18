@@ -277,10 +277,7 @@ sqlite_transaction& sqlite_transaction::operator=(sqlite_transaction&& other) no
 {
     if (this != &other)
     {
-        if (database_)
-        {
-            database_->exec("ROLLBACK");
-        }
+        rollback();
         database_ = std::exchange(other.database_, nullptr);
     }
     return *this;
@@ -288,10 +285,7 @@ sqlite_transaction& sqlite_transaction::operator=(sqlite_transaction&& other) no
 
 sqlite_transaction::~sqlite_transaction()
 {
-    if (database_)
-    {
-        database_->exec("ROLLBACK");
-    }
+    rollback();
 }
 
 std::expected<sqlite_transaction, sqlite_error> sqlite_transaction::begin_read(sqlite_database& database)
@@ -328,11 +322,16 @@ sqlite_error sqlite_transaction::commit()
 
 sqlite_error sqlite_transaction::rollback()
 {
-    if (!database_)
+    auto* const db = std::exchange(database_, nullptr);
+    if (!db || !db->is_open() || sqlite3_get_autocommit(db->handle()))
     {
         return {};
     }
-    auto error = database_->exec("ROLLBACK");
-    database_ = nullptr;
+    auto error = db->exec("ROLLBACK");
+    if (error && !sqlite3_get_autocommit(db->handle()))
+    {
+        // Closing prevents any later job from inheriting a failed transaction.
+        db->database_.reset();
+    }
     return error;
 }

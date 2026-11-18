@@ -19,11 +19,11 @@ std::expected<database::pointer, sqlite_error> database::open(std::string path, 
     {
         return std::unexpected(std::move(error));
     }
-    return pointer(new database(std::move(*opened), queue_capacity));
+    return pointer(new database(std::move(path), std::move(*opened), queue_capacity));
 }
 
-database::database(sqlite_database connection, std::size_t queue_capacity)
-    : database_(std::move(connection)), worker_(queue_capacity)
+database::database(std::string path, sqlite_database connection, std::size_t queue_capacity)
+    : path_(std::move(path)), database_(std::move(connection)), worker_(queue_capacity)
 {
 }
 

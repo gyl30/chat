@@ -26,7 +26,18 @@ class database
     template <class F>
     auto run(F job) -> boost::capy::task<std::invoke_result_t<F&, sqlite_database&>>
     {
-        return worker_.run([this, job = std::move(job)]() mutable { return job(database_); },
+        return worker_.run([this, job = std::move(job)]() mutable -> std::invoke_result_t<F&, sqlite_database&> {
+            if (!database_.is_open())
+            {
+                auto reopened = sqlite_database::open(path_);
+                if (!reopened)
+                {
+                    return std::unexpected(std::move(reopened.error()));
+                }
+                database_ = std::move(*reopened);
+            }
+            return job(database_);
+        },
                            queue_error);
     }
 
@@ -34,9 +45,10 @@ class database
     std::size_t pending_jobs() const { return worker_.pending_jobs(); }
 
    private:
-    database(sqlite_database connection, std::size_t queue_capacity);
+    database(std::string path, sqlite_database connection, std::size_t queue_capacity);
     static sqlite_error queue_error(blocking_worker::unavailable reason);
 
+    std::string path_;
     sqlite_database database_;
     blocking_worker worker_;
 };

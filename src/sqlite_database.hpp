@@ -74,6 +74,7 @@ class sqlite_database
 
    private:
     friend class sqlite_statement;
+    friend class sqlite_transaction;
 
     std::unique_ptr<sqlite3, sqlite3_deleter> database_;
 };

@@ -566,6 +566,45 @@ void account_tests()
           "stale avatar request returns current metadata and no bytes");
 }
 
+boost::capy::task<> transaction_recovery_test()
+{
+    temporary_database file;
+    auto db = database::open(file.path);
+    check(db.has_value(), "open worker for transaction recovery");
+    if (!db)
+    {
+        co_return;
+    }
+    auto poison = [](sqlite_database& conn) -> std::expected<void, sqlite_error> {
+        auto tx = sqlite_transaction::begin_immediate(conn);
+        if (!tx)
+        {
+            return std::unexpected(std::move(tx.error()));
+        }
+        if (auto error = conn.exec("INSERT INTO users(username,password_hash,last_seen_at)"
+                                   " VALUES('uncommitted',printf('%060d',1),0)"); error)
+        {
+            return std::unexpected(std::move(error));
+        }
+        sqlite3_set_authorizer(conn.handle(), [](void*, int action, char const* argument, char const*, char const*, char const*) {
+            return action == SQLITE_TRANSACTION && std::string_view(argument) == "ROLLBACK" ? SQLITE_DENY : SQLITE_OK;
+        }, nullptr);
+        auto error = tx->rollback();
+        return error ? std::unexpected(std::move(error)) : std::expected<void, sqlite_error>{};
+    };
+    auto failed = co_await (*db)->run(poison);
+    check(!failed && failed.error().code == SQLITE_AUTH, "report SQLite rollback failure");
+
+    auto next = co_await (*db)->run([](sqlite_database& conn) {
+        return register_account(conn, "recovered", std::string(60, 'x'));
+    });
+    check(next && *next, "next job can commit after a failed rollback");
+    auto accounts = co_await (*db)->run([](sqlite_database& conn) -> std::expected<std::int64_t, sqlite_error> {
+        return count(conn, "users");
+    });
+    check(accounts && *accounts == 1, "failed transaction data is never committed by a later job");
+}
+
 boost::capy::task<> gated_job(database& db, std::promise<void>& started, std::future<void>& gate, std::atomic<int>& done)
 {
     auto result = co_await db.run([&](sqlite_database&) -> std::expected<void, sqlite_error>
@@ -776,6 +815,7 @@ int main()
         [](temporary_database& file, boost::corosio::io_context& io_context) -> boost::capy::task<int>
         {
             co_await low_level_tests(file);
+            co_await transaction_recovery_test();
             co_await queue_test(file, io_context);
             co_await async_tests(file, io_context);
             co_return failures == 0 ? 0 : 1;
