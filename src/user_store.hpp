@@ -25,6 +25,9 @@ std::expected<std::optional<std::int64_t>, sqlite_error> register_account(
 std::expected<std::optional<account_credentials>, sqlite_error> find_account(
     sqlite_database& db, std::string_view username);
 
+std::expected<std::vector<chat::user>, sqlite_error> search_accounts(
+    sqlite_database& db, std::int64_t user, std::string_view prefix);
+
 struct avatar_chunk
 {
     chat::avatar_state state;

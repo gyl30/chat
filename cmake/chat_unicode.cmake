@@ -29,6 +29,10 @@ foreach(source expected_hash IN ZIP_LISTS utf8proc_pinned_files utf8proc_pinned_
     endif()
 endforeach()
 
+if(NOT CHAT_BUILD_TUI_CLIENT AND NOT CHAT_BUILD_QT_CLIENT)
+    return()
+endif()
+
 set(emoji_property_data "${PROJECT_SOURCE_DIR}/tui/cmake/unicode/emoji-data-18.0.0.txt")
 set(emoji_property_table "${PROJECT_SOURCE_DIR}/tui/cmake/unicode/emoji_properties_18.inc")
 file(SHA256 "${emoji_property_data}" emoji_data_hash)

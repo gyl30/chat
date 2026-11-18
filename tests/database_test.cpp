@@ -631,6 +631,27 @@ void account_tests()
           disconnected && contacts->front().last_seen == disconnected->last_seen &&
           former_contacts && former_contacts->empty() && group_only && group_only->empty(),
           "contact presence exposes persisted last seen without exposing peers or group members");
+    auto accent = register_account(*db, "Élodie_work", hash);
+    auto homonym = register_account(*db, "Élodie work", hash);
+    auto matches = search_accounts(*db, user, "éLODIE_");
+    auto home = search_accounts(*db, user, "张 ");
+    auto visible_to_peer = search_accounts(*db, **peer, "张 ");
+    auto login = find_account(*db, "élodie_work");
+    check(accent && *accent && homonym && *homonym &&
+          matches && matches->size() == 1 && matches->front().id == **accent,
+          "account search matches Unicode case-insensitively and treats underscores literally");
+    check(home && home->empty() && visible_to_peer && visible_to_peer->size() == 1 &&
+          visible_to_peer->front().id == user && visible_to_peer->front().avatar == chat::avatar_state{3, true},
+          "search excludes the caller but includes public avatar metadata for other users");
+    check(login && !*login, "login still matches the exact username");
+    check(db->exec(R"SQL(
+        WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<21)
+        INSERT INTO users(username,password_hash,last_seen_at)
+        SELECT printf('Limit %02d',i),printf('%060d',i),1 FROM n;
+    )SQL").ok(), "seed more accounts than a search can return");
+    auto limited = search_accounts(*db, user, "limit ");
+    check(limited && limited->size() == 20 && limited->front().username == "Limit 01" &&
+          limited->back().username == "Limit 20", "account search caps and orders its results");
 }
 
 boost::capy::task<> transaction_recovery_test()

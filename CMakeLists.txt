@@ -102,9 +102,7 @@ enable_testing()
 
 option(CHAT_BUILD_TUI_CLIENT "Build FTXUI terminal client" OFF)
 option(CHAT_BUILD_QT_CLIENT "Build Qt Widgets client" OFF)
-if(CHAT_BUILD_TUI_CLIENT OR CHAT_BUILD_QT_CLIENT)
-    include(cmake/chat_unicode.cmake)
-endif()
+include(cmake/chat_unicode.cmake)
 if(CHAT_BUILD_TUI_CLIENT)
     add_subdirectory(tui)
 endif()
@@ -233,7 +231,7 @@ add_library(chat_sqlite_storage STATIC
     src/user_store.cpp
 )
 target_include_directories(chat_sqlite_storage PUBLIC src client/include)
-target_link_libraries(chat_sqlite_storage PUBLIC Boost::capy SQLite::SQLite3 Threads::Threads)
+target_link_libraries(chat_sqlite_storage PUBLIC Boost::capy SQLite::SQLite3 Threads::Threads PRIVATE utf8proc)
 
 add_library(chat_attachment_storage STATIC src/attachment_io.cpp src/s3_objects.cpp)
 target_link_libraries(chat_attachment_storage
