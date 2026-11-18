@@ -573,8 +573,17 @@ void message_change_tests()
           detail->message.edited_at && detail->message.mentions.empty() && rolled_back &&
           snapshot && *snapshot && (*snapshot)->text == "edited with no mention" && (*snapshot)->mentions.empty() &&
           !(*snapshot)->client_id, "editing is author-only and rolling back restores the body and mentions together");
-    auto pin = db->prepare("UPDATE conversations SET pinned_message_id=?1 WHERE id=?2", saved->id, **group);
-    check(pin && pin->step().has_value(), "pin the original message");
+    auto forbidden_pin = set_group_pin(*db, **group, 2, saved->id);
+    auto other_conversation = set_group_pin(*db, **group, 1, saved_direct->id);
+    auto pin = set_group_pin(*db, **group, 1, saved->id);
+    auto unchanged_pin = set_group_pin(*db, **group, 1, saved->id);
+    check(forbidden_pin && std::get_if<group_member_rejection>(&*forbidden_pin) &&
+          std::get<group_member_rejection>(*forbidden_pin) == group_member_rejection::permission_denied &&
+          other_conversation && std::get_if<group_member_rejection>(&*other_conversation) &&
+          std::get<group_member_rejection>(*other_conversation) == group_member_rejection::invalid_target &&
+          pin && std::get_if<bool>(&*pin) && std::get<bool>(*pin) &&
+          unchanged_pin && std::get_if<bool>(&*unchanged_pin) && !std::get<bool>(*unchanged_pin),
+          "group pin requires a manager and a current message from the same group");
     auto deleted = mutate(1, **group, saved->id, {});
     auto repeated = mutate(1, **group, saved->id, {});
     auto const* tombstone = deleted ? std::get_if<changed_message>(&*deleted) : nullptr;
@@ -711,6 +720,12 @@ void conversation_tests()
     check(was_denied(change_group_member(*db, conversation, 1, transfer, 2), group_member_rejection::permission_denied),
           "ownership transfer requires a current administrator");
     check(changed(change_group_member(*other, conversation, 1, promote, 2)), "owner promotes current member");
+    check(changed(set_group_text(*db, conversation, 2, group_text_field::title, "renamed group")) &&
+          changed(set_group_text(*db, conversation, 2, group_text_field::announcement, "current announcement")) &&
+          !changed(set_group_text(*db, conversation, 2, group_text_field::announcement, "current announcement")) &&
+          was_denied(set_group_text(*db, conversation, 3, group_text_field::announcement, "private"),
+                     group_member_rejection::permission_denied),
+          "group title and announcement require management rights and skip identical updates");
     check(was_denied(change_group_member(*db, conversation, 2, remove, 1), group_member_rejection::permission_denied),
           "administrator cannot remove the owner");
     std::barrier roles_start(2);

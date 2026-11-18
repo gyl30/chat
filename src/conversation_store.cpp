@@ -257,6 +257,122 @@ std::expected<bool, sqlite_error> can_send_to_conversation(
     return access->step();
 }
 
+std::expected<std::optional<chat::member_role>, sqlite_error> read_group_role(
+    sqlite_database& db, std::int64_t group, std::int64_t actor)
+{
+    auto statement = db.prepare(R"SQL(
+        SELECT c.owner_id=m.user_id,m.is_admin
+        FROM conversations c JOIN conversation_members m ON m.conversation_id=c.id
+        WHERE c.kind='group' AND c.id=?1 AND m.user_id=?2
+    )SQL", group, actor);
+    if (!statement)
+    {
+        return std::unexpected(std::move(statement.error()));
+    }
+    auto row = statement->step();
+    if (!row)
+    {
+        return std::unexpected(std::move(row.error()));
+    }
+    if (!*row)
+    {
+        return std::nullopt;
+    }
+    if (statement->column_int64(0))
+    {
+        return chat::member_role::owner;
+    }
+    return statement->column_int64(1) ? chat::member_role::admin : chat::member_role::member;
+}
+
+std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_group_text(
+    sqlite_database& db, std::int64_t group, std::int64_t actor, group_text_field field, std::string_view text)
+{
+    auto transaction = sqlite_transaction::begin_immediate(db);
+    if (!transaction)
+    {
+        return std::unexpected(std::move(transaction.error()));
+    }
+    auto role = read_group_role(db, group, actor);
+    if (!role)
+    {
+        return std::unexpected(std::move(role.error()));
+    }
+    if (!*role)
+    {
+        return group_member_rejection::unavailable;
+    }
+    if (**role == chat::member_role::member)
+    {
+        return group_member_rejection::permission_denied;
+    }
+    auto const query = field == group_text_field::title
+        ? "UPDATE conversations SET title=?2 WHERE id=?1 AND title<>?2"
+        : "UPDATE conversations SET announcement=?2 WHERE id=?1 AND announcement<>?2";
+    if (auto error = write(db, query, group, text); error)
+    {
+        return std::unexpected(std::move(error));
+    }
+    bool const changed = db.changes() != 0;
+    if (auto error = transaction->commit(); error)
+    {
+        return std::unexpected(std::move(error));
+    }
+    return changed;
+}
+
+std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_group_pin(
+    sqlite_database& db, std::int64_t group, std::int64_t actor, std::optional<std::int64_t> message)
+{
+    auto transaction = sqlite_transaction::begin_immediate(db);
+    if (!transaction)
+    {
+        return std::unexpected(std::move(transaction.error()));
+    }
+    auto role = read_group_role(db, group, actor);
+    if (!role)
+    {
+        return std::unexpected(std::move(role.error()));
+    }
+    if (!*role)
+    {
+        return group_member_rejection::unavailable;
+    }
+    if (**role == chat::member_role::member)
+    {
+        return group_member_rejection::permission_denied;
+    }
+    if (message)
+    {
+        auto target = db.prepare("SELECT 1 FROM messages WHERE conversation_id=?1 AND id=?2 AND deleted=0",
+                                 group, *message);
+        if (!target)
+        {
+            return std::unexpected(std::move(target.error()));
+        }
+        auto row = target->step();
+        if (!row)
+        {
+            return std::unexpected(std::move(row.error()));
+        }
+        if (!*row)
+        {
+            return group_member_rejection::invalid_target;
+        }
+    }
+    if (auto error = write(db, "UPDATE conversations SET pinned_message_id=?2 WHERE id=?1 AND pinned_message_id IS NOT ?2",
+                           group, message); error)
+    {
+        return std::unexpected(std::move(error));
+    }
+    bool const changed = db.changes() != 0;
+    if (auto error = transaction->commit(); error)
+    {
+        return std::unexpected(std::move(error));
+    }
+    return changed;
+}
+
 std::expected<std::variant<bool, group_invite_rejection>, sqlite_error> invite_group_members(
     sqlite_database& db, std::int64_t group, std::int64_t actor, std::span<std::int64_t const> invitees)
 {

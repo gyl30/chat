@@ -47,4 +47,14 @@ enum class group_member_rejection { unavailable, permission_denied, invalid_targ
 std::expected<std::variant<bool, group_member_rejection>, sqlite_error> change_group_member(
     sqlite_database& db, std::int64_t group, std::int64_t actor, group_member_action action, std::int64_t target);
 
+std::expected<std::optional<chat::member_role>, sqlite_error> read_group_role(
+    sqlite_database& db, std::int64_t group, std::int64_t actor);
+
+enum class group_text_field { title, announcement };
+std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_group_text(
+    sqlite_database& db, std::int64_t group, std::int64_t actor, group_text_field field, std::string_view text);
+
+std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_group_pin(
+    sqlite_database& db, std::int64_t group, std::int64_t actor, std::optional<std::int64_t> message);
+
 #endif
