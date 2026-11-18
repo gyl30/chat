@@ -161,10 +161,12 @@ boost::capy::task<std::expected<std::size_t, attachment_io_error>> recover_attac
     database& db, s3_objects& objects, std::int64_t cutoff)
 {
     std::size_t removed = 0;
+    std::optional<attachment_cleanup_entry> after;
+    std::optional<s3_error> removal_error;
     for (;;)
     {
-        auto read_batch = [cutoff](sqlite_database& connection) {
-            return attachment_cleanup_batch(connection, cutoff);
+        auto read_batch = [cutoff, after](sqlite_database& connection) {
+            return attachment_cleanup_batch(connection, cutoff, after);
         };
         auto batch = co_await db.run(read_batch);
         if (!batch)
@@ -173,14 +175,24 @@ boost::capy::task<std::expected<std::size_t, attachment_io_error>> recover_attac
         }
         if (batch->empty())
         {
+            if (removal_error)
+            {
+                co_return std::unexpected(attachment_io_error{std::move(*removal_error)});
+            }
             co_return removed;
         }
+        after = batch->back();
 
-        for (auto const& key : *batch)
+        for (auto const& entry : *batch)
         {
+            auto const& key = entry.object_key;
             if (auto result = co_await objects.remove(key); !result)
             {
-                co_return std::unexpected(attachment_io_error{std::move(result.error())});
+                if (!removal_error)
+                {
+                    removal_error.emplace(std::move(result.error()));
+                }
+                continue;
             }
 
             auto acknowledge = [&key](sqlite_database& connection) -> std::expected<void, sqlite_error> {

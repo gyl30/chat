@@ -25,17 +25,24 @@ sqlite_error reserve_attachment_object(sqlite_database& db, std::string_view key
     return {};
 }
 
-std::expected<std::vector<std::string>, sqlite_error> attachment_cleanup_batch(sqlite_database& db,
-                                                                               std::int64_t cutoff)
+std::expected<std::vector<attachment_cleanup_entry>, sqlite_error> attachment_cleanup_batch(
+    sqlite_database& db, std::int64_t cutoff, std::optional<attachment_cleanup_entry> const& after)
 {
-    auto statement = db.prepare(
-        "SELECT object_key FROM attachment_cleanup WHERE reserved_at<=?1 ORDER BY reserved_at,object_key LIMIT 64",
-        cutoff);
+    std::optional<std::int64_t> after_time;
+    if (after)
+    {
+        after_time = after->reserved_at;
+    }
+    auto statement = db.prepare(R"SQL(
+        SELECT reserved_at,object_key FROM attachment_cleanup
+        WHERE reserved_at<=?1 AND (?2 IS NULL OR (reserved_at,object_key)>(?2,?3))
+        ORDER BY reserved_at,object_key LIMIT 64
+    )SQL", cutoff, after_time, after ? std::string_view(after->object_key) : std::string_view{});
     if (!statement)
     {
         return std::unexpected(std::move(statement.error()));
     }
-    std::vector<std::string> keys;
+    std::vector<attachment_cleanup_entry> entries;
     for (;;)
     {
         auto row = statement->step();
@@ -45,9 +52,9 @@ std::expected<std::vector<std::string>, sqlite_error> attachment_cleanup_batch(s
         }
         if (!*row)
         {
-            return keys;
+            return entries;
         }
-        keys.emplace_back(statement->column_text(0));
+        entries.push_back({statement->column_int64(0), std::string(statement->column_text(1))});
     }
 }
 

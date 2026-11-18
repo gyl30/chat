@@ -8,6 +8,7 @@
 #include <system_error>
 #include <optional>
 #include <chrono>
+#include <stop_token>
 
 #include <fcntl.h>
 #include <sys/file.h>
@@ -21,6 +22,7 @@
 #include <boost/corosio/endpoint.hpp>
 #include <boost/capy/ex/run_async.hpp>
 #include <boost/corosio/io_context.hpp>
+#include <boost/corosio/delay.hpp>
 #include <boost/http/server/router.hpp>
 #include <boost/corosio/signal_set.hpp>
 
@@ -70,6 +72,21 @@ boost::capy::task<void> recover_objects(database& db, s3_objects& objects)
     }
 }
 
+// The existing one-minute settling window is applied on every pass. This
+// coroutine is cancelled with the server's shutdown signal, without a thread.
+boost::capy::task<void> recover_objects_periodically(database& db, s3_objects& objects)
+{
+    for (;;)
+    {
+        auto [ec] = co_await boost::corosio::delay(std::chrono::minutes(5));
+        if (ec)
+        {
+            co_return;
+        }
+        co_await recover_objects(db, objects);
+    }
+}
+
 template <class T>
 bool parse_positive(std::string_view input, T& value)
 {
@@ -104,9 +121,11 @@ boost::http::route_task not_found_handler(boost::http::route_params& params)
     co_return boost::http::route_done;
 }
 
-boost::capy::task<int> wait_for_shutdown(boost::corosio::signal_set& signals, chat_server& server)
+boost::capy::task<int> wait_for_shutdown(boost::corosio::signal_set& signals, chat_server& server,
+                                          std::stop_source& cleanup_stop)
 {
     auto [ec, signal_number] = co_await signals.wait();
+    cleanup_stop.request_stop();
     if (ec)
     {
         spdlog::error("signal wait failed: {}", ec.message());
@@ -236,8 +255,12 @@ int main(int argc, char* argv[])
     spdlog::info("chat server listening on port {} ({}) with {} workers", port, tls ? "TLS" : "plain", max_workers);
     server.start();
 
+    std::stop_source cleanup_stop;
+    boost::capy::run_async(io_context.get_executor(), cleanup_stop.get_token())(
+        recover_objects_periodically(**storage, objects));
     int exit_code = EXIT_FAILURE;
-    boost::capy::run_async(io_context.get_executor(), [&exit_code](int result) { exit_code = result; })(wait_for_shutdown(signals, server));
+    boost::capy::run_async(io_context.get_executor(), [&exit_code](int result) { exit_code = result; })(
+        wait_for_shutdown(signals, server, cleanup_stop));
     io_context.run();
     server.join();
     io_context.restart();
