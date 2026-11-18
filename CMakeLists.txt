@@ -88,6 +88,7 @@ target_link_libraries(chat_client
 
 find_package(PostgreSQL REQUIRED)
 find_package(SQLite3 REQUIRED)
+find_package(miniocpp CONFIG REQUIRED)
 find_package(PNG REQUIRED)
 find_package(JPEG REQUIRED)
 
@@ -239,6 +240,12 @@ target_link_libraries(chat_database_test
 
 add_test(NAME database COMMAND chat_database_test)
 set_tests_properties(database PROPERTIES TIMEOUT 30)
+
+add_executable(chat_s3_objects_test tests/s3_objects_test.cpp src/s3_objects.cpp)
+target_include_directories(chat_s3_objects_test PRIVATE src client/include)
+target_link_libraries(chat_s3_objects_test PRIVATE miniocpp::miniocpp OpenSSL::Crypto)
+add_test(NAME s3_objects COMMAND chat_s3_objects_test)
+set_tests_properties(s3_objects PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
 
 add_executable(chat_corosio_timeout_test
     tests/corosio_timeout_test.cpp
