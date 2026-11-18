@@ -5,7 +5,6 @@
 #include <simdjson.h>
 
 #include "chat_session.hpp"
-#include <sqlite3.h>
 
 boost::capy::task<simdjson::error_code> chat_session::handle_set_typing(json_rpc_request& request, std::string& response)
 {
@@ -44,12 +43,12 @@ boost::capy::task<simdjson::error_code> chat_session::handle_set_typing(json_rpc
         co_return error;
     }
     auto const realtime = co_await publish_conversation(params.conversation, std::move(json), true);
-    if (!realtime)
+    if (realtime == notification_result::denied || realtime == notification_result::failed)
     {
-        auto const denied = realtime.error().code == SQLITE_AUTH;
+        auto const denied = realtime == notification_result::denied;
         co_return serialize_json_rpc_error(denied ? -32006 : -32000,
             denied ? "Communication not allowed" : "Server error", std::move(request.id), response);
     }
-    co_return serialize_json_rpc_success(*realtime ? "{\"realtime\":true}" : "{\"realtime\":false}",
+    co_return serialize_json_rpc_success(realtime == notification_result::delivered ? "{\"realtime\":true}" : "{\"realtime\":false}",
                                         std::move(request.id), response);
 }

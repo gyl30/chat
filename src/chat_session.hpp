@@ -82,7 +82,8 @@ class chat_session
     };
     // The caller's message already stored under client_id, in its current state.
     boost::capy::task<std::expected<std::optional<sent_message>, sqlite_error>> find_sent_message(std::int64_t client_id);
-    boost::capy::task<std::expected<bool, sqlite_error>> publish_conversation(std::int64_t conversation,
+    enum class notification_result { skipped, delivered, denied, failed };
+    boost::capy::task<notification_result> publish_conversation(std::int64_t conversation,
         std::string notification, bool require_sender_permission = false);
     boost::capy::task<void> publish_join_request(std::int64_t conversation, std::int64_t user, std::string state);
 

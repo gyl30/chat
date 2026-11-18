@@ -2,7 +2,7 @@
 #include <string>
 #include <vector>
 
-#include <sqlite3.h>
+#include <spdlog/spdlog.h>
 #include <utility>
 #include <string_view>
 #include <system_error>
@@ -53,14 +53,21 @@ bool chat_session::enqueue_message(std::string message)
 
 boost::capy::task<void> chat_session::publish_presence(bool online)
 {
-    auto presence = co_await database_.run([=, user=*user_id_](sqlite_database& db) {
+    auto const user = *user_id_;
+    auto presence = co_await database_.run([=](sqlite_database& db) {
         return record_presence(db, user, online);
     });
     if (!presence)
     {
+        spdlog::warn("presence update failed (SQLite {})", presence.error().code);
         co_return;
     }
-    auto notification = R"({"jsonrpc":"2.0","method":"presence","params":{"user":)" + std::to_string(*user_id_) +
+    // Authentication can replace the session while the offline job is pending.
+    if (!online && users_.find(user))
+    {
+        co_return;
+    }
+    auto notification = R"({"jsonrpc":"2.0","method":"presence","params":{"user":)" + std::to_string(user) +
         R"(,"online":)" + (online ? "true" : "false") + R"(,"last_seen":)" + std::to_string(presence->last_seen) + "}}";
     for (auto const watcher : presence->recipients)
     {
@@ -71,7 +78,7 @@ boost::capy::task<void> chat_session::publish_presence(bool online)
     }
 }
 
-boost::capy::task<std::expected<bool, sqlite_error>> chat_session::publish_conversation(
+boost::capy::task<chat_session::notification_result> chat_session::publish_conversation(
     std::int64_t conversation, std::string notification, bool require_sender_permission)
 {
     auto recipients = co_await database_.run([=, user=*user_id_](sqlite_database& db)
@@ -124,11 +131,12 @@ boost::capy::task<std::expected<bool, sqlite_error>> chat_session::publish_conve
     });
     if (!recipients)
     {
-        co_return std::unexpected(std::move(recipients.error()));
+        spdlog::warn("conversation notification lookup failed (SQLite {})", recipients.error().code);
+        co_return notification_result::failed;
     }
     if (!*recipients)
     {
-        co_return std::unexpected(sqlite_error{SQLITE_AUTH, "Communication not allowed"});
+        co_return notification_result::denied;
     }
     bool realtime = false;
     for (auto const recipient : **recipients)
@@ -138,7 +146,7 @@ boost::capy::task<std::expected<bool, sqlite_error>> chat_session::publish_conve
             realtime = session->enqueue_message(notification) || realtime;
         }
     }
-    co_return realtime;
+    co_return realtime ? notification_result::delivered : notification_result::skipped;
 }
 
 boost::capy::task<void> chat_session::run()
