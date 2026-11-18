@@ -251,6 +251,8 @@ add_executable(chat_s3_objects_test
     src/blocking_worker.cpp
     src/attachment_cleanup.cpp
     src/attachment_access.cpp
+    src/attachment_io.cpp
+    src/database.cpp
     src/message_store.cpp
     src/schema.cpp
     src/sqlite_database.cpp

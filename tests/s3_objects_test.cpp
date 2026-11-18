@@ -1,6 +1,7 @@
 #include "s3_objects.hpp"
 #include "attachment_cleanup.hpp"
-#include "attachment_access.hpp"
+#include "attachment_io.hpp"
+#include "database.hpp"
 #include "message_store.hpp"
 #include "schema.hpp"
 
@@ -14,6 +15,7 @@
 #include <sqlite3.h>
 #include <vector>
 #include <iostream>
+#include <limits>
 #include <string>
 #include <unistd.h>
 
@@ -201,67 +203,81 @@ boost::capy::task<int> exercise_silo()
                     CREATE TRIGGER fail_attachment_commit AFTER INSERT ON message_attachments
                     BEGIN INSERT INTO failure(message) VALUES(-1); END;
                 )SQL").ok(), "prepare a deferred failure at SQLite commit");
-                check(reserve_attachment_object(*db, key, 10).ok(), "persist the reservation before PUT");
-                auto transfer = co_await objects.put(key, bytes, "application/octet-stream");
-                check(transfer.has_value(), "upload before the failed database commit");
-                if (transfer)
-                {
-                    uploaded_attachment attachment{key, "file.bin", "application/octet-stream",
-                                                   static_cast<std::int64_t>(bytes.size()), *transfer};
-                    auto rejected = write_message(*db, {1, 1, 10, "file.bin", {}}, &attachment);
-                    check(!rejected && rejected.error().code == SQLITE_CONSTRAINT_FOREIGNKEY,
-                          "Silo upload succeeds while publishing transaction fails at commit");
-                }
             }
         }
+        auto const attachment = [&](std::int64_t client_id) {
+            return completed_attachment_upload{1, 1, client_id, {}, "file.bin", "application/octet-stream", bytes};
+        };
         {
-            auto db = sqlite_database::open(file);
-            check(db.has_value(), "reopen SQLite after the failed commit");
+            auto db = database::open(file);
+            check(db.has_value(), "open SQLite worker for interrupted upload");
             if (db)
             {
-                auto live = db->prepare("SELECT count(*) FROM messages");
-                auto result = live ? live->step() : std::expected<bool, sqlite_error>{false};
-                check(result && *result && live->column_int64(0) == 0, "no message was published by the failed commit");
-                live = sqlite_statement{};
-                auto too_early = attachment_cleanup_batch(*db, 9);
-                auto abandoned = attachment_cleanup_batch(*db, 10);
-                check(too_early && too_early->empty() && abandoned && *abandoned == std::vector{key},
-                      "failed upload reservation survives restart and honors the cleanup cutoff");
-                check((co_await objects.remove(key)) && acknowledge_attachment_cleanup(*db, key).ok(),
-                      "delete the orphan object before acknowledging cleanup");
-                check(!(co_await objects.read(key, bytes.size(), 0, bytes.size())), "orphan object is gone");
-                check(db->exec("DROP TRIGGER fail_attachment_commit").ok(), "allow a subsequent commit");
-                check(reserve_attachment_object(*db, key, 20).ok(), "reserve the cleaned key");
-                auto transfer = co_await objects.put(key, bytes, "application/octet-stream");
-                check(transfer.has_value(), "upload attachment for a normal commit");
-                if (transfer)
-                {
-                    uploaded_attachment attachment{key, "file.bin", "application/octet-stream",
-                                                   static_cast<std::int64_t>(bytes.size()), *transfer};
-                    auto published = write_message(*db, {1, 1, 11, "file.bin", {}}, &attachment);
-                    auto pending = attachment_cleanup_batch(*db, 20);
-                    check(published && std::holds_alternative<message_write>(*published) && pending && pending->empty(),
-                          "publish message and claim reserved object together");
-                    auto const* saved = published ? std::get_if<message_write>(&*published) : nullptr;
-                    auto const id = saved ? saved->id : 0;
-                    auto allowed = find_attachment_object(*db, 2, 1, id);
-                    auto outsider = find_attachment_object(*db, 3, 1, id);
-                    auto wrong_conversation = find_attachment_object(*db, 2, 99, id);
-                    check(allowed && *allowed && (*allowed)->key == key && (*allowed)->size == static_cast<std::int64_t>(bytes.size()) &&
-                          outsider && !*outsider && wrong_conversation && !*wrong_conversation,
-                          "resolve attachment only for a current member in its own conversation");
-                    check(db->exec("UPDATE messages SET deleted=1,body=''").ok(), "delete the message");
-                    pending = attachment_cleanup_batch(*db, 20);
-                    auto metadata = db->prepare("SELECT count(*) FROM message_attachments");
-                    auto remaining = metadata ? metadata->step() : std::expected<bool, sqlite_error>{false};
-                    check(remaining && *remaining && metadata->column_int64(0) == 0 &&
-                          pending && *pending == std::vector{key},
-                          "message deletion hides metadata and atomically queues object removal");
-                    auto deleted = find_attachment_object(*db, 2, 1, id);
-                    check(deleted && !*deleted, "deleted message denies attachment access before remote cleanup");
-                    check((co_await objects.remove(key)) && acknowledge_attachment_cleanup(*db, key).ok(), "finish object cleanup");
-                }
+                auto rejected = co_await publish_attachment(**db, objects, attachment(10));
+                auto const* error = rejected ? nullptr : std::get_if<sqlite_error>(&rejected.error());
+                check(error && error->code == SQLITE_CONSTRAINT_FOREIGNKEY,
+                      "Silo upload succeeds while publishing transaction fails at commit");
             }
+        }
+        auto db = database::open(file);
+        check(db.has_value(), "reopen SQLite after the failed commit");
+        if (db)
+        {
+            constexpr auto cutoff = std::numeric_limits<std::int64_t>::max();
+            auto recovery_snapshot = [](sqlite_database& connection) {
+                return attachment_cleanup_batch(connection, cutoff);
+            };
+            auto abandoned = co_await (*db)->run(recovery_snapshot);
+            check(abandoned && abandoned->size() == 1 && abandoned->front().starts_with("attachments/") &&
+                  abandoned->front().find("file.bin") == std::string::npos,
+                  "failed upload reservation retains an opaque object key across restart");
+            if (abandoned && abandoned->size() == 1)
+            {
+                auto before_cleanup = co_await objects.read(abandoned->front(), bytes.size(), 0, bytes.size());
+                check(before_cleanup && *before_cleanup == bytes, "orphan object really exists on Silo");
+                auto recovered = co_await recover_attachment_objects(**db, objects, cutoff);
+                check(recovered && *recovered == 1, "recovery deletes before acknowledging");
+                check(!(co_await objects.read(abandoned->front(), bytes.size(), 0, bytes.size())), "orphan object is gone");
+            }
+            auto drop_failure = [](sqlite_database& connection) -> std::expected<void, sqlite_error> {
+                if (auto error = connection.exec("DROP TRIGGER fail_attachment_commit"); error)
+                {
+                    return std::unexpected(std::move(error));
+                }
+                return {};
+            };
+            check((co_await (*db)->run(drop_failure)).has_value(), "allow a subsequent commit");
+            auto published = co_await publish_attachment(**db, objects, attachment(11));
+            auto repeated = co_await publish_attachment(**db, objects, attachment(11));
+            auto pending = co_await (*db)->run(recovery_snapshot);
+            auto const* replayed = repeated ? std::get_if<message_write>(&*repeated) : nullptr;
+            auto const* saved = published ? std::get_if<message_write>(&*published) : nullptr;
+            check(saved && saved->id == 1 && pending && pending->empty(),
+                  "publish message and claim its object together after the failed transaction");
+            check(saved && replayed && replayed->id == saved->id && !replayed->inserted && pending && pending->empty(),
+                  "replay settles without adding a reservation or writing another object");
+            if (saved)
+            {
+                auto allowed = co_await download_attachment_chunk(**db, objects, 2, 1, saved->id, 0);
+                auto denied = co_await download_attachment_chunk(**db, objects, 3, 1, saved->id, 0);
+                auto wrong = co_await download_attachment_chunk(**db, objects, 2, 99, saved->id, 0);
+                check(allowed && *allowed && (*allowed)->bytes == bytes && (*allowed)->size == bytes.size() &&
+                      denied && !*denied && wrong && !*wrong,
+                      "download returns bytes only for a current member in the correct conversation");
+                auto remove_message = [](sqlite_database& connection) -> std::expected<void, sqlite_error> {
+                    if (auto error = connection.exec("UPDATE messages SET deleted=1,body=''"); error)
+                    {
+                        return std::unexpected(std::move(error));
+                    }
+                    return {};
+                };
+                check((co_await (*db)->run(remove_message)).has_value(), "delete the message");
+                auto deleted = co_await download_attachment_chunk(**db, objects, 2, 1, saved->id, 0);
+                check(deleted && !*deleted, "deleted message denies attachment access before remote cleanup");
+                auto finalized = co_await recover_attachment_objects(**db, objects, cutoff);
+                check(finalized && *finalized == 1, "deletion atomically records the object for cleanup");
+            }
+            (*db).reset();
         }
         unlink(file);
     }

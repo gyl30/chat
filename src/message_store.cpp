@@ -4,20 +4,14 @@
 #include <sqlite3.h>
 #include <utility>
 
-std::expected<std::variant<message_write, message_write_rejection>, sqlite_error> write_message(
-    sqlite_database& db, message_to_write const& message, uploaded_attachment const* attachment)
+std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_write(
+    sqlite_database& db, message_to_write const& message, bool attachment)
 {
     using enum message_write_rejection;
     if (message.client_id <= 0)
     {
-        return invalid_client_id;
+        return message_write_outcome{invalid_client_id};
     }
-    auto transaction = sqlite_transaction::begin_immediate(db);
-    if (!transaction)
-    {
-        return std::unexpected(std::move(transaction.error()));
-    }
-
     {
         auto query = db.prepare(R"SQL(
             SELECT m.id, m.conversation_id, m.deleted,
@@ -37,21 +31,21 @@ std::expected<std::variant<message_write, message_write_rejection>, sqlite_error
         if (*row)
         {
             if (query->column_int64(1) != message.conversation ||
-                (query->column_int64(2) == 0 && ((query->column_int64(3) != 0) != (attachment != nullptr))))
+                (query->column_int64(2) == 0 && ((query->column_int64(3) != 0) != attachment)))
             {
-                return invalid_client_id;
+                return message_write_outcome{invalid_client_id};
             }
             if (query->column_int64(4) == 0)
             {
-                return unavailable;
+                return message_write_outcome{unavailable};
             }
-            return message_write{query->column_int64(0), false};
+            return message_write_outcome{message_write{query->column_int64(0), false}};
         }
     }
 
     {
         auto access = db.prepare(R"SQL(
-            SELECT c.kind FROM conversations c
+            SELECT 1 FROM conversations c
             JOIN conversation_members own ON c.id=own.conversation_id AND own.user_id=?1
             WHERE c.id=?2 AND (c.kind='group' OR EXISTS(
                 SELECT 1 FROM contacts WHERE owner_id=?1
@@ -68,7 +62,7 @@ std::expected<std::variant<message_write, message_write_rejection>, sqlite_error
         }
         if (!*row)
         {
-            return unavailable;
+            return message_write_outcome{unavailable};
         }
     }
 
@@ -87,8 +81,30 @@ std::expected<std::variant<message_write, message_write_rejection>, sqlite_error
         }
         if (!*row)
         {
-            return invalid_reply;
+            return message_write_outcome{invalid_reply};
         }
+    }
+
+    return std::nullopt;
+}
+
+std::expected<message_write_outcome, sqlite_error> write_message(
+    sqlite_database& db, message_to_write const& message, uploaded_attachment const* attachment)
+{
+    auto transaction = sqlite_transaction::begin_immediate(db);
+    if (!transaction)
+    {
+        return std::unexpected(std::move(transaction.error()));
+    }
+
+    auto preflight = check_message_write(db, message, attachment != nullptr);
+    if (!preflight)
+    {
+        return std::unexpected(std::move(preflight.error()));
+    }
+    if (*preflight)
+    {
+        return **preflight;
     }
 
     auto const now = std::chrono::duration_cast<std::chrono::milliseconds>(

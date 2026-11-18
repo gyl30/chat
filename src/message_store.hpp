@@ -35,8 +35,15 @@ struct message_write
     bool inserted;
 };
 
+using message_write_outcome = std::variant<message_write, message_write_rejection>;
+
+// A null result allows a new send. An existing acknowledgement or a domain
+// rejection stops it before upload; final publication repeats the check.
+std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_write(
+    sqlite_database& db, message_to_write const& message, bool attachment);
+
 // The duplicate check, access check, write and activity update share one transaction.
-std::expected<std::variant<message_write, message_write_rejection>, sqlite_error> write_message(
+std::expected<message_write_outcome, sqlite_error> write_message(
     sqlite_database& db, message_to_write const& message, uploaded_attachment const* attachment = nullptr);
 
 #endif
