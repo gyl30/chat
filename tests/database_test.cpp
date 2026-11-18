@@ -472,6 +472,26 @@ void conversation_tests()
     }
 
     auto const conversation = **group;
+    auto current_members = read_conversation_members(*db, conversation, 2);
+    auto unavailable_members = read_conversation_members(*db, conversation, 3);
+    check(current_members && current_members->size() == 2 &&
+          current_members->front().id == 1 && current_members->front().role == chat::member_role::owner &&
+          current_members->back().id == 2 && current_members->back().role == chat::member_role::member &&
+          unavailable_members && unavailable_members->empty(), "member snapshot requires membership and returns roles");
+    auto pin = set_conversation_preference(*db, conversation, 2, conversation_preference::pin, true);
+    auto mute = set_conversation_preference(*db, conversation, 2, conversation_preference::mute, true);
+    auto outsider_pin = set_conversation_preference(*db, conversation, 3, conversation_preference::pin, true);
+    auto preferences = db->prepare("SELECT user_id,pinned,muted FROM conversation_members WHERE conversation_id=?1 "
+                                   "ORDER BY user_id", conversation);
+    check(pin && *pin && mute && *mute && outsider_pin && !*outsider_pin &&
+          preferences && preferences->step().value_or(false) && preferences->column_int64(0) == 1 &&
+          preferences->column_int64(1) == 0 && preferences->column_int64(2) == 0 &&
+          preferences->step().value_or(false) && preferences->column_int64(0) == 2 &&
+          preferences->column_int64(1) == 1 && preferences->column_int64(2) == 1,
+          "pin and mute are private membership preferences and cannot be set by an outsider");
+    preferences = sqlite_statement{};
+    auto outsider_unread = read_unread_count(*db, conversation, 3);
+    check(outsider_unread && !*outsider_unread, "non-member cannot get unread count");
     std::array<std::int64_t, 1> const invitees{3};
     auto ordinary = invite_group_members(*db, conversation, 2, invitees);
     auto outsider = invite_group_members(*db, conversation, 3, std::array<std::int64_t, 1>{1});
@@ -508,7 +528,17 @@ void conversation_tests()
     auto member = before ? before->step() : std::expected<bool, sqlite_error>{false};
     check(member && *member && (before->column_int64(0) == 0 || before->column_int64(0) == saved->id) &&
           before->column_int64(1) == 0, "serialized invite preserves the join watermark without marking any message read");
+    auto const joined_at = member && *member ? before->column_int64(0) : 0;
     before = sqlite_statement{};
+    auto owner_unread = read_unread_count(*db, conversation, 1);
+    auto author_unread = read_unread_count(*db, conversation, 2);
+    auto invitee_unread = read_unread_count(*db, conversation, 3);
+    auto read = update_read_position(*db, 1, conversation, saved->id);
+    auto after_read = read_unread_count(*db, conversation, 1);
+    check(owner_unread && *owner_unread == 1 && author_unread && *author_unread == 0 &&
+          invitee_unread && *invitee_unread == (joined_at ? 0 : 1) &&
+          read && *read == saved->id && after_read && *after_read == 0,
+          "unread count applies join and read watermarks without counting the author's own message");
     auto duplicate = invite_group_members(*other, conversation, 1, invitees);
     check(duplicate && std::get_if<bool>(&*duplicate) && !std::get<bool>(*duplicate),
           "repeat invite does not recreate the membership");

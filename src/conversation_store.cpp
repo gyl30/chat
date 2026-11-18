@@ -159,6 +159,87 @@ std::expected<std::optional<std::int64_t>, sqlite_error> create_group(
     return id;
 }
 
+std::expected<std::vector<chat::conversation_member>, sqlite_error> read_conversation_members(
+    sqlite_database& db, std::int64_t conversation, std::int64_t actor)
+{
+    auto members = db.prepare(R"SQL(
+        SELECT u.id,u.username,u.id=c.owner_id,m.is_admin,u.avatar_revision,a.user_id IS NOT NULL
+        FROM conversation_members own
+        JOIN conversations c ON c.id=own.conversation_id
+        JOIN conversation_members m ON m.conversation_id=c.id
+        JOIN users u ON u.id=m.user_id
+        LEFT JOIN user_avatars a ON a.user_id=u.id
+        WHERE own.conversation_id=?1 AND own.user_id=?2 ORDER BY u.id
+    )SQL", conversation, actor);
+    if (!members)
+    {
+        return std::unexpected(std::move(members.error()));
+    }
+    std::vector<chat::conversation_member> result;
+    for (;;)
+    {
+        auto row = members->step();
+        if (!row)
+        {
+            return std::unexpected(std::move(row.error()));
+        }
+        if (!*row)
+        {
+            return result;
+        }
+        auto role = chat::member_role::member;
+        if (members->column_int64(2))
+        {
+            role = chat::member_role::owner;
+        }
+        else if (members->column_int64(3))
+        {
+            role = chat::member_role::admin;
+        }
+        result.push_back({members->column_int64(0), std::string(members->column_text(1)), role,
+            {members->column_int64(4), members->column_int64(5) != 0}});
+    }
+}
+
+std::expected<bool, sqlite_error> set_conversation_preference(
+    sqlite_database& db, std::int64_t conversation, std::int64_t actor, conversation_preference preference, bool enabled)
+{
+    auto const query = preference == conversation_preference::pin
+        ? "UPDATE conversation_members SET pinned=?3 WHERE conversation_id=?1 AND user_id=?2"
+        : "UPDATE conversation_members SET muted=?3 WHERE conversation_id=?1 AND user_id=?2";
+    if (auto error = write(db, query, conversation, actor, static_cast<int>(enabled)); error)
+    {
+        return std::unexpected(std::move(error));
+    }
+    return db.changes() == 1;
+}
+
+std::expected<std::optional<std::int64_t>, sqlite_error> read_unread_count(
+    sqlite_database& db, std::int64_t conversation, std::int64_t actor)
+{
+    auto count = db.prepare(R"SQL(
+        SELECT (SELECT count(*) FROM messages m WHERE m.conversation_id=c.id
+                    AND m.id>max(own.last_read_message_id,own.joined_message_id) AND m.deleted=0
+                    AND (m.sender_id<>?2 OR c.direct_user_low=c.direct_user_high))
+        FROM conversation_members own JOIN conversations c ON c.id=own.conversation_id
+        WHERE own.conversation_id=?1 AND own.user_id=?2
+    )SQL", conversation, actor);
+    if (!count)
+    {
+        return std::unexpected(std::move(count.error()));
+    }
+    auto row = count->step();
+    if (!row)
+    {
+        return std::unexpected(std::move(row.error()));
+    }
+    if (!*row)
+    {
+        return std::nullopt;
+    }
+    return count->column_int64(0);
+}
+
 std::expected<std::variant<bool, group_invite_rejection>, sqlite_error> invite_group_members(
     sqlite_database& db, std::int64_t group, std::int64_t actor, std::span<std::int64_t const> invitees)
 {
