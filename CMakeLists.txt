@@ -224,6 +224,7 @@ add_executable(chat_database_test
     src/friendship_store.cpp
     src/message_store.cpp
     src/database.cpp
+    src/blocking_worker.cpp
     src/sqlite_database.cpp
     src/schema.cpp
 )
@@ -244,13 +245,14 @@ set_tests_properties(database PROPERTIES TIMEOUT 30)
 add_executable(chat_s3_objects_test
     tests/s3_objects_test.cpp
     src/s3_objects.cpp
+    src/blocking_worker.cpp
     src/attachment_cleanup.cpp
     src/message_store.cpp
     src/schema.cpp
     src/sqlite_database.cpp
 )
 target_include_directories(chat_s3_objects_test PRIVATE src client/include)
-target_link_libraries(chat_s3_objects_test PRIVATE miniocpp::miniocpp OpenSSL::Crypto SQLite::SQLite3)
+target_link_libraries(chat_s3_objects_test PRIVATE miniocpp::miniocpp OpenSSL::Crypto SQLite::SQLite3 Boost::capy Threads::Threads)
 add_test(NAME s3_objects COMMAND chat_s3_objects_test)
 set_tests_properties(s3_objects PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
 

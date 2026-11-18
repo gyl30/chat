@@ -40,11 +40,15 @@ std::expected<minio::http::Response, s3_error> execute_object_request(
     }
     return result;
 }
+s3_error queue_error(blocking_worker::unavailable reason)
+{
+    return {0, reason == blocking_worker::unavailable::full ? "S3 queue is full" : "S3 worker has stopped"};
+}
 } // namespace
 
 s3_objects::s3_objects(s3_settings settings) : settings_(std::move(settings)) {}
 
-std::expected<std::string, s3_error> s3_objects::put(std::string const& key, std::string_view bytes,
+std::expected<std::string, s3_error> s3_objects::put_object(std::string const& key, std::string_view bytes,
                                                     std::string_view media_type) const
 {
     if (bytes.size() > chat::max_attachment_size)
@@ -95,7 +99,7 @@ std::expected<std::string, s3_error> s3_objects::put(std::string const& key, std
     return result;
 }
 
-std::expected<std::string, s3_error> s3_objects::read(std::string const& key, std::size_t size,
+std::expected<std::string, s3_error> s3_objects::read_object(std::string const& key, std::size_t size,
                                                      std::size_t offset, std::size_t length) const
 {
     if (size > chat::max_attachment_size || offset > size || length > size - offset)
@@ -133,7 +137,7 @@ std::expected<std::string, s3_error> s3_objects::read(std::string const& key, st
     return bytes;
 }
 
-std::expected<void, s3_error> s3_objects::remove(std::string const& key) const
+std::expected<void, s3_error> s3_objects::remove_object(std::string const& key) const
 {
     auto result = execute_object_request(settings_, minio::http::Method::kDelete, key);
     if (!result)
@@ -141,4 +145,26 @@ std::expected<void, s3_error> s3_objects::remove(std::string const& key) const
         return std::unexpected(std::move(result.error()));
     }
     return {};
+}
+
+boost::capy::task<std::expected<std::string, s3_error>> s3_objects::put(
+    std::string key, std::string bytes, std::string media_type)
+{
+    return worker_.run(
+        [this, key = std::move(key), bytes = std::move(bytes), media_type = std::move(media_type)] {
+            return put_object(key, bytes, media_type);
+        }, queue_error);
+}
+
+boost::capy::task<std::expected<std::string, s3_error>> s3_objects::read(
+    std::string key, std::size_t size, std::size_t offset, std::size_t length)
+{
+    return worker_.run([this, key = std::move(key), size, offset, length] {
+        return read_object(key, size, offset, length);
+    }, queue_error);
+}
+
+boost::capy::task<std::expected<void, s3_error>> s3_objects::remove(std::string key)
+{
+    return worker_.run([this, key = std::move(key)] { return remove_object(key); }, queue_error);
 }

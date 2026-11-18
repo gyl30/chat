@@ -11,8 +11,9 @@
 #include <unistd.h>
 
 #include <miniocpp/client.h>
+#include <boost/capy/test/run_blocking.hpp>
 
-int main()
+boost::capy::task<int> exercise_silo()
 {
     auto const* endpoint = std::getenv("CHAT_TEST_S3_ENDPOINT");
     auto const* access_key = std::getenv("CHAT_TEST_S3_ACCESS_KEY");
@@ -20,7 +21,7 @@ int main()
     if (!endpoint || !access_key || !secret_key)
     {
         std::cout << "BLOCKED: isolated Silo endpoint and credentials are required\n";
-        return 77;
+        co_return 77;
     }
 
     bool passed = true;
@@ -39,41 +40,41 @@ int main()
     if (!created)
     {
         std::cerr << "FAIL create private test bucket: " << created.error().String() << '\n';
-        return 1;
+        co_return 1;
     }
 
     s3_objects objects(settings);
     std::string const bytes("123\0abc", 7);
     std::string const key = "attachments/test";
-    auto stored = objects.put(key, bytes, "application/octet-stream");
+    auto stored = co_await objects.put(key, bytes, "application/octet-stream");
     if (!stored)
     {
         std::cerr << "PUT status " << stored.error().status << ": " << stored.error().detail << '\n';
     }
     check(stored && stored->size() == 64, "Silo validates attachment SHA-256 and object size");
-    auto duplicate = objects.put(key, "replacement", "application/octet-stream");
+    auto duplicate = co_await objects.put(key, "replacement", "application/octet-stream");
     check(!duplicate && duplicate.error().status == 412, "a second PUT cannot overwrite the object");
-    auto chunk = objects.read(key, bytes.size(), 2, 4);
+    auto chunk = co_await objects.read(key, bytes.size(), 2, 4);
     if (!chunk)
     {
         std::cerr << "GET status " << chunk.error().status << ": " << chunk.error().detail << '\n';
     }
     check(chunk && *chunk == bytes.substr(2, 4), "Silo returns an exact binary byte range");
-    auto wrong_size = objects.read(key, bytes.size() + 1, 2, 4);
+    auto wrong_size = co_await objects.read(key, bytes.size() + 1, 2, 4);
     check(!wrong_size, "download rejects mismatched metadata");
-    check(!objects.read(key, bytes.size(), bytes.size() + 1, 0), "invalid range rejected locally");
-    check(objects.remove(key).has_value(), "delete the private object");
-    auto missing = objects.read(key, bytes.size(), 0, bytes.size());
+    check(!(co_await objects.read(key, bytes.size(), bytes.size() + 1, 0)), "invalid range rejected locally");
+    check((co_await objects.remove(key)).has_value(), "delete the private object");
+    auto missing = co_await objects.read(key, bytes.size(), 0, bytes.size());
     check(!missing && missing.error().status == 404, "deleted object is unavailable");
-    check(objects.remove(key).has_value(), "cleanup retry is idempotent");
+    check((co_await objects.remove(key)).has_value(), "cleanup retry is idempotent");
 
-    auto empty = objects.put(key, {}, "application/octet-stream");
+    auto empty = co_await objects.put(key, {}, "application/octet-stream");
     check(empty.has_value(), "Silo accepts empty attachments");
-    check(objects.remove(key).has_value(), "delete the empty object");
+    check((co_await objects.remove(key)).has_value(), "delete the empty object");
     auto bad_credentials = settings;
     bad_credentials.secret_key += "invalid";
     s3_objects denied(std::move(bad_credentials));
-    auto unauthenticated = denied.read(key, bytes.size(), 0, bytes.size());
+    auto unauthenticated = co_await denied.read(key, bytes.size(), 0, bytes.size());
     check(!unauthenticated && unauthenticated.error().status == 403, "Silo rejects invalid credentials");
 
     char file[] = "/tmp/chat-silo-test.XXXXXX";
@@ -96,7 +97,7 @@ int main()
                     BEGIN INSERT INTO failure(message) VALUES(-1); END;
                 )SQL").ok(), "prepare a deferred failure at SQLite commit");
                 check(reserve_attachment_object(*db, key, 10).ok(), "persist the reservation before PUT");
-                auto transfer = objects.put(key, bytes, "application/octet-stream");
+                auto transfer = co_await objects.put(key, bytes, "application/octet-stream");
                 check(transfer.has_value(), "upload before the failed database commit");
                 if (transfer)
                 {
@@ -121,12 +122,12 @@ int main()
                 auto abandoned = attachment_cleanup_batch(*db, 10);
                 check(too_early && too_early->empty() && abandoned && *abandoned == std::vector{key},
                       "failed upload reservation survives restart and honors the cleanup cutoff");
-                check(objects.remove(key) && acknowledge_attachment_cleanup(*db, key).ok(),
+                check((co_await objects.remove(key)) && acknowledge_attachment_cleanup(*db, key).ok(),
                       "delete the orphan object before acknowledging cleanup");
-                check(!objects.read(key, bytes.size(), 0, bytes.size()), "orphan object is gone");
+                check(!(co_await objects.read(key, bytes.size(), 0, bytes.size())), "orphan object is gone");
                 check(db->exec("DROP TRIGGER fail_attachment_commit").ok(), "allow a subsequent commit");
                 check(reserve_attachment_object(*db, key, 20).ok(), "reserve the cleaned key");
-                auto transfer = objects.put(key, bytes, "application/octet-stream");
+                auto transfer = co_await objects.put(key, bytes, "application/octet-stream");
                 check(transfer.has_value(), "upload attachment for a normal commit");
                 if (transfer)
                 {
@@ -143,7 +144,7 @@ int main()
                     check(remaining && *remaining && metadata->column_int64(0) == 0 &&
                           pending && *pending == std::vector{key},
                           "message deletion hides metadata and atomically queues object removal");
-                    check(objects.remove(key) && acknowledge_attachment_cleanup(*db, key).ok(), "finish object cleanup");
+                    check((co_await objects.remove(key)) && acknowledge_attachment_cleanup(*db, key).ok(), "finish object cleanup");
                 }
             }
         }
@@ -154,5 +155,13 @@ int main()
     cleanup.bucket = settings.bucket;
     cleanup.region = settings.region;
     check(static_cast<bool>(client.RemoveBucket(cleanup)), "remove the test bucket");
-    return passed ? 0 : 1;
+    co_return passed ? 0 : 1;
+}
+
+
+int main()
+{
+    int status = 1;
+    boost::capy::test::run_blocking([&](int result) { status = result; })(exercise_silo());
+    return status;
 }
