@@ -22,6 +22,7 @@
 #include "conversation_store.hpp"
 #include "database.hpp"
 #include "friendship_store.hpp"
+#include "group_access_store.hpp"
 #include "message_changes.hpp"
 #include "message_store.hpp"
 #include "message_history.hpp"
@@ -748,6 +749,96 @@ void conversation_tests()
           owner->column_int64(1) == 0, "owner membership and role survive serialized changes");
 }
 
+void group_access_tests()
+{
+    temporary_database file;
+    auto db = sqlite_database::open(file.path);
+    check(db && initialize_schema(*db).ok(), "open SQLite invite fixture");
+    if (!db)
+    {
+        return;
+    }
+    check(db->exec(R"SQL(
+        INSERT INTO users(username,password_hash,last_seen_at)
+            VALUES('Owner',printf('%060d',1),0),('Member',printf('%060d',2),0),
+                  ('Applicant',printf('%060d',3),0),('Other',printf('%060d',4),0);
+        INSERT INTO contacts(owner_id,contact_id,created_at) VALUES(1,2,0),(2,1,0);
+    )SQL").ok(), "seed an owner, member and two noncontacts");
+    auto group = create_group(*db, 1, "private group", std::array<std::int64_t, 1>{2});
+    if (!group || !*group)
+    {
+        check(false, "create group for invite tests");
+        return;
+    }
+    auto const id = **group;
+    auto denied = change_group_invite(*db, id, 2, invite_action::create);
+    auto configured = set_group_join_approval(*db, id, 1, true);
+    auto invitation = change_group_invite(*db, id, 1, invite_action::create);
+    auto repeat = change_group_invite(*db, id, 1, invite_action::create);
+    auto const* code = invitation ? std::get_if<group_invite_change>(&*invitation) : nullptr;
+    auto const* repeated = repeat ? std::get_if<group_invite_change>(&*repeat) : nullptr;
+    check(denied && std::get_if<group_member_rejection>(&*denied) &&
+          std::get<group_member_rejection>(*denied) == group_member_rejection::permission_denied &&
+          configured && std::get_if<bool>(&*configured) && std::get<bool>(*configured) &&
+          code && code->changed && code->token && repeated && !repeated->changed && repeated->token == code->token,
+          "only managers can create an invite and repeat creation returns the same code");
+    if (!code || !code->token)
+    {
+        return;
+    }
+    auto request = join_with_invite(*db, 3, *code->token);
+    auto duplicate = join_with_invite(*db, 3, *code->token);
+    auto revoked = change_group_invite(*db, id, 1, invite_action::revoke);
+    auto old_code = join_with_invite(*db, 4, *code->token);
+    auto listed = read_group_join_requests(*db, id, 1, {});
+    auto member_list = read_group_join_requests(*db, id, 2, {});
+    auto const* pending = listed ? std::get_if<chat::group_join_requests_result>(&*listed) : nullptr;
+    auto const* gone = revoked ? std::get_if<group_invite_change>(&*revoked) : nullptr;
+    check(request && *request && (*request)->request_changed && (*request)->result.state == chat::group_join_state::pending &&
+          (*request)->result.member_count == 2 && duplicate && *duplicate && !(*duplicate)->request_changed &&
+          gone && gone->changed && !gone->token && old_code && !*old_code &&
+          pending && pending->requests.size() == 1 && pending->requests.front().applicant.id == 3 && !pending->next &&
+          member_list && std::get_if<group_member_rejection>(&*member_list),
+          "revocation blocks new uses while leaving the unique pending request for group managers");
+
+    auto existing = write_message(*db, {1, id, 1, "history before acceptance", {}});
+    auto other = sqlite_database::open(file.path);
+    if (!other)
+    {
+        check(false, "open an independent approval connection");
+        return;
+    }
+    std::barrier start(2);
+    auto rejecting = std::async(std::launch::async, [&] {
+        start.arrive_and_wait();
+        return respond_to_group_join_request(*other, id, 1, 3, false);
+    });
+    start.arrive_and_wait();
+    auto accepted = respond_to_group_join_request(*db, id, 1, 3, true);
+    auto rejected = rejecting.get();
+    auto const* added = accepted ? std::get_if<bool>(&*accepted) : nullptr;
+    auto const* refused = rejected ? std::get_if<bool>(&*rejected) : nullptr;
+    auto unread = read_unread_count(*db, id, 3);
+    check(existing && std::get_if<message_write>(&*existing) && added && refused && *added != *refused &&
+          count(*db, "group_join_requests") == 0 && unread &&
+          (*added ? *unread == 0 : !*unread), "accept and reject consume the same request once and use the join watermark");
+    auto clear_approval = set_group_join_approval(*db, id, 1, false);
+    auto new_invite = change_group_invite(*db, id, 1, invite_action::create);
+    auto const* new_code = new_invite ? std::get_if<group_invite_change>(&*new_invite) : nullptr;
+    if (!new_code || !new_code->token)
+    {
+        check(false, "create invite after revocation");
+        return;
+    }
+    auto joined = join_with_invite(*db, 4, *new_code->token);
+    auto member = join_with_invite(*db, 4, *new_code->token);
+    auto role = read_group_role(*db, id, 4);
+    check(clear_approval && joined && *joined && (*joined)->result.state == chat::group_join_state::joined &&
+          member && *member && (*member)->result.state == chat::group_join_state::member &&
+          role && *role == chat::member_role::member && count(*db, "contacts") == 2,
+          "direct invite joins a noncontact once and assigns the member role without creating friendships");
+}
+
 void conversation_list_tests()
 {
     temporary_database file;
@@ -1177,6 +1268,7 @@ int main()
     mention_tests();
     message_change_tests();
     conversation_tests();
+    group_access_tests();
     conversation_list_tests();
     account_tests();
     temporary_database file;
