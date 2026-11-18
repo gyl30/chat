@@ -1,3 +1,4 @@
+#include <array>
 #include <atomic>
 #include <barrier>
 #include <chrono>
@@ -16,6 +17,7 @@
 #include <boost/capy/task.hpp>
 #include <boost/corosio/io_context.hpp>
 
+#include "conversation_store.hpp"
 #include "database.hpp"
 #include "friendship_store.hpp"
 #include "message_store.hpp"
@@ -410,6 +412,76 @@ void message_write_tests()
           "empty incremental history still returns authoritative reading positions");
 }
 
+void conversation_tests()
+{
+    temporary_database file;
+    auto db = sqlite_database::open(file.path);
+    check(db && initialize_schema(*db).ok(), "open SQLite group fixture");
+    if (!db)
+    {
+        return;
+    }
+    check(db->exec(R"SQL(
+        INSERT INTO users(username,password_hash,last_seen_at)
+            VALUES('Owner',printf('%060d',1),0),('Member',printf('%060d',2),0),('Invitee',printf('%060d',3),0);
+        INSERT INTO contacts(owner_id,contact_id,created_at) VALUES(1,2,0),(2,1,0),(1,3,0),(3,1,0);
+    )SQL").ok(), "seed current contacts");
+    auto direct = open_direct(*db, 1, 2);
+    auto reversed = open_direct(*db, 2, 1);
+    auto denied = open_direct(*db, 2, 3);
+    check(direct && *direct && reversed && *reversed == *direct && denied && !*denied,
+          "opening a direct requires friendship and the unordered pair remains unique");
+    auto group = create_group(*db, 1, "群聊", std::array<std::int64_t, 1>{2});
+    auto unapproved = create_group(*db, 2, "不能创建", std::array<std::int64_t, 1>{3});
+    check(group && *group && unapproved && !*unapproved && count(*db, "conversations") == 2,
+          "group creation commits owner and members together and rejects noncontacts");
+    if (!group || !*group)
+    {
+        return;
+    }
+
+    auto const conversation = **group;
+    std::array<std::int64_t, 1> const invitees{3};
+    auto ordinary = invite_group_members(*db, conversation, 2, invitees);
+    auto outsider = invite_group_members(*db, conversation, 3, std::array<std::int64_t, 1>{1});
+    check(ordinary && std::get_if<group_invite_rejection>(&*ordinary) &&
+          std::get<group_invite_rejection>(*ordinary) == group_invite_rejection::permission_denied &&
+          outsider && std::get_if<group_invite_rejection>(&*outsider) &&
+          std::get<group_invite_rejection>(*outsider) == group_invite_rejection::unavailable,
+          "ordinary members and outsiders cannot invite");
+
+    auto other = sqlite_database::open(file.path);
+    check(other.has_value(), "open independent writer for group race");
+    if (!other)
+    {
+        return;
+    }
+    std::barrier start(2);
+    auto sender = std::async(std::launch::async, [&] {
+        start.arrive_and_wait();
+        return write_message(*other, {2, conversation, 123, "send while inviting", {}});
+    });
+    start.arrive_and_wait();
+    auto joined = invite_group_members(*db, conversation, 1, invitees);
+    auto sent = sender.get();
+    auto const* added = joined ? std::get_if<bool>(&*joined) : nullptr;
+    auto const* saved = sent ? std::get_if<message_write>(&*sent) : nullptr;
+    check(added && *added && saved && saved->inserted, "concurrent invite and send both commit");
+    if (!added || !*added || !saved)
+    {
+        return;
+    }
+
+    auto before = db->prepare("SELECT joined_message_id,last_read_message_id FROM conversation_members "
+                              "WHERE conversation_id=?1 AND user_id=3", conversation);
+    auto member = before ? before->step() : std::expected<bool, sqlite_error>{false};
+    check(member && *member && (before->column_int64(0) == 0 || before->column_int64(0) == saved->id) &&
+          before->column_int64(1) == 0, "serialized invite preserves the join watermark without marking any message read");
+    auto duplicate = invite_group_members(*other, conversation, 1, invitees);
+    check(duplicate && std::get_if<bool>(&*duplicate) && !std::get<bool>(*duplicate),
+          "repeat invite does not recreate the membership");
+}
+
 boost::capy::task<> gated_job(database& db, std::promise<void>& started, std::future<void>& gate, std::atomic<int>& done)
 {
     auto result = co_await db.run([&](sqlite_database&) -> std::expected<void, sqlite_error>
@@ -567,6 +639,7 @@ int main()
 {
     friendship_tests();
     message_write_tests();
+    conversation_tests();
     temporary_database file;
     boost::corosio::io_context io_context;
     int exit_code = 1;
