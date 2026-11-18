@@ -592,6 +592,45 @@ void account_tests()
     auto stale = read_avatar_chunk(*db, user, 1, 32768);
     check(stale && *stale && (*stale)->state == chat::avatar_state{3, true} && (*stale)->bytes.empty(),
           "stale avatar request returns current metadata and no bytes");
+
+    auto contact = register_account(*db, "contact", hash);
+    auto peer = register_account(*db, "former contact", hash);
+    auto group_member = register_account(*db, "group member", hash);
+    auto stranger = register_account(*db, "stranger", hash);
+    if (!contact || !*contact || !peer || !*peer || !group_member || !*group_member || !stranger || !*stranger)
+    {
+        check(false, "create accounts for notification recipient tests");
+        return;
+    }
+    auto requested = change_friendship(*db, user, **contact, friendship_action::request);
+    auto accepted = change_friendship(*db, **contact, user, friendship_action::accept);
+    auto peer_request = change_friendship(*db, user, **peer, friendship_action::request);
+    auto peer_acceptance = change_friendship(*db, **peer, user, friendship_action::accept);
+    auto direct = open_direct(*db, user, **peer);
+    auto removed = change_friendship(*db, user, **peer, friendship_action::remove);
+    auto member_request = change_friendship(*db, user, **group_member, friendship_action::request);
+    auto member_acceptance = change_friendship(*db, **group_member, user, friendship_action::accept);
+    std::array members{**group_member, **contact};
+    auto group = create_group(*db, user, "avatar watchers", members);
+    auto member_removed = change_friendship(*db, user, **group_member, friendship_action::remove);
+    check(requested && accepted && peer_request && peer_acceptance && direct && *direct && removed &&
+          member_request && member_acceptance && group && *group && member_removed,
+          "establish contact, direct history and group relationships");
+    auto recipients = read_avatar_recipients(*db, user);
+    check(recipients && *recipients == std::vector{**contact, **peer, **group_member},
+          "avatar change reaches each related user once, even after contact removal");
+    auto connected = record_presence(*db, user, true);
+    auto disconnected = record_presence(*db, user, false);
+    auto contacts = read_contact_presence(*db, **contact);
+    auto former_contacts = read_contact_presence(*db, **peer);
+    auto group_only = read_contact_presence(*db, **group_member);
+    check(connected && connected->last_seen == 0 && connected->recipients == std::vector{**contact} &&
+          disconnected && disconnected->last_seen > 0 && disconnected->recipients == std::vector{**contact},
+          "presence events only reach users who still have the contact");
+    check(contacts && contacts->size() == 1 && contacts->front().user == user &&
+          disconnected && contacts->front().last_seen == disconnected->last_seen &&
+          former_contacts && former_contacts->empty() && group_only && group_only->empty(),
+          "contact presence exposes persisted last seen without exposing peers or group members");
 }
 
 boost::capy::task<> transaction_recovery_test()

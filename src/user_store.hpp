@@ -6,8 +6,10 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <chat/user.hpp>
+#include <chat/presence.hpp>
 
 #include "sqlite_database.hpp"
 
@@ -46,5 +48,16 @@ struct avatar_change
 std::expected<avatar_change, sqlite_error> save_avatar(
     sqlite_database& db, std::int64_t user, std::string_view media_type, std::string_view bytes);
 std::expected<avatar_change, sqlite_error> clear_avatar(sqlite_database& db, std::int64_t user);
+
+std::expected<std::vector<std::int64_t>, sqlite_error> read_avatar_recipients(sqlite_database& db, std::int64_t user);
+
+struct presence_change
+{
+    std::int64_t last_seen;
+    std::vector<std::int64_t> recipients;
+};
+
+std::expected<presence_change, sqlite_error> record_presence(sqlite_database& db, std::int64_t user, bool online);
+std::expected<std::vector<chat::presence>, sqlite_error> read_contact_presence(sqlite_database& db, std::int64_t user);
 
 #endif

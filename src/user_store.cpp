@@ -205,3 +205,109 @@ std::expected<avatar_change, sqlite_error> clear_avatar(sqlite_database& db, std
     }
     return avatar_change{{*revision, false}, changed};
 }
+
+std::expected<std::vector<std::int64_t>, sqlite_error> read_avatar_recipients(sqlite_database& db, std::int64_t user)
+{
+    auto statement = db.prepare(R"SQL(
+        SELECT peer FROM (
+            SELECT contact_id AS peer FROM contacts WHERE owner_id=?1
+            UNION SELECT owner_id FROM contacts WHERE contact_id=?1
+            UNION SELECT direct_user_high FROM conversations WHERE kind='direct' AND direct_user_low=?1
+            UNION SELECT direct_user_low FROM conversations WHERE kind='direct' AND direct_user_high=?1
+            UNION SELECT m.user_id
+                FROM conversation_members own
+                JOIN conversations c ON c.id=own.conversation_id AND c.kind='group'
+                JOIN conversation_members m ON m.conversation_id=c.id
+                WHERE own.user_id=?1
+        ) WHERE peer<>?1 ORDER BY peer
+    )SQL", user);
+    if (!statement)
+    {
+        return std::unexpected(std::move(statement.error()));
+    }
+    std::vector<std::int64_t> recipients;
+    for (;;)
+    {
+        auto row = statement->step();
+        if (!row)
+        {
+            return std::unexpected(std::move(row.error()));
+        }
+        if (!*row)
+        {
+            return recipients;
+        }
+        recipients.push_back(statement->column_int64(0));
+    }
+}
+
+std::expected<presence_change, sqlite_error> record_presence(sqlite_database& db, std::int64_t user, bool online)
+{
+    auto transaction = online ? sqlite_transaction::begin_read(db) : sqlite_transaction::begin_immediate(db);
+    if (!transaction)
+    {
+        return std::unexpected(std::move(transaction.error()));
+    }
+    presence_change result{online ? 0 : timestamp(), {}};
+    if (!online)
+    {
+        auto update = db.prepare("UPDATE users SET last_seen_at=?2 WHERE id=?1", user, result.last_seen);
+        if (!update)
+        {
+            return std::unexpected(std::move(update.error()));
+        }
+        if (auto done = update->step(); !done)
+        {
+            return std::unexpected(std::move(done.error()));
+        }
+    }
+    auto statement = db.prepare("SELECT owner_id FROM contacts WHERE contact_id=?1 ORDER BY owner_id", user);
+    if (!statement)
+    {
+        return std::unexpected(std::move(statement.error()));
+    }
+    for (;;)
+    {
+        auto row = statement->step();
+        if (!row)
+        {
+            return std::unexpected(std::move(row.error()));
+        }
+        if (!*row)
+        {
+            break;
+        }
+        result.recipients.push_back(statement->column_int64(0));
+    }
+    if (auto error = transaction->commit(); error)
+    {
+        return std::unexpected(std::move(error));
+    }
+    return result;
+}
+
+std::expected<std::vector<chat::presence>, sqlite_error> read_contact_presence(sqlite_database& db, std::int64_t user)
+{
+    auto statement = db.prepare(R"SQL(
+        SELECT u.id,u.last_seen_at FROM contacts c JOIN users u ON u.id=c.contact_id
+        WHERE c.owner_id=?1 ORDER BY u.id
+    )SQL", user);
+    if (!statement)
+    {
+        return std::unexpected(std::move(statement.error()));
+    }
+    std::vector<chat::presence> result;
+    for (;;)
+    {
+        auto row = statement->step();
+        if (!row)
+        {
+            return std::unexpected(std::move(row.error()));
+        }
+        if (!*row)
+        {
+            return result;
+        }
+        result.push_back({statement->column_int64(0), false, statement->column_int64(1)});
+    }
+}
