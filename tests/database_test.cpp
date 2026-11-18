@@ -8,6 +8,8 @@
 #include <filesystem>
 #include <future>
 #include <iostream>
+#include <latch>
+#include <stop_token>
 #include <memory>
 #include <string>
 #include <thread>
@@ -715,10 +717,54 @@ boost::capy::task<> async_tests(temporary_database& file, boost::corosio::io_con
     co_return;
 }
 
+
+boost::capy::task<int> paused_storage_job(blocking_worker& worker, std::latch& started, std::latch& release)
+{
+    auto result = co_await worker.run([&]() -> std::expected<int, blocking_worker::unavailable> {
+        started.count_down();
+        release.wait();
+        return 42;
+    }, std::identity{});
+    co_return result.value_or(-1);
+}
+
+void stopped_executor_test()
+{
+    boost::corosio::io_context io;
+    blocking_worker database_jobs(1);
+    blocking_worker object_jobs(1);
+    std::stop_source connection_stop;
+    std::latch started(2);
+    std::latch release(1);
+    std::array<int, 2> results{-1, -1};
+    auto executor = io.get_executor();
+    boost::capy::run_async(executor, connection_stop.get_token(), [&](int result) { results[0] = result; })(
+        paused_storage_job(database_jobs, started, release));
+    boost::capy::run_async(executor, connection_stop.get_token(), [&](int result) { results[1] = result; })(
+        paused_storage_job(object_jobs, started, release));
+    std::thread event_loop([&] { io.run(); });
+    started.wait();
+
+    // TCP server shutdown requests a stop token and drains accepted work.
+    // Explicit io_context::stop pauses delivery until restart.
+    connection_stop.request_stop();
+    io.stop();
+    event_loop.join();
+    release.count_down();
+    database_jobs.shutdown();
+    object_jobs.shutdown();
+    check(results == std::array{-1, -1}, "stopped context has not delivered storage completions");
+
+    io.restart();
+    io.run();
+    check(results == std::array{42, 42}, "stop and worker drain preserve each queued continuation");
+}
+
 }    // namespace
 
 int main()
 {
+    stopped_executor_test();
     friendship_tests();
     message_write_tests();
     conversation_tests();
