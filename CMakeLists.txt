@@ -219,46 +219,35 @@ target_link_libraries(chat_db_test
 add_test(NAME pg_connection COMMAND chat_db_test)
 set_tests_properties(pg_connection PROPERTIES TIMEOUT 15)
 
-add_executable(chat_database_test
-    tests/database_test.cpp
-    src/friendship_store.cpp
+add_library(chat_sqlite_storage STATIC
+    src/attachment_access.cpp
+    src/attachment_cleanup.cpp
+    src/blocking_worker.cpp
     src/conversation_store.cpp
-    src/user_store.cpp
+    src/database.cpp
+    src/friendship_store.cpp
     src/message_history.cpp
     src/message_store.cpp
-    src/database.cpp
-    src/blocking_worker.cpp
-    src/sqlite_database.cpp
     src/schema.cpp
+    src/sqlite_database.cpp
+    src/user_store.cpp
+)
+target_include_directories(chat_sqlite_storage PUBLIC src client/include)
+target_link_libraries(chat_sqlite_storage PUBLIC Boost::capy SQLite::SQLite3 Threads::Threads)
+
+add_library(chat_attachment_storage STATIC src/attachment_io.cpp src/s3_objects.cpp)
+target_link_libraries(chat_attachment_storage
+    PUBLIC chat_sqlite_storage
+    PRIVATE miniocpp::miniocpp OpenSSL::Crypto
 )
 
-target_include_directories(chat_database_test PRIVATE src client/include)
-
-target_link_libraries(chat_database_test
-    PRIVATE
-        Boost::capy
-        Boost::corosio
-        SQLite::SQLite3
-        Threads::Threads
-)
-
+add_executable(chat_database_test tests/database_test.cpp)
+target_link_libraries(chat_database_test PRIVATE chat_sqlite_storage Boost::corosio)
 add_test(NAME database COMMAND chat_database_test)
 set_tests_properties(database PROPERTIES TIMEOUT 30)
 
-add_executable(chat_s3_objects_test
-    tests/s3_objects_test.cpp
-    src/s3_objects.cpp
-    src/blocking_worker.cpp
-    src/attachment_cleanup.cpp
-    src/attachment_access.cpp
-    src/attachment_io.cpp
-    src/database.cpp
-    src/message_store.cpp
-    src/schema.cpp
-    src/sqlite_database.cpp
-)
-target_include_directories(chat_s3_objects_test PRIVATE src client/include)
-target_link_libraries(chat_s3_objects_test PRIVATE miniocpp::miniocpp OpenSSL::Crypto SQLite::SQLite3 Boost::capy Threads::Threads)
+add_executable(chat_s3_objects_test tests/s3_objects_test.cpp)
+target_link_libraries(chat_s3_objects_test PRIVATE chat_attachment_storage miniocpp::miniocpp)
 add_test(NAME s3_objects COMMAND chat_s3_objects_test)
 set_tests_properties(s3_objects PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
 

@@ -49,6 +49,10 @@ Qt 的具体模块、构建和许可选择取决于所用 Qt 发行包；本项�
 [发布来源与许可工程审查](docs/release_compliance.md)。该报告不构成公开分发的最终法律确认。
 TLS 证书测试额外调用 OpenSSL 命令行程序。
 
+SQLite 与 Silo 阶段测试使用 [SQLite3](https://sqlite.org/copyright.html) 官方 C API
+和 [MinIO C++ SDK 1.0.1](https://github.com/minio/minio-cpp/tree/v1.0.1)（Apache-2.0）。
+Silo 是单独运行的存储服务，未链接进客户端或服务端。
+
 ## 可选 Fcitx5 Qt6 输入法插件
 
 Linux 原生输入法集成可单独部署 [fcitx5-qt](https://github.com/fcitx/fcitx5-qt)

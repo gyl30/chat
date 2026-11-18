@@ -79,3 +79,25 @@ Phase 3 可搬运 tar.gz 的生成、依赖边界和跨机器验收另见
 数据库升级/恢复验证和客户端重连验证分别记录，不把重放迁移当作恢复。
 失败保留原始日志；有界重复心跳测试不得删除断言、增加 sleep 或放宽超时。
 只清理本轮创建且身份可核对的数据库、集群与进程。
+
+## SQLite 与 Silo 存储层阶段验证
+
+重构分支新增 `database` 和 `s3_objects`。当前生产服务仍使用原数据库入口，旧的
+集成测试仍需要上文的专用 PostgreSQL 库。两个新测试直接验证将来由服务端接入
+的存储模块，不能替代切换后的 Qt/TUI 端到端验收。
+
+构建需要 SQLite3 开发包和 MinIO C++ SDK 1.0.1 的 CMake 包。将从源码构建的
+SDK 安装前缀加入现有 `CMAKE_PREFIX_PATH`。已验证 Ubuntu 22.04 上从源码构建的
+SDK。上游 Linux 二进制包依赖本机 glibc 2.35 不提供的符号。
+
+```sh
+cmake -S . -B build -DCHAT_BUILD_QT_CLIENT=ON -DCHAT_BUILD_TUI_CLIENT=ON
+cmake --build build --target chat_database_test chat_s3_objects_test -j12
+ctest --test-dir build -R '^(database|s3_objects)$' --output-on-failure
+```
+
+SQLite 测试创建并清理自己的数据库文件。S3 测试使用独立 Silo 实例，测试环境通过
+`CHAT_TEST_S3_ENDPOINT`（`host:port`）、`CHAT_TEST_S3_ACCESS_KEY` 和
+`CHAT_TEST_S3_SECRET_KEY` 提供连接参数。夹具在这个实例创建私有测试桶并清理。
+缺少连接参数时测试返回 77，CTest 显示跳过，验收记为 BLOCKED。
+此测试使用本机 HTTP 并通过独立的回环故障夹具检查拒绝连接、截断响应和超时。
