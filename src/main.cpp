@@ -8,7 +8,6 @@
 #include <system_error>
 #include <optional>
 #include <chrono>
-#include <limits>
 
 #include <fcntl.h>
 #include <sys/file.h>
@@ -54,11 +53,12 @@ std::string environment(char const* name)
     return value ? value : "";
 }
 
-boost::capy::task<void> recover_objects(database& db, s3_objects& objects, bool final_pass)
+boost::capy::task<void> recover_objects(database& db, s3_objects& objects)
 {
-    auto const cutoff = final_pass ? std::numeric_limits<std::int64_t>::max()
-        : std::chrono::duration_cast<std::chrono::milliseconds>(
-            (std::chrono::system_clock::now() - std::chrono::minutes(1)).time_since_epoch()).count();
+    // A timed-out PUT may still finish remotely. The settling window applies
+    // on shutdown too, not just during startup recovery.
+    auto const cutoff = std::chrono::duration_cast<std::chrono::milliseconds>(
+        (std::chrono::system_clock::now() - std::chrono::minutes(1)).time_since_epoch()).count();
     auto result = co_await recover_attachment_objects(db, objects, cutoff);
     if (!result)
     {
@@ -206,7 +206,7 @@ int main(int argc, char* argv[])
     }
     s3_objects objects(std::move(settings));
     boost::corosio::io_context io_context;
-    boost::capy::run_async(io_context.get_executor())(recover_objects(**storage, objects, false));
+    boost::capy::run_async(io_context.get_executor())(recover_objects(**storage, objects));
     io_context.run();
     io_context.restart();
 
@@ -241,7 +241,7 @@ int main(int argc, char* argv[])
     io_context.run();
     server.join();
     io_context.restart();
-    boost::capy::run_async(io_context.get_executor())(recover_objects(**storage, objects, true));
+    boost::capy::run_async(io_context.get_executor())(recover_objects(**storage, objects));
     io_context.run();
 
     return exit_code;

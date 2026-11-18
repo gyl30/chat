@@ -13,6 +13,40 @@
 #include "attachment_cleanup.hpp"
 #include "database.hpp"
 
+namespace
+{
+// A failed PUT or SQLite write may have left an S3 object without a message.
+// Check the durable reservation before deleting: a successful commit claims it.
+boost::capy::task<void> discard_unpublished_attachment(database& db, s3_objects& objects, std::string const& key)
+{
+    auto reserved = co_await db.run([&](sqlite_database& connection) -> std::expected<bool, sqlite_error> {
+        auto query = connection.prepare("SELECT 1 FROM attachment_cleanup WHERE object_key=?1", key);
+        if (!query)
+        {
+            return std::unexpected(std::move(query.error()));
+        }
+        return query->step();
+    });
+    if (!reserved || !*reserved)
+    {
+        co_return;
+    }
+    if (auto removed = co_await objects.remove(key); !removed)
+    {
+        co_return;
+    }
+    // Keep the reservation for startup/shutdown recovery if acknowledgement fails.
+    auto acknowledged = co_await db.run([&](sqlite_database& connection) -> std::expected<void, sqlite_error> {
+        if (auto error = acknowledge_attachment_cleanup(connection, key); error)
+        {
+            return std::unexpected(std::move(error));
+        }
+        return {};
+    });
+    (void)acknowledged;
+}
+} // namespace
+
 boost::capy::task<std::expected<std::variant<message_write, message_write_rejection>, attachment_io_error>>
 publish_attachment(database& db, s3_objects& objects, completed_attachment_upload upload)
 {
@@ -71,6 +105,8 @@ publish_attachment(database& db, s3_objects& objects, completed_attachment_uploa
     auto checksum = co_await objects.put(key, std::move(upload.bytes), upload.media_type);
     if (!checksum)
     {
+        // A timed-out PUT can still complete remotely. Keep its reservation
+        // for the delayed recovery pass rather than deleting it immediately.
         co_return std::unexpected(attachment_io_error{std::move(checksum.error())});
     }
 
@@ -82,7 +118,15 @@ publish_attachment(database& db, s3_objects& objects, completed_attachment_uploa
     auto committed = co_await db.run(commit);
     if (!committed)
     {
-        co_return std::unexpected(attachment_io_error{std::move(committed.error())});
+        auto error = std::move(committed.error());
+        co_await discard_unpublished_attachment(db, objects, key);
+        co_return std::unexpected(attachment_io_error{std::move(error)});
+    }
+    // A rejected write or a duplicate client_id never claims this new object.
+    auto const* message = std::get_if<message_write>(&*committed);
+    if (!message || !message->inserted)
+    {
+        co_await discard_unpublished_attachment(db, objects, key);
     }
     co_return std::move(*committed);
 }
