@@ -9,6 +9,7 @@
 #include <variant>
 #include <vector>
 
+#include <chat/conversation.hpp>
 #include <chat/member.hpp>
 #include "sqlite_database.hpp"
 
@@ -17,6 +18,9 @@ std::expected<std::optional<std::int64_t>, sqlite_error> open_direct(
 
 std::expected<std::optional<std::int64_t>, sqlite_error> create_group(
     sqlite_database& db, std::int64_t owner, std::string_view title, std::span<std::int64_t const> members);
+
+std::expected<std::string, sqlite_error> read_conversation_list(
+    sqlite_database& db, std::int64_t user, std::optional<chat::conversation_cursor> before);
 
 // No rows means the caller no longer has access to the conversation.
 std::expected<std::vector<chat::conversation_member>, sqlite_error> read_conversation_members(

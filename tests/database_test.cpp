@@ -579,6 +579,87 @@ void conversation_tests()
           owner->column_int64(1) == 0, "owner membership and role survive serialized changes");
 }
 
+void conversation_list_tests()
+{
+    temporary_database file;
+    auto db = sqlite_database::open(file.path);
+    check(db && initialize_schema(*db).ok(), "open SQLite conversation list fixture");
+    if (!db)
+    {
+        return;
+    }
+    check(db->exec(R"SQL(
+        INSERT INTO users(username,password_hash,last_seen_at)
+            VALUES('Reader',printf('%060d',1),0),('Author',printf('%060d',2),0);
+        INSERT INTO contacts(owner_id,contact_id,created_at) VALUES(1,2,0),(2,1,0);
+        WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<53)
+        INSERT INTO conversations(id,kind,title,activity) SELECT i,'group','Group '||i,i FROM n;
+        INSERT INTO conversation_members(conversation_id,user_id,pinned)
+            SELECT id,1,id=1 FROM conversations;
+        INSERT INTO conversation_members(conversation_id,user_id) VALUES(1,2);
+        INSERT INTO messages(id,conversation_id,sender_id,body,created_at,reply_to_id)
+            VALUES(1,1,1,'original',1,NULL),(2,1,2,'reply',2,1);
+        INSERT INTO message_reactions(message_id,user_id,emoji) VALUES(2,1,'👍'),(2,2,'👍');
+        INSERT INTO message_mentions(message_id,user_id) VALUES(2,1);
+        UPDATE conversations SET pinned_message_id=1,join_approval=1,announcement='notice' WHERE id=1;
+        UPDATE conversation_members SET muted=1 WHERE conversation_id=1 AND user_id=1;
+    )SQL").ok(), "seed pinned and unpinned conversations and interactions");
+    auto direct = open_direct(*db, 1, 2);
+    check(direct && *direct, "include a direct conversation in the list");
+    if (!direct || !*direct)
+    {
+        return;
+    }
+    auto first = read_conversation_list(*db, 1, {});
+    check(first.has_value(), first ? "get a page of conversations" : first.error().message);
+    if (!first)
+    {
+        return;
+    }
+    auto first_page = db->prepare(R"SQL(
+        SELECT json_array_length(?1,'$.conversations'),
+               json_extract(?1,'$.conversations[0].id'),
+               json_type(?1,'$.conversations[0].pinned'),
+               json_type(?1,'$.conversations[0].muted'),
+               json_type(?1,'$.conversations[0].join_approval'),
+               json_extract(?1,'$.conversations[0].last.reply.text'),
+               json_extract(?1,'$.conversations[0].pinned_message.text'),
+               json_extract(?1,'$.conversations[0].last.reactions[0].users[1]'),
+               json_extract(?1,'$.conversations[0].last.mentions[0].user'),
+               json_extract(?1,'$.conversations[0].unread'),
+               json_extract(?1,'$.conversations[1].id'),
+               json_extract(?1,'$.next.activity'),
+               json_extract(?1,'$.next.id'),
+               json_type(?1,'$.next.pinned')
+    )SQL", *first);
+    check(first_page && first_page->step().value_or(false) && first_page->column_int64(0) == 50 &&
+          first_page->column_int64(1) == 1 && first_page->column_text(2) == "true" &&
+          first_page->column_text(3) == "true" && first_page->column_text(4) == "true" &&
+          first_page->column_text(5) == "original" && first_page->column_text(6) == "original" &&
+          first_page->column_int64(7) == 2 && first_page->column_int64(8) == 1 &&
+          first_page->column_int64(9) == 1 && first_page->column_int64(10) == **direct &&
+          first_page->column_int64(11) == 6 && first_page->column_int64(12) == 6 &&
+          first_page->column_text(13) == "false", "conversation page preserves pinned order and nested wire types");
+    first_page = sqlite_statement{};
+
+    auto second = read_conversation_list(*db, 1, chat::conversation_cursor{6, 6, false});
+    auto second_page = second ? db->prepare(R"SQL(
+        SELECT json_group_array(json_extract(value,'$.id')),json_type(?1,'$.next')
+        FROM json_each(?1,'$.conversations')
+    )SQL", *second) : std::expected<sqlite_statement, sqlite_error>{std::unexpected(second.error())};
+    check(second_page && second_page->step().value_or(false) && second_page->column_text(0) == "[5,4,3,2]" &&
+          second_page->column_text(1) == "null", "cursor excludes all first-page rows and preserves the remaining order");
+    second_page = sqlite_statement{};
+
+    check(db->exec("DELETE FROM contacts").ok(), "remove friendship without deleting the conversation");
+    auto after_removal = read_conversation_list(*db, 1, {});
+    auto visible_directs = after_removal ? db->prepare(R"SQL(
+        SELECT count(*) FROM json_each(?1,'$.conversations') WHERE json_extract(value,'$.kind')='direct'
+    )SQL", *after_removal) : std::expected<sqlite_statement, sqlite_error>{std::unexpected(after_removal.error())};
+    check(visible_directs && visible_directs->step().value_or(false) && visible_directs->column_int64(0) == 0 &&
+          count(*db, "conversations") == 54, "removed contacts hide only the direct conversation from the list");
+}
+
 void account_tests()
 {
     temporary_database file;
@@ -925,6 +1006,7 @@ int main()
     friendship_tests();
     message_write_tests();
     conversation_tests();
+    conversation_list_tests();
     account_tests();
     temporary_database file;
     boost::corosio::io_context io_context;

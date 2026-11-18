@@ -224,6 +224,7 @@ add_library(chat_sqlite_storage STATIC
     src/attachment_access.cpp
     src/attachment_cleanup.cpp
     src/blocking_worker.cpp
+    src/conversation_list.cpp
     src/conversation_store.cpp
     src/database.cpp
     src/friendship_store.cpp
