@@ -44,14 +44,7 @@ void database::shutdown() noexcept
 
     if (thread_.joinable())
     {
-        if (thread_.get_id() == std::this_thread::get_id())
-        {
-            thread_.detach();
-        }
-        else
-        {
-            thread_.join();
-        }
+        thread_.join();
     }
 }
 

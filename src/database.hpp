@@ -41,16 +41,16 @@ class database
     // through the same error channel.
     template <class F>
         requires std::same_as<typename std::invoke_result_t<F, sqlite_database&>::error_type, sqlite_error>
-    auto run(F&& job) -> boost::capy::task<std::invoke_result_t<F, sqlite_database&>>
+    auto run(F job) -> boost::capy::task<std::invoke_result_t<F, sqlite_database&>>
     {
         using result_type = std::invoke_result_t<F, sqlite_database&>;
         auto state = std::make_shared<run_state<result_type>>();
-        state->job = std::forward<F>(job);
+        state->job = std::move(job);
         auto result = co_await run_awaiter<result_type>{this, state};
         co_return std::move(result);
     }
 
-    // Stops accepting jobs and drains the queue. The destructor calls it.
+    // Called by the owner, outside database jobs. Drains accepted work before joining.
     void shutdown() noexcept;
 
     [[nodiscard]] std::string const& path() const noexcept { return path_; }

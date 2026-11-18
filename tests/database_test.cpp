@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <future>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <thread>
 #include <vector>
@@ -302,6 +303,20 @@ boost::capy::task<> async_tests(temporary_database& file, boost::corosio::io_con
         co_return;
     }
     auto& db = **opened;
+
+    std::weak_ptr<int> job_payload;
+    auto deferred = [&] {
+        auto payload = std::make_shared<int>(42);
+        job_payload = payload;
+        return db.run([payload](sqlite_database&) -> std::expected<int, sqlite_error> { return *payload; });
+    }();
+    bool const owns_job = !job_payload.expired();
+    check(owns_job, "a deferred database task owns its job before suspension");
+    if (owns_job)
+    {
+        auto result = co_await std::move(deferred);
+        check(result && *result == 42, "a deferred database task returns its owned payload");
+    }
 
     std::atomic<int> completed{0};
     std::promise<void> first_started;

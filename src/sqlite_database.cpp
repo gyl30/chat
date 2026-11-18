@@ -73,15 +73,41 @@ std::expected<sqlite_database, sqlite_error> sqlite_database::open(std::string c
     {
         return std::unexpected(std::move(error));
     }
-    if (auto error = result.exec("PRAGMA journal_mode=WAL"); error)
+    if (int const code = sqlite3_busy_timeout(handle, busy_timeout_ms); code != SQLITE_OK)
     {
-        return std::unexpected(std::move(error));
+        return std::unexpected(make_error(handle, code));
+    }
+    {
+        auto mode = result.prepare("PRAGMA journal_mode=WAL");
+        if (!mode)
+        {
+            return std::unexpected(std::move(mode.error()));
+        }
+        auto row = mode->step();
+        if (!row)
+        {
+            return std::unexpected(std::move(row.error()));
+        }
+        if (!*row || mode->column_text(0) != "wal")
+        {
+            return std::unexpected(sqlite_error{SQLITE_ERROR, "SQLite WAL mode is unavailable"});
+        }
+    }
+    auto foreign_keys = result.prepare("PRAGMA foreign_keys");
+    if (!foreign_keys)
+    {
+        return std::unexpected(std::move(foreign_keys.error()));
+    }
+    auto row = foreign_keys->step();
+    if (!row)
+    {
+        return std::unexpected(std::move(row.error()));
+    }
+    if (!*row || foreign_keys->column_int64(0) != 1)
+    {
+        return std::unexpected(sqlite_error{SQLITE_ERROR, "SQLite foreign key enforcement is unavailable"});
     }
     if (auto error = result.exec("PRAGMA synchronous=FULL"); error)
-    {
-        return std::unexpected(std::move(error));
-    }
-    if (auto error = result.exec("PRAGMA busy_timeout=" + std::to_string(busy_timeout_ms)); error)
     {
         return std::unexpected(std::move(error));
     }
@@ -182,7 +208,7 @@ sqlite_error sqlite_statement::bind(int index, int value)
 
 sqlite_error sqlite_statement::bind(int index, std::string_view value)
 {
-    int const status = sqlite3_bind_text(statement_.get(), index, value.data(), static_cast<int>(value.size()), SQLITE_TRANSIENT);
+    int const status = sqlite3_bind_text64(statement_.get(), index, value.empty() ? "" : value.data(), value.size(), SQLITE_TRANSIENT, SQLITE_UTF8);
     return status == SQLITE_OK ? sqlite_error{} : make_error(statement_.get());
 }
 
@@ -194,7 +220,8 @@ sqlite_error sqlite_statement::bind_null(int index)
 
 sqlite_error sqlite_statement::bind_blob(int index, std::span<const std::byte> value)
 {
-    int const status = sqlite3_bind_blob(statement_.get(), index, value.data(), static_cast<int>(value.size()), SQLITE_TRANSIENT);
+    int const status = value.empty() ? sqlite3_bind_zeroblob(statement_.get(), index, 0) :
+        sqlite3_bind_blob64(statement_.get(), index, value.data(), value.size(), SQLITE_TRANSIENT);
     return status == SQLITE_OK ? sqlite_error{} : make_error(statement_.get());
 }
 
