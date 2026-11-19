@@ -253,7 +253,6 @@ std::expected<std::vector<std::int64_t>, sqlite_error> read_avatar_recipients(sq
     auto statement = db.prepare(R"SQL(
         SELECT peer FROM (
             SELECT contact_id AS peer FROM contacts WHERE owner_id=?1
-            UNION SELECT owner_id FROM contacts WHERE contact_id=?1
             UNION SELECT m.user_id
                 FROM conversation_members own
                 JOIN conversations c ON c.id=own.conversation_id AND c.kind='group'
