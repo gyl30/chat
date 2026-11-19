@@ -21,7 +21,6 @@ struct sqlite_error
     int code = 0;
     std::string message;
 
-    [[nodiscard]] bool ok() const noexcept { return code == 0; }
     explicit operator bool() const noexcept { return code != 0; }
 };
 
@@ -48,14 +47,9 @@ class sqlite_database
 
     // Opens the connection, enables foreign keys, WAL, full synchronous
     // durability, and a finite busy timeout.
-    static std::expected<sqlite_database, sqlite_error> open(std::string const& path, int busy_timeout_ms = 5000);
-
-    // Opens an existing database without allowing writes. Used by tests and
-    // maintenance tools to prove that a failure path cannot mutate state.
-    static std::expected<sqlite_database, sqlite_error> open_read_only(std::string const& path, int busy_timeout_ms = 5000);
+    static std::expected<sqlite_database, sqlite_error> open(std::string const& path);
 
     [[nodiscard]] bool is_open() const noexcept { return database_ != nullptr; }
-    [[nodiscard]] sqlite3* handle() const noexcept { return database_.get(); }
 
     std::expected<sqlite_statement, sqlite_error> prepare(std::string_view sql);
 
@@ -66,8 +60,6 @@ class sqlite_database
     // Runs one or more semicolon-separated statements without parameters.
     // Schema bootstrap and PRAGMAs use this; callers must not embed user data.
     sqlite_error exec(std::string_view sql);
-
-    [[nodiscard]] sqlite_error last_error() const;
 
     [[nodiscard]] std::int64_t last_insert_rowid() const noexcept;
     [[nodiscard]] int changes() const noexcept;
@@ -104,25 +96,15 @@ class sqlite_statement
     // Resets the statement so it can be executed again; bindings are kept.
     sqlite_error reset();
 
-    sqlite_error clear_bindings();
-
     [[nodiscard]] std::int64_t column_int64(int index) const;
     [[nodiscard]] std::string_view column_text(int index) const;
     [[nodiscard]] std::span<const std::byte> column_blob(int index) const;
     [[nodiscard]] bool column_is_null(int index) const;
-    [[nodiscard]] int column_count() const;
-
-    [[nodiscard]] bool valid() const noexcept { return statement_ != nullptr; }
-
    private:
     friend class sqlite_database;
 
-    sqlite_statement(sqlite3* database, sqlite3_stmt* statement) noexcept
-        : database_(database), statement_(statement)
-    {
-    }
+    explicit sqlite_statement(sqlite3_stmt* statement) noexcept : statement_(statement) {}
 
-    sqlite3* database_ = nullptr;
     std::unique_ptr<sqlite3_stmt, sqlite3_stmt_deleter> statement_;
 };
 
@@ -148,9 +130,7 @@ std::expected<sqlite_statement, sqlite_error> sqlite_database::prepare(std::stri
 class sqlite_transaction
 {
    public:
-    sqlite_transaction() = default;
     sqlite_transaction(sqlite_transaction&& other) noexcept;
-    sqlite_transaction& operator=(sqlite_transaction&& other) noexcept;
     sqlite_transaction(sqlite_transaction const&) = delete;
     sqlite_transaction& operator=(sqlite_transaction const&) = delete;
     ~sqlite_transaction();

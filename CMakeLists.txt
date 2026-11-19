@@ -130,7 +130,6 @@ add_executable(chat_server
     src/send_message_request.cpp
     src/search_users_request.cpp
     src/password_hash.cpp
-    src/blocking_worker.cpp
     src/invite_attempts.cpp
     src/json_rpc.cpp
     src/online_users.cpp

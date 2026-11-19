@@ -65,16 +65,12 @@ class blocking_worker
         co_return co_await operation{*this, job, translate, {}, {}, {}};
     }
 
-    // The owner calls this after ceasing submission. Accepted work is drained.
-    void shutdown() noexcept;
-    std::size_t pending_jobs() const;
-
    private:
     std::optional<unavailable> enqueue(std::move_only_function<void()> job);
     void execute(std::stop_token stop);
 
     std::size_t capacity_;
-    mutable std::mutex mutex_;
+    std::mutex mutex_;
     std::condition_variable_any available_;
     std::deque<std::move_only_function<void()>> queue_;
     bool stopping_ = false;

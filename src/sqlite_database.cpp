@@ -84,7 +84,7 @@ void sqlite3_stmt_deleter::operator()(sqlite3_stmt* statement) const noexcept
     }
 }
 
-std::expected<sqlite_database, sqlite_error> sqlite_database::open(std::string const& path, int busy_timeout_ms)
+std::expected<sqlite_database, sqlite_error> sqlite_database::open(std::string const& path)
 {
     sqlite_database result;
     sqlite3* handle = nullptr;
@@ -93,9 +93,7 @@ std::expected<sqlite_database, sqlite_error> sqlite_database::open(std::string c
     result.database_.reset(handle);
     if (status != SQLITE_OK)
     {
-        auto error = make_error(handle, status);
-        result.database_.reset();
-        return std::unexpected(std::move(error));
+        return std::unexpected(make_error(handle, status));
     }
 
     sqlite3_extended_result_codes(handle, 1);
@@ -110,7 +108,7 @@ std::expected<sqlite_database, sqlite_error> sqlite_database::open(std::string c
     {
         return std::unexpected(std::move(error));
     }
-    if (int const code = sqlite3_busy_timeout(handle, busy_timeout_ms); code != SQLITE_OK)
+    if (int const code = sqlite3_busy_timeout(handle, 5000); code != SQLITE_OK)
     {
         return std::unexpected(make_error(handle, code));
     }
@@ -151,37 +149,6 @@ std::expected<sqlite_database, sqlite_error> sqlite_database::open(std::string c
     return result;
 }
 
-std::expected<sqlite_database, sqlite_error> sqlite_database::open_read_only(std::string const& path, int busy_timeout_ms)
-{
-    sqlite_database result;
-    sqlite3* handle = nullptr;
-    int const status = sqlite3_open_v2(path.c_str(), &handle, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nullptr);
-    result.database_.reset(handle);
-    if (status != SQLITE_OK)
-    {
-        auto error = make_error(handle, status);
-        result.database_.reset();
-        return std::unexpected(std::move(error));
-    }
-
-    sqlite3_extended_result_codes(handle, 1);
-    if (auto code = sqlite3_create_function_v2(handle, "chat_lower", 1, SQLITE_UTF8 | SQLITE_DETERMINISTIC,
-                                                nullptr, unicode_lower, nullptr, nullptr, nullptr);
-        code != SQLITE_OK)
-    {
-        return std::unexpected(make_error(handle, code));
-    }
-    if (auto error = result.exec("PRAGMA foreign_keys=ON"); error)
-    {
-        return std::unexpected(std::move(error));
-    }
-    if (auto error = result.exec("PRAGMA busy_timeout=" + std::to_string(busy_timeout_ms)); error)
-    {
-        return std::unexpected(std::move(error));
-    }
-    return result;
-}
-
 std::expected<sqlite_statement, sqlite_error> sqlite_database::prepare(std::string_view sql)
 {
     if (!database_)
@@ -199,7 +166,7 @@ std::expected<sqlite_statement, sqlite_error> sqlite_database::prepare(std::stri
     {
         return std::unexpected(sqlite_error{SQLITE_ERROR, "statement is empty"});
     }
-    return sqlite_statement(database_.get(), statement);
+    return sqlite_statement(statement);
 }
 
 sqlite_error sqlite_database::exec(std::string_view sql)
@@ -227,8 +194,6 @@ sqlite_error sqlite_database::exec(std::string_view sql)
     sqlite3_free(message);
     return {};
 }
-
-sqlite_error sqlite_database::last_error() const { return make_error(database_.get(), database_ ? sqlite3_extended_errcode(database_.get()) : SQLITE_MISUSE); }
 
 std::int64_t sqlite_database::last_insert_rowid() const noexcept
 {
@@ -288,12 +253,6 @@ sqlite_error sqlite_statement::reset()
     return status == SQLITE_OK ? sqlite_error{} : make_error(statement_.get());
 }
 
-sqlite_error sqlite_statement::clear_bindings()
-{
-    int const status = sqlite3_clear_bindings(statement_.get());
-    return status == SQLITE_OK ? sqlite_error{} : make_error(statement_.get());
-}
-
 std::int64_t sqlite_statement::column_int64(int index) const { return sqlite3_column_int64(statement_.get(), index); }
 
 std::string_view sqlite_statement::column_text(int index) const
@@ -312,19 +271,7 @@ std::span<const std::byte> sqlite_statement::column_blob(int index) const
 
 bool sqlite_statement::column_is_null(int index) const { return sqlite3_column_type(statement_.get(), index) == SQLITE_NULL; }
 
-int sqlite_statement::column_count() const { return statement_ ? sqlite3_column_count(statement_.get()) : 0; }
-
 sqlite_transaction::sqlite_transaction(sqlite_transaction&& other) noexcept : database_(std::exchange(other.database_, nullptr)) {}
-
-sqlite_transaction& sqlite_transaction::operator=(sqlite_transaction&& other) noexcept
-{
-    if (this != &other)
-    {
-        rollback();
-        database_ = std::exchange(other.database_, nullptr);
-    }
-    return *this;
-}
 
 sqlite_transaction::~sqlite_transaction()
 {
@@ -366,13 +313,13 @@ sqlite_error sqlite_transaction::commit()
 void sqlite_transaction::rollback()
 {
     auto* const db = std::exchange(database_, nullptr);
-    if (!db || !db->is_open() || sqlite3_get_autocommit(db->handle()))
+    if (!db || !db->is_open() || sqlite3_get_autocommit(db->database_.get()))
     {
         return;
     }
     if (auto error = db->exec("ROLLBACK"); error)
     {
-        if (!sqlite3_get_autocommit(db->handle()))
+        if (!sqlite3_get_autocommit(db->database_.get()))
         {
             // Closing prevents any later job from inheriting a failed transaction.
             db->database_.reset();

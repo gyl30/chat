@@ -9,16 +9,10 @@ blocking_worker::blocking_worker(std::size_t capacity, std::size_t parallelism) 
     }
 }
 
-blocking_worker::~blocking_worker() { shutdown(); }
-
-void blocking_worker::shutdown() noexcept
+blocking_worker::~blocking_worker()
 {
     {
         std::lock_guard lock(mutex_);
-        if (stopping_)
-        {
-            return;
-        }
         stopping_ = true;
     }
     available_.notify_all();
@@ -26,12 +20,6 @@ void blocking_worker::shutdown() noexcept
     {
         thread.join();
     }
-}
-
-std::size_t blocking_worker::pending_jobs() const
-{
-    std::lock_guard lock(mutex_);
-    return queue_.size();
 }
 
 std::optional<blocking_worker::unavailable> blocking_worker::enqueue(std::move_only_function<void()> job)

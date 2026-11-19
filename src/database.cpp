@@ -4,12 +4,8 @@
 
 #include "schema.hpp"
 
-std::expected<database::pointer, sqlite_error> database::open(std::string path, std::size_t queue_capacity)
+std::expected<database::pointer, sqlite_error> database::open(std::string path)
 {
-    if (queue_capacity == 0)
-    {
-        return std::unexpected(sqlite_error{SQLITE_MISUSE, "database queue capacity must be positive"});
-    }
     auto opened = sqlite_database::open(path);
     if (!opened)
     {
@@ -19,11 +15,11 @@ std::expected<database::pointer, sqlite_error> database::open(std::string path, 
     {
         return std::unexpected(std::move(error));
     }
-    return pointer(new database(std::move(path), std::move(*opened), queue_capacity));
+    return pointer(new database(std::move(path), std::move(*opened)));
 }
 
-database::database(std::string path, sqlite_database connection, std::size_t queue_capacity)
-    : path_(std::move(path)), database_(std::move(connection)), worker_(queue_capacity)
+database::database(std::string path, sqlite_database connection)
+    : path_(std::move(path)), database_(std::move(connection))
 {
 }
 

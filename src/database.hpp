@@ -1,7 +1,6 @@
 #ifndef CHAT_SRC_DATABASE_HPP
 #define CHAT_SRC_DATABASE_HPP
 
-#include <cstddef>
 #include <expected>
 #include <memory>
 #include <string>
@@ -16,7 +15,7 @@ class database
    public:
     using pointer = std::unique_ptr<database>;
 
-    static std::expected<pointer, sqlite_error> open(std::string path, std::size_t queue_capacity = 1024);
+    static std::expected<pointer, sqlite_error> open(std::string path);
 
     database(database const&) = delete;
     database& operator=(database const&) = delete;
@@ -41,16 +40,13 @@ class database
                            queue_error);
     }
 
-    void shutdown() noexcept { worker_.shutdown(); }
-    std::size_t pending_jobs() const { return worker_.pending_jobs(); }
-
    private:
-    database(std::string path, sqlite_database connection, std::size_t queue_capacity);
+    database(std::string path, sqlite_database connection);
     static sqlite_error queue_error(blocking_worker::unavailable reason);
 
     std::string path_;
     sqlite_database database_;
-    blocking_worker worker_;
+    blocking_worker worker_{1024};
 };
 
 #endif
