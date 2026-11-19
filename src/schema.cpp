@@ -1,10 +1,12 @@
 #include <string>
+#include <string_view>
 
 #include "schema.hpp"
 
 namespace
 {
 
+constexpr int kSchemaVersion = 1;
 constexpr std::string_view kSchema = R"SQL(
 CREATE TABLE users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -154,8 +156,6 @@ CREATE TABLE group_join_requests (
 
 }    // namespace
 
-std::string_view chat_schema_sql() { return kSchema; }
-
 sqlite_error initialize_schema(sqlite_database& database)
 {
     auto version_statement = database.prepare("PRAGMA user_version");
@@ -174,7 +174,7 @@ sqlite_error initialize_schema(sqlite_database& database)
     }
     std::int64_t const version = version_statement->column_int64(0);
     version_statement->reset();
-    if (version == chat_schema_version)
+    if (version == kSchemaVersion)
     {
         return {};
     }
@@ -188,11 +188,11 @@ sqlite_error initialize_schema(sqlite_database& database)
     {
         return transaction.error();
     }
-    if (auto error = database.exec(chat_schema_sql()); error)
+    if (auto error = database.exec(kSchema); error)
     {
         return error;
     }
-    if (auto error = database.exec("PRAGMA user_version=" + std::to_string(chat_schema_version)); error)
+    if (auto error = database.exec("PRAGMA user_version=" + std::to_string(kSchemaVersion)); error)
     {
         return error;
     }

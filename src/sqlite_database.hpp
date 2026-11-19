@@ -62,6 +62,11 @@ class sqlite_database
     // Schema bootstrap and PRAGMAs use this; callers must not embed user data.
     sqlite_error exec(std::string_view sql);
 
+    // Executes a single parameterized write that does not return rows.
+    template <class... Args>
+        requires(sizeof...(Args) > 0)
+    sqlite_error exec(std::string_view sql, Args const&... args);
+
     [[nodiscard]] std::int64_t last_insert_rowid() const noexcept;
     [[nodiscard]] int changes() const noexcept;
 
@@ -124,6 +129,19 @@ std::expected<sqlite_statement, sqlite_error> sqlite_database::prepare(std::stri
         return std::unexpected(std::move(error));
     }
     return statement;
+}
+
+template <class... Args>
+    requires(sizeof...(Args) > 0)
+sqlite_error sqlite_database::exec(std::string_view sql, Args const&... args)
+{
+    auto statement = prepare(sql, args...);
+    if (!statement)
+    {
+        return std::move(statement.error());
+    }
+    auto done = statement->step();
+    return done ? sqlite_error{} : std::move(done.error());
 }
 
 class sqlite_transaction

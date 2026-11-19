@@ -32,16 +32,9 @@ bool mention_word(std::string_view::const_iterator character, std::string_view::
 
 sqlite_error replace_message_mentions(sqlite_database& db, std::int64_t conversation, std::int64_t message, std::string_view text)
 {
-    if (auto clear = db.prepare("DELETE FROM message_mentions WHERE message_id=?1", message); clear)
+    if (auto error = db.exec("DELETE FROM message_mentions WHERE message_id=?1", message); error)
     {
-        if (auto done = clear->step(); !done)
-        {
-            return std::move(done.error());
-        }
-    }
-    else
-    {
-        return std::move(clear.error());
+        return error;
     }
     if (!text.contains('@'))
     {

@@ -1,26 +1,11 @@
 #include "message_changes.hpp"
 
-#include <chrono>
 #include <utility>
 
 #include "conversation_store.hpp"
 #include "message_history.hpp"
 #include "sqlite_mentions.hpp"
-
-namespace
-{
-template <class... Args>
-sqlite_error execute(sqlite_database& db, std::string_view sql, Args const&... args)
-{
-    auto statement = db.prepare(sql, args...);
-    if (!statement)
-    {
-        return std::move(statement.error());
-    }
-    auto done = statement->step();
-    return done ? sqlite_error{} : std::move(done.error());
-}
-}    // namespace
+#include "timestamp.hpp"
 
 std::expected<std::variant<changed_message, message_change_rejection>, sqlite_error> change_message_body(
     sqlite_database& db, std::int64_t user, std::int64_t conversation, std::int64_t message, std::optional<std::string_view> new_text)
@@ -39,7 +24,7 @@ std::expected<std::variant<changed_message, message_change_rejection>, sqlite_er
             return cannot_send;
         }
     }
-    auto const now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    auto const now = epoch_milliseconds();
     auto update = db.prepare(R"SQL(
         UPDATE messages AS m SET
             body=?4,deleted=?5,
@@ -84,11 +69,11 @@ std::expected<std::variant<changed_message, message_change_rejection>, sqlite_er
     bool cleared_pin = false;
     if (!editing)
     {
-        if (auto error = execute(db, "DELETE FROM message_reactions WHERE message_id=?1", message); error)
+        if (auto error = db.exec("DELETE FROM message_reactions WHERE message_id=?1", message); error)
         {
             return std::unexpected(std::move(error));
         }
-        if (auto error = execute(db, "UPDATE conversations SET pinned_message_id=NULL WHERE id=?1 AND pinned_message_id=?2", conversation, message);
+        if (auto error = db.exec("UPDATE conversations SET pinned_message_id=NULL WHERE id=?1 AND pinned_message_id=?2", conversation, message);
             error)
         {
             return std::unexpected(std::move(error));
@@ -149,20 +134,20 @@ std::expected<std::variant<changed_reaction, message_change_rejection>, sqlite_e
     }
     if (changed)
     {
-        auto error = emoji.empty() ? execute(db, "DELETE FROM message_reactions WHERE message_id=?1 AND user_id=?2", message, user)
-                                   : execute(db,
-                                             R"SQL(
+        auto error = emoji.empty() ? db.exec("DELETE FROM message_reactions WHERE message_id=?1 AND user_id=?2", message, user)
+                                   : db.exec(
+                                         R"SQL(
             INSERT INTO message_reactions(message_id,user_id,emoji) VALUES(?1,?2,?3)
             ON CONFLICT(message_id,user_id) DO UPDATE SET emoji=excluded.emoji
         )SQL",
-                                             message,
-                                             user,
-                                             emoji);
+                                         message,
+                                         user,
+                                         emoji);
         if (error)
         {
             return std::unexpected(std::move(error));
         }
-        error = execute(db, "UPDATE messages SET reaction_revision=reaction_revision+1 WHERE id=?1", message);
+        error = db.exec("UPDATE messages SET reaction_revision=reaction_revision+1 WHERE id=?1", message);
         if (error)
         {
             return std::unexpected(std::move(error));

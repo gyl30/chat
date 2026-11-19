@@ -31,6 +31,7 @@
 #include "database.hpp"
 #include "attachment_io.hpp"
 #include "s3_objects.hpp"
+#include "timestamp.hpp"
 
 namespace
 {
@@ -60,9 +61,7 @@ boost::capy::task<void> recover_objects(database& db, s3_objects& objects)
 {
     // A timed-out PUT may still finish remotely. The settling window applies
     // on shutdown too, not just during startup recovery.
-    auto const cutoff =
-        std::chrono::duration_cast<std::chrono::milliseconds>((std::chrono::system_clock::now() - std::chrono::minutes(1)).time_since_epoch())
-            .count();
+    auto const cutoff = epoch_milliseconds(std::chrono::system_clock::now() - std::chrono::minutes(1));
     auto const removed = co_await recover_attachment_objects(db, objects, cutoff);
     if (removed < 0)
     {

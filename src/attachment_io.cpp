@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <array>
-#include <chrono>
 #include <utility>
 
 #include <openssl/rand.h>
@@ -14,6 +13,7 @@
 #include "attachment_cleanup.hpp"
 #include "database.hpp"
 #include "s3_objects.hpp"
+#include "timestamp.hpp"
 
 // A failed SQLite publication may have left an S3 object without a message.
 // Check the durable reservation before deleting: a successful commit claims it.
@@ -62,7 +62,7 @@ boost::capy::task<std::optional<staged_attachment>> stage_attachment(database& d
     }
     auto reserve = [&key](sqlite_database& connection) -> std::expected<void, sqlite_error>
     {
-        auto const now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        auto const now = epoch_milliseconds();
         return reserve_attachment_object(connection, key, now);
     };
     if (auto reserved = co_await db.run(reserve); !reserved)

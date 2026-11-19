@@ -1,7 +1,6 @@
 #include "group_access_store.hpp"
 
 #include <array>
-#include <chrono>
 #include <limits>
 #include <utility>
 
@@ -9,6 +8,8 @@
 #include <sqlite3.h>
 
 #include <chat/invite.hpp>
+
+#include "timestamp.hpp"
 
 namespace
 {
@@ -33,14 +34,9 @@ std::expected<std::optional<group_member_rejection>, sqlite_error> check_group_m
 template <class... Args>
 std::expected<bool, sqlite_error> write(sqlite_database& db, std::string_view sql, Args const&... args)
 {
-    auto statement = db.prepare(sql, args...);
-    if (!statement)
+    if (auto error = db.exec(sql, args...); error)
     {
-        return std::unexpected(std::move(statement.error()));
-    }
-    if (auto result = statement->step(); !result)
-    {
-        return std::unexpected(std::move(result.error()));
+        return std::unexpected(std::move(error));
     }
     return db.changes() != 0;
 }
@@ -196,7 +192,7 @@ std::expected<std::optional<group_join_change>, sqlite_error> join_with_invite(s
     auto const id = result.result.conversation;
     if (approval)
     {
-        auto const now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        auto const now = epoch_milliseconds();
         auto requested = write(db,
                                R"SQL(
             INSERT INTO group_join_requests(conversation_id,user_id,created_at) VALUES(?1,?2,?3)

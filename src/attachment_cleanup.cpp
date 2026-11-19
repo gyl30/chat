@@ -5,20 +5,15 @@
 
 std::expected<void, sqlite_error> reserve_attachment_object(sqlite_database& db, std::string_view key, std::int64_t timestamp)
 {
-    auto statement = db.prepare(R"SQL(
+    if (auto error = db.exec(R"SQL(
         INSERT INTO attachment_cleanup(object_key,reserved_at)
         SELECT ?1,?2 WHERE NOT EXISTS(SELECT 1 FROM message_attachments WHERE object_key=?1)
     )SQL",
-                                key,
-                                timestamp);
-    if (!statement)
+                             key,
+                             timestamp);
+        error)
     {
-        return std::unexpected(std::move(statement.error()));
-    }
-    auto result = statement->step();
-    if (!result)
-    {
-        return std::unexpected(std::move(result.error()));
+        return std::unexpected(std::move(error));
     }
     if (db.changes() != 1)
     {
@@ -60,15 +55,9 @@ std::expected<std::vector<std::string>, sqlite_error> claim_attachment_cleanup_b
 
 std::expected<void, sqlite_error> acknowledge_attachment_cleanup(sqlite_database& db, std::string_view key)
 {
-    auto statement = db.prepare("DELETE FROM attachment_cleanup WHERE object_key=?1", key);
-    if (!statement)
+    if (auto error = db.exec("DELETE FROM attachment_cleanup WHERE object_key=?1", key); error)
     {
-        return std::unexpected(std::move(statement.error()));
-    }
-    auto result = statement->step();
-    if (!result)
-    {
-        return std::unexpected(std::move(result.error()));
+        return std::unexpected(std::move(error));
     }
     return {};
 }

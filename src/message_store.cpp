@@ -1,8 +1,8 @@
 #include "message_store.hpp"
 #include "conversation_store.hpp"
 #include "sqlite_mentions.hpp"
+#include "timestamp.hpp"
 
-#include <chrono>
 #include <sqlite3.h>
 #include <utility>
 
@@ -94,8 +94,8 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
         return **preflight;
     }
 
-    auto const now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-    auto insert = db.prepare(R"SQL(
+    auto const now = epoch_milliseconds();
+    if (auto error = db.exec(R"SQL(
         INSERT INTO messages(sender_id,conversation_id,client_id,body,reply_to_id,created_at)
         VALUES(?1,?2,?3,?4,?5,?6)
     )SQL",
@@ -105,13 +105,9 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
                              message.text,
                              message.reply_to,
                              now);
-    if (!insert)
+        error)
     {
-        return std::unexpected(std::move(insert.error()));
-    }
-    if (auto result = insert->step(); !result)
-    {
-        return std::unexpected(std::move(result.error()));
+        return std::unexpected(std::move(error));
     }
     auto const id = db.last_insert_rowid();
     if (!attachment && message.text.contains('@'))
@@ -123,47 +119,33 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
     }
     if (attachment)
     {
-        auto claim = db.prepare("DELETE FROM attachment_cleanup WHERE object_key=?1 AND reserved_at>0", attachment->object_key);
-        if (!claim)
+        if (auto error = db.exec("DELETE FROM attachment_cleanup WHERE object_key=?1 AND reserved_at>0", attachment->object_key); error)
         {
-            return std::unexpected(std::move(claim.error()));
-        }
-        if (auto result = claim->step(); !result)
-        {
-            return std::unexpected(std::move(result.error()));
+            return std::unexpected(std::move(error));
         }
         if (db.changes() != 1)
         {
             return std::unexpected(sqlite_error{SQLITE_CONSTRAINT, "attachment object has no reservation"});
         }
-        auto metadata = db.prepare(R"SQL(
+        if (auto error = db.exec(R"SQL(
             INSERT INTO message_attachments(message_id,object_key,filename,media_type,size,checksum,created_at)
             VALUES(?1,?2,?3,?4,?5,?6,?7)
         )SQL",
-                                   id,
-                                   attachment->object_key,
-                                   attachment->filename,
-                                   attachment->media_type,
-                                   attachment->size,
-                                   attachment->checksum,
-                                   now);
-        if (!metadata)
+                                 id,
+                                 attachment->object_key,
+                                 attachment->filename,
+                                 attachment->media_type,
+                                 attachment->size,
+                                 attachment->checksum,
+                                 now);
+            error)
         {
-            return std::unexpected(std::move(metadata.error()));
-        }
-        if (auto result = metadata->step(); !result)
-        {
-            return std::unexpected(std::move(result.error()));
+            return std::unexpected(std::move(error));
         }
     }
-    auto activity = db.prepare("UPDATE conversations SET activity=max(activity,?1) WHERE id=?2", now, message.conversation);
-    if (!activity)
+    if (auto error = db.exec("UPDATE conversations SET activity=max(activity,?1) WHERE id=?2", now, message.conversation); error)
     {
-        return std::unexpected(std::move(activity.error()));
-    }
-    if (auto result = activity->step(); !result)
-    {
-        return std::unexpected(std::move(result.error()));
+        return std::unexpected(std::move(error));
     }
     return message_write{id, true};
 }

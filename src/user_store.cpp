@@ -1,18 +1,14 @@
 #include "user_store.hpp"
 
-#include <chrono>
 #include <utility>
 
 #include <sqlite3.h>
 #include <chat/attachment.hpp>
 
+#include "timestamp.hpp"
+
 namespace
 {
-std::int64_t timestamp()
-{
-    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-}
-
 std::expected<std::int64_t, sqlite_error> avatar_revision(sqlite_database& db, std::int64_t user, bool advance)
 {
     auto statement = db.prepare(advance ? "UPDATE users SET avatar_revision=avatar_revision+1 WHERE id=?1 RETURNING avatar_revision"
@@ -49,20 +45,16 @@ std::expected<std::optional<std::int64_t>, sqlite_error> register_account(sqlite
     {
         return std::unexpected(std::move(transaction.error()));
     }
-    auto statement = db.prepare(R"SQL(
+    if (auto error = db.exec(R"SQL(
         INSERT INTO users(username,password_hash,last_seen_at) VALUES(?1,?2,?3)
         ON CONFLICT(username) DO NOTHING
     )SQL",
-                                username,
-                                password_hash,
-                                timestamp());
-    if (!statement)
+                             username,
+                             password_hash,
+                             epoch_milliseconds());
+        error)
     {
-        return std::unexpected(std::move(statement.error()));
-    }
-    if (auto done = statement->step(); !done)
-    {
-        return std::unexpected(std::move(done.error()));
+        return std::unexpected(std::move(error));
     }
     if (db.changes() == 0)
     {
@@ -187,23 +179,19 @@ std::expected<avatar_change, sqlite_error> save_avatar(sqlite_database& db, std:
     {
         return std::unexpected(std::move(transaction.error()));
     }
-    auto statement = db.prepare(R"SQL(
+    if (auto error = db.exec(R"SQL(
         INSERT INTO user_avatars(user_id,media_type,size,data,updated_at) VALUES(?1,?2,?3,?4,?5)
         ON CONFLICT(user_id) DO UPDATE SET media_type=excluded.media_type,size=excluded.size,
             data=excluded.data,updated_at=excluded.updated_at
     )SQL",
-                                user,
-                                media_type,
-                                static_cast<std::int64_t>(bytes.size()),
-                                std::as_bytes(std::span(bytes.data(), bytes.size())),
-                                timestamp());
-    if (!statement)
+                             user,
+                             media_type,
+                             static_cast<std::int64_t>(bytes.size()),
+                             std::as_bytes(std::span(bytes.data(), bytes.size())),
+                             epoch_milliseconds());
+        error)
     {
-        return std::unexpected(std::move(statement.error()));
-    }
-    if (auto done = statement->step(); !done)
-    {
-        return std::unexpected(std::move(done.error()));
+        return std::unexpected(std::move(error));
     }
 
     auto revision = avatar_revision(db, user, true);
@@ -225,14 +213,9 @@ std::expected<avatar_change, sqlite_error> clear_avatar(sqlite_database& db, std
     {
         return std::unexpected(std::move(transaction.error()));
     }
-    auto statement = db.prepare("DELETE FROM user_avatars WHERE user_id=?1", user);
-    if (!statement)
+    if (auto error = db.exec("DELETE FROM user_avatars WHERE user_id=?1", user); error)
     {
-        return std::unexpected(std::move(statement.error()));
-    }
-    if (auto done = statement->step(); !done)
-    {
-        return std::unexpected(std::move(done.error()));
+        return std::unexpected(std::move(error));
     }
 
     bool const changed = db.changes() != 0;
@@ -288,17 +271,12 @@ std::expected<presence_change, sqlite_error> record_presence(sqlite_database& db
     {
         return std::unexpected(std::move(transaction.error()));
     }
-    presence_change result{online ? 0 : timestamp(), {}};
+    presence_change result{online ? 0 : epoch_milliseconds(), {}};
     if (!online)
     {
-        auto update = db.prepare("UPDATE users SET last_seen_at=?2 WHERE id=?1", user, result.last_seen);
-        if (!update)
+        if (auto error = db.exec("UPDATE users SET last_seen_at=?2 WHERE id=?1", user, result.last_seen); error)
         {
-            return std::unexpected(std::move(update.error()));
-        }
-        if (auto done = update->step(); !done)
-        {
-            return std::unexpected(std::move(done.error()));
+            return std::unexpected(std::move(error));
         }
     }
     auto statement = db.prepare("SELECT owner_id FROM contacts WHERE contact_id=?1 ORDER BY owner_id", user);
