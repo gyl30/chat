@@ -6,7 +6,6 @@
 #include <miniocpp/request.h>
 #include <openssl/sha.h>
 
-#include <chat/attachment.hpp>
 #include <chat/detail/base64.hpp>
 
 namespace
@@ -19,8 +18,7 @@ std::expected<minio::http::Response, s3_error> execute_object_request(
     minio::utils::Multimap headers = {}, std::string_view body = {}, minio::http::DataFunction receive = nullptr)
 {
     minio::s3::BaseUrl url(settings.endpoint, settings.https, settings.region);
-    if (!url || settings.bucket.empty() || settings.region.empty() ||
-        settings.access_key.empty() || settings.secret_key.empty() || key.empty())
+    if (!url || key.empty())
     {
         return std::unexpected(s3_error{0, "invalid S3 configuration or object key"});
     }
@@ -51,10 +49,6 @@ s3_objects::s3_objects(s3_settings settings) : settings_(std::move(settings)) {}
 std::expected<std::string, s3_error> s3_objects::put_object(std::string const& key, std::string_view bytes,
                                                     std::string_view media_type) const
 {
-    if (bytes.size() > chat::max_attachment_size)
-    {
-        return std::unexpected(s3_error{0, "attachment exceeds the size limit"});
-    }
     std::array<unsigned char, SHA256_DIGEST_LENGTH> digest{};
     auto const* input = reinterpret_cast<unsigned char const*>(bytes.empty() ? "" : bytes.data());
     if (!SHA256(input, bytes.size(), digest.data()))
@@ -102,14 +96,6 @@ std::expected<std::string, s3_error> s3_objects::put_object(std::string const& k
 std::expected<std::string, s3_error> s3_objects::read_object(std::string const& key, std::size_t size,
                                                      std::size_t offset, std::size_t length) const
 {
-    if (size > chat::max_attachment_size || offset > size || length > size - offset)
-    {
-        return std::unexpected(s3_error{0, "invalid S3 object range"});
-    }
-    if (length == 0)
-    {
-        return std::string{};
-    }
     auto const range = std::to_string(offset) + "-" + std::to_string(offset + length - 1);
     minio::utils::Multimap headers;
     headers.Add("Range", "bytes=" + range);

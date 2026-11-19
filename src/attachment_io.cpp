@@ -95,6 +95,10 @@ boost::capy::task<std::expected<attachment_chunk, attachment_download_error>> do
         co_return std::unexpected(attachment_download_error::unavailable);
     }
     auto const size = static_cast<std::size_t>((*object)->size);
+    if (offset == size)
+    {
+        co_return attachment_chunk{size, {}};
+    }
     auto bytes = co_await objects.read(std::move((*object)->key), size, offset,
                                        std::min(chat::attachment_chunk_size, size - offset));
     if (!bytes)

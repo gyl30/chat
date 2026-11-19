@@ -32,6 +32,7 @@ class s3_objects
     // Returns the SHA-256 digest in hexadecimal after S3 validates the checksum.
     boost::capy::task<std::expected<std::string, s3_error>> put(
         std::string key, std::string bytes, std::string media_type);
+    // The attachment lookup supplies a nonempty range within the stored size.
     boost::capy::task<std::expected<std::string, s3_error>> read(
         std::string key, std::size_t size, std::size_t offset, std::size_t length);
     boost::capy::task<std::expected<void, s3_error>> remove(std::string key);
