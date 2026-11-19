@@ -29,7 +29,7 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                 'activity',c.activity,'muted',json(CASE WHEN c.muted THEN 'true' ELSE 'false' END),
                 'pinned',json(CASE WHEN c.pinned THEN 'true' ELSE 'false' END),
                 'member_count',(SELECT count(*) FROM conversation_members WHERE conversation_id=c.id),
-                'can_send',json('true'), 'announcement',c.announcement,
+                'announcement',c.announcement,
                 'join_approval',json(CASE WHEN c.join_approval THEN 'true' ELSE 'false' END),
                 'pinned_message',json((SELECT json_object('id',pm.id,'from',pm.sender_id,'username',pu.username,
                     'text',substr(pm.body,1,160),'edited_at',pm.edited_at,'deleted',json('false'))

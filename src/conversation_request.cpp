@@ -65,8 +65,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_create_conversation
     {
         co_await publish_conversation(**id, R"({"jsonrpc":"2.0","method":"conversation","params":{"conversation":)" + conversation + "}}");
     }
-    co_return serialize_json_rpc_success(
-        "{\"conversation\":" + conversation + (group ? "}" : ",\"can_send\":true}"), std::move(request.id), response);
+    co_return serialize_json_rpc_success("{\"conversation\":" + conversation + "}", std::move(request.id), response);
 }
 
 boost::capy::task<simdjson::error_code> chat_session::handle_get_members(json_rpc_request& request, std::string& response)

@@ -2613,39 +2613,18 @@ bool chat_widget::is_contact(qint64 user) const
 
 bool chat_widget::can_send() const
 {
-    auto const current = conversation(active_conversation_);
-    return connection_available_ && current && current->can_send;
+    return connection_available_ && conversation(active_conversation_).has_value();
 }
 
 void chat_widget::update_compose_state()
 {
     input_bar_->setVisible(active_conversation_ > 0);
-    auto const current = conversation(active_conversation_);
     auto const allowed = can_send();
     message_edit_->setEnabled(allowed);
     send_button_->setEnabled(allowed && !message_edit_->toPlainText().isEmpty());
     attachment_button_->setEnabled(allowed);
     emoji_button_->setEnabled(allowed);
-    auto hint = QStringLiteral("输入消息…");
-    if (current && !current->group && !current->can_send)
-    {
-        switch (friend_state(current->user))
-        {
-            case chat::friendship_state::outgoing_pending:
-                hint = QStringLiteral("好友申请已发出，等待对方接受");
-                break;
-            case chat::friendship_state::incoming_pending:
-                hint = QStringLiteral("有待处理的好友申请，接受后可发送消息");
-                break;
-            case chat::friendship_state::accepted:
-                hint = QStringLiteral("正在更新会话状态，请稍候");
-                break;
-            case chat::friendship_state::none:
-                hint = QStringLiteral("你们还不是好友，添加好友并通过验证后可发送消息");
-                break;
-        }
-    }
-    message_edit_->setPlaceholderText(hint);
+    message_edit_->setPlaceholderText(QStringLiteral("输入消息…"));
     if (!allowed)
     {
         typing_idle_timer_->stop();
@@ -2662,22 +2641,14 @@ void chat_widget::open_conversation(conversation_data conversation)
         return;
     }
     auto const existing = conversations_->index_for_conversation(user);
-    if (!existing.isValid() || conversations_->conversation_at(existing)->can_send != conversation.can_send)
+    if (!existing.isValid())
     {
         QList<conversation_data> items;
         for (int row = 0; row < conversations_->rowCount(); ++row)
         {
-            auto item = *conversations_->conversation_at(conversations_->index(row, 0));
-            if (item.id == user)
-            {
-                item.can_send = conversation.can_send;
-            }
-            items.push_back(std::move(item));
+            items.push_back(*conversations_->conversation_at(conversations_->index(row, 0)));
         }
-        if (!existing.isValid())
-        {
-            items.push_back(conversation);
-        }
+        items.push_back(conversation);
         conversations_->set_conversations(std::move(items));
     }
     auto username = conversation.username;

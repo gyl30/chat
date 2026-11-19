@@ -253,7 +253,6 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
                                                value.pinned_message = to_reply_data(item.pinned_message);
                                                value.announcement = from_utf8(item.announcement);
                                                value.join_approval = item.join_approval;
-                                               value.can_send = item.can_send;
                                                if (std::ranges::find(conversations, value.id, &conversation_data::id) == conversations.end())
                                                {
                                                    conversations.push_back(std::move(value));
@@ -351,8 +350,7 @@ void client_bridge::open_direct_conversation(qint64 user, QString username)
                                                           conversation_data value;
                                                           if (result)
                                                           {
-                                                              value.id = result->conversation;
-                                                              value.can_send = result->can_send;
+                                                              value.id = *result;
                                                               value.user = user;
                                                               value.username = username;
                                                           }
@@ -378,7 +376,6 @@ void client_bridge::create_group(QString title, QList<qint64> members)
                                               {
                                                   value.id = *result;
                                                   value.group = true;
-                                                  value.can_send = true;
                                                   value.username = title;
                                                   value.member_count = count;
                                               }
@@ -408,7 +405,6 @@ void client_bridge::join_group(QString token)
                                                 value.id = result->conversation;
                                                 value.group = true;
                                                 value.username = from_utf8(result->title);
-                                                value.can_send = true;
                                                 value.member_count = result->member_count;
                                             }
                                             emit conversation_opened(value, result ? QString{} : display_error(result.error()));
