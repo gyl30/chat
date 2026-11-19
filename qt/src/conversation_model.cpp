@@ -79,6 +79,15 @@ void conversation_model::set_conversations(QList<conversation_data> conversation
     endResetModel();
 }
 
+void conversation_model::remove_conversation(qint64 conversation)
+{
+    auto const item = index_for_conversation(conversation);
+    if (!item.isValid()) { return; }
+    beginRemoveRows({}, item.row(), item.row());
+    conversations_.removeAt(item.row());
+    endRemoveRows();
+}
+
 void conversation_model::set_online(qint64 user, bool online)
 {
     for (int row = 0; row < conversations_.size(); ++row)

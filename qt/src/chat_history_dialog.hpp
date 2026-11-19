@@ -30,21 +30,18 @@ class chat_history_dialog final : public QDialog
     };
 
     chat_history_dialog(qint64 conversation, QString const& title, QWidget* parent, avatar_cache* avatars = nullptr);
-    void set_history(qint64 conversation, qint64 before, QList<message_data> messages, bool has_more,
-                     QString const& error);
-    void set_search_results(qint64 conversation, QString const& query, qint64 before, QList<message_data> messages,
-                            read_positions positions, bool has_more, QString const& error);
+    void set_history(qint64 conversation, QList<message_data> messages, bool has_more, QString const& error);
     static bool matches(message_data const& message, category kind);
     // Requests the newest page; call once the request signals are connected.
     void start();
     void interrupt_loading();
 
    signals:
-    void history_requested(qint64 before);
-    void search_requested(QString query, qint64 before);
+    void history_requested(QString query, qint64 before);
     void message_activated(qint64 message);
 
    private:
+    void restart_search(QString query);
     void request_more();
     void rebuild();
     void add_messages(QList<message_data> messages, bool has_more);

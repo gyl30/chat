@@ -602,6 +602,11 @@ void client_bridge::get_messages(qint64 conversation, std::optional<qint64> befo
             }
             if (!result)
             {
+                if (result.error().kind == chat::error_kind::rpc && result.error().code == chat::conversation_unavailable)
+                {
+                    emit conversation_changed(conversation, true);
+                    return;
+                }
                 emit messages_received(conversation, {}, {}, before.has_value(), after.has_value(), false,
                                        display_error(result.error()));
                 return;
@@ -796,24 +801,32 @@ void client_bridge::search_messages(qint64 conversation, QString query, qint64 b
         });
 }
 
-void client_bridge::get_history(qint64 conversation, qint64 before)
+void client_bridge::get_history(qint64 conversation, QString query, qint64 before)
 {
     auto const generation = ++history_generation_;
     auto const connection = connection_generation_.load();
-    client_->get_messages(conversation, before > 0 ? std::optional<std::int64_t>{before} : std::nullopt,
-        [this, conversation, before, generation, connection](auto result) {
-            post_result(connection, [this, conversation, before, generation, result = std::move(result)]() mutable {
-                if (generation != history_generation_) { return; }
-                if (!result)
-                {
-                    emit history_received(conversation, before, {}, false, display_error(result.error()));
-                    return;
-                }
-                QList<message_data> messages;
-                for (auto const& value : result->messages) { messages.push_back(to_message_data(value)); }
-                emit history_received(conversation, before, std::move(messages), result->has_more, {});
-            });
+    auto const cursor = before > 0 ? std::optional<std::int64_t>{before} : std::nullopt;
+    auto receive = [this, conversation, generation, connection](auto result) {
+        post_result(connection, [this, conversation, generation, result = std::move(result)] {
+            if (generation != history_generation_) { return; }
+            if (!result)
+            {
+                emit history_received(conversation, {}, false, display_error(result.error()));
+                return;
+            }
+            QList<message_data> messages;
+            for (auto const& value : result->messages) { messages.push_back(to_message_data(value)); }
+            emit history_received(conversation, std::move(messages), result->has_more, {});
         });
+    };
+    if (query.isEmpty())
+    {
+        client_->get_messages(conversation, cursor, std::move(receive));
+    }
+    else
+    {
+        client_->search_messages(conversation, to_utf8(query), cursor, std::move(receive));
+    }
 }
 
 void client_bridge::add_contact(qint64 user)

@@ -32,6 +32,7 @@ class conversation_model final : public QAbstractListModel
     QVariant data(QModelIndex const& index, int role) const override;
 
     void set_conversations(QList<conversation_data> conversations);
+    void remove_conversation(qint64 conversation);
     void set_online(qint64 user, bool online);
     void set_muted(qint64 conversation, bool muted);
     void set_pinned(qint64 conversation, bool pinned);

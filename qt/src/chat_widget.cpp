@@ -1487,18 +1487,17 @@ void chat_widget::set_connection_status(QString text, bool retry_enabled)
 void chat_widget::set_conversations(QList<conversation_data> conversations)
 {
     auto const previous_user = active_conversation_;
+    // Activity can move an existing conversation across the cursor between pages.
+    if (previous_user > 0 && std::ranges::find(conversations, previous_user, &conversation_data::id) == conversations.end())
+    {
+        if (auto current = conversation(previous_user)) { conversations.push_back(std::move(*current)); }
+    }
     conversations_->set_conversations(std::move(conversations));
     update_compose_state();
     update_pinned_message();
     for (auto const& item : presence_)
     {
         conversations_->set_online(item.user, item.online);
-    }
-    if (previous_user > 0 && !conversations_->index_for_conversation(previous_user).isValid())
-    {
-        auto draft = message_edit_->toPlainText();
-        leave_conversation(previous_user);
-        if (!draft.isEmpty()) { drafts_.insert(previous_user, std::move(draft)); }
     }
     if (conversations_->rowCount() == 0)
     {
@@ -1540,6 +1539,13 @@ void chat_widget::set_contacts(QList<user_data> contacts)
     auto const selected = contacts_view_->currentIndex().data(user_model::id_role).toLongLong();
     auto const scroll = contacts_view_->verticalScrollBar()->value();
     contacts_->set_users(std::move(contacts));
+    if (active_conversation_ > 0 && !active_group_ && !is_contact(active_peer_))
+    {
+        auto const conversation = active_conversation_;
+        auto draft = message_edit_->toPlainText();
+        leave_conversation(conversation);
+        if (!draft.isEmpty()) { drafts_.insert(conversation, std::move(draft)); }
+    }
     contacts_status_->setText(contacts_->rowCount() == 0
         ? QStringLiteral("暂无联系人，可从主菜单“添加联系人”发起好友申请") : QString{});
     if (selected > 0)
@@ -2375,6 +2381,10 @@ void chat_widget::close_conversation(qint64 conversation)
 
 void chat_widget::leave_conversation(qint64 conversation)
 {
+    conversations_->remove_conversation(conversation);
+    if (conversations_->rowCount() == 0) { set_list_status(QStringLiteral("暂无会话")); }
+    filter_conversations();
+    update_main_menu();
     if (conversation != active_conversation_)
     {
         images_.remove(conversation);

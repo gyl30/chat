@@ -187,23 +187,13 @@ chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& tit
     layout->addWidget(more_, 0, Qt::AlignHCenter);
 
     connect(search_, &QLineEdit::returnPressed, this, [this] {
-        query_ = search_->text().trimmed();
-        messages_.clear();
-        has_more_ = true;
-        filling_pages_ = 0;
-        rebuild();
-        request_more();
+        restart_search(search_->text().trimmed());
     });
     connect(search_, &QLineEdit::textChanged, this, [this](QString const& text) {
         // Clearing the search returns to browsing the whole history.
         if (text.trimmed().isEmpty() && !query_.isEmpty())
         {
-            query_.clear();
-            messages_.clear();
-            has_more_ = true;
-            filling_pages_ = 0;
-            rebuild();
-            request_more();
+            restart_search({});
         }
     });
     connect(tabs_, &QTabBar::currentChanged, this, [this] {
@@ -235,6 +225,16 @@ void chat_history_dialog::interrupt_loading()
     more_->setVisible(has_more_);
 }
 
+void chat_history_dialog::restart_search(QString query)
+{
+    query_ = std::move(query);
+    messages_.clear();
+    has_more_ = true;
+    loading_ = false;
+    filling_pages_ = 0;
+    request_more();
+}
+
 void chat_history_dialog::request_more()
 {
     if (loading_ || !has_more_) { return; }
@@ -242,31 +242,13 @@ void chat_history_dialog::request_more()
     auto const before = messages_.isEmpty() ? 0 : messages_.back().id;
     more_->setText(QStringLiteral("加载更早的记录"));
     rebuild();
-    if (query_.isEmpty()) { emit history_requested(before); }
-    else { emit search_requested(query_, before); }
+    emit history_requested(query_, before);
 }
 
-void chat_history_dialog::set_history(qint64 conversation, qint64 before, QList<message_data> messages, bool has_more,
-                                      QString const& error)
+void chat_history_dialog::set_history(qint64 conversation, QList<message_data> messages, bool has_more,
+                                     QString const& error)
 {
-    auto const expected = messages_.isEmpty() ? 0 : messages_.back().id;
-    if (conversation != conversation_ || !query_.isEmpty() || before != expected) { return; }
-    loading_ = false;
-    if (!error.isEmpty())
-    {
-        status_->setText(error);
-        status_->show();
-        return;
-    }
-    add_messages(std::move(messages), has_more);
-}
-
-void chat_history_dialog::set_search_results(qint64 conversation, QString const& query, qint64 before,
-                                             QList<message_data> messages, read_positions, bool has_more,
-                                             QString const& error)
-{
-    auto const expected = messages_.isEmpty() ? 0 : messages_.back().id;
-    if (conversation != conversation_ || query != query_ || query_.isEmpty() || before != expected) { return; }
+    if (conversation != conversation_ || !loading_) { return; }
     loading_ = false;
     if (!error.isEmpty())
     {
