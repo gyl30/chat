@@ -2,6 +2,7 @@
 #define CHAT_SRC_BLOCKING_WORKER_HPP
 
 #include <condition_variable>
+#include <coroutine>
 #include <cstddef>
 #include <deque>
 #include <expected>

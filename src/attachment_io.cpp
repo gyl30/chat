@@ -38,7 +38,11 @@ boost::capy::task<void> discard_unpublished_attachment(database& db, s3_objects&
         co_return;
     }
     // Keep the reservation for startup/shutdown recovery if acknowledgement fails.
-    co_await db.run([&](sqlite_database& connection) { return acknowledge_attachment_cleanup(connection, key); });
+    if (auto acknowledged = co_await db.run([&](sqlite_database& connection) { return acknowledge_attachment_cleanup(connection, key); });
+        !acknowledged)
+    {
+        spdlog::warn("attachment cleanup acknowledgement failed (SQLite {})", acknowledged.error().code);
+    }
 }
 
 boost::capy::task<std::optional<staged_attachment>> stage_attachment(database& db, s3_objects& objects, std::string bytes, std::string media_type)

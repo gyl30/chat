@@ -1,6 +1,7 @@
 #ifndef CHAT_SRC_SQLITE_DATABASE_HPP
 #define CHAT_SRC_SQLITE_DATABASE_HPP
 
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <memory>
