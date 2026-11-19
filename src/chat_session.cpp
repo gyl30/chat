@@ -17,7 +17,6 @@ namespace
 {
 
 constexpr std::string_view kAuthenticateMethod = "authenticate";
-constexpr std::string_view kEchoMethod = "echo";
 constexpr std::string_view kGetContactsMethod = "get_contacts";
 constexpr std::string_view kGetConversationsMethod = "get_conversations";
 constexpr std::string_view kGetMessagesMethod = "get_messages";
@@ -223,10 +222,6 @@ boost::capy::task<void> chat_session::run()
             else if (request.method == "set_conversation_muted" || request.method == "set_conversation_pinned")
             {
                 rpc_error = co_await handle_conversation_preference(request, response);
-            }
-            else if (request.method == kEchoMethod)
-            {
-                rpc_error = co_await handle_echo(request, response);
             }
             else if (request.method == kGetContactsMethod)
             {

@@ -117,7 +117,6 @@ add_executable(chat_server
     src/reaction_request.cpp
     src/conversation_preference_request.cpp
     src/typing_request.cpp
-    src/echo_request.cpp
     src/get_contacts_request.cpp
     src/get_conversations_request.cpp
     src/get_messages_request.cpp
