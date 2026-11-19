@@ -54,7 +54,7 @@ struct database_lock
 std::string environment(char const* name)
 {
     auto const* value = std::getenv(name);
-    return value ? value : "";
+    return value != nullptr ? value : "";
 }
 
 boost::capy::task<void> recover_objects(database& db, s3_objects& objects)
@@ -195,12 +195,11 @@ int main(int argc, char* argv[])
         tls.emplace(std::move(*context));
     }
 
-    s3_settings settings{environment("CHAT_S3_ENDPOINT"),
-                         environment("CHAT_S3_BUCKET"),
-                         environment("CHAT_S3_ACCESS_KEY"),
-                         environment("CHAT_S3_SECRET_KEY"),
-                         environment("CHAT_S3_REGION"),
-                         true};
+    s3_settings settings{.endpoint = environment("CHAT_S3_ENDPOINT"),
+                         .bucket = environment("CHAT_S3_BUCKET"),
+                         .access_key = environment("CHAT_S3_ACCESS_KEY"),
+                         .secret_key = environment("CHAT_S3_SECRET_KEY"),
+                         .region = environment("CHAT_S3_REGION")};
     auto const https = environment("CHAT_S3_HTTPS");
     if (settings.endpoint.empty() || settings.bucket.empty() || settings.access_key.empty() || settings.secret_key.empty() ||
         (!https.empty() && https != "0" && https != "1"))
