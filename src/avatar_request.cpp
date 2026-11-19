@@ -30,79 +30,13 @@ boost::capy::task<simdjson::error_code> chat_session::handle_avatar(json_rpc_req
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
-    if (request.method == "begin_avatar_upload")
-    {
-        struct[[= simdjson::deny_unknown_fields]] begin_avatar_params
-        {
-            std::int64_t size = 0;
-        };
-        begin_avatar_params params;
-        if (document.get(params) || !document.at_end() || params.size <= 0 || params.size > static_cast<std::int64_t>(chat::max_avatar_size))
-        {
-            co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
-        }
-        if (avatar_upload_)
-        {
-            co_return serialize_json_rpc_error(-32011, "Avatar upload in progress", std::move(request.id), response);
-        }
-        std::uint64_t random = 0;
-        if (RAND_bytes(reinterpret_cast<unsigned char*>(&random), sizeof(random)) != 1)
-        {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        auto const id = static_cast<std::int64_t>((random & 0x7fffffffffffffffULL) | 1);
-        avatar_upload_.emplace(id, params.size, std::string{});
-        co_return serialize_json_rpc_success("{\"upload\":" + std::to_string(id) + "}", std::move(request.id), response);
-    }
-    if (request.method == "upload_avatar_chunk")
-    {
-        struct[[= simdjson::deny_unknown_fields]] avatar_chunk_params
-        {
-            std::int64_t upload = 0;
-            std::int64_t offset = -1;
-            std::string data;
-        };
-        avatar_chunk_params params;
-        if (document.get(params) || !document.at_end() || params.upload <= 0 || params.offset < 0 || params.data.empty() ||
-            params.data.size() > 4 * ((chat::attachment_chunk_size + 2) / 3))
-        {
-            co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
-        }
-        if (!avatar_upload_ || avatar_upload_->id != params.upload)
-        {
-            co_return serialize_json_rpc_error(-32011, "Avatar upload unavailable", std::move(request.id), response);
-        }
-        auto bytes = chat::detail::decode_base64(params.data);
-        if (!bytes || bytes->empty() || bytes->size() > chat::attachment_chunk_size ||
-            params.offset != static_cast<std::int64_t>(avatar_upload_->content.size()) ||
-            avatar_upload_->content.size() + bytes->size() > static_cast<std::size_t>(avatar_upload_->size))
-        {
-            co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
-        }
-        avatar_upload_->content.append(*bytes);
-        co_return serialize_json_rpc_success("{\"offset\":" + std::to_string(avatar_upload_->content.size()) + "}", std::move(request.id), response);
-    }
     if (request.method == "get_avatar")
     {
         co_return co_await get_avatar_chunk(document, request, response);
     }
-    if (request.method == "cancel_avatar_upload")
+    if (request.method == "begin_avatar_upload" || request.method == "upload_avatar_chunk" || request.method == "cancel_avatar_upload")
     {
-        struct[[= simdjson::deny_unknown_fields]] cancel_avatar_params
-        {
-            std::int64_t upload = 0;
-        };
-        cancel_avatar_params params;
-        if (document.get(params) || !document.at_end() || params.upload <= 0)
-        {
-            co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
-        }
-        auto const cancelled = avatar_upload_ && avatar_upload_->id == params.upload;
-        if (cancelled)
-        {
-            avatar_upload_.reset();
-        }
-        co_return serialize_json_rpc_success(cancelled ? "{\"cancelled\":true}" : "{\"cancelled\":false}", std::move(request.id), response);
+        co_return update_avatar_upload(document, request, response);
     }
 
     auto const clearing = request.method == "clear_avatar";
@@ -217,4 +151,75 @@ boost::capy::task<simdjson::error_code> chat_session::get_avatar_chunk(simdjson:
         co_return error;
     }
     co_return serialize_json_rpc_success(payload, std::move(request.id), response);
+}
+
+simdjson::error_code chat_session::update_avatar_upload(simdjson::ondemand::document& document, json_rpc_request& request, std::string& response)
+{
+    if (request.method == "begin_avatar_upload")
+    {
+        struct[[= simdjson::deny_unknown_fields]] begin_avatar_params
+        {
+            std::int64_t size = 0;
+        };
+        begin_avatar_params params;
+        if (document.get(params) || !document.at_end() || params.size <= 0 || params.size > static_cast<std::int64_t>(chat::max_avatar_size))
+        {
+            return serialize_json_rpc_invalid_params(std::move(request.id), response);
+        }
+        if (avatar_upload_)
+        {
+            return serialize_json_rpc_error(-32011, "Avatar upload in progress", std::move(request.id), response);
+        }
+        std::uint64_t random = 0;
+        if (RAND_bytes(reinterpret_cast<unsigned char*>(&random), sizeof(random)) != 1)
+        {
+            return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        auto const id = static_cast<std::int64_t>((random & 0x7fffffffffffffffULL) | 1);
+        avatar_upload_.emplace(id, params.size, std::string{});
+        return serialize_json_rpc_success("{\"upload\":" + std::to_string(id) + "}", std::move(request.id), response);
+    }
+    if (request.method == "upload_avatar_chunk")
+    {
+        struct[[= simdjson::deny_unknown_fields]] avatar_chunk_params
+        {
+            std::int64_t upload = 0;
+            std::int64_t offset = -1;
+            std::string data;
+        };
+        avatar_chunk_params params;
+        if (document.get(params) || !document.at_end() || params.upload <= 0 || params.offset < 0 || params.data.empty() ||
+            params.data.size() > 4 * ((chat::attachment_chunk_size + 2) / 3))
+        {
+            return serialize_json_rpc_invalid_params(std::move(request.id), response);
+        }
+        if (!avatar_upload_ || avatar_upload_->id != params.upload)
+        {
+            return serialize_json_rpc_error(-32011, "Avatar upload unavailable", std::move(request.id), response);
+        }
+        auto bytes = chat::detail::decode_base64(params.data);
+        if (!bytes || bytes->empty() || bytes->size() > chat::attachment_chunk_size ||
+            params.offset != static_cast<std::int64_t>(avatar_upload_->content.size()) ||
+            avatar_upload_->content.size() + bytes->size() > static_cast<std::size_t>(avatar_upload_->size))
+        {
+            return serialize_json_rpc_invalid_params(std::move(request.id), response);
+        }
+        avatar_upload_->content.append(*bytes);
+        return serialize_json_rpc_success("{\"offset\":" + std::to_string(avatar_upload_->content.size()) + "}", std::move(request.id), response);
+    }
+    struct[[= simdjson::deny_unknown_fields]] cancel_avatar_params
+    {
+        std::int64_t upload = 0;
+    };
+    cancel_avatar_params params;
+    if (document.get(params) || !document.at_end() || params.upload <= 0)
+    {
+        return serialize_json_rpc_invalid_params(std::move(request.id), response);
+    }
+    auto const cancelled = avatar_upload_ && avatar_upload_->id == params.upload;
+    if (cancelled)
+    {
+        avatar_upload_.reset();
+    }
+    return serialize_json_rpc_success(cancelled ? "{\"cancelled\":true}" : "{\"cancelled\":false}", std::move(request.id), response);
 }

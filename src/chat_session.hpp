@@ -32,6 +32,7 @@ class chat_session
 
    private:
     boost::capy::task<void> exchange_messages();
+    simdjson::error_code update_avatar_upload(simdjson::ondemand::document& document, json_rpc_request& request, std::string& response);
     boost::capy::task<simdjson::error_code> get_avatar_chunk(simdjson::ondemand::document& document,
                                                              json_rpc_request& request,
                                                              std::string& response);
