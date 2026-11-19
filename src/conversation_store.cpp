@@ -221,33 +221,6 @@ std::expected<bool, sqlite_error> set_conversation_preference(
     return db.changes() == 1;
 }
 
-std::expected<std::optional<std::int64_t>, sqlite_error> read_unread_count(sqlite_database& db, std::int64_t conversation, std::int64_t actor)
-{
-    auto count = db.prepare(R"SQL(
-        SELECT (SELECT count(*) FROM messages m WHERE m.conversation_id=c.id
-                    AND m.id>max(own.last_read_message_id,own.joined_message_id) AND m.deleted=0
-                    AND m.sender_id<>?2)
-        FROM conversation_members own JOIN conversations c ON c.id=own.conversation_id
-        WHERE own.conversation_id=?1 AND own.user_id=?2
-    )SQL",
-                            conversation,
-                            actor);
-    if (!count)
-    {
-        return std::unexpected(std::move(count.error()));
-    }
-    auto row = count->step();
-    if (!row)
-    {
-        return std::unexpected(std::move(row.error()));
-    }
-    if (!*row)
-    {
-        return std::nullopt;
-    }
-    return count->column_int64(0);
-}
-
 std::expected<bool, sqlite_error> can_send_to_conversation(sqlite_database& db, std::int64_t conversation, std::int64_t actor)
 {
     auto access = db.prepare(R"SQL(

@@ -21,7 +21,6 @@ constexpr std::string_view kGetContactsMethod = "get_contacts";
 constexpr std::string_view kGetConversationsMethod = "get_conversations";
 constexpr std::string_view kGetMessagesMethod = "get_messages";
 constexpr std::string_view kGetPresenceMethod = "get_presence";
-constexpr std::string_view kGetUnreadCountMethod = "get_unread_count";
 constexpr std::string_view kMarkReadMethod = "mark_read";
 constexpr std::string_view kRegisterMethod = "register";
 constexpr std::string_view kSendMessageMethod = "send_message";
@@ -262,10 +261,6 @@ boost::capy::task<void> chat_session::run()
             else if (request.method == kGetPresenceMethod)
             {
                 rpc_error = co_await handle_get_presence(request, response);
-            }
-            else if (request.method == kGetUnreadCountMethod)
-            {
-                rpc_error = co_await handle_get_unread_count(request, response);
             }
             else if (request.method == kMarkReadMethod)
             {

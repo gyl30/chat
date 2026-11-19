@@ -37,8 +37,6 @@ enum class conversation_preference
 std::expected<bool, sqlite_error> set_conversation_preference(
     sqlite_database& db, std::int64_t conversation, std::int64_t actor, conversation_preference preference, bool enabled);
 
-std::expected<std::optional<std::int64_t>, sqlite_error> read_unread_count(sqlite_database& db, std::int64_t conversation, std::int64_t actor);
-
 std::expected<bool, sqlite_error> can_send_to_conversation(sqlite_database& db, std::int64_t conversation, std::int64_t actor);
 
 enum class group_member_action
