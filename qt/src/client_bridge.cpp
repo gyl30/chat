@@ -243,8 +243,6 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
                                                value.username = from_utf8(item.username);
                                                value.avatar = item.avatar;
                                                value.member_count = item.member_count;
-                                               value.last_id = item.last.id;
-                                               value.last_from = item.last.from;
                                                value.last_timestamp = item.last.timestamp;
                                                value.last_text = item.last.deleted ? QStringLiteral("消息已删除") : from_utf8(item.last.text);
                                                value.unread = item.unread;
