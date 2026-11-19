@@ -33,7 +33,6 @@ struct quoted_message_data
     qint64 edited_at = 0;
     bool deleted = false;
 };
-Q_DECLARE_METATYPE(quoted_message_data)
 
 struct reaction_data
 {

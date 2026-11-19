@@ -181,8 +181,6 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             return !message.deleted && message.attachment ? message.attachment->filename : QString{};
         case attachment_type_role:
             return !message.deleted && message.attachment ? message.attachment->media_type : QString{};
-        case attachment_size_role:
-            return !message.deleted && message.attachment ? message.attachment->size : qint64{0};
         case image_role:
             return images_ && !message.deleted ? QVariant::fromValue(images_->image(message.id)) : QVariant{};
         case image_status_role:
@@ -214,8 +212,6 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             return message.deleted;
         case edited_at_role:
             return message.edited_at;
-        case reply_id_role:
-            return message.reply.id;
         case reply_text_role:
             return !message.deleted && message.reply.id > 0
                        ? QStringLiteral("↪ %1\n%2")
@@ -292,14 +288,13 @@ void message_model::set_pending(QList<pending_message> pending)
         {
             pending_[row] = std::move(item);
             auto const changed = index(messages_.size() + row, 0);
-            emit dataChanged(changed,
-                             changed,
-                             {Qt::DisplayRole, Qt::AccessibleTextRole, text_role, send_state_role, send_error_role, reply_id_role, reply_text_role});
+            emit dataChanged(
+                changed, changed, {Qt::DisplayRole, Qt::AccessibleTextRole, text_role, send_state_role, send_error_role, reply_text_role});
         }
     }
 }
 
-int message_model::merge_messages(QList<message_data> messages)
+void message_model::merge_messages(QList<message_data> messages)
 {
     for (auto const& message : messages)
     {
@@ -320,7 +315,7 @@ int message_model::merge_messages(QList<message_data> messages)
 
     if (merged.size() == messages_.size())
     {
-        return 0;
+        return;
     }
 
     std::sort(merged.begin(), merged.end(), [](message_data const& lhs, message_data const& rhs) { return lhs.id < rhs.id; });
@@ -328,7 +323,6 @@ int message_model::merge_messages(QList<message_data> messages)
     {
         merge_reply(message.reply, merged);
     }
-    auto const inserted = merged.size() - messages_.size();
     // History adds messages; existing IDs and their persistent keyboard indexes survive.
     for (int row = 0; row < merged.size(); ++row)
     {
@@ -344,7 +338,6 @@ int message_model::merge_messages(QList<message_data> messages)
         }
     }
     emit dataChanged(index(0, 0), index(messages_.size() - 1, 0));
-    return inserted;
 }
 
 bool message_model::add_message(message_data message)

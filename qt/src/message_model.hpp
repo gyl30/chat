@@ -24,13 +24,11 @@ class message_model final : public QAbstractListModel
         sender_name_role,
         read_role,
         read_count_role,
-        reply_id_role,
         reply_text_role,
         edited_at_role,
         deleted_role,
         attachment_name_role,
         attachment_type_role,
-        attachment_size_role,
         reactions_role,
         own_reaction_role,
         mentions_role,
@@ -63,7 +61,7 @@ class message_model final : public QAbstractListModel
     void set_self_user(qint64 user);
     void reset(qint64 conversation, bool group = false);
     void set_pending(QList<pending_message> pending);
-    int merge_messages(QList<message_data> messages);
+    void merge_messages(QList<message_data> messages);
     bool add_message(message_data message);
     void update_message(message_data const& message);
     bool set_reactions(qint64 message, qint64 revision, QList<reaction_data> reactions);

@@ -253,8 +253,7 @@ class chat_widget final : public QWidget
     QLabel* chat_presence_ = nullptr;
     QLabel* typing_label_ = nullptr;
     QTimer* typing_idle_timer_ = nullptr;
-    QElapsedTimer typing_clock_;
-    qint64 last_typing_sent_ = 0;
+    QElapsedTimer last_typing_sent_;
     struct peer_typing
     {
         QString username;

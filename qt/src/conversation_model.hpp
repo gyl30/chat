@@ -13,9 +13,7 @@ class conversation_model final : public QAbstractListModel
    public:
     enum role
     {
-        id_role = Qt::UserRole + 1,
-        user_role,
-        group_role,
+        group_role = Qt::UserRole + 1,
         username_role,
         last_text_role,
         last_timestamp_role,
@@ -23,7 +21,6 @@ class conversation_model final : public QAbstractListModel
         online_role,
         muted_role,
         pinned_role,
-        pinned_message_role,
     };
 
     explicit conversation_model(QObject* parent = nullptr, avatar_cache* avatars = nullptr);

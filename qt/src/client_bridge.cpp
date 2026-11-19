@@ -83,6 +83,8 @@ message_data to_message_data(chat::message const& value)
     return message;
 }
 
+user_data to_user_data(chat::user const& user) { return {user.id, from_utf8(user.username), false, 0, user.avatar}; }
+
 presence_data to_presence_data(chat::presence const& value)
 {
     presence_data presence;
@@ -107,7 +109,6 @@ client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::ma
     qRegisterMetaType<QList<reaction_data>>();
     qRegisterMetaType<QList<mention_data>>();
     qRegisterMetaType<QList<member_data>>();
-    qRegisterMetaType<user_data>();
     qRegisterMetaType<QList<user_data>>();
     qRegisterMetaType<presence_data>();
     qRegisterMetaType<QList<presence_data>>();
@@ -150,8 +151,7 @@ client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::ma
     client_->set_conversation_handler(
         [this](std::int64_t id, bool removed)
         { post_result(connection_generation_.load(), [this, id, removed] { emit conversation_changed(id, removed); }); });
-    client_->set_friendship_handler([this](std::int64_t user)
-                                    { post_result(connection_generation_.load(), [this, user] { emit friendship_changed(user); }); });
+    client_->set_friendship_handler([this](std::int64_t) { post_result(connection_generation_.load(), [this] { emit friendship_changed(); }); });
     client_->set_presence_handler([this](chat::presence value)
                                   { post_result(connection_generation_.load(), [this, value] { emit presence_changed(to_presence_data(value)); }); });
     client_->set_group_join_request_handler(
@@ -207,7 +207,7 @@ void client_bridge::register_user(QString const& username, QString const& passwo
                            {
                                post_result(generation,
                                            [this, result = std::move(result)]
-                                           { emit registration_finished(result ? *result : 0, result ? QString{} : display_error(result.error())); });
+                                           { emit registration_finished(result ? QString{} : display_error(result.error())); });
                            });
 }
 
@@ -464,8 +464,7 @@ void client_bridge::get_group_join_requests(qint64 conversation, qint64 before)
                                                          {
                                                              for (auto const& request : result->requests)
                                                              {
-                                                                 auto const& user = request.applicant;
-                                                                 values.push_back({user.id, from_utf8(user.username), false, 0, user.avatar});
+                                                                 values.push_back(to_user_data(request.applicant));
                                                              }
                                                          }
                                                          emit group_join_requests_received(conversation,
@@ -578,11 +577,7 @@ void client_bridge::get_contacts()
                             contacts.reserve(static_cast<qsizetype>(result->size()));
                             for (auto const& item : *result)
                             {
-                                user_data value;
-                                value.id = item.id;
-                                value.username = from_utf8(item.username);
-                                value.avatar = item.avatar;
-                                contacts.push_back(std::move(value));
+                                contacts.push_back(to_user_data(item));
                             }
                             emit contacts_received(std::move(contacts), {});
                         });
@@ -839,11 +834,7 @@ void client_bridge::search_users(QString query, quint64 request)
                                               users.reserve(static_cast<qsizetype>(result->size()));
                                               for (auto const& item : *result)
                                               {
-                                                  user_data value;
-                                                  value.id = item.id;
-                                                  value.username = from_utf8(item.username);
-                                                  value.avatar = item.avatar;
-                                                  users.push_back(std::move(value));
+                                                  users.push_back(to_user_data(item));
                                               }
                                               emit users_received(std::move(users), {}, request);
                                           });
@@ -926,31 +917,16 @@ void client_bridge::get_history(qint64 conversation, QString query, qint64 befor
     }
 }
 
-void client_bridge::add_contact(qint64 user)
+std::function<void(std::expected<chat::friendship_result, chat::error>)> client_bridge::friend_request_result(qint64 user)
 {
-    auto const generation = connection_generation_.load();
-    client_->send_friend_request(user,
-                                 [this, generation, user](auto result)
-                                 {
-                                     post_result(generation,
-                                                 [this, user, result = std::move(result)]
-                                                 {
-                                                     if (!result)
-                                                     {
-                                                         user_data value;
-                                                         value.id = user;
-                                                         emit contact_added(value, display_error(result.error()));
-                                                         return;
-                                                     }
-
-                                                     user_data value;
-                                                     value.id = result->user.id;
-                                                     value.username = from_utf8(result->user.username);
-                                                     value.avatar = result->user.avatar;
-                                                     emit contact_added(std::move(value), {});
-                                                 });
-                                 });
+    return [this, generation = connection_generation_.load(), user](auto result)
+    {
+        auto error = result ? QString{} : display_error(result.error());
+        post_result(generation, [this, user, error = std::move(error)] { emit friend_request_finished(user, error); });
+    };
 }
+
+void client_bridge::add_contact(qint64 user) { client_->send_friend_request(user, friend_request_result(user)); }
 
 void client_bridge::get_friend_requests()
 {
@@ -974,57 +950,20 @@ void client_bridge::get_friend_requests()
                             }
                             for (auto const& request : result->incoming)
                             {
-                                user_data user;
-                                user.id = request.user.id;
-                                user.username = from_utf8(request.user.username);
-                                user.avatar = request.user.avatar;
-                                incoming.push_back(std::move(user));
+                                incoming.push_back(to_user_data(request.user));
                             }
                             for (auto const& request : result->outgoing)
                             {
-                                user_data user;
-                                user.id = request.user.id;
-                                user.username = from_utf8(request.user.username);
-                                user.avatar = request.user.avatar;
-                                outgoing.push_back(std::move(user));
+                                outgoing.push_back(to_user_data(request.user));
                             }
                             emit friend_requests_received(std::move(incoming), std::move(outgoing), {});
                         });
         });
 }
 
-void client_bridge::respond_friend_request(qint64 user, bool accept)
-{
-    auto const generation = connection_generation_.load();
-    client_->respond_friend_request(user,
-                                    accept,
-                                    [this, generation, user](auto result)
-                                    {
-                                        post_result(generation,
-                                                    [this, user, result = std::move(result)]
-                                                    {
-                                                        user_data value;
-                                                        value.id = user;
-                                                        emit contact_added(value, result ? QString{} : display_error(result.error()));
-                                                    });
-                                    });
-}
+void client_bridge::respond_friend_request(qint64 user, bool accept) { client_->respond_friend_request(user, accept, friend_request_result(user)); }
 
-void client_bridge::cancel_friend_request(qint64 user)
-{
-    auto const generation = connection_generation_.load();
-    client_->cancel_friend_request(user,
-                                   [this, generation, user](auto result)
-                                   {
-                                       post_result(generation,
-                                                   [this, user, result = std::move(result)]
-                                                   {
-                                                       user_data value;
-                                                       value.id = user;
-                                                       emit contact_added(value, result ? QString{} : display_error(result.error()));
-                                                   });
-                                   });
-}
+void client_bridge::cancel_friend_request(qint64 user) { client_->cancel_friend_request(user, friend_request_result(user)); }
 
 void client_bridge::remove_contact(qint64 user)
 {

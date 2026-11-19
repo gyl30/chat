@@ -1327,7 +1327,6 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                 }
             });
     connect(send_button_, &QToolButton::clicked, this, [this] { send_current_message(); });
-    typing_clock_.start();
     typing_idle_timer_ = new QTimer(this);
     typing_idle_timer_->setSingleShot(true);
     typing_idle_timer_->setInterval(3000);
@@ -1356,10 +1355,9 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                     stop_typing();
                     return;
                 }
-                auto const now = typing_clock_.elapsed();
-                if (!typing_idle_timer_->isActive() || now - last_typing_sent_ >= 2000)
+                if (!typing_idle_timer_->isActive() || last_typing_sent_.elapsed() >= 2000)
                 {
-                    last_typing_sent_ = now;
+                    last_typing_sent_.start();
                     emit typing_requested(active_conversation_, true);
                 }
                 typing_idle_timer_->start();
@@ -1811,6 +1809,7 @@ void chat_widget::set_contacts(QList<user_data> contacts)
     update_compose_state();
     update_chat_presence();
     update_request_actions();
+    emit friendship_updated();
 }
 
 void chat_widget::set_presences(QList<presence_data> users)
@@ -1850,10 +1849,8 @@ void chat_widget::set_presence(presence_data user)
 
 void chat_widget::set_contacts_error(QString message)
 {
-    set_contacts({});
     contacts_status_->setText(std::move(message));
     contacts_status_->setVisible(!contacts_status_->text().isEmpty());
-    update_request_actions();
 }
 
 void chat_widget::set_add_contact_search_results(QList<user_data> users, quint64 request)
@@ -2327,7 +2324,6 @@ void chat_widget::filter_contacts(QString const& query)
     }
     // With an empty model, the request result owns loading, error or empty feedback.
     contacts_status_->setVisible(!contacts_status_->text().isEmpty());
-    update_request_actions();
 }
 
 void chat_widget::search_users()

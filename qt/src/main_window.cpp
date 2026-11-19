@@ -389,10 +389,6 @@ main_window::main_window(QString server_url, QWidget* parent) : QMainWindow(pare
                     restore();
                 }
             });
-    connect(this,
-            &main_window::notification_requested,
-            this,
-            [this](qint64, QString const& title, QString const& summary) { show_desktop_notification(title, summary); });
 #if defined(Q_OS_LINUX)
     auto bus = QDBusConnection::sessionBus();
     bus.connect(notification_service,
@@ -730,9 +726,8 @@ main_window::main_window(QString server_url, QWidget* parent) : QMainWindow(pare
         client_.get(),
         &client_bridge::registration_finished,
         this,
-        [this](qint64 user, QString const& error_message)
+        [this](QString const& error_message)
         {
-            (void)user;
             if (!error_message.isEmpty())
             {
                 show_registration_error(error_message);
@@ -843,7 +838,7 @@ main_window::main_window(QString server_url, QWidget* parent) : QMainWindow(pare
     connect(client_.get(),
             &client_bridge::friendship_changed,
             this,
-            [this](qint64)
+            [this]
             {
                 client_->get_contacts();
                 client_->get_friend_requests();
@@ -855,11 +850,11 @@ main_window::main_window(QString server_url, QWidget* parent) : QMainWindow(pare
 
     connect(
         client_.get(),
-        &client_bridge::contact_added,
+        &client_bridge::friend_request_finished,
         this,
-        [this](user_data user, QString const& error_message)
+        [this](qint64 user, QString const& error_message)
         {
-            chat_page_->finish_add_contact(user.id, error_message);
+            chat_page_->finish_add_contact(user, error_message);
             if (!error_message.isEmpty())
             {
                 return;
@@ -1802,7 +1797,7 @@ void main_window::notify_message(message_data const& message)
     }
     if (!message_preview_)
     {
-        emit notification_requested(message.conversation, QStringLiteral("Chat"), QStringLiteral("收到新消息"));
+        show_desktop_notification(QStringLiteral("Chat"), QStringLiteral("收到新消息"));
         return;
     }
     auto const title = conversation->group
@@ -1814,7 +1809,7 @@ void main_window::notify_message(message_data const& message)
         summary = (message.attachment->media_type.startsWith(QStringLiteral("image/")) ? QStringLiteral("图片：") : QStringLiteral("文件：")) +
                   message.attachment->filename;
     }
-    emit notification_requested(message.conversation, title, grapheme_prefix(summary, 120));
+    show_desktop_notification(title, grapheme_prefix(summary, 120));
 }
 
 void main_window::start_login()

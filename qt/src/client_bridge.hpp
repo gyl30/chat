@@ -10,6 +10,7 @@
 #include <utility>
 #include <chat/conversation.hpp>
 #include <chat/error.hpp>
+#include <chat/friendship.hpp>
 #include <chat/message.hpp>
 
 #include <QObject>
@@ -94,11 +95,11 @@ class client_bridge final : public QObject
     void disconnected();
     void error(QString message);
     void authentication_finished(bool authenticated, qint64 user, QString error_message, bool retryable_error, chat::avatar_state avatar);
-    void registration_finished(qint64 user, QString error_message);
+    void registration_finished(QString error_message);
     void conversations_received(QList<conversation_data> conversations, QString error_message);
     void mute_finished(qint64 conversation, bool muted, QString error_message);
     void pin_finished(qint64 conversation, bool pinned, QString error_message);
-    void friendship_changed(qint64 user);
+    void friendship_changed();
     void friend_requests_received(QList<user_data> incoming, QList<user_data> outgoing, QString error_message);
     void contacts_received(QList<user_data> contacts, QString error_message);
     void presences_received(QList<presence_data> users, QString error_message);
@@ -128,7 +129,7 @@ class client_bridge final : public QObject
     // connection dropped before an answer; unavailable means the server denied conversation access.
     void send_finished(qint64 conversation, qint64 client_id, message_data message, QString error_message, send_status status);
     void users_received(QList<user_data> users, QString error_message, quint64 request);
-    void contact_added(user_data user, QString error_message);
+    void friend_request_finished(qint64 user, QString error_message);
     void contact_removed(QString error_message);
     void attachment_received(qint64 conversation, qint64 message, QByteArray data, QString error_message);
     void message_image_received(qint64 conversation, qint64 message, QByteArray data, QString error_message);
@@ -143,6 +144,7 @@ class client_bridge final : public QObject
     void read_marked(qint64 user, qint64 message, QString error_message);
 
    private:
+    std::function<void(std::expected<chat::friendship_result, chat::error>)> friend_request_result(qint64 user);
     std::function<void(std::expected<bool, chat::error>)> group_action_result(qint64 conversation, bool leaving = false);
     std::function<void(std::expected<chat::message, chat::error>)> send_result(qint64 conversation, qint64 client_id);
     template <class F>

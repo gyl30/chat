@@ -39,12 +39,8 @@ QVariant conversation_model::data(QModelIndex const& index, int role) const
         case Qt::DisplayRole:
         case username_role:
             return item->username;
-        case id_role:
-            return item->id;
         case group_role:
             return item->group;
-        case user_role:
-            return item->user;
         case last_text_role:
             return item->last_text;
         case last_timestamp_role:
@@ -57,8 +53,6 @@ QVariant conversation_model::data(QModelIndex const& index, int role) const
             return item->muted;
         case pinned_role:
             return item->pinned;
-        case pinned_message_role:
-            return QVariant::fromValue(item->pinned_message);
         case Qt::DecorationRole:
             return avatars_ ? QVariant::fromValue(avatars_->image(item->user)) : QVariant{};
         default:

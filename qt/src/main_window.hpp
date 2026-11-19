@@ -40,9 +40,6 @@ class main_window final : public QMainWindow
     explicit main_window(QString server_url, QWidget* parent = nullptr);
     ~main_window() override;
 
-   signals:
-    void notification_requested(qint64 conversation, QString title, QString summary);
-
    protected:
     void changeEvent(QEvent* event) override;
     void closeEvent(QCloseEvent* event) override;

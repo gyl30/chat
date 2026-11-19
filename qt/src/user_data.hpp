@@ -16,7 +16,6 @@ struct user_data
     chat::avatar_state avatar;
 };
 
-Q_DECLARE_METATYPE(user_data)
 Q_DECLARE_METATYPE(QList<user_data>)
 
 #endif
