@@ -4,7 +4,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 include("${PROJECT_SOURCE_DIR}/cmake/chat_emoji_scanner.cmake")
 
-add_library(chat_qt_widgets OBJECT
+add_executable(chat_qt
+    src/main.cpp
     src/avatar.cpp
     src/attachment_dialog.cpp
     src/attachment_dialog.hpp
@@ -57,7 +58,7 @@ add_library(chat_qt_widgets OBJECT
     src/user_model.hpp
 )
 
-qt_add_resources(chat_qt_widgets chat_icons
+qt_add_resources(chat_qt chat_icons
     PREFIX "/icons"
     BASE "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons"
     FILES
@@ -87,26 +88,21 @@ qt_add_resources(chat_qt_widgets chat_icons
         resources/icons/window-restore.svg
 )
 
-set_target_properties(chat_qt_widgets PROPERTIES AUTOMOC ON)
-target_include_directories(chat_qt_widgets PRIVATE "${chat_unicode_include}")
+set_target_properties(chat_qt PROPERTIES AUTOMOC ON)
+target_include_directories(chat_qt PRIVATE "${chat_unicode_include}")
 
-target_link_libraries(chat_qt_widgets
-    PUBLIC
+target_link_libraries(chat_qt
+    PRIVATE
         chat_client
         Qt6::Svg
         Qt6::Widgets
-    PRIVATE
         utf8proc::utf8proc
         chat_emoji_scanner
 )
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_link_libraries(chat_qt_widgets PUBLIC Qt6::DBus)
-
+    target_link_libraries(chat_qt PRIVATE Qt6::DBus)
 endif()
-
-add_executable(chat_qt src/main.cpp)
-target_link_libraries(chat_qt PRIVATE chat_qt_widgets)
 
 # Both build-tree and installed clients load editable assets relative to the executable.
 set(chat_theme_files common.qss daylight.qss daylight.json midnight.qss midnight.json)
@@ -117,7 +113,7 @@ endforeach()
 file(RELATIVE_PATH chat_installed_themes
      "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
      "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/chat/themes")
-target_compile_definitions(chat_qt_widgets PRIVATE CHAT_QT_INSTALLED_THEMES="${chat_installed_themes}")
+target_compile_definitions(chat_qt PRIVATE CHAT_QT_INSTALLED_THEMES="${chat_installed_themes}")
 set_target_properties(chat_qt PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 install(TARGETS chat_qt RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 foreach(theme_file IN LISTS chat_theme_files)

@@ -162,11 +162,6 @@ bool websocket_upgrade_accept(boost::http::request_base const& request, std::str
 
 void websocket_connection::context_deleter::operator()(wslay_event_context* context) const noexcept { wslay_event_context_free(context); }
 
-websocket_connection::websocket_connection(boost::corosio::tcp_socket& socket)
-    : websocket_connection(socket, boost::capy::any_stream(&socket))
-{
-}
-
 websocket_connection::websocket_connection(boost::corosio::tcp_socket& socket, boost::capy::any_stream stream,
                                              chat::detail::websocket_heartbeat_config heartbeat)
     : socket_(socket), stream_(std::move(stream)), heartbeat_(heartbeat)

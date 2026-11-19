@@ -223,8 +223,6 @@ chat_server::chat_server(boost::corosio::io_context& io_context,
 
 std::error_code chat_server::bind(boost::corosio::endpoint endpoint) { return server_.bind(endpoint); }
 
-boost::corosio::endpoint chat_server::local_endpoint(std::size_t index) const noexcept { return server_.local_endpoint(index); }
-
 void chat_server::start() { server_.start(); }
 
 void chat_server::stop() { server_.stop(); }

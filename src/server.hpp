@@ -32,8 +32,6 @@ class chat_server
 
     std::error_code bind(boost::corosio::endpoint endpoint);
 
-    boost::corosio::endpoint local_endpoint(std::size_t index = 0) const noexcept;
-
     void start();
 
     void stop();
