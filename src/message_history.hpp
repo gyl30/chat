@@ -23,11 +23,17 @@ std::expected<std::optional<chat::message>, sqlite_error> read_message(sqlite_da
                                                                        std::int64_t conversation,
                                                                        std::int64_t message);
 
-// Returns the committed position, or null if the message is not in the
-// conversation or the caller is not a member.
-std::expected<std::optional<std::int64_t>, sqlite_error> update_read_position(sqlite_database& db,
-                                                                              std::int64_t user,
-                                                                              std::int64_t conversation,
-                                                                              std::int64_t message);
+struct read_position_change
+{
+    std::int64_t message;
+    bool advanced;
+};
+
+// Returns the committed position and whether it advanced, or null if the
+// message is not in the conversation or the caller is not a member.
+std::expected<std::optional<read_position_change>, sqlite_error> update_read_position(sqlite_database& db,
+                                                                                      std::int64_t user,
+                                                                                      std::int64_t conversation,
+                                                                                      std::int64_t message);
 
 #endif

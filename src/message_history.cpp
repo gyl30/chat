@@ -254,10 +254,10 @@ std::expected<std::optional<chat::message>, sqlite_error> read_message(sqlite_da
     return result;
 }
 
-std::expected<std::optional<std::int64_t>, sqlite_error> update_read_position(sqlite_database& db,
-                                                                              std::int64_t user,
-                                                                              std::int64_t conversation,
-                                                                              std::int64_t message)
+std::expected<std::optional<read_position_change>, sqlite_error> update_read_position(sqlite_database& db,
+                                                                                      std::int64_t user,
+                                                                                      std::int64_t conversation,
+                                                                                      std::int64_t message)
 {
     auto transaction = sqlite_transaction::begin_immediate(db);
     if (!transaction)
@@ -265,8 +265,8 @@ std::expected<std::optional<std::int64_t>, sqlite_error> update_read_position(sq
         return std::unexpected(std::move(transaction.error()));
     }
     auto update = db.prepare(R"SQL(
-        UPDATE conversation_members SET last_read_message_id=max(last_read_message_id,?3)
-        WHERE conversation_id=?1 AND user_id=?2
+        UPDATE conversation_members SET last_read_message_id=?3
+        WHERE conversation_id=?1 AND user_id=?2 AND last_read_message_id<?3
           AND EXISTS(SELECT 1 FROM messages WHERE conversation_id=?1 AND id=?3)
         RETURNING last_read_message_id
     )SQL",
@@ -282,18 +282,45 @@ std::expected<std::optional<std::int64_t>, sqlite_error> update_read_position(sq
     {
         return std::unexpected(std::move(row.error()));
     }
-    if (!*row)
+    read_position_change change{};
+    if (*row)
     {
-        return std::nullopt;
+        change = {update->column_int64(0), true};
+        if (auto end = update->step(); !end)
+        {
+            return std::unexpected(std::move(end.error()));
+        }
     }
-    auto const position = update->column_int64(0);
-    if (auto end = update->step(); !end)
+    else
     {
-        return std::unexpected(std::move(end.error()));
+        // A repeated or older acknowledgement remains successful, but does not notify peers.
+        update = sqlite_statement{};
+        auto current = db.prepare(R"SQL(
+            SELECT last_read_message_id FROM conversation_members
+            WHERE conversation_id=?1 AND user_id=?2
+              AND EXISTS(SELECT 1 FROM messages WHERE conversation_id=?1 AND id=?3)
+        )SQL",
+                                  conversation,
+                                  user,
+                                  message);
+        if (!current)
+        {
+            return std::unexpected(std::move(current.error()));
+        }
+        auto existing = current->step();
+        if (!existing)
+        {
+            return std::unexpected(std::move(existing.error()));
+        }
+        if (!*existing)
+        {
+            return std::nullopt;
+        }
+        change = {current->column_int64(0), false};
     }
     if (auto error = transaction->commit(); error)
     {
         return std::unexpected(std::move(error));
     }
-    return position;
+    return change;
 }
