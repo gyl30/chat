@@ -1302,23 +1302,29 @@ struct client::impl
         co_return;
     }
 
-    boost::capy::task<> group_action(std::string method, boost::json::object params, group_action_handler handler)
+    boost::capy::task<> request_bool(std::string method, boost::json::object params, char const* field,
+                                     char const* invalid_result, std::function<void(std::expected<bool, error>)> handler)
     {
-        send_request(std::move(method), std::move(params), [handler = std::move(handler)](auto response) mutable {
+        send_request(std::move(method), std::move(params), [field, invalid_result, handler = std::move(handler)](auto response) {
             if (!response)
             {
                 handler(std::unexpected(std::move(response.error())));
                 return;
             }
-            auto const* changed = response->is_object() ? response->as_object().if_contains("changed") : nullptr;
-            if (!changed || !changed->is_bool())
+            auto const* value = response->is_object() ? response->as_object().if_contains(field) : nullptr;
+            if (!value || !value->is_bool())
             {
-                handler(std::unexpected(make_error(error_kind::protocol, "Invalid group action result")));
+                handler(std::unexpected(make_error(error_kind::protocol, invalid_result)));
                 return;
             }
-            handler(changed->as_bool());
+            handler(value->as_bool());
         });
         co_return;
+    }
+
+    boost::capy::task<> group_action(std::string method, boost::json::object params, group_action_handler handler)
+    {
+        return request_bool(std::move(method), std::move(params), "changed", "Invalid group action result", std::move(handler));
     }
 
     boost::capy::task<> get_users(std::string method, boost::json::object params, users_handler handler)
@@ -1331,13 +1337,7 @@ struct client::impl
                 handler(std::unexpected(std::move(response.error())));
                 return;
             }
-            if (!response->is_object())
-            {
-                handler(std::unexpected(make_error(error_kind::protocol, "Invalid get_contacts result")));
-                return;
-            }
-
-            auto const* users_value = response->as_object().if_contains("users");
+            auto const* users_value = response->is_object() ? response->as_object().if_contains("users") : nullptr;
             if (!users_value || !users_value->is_array())
             {
                 handler(std::unexpected(make_error(error_kind::protocol, "Invalid get_contacts result")));
@@ -1348,14 +1348,8 @@ struct client::impl
             users.reserve(users_value->as_array().size());
             for (auto const& value : users_value->as_array())
             {
-                if (!value.is_object())
-                {
-                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid user")));
-                    return;
-                }
-
                 user item;
-                if (!parse_user(value.as_object(), item))
+                if (!value.is_object() || !parse_user(value.as_object(), item))
                 {
                     handler(std::unexpected(make_error(error_kind::protocol, "Invalid user")));
                     return;
@@ -1908,53 +1902,16 @@ struct client::impl
         co_return;
     }
 
-    boost::capy::task<> remove_contact(std::int64_t contact, remove_contact_handler handler)
-    {
-        boost::json::object params;
-        params.emplace("user", contact);
-        send_request("remove_contact", std::move(params), [handler = std::move(handler)](auto response) mutable {
-            if (!response)
-            {
-                handler(std::unexpected(std::move(response.error())));
-                return;
-            }
-            auto const* removed = response->is_object() ? response->as_object().if_contains("removed") : nullptr;
-            if (!removed || !removed->is_bool())
-            {
-                handler(std::unexpected(make_error(error_kind::protocol, "Invalid remove_contact result")));
-                return;
-            }
-            handler(removed->as_bool());
-        });
-        co_return;
-    }
-
     boost::capy::task<> mark_read(std::int64_t conversation, std::int64_t message_id, mark_read_handler handler)
     {
-        boost::json::object params;
-        params.emplace("conversation", conversation);
-        params.emplace("message", message_id);
-
-        send_request("mark_read", std::move(params), [handler = std::move(handler)](auto response) mutable {
+        send_request("mark_read", {{"conversation", conversation}, {"message", message_id}}, [handler = std::move(handler)](auto response) {
             if (!response)
             {
                 handler(std::unexpected(std::move(response.error())));
                 return;
             }
-            if (!response->is_object())
-            {
-                handler(std::unexpected(make_error(error_kind::protocol, "Invalid mark_read result")));
-                return;
-            }
-
-            auto const* message_value = response->as_object().if_contains("message");
-            if (!message_value)
-            {
-                handler(std::unexpected(make_error(error_kind::protocol, "Invalid mark_read result")));
-                return;
-            }
-
-            auto read_message = parse_int64(*message_value);
+            auto const* message_value = response->is_object() ? response->as_object().if_contains("message") : nullptr;
+            auto read_message = message_value ? parse_int64(*message_value) : std::nullopt;
             if (!read_message || *read_message <= 0)
             {
                 handler(std::unexpected(make_error(error_kind::protocol, "Invalid mark_read result")));
@@ -1963,26 +1920,6 @@ struct client::impl
             handler(*read_message);
         });
 
-        co_return;
-    }
-
-    boost::capy::task<> set_typing(std::int64_t conversation, bool typing, typing_result_handler handler)
-    {
-        send_request("set_typing", {{"conversation", conversation}, {"typing", typing}},
-            [handler = std::move(handler)](auto response) mutable {
-                if (!response)
-                {
-                    handler(std::unexpected(std::move(response.error())));
-                    return;
-                }
-                auto const* realtime = response->is_object() ? response->as_object().if_contains("realtime") : nullptr;
-                if (!realtime || !realtime->is_bool())
-                {
-                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid set_typing result")));
-                    return;
-                }
-                handler(realtime->as_bool());
-            });
         co_return;
     }
 
@@ -2577,7 +2514,8 @@ void client::cancel_friend_request(std::int64_t user, friendship_handler handler
 
 void client::remove_contact(std::int64_t user, remove_contact_handler handler)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->remove_contact(user, std::move(handler)));
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->request_bool(
+        "remove_contact", {{"user", user}}, "removed", "Invalid remove_contact result", std::move(handler)));
 }
 
 void client::mark_read(std::int64_t user, std::int64_t message, mark_read_handler handler)
@@ -2587,7 +2525,8 @@ void client::mark_read(std::int64_t user, std::int64_t message, mark_read_handle
 
 void client::set_typing(std::int64_t conversation, bool typing, typing_result_handler handler)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->set_typing(conversation, typing, std::move(handler)));
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->request_bool(
+        "set_typing", {{"conversation", conversation}, {"typing", typing}}, "realtime", "Invalid set_typing result", std::move(handler)));
 }
 
 }    // namespace chat
