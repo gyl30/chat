@@ -26,7 +26,7 @@ class database
     auto run(F job) -> boost::capy::task<std::invoke_result_t<F&, sqlite_database&>>
     {
         return worker_.run(
-            [this, job = std::move(job)]() mutable -> std::invoke_result_t<F&, sqlite_database&>
+            [this, job = std::move(job)] mutable -> std::invoke_result_t<F&, sqlite_database&>
             {
                 if (!database_.is_open())
                 {

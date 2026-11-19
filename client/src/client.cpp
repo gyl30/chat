@@ -1091,8 +1091,7 @@ struct client::impl
                     auto count = count_value ? parse_uint64(*count_value) : std::nullopt;
                     if (!id || *id <= 0 || !kind || !kind->is_string() || !user_value || !name || !name->is_string() || !last || !unread || !count ||
                         *count == 0 || !muted || !muted->is_bool() || !pinned || !pinned->is_bool() || !pinned_message || !announcement ||
-                        !announcement->is_string() || !approval || !approval->is_bool() ||
-                        (kind->as_string() == "direct" && approval->as_bool()))
+                        !announcement->is_string() || !approval || !approval->is_bool() || (kind->as_string() == "direct" && approval->as_bool()))
                     {
                         handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation")));
                         return;
@@ -2261,7 +2260,7 @@ struct client::impl
                 }
                 job->value.state = state;
                 job->value.media_type = type;
-                job->size = *size;
+                job->size = size;
                 job->value.data.append(*bytes);
                 if (more_field->as_bool())
                 {
@@ -2343,7 +2342,7 @@ client::~client()
     {
         impl_->suppress_callbacks_.store(true);
         // Shutdown joins the network thread after the current callback returns.
-        std::thread([state = std::move(impl_)]() mutable { state.reset(); }).detach();
+        std::thread([state = std::move(impl_)] mutable { state.reset(); }).detach();
     }
 }
 
@@ -2599,7 +2598,7 @@ std::int64_t client::new_client_id()
     static std::mutex mutex;
     static std::mt19937_64 engine{std::random_device{}()};
     std::lock_guard lock(mutex);
-    return static_cast<std::int64_t>(engine() >> 1) | 1;
+    return static_cast<std::int64_t>((engine() >> 1U) | 1ULL);
 }
 
 void client::send_message(std::int64_t conversation,

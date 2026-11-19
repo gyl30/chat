@@ -353,7 +353,7 @@ QColor theme_manager::color(QString const& role) const
 
 QColor theme_manager::avatar_background(quint64 seed) const
 {
-    return avatars_.isEmpty() ? QColor() : avatars_.at(seed % static_cast<quint64>(avatars_.size()));
+    return avatars_.isEmpty() ? QColor() : avatars_.at(static_cast<qsizetype>(seed % static_cast<quint64>(avatars_.size())));
 }
 
 QString theme_manager::style_sheet(QString text) const

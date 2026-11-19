@@ -24,7 +24,7 @@ bool mention_word(std::string_view::const_iterator character, std::string_view::
     {
         return false;
     }
-    auto const category = utf8proc_category(value);
+    auto const category = utf8proc_category(static_cast<utf8proc_int32_t>(value));
     return (category >= UTF8PROC_CATEGORY_LU && category <= UTF8PROC_CATEGORY_LO) ||
            (category >= UTF8PROC_CATEGORY_ND && category <= UTF8PROC_CATEGORY_NO);
 }

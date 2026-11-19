@@ -31,7 +31,7 @@ class blocking_worker
     enum class unavailable
     {
         full,
-        stopped
+        stopped,
     };
 
     template <class F, class Translate>

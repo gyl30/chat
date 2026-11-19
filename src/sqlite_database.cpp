@@ -60,7 +60,7 @@ void unicode_lower(sqlite3_context* context, int, sqlite3_value** arguments)
             return;
         }
         utf8proc_uint8_t encoded[4];
-        auto const length = utf8proc_encode_char(utf8proc_tolower(value), encoded);
+        auto const length = utf8proc_encode_char(utf8proc_tolower(static_cast<utf8proc_int32_t>(value)), encoded);
         lowered.append(reinterpret_cast<char const*>(encoded), length);
     }
     sqlite3_result_text64(context, lowered.data(), lowered.size(), SQLITE_TRANSIENT, SQLITE_UTF8);

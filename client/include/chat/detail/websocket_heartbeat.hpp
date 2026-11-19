@@ -31,11 +31,11 @@ class websocket_heartbeat
         next_deadline_ = now + config_.interval;
     }
 
-    clock::time_point deadline() const noexcept { return next_deadline_; }
-    clock::duration grace() const noexcept { return config_.grace; }
-    bool pending() const noexcept { return pending_; }
-    bool probe_due(clock::time_point now) const noexcept { return !pending_ && now >= next_deadline_; }
-    bool expired(clock::time_point now) const noexcept { return pending_ && now >= next_deadline_; }
+    [[nodiscard]] clock::time_point deadline() const noexcept { return next_deadline_; }
+    [[nodiscard]] clock::duration grace() const noexcept { return config_.grace; }
+    [[nodiscard]] bool pending() const noexcept { return pending_; }
+    [[nodiscard]] bool probe_due(clock::time_point now) const noexcept { return !pending_ && now >= next_deadline_; }
+    [[nodiscard]] bool expired(clock::time_point now) const noexcept { return pending_ && now >= next_deadline_; }
 
     token start_probe(clock::time_point now) noexcept
     {
@@ -59,7 +59,7 @@ class websocket_heartbeat
 
    private:
     websocket_heartbeat_config config_;
-    clock::time_point next_deadline_{};
+    clock::time_point next_deadline_;
     std::uint64_t sequence_ = 0;
     token token_{};
     bool pending_ = false;

@@ -122,7 +122,7 @@ boost::http::route_task not_found_handler(boost::http::route_params& params)
     co_return boost::http::route_done;
 }
 
-boost::capy::task<int> wait_for_shutdown(boost::corosio::signal_set& signals, chat_server& server, std::stop_source& cleanup_stop)
+boost::capy::task<int> wait_for_shutdown(boost::corosio::signal_set& signals, chat_server& server, std::stop_source const& cleanup_stop)
 {
     auto [ec, signal_number] = co_await signals.wait();
     cleanup_stop.request_stop();
@@ -195,11 +195,13 @@ int main(int argc, char* argv[])
         tls.emplace(std::move(*context));
     }
 
-    s3_settings settings{.endpoint = environment("CHAT_S3_ENDPOINT"),
-                         .bucket = environment("CHAT_S3_BUCKET"),
-                         .access_key = environment("CHAT_S3_ACCESS_KEY"),
-                         .secret_key = environment("CHAT_S3_SECRET_KEY"),
-                         .region = environment("CHAT_S3_REGION")};
+    s3_settings settings{
+        .endpoint = environment("CHAT_S3_ENDPOINT"),
+        .bucket = environment("CHAT_S3_BUCKET"),
+        .access_key = environment("CHAT_S3_ACCESS_KEY"),
+        .secret_key = environment("CHAT_S3_SECRET_KEY"),
+        .region = environment("CHAT_S3_REGION"),
+    };
     auto const https = environment("CHAT_S3_HTTPS");
     if (settings.endpoint.empty() || settings.bucket.empty() || settings.access_key.empty() || settings.secret_key.empty() ||
         (!https.empty() && https != "0" && https != "1"))
@@ -214,7 +216,7 @@ int main(int argc, char* argv[])
     {
         settings.region = "us-east-1";
     }
-    database_lock lock{open(argv[3], O_CREAT | O_RDWR | O_CLOEXEC, 0600)};
+    database_lock const lock{.descriptor = open(argv[3], O_CREAT | O_RDWR | O_CLOEXEC, 0600)};
     if (lock.descriptor < 0 || flock(lock.descriptor, LOCK_EX | LOCK_NB) != 0)
     {
         spdlog::error("cannot open or exclusively lock SQLite file {}", argv[3]);
@@ -237,19 +239,19 @@ int main(int argc, char* argv[])
     router.use(not_found_handler);
 
     chat_server server(io_context, max_workers, std::move(router), **storage, objects, tls);
-    if (auto ec = server.bind(boost::corosio::endpoint(port)))
+    if (auto const ec = server.bind(boost::corosio::endpoint(port)))
     {
         spdlog::error("bind failed: {}", ec.message());
         return EXIT_FAILURE;
     }
 
     boost::corosio::signal_set signals(io_context);
-    if (auto ec = signals.add(SIGINT))
+    if (auto const ec = signals.add(SIGINT))
     {
         spdlog::error("failed to register SIGINT: {}", ec.message());
         return EXIT_FAILURE;
     }
-    if (auto ec = signals.add(SIGTERM))
+    if (auto const ec = signals.add(SIGTERM))
     {
         spdlog::error("failed to register SIGTERM: {}", ec.message());
         return EXIT_FAILURE;
@@ -259,7 +261,7 @@ int main(int argc, char* argv[])
     server.start();
 
     const auto executor = io_context.get_executor();
-    std::stop_source stop;
+    std::stop_source const stop;
     boost::capy::run_async(executor, stop.get_token())(recover_objects_periodically(**storage, objects));
     boost::capy::run_async(executor, [](int) {})(wait_for_shutdown(signals, server, stop));
     io_context.run();

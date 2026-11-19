@@ -30,7 +30,7 @@ struct attachment_chunk
 enum class attachment_download_error
 {
     unavailable,
-    failed
+    failed,
 };
 
 boost::capy::task<std::expected<attachment_chunk, attachment_download_error>> download_attachment_chunk(
