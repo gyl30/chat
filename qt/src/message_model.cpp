@@ -312,8 +312,7 @@ int message_model::merge_messages(QList<message_data> messages)
         {
             continue;
         }
-        auto found = std::find_if(merged.cbegin(), merged.cend(), [id = message.id](message_data const& value) { return value.id == id; });
-        if (found == merged.cend())
+        if (!std::ranges::binary_search(messages_, message.id, {}, &message_data::id))
         {
             merged.push_back(std::move(message));
         }
