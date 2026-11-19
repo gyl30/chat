@@ -8,7 +8,7 @@
 namespace
 {
 
-struct [[= simdjson::deny_unknown_fields]] echo_params
+struct[[= simdjson::deny_unknown_fields]] echo_params
 {
     std::string text;
 };

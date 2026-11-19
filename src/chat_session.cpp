@@ -31,10 +31,13 @@ constexpr std::size_t kMaxQueuedMessages = 64;
 
 }    // namespace
 
-chat_session::chat_session(websocket_connection& connection, online_users& users, invite_attempts& invite_attempts,
-                           blocking_worker& passwords, database& storage, s3_objects& objects)
-    : connection_(connection), users_(users), invite_attempts_(invite_attempts), passwords_(passwords),
-      database_(storage), objects_(objects)
+chat_session::chat_session(websocket_connection& connection,
+                           online_users& users,
+                           invite_attempts& invite_attempts,
+                           blocking_worker& passwords,
+                           database& storage,
+                           s3_objects& objects)
+    : connection_(connection), users_(users), invite_attempts_(invite_attempts), passwords_(passwords), database_(storage), objects_(objects)
 {
 }
 
@@ -54,9 +57,7 @@ bool chat_session::enqueue_message(std::string message)
 boost::capy::task<void> chat_session::publish_presence(bool online)
 {
     auto const user = *user_id_;
-    auto presence = co_await database_.run([=](sqlite_database& db) {
-        return record_presence(db, user, online);
-    });
+    auto presence = co_await database_.run([=](sqlite_database& db) { return record_presence(db, user, online); });
     if (!presence)
     {
         spdlog::warn("presence update failed (SQLite {})", presence.error().code);
@@ -67,8 +68,8 @@ boost::capy::task<void> chat_session::publish_presence(bool online)
     {
         co_return;
     }
-    auto notification = R"({"jsonrpc":"2.0","method":"presence","params":{"user":)" + std::to_string(user) +
-        R"(,"online":)" + (online ? "true" : "false") + R"(,"last_seen":)" + std::to_string(presence->last_seen) + "}}";
+    auto notification = R"({"jsonrpc":"2.0","method":"presence","params":{"user":)" + std::to_string(user) + R"(,"online":)" +
+                        (online ? "true" : "false") + R"(,"last_seen":)" + std::to_string(presence->last_seen) + "}}";
     for (auto const watcher : presence->recipients)
     {
         if (auto* session = users_.find(watcher))
@@ -78,57 +79,61 @@ boost::capy::task<void> chat_session::publish_presence(bool online)
     }
 }
 
-boost::capy::task<chat_session::notification_result> chat_session::publish_conversation(
-    std::int64_t conversation, std::string notification, bool require_sender_permission)
+boost::capy::task<chat_session::notification_result> chat_session::publish_conversation(std::int64_t conversation,
+                                                                                        std::string notification,
+                                                                                        bool require_sender_permission)
 {
-    auto recipients = co_await database_.run([=, user=*user_id_](sqlite_database& db)
-        -> std::expected<std::optional<std::vector<std::int64_t>>, sqlite_error> {
-        auto snapshot = sqlite_transaction::begin_read(db);
-        if (!snapshot)
+    auto recipients = co_await database_.run(
+        [=, user = *user_id_](sqlite_database& db) -> std::expected<std::optional<std::vector<std::int64_t>>, sqlite_error>
         {
-            return std::unexpected(std::move(snapshot.error()));
-        }
-        if (require_sender_permission)
-        {
-            auto allowed = can_send_to_conversation(db, conversation, user);
-            if (!allowed)
+            auto snapshot = sqlite_transaction::begin_read(db);
+            if (!snapshot)
             {
-                return std::unexpected(std::move(allowed.error()));
+                return std::unexpected(std::move(snapshot.error()));
             }
-            if (!*allowed)
+            if (require_sender_permission)
             {
-                return std::nullopt;
+                auto allowed = can_send_to_conversation(db, conversation, user);
+                if (!allowed)
+                {
+                    return std::unexpected(std::move(allowed.error()));
+                }
+                if (!*allowed)
+                {
+                    return std::nullopt;
+                }
             }
-        }
-        auto rows = db.prepare(R"SQL(
+            auto rows = db.prepare(R"SQL(
             SELECT m.user_id FROM conversation_members m JOIN conversations c ON c.id=m.conversation_id
             WHERE c.id=?1 AND (m.user_id<>?2 OR c.direct_user_low=c.direct_user_high)
             ORDER BY m.user_id
-        )SQL", conversation, user);
-        if (!rows)
-        {
-            return std::unexpected(std::move(rows.error()));
-        }
-        std::vector<std::int64_t> result;
-        for (;;)
-        {
-            auto row = rows->step();
-            if (!row)
+        )SQL",
+                                   conversation,
+                                   user);
+            if (!rows)
             {
-                return std::unexpected(std::move(row.error()));
+                return std::unexpected(std::move(rows.error()));
             }
-            if (!*row)
+            std::vector<std::int64_t> result;
+            for (;;)
             {
-                break;
+                auto row = rows->step();
+                if (!row)
+                {
+                    return std::unexpected(std::move(row.error()));
+                }
+                if (!*row)
+                {
+                    break;
+                }
+                result.push_back(rows->column_int64(0));
             }
-            result.push_back(rows->column_int64(0));
-        }
-        if (auto error = snapshot->commit(); error)
-        {
-            return std::unexpected(std::move(error));
-        }
-        return result;
-    });
+            if (auto error = snapshot->commit(); error)
+            {
+                return std::unexpected(std::move(error));
+            }
+            return result;
+        });
     if (!recipients)
     {
         spdlog::warn("conversation notification lookup failed (SQLite {})", recipients.error().code);
@@ -193,9 +198,8 @@ boost::capy::task<void> chat_session::run()
 
         if (response.empty())
         {
-            if (request.method == "send_friend_request" || request.method == "respond_friend_request" ||
-                request.method == "cancel_friend_request" || request.method == "get_friend_requests" ||
-                request.method == "remove_contact")
+            if (request.method == "send_friend_request" || request.method == "respond_friend_request" || request.method == "cancel_friend_request" ||
+                request.method == "get_friend_requests" || request.method == "remove_contact")
             {
                 rpc_error = co_await handle_contact_change(request, response);
             }
@@ -203,9 +207,8 @@ boost::capy::task<void> chat_session::run()
             {
                 rpc_error = co_await handle_authenticate(request, response);
             }
-            else if (request.method == "begin_avatar_upload" || request.method == "upload_avatar_chunk" ||
-                     request.method == "finish_avatar_upload" || request.method == "cancel_avatar_upload" ||
-                     request.method == "get_avatar" || request.method == "clear_avatar")
+            else if (request.method == "begin_avatar_upload" || request.method == "upload_avatar_chunk" || request.method == "finish_avatar_upload" ||
+                     request.method == "cancel_avatar_upload" || request.method == "get_avatar" || request.method == "clear_avatar")
             {
                 rpc_error = co_await handle_avatar(request, response);
             }
@@ -237,8 +240,8 @@ boost::capy::task<void> chat_session::run()
             {
                 rpc_error = co_await handle_get_members(request, response);
             }
-            else if (request.method == "get_group_invite" || request.method == "create_group_invite" ||
-                     request.method == "revoke_group_invite" || request.method == "join_group")
+            else if (request.method == "get_group_invite" || request.method == "create_group_invite" || request.method == "revoke_group_invite" ||
+                     request.method == "join_group")
             {
                 rpc_error = co_await handle_group_invite(request, response);
             }
@@ -247,11 +250,9 @@ boost::capy::task<void> chat_session::run()
             {
                 rpc_error = co_await handle_group_join_request(request, response);
             }
-            else if (request.method == "set_group_admin" || request.method == "rename_group" ||
-                     request.method == "invite_group_members" || request.method == "leave_group" ||
-                     request.method == "transfer_group_owner" || request.method == "remove_group_member" ||
-                     request.method == "pin_group_message" || request.method == "unpin_group_message" ||
-                     request.method == "set_group_announcement")
+            else if (request.method == "set_group_admin" || request.method == "rename_group" || request.method == "invite_group_members" ||
+                     request.method == "leave_group" || request.method == "transfer_group_owner" || request.method == "remove_group_member" ||
+                     request.method == "pin_group_message" || request.method == "unpin_group_message" || request.method == "set_group_announcement")
             {
                 rpc_error = co_await handle_group_management(request, response);
             }
@@ -283,8 +284,8 @@ boost::capy::task<void> chat_session::run()
             {
                 rpc_error = co_await handle_register(request, response);
             }
-            else if (request.method == "begin_attachment" || request.method == "upload_attachment" ||
-                     request.method == "cancel_attachment" || request.method == "get_attachment")
+            else if (request.method == "begin_attachment" || request.method == "upload_attachment" || request.method == "cancel_attachment" ||
+                     request.method == "get_attachment")
             {
                 rpc_error = co_await handle_attachment(request, response);
             }

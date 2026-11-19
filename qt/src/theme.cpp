@@ -12,15 +12,9 @@
 class accessible_feedback_notification final : public QAccessibleObject
 {
    public:
-    explicit accessible_feedback_notification(QObject* notification)
-        : QAccessibleObject(notification)
-    {
-    }
+    explicit accessible_feedback_notification(QObject* notification) : QAccessibleObject(notification) {}
 
-    QAccessibleInterface* parent() const override
-    {
-        return QAccessible::queryAccessibleInterface(qApp);
-    }
+    QAccessibleInterface* parent() const override { return QAccessible::queryAccessibleInterface(qApp); }
 
     QAccessibleInterface* child(int) const override { return nullptr; }
     int childCount() const override { return 0; }
@@ -78,8 +72,8 @@ bool confirm_action(QWidget* parent, QString const& title, QString const& text, 
     }
     dialog.setDefaultButton(QMessageBox::No);
     dialog.setEscapeButton(QMessageBox::No);
-    dialog.layout()->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding,
-                                       chat_theme::dialog_padding, chat_theme::dialog_padding);
+    dialog.layout()->setContentsMargins(
+        chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
     dialog.layout()->setSpacing(chat_theme::dialog_spacing);
     return dialog.exec() == QMessageBox::Yes;
 }

@@ -15,7 +15,7 @@
 namespace
 {
 
-struct [[= simdjson::deny_unknown_fields]] get_messages_params
+struct[[= simdjson::deny_unknown_fields]] get_messages_params
 {
     std::int64_t conversation = 0;
     std::optional<std::int64_t> before;
@@ -49,8 +49,7 @@ simdjson::error_code parse_get_messages_params(json_rpc_params& params, get_mess
         return simdjson::TRAILING_CONTENT;
     }
 
-    if (value.conversation <= 0 || (value.before && *value.before <= 0) || (value.after && *value.after < 0) ||
-        (value.before && value.after))
+    if (value.conversation <= 0 || (value.before && *value.before <= 0) || (value.after && *value.after < 0) || (value.before && value.after))
     {
         return simdjson::INCORRECT_TYPE;
     }
@@ -58,10 +57,9 @@ simdjson::error_code parse_get_messages_params(json_rpc_params& params, get_mess
     return simdjson::SUCCESS;
 }
 
-} // namespace
+}    // namespace
 
-boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_rpc_request& request,
-                                                                          std::string& response)
+boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_rpc_request& request, std::string& response)
 {
     if (!user_id_)
     {
@@ -75,9 +73,10 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
     get_messages_params params{};
     auto params_error = parse_get_messages_params(request.params, params);
     bool const searching = request.method == "search_messages";
-    if (params_error || (searching && (!params.query || params.query->empty() || params.query->size() > 1024
-        || params.query->find('\0') != std::string::npos || params.after))
-        || (!searching && params.query))
+    if (params_error ||
+        (searching &&
+         (!params.query || params.query->empty() || params.query->size() > 1024 || params.query->find('\0') != std::string::npos || params.after)) ||
+        (!searching && params.query))
     {
         if (request.id.present)
         {
@@ -86,10 +85,12 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
         co_return simdjson::SUCCESS;
     }
 
-    auto history = co_await database_.run([&, user=*user_id_](sqlite_database& db) {
-        return read_message_history(db, user, params.conversation, params.before, params.after,
-                                    params.query ? std::string_view(*params.query) : "");
-    });
+    auto history = co_await database_.run(
+        [&, user = *user_id_](sqlite_database& db)
+        {
+            return read_message_history(
+                db, user, params.conversation, params.before, params.after, params.query ? std::string_view(*params.query) : "");
+        });
     if (!request.id.present)
     {
         co_return simdjson::SUCCESS;

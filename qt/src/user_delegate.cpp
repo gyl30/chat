@@ -23,31 +23,49 @@ QFont action_font(QFont font)
 
 QRect action_rect(QStyleOptionViewItem const& option, QString const& text)
 {
-    if (text.isEmpty()) { return {}; }
+    if (text.isEmpty())
+    {
+        return {};
+    }
     auto const width = QFontMetrics(action_font(option.font)).horizontalAdvance(text) + 28;
     constexpr int height = 30;
     return {option.rect.right() - chat_theme::dialog_right - width + 1, option.rect.center().y() - height / 2 + 1, width, height};
 }
 
-}
+}    // namespace
 
 user_delegate::user_delegate(QObject* parent, std::function<QString(QModelIndex const&)> status)
-    : QStyledItemDelegate(parent), status_(std::move(status)) {}
+    : QStyledItemDelegate(parent), status_(std::move(status))
+{
+}
 
-bool user_delegate::editorEvent(QEvent* event, QAbstractItemModel* model,
-                                QStyleOptionViewItem const& option, QModelIndex const& index)
+bool user_delegate::editorEvent(QEvent* event, QAbstractItemModel* model, QStyleOptionViewItem const& option, QModelIndex const& index)
 {
     if (event->type() != QEvent::MouseButtonRelease)
     {
         return QStyledItemDelegate::editorEvent(event, model, option, index);
     }
     auto* mouse = static_cast<QMouseEvent*>(event);
-    QRect avatar_rect(option.rect.left() + chat_theme::dialog_left, option.rect.top() + chat_theme::dialog_avatar_top,
-                      chat_theme::dialog_avatar_size, chat_theme::dialog_avatar_size);
-    if (mouse->button() != Qt::LeftButton) { return false; }
-    if (action_rect(option, index.data(action_role).toString()).contains(mouse->pos())) { emit action_clicked(index); }
-    else if (avatar_rect.contains(mouse->pos())) { emit avatar_clicked(index); }
-    else { emit body_clicked(index); }
+    QRect avatar_rect(option.rect.left() + chat_theme::dialog_left,
+                      option.rect.top() + chat_theme::dialog_avatar_top,
+                      chat_theme::dialog_avatar_size,
+                      chat_theme::dialog_avatar_size);
+    if (mouse->button() != Qt::LeftButton)
+    {
+        return false;
+    }
+    if (action_rect(option, index.data(action_role).toString()).contains(mouse->pos()))
+    {
+        emit action_clicked(index);
+    }
+    else if (avatar_rect.contains(mouse->pos()))
+    {
+        emit avatar_clicked(index);
+    }
+    else
+    {
+        emit body_clicked(index);
+    }
     return true;
 }
 
@@ -72,8 +90,10 @@ void user_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option,
     auto const username = index.data(Qt::DisplayRole).toString();
     auto const online = index.data(user_model::online_role).toBool();
     auto const last_seen = index.data(user_model::last_seen_role).toLongLong();
-    QRect avatar_rect(rect.left() + chat_theme::dialog_left, rect.top() + chat_theme::dialog_avatar_top,
-                      chat_theme::dialog_avatar_size, chat_theme::dialog_avatar_size);
+    QRect avatar_rect(rect.left() + chat_theme::dialog_left,
+                      rect.top() + chat_theme::dialog_avatar_top,
+                      chat_theme::dialog_avatar_size,
+                      chat_theme::dialog_avatar_size);
     paint_avatar(*painter, avatar_rect, username, 17, index.data(Qt::DecorationRole).value<QPixmap>());
 
     auto const left = rect.left() + chat_theme::dialog_text_left;
@@ -95,24 +115,21 @@ void user_delegate::paint(QPainter* painter, QStyleOptionViewItem const& option,
     username_font.setPixelSize(14);
     painter->setFont(username_font);
     painter->setPen(themed("text"));
-    QRect username_rect(left, rect.top() + chat_theme::dialog_name_top, right - left,
-                        QFontMetrics(username_font).height());
-    painter->drawText(username_rect, Qt::AlignLeft | Qt::AlignVCenter,
-                      QFontMetrics(username_font).elidedText(username, Qt::ElideRight, username_rect.width()));
+    QRect username_rect(left, rect.top() + chat_theme::dialog_name_top, right - left, QFontMetrics(username_font).height());
+    painter->drawText(
+        username_rect, Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics(username_font).elidedText(username, Qt::ElideRight, username_rect.width()));
 
     auto const request_status = index.data(Qt::StatusTipRole);
-    auto const status = status_ ? status_(index)
-        : request_status.isValid() ? request_status.toString() : presence_text(online, last_seen);
+    auto const status = status_ ? status_(index) : request_status.isValid() ? request_status.toString() : presence_text(online, last_seen);
     if (!status.isEmpty())
     {
         QFont status_font = option.font;
         status_font.setPixelSize(13);
         painter->setFont(status_font);
         painter->setPen(themed((status_ || request_status.isValid()) ? "text_secondary" : online ? "online" : "text_muted"));
-        QRect status_rect(left, rect.top() + chat_theme::dialog_preview_top, right - left,
-                          QFontMetrics(status_font).height());
-        painter->drawText(status_rect, Qt::AlignLeft | Qt::AlignVCenter,
-                          QFontMetrics(status_font).elidedText(status, Qt::ElideRight, status_rect.width()));
+        QRect status_rect(left, rect.top() + chat_theme::dialog_preview_top, right - left, QFontMetrics(status_font).height());
+        painter->drawText(
+            status_rect, Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics(status_font).elidedText(status, Qt::ElideRight, status_rect.width()));
     }
 
     if (option.state & QStyle::State_HasFocus)

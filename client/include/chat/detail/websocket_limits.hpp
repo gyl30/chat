@@ -9,6 +9,6 @@ namespace chat::detail
 // Complete client-to-server WebSocket JSON payload, including RPC metadata and escaping.
 inline constexpr std::size_t max_websocket_request_size = 64 * 1024;
 
-} // namespace chat::detail
+}    // namespace chat::detail
 
 #endif

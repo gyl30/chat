@@ -88,8 +88,7 @@ std::expected<sqlite_database, sqlite_error> sqlite_database::open(std::string c
 {
     sqlite_database result;
     sqlite3* handle = nullptr;
-    int const status = sqlite3_open_v2(path.c_str(), &handle,
-        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr);
+    int const status = sqlite3_open_v2(path.c_str(), &handle, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr);
     result.database_.reset(handle);
     if (status != SQLITE_OK)
     {
@@ -97,8 +96,8 @@ std::expected<sqlite_database, sqlite_error> sqlite_database::open(std::string c
     }
 
     sqlite3_extended_result_codes(handle, 1);
-    if (auto code = sqlite3_create_function_v2(handle, "chat_lower", 1, SQLITE_UTF8 | SQLITE_DETERMINISTIC,
-                                                nullptr, unicode_lower, nullptr, nullptr, nullptr);
+    if (auto code = sqlite3_create_function_v2(
+            handle, "chat_lower", 1, SQLITE_UTF8 | SQLITE_DETERMINISTIC, nullptr, unicode_lower, nullptr, nullptr, nullptr);
         code != SQLITE_OK)
     {
         return std::unexpected(make_error(handle, code));
@@ -195,10 +194,7 @@ sqlite_error sqlite_database::exec(std::string_view sql)
     return {};
 }
 
-std::int64_t sqlite_database::last_insert_rowid() const noexcept
-{
-    return database_ ? sqlite3_last_insert_rowid(database_.get()) : 0;
-}
+std::int64_t sqlite_database::last_insert_rowid() const noexcept { return database_ ? sqlite3_last_insert_rowid(database_.get()) : 0; }
 
 int sqlite_database::changes() const noexcept { return database_ ? sqlite3_changes(database_.get()) : 0; }
 
@@ -228,8 +224,8 @@ sqlite_error sqlite_statement::bind_null(int index)
 
 sqlite_error sqlite_statement::bind(int index, std::span<const std::byte> value)
 {
-    int const status = value.empty() ? sqlite3_bind_zeroblob(statement_.get(), index, 0) :
-        sqlite3_bind_blob64(statement_.get(), index, value.data(), value.size(), SQLITE_TRANSIENT);
+    int const status = value.empty() ? sqlite3_bind_zeroblob(statement_.get(), index, 0)
+                                     : sqlite3_bind_blob64(statement_.get(), index, value.data(), value.size(), SQLITE_TRANSIENT);
     return status == SQLITE_OK ? sqlite_error{} : make_error(statement_.get());
 }
 
@@ -273,10 +269,7 @@ bool sqlite_statement::column_is_null(int index) const { return sqlite3_column_t
 
 sqlite_transaction::sqlite_transaction(sqlite_transaction&& other) noexcept : database_(std::exchange(other.database_, nullptr)) {}
 
-sqlite_transaction::~sqlite_transaction()
-{
-    rollback();
-}
+sqlite_transaction::~sqlite_transaction() { rollback(); }
 
 std::expected<sqlite_transaction, sqlite_error> sqlite_transaction::begin_read(sqlite_database& database)
 {

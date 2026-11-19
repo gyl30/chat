@@ -12,8 +12,7 @@
 #include "attachment_io.hpp"
 #include "conversation_store.hpp"
 
-boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc_request& request,
-                                                                    std::string& response)
+boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc_request& request, std::string& response)
 {
     if (!request.id.present)
     {
@@ -31,7 +30,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
     }
     if (request.method == "begin_attachment")
     {
-        struct [[= simdjson::deny_unknown_fields]] begin_params
+        struct[[= simdjson::deny_unknown_fields]] begin_params
         {
             std::int64_t conversation = 0;
             std::string filename;
@@ -40,8 +39,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
         };
         begin_params params;
         if (document.get(params) || !document.at_end() || params.conversation <= 0 || params.client_id <= 0 || params.size < 0 ||
-            params.size > static_cast<std::int64_t>(chat::max_attachment_size) || params.filename.empty() ||
-            params.filename.size() > 255 || params.filename.find_first_of("/\\") != std::string::npos ||
+            params.size > static_cast<std::int64_t>(chat::max_attachment_size) || params.filename.empty() || params.filename.size() > 255 ||
+            params.filename.find_first_of("/\\") != std::string::npos ||
             std::ranges::any_of(params.filename, [](unsigned char value) { return value < 32 || value == 127; }))
         {
             co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
@@ -68,9 +67,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
         {
             co_return serialize_json_rpc_error(-32008, "Attachment upload in progress", std::move(request.id), response);
         }
-        auto allowed = co_await database_.run([=, user=*user_id_](sqlite_database& db) {
-            return can_send_to_conversation(db, params.conversation, user);
-        });
+        auto allowed =
+            co_await database_.run([=, user = *user_id_](sqlite_database& db) { return can_send_to_conversation(db, params.conversation, user); });
         if (!allowed)
         {
             co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
@@ -81,20 +79,19 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
         }
         auto const upload = next_upload_id_++;
         upload_.emplace(upload, params.conversation, params.client_id, std::move(params.filename), params.size, std::string{});
-        co_return serialize_json_rpc_success("{\"upload\":" + std::to_string(upload) + "}",
-                                            std::move(request.id), response);
+        co_return serialize_json_rpc_success("{\"upload\":" + std::to_string(upload) + "}", std::move(request.id), response);
     }
     if (request.method == "get_attachment")
     {
-        struct [[= simdjson::deny_unknown_fields]] get_params
+        struct[[= simdjson::deny_unknown_fields]] get_params
         {
             std::int64_t conversation = 0;
             std::int64_t message = 0;
             std::int64_t offset = 0;
         };
         get_params params;
-        if (document.get(params) || !document.at_end() || params.conversation <= 0 || params.message <= 0 ||
-            params.offset < 0 || params.offset > static_cast<std::int64_t>(chat::max_attachment_size))
+        if (document.get(params) || !document.at_end() || params.conversation <= 0 || params.message <= 0 || params.offset < 0 ||
+            params.offset > static_cast<std::int64_t>(chat::max_attachment_size))
         {
             co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
         }
@@ -106,14 +103,19 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
                 ? serialize_json_rpc_error(-32007, "Attachment unavailable", std::move(request.id), response)
                 : serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
         }
-        struct chunk { std::size_t offset, size; std::string data; bool has_more; };
+        struct chunk
+        {
+            std::size_t offset, size;
+            std::string data;
+            bool has_more;
+        };
         auto const& bytes = *result;
         chunk value{offset, bytes.size, chat::detail::encode_base64(bytes.bytes), bytes.size - offset > bytes.bytes.size()};
         co_return serialize_json_rpc_value(value, std::move(request.id), response);
     }
     if (request.method == "cancel_attachment")
     {
-        struct [[= simdjson::deny_unknown_fields]] cancel_params
+        struct[[= simdjson::deny_unknown_fields]] cancel_params
         {
             std::int64_t upload = 0;
         };
@@ -127,10 +129,9 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
         {
             upload_.reset();
         }
-        co_return serialize_json_rpc_success(cancelled ? "{\"cancelled\":true}" : "{\"cancelled\":false}",
-                                            std::move(request.id), response);
+        co_return serialize_json_rpc_success(cancelled ? "{\"cancelled\":true}" : "{\"cancelled\":false}", std::move(request.id), response);
     }
-    struct [[= simdjson::deny_unknown_fields]] chunk_params
+    struct[[= simdjson::deny_unknown_fields]] chunk_params
     {
         std::int64_t upload = 0;
         std::int64_t offset = -1;
@@ -154,6 +155,5 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
     upload_->content.append(*bytes);
-    co_return serialize_json_rpc_success("{\"offset\":" + std::to_string(upload_->content.size()) + "}",
-                                        std::move(request.id), response);
+    co_return serialize_json_rpc_success("{\"offset\":" + std::to_string(upload_->content.size()) + "}", std::move(request.id), response);
 }

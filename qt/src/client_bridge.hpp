@@ -103,12 +103,16 @@ class client_bridge final : public QObject
     void contacts_received(QList<user_data> contacts, QString error_message);
     void presences_received(QList<presence_data> users, QString error_message);
     void presence_changed(presence_data user);
-    void messages_received(qint64 conversation, QList<message_data> messages, read_positions positions, bool older,
-                           bool recovering, bool has_more, QString error_message);
+    void messages_received(qint64 conversation,
+                           QList<message_data> messages,
+                           read_positions positions,
+                           bool older,
+                           bool recovering,
+                           bool has_more,
+                           QString error_message);
     void message_received(message_data message);
     void message_updated(qint64 conversation, message_data message, QString error_message);
-    void reaction_changed(qint64 conversation, qint64 message, qint64 revision, QList<reaction_data> reactions,
-                          QString error_message);
+    void reaction_changed(qint64 conversation, qint64 message, qint64 revision, QList<reaction_data> reactions, QString error_message);
     void messages_read(qint64 conversation, qint64 user, qint64 message);
     void typing_changed(qint64 conversation, qint64 user, QString username, bool typing);
     void conversation_opened(conversation_data conversation, QString error_message);
@@ -129,28 +133,43 @@ class client_bridge final : public QObject
     void attachment_received(qint64 conversation, qint64 message, QByteArray data, QString error_message);
     void message_image_received(qint64 conversation, qint64 message, QByteArray data, QString error_message);
     void history_received(qint64 conversation, QList<message_data> messages, bool has_more, QString error_message);
-    void message_search_received(qint64 conversation, QString query, qint64 before, QList<message_data> messages,
-                                 read_positions positions, bool has_more, QString error_message);
+    void message_search_received(qint64 conversation,
+                                 QString query,
+                                 qint64 before,
+                                 QList<message_data> messages,
+                                 read_positions positions,
+                                 bool has_more,
+                                 QString error_message);
     void read_marked(qint64 user, qint64 message, QString error_message);
 
    private:
     std::function<void(std::expected<bool, chat::error>)> group_action_result(qint64 conversation, bool leaving = false);
     std::function<void(std::expected<chat::message, chat::error>)> send_result(qint64 conversation, qint64 client_id);
-    template <class F> void post_result(std::uint64_t generation, F result)
+    template <class F>
+    void post_result(std::uint64_t generation, F result)
     {
-        QMetaObject::invokeMethod(this, [this, generation, result = std::move(result)]() mutable {
-            if (generation == connection_generation_) { result(); }
-        }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(
+            this,
+            [this, generation, result = std::move(result)]() mutable
+            {
+                if (generation == connection_generation_)
+                {
+                    result();
+                }
+            },
+            Qt::QueuedConnection);
     }
-    void get_conversations_page(std::optional<chat::conversation_cursor> before, QList<conversation_data> conversations,
-                                std::uint64_t generation, std::uint64_t connection);
-     std::uint64_t conversations_generation_ = 0;
-     std::uint64_t contacts_generation_ = 0;
-     std::uint64_t friend_requests_generation_ = 0;
-     std::uint64_t messages_generation_ = 0;
-     std::uint64_t search_generation_ = 0;
-     std::uint64_t history_generation_ = 0;
-     std::uint64_t download_generation_ = 0;
+    void get_conversations_page(std::optional<chat::conversation_cursor> before,
+                                QList<conversation_data> conversations,
+                                std::uint64_t generation,
+                                std::uint64_t connection);
+    std::uint64_t conversations_generation_ = 0;
+    std::uint64_t contacts_generation_ = 0;
+    std::uint64_t friend_requests_generation_ = 0;
+    std::uint64_t messages_generation_ = 0;
+    std::uint64_t search_generation_ = 0;
+    std::uint64_t history_generation_ = 0;
+    std::uint64_t download_generation_ = 0;
     std::atomic_uint64_t connection_generation_ = 0;
     std::unique_ptr<chat::client> client_;
 };

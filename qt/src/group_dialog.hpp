@@ -22,8 +22,13 @@ class group_dialog final : public QDialog
     Q_OBJECT
 
    public:
-    group_dialog(qint64 conversation, qint64 self_user, QString const& title, QString const& announcement, bool join_approval,
-                 QWidget* parent, avatar_cache* avatars = nullptr);
+    group_dialog(qint64 conversation,
+                 qint64 self_user,
+                 QString const& title,
+                 QString const& announcement,
+                 bool join_approval,
+                 QWidget* parent,
+                 avatar_cache* avatars = nullptr);
     void set_members(qint64 conversation, QList<member_data> members, QString const& error);
     void finish_action(qint64 conversation, bool left, QString const& error);
     void set_contacts(QList<user_data> contacts, QString const& error);

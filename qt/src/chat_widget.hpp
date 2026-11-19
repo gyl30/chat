@@ -70,8 +70,7 @@ class chat_widget final : public QWidget
     void set_add_contact_search_results(QList<user_data> users, quint64 request);
     void set_add_contact_search_error(QString message, quint64 request);
     void finish_add_contact(qint64 user, QString error);
-    void set_messages(qint64 conversation, QList<message_data> messages, read_positions positions, bool older,
-                      bool recovering, bool has_more);
+    void set_messages(qint64 conversation, QList<message_data> messages, read_positions positions, bool older, bool recovering, bool has_more);
     void set_read_message(qint64 conversation, qint64 user, qint64 message);
     void reset_read_positions(qint64 conversation);
     void set_typing(qint64 conversation, qint64 user, QString username, bool typing);

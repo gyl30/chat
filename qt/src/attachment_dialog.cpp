@@ -14,17 +14,19 @@
 #include <QStandardPaths>
 #include <QVBoxLayout>
 
-attachment_dialog::attachment_dialog(qint64 conversation, qint64 message, QString filename, bool preview, QWidget* parent,
-                                     QPixmap image)
-    : QDialog(parent), conversation_(conversation), message_(message), filename_(std::move(filename)), preview_(preview),
+attachment_dialog::attachment_dialog(qint64 conversation, qint64 message, QString filename, bool preview, QWidget* parent, QPixmap image)
+    : QDialog(parent),
+      conversation_(conversation),
+      message_(message),
+      filename_(std::move(filename)),
+      preview_(preview),
       preview_image_(std::move(image))
 {
     setObjectName(QStringLiteral("attachmentDialog"));
     setWindowTitle(filename_);
     resize(preview ? QSize(700, 600) : QSize(500, 180));
     auto* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding,
-                              chat_theme::dialog_padding, chat_theme::dialog_padding);
+    layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
     layout->setSpacing(chat_theme::dialog_spacing);
     status_ = new QLabel(QStringLiteral("正在下载 %1…").arg(filename_), this);
     status_->setObjectName(QStringLiteral("attachmentStatus"));
@@ -49,29 +51,32 @@ attachment_dialog::attachment_dialog(qint64 conversation, qint64 message, QStrin
     buttons->button(QDialogButtonBox::Close)->setIcon({});
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    connect(save_button_, &QPushButton::clicked, this, [this] {
-        auto const path = QFileDialog::getSaveFileName(this, QStringLiteral("保存文件"),
-            QStandardPaths::writableLocation(QStandardPaths::DownloadLocation) + "/" + filename_);
-        if (path.isEmpty())
-        {
-            return;
-        }
-        QSaveFile file(path);
-        if (!file.open(QIODevice::WriteOnly) || file.write(data_) != data_.size() || !file.commit())
-        {
-            status_->setText(QStringLiteral("保存失败：%1").arg(file.errorString()));
-            return;
-        }
-        status_->setText(QStringLiteral("已保存到 %1").arg(path));
-    });
+    connect(save_button_,
+            &QPushButton::clicked,
+            this,
+            [this]
+            {
+                auto const path = QFileDialog::getSaveFileName(
+                    this, QStringLiteral("保存文件"), QStandardPaths::writableLocation(QStandardPaths::DownloadLocation) + "/" + filename_);
+                if (path.isEmpty())
+                {
+                    return;
+                }
+                QSaveFile file(path);
+                if (!file.open(QIODevice::WriteOnly) || file.write(data_) != data_.size() || !file.commit())
+                {
+                    status_->setText(QStringLiteral("保存失败：%1").arg(file.errorString()));
+                    return;
+                }
+                status_->setText(QStringLiteral("已保存到 %1").arg(path));
+            });
 }
 
 bool attachment_dialog::eventFilter(QObject* watched, QEvent* event)
 {
     if (watched == image_ && event->type() == QEvent::Resize && !preview_image_.isNull())
     {
-        image_->setPixmap(preview_image_.scaled(preview_image_.size().boundedTo(image_->size()),
-                                               Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        image_->setPixmap(preview_image_.scaled(preview_image_.size().boundedTo(image_->size()), Qt::KeepAspectRatio, Qt::SmoothTransformation));
     }
     return QDialog::eventFilter(watched, event);
 }
@@ -112,7 +117,6 @@ void attachment_dialog::set_data(qint64 conversation, qint64 message, QByteArray
         return;
     }
     preview_image_ = QPixmap::fromImage(image);
-    image_->setPixmap(preview_image_.scaled(preview_image_.size().boundedTo(image_->size()),
-                                           Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    image_->setPixmap(preview_image_.scaled(preview_image_.size().boundedTo(image_->size()), Qt::KeepAspectRatio, Qt::SmoothTransformation));
     image_->show();
 }

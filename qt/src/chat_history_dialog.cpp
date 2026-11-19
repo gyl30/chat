@@ -42,15 +42,27 @@ QString time_text(qint64 timestamp)
 {
     auto const value = QDateTime::fromMSecsSinceEpoch(timestamp);
     auto const today = QDate::currentDate();
-    if (value.date() == today) { return value.toString(QStringLiteral("HH:mm")); }
-    if (value.date().year() == today.year()) { return value.toString(QStringLiteral("M月d日 HH:mm")); }
+    if (value.date() == today)
+    {
+        return value.toString(QStringLiteral("HH:mm"));
+    }
+    if (value.date().year() == today.year())
+    {
+        return value.toString(QStringLiteral("M月d日 HH:mm"));
+    }
     return value.toString(QStringLiteral("yyyy年M月d日 HH:mm"));
 }
 
 QString size_text(qint64 bytes)
 {
-    if (bytes < 1024) { return QStringLiteral("%1 B").arg(bytes); }
-    if (bytes < 1024 * 1024) { return QStringLiteral("%1 KB").arg(bytes / 1024.0, 0, 'f', 1); }
+    if (bytes < 1024)
+    {
+        return QStringLiteral("%1 B").arg(bytes);
+    }
+    if (bytes < 1024 * 1024)
+    {
+        return QStringLiteral("%1 KB").arg(bytes / 1024.0, 0, 'f', 1);
+    }
     return QStringLiteral("%1 MB").arg(bytes / 1024.0 / 1024.0, 0, 'f', 1);
 }
 
@@ -60,7 +72,7 @@ QString content_text(message_data const& message)
     {
         auto const image = message.attachment->media_type.startsWith(QStringLiteral("image/"));
         return (image ? QStringLiteral("[图片] ") : QStringLiteral("[文件] ")) + message.attachment->filename +
-            (image ? QString{} : QStringLiteral(" · ") + size_text(message.attachment->size));
+               (image ? QString{} : QStringLiteral(" · ") + size_text(message.attachment->size));
     }
     return message.text.simplified();
 }
@@ -101,16 +113,15 @@ class history_delegate final : public QStyledItemDelegate
         painter->setFont(name_font);
         painter->setPen(themed("text_secondary"));
         QRect name(left, rect.top() + 12, right - time_width - 12 - left, 18);
-        painter->drawText(name, Qt::AlignLeft | Qt::AlignVCenter,
-                          QFontMetrics(name_font).elidedText(sender, Qt::ElideRight, name.width()));
+        painter->drawText(name, Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics(name_font).elidedText(sender, Qt::ElideRight, name.width()));
         QFont content_font = option.font;
         content_font.setPixelSize(14);
         painter->setFont(content_font);
         painter->setPen(themed("text"));
         QRect content(left, rect.top() + 34, right - left, 22);
-        painter->drawText(content, Qt::AlignLeft | Qt::AlignVCenter,
-                          QFontMetrics(content_font).elidedText(index.data(content_role).toString(), Qt::ElideRight,
-                                                               content.width()));
+        painter->drawText(content,
+                          Qt::AlignLeft | Qt::AlignVCenter,
+                          QFontMetrics(content_font).elidedText(index.data(content_role).toString(), Qt::ElideRight, content.width()));
         painter->restore();
     }
 
@@ -124,13 +135,19 @@ class history_delegate final : public QStyledItemDelegate
 
 bool chat_history_dialog::matches(message_data const& message, category kind)
 {
-    if (message.deleted) { return false; }
+    if (message.deleted)
+    {
+        return false;
+    }
     auto const image = message.attachment && message.attachment->media_type.startsWith(QStringLiteral("image/"));
     switch (kind)
     {
-        case category::all: return true;
-        case category::images: return image;
-        case category::files: return message.attachment.has_value() && !image;
+        case category::all:
+            return true;
+        case category::images:
+            return image;
+        case category::files:
+            return message.attachment.has_value() && !image;
         case category::links:
             return message.text.contains(QStringLiteral("http://")) || message.text.contains(QStringLiteral("https://"));
     }
@@ -144,22 +161,23 @@ chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& tit
     setWindowTitle(QStringLiteral("聊天记录 · %1").arg(title));
     resize(560, 640);
     auto* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding,
-                              chat_theme::dialog_padding, chat_theme::dialog_padding);
+    layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
     layout->setSpacing(chat_theme::dialog_spacing);
     search_ = new QLineEdit(this);
     search_->setObjectName(QStringLiteral("historySearchEdit"));
     search_->setPlaceholderText(QStringLiteral("搜索"));
     search_->setAccessibleName(QStringLiteral("搜索聊天记录"));
     search_->setClearButtonEnabled(true);
-    auto* search_icon = search_->addAction(
-        svg_icon(u"search", themed("text_muted"), QSize(16, 16)), QLineEdit::LeadingPosition);
+    auto* search_icon = search_->addAction(svg_icon(u"search", themed("text_muted"), QSize(16, 16)), QLineEdit::LeadingPosition);
     layout->addWidget(search_);
     tabs_ = new QTabBar(this);
     tabs_->setObjectName(QStringLiteral("historyTabs"));
     tabs_->setDrawBase(false);
     tabs_->setExpanding(false);
-    for (auto const* name : {"全部", "图片", "文件", "链接"}) { tabs_->addTab(QString::fromUtf8(name)); }
+    for (auto const* name : {"全部", "图片", "文件", "链接"})
+    {
+        tabs_->addTab(QString::fromUtf8(name));
+    }
     layout->addWidget(tabs_);
     status_ = new QLabel(this);
     status_->setObjectName(QStringLiteral("historyStatus"));
@@ -174,10 +192,14 @@ chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& tit
     list_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     list_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     list_->setMouseTracking(true);
-    connect(&theme_manager::instance(), &theme_manager::changed, this, [this, search_icon] {
-        search_icon->setIcon(svg_icon(u"search", themed("text_muted"), QSize(16, 16)));
-        list_->viewport()->update();
-    });
+    connect(&theme_manager::instance(),
+            &theme_manager::changed,
+            this,
+            [this, search_icon]
+            {
+                search_icon->setIcon(svg_icon(u"search", themed("text_muted"), QSize(16, 16)));
+                list_->viewport()->update();
+            });
     list_->setContextMenuPolicy(Qt::CustomContextMenu);
     layout->addWidget(list_, 1);
     layout->addWidget(status_);
@@ -186,30 +208,44 @@ chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& tit
     more_->hide();
     layout->addWidget(more_, 0, Qt::AlignHCenter);
 
-    connect(search_, &QLineEdit::returnPressed, this, [this] {
-        restart_search(search_->text().trimmed());
-    });
-    connect(search_, &QLineEdit::textChanged, this, [this](QString const& text) {
-        // Clearing the search returns to browsing the whole history.
-        if (text.trimmed().isEmpty() && !query_.isEmpty())
-        {
-            restart_search({});
-        }
-    });
-    connect(tabs_, &QTabBar::currentChanged, this, [this] {
-        filling_pages_ = 0;
-        rebuild();
-        fill_sparse_category();
-    });
+    connect(search_, &QLineEdit::returnPressed, this, [this] { restart_search(search_->text().trimmed()); });
+    connect(search_,
+            &QLineEdit::textChanged,
+            this,
+            [this](QString const& text)
+            {
+                // Clearing the search returns to browsing the whole history.
+                if (text.trimmed().isEmpty() && !query_.isEmpty())
+                {
+                    restart_search({});
+                }
+            });
+    connect(tabs_,
+            &QTabBar::currentChanged,
+            this,
+            [this]
+            {
+                filling_pages_ = 0;
+                rebuild();
+                fill_sparse_category();
+            });
     connect(more_, &QPushButton::clicked, this, [this] { request_more(); });
-    connect(list_->verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int value) {
-        if (value == list_->verticalScrollBar()->maximum() && value > 0) { request_more(); }
-    });
-    connect(list_, &QListWidget::itemActivated, this, [this](QListWidgetItem* item) {
-        emit message_activated(item->data(id_role).toLongLong());
-    });
+    connect(list_->verticalScrollBar(),
+            &QScrollBar::valueChanged,
+            this,
+            [this](int value)
+            {
+                if (value == list_->verticalScrollBar()->maximum() && value > 0)
+                {
+                    request_more();
+                }
+            });
+    connect(list_, &QListWidget::itemActivated, this, [this](QListWidgetItem* item) { emit message_activated(item->data(id_role).toLongLong()); });
     connect(list_, &QListWidget::customContextMenuRequested, this, [this](QPoint position) { show_menu(position); });
-    if (avatars_) { connect(avatars_, &avatar_cache::changed, list_->viewport(), [this] { list_->viewport()->update(); }); }
+    if (avatars_)
+    {
+        connect(avatars_, &avatar_cache::changed, list_->viewport(), [this] { list_->viewport()->update(); });
+    }
     rebuild();
 }
 
@@ -217,7 +253,10 @@ void chat_history_dialog::start() { request_more(); }
 
 void chat_history_dialog::interrupt_loading()
 {
-    if (!loading_) { return; }
+    if (!loading_)
+    {
+        return;
+    }
     loading_ = false;
     status_->setText(QStringLiteral("连接已断开，恢复后可重新加载。"));
     status_->show();
@@ -237,7 +276,10 @@ void chat_history_dialog::restart_search(QString query)
 
 void chat_history_dialog::request_more()
 {
-    if (loading_ || !has_more_) { return; }
+    if (loading_ || !has_more_)
+    {
+        return;
+    }
     loading_ = true;
     auto const before = messages_.isEmpty() ? 0 : messages_.back().id;
     more_->setText(QStringLiteral("加载更早的记录"));
@@ -245,10 +287,12 @@ void chat_history_dialog::request_more()
     emit history_requested(query_, before);
 }
 
-void chat_history_dialog::set_history(qint64 conversation, QList<message_data> messages, bool has_more,
-                                     QString const& error)
+void chat_history_dialog::set_history(qint64 conversation, QList<message_data> messages, bool has_more, QString const& error)
 {
-    if (conversation != conversation_ || !loading_) { return; }
+    if (conversation != conversation_ || !loading_)
+    {
+        return;
+    }
     loading_ = false;
     if (!error.isEmpty())
     {
@@ -265,7 +309,10 @@ void chat_history_dialog::add_messages(QList<message_data> messages, bool has_mo
     std::ranges::sort(messages, [](auto const& a, auto const& b) { return a.id > b.id; });
     for (auto& message : messages)
     {
-        if (messages_.isEmpty() || message.id < messages_.back().id) { messages_.push_back(std::move(message)); }
+        if (messages_.isEmpty() || message.id < messages_.back().id)
+        {
+            messages_.push_back(std::move(message));
+        }
     }
     has_more_ = has_more && !messages.isEmpty();
     rebuild();
@@ -290,28 +337,41 @@ void chat_history_dialog::rebuild()
     list_->clear();
     for (auto const& message : messages_)
     {
-        if (!matches(message, kind)) { continue; }
+        if (!matches(message, kind))
+        {
+            continue;
+        }
         auto* item = new QListWidgetItem(list_);
         item->setData(id_role, message.id);
         item->setData(sender_role, message.username);
         item->setData(from_role, message.from);
         item->setData(time_role, time_text(message.timestamp));
         item->setData(content_role, content_text(message));
-        item->setData(Qt::AccessibleTextRole, message.username + QStringLiteral("，") + time_text(message.timestamp) +
-                                                 QStringLiteral("：") + content_text(message));
+        item->setData(Qt::AccessibleTextRole,
+                      message.username + QStringLiteral("，") + time_text(message.timestamp) + QStringLiteral("：") + content_text(message));
         item->setToolTip(content_text(message));
-        if (message.id == selected) { list_->setCurrentItem(item); }
+        if (message.id == selected)
+        {
+            list_->setCurrentItem(item);
+        }
     }
     list_->verticalScrollBar()->setValue(scroll);
-    if (loading_ && list_->count() == 0) { status_->setText(QStringLiteral("正在加载…")); }
+    if (loading_ && list_->count() == 0)
+    {
+        status_->setText(QStringLiteral("正在加载…"));
+    }
     else if (list_->count() == 0)
     {
-        status_->setText(!query_.isEmpty() ? QStringLiteral("没有找到相关记录")
-            : kind == category::images ? QStringLiteral("没有图片")
-            : kind == category::files ? QStringLiteral("没有文件")
-            : kind == category::links ? QStringLiteral("没有链接") : QStringLiteral("还没有聊天记录"));
+        status_->setText(!query_.isEmpty()          ? QStringLiteral("没有找到相关记录")
+                         : kind == category::images ? QStringLiteral("没有图片")
+                         : kind == category::files  ? QStringLiteral("没有文件")
+                         : kind == category::links  ? QStringLiteral("没有链接")
+                                                    : QStringLiteral("还没有聊天记录"));
     }
-    else { status_->clear(); }
+    else
+    {
+        status_->clear();
+    }
     status_->setVisible(!status_->text().isEmpty());
     more_->setVisible(has_more_ && !loading_ && list_->count() > 0);
 }
@@ -319,7 +379,10 @@ void chat_history_dialog::rebuild()
 void chat_history_dialog::show_menu(QPoint position)
 {
     auto* item = list_->itemAt(position);
-    if (!item) { return; }
+    if (!item)
+    {
+        return;
+    }
     list_->setCurrentItem(item);
     auto const id = item->data(id_role).toLongLong();
     auto const found = std::ranges::find(messages_, id, &message_data::id);
@@ -327,6 +390,12 @@ void chat_history_dialog::show_menu(QPoint position)
     auto* locate = menu.addAction(QStringLiteral("定位到聊天位置"));
     auto* copy = found != messages_.end() && !found->text.isEmpty() ? menu.addAction(QStringLiteral("复制")) : nullptr;
     auto* chosen = menu.exec(list_->viewport()->mapToGlobal(position));
-    if (chosen == locate) { emit message_activated(id); }
-    else if (copy && chosen == copy) { QGuiApplication::clipboard()->setText(found->text); }
+    if (chosen == locate)
+    {
+        emit message_activated(id);
+    }
+    else if (copy && chosen == copy)
+    {
+        QGuiApplication::clipboard()->setText(found->text);
+    }
 }

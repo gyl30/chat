@@ -15,59 +15,64 @@ namespace
 
 void merge_reply(quoted_message_data& reply, QList<message_data> const& messages)
 {
-    if (reply.id <= 0 || reply.deleted) { return; }
-    auto const target = std::find_if(messages.cbegin(), messages.cend(), [&](auto const& message) {
-        return message.id == reply.id;
-    });
+    if (reply.id <= 0 || reply.deleted)
+    {
+        return;
+    }
+    auto const target = std::find_if(messages.cbegin(), messages.cend(), [&](auto const& message) { return message.id == reply.id; });
     if (target != messages.cend() && (target->deleted || target->edited_at > reply.edited_at))
     {
         reply = {target->id, target->username, grapheme_prefix(target->text, 160), target->edited_at, target->deleted};
     }
 }
 
-} // namespace
+}    // namespace
 
 message_model::message_model(QObject* parent, avatar_cache* avatars, message_images* images)
     : QAbstractListModel(parent), avatars_(avatars), images_(images)
 {
     if (images_)
     {
-        connect(images_, &message_images::changed, this, [this](qint64 message) {
-            for (int row = 0; row < messages_.size(); ++row)
-            {
-                if (messages_[row].id == message)
+        connect(images_,
+                &message_images::changed,
+                this,
+                [this](qint64 message)
                 {
-                    emit dataChanged(index(row, 0), index(row, 0), {image_role, image_status_role});
-                }
-            }
-        });
+                    for (int row = 0; row < messages_.size(); ++row)
+                    {
+                        if (messages_[row].id == message)
+                        {
+                            emit dataChanged(index(row, 0), index(row, 0), {image_role, image_status_role});
+                        }
+                    }
+                });
     }
     if (avatars_)
     {
-        connect(avatars_, &avatar_cache::changed, this, [this](qint64 user) {
-            for (int row = 0; row < messages_.size(); ++row)
-            {
-                auto const& item = messages_[row];
-                if (item.from == user)
+        connect(avatars_,
+                &avatar_cache::changed,
+                this,
+                [this](qint64 user)
                 {
-                    emit dataChanged(index(row, 0), index(row, 0), {Qt::DecorationRole});
-                }
-            }
-        });
+                    for (int row = 0; row < messages_.size(); ++row)
+                    {
+                        auto const& item = messages_[row];
+                        if (item.from == user)
+                        {
+                            emit dataChanged(index(row, 0), index(row, 0), {Qt::DecorationRole});
+                        }
+                    }
+                });
     }
 }
 
 bool message_model::can_manage_group() const
 {
-    return group_ && std::ranges::any_of(members_, [this](auto const& member) {
-        return member.id == self_user_ && member.role != chat::member_role::member;
-    });
+    return group_ &&
+           std::ranges::any_of(members_, [this](auto const& member) { return member.id == self_user_ && member.role != chat::member_role::member; });
 }
 
-int message_model::rowCount(QModelIndex const& parent) const
-{
-    return parent.isValid() ? 0 : messages_.size() + pending_.size();
-}
+int message_model::rowCount(QModelIndex const& parent) const { return parent.isValid() ? 0 : messages_.size() + pending_.size(); }
 
 QVariant message_model::data(QModelIndex const& index, int role) const
 {
@@ -118,13 +123,12 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             QStringList parts{outgoing ? QStringLiteral("你") : message.username};
             if (message.timestamp > 0)
             {
-                parts.push_back(QDateTime::fromMSecsSinceEpoch(message.timestamp).toLocalTime()
-                                    .toString(QStringLiteral("yyyy-MM-dd HH:mm")));
+                parts.push_back(QDateTime::fromMSecsSinceEpoch(message.timestamp).toLocalTime().toString(QStringLiteral("yyyy-MM-dd HH:mm")));
             }
             if (!message.deleted && message.reply.id > 0)
             {
-                parts.push_back(QStringLiteral("回复 %1：%2").arg(message.reply.username,
-                    message.reply.deleted ? QStringLiteral("消息已删除") : message.reply.text));
+                parts.push_back(QStringLiteral("回复 %1：%2")
+                                    .arg(message.reply.username, message.reply.deleted ? QStringLiteral("消息已删除") : message.reply.text));
             }
             parts.push_back(data(index, text_role).toString());
             if (pending)
@@ -134,8 +138,14 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             }
             if (!message.deleted)
             {
-                if (message.edited_at > 0) { parts.push_back(QStringLiteral("已编辑")); }
-                if (data(index, mentioned_role).toBool()) { parts.push_back(QStringLiteral("提及你")); }
+                if (message.edited_at > 0)
+                {
+                    parts.push_back(QStringLiteral("已编辑"));
+                }
+                if (data(index, mentioned_role).toBool())
+                {
+                    parts.push_back(QStringLiteral("提及你"));
+                }
                 auto const count = data(index, read_count_role);
                 if (count.isValid())
                 {
@@ -163,7 +173,8 @@ QVariant message_model::data(QModelIndex const& index, int role) const
                 auto const& file = *message.attachment;
                 return QStringLiteral("%1：%2\n%3 KiB")
                     .arg(file.media_type.startsWith(QStringLiteral("image/")) ? QStringLiteral("图片") : QStringLiteral("文件"),
-                         file.filename, QString::number(file.size / 1024.0, 'f', 1));
+                         file.filename,
+                         QString::number(file.size / 1024.0, 'f', 1));
             }
             return message.text;
         case attachment_name_role:
@@ -183,7 +194,10 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             {
                 for (auto const& reaction : message.reactions)
                 {
-                    if (reaction.users.contains(self_user_)) { return reaction.emoji; }
+                    if (reaction.users.contains(self_user_))
+                    {
+                        return reaction.emoji;
+                    }
                 }
             }
             return QString{};
@@ -192,8 +206,8 @@ QVariant message_model::data(QModelIndex const& index, int role) const
         case mentions_role:
             return QVariant::fromValue(message.deleted ? QList<mention_data>{} : message.mentions);
         case mentioned_role:
-            return !message.deleted && group_ && std::ranges::any_of(message.mentions,
-                [this](auto const& mention) { return mention.user == self_user_; });
+            return !message.deleted && group_ &&
+                   std::ranges::any_of(message.mentions, [this](auto const& mention) { return mention.user == self_user_; });
         case sender_name_role:
             return message.username;
         case deleted_role:
@@ -205,8 +219,7 @@ QVariant message_model::data(QModelIndex const& index, int role) const
         case reply_text_role:
             return !message.deleted && message.reply.id > 0
                        ? QStringLiteral("↪ %1\n%2")
-                             .arg(message.reply.username,
-                                  message.reply.deleted ? QStringLiteral("消息已删除") : message.reply.text)
+                             .arg(message.reply.username, message.reply.deleted ? QStringLiteral("消息已删除") : message.reply.text)
                        : QString{};
         case read_role:
             if (!outgoing)
@@ -279,8 +292,9 @@ void message_model::set_pending(QList<pending_message> pending)
         {
             pending_[row] = std::move(item);
             auto const changed = index(messages_.size() + row, 0);
-            emit dataChanged(changed, changed, {Qt::DisplayRole, Qt::AccessibleTextRole, text_role,
-                send_state_role, send_error_role, reply_id_role, reply_text_role});
+            emit dataChanged(changed,
+                             changed,
+                             {Qt::DisplayRole, Qt::AccessibleTextRole, text_role, send_state_role, send_error_role, reply_id_role, reply_text_role});
         }
     }
 }
@@ -298,9 +312,7 @@ int message_model::merge_messages(QList<message_data> messages)
         {
             continue;
         }
-        auto found = std::find_if(merged.cbegin(), merged.cend(), [id = message.id](message_data const& value) {
-            return value.id == id;
-        });
+        auto found = std::find_if(merged.cbegin(), merged.cend(), [id = message.id](message_data const& value) { return value.id == id; });
         if (found == merged.cend())
         {
             merged.push_back(std::move(message));
@@ -312,7 +324,10 @@ int message_model::merge_messages(QList<message_data> messages)
         return 0;
     }
 
-    for (auto& message : merged) { merge_reply(message.reply, merged); }
+    for (auto& message : merged)
+    {
+        merge_reply(message.reply, merged);
+    }
     std::sort(merged.begin(), merged.end(), [](message_data const& lhs, message_data const& rhs) { return lhs.id < rhs.id; });
     auto const inserted = merged.size() - messages_.size();
     // History adds messages; existing IDs and their persistent keyboard indexes survive.
@@ -339,19 +354,19 @@ bool message_model::add_message(message_data message)
     {
         return false;
     }
-    if (avatars_) { avatars_->observe(message.from, message.avatar); }
-    auto found = std::find_if(messages_.cbegin(), messages_.cend(), [id = message.id](message_data const& value) {
-        return value.id == id;
-    });
+    if (avatars_)
+    {
+        avatars_->observe(message.from, message.avatar);
+    }
+    auto found = std::find_if(messages_.cbegin(), messages_.cend(), [id = message.id](message_data const& value) { return value.id == id; });
     if (found != messages_.cend())
     {
         return false;
     }
 
     merge_reply(message.reply, messages_);
-    auto position = std::lower_bound(messages_.cbegin(), messages_.cend(), message.id, [](message_data const& value, qint64 id) {
-        return value.id < id;
-    });
+    auto position =
+        std::lower_bound(messages_.cbegin(), messages_.cend(), message.id, [](message_data const& value, qint64 id) { return value.id < id; });
     auto const row = static_cast<int>(std::distance(messages_.cbegin(), position));
     beginInsertRows({}, row, row);
     messages_.insert(row, std::move(message));
@@ -361,12 +376,18 @@ bool message_model::add_message(message_data message)
 
 void message_model::update_message(message_data const& message)
 {
-    if (message.deleted && images_) { images_->remove(message.conversation, message.id); }
+    if (message.deleted && images_)
+    {
+        images_->remove(message.conversation, message.id);
+    }
     if (message.conversation != conversation_)
     {
         return;
     }
-    if (avatars_) { avatars_->observe(message.from, message.avatar); }
+    if (avatars_)
+    {
+        avatars_->observe(message.from, message.avatar);
+    }
     for (int row = 0; row < messages_.size(); ++row)
     {
         auto& current = messages_[row];
@@ -403,8 +424,7 @@ void message_model::update_message(message_data const& message)
                 changed = true;
             }
         }
-        if (current.reply.id == message.id && !current.reply.deleted &&
-            (message.deleted || message.edited_at > current.reply.edited_at))
+        if (current.reply.id == message.id && !current.reply.deleted && (message.deleted || message.edited_at > current.reply.edited_at))
         {
             current.reply = {message.id, message.username, grapheme_prefix(message.text, 160), message.edited_at, message.deleted};
             changed = true;
@@ -449,10 +469,7 @@ void message_model::set_read_message(qint64 user, qint64 message)
     }
 }
 
-void message_model::set_self_user(qint64 user)
-{
-    self_user_ = user;
-}
+void message_model::set_self_user(qint64 user) { self_user_ = user; }
 
 void message_model::set_read_positions(read_positions positions)
 {
@@ -492,12 +509,6 @@ QList<member_data> message_model::read_members(qint64 message) const
     return result;
 }
 
-qint64 message_model::first_message_id() const
-{
-    return messages_.isEmpty() ? 0 : messages_.front().id;
-}
+qint64 message_model::first_message_id() const { return messages_.isEmpty() ? 0 : messages_.front().id; }
 
-qint64 message_model::last_message_id() const
-{
-    return messages_.isEmpty() ? 0 : messages_.back().id;
-}
+qint64 message_model::last_message_id() const { return messages_.isEmpty() ? 0 : messages_.back().id; }

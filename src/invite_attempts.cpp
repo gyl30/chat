@@ -14,7 +14,10 @@ constexpr std::size_t prune_threshold = 1024;
 bool invite_attempts::blocked(std::int64_t user, clock::time_point now)
 {
     auto const found = users_.find(user);
-    if (found == users_.end()) { return false; }
+    if (found == users_.end())
+    {
+        return false;
+    }
     if (now - found->second.started >= window)
     {
         users_.erase(found);
@@ -25,7 +28,10 @@ bool invite_attempts::blocked(std::int64_t user, clock::time_point now)
 
 void invite_attempts::record_failure(std::int64_t user, clock::time_point now)
 {
-    if (users_.size() >= prune_threshold) { prune(now); }
+    if (users_.size() >= prune_threshold)
+    {
+        prune(now);
+    }
     auto& value = users_[user];
     if (value.failures == 0 || now - value.started >= window)
     {

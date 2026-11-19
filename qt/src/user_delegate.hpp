@@ -14,8 +14,7 @@ class user_delegate final : public QStyledItemDelegate
 
     void paint(QPainter* painter, QStyleOptionViewItem const& option, QModelIndex const& index) const override;
     QSize sizeHint(QStyleOptionViewItem const& option, QModelIndex const& index) const override;
-    bool editorEvent(QEvent* event, QAbstractItemModel* model,
-                     QStyleOptionViewItem const& option, QModelIndex const& index) override;
+    bool editorEvent(QEvent* event, QAbstractItemModel* model, QStyleOptionViewItem const& option, QModelIndex const& index) override;
 
    private:
     std::function<QString(QModelIndex const&)> status_;

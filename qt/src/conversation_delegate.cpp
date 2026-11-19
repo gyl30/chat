@@ -77,8 +77,10 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     auto const muted = index.data(conversation_model::muted_role).toBool();
     auto const pinned = index.data(conversation_model::pinned_role).toBool();
 
-    QRect avatar_rect(rect.left() + chat_theme::dialog_left, rect.top() + chat_theme::dialog_avatar_top,
-                      chat_theme::dialog_avatar_size, chat_theme::dialog_avatar_size);
+    QRect avatar_rect(rect.left() + chat_theme::dialog_left,
+                      rect.top() + chat_theme::dialog_avatar_top,
+                      chat_theme::dialog_avatar_size,
+                      chat_theme::dialog_avatar_size);
     paint_avatar(*painter, avatar_rect, group ? QStringLiteral("群") : username, 17, index.data(Qt::DecorationRole).value<QPixmap>());
     if (online)
     {
@@ -98,8 +100,7 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     if (!date.isEmpty())
     {
         painter->setPen(themed("text_muted"));
-        QRect date_rect(content_right - date_width, rect.top() + chat_theme::dialog_name_top, date_width,
-                        QFontMetrics(date_font).height());
+        QRect date_rect(content_right - date_width, rect.top() + chat_theme::dialog_name_top, date_width, QFontMetrics(date_font).height());
         painter->drawText(date_rect, Qt::AlignRight | Qt::AlignVCenter, date);
     }
 
@@ -111,19 +112,19 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     auto name_right = content_right - (date_width > 0 ? date_width + 8 : 0);
     if (muted || pinned)
     {
-        auto const label = muted && pinned ? QStringLiteral("置顶 静音") :
-                           pinned ? QStringLiteral("置顶") : QStringLiteral("静音");
+        auto const label = muted && pinned ? QStringLiteral("置顶 静音") : pinned ? QStringLiteral("置顶") : QStringLiteral("静音");
         painter->setFont(date_font);
         painter->setPen(themed("text_muted"));
         auto const label_width = QFontMetrics(date_font).horizontalAdvance(label);
-        painter->drawText(QRect(name_right - label_width, rect.top() + chat_theme::dialog_name_top,
-                                label_width, QFontMetrics(date_font).height()), Qt::AlignVCenter, label);
+        painter->drawText(QRect(name_right - label_width, rect.top() + chat_theme::dialog_name_top, label_width, QFontMetrics(date_font).height()),
+                          Qt::AlignVCenter,
+                          label);
         name_right -= label_width + 8;
         painter->setFont(username_font);
         painter->setPen(themed("text"));
     }
-    QRect username_rect(content_left, rect.top() + chat_theme::dialog_name_top,
-                        std::max(0, name_right - content_left), QFontMetrics(username_font).height());
+    QRect username_rect(
+        content_left, rect.top() + chat_theme::dialog_name_top, std::max(0, name_right - content_left), QFontMetrics(username_font).height());
     auto const name_padding = std::max(0, (chat_theme::dialog_preview_top - chat_theme::dialog_name_top - username_rect.height()) / 2);
     username_rect.adjust(0, -name_padding, 0, name_padding);
     paint_emoji_line(*painter, username_rect, username, username_font, themed("text"));
@@ -141,15 +142,14 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
         QFont badge_font = option.font;
         badge_font.setBold(true);
         badge_font.setPixelSize(11);
-        badge_width = std::max(chat_theme::dialog_unread_height,
-                               QFontMetrics(badge_font).horizontalAdvance(badge_text) + 10);
+        badge_width = std::max(chat_theme::dialog_unread_height, QFontMetrics(badge_font).horizontalAdvance(badge_text) + 10);
     }
 
     auto const preview_right = content_right - (badge_width > 0 ? badge_width + 8 : 0);
-    QRect preview_rect(content_left, rect.top() + chat_theme::dialog_preview_top,
-                       std::max(0, preview_right - content_left), QFontMetrics(preview_font).height());
-    auto const preview_padding = std::max(0, (chat_theme::dialog_row_height - chat_theme::dialog_preview_top -
-                                             chat_theme::dialog_avatar_top - preview_rect.height()) / 2);
+    QRect preview_rect(
+        content_left, rect.top() + chat_theme::dialog_preview_top, std::max(0, preview_right - content_left), QFontMetrics(preview_font).height());
+    auto const preview_padding =
+        std::max(0, (chat_theme::dialog_row_height - chat_theme::dialog_preview_top - chat_theme::dialog_avatar_top - preview_rect.height()) / 2);
     preview_rect.adjust(0, -preview_padding, 0, preview_padding);
     paint_emoji_line(*painter, preview_rect, last_text, preview_font, themed("text_muted"));
 
@@ -159,15 +159,11 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
         badge_font.setBold(true);
         badge_font.setPixelSize(11);
         painter->setFont(badge_font);
-        QRect badge_rect(content_right - badge_width,
-                         rect.top() + chat_theme::dialog_preview_top,
-                         badge_width,
-                         chat_theme::dialog_unread_height);
+        QRect badge_rect(content_right - badge_width, rect.top() + chat_theme::dialog_preview_top, badge_width, chat_theme::dialog_unread_height);
         painter->setPen(Qt::NoPen);
         // A muted conversation still counts, but quietly, as in WeChat.
         painter->setBrush(muted ? themed("accent_disabled") : theme_manager::instance().highlight());
-        painter->drawRoundedRect(badge_rect, chat_theme::dialog_unread_height / 2.0,
-                                 chat_theme::dialog_unread_height / 2.0);
+        painter->drawRoundedRect(badge_rect, chat_theme::dialog_unread_height / 2.0, chat_theme::dialog_unread_height / 2.0);
         painter->setPen(muted ? themed("text") : themed("badge_text"));
         painter->drawText(badge_rect, Qt::AlignCenter, badge_text);
     }
@@ -188,8 +184,7 @@ QSize conversation_delegate::sizeHint(QStyleOptionViewItem const& option, QModel
     return {314, chat_theme::dialog_row_height};
 }
 
-bool conversation_delegate::editorEvent(QEvent* event, QAbstractItemModel* model,
-                                         QStyleOptionViewItem const& option, QModelIndex const& index)
+bool conversation_delegate::editorEvent(QEvent* event, QAbstractItemModel* model, QStyleOptionViewItem const& option, QModelIndex const& index)
 {
     (void)model;
     if (event->type() != QEvent::MouseButtonRelease)
@@ -205,8 +200,15 @@ bool conversation_delegate::editorEvent(QEvent* event, QAbstractItemModel* model
 
     QRect avatar_rect(option.rect.left() + chat_theme::dialog_left,
                       option.rect.top() + chat_theme::dialog_avatar_top,
-                      chat_theme::dialog_avatar_size, chat_theme::dialog_avatar_size);
-    if (avatar_rect.contains(mouse->position().toPoint())) { emit avatar_clicked(index); }
-    else { emit body_clicked(index); }
+                      chat_theme::dialog_avatar_size,
+                      chat_theme::dialog_avatar_size);
+    if (avatar_rect.contains(mouse->position().toPoint()))
+    {
+        emit avatar_clicked(index);
+    }
+    else
+    {
+        emit body_clicked(index);
+    }
     return true;
 }

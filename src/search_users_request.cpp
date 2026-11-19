@@ -14,7 +14,7 @@
 namespace
 {
 
-struct [[= simdjson::deny_unknown_fields]] search_users_params
+struct[[= simdjson::deny_unknown_fields]] search_users_params
 {
     std::string query;
 };
@@ -82,14 +82,15 @@ boost::capy::task<simdjson::error_code> chat_session::handle_search_users(json_r
         co_return simdjson::SUCCESS;
     }
 
-    auto users = co_await database_.run([&, user=*user_id_](sqlite_database& db) {
-        return search_accounts(db, user, params.query);
-    });
+    auto users = co_await database_.run([&, user = *user_id_](sqlite_database& db) { return search_accounts(db, user, params.query); });
     if (!users)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
-    struct result { std::vector<user_payload> users; };
+    struct result
+    {
+        std::vector<user_payload> users;
+    };
     result payload;
     payload.users.reserve(users->size());
     for (auto const& user : *users)

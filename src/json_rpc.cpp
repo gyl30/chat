@@ -17,7 +17,7 @@ struct json_rpc_request_message
     std::string jsonrpc;
     std::string method;
     [[= simdjson::default_value]] json_rpc_params params;
-    [[= simdjson::default_value, = simdjson::with<json_rpc_id_adapter>]] json_rpc_id id;
+    [[ = simdjson::default_value, = simdjson::with<json_rpc_id_adapter> ]] json_rpc_id id;
 };
 
 struct json_rpc_result
@@ -73,8 +73,7 @@ simdjson::error_code json_rpc_id_adapter::deserialize(simdjson::ondemand::value&
         return error;
     }
 
-    if (type != simdjson::ondemand::json_type::string && type != simdjson::ondemand::json_type::number &&
-        type != simdjson::ondemand::json_type::null)
+    if (type != simdjson::ondemand::json_type::string && type != simdjson::ondemand::json_type::number && type != simdjson::ondemand::json_type::null)
     {
         return simdjson::INCORRECT_TYPE;
     }
@@ -112,10 +111,7 @@ simdjson::error_code json_rpc_id_adapter::deserialize(simdjson::ondemand::value&
     return simdjson::SUCCESS;
 }
 
-void json_rpc_id_adapter::serialize(simdjson::builder::string_builder& builder, json_rpc_id const& id)
-{
-    builder.append_raw(id.json);
-}
+void json_rpc_id_adapter::serialize(simdjson::builder::string_builder& builder, json_rpc_id const& id) { builder.append_raw(id.json); }
 
 void json_rpc_result_adapter::serialize(simdjson::builder::string_builder& builder, json_rpc_result const& result)
 {
@@ -172,21 +168,21 @@ bool is_json_syntax_error(simdjson::error_code error)
 {
     switch (error)
     {
-    case simdjson::TAPE_ERROR:
-    case simdjson::STRING_ERROR:
-    case simdjson::T_ATOM_ERROR:
-    case simdjson::F_ATOM_ERROR:
-    case simdjson::N_ATOM_ERROR:
-    case simdjson::NUMBER_ERROR:
-    case simdjson::UTF8_ERROR:
-    case simdjson::EMPTY:
-    case simdjson::UNESCAPED_CHARS:
-    case simdjson::UNCLOSED_STRING:
-    case simdjson::INCOMPLETE_ARRAY_OR_OBJECT:
-    case simdjson::TRAILING_CONTENT:
-        return true;
-    default:
-        return false;
+        case simdjson::TAPE_ERROR:
+        case simdjson::STRING_ERROR:
+        case simdjson::T_ATOM_ERROR:
+        case simdjson::F_ATOM_ERROR:
+        case simdjson::N_ATOM_ERROR:
+        case simdjson::NUMBER_ERROR:
+        case simdjson::UTF8_ERROR:
+        case simdjson::EMPTY:
+        case simdjson::UNESCAPED_CHARS:
+        case simdjson::UNCLOSED_STRING:
+        case simdjson::INCOMPLETE_ARRAY_OR_OBJECT:
+        case simdjson::TRAILING_CONTENT:
+            return true;
+        default:
+            return false;
     }
 }
 

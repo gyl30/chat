@@ -30,18 +30,14 @@ class s3_objects
     explicit s3_objects(s3_settings settings);
 
     // Returns the SHA-256 digest in hexadecimal after S3 validates the checksum.
-    boost::capy::task<std::expected<std::string, s3_error>> put(
-        std::string key, std::string bytes, std::string media_type);
+    boost::capy::task<std::expected<std::string, s3_error>> put(std::string key, std::string bytes, std::string media_type);
     // The attachment lookup supplies a nonempty range within the stored size.
-    boost::capy::task<std::expected<std::string, s3_error>> read(
-        std::string key, std::size_t size, std::size_t offset, std::size_t length);
+    boost::capy::task<std::expected<std::string, s3_error>> read(std::string key, std::size_t size, std::size_t offset, std::size_t length);
     boost::capy::task<std::expected<void, s3_error>> remove(std::string key);
 
    private:
-    std::expected<std::string, s3_error> put_object(std::string const& key, std::string_view bytes,
-                                                   std::string_view media_type) const;
-    std::expected<std::string, s3_error> read_object(std::string const& key, std::size_t size,
-                                                    std::size_t offset, std::size_t length) const;
+    std::expected<std::string, s3_error> put_object(std::string const& key, std::string_view bytes, std::string_view media_type) const;
+    std::expected<std::string, s3_error> read_object(std::string const& key, std::size_t size, std::size_t offset, std::size_t length) const;
     std::expected<void, s3_error> remove_object(std::string const& key) const;
 
     s3_settings settings_;

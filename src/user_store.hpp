@@ -19,14 +19,13 @@ struct account_credentials
     std::string password_hash;
 };
 
-std::expected<std::optional<std::int64_t>, sqlite_error> register_account(
-    sqlite_database& db, std::string_view username, std::string_view password_hash);
+std::expected<std::optional<std::int64_t>, sqlite_error> register_account(sqlite_database& db,
+                                                                          std::string_view username,
+                                                                          std::string_view password_hash);
 
-std::expected<std::optional<account_credentials>, sqlite_error> find_account(
-    sqlite_database& db, std::string_view username);
+std::expected<std::optional<account_credentials>, sqlite_error> find_account(sqlite_database& db, std::string_view username);
 
-std::expected<std::vector<chat::user>, sqlite_error> search_accounts(
-    sqlite_database& db, std::int64_t user, std::string_view prefix);
+std::expected<std::vector<chat::user>, sqlite_error> search_accounts(sqlite_database& db, std::int64_t user, std::string_view prefix);
 
 struct avatar_chunk
 {
@@ -38,8 +37,10 @@ struct avatar_chunk
     bool has_more = false;
 };
 
-std::expected<std::optional<avatar_chunk>, sqlite_error> read_avatar_chunk(
-    sqlite_database& db, std::int64_t user, std::int64_t revision, std::int64_t offset);
+std::expected<std::optional<avatar_chunk>, sqlite_error> read_avatar_chunk(sqlite_database& db,
+                                                                           std::int64_t user,
+                                                                           std::int64_t revision,
+                                                                           std::int64_t offset);
 
 struct avatar_change
 {
@@ -48,8 +49,7 @@ struct avatar_change
 };
 
 // Callers validate the image and authorization before storing it.
-std::expected<avatar_change, sqlite_error> save_avatar(
-    sqlite_database& db, std::int64_t user, std::string_view media_type, std::string_view bytes);
+std::expected<avatar_change, sqlite_error> save_avatar(sqlite_database& db, std::int64_t user, std::string_view media_type, std::string_view bytes);
 std::expected<avatar_change, sqlite_error> clear_avatar(sqlite_database& db, std::int64_t user);
 
 std::expected<std::vector<std::int64_t>, sqlite_error> read_avatar_recipients(sqlite_database& db, std::int64_t user);

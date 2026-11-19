@@ -120,25 +120,30 @@ class client
     void unpin_group_message(std::int64_t conversation, group_action_handler handler);
     void get_contacts(users_handler handler);
     void get_presence(presences_handler handler);
-    void get_messages(std::int64_t conversation, std::optional<std::int64_t> before, messages_handler handler,
+    void get_messages(std::int64_t conversation,
+                      std::optional<std::int64_t> before,
+                      messages_handler handler,
                       std::optional<std::int64_t> after = {});
-    void search_messages(std::int64_t conversation, std::string query, std::optional<std::int64_t> before,
-                         messages_handler handler);
+    void search_messages(std::int64_t conversation, std::string query, std::optional<std::int64_t> before, messages_handler handler);
     // A message sent again with the same client_id is stored once; the result is its current state.
     // Without one, a fresh ID is used.
     static std::int64_t new_client_id();
-    void send_message(std::int64_t conversation, std::string text, message_result_handler handler,
-                      std::optional<std::int64_t> reply_to = {}, std::optional<std::int64_t> client_id = {});
+    void send_message(std::int64_t conversation,
+                      std::string text,
+                      message_result_handler handler,
+                      std::optional<std::int64_t> reply_to = {},
+                      std::optional<std::int64_t> client_id = {});
     void delete_message(std::int64_t conversation, std::int64_t message, message_result_handler handler);
-    void set_message_reaction(std::int64_t conversation, std::int64_t message, std::string emoji,
-                              reaction_result_handler handler);
+    void set_message_reaction(std::int64_t conversation, std::int64_t message, std::string emoji, reaction_result_handler handler);
     // Attachments upload one at a time in submission order.
-    void send_attachment(std::int64_t conversation, std::string filename, std::string data,
-                         message_result_handler handler, std::optional<std::int64_t> reply_to = {},
+    void send_attachment(std::int64_t conversation,
+                         std::string filename,
+                         std::string data,
+                         message_result_handler handler,
+                         std::optional<std::int64_t> reply_to = {},
                          std::optional<std::int64_t> client_id = {});
     void get_attachment(std::int64_t conversation, std::int64_t message, attachment_handler handler);
-    void edit_message(std::int64_t conversation, std::int64_t message, std::string text,
-                      message_result_handler handler);
+    void edit_message(std::int64_t conversation, std::int64_t message, std::string text, message_result_handler handler);
     void search_users(std::string query, users_handler handler);
     void get_friend_requests(friend_requests_handler handler);
     void send_friend_request(std::int64_t user, friendship_handler handler);

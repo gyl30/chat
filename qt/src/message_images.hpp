@@ -27,6 +27,7 @@ class message_images final : public QObject
    signals:
     void requested(qint64 conversation, qint64 message);
     void changed(qint64 message);
+
    private:
     void pump();
     struct entry

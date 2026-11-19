@@ -9,9 +9,8 @@ namespace chat
 
 inline bool unicode_whitespace(char32_t value)
 {
-    return (value >= 0x0009 && value <= 0x000d) || value == 0x0020 || value == 0x0085 || value == 0x00a0 ||
-        value == 0x1680 || (value >= 0x2000 && value <= 0x200a) || value == 0x2028 || value == 0x2029 ||
-        value == 0x202f || value == 0x205f || value == 0x3000;
+    return (value >= 0x0009 && value <= 0x000d) || value == 0x0020 || value == 0x0085 || value == 0x00a0 || value == 0x1680 ||
+           (value >= 0x2000 && value <= 0x200a) || value == 0x2028 || value == 0x2029 || value == 0x202f || value == 0x205f || value == 0x3000;
 }
 
 inline bool text_is_blank(std::string_view text)
@@ -40,9 +39,8 @@ inline bool valid_username(std::string_view username)
     {
         auto const value = boost::locale::utf::utf_traits<char>::decode(current, username.end());
         if (value == boost::locale::utf::illegal || value == boost::locale::utf::incomplete || value <= 0x001f ||
-            (value >= 0x007f && value <= 0x009f) || value == '@' || value == 0x061c ||
-            (value >= 0x200e && value <= 0x200f) || (value >= 0x2028 && value <= 0x202e) ||
-            (value >= 0x2066 && value <= 0x2069))
+            (value >= 0x007f && value <= 0x009f) || value == '@' || value == 0x061c || (value >= 0x200e && value <= 0x200f) ||
+            (value >= 0x2028 && value <= 0x202e) || (value >= 0x2066 && value <= 0x2069))
         {
             return false;
         }
@@ -61,4 +59,4 @@ inline bool valid_group_title(std::string_view title)
     return title.size() <= 256 && title.find('\0') == std::string_view::npos && !text_is_blank(title);
 }
 
-} // namespace chat
+}    // namespace chat

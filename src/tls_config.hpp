@@ -9,7 +9,7 @@
 
 // Validate and preload the same PEM bytes before the listener starts. The context is immutable
 // after it has been passed to a server and its connection streams.
-std::expected<boost::corosio::tls_context, std::string>
-make_server_tls_context(std::string_view certificate_chain_file, std::string_view private_key_file);
+std::expected<boost::corosio::tls_context, std::string> make_server_tls_context(std::string_view certificate_chain_file,
+                                                                                std::string_view private_key_file);
 
 #endif

@@ -29,13 +29,20 @@ int main(int argc, char* argv[])
 
     main_window window(std::move(server_url));
     window.show();
-    auto report_theme_error = [&window](QString const& message) {
-        auto* error = new QMessageBox(QMessageBox::Warning, QStringLiteral("主题文件错误"),
-            message + QStringLiteral("\n应用继续使用完整的有效主题。"), QMessageBox::Ok, &window);
+    auto report_theme_error = [&window](QString const& message)
+    {
+        auto* error = new QMessageBox(QMessageBox::Warning,
+                                      QStringLiteral("主题文件错误"),
+                                      message + QStringLiteral("\n应用继续使用完整的有效主题。"),
+                                      QMessageBox::Ok,
+                                      &window);
         error->setAttribute(Qt::WA_DeleteOnClose);
         error->open();
     };
     QObject::connect(&themes, &theme_manager::load_failed, &window, report_theme_error);
-    if (!themes.last_error().isEmpty()) { report_theme_error(themes.last_error()); }
+    if (!themes.last_error().isEmpty())
+    {
+        report_theme_error(themes.last_error());
+    }
     return application.exec();
 }

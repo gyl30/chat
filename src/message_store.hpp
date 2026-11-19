@@ -27,7 +27,12 @@ struct uploaded_attachment
     std::string_view checksum;
 };
 
-enum class message_write_rejection { unavailable, invalid_client_id, invalid_reply };
+enum class message_write_rejection
+{
+    unavailable,
+    invalid_client_id,
+    invalid_reply
+};
 
 struct message_write
 {
@@ -39,12 +44,14 @@ using message_write_outcome = std::variant<message_write, message_write_rejectio
 
 // A null result allows a new send. An existing acknowledgement or a domain
 // rejection stops it before upload; final publication repeats the check.
-std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_write(
-    sqlite_database& db, message_to_write const& message, bool attachment);
+std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_write(sqlite_database& db,
+                                                                                      message_to_write const& message,
+                                                                                      bool attachment);
 
 // The caller owns the write transaction and can reject an oversized RPC
 // response before publishing any data.
-std::expected<message_write_outcome, sqlite_error> insert_message(
-    sqlite_database& db, message_to_write const& message, uploaded_attachment const* attachment = nullptr);
+std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_database& db,
+                                                                  message_to_write const& message,
+                                                                  uploaded_attachment const* attachment = nullptr);
 
 #endif

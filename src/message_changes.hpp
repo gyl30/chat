@@ -6,7 +6,11 @@
 #include <chat/message.hpp>
 #include "sqlite_database.hpp"
 
-enum class message_change_rejection { unavailable, cannot_send };
+enum class message_change_rejection
+{
+    unavailable,
+    cannot_send
+};
 
 struct changed_message
 {
@@ -17,8 +21,7 @@ struct changed_message
 // Caller owns the write transaction so it can validate the realtime payload
 // before committing the body, references, and cleanup records together.
 std::expected<std::variant<changed_message, message_change_rejection>, sqlite_error> change_message_body(
-    sqlite_database& db, std::int64_t user, std::int64_t conversation, std::int64_t message,
-    std::optional<std::string_view> new_text);
+    sqlite_database& db, std::int64_t user, std::int64_t conversation, std::int64_t message, std::optional<std::string_view> new_text);
 
 struct changed_reaction
 {

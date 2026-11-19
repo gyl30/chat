@@ -7,12 +7,10 @@ namespace
 {
 std::int64_t timestamp()
 {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::system_clock::now().time_since_epoch()).count();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
-std::expected<bool, sqlite_error> all_contacts(sqlite_database& db, std::int64_t actor,
-                                               std::span<std::int64_t const> people)
+std::expected<bool, sqlite_error> all_contacts(sqlite_database& db, std::int64_t actor, std::span<std::int64_t const> people)
 {
     auto statement = db.prepare("SELECT 1 FROM contacts WHERE owner_id=?1 AND contact_id=?2");
     if (!statement)
@@ -42,7 +40,7 @@ std::expected<bool, sqlite_error> all_contacts(sqlite_database& db, std::int64_t
     return true;
 }
 
-template<class... Args>
+template <class... Args>
 sqlite_error write(sqlite_database& db, std::string_view sql, Args const&... args)
 {
     auto statement = db.prepare(sql, args...);
@@ -58,10 +56,9 @@ constexpr std::string_view kInsertMember = R"SQL(
     INSERT INTO conversation_members(conversation_id,user_id,joined_message_id) VALUES(?1,?2,?3)
     ON CONFLICT(conversation_id,user_id) DO NOTHING
 )SQL";
-} // namespace
+}    // namespace
 
-std::expected<std::optional<std::int64_t>, sqlite_error> open_direct(
-    sqlite_database& db, std::int64_t user, std::int64_t peer)
+std::expected<std::optional<std::int64_t>, sqlite_error> open_direct(sqlite_database& db, std::int64_t user, std::int64_t peer)
 {
     auto transaction = sqlite_transaction::begin_immediate(db);
     if (!transaction)
@@ -77,18 +74,25 @@ std::expected<std::optional<std::int64_t>, sqlite_error> open_direct(
     {
         return std::nullopt;
     }
-    if (auto error = write(db, R"SQL(
+    if (auto error = write(db,
+                           R"SQL(
         INSERT INTO conversations(kind,direct_user_low,direct_user_high,activity)
         VALUES('direct',min(?1,?2),max(?1,?2),?3)
         ON CONFLICT(direct_user_low,direct_user_high) WHERE kind='direct' DO NOTHING
-    )SQL", user, peer, timestamp()); error)
+    )SQL",
+                           user,
+                           peer,
+                           timestamp());
+        error)
     {
         return std::unexpected(std::move(error));
     }
     auto found = db.prepare(R"SQL(
         SELECT id FROM conversations
         WHERE kind='direct' AND direct_user_low=min(?1,?2) AND direct_user_high=max(?1,?2)
-    )SQL", user, peer);
+    )SQL",
+                            user,
+                            peer);
     if (!found)
     {
         return std::unexpected(std::move(found.error()));
@@ -117,8 +121,10 @@ std::expected<std::optional<std::int64_t>, sqlite_error> open_direct(
     return id;
 }
 
-std::expected<std::optional<std::int64_t>, sqlite_error> create_group(
-    sqlite_database& db, std::int64_t owner, std::string_view title, std::span<std::int64_t const> members)
+std::expected<std::optional<std::int64_t>, sqlite_error> create_group(sqlite_database& db,
+                                                                      std::int64_t owner,
+                                                                      std::string_view title,
+                                                                      std::span<std::int64_t const> members)
 {
     auto transaction = sqlite_transaction::begin_immediate(db);
     if (!transaction)
@@ -134,9 +140,7 @@ std::expected<std::optional<std::int64_t>, sqlite_error> create_group(
     {
         return std::nullopt;
     }
-    if (auto error = write(db,
-        "INSERT INTO conversations(kind,title,owner_id,activity) VALUES('group',?1,?2,?3)",
-        title, owner, timestamp()); error)
+    if (auto error = write(db, "INSERT INTO conversations(kind,title,owner_id,activity) VALUES('group',?1,?2,?3)", title, owner, timestamp()); error)
     {
         return std::unexpected(std::move(error));
     }
@@ -159,8 +163,9 @@ std::expected<std::optional<std::int64_t>, sqlite_error> create_group(
     return id;
 }
 
-std::expected<std::vector<chat::conversation_member>, sqlite_error> read_conversation_members(
-    sqlite_database& db, std::int64_t conversation, std::int64_t actor)
+std::expected<std::vector<chat::conversation_member>, sqlite_error> read_conversation_members(sqlite_database& db,
+                                                                                              std::int64_t conversation,
+                                                                                              std::int64_t actor)
 {
     auto members = db.prepare(R"SQL(
         SELECT u.id,u.username,u.id=c.owner_id,m.is_admin,u.avatar_revision,a.user_id IS NOT NULL
@@ -170,7 +175,9 @@ std::expected<std::vector<chat::conversation_member>, sqlite_error> read_convers
         JOIN users u ON u.id=m.user_id
         LEFT JOIN user_avatars a ON a.user_id=u.id
         WHERE own.conversation_id=?1 AND own.user_id=?2 ORDER BY u.id
-    )SQL", conversation, actor);
+    )SQL",
+                              conversation,
+                              actor);
     if (!members)
     {
         return std::unexpected(std::move(members.error()));
@@ -196,8 +203,8 @@ std::expected<std::vector<chat::conversation_member>, sqlite_error> read_convers
         {
             role = chat::member_role::admin;
         }
-        result.push_back({members->column_int64(0), std::string(members->column_text(1)), role,
-            {members->column_int64(4), members->column_int64(5) != 0}});
+        result.push_back(
+            {members->column_int64(0), std::string(members->column_text(1)), role, {members->column_int64(4), members->column_int64(5) != 0}});
     }
 }
 
@@ -205,8 +212,8 @@ std::expected<bool, sqlite_error> set_conversation_preference(
     sqlite_database& db, std::int64_t conversation, std::int64_t actor, conversation_preference preference, bool enabled)
 {
     auto const query = preference == conversation_preference::pin
-        ? "UPDATE conversation_members SET pinned=?3 WHERE conversation_id=?1 AND user_id=?2"
-        : "UPDATE conversation_members SET muted=?3 WHERE conversation_id=?1 AND user_id=?2";
+                           ? "UPDATE conversation_members SET pinned=?3 WHERE conversation_id=?1 AND user_id=?2"
+                           : "UPDATE conversation_members SET muted=?3 WHERE conversation_id=?1 AND user_id=?2";
     if (auto error = write(db, query, conversation, actor, static_cast<int>(enabled)); error)
     {
         return std::unexpected(std::move(error));
@@ -214,8 +221,7 @@ std::expected<bool, sqlite_error> set_conversation_preference(
     return db.changes() == 1;
 }
 
-std::expected<std::optional<std::int64_t>, sqlite_error> read_unread_count(
-    sqlite_database& db, std::int64_t conversation, std::int64_t actor)
+std::expected<std::optional<std::int64_t>, sqlite_error> read_unread_count(sqlite_database& db, std::int64_t conversation, std::int64_t actor)
 {
     auto count = db.prepare(R"SQL(
         SELECT (SELECT count(*) FROM messages m WHERE m.conversation_id=c.id
@@ -223,7 +229,9 @@ std::expected<std::optional<std::int64_t>, sqlite_error> read_unread_count(
                     AND (m.sender_id<>?2 OR c.direct_user_low=c.direct_user_high))
         FROM conversation_members own JOIN conversations c ON c.id=own.conversation_id
         WHERE own.conversation_id=?1 AND own.user_id=?2
-    )SQL", conversation, actor);
+    )SQL",
+                            conversation,
+                            actor);
     if (!count)
     {
         return std::unexpected(std::move(count.error()));
@@ -240,8 +248,7 @@ std::expected<std::optional<std::int64_t>, sqlite_error> read_unread_count(
     return count->column_int64(0);
 }
 
-std::expected<bool, sqlite_error> can_send_to_conversation(
-    sqlite_database& db, std::int64_t conversation, std::int64_t actor)
+std::expected<bool, sqlite_error> can_send_to_conversation(sqlite_database& db, std::int64_t conversation, std::int64_t actor)
 {
     auto access = db.prepare(R"SQL(
         SELECT 1 FROM conversations c
@@ -249,7 +256,9 @@ std::expected<bool, sqlite_error> can_send_to_conversation(
         WHERE c.id=?2 AND (c.kind='group' OR EXISTS(
             SELECT 1 FROM contacts WHERE owner_id=?1
                 AND contact_id=CASE WHEN c.direct_user_low=?1 THEN c.direct_user_high ELSE c.direct_user_low END))
-    )SQL", actor, conversation);
+    )SQL",
+                             actor,
+                             conversation);
     if (!access)
     {
         return std::unexpected(std::move(access.error()));
@@ -257,14 +266,15 @@ std::expected<bool, sqlite_error> can_send_to_conversation(
     return access->step();
 }
 
-std::expected<std::optional<chat::member_role>, sqlite_error> read_group_role(
-    sqlite_database& db, std::int64_t group, std::int64_t actor)
+std::expected<std::optional<chat::member_role>, sqlite_error> read_group_role(sqlite_database& db, std::int64_t group, std::int64_t actor)
 {
     auto statement = db.prepare(R"SQL(
         SELECT c.owner_id=m.user_id,m.is_admin
         FROM conversations c JOIN conversation_members m ON m.conversation_id=c.id
         WHERE c.kind='group' AND c.id=?1 AND m.user_id=?2
-    )SQL", group, actor);
+    )SQL",
+                                group,
+                                actor);
     if (!statement)
     {
         return std::unexpected(std::move(statement.error()));
@@ -306,9 +316,8 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_grou
     {
         return group_member_rejection::permission_denied;
     }
-    auto const query = field == group_text_field::title
-        ? "UPDATE conversations SET title=?2 WHERE id=?1 AND title<>?2"
-        : "UPDATE conversations SET announcement=?2 WHERE id=?1 AND announcement<>?2";
+    auto const query = field == group_text_field::title ? "UPDATE conversations SET title=?2 WHERE id=?1 AND title<>?2"
+                                                        : "UPDATE conversations SET announcement=?2 WHERE id=?1 AND announcement<>?2";
     if (auto error = write(db, query, group, text); error)
     {
         return std::unexpected(std::move(error));
@@ -321,8 +330,10 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_grou
     return changed;
 }
 
-std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_group_pin(
-    sqlite_database& db, std::int64_t group, std::int64_t actor, std::optional<std::int64_t> message)
+std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_group_pin(sqlite_database& db,
+                                                                                      std::int64_t group,
+                                                                                      std::int64_t actor,
+                                                                                      std::optional<std::int64_t> message)
 {
     auto transaction = sqlite_transaction::begin_immediate(db);
     if (!transaction)
@@ -344,8 +355,7 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_grou
     }
     if (message)
     {
-        auto target = db.prepare("SELECT 1 FROM messages WHERE conversation_id=?1 AND id=?2 AND deleted=0",
-                                 group, *message);
+        auto target = db.prepare("SELECT 1 FROM messages WHERE conversation_id=?1 AND id=?2 AND deleted=0", group, *message);
         if (!target)
         {
             return std::unexpected(std::move(target.error()));
@@ -360,8 +370,7 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_grou
             return group_member_rejection::invalid_target;
         }
     }
-    if (auto error = write(db, "UPDATE conversations SET pinned_message_id=?2 WHERE id=?1 AND pinned_message_id IS NOT ?2",
-                           group, message); error)
+    if (auto error = write(db, "UPDATE conversations SET pinned_message_id=?2 WHERE id=?1 AND pinned_message_id IS NOT ?2", group, message); error)
     {
         return std::unexpected(std::move(error));
     }
@@ -373,8 +382,10 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_grou
     return changed;
 }
 
-std::expected<std::variant<bool, group_member_rejection>, sqlite_error> invite_group_members(
-    sqlite_database& db, std::int64_t group, std::int64_t actor, std::span<std::int64_t const> invitees)
+std::expected<std::variant<bool, group_member_rejection>, sqlite_error> invite_group_members(sqlite_database& db,
+                                                                                             std::int64_t group,
+                                                                                             std::int64_t actor,
+                                                                                             std::span<std::int64_t const> invitees)
 {
     auto transaction = sqlite_transaction::begin_immediate(db);
     if (!transaction)
@@ -390,7 +401,9 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> invite_g
             FROM conversations c
             JOIN conversation_members own ON own.conversation_id=c.id AND own.user_id=?2
             WHERE c.id=?1 AND c.kind='group'
-        )SQL", group, actor);
+        )SQL",
+                                      group,
+                                      actor);
         if (!group_state)
         {
             return std::unexpected(std::move(group_state.error()));
@@ -428,8 +441,7 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> invite_g
             return std::unexpected(std::move(error));
         }
         added = added || db.changes() != 0;
-        if (auto error = write(db, "DELETE FROM group_join_requests WHERE conversation_id=?1 AND user_id=?2",
-                                group, invitee); error)
+        if (auto error = write(db, "DELETE FROM group_join_requests WHERE conversation_id=?1 AND user_id=?2", group, invitee); error)
         {
             return std::unexpected(std::move(error));
         }
@@ -440,7 +452,6 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> invite_g
     }
     return added;
 }
-
 
 std::expected<std::variant<bool, group_member_rejection>, sqlite_error> change_group_member(
     sqlite_database& db, std::int64_t group, std::int64_t actor, group_member_action action, std::int64_t target)
@@ -465,7 +476,10 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> change_g
             JOIN conversation_members own ON own.conversation_id=c.id AND own.user_id=?2
             LEFT JOIN conversation_members other ON other.conversation_id=c.id AND other.user_id=?3
             WHERE c.id=?1 AND c.kind='group'
-        )SQL", group, actor, target);
+        )SQL",
+                                group,
+                                actor,
+                                target);
         if (!roles)
         {
             return std::unexpected(std::move(roles.error()));
@@ -486,8 +500,7 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> change_g
     }
 
     bool const owner_action = action == promote || action == demote || action == transfer;
-    if ((owner_action && actor != owner) || (action == remove && actor != owner && !actor_admin) ||
-        (action == leave && actor == owner))
+    if ((owner_action && actor != owner) || (action == remove && actor != owner && !actor_admin) || (action == leave && actor == owner))
     {
         return permission_denied;
     }
@@ -515,9 +528,7 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> change_g
             }
             if (enabled)
             {
-                auto current = db.prepare(
-                    "SELECT count(*) FROM conversation_members WHERE conversation_id=?1 AND is_admin=1",
-                    group);
+                auto current = db.prepare("SELECT count(*) FROM conversation_members WHERE conversation_id=?1 AND is_admin=1", group);
                 if (!current)
                 {
                     return std::unexpected(std::move(current.error()));
@@ -532,8 +543,12 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> change_g
                     return admin_limit;
                 }
             }
-            if (auto error = write(db, "UPDATE conversation_members SET is_admin=?3 WHERE conversation_id=?1 AND user_id=?2",
-                                    group, target, static_cast<int>(enabled)); error)
+            if (auto error = write(db,
+                                   "UPDATE conversation_members SET is_admin=?3 WHERE conversation_id=?1 AND user_id=?2",
+                                   group,
+                                   target,
+                                   static_cast<int>(enabled));
+                error)
             {
                 return std::unexpected(std::move(error));
             }
@@ -544,10 +559,15 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> change_g
             {
                 return permission_denied;
             }
-            if (auto error = write(db, R"SQL(
+            if (auto error = write(db,
+                                   R"SQL(
                 UPDATE conversation_members SET is_admin=(user_id=?2)
                 WHERE conversation_id=?1 AND user_id IN(?2,?3)
-            )SQL", group, actor, target); error)
+            )SQL",
+                                   group,
+                                   actor,
+                                   target);
+                error)
             {
                 return std::unexpected(std::move(error));
             }
@@ -563,8 +583,9 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> change_g
             }
             [[fallthrough]];
         case leave:
-            if (auto error = write(db, "DELETE FROM conversation_members WHERE conversation_id=?1 AND user_id=?2",
-                                    group, action == leave ? actor : target); error)
+            if (auto error =
+                    write(db, "DELETE FROM conversation_members WHERE conversation_id=?1 AND user_id=?2", group, action == leave ? actor : target);
+                error)
             {
                 return std::unexpected(std::move(error));
             }

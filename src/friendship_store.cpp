@@ -9,8 +9,7 @@ using chat::friendship_state;
 
 chat::user read_user(sqlite_statement const& row)
 {
-    return {row.column_int64(0), std::string(row.column_text(1)),
-            {row.column_int64(2), row.column_int64(3) != 0}};
+    return {row.column_int64(0), std::string(row.column_text(1)), {row.column_int64(2), row.column_int64(3) != 0}};
 }
 
 sqlite_error bind_users(sqlite_statement& statement, std::int64_t caller, std::int64_t peer)
@@ -22,8 +21,7 @@ sqlite_error bind_users(sqlite_statement& statement, std::int64_t caller, std::i
     return statement.bind(2, peer);
 }
 
-sqlite_error mutate_pair(sqlite_database& db, std::string_view sql, std::int64_t caller,
-                         std::int64_t peer, bool timestamp = false)
+sqlite_error mutate_pair(sqlite_database& db, std::string_view sql, std::int64_t caller, std::int64_t peer, bool timestamp = false)
 {
     auto statement = db.prepare(sql);
     if (!statement)
@@ -36,8 +34,7 @@ sqlite_error mutate_pair(sqlite_database& db, std::string_view sql, std::int64_t
     }
     if (timestamp)
     {
-        auto const now = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
+        auto const now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         if (auto error = statement->bind(3, now); error)
         {
             return error;
@@ -46,10 +43,12 @@ sqlite_error mutate_pair(sqlite_database& db, std::string_view sql, std::int64_t
     auto result = statement->step();
     return result ? sqlite_error{} : std::move(result.error());
 }
-} // namespace
+}    // namespace
 
-std::expected<std::variant<friendship_change, friendship_rejection>, sqlite_error> change_friendship(
-    sqlite_database& db, std::int64_t caller, std::int64_t peer, friendship_action action)
+std::expected<std::variant<friendship_change, friendship_rejection>, sqlite_error> change_friendship(sqlite_database& db,
+                                                                                                     std::int64_t caller,
+                                                                                                     std::int64_t peer,
+                                                                                                     friendship_action action)
 {
     auto transaction = sqlite_transaction::begin_immediate(db);
     if (!transaction)
@@ -109,9 +108,9 @@ std::expected<std::variant<friendship_change, friendship_rejection>, sqlite_erro
             }
             if (change.previous == friendship_state::none)
             {
-                if (auto error = mutate_pair(db,
-                        "INSERT INTO friend_requests(requester_id,recipient_id,created_at) VALUES(?1,?2,?3)",
-                        caller, peer, true); error)
+                if (auto error =
+                        mutate_pair(db, "INSERT INTO friend_requests(requester_id,recipient_id,created_at) VALUES(?1,?2,?3)", caller, peer, true);
+                    error)
                 {
                     return std::unexpected(std::move(error));
                 }
@@ -124,17 +123,16 @@ std::expected<std::variant<friendship_change, friendship_rejection>, sqlite_erro
             {
                 return friendship_rejection::no_incoming_request;
             }
-            if (auto error = mutate_pair(db, "DELETE FROM friend_requests WHERE requester_id=?2 AND recipient_id=?1",
-                                        caller, peer); error)
+            if (auto error = mutate_pair(db, "DELETE FROM friend_requests WHERE requester_id=?2 AND recipient_id=?1", caller, peer); error)
             {
                 return std::unexpected(std::move(error));
             }
             change.result.state = friendship_state::none;
             if (action == friendship_action::accept)
             {
-                if (auto error = mutate_pair(db,
-                        "INSERT INTO contacts(owner_id,contact_id,created_at) VALUES(?1,?2,?3),(?2,?1,?3)",
-                        caller, peer, true); error)
+                if (auto error =
+                        mutate_pair(db, "INSERT INTO contacts(owner_id,contact_id,created_at) VALUES(?1,?2,?3),(?2,?1,?3)", caller, peer, true);
+                    error)
                 {
                     return std::unexpected(std::move(error));
                 }
@@ -144,8 +142,7 @@ std::expected<std::variant<friendship_change, friendship_rejection>, sqlite_erro
         case friendship_action::cancel:
             if (change.previous == friendship_state::outgoing_pending)
             {
-                if (auto error = mutate_pair(db, "DELETE FROM friend_requests WHERE requester_id=?1 AND recipient_id=?2",
-                                            caller, peer); error)
+                if (auto error = mutate_pair(db, "DELETE FROM friend_requests WHERE requester_id=?1 AND recipient_id=?2", caller, peer); error)
                 {
                     return std::unexpected(std::move(error));
                 }
@@ -153,13 +150,21 @@ std::expected<std::variant<friendship_change, friendship_rejection>, sqlite_erro
             }
             break;
         case friendship_action::remove:
-            if (auto error = mutate_pair(db, "DELETE FROM friend_requests WHERE (requester_id=?1 AND recipient_id=?2)"
-                                             " OR (requester_id=?2 AND recipient_id=?1)", caller, peer); error)
+            if (auto error = mutate_pair(db,
+                                         "DELETE FROM friend_requests WHERE (requester_id=?1 AND recipient_id=?2)"
+                                         " OR (requester_id=?2 AND recipient_id=?1)",
+                                         caller,
+                                         peer);
+                error)
             {
                 return std::unexpected(std::move(error));
             }
-            if (auto error = mutate_pair(db, "DELETE FROM contacts WHERE (owner_id=?1 AND contact_id=?2)"
-                                             " OR (owner_id=?2 AND contact_id=?1)", caller, peer); error)
+            if (auto error = mutate_pair(db,
+                                         "DELETE FROM contacts WHERE (owner_id=?1 AND contact_id=?2)"
+                                         " OR (owner_id=?2 AND contact_id=?1)",
+                                         caller,
+                                         peer);
+                error)
             {
                 return std::unexpected(std::move(error));
             }

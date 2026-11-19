@@ -2,8 +2,10 @@
 
 #include <utility>
 
-std::expected<std::optional<attachment_object>, sqlite_error> find_attachment_object(
-    sqlite_database& db, std::int64_t user, std::int64_t conversation, std::int64_t message)
+std::expected<std::optional<attachment_object>, sqlite_error> find_attachment_object(sqlite_database& db,
+                                                                                     std::int64_t user,
+                                                                                     std::int64_t conversation,
+                                                                                     std::int64_t message)
 {
     auto statement = db.prepare(R"SQL(
         SELECT a.object_key,a.size
@@ -11,7 +13,10 @@ std::expected<std::optional<attachment_object>, sqlite_error> find_attachment_ob
         JOIN messages m ON m.id=a.message_id
         JOIN conversation_members own ON own.conversation_id=m.conversation_id AND own.user_id=?1
         WHERE m.conversation_id=?2 AND m.id=?3 AND m.deleted=0
-    )SQL", user, conversation, message);
+    )SQL",
+                                user,
+                                conversation,
+                                message);
     if (!statement)
     {
         return std::unexpected(std::move(statement.error()));

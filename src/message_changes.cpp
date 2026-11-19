@@ -9,7 +9,7 @@
 
 namespace
 {
-template<class... Args>
+template <class... Args>
 sqlite_error execute(sqlite_database& db, std::string_view sql, Args const&... args)
 {
     auto statement = db.prepare(sql, args...);
@@ -20,11 +20,10 @@ sqlite_error execute(sqlite_database& db, std::string_view sql, Args const&... a
     auto done = statement->step();
     return done ? sqlite_error{} : std::move(done.error());
 }
-} // namespace
+}    // namespace
 
 std::expected<std::variant<changed_message, message_change_rejection>, sqlite_error> change_message_body(
-    sqlite_database& db, std::int64_t user, std::int64_t conversation, std::int64_t message,
-    std::optional<std::string_view> new_text)
+    sqlite_database& db, std::int64_t user, std::int64_t conversation, std::int64_t message, std::optional<std::string_view> new_text)
 {
     using enum message_change_rejection;
     auto const editing = new_text.has_value();
@@ -40,8 +39,7 @@ std::expected<std::variant<changed_message, message_change_rejection>, sqlite_er
             return cannot_send;
         }
     }
-    auto const now = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::system_clock::now().time_since_epoch()).count();
+    auto const now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     auto update = db.prepare(R"SQL(
         UPDATE messages AS m SET
             body=?4,deleted=?5,
@@ -50,7 +48,13 @@ std::expected<std::variant<changed_message, message_change_rejection>, sqlite_er
         WHERE m.id=?1 AND m.conversation_id=?2 AND m.sender_id=?3
           AND EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=?2 AND user_id=?3)
           AND (?5 OR (m.deleted=0 AND NOT EXISTS(SELECT 1 FROM message_attachments WHERE message_id=?1)))
-    )SQL", message, conversation, user, new_text.value_or(""), static_cast<int>(!editing), now);
+    )SQL",
+                             message,
+                             conversation,
+                             user,
+                             new_text.value_or(""),
+                             static_cast<int>(!editing),
+                             now);
     if (!update)
     {
         return std::unexpected(std::move(update.error()));
@@ -70,8 +74,8 @@ std::expected<std::variant<changed_message, message_change_rejection>, sqlite_er
         {
             return std::unexpected(std::move(error));
         }
-        if (auto error = execute(db, "UPDATE conversations SET pinned_message_id=NULL WHERE id=?1 AND pinned_message_id=?2",
-                                 conversation, message); error)
+        if (auto error = execute(db, "UPDATE conversations SET pinned_message_id=NULL WHERE id=?1 AND pinned_message_id=?2", conversation, message);
+            error)
         {
             return std::unexpected(std::move(error));
         }
@@ -101,7 +105,10 @@ std::expected<std::variant<changed_reaction, message_change_rejection>, sqlite_e
         SELECT coalesce((SELECT emoji FROM message_reactions WHERE message_id=?1 AND user_id=?3),'')
         FROM messages m JOIN conversation_members own ON own.conversation_id=m.conversation_id
         WHERE m.id=?1 AND m.conversation_id=?2 AND own.user_id=?3 AND m.deleted=0
-    )SQL", message, conversation, user);
+    )SQL",
+                               message,
+                               conversation,
+                               user);
     if (!original)
     {
         return std::unexpected(std::move(original.error()));
@@ -128,11 +135,15 @@ std::expected<std::variant<changed_reaction, message_change_rejection>, sqlite_e
     }
     if (changed)
     {
-        auto error = emoji.empty() ? execute(db, "DELETE FROM message_reactions WHERE message_id=?1 AND user_id=?2",
-                                             message, user) : execute(db, R"SQL(
+        auto error = emoji.empty() ? execute(db, "DELETE FROM message_reactions WHERE message_id=?1 AND user_id=?2", message, user)
+                                   : execute(db,
+                                             R"SQL(
             INSERT INTO message_reactions(message_id,user_id,emoji) VALUES(?1,?2,?3)
             ON CONFLICT(message_id,user_id) DO UPDATE SET emoji=excluded.emoji
-        )SQL", message, user, emoji);
+        )SQL",
+                                             message,
+                                             user,
+                                             emoji);
         if (error)
         {
             return std::unexpected(std::move(error));

@@ -28,10 +28,9 @@ bool mention_word(std::string_view::const_iterator character, std::string_view::
     return (category >= UTF8PROC_CATEGORY_LU && category <= UTF8PROC_CATEGORY_LO) ||
            (category >= UTF8PROC_CATEGORY_ND && category <= UTF8PROC_CATEGORY_NO);
 }
-} // namespace
+}    // namespace
 
-sqlite_error replace_message_mentions(sqlite_database& db, std::int64_t conversation, std::int64_t message,
-                                      std::string_view text)
+sqlite_error replace_message_mentions(sqlite_database& db, std::int64_t conversation, std::int64_t message, std::string_view text)
 {
     if (auto clear = db.prepare("DELETE FROM message_mentions WHERE message_id=?1", message); clear)
     {
@@ -52,7 +51,9 @@ sqlite_error replace_message_mentions(sqlite_database& db, std::int64_t conversa
         SELECT u.id,u.username FROM conversation_members m JOIN users u ON u.id=m.user_id
         JOIN conversations c ON c.id=m.conversation_id
         WHERE c.id=?1 AND c.kind='group' AND instr(?2,'@'||u.username)>0
-    )SQL", conversation, text);
+    )SQL",
+                            conversation,
+                            text);
     if (!users)
     {
         return std::move(users.error());
@@ -75,9 +76,7 @@ sqlite_error replace_message_mentions(sqlite_database& db, std::int64_t conversa
     {
         return {};
     }
-    std::ranges::sort(candidates, [](auto const& left, auto const& right) {
-        return left.username.size() > right.username.size();
-    });
+    std::ranges::sort(candidates, [](auto const& left, auto const& right) { return left.username.size() > right.username.size(); });
     auto write = db.prepare(R"SQL(
         INSERT INTO message_mentions(message_id,user_id) VALUES(?1,?2)
         ON CONFLICT(message_id,user_id) DO NOTHING
@@ -108,8 +107,7 @@ sqlite_error replace_message_mentions(sqlite_database& db, std::int64_t conversa
         auto const suffix = text.substr(position + 1);
         for (auto const& candidate : candidates)
         {
-            if (!suffix.starts_with(candidate.username) ||
-                mention_word(suffix.begin() + candidate.username.size(), suffix.end()))
+            if (!suffix.starts_with(candidate.username) || mention_word(suffix.begin() + candidate.username.size(), suffix.end()))
             {
                 continue;
             }

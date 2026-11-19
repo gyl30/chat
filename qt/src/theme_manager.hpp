@@ -10,9 +10,23 @@
 #include <QTemporaryDir>
 #include <memory>
 
-enum class chat_theme_id { daylight, midnight };
-enum class chat_appearance { system, light, dark };
-struct chat_theme_info { chat_theme_id id; QString key; QString name; };
+enum class chat_theme_id
+{
+    daylight,
+    midnight
+};
+enum class chat_appearance
+{
+    system,
+    light,
+    dark
+};
+struct chat_theme_info
+{
+    chat_theme_id id;
+    QString key;
+    QString name;
+};
 
 // QSS and custom painters use the same semantic colors from external theme files.
 class theme_manager final : public QObject
@@ -40,6 +54,7 @@ class theme_manager final : public QObject
    signals:
     void changed();
     void load_failed(QString message);
+
    private:
     theme_manager();
     bool apply(chat_appearance appearance);

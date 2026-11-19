@@ -44,8 +44,7 @@ class chat_session
 
     boost::capy::task<simdjson::error_code> handle_get_contacts(json_rpc_request& request, std::string& response);
 
-    boost::capy::task<simdjson::error_code> handle_create_conversation(json_rpc_request& request,
-                                                                       std::string& response);
+    boost::capy::task<simdjson::error_code> handle_create_conversation(json_rpc_request& request, std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_get_members(json_rpc_request& request, std::string& response);
     boost::capy::task<simdjson::error_code> handle_group_management(json_rpc_request& request, std::string& response);
@@ -82,9 +81,16 @@ class chat_session
     };
     // The caller's message already stored under client_id, in its current state.
     boost::capy::task<std::expected<std::optional<sent_message>, sqlite_error>> find_sent_message(std::int64_t client_id);
-    enum class notification_result { skipped, delivered, denied, failed };
+    enum class notification_result
+    {
+        skipped,
+        delivered,
+        denied,
+        failed
+    };
     boost::capy::task<notification_result> publish_conversation(std::int64_t conversation,
-        std::string notification, bool require_sender_permission = false);
+                                                                std::string notification,
+                                                                bool require_sender_permission = false);
     boost::capy::task<void> publish_join_request(std::int64_t conversation, std::int64_t user, std::string state);
 
     bool enqueue_message(std::string message);

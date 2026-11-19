@@ -24,33 +24,40 @@ class message_search_results_model final : public QSortFilterProxyModel
 {
    public:
     explicit message_search_results_model(QObject* parent) : QSortFilterProxyModel(parent) {}
-    void clear_hits() { hits_.clear(); invalidateFilter(); }
-    void include_hits(QList<qint64> const& ids)
+    void clear_hits()
     {
-        for (auto id : ids) { hits_.insert(id); }
+        hits_.clear();
         invalidateFilter();
     }
+    void include_hits(QList<qint64> const& ids)
+    {
+        for (auto id : ids)
+        {
+            hits_.insert(id);
+        }
+        invalidateFilter();
+    }
+
    protected:
     bool filterAcceptsRow(int row, QModelIndex const& parent) const override
     {
         auto const index = sourceModel()->index(row, 0, parent);
-        return hits_.contains(index.data(message_model::id_role).toLongLong()) &&
-               !index.data(message_model::deleted_role).toBool();
+        return hits_.contains(index.data(message_model::id_role).toLongLong()) && !index.data(message_model::deleted_role).toBool();
     }
+
    private:
     QSet<qint64> hits_;
 };
 
-message_search_dialog::message_search_dialog(qint64 conversation, qint64 self_user, bool group,
-                                             QString const& title, QString const& query, QWidget* parent, avatar_cache* avatars)
+message_search_dialog::message_search_dialog(
+    qint64 conversation, qint64 self_user, bool group, QString const& title, QString const& query, QWidget* parent, avatar_cache* avatars)
     : QDialog(parent), conversation_(conversation), group_(group)
 {
     setObjectName(QStringLiteral("messageSearchDialog"));
     setWindowTitle(title + QStringLiteral(" · 搜索消息"));
     resize(700, 600);
     auto* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding,
-                              chat_theme::dialog_padding, chat_theme::dialog_padding);
+    layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
     layout->setSpacing(chat_theme::dialog_spacing);
     auto* search_row = new QHBoxLayout;
     search_row->setSpacing(chat_theme::dialog_spacing);
@@ -102,30 +109,36 @@ message_search_dialog::message_search_dialog(qint64 conversation, qint64 self_us
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(search_button_, &QPushButton::clicked, this, [this] { request_search(false); });
-    auto const activate = [this](QModelIndex const& index) {
+    auto const activate = [this](QModelIndex const& index)
+    {
         auto const id = index.data(message_model::id_role).toLongLong();
-        if (id > 0) { emit message_activated(id); }
+        if (id > 0)
+        {
+            emit message_activated(id);
+        }
     };
     connect(results_, &QListView::activated, this, activate);
     connect(results_, &QListView::doubleClicked, this, activate);
     connect(more_button_, &QPushButton::clicked, this, [this] { request_search(true); });
-    connect(input_, &QLineEdit::textChanged, this, [this] {
-        more_button_->setEnabled(next_before_ > 0 && input_->text().trimmed() == query_);
-    });
-    connect(results_, &QListView::customContextMenuRequested, this, [this](QPoint const& point) {
-        auto const index = results_->indexAt(point);
-        if (!index.isValid())
-        {
-            return;
-        }
-        auto const text = index.data(message_model::text_role).toString();
-        QMenu menu(this);
-        auto* copy = menu.addAction(QStringLiteral("复制消息"));
-        if (menu.exec(results_->viewport()->mapToGlobal(point)) == copy)
-        {
-            QGuiApplication::clipboard()->setText(text);
-        }
-    });
+    connect(input_, &QLineEdit::textChanged, this, [this] { more_button_->setEnabled(next_before_ > 0 && input_->text().trimmed() == query_); });
+    connect(results_,
+            &QListView::customContextMenuRequested,
+            this,
+            [this](QPoint const& point)
+            {
+                auto const index = results_->indexAt(point);
+                if (!index.isValid())
+                {
+                    return;
+                }
+                auto const text = index.data(message_model::text_role).toString();
+                QMenu menu(this);
+                auto* copy = menu.addAction(QStringLiteral("复制消息"));
+                if (menu.exec(results_->viewport()->mapToGlobal(point)) == copy)
+                {
+                    QGuiApplication::clipboard()->setText(text);
+                }
+            });
     refresh_count();
     if (!query.isEmpty())
     {
@@ -163,8 +176,7 @@ void message_search_dialog::request_search(bool older)
     emit search_requested(query_, before_);
 }
 
-void message_search_dialog::set_reactions(qint64 conversation, qint64 message, qint64 revision,
-                                         QList<reaction_data> reactions, QString const& error)
+void message_search_dialog::set_reactions(qint64 conversation, qint64 message, qint64 revision, QList<reaction_data> reactions, QString const& error)
 {
     if (conversation == conversation_ && message > 0 && error.isEmpty())
     {
@@ -172,14 +184,19 @@ void message_search_dialog::set_reactions(qint64 conversation, qint64 message, q
         {
             auto const found = pending_reactions_.constFind(message);
             if (found == pending_reactions_.cend() || revision > found->revision)
-            { pending_reactions_.insert(message, {revision, std::move(reactions)}); }
+            {
+                pending_reactions_.insert(message, {revision, std::move(reactions)});
+            }
         }
     }
 }
 
 void message_search_dialog::update_message(qint64 conversation, message_data message, QString const& error)
 {
-    if (conversation != conversation_ || message.conversation != conversation_ || message.id <= 0 || !error.isEmpty()) { return; }
+    if (conversation != conversation_ || message.conversation != conversation_ || message.id <= 0 || !error.isEmpty())
+    {
+        return;
+    }
     auto const previous = selection();
     messages_->add_message(message);
     messages_->update_message(message);
@@ -188,9 +205,13 @@ void message_search_dialog::update_message(qint64 conversation, message_data mes
     refresh_count();
 }
 
-void message_search_dialog::set_results(qint64 conversation, QString const& query, qint64 before,
-                                       QList<message_data> messages, read_positions positions, bool has_more,
-                                       QString const& error_message)
+void message_search_dialog::set_results(qint64 conversation,
+                                        QString const& query,
+                                        qint64 before,
+                                        QList<message_data> messages,
+                                        read_positions positions,
+                                        bool has_more,
+                                        QString const& error_message)
 {
     if (conversation != conversation_ || query != query_ || before != before_)
     {
@@ -211,12 +232,18 @@ void message_search_dialog::set_results(qint64 conversation, QString const& quer
         if (message.conversation == conversation_ && message.id > 0)
         {
             hits.push_back(message.id);
-            if (page_boundary == 0 || message.id < page_boundary) { page_boundary = message.id; }
+            if (page_boundary == 0 || message.id < page_boundary)
+            {
+                page_boundary = message.id;
+            }
         }
     }
     visible_messages_->include_hits(hits);
     messages_->merge_messages(std::move(messages));
-    for (auto id : hits) { consume_reaction(id); }
+    for (auto id : hits)
+    {
+        consume_reaction(id);
+    }
     messages_->set_read_positions(std::move(positions));
     next_before_ = has_more ? page_boundary : 0;
     more_button_->setEnabled(next_before_ > 0 && input_->text().trimmed() == query_);
@@ -237,7 +264,10 @@ message_search_dialog::selection_state message_search_dialog::selection() const
     state.current = current.data(message_model::id_role).toLongLong();
     state.row = current.row();
     auto const selected = results_->selectionModel()->selectedRows();
-    if (!selected.isEmpty()) { state.selected = selected.front().data(message_model::id_role).toLongLong(); }
+    if (!selected.isEmpty())
+    {
+        state.selected = selected.front().data(message_model::id_role).toLongLong();
+    }
     return state;
 }
 
@@ -245,24 +275,41 @@ void message_search_dialog::restore_selection(selection_state const& previous)
 {
     auto* selection = results_->selectionModel();
     auto const count = visible_messages_->rowCount();
-    if (count == 0) { selection->clear(); return; }
-    if (previous.current == 0 && previous.selected == 0) { return; }
-    auto find = [&](qint64 id) {
+    if (count == 0)
+    {
+        selection->clear();
+        return;
+    }
+    if (previous.current == 0 && previous.selected == 0)
+    {
+        return;
+    }
+    auto find = [&](qint64 id)
+    {
         for (int row = 0; row < count; ++row)
         {
             auto index = visible_messages_->index(row, 0);
-            if (index.data(message_model::id_role).toLongLong() == id) { return index; }
+            if (index.data(message_model::id_role).toLongLong() == id)
+            {
+                return index;
+            }
         }
         return QModelIndex{};
     };
     auto current = find(previous.current);
-    if (!current.isValid()) { current = visible_messages_->index(qBound(0, previous.row, count - 1), 0); }
+    if (!current.isValid())
+    {
+        current = visible_messages_->index(qBound(0, previous.row, count - 1), 0);
+    }
     selection->clearSelection();
     selection->setCurrentIndex(current, QItemSelectionModel::NoUpdate);
     if (previous.selected > 0)
     {
         auto selected = find(previous.selected);
-        if (!selected.isValid()) { selected = current; }
+        if (!selected.isValid())
+        {
+            selected = current;
+        }
         selection->select(selected, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
     }
 }
@@ -271,13 +318,14 @@ void message_search_dialog::consume_reaction(qint64 message)
 {
     auto const found = pending_reactions_.constFind(message);
     if (found != pending_reactions_.cend() && messages_->set_reactions(message, found->revision, found->reactions))
-    { pending_reactions_.remove(message); }
+    {
+        pending_reactions_.remove(message);
+    }
 }
 
 void message_search_dialog::refresh_count()
 {
     auto const count = visible_messages_->rowCount();
-    count_->setText(count > 0 ? QStringLiteral("已加载 %1 条搜索时命中的消息").arg(count)
-                            : QStringLiteral("没有已加载的搜索命中；可重新搜索。"));
+    count_->setText(count > 0 ? QStringLiteral("已加载 %1 条搜索时命中的消息").arg(count) : QStringLiteral("没有已加载的搜索命中；可重新搜索。"));
     count_->setVisible(count > 0 || status_->isHidden());
 }

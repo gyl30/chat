@@ -18,7 +18,7 @@ inline constexpr std::size_t invite_code_length = 8;
 inline bool valid_invite_token(std::string_view token)
 {
     return token.size() == invite_code_length &&
-        std::ranges::all_of(token, [](char c) { return invite_code_alphabet.find(c) != std::string_view::npos; });
+           std::ranges::all_of(token, [](char c) { return invite_code_alphabet.find(c) != std::string_view::npos; });
 }
 
 // Accepts what people type: any case, with spaces or a dash between the two groups.
@@ -27,17 +27,26 @@ inline std::optional<std::string> normalize_invite_token(std::string_view input)
     std::string token;
     for (auto c : input)
     {
-        if (c == ' ' || c == '-' || c == '\t' || c == '\n' || c == '\r') { continue; }
+        if (c == ' ' || c == '-' || c == '\t' || c == '\n' || c == '\r')
+        {
+            continue;
+        }
         token += c >= 'a' && c <= 'z' ? static_cast<char>(c - 'a' + 'A') : c;
     }
-    if (!valid_invite_token(token)) { return std::nullopt; }
+    if (!valid_invite_token(token))
+    {
+        return std::nullopt;
+    }
     return token;
 }
 
 // Shown in two groups of four, such as K7QM-3XWP.
 inline std::string format_invite_token(std::string_view token)
 {
-    if (token.size() != invite_code_length) { return std::string(token); }
+    if (token.size() != invite_code_length)
+    {
+        return std::string(token);
+    }
     std::string value(token.substr(0, invite_code_length / 2));
     value += '-';
     value += token.substr(invite_code_length / 2);

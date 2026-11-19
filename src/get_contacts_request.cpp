@@ -26,14 +26,15 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_contacts(json_r
         co_return simdjson::SUCCESS;
     }
 
-    auto users = co_await database_.run([&, user=*user_id_](sqlite_database& db) {
-        return read_contacts(db, user);
-    });
+    auto users = co_await database_.run([&, user = *user_id_](sqlite_database& db) { return read_contacts(db, user); });
     if (!users)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
-    struct result { std::vector<user_payload> users; };
+    struct result
+    {
+        std::vector<user_payload> users;
+    };
     result payload;
     payload.users.reserve(users->size());
     for (auto const& user : *users)

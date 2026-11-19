@@ -26,6 +26,6 @@ struct reaction_update
     std::vector<reaction> reactions;
 };
 
-} // namespace chat
+}    // namespace chat
 
 #endif

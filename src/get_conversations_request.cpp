@@ -14,14 +14,14 @@
 namespace
 {
 
-struct [[= simdjson::deny_unknown_fields]] conversation_cursor
+struct[[= simdjson::deny_unknown_fields]] conversation_cursor
 {
     std::int64_t activity = 0;
     std::int64_t id = 0;
     std::optional<bool> pinned;
 };
 
-struct [[= simdjson::deny_unknown_fields]] get_conversations_params
+struct[[= simdjson::deny_unknown_fields]] get_conversations_params
 {
     std::optional<conversation_cursor> before;
 };
@@ -62,8 +62,7 @@ simdjson::error_code parse_get_conversations_params(json_rpc_params& params, get
 
 }    // namespace
 
-boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(json_rpc_request& request,
-                                                                               std::string& response)
+boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(json_rpc_request& request, std::string& response)
 {
     if (!user_id_)
     {
@@ -95,9 +94,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
     {
         cursor = chat::conversation_cursor{params.before->activity, params.before->id, *params.before->pinned};
     }
-    auto result = co_await database_.run([=, user=*user_id_](sqlite_database& db) {
-        return read_conversation_list(db, user, cursor);
-    });
+    auto result = co_await database_.run([=, user = *user_id_](sqlite_database& db) { return read_conversation_list(db, user, cursor); });
     if (!result)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);

@@ -25,20 +25,11 @@ namespace
 
 constexpr qint64 kGroupInterval = 5 * 60 * 1000;
 
-bool outgoing_at(QModelIndex const& index)
-{
-    return index.data(message_model::outgoing_role).toBool();
-}
+bool outgoing_at(QModelIndex const& index) { return index.data(message_model::outgoing_role).toBool(); }
 
-bool read_at(QModelIndex const& index)
-{
-    return index.data(message_model::read_role).toBool();
-}
+bool read_at(QModelIndex const& index) { return index.data(message_model::read_role).toBool(); }
 
-qint64 timestamp_at(QModelIndex const& index)
-{
-    return index.data(message_model::timestamp_role).toLongLong();
-}
+qint64 timestamp_at(QModelIndex const& index) { return index.data(message_model::timestamp_role).toLongLong(); }
 
 QDate local_date(QModelIndex const& index)
 {
@@ -60,19 +51,13 @@ bool same_group(QModelIndex const& lhs, QModelIndex const& rhs)
 
     auto const lhs_timestamp = timestamp_at(lhs);
     auto const rhs_timestamp = timestamp_at(rhs);
-    return lhs_timestamp > 0 && rhs_timestamp >= lhs_timestamp && local_date(lhs) == local_date(rhs)
-        && rhs_timestamp - lhs_timestamp <= kGroupInterval;
+    return lhs_timestamp > 0 && rhs_timestamp >= lhs_timestamp && local_date(lhs) == local_date(rhs) &&
+           rhs_timestamp - lhs_timestamp <= kGroupInterval;
 }
 
-bool starts_group(QModelIndex const& index)
-{
-    return index.row() == 0 || !same_group(index.sibling(index.row() - 1, index.column()), index);
-}
+bool starts_group(QModelIndex const& index) { return index.row() == 0 || !same_group(index.sibling(index.row() - 1, index.column()), index); }
 
-bool ends_group(QModelIndex const& index)
-{
-    return !same_group(index, index.sibling(index.row() + 1, index.column()));
-}
+bool ends_group(QModelIndex const& index) { return !same_group(index, index.sibling(index.row() + 1, index.column())); }
 
 bool starts_day(QModelIndex const& index)
 {
@@ -113,9 +98,7 @@ QString date_text(QModelIndex const& index)
 QString time_text(QModelIndex const& index)
 {
     auto const timestamp = timestamp_at(index);
-    return timestamp > 0
-        ? QDateTime::fromMSecsSinceEpoch(timestamp).toLocalTime().toString(QStringLiteral("HH:mm"))
-        : QString{};
+    return timestamp > 0 ? QDateTime::fromMSecsSinceEpoch(timestamp).toLocalTime().toString(QStringLiteral("HH:mm")) : QString{};
 }
 
 QFont name_font(QStyleOptionViewItem const& option)
@@ -144,8 +127,7 @@ QFont date_font(QStyleOptionViewItem const& option)
 int maximum_bubble_width(QStyleOptionViewItem const& option, bool outgoing)
 {
     auto const width = std::max(320, option.rect.width());
-    auto const reserved = chat_theme::message_side_margin * 2
-        + (outgoing ? 0 : chat_theme::message_avatar_skip);
+    auto const reserved = chat_theme::message_side_margin * 2 + (outgoing ? 0 : chat_theme::message_avatar_skip);
     return std::max(180, std::min(chat_theme::message_max_width, width - reserved));
 }
 
@@ -220,9 +202,7 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     result.day_start = starts_day(index);
     result.group_start = starts_group(index);
     result.group_end = ends_group(index);
-    result.top_margin = result.group_start
-        ? chat_theme::message_margin_top
-        : chat_theme::message_margin_top_attached;
+    result.top_margin = result.group_start ? chat_theme::message_margin_top : chat_theme::message_margin_top_attached;
 
     auto const bubble_max = maximum_bubble_width(option, result.outgoing);
     auto const inner_max = std::max(80, bubble_max - chat_theme::message_padding_horizontal * 2);
@@ -231,9 +211,7 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     result.time_width = result.time.isEmpty() ? 0 : time_metrics.horizontalAdvance(result.time);
     result.time_height = result.time.isEmpty() ? 0 : time_metrics.height();
     result.receipt_width = result.outgoing ? 17 : 0;
-    auto const metadata_width = result.time_width
-        + ((result.time_width > 0 && result.receipt_width > 0) ? 3 : 0)
-        + result.receipt_width;
+    auto const metadata_width = result.time_width + ((result.time_width > 0 && result.receipt_width > 0) ? 3 : 0) + result.receipt_width;
 
     auto text = result.text;
     text.replace(QLatin1Char('\n'), QChar::LineSeparator);
@@ -248,8 +226,8 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
         auto const body_start = result.text.size() - index.data(message_model::text_role).toString().size();
         for (auto const& mention : mentions)
         {
-            QRegularExpression pattern(QStringLiteral("(?<![\\p{L}\\p{N}_@])@%1(?![\\p{L}\\p{N}_@])")
-                .arg(QRegularExpression::escape(mention.username)));
+            QRegularExpression pattern(
+                QStringLiteral("(?<![\\p{L}\\p{N}_@])@%1(?![\\p{L}\\p{N}_@])").arg(QRegularExpression::escape(mention.username)));
             auto matches = pattern.globalMatch(result.text, body_start);
             while (matches.hasNext())
             {
@@ -266,7 +244,10 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     while (true)
     {
         auto line = result.text_layout->createLine();
-        if (!line.isValid()) { break; }
+        if (!line.isValid())
+        {
+            break;
+        }
         line.setLineWidth(inner_max);
         line.setPosition(QPointF(0, result.text_height));
         result.text_height += qCeil(line.height());
@@ -274,8 +255,7 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     }
     result.text_layout->endLayout();
     auto const single_line = !result.text.contains(QLatin1Char('\n')) && result.text_layout->lineCount() <= 1;
-    result.time_on_text_line = single_line &&
-        (metadata_width == 0 || result.text_width + chat_theme::message_time_gap + metadata_width <= inner_max);
+    result.time_on_text_line = single_line && (metadata_width == 0 || result.text_width + chat_theme::message_time_gap + metadata_width <= inner_max);
 
     auto content_width = result.text_width;
     auto content_height = result.text_height;
@@ -317,8 +297,7 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     auto const chip_height = time_metrics.height() + 8;
     for (auto const& reaction : result.reactions)
     {
-        auto const width = time_metrics.horizontalAdvance(
-            reaction.emoji + QStringLiteral(" %1").arg(reaction.users.size())) + 16;
+        auto const width = time_metrics.horizontalAdvance(reaction.emoji + QStringLiteral(" %1").arg(reaction.users.size())) + 16;
         if (chip_x > 0 && chip_x + width > inner_max)
         {
             chip_x = 0;
@@ -331,16 +310,11 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     }
     content_height += result.reactions_height;
 
-    result.bubble_width = std::min(
-        bubble_max,
-        content_width + chat_theme::message_padding_horizontal * 2);
-    result.bubble_height = result.name_height + content_height
-        + chat_theme::message_padding_vertical * 2;
+    result.bubble_width = std::min(bubble_max, content_width + chat_theme::message_padding_horizontal * 2);
+    result.bubble_height = result.name_height + content_height + chat_theme::message_padding_vertical * 2;
     if (result.day_start && !date_text(index).isEmpty())
     {
-        result.day_height = chat_theme::message_date_margin_top
-            + chat_theme::message_date_height
-            + chat_theme::message_date_margin_bottom;
+        result.day_height = chat_theme::message_date_margin_top + chat_theme::message_date_height + chat_theme::message_date_margin_bottom;
     }
     return result;
 }
@@ -370,7 +344,8 @@ void paint_receipt(QPainter& painter, QRect const& rect, bool read)
     painter.setPen(pen);
     painter.setBrush(Qt::NoBrush);
 
-    auto draw_check = [&](int x) {
+    auto draw_check = [&](int x)
+    {
         QPainterPath path;
         path.moveTo(x, rect.center().y());
         path.lineTo(x + 3, rect.center().y() + 3);
@@ -421,16 +396,14 @@ QPainterPath bubble_path(QRect const& bubble, bool outgoing, bool group_start, b
     {
         auto const right = static_cast<qreal>(bubble.right()) + 0.5;
         tail.moveTo(right - 4.0, bottom - chat_theme::message_tail_height);
-        tail.cubicTo(right - 1.5, bottom - 4.5, right + 0.5, bottom - 1.5,
-                     right + chat_theme::message_tail_width, bottom);
+        tail.cubicTo(right - 1.5, bottom - 4.5, right + 0.5, bottom - 1.5, right + chat_theme::message_tail_width, bottom);
         tail.cubicTo(right + 1.5, bottom + 0.3, right - 1.0, bottom - 0.3, right - 4.0, bottom - 2.0);
     }
     else
     {
         auto const left = static_cast<qreal>(bubble.left()) - 0.5;
         tail.moveTo(left + 4.0, bottom - chat_theme::message_tail_height);
-        tail.cubicTo(left + 1.5, bottom - 4.5, left - 0.5, bottom - 1.5,
-                     left - chat_theme::message_tail_width, bottom);
+        tail.cubicTo(left + 1.5, bottom - 4.5, left - 0.5, bottom - 1.5, left - chat_theme::message_tail_width, bottom);
         tail.cubicTo(left - 1.5, bottom + 0.3, left + 1.0, bottom - 0.3, left + 4.0, bottom - 2.0);
     }
     tail.closeSubpath();
@@ -455,14 +428,10 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
         auto const font = date_font(option);
         auto const metrics = QFontMetrics(font);
         auto const width = metrics.horizontalAdvance(label) + 20;
-        QRect pill(option.rect.center().x() - width / 2,
-                   y + chat_theme::message_date_margin_top,
-                   width,
-                   chat_theme::message_date_height);
+        QRect pill(option.rect.center().x() - width / 2, y + chat_theme::message_date_margin_top, width, chat_theme::message_date_height);
         painter->setPen(Qt::NoPen);
         painter->setBrush(themed("day_pill"));
-        painter->drawRoundedRect(pill, chat_theme::message_date_height / 2.0,
-                                 chat_theme::message_date_height / 2.0);
+        painter->drawRoundedRect(pill, chat_theme::message_date_height / 2.0, chat_theme::message_date_height / 2.0);
         painter->setFont(font);
         painter->setPen(themed("text_secondary"));
         painter->drawText(pill, Qt::AlignCenter, label);
@@ -472,9 +441,7 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     y += layout.top_margin;
     auto const incoming_left = option.rect.left() + chat_theme::message_side_margin + chat_theme::message_avatar_skip;
     auto const outgoing_right = option.rect.right() - chat_theme::message_side_margin;
-    auto const bubble_x = layout.outgoing
-        ? outgoing_right - layout.bubble_width + 1
-        : incoming_left;
+    auto const bubble_x = layout.outgoing ? outgoing_right - layout.bubble_width + 1 : incoming_left;
     QRect bubble(bubble_x, y, layout.bubble_width, layout.bubble_height);
 
     if (!layout.outgoing && layout.group_end)
@@ -484,13 +451,12 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
         paint_avatar(*painter,
                      QRect(avatar_x, avatar_y, chat_theme::message_avatar_size, chat_theme::message_avatar_size),
                      layout.sender,
-                     13, index.data(Qt::DecorationRole).value<QPixmap>());
+                     13,
+                     index.data(Qt::DecorationRole).value<QPixmap>());
     }
 
     painter->setPen(Qt::NoPen);
-    painter->setBrush(layout.outgoing
-                          ? themed("bubble_out")
-                          : themed("bubble_in"));
+    painter->setBrush(layout.outgoing ? themed("bubble_out") : themed("bubble_in"));
     auto const path = bubble_path(bubble, layout.outgoing, layout.group_start, layout.group_end);
     painter->drawPath(path);
 
@@ -504,8 +470,8 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
         painter->setFont(font);
         painter->setPen(themed("message_sender"));
         QRect name_rect(content_left, content_top, content_right - content_left, QFontMetrics(font).height());
-        painter->drawText(name_rect, Qt::AlignLeft | Qt::AlignVCenter,
-                          QFontMetrics(font).elidedText(layout.sender, Qt::ElideRight, name_rect.width()));
+        painter->drawText(
+            name_rect, Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics(font).elidedText(layout.sender, Qt::ElideRight, name_rect.width()));
         content_top += layout.name_height;
     }
 
@@ -532,22 +498,15 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
         content_top += layout.image_height;
     }
     painter->setPen(themed("text"));
-    auto const metadata_width = layout.time_width
-        + ((layout.time_width > 0 && layout.receipt_width > 0) ? 3 : 0)
-        + layout.receipt_width;
-    auto const time_reserved = layout.time_on_text_line && metadata_width > 0
-        ? chat_theme::message_time_gap + metadata_width
-        : 0;
-    QRect text_rect(content_left, content_top,
-                    std::max(1, content_right - content_left - time_reserved),
-                    layout.text_height);
+    auto const metadata_width = layout.time_width + ((layout.time_width > 0 && layout.receipt_width > 0) ? 3 : 0) + layout.receipt_width;
+    auto const time_reserved = layout.time_on_text_line && metadata_width > 0 ? chat_theme::message_time_gap + metadata_width : 0;
+    QRect text_rect(content_left, content_top, std::max(1, content_right - content_left - time_reserved), layout.text_height);
     layout.text_layout->draw(painter, text_rect.topLeft());
 
     if (metadata_width > 0)
     {
-        auto const metadata_y = layout.time_on_text_line
-            ? content_top + std::max(0, (layout.text_height - layout.time_height) / 2)
-            : content_top + layout.text_height + 2;
+        auto const metadata_y = layout.time_on_text_line ? content_top + std::max(0, (layout.text_height - layout.time_height) / 2)
+                                                         : content_top + layout.text_height + 2;
         auto metadata_x = content_right - metadata_width;
         if (layout.time_width > 0)
         {
@@ -574,8 +533,8 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
     for (int i = 0; i < layout.reactions.size(); ++i)
     {
         auto const& reaction = layout.reactions[i];
-        auto const rect = layout.reaction_rects[i].translated(content_left,
-            bubble.bottom() + 1 - chat_theme::message_padding_vertical - layout.reactions_height);
+        auto const rect =
+            layout.reaction_rects[i].translated(content_left, bubble.bottom() + 1 - chat_theme::message_padding_vertical - layout.reactions_height);
         auto const mine = reaction.emoji == own_reaction;
         painter->setPen(Qt::NoPen);
         painter->setBrush(themed(mine ? "reaction_own" : "selected"));
@@ -586,8 +545,7 @@ void message_delegate::paint(QPainter* painter, QStyleOptionViewItem const& opti
 
     auto const* view = qobject_cast<QAbstractItemView const*>(option.widget);
     if ((option.state & QStyle::State_HasFocus) ||
-        ((!view || view->selectionMode() != QAbstractItemView::NoSelection) &&
-         (option.state & QStyle::State_Selected)))
+        ((!view || view->selectionMode() != QAbstractItemView::NoSelection) && (option.state & QStyle::State_Selected)))
     {
         auto const focused = option.state & QStyle::State_HasFocus;
         painter->setPen(QPen(themed("message_focus"), focused ? 1.5 : 1.0));
@@ -609,8 +567,7 @@ QSize message_delegate::sizeHint(QStyleOptionViewItem const& option, QModelIndex
     };
 }
 
-bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model,
-                                    QStyleOptionViewItem const& option, QModelIndex const& index)
+bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model, QStyleOptionViewItem const& option, QModelIndex const& index)
 {
     (void)model;
     if (event->type() != QEvent::MouseButtonRelease)
@@ -626,36 +583,36 @@ bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model,
 
     auto const layout = calculate_layout(option, index);
     auto y = option.rect.top() + layout.day_height + layout.top_margin;
-    auto const bubble_x = layout.outgoing
-        ? option.rect.right() - chat_theme::message_side_margin - layout.bubble_width + 1
-        : option.rect.left() + chat_theme::message_side_margin + chat_theme::message_avatar_skip;
+    auto const bubble_x = layout.outgoing ? option.rect.right() - chat_theme::message_side_margin - layout.bubble_width + 1
+                                          : option.rect.left() + chat_theme::message_side_margin + chat_theme::message_avatar_skip;
     auto const content_right = bubble_x + layout.bubble_width - chat_theme::message_padding_horizontal;
-    auto const metadata_width = layout.time_width + layout.receipt_width
-        + ((layout.time_width > 0 && layout.receipt_width > 0) ? 3 : 0);
+    auto const metadata_width = layout.time_width + layout.receipt_width + ((layout.time_width > 0 && layout.receipt_width > 0) ? 3 : 0);
     auto const content_top = y + chat_theme::message_padding_vertical + layout.name_height + layout.image_height;
-    if (layout.image_height > 0 && QRect(bubble_x + chat_theme::message_padding_horizontal,
-        content_top - layout.image_height, layout.image_width, layout.image_height - 8).contains(mouse->position().toPoint()))
+    if (layout.image_height > 0 &&
+        QRect(bubble_x + chat_theme::message_padding_horizontal, content_top - layout.image_height, layout.image_width, layout.image_height - 8)
+            .contains(mouse->position().toPoint()))
     {
         emit image_clicked(index);
         return true;
     }
     for (int i = 0; i < layout.reactions.size(); ++i)
     {
-        auto const rect = layout.reaction_rects[i].translated(bubble_x + chat_theme::message_padding_horizontal,
-            y + layout.bubble_height - chat_theme::message_padding_vertical - layout.reactions_height);
+        auto const rect =
+            layout.reaction_rects[i].translated(bubble_x + chat_theme::message_padding_horizontal,
+                                                y + layout.bubble_height - chat_theme::message_padding_vertical - layout.reactions_height);
         if (rect.contains(mouse->position().toPoint()))
         {
             emit reaction_clicked(index, layout.reactions[i].emoji);
             return true;
         }
     }
-    auto const metadata_y = layout.time_on_text_line
-        ? content_top + std::max(0, (layout.text_height - layout.time_height) / 2)
-        : content_top + layout.text_height + 2;
-    QRect read_rect(content_right - metadata_width, metadata_y,
-                    QFontMetrics(time_font(option)).horizontalAdvance(
-                        QStringLiteral("已读 %1 人").arg(index.data(message_model::read_count_role).toInt())),
-                    layout.time_height);
+    auto const metadata_y =
+        layout.time_on_text_line ? content_top + std::max(0, (layout.text_height - layout.time_height) / 2) : content_top + layout.text_height + 2;
+    QRect read_rect(
+        content_right - metadata_width,
+        metadata_y,
+        QFontMetrics(time_font(option)).horizontalAdvance(QStringLiteral("已读 %1 人").arg(index.data(message_model::read_count_role).toInt())),
+        layout.time_height);
     if (index.data(message_model::read_count_role).isValid() && read_rect.contains(mouse->position().toPoint()))
     {
         emit read_details_clicked(index);
@@ -669,7 +626,8 @@ bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model,
     auto const bubble_bottom = y + layout.bubble_height - 1;
     QRect avatar_rect(option.rect.left() + chat_theme::message_side_margin,
                       bubble_bottom - chat_theme::message_avatar_size + 1,
-                      chat_theme::message_avatar_size, chat_theme::message_avatar_size);
+                      chat_theme::message_avatar_size,
+                      chat_theme::message_avatar_size);
     if (!avatar_rect.contains(mouse->position().toPoint()))
     {
         return false;

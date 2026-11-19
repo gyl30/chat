@@ -10,15 +10,14 @@ namespace
 {
 std::int64_t timestamp()
 {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::system_clock::now().time_since_epoch()).count();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
 std::expected<std::int64_t, sqlite_error> avatar_revision(sqlite_database& db, std::int64_t user, bool advance)
 {
-    auto statement = db.prepare(advance ?
-        "UPDATE users SET avatar_revision=avatar_revision+1 WHERE id=?1 RETURNING avatar_revision" :
-        "SELECT avatar_revision FROM users WHERE id=?1", user);
+    auto statement = db.prepare(advance ? "UPDATE users SET avatar_revision=avatar_revision+1 WHERE id=?1 RETURNING avatar_revision"
+                                        : "SELECT avatar_revision FROM users WHERE id=?1",
+                                user);
     if (!statement)
     {
         return std::unexpected(std::move(statement.error()));
@@ -39,10 +38,11 @@ std::expected<std::int64_t, sqlite_error> avatar_revision(sqlite_database& db, s
     }
     return revision;
 }
-} // namespace
+}    // namespace
 
-std::expected<std::optional<std::int64_t>, sqlite_error> register_account(
-    sqlite_database& db, std::string_view username, std::string_view password_hash)
+std::expected<std::optional<std::int64_t>, sqlite_error> register_account(sqlite_database& db,
+                                                                          std::string_view username,
+                                                                          std::string_view password_hash)
 {
     auto transaction = sqlite_transaction::begin_immediate(db);
     if (!transaction)
@@ -52,7 +52,10 @@ std::expected<std::optional<std::int64_t>, sqlite_error> register_account(
     auto statement = db.prepare(R"SQL(
         INSERT INTO users(username,password_hash,last_seen_at) VALUES(?1,?2,?3)
         ON CONFLICT(username) DO NOTHING
-    )SQL", username, password_hash, timestamp());
+    )SQL",
+                                username,
+                                password_hash,
+                                timestamp());
     if (!statement)
     {
         return std::unexpected(std::move(statement.error()));
@@ -73,13 +76,13 @@ std::expected<std::optional<std::int64_t>, sqlite_error> register_account(
     return id;
 }
 
-std::expected<std::optional<account_credentials>, sqlite_error> find_account(
-    sqlite_database& db, std::string_view username)
+std::expected<std::optional<account_credentials>, sqlite_error> find_account(sqlite_database& db, std::string_view username)
 {
     auto statement = db.prepare(R"SQL(
         SELECT u.id,u.username,u.password_hash,u.avatar_revision,a.user_id IS NOT NULL
         FROM users u LEFT JOIN user_avatars a ON a.user_id=u.id WHERE u.username=?1
-    )SQL", username);
+    )SQL",
+                                username);
     if (!statement)
     {
         return std::unexpected(std::move(statement.error()));
@@ -94,20 +97,20 @@ std::expected<std::optional<account_credentials>, sqlite_error> find_account(
         return std::nullopt;
     }
     return account_credentials{
-        {statement->column_int64(0), std::string(statement->column_text(1)),
-         {statement->column_int64(3), statement->column_int64(4) != 0}},
+        {statement->column_int64(0), std::string(statement->column_text(1)), {statement->column_int64(3), statement->column_int64(4) != 0}},
         std::string(statement->column_text(2))};
 }
 
-std::expected<std::vector<chat::user>, sqlite_error> search_accounts(
-    sqlite_database& db, std::int64_t user, std::string_view prefix)
+std::expected<std::vector<chat::user>, sqlite_error> search_accounts(sqlite_database& db, std::int64_t user, std::string_view prefix)
 {
     auto statement = db.prepare(R"SQL(
         SELECT u.id,u.username,u.avatar_revision,a.user_id IS NOT NULL
         FROM users u LEFT JOIN user_avatars a ON a.user_id=u.id WHERE u.id<>?1
           AND instr(chat_lower(u.username),chat_lower(?2))=1
         ORDER BY u.username,u.id LIMIT 20
-    )SQL", user, prefix);
+    )SQL",
+                                user,
+                                prefix);
     if (!statement)
     {
         return std::unexpected(std::move(statement.error()));
@@ -124,13 +127,15 @@ std::expected<std::vector<chat::user>, sqlite_error> search_accounts(
         {
             return matches;
         }
-        matches.push_back({statement->column_int64(0), std::string(statement->column_text(1)),
-            {statement->column_int64(2), statement->column_int64(3) != 0}});
+        matches.push_back(
+            {statement->column_int64(0), std::string(statement->column_text(1)), {statement->column_int64(2), statement->column_int64(3) != 0}});
     }
 }
 
-std::expected<std::optional<avatar_chunk>, sqlite_error> read_avatar_chunk(
-    sqlite_database& db, std::int64_t user, std::int64_t revision, std::int64_t offset)
+std::expected<std::optional<avatar_chunk>, sqlite_error> read_avatar_chunk(sqlite_database& db,
+                                                                           std::int64_t user,
+                                                                           std::int64_t revision,
+                                                                           std::int64_t offset)
 {
     auto constexpr chunk_size = static_cast<std::int64_t>(chat::attachment_chunk_size);
     auto statement = db.prepare(R"SQL(
@@ -138,7 +143,11 @@ std::expected<std::optional<avatar_chunk>, sqlite_error> read_avatar_chunk(
             CASE WHEN u.avatar_revision=?2 AND ?3<a.size THEN substr(a.data,?3+1,?4) END
         FROM users u LEFT JOIN user_avatars a ON a.user_id=u.id
         WHERE u.id=?1 AND (u.avatar_revision<>?2 OR ?3<=coalesce(a.size,0))
-    )SQL", user, revision, offset, chunk_size);
+    )SQL",
+                                user,
+                                revision,
+                                offset,
+                                chunk_size);
     if (!statement)
     {
         return std::unexpected(std::move(statement.error()));
@@ -171,8 +180,7 @@ std::expected<std::optional<avatar_chunk>, sqlite_error> read_avatar_chunk(
     return result;
 }
 
-std::expected<avatar_change, sqlite_error> save_avatar(
-    sqlite_database& db, std::int64_t user, std::string_view media_type, std::string_view bytes)
+std::expected<avatar_change, sqlite_error> save_avatar(sqlite_database& db, std::int64_t user, std::string_view media_type, std::string_view bytes)
 {
     auto transaction = sqlite_transaction::begin_immediate(db);
     if (!transaction)
@@ -183,8 +191,12 @@ std::expected<avatar_change, sqlite_error> save_avatar(
         INSERT INTO user_avatars(user_id,media_type,size,data,updated_at) VALUES(?1,?2,?3,?4,?5)
         ON CONFLICT(user_id) DO UPDATE SET media_type=excluded.media_type,size=excluded.size,
             data=excluded.data,updated_at=excluded.updated_at
-    )SQL", user, media_type, static_cast<std::int64_t>(bytes.size()),
-           std::as_bytes(std::span(bytes.data(), bytes.size())), timestamp());
+    )SQL",
+                                user,
+                                media_type,
+                                static_cast<std::int64_t>(bytes.size()),
+                                std::as_bytes(std::span(bytes.data(), bytes.size())),
+                                timestamp());
     if (!statement)
     {
         return std::unexpected(std::move(statement.error()));
@@ -250,7 +262,8 @@ std::expected<std::vector<std::int64_t>, sqlite_error> read_avatar_recipients(sq
                 JOIN conversation_members m ON m.conversation_id=c.id
                 WHERE own.user_id=?1
         ) WHERE peer<>?1 ORDER BY peer
-    )SQL", user);
+    )SQL",
+                                user);
     if (!statement)
     {
         return std::unexpected(std::move(statement.error()));
@@ -321,7 +334,8 @@ std::expected<std::vector<chat::presence>, sqlite_error> read_contact_presence(s
     auto statement = db.prepare(R"SQL(
         SELECT u.id,u.last_seen_at FROM contacts c JOIN users u ON u.id=c.contact_id
         WHERE c.owner_id=?1 ORDER BY u.id
-    )SQL", user);
+    )SQL",
+                                user);
     if (!statement)
     {
         return std::unexpected(std::move(statement.error()));

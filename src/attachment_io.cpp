@@ -19,14 +19,16 @@
 // Check the durable reservation before deleting: a successful commit claims it.
 boost::capy::task<void> discard_unpublished_attachment(database& db, s3_objects& objects, std::string const& key)
 {
-    auto reserved = co_await db.run([&](sqlite_database& connection) -> std::expected<bool, sqlite_error> {
-        auto query = connection.prepare("SELECT 1 FROM attachment_cleanup WHERE object_key=?1", key);
-        if (!query)
+    auto reserved = co_await db.run(
+        [&](sqlite_database& connection) -> std::expected<bool, sqlite_error>
         {
-            return std::unexpected(std::move(query.error()));
-        }
-        return query->step();
-    });
+            auto query = connection.prepare("SELECT 1 FROM attachment_cleanup WHERE object_key=?1", key);
+            if (!query)
+            {
+                return std::unexpected(std::move(query.error()));
+            }
+            return query->step();
+        });
     if (!reserved || !*reserved)
     {
         co_return;
@@ -39,8 +41,7 @@ boost::capy::task<void> discard_unpublished_attachment(database& db, s3_objects&
     co_await db.run([&](sqlite_database& connection) { return acknowledge_attachment_cleanup(connection, key); });
 }
 
-boost::capy::task<std::optional<staged_attachment>> stage_attachment(
-    database& db, s3_objects& objects, std::string bytes, std::string media_type)
+boost::capy::task<std::optional<staged_attachment>> stage_attachment(database& db, s3_objects& objects, std::string bytes, std::string media_type)
 {
     std::array<unsigned char, 16> random{};
     if (RAND_bytes(random.data(), static_cast<int>(random.size())) != 1)
@@ -55,9 +56,9 @@ boost::capy::task<std::optional<staged_attachment>> stage_attachment(
         key.push_back(hex[byte >> 4]);
         key.push_back(hex[byte & 0x0f]);
     }
-    auto reserve = [&key](sqlite_database& connection) -> std::expected<void, sqlite_error> {
-        auto const now = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
+    auto reserve = [&key](sqlite_database& connection) -> std::expected<void, sqlite_error>
+    {
+        auto const now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         return reserve_attachment_object(connection, key, now);
     };
     if (auto reserved = co_await db.run(reserve); !reserved)
@@ -78,12 +79,9 @@ boost::capy::task<std::optional<staged_attachment>> stage_attachment(
 }
 
 boost::capy::task<std::expected<attachment_chunk, attachment_download_error>> download_attachment_chunk(
-    database& db, s3_objects& objects, std::int64_t user, std::int64_t conversation, std::int64_t message,
-    std::size_t offset)
+    database& db, s3_objects& objects, std::int64_t user, std::int64_t conversation, std::int64_t message, std::size_t offset)
 {
-    auto resolve = [=](sqlite_database& connection) {
-        return find_attachment_object(connection, user, conversation, message);
-    };
+    auto resolve = [=](sqlite_database& connection) { return find_attachment_object(connection, user, conversation, message); };
     auto object = co_await db.run(resolve);
     if (!object)
     {
@@ -99,8 +97,7 @@ boost::capy::task<std::expected<attachment_chunk, attachment_download_error>> do
     {
         co_return attachment_chunk{size, {}};
     }
-    auto bytes = co_await objects.read(std::move((*object)->key), size, offset,
-                                       std::min(chat::attachment_chunk_size, size - offset));
+    auto bytes = co_await objects.read(std::move((*object)->key), size, offset, std::min(chat::attachment_chunk_size, size - offset));
     if (!bytes)
     {
         spdlog::warn("attachment download failed: {} (S3 status {})", bytes.error().reason, bytes.error().status);
@@ -109,17 +106,14 @@ boost::capy::task<std::expected<attachment_chunk, attachment_download_error>> do
     co_return attachment_chunk{size, std::move(*bytes)};
 }
 
-boost::capy::task<std::int64_t> recover_attachment_objects(
-    database& db, s3_objects& objects, std::int64_t cutoff)
+boost::capy::task<std::int64_t> recover_attachment_objects(database& db, s3_objects& objects, std::int64_t cutoff)
 {
     std::int64_t removed = 0;
     std::string after;
     bool removal_failed = false;
     for (;;)
     {
-        auto claim_batch = [&](sqlite_database& connection) {
-            return claim_attachment_cleanup_batch(connection, cutoff, after);
-        };
+        auto claim_batch = [&](sqlite_database& connection) { return claim_attachment_cleanup_batch(connection, cutoff, after); };
         auto batch = co_await db.run(claim_batch);
         if (!batch)
         {
@@ -139,9 +133,7 @@ boost::capy::task<std::int64_t> recover_attachment_objects(
                 continue;
             }
 
-            auto acknowledge = [&key](sqlite_database& connection) {
-                return acknowledge_attachment_cleanup(connection, key);
-            };
+            auto acknowledge = [&key](sqlite_database& connection) { return acknowledge_attachment_cleanup(connection, key); };
             if (auto result = co_await db.run(acknowledge); !result)
             {
                 co_return -1;

@@ -10,8 +10,8 @@ namespace chat
 std::optional<server_url> parse_server_url(std::string_view url)
 {
     auto parsed = boost::urls::parse_uri(url);
-    if (!parsed || (parsed->scheme() != "ws" && parsed->scheme() != "wss") || !parsed->has_authority() ||
-        parsed->host_address().empty() || parsed->has_fragment() || parsed->has_userinfo())
+    if (!parsed || (parsed->scheme() != "ws" && parsed->scheme() != "wss") || !parsed->has_authority() || parsed->host_address().empty() ||
+        parsed->has_fragment() || parsed->has_userinfo())
     {
         return std::nullopt;
     }
@@ -33,4 +33,4 @@ std::optional<server_url> parse_server_url(std::string_view url)
     return value;
 }
 
-}
+}    // namespace chat

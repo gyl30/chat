@@ -14,8 +14,8 @@ namespace chat::detail
 inline std::string encode_base64(std::string_view bytes)
 {
     std::string encoded(4 * ((bytes.size() + 2) / 3) + 1, '\0');
-    auto const size = EVP_EncodeBlock(reinterpret_cast<unsigned char*>(encoded.data()),
-        reinterpret_cast<unsigned char const*>(bytes.data()), static_cast<int>(bytes.size()));
+    auto const size = EVP_EncodeBlock(
+        reinterpret_cast<unsigned char*>(encoded.data()), reinterpret_cast<unsigned char const*>(bytes.data()), static_cast<int>(bytes.size()));
     encoded.resize(size);
     return encoded;
 }
@@ -31,8 +31,8 @@ inline std::optional<std::string> decode_base64(std::string_view encoded)
         return std::string{};
     }
     std::string decoded(encoded.size() / 4 * 3, '\0');
-    auto size = EVP_DecodeBlock(reinterpret_cast<unsigned char*>(decoded.data()),
-        reinterpret_cast<unsigned char const*>(encoded.data()), static_cast<int>(encoded.size()));
+    auto size = EVP_DecodeBlock(
+        reinterpret_cast<unsigned char*>(decoded.data()), reinterpret_cast<unsigned char const*>(encoded.data()), static_cast<int>(encoded.size()));
     if (size < 0)
     {
         return {};

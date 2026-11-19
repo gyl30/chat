@@ -33,8 +33,7 @@ bool websocket_upgrade_accept(boost::http::request_base const& request, std::str
 class websocket_connection
 {
    public:
-    websocket_connection(boost::corosio::tcp_socket& socket, boost::capy::any_stream stream,
-                         chat::detail::websocket_heartbeat_config heartbeat = {});
+    websocket_connection(boost::corosio::tcp_socket& socket, boost::capy::any_stream stream, chat::detail::websocket_heartbeat_config heartbeat = {});
 
     websocket_connection(websocket_connection const&) = delete;
     websocket_connection& operator=(websocket_connection const&) = delete;

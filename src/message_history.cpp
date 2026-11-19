@@ -47,7 +47,8 @@ std::expected<void, sqlite_error> populate_interactions(sqlite_database& db, std
         SELECT r.message_id,r.emoji,r.user_id
         FROM json_each(?1) page JOIN message_reactions r ON r.message_id=page.value
         ORDER BY r.message_id,r.emoji,r.user_id
-    )SQL", ids);
+    )SQL",
+                                ids);
     if (!reactions)
     {
         return std::unexpected(std::move(reactions.error()));
@@ -77,7 +78,8 @@ std::expected<void, sqlite_error> populate_interactions(sqlite_database& db, std
         FROM json_each(?1) page JOIN message_mentions mention ON mention.message_id=page.value
         JOIN users u ON u.id=mention.user_id
         ORDER BY mention.message_id,u.id
-    )SQL", ids);
+    )SQL",
+                               ids);
     if (!mentions)
     {
         return std::unexpected(std::move(mentions.error()));
@@ -117,31 +119,35 @@ chat::message read_message_row(sqlite_statement const& row, std::int64_t user, s
     }
     if (!row.column_is_null(11))
     {
-        message.reply = chat::quoted_message{
-            row.column_int64(11), row.column_int64(12), std::string(row.column_text(13)),
-            std::string(row.column_text(14)), optional_integer(row, 15), row.column_int64(16) != 0};
+        message.reply = chat::quoted_message{row.column_int64(11),
+                                             row.column_int64(12),
+                                             std::string(row.column_text(13)),
+                                             std::string(row.column_text(14)),
+                                             optional_integer(row, 15),
+                                             row.column_int64(16) != 0};
     }
     if (!row.column_is_null(17))
     {
-        message.attachment = chat::attachment_info{
-            std::string(row.column_text(17)), std::string(row.column_text(18)), row.column_int64(19)};
+        message.attachment = chat::attachment_info{std::string(row.column_text(17)), std::string(row.column_text(18)), row.column_int64(19)};
     }
     return message;
 }
-} // namespace
+}    // namespace
 
-std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_history(
-    sqlite_database& db, std::int64_t user, std::int64_t conversation,
-    std::optional<std::int64_t> before, std::optional<std::int64_t> after, std::string_view search)
+std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_history(sqlite_database& db,
+                                                                                       std::int64_t user,
+                                                                                       std::int64_t conversation,
+                                                                                       std::optional<std::int64_t> before,
+                                                                                       std::optional<std::int64_t> after,
+                                                                                       std::string_view search)
 {
     auto snapshot = sqlite_transaction::begin_read(db);
     if (!snapshot)
     {
         return std::unexpected(std::move(snapshot.error()));
     }
-    auto readers = db.prepare(
-        "SELECT user_id,last_read_message_id FROM conversation_members WHERE conversation_id=?1 ORDER BY user_id",
-        conversation);
+    auto readers =
+        db.prepare("SELECT user_id,last_read_message_id FROM conversation_members WHERE conversation_id=?1 ORDER BY user_id", conversation);
     if (!readers)
     {
         return std::unexpected(std::move(readers.error()));
@@ -173,8 +179,11 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
     query += "WHERE m.conversation_id=?1 AND (?4='' OR (m.deleted=0 AND instr(chat_lower(m.body),chat_lower(?4))>0)) AND ";
     query += after ? "m.id>?2 ORDER BY m.id ASC" : "m.id<?2 ORDER BY m.id DESC";
     query += " LIMIT ?3";
-    auto page = db.prepare(query, conversation, after.value_or(before.value_or(std::numeric_limits<std::int64_t>::max())),
-                           static_cast<std::int64_t>(kPageSize + 1), search);
+    auto page = db.prepare(query,
+                           conversation,
+                           after.value_or(before.value_or(std::numeric_limits<std::int64_t>::max())),
+                           static_cast<std::int64_t>(kPageSize + 1),
+                           search);
     if (!page)
     {
         return std::unexpected(std::move(page.error()));
@@ -213,8 +222,10 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
     return result;
 }
 
-std::expected<std::optional<chat::message>, sqlite_error> read_message(
-    sqlite_database& db, std::int64_t user, std::int64_t conversation, std::int64_t message)
+std::expected<std::optional<chat::message>, sqlite_error> read_message(sqlite_database& db,
+                                                                       std::int64_t user,
+                                                                       std::int64_t conversation,
+                                                                       std::int64_t message)
 {
     std::string query(kMessageColumns);
     query += R"SQL(
@@ -243,8 +254,10 @@ std::expected<std::optional<chat::message>, sqlite_error> read_message(
     return result;
 }
 
-std::expected<std::optional<std::int64_t>, sqlite_error> update_read_position(
-    sqlite_database& db, std::int64_t user, std::int64_t conversation, std::int64_t message)
+std::expected<std::optional<std::int64_t>, sqlite_error> update_read_position(sqlite_database& db,
+                                                                              std::int64_t user,
+                                                                              std::int64_t conversation,
+                                                                              std::int64_t message)
 {
     auto transaction = sqlite_transaction::begin_immediate(db);
     if (!transaction)
@@ -256,7 +269,10 @@ std::expected<std::optional<std::int64_t>, sqlite_error> update_read_position(
         WHERE conversation_id=?1 AND user_id=?2
           AND EXISTS(SELECT 1 FROM messages WHERE conversation_id=?1 AND id=?3)
         RETURNING last_read_message_id
-    )SQL", conversation, user, message);
+    )SQL",
+                             conversation,
+                             user,
+                             message);
     if (!update)
     {
         return std::unexpected(std::move(update.error()));

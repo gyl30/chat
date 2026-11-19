@@ -24,11 +24,10 @@ namespace
 QString page_title(int page)
 {
     static std::array<QString, 5> const titles = {
-        QStringLiteral("设置"), QStringLiteral("通知"), QStringLiteral("外观与聊天"),
-        QStringLiteral("桌面与窗口"), QStringLiteral("关于Chat")};
+        QStringLiteral("设置"), QStringLiteral("通知"), QStringLiteral("外观与聊天"), QStringLiteral("桌面与窗口"), QStringLiteral("关于Chat")};
     return titles.at(static_cast<std::size_t>(page));
 }
-}
+}    // namespace
 
 settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
 {
@@ -68,7 +67,8 @@ settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
     pages_ = new QStackedWidget(this);
     pages_->setObjectName(QStringLiteral("settingsPages"));
     outer->addWidget(pages_, 1);
-    auto make_page = [this](QString name) {
+    auto make_page = [this](QString name)
+    {
         auto* scroll = new QScrollArea(pages_);
         scroll->setObjectName(name + QStringLiteral("Scroll"));
         scroll->setWidgetResizable(true);
@@ -83,7 +83,8 @@ settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
         pages_->addWidget(scroll);
         return layout;
     };
-    auto hint = [](QVBoxLayout* layout, QString text, QString name = QStringLiteral("settingsHint")) {
+    auto hint = [](QVBoxLayout* layout, QString text, QString name = QStringLiteral("settingsHint"))
+    {
         auto* label = new QLabel(std::move(text), layout->parentWidget());
         label->setObjectName(std::move(name));
         label->setTextFormat(Qt::PlainText);
@@ -91,7 +92,8 @@ settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
         layout->addWidget(label);
         return label;
     };
-    auto checkbox = [](QVBoxLayout* layout, QString text, QString name) {
+    auto checkbox = [](QVBoxLayout* layout, QString text, QString name)
+    {
         auto* option = new QCheckBox(std::move(text), layout->parentWidget());
         option->setObjectName(std::move(name));
         option->setAccessibleName(option->text());
@@ -130,9 +132,10 @@ settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
     identity_text->addWidget(account_name_);
     identity->addLayout(identity_text, 1);
     home->addWidget(account_);
-    static std::array<QString, 4> const section_names = {
-        QStringLiteral("settingsNotificationsButton"), QStringLiteral("settingsAppearanceChatButton"),
-        QStringLiteral("settingsDesktopWindowButton"), QStringLiteral("settingsAboutButton")};
+    static std::array<QString, 4> const section_names = {QStringLiteral("settingsNotificationsButton"),
+                                                         QStringLiteral("settingsAppearanceChatButton"),
+                                                         QStringLiteral("settingsDesktopWindowButton"),
+                                                         QStringLiteral("settingsAboutButton")};
     for (int page = 1; page <= 4; ++page)
     {
         auto* button = new QPushButton(home->parentWidget());
@@ -170,12 +173,17 @@ settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
     auto* notifications = make_page(QStringLiteral("settingsNotifications"));
     desktop_ = checkbox(notifications, QStringLiteral("启用桌面通知"), QStringLiteral("settingsDesktopNotifications"));
     preview_ = checkbox(notifications, QStringLiteral("显示消息预览"), QStringLiteral("settingsMessagePreview"));
-    hint(notifications, QStringLiteral("关闭消息预览后，通知仅显示 Chat 和“收到新消息”，不显示发送者、会话名称或消息内容。系统是否显示通知取决于桌面通知支持。"));
+    hint(notifications,
+         QStringLiteral("关闭消息预览后，通知仅显示 Chat 和“收到新消息”，不显示发送者、会话名称或消息内容。系统是否显示通知取决于桌面通知支持。"));
     notifications->addStretch();
-    connect(desktop_, &QCheckBox::toggled, this, [this](bool enabled) {
-        preview_->setEnabled(enabled);
-        emit desktop_notifications_changed(enabled);
-    });
+    connect(desktop_,
+            &QCheckBox::toggled,
+            this,
+            [this](bool enabled)
+            {
+                preview_->setEnabled(enabled);
+                emit desktop_notifications_changed(enabled);
+            });
     connect(preview_, &QCheckBox::toggled, this, &settings_dialog::message_preview_changed);
 
     auto* chat = make_page(QStringLiteral("settingsAppearanceChat"));
@@ -190,9 +198,10 @@ settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
     chat->addWidget(appearance_);
     auto& themes = theme_manager::instance();
     appearance_->setCurrentIndex(appearance_->findData(static_cast<int>(themes.appearance())));
-    connect(appearance_, &QComboBox::currentIndexChanged, this, [this](int) {
-        theme_manager::instance().set_appearance(static_cast<chat_appearance>(appearance_->currentData().toInt()));
-    });
+    connect(appearance_,
+            &QComboBox::currentIndexChanged,
+            this,
+            [this](int) { theme_manager::instance().set_appearance(static_cast<chat_appearance>(appearance_->currentData().toInt())); });
     control_enter_ = checkbox(chat, QStringLiteral("按 Ctrl+Enter 发送消息"), QStringLiteral("settingsControlEnter"));
     hint(chat, QStringLiteral("默认按 Enter 发送，Shift+Enter 换行。启用后按 Ctrl+Enter 发送，Enter 换行。"));
     chat->addStretch();
@@ -201,13 +210,14 @@ settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
     auto* desktop = make_page(QStringLiteral("settingsDesktopWindow"));
     close_to_tray_ = checkbox(desktop, QStringLiteral("关闭窗口时最小化到托盘"), QStringLiteral("settingsCloseToTray"));
     hint(desktop, QStringLiteral("启用后可从托盘重新打开窗口，或从托盘菜单退出应用。"));
-    tray_unavailable_ = hint(desktop, QStringLiteral("当前桌面没有可用的系统托盘，关闭窗口将退出应用。"),
-                             QStringLiteral("settingsTrayUnavailableHint"));
+    tray_unavailable_ =
+        hint(desktop, QStringLiteral("当前桌面没有可用的系统托盘，关闭窗口将退出应用。"), QStringLiteral("settingsTrayUnavailableHint"));
     desktop->addStretch();
     connect(close_to_tray_, &QCheckBox::toggled, this, &settings_dialog::close_to_tray_changed);
 
     auto* about = make_page(QStringLiteral("settingsAbout"));
-    hint(about, QStringLiteral("Chat\n开发版本\nQt %1\n项目尚未声明许可证。").arg(QString::fromLatin1(qVersion())),
+    hint(about,
+         QStringLiteral("Chat\n开发版本\nQt %1\n项目尚未声明许可证。").arg(QString::fromLatin1(qVersion())),
          QStringLiteral("settingsAboutText"));
     repository_ = new QLabel(about->parentWidget());
     repository_->setObjectName(QStringLiteral("settingsRepositoryLink"));
@@ -221,11 +231,15 @@ settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
     connect(back_, &QToolButton::clicked, this, [this] { show_page(0); });
     connect(close_, &QToolButton::clicked, this, &QDialog::reject);
     connect(this, &QDialog::finished, this, [this] { show_page(0); });
-    connect(&themes, &theme_manager::changed, this, [this] {
-        QSignalBlocker blocker(appearance_);
-        appearance_->setCurrentIndex(appearance_->findData(static_cast<int>(theme_manager::instance().appearance())));
-        refresh_icons();
-    });
+    connect(&themes,
+            &theme_manager::changed,
+            this,
+            [this]
+            {
+                QSignalBlocker blocker(appearance_);
+                appearance_->setCurrentIndex(appearance_->findData(static_cast<int>(theme_manager::instance().appearance())));
+                refresh_icons();
+            });
     refresh_icons();
     show_page(0);
 }
@@ -258,14 +272,20 @@ void settings_dialog::show_page(int page)
     pages_->setCurrentIndex(page);
     title_->setText(page_title(page));
     back_->setVisible(page != 0);
-    if (page == 0) { account_->setFocus(); }
-    else { back_->setFocus(); }
+    if (page == 0)
+    {
+        account_->setFocus();
+    }
+    else
+    {
+        back_->setFocus();
+    }
 }
 
 void settings_dialog::refresh_icons()
 {
     repository_->setText(QStringLiteral("<a href=\"https://github.com/gyl30/chat\" style=\"color:%1\">项目仓库：github.com/gyl30/chat</a>")
-                         .arg(themed("link").name()));
+                             .arg(themed("link").name()));
     close_->setIcon(svg_icon(u"close", themed("text_secondary"), QSize(20, 20)));
     auto const down = svg_icon(u"chevron-down", themed("text_secondary"), QSize(20, 20));
     back_->setIcon(QIcon(down.pixmap(QSize(20, 20)).transformed(QTransform().rotate(90))));

@@ -13,9 +13,9 @@ class conversation_model final : public QAbstractListModel
    public:
     enum role
     {
-         id_role = Qt::UserRole + 1,
-         user_role,
-         group_role,
+        id_role = Qt::UserRole + 1,
+        user_role,
+        group_role,
         username_role,
         last_text_role,
         last_timestamp_role,
@@ -37,7 +37,7 @@ class conversation_model final : public QAbstractListModel
     void set_muted(qint64 conversation, bool muted);
     void set_pinned(qint64 conversation, bool pinned);
     conversation_data const* conversation_at(QModelIndex const& index) const;
-     QModelIndex index_for_conversation(qint64 conversation) const;
+    QModelIndex index_for_conversation(qint64 conversation) const;
 
    private:
     avatar_cache* avatars_;

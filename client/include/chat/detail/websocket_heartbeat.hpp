@@ -65,6 +65,6 @@ class websocket_heartbeat
     bool pending_ = false;
 };
 
-}
+}    // namespace chat::detail
 
 #endif

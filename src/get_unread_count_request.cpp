@@ -12,7 +12,7 @@
 namespace
 {
 
-struct [[= simdjson::deny_unknown_fields]] get_unread_count_params
+struct[[= simdjson::deny_unknown_fields]] get_unread_count_params
 {
     std::int64_t conversation = 0;
 };
@@ -83,9 +83,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_unread_count(js
         co_return simdjson::SUCCESS;
     }
 
-    auto count = co_await database_.run([=, user=*user_id_](sqlite_database& db) {
-        return read_unread_count(db, params.conversation, user);
-    });
+    auto count = co_await database_.run([=, user = *user_id_](sqlite_database& db) { return read_unread_count(db, params.conversation, user); });
     if (!request.id.present)
     {
         co_return simdjson::SUCCESS;

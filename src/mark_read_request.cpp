@@ -12,7 +12,7 @@
 namespace
 {
 
-struct [[= simdjson::deny_unknown_fields]] mark_read_params
+struct[[= simdjson::deny_unknown_fields]] mark_read_params
 {
     std::int64_t conversation = 0;
     std::int64_t message = 0;
@@ -84,9 +84,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_mark_read(json_rpc_
         co_return simdjson::SUCCESS;
     }
 
-    auto position = co_await database_.run([=, user=*user_id_](sqlite_database& db) {
-        return update_read_position(db, user, params.conversation, params.message);
-    });
+    auto position = co_await database_.run([=, user = *user_id_](sqlite_database& db)
+                                           { return update_read_position(db, user, params.conversation, params.message); });
     if (!position || !*position)
     {
         if (!request.id.present)

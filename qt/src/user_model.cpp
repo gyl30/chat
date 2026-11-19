@@ -7,23 +7,24 @@ user_model::user_model(QObject* parent, avatar_cache* avatars) : QAbstractListMo
 {
     if (avatars_)
     {
-        connect(avatars_, &avatar_cache::changed, this, [this](qint64 user) {
-            for (int row = 0; row < users_.size(); ++row)
-            {
-                auto const& item = users_[row];
-                if (item.id == user)
+        connect(avatars_,
+                &avatar_cache::changed,
+                this,
+                [this](qint64 user)
                 {
-                    emit dataChanged(index(row, 0), index(row, 0), {Qt::DecorationRole});
-                }
-            }
-        });
+                    for (int row = 0; row < users_.size(); ++row)
+                    {
+                        auto const& item = users_[row];
+                        if (item.id == user)
+                        {
+                            emit dataChanged(index(row, 0), index(row, 0), {Qt::DecorationRole});
+                        }
+                    }
+                });
     }
 }
 
-int user_model::rowCount(QModelIndex const& parent) const
-{
-    return parent.isValid() ? 0 : users_.size();
-}
+int user_model::rowCount(QModelIndex const& parent) const { return parent.isValid() ? 0 : users_.size(); }
 
 QVariant user_model::data(QModelIndex const& index, int role) const
 {

@@ -54,7 +54,7 @@ class sqlite_database
     std::expected<sqlite_statement, sqlite_error> prepare(std::string_view sql);
 
     template <class... Args>
-        requires (sizeof...(Args) > 0)
+        requires(sizeof...(Args) > 0)
     std::expected<sqlite_statement, sqlite_error> prepare(std::string_view sql, Args const&... args);
 
     // Runs one or more semicolon-separated statements without parameters.
@@ -81,10 +81,7 @@ class sqlite_statement
     sqlite_statement& operator=(sqlite_statement const&) = delete;
 
     sqlite_error bind(int index, std::int64_t value);
-    sqlite_error bind(int index, std::optional<std::int64_t> value)
-    {
-        return value ? bind(index, *value) : bind_null(index);
-    }
+    sqlite_error bind(int index, std::optional<std::int64_t> value) { return value ? bind(index, *value) : bind_null(index); }
     sqlite_error bind(int index, int value);
     sqlite_error bind(int index, std::string_view value);
     sqlite_error bind_null(int index);
@@ -100,6 +97,7 @@ class sqlite_statement
     [[nodiscard]] std::string_view column_text(int index) const;
     [[nodiscard]] std::span<const std::byte> column_blob(int index) const;
     [[nodiscard]] bool column_is_null(int index) const;
+
    private:
     friend class sqlite_database;
 
@@ -109,7 +107,7 @@ class sqlite_statement
 };
 
 template <class... Args>
-    requires (sizeof...(Args) > 0)
+    requires(sizeof...(Args) > 0)
 std::expected<sqlite_statement, sqlite_error> sqlite_database::prepare(std::string_view sql, Args const&... args)
 {
     auto statement = prepare(sql);

@@ -17,7 +17,7 @@ namespace
 
 constexpr std::string_view kDummyPasswordHash = "$2b$12$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 
-struct [[= simdjson::deny_unknown_fields]] authenticate_params
+struct[[= simdjson::deny_unknown_fields]] authenticate_params
 {
     std::string username;
     std::string password;
@@ -35,8 +35,8 @@ bool parse_authenticate_params(json_rpc_params& params, authenticate_params& val
 {
     simdjson::ondemand::parser parser;
     simdjson::ondemand::document document;
-    return params.present && !parser.iterate(params.json).get(document) && !document.get(value) &&
-           document.at_end() && !value.username.empty() && !value.password.empty() && value.password.size() <= 72;
+    return params.present && !parser.iterate(params.json).get(document) && !document.get(value) && document.at_end() && !value.username.empty() &&
+           !value.password.empty() && value.password.size() <= 72;
 }
 
 }    // namespace
@@ -65,12 +65,12 @@ boost::capy::task<simdjson::error_code> chat_session::handle_authenticate(json_r
     auto account = co_await database_.run([&](sqlite_database& db) { return find_account(db, params.username); });
     if (!account)
     {
-        co_return request.id.present ? serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response)
-                                     : simdjson::SUCCESS;
+        co_return request.id.present ? serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response) : simdjson::SUCCESS;
     }
     std::string_view const password_hash = *account ? std::string_view((*account)->password_hash) : kDummyPasswordHash;
-    auto password_matches = co_await passwords_.run([&] { return check_password(params.password, password_hash); },
-        [](blocking_worker::unavailable) { return std::make_error_code(std::errc::resource_unavailable_try_again); });
+    auto password_matches =
+        co_await passwords_.run([&] { return check_password(params.password, password_hash); },
+                                [](blocking_worker::unavailable) { return std::make_error_code(std::errc::resource_unavailable_try_again); });
     if (!password_matches)
     {
         if (request.id.present)
@@ -105,6 +105,6 @@ boost::capy::task<simdjson::error_code> chat_session::handle_authenticate(json_r
     }
 
     auto const avatar = authenticated ? (*account)->user.avatar : chat::avatar_state{};
-    co_return serialize_json_rpc_value(authenticate_result{authenticated, user_id_.value_or(0), avatar.revision, avatar.present},
-                                       std::move(request.id), response);
+    co_return serialize_json_rpc_value(
+        authenticate_result{authenticated, user_id_.value_or(0), avatar.revision, avatar.present}, std::move(request.id), response);
 }

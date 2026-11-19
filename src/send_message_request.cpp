@@ -20,7 +20,7 @@ namespace
 
 constexpr std::size_t kMaxMessageSize = 64 * 1024;
 
-struct [[= simdjson::deny_unknown_fields]] send_message_params
+struct[[= simdjson::deny_unknown_fields]] send_message_params
 {
     std::int64_t conversation = 0;
     std::string text;
@@ -53,7 +53,7 @@ simdjson::error_code parse_send_message_params(json_rpc_params& params, send_mes
 
     if (attaching)
     {
-        struct [[= simdjson::deny_unknown_fields]] finish_params
+        struct[[= simdjson::deny_unknown_fields]] finish_params
         {
             std::int64_t upload = 0;
             std::optional<std::int64_t> reply_to;
@@ -93,8 +93,8 @@ struct delivery
 
 using send_outcome = std::variant<delivery, message_write_rejection>;
 
-std::expected<send_outcome, sqlite_error> format_delivery(sqlite_database& db, std::int64_t user,
-    std::int64_t conversation, message_write_outcome const& outcome, json_rpc_id const& request_id)
+std::expected<send_outcome, sqlite_error> format_delivery(
+    sqlite_database& db, std::int64_t user, std::int64_t conversation, message_write_outcome const& outcome, json_rpc_id const& request_id)
 {
     if (auto const* rejected = std::get_if<message_write_rejection>(&outcome))
     {
@@ -131,8 +131,10 @@ std::expected<send_outcome, sqlite_error> format_delivery(sqlite_database& db, s
     return result;
 }
 
-std::expected<send_outcome, sqlite_error> persist_delivery(sqlite_database& db, message_to_write const& message,
-    json_rpc_id const& request_id, uploaded_attachment const* attachment = nullptr)
+std::expected<send_outcome, sqlite_error> persist_delivery(sqlite_database& db,
+                                                           message_to_write const& message,
+                                                           json_rpc_id const& request_id,
+                                                           uploaded_attachment const* attachment = nullptr)
 {
     auto transaction = sqlite_transaction::begin_immediate(db);
     if (!transaction)
@@ -173,8 +175,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
     bool const attaching = request.method == "finish_attachment";
     auto params_error = parse_send_message_params(request.params, params, attaching);
     if (params_error || (attaching ? (!params.upload || *params.upload <= 0 || params.conversation != 0 || !params.text.empty())
-        : (params.upload || params.conversation <= 0 || params.text.empty() || params.text.find('\0') != std::string::npos ||
-           !params.client_id || *params.client_id <= 0)))
+                                   : (params.upload || params.conversation <= 0 || params.text.empty() ||
+                                      params.text.find('\0') != std::string::npos || !params.client_id || *params.client_id <= 0)))
     {
         if (request.id.present)
         {
@@ -199,23 +201,25 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         params.conversation = upload.conversation;
         message_to_write const message{user, upload.conversation, upload.client_id, upload.filename, params.reply_to};
 
-        auto preflight = co_await database_.run([&](sqlite_database& db) -> std::expected<std::optional<send_outcome>, sqlite_error> {
-            auto snapshot = sqlite_transaction::begin_read(db);
-            if (!snapshot)
+        auto preflight = co_await database_.run(
+            [&](sqlite_database& db) -> std::expected<std::optional<send_outcome>, sqlite_error>
             {
-                return std::unexpected(std::move(snapshot.error()));
-            }
-            auto checked = check_message_write(db, message, true);
-            if (!checked)
-            {
-                return std::unexpected(std::move(checked.error()));
-            }
-            if (!*checked)
-            {
-                return std::nullopt;
-            }
-            return format_delivery(db, message.sender, message.conversation, **checked, request.id);
-        });
+                auto snapshot = sqlite_transaction::begin_read(db);
+                if (!snapshot)
+                {
+                    return std::unexpected(std::move(snapshot.error()));
+                }
+                auto checked = check_message_write(db, message, true);
+                if (!checked)
+                {
+                    return std::unexpected(std::move(checked.error()));
+                }
+                if (!*checked)
+                {
+                    return std::nullopt;
+                }
+                return format_delivery(db, message.sender, message.conversation, **checked, request.id);
+            });
         if (!preflight)
         {
             delivered = std::unexpected(std::move(preflight.error()));
@@ -241,9 +245,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
                 co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
             }
             uploaded_attachment const attachment{staged->key, upload.filename, media_type, upload.size, staged->checksum};
-            delivered = co_await database_.run([&](sqlite_database& db) {
-                return persist_delivery(db, message, request.id, &attachment);
-            });
+            delivered = co_await database_.run([&](sqlite_database& db) { return persist_delivery(db, message, request.id, &attachment); });
             auto const* result = delivered ? std::get_if<delivery>(&*delivered) : nullptr;
             if (!result || result->notification.empty())
             {
@@ -253,9 +255,9 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
     }
     else
     {
-        delivered = co_await database_.run([&](sqlite_database& db) {
-            return persist_delivery(db, {user, params.conversation, *params.client_id, params.text, params.reply_to}, request.id);
-        });
+        delivered = co_await database_.run(
+            [&](sqlite_database& db)
+            { return persist_delivery(db, {user, params.conversation, *params.client_id, params.text, params.reply_to}, request.id); });
     }
     if (!delivered)
     {
@@ -267,9 +269,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         {
             co_return simdjson::SUCCESS;
         }
-        co_return delivered.error().code == SQLITE_TOOBIG
-            ? serialize_json_rpc_invalid_params(std::move(request.id), response)
-            : serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        co_return delivered.error().code == SQLITE_TOOBIG ? serialize_json_rpc_invalid_params(std::move(request.id), response)
+                                                          : serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
     if (auto const* rejected = std::get_if<message_write_rejection>(&*delivered))
     {
@@ -290,49 +291,51 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
     co_return simdjson::SUCCESS;
 }
 
-boost::capy::task<std::expected<std::optional<chat_session::sent_message>, sqlite_error>>
-chat_session::find_sent_message(std::int64_t client_id)
+boost::capy::task<std::expected<std::optional<chat_session::sent_message>, sqlite_error>> chat_session::find_sent_message(std::int64_t client_id)
 {
-    co_return co_await database_.run([=, user=*user_id_](sqlite_database& db)
-        -> std::expected<std::optional<sent_message>, sqlite_error> {
-        auto snapshot = sqlite_transaction::begin_read(db);
-        if (!snapshot)
+    co_return co_await database_.run(
+        [=, user = *user_id_](sqlite_database& db) -> std::expected<std::optional<sent_message>, sqlite_error>
         {
-            return std::unexpected(std::move(snapshot.error()));
-        }
-        auto query = db.prepare(R"SQL(
+            auto snapshot = sqlite_transaction::begin_read(db);
+            if (!snapshot)
+            {
+                return std::unexpected(std::move(snapshot.error()));
+            }
+            auto query = db.prepare(R"SQL(
             SELECT id,conversation_id,deleted,
                 EXISTS(SELECT 1 FROM message_attachments WHERE message_id=m.id)
             FROM messages m WHERE sender_id=?1 AND client_id=?2
-        )SQL", user, client_id);
-        if (!query)
-        {
-            return std::unexpected(std::move(query.error()));
-        }
-        auto row = query->step();
-        if (!row)
-        {
-            return std::unexpected(std::move(row.error()));
-        }
-        if (!*row)
-        {
-            return std::nullopt;
-        }
-        sent_message result{query->column_int64(1), query->column_int64(2) != 0, query->column_int64(3) != 0, false, {}};
-        auto current = read_message(db, user, result.conversation, query->column_int64(0));
-        if (!current)
-        {
-            return std::unexpected(std::move(current.error()));
-        }
-        if (*current)
-        {
-            result.member = true;
-            auto value = make_message_payload(**current, true);
-            if (simdjson::builder::to_json_string(value).get(result.json))
+        )SQL",
+                                    user,
+                                    client_id);
+            if (!query)
             {
-                return std::unexpected(sqlite_error{SQLITE_ERROR, "cannot serialize stored message"});
+                return std::unexpected(std::move(query.error()));
             }
-        }
-        return result;
-    });
+            auto row = query->step();
+            if (!row)
+            {
+                return std::unexpected(std::move(row.error()));
+            }
+            if (!*row)
+            {
+                return std::nullopt;
+            }
+            sent_message result{query->column_int64(1), query->column_int64(2) != 0, query->column_int64(3) != 0, false, {}};
+            auto current = read_message(db, user, result.conversation, query->column_int64(0));
+            if (!current)
+            {
+                return std::unexpected(std::move(current.error()));
+            }
+            if (*current)
+            {
+                result.member = true;
+                auto value = make_message_payload(**current, true);
+                if (simdjson::builder::to_json_string(value).get(result.json))
+                {
+                    return std::unexpected(sqlite_error{SQLITE_ERROR, "cannot serialize stored message"});
+                }
+            }
+            return result;
+        });
 }

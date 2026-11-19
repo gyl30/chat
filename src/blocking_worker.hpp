@@ -27,7 +27,11 @@ class blocking_worker
     blocking_worker& operator=(blocking_worker const&) = delete;
     ~blocking_worker();
 
-    enum class unavailable { full, stopped };
+    enum class unavailable
+    {
+        full,
+        stopped
+    };
 
     template <class F, class Translate>
     auto run(F job, Translate translate) -> boost::capy::task<std::invoke_result_t<F&>>
@@ -48,10 +52,12 @@ class blocking_worker
             {
                 executor = environment->executor;
                 continuation.h = handle;
-                auto error = owner.enqueue([this] {
-                    result.emplace(job());
-                    executor.post(continuation);
-                });
+                auto error = owner.enqueue(
+                    [this]
+                    {
+                        result.emplace(job());
+                        executor.post(continuation);
+                    });
                 if (error)
                 {
                     result.emplace(std::unexpected(translate(*error)));

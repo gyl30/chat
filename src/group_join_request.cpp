@@ -12,8 +12,14 @@
 
 boost::capy::task<simdjson::error_code> chat_session::handle_group_join_request(json_rpc_request& request, std::string& response)
 {
-    if (!request.id.present) { co_return simdjson::SUCCESS; }
-    if (!user_id_) { co_return serialize_json_rpc_error(-32001, "Authentication required", std::move(request.id), response); }
+    if (!request.id.present)
+    {
+        co_return simdjson::SUCCESS;
+    }
+    if (!user_id_)
+    {
+        co_return serialize_json_rpc_error(-32001, "Authentication required", std::move(request.id), response);
+    }
     auto const configuring = request.method == "set_group_join_approval";
     auto const responding = request.method == "respond_group_join_request";
     std::int64_t conversation = 0, user = 0;
@@ -22,11 +28,17 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_join_request(
     simdjson::ondemand::parser parser;
     simdjson::ondemand::document document;
     if (!request.params.present || parser.iterate(request.params.json).get(document))
-    { co_return serialize_json_rpc_invalid_params(std::move(request.id), response); }
+    {
+        co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+    }
     simdjson::error_code parse_error;
     if (configuring)
     {
-        struct [[= simdjson::deny_unknown_fields]] group_join_approval_params { std::int64_t conversation = 0; std::optional<bool> required; };
+        struct[[= simdjson::deny_unknown_fields]] group_join_approval_params
+        {
+            std::int64_t conversation = 0;
+            std::optional<bool> required;
+        };
         group_join_approval_params params;
         parse_error = document.get(params);
         conversation = params.conversation;
@@ -34,7 +46,12 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_join_request(
     }
     else if (responding)
     {
-        struct [[= simdjson::deny_unknown_fields]] group_join_response_params { std::int64_t conversation = 0; std::int64_t user = 0; std::optional<bool> accept; };
+        struct[[= simdjson::deny_unknown_fields]] group_join_response_params
+        {
+            std::int64_t conversation = 0;
+            std::int64_t user = 0;
+            std::optional<bool> accept;
+        };
         group_join_response_params params;
         parse_error = document.get(params);
         conversation = params.conversation;
@@ -43,26 +60,31 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_join_request(
     }
     else
     {
-        struct [[= simdjson::deny_unknown_fields]] group_join_list_params { std::int64_t conversation = 0; std::optional<std::int64_t> before; };
+        struct[[= simdjson::deny_unknown_fields]] group_join_list_params
+        {
+            std::int64_t conversation = 0;
+            std::optional<std::int64_t> before;
+        };
         group_join_list_params params;
         parse_error = document.get(params);
         conversation = params.conversation;
         before = params.before;
     }
-    if (parse_error || !document.at_end() || conversation <= 0 || (before && *before <= 0) ||
-        ((configuring || responding) && !choice.has_value()) || (responding && user <= 0))
-    { co_return serialize_json_rpc_invalid_params(std::move(request.id), response); }
+    if (parse_error || !document.at_end() || conversation <= 0 || (before && *before <= 0) || ((configuring || responding) && !choice.has_value()) ||
+        (responding && user <= 0))
+    {
+        co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+    }
     auto const actor = *user_id_;
-    auto group_error = [&](group_member_rejection reason) {
+    auto group_error = [&](group_member_rejection reason)
+    {
         bool const unavailable = reason == group_member_rejection::unavailable;
-        return serialize_json_rpc_error(unavailable ? -32006 : -32009,
-            unavailable ? "Group unavailable" : "Group permission denied", std::move(request.id), response);
+        return serialize_json_rpc_error(
+            unavailable ? -32006 : -32009, unavailable ? "Group unavailable" : "Group permission denied", std::move(request.id), response);
     };
     if (!configuring && !responding)
     {
-        auto requests = co_await database_.run([=](sqlite_database& db) {
-            return read_group_join_requests(db, conversation, actor, before);
-        });
+        auto requests = co_await database_.run([=](sqlite_database& db) { return read_group_join_requests(db, conversation, actor, before); });
         if (!requests)
         {
             co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
@@ -80,7 +102,11 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_join_request(
             bool has_avatar;
             std::int64_t created_at;
         };
-        struct result { std::vector<applicant> requests; std::optional<std::int64_t> next; };
+        struct result
+        {
+            std::vector<applicant> requests;
+            std::optional<std::int64_t> next;
+        };
         result payload{{}, page.next};
         for (auto& item : page.requests)
         {
@@ -89,10 +115,12 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_join_request(
         }
         co_return serialize_json_rpc_value(payload, std::move(request.id), response);
     }
-    auto updated = co_await database_.run([=](sqlite_database& db) {
-        return configuring ? set_group_join_approval(db, conversation, actor, *choice) :
-            respond_to_group_join_request(db, conversation, actor, user, *choice);
-    });
+    auto updated = co_await database_.run(
+        [=](sqlite_database& db)
+        {
+            return configuring ? set_group_join_approval(db, conversation, actor, *choice)
+                               : respond_to_group_join_request(db, conversation, actor, user, *choice);
+        });
     if (!updated)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
@@ -110,18 +138,19 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_join_request(
         }
         if (configuring || *choice)
         {
-            co_await publish_conversation(conversation, R"({"jsonrpc":"2.0","method":"conversation","params":{"conversation":)" +
-                std::to_string(conversation) + "}}");
+            co_await publish_conversation(
+                conversation, R"({"jsonrpc":"2.0","method":"conversation","params":{"conversation":)" + std::to_string(conversation) + "}}");
         }
     }
-    co_return serialize_json_rpc_success(changed ? "{\"changed\":true}" : "{\"changed\":false}",
-                                         std::move(request.id), response);
+    co_return serialize_json_rpc_success(changed ? "{\"changed\":true}" : "{\"changed\":false}", std::move(request.id), response);
 }
 
 boost::capy::task<void> chat_session::publish_join_request(std::int64_t conversation, std::int64_t user, std::string state)
 {
-    auto recipients = co_await database_.run([&](sqlite_database& db) -> std::expected<std::vector<std::int64_t>, sqlite_error> {
-        auto query = db.prepare(R"SQL(
+    auto recipients = co_await database_.run(
+        [&](sqlite_database& db) -> std::expected<std::vector<std::int64_t>, sqlite_error>
+        {
+            auto query = db.prepare(R"SQL(
             WITH current AS (
                 SELECT EXISTS(SELECT 1 FROM group_join_requests WHERE conversation_id=?1 AND user_id=?2) AS pending,
                        EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=?1 AND user_id=?2) AS member
@@ -132,32 +161,35 @@ boost::capy::task<void> chat_session::publish_join_request(std::int64_t conversa
             )
             SELECT user_id FROM recipients,current WHERE
               CASE ?3 WHEN 'pending' THEN pending WHEN 'accepted' THEN member ELSE NOT pending AND NOT member END
-        )SQL", conversation, user, state);
-        if (!query)
-        {
-            return std::unexpected(std::move(query.error()));
-        }
-        std::vector<std::int64_t> result;
-        for (;;)
-        {
-            auto row = query->step();
-            if (!row)
+        )SQL",
+                                    conversation,
+                                    user,
+                                    state);
+            if (!query)
             {
-                return std::unexpected(std::move(row.error()));
+                return std::unexpected(std::move(query.error()));
             }
-            if (!*row)
+            std::vector<std::int64_t> result;
+            for (;;)
             {
-                return result;
+                auto row = query->step();
+                if (!row)
+                {
+                    return std::unexpected(std::move(row.error()));
+                }
+                if (!*row)
+                {
+                    return result;
+                }
+                result.push_back(query->column_int64(0));
             }
-            result.push_back(query->column_int64(0));
-        }
-    });
+        });
     if (!recipients)
     {
         co_return;
     }
-    std::string notification = R"({"jsonrpc":"2.0","method":"join_request","params":{"conversation":)" +
-        std::to_string(conversation) + R"(,"user":)" + std::to_string(user) + R"(,"state":")" + state + "\"}}";
+    std::string notification = R"({"jsonrpc":"2.0","method":"join_request","params":{"conversation":)" + std::to_string(conversation) +
+                               R"(,"user":)" + std::to_string(user) + R"(,"state":")" + state + "\"}}";
     for (auto const recipient : *recipients)
     {
         if (auto* session = users_.find(recipient))

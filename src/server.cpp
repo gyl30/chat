@@ -197,7 +197,6 @@ class connection_worker final : public boost::corosio::tcp_server::worker_base
     boost::http::serializer serializer_;
 };
 
-
 }    // namespace
 
 chat_server::chat_server(boost::corosio::io_context& io_context,

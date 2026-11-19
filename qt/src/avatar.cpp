@@ -18,10 +18,7 @@ QString avatar_initial(QString const& username)
     return value.isEmpty() ? QStringLiteral("?") : value.left(grapheme_ends(value).front()).toUpper();
 }
 
-QColor avatar_background(QString const& username)
-{
-    return theme_manager::instance().avatar_background(qHash(username.trimmed()));
-}
+QColor avatar_background(QString const& username) { return theme_manager::instance().avatar_background(qHash(username.trimmed())); }
 
 void paint_avatar(QPainter& painter, QRect const& rect, QString const& username, int font_size, QPixmap const& image)
 {
@@ -46,8 +43,7 @@ void paint_avatar(QPainter& painter, QRect const& rect, QString const& username,
     font.setBold(true);
     font.setPixelSize(font_size > 0 ? font_size : rect.height() * 9 / 22);
     painter.setFont(font);
-    paint_emoji_line(painter, rect, avatar_initial(username), font,
-                     theme_manager::instance().avatar_text(), Qt::AlignHCenter);
+    paint_emoji_line(painter, rect, avatar_initial(username), font, theme_manager::instance().avatar_text(), Qt::AlignHCenter);
     painter.restore();
 }
 
@@ -125,7 +121,7 @@ void avatar_cache::receive(qint64 user, chat::avatar_state state, QByteArray con
         // The largest avatar is 104 logical pixels at 200% scaling.
         auto const side = std::min(image.width(), image.height());
         entries_[user].image = QPixmap::fromImage(image.copy((image.width() - side) / 2, (image.height() - side) / 2, side, side)
-            .scaled(208, 208, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                                                      .scaled(208, 208, Qt::KeepAspectRatio, Qt::SmoothTransformation));
         emit changed(user);
     }
 }

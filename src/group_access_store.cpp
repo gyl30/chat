@@ -12,8 +12,7 @@
 
 namespace
 {
-std::expected<std::optional<group_member_rejection>, sqlite_error> check_group_manager(
-    sqlite_database& db, std::int64_t group, std::int64_t actor)
+std::expected<std::optional<group_member_rejection>, sqlite_error> check_group_manager(sqlite_database& db, std::int64_t group, std::int64_t actor)
 {
     auto role = read_group_role(db, group, actor);
     if (!role)
@@ -31,7 +30,7 @@ std::expected<std::optional<group_member_rejection>, sqlite_error> check_group_m
     return std::nullopt;
 }
 
-template<class... Args>
+template <class... Args>
 std::expected<bool, sqlite_error> write(sqlite_database& db, std::string_view sql, Args const&... args)
 {
     auto statement = db.prepare(sql, args...);
@@ -75,10 +74,12 @@ std::expected<std::string, sqlite_error> make_invite()
     }
     return token;
 }
-} // namespace
+}    // namespace
 
-std::expected<std::variant<group_invite_change, group_member_rejection>, sqlite_error> change_group_invite(
-    sqlite_database& db, std::int64_t group, std::int64_t actor, invite_action action)
+std::expected<std::variant<group_invite_change, group_member_rejection>, sqlite_error> change_group_invite(sqlite_database& db,
+                                                                                                           std::int64_t group,
+                                                                                                           std::int64_t actor,
+                                                                                                           invite_action action)
 {
     auto tx = action == invite_action::inspect ? sqlite_transaction::begin_read(db) : sqlite_transaction::begin_immediate(db);
     if (!tx)
@@ -152,8 +153,7 @@ std::expected<std::variant<group_invite_change, group_member_rejection>, sqlite_
     return result;
 }
 
-std::expected<std::optional<group_join_change>, sqlite_error> join_with_invite(
-    sqlite_database& db, std::int64_t actor, std::string_view token)
+std::expected<std::optional<group_join_change>, sqlite_error> join_with_invite(sqlite_database& db, std::int64_t actor, std::string_view token)
 {
     auto tx = sqlite_transaction::begin_immediate(db);
     if (!tx)
@@ -168,7 +168,9 @@ std::expected<std::optional<group_join_change>, sqlite_error> join_with_invite(
                 (SELECT count(*) FROM conversation_members WHERE conversation_id=c.id),
                 EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=c.id AND user_id=?2)
             FROM conversations c WHERE kind='group' AND invite_token=?1
-        )SQL", token, actor);
+        )SQL",
+                                token,
+                                actor);
         if (!group)
         {
             return std::unexpected(std::move(group.error()));
@@ -194,12 +196,15 @@ std::expected<std::optional<group_join_change>, sqlite_error> join_with_invite(
     auto const id = result.result.conversation;
     if (approval)
     {
-        auto const now = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
-        auto requested = write(db, R"SQL(
+        auto const now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        auto requested = write(db,
+                               R"SQL(
             INSERT INTO group_join_requests(conversation_id,user_id,created_at) VALUES(?1,?2,?3)
             ON CONFLICT(conversation_id,user_id) DO NOTHING
-        )SQL", id, actor, now);
+        )SQL",
+                               id,
+                               actor,
+                               now);
         if (!requested)
         {
             return std::unexpected(std::move(requested.error()));
@@ -230,8 +235,10 @@ std::expected<std::optional<group_join_change>, sqlite_error> join_with_invite(
     return result;
 }
 
-std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_group_join_approval(
-    sqlite_database& db, std::int64_t group, std::int64_t actor, bool required)
+std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_group_join_approval(sqlite_database& db,
+                                                                                                std::int64_t group,
+                                                                                                std::int64_t actor,
+                                                                                                bool required)
 {
     auto tx = sqlite_transaction::begin_immediate(db);
     if (!tx)
@@ -247,8 +254,7 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_grou
     {
         return **denied;
     }
-    auto updated = write(db, "UPDATE conversations SET join_approval=?2 WHERE id=?1 AND join_approval<>?2",
-                         group, static_cast<int>(required));
+    auto updated = write(db, "UPDATE conversations SET join_approval=?2 WHERE id=?1 AND join_approval<>?2", group, static_cast<int>(required));
     if (!updated)
     {
         return std::unexpected(std::move(updated.error()));
@@ -260,8 +266,8 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_grou
     return *updated;
 }
 
-std::expected<std::variant<chat::group_join_requests_result, group_member_rejection>, sqlite_error>
-read_group_join_requests(sqlite_database& db, std::int64_t group, std::int64_t actor, std::optional<std::int64_t> before)
+std::expected<std::variant<chat::group_join_requests_result, group_member_rejection>, sqlite_error> read_group_join_requests(
+    sqlite_database& db, std::int64_t group, std::int64_t actor, std::optional<std::int64_t> before)
 {
     auto tx = sqlite_transaction::begin_read(db);
     if (!tx)
@@ -282,7 +288,9 @@ read_group_join_requests(sqlite_database& db, std::int64_t group, std::int64_t a
         FROM group_join_requests r JOIN users u ON u.id=r.user_id
         LEFT JOIN user_avatars a ON a.user_id=u.id
         WHERE r.conversation_id=?1 AND r.user_id<?2 ORDER BY r.user_id DESC LIMIT 51
-    )SQL", group, before.value_or(std::numeric_limits<std::int64_t>::max()));
+    )SQL",
+                           group,
+                           before.value_or(std::numeric_limits<std::int64_t>::max()));
     if (!page)
     {
         return std::unexpected(std::move(page.error()));
@@ -304,8 +312,8 @@ read_group_join_requests(sqlite_database& db, std::int64_t group, std::int64_t a
             result.next = result.requests.back().applicant.id;
             break;
         }
-        result.requests.push_back({{page->column_int64(0), std::string(page->column_text(1)),
-            {page->column_int64(2), page->column_int64(3) != 0}}, page->column_int64(4)});
+        result.requests.push_back(
+            {{page->column_int64(0), std::string(page->column_text(1)), {page->column_int64(2), page->column_int64(3) != 0}}, page->column_int64(4)});
     }
     if (auto error = tx->commit(); error)
     {

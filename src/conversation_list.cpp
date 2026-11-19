@@ -3,8 +3,9 @@
 #include <limits>
 #include <utility>
 
-std::expected<std::string, sqlite_error> read_conversation_list(
-    sqlite_database& db, std::int64_t user, std::optional<chat::conversation_cursor> before)
+std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database& db,
+                                                                std::int64_t user,
+                                                                std::optional<chat::conversation_cursor> before)
 {
     constexpr auto max = std::numeric_limits<std::int64_t>::max();
     auto query = db.prepare(R"SQL(
@@ -67,7 +68,11 @@ std::expected<std::string, sqlite_error> read_conversation_list(
                 (SELECT json_object('pinned',json(CASE WHEN pinned THEN 'true' ELSE 'false' END),
                                     'activity',activity,'id',id)
                  FROM visible ORDER BY pinned,activity,id LIMIT 1) END))
-    )SQL", user, before ? static_cast<int>(before->pinned) : 2, before ? before->activity : max, before ? before->id : max);
+    )SQL",
+                            user,
+                            before ? static_cast<int>(before->pinned) : 2,
+                            before ? before->activity : max,
+                            before ? before->id : max);
     if (!query)
     {
         return std::unexpected(std::move(query.error()));

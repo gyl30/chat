@@ -18,10 +18,7 @@ std::expected<database::pointer, sqlite_error> database::open(std::string path)
     return pointer(new database(std::move(path), std::move(*opened)));
 }
 
-database::database(std::string path, sqlite_database connection)
-    : path_(std::move(path)), database_(std::move(connection))
-{
-}
+database::database(std::string path, sqlite_database connection) : path_(std::move(path)), database_(std::move(connection)) {}
 
 sqlite_error database::queue_error(blocking_worker::unavailable reason)
 {

@@ -96,9 +96,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_avatar(json_rpc_req
         {
             co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
         }
-        auto image = co_await database_.run([&](sqlite_database& db) {
-            return read_avatar_chunk(db, params.user, params.revision, params.offset);
-        });
+        auto image = co_await database_.run([&](sqlite_database& db) { return read_avatar_chunk(db, params.user, params.revision, params.offset); });
         if (!image)
         {
             co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
@@ -116,8 +114,14 @@ boost::capy::task<simdjson::error_code> chat_session::handle_avatar(json_rpc_req
             bool has_more;
         };
         auto const& chunk = **image;
-        avatar_result value{params.user, chunk.state.revision, chunk.state.present, chunk.offset, chunk.size,
-                            chunk.media_type, chat::detail::encode_base64(chunk.bytes), chunk.has_more};
+        avatar_result value{params.user,
+                            chunk.state.revision,
+                            chunk.state.present,
+                            chunk.offset,
+                            chunk.size,
+                            chunk.media_type,
+                            chat::detail::encode_base64(chunk.bytes),
+                            chunk.has_more};
         std::string payload;
         if (auto error = simdjson::builder::to_json_string(value).get(payload))
         {
@@ -180,23 +184,20 @@ boost::capy::task<simdjson::error_code> chat_session::handle_avatar(json_rpc_req
             co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
         }
     }
-    auto changed = co_await database_.run([&, user=*user_id_](sqlite_database& db) {
-        return clearing ? clear_avatar(db, user) : save_avatar(db, user, media_type, content);
-    });
+    auto changed = co_await database_.run([&, user = *user_id_](sqlite_database& db)
+                                          { return clearing ? clear_avatar(db, user) : save_avatar(db, user, media_type, content); });
     if (!changed)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
-    std::string state = "{\"avatar_revision\":" + std::to_string(changed->state.revision) +
-        ",\"has_avatar\":" + (changed->state.present ? "true}" : "false}");
+    std::string state =
+        "{\"avatar_revision\":" + std::to_string(changed->state.revision) + ",\"has_avatar\":" + (changed->state.present ? "true}" : "false}");
     if (changed->changed)
     {
         std::string notification =
             "{\"jsonrpc\":\"2.0\",\"method\":\"avatar\",\"params\":{\"user\":" + std::to_string(*user_id_) + "," + state.substr(1) + "}";
         enqueue_message(notification);
-        auto recipients = co_await database_.run([user=*user_id_](sqlite_database& db) {
-            return read_avatar_recipients(db, user);
-        });
+        auto recipients = co_await database_.run([user = *user_id_](sqlite_database& db) { return read_avatar_recipients(db, user); });
         if (recipients)
         {
             for (auto const peer : *recipients)

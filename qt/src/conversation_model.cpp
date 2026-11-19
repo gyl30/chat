@@ -7,23 +7,24 @@ conversation_model::conversation_model(QObject* parent, avatar_cache* avatars) :
 {
     if (avatars_)
     {
-        connect(avatars_, &avatar_cache::changed, this, [this](qint64 user) {
-            for (int row = 0; row < conversations_.size(); ++row)
-            {
-                auto const& item = conversations_[row];
-                if (item.user == user && !item.group)
+        connect(avatars_,
+                &avatar_cache::changed,
+                this,
+                [this](qint64 user)
                 {
-                    emit dataChanged(index(row, 0), index(row, 0), {Qt::DecorationRole});
-                }
-            }
-        });
+                    for (int row = 0; row < conversations_.size(); ++row)
+                    {
+                        auto const& item = conversations_[row];
+                        if (item.user == user && !item.group)
+                        {
+                            emit dataChanged(index(row, 0), index(row, 0), {Qt::DecorationRole});
+                        }
+                    }
+                });
     }
 }
 
-int conversation_model::rowCount(QModelIndex const& parent) const
-{
-    return parent.isValid() ? 0 : conversations_.size();
-}
+int conversation_model::rowCount(QModelIndex const& parent) const { return parent.isValid() ? 0 : conversations_.size(); }
 
 QVariant conversation_model::data(QModelIndex const& index, int role) const
 {
@@ -71,7 +72,10 @@ void conversation_model::set_conversations(QList<conversation_data> conversation
     {
         for (auto const& item : conversations)
         {
-            if (!item.group) avatars_->observe(item.user, item.avatar);
+            if (!item.group)
+            {
+                avatars_->observe(item.user, item.avatar);
+            }
         }
     }
     beginResetModel();
@@ -82,7 +86,10 @@ void conversation_model::set_conversations(QList<conversation_data> conversation
 void conversation_model::remove_conversation(qint64 conversation)
 {
     auto const item = index_for_conversation(conversation);
-    if (!item.isValid()) { return; }
+    if (!item.isValid())
+    {
+        return;
+    }
     beginRemoveRows({}, item.row(), item.row());
     conversations_.removeAt(item.row());
     endRemoveRows();
@@ -113,7 +120,10 @@ void conversation_model::set_online(qint64 user, bool online)
 void conversation_model::set_muted(qint64 conversation, bool muted)
 {
     auto const item_index = index_for_conversation(conversation);
-    if (!item_index.isValid() || conversations_[item_index.row()].muted == muted) { return; }
+    if (!item_index.isValid() || conversations_[item_index.row()].muted == muted)
+    {
+        return;
+    }
     conversations_[item_index.row()].muted = muted;
     emit dataChanged(item_index, item_index, {muted_role});
 }
@@ -121,7 +131,10 @@ void conversation_model::set_muted(qint64 conversation, bool muted)
 void conversation_model::set_pinned(qint64 conversation, bool pinned)
 {
     auto const item_index = index_for_conversation(conversation);
-    if (!item_index.isValid() || conversations_[item_index.row()].pinned == pinned) { return; }
+    if (!item_index.isValid() || conversations_[item_index.row()].pinned == pinned)
+    {
+        return;
+    }
     conversations_[item_index.row()].pinned = pinned;
     emit dataChanged(item_index, item_index, {pinned_role});
 }

@@ -60,8 +60,9 @@ boost::capy::task<void> recover_objects(database& db, s3_objects& objects)
 {
     // A timed-out PUT may still finish remotely. The settling window applies
     // on shutdown too, not just during startup recovery.
-    auto const cutoff = std::chrono::duration_cast<std::chrono::milliseconds>(
-        (std::chrono::system_clock::now() - std::chrono::minutes(1)).time_since_epoch()).count();
+    auto const cutoff =
+        std::chrono::duration_cast<std::chrono::milliseconds>((std::chrono::system_clock::now() - std::chrono::minutes(1)).time_since_epoch())
+            .count();
     auto const removed = co_await recover_attachment_objects(db, objects, cutoff);
     if (removed < 0)
     {
@@ -122,8 +123,7 @@ boost::http::route_task not_found_handler(boost::http::route_params& params)
     co_return boost::http::route_done;
 }
 
-boost::capy::task<int> wait_for_shutdown(boost::corosio::signal_set& signals, chat_server& server,
-                                          std::stop_source& cleanup_stop)
+boost::capy::task<int> wait_for_shutdown(boost::corosio::signal_set& signals, chat_server& server, std::stop_source& cleanup_stop)
 {
     auto [ec, signal_number] = co_await signals.wait();
     cleanup_stop.request_stop();
@@ -139,7 +139,7 @@ boost::capy::task<int> wait_for_shutdown(boost::corosio::signal_set& signals, ch
     co_return EXIT_SUCCESS;
 }
 
-}
+}    // namespace
 
 int main(int argc, char* argv[])
 {
@@ -196,15 +196,19 @@ int main(int argc, char* argv[])
         tls.emplace(std::move(*context));
     }
 
-    s3_settings settings{environment("CHAT_S3_ENDPOINT"), environment("CHAT_S3_BUCKET"),
-                         environment("CHAT_S3_ACCESS_KEY"), environment("CHAT_S3_SECRET_KEY"),
-                         environment("CHAT_S3_REGION"), true};
+    s3_settings settings{environment("CHAT_S3_ENDPOINT"),
+                         environment("CHAT_S3_BUCKET"),
+                         environment("CHAT_S3_ACCESS_KEY"),
+                         environment("CHAT_S3_SECRET_KEY"),
+                         environment("CHAT_S3_REGION"),
+                         true};
     auto const https = environment("CHAT_S3_HTTPS");
-    if (settings.endpoint.empty() || settings.bucket.empty() || settings.access_key.empty() ||
-        settings.secret_key.empty() || (!https.empty() && https != "0" && https != "1"))
+    if (settings.endpoint.empty() || settings.bucket.empty() || settings.access_key.empty() || settings.secret_key.empty() ||
+        (!https.empty() && https != "0" && https != "1"))
     {
-        spdlog::error("set CHAT_S3_ENDPOINT, CHAT_S3_BUCKET, CHAT_S3_ACCESS_KEY, and CHAT_S3_SECRET_KEY. "
-                      "CHAT_S3_HTTPS is optional and accepts 0 or 1");
+        spdlog::error(
+            "set CHAT_S3_ENDPOINT, CHAT_S3_BUCKET, CHAT_S3_ACCESS_KEY, and CHAT_S3_SECRET_KEY. "
+            "CHAT_S3_HTTPS is optional and accepts 0 or 1");
         return EXIT_FAILURE;
     }
     settings.https = https != "0";
@@ -257,11 +261,10 @@ int main(int argc, char* argv[])
     server.start();
 
     std::stop_source cleanup_stop;
-    boost::capy::run_async(io_context.get_executor(), cleanup_stop.get_token())(
-        recover_objects_periodically(**storage, objects));
+    boost::capy::run_async(io_context.get_executor(), cleanup_stop.get_token())(recover_objects_periodically(**storage, objects));
     int exit_code = EXIT_FAILURE;
-    boost::capy::run_async(io_context.get_executor(), [&exit_code](int result) { exit_code = result; })(
-        wait_for_shutdown(signals, server, cleanup_stop));
+    boost::capy::run_async(io_context.get_executor(),
+                           [&exit_code](int result) { exit_code = result; })(wait_for_shutdown(signals, server, cleanup_stop));
     io_context.run();
     server.join();
     io_context.restart();

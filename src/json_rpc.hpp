@@ -36,7 +36,7 @@ simdjson::error_code serialize_json_rpc_method_not_found(json_rpc_id id, std::st
 
 simdjson::error_code serialize_json_rpc_invalid_params(json_rpc_id id, std::string& response);
 
-template<class T>
+template <class T>
 simdjson::error_code serialize_json_rpc_value(T const& value, json_rpc_id id, std::string& response)
 {
     std::string json;

@@ -13,27 +13,31 @@ class QPlainTextEdit;
 QFont emoji_input_font(QFont font);
 
 QList<QTextLayout::FormatRange> emoji_formats(QString const& text, QFont const& font);
-void paint_emoji_line(QPainter& painter, QRect const& rect, QString const& text,
-                      QFont const& font, QColor const& color, Qt::Alignment horizontal_alignment = Qt::AlignLeft);
+void paint_emoji_line(QPainter& painter,
+                      QRect const& rect,
+                      QString const& text,
+                      QFont const& font,
+                      QColor const& color,
+                      Qt::Alignment horizontal_alignment = Qt::AlignLeft);
 
 class emoji_label final : public QLabel
 {
-public:
+   public:
     explicit emoji_label(QWidget* parent);
 
-protected:
+   protected:
     void paintEvent(QPaintEvent* event) override;
 };
 
 class emoji_highlighter final : public QSyntaxHighlighter
 {
-public:
+   public:
     explicit emoji_highlighter(QPlainTextEdit* editor);
 
-protected:
+   protected:
     void highlightBlock(QString const& text) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
 
-private:
+   private:
     QPlainTextEdit* editor_;
 };

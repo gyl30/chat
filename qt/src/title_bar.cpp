@@ -26,7 +26,7 @@ QToolButton* make_button(QWidget* parent, QString const& name, QString const& ac
     return button;
 }
 
-}
+}    // namespace
 
 title_bar::title_bar(QWidget* parent) : QWidget(parent)
 {
@@ -52,7 +52,10 @@ title_bar::title_bar(QWidget* parent) : QWidget(parent)
     connect(minimize_, &QToolButton::clicked, this, [this] { window()->showMinimized(); });
     connect(maximize_, &QToolButton::clicked, this, [this] { toggle_maximized(); });
     connect(close_, &QToolButton::clicked, this, [this] { window()->close(); });
-    if (parent) { parent->window()->installEventFilter(this); }
+    if (parent)
+    {
+        parent->window()->installEventFilter(this);
+    }
     title_->setText(window()->windowTitle());
     update_maximize_button();
 }
@@ -75,10 +78,7 @@ void title_bar::refresh_theme()
 
 void title_bar::set_title_visible(bool visible) { title_->setVisible(visible); }
 
-void title_bar::set_maximizable(bool maximizable)
-{
-    maximize_->setVisible(maximizable);
-}
+void title_bar::set_maximizable(bool maximizable) { maximize_->setVisible(maximizable); }
 
 void title_bar::mousePressEvent(QMouseEvent* event)
 {
@@ -106,16 +106,28 @@ bool title_bar::eventFilter(QObject* object, QEvent* event)
 {
     if (object == window())
     {
-        if (event->type() == QEvent::WindowStateChange) { update_maximize_button(); }
-        else if (event->type() == QEvent::WindowTitleChange) { title_->setText(window()->windowTitle()); }
+        if (event->type() == QEvent::WindowStateChange)
+        {
+            update_maximize_button();
+        }
+        else if (event->type() == QEvent::WindowTitleChange)
+        {
+            title_->setText(window()->windowTitle());
+        }
     }
     return QWidget::eventFilter(object, event);
 }
 
 void title_bar::toggle_maximized()
 {
-    if (window()->isMaximized()) { window()->showNormal(); }
-    else { window()->showMaximized(); }
+    if (window()->isMaximized())
+    {
+        window()->showNormal();
+    }
+    else
+    {
+        window()->showMaximized();
+    }
 }
 
 void title_bar::update_maximize_button()

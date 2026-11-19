@@ -8,7 +8,9 @@ std::expected<void, sqlite_error> reserve_attachment_object(sqlite_database& db,
     auto statement = db.prepare(R"SQL(
         INSERT INTO attachment_cleanup(object_key,reserved_at)
         SELECT ?1,?2 WHERE NOT EXISTS(SELECT 1 FROM message_attachments WHERE object_key=?1)
-    )SQL", key, timestamp);
+    )SQL",
+                                key,
+                                timestamp);
     if (!statement)
     {
         return std::unexpected(std::move(statement.error()));
@@ -25,8 +27,7 @@ std::expected<void, sqlite_error> reserve_attachment_object(sqlite_database& db,
     return {};
 }
 
-std::expected<std::vector<std::string>, sqlite_error> claim_attachment_cleanup_batch(
-    sqlite_database& db, std::int64_t cutoff, std::string_view after)
+std::expected<std::vector<std::string>, sqlite_error> claim_attachment_cleanup_batch(sqlite_database& db, std::int64_t cutoff, std::string_view after)
 {
     auto statement = db.prepare(R"SQL(
         UPDATE attachment_cleanup SET reserved_at=0 WHERE object_key IN (
@@ -34,7 +35,9 @@ std::expected<std::vector<std::string>, sqlite_error> claim_attachment_cleanup_b
             WHERE reserved_at<=?1 AND object_key>?2 ORDER BY object_key LIMIT 64
         )
         RETURNING object_key
-    )SQL", cutoff, after);
+    )SQL",
+                                cutoff,
+                                after);
     if (!statement)
     {
         return std::unexpected(std::move(statement.error()));

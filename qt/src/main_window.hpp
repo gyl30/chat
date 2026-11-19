@@ -31,7 +31,8 @@ class client_bridge;
 
 class main_window final : public QMainWindow
 #if defined(Q_OS_LINUX)
-    , private QAbstractNativeEventFilter
+    ,
+                          private QAbstractNativeEventFilter
 #endif
 {
     Q_OBJECT

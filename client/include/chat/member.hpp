@@ -8,7 +8,12 @@
 namespace chat
 {
 
-enum class member_role { member, admin, owner };
+enum class member_role
+{
+    member,
+    admin,
+    owner
+};
 
 struct conversation_member
 {
@@ -18,6 +23,6 @@ struct conversation_member
     avatar_state avatar;
 };
 
-}
+}    // namespace chat
 
 #endif

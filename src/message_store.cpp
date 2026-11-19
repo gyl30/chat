@@ -6,8 +6,9 @@
 #include <sqlite3.h>
 #include <utility>
 
-std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_write(
-    sqlite_database& db, message_to_write const& message, bool attachment)
+std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_write(sqlite_database& db,
+                                                                                      message_to_write const& message,
+                                                                                      bool attachment)
 {
     using enum message_write_rejection;
     if (message.client_id <= 0)
@@ -20,7 +21,9 @@ std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_
                    EXISTS(SELECT 1 FROM message_attachments WHERE message_id=m.id),
                    EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=m.conversation_id AND user_id=?1)
             FROM messages m WHERE m.sender_id=?1 AND m.client_id=?2
-        )SQL", message.sender, message.client_id);
+        )SQL",
+                                message.sender,
+                                message.client_id);
         if (!query)
         {
             return std::unexpected(std::move(query.error()));
@@ -32,8 +35,7 @@ std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_
         }
         if (*row)
         {
-            if (query->column_int64(1) != message.conversation ||
-                (query->column_int64(2) == 0 && ((query->column_int64(3) != 0) != attachment)))
+            if (query->column_int64(1) != message.conversation || (query->column_int64(2) == 0 && ((query->column_int64(3) != 0) != attachment)))
             {
                 return message_write_outcome{invalid_client_id};
             }
@@ -59,8 +61,7 @@ std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_
 
     if (message.reply_to)
     {
-        auto quote = db.prepare("SELECT 1 FROM messages WHERE conversation_id=?1 AND id=?2 AND deleted=0",
-                                message.conversation, *message.reply_to);
+        auto quote = db.prepare("SELECT 1 FROM messages WHERE conversation_id=?1 AND id=?2 AND deleted=0", message.conversation, *message.reply_to);
         if (!quote)
         {
             return std::unexpected(std::move(quote.error()));
@@ -79,8 +80,9 @@ std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_
     return std::nullopt;
 }
 
-std::expected<message_write_outcome, sqlite_error> insert_message(
-    sqlite_database& db, message_to_write const& message, uploaded_attachment const* attachment)
+std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_database& db,
+                                                                  message_to_write const& message,
+                                                                  uploaded_attachment const* attachment)
 {
     auto preflight = check_message_write(db, message, attachment != nullptr);
     if (!preflight)
@@ -92,12 +94,17 @@ std::expected<message_write_outcome, sqlite_error> insert_message(
         return **preflight;
     }
 
-    auto const now = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::system_clock::now().time_since_epoch()).count();
+    auto const now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     auto insert = db.prepare(R"SQL(
         INSERT INTO messages(sender_id,conversation_id,client_id,body,reply_to_id,created_at)
         VALUES(?1,?2,?3,?4,?5,?6)
-    )SQL", message.sender, message.conversation, message.client_id, message.text, message.reply_to, now);
+    )SQL",
+                             message.sender,
+                             message.conversation,
+                             message.client_id,
+                             message.text,
+                             message.reply_to,
+                             now);
     if (!insert)
     {
         return std::unexpected(std::move(insert.error()));
@@ -116,8 +123,7 @@ std::expected<message_write_outcome, sqlite_error> insert_message(
     }
     if (attachment)
     {
-        auto claim = db.prepare("DELETE FROM attachment_cleanup WHERE object_key=?1 AND reserved_at>0",
-                                attachment->object_key);
+        auto claim = db.prepare("DELETE FROM attachment_cleanup WHERE object_key=?1 AND reserved_at>0", attachment->object_key);
         if (!claim)
         {
             return std::unexpected(std::move(claim.error()));
@@ -133,8 +139,14 @@ std::expected<message_write_outcome, sqlite_error> insert_message(
         auto metadata = db.prepare(R"SQL(
             INSERT INTO message_attachments(message_id,object_key,filename,media_type,size,checksum,created_at)
             VALUES(?1,?2,?3,?4,?5,?6,?7)
-        )SQL", id, attachment->object_key, attachment->filename, attachment->media_type,
-            attachment->size, attachment->checksum, now);
+        )SQL",
+                                   id,
+                                   attachment->object_key,
+                                   attachment->filename,
+                                   attachment->media_type,
+                                   attachment->size,
+                                   attachment->checksum,
+                                   now);
         if (!metadata)
         {
             return std::unexpected(std::move(metadata.error()));

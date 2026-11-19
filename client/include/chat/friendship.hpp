@@ -7,7 +7,13 @@
 
 namespace chat
 {
-enum class friendship_state { none, outgoing_pending, incoming_pending, accepted };
+enum class friendship_state
+{
+    none,
+    outgoing_pending,
+    incoming_pending,
+    accepted
+};
 
 struct friendship_result
 {
@@ -26,5 +32,5 @@ struct friend_requests_result
     std::vector<friend_request> incoming;
     std::vector<friend_request> outgoing;
 };
-}
+}    // namespace chat
 #endif

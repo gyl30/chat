@@ -16,7 +16,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_set_typing(json_rpc
     {
         co_return serialize_json_rpc_error(-32001, "Authentication required", std::move(request.id), response);
     }
-    struct [[= simdjson::deny_unknown_fields]] typing_params
+    struct[[= simdjson::deny_unknown_fields]] typing_params
     {
         std::int64_t conversation = 0;
         bool typing = false;
@@ -24,8 +24,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_set_typing(json_rpc
     typing_params params;
     simdjson::ondemand::parser parser;
     simdjson::ondemand::document document;
-    if (!request.params.present || parser.iterate(request.params.json).get(document) || document.get(params) ||
-        !document.at_end() || params.conversation <= 0)
+    if (!request.params.present || parser.iterate(request.params.json).get(document) || document.get(params) || !document.at_end() ||
+        params.conversation <= 0)
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
@@ -46,9 +46,9 @@ boost::capy::task<simdjson::error_code> chat_session::handle_set_typing(json_rpc
     if (realtime == notification_result::denied || realtime == notification_result::failed)
     {
         auto const denied = realtime == notification_result::denied;
-        co_return serialize_json_rpc_error(denied ? -32006 : -32000,
-            denied ? "Communication not allowed" : "Server error", std::move(request.id), response);
+        co_return serialize_json_rpc_error(
+            denied ? -32006 : -32000, denied ? "Communication not allowed" : "Server error", std::move(request.id), response);
     }
-    co_return serialize_json_rpc_success(realtime == notification_result::delivered ? "{\"realtime\":true}" : "{\"realtime\":false}",
-                                        std::move(request.id), response);
+    co_return serialize_json_rpc_success(
+        realtime == notification_result::delivered ? "{\"realtime\":true}" : "{\"realtime\":false}", std::move(request.id), response);
 }

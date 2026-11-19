@@ -82,7 +82,12 @@ struct group_join_requests_result
     std::optional<std::int64_t> next;
 };
 
-enum class group_join_request_state { pending, accepted, rejected };
+enum class group_join_request_state
+{
+    pending,
+    accepted,
+    rejected
+};
 
 struct group_join_request_event
 {
