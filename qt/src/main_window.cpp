@@ -649,7 +649,6 @@ main_window::main_window(QString server_url, QWidget* parent)
                     return;
                 }
                 chat_page_->set_conversations(std::move(conversations));
-                chat_page_->set_connection_available(true);
                 auto pending = std::move(pending_notifications_);
                 pending_notifications_.clear();
                 for (auto const& message : pending)
@@ -1673,6 +1672,7 @@ void main_window::finish_reconnect()
     reconnecting_ = false;
     reconnect_attempt_ = 0;
     reconnect_seconds_left_ = 0;
+    chat_page_->set_connection_available(true);
     chat_page_->avatars().retry();
 
     if (reconnect_notice_visible_)
