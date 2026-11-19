@@ -259,16 +259,14 @@ int main(int argc, char* argv[])
     spdlog::info("chat server listening on port {} ({}) with {} workers", port, tls ? "TLS" : "plain", max_workers);
     server.start();
 
-    std::stop_source cleanup_stop;
-    boost::capy::run_async(io_context.get_executor(), cleanup_stop.get_token())(recover_objects_periodically(**storage, objects));
-    int exit_code = EXIT_FAILURE;
-    boost::capy::run_async(io_context.get_executor(),
-                           [&exit_code](int result) { exit_code = result; })(wait_for_shutdown(signals, server, cleanup_stop));
+    const auto executor = io_context.get_executor();
+    std::stop_source stop;
+    boost::capy::run_async(executor, stop.get_token())(recover_objects_periodically(**storage, objects));
+    boost::capy::run_async(executor, [](int) {})(wait_for_shutdown(signals, server, stop));
     io_context.run();
     server.join();
     io_context.restart();
-    boost::capy::run_async(io_context.get_executor())(recover_objects(**storage, objects));
+    boost::capy::run_async(executor)(recover_objects(**storage, objects));
     io_context.run();
-
-    return exit_code;
+    return 0;
 }
