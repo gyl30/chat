@@ -154,10 +154,18 @@ boost::capy::task<chat_session::notification_result> chat_session::publish_conve
 
 boost::capy::task<void> chat_session::run()
 {
-    std::string response;
-    bool running = true;
+    co_await exchange_messages();
+    if (user_id_)
+    {
+        users_.remove(*user_id_, *this);
+        co_await publish_presence(false);
+    }
+}
 
-    while (running)
+boost::capy::task<void> chat_session::exchange_messages()
+{
+    std::string response;
+    for (;;)
     {
         while (!outgoing_messages_.empty())
         {
@@ -167,13 +175,8 @@ boost::capy::task<void> chat_session::run()
             auto [send_ec] = co_await connection_.send_text(message);
             if (send_ec)
             {
-                running = false;
-                break;
+                co_return;
             }
-        }
-        if (!running)
-        {
-            break;
         }
 
         auto receive_result = co_await connection_.receive();
@@ -196,101 +199,7 @@ boost::capy::task<void> chat_session::run()
 
         if (response.empty())
         {
-            if (request.method == "send_friend_request" || request.method == "respond_friend_request" || request.method == "cancel_friend_request" ||
-                request.method == "get_friend_requests" || request.method == "remove_contact")
-            {
-                rpc_error = co_await handle_contact_change(request, response);
-            }
-            else if (request.method == kAuthenticateMethod)
-            {
-                rpc_error = co_await handle_authenticate(request, response);
-            }
-            else if (request.method == "begin_avatar_upload" || request.method == "upload_avatar_chunk" || request.method == "finish_avatar_upload" ||
-                     request.method == "cancel_avatar_upload" || request.method == "get_avatar" || request.method == "clear_avatar")
-            {
-                rpc_error = co_await handle_avatar(request, response);
-            }
-            else if (request.method == "edit_message" || request.method == "delete_message")
-            {
-                rpc_error = co_await handle_update_message(request, response);
-            }
-            else if (request.method == "set_message_reaction")
-            {
-                rpc_error = co_await handle_message_reaction(request, response);
-            }
-            else if (request.method == "set_conversation_muted" || request.method == "set_conversation_pinned")
-            {
-                rpc_error = co_await handle_conversation_preference(request, response);
-            }
-            else if (request.method == kGetContactsMethod)
-            {
-                rpc_error = co_await handle_get_contacts(request, response);
-            }
-            else if (request.method == "open_direct_conversation" || request.method == "create_group")
-            {
-                rpc_error = co_await handle_create_conversation(request, response);
-            }
-            else if (request.method == "get_members")
-            {
-                rpc_error = co_await handle_get_members(request, response);
-            }
-            else if (request.method == "get_group_invite" || request.method == "create_group_invite" || request.method == "revoke_group_invite" ||
-                     request.method == "join_group")
-            {
-                rpc_error = co_await handle_group_invite(request, response);
-            }
-            else if (request.method == "set_group_join_approval" || request.method == "get_group_join_requests" ||
-                     request.method == "respond_group_join_request")
-            {
-                rpc_error = co_await handle_group_join_request(request, response);
-            }
-            else if (request.method == "set_group_admin" || request.method == "rename_group" || request.method == "invite_group_members" ||
-                     request.method == "leave_group" || request.method == "transfer_group_owner" || request.method == "remove_group_member" ||
-                     request.method == "pin_group_message" || request.method == "unpin_group_message" || request.method == "set_group_announcement")
-            {
-                rpc_error = co_await handle_group_management(request, response);
-            }
-            else if (request.method == kGetConversationsMethod)
-            {
-                rpc_error = co_await handle_get_conversations(request, response);
-            }
-            else if (request.method == kGetMessagesMethod || request.method == "search_messages")
-            {
-                rpc_error = co_await handle_get_messages(request, response);
-            }
-            else if (request.method == kGetPresenceMethod)
-            {
-                rpc_error = co_await handle_get_presence(request, response);
-            }
-            else if (request.method == kMarkReadMethod)
-            {
-                rpc_error = co_await handle_mark_read(request, response);
-            }
-            else if (request.method == "set_typing")
-            {
-                rpc_error = co_await handle_set_typing(request, response);
-            }
-            else if (request.method == kRegisterMethod)
-            {
-                rpc_error = co_await handle_register(request, response);
-            }
-            else if (request.method == "begin_attachment" || request.method == "upload_attachment" || request.method == "cancel_attachment" ||
-                     request.method == "get_attachment")
-            {
-                rpc_error = co_await handle_attachment(request, response);
-            }
-            else if (request.method == kSendMessageMethod || request.method == "finish_attachment")
-            {
-                rpc_error = co_await handle_send_message(request, response);
-            }
-            else if (request.method == kSearchUsersMethod)
-            {
-                rpc_error = co_await handle_search_users(request, response);
-            }
-            else if (request.id.present)
-            {
-                rpc_error = serialize_json_rpc_method_not_found(std::move(request.id), response);
-            }
+            rpc_error = co_await dispatch_request(request, response);
         }
 
         if (rpc_error)
@@ -308,10 +217,103 @@ boost::capy::task<void> chat_session::run()
             break;
         }
     }
+}
 
-    if (user_id_)
+boost::capy::task<simdjson::error_code> chat_session::dispatch_request(json_rpc_request& request, std::string& response)
+{
+    if (request.method == "send_friend_request" || request.method == "respond_friend_request" || request.method == "cancel_friend_request" ||
+        request.method == "get_friend_requests" || request.method == "remove_contact")
     {
-        users_.remove(*user_id_, *this);
-        co_await publish_presence(false);
+        co_return co_await handle_contact_change(request, response);
     }
+    if (request.method == kAuthenticateMethod)
+    {
+        co_return co_await handle_authenticate(request, response);
+    }
+    if (request.method == "begin_avatar_upload" || request.method == "upload_avatar_chunk" || request.method == "finish_avatar_upload" ||
+        request.method == "cancel_avatar_upload" || request.method == "get_avatar" || request.method == "clear_avatar")
+    {
+        co_return co_await handle_avatar(request, response);
+    }
+    if (request.method == "edit_message" || request.method == "delete_message")
+    {
+        co_return co_await handle_update_message(request, response);
+    }
+    if (request.method == "set_message_reaction")
+    {
+        co_return co_await handle_message_reaction(request, response);
+    }
+    if (request.method == "set_conversation_muted" || request.method == "set_conversation_pinned")
+    {
+        co_return co_await handle_conversation_preference(request, response);
+    }
+    if (request.method == kGetContactsMethod)
+    {
+        co_return co_await handle_get_contacts(request, response);
+    }
+    if (request.method == "open_direct_conversation" || request.method == "create_group")
+    {
+        co_return co_await handle_create_conversation(request, response);
+    }
+    if (request.method == "get_members")
+    {
+        co_return co_await handle_get_members(request, response);
+    }
+    if (request.method == "get_group_invite" || request.method == "create_group_invite" || request.method == "revoke_group_invite" ||
+        request.method == "join_group")
+    {
+        co_return co_await handle_group_invite(request, response);
+    }
+    if (request.method == "set_group_join_approval" || request.method == "get_group_join_requests" || request.method == "respond_group_join_request")
+    {
+        co_return co_await handle_group_join_request(request, response);
+    }
+    if (request.method == "set_group_admin" || request.method == "rename_group" || request.method == "invite_group_members" ||
+        request.method == "leave_group" || request.method == "transfer_group_owner" || request.method == "remove_group_member" ||
+        request.method == "pin_group_message" || request.method == "unpin_group_message" || request.method == "set_group_announcement")
+    {
+        co_return co_await handle_group_management(request, response);
+    }
+    if (request.method == kGetConversationsMethod)
+    {
+        co_return co_await handle_get_conversations(request, response);
+    }
+    if (request.method == kGetMessagesMethod || request.method == "search_messages")
+    {
+        co_return co_await handle_get_messages(request, response);
+    }
+    if (request.method == kGetPresenceMethod)
+    {
+        co_return co_await handle_get_presence(request, response);
+    }
+    if (request.method == kMarkReadMethod)
+    {
+        co_return co_await handle_mark_read(request, response);
+    }
+    if (request.method == "set_typing")
+    {
+        co_return co_await handle_set_typing(request, response);
+    }
+    if (request.method == kRegisterMethod)
+    {
+        co_return co_await handle_register(request, response);
+    }
+    if (request.method == "begin_attachment" || request.method == "upload_attachment" || request.method == "cancel_attachment" ||
+        request.method == "get_attachment")
+    {
+        co_return co_await handle_attachment(request, response);
+    }
+    if (request.method == kSendMessageMethod || request.method == "finish_attachment")
+    {
+        co_return co_await handle_send_message(request, response);
+    }
+    if (request.method == kSearchUsersMethod)
+    {
+        co_return co_await handle_search_users(request, response);
+    }
+    if (request.id.present)
+    {
+        co_return serialize_json_rpc_method_not_found(std::move(request.id), response);
+    }
+    co_return simdjson::SUCCESS;
 }

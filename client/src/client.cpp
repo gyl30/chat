@@ -376,6 +376,81 @@ bool parse_presence(boost::json::object const& object, presence& value)
     return true;
 }
 
+std::expected<conversation, error> parse_conversation(boost::json::value const& value)
+{
+    if (!value.is_object())
+    {
+        return std::unexpected(make_error(error_kind::protocol, "Invalid conversation"));
+    }
+    auto const& object = value.as_object();
+    auto const* id_value = object.if_contains("id");
+    auto const* kind = object.if_contains("kind");
+    auto const* user_value = object.if_contains("user");
+    auto const* name = object.if_contains("username");
+    auto const* last = object.if_contains("last");
+    auto const* unread_value = object.if_contains("unread");
+    auto const* count_value = object.if_contains("member_count");
+    auto const* muted = object.if_contains("muted");
+    auto const* pinned = object.if_contains("pinned");
+    auto const* pinned_message = object.if_contains("pinned_message");
+    auto const* announcement = object.if_contains("announcement");
+    auto const* approval = object.if_contains("join_approval");
+    auto id = id_value ? parse_int64(*id_value) : std::nullopt;
+    auto unread = unread_value ? parse_uint64(*unread_value) : std::nullopt;
+    auto count = count_value ? parse_uint64(*count_value) : std::nullopt;
+    if (!id || *id <= 0 || !kind || !kind->is_string() || !user_value || !name || !name->is_string() || !last || !unread || !count || *count == 0 ||
+        !muted || !muted->is_bool() || !pinned || !pinned->is_bool() || !pinned_message || !announcement || !announcement->is_string() || !approval ||
+        !approval->is_bool() || (kind->as_string() == "direct" && approval->as_bool()))
+    {
+        return std::unexpected(make_error(error_kind::protocol, "Invalid conversation"));
+    }
+    conversation item;
+    item.id = *id;
+    item.username = std::string(name->as_string());
+    item.unread = *unread;
+    item.member_count = *count;
+    item.muted = muted->as_bool();
+    item.pinned = pinned->as_bool();
+    item.announcement = std::string(announcement->as_string());
+    item.join_approval = approval->as_bool();
+    if (item.announcement.size() > 4096 || item.announcement.find('\0') != std::string::npos ||
+        (kind->as_string() == "direct" && !item.announcement.empty()))
+    {
+        return std::unexpected(make_error(error_kind::protocol, "Invalid group announcement"));
+    }
+    if (kind->as_string() == "direct")
+    {
+        auto peer = parse_int64(*user_value);
+        if (!peer || *peer <= 0)
+        {
+            return std::unexpected(make_error(error_kind::protocol, "Invalid direct conversation"));
+        }
+        item.user = *peer;
+        if (!parse_avatar_state(object, item.avatar))
+        {
+            return std::unexpected(make_error(error_kind::protocol, "Invalid peer avatar"));
+        }
+    }
+    else if (kind->as_string() == "group" && user_value->is_null())
+    {
+        item.kind = conversation_kind::group;
+    }
+    else
+    {
+        return std::unexpected(make_error(error_kind::protocol, "Invalid conversation kind"));
+    }
+    if (!parse_quote(object, "pinned_message", item.pinned_message) ||
+        (item.pinned_message && (item.kind != conversation_kind::group || item.pinned_message->deleted)))
+    {
+        return std::unexpected(make_error(error_kind::protocol, "Invalid pinned message"));
+    }
+    if (!last->is_null() && (!last->is_object() || !parse_message(last->as_object(), item.last) || item.last.conversation != item.id))
+    {
+        return std::unexpected(make_error(error_kind::protocol, "Invalid last message"));
+    }
+    return item;
+}
+
 }    // namespace
 
 struct client::impl
@@ -577,206 +652,216 @@ struct client::impl
         auto const* id_value = object.if_contains("id");
         if (!id_value)
         {
-            auto const* method = object.if_contains("method");
-            auto const* params = object.if_contains("params");
-            if (!method || !method->is_string() || !params || !params->is_object())
-            {
-                report_error(make_error(error_kind::protocol, "Invalid JSON-RPC notification"));
-                return;
-            }
+            receive_notification(object);
+            return;
+        }
 
-            if (method->as_string() == "message" || method->as_string() == "message_updated")
-            {
-                message notification;
-                if (!parse_message(params->as_object(), notification))
-                {
-                    report_error(make_error(error_kind::protocol, "Invalid message notification"));
-                    return;
-                }
-                notify_message(std::move(notification), method->as_string() == "message_updated");
-                return;
-            }
+        receive_response(object, *id_value);
+    }
 
-            if (method->as_string() == "reaction")
-            {
-                reaction_update notification;
-                if (!parse_reaction_update(params->as_object(), notification))
-                {
-                    report_error(make_error(error_kind::protocol, "Invalid reaction notification"));
-                    return;
-                }
-                reaction_handler handler;
-                {
-                    std::lock_guard lock(handler_mutex_);
-                    handler = reaction_handler_;
-                }
-                if (handler && !suppress_callbacks_.load())
-                {
-                    handler(std::move(notification));
-                }
-                return;
-            }
-
-            if (method->as_string() == "read")
-            {
-                auto const* conversation_value = params->as_object().if_contains("conversation");
-                auto const* user_value = params->as_object().if_contains("user");
-                auto const* message_value = params->as_object().if_contains("message");
-                if (!conversation_value || !user_value || !message_value)
-                {
-                    report_error(make_error(error_kind::protocol, "Invalid read notification"));
-                    return;
-                }
-                auto conversation = parse_int64(*conversation_value);
-                auto user = parse_int64(*user_value);
-                auto read_message = parse_int64(*message_value);
-                if (!conversation || *conversation <= 0 || !user || *user <= 0 || !read_message || *read_message <= 0)
-                {
-                    report_error(make_error(error_kind::protocol, "Invalid read notification"));
-                    return;
-                }
-                notify_read(*conversation, *user, *read_message);
-                return;
-            }
-
-            if (method->as_string() == "typing")
-            {
-                auto const& fields = params->as_object();
-                auto const* conversation_field = fields.if_contains("conversation");
-                auto const* user_field = fields.if_contains("user");
-                auto const* username = fields.if_contains("username");
-                auto const* typing = fields.if_contains("typing");
-                auto conversation = conversation_field ? parse_int64(*conversation_field) : std::nullopt;
-                auto user = user_field ? parse_int64(*user_field) : std::nullopt;
-                if (!conversation || *conversation <= 0 || !user || *user <= 0 || !username || !username->is_string() ||
-                    username->as_string().empty() || !typing || !typing->is_bool())
-                {
-                    report_error(make_error(error_kind::protocol, "Invalid typing notification"));
-                    return;
-                }
-                typing_handler handler;
-                {
-                    std::lock_guard lock(handler_mutex_);
-                    handler = typing_handler_;
-                }
-                if (handler && !suppress_callbacks_.load())
-                {
-                    handler({*conversation, *user, std::string(username->as_string()), typing->as_bool()});
-                }
-                return;
-            }
-
-            if (method->as_string() == "presence")
-            {
-                presence notification;
-                if (!parse_presence(params->as_object(), notification))
-                {
-                    report_error(make_error(error_kind::protocol, "Invalid presence notification"));
-                    return;
-                }
-                notify_presence(std::move(notification));
-                return;
-            }
-
-            if (method->as_string() == "friendship")
-            {
-                auto const* field = params->as_object().if_contains("user");
-                auto user = field ? parse_int64(*field) : std::nullopt;
-                if (!user || *user <= 0)
-                {
-                    report_error(make_error(error_kind::protocol, "Invalid friendship notification"));
-                    return;
-                }
-                friendship_changed_handler handler;
-                {
-                    std::lock_guard lock(handler_mutex_);
-                    handler = friendship_handler_;
-                }
-                if (handler && !suppress_callbacks_.load())
-                {
-                    handler(*user);
-                }
-                return;
-            }
-
-            if (method->as_string() == "conversation")
-            {
-                auto const* value = params->as_object().if_contains("conversation");
-                auto const* removed = params->as_object().if_contains("removed");
-                auto id = value ? parse_int64(*value) : std::nullopt;
-                if (!id || *id <= 0 || (removed && !removed->is_bool()))
-                {
-                    report_error(make_error(error_kind::protocol, "Invalid conversation notification"));
-                    return;
-                }
-                conversation_changed_handler handler;
-                {
-                    std::lock_guard lock(handler_mutex_);
-                    handler = conversation_handler_;
-                }
-                if (handler && !suppress_callbacks_.load())
-                {
-                    handler(*id, removed && removed->as_bool());
-                }
-                return;
-            }
-
-            if (method->as_string() == "join_request")
-            {
-                auto const& object = params->as_object();
-                auto const* conversation = object.if_contains("conversation");
-                auto const* user = object.if_contains("user");
-                auto const* state = object.if_contains("state");
-                auto id = conversation ? parse_int64(*conversation) : std::nullopt;
-                auto applicant = user ? parse_int64(*user) : std::nullopt;
-                if (!id || *id <= 0 || !applicant || *applicant <= 0 || !state || !state->is_string() ||
-                    (state->as_string() != "pending" && state->as_string() != "accepted" && state->as_string() != "rejected"))
-                {
-                    report_error(make_error(error_kind::protocol, "Invalid join request notification"));
-                    return;
-                }
-                group_join_request_handler handler;
-                {
-                    std::lock_guard lock(handler_mutex_);
-                    handler = join_request_handler_;
-                }
-                if (handler && !suppress_callbacks_.load())
-                {
-                    handler({*id,
-                             *applicant,
-                             state->as_string() == "pending"    ? group_join_request_state::pending
-                             : state->as_string() == "accepted" ? group_join_request_state::accepted
-                                                                : group_join_request_state::rejected});
-                }
-                return;
-            }
-
-            if (method->as_string() == "avatar")
-            {
-                auto const* field = params->as_object().if_contains("user");
-                auto user = field ? parse_int64(*field) : std::nullopt;
-                avatar_state state;
-                if (!user || *user <= 0 || !parse_avatar_state(params->as_object(), state))
-                {
-                    report_error(make_error(error_kind::protocol, "Invalid avatar notification"));
-                    return;
-                }
-                avatar_changed_handler handler;
-                {
-                    std::lock_guard lock(handler_mutex_);
-                    handler = avatar_handler_;
-                }
-                if (handler && !suppress_callbacks_.load())
-                {
-                    handler(*user, state);
-                }
-                return;
-            }
+    void receive_notification(boost::json::object const& object)
+    {
+        auto const* method = object.if_contains("method");
+        auto const* params = object.if_contains("params");
+        if (!method || !method->is_string() || !params || !params->is_object())
+        {
             report_error(make_error(error_kind::protocol, "Invalid JSON-RPC notification"));
             return;
         }
 
-        auto id = parse_response_id(*id_value);
+        if (method->as_string() == "message" || method->as_string() == "message_updated")
+        {
+            message notification;
+            if (!parse_message(params->as_object(), notification))
+            {
+                report_error(make_error(error_kind::protocol, "Invalid message notification"));
+                return;
+            }
+            notify_message(std::move(notification), method->as_string() == "message_updated");
+            return;
+        }
+
+        if (method->as_string() == "reaction")
+        {
+            reaction_update notification;
+            if (!parse_reaction_update(params->as_object(), notification))
+            {
+                report_error(make_error(error_kind::protocol, "Invalid reaction notification"));
+                return;
+            }
+            reaction_handler handler;
+            {
+                std::lock_guard lock(handler_mutex_);
+                handler = reaction_handler_;
+            }
+            if (handler && !suppress_callbacks_.load())
+            {
+                handler(std::move(notification));
+            }
+            return;
+        }
+
+        if (method->as_string() == "read")
+        {
+            auto const* conversation_value = params->as_object().if_contains("conversation");
+            auto const* user_value = params->as_object().if_contains("user");
+            auto const* message_value = params->as_object().if_contains("message");
+            if (!conversation_value || !user_value || !message_value)
+            {
+                report_error(make_error(error_kind::protocol, "Invalid read notification"));
+                return;
+            }
+            auto conversation = parse_int64(*conversation_value);
+            auto user = parse_int64(*user_value);
+            auto read_message = parse_int64(*message_value);
+            if (!conversation || *conversation <= 0 || !user || *user <= 0 || !read_message || *read_message <= 0)
+            {
+                report_error(make_error(error_kind::protocol, "Invalid read notification"));
+                return;
+            }
+            notify_read(*conversation, *user, *read_message);
+            return;
+        }
+
+        if (method->as_string() == "typing")
+        {
+            auto const& fields = params->as_object();
+            auto const* conversation_field = fields.if_contains("conversation");
+            auto const* user_field = fields.if_contains("user");
+            auto const* username = fields.if_contains("username");
+            auto const* typing = fields.if_contains("typing");
+            auto conversation = conversation_field ? parse_int64(*conversation_field) : std::nullopt;
+            auto user = user_field ? parse_int64(*user_field) : std::nullopt;
+            if (!conversation || *conversation <= 0 || !user || *user <= 0 || !username || !username->is_string() || username->as_string().empty() ||
+                !typing || !typing->is_bool())
+            {
+                report_error(make_error(error_kind::protocol, "Invalid typing notification"));
+                return;
+            }
+            typing_handler handler;
+            {
+                std::lock_guard lock(handler_mutex_);
+                handler = typing_handler_;
+            }
+            if (handler && !suppress_callbacks_.load())
+            {
+                handler({*conversation, *user, std::string(username->as_string()), typing->as_bool()});
+            }
+            return;
+        }
+
+        if (method->as_string() == "presence")
+        {
+            presence notification;
+            if (!parse_presence(params->as_object(), notification))
+            {
+                report_error(make_error(error_kind::protocol, "Invalid presence notification"));
+                return;
+            }
+            notify_presence(std::move(notification));
+            return;
+        }
+
+        if (method->as_string() == "friendship")
+        {
+            auto const* field = params->as_object().if_contains("user");
+            auto user = field ? parse_int64(*field) : std::nullopt;
+            if (!user || *user <= 0)
+            {
+                report_error(make_error(error_kind::protocol, "Invalid friendship notification"));
+                return;
+            }
+            friendship_changed_handler handler;
+            {
+                std::lock_guard lock(handler_mutex_);
+                handler = friendship_handler_;
+            }
+            if (handler && !suppress_callbacks_.load())
+            {
+                handler(*user);
+            }
+            return;
+        }
+
+        if (method->as_string() == "conversation")
+        {
+            auto const* value = params->as_object().if_contains("conversation");
+            auto const* removed = params->as_object().if_contains("removed");
+            auto id = value ? parse_int64(*value) : std::nullopt;
+            if (!id || *id <= 0 || (removed && !removed->is_bool()))
+            {
+                report_error(make_error(error_kind::protocol, "Invalid conversation notification"));
+                return;
+            }
+            conversation_changed_handler handler;
+            {
+                std::lock_guard lock(handler_mutex_);
+                handler = conversation_handler_;
+            }
+            if (handler && !suppress_callbacks_.load())
+            {
+                handler(*id, removed && removed->as_bool());
+            }
+            return;
+        }
+
+        if (method->as_string() == "join_request")
+        {
+            auto const& object = params->as_object();
+            auto const* conversation = object.if_contains("conversation");
+            auto const* user = object.if_contains("user");
+            auto const* state = object.if_contains("state");
+            auto id = conversation ? parse_int64(*conversation) : std::nullopt;
+            auto applicant = user ? parse_int64(*user) : std::nullopt;
+            if (!id || *id <= 0 || !applicant || *applicant <= 0 || !state || !state->is_string() ||
+                (state->as_string() != "pending" && state->as_string() != "accepted" && state->as_string() != "rejected"))
+            {
+                report_error(make_error(error_kind::protocol, "Invalid join request notification"));
+                return;
+            }
+            group_join_request_handler handler;
+            {
+                std::lock_guard lock(handler_mutex_);
+                handler = join_request_handler_;
+            }
+            if (handler && !suppress_callbacks_.load())
+            {
+                handler({*id,
+                         *applicant,
+                         state->as_string() == "pending"    ? group_join_request_state::pending
+                         : state->as_string() == "accepted" ? group_join_request_state::accepted
+                                                            : group_join_request_state::rejected});
+            }
+            return;
+        }
+
+        if (method->as_string() == "avatar")
+        {
+            auto const* field = params->as_object().if_contains("user");
+            auto user = field ? parse_int64(*field) : std::nullopt;
+            avatar_state state;
+            if (!user || *user <= 0 || !parse_avatar_state(params->as_object(), state))
+            {
+                report_error(make_error(error_kind::protocol, "Invalid avatar notification"));
+                return;
+            }
+            avatar_changed_handler handler;
+            {
+                std::lock_guard lock(handler_mutex_);
+                handler = avatar_handler_;
+            }
+            if (handler && !suppress_callbacks_.load())
+            {
+                handler(*user, state);
+            }
+            return;
+        }
+        report_error(make_error(error_kind::protocol, "Invalid JSON-RPC notification"));
+    }
+
+    void receive_response(boost::json::object const& object, boost::json::value const& id_value)
+    {
+        auto id = parse_response_id(id_value);
         if (!id)
         {
             report_error(make_error(error_kind::protocol, "Invalid JSON-RPC response id"));
@@ -1043,132 +1128,59 @@ struct client::impl
         {
             params.emplace("before", boost::json::object{{"activity", before->activity}, {"id", before->id}, {"pinned", before->pinned}});
         }
-        send_request(
-            "get_conversations",
-            std::move(params),
-            [handler = std::move(handler)](auto response) mutable
-            {
-                if (!response)
-                {
-                    handler(std::unexpected(std::move(response.error())));
-                    return;
-                }
-                if (!response->is_object())
-                {
-                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversations")));
-                    return;
-                }
-                auto const* list = response->as_object().if_contains("conversations");
-                auto const* next = response->as_object().if_contains("next");
-                if (!list || !list->is_array() || !next)
-                {
-                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversations")));
-                    return;
-                }
-                conversations_result result;
-                for (auto const& value : list->as_array())
-                {
-                    if (!value.is_object())
-                    {
-                        handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation")));
-                        return;
-                    }
-                    auto const& object = value.as_object();
-                    auto const* id_value = object.if_contains("id");
-                    auto const* kind = object.if_contains("kind");
-                    auto const* user_value = object.if_contains("user");
-                    auto const* name = object.if_contains("username");
-                    auto const* last = object.if_contains("last");
-                    auto const* unread_value = object.if_contains("unread");
-                    auto const* count_value = object.if_contains("member_count");
-                    auto const* muted = object.if_contains("muted");
-                    auto const* pinned = object.if_contains("pinned");
-                    auto const* pinned_message = object.if_contains("pinned_message");
-                    auto const* announcement = object.if_contains("announcement");
-                    auto const* approval = object.if_contains("join_approval");
-                    auto id = id_value ? parse_int64(*id_value) : std::nullopt;
-                    auto unread = unread_value ? parse_uint64(*unread_value) : std::nullopt;
-                    auto count = count_value ? parse_uint64(*count_value) : std::nullopt;
-                    if (!id || *id <= 0 || !kind || !kind->is_string() || !user_value || !name || !name->is_string() || !last || !unread || !count ||
-                        *count == 0 || !muted || !muted->is_bool() || !pinned || !pinned->is_bool() || !pinned_message || !announcement ||
-                        !announcement->is_string() || !approval || !approval->is_bool() || (kind->as_string() == "direct" && approval->as_bool()))
-                    {
-                        handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation")));
-                        return;
-                    }
-                    conversation item;
-                    item.id = *id;
-                    item.username = std::string(name->as_string());
-                    item.unread = *unread;
-                    item.member_count = *count;
-                    item.muted = muted->as_bool();
-                    item.pinned = pinned->as_bool();
-                    item.announcement = std::string(announcement->as_string());
-                    item.join_approval = approval->as_bool();
-                    if (item.announcement.size() > 4096 || item.announcement.find('\0') != std::string::npos ||
-                        (kind->as_string() == "direct" && !item.announcement.empty()))
-                    {
-                        handler(std::unexpected(make_error(error_kind::protocol, "Invalid group announcement")));
-                        return;
-                    }
-                    if (kind->as_string() == "direct")
-                    {
-                        auto peer = parse_int64(*user_value);
-                        if (!peer || *peer <= 0)
-                        {
-                            handler(std::unexpected(make_error(error_kind::protocol, "Invalid direct conversation")));
-                            return;
-                        }
-                        item.user = *peer;
-                        if (!parse_avatar_state(object, item.avatar))
-                        {
-                            handler(std::unexpected(make_error(error_kind::protocol, "Invalid peer avatar")));
-                            return;
-                        }
-                    }
-                    else if (kind->as_string() == "group" && user_value->is_null())
-                    {
-                        item.kind = conversation_kind::group;
-                    }
-                    else
-                    {
-                        handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation kind")));
-                        return;
-                    }
-                    if (!parse_quote(object, "pinned_message", item.pinned_message) ||
-                        (item.pinned_message && (item.kind != conversation_kind::group || item.pinned_message->deleted)))
-                    {
-                        handler(std::unexpected(make_error(error_kind::protocol, "Invalid pinned message")));
-                        return;
-                    }
-                    if (!last->is_null() && (!last->is_object() || !parse_message(last->as_object(), item.last) || item.last.conversation != item.id))
-                    {
-                        handler(std::unexpected(make_error(error_kind::protocol, "Invalid last message")));
-                        return;
-                    }
-                    result.conversations.push_back(std::move(item));
-                }
-                if (!next->is_null())
-                {
-                    if (!next->is_object())
-                    {
-                        handler(std::unexpected(make_error(error_kind::protocol, "Invalid cursor")));
-                        return;
-                    }
-                    auto const* activity = next->as_object().if_contains("activity");
-                    auto const* id = next->as_object().if_contains("id");
-                    auto const* pinned = next->as_object().if_contains("pinned");
-                    auto a = activity ? parse_int64(*activity) : std::nullopt;
-                    auto i = id ? parse_int64(*id) : std::nullopt;
-                    if (!a || *a <= 0 || !i || *i <= 0 || !pinned || !pinned->is_bool())
-                    {
-                        handler(std::unexpected(make_error(error_kind::protocol, "Invalid cursor")));
-                        return;
-                    }
-                    result.next = conversation_cursor{*a, *i, pinned->as_bool()};
-                }
-                handler(std::move(result));
-            });
+        send_request("get_conversations",
+                     std::move(params),
+                     [handler = std::move(handler)](auto response) mutable
+                     {
+                         if (!response)
+                         {
+                             handler(std::unexpected(std::move(response.error())));
+                             return;
+                         }
+                         if (!response->is_object())
+                         {
+                             handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversations")));
+                             return;
+                         }
+                         auto const* list = response->as_object().if_contains("conversations");
+                         auto const* next = response->as_object().if_contains("next");
+                         if (!list || !list->is_array() || !next)
+                         {
+                             handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversations")));
+                             return;
+                         }
+                         conversations_result result;
+                         for (auto const& value : list->as_array())
+                         {
+                             auto item = parse_conversation(value);
+                             if (!item)
+                             {
+                                 handler(std::unexpected(std::move(item.error())));
+                                 return;
+                             }
+                             result.conversations.push_back(std::move(*item));
+                         }
+                         if (!next->is_null())
+                         {
+                             if (!next->is_object())
+                             {
+                                 handler(std::unexpected(make_error(error_kind::protocol, "Invalid cursor")));
+                                 return;
+                             }
+                             auto const* activity = next->as_object().if_contains("activity");
+                             auto const* id = next->as_object().if_contains("id");
+                             auto const* pinned = next->as_object().if_contains("pinned");
+                             auto a = activity ? parse_int64(*activity) : std::nullopt;
+                             auto i = id ? parse_int64(*id) : std::nullopt;
+                             if (!a || *a <= 0 || !i || *i <= 0 || !pinned || !pinned->is_bool())
+                             {
+                                 handler(std::unexpected(make_error(error_kind::protocol, "Invalid cursor")));
+                                 return;
+                             }
+                             result.next = conversation_cursor{*a, *i, pinned->as_bool()};
+                         }
+                         handler(std::move(result));
+                     });
         co_return;
     }
 

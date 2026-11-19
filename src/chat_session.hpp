@@ -31,6 +31,11 @@ class chat_session
     boost::capy::task<void> run();
 
    private:
+    boost::capy::task<void> exchange_messages();
+    boost::capy::task<simdjson::error_code> get_avatar_chunk(simdjson::ondemand::document& document,
+                                                             json_rpc_request& request,
+                                                             std::string& response);
+    boost::capy::task<simdjson::error_code> dispatch_request(json_rpc_request& request, std::string& response);
     boost::capy::task<simdjson::error_code> handle_authenticate(json_rpc_request& request, std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_contact_change(json_rpc_request& request, std::string& response);

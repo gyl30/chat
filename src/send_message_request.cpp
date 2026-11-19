@@ -158,6 +158,27 @@ std::expected<send_outcome, sqlite_error> persist_delivery(sqlite_database& db,
     return formatted;
 }
 
+std::expected<std::optional<send_outcome>, sqlite_error> check_attachment_delivery(sqlite_database& db,
+                                                                                   message_to_write const& message,
+                                                                                   json_rpc_id const& id)
+{
+    auto snapshot = sqlite_transaction::begin_read(db);
+    if (!snapshot)
+    {
+        return std::unexpected(std::move(snapshot.error()));
+    }
+    auto checked = check_message_write(db, message, true);
+    if (!checked)
+    {
+        return std::unexpected(std::move(checked.error()));
+    }
+    if (!*checked)
+    {
+        return std::nullopt;
+    }
+    return format_delivery(db, message.sender, message.conversation, **checked, id);
+}
+
 }    // namespace
 
 boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_rpc_request& request, std::string& response)
@@ -201,25 +222,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         params.conversation = upload.conversation;
         message_to_write const message{user, upload.conversation, upload.client_id, upload.filename, params.reply_to};
 
-        auto preflight = co_await database_.run(
-            [&](sqlite_database& db) -> std::expected<std::optional<send_outcome>, sqlite_error>
-            {
-                auto snapshot = sqlite_transaction::begin_read(db);
-                if (!snapshot)
-                {
-                    return std::unexpected(std::move(snapshot.error()));
-                }
-                auto checked = check_message_write(db, message, true);
-                if (!checked)
-                {
-                    return std::unexpected(std::move(checked.error()));
-                }
-                if (!*checked)
-                {
-                    return std::nullopt;
-                }
-                return format_delivery(db, message.sender, message.conversation, **checked, request.id);
-            });
+        auto preflight = co_await database_.run([&](sqlite_database& db) { return check_attachment_delivery(db, message, request.id); });
         if (!preflight)
         {
             delivered = std::unexpected(std::move(preflight.error()));

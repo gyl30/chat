@@ -12,6 +12,45 @@
 #include "database.hpp"
 #include "conversation_store.hpp"
 
+namespace
+{
+simdjson::error_code serialize_group_rejection(group_member_rejection rejected, json_rpc_request& request, std::string& response)
+{
+    int code = -32000;
+    std::string_view message = "Server error";
+    switch (rejected)
+    {
+        case group_member_rejection::unavailable:
+            code = -32006;
+            message = "Group unavailable";
+            break;
+        case group_member_rejection::permission_denied:
+            code = -32009;
+            message = request.method == "leave_group" ? "The owner cannot leave without transferring ownership" : "Group permission denied";
+            break;
+        case group_member_rejection::invalid_target:
+            code = request.method == "pin_group_message" ? -32007 : -32602;
+            message = request.method == "pin_group_message" ? "Message unavailable"
+                      : request.method == "set_group_admin" ? "The owner cannot be an administrator"
+                                                            : "Use leave_group to leave; ownership must be transferred to another administrator";
+            break;
+        case group_member_rejection::member_not_found:
+            code = -32005;
+            message = "Member unavailable";
+            break;
+        case group_member_rejection::contact_required:
+            code = -32005;
+            message = "Invitees must be your contacts";
+            break;
+        case group_member_rejection::admin_limit:
+            code = -32010;
+            message = "At most three administrators are allowed";
+            break;
+    }
+    return serialize_json_rpc_error(code, message, std::move(request.id), response);
+}
+}    // namespace
+
 boost::capy::task<simdjson::error_code> chat_session::handle_group_management(json_rpc_request& request, std::string& response)
 {
     if (!request.id.present)
@@ -180,38 +219,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
     }
     if (auto const* rejected = std::get_if<group_member_rejection>(&*changed))
     {
-        int code = -32000;
-        std::string_view message = "Server error";
-        switch (*rejected)
-        {
-            case group_member_rejection::unavailable:
-                code = -32006;
-                message = "Group unavailable";
-                break;
-            case group_member_rejection::permission_denied:
-                code = -32009;
-                message = leaving ? "The owner cannot leave without transferring ownership" : "Group permission denied";
-                break;
-            case group_member_rejection::invalid_target:
-                code = pinning ? -32007 : -32602;
-                message = pinning         ? "Message unavailable"
-                          : setting_admin ? "The owner cannot be an administrator"
-                                          : "Use leave_group to leave; ownership must be transferred to another administrator";
-                break;
-            case group_member_rejection::member_not_found:
-                code = -32005;
-                message = "Member unavailable";
-                break;
-            case group_member_rejection::contact_required:
-                code = -32005;
-                message = "Invitees must be your contacts";
-                break;
-            case group_member_rejection::admin_limit:
-                code = -32010;
-                message = "At most three administrators are allowed";
-                break;
-        }
-        co_return serialize_json_rpc_error(code, message, std::move(request.id), response);
+        co_return serialize_group_rejection(*rejected, request, response);
     }
     bool const updated = std::get<bool>(*changed);
     if (updated)

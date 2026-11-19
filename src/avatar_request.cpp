@@ -84,50 +84,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_avatar(json_rpc_req
     }
     if (request.method == "get_avatar")
     {
-        struct[[= simdjson::deny_unknown_fields]] get_avatar_params
-        {
-            std::int64_t user = 0;
-            std::int64_t revision = -1;
-            std::int64_t offset = -1;
-        };
-        get_avatar_params params;
-        if (document.get(params) || !document.at_end() || params.user <= 0 || params.revision < 0 || params.offset < 0 ||
-            params.offset > static_cast<std::int64_t>(chat::max_avatar_size))
-        {
-            co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
-        }
-        auto image = co_await database_.run([&](sqlite_database& db) { return read_avatar_chunk(db, params.user, params.revision, params.offset); });
-        if (!image)
-        {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        if (!*image)
-        {
-            co_return serialize_json_rpc_error(-32010, "Avatar unavailable", std::move(request.id), response);
-        }
-        struct avatar_result
-        {
-            std::int64_t user, avatar_revision;
-            bool has_avatar;
-            std::int64_t offset, size;
-            std::string media_type, data;
-            bool has_more;
-        };
-        auto const& chunk = **image;
-        avatar_result value{params.user,
-                            chunk.state.revision,
-                            chunk.state.present,
-                            chunk.offset,
-                            chunk.size,
-                            chunk.media_type,
-                            chat::detail::encode_base64(chunk.bytes),
-                            chunk.has_more};
-        std::string payload;
-        if (auto error = simdjson::builder::to_json_string(value).get(payload))
-        {
-            co_return error;
-        }
-        co_return serialize_json_rpc_success(payload, std::move(request.id), response);
+        co_return co_await get_avatar_chunk(document, request, response);
     }
     if (request.method == "cancel_avatar_upload")
     {
@@ -210,4 +167,54 @@ boost::capy::task<simdjson::error_code> chat_session::handle_avatar(json_rpc_req
         }
     }
     co_return serialize_json_rpc_success(state, std::move(request.id), response);
+}
+
+boost::capy::task<simdjson::error_code> chat_session::get_avatar_chunk(simdjson::ondemand::document& document,
+                                                                       json_rpc_request& request,
+                                                                       std::string& response)
+{
+    struct[[= simdjson::deny_unknown_fields]] get_avatar_params
+    {
+        std::int64_t user = 0;
+        std::int64_t revision = -1;
+        std::int64_t offset = -1;
+    };
+    get_avatar_params params;
+    if (document.get(params) || !document.at_end() || params.user <= 0 || params.revision < 0 || params.offset < 0 ||
+        params.offset > static_cast<std::int64_t>(chat::max_avatar_size))
+    {
+        co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+    }
+    auto image = co_await database_.run([&](sqlite_database& db) { return read_avatar_chunk(db, params.user, params.revision, params.offset); });
+    if (!image)
+    {
+        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+    }
+    if (!*image)
+    {
+        co_return serialize_json_rpc_error(-32010, "Avatar unavailable", std::move(request.id), response);
+    }
+    struct avatar_result
+    {
+        std::int64_t user, avatar_revision;
+        bool has_avatar;
+        std::int64_t offset, size;
+        std::string media_type, data;
+        bool has_more;
+    };
+    auto const& chunk = **image;
+    avatar_result value{params.user,
+                        chunk.state.revision,
+                        chunk.state.present,
+                        chunk.offset,
+                        chunk.size,
+                        chunk.media_type,
+                        chat::detail::encode_base64(chunk.bytes),
+                        chunk.has_more};
+    std::string payload;
+    if (auto error = simdjson::builder::to_json_string(value).get(payload))
+    {
+        co_return error;
+    }
+    co_return serialize_json_rpc_success(payload, std::move(request.id), response);
 }
