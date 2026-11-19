@@ -19,8 +19,8 @@ void merge_reply(quoted_message_data& reply, QList<message_data> const& messages
     {
         return;
     }
-    auto const target = std::find_if(messages.cbegin(), messages.cend(), [&](auto const& message) { return message.id == reply.id; });
-    if (target != messages.cend() && (target->deleted || target->edited_at > reply.edited_at))
+    auto const target = std::ranges::lower_bound(messages, reply.id, {}, &message_data::id);
+    if (target != messages.cend() && target->id == reply.id && (target->deleted || target->edited_at > reply.edited_at))
     {
         reply = {target->id, target->username, grapheme_prefix(target->text, 160), target->edited_at, target->deleted};
     }
@@ -324,11 +324,11 @@ int message_model::merge_messages(QList<message_data> messages)
         return 0;
     }
 
+    std::sort(merged.begin(), merged.end(), [](message_data const& lhs, message_data const& rhs) { return lhs.id < rhs.id; });
     for (auto& message : merged)
     {
         merge_reply(message.reply, merged);
     }
-    std::sort(merged.begin(), merged.end(), [](message_data const& lhs, message_data const& rhs) { return lhs.id < rhs.id; });
     auto const inserted = merged.size() - messages_.size();
     // History adds messages; existing IDs and their persistent keyboard indexes survive.
     for (int row = 0; row < merged.size(); ++row)
