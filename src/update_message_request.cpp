@@ -73,11 +73,14 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
             {
                 return std::unexpected(sqlite_error{SQLITE_ERROR, "cannot serialize updated message"});
             }
-            if (prefix.size() + payload.size() + 1 > 64 * 1024)
+            if (saved.changed)
             {
-                return std::unexpected(sqlite_error{SQLITE_TOOBIG, "updated message exceeds the frame limit"});
+                if (prefix.size() + payload.size() + 1 > 64 * 1024)
+                {
+                    return std::unexpected(sqlite_error{SQLITE_TOOBIG, "updated message exceeds the frame limit"});
+                }
+                result.notification = std::string(prefix) + payload + "}";
             }
-            result.notification = std::string(prefix) + payload + "}";
             if (auto error = tx->commit(); error)
             {
                 return std::unexpected(std::move(error));
@@ -96,7 +99,10 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
             unavailable ? -32007 : -32006, unavailable ? "Message unavailable" : "Communication not allowed", std::move(request.id), response);
     }
     auto& result = std::get<update_result>(*update);
-    co_await publish_conversation(params.conversation, std::move(result.notification));
+    if (!result.notification.empty())
+    {
+        co_await publish_conversation(params.conversation, std::move(result.notification));
+    }
     if (result.cleared_pin)
     {
         co_await publish_conversation(

@@ -47,7 +47,7 @@ std::expected<std::variant<changed_message, message_change_rejection>, sqlite_er
             reaction_revision=reaction_revision+CASE WHEN ?5 AND deleted=0 THEN 1 ELSE 0 END
         WHERE m.id=?1 AND m.conversation_id=?2 AND m.sender_id=?3
           AND EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=?2 AND user_id=?3)
-          AND (?5 OR (m.deleted=0 AND NOT EXISTS(SELECT 1 FROM message_attachments WHERE message_id=?1)))
+          AND m.deleted=0 AND (?5 OR NOT EXISTS(SELECT 1 FROM message_attachments WHERE message_id=?1))
     )SQL",
                              message,
                              conversation,
@@ -65,6 +65,20 @@ std::expected<std::variant<changed_message, message_change_rejection>, sqlite_er
     }
     if (db.changes() == 0)
     {
+        // Retrying a successful deletion must acknowledge the existing tombstone,
+        // without writing it again or publishing another update.
+        if (!editing)
+        {
+            auto existing = read_message(db, user, conversation, message);
+            if (!existing)
+            {
+                return std::unexpected(std::move(existing.error()));
+            }
+            if (*existing && (*existing)->from == user && (*existing)->deleted)
+            {
+                return changed_message{std::move(**existing), false, false};
+            }
+        }
         return unavailable;
     }
     bool cleared_pin = false;

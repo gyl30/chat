@@ -16,6 +16,7 @@ struct changed_message
 {
     chat::message message;
     bool cleared_pin = false;
+    bool changed = true;
 };
 
 // Caller owns the write transaction so it can validate the realtime payload
