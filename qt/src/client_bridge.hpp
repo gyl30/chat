@@ -134,6 +134,7 @@ class client_bridge final : public QObject
     void read_marked(qint64 user, qint64 message, QString error_message);
 
    private:
+    std::function<void(std::expected<bool, chat::error>)> group_action_result(qint64 conversation, bool leaving = false);
     std::function<void(std::expected<chat::message, chat::error>)> send_result(qint64 conversation, qint64 client_id);
     template <class F> void post_result(std::uint64_t generation, F result)
     {

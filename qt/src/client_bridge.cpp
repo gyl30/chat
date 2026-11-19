@@ -111,34 +111,25 @@ client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::ma
     qRegisterMetaType<presence_data>();
     qRegisterMetaType<QList<presence_data>>();
     client_->set_avatar_handler([this](std::int64_t user, chat::avatar_state state) {
-        auto const generation = connection_generation_.load();
-        QMetaObject::invokeMethod(this, [this, generation, user, state] {
-            if (generation == connection_generation_) { emit avatar_changed(user, state); }
-        }, Qt::QueuedConnection);
+        post_result(connection_generation_.load(), [this, user, state] { emit avatar_changed(user, state); });
     });
     client_->set_connected_handler([this] { emit connected(); });
     client_->set_disconnected_handler([this] { ++connection_generation_; emit disconnected(); });
     client_->set_error_handler([this](chat::error const& value) { emit error(display_error(value)); });
     client_->set_message_handler([this](chat::message message) {
-        auto const generation = connection_generation_.load();
-        QMetaObject::invokeMethod(this, [this, generation, message = std::move(message)] {
-            if (generation == connection_generation_) { emit message_received(to_message_data(message)); }
-        }, Qt::QueuedConnection);
+        post_result(connection_generation_.load(), [this, message = std::move(message)] {
+            emit message_received(to_message_data(message));
+        });
     });
     client_->set_message_updated_handler([this](chat::message value) {
-        auto const generation = connection_generation_.load();
-        QMetaObject::invokeMethod(this, [this, generation, value = std::move(value)] {
-            if (generation == connection_generation_) { emit message_updated(value.conversation, to_message_data(value), {}); }
-        }, Qt::QueuedConnection);
+        post_result(connection_generation_.load(), [this, value = std::move(value)] {
+            emit message_updated(value.conversation, to_message_data(value), {});
+        });
     });
     client_->set_reaction_handler([this](chat::reaction_update value) {
-        auto const generation = connection_generation_.load();
-        QMetaObject::invokeMethod(this, [this, generation, value = std::move(value)] {
-            if (generation == connection_generation_)
-            {
-                emit reaction_changed(value.conversation, value.message, value.revision, to_reactions(value.reactions), {});
-            }
-        }, Qt::QueuedConnection);
+        post_result(connection_generation_.load(), [this, value = std::move(value)] {
+            emit reaction_changed(value.conversation, value.message, value.revision, to_reactions(value.reactions), {});
+        });
     });
     client_->set_read_handler([this](std::int64_t conversation, std::int64_t user, std::int64_t message)
     {
@@ -161,10 +152,9 @@ client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::ma
         post_result(connection_generation_.load(), [this, value] { emit presence_changed(to_presence_data(value)); });
     });
     client_->set_group_join_request_handler([this](chat::group_join_request_event value) {
-        auto const generation = connection_generation_.load();
-        QMetaObject::invokeMethod(this, [this, generation, value] {
-            if (generation == connection_generation_) { emit group_join_request_changed(value.conversation, value.user, value.state); }
-        }, Qt::QueuedConnection);
+        post_result(connection_generation_.load(), [this, value] {
+            emit group_join_request_changed(value.conversation, value.user, value.state);
+        });
     });
 }
 
@@ -273,11 +263,10 @@ void client_bridge::set_conversation_muted(qint64 conversation, bool muted)
 {
     auto const generation = connection_generation_.load();
     client_->set_conversation_muted(conversation, muted, [this, conversation, generation](auto result) {
-        QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
-            if (generation != connection_generation_) { return; }
+        post_result(generation, [this, conversation, result = std::move(result)] {
             if (result) { ++conversations_generation_; }
             emit mute_finished(conversation, result ? *result : false, result ? QString{} : display_error(result.error()));
-        }, Qt::QueuedConnection);
+        });
     });
 }
 
@@ -285,11 +274,10 @@ void client_bridge::set_conversation_pinned(qint64 conversation, bool pinned)
 {
     auto const generation = connection_generation_.load();
     client_->set_conversation_pinned(conversation, pinned, [this, conversation, generation](auto result) {
-        QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
-            if (generation != connection_generation_) { return; }
+        post_result(generation, [this, conversation, result = std::move(result)] {
             if (result) { ++conversations_generation_; }
             emit pin_finished(conversation, result ? *result : false, result ? QString{} : display_error(result.error()));
-        }, Qt::QueuedConnection);
+        });
     });
 }
 
@@ -297,11 +285,10 @@ void client_bridge::set_group_pinned_message(qint64 conversation, std::optional<
 {
     auto const generation = connection_generation_.load();
     auto finished = [this, conversation, generation](auto result) {
-        QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
-            if (generation != connection_generation_) { return; }
+        post_result(generation, [this, conversation, result = std::move(result)] {
             if (result) { ++conversations_generation_; }
             emit group_pin_finished(conversation, result ? QString{} : display_error(result.error()));
-        }, Qt::QueuedConnection);
+        });
     };
     if (message) { client_->pin_group_message(conversation, *message, std::move(finished)); }
     else { client_->unpin_group_message(conversation, std::move(finished)); }
@@ -351,8 +338,7 @@ void client_bridge::join_group(QString token)
 {
     auto const generation = connection_generation_.load();
     client_->join_group(to_utf8(token), [this, generation](auto result) {
-        QMetaObject::invokeMethod(this, [this, generation, result = std::move(result)] {
-            if (generation != connection_generation_) { return; }
+        post_result(generation, [this, result = std::move(result)] {
             conversation_data value;
             if (result && result->state == chat::group_join_state::pending)
             {
@@ -369,7 +355,7 @@ void client_bridge::join_group(QString token)
                 value.member_count = result->member_count;
             }
             emit conversation_opened(value, result ? QString{} : display_error(result.error()));
-        }, Qt::QueuedConnection);
+        });
     });
 }
 
@@ -377,8 +363,7 @@ void client_bridge::group_invite(qint64 conversation, std::optional<bool> create
 {
     auto const generation = connection_generation_.load();
     auto finished = [this, conversation, create, generation](auto result) {
-        QMetaObject::invokeMethod(this, [this, conversation, create, generation, result = std::move(result)] {
-            if (generation != connection_generation_) { return; }
+        post_result(generation, [this, conversation, create, result = std::move(result)] {
             auto const error = result ? QString{} : display_error(result.error());
             if (create.has_value())
             {
@@ -386,7 +371,7 @@ void client_bridge::group_invite(qint64 conversation, std::optional<bool> create
                 emit group_action_finished(conversation, false, error);
             }
             emit group_invite_received(conversation, result && *result ? from_utf8(**result) : QString{}, error);
-        }, Qt::QueuedConnection);
+        });
     };
     if (!create) { client_->get_group_invite(conversation, std::move(finished)); }
     else if (*create) { client_->create_group_invite(conversation, std::move(finished)); }
@@ -395,14 +380,7 @@ void client_bridge::group_invite(qint64 conversation, std::optional<bool> create
 
 void client_bridge::set_group_join_approval(qint64 conversation, bool required)
 {
-    auto const generation = connection_generation_.load();
-    client_->set_group_join_approval(conversation, required, [this, conversation, generation](auto result) {
-        QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
-            if (generation != connection_generation_) { return; }
-            if (result) { ++conversations_generation_; }
-            emit group_action_finished(conversation, false, result ? QString{} : display_error(result.error()));
-        }, Qt::QueuedConnection);
-    });
+    client_->set_group_join_approval(conversation, required, group_action_result(conversation));
 }
 
 void client_bridge::get_group_join_requests(qint64 conversation, qint64 before)
@@ -410,8 +388,7 @@ void client_bridge::get_group_join_requests(qint64 conversation, qint64 before)
     auto const generation = connection_generation_.load();
     client_->get_group_join_requests(conversation, before > 0 ? std::optional<std::int64_t>(before) : std::nullopt,
         [this, conversation, before, generation](auto result) {
-            QMetaObject::invokeMethod(this, [this, conversation, before, generation, result = std::move(result)] {
-                if (generation != connection_generation_) { return; }
+            post_result(generation, [this, conversation, before, result = std::move(result)] {
                 QList<user_data> values;
                 if (result)
                 {
@@ -423,29 +400,20 @@ void client_bridge::get_group_join_requests(qint64 conversation, qint64 before)
                 }
                 emit group_join_requests_received(conversation, std::move(values), result ? result->next.value_or(0) : 0,
                     before > 0, result ? QString{} : display_error(result.error()));
-            }, Qt::QueuedConnection);
+            });
         });
 }
 
 void client_bridge::respond_group_join_request(qint64 conversation, qint64 user, bool accept)
 {
-    auto const generation = connection_generation_.load();
-    client_->respond_group_join_request(conversation, user, accept, [this, conversation, generation](auto result) {
-        QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
-            if (generation != connection_generation_) { return; }
-            if (result) { ++conversations_generation_; }
-            emit group_action_finished(conversation, false, result ? QString{} : display_error(result.error()));
-        }, Qt::QueuedConnection);
-    });
+    client_->respond_group_join_request(conversation, user, accept, group_action_result(conversation));
 }
 
 void client_bridge::get_members(qint64 conversation)
 {
     auto const generation = connection_generation_.load();
-    client_->get_members(conversation,
-        [this, conversation, generation](std::expected<std::vector<chat::conversation_member>, chat::error> result) {
-        QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
-            if (generation != connection_generation_) { return; }
+    client_->get_members(conversation, [this, conversation, generation](auto result) {
+        post_result(generation, [this, conversation, result = std::move(result)] {
             if (!result)
             {
                 emit members_received(conversation, {}, display_error(result.error()));
@@ -457,87 +425,53 @@ void client_bridge::get_members(qint64 conversation)
                 values.push_back(member_data{user.id, from_utf8(user.username), user.role, user.avatar});
             }
             emit members_received(conversation, std::move(values), {});
-        }, Qt::QueuedConnection);
         });
+    });
 }
 
 void client_bridge::set_group_admin(qint64 conversation, qint64 user, bool admin)
 {
-    auto const generation = connection_generation_.load();
-    client_->set_group_admin(conversation, user, admin, [this, conversation, generation](auto result) {
-        post_result(generation, [this, conversation, result = std::move(result)] {
-            if (result) { ++conversations_generation_; }
-            emit group_action_finished(conversation, false, result ? QString{} : display_error(result.error()));
-        });
-    });
+    client_->set_group_admin(conversation, user, admin, group_action_result(conversation));
 }
 
 void client_bridge::rename_group(qint64 conversation, QString title)
 {
-    auto const generation = connection_generation_.load();
-    client_->rename_group(conversation, to_utf8(title), [this, conversation, generation](auto result) {
-        post_result(generation, [this, conversation, result = std::move(result)] {
-            if (result) { ++conversations_generation_; }
-            emit group_action_finished(conversation, false, result ? QString{} : display_error(result.error()));
-        });
-    });
+    client_->rename_group(conversation, to_utf8(title), group_action_result(conversation));
 }
 
 void client_bridge::set_group_announcement(qint64 conversation, QString text)
 {
-    auto const generation = connection_generation_.load();
-    client_->set_group_announcement(conversation, to_utf8(text), [this, conversation, generation](auto result) {
-        QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
-            if (generation != connection_generation_) { return; }
-            if (result) { ++conversations_generation_; }
-            emit group_action_finished(conversation, false, result ? QString{} : display_error(result.error()));
-        }, Qt::QueuedConnection);
-    });
+    client_->set_group_announcement(conversation, to_utf8(text), group_action_result(conversation));
 }
 
 void client_bridge::transfer_group_owner(qint64 conversation, qint64 user)
 {
-    auto const generation = connection_generation_.load();
-    client_->transfer_group_owner(conversation, user, [this, conversation, generation](auto result) {
-        post_result(generation, [this, conversation, result = std::move(result)] {
-            if (result) { ++conversations_generation_; }
-            emit group_action_finished(conversation, false, result ? QString{} : display_error(result.error()));
-        });
-    });
+    client_->transfer_group_owner(conversation, user, group_action_result(conversation));
 }
 
 void client_bridge::remove_group_member(qint64 conversation, qint64 user)
 {
-    auto const generation = connection_generation_.load();
-    client_->remove_group_member(conversation, user, [this, conversation, generation](auto result) {
-        post_result(generation, [this, conversation, result = std::move(result)] {
-            if (result) { ++conversations_generation_; }
-            emit group_action_finished(conversation, false, result ? QString{} : display_error(result.error()));
-        });
-    });
+    client_->remove_group_member(conversation, user, group_action_result(conversation));
 }
 
 void client_bridge::invite_group_members(qint64 conversation, QList<qint64> members)
 {
-    auto const generation = connection_generation_.load();
-    client_->invite_group_members(conversation, std::vector<std::int64_t>(members.begin(), members.end()),
-        [this, conversation, generation](auto result) {
-            post_result(generation, [this, conversation, result = std::move(result)] {
-                if (result) { ++conversations_generation_; }
-                emit group_action_finished(conversation, false, result ? QString{} : display_error(result.error()));
-            });
-        });
+    client_->invite_group_members(conversation, std::vector<std::int64_t>(members.begin(), members.end()), group_action_result(conversation));
 }
 
 void client_bridge::leave_group(qint64 conversation)
 {
-    auto const generation = connection_generation_.load();
-    client_->leave_group(conversation, [this, conversation, generation](auto result) {
-        post_result(generation, [this, conversation, result = std::move(result)] {
+    client_->leave_group(conversation, group_action_result(conversation, true));
+}
+
+std::function<void(std::expected<bool, chat::error>)> client_bridge::group_action_result(qint64 conversation, bool leaving)
+{
+    return [this, conversation, leaving, generation = connection_generation_.load()](auto result) {
+        post_result(generation, [this, conversation, leaving, result = std::move(result)] {
             if (result) { ++conversations_generation_; }
-            emit group_action_finished(conversation, result.has_value(), result ? QString{} : display_error(result.error()));
+            emit group_action_finished(conversation, leaving && result.has_value(), result ? QString{} : display_error(result.error()));
         });
-    });
+    };
 }
 
 void client_bridge::get_contacts()
@@ -692,11 +626,10 @@ void client_bridge::delete_message(qint64 conversation, qint64 message)
 {
     auto const generation = connection_generation_.load();
     client_->delete_message(conversation, message, [this, conversation, generation](auto result) {
-        QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
-            if (generation != connection_generation_) { return; }
+        post_result(generation, [this, conversation, result = std::move(result)] {
             emit message_updated(conversation, result ? to_message_data(*result) : message_data{},
                                  result ? QString{} : display_error(result.error()));
-        }, Qt::QueuedConnection);
+        });
     });
 }
 
@@ -704,12 +637,11 @@ void client_bridge::get_message_image(qint64 conversation, qint64 message)
 {
     auto const generation = connection_generation_.load();
     client_->get_attachment(conversation, message, [this, conversation, message, generation](auto result) mutable {
-        QMetaObject::invokeMethod(this, [this, conversation, message, generation, result = std::move(result)] {
-            if (generation != connection_generation_) { return; }
+        post_result(generation, [this, conversation, message, result = std::move(result)] {
             emit message_image_received(conversation, message,
                 result ? QByteArray(result->data(), static_cast<qsizetype>(result->size())) : QByteArray{},
                 result ? QString{} : display_error(result.error()));
-        }, Qt::QueuedConnection);
+        });
     });
 }
 
@@ -717,11 +649,10 @@ void client_bridge::edit_message(qint64 conversation, qint64 message, QString te
 {
     auto const generation = connection_generation_.load();
     client_->edit_message(conversation, message, to_utf8(text), [this, conversation, generation](auto result) {
-        QMetaObject::invokeMethod(this, [this, conversation, generation, result = std::move(result)] {
-            if (generation != connection_generation_) { return; }
+        post_result(generation, [this, conversation, result = std::move(result)] {
             emit message_updated(conversation, result ? to_message_data(*result) : message_data{},
                                  result ? QString{} : display_error(result.error()));
-        }, Qt::QueuedConnection);
+        });
     });
 }
 
@@ -730,12 +661,11 @@ void client_bridge::set_message_reaction(qint64 conversation, qint64 message, QS
     auto const generation = connection_generation_.load();
     client_->set_message_reaction(conversation, message, to_utf8(emoji),
         [this, conversation, message, generation](auto result) mutable {
-            QMetaObject::invokeMethod(this, [this, conversation, message, generation, result = std::move(result)]() mutable {
-                if (generation != connection_generation_) { return; }
+            post_result(generation, [this, conversation, message, result = std::move(result)]() mutable {
                 emit reaction_changed(conversation, message, result ? result->revision : 0,
                     result ? to_reactions(result->reactions) : QList<reaction_data>{},
                     result ? QString{} : display_error(result.error()));
-            }, Qt::QueuedConnection);
+            });
         });
 }
 
@@ -911,75 +841,43 @@ void client_bridge::mark_read(qint64 user, qint64 message)
 {
     auto const generation = connection_generation_.load();
     client_->mark_read(user, message, [this, user, generation](std::expected<std::int64_t, chat::error> result) {
-        QMetaObject::invokeMethod(this, [this, user, generation, result = std::move(result)] {
-            if (generation != connection_generation_) { return; }
+        post_result(generation, [this, user, result = std::move(result)] {
             emit read_marked(user, result ? *result : 0, result ? QString{} : display_error(result.error()));
-        }, Qt::QueuedConnection);
+        });
     });
 }
 
 void client_bridge::get_avatar(qint64 user, qint64 revision)
 {
     auto const generation = connection_generation_.load();
-    client_->get_avatar(user,
-                        revision,
-                        [this, generation, user, revision](auto result)
-                        {
-                            QMetaObject::invokeMethod(
-                                this,
-                                [this, generation, user, revision, result = std::move(result)]
-                                {
-                                    if (generation != connection_generation_)
-                                    {
-                                        return;
-                                    }
-                                    if (!result)
-                                    {
-                                        emit avatar_received(user, {revision, true}, {});
-                                        return;
-                                    }
-                                    emit avatar_received(user, result->state, QByteArray(result->data.data(), result->data.size()));
-                                },
-                                Qt::QueuedConnection);
-                        });
+    client_->get_avatar(user, revision, [this, generation, user, revision](auto result) {
+        post_result(generation, [this, user, revision, result = std::move(result)] {
+            if (!result)
+            {
+                emit avatar_received(user, {revision, true}, {});
+                return;
+            }
+            emit avatar_received(user, result->state, QByteArray(result->data.data(), result->data.size()));
+        });
+    });
 }
 
 void client_bridge::set_avatar(QByteArray data)
 {
     auto const generation = connection_generation_.load();
-    client_->set_avatar(std::string(data.constData(), data.size()),
-                        [this, generation](auto result)
-                        {
-                            QMetaObject::invokeMethod(
-                                this,
-                                [this, generation, result = std::move(result)]
-                                {
-                                    if (generation != connection_generation_)
-                                    {
-                                        return;
-                                    }
-                                    emit avatar_update_finished(result ? QString{} : display_error(result.error()));
-                                },
-                                Qt::QueuedConnection);
-                        });
+    client_->set_avatar(std::string(data.constData(), data.size()), [this, generation](auto result) {
+        post_result(generation, [this, result = std::move(result)] {
+            emit avatar_update_finished(result ? QString{} : display_error(result.error()));
+        });
+    });
 }
 
 void client_bridge::clear_avatar()
 {
     auto const generation = connection_generation_.load();
-    client_->clear_avatar(
-        [this, generation](auto result)
-        {
-            QMetaObject::invokeMethod(
-                this,
-                [this, generation, result = std::move(result)]
-                {
-                    if (generation != connection_generation_)
-                    {
-                        return;
-                    }
-                    emit avatar_update_finished(result ? QString{} : display_error(result.error()));
-                },
-                Qt::QueuedConnection);
+    client_->clear_avatar([this, generation](auto result) {
+        post_result(generation, [this, result = std::move(result)] {
+            emit avatar_update_finished(result ? QString{} : display_error(result.error()));
         });
+    });
 }
