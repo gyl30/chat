@@ -40,7 +40,6 @@
 #include <QScrollBar>
 #include <QSize>
 #include <QSizePolicy>
-#include <QSet>
 #include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QStyle>
@@ -60,6 +59,7 @@
 #include "avatar.hpp"
 #include "conversation_delegate.hpp"
 #include "conversation_model.hpp"
+#include "create_group_dialog.hpp"
 #include "emoji_text.hpp"
 #include "icons.hpp"
 #include "message_delegate.hpp"
@@ -2975,215 +2975,19 @@ void chat_widget::create_group()
     {
         return;
     }
-    QDialog dialog(this);
-    dialog.setObjectName(QStringLiteral("createGroupDialog"));
-    dialog.setWindowTitle(QStringLiteral("创建群聊"));
-    dialog.resize(chat_theme::dialog_normal_width, 540);
-    auto* layout = new QVBoxLayout(&dialog);
-    layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
-    layout->setSpacing(chat_theme::dialog_spacing);
-    auto* steps = new QStackedWidget(&dialog);
-    auto* pick_page = new QWidget(steps);
-    pick_page->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Ignored);
-    auto* pick_layout = new QVBoxLayout(pick_page);
-    pick_layout->setContentsMargins(0, 0, 0, 0);
-    pick_layout->setSpacing(chat_theme::dialog_spacing);
-    auto* search = new QLineEdit(pick_page);
-    search->setObjectName(QStringLiteral("groupContactSearch"));
-    search->setPlaceholderText(QStringLiteral("搜索好友"));
-    pick_layout->addWidget(search);
-    auto* selected_count = new QLabel(pick_page);
-    selected_count->setObjectName(QStringLiteral("groupSelectedCount"));
-    pick_layout->addWidget(selected_count);
-    auto* selected = new QListWidget(pick_page);
-    selected->setObjectName(QStringLiteral("groupSelectedContacts"));
-    selected->setTextElideMode(Qt::ElideRight);
-    selected->setFlow(QListView::LeftToRight);
-    selected->setWrapping(true);
-    selected->setResizeMode(QListView::Adjust);
-    pick_layout->addWidget(selected);
-    auto* list = new QListWidget(pick_page);
-    list->setObjectName(QStringLiteral("groupContactPicker"));
-    list->setIconSize(QSize(32, 32));
-    list->setAccessibleName(QStringLiteral("选择群成员"));
-    pick_layout->addWidget(list, 1);
-    steps->addWidget(pick_page);
-    auto* name_page = new QWidget(steps);
-    auto* name_layout = new QVBoxLayout(name_page);
-    name_layout->setContentsMargins(0, 0, 0, 0);
-    name_layout->setSpacing(chat_theme::dialog_spacing);
-    name_layout->addWidget(new QLabel(QStringLiteral("群名称"), name_page));
-    auto* title = new QLineEdit(name_page);
-    title->setObjectName(QStringLiteral("newGroupTitleEdit"));
-    title->setPlaceholderText(QStringLiteral("群名称"));
-    title->setAccessibleName(QStringLiteral("群名称"));
-    name_layout->addWidget(title);
-    auto* summary = new QLabel(name_page);
-    summary->setObjectName(QStringLiteral("groupNamingSummary"));
-    name_layout->addWidget(summary);
-    auto* member_list = new QListWidget(name_page);
-    member_list->setObjectName(QStringLiteral("groupNamingMembers"));
-    member_list->setIconSize(QSize(32, 32));
-    member_list->setSelectionMode(QAbstractItemView::NoSelection);
-    member_list->setAccessibleName(QStringLiteral("已选群成员"));
-    name_layout->addWidget(member_list, 1);
-    steps->addWidget(name_page);
-    layout->addWidget(steps, 1);
-    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-    auto* previous = buttons->addButton(QStringLiteral("上一步"), QDialogButtonBox::ActionRole);
-    previous->setObjectName(QStringLiteral("groupPreviousButton"));
-    previous->hide();
-    auto* proceed = buttons->button(QDialogButtonBox::Ok);
-    proceed->setObjectName(QStringLiteral("groupNextButton"));
-    proceed->setText(QStringLiteral("下一步"));
-    buttons->button(QDialogButtonBox::Cancel)->setText(QStringLiteral("取消"));
-    for (auto* button : buttons->buttons())
-    {
-        button->setIcon({});
-        button->style()->unpolish(button);
-        button->style()->polish(button);
-    }
-    layout->addWidget(buttons);
-
-    auto update = [list, selected, selected_count, title, summary, member_list, steps, proceed]
-    {
-        QSignalBlocker blocked(selected);
-        selected->clear();
-        member_list->clear();
-        QStringList names;
-        for (int row = 0; row < list->count(); ++row)
-        {
-            auto* item = list->item(row);
-            if (item->checkState() != Qt::Checked)
-            {
-                continue;
-            }
-            auto* chip = new QListWidgetItem(item->text() + QStringLiteral(" ×"), selected);
-            chip->setData(Qt::UserRole, item->data(Qt::UserRole));
-            chip->setToolTip(item->text());
-            chip->setSizeHint(QSize(210, 32));
-            auto* member = new QListWidgetItem(item->icon(), item->text(), member_list);
-            member->setToolTip(item->text());
-            member->setSizeHint(QSize(0, 44));
-            names.push_back(item->text());
-        }
-        selected_count->setText(QStringLiteral("已选 %1 位好友 · 点击姓名取消").arg(names.size()));
-        selected->setVisible(!names.empty());
-        selected->setFixedHeight(names.size() <= 2 ? 40 : 76);
-        summary->setText(QStringLiteral("已选 %1 位好友").arg(names.size()));
-        member_list->setFixedHeight(std::clamp(static_cast<int>(names.size()) * 44 + 4, 48, 136));
-        proceed->setEnabled(!names.empty() && (steps->currentIndex() == 0 || chat::valid_group_title(title->text().toUtf8().toStdString())));
-    };
-    auto populate = [this, list, search, update]
-    {
-        QSet<qint64> chosen;
-        for (int row = 0; row < list->count(); ++row)
-        {
-            if (list->item(row)->checkState() == Qt::Checked)
-            {
-                chosen.insert(list->item(row)->data(Qt::UserRole).toLongLong());
-            }
-        }
-        {
-            QSignalBlocker blocked(list);
-            list->clear();
-            for (int row = 0; row < contacts_->rowCount(); ++row)
-            {
-                auto const* user = contacts_->user_at(contacts_->index(row, 0));
-                if (!user || user->id == self_user_)
-                {
-                    continue;
-                }
-                auto* item = new QListWidgetItem(avatar_icon(user->username, 32, avatars_.image(user->id)), user->username, list);
-                item->setData(Qt::UserRole, user->id);
-                item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
-                item->setCheckState(chosen.contains(user->id) ? Qt::Checked : Qt::Unchecked);
-                item->setToolTip(user->username);
-                item->setSizeHint(QSize(0, 50));
-                item->setHidden(!user->username.contains(search->text(), Qt::CaseInsensitive));
-            }
-        }
-        update();
-    };
-    connect(contacts_, &QAbstractItemModel::modelReset, &dialog, populate);
-    connect(list, &QListWidget::itemChanged, &dialog, [update](QListWidgetItem*) { update(); });
-    connect(selected,
-            &QListWidget::itemClicked,
-            &dialog,
-            [list](QListWidgetItem* chip)
-            {
-                auto const id = chip->data(Qt::UserRole).toLongLong();
-                for (int row = 0; row < list->count(); ++row)
-                {
-                    auto* item = list->item(row);
-                    if (item->data(Qt::UserRole).toLongLong() == id)
-                    {
-                        item->setCheckState(Qt::Unchecked);
-                        break;
-                    }
-                }
-            });
-    connect(search,
-            &QLineEdit::textChanged,
-            &dialog,
-            [list](QString const& query)
-            {
-                for (int row = 0; row < list->count(); ++row)
-                {
-                    list->item(row)->setHidden(!list->item(row)->text().contains(query, Qt::CaseInsensitive));
-                }
-            });
-    connect(title, &QLineEdit::textChanged, &dialog, [update] { update(); });
-    connect(previous,
-            &QPushButton::clicked,
-            &dialog,
-            [&dialog, steps, proceed, previous, search, update]
-            {
-                steps->setCurrentIndex(0);
-                previous->hide();
-                proceed->setText(QStringLiteral("下一步"));
-                dialog.resize(chat_theme::dialog_normal_width, 540);
-                search->setFocus();
-                update();
-            });
-    connect(buttons,
-            &QDialogButtonBox::accepted,
-            &dialog,
-            [&dialog, steps, proceed, previous, title, update]
-            {
-                if (steps->currentIndex() == 0)
-                {
-                    steps->setCurrentIndex(1);
-                    previous->show();
-                    proceed->setText(QStringLiteral("创建"));
-                    update();
-                    dialog.resize(chat_theme::dialog_normal_width, 300);
-                    title->setFocus();
-                }
-                else if (chat::valid_group_title(title->text().toUtf8().toStdString()))
-                {
-                    dialog.accept();
-                }
-            });
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    populate();
+    create_group_dialog dialog(this);
+    auto refresh = [this, &dialog] { dialog.set_contacts(*contacts_, self_user_, avatars_); };
+    connect(contacts_, &QAbstractItemModel::modelReset, &dialog, refresh);
+    refresh();
     if (dialog.exec() != QDialog::Accepted || !connection_available_)
     {
         return;
     }
-    QList<qint64> members;
-    for (int row = 0; row < list->count(); ++row)
-    {
-        auto* item = list->item(row);
-        auto const id = item->data(Qt::UserRole).toLongLong();
-        if (item->checkState() == Qt::Checked && is_contact(id))
-        {
-            members.push_back(id);
-        }
-    }
+    auto members = dialog.selected_members();
+    members.removeIf([this](qint64 user) { return !is_contact(user); });
     if (!members.empty())
     {
-        emit group_create_requested(title->text(), std::move(members));
+        emit group_create_requested(dialog.group_title(), std::move(members));
     }
 }
 
@@ -3546,6 +3350,22 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
     info_layout->setContentsMargins(24, 16, 24, 24);
     info_layout->setSpacing(12);
 
+    setup_profile_friendship(dialog, info_layout, relationship, message_button, user, username);
+    if (user == self_user_)
+    {
+        setup_profile_avatar(dialog, info_layout, user);
+    }
+    layout->addWidget(info);
+
+    connect(close_button, &QToolButton::clicked, &dialog, &QDialog::reject);
+    connect(copy_username_button, &QToolButton::clicked, &dialog, [username] { QGuiApplication::clipboard()->setText(username); });
+    dialog.exec();
+}
+
+void chat_widget::setup_profile_friendship(
+    QDialog& dialog, QVBoxLayout* info_layout, QLabel* relationship, QToolButton* message_button, qint64 user, QString const& username)
+{
+    auto* info = info_layout->parentWidget();
     QPushButton* remove_contact_button = nullptr;
     if (user != self_user_)
     {
@@ -3665,78 +3485,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
         message_button->hide();
         // Relationship status only concerns other people; an empty row would only cost height.
         contact_status->hide();
-        auto* change = new QPushButton(QStringLiteral("更换头像"), info);
-        change->setObjectName(QStringLiteral("changeAvatarButton"));
-        auto* remove = new QPushButton(QStringLiteral("移除头像"), info);
-        remove->setObjectName(QStringLiteral("removeAvatarButton"));
-        auto* status = new QLabel(info);
-        status->setObjectName(QStringLiteral("avatarUploadStatus"));
-        status->setWordWrap(true);
-        info_layout->addWidget(change);
-        info_layout->addWidget(remove);
-        info_layout->addWidget(status);
-        auto update = [this, user, change, remove, status]
-        {
-            change->setEnabled(connection_available_ && !avatar_updating_);
-            remove->setEnabled(connection_available_ && !avatar_updating_ && avatars_.state(user).present);
-            if (avatar_updating_)
-            {
-                status->setText(QStringLiteral("正在更新头像…"));
-            }
-            status->setVisible(!status->text().isEmpty());
-        };
-        update();
-        connect(&avatars_, &avatar_cache::changed, &dialog, [update](qint64) { update(); });
-        connect(this,
-                &chat_widget::avatar_update_finished,
-                &dialog,
-                [status, update](QString error)
-                {
-                    status->setText(error);
-                    update();
-                });
-        connect(change,
-                &QPushButton::clicked,
-                &dialog,
-                [this, &dialog, status, update]
-                {
-                    auto const path =
-                        QFileDialog::getOpenFileName(&dialog, QStringLiteral("更换头像"), {}, QStringLiteral("图片 (*.png *.jpg *.jpeg)"));
-                    if (path.isEmpty())
-                    {
-                        return;
-                    }
-                    QFile file(path);
-                    if (!file.open(QIODevice::ReadOnly) || file.size() > static_cast<qint64>(chat::max_avatar_size))
-                    {
-                        status->setText(QStringLiteral("无法读取图片，头像文件不得超过 1 MiB。"));
-                        status->show();
-                        return;
-                    }
-                    auto bytes = file.readAll();
-                    if (decode_avatar(bytes).isNull())
-                    {
-                        status->setText(QStringLiteral("请选择完整的 PNG 或 JPEG 图片，最多 1600 万像素。"));
-                        status->show();
-                        return;
-                    }
-                    avatar_updating_ = true;
-                    update();
-                    emit avatar_set_requested(std::move(bytes));
-                });
-        connect(remove,
-                &QPushButton::clicked,
-                &dialog,
-                [this, update]
-                {
-                    avatar_updating_ = true;
-                    update();
-                    emit avatar_clear_requested();
-                });
     }
-    layout->addWidget(info);
-
-    connect(close_button, &QToolButton::clicked, &dialog, &QDialog::reject);
     connect(message_button,
             &QToolButton::clicked,
             &dialog,
@@ -3759,8 +3508,78 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
                     request_friend_action(user, username, static_cast<int>(friend_state(user)));
                 }
             });
-    connect(copy_username_button, &QToolButton::clicked, &dialog, [username] { QGuiApplication::clipboard()->setText(username); });
-    dialog.exec();
+}
+
+void chat_widget::setup_profile_avatar(QDialog& dialog, QVBoxLayout* info_layout, qint64 user)
+{
+    auto* info = info_layout->parentWidget();
+    auto* change = new QPushButton(QStringLiteral("更换头像"), info);
+    change->setObjectName(QStringLiteral("changeAvatarButton"));
+    auto* remove = new QPushButton(QStringLiteral("移除头像"), info);
+    remove->setObjectName(QStringLiteral("removeAvatarButton"));
+    auto* status = new QLabel(info);
+    status->setObjectName(QStringLiteral("avatarUploadStatus"));
+    status->setWordWrap(true);
+    info_layout->addWidget(change);
+    info_layout->addWidget(remove);
+    info_layout->addWidget(status);
+    auto update = [this, user, change, remove, status]
+    {
+        change->setEnabled(connection_available_ && !avatar_updating_);
+        remove->setEnabled(connection_available_ && !avatar_updating_ && avatars_.state(user).present);
+        if (avatar_updating_)
+        {
+            status->setText(QStringLiteral("正在更新头像…"));
+        }
+        status->setVisible(!status->text().isEmpty());
+    };
+    update();
+    connect(&avatars_, &avatar_cache::changed, &dialog, [update](qint64) { update(); });
+    connect(this,
+            &chat_widget::avatar_update_finished,
+            &dialog,
+            [status, update](QString error)
+            {
+                status->setText(error);
+                update();
+            });
+    connect(change,
+            &QPushButton::clicked,
+            &dialog,
+            [this, &dialog, status, update]
+            {
+                auto const path = QFileDialog::getOpenFileName(&dialog, QStringLiteral("更换头像"), {}, QStringLiteral("图片 (*.png *.jpg *.jpeg)"));
+                if (path.isEmpty())
+                {
+                    return;
+                }
+                QFile file(path);
+                if (!file.open(QIODevice::ReadOnly) || file.size() > static_cast<qint64>(chat::max_avatar_size))
+                {
+                    status->setText(QStringLiteral("无法读取图片，头像文件不得超过 1 MiB。"));
+                    status->show();
+                    return;
+                }
+                auto bytes = file.readAll();
+                if (decode_avatar(bytes).isNull())
+                {
+                    status->setText(QStringLiteral("请选择完整的 PNG 或 JPEG 图片，最多 1600 万像素。"));
+                    status->show();
+                    return;
+                }
+                avatar_updating_ = true;
+                update();
+                emit avatar_set_requested(std::move(bytes));
+            });
+    connect(remove,
+            &QPushButton::clicked,
+            &dialog,
+            [this, update]
+            {
+                avatar_updating_ = true;
+                update();
+                emit avatar_clear_requested();
+            });
 }
 
 void chat_widget::set_message_status(QString message)

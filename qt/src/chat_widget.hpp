@@ -143,6 +143,9 @@ class chat_widget final : public QWidget
     void setup_add_contact_dialog();
     void setup_friend_requests();
     QWidget* create_chat_panel();
+    void setup_profile_friendship(
+        QDialog& dialog, QVBoxLayout* info_layout, QLabel* relationship, QToolButton* message_button, qint64 user, QString const& username);
+    void setup_profile_avatar(QDialog& dialog, QVBoxLayout* info_layout, qint64 user);
     void setup_chat_header(QVBoxLayout* chat_layout);
     void setup_message_list(QVBoxLayout* chat_layout);
     void setup_composer(QVBoxLayout* chat_layout);
