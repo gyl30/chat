@@ -115,6 +115,22 @@ class resize_grip final : public QWidget
 
 main_window::main_window(QString server_url, QWidget* parent) : QMainWindow(parent), client_(std::make_unique<client_bridge>())
 {
+    setup_window_frame();
+    setup_login_page(std::move(server_url));
+    setup_registration_dialog();
+    setup_chat_page();
+    setup_system_tray();
+    connect_conversation_preferences_and_avatar();
+    setup_reconnect_timers();
+    connect_authentication();
+    connect_conversations_and_contacts();
+    connect_group_actions();
+    connect_messages();
+    finish_window_setup();
+}
+
+void main_window::setup_window_frame()
+{
     setWindowTitle(QStringLiteral("Chat"));
     resize(chat_theme::login_window_size);
     setMinimumSize(chat_theme::login_window_size);
@@ -145,7 +161,10 @@ main_window::main_window(QString server_url, QWidget* parent) : QMainWindow(pare
     frame_layout->addWidget(title_bar_);
     pages_ = new QStackedWidget(frame_);
     frame_layout->addWidget(pages_, 1);
+}
 
+void main_window::setup_login_page(QString server_url)
+{
     login_page_ = new QWidget(pages_);
     login_page_->setObjectName(QStringLiteral("loginPage"));
     auto* login_outer = new QVBoxLayout(login_page_);
@@ -280,7 +299,10 @@ main_window::main_window(QString server_url, QWidget* parent) : QMainWindow(pare
         username_edit_->setText(accounts.front());
     }
     update_login_identity();
+}
 
+void main_window::setup_registration_dialog()
+{
     registration_dialog_ = new QDialog(this);
     registration_dialog_->setObjectName(QStringLiteral("registrationDialog"));
     registration_dialog_->setWindowTitle(QStringLiteral("注册"));
@@ -335,7 +357,10 @@ main_window::main_window(QString server_url, QWidget* parent) : QMainWindow(pare
     setTabOrder(registration_password_edit_, registration_password_confirm_edit_);
     setTabOrder(registration_password_confirm_edit_, registration_submit_button_);
     setTabOrder(registration_submit_button_, registration_cancel_button_);
+}
 
+void main_window::setup_chat_page()
+{
     chat_page_ = new chat_widget(pages_);
     chat_page_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
     if (!QCoreApplication::organizationName().isEmpty() && !QCoreApplication::applicationName().isEmpty())
@@ -350,7 +375,10 @@ main_window::main_window(QString server_url, QWidget* parent) : QMainWindow(pare
     {
         chat_page_->set_control_enter_send(false);
     }
+}
 
+void main_window::setup_system_tray()
+{
     tray_ = new QSystemTrayIcon(svg_icon(u"chat", themed("accent"), QSize(32, 32)), this);
     tray_->setObjectName(QStringLiteral("notificationTray"));
     tray_->setToolTip(QStringLiteral("Chat"));
@@ -423,6 +451,10 @@ main_window::main_window(QString server_url, QWidget* parent) : QMainWindow(pare
                 }
             });
 #endif
+}
+
+void main_window::connect_conversation_preferences_and_avatar()
+{
     connect(chat_page_, &chat_widget::read_requested, client_.get(), &client_bridge::mark_read);
     connect(chat_page_, &chat_widget::mute_requested, client_.get(), &client_bridge::set_conversation_muted);
     connect(client_.get(),
@@ -459,7 +491,10 @@ main_window::main_window(QString server_url, QWidget* parent) : QMainWindow(pare
     connect(chat_page_, &chat_widget::avatar_set_requested, client_.get(), &client_bridge::set_avatar);
     connect(chat_page_, &chat_widget::avatar_clear_requested, client_.get(), &client_bridge::clear_avatar);
     connect(client_.get(), &client_bridge::avatar_update_finished, chat_page_, &chat_widget::finish_avatar_update);
+}
 
+void main_window::setup_reconnect_timers()
+{
     reconnect_timer_ = new QTimer(this);
     reconnect_timer_->setSingleShot(true);
     reconnect_countdown_timer_ = new QTimer(this);
@@ -535,6 +570,10 @@ main_window::main_window(QString server_url, QWidget* parent) : QMainWindow(pare
                     chat_page_->set_connection_status({}, false);
                 }
             });
+}
+
+void main_window::connect_authentication()
+{
     connect(chat_page_,
             &chat_widget::reconnect_requested,
             this,
@@ -747,7 +786,10 @@ main_window::main_window(QString server_url, QWidget* parent) : QMainWindow(pare
             authenticate();
         },
         Qt::AutoConnection);
+}
 
+void main_window::connect_conversations_and_contacts()
+{
     connect(
         client_.get(),
         &client_bridge::conversations_received,
@@ -882,6 +924,179 @@ main_window::main_window(QString server_url, QWidget* parent) : QMainWindow(pare
             client_->get_conversations();
         },
         Qt::AutoConnection);
+}
+
+void main_window::show_group_details(qint64 conversation, qint64 self_user, QString const& title)
+{
+    auto const snapshot = chat_page_->conversation(conversation);
+    if (!snapshot || !snapshot->group)
+    {
+        return;
+    }
+    group_dialog dialog(conversation, self_user, title, snapshot->announcement, snapshot->join_approval, this, &chat_page_->avatars());
+    dialog.set_conversations({*snapshot}, {});
+    connect(
+        &dialog, &group_dialog::user_requested, chat_page_, [this](qint64 user, QString const& name) { chat_page_->show_user_details(user, name); });
+    connect(client_.get(), &client_bridge::members_received, &dialog, &group_dialog::set_members);
+    connect(client_.get(), &client_bridge::group_action_finished, &dialog, &group_dialog::finish_action);
+    connect(client_.get(), &client_bridge::group_invite_received, &dialog, &group_dialog::set_invite);
+    connect(client_.get(), &client_bridge::group_join_requests_received, &dialog, &group_dialog::set_requests);
+    connect(&dialog,
+            &group_dialog::approval_requested,
+            &dialog,
+            [this, conversation](bool required) { client_->set_group_join_approval(conversation, required); });
+    connect(&dialog,
+            &group_dialog::requests_requested,
+            &dialog,
+            [this, conversation](qint64 before) { client_->get_group_join_requests(conversation, before); });
+    connect(&dialog,
+            &group_dialog::request_response_requested,
+            &dialog,
+            [this, conversation](qint64 user, bool accept) { client_->respond_group_join_request(conversation, user, accept); });
+    connect(client_.get(),
+            &client_bridge::group_join_request_changed,
+            &dialog,
+            [&dialog, conversation](qint64 id, qint64, chat::group_join_request_state)
+            {
+                if (id == conversation)
+                {
+                    dialog.refresh_requests();
+                }
+            });
+    connect(&dialog,
+            &group_dialog::invite_link_requested,
+            &dialog,
+            [this, conversation](std::optional<bool> create) { client_->group_invite(conversation, create); });
+    connect(
+        client_.get(),
+        &client_bridge::disconnected,
+        &dialog,
+        [&dialog] { dialog.set_error(QStringLiteral("连接已断开，请重连后重新打开群成员。")); },
+        Qt::AutoConnection);
+    connect(&dialog,
+            &group_dialog::admin_requested,
+            this,
+            [this, conversation](qint64 user, bool admin) { client_->set_group_admin(conversation, user, admin); });
+    connect(
+        &dialog, &group_dialog::transfer_requested, this, [this, conversation](qint64 user) { client_->transfer_group_owner(conversation, user); });
+    connect(&dialog, &group_dialog::remove_requested, this, [this, conversation](qint64 user) { client_->remove_group_member(conversation, user); });
+    connect(client_.get(),
+            &client_bridge::conversation_changed,
+            &dialog,
+            [&dialog, conversation](qint64 id, bool removed)
+            {
+                if (removed && id == conversation)
+                {
+                    for (auto* child : dialog.findChildren<QDialog*>())
+                    {
+                        child->reject();
+                    }
+                    dialog.reject();
+                }
+            });
+    connect(client_.get(), &client_bridge::contacts_received, &dialog, &group_dialog::set_contacts, Qt::AutoConnection);
+    connect(client_.get(), &client_bridge::conversations_received, &dialog, &group_dialog::set_conversations, Qt::AutoConnection);
+    connect(&dialog,
+            &group_dialog::rename_requested,
+            this,
+            [this, conversation](QString title) { client_->rename_group(conversation, std::move(title)); });
+    connect(&dialog,
+            &group_dialog::announcement_requested,
+            this,
+            [this, conversation](QString text) { client_->set_group_announcement(conversation, std::move(text)); });
+    connect(&dialog,
+            &group_dialog::invite_requested,
+            this,
+            [this, conversation](QList<qint64> members) { client_->invite_group_members(conversation, std::move(members)); });
+    connect(&dialog, &group_dialog::leave_requested, this, [this, conversation] { client_->leave_group(conversation); });
+    client_->get_contacts();
+    client_->get_friend_requests();
+    client_->get_members(conversation);
+    dialog.exec();
+}
+
+void main_window::show_message_search(qint64 conversation, qint64 self_user, bool group, QString const& title, QString const& query)
+{
+    message_search_dialog dialog(conversation, self_user, group, title, query, this, &chat_page_->avatars());
+    connect(&dialog,
+            &message_search_dialog::search_requested,
+            &dialog,
+            [this, conversation](QString query, qint64 before) { client_->search_messages(conversation, std::move(query), before); });
+    connect(client_.get(), &client_bridge::message_search_received, &dialog, &message_search_dialog::set_results, Qt::AutoConnection);
+    connect(client_.get(), &client_bridge::reaction_changed, &dialog, &message_search_dialog::set_reactions, Qt::AutoConnection);
+    connect(client_.get(), &client_bridge::message_updated, &dialog, &message_search_dialog::update_message, Qt::AutoConnection);
+    connect(client_.get(),
+            &client_bridge::conversation_changed,
+            &dialog,
+            [&dialog, conversation](qint64 id, bool removed)
+            {
+                if (removed && id == conversation)
+                {
+                    dialog.reject();
+                }
+            });
+    qint64 located = 0;
+    connect(&dialog,
+            &message_search_dialog::message_activated,
+            &dialog,
+            [&dialog, &located](qint64 message)
+            {
+                located = message;
+                dialog.accept();
+            });
+    if (dialog.exec() == QDialog::Accepted && located > 0)
+    {
+        chat_page_->locate_message(conversation, located);
+    }
+}
+
+void main_window::show_chat_history(qint64 conversation, QString const& title)
+{
+    chat_history_dialog dialog(conversation, title, this, &chat_page_->avatars());
+    connect(&dialog,
+            &chat_history_dialog::history_requested,
+            &dialog,
+            [this, conversation, &dialog](QString query, qint64 before)
+            {
+                if (connected_ && !reconnecting_)
+                {
+                    client_->get_history(conversation, std::move(query), before);
+                }
+                else
+                {
+                    dialog.interrupt_loading();
+                }
+            });
+    connect(client_.get(), &client_bridge::disconnected, &dialog, &chat_history_dialog::interrupt_loading);
+    connect(client_.get(), &client_bridge::history_received, &dialog, &chat_history_dialog::set_history);
+    connect(client_.get(),
+            &client_bridge::conversation_changed,
+            &dialog,
+            [&dialog, conversation](qint64 id, bool removed)
+            {
+                if (removed && id == conversation)
+                {
+                    dialog.reject();
+                }
+            });
+    qint64 located = 0;
+    connect(&dialog,
+            &chat_history_dialog::message_activated,
+            &dialog,
+            [&dialog, &located](qint64 message)
+            {
+                located = message;
+                dialog.accept();
+            });
+    dialog.start();
+    if (dialog.exec() == QDialog::Accepted && located > 0)
+    {
+        chat_page_->locate_message(conversation, located);
+    }
+}
+
+void main_window::connect_group_actions()
+{
     connect(chat_page_,
             &chat_widget::direct_conversation_requested,
             this,
@@ -891,188 +1106,9 @@ main_window::main_window(QString server_url, QWidget* parent) : QMainWindow(pare
             this,
             [this](QString title, QList<qint64> members) { client_->create_group(std::move(title), std::move(members)); });
     connect(chat_page_, &chat_widget::group_join_requested, this, [this](QString token) { client_->join_group(std::move(token)); });
-    connect(chat_page_,
-            &chat_widget::members_requested,
-            this,
-            [this](qint64 conversation, qint64 self_user, QString title)
-            {
-                auto const snapshot = chat_page_->conversation(conversation);
-                if (!snapshot || !snapshot->group)
-                {
-                    return;
-                }
-                group_dialog dialog(conversation, self_user, title, snapshot->announcement, snapshot->join_approval, this, &chat_page_->avatars());
-                dialog.set_conversations({*snapshot}, {});
-                connect(&dialog,
-                        &group_dialog::user_requested,
-                        chat_page_,
-                        [this](qint64 user, QString const& name) { chat_page_->show_user_details(user, name); });
-                connect(client_.get(), &client_bridge::members_received, &dialog, &group_dialog::set_members);
-                connect(client_.get(), &client_bridge::group_action_finished, &dialog, &group_dialog::finish_action);
-                connect(client_.get(), &client_bridge::group_invite_received, &dialog, &group_dialog::set_invite);
-                connect(client_.get(), &client_bridge::group_join_requests_received, &dialog, &group_dialog::set_requests);
-                connect(&dialog,
-                        &group_dialog::approval_requested,
-                        &dialog,
-                        [this, conversation](bool required) { client_->set_group_join_approval(conversation, required); });
-                connect(&dialog,
-                        &group_dialog::requests_requested,
-                        &dialog,
-                        [this, conversation](qint64 before) { client_->get_group_join_requests(conversation, before); });
-                connect(&dialog,
-                        &group_dialog::request_response_requested,
-                        &dialog,
-                        [this, conversation](qint64 user, bool accept) { client_->respond_group_join_request(conversation, user, accept); });
-                connect(client_.get(),
-                        &client_bridge::group_join_request_changed,
-                        &dialog,
-                        [&dialog, conversation](qint64 id, qint64, chat::group_join_request_state)
-                        {
-                            if (id == conversation)
-                            {
-                                dialog.refresh_requests();
-                            }
-                        });
-                connect(&dialog,
-                        &group_dialog::invite_link_requested,
-                        &dialog,
-                        [this, conversation](std::optional<bool> create) { client_->group_invite(conversation, create); });
-                connect(
-                    client_.get(),
-                    &client_bridge::disconnected,
-                    &dialog,
-                    [&dialog] { dialog.set_error(QStringLiteral("连接已断开，请重连后重新打开群成员。")); },
-                    Qt::AutoConnection);
-                connect(&dialog,
-                        &group_dialog::admin_requested,
-                        this,
-                        [this, conversation](qint64 user, bool admin) { client_->set_group_admin(conversation, user, admin); });
-                connect(&dialog,
-                        &group_dialog::transfer_requested,
-                        this,
-                        [this, conversation](qint64 user) { client_->transfer_group_owner(conversation, user); });
-                connect(&dialog,
-                        &group_dialog::remove_requested,
-                        this,
-                        [this, conversation](qint64 user) { client_->remove_group_member(conversation, user); });
-                connect(client_.get(),
-                        &client_bridge::conversation_changed,
-                        &dialog,
-                        [&dialog, conversation](qint64 id, bool removed)
-                        {
-                            if (removed && id == conversation)
-                            {
-                                for (auto* child : dialog.findChildren<QDialog*>())
-                                {
-                                    child->reject();
-                                }
-                                dialog.reject();
-                            }
-                        });
-                connect(client_.get(), &client_bridge::contacts_received, &dialog, &group_dialog::set_contacts, Qt::AutoConnection);
-                connect(client_.get(), &client_bridge::conversations_received, &dialog, &group_dialog::set_conversations, Qt::AutoConnection);
-                connect(&dialog,
-                        &group_dialog::rename_requested,
-                        this,
-                        [this, conversation](QString title) { client_->rename_group(conversation, std::move(title)); });
-                connect(&dialog,
-                        &group_dialog::announcement_requested,
-                        this,
-                        [this, conversation](QString text) { client_->set_group_announcement(conversation, std::move(text)); });
-                connect(&dialog,
-                        &group_dialog::invite_requested,
-                        this,
-                        [this, conversation](QList<qint64> members) { client_->invite_group_members(conversation, std::move(members)); });
-                connect(&dialog, &group_dialog::leave_requested, this, [this, conversation] { client_->leave_group(conversation); });
-                client_->get_contacts();
-                client_->get_friend_requests();
-                client_->get_members(conversation);
-                dialog.exec();
-            });
-    connect(chat_page_,
-            &chat_widget::message_search_requested,
-            this,
-            [this](qint64 conversation, qint64 self_user, bool group, QString const& title, QString const& query)
-            {
-                message_search_dialog dialog(conversation, self_user, group, title, query, this, &chat_page_->avatars());
-                connect(&dialog,
-                        &message_search_dialog::search_requested,
-                        &dialog,
-                        [this, conversation](QString query, qint64 before) { client_->search_messages(conversation, std::move(query), before); });
-                connect(client_.get(), &client_bridge::message_search_received, &dialog, &message_search_dialog::set_results, Qt::AutoConnection);
-                connect(client_.get(), &client_bridge::reaction_changed, &dialog, &message_search_dialog::set_reactions, Qt::AutoConnection);
-                connect(client_.get(), &client_bridge::message_updated, &dialog, &message_search_dialog::update_message, Qt::AutoConnection);
-                connect(client_.get(),
-                        &client_bridge::conversation_changed,
-                        &dialog,
-                        [&dialog, conversation](qint64 id, bool removed)
-                        {
-                            if (removed && id == conversation)
-                            {
-                                dialog.reject();
-                            }
-                        });
-                qint64 located = 0;
-                connect(&dialog,
-                        &message_search_dialog::message_activated,
-                        &dialog,
-                        [&dialog, &located](qint64 message)
-                        {
-                            located = message;
-                            dialog.accept();
-                        });
-                if (dialog.exec() == QDialog::Accepted && located > 0)
-                {
-                    chat_page_->locate_message(conversation, located);
-                }
-            });
-    connect(chat_page_,
-            &chat_widget::chat_history_requested,
-            this,
-            [this](qint64 conversation, QString const& title)
-            {
-                chat_history_dialog dialog(conversation, title, this, &chat_page_->avatars());
-                connect(&dialog,
-                        &chat_history_dialog::history_requested,
-                        &dialog,
-                        [this, conversation, &dialog](QString query, qint64 before)
-                        {
-                            if (connected_ && !reconnecting_)
-                            {
-                                client_->get_history(conversation, std::move(query), before);
-                            }
-                            else
-                            {
-                                dialog.interrupt_loading();
-                            }
-                        });
-                connect(client_.get(), &client_bridge::disconnected, &dialog, &chat_history_dialog::interrupt_loading);
-                connect(client_.get(), &client_bridge::history_received, &dialog, &chat_history_dialog::set_history);
-                connect(client_.get(),
-                        &client_bridge::conversation_changed,
-                        &dialog,
-                        [&dialog, conversation](qint64 id, bool removed)
-                        {
-                            if (removed && id == conversation)
-                            {
-                                dialog.reject();
-                            }
-                        });
-                qint64 located = 0;
-                connect(&dialog,
-                        &chat_history_dialog::message_activated,
-                        &dialog,
-                        [&dialog, &located](qint64 message)
-                        {
-                            located = message;
-                            dialog.accept();
-                        });
-                dialog.start();
-                if (dialog.exec() == QDialog::Accepted && located > 0)
-                {
-                    chat_page_->locate_message(conversation, located);
-                }
-            });
+    connect(chat_page_, &chat_widget::members_requested, this, &main_window::show_group_details);
+    connect(chat_page_, &chat_widget::message_search_requested, this, &main_window::show_message_search);
+    connect(chat_page_, &chat_widget::chat_history_requested, this, &main_window::show_chat_history);
     connect(client_.get(),
             &client_bridge::conversation_opened,
             this,
@@ -1156,7 +1192,10 @@ main_window::main_window(QString server_url, QWidget* parent) : QMainWindow(pare
         },
         Qt::AutoConnection);
     connect(client_.get(), &client_bridge::members_received, chat_page_, &chat_widget::set_members);
+}
 
+void main_window::connect_messages()
+{
     connect(chat_page_,
             &chat_widget::conversation_selected,
             this,
@@ -1379,6 +1418,10 @@ main_window::main_window(QString server_url, QWidget* parent) : QMainWindow(pare
             client_->get_conversations();
         },
         Qt::AutoConnection);
+}
+
+void main_window::finish_window_setup()
+{
     update_window_chrome();
     connect(&theme_manager::instance(),
             &theme_manager::changed,

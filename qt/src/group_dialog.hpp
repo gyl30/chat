@@ -17,6 +17,8 @@ class QCheckBox;
 class QTabWidget;
 class QScrollArea;
 
+class QVBoxLayout;
+
 class group_dialog final : public QDialog
 {
     Q_OBJECT
@@ -56,6 +58,14 @@ class group_dialog final : public QDialog
     bool eventFilter(QObject* object, QEvent* event) override;
 
    private:
+    void setup_overview();
+    void setup_management(bool join_approval);
+    void setup_members(QVBoxLayout* outer);
+    void setup_join_requests();
+    void connect_member_actions();
+    void connect_approval_actions();
+    void connect_group_settings();
+
     void update_actions();
 
     avatar_cache* avatars_;

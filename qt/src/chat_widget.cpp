@@ -105,6 +105,29 @@ class pinned_message_button final : public QPushButton
     }
 };
 
+QHBoxLayout* make_contact_header(QDialog* dialog, QString title)
+{
+    auto* header = new QHBoxLayout;
+    header->setContentsMargins(18, 12, 12, 4);
+    auto* label = new QLabel(std::move(title), dialog);
+    label->setObjectName(QStringLiteral("dialogTitle"));
+    header->addWidget(label, 1);
+    auto* close = new QToolButton(dialog);
+    close->setObjectName(QStringLiteral("contactDialogCloseButton"));
+    close->setAccessibleName(QStringLiteral("关闭") + dialog->windowTitle());
+    close->setToolTip(close->accessibleName());
+    close->setFixedSize(40, 40);
+    close->setIcon(svg_icon(u"close", themed("text_secondary"), QSize(20, 20)));
+    close->setCursor(Qt::PointingHandCursor);
+    QObject::connect(close, &QToolButton::clicked, dialog, &QDialog::reject);
+    QObject::connect(&theme_manager::instance(),
+                     &theme_manager::changed,
+                     close,
+                     [close] { close->setIcon(svg_icon(u"close", themed("text_secondary"), QSize(20, 20))); });
+    header->addWidget(close);
+    return header;
+}
+
 QFrame* make_separator(QWidget* parent)
 {
     auto* separator = new QFrame(parent);
@@ -122,6 +145,16 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
+    auto* conversation_panel = create_sidebar();
+    auto* chat_panel = create_chat_panel();
+    layout->addWidget(conversation_panel);
+    layout->addWidget(make_separator(this));
+    layout->addWidget(chat_panel, 1);
+    connect_chat_controls();
+}
+
+QWidget* chat_widget::create_sidebar()
+{
     auto* conversation_panel = new QFrame(this);
     conversation_panel->setObjectName(QStringLiteral("conversationPanel"));
     conversation_panel->setFixedWidth(332);
@@ -215,7 +248,141 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     conversations_view_->setContextMenuPolicy(Qt::CustomContextMenu);
     conversations_view_->verticalScrollBar()->setSingleStep(24);
     conversations_layout->addWidget(conversations_view_, 1);
+    setup_contacts_dialog();
+    setup_add_contact_dialog();
+    setup_friend_requests();
+    notice_ = new feedback_label(conversation_panel);
+    notice_->setObjectName(QStringLiteral("sidebarNotice"));
+    notice_->setWordWrap(true);
+    notice_->hide();
+    conversation_layout->addWidget(notice_);
+    notice_timer_ = new QTimer(this);
+    notice_timer_->setSingleShot(true);
+    notice_timer_->setInterval(6000);
+    connect(notice_timer_,
+            &QTimer::timeout,
+            this,
+            [this]
+            {
+                notice_->clear();
+                notice_->hide();
+                contacts_feedback_->clear();
+                contacts_feedback_->hide();
+            });
+    // Loading is usually instant; saying so only when it is not avoids a flash on every switch.
+    loading_status_timer_ = new QTimer(this);
+    loading_status_timer_->setSingleShot(true);
+    loading_status_timer_->setInterval(400);
+    connect(loading_status_timer_,
+            &QTimer::timeout,
+            this,
+            [this]
+            {
+                if (active_conversation_ > 0 && messages_loading_ && !messages_loaded_)
+                {
+                    set_message_status(QStringLiteral("正在加载消息…"));
+                }
+            });
+    conversation_layout->addWidget(conversations_page, 1);
+    connect(create_group, &QAction::triggered, this, [this] { this->create_group(); });
+    connect(add_friend, &QAction::triggered, this, [this] { show_add_contact_dialog(); });
+    connect(join_group,
+            &QAction::triggered,
+            this,
+            [this]
+            {
+                QInputDialog dialog(this);
+                dialog.setObjectName(QStringLiteral("joinGroupDialog"));
+                dialog.setWindowTitle(QStringLiteral("加入群聊"));
+                dialog.setLabelText(QStringLiteral("输入群主或管理员分享的邀请码"));
+                dialog.setInputMode(QInputDialog::TextInput);
+                dialog.setOkButtonText(QStringLiteral("加入"));
+                dialog.setCancelButtonText(QStringLiteral("取消"));
+                dialog.layout()->setContentsMargins(
+                    chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
+                dialog.layout()->setSpacing(chat_theme::dialog_spacing);
+                auto* buttons = dialog.findChild<QDialogButtonBox*>();
+                buttons->button(QDialogButtonBox::Ok)->setObjectName(QStringLiteral("joinGroupButton"));
+                for (auto* button : buttons->buttons())
+                {
+                    button->setIcon({});
+                    button->style()->unpolish(button);
+                    button->style()->polish(button);
+                }
+                auto* input = dialog.findChild<QLineEdit*>();
+                input->setMinimumWidth(chat_theme::dialog_small_width - 2 * chat_theme::dialog_padding);
+                input->setPlaceholderText(QStringLiteral("例如 K7QM-3XWP"));
+                input->setAccessibleName(QStringLiteral("邀请码"));
+                if (dialog.exec() != QDialog::Accepted || !connection_available_)
+                {
+                    return;
+                }
+                // Any case is accepted, with spaces or a dash between the two groups.
+                auto const token = chat::normalize_invite_token(dialog.textValue().toStdString());
+                if (!token)
+                {
+                    set_error(QStringLiteral("邀请码无效，请检查后重新输入"));
+                    return;
+                }
+                emit group_join_requested(QString::fromStdString(*token));
+            });
+    connect(conversations_delegate, &conversation_delegate::body_clicked, this, [this](QModelIndex const& index) { select_conversation(index); });
+    connect(conversations_view_, &QListView::activated, this, &chat_widget::select_conversation);
+    connect(conversations_view_,
+            &QWidget::customContextMenuRequested,
+            this,
+            [this](QPoint point)
+            {
+                auto const* item = conversations_->conversation_at(conversations_view_->indexAt(point));
+                if (!connection_available_ || !item)
+                {
+                    return;
+                }
+                auto const conversation = item->id;
+                auto const muted = !item->muted;
+                auto const pinned = !item->pinned;
+                QMenu menu(this);
+                menu.addAction(pinned ? QStringLiteral("置顶") : QStringLiteral("取消置顶"),
+                               [this, conversation, pinned]
+                               {
+                                   if (connection_available_ && conversations_->index_for_conversation(conversation).isValid())
+                                   {
+                                       emit pin_requested(conversation, pinned);
+                                   }
+                               });
+                menu.addAction(muted ? QStringLiteral("静音") : QStringLiteral("取消静音"),
+                               [this, conversation, muted]
+                               {
+                                   if (connection_available_ && conversations_->index_for_conversation(conversation).isValid())
+                                   {
+                                       emit mute_requested(conversation, muted);
+                                   }
+                               });
+                menu.exec(conversations_view_->viewport()->mapToGlobal(point));
+            });
+    connect(conversations_delegate,
+            &conversation_delegate::avatar_clicked,
+            this,
+            [this](QModelIndex const& index)
+            {
+                if (auto const* item = conversations_->conversation_at(index))
+                {
+                    if (item->group)
+                    {
+                        open_conversation(*item);
+                        emit members_requested(item->id, self_user_, item->username);
+                    }
+                    else
+                    {
+                        show_user_details(item->user, item->username);
+                    }
+                }
+            });
+    return conversation_panel;
+}
 
+void chat_widget::setup_contacts_dialog()
+{
     contacts_dialog_ = new QDialog(this);
     contacts_dialog_->setObjectName(QStringLiteral("contactsDialog"));
     contacts_dialog_->setWindowTitle(QStringLiteral("联系人"));
@@ -224,32 +391,10 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     contacts_dialog_->setWindowModality(Qt::WindowModal);
     contacts_dialog_->resize(420, 480);
     contacts_dialog_->setMinimumSize(360, 240);
-    auto make_header = [](QDialog* dialog, QString title)
-    {
-        auto* header = new QHBoxLayout;
-        header->setContentsMargins(18, 12, 12, 4);
-        auto* label = new QLabel(std::move(title), dialog);
-        label->setObjectName(QStringLiteral("dialogTitle"));
-        header->addWidget(label, 1);
-        auto* close = new QToolButton(dialog);
-        close->setObjectName(QStringLiteral("contactDialogCloseButton"));
-        close->setAccessibleName(QStringLiteral("关闭") + dialog->windowTitle());
-        close->setToolTip(close->accessibleName());
-        close->setFixedSize(40, 40);
-        close->setIcon(svg_icon(u"close", themed("text_secondary"), QSize(20, 20)));
-        close->setCursor(Qt::PointingHandCursor);
-        connect(close, &QToolButton::clicked, dialog, &QDialog::reject);
-        connect(&theme_manager::instance(),
-                &theme_manager::changed,
-                close,
-                [close] { close->setIcon(svg_icon(u"close", themed("text_secondary"), QSize(20, 20))); });
-        header->addWidget(close);
-        return header;
-    };
     auto* contacts_layout = new QVBoxLayout(contacts_dialog_);
     contacts_layout->setContentsMargins(0, 0, 0, 0);
     contacts_layout->setSpacing(0);
-    auto* contacts_header = make_header(contacts_dialog_, QStringLiteral("联系人"));
+    auto* contacts_header = make_contact_header(contacts_dialog_, QStringLiteral("联系人"));
     contacts_title_ = contacts_dialog_->findChild<QLabel*>(QStringLiteral("dialogTitle"));
     contacts_title_->setObjectName(QStringLiteral("contactsTitle"));
     contacts_back_button_ = new QToolButton(contacts_dialog_);
@@ -387,6 +532,24 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                 contacts_view_->setCurrentIndex(index);
                 contacts_view_->setFocus();
             });
+    connect(contact_search_, &QLineEdit::textChanged, this, [this](QString const& query) { filter_contacts(query); });
+    connect(contacts_delegate, &user_delegate::body_clicked, this, [this](QModelIndex const& index) { select_contact(index); });
+    connect(contacts_view_, &QListView::activated, this, &chat_widget::select_contact);
+    connect(contacts_delegate,
+            &user_delegate::avatar_clicked,
+            this,
+            [this](QModelIndex index)
+            {
+                auto const* user = contacts_->user_at(contacts_filter_->mapToSource(index));
+                if (user)
+                {
+                    show_user_details(user->id, user->username);
+                }
+            });
+}
+
+void chat_widget::setup_add_contact_dialog()
+{
     add_contact_dialog_ = new QDialog(this);
     add_contact_dialog_->setObjectName(QStringLiteral("addContactDialog"));
     add_contact_dialog_->setWindowTitle(QStringLiteral("添加联系人"));
@@ -397,7 +560,7 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     auto* add_contacts_layout = new QVBoxLayout(add_contact_dialog_);
     add_contacts_layout->setContentsMargins(0, 0, 0, 0);
     add_contacts_layout->setSpacing(12);
-    add_contacts_layout->addLayout(make_header(add_contact_dialog_, QStringLiteral("添加联系人")));
+    add_contacts_layout->addLayout(make_contact_header(add_contact_dialog_, QStringLiteral("添加联系人")));
     add_user_search_ = new QLineEdit(add_contact_dialog_);
     add_user_search_->setObjectName(QStringLiteral("userSearchEdit"));
     add_user_search_->setPlaceholderText(QStringLiteral("输入完整用户名或开头部分"));
@@ -474,7 +637,29 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                 add_contact_dialog_->adjustSize();
             });
     connect(add_contact_dialog_, &QDialog::finished, this, [this] { ++add_search_request_; });
+    connect(add_users_delegate,
+            &user_delegate::avatar_clicked,
+            this,
+            [this](QModelIndex const& index)
+            {
+                if (auto const* item = add_users_->user_at(index))
+                {
+                    show_user_details(item->id, item->username);
+                }
+            });
+    connect(add_users_delegate,
+            &user_delegate::body_clicked,
+            this,
+            [this](QModelIndex const& index)
+            {
+                add_users_view_->setCurrentIndex(index);
+                select_add_user(index);
+            });
+    add_users_view_->installEventFilter(this);
+}
 
+void chat_widget::setup_friend_requests()
+{
     auto* requests_page = new QWidget(contacts_pages_);
     auto* requests_layout = new QVBoxLayout(requests_page);
     requests_layout->setContentsMargins(0, 0, 0, 0);
@@ -577,40 +762,10 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
         list->setMouseTracking(true);
         list->installEventFilter(this);
     }
-    notice_ = new feedback_label(conversation_panel);
-    notice_->setObjectName(QStringLiteral("sidebarNotice"));
-    notice_->setWordWrap(true);
-    notice_->hide();
-    conversation_layout->addWidget(notice_);
-    notice_timer_ = new QTimer(this);
-    notice_timer_->setSingleShot(true);
-    notice_timer_->setInterval(6000);
-    connect(notice_timer_,
-            &QTimer::timeout,
-            this,
-            [this]
-            {
-                notice_->clear();
-                notice_->hide();
-                contacts_feedback_->clear();
-                contacts_feedback_->hide();
-            });
-    // Loading is usually instant; saying so only when it is not avoids a flash on every switch.
-    loading_status_timer_ = new QTimer(this);
-    loading_status_timer_->setSingleShot(true);
-    loading_status_timer_->setInterval(400);
-    connect(loading_status_timer_,
-            &QTimer::timeout,
-            this,
-            [this]
-            {
-                if (active_conversation_ > 0 && messages_loading_ && !messages_loaded_)
-                {
-                    set_message_status(QStringLiteral("正在加载消息…"));
-                }
-            });
-    conversation_layout->addWidget(conversations_page, 1);
+}
 
+QWidget* chat_widget::create_chat_panel()
+{
     auto* chat_panel = new QFrame(this);
     chat_panel->setObjectName(QStringLiteral("chatPanel"));
     chat_panel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -618,6 +773,15 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     chat_layout->setContentsMargins(0, 0, 0, 0);
     chat_layout->setSpacing(0);
 
+    setup_chat_header(chat_layout);
+    setup_message_list(chat_layout);
+    setup_composer(chat_layout);
+    return chat_panel;
+}
+
+void chat_widget::setup_chat_header(QVBoxLayout* chat_layout)
+{
+    auto* chat_panel = chat_layout->parentWidget();
     auto* header = new QFrame(chat_panel);
     header->setObjectName(QStringLiteral("chatHeader"));
     auto* header_layout = new QHBoxLayout(header);
@@ -737,7 +901,38 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     message_status_->setAlignment(Qt::AlignCenter);
     message_status_->setContentsMargins(0, 6, 0, 6);
     chat_layout->addWidget(message_status_);
+    connect(chat_title_,
+            &QPushButton::clicked,
+            this,
+            [this]
+            {
+                if (active_conversation_ > 0)
+                {
+                    if (active_group_)
+                    {
+                        emit members_requested(active_conversation_, self_user_, active_username_);
+                    }
+                    else
+                    {
+                        show_user_details(active_peer_, active_username_);
+                    }
+                }
+            });
+    connect(connection_status_,
+            &QToolButton::clicked,
+            this,
+            [this]
+            {
+                if (connection_status_->isEnabled())
+                {
+                    emit reconnect_requested();
+                }
+            });
+}
 
+void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
+{
+    auto* chat_panel = chat_layout->parentWidget();
     messages_ = new message_model(this, &avatars_, &images_);
     messages_view_ = new QListView(chat_panel);
     messages_view_->setObjectName(QStringLiteral("messageList"));
@@ -784,166 +979,52 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
                 reply_bar_->hide();
                 message_edit_->setFocus();
             });
-    connect(
-        messages_view_,
-        &QListView::customContextMenuRequested,
-        this,
-        [this](QPoint position)
-        {
-            auto const index = messages_view_->indexAt(position);
-            if (index.isValid() && index.data(message_model::send_state_role).toInt() != message_model::sent)
+    connect(messages_view_, &QListView::customContextMenuRequested, this, &chat_widget::show_message_menu);
+    connect(messages_delegate,
+            &message_delegate::avatar_clicked,
+            this,
+            [this](QModelIndex const& index)
+            { show_user_details(index.data(message_model::from_role).toLongLong(), index.data(message_model::sender_name_role).toString()); });
+    connect(messages_delegate,
+            &message_delegate::read_details_clicked,
+            this,
+            [this](QModelIndex const& index)
             {
-                show_outgoing_menu(index, position);
-                return;
-            }
-            if (!index.isValid() || !connection_available_ || index.data(message_model::deleted_role).toBool())
-            {
-                return;
-            }
-            QMenu menu(this);
-            auto const message_id = index.data(message_model::id_role).toLongLong();
-            auto const message_text = index.data(message_model::text_role).toString();
-            auto* copy = !message_text.isEmpty() ? menu.addAction(QStringLiteral("复制")) : nullptr;
-            auto* reply = can_send() ? menu.addAction(QStringLiteral("回复")) : nullptr;
-            auto const sender_name = index.data(message_model::sender_name_role).toString();
-            auto const current = conversation(active_conversation_);
-            auto const unpin = current && current->pinned_message.id == message_id;
-            auto* group_pin =
-                messages_->can_manage_group() ? menu.addAction(unpin ? QStringLiteral("取消置顶消息") : QStringLiteral("置顶消息")) : nullptr;
-            auto* picker = can_send() ? menu.addMenu(QStringLiteral("表情回应")) : nullptr;
-            auto const own_reaction = index.data(message_model::own_reaction_role).toString();
-            auto const reaction_index = QPersistentModelIndex(index);
-            auto const conversation = active_conversation_;
-            for (auto emoji : chat::reaction_choices)
-            {
-                if (!picker)
+                if (index.data(message_model::read_count_role).isValid())
                 {
-                    break;
+                    show_read_details(active_conversation_, index.data(message_model::id_role).toLongLong());
                 }
-                auto const text = QString::fromUtf8(emoji.data(), static_cast<qsizetype>(emoji.size()));
-                auto* action = picker->addAction(text);
-                action->setCheckable(true);
-                action->setChecked(text == own_reaction);
-                connect(action,
-                        &QAction::triggered,
-                        &menu,
-                        [this, reaction_index, text, conversation]
-                        {
-                            if (can_send() && conversation == active_conversation_ && reaction_index.isValid() &&
-                                !reaction_index.data(message_model::deleted_role).toBool())
-                            {
-                                emit reaction_requested(conversation,
-                                                        reaction_index.data(message_model::id_role).toLongLong(),
-                                                        text == reaction_index.data(message_model::own_reaction_role).toString() ? QString{} : text);
-                            }
-                        });
-            }
-            auto* readers = index.data(message_model::read_count_role).isValid() ? menu.addAction(QStringLiteral("已读详情")) : nullptr;
-            auto const filename = index.data(message_model::attachment_name_role).toString();
-            auto* download = !filename.isEmpty() ? menu.addAction(QStringLiteral("下载文件")) : nullptr;
-            auto* preview = index.data(message_model::attachment_type_role).toString().startsWith(QStringLiteral("image/"))
-                                ? menu.addAction(QStringLiteral("查看图片"))
-                                : nullptr;
-            auto* edit = can_send() && filename.isEmpty() && index.data(message_model::outgoing_role).toBool()
-                             ? menu.addAction(QStringLiteral("编辑"))
-                             : nullptr;
-            auto* remove = index.data(message_model::outgoing_role).toBool() ? menu.addAction(QStringLiteral("删除")) : nullptr;
-            auto* selected = menu.exec(messages_view_->viewport()->mapToGlobal(position));
-            if (copy && selected == copy)
+            });
+    connect(messages_delegate,
+            &message_delegate::image_clicked,
+            this,
+            [this](QModelIndex const& index)
             {
-                // The text was captured when the menu opened, so later history changes cannot retarget it.
-                QGuiApplication::clipboard()->setText(message_text);
-                return;
-            }
-            if (!connection_available_ || conversation != active_conversation_)
-            {
-                return;
-            }
-            if (group_pin && selected == group_pin)
-            {
-                if (connection_available_ && conversation == active_conversation_ && messages_->can_manage_group())
+                if (connection_available_ && !index.data(message_model::deleted_role).toBool())
                 {
-                    emit group_message_pin_requested(conversation, unpin ? std::nullopt : std::optional<qint64>(message_id));
+                    emit attachment_open_requested(active_conversation_,
+                                                   index.data(message_model::id_role).toLongLong(),
+                                                   index.data(message_model::attachment_name_role).toString(),
+                                                   true);
                 }
-                return;
-            }
-            if (readers && selected == readers)
+            });
+    connect(messages_delegate,
+            &message_delegate::reaction_clicked,
+            this,
+            [this](QModelIndex const& index, QString emoji)
             {
-                show_read_details(conversation, message_id);
-                return;
-            }
-            if ((download && selected == download) || (preview && selected == preview))
-            {
-                emit attachment_open_requested(conversation, message_id, filename, preview && selected == preview);
-                return;
-            }
-            if (remove && selected == remove)
-            {
-                if (confirm_action(
-                        this, QStringLiteral("删除消息"), QStringLiteral("删除后所有成员均显示“消息已删除”。确认删除？"), QStringLiteral("删除")) &&
-                    connection_available_ && conversation == active_conversation_)
+                if (can_send() && !index.data(message_model::deleted_role).toBool())
                 {
-                    emit delete_message_requested(conversation, message_id);
+                    emit reaction_requested(active_conversation_,
+                                            index.data(message_model::id_role).toLongLong(),
+                                            emoji == index.data(message_model::own_reaction_role).toString() ? QString{} : emoji);
                 }
-                return;
-            }
-            if (edit && selected == edit)
-            {
-                if (!can_send() || conversation != active_conversation_)
-                {
-                    return;
-                }
-                QInputDialog dialog(this);
-                dialog.setObjectName(QStringLiteral("editMessageDialog"));
-                dialog.setWindowTitle(QStringLiteral("编辑消息"));
-                dialog.setLabelText(QStringLiteral("消息内容"));
-                dialog.setOption(QInputDialog::UsePlainTextEditForTextInput);
-                dialog.setInputMode(QInputDialog::TextInput);
-                dialog.setTextValue(message_text);
-                dialog.setOkButtonText(QStringLiteral("保存"));
-                dialog.setCancelButtonText(QStringLiteral("取消"));
-                dialog.layout()->setContentsMargins(
-                    chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
-                dialog.layout()->setSpacing(chat_theme::dialog_spacing);
-                auto* editor = dialog.findChild<QPlainTextEdit*>();
-                editor->setObjectName(QStringLiteral("editMessageText"));
-                editor->setAccessibleName(QStringLiteral("消息内容"));
-                editor->setMinimumWidth(chat_theme::dialog_normal_width - 2 * chat_theme::dialog_padding);
-                editor->setMinimumHeight(200);
-                editor->setLineWrapMode(QPlainTextEdit::WidgetWidth);
-                editor->setTabChangesFocus(true);
-                editor->style()->unpolish(editor);
-                editor->style()->polish(editor);
-                new emoji_highlighter(editor);
-                auto* buttons = dialog.findChild<QDialogButtonBox*>();
-                buttons->button(QDialogButtonBox::Ok)->setObjectName(QStringLiteral("editMessageButton"));
-                for (auto* button : buttons->buttons())
-                {
-                    button->setIcon({});
-                    button->style()->unpolish(button);
-                    button->style()->polish(button);
-                }
-                if (dialog.exec() != QDialog::Accepted)
-                {
-                    return;
-                }
-                auto text = dialog.textValue();
-                if (!text.isEmpty() && can_send() && conversation == active_conversation_)
-                {
-                    emit edit_message_requested(conversation, message_id, std::move(text));
-                }
-                return;
-            }
-            if (!reply || selected != reply || !can_send())
-            {
-                return;
-            }
-            reply_to_ = message_id;
-            reply_preview_->setText(QStringLiteral("回复 %1：%2").arg(sender_name, grapheme_prefix(message_text, 80)));
-            reply_bar_->show();
-            message_edit_->setFocus();
-        });
+            });
+}
 
+void chat_widget::setup_composer(QVBoxLayout* chat_layout)
+{
+    auto* chat_panel = chat_layout->parentWidget();
     auto* input_separator = new QFrame(chat_panel);
     input_separator->setFrameShape(QFrame::HLine);
     input_separator->setObjectName(QStringLiteral("horizontalSeparator"));
@@ -1087,10 +1168,164 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
     send_button_->setCursor(Qt::PointingHandCursor);
     input_layout->addWidget(send_button_, 0, Qt::AlignBottom);
     chat_layout->addWidget(input_bar);
+}
 
-    layout->addWidget(conversation_panel);
-    layout->addWidget(make_separator(this));
-    layout->addWidget(chat_panel, 1);
+void chat_widget::show_message_menu(QPoint position)
+{
+    auto const index = messages_view_->indexAt(position);
+    if (index.isValid() && index.data(message_model::send_state_role).toInt() != message_model::sent)
+    {
+        show_outgoing_menu(index, position);
+        return;
+    }
+    if (!index.isValid() || !connection_available_ || index.data(message_model::deleted_role).toBool())
+    {
+        return;
+    }
+    QMenu menu(this);
+    auto const message_id = index.data(message_model::id_role).toLongLong();
+    auto const message_text = index.data(message_model::text_role).toString();
+    auto* copy = !message_text.isEmpty() ? menu.addAction(QStringLiteral("复制")) : nullptr;
+    auto* reply = can_send() ? menu.addAction(QStringLiteral("回复")) : nullptr;
+    auto const sender_name = index.data(message_model::sender_name_role).toString();
+    auto const current = conversation(active_conversation_);
+    auto const unpin = current && current->pinned_message.id == message_id;
+    auto* group_pin = messages_->can_manage_group() ? menu.addAction(unpin ? QStringLiteral("取消置顶消息") : QStringLiteral("置顶消息")) : nullptr;
+    auto* picker = can_send() ? menu.addMenu(QStringLiteral("表情回应")) : nullptr;
+    auto const own_reaction = index.data(message_model::own_reaction_role).toString();
+    auto const reaction_index = QPersistentModelIndex(index);
+    auto const conversation = active_conversation_;
+    for (auto emoji : chat::reaction_choices)
+    {
+        if (!picker)
+        {
+            break;
+        }
+        auto const text = QString::fromUtf8(emoji.data(), static_cast<qsizetype>(emoji.size()));
+        auto* action = picker->addAction(text);
+        action->setCheckable(true);
+        action->setChecked(text == own_reaction);
+        connect(action,
+                &QAction::triggered,
+                &menu,
+                [this, reaction_index, text, conversation]
+                {
+                    if (can_send() && conversation == active_conversation_ && reaction_index.isValid() &&
+                        !reaction_index.data(message_model::deleted_role).toBool())
+                    {
+                        emit reaction_requested(conversation,
+                                                reaction_index.data(message_model::id_role).toLongLong(),
+                                                text == reaction_index.data(message_model::own_reaction_role).toString() ? QString{} : text);
+                    }
+                });
+    }
+    auto* readers = index.data(message_model::read_count_role).isValid() ? menu.addAction(QStringLiteral("已读详情")) : nullptr;
+    auto const filename = index.data(message_model::attachment_name_role).toString();
+    auto* download = !filename.isEmpty() ? menu.addAction(QStringLiteral("下载文件")) : nullptr;
+    auto* preview = index.data(message_model::attachment_type_role).toString().startsWith(QStringLiteral("image/"))
+                        ? menu.addAction(QStringLiteral("查看图片"))
+                        : nullptr;
+    auto* edit =
+        can_send() && filename.isEmpty() && index.data(message_model::outgoing_role).toBool() ? menu.addAction(QStringLiteral("编辑")) : nullptr;
+    auto* remove = index.data(message_model::outgoing_role).toBool() ? menu.addAction(QStringLiteral("删除")) : nullptr;
+    auto* selected = menu.exec(messages_view_->viewport()->mapToGlobal(position));
+    if (copy && selected == copy)
+    {
+        // The text was captured when the menu opened, so later history changes cannot retarget it.
+        QGuiApplication::clipboard()->setText(message_text);
+        return;
+    }
+    if (!connection_available_ || conversation != active_conversation_)
+    {
+        return;
+    }
+    if (group_pin && selected == group_pin)
+    {
+        if (connection_available_ && conversation == active_conversation_ && messages_->can_manage_group())
+        {
+            emit group_message_pin_requested(conversation, unpin ? std::nullopt : std::optional<qint64>(message_id));
+        }
+        return;
+    }
+    if (readers && selected == readers)
+    {
+        show_read_details(conversation, message_id);
+        return;
+    }
+    if ((download && selected == download) || (preview && selected == preview))
+    {
+        emit attachment_open_requested(conversation, message_id, filename, preview && selected == preview);
+        return;
+    }
+    if (remove && selected == remove)
+    {
+        if (confirm_action(
+                this, QStringLiteral("删除消息"), QStringLiteral("删除后所有成员均显示“消息已删除”。确认删除？"), QStringLiteral("删除")) &&
+            connection_available_ && conversation == active_conversation_)
+        {
+            emit delete_message_requested(conversation, message_id);
+        }
+        return;
+    }
+    if (edit && selected == edit)
+    {
+        if (!can_send() || conversation != active_conversation_)
+        {
+            return;
+        }
+        QInputDialog dialog(this);
+        dialog.setObjectName(QStringLiteral("editMessageDialog"));
+        dialog.setWindowTitle(QStringLiteral("编辑消息"));
+        dialog.setLabelText(QStringLiteral("消息内容"));
+        dialog.setOption(QInputDialog::UsePlainTextEditForTextInput);
+        dialog.setInputMode(QInputDialog::TextInput);
+        dialog.setTextValue(message_text);
+        dialog.setOkButtonText(QStringLiteral("保存"));
+        dialog.setCancelButtonText(QStringLiteral("取消"));
+        dialog.layout()->setContentsMargins(
+            chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
+        dialog.layout()->setSpacing(chat_theme::dialog_spacing);
+        auto* editor = dialog.findChild<QPlainTextEdit*>();
+        editor->setObjectName(QStringLiteral("editMessageText"));
+        editor->setAccessibleName(QStringLiteral("消息内容"));
+        editor->setMinimumWidth(chat_theme::dialog_normal_width - 2 * chat_theme::dialog_padding);
+        editor->setMinimumHeight(200);
+        editor->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+        editor->setTabChangesFocus(true);
+        editor->style()->unpolish(editor);
+        editor->style()->polish(editor);
+        new emoji_highlighter(editor);
+        auto* buttons = dialog.findChild<QDialogButtonBox*>();
+        buttons->button(QDialogButtonBox::Ok)->setObjectName(QStringLiteral("editMessageButton"));
+        for (auto* button : buttons->buttons())
+        {
+            button->setIcon({});
+            button->style()->unpolish(button);
+            button->style()->polish(button);
+        }
+        if (dialog.exec() != QDialog::Accepted)
+        {
+            return;
+        }
+        auto text = dialog.textValue();
+        if (!text.isEmpty() && can_send() && conversation == active_conversation_)
+        {
+            emit edit_message_requested(conversation, message_id, std::move(text));
+        }
+        return;
+    }
+    if (!reply || selected != reply || !can_send())
+    {
+        return;
+    }
+    reply_to_ = message_id;
+    reply_preview_->setText(QStringLiteral("回复 %1：%2").arg(sender_name, grapheme_prefix(message_text, 80)));
+    reply_bar_->show();
+    message_edit_->setFocus();
+}
+
+void chat_widget::connect_chat_controls()
+{
     connect(conversation_search_, &QLineEdit::textChanged, this, [this] { filter_conversations(); });
     connect(conversations_,
             &QAbstractItemModel::modelReset,
@@ -1129,203 +1364,6 @@ chat_widget::chat_widget(QWidget* parent) : QWidget(parent), avatars_(this)
             });
     connect(chats_action_, &QAction::triggered, this, [this] { show_conversations_section(); });
     connect(contacts_action_, &QAction::triggered, this, [this] { show_contacts_dialog(); });
-    connect(create_group, &QAction::triggered, this, [this] { this->create_group(); });
-    connect(add_friend, &QAction::triggered, this, [this] { show_add_contact_dialog(); });
-    connect(join_group,
-            &QAction::triggered,
-            this,
-            [this]
-            {
-                QInputDialog dialog(this);
-                dialog.setObjectName(QStringLiteral("joinGroupDialog"));
-                dialog.setWindowTitle(QStringLiteral("加入群聊"));
-                dialog.setLabelText(QStringLiteral("输入群主或管理员分享的邀请码"));
-                dialog.setInputMode(QInputDialog::TextInput);
-                dialog.setOkButtonText(QStringLiteral("加入"));
-                dialog.setCancelButtonText(QStringLiteral("取消"));
-                dialog.layout()->setContentsMargins(
-                    chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
-                dialog.layout()->setSpacing(chat_theme::dialog_spacing);
-                auto* buttons = dialog.findChild<QDialogButtonBox*>();
-                buttons->button(QDialogButtonBox::Ok)->setObjectName(QStringLiteral("joinGroupButton"));
-                for (auto* button : buttons->buttons())
-                {
-                    button->setIcon({});
-                    button->style()->unpolish(button);
-                    button->style()->polish(button);
-                }
-                auto* input = dialog.findChild<QLineEdit*>();
-                input->setMinimumWidth(chat_theme::dialog_small_width - 2 * chat_theme::dialog_padding);
-                input->setPlaceholderText(QStringLiteral("例如 K7QM-3XWP"));
-                input->setAccessibleName(QStringLiteral("邀请码"));
-                if (dialog.exec() != QDialog::Accepted || !connection_available_)
-                {
-                    return;
-                }
-                // Any case is accepted, with spaces or a dash between the two groups.
-                auto const token = chat::normalize_invite_token(dialog.textValue().toStdString());
-                if (!token)
-                {
-                    set_error(QStringLiteral("邀请码无效，请检查后重新输入"));
-                    return;
-                }
-                emit group_join_requested(QString::fromStdString(*token));
-            });
-    connect(contact_search_, &QLineEdit::textChanged, this, [this](QString const& query) { filter_contacts(query); });
-    connect(contacts_delegate, &user_delegate::body_clicked, this, [this](QModelIndex const& index) { select_contact(index); });
-    connect(contacts_view_, &QListView::activated, this, &chat_widget::select_contact);
-    connect(contacts_delegate,
-            &user_delegate::avatar_clicked,
-            this,
-            [this](QModelIndex index)
-            {
-                auto const* user = contacts_->user_at(contacts_filter_->mapToSource(index));
-                if (user)
-                {
-                    show_user_details(user->id, user->username);
-                }
-            });
-    if (auto* delegate = qobject_cast<user_delegate*>(add_users_view_->itemDelegate()))
-    {
-        connect(delegate,
-                &user_delegate::avatar_clicked,
-                this,
-                [this](QModelIndex const& index)
-                {
-                    if (auto const* item = add_users_->user_at(index))
-                    {
-                        show_user_details(item->id, item->username);
-                    }
-                });
-        connect(delegate,
-                &user_delegate::body_clicked,
-                this,
-                [this](QModelIndex const& index)
-                {
-                    add_users_view_->setCurrentIndex(index);
-                    select_add_user(index);
-                });
-    }
-    add_users_view_->installEventFilter(this);
-    connect(conversations_delegate, &conversation_delegate::body_clicked, this, [this](QModelIndex const& index) { select_conversation(index); });
-    connect(conversations_view_, &QListView::activated, this, &chat_widget::select_conversation);
-    connect(conversations_view_,
-            &QWidget::customContextMenuRequested,
-            this,
-            [this](QPoint point)
-            {
-                auto const* item = conversations_->conversation_at(conversations_view_->indexAt(point));
-                if (!connection_available_ || !item)
-                {
-                    return;
-                }
-                auto const conversation = item->id;
-                auto const muted = !item->muted;
-                auto const pinned = !item->pinned;
-                QMenu menu(this);
-                menu.addAction(pinned ? QStringLiteral("置顶") : QStringLiteral("取消置顶"),
-                               [this, conversation, pinned]
-                               {
-                                   if (connection_available_ && conversations_->index_for_conversation(conversation).isValid())
-                                   {
-                                       emit pin_requested(conversation, pinned);
-                                   }
-                               });
-                menu.addAction(muted ? QStringLiteral("静音") : QStringLiteral("取消静音"),
-                               [this, conversation, muted]
-                               {
-                                   if (connection_available_ && conversations_->index_for_conversation(conversation).isValid())
-                                   {
-                                       emit mute_requested(conversation, muted);
-                                   }
-                               });
-                menu.exec(conversations_view_->viewport()->mapToGlobal(point));
-            });
-    connect(conversations_delegate,
-            &conversation_delegate::avatar_clicked,
-            this,
-            [this](QModelIndex const& index)
-            {
-                if (auto const* item = conversations_->conversation_at(index))
-                {
-                    if (item->group)
-                    {
-                        open_conversation(*item);
-                        emit members_requested(item->id, self_user_, item->username);
-                    }
-                    else
-                    {
-                        show_user_details(item->user, item->username);
-                    }
-                }
-            });
-    connect(messages_delegate,
-            &message_delegate::avatar_clicked,
-            this,
-            [this](QModelIndex const& index)
-            { show_user_details(index.data(message_model::from_role).toLongLong(), index.data(message_model::sender_name_role).toString()); });
-    connect(messages_delegate,
-            &message_delegate::read_details_clicked,
-            this,
-            [this](QModelIndex const& index)
-            {
-                if (index.data(message_model::read_count_role).isValid())
-                {
-                    show_read_details(active_conversation_, index.data(message_model::id_role).toLongLong());
-                }
-            });
-    connect(messages_delegate,
-            &message_delegate::image_clicked,
-            this,
-            [this](QModelIndex const& index)
-            {
-                if (connection_available_ && !index.data(message_model::deleted_role).toBool())
-                {
-                    emit attachment_open_requested(active_conversation_,
-                                                   index.data(message_model::id_role).toLongLong(),
-                                                   index.data(message_model::attachment_name_role).toString(),
-                                                   true);
-                }
-            });
-    connect(messages_delegate,
-            &message_delegate::reaction_clicked,
-            this,
-            [this](QModelIndex const& index, QString emoji)
-            {
-                if (can_send() && !index.data(message_model::deleted_role).toBool())
-                {
-                    emit reaction_requested(active_conversation_,
-                                            index.data(message_model::id_role).toLongLong(),
-                                            emoji == index.data(message_model::own_reaction_role).toString() ? QString{} : emoji);
-                }
-            });
-    connect(chat_title_,
-            &QPushButton::clicked,
-            this,
-            [this]
-            {
-                if (active_conversation_ > 0)
-                {
-                    if (active_group_)
-                    {
-                        emit members_requested(active_conversation_, self_user_, active_username_);
-                    }
-                    else
-                    {
-                        show_user_details(active_peer_, active_username_);
-                    }
-                }
-            });
-    connect(connection_status_,
-            &QToolButton::clicked,
-            this,
-            [this]
-            {
-                if (connection_status_->isEnabled())
-                {
-                    emit reconnect_requested();
-                }
-            });
     connect(send_button_, &QToolButton::clicked, this, [this] { send_current_message(); });
     typing_idle_timer_ = new QTimer(this);
     typing_idle_timer_->setSingleShot(true);
@@ -2607,10 +2645,7 @@ bool chat_widget::is_contact(qint64 user) const
     return false;
 }
 
-bool chat_widget::can_send() const
-{
-    return connection_available_ && conversation(active_conversation_).has_value();
-}
+bool chat_widget::can_send() const { return connection_available_ && conversation(active_conversation_).has_value(); }
 
 void chat_widget::update_compose_state()
 {

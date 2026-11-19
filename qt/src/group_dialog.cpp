@@ -50,6 +50,22 @@ group_dialog::group_dialog(qint64 conversation,
     tabs_ = new QTabWidget(this);
     tabs_->setObjectName(QStringLiteral("groupTabs"));
     outer->addWidget(tabs_, 1);
+    setup_overview();
+    setup_management(join_approval);
+    setup_members(outer);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
+    buttons->button(QDialogButtonBox::Close)->setText(QStringLiteral("关闭"));
+    buttons->button(QDialogButtonBox::Close)->setIcon({});
+    outer->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect_member_actions();
+    connect_approval_actions();
+    connect_group_settings();
+    update_actions();
+}
+
+void group_dialog::setup_overview()
+{
     auto* overview_scroll = new QScrollArea(tabs_);
     overview_scroll->setObjectName(QStringLiteral("groupOverviewScroll"));
     overview_scroll->setWidgetResizable(true);
@@ -66,11 +82,11 @@ group_dialog::group_dialog(qint64 conversation,
     overview_avatar_ = new QLabel(overview);
     overview_avatar_->setObjectName(QStringLiteral("groupOverviewAvatar"));
     overview_avatar_->setFixedSize(64, 64);
-    overview_avatar_->setPixmap(avatar_icon(title, 64).pixmap(64));
+    overview_avatar_->setPixmap(avatar_icon(title_, 64).pixmap(64));
     identity->addWidget(overview_avatar_);
     auto* identity_text = new QVBoxLayout;
     identity_text->setSpacing(4);
-    overview_title_ = new QLabel(title, overview);
+    overview_title_ = new QLabel(title_, overview);
     overview_title_->setObjectName(QStringLiteral("groupOverviewTitle"));
     overview_title_->setTextFormat(Qt::PlainText);
     overview_title_->setWordWrap(true);
@@ -84,9 +100,9 @@ group_dialog::group_dialog(qint64 conversation,
     auto* announcement_heading = new QLabel(QStringLiteral("群公告"), overview);
     announcement_heading->setObjectName(QStringLiteral("groupSectionHeading"));
     overview_layout->addWidget(announcement_heading);
-    overview_announcement_ = new QLabel(announcement.isEmpty() ? QStringLiteral("暂无公告") : announcement, overview);
+    overview_announcement_ = new QLabel(announcement_.isEmpty() ? QStringLiteral("暂无公告") : announcement_, overview);
     overview_announcement_->setObjectName(QStringLiteral("groupOverviewAnnouncement"));
-    overview_announcement_->setProperty("empty", announcement.isEmpty());
+    overview_announcement_->setProperty("empty", announcement_.isEmpty());
     overview_announcement_->setTextFormat(Qt::PlainText);
     overview_announcement_->setWordWrap(true);
     overview_announcement_->setMaximumHeight(120);
@@ -94,7 +110,7 @@ group_dialog::group_dialog(qint64 conversation,
     overview_layout->addWidget(overview_announcement_);
     read_announcement_button_ = new QPushButton(QStringLiteral("查看完整公告"), overview);
     read_announcement_button_->setObjectName(QStringLiteral("groupReadAnnouncementButton"));
-    read_announcement_button_->setVisible(!announcement.isEmpty());
+    read_announcement_button_->setVisible(!announcement_.isEmpty());
     overview_layout->addWidget(read_announcement_button_, 0, Qt::AlignLeft);
     connect(read_announcement_button_,
             &QPushButton::clicked,
@@ -158,6 +174,16 @@ group_dialog::group_dialog(qint64 conversation,
     overview_layout->addLayout(overview_actions);
     connect(manage_button_, &QPushButton::clicked, this, [this] { tabs_->setCurrentWidget(management_scroll_); });
     tabs_->addTab(overview_scroll, QStringLiteral("群资料"));
+    leave_button_ = new QPushButton(QStringLiteral("退出群聊"), this);
+    leave_button_->setObjectName(QStringLiteral("groupLeaveButton"));
+    leave_button_->setAutoDefault(false);
+    overview_layout->addSpacing(chat_theme::dialog_spacing);
+    overview_layout->addWidget(leave_button_, 0, Qt::AlignLeft);
+    overview_layout->addStretch();
+}
+
+void group_dialog::setup_management(bool join_approval)
+{
     management_scroll_ = new QScrollArea(tabs_);
     management_scroll_->setObjectName(QStringLiteral("groupManagementScroll"));
     management_scroll_->setWidgetResizable(true);
@@ -172,7 +198,7 @@ group_dialog::group_dialog(qint64 conversation,
     name_heading->setObjectName(QStringLiteral("groupSectionHeading"));
     layout->addWidget(name_heading);
     auto* name_row = new QHBoxLayout;
-    title_edit_ = new QLineEdit(title, this);
+    title_edit_ = new QLineEdit(title_, this);
     title_edit_->setObjectName(QStringLiteral("groupTitleEdit"));
     title_edit_->setPlaceholderText(QStringLiteral("群名称"));
     title_edit_->setAccessibleName(QStringLiteral("群名称"));
@@ -185,7 +211,7 @@ group_dialog::group_dialog(qint64 conversation,
     auto* edit_announcement_heading = new QLabel(QStringLiteral("群公告 · 纯文本，最多 4 KiB"), management);
     edit_announcement_heading->setObjectName(QStringLiteral("groupSectionHeading"));
     layout->addWidget(edit_announcement_heading);
-    announcement_edit_ = new QPlainTextEdit(announcement, this);
+    announcement_edit_ = new QPlainTextEdit(announcement_, this);
     announcement_edit_->setObjectName(QStringLiteral("groupAnnouncementEdit"));
     announcement_edit_->setPlaceholderText(QStringLiteral("暂无公告"));
     announcement_edit_->setAccessibleName(QStringLiteral("群公告"));
@@ -237,41 +263,16 @@ group_dialog::group_dialog(qint64 conversation,
     invite_layout->addLayout(invite_row);
     layout->addWidget(invite_controls_);
     layout->addStretch();
+}
+
+void group_dialog::setup_members(QVBoxLayout* outer)
+{
     auto* members_page = new QWidget(tabs_);
     auto* members_layout = new QVBoxLayout(members_page);
     members_layout->setContentsMargins(0, 0, 0, 0);
     members_layout->setSpacing(chat_theme::dialog_spacing);
     tabs_->addTab(members_page, QStringLiteral("成员"));
-    auto* requests_page = new QWidget(tabs_);
-    auto* requests_layout = new QVBoxLayout(requests_page);
-    requests_layout->setContentsMargins(0, 0, 0, 0);
-    requests_status_ = new QLabel(QStringLiteral("正在加载申请…"), requests_page);
-    requests_status_->setObjectName(QStringLiteral("groupJoinRequestsStatus"));
-    requests_status_->setWordWrap(true);
-    requests_status_->setContentsMargins(chat_theme::dialog_padding, 16, chat_theme::dialog_padding, 8);
-    requests_layout->addWidget(requests_status_);
-    requests_ = new QListWidget(requests_page);
-    requests_->setObjectName(QStringLiteral("groupJoinRequestsList"));
-    requests_layout->addWidget(requests_, 1);
-    auto* decisions = new QHBoxLayout;
-    decisions->setContentsMargins(16, 0, 16, 0);
-    decisions->setSpacing(chat_theme::dialog_spacing);
-    decisions->addStretch();
-    accept_request_button_ = new QPushButton(QStringLiteral("通过申请"), requests_page);
-    accept_request_button_->setObjectName(QStringLiteral("groupAcceptRequestButton"));
-    reject_request_button_ = new QPushButton(QStringLiteral("拒绝申请"), requests_page);
-    reject_request_button_->setObjectName(QStringLiteral("groupRejectRequestButton"));
-    for (auto* button : {accept_request_button_, reject_request_button_})
-    {
-        button->setAutoDefault(false);
-        decisions->addWidget(button);
-    }
-    requests_layout->addLayout(decisions);
-    more_requests_button_ = new QPushButton(QStringLiteral("加载更多申请"), requests_page);
-    more_requests_button_->setObjectName(QStringLiteral("groupMoreRequestsButton"));
-    more_requests_button_->setAutoDefault(false);
-    requests_layout->addWidget(more_requests_button_);
-    tabs_->addTab(requests_page, QStringLiteral("入群申请"));
+    setup_join_requests();
     tabs_->addTab(management_scroll_, QStringLiteral("管理"));
     list_ = new QListWidget(this);
     list_->setObjectName(QStringLiteral("groupMembersList"));
@@ -349,17 +350,44 @@ group_dialog::group_dialog(qint64 conversation,
     invite_button_->setAutoDefault(false);
     remove_button_->hide();
     members_layout->addWidget(invite_button_);
-    leave_button_ = new QPushButton(QStringLiteral("退出群聊"), this);
-    leave_button_->setObjectName(QStringLiteral("groupLeaveButton"));
-    leave_button_->setAutoDefault(false);
-    overview_layout->addSpacing(chat_theme::dialog_spacing);
-    overview_layout->addWidget(leave_button_, 0, Qt::AlignLeft);
-    overview_layout->addStretch();
-    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
-    buttons->button(QDialogButtonBox::Close)->setText(QStringLiteral("关闭"));
-    buttons->button(QDialogButtonBox::Close)->setIcon({});
-    outer->addWidget(buttons);
-    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+}
+
+void group_dialog::setup_join_requests()
+{
+    auto* requests_page = new QWidget(tabs_);
+    auto* requests_layout = new QVBoxLayout(requests_page);
+    requests_layout->setContentsMargins(0, 0, 0, 0);
+    requests_status_ = new QLabel(QStringLiteral("正在加载申请…"), requests_page);
+    requests_status_->setObjectName(QStringLiteral("groupJoinRequestsStatus"));
+    requests_status_->setWordWrap(true);
+    requests_status_->setContentsMargins(chat_theme::dialog_padding, 16, chat_theme::dialog_padding, 8);
+    requests_layout->addWidget(requests_status_);
+    requests_ = new QListWidget(requests_page);
+    requests_->setObjectName(QStringLiteral("groupJoinRequestsList"));
+    requests_layout->addWidget(requests_, 1);
+    auto* decisions = new QHBoxLayout;
+    decisions->setContentsMargins(16, 0, 16, 0);
+    decisions->setSpacing(chat_theme::dialog_spacing);
+    decisions->addStretch();
+    accept_request_button_ = new QPushButton(QStringLiteral("通过申请"), requests_page);
+    accept_request_button_->setObjectName(QStringLiteral("groupAcceptRequestButton"));
+    reject_request_button_ = new QPushButton(QStringLiteral("拒绝申请"), requests_page);
+    reject_request_button_->setObjectName(QStringLiteral("groupRejectRequestButton"));
+    for (auto* button : {accept_request_button_, reject_request_button_})
+    {
+        button->setAutoDefault(false);
+        decisions->addWidget(button);
+    }
+    requests_layout->addLayout(decisions);
+    more_requests_button_ = new QPushButton(QStringLiteral("加载更多申请"), requests_page);
+    more_requests_button_->setObjectName(QStringLiteral("groupMoreRequestsButton"));
+    more_requests_button_->setAutoDefault(false);
+    requests_layout->addWidget(more_requests_button_);
+    tabs_->addTab(requests_page, QStringLiteral("入群申请"));
+}
+
+void group_dialog::connect_member_actions()
+{
     connect(list_, &QListWidget::currentRowChanged, this, [this] { update_actions(); });
     list_->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(list_,
@@ -435,46 +463,6 @@ group_dialog::group_dialog(qint64 conversation,
                     emit user_requested(members_[row].id, members_[row].username);
                 }
             });
-    connect(requests_, &QListWidget::currentRowChanged, this, [this] { update_actions(); });
-    connect(approval_,
-            &QCheckBox::clicked,
-            this,
-            [this](bool required)
-            {
-                approval_->setChecked(!required);
-                pending_ = true;
-                update_actions();
-                emit approval_requested(required);
-            });
-    connect(accept_request_button_,
-            &QPushButton::clicked,
-            this,
-            [this]
-            {
-                auto const user = requests_->currentItem()->data(Qt::UserRole).toLongLong();
-                pending_ = true;
-                update_actions();
-                emit request_response_requested(user, true);
-            });
-    connect(reject_request_button_,
-            &QPushButton::clicked,
-            this,
-            [this]
-            {
-                auto const user = requests_->currentItem()->data(Qt::UserRole).toLongLong();
-                pending_ = true;
-                update_actions();
-                emit request_response_requested(user, false);
-            });
-    connect(more_requests_button_,
-            &QPushButton::clicked,
-            this,
-            [this]
-            {
-                pending_ = true;
-                update_actions();
-                emit requests_requested(next_request_);
-            });
     connect(admin_button_,
             &QPushButton::clicked,
             this,
@@ -488,72 +476,6 @@ group_dialog::group_dialog(qint64 conversation,
                 pending_ = true;
                 update_actions();
                 emit admin_requested(members_[row].id, members_[row].role != chat::member_role::admin);
-            });
-    connect(title_edit_, &QLineEdit::textChanged, this, [this] { update_actions(); });
-    connect(announcement_edit_, &QPlainTextEdit::textChanged, this, [this] { update_actions(); });
-    connect(create_invite_button_,
-            &QPushButton::clicked,
-            this,
-            [this]
-            {
-                pending_ = true;
-                update_actions();
-                emit invite_link_requested(true);
-            });
-    connect(revoke_invite_button_,
-            &QPushButton::clicked,
-            this,
-            [this]
-            {
-                pending_ = true;
-                update_actions();
-                emit invite_link_requested(false);
-            });
-    connect(copy_invite_button_, &QPushButton::clicked, this, [this] { QGuiApplication::clipboard()->setText(invite_edit_->text()); });
-    connect(overview_copy_invite_,
-            &QPushButton::clicked,
-            this,
-            [this]
-            {
-                if (!invite_edit_->text().isEmpty())
-                {
-                    QGuiApplication::clipboard()->setText(invite_edit_->text());
-                    status_->setText(QStringLiteral("已复制邀请码。发给朋友后，对方在「+ → 加入群聊」中输入即可加入。"));
-                    update_actions();
-                    return;
-                }
-                copy_after_create_ = true;
-                pending_ = true;
-                update_actions();
-                emit invite_link_requested(true);
-            });
-    connect(announcement_button_,
-            &QPushButton::clicked,
-            this,
-            [this]
-            {
-                pending_ = true;
-                update_actions();
-                auto const text = announcement_edit_->toPlainText();
-                if (chat::text_is_blank(text.toUtf8().toStdString()))
-                {
-                    announcement_edit_->clear();
-                    emit announcement_requested({});
-                }
-                else
-                {
-                    emit announcement_requested(text);
-                }
-            });
-    connect(clear_announcement_button_,
-            &QPushButton::clicked,
-            this,
-            [this]
-            {
-                announcement_edit_->clear();
-                pending_ = true;
-                update_actions();
-                emit announcement_requested({});
             });
     connect(transfer_button_,
             &QPushButton::clicked,
@@ -588,15 +510,6 @@ group_dialog::group_dialog(qint64 conversation,
                     update_actions();
                     emit remove_requested(target.id);
                 }
-            });
-    connect(rename_button_,
-            &QPushButton::clicked,
-            this,
-            [this]
-            {
-                pending_ = true;
-                update_actions();
-                emit rename_requested(title_edit_->text());
             });
     connect(invite_button_,
             &QPushButton::clicked,
@@ -687,7 +600,129 @@ group_dialog::group_dialog(qint64 conversation,
                     emit leave_requested();
                 }
             });
-    update_actions();
+}
+
+void group_dialog::connect_approval_actions()
+{
+    connect(requests_, &QListWidget::currentRowChanged, this, [this] { update_actions(); });
+    connect(approval_,
+            &QCheckBox::clicked,
+            this,
+            [this](bool required)
+            {
+                approval_->setChecked(!required);
+                pending_ = true;
+                update_actions();
+                emit approval_requested(required);
+            });
+    connect(accept_request_button_,
+            &QPushButton::clicked,
+            this,
+            [this]
+            {
+                auto const user = requests_->currentItem()->data(Qt::UserRole).toLongLong();
+                pending_ = true;
+                update_actions();
+                emit request_response_requested(user, true);
+            });
+    connect(reject_request_button_,
+            &QPushButton::clicked,
+            this,
+            [this]
+            {
+                auto const user = requests_->currentItem()->data(Qt::UserRole).toLongLong();
+                pending_ = true;
+                update_actions();
+                emit request_response_requested(user, false);
+            });
+    connect(more_requests_button_,
+            &QPushButton::clicked,
+            this,
+            [this]
+            {
+                pending_ = true;
+                update_actions();
+                emit requests_requested(next_request_);
+            });
+}
+
+void group_dialog::connect_group_settings()
+{
+    connect(title_edit_, &QLineEdit::textChanged, this, [this] { update_actions(); });
+    connect(announcement_edit_, &QPlainTextEdit::textChanged, this, [this] { update_actions(); });
+    connect(create_invite_button_,
+            &QPushButton::clicked,
+            this,
+            [this]
+            {
+                pending_ = true;
+                update_actions();
+                emit invite_link_requested(true);
+            });
+    connect(revoke_invite_button_,
+            &QPushButton::clicked,
+            this,
+            [this]
+            {
+                pending_ = true;
+                update_actions();
+                emit invite_link_requested(false);
+            });
+    connect(copy_invite_button_, &QPushButton::clicked, this, [this] { QGuiApplication::clipboard()->setText(invite_edit_->text()); });
+    connect(overview_copy_invite_,
+            &QPushButton::clicked,
+            this,
+            [this]
+            {
+                if (!invite_edit_->text().isEmpty())
+                {
+                    QGuiApplication::clipboard()->setText(invite_edit_->text());
+                    status_->setText(QStringLiteral("已复制邀请码。发给朋友后，对方在「+ → 加入群聊」中输入即可加入。"));
+                    update_actions();
+                    return;
+                }
+                copy_after_create_ = true;
+                pending_ = true;
+                update_actions();
+                emit invite_link_requested(true);
+            });
+    connect(announcement_button_,
+            &QPushButton::clicked,
+            this,
+            [this]
+            {
+                pending_ = true;
+                update_actions();
+                auto const text = announcement_edit_->toPlainText();
+                if (chat::text_is_blank(text.toUtf8().toStdString()))
+                {
+                    announcement_edit_->clear();
+                    emit announcement_requested({});
+                }
+                else
+                {
+                    emit announcement_requested(text);
+                }
+            });
+    connect(clear_announcement_button_,
+            &QPushButton::clicked,
+            this,
+            [this]
+            {
+                announcement_edit_->clear();
+                pending_ = true;
+                update_actions();
+                emit announcement_requested({});
+            });
+    connect(rename_button_,
+            &QPushButton::clicked,
+            this,
+            [this]
+            {
+                pending_ = true;
+                update_actions();
+                emit rename_requested(title_edit_->text());
+            });
 }
 
 bool group_dialog::eventFilter(QObject* object, QEvent* event)

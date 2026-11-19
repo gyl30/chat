@@ -57,6 +57,22 @@ class main_window final : public QMainWindow
 #endif
 
    private:
+    void setup_window_frame();
+    void setup_login_page(QString server_url);
+    void setup_registration_dialog();
+    void setup_chat_page();
+    void setup_system_tray();
+    void connect_conversation_preferences_and_avatar();
+    void setup_reconnect_timers();
+    void connect_authentication();
+    void connect_conversations_and_contacts();
+    void show_group_details(qint64 conversation, qint64 self_user, QString const& title);
+    void show_message_search(qint64 conversation, qint64 self_user, bool group, QString const& title, QString const& query);
+    void show_chat_history(qint64 conversation, QString const& title);
+    void connect_group_actions();
+    void connect_messages();
+    void finish_window_setup();
+
     enum class pending_action
     {
         none,

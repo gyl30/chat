@@ -40,6 +40,8 @@ class feedback_label;
 class message_model;
 class user_model;
 
+class QVBoxLayout;
+
 class chat_widget final : public QWidget
 {
     Q_OBJECT
@@ -136,6 +138,17 @@ class chat_widget final : public QWidget
     bool eventFilter(QObject* object, QEvent* event) override;
 
    private:
+    QWidget* create_sidebar();
+    void setup_contacts_dialog();
+    void setup_add_contact_dialog();
+    void setup_friend_requests();
+    QWidget* create_chat_panel();
+    void setup_chat_header(QVBoxLayout* chat_layout);
+    void setup_message_list(QVBoxLayout* chat_layout);
+    void setup_composer(QVBoxLayout* chat_layout);
+    void show_message_menu(QPoint position);
+    void connect_chat_controls();
+
     // A send owns its text or file and its reply from the moment it is made (docs/outgoing-messages-design.md).
     struct outgoing
     {
