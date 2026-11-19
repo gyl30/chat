@@ -41,10 +41,7 @@ QString appearance_key(chat_appearance value)
 
 QString packaged_directory()
 {
-    QDir executable(QCoreApplication::applicationDirPath());
-    auto const build = executable.filePath(QStringLiteral("themes"));
-    if (QFile::exists(build + QStringLiteral("/common.qss"))) { return build; }
-    return executable.filePath(QStringLiteral(CHAT_QT_INSTALLED_THEMES));
+    return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("themes"));
 }
 
 bool read_file(QString const& path, QByteArray& contents, QString& error)

@@ -1,2 +1,0 @@
-                 U QTabWidget::setTabVisible(int, bool)
-                 U QTabWidget::setCurrentIndex(int)

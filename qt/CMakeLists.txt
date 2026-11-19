@@ -104,19 +104,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(chat_qt PRIVATE Qt6::DBus)
 endif()
 
-# Both build-tree and installed clients load editable assets relative to the executable.
+# Keep editable themes beside the executable in the build tree.
 set(chat_theme_files common.qss daylight.qss daylight.json midnight.qss midnight.json)
 foreach(theme_file IN LISTS chat_theme_files)
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/themes/${theme_file}"
                    "${CMAKE_CURRENT_BINARY_DIR}/themes/${theme_file}" COPYONLY)
-endforeach()
-file(RELATIVE_PATH chat_installed_themes
-     "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
-     "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/chat/themes")
-target_compile_definitions(chat_qt PRIVATE CHAT_QT_INSTALLED_THEMES="${chat_installed_themes}")
-set_target_properties(chat_qt PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
-install(TARGETS chat_qt RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
-foreach(theme_file IN LISTS chat_theme_files)
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/themes/${theme_file}"
-            DESTINATION "${CMAKE_INSTALL_DATADIR}/chat/themes")
 endforeach()

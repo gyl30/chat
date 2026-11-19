@@ -19,60 +19,10 @@ cmake --build build -j12
 默认只构建生产程序及其依赖，不构建或运行任何第一方测试目标。
 离线依赖配置参见 [共享 Unicode 依赖](cmake/README.md)。
 
-## 安装与独立运行
+## 本地运行
 
-```sh
-cmake --install build --prefix "$HOME/.local/chat"
-```
-
-安装包括 `chat_server`、启用的 `chat_qt` 和 Qt 主题；
-SQLite 数据库由服务端首次打开时初始化。附件存储使用独立的 Silo/S3 服务。
-标准 CMake install 不会自动打包外部运行时依赖，也不部署 Silo。
-
-跨机器可搬运打包工具见 `tools/package_linux.py`；其 Qt/GCC 固定版本及依赖要求
-仍需依照实际构建环境核对。无需 PostgreSQL、libpq 或旧 SQL 迁移文件。
-
-### Linux 原生 Fcitx5 Qt6 插件
-
-Fcitx5 输入法是可选运行集成，不是 Chat 编译依赖。Qt5 插件不能给 Qt6 使用。
-`QT_IM_MODULE=fcitx` 需要匹配当前 Qt SDK 的
-`libfcitx5platforminputcontextplugin.so`；标准 Chat install 不会从开发机自动搜集它。
-有已经验证、匹配此 Qt 版本的插件时，单独部署到可执行程序旁：
-
-```sh
-install -Dm755 /path/to/verified/libfcitx5platforminputcontextplugin.so \
-    "$chat_prefix/bin/platforminputcontexts/libfcitx5platforminputcontextplugin.so"
-QT_IM_MODULE=fcitx "$chat_prefix/bin/chat_qt" ws://127.0.0.1:18080/ws
-```
-
-无需设置 `QT_PLUGIN_PATH`，不覆盖系统 Qt5 插件或修改 SDK。用于本机 Qt 6.5.3 的
-已验证构建来自上游 [fcitx5-qt 5.0.10](https://github.com/fcitx/fcitx5-qt/tree/5.0.10)，
-提交 `814bc3980fa4f1e0451242c723b437459f82f8cb`。重新构建的最小流程：
-
-```sh
-# 在 Chat 工作区外，qt_prefix 指向实际 Qt SDK。
-qt_prefix=/path/to/qt-sdk
-plugin_source=/path/to/fcitx5-qt
-plugin_build=/path/to/fcitx5-qt-build
-# 获取官方 tag 5.0.10；需 ECM、XCB/XKBCommon/X11 开发依赖及此 SDK 的 GuiPrivate。
-cmake -S "$plugin_source" -B "$plugin_build" -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_PREFIX_PATH="$qt_prefix" \
-    -DENABLE_QT4=OFF -DENABLE_QT5=OFF -DENABLE_QT6=ON \
-    -DBUILD_ONLY_PLUGIN=ON \
-    -DCMAKE_INSTALL_PREFIX="$chat_prefix" \
-    -DCMAKE_INSTALL_QT6PLUGINDIR="$chat_prefix/bin"
-cmake --build "$plugin_build" -j4
-cmake --install "$plugin_build"
-```
-
-ECM 可来自已安装开发包或工作区外的原包解压目录（用 `ECM_DIR` 指定）；不必安装整套
-系统 Qt。此模式静态整合上游 DBusAddons，无需额外复制 Fcitx Qt 运行库。插件使用 Qt
-私有 API，换 Qt minor 版本后必须重新核对兼容性。分发插件时同时保留上游完整许可与
-版权声明，见 [THIRD_PARTY.md](THIRD_PARTY.md)。
-
-验证时使用真实 Fcitx5 daemon 和图形会话：`QT_DEBUG_PLUGINS=1 QT_IM_MODULE=fcitx`
-日志必须显示该原生 `.so` 实际加载，并通过真实拼音候选和发送测试；只发现 metadata、
-加载 Compose 或改为 IBus 不算原生 Fcitx 验收。
+直接使用构建目录中的 `chat_server` 和 `qt/chat_qt`。Qt 主题文件由 CMake
+复制至 `build/qt/themes/`，无需安装或打包。Silo/S3 服务需独立启动。
 
 ## SQLite 与 Silo 启动
 
@@ -122,8 +72,3 @@ request `id` 及 JSON 转义产生的内容；不是消息正文的字符数上�
 不匹配的 Pong、普通业务消息和其他数据不能代替心跳确认。
 失活连接会被结束并正常释放对应在线会话。WS / WSS 行为相同；这些是当前固定行为，
 没有新增心跳配置参数，也不改变严格单账号在线规则。
-
-## 依赖与分发声明
-
-第三方依赖、固定源码和分发注意事项见 [THIRD_PARTY.md](THIRD_PARTY.md)。
-历史发布审查文档涉及 PostgreSQL 的内容仅供归档，不适用于当前 SQLite/Silo 服务端。

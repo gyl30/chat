@@ -1,3 +1,0 @@
-                 U QTabWidget::setCurrentIndex(int)
-                 U QTabWidget::setCurrentWidget(QWidget*)
-                 U QTabWidget::removeTab(int)

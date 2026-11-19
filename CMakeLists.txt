@@ -2,8 +2,6 @@ cmake_minimum_required(VERSION 3.30)
 
 project(chat LANGUAGES C CXX)
 
-include(GNUInstallDirs)
-
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -156,10 +154,6 @@ target_link_libraries(chat_server
         spdlog::spdlog_header_only
         wslay
 )
-
-# Keep external dependency locations discovered by CMake in installed binaries.
-set_target_properties(chat_server PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
-install(TARGETS chat_server RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
 add_library(chat_sqlite_storage STATIC
     src/attachment_access.cpp
