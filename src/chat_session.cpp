@@ -104,7 +104,7 @@ boost::capy::task<chat_session::notification_result> chat_session::publish_conve
             }
             auto rows = db.prepare(R"SQL(
             SELECT m.user_id FROM conversation_members m JOIN conversations c ON c.id=m.conversation_id
-            WHERE c.id=?1 AND (m.user_id<>?2 OR c.direct_user_low=c.direct_user_high)
+            WHERE c.id=?1 AND m.user_id<>?2
             ORDER BY m.user_id
         )SQL",
                                    conversation,

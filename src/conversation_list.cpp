@@ -61,7 +61,7 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                     WHERE m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1)),
                 'unread',(SELECT count(*) FROM messages m WHERE m.conversation_id=c.id AND m.deleted=0
                       AND m.id>max(c.last_read_message_id,c.joined_message_id)
-                      AND (m.sender_id<>?1 OR c.direct_user_low=c.direct_user_high))
+                      AND m.sender_id<>?1)
             )) FROM visible c LEFT JOIN users u ON u.id=c.peer
                 LEFT JOIN user_avatars avatar ON avatar.user_id=u.id)),
             'next',json(CASE WHEN (SELECT count(*) FROM page)>50 THEN

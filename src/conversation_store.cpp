@@ -226,7 +226,7 @@ std::expected<std::optional<std::int64_t>, sqlite_error> read_unread_count(sqlit
     auto count = db.prepare(R"SQL(
         SELECT (SELECT count(*) FROM messages m WHERE m.conversation_id=c.id
                     AND m.id>max(own.last_read_message_id,own.joined_message_id) AND m.deleted=0
-                    AND (m.sender_id<>?2 OR c.direct_user_low=c.direct_user_high))
+                    AND m.sender_id<>?2)
         FROM conversation_members own JOIN conversations c ON c.id=own.conversation_id
         WHERE own.conversation_id=?1 AND own.user_id=?2
     )SQL",
