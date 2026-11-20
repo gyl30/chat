@@ -89,15 +89,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_authenticate(json_r
     if (*account && *password_matches)
     {
         auto const user_id = (*account)->user.id;
-        if (!users_.add(user_id, *this))
-        {
-            if (request.id.present)
-            {
-                co_return serialize_json_rpc_error(-32004, "User already online", std::move(request.id), response);
-            }
-            co_return simdjson::SUCCESS;
-        }
-
+        bool const first = users_.sessions(user_id).empty();
+        users_.add(user_id, *this);
         if (params.device_secret)
         {
             std::array<unsigned char, SHA256_DIGEST_LENGTH> hash;
@@ -112,7 +105,10 @@ boost::capy::task<simdjson::error_code> chat_session::handle_authenticate(json_r
         user_id_ = user_id;
         username_ = params.username;
         authenticated = true;
-        co_await publish_presence(true);
+        if (first)
+        {
+            co_await publish_presence(true);
+        }
     }
 
     if (!request.id.present)

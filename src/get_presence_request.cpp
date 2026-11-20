@@ -30,7 +30,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_presence(json_r
     }
     for (auto& entry : *presence)
     {
-        entry.online = users_.find(entry.user) != nullptr;
+        entry.online = !users_.sessions(entry.user).empty();
     }
     struct result
     {

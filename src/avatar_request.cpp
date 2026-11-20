@@ -86,13 +86,16 @@ boost::capy::task<simdjson::error_code> chat_session::handle_avatar(json_rpc_req
     {
         std::string notification =
             "{\"jsonrpc\":\"2.0\",\"method\":\"avatar\",\"params\":{\"user\":" + std::to_string(*user_id_) + "," + state.substr(1) + "}";
-        enqueue_message(notification);
+        for (auto* session : users_.sessions(*user_id_))
+        {
+            session->enqueue_message(notification);
+        }
         auto recipients = co_await database_.run([user = *user_id_](sqlite_database& db) { return read_avatar_recipients(db, user); });
         if (recipients)
         {
             for (auto const peer : *recipients)
             {
-                if (auto* session = users_.find(peer))
+                for (auto* session : users_.sessions(peer))
                 {
                     session->enqueue_message(notification);
                 }

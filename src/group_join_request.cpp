@@ -192,7 +192,7 @@ boost::capy::task<void> chat_session::publish_join_request(std::int64_t conversa
                                R"(,"user":)" + std::to_string(user) + R"(,"state":")" + state + "\"}}";
     for (auto const recipient : *recipients)
     {
-        if (auto* session = users_.find(recipient))
+        for (auto* session : users_.sessions(recipient))
         {
             session->enqueue_message(notification);
         }

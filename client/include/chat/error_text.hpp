@@ -18,7 +18,6 @@ inline std::string error_text(error const& value)
         {"Server error", "服务器出错，请稍后重试"},
         {"Authentication required", "登录状态已失效，请重新登录"},
         {"Already authenticated", "当前连接已登录"},
-        {"User already online", "该账号已在其他地方登录"},
         {"Username already exists", "用户名已被占用"},
         {"User not found", "用户不存在"},
         {"User unavailable", "用户不存在"},

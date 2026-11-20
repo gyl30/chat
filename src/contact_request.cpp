@@ -120,7 +120,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_contact_change(json
     {
         auto notify = [&](std::int64_t recipient, std::int64_t peer)
         {
-            if (auto* session = users_.find(recipient))
+            for (auto* session : users_.sessions(recipient))
             {
                 session->enqueue_message(R"({"jsonrpc":"2.0","method":"friendship","params":{"user":)" + std::to_string(peer) + "}}");
             }

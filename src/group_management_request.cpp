@@ -257,8 +257,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
         std::string notification = R"({"jsonrpc":"2.0","method":"conversation","params":{"conversation":)" + std::to_string(change->conversation);
         if (request.method == "leave_group" || request.method == "remove_group_member")
         {
-            auto* departed = request.method == "leave_group" ? this : users_.find(change->user);
-            if (departed)
+            for (auto* departed : users_.sessions(request.method == "leave_group" ? *user_id_ : change->user))
             {
                 departed->enqueue_message(notification + R"(,"removed":true}})");
             }

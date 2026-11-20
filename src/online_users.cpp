@@ -1,22 +1,28 @@
 #include "online_users.hpp"
 
-bool online_users::add(std::int64_t user_id, chat_session& session) { return sessions_.emplace(user_id, &session).second; }
+#include <algorithm>
+
+void online_users::add(std::int64_t user_id, chat_session& session) { sessions_[user_id].push_back(&session); }
 
 void online_users::remove(std::int64_t user_id, chat_session& session) noexcept
 {
-    auto const it = sessions_.find(user_id);
-    if (it != sessions_.end() && it->second == &session)
+    auto it = sessions_.find(user_id);
+    if (it != sessions_.end())
     {
-        sessions_.erase(it);
+        std::erase(it->second, &session);
+        if (it->second.empty())
+        {
+            sessions_.erase(it);
+        }
     }
 }
 
-chat_session* online_users::find(std::int64_t user_id) const noexcept
+std::span<chat_session* const> online_users::sessions(std::int64_t user_id) const noexcept
 {
-    auto const it = sessions_.find(user_id);
+    auto it = sessions_.find(user_id);
     if (it == sessions_.end())
     {
-        return nullptr;
+        return {};
     }
     return it->second;
 }

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -64,7 +65,7 @@ boost::capy::task<void> chat_session::publish_presence(bool online)
         co_return;
     }
     // Authentication can replace the session while the offline job is pending.
-    if (!online && users_.find(user))
+    if (!online && !users_.sessions(user).empty())
     {
         co_return;
     }
@@ -72,7 +73,7 @@ boost::capy::task<void> chat_session::publish_presence(bool online)
                         (online ? "true" : "false") + R"(,"last_seen":)" + std::to_string(presence->last_seen) + "}}";
     for (auto const watcher : presence->recipients)
     {
-        if (auto* session = users_.find(watcher))
+        for (auto* session : users_.sessions(watcher))
         {
             session->enqueue_message(notification);
         }
@@ -105,11 +106,11 @@ boost::capy::task<chat_session::notification_result> chat_session::publish_conve
             }
             auto rows = db.prepare(R"SQL(
             SELECT user_id, ?4>0 AND ?4<=joined_message_id FROM conversation_members
-            WHERE conversation_id=?1 AND user_id<>?2 AND (?3=0 OR ?3>joined_message_id)
+            WHERE conversation_id=?1 AND (?2=0 OR user_id<>?2) AND (?3=0 OR ?3>joined_message_id)
             ORDER BY user_id
         )SQL",
                                    conversation,
-                                   user,
+                                   require_sender_permission ? user : 0,
                                    message,
                                    quote ? quote->id : 0);
             if (!rows)
@@ -148,8 +149,12 @@ boost::capy::task<chat_session::notification_result> chat_session::publish_conve
     bool realtime = false;
     for (auto const& [recipient, omit_quote] : **recipients)
     {
-        if (auto* session = users_.find(recipient))
+        for (auto* session : users_.sessions(recipient))
         {
+            if (session == this)
+            {
+                continue;
+            }
             realtime = session->enqueue_message(omit_quote ? quote->without_quote : notification) || realtime;
         }
     }
@@ -161,7 +166,8 @@ boost::capy::task<void> chat_session::run()
     co_await exchange_messages();
     if (user_id_)
     {
-        if (!device_.empty())
+        if (!device_.empty() &&
+            std::ranges::none_of(users_.sessions(*user_id_), [this](auto* other) { return other != this && other->device_ == device_; }))
         {
             auto paused = co_await database_.run(
                 [this](sqlite_database& db) -> std::expected<void, sqlite_error>
@@ -182,7 +188,10 @@ boost::capy::task<void> chat_session::run()
             }
         }
         users_.remove(*user_id_, *this);
-        co_await publish_presence(false);
+        if (users_.sessions(*user_id_).empty())
+        {
+            co_await publish_presence(false);
+        }
     }
 }
 
