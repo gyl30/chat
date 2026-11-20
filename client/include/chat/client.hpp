@@ -149,7 +149,14 @@ class client
     void leave_group(std::int64_t conversation, group_action_handler handler);
     void pin_group_message(std::int64_t conversation, std::int64_t message, group_action_handler handler);
     void unpin_group_message(std::int64_t conversation, group_action_handler handler);
-    void get_contacts(users_handler handler);
+    using contacts_handler = std::function<void(std::expected<contact_book, error>)>;
+    void get_contacts(contacts_handler handler);
+    void set_contacts_changed_handler(connection_handler handler);
+    void set_friend_remark(std::int64_t user, std::string remark, group_action_handler handler);
+    void move_friend(std::int64_t user, std::string group, group_action_handler handler);
+    void create_friend_group(std::string name, group_action_handler handler);
+    void rename_friend_group(std::string group, std::string name, group_action_handler handler);
+    void delete_friend_group(std::string group, group_action_handler handler);
     void get_presence(presences_handler handler);
     void get_messages(std::int64_t conversation,
                       std::optional<std::int64_t> before,

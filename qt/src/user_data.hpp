@@ -14,6 +14,8 @@ struct user_data
     bool online = false;
     qint64 last_seen = 0;
     chat::avatar_state avatar;
+    QString remark{};
+    QString group{};
 };
 
 Q_DECLARE_METATYPE(QList<user_data>)

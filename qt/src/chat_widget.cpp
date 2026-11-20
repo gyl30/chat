@@ -486,6 +486,43 @@ QWidget* chat_widget::create_sidebar()
     return conversation_panel;
 }
 
+namespace
+{
+class contact_filter final : public QSortFilterProxyModel
+{
+   public:
+    explicit contact_filter(QComboBox& group) : QSortFilterProxyModel(&group), group_(group) {}
+
+   protected:
+    bool filterAcceptsRow(int row, QModelIndex const& parent) const override
+    {
+        return (group_.currentIndex() <= 0 ||
+                sourceModel()->index(row, 0, parent).data(user_model::friend_group_role).toString() == group_.currentData().toString()) &&
+               QSortFilterProxyModel::filterAcceptsRow(row, parent);
+    }
+
+   private:
+    QComboBox& group_;
+};
+}    // namespace
+
+void chat_widget::set_friend_groups(QStringList const& groups)
+{
+    auto selected = friend_groups_->currentData();
+    {
+        QSignalBlocker block(friend_groups_);
+        friend_groups_->clear();
+        friend_groups_->addItem(QStringLiteral("全部好友"));
+        friend_groups_->addItem(QStringLiteral("我的好友"), QStringLiteral(""));
+        for (auto const& name : groups)
+        {
+            friend_groups_->addItem(name, name);
+        }
+        friend_groups_->setCurrentIndex(std::max(0, friend_groups_->findData(selected)));
+    }
+    contacts_filter_->invalidate();
+}
+
 void chat_widget::setup_contacts_dialog()
 {
     contacts_dialog_ = new QDialog(this);
@@ -600,9 +637,81 @@ void chat_widget::setup_contacts_dialog()
     contacts_home_layout->addWidget(contacts_status_);
 
     contacts_ = new user_model(this, &avatars_);
-    contacts_filter_ = new QSortFilterProxyModel(this);
+    friend_groups_ = new QComboBox(contacts_home);
+    friend_groups_->setObjectName(QStringLiteral("friendGroupFilter"));
+    auto* group_row = new QHBoxLayout;
+    group_row->addWidget(friend_groups_, 1);
+    auto* manage = new QPushButton(QStringLiteral("管理分组"), contacts_home);
+    group_row->addWidget(manage);
+    contacts_home_layout->addLayout(group_row);
+    contacts_filter_ = new contact_filter(*friend_groups_);
+    connect(friend_groups_,
+            &QComboBox::currentIndexChanged,
+            this,
+            [this]
+            {
+                contacts_filter_->invalidate();
+                filter_contacts(contact_search_->text());
+            });
+    set_friend_groups({});
+    connect(manage,
+            &QPushButton::clicked,
+            this,
+            [this, manage]
+            {
+                if (!connection_available_)
+                {
+                    return;
+                }
+                auto group = friend_groups_->currentData().toString();
+                QMenu menu(contacts_dialog_);
+                auto* create = menu.addAction(QStringLiteral("新建分组"));
+                auto* rename = menu.addAction(QStringLiteral("重命名分组"));
+                auto* remove = menu.addAction(QStringLiteral("删除分组"));
+                rename->setEnabled(!group.isEmpty());
+                remove->setEnabled(!group.isEmpty());
+                auto* action = menu.exec(manage->mapToGlobal(QPoint(0, manage->height())));
+                if (!action)
+                {
+                    return;
+                }
+                if (action == remove)
+                {
+                    if (confirm_action(
+                            contacts_dialog_, QStringLiteral("删除分组"), QStringLiteral("该组好友将移回「我的好友」。"), QStringLiteral("删除")))
+                    {
+                        emit delete_friend_group_requested(group);
+                    }
+                    return;
+                }
+                bool ok = false;
+                auto name = QInputDialog::getText(contacts_dialog_,
+                                                  action->text(),
+                                                  QStringLiteral("分组名称（最多 32 个字符）"),
+                                                  QLineEdit::Normal,
+                                                  action == rename ? group : QString{},
+                                                  &ok)
+                                .trimmed();
+                if (!ok)
+                {
+                    return;
+                }
+                if (name.isEmpty() || name.toUcs4().size() > 32 || name == QStringLiteral("我的好友"))
+                {
+                    set_contacts_error(QStringLiteral("请输入 1–32 个字符的自定义分组名称"));
+                    return;
+                }
+                if (action == create)
+                {
+                    emit create_friend_group_requested(name);
+                }
+                else
+                {
+                    emit rename_friend_group_requested(group, name);
+                }
+            });
     contacts_filter_->setSourceModel(contacts_);
-    contacts_filter_->setFilterRole(user_model::username_role);
+    contacts_filter_->setFilterRole(user_model::search_role);
     contacts_filter_->setFilterCaseSensitivity(Qt::CaseInsensitive);
     contacts_filter_->setSortRole(user_model::username_role);
     contacts_filter_->setSortLocaleAware(true);
@@ -611,6 +720,56 @@ void chat_widget::setup_contacts_dialog()
     contacts_view_->setObjectName(QStringLiteral("userList"));
     contacts_view_->setAccessibleName(QStringLiteral("联系人列表"));
     contacts_view_->setModel(contacts_filter_);
+    contacts_view_->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(contacts_view_,
+            &QWidget::customContextMenuRequested,
+            this,
+            [this](QPoint point)
+            {
+                auto const* item = contacts_->user_at(contacts_filter_->mapToSource(contacts_view_->indexAt(point)));
+                if (!item || !connection_available_)
+                {
+                    return;
+                }
+                auto user = item->id;
+                auto current = item->remark;
+                QMenu menu(contacts_dialog_);
+                auto* remark = menu.addAction(QStringLiteral("编辑备注"));
+                auto* move = menu.addMenu(QStringLiteral("移动到分组"));
+                for (int i = 1; i < friend_groups_->count(); ++i)
+                {
+                    auto* group = move->addAction(friend_groups_->itemText(i));
+                    group->setData(friend_groups_->itemData(i));
+                    group->setEnabled(item->group != group->data().toString());
+                }
+                auto* action = menu.exec(contacts_view_->viewport()->mapToGlobal(point));
+                if (!action)
+                {
+                    return;
+                }
+                if (action != remark)
+                {
+                    emit move_friend_requested(user, action->data().toString());
+                    return;
+                }
+                bool ok = false;
+                auto value = QInputDialog::getText(contacts_dialog_,
+                                                   QStringLiteral("编辑备注"),
+                                                   QStringLiteral("备注（最多 32 个字符，留空恢复用户名）"),
+                                                   QLineEdit::Normal,
+                                                   current,
+                                                   &ok);
+                if (!ok)
+                {
+                    return;
+                }
+                if (value.toUcs4().size() > 32)
+                {
+                    set_contacts_error(QStringLiteral("好友备注最多 32 个字符"));
+                    return;
+                }
+                emit set_friend_remark_requested(user, value);
+            });
     auto* contacts_delegate = new user_delegate(contacts_view_);
     contacts_view_->setItemDelegate(contacts_delegate);
     contacts_view_->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -1564,6 +1723,7 @@ void chat_widget::set_user(QString const& username, qint64 user)
     messages_->set_self_user(user);
     messages_->reset(0);
     contacts_->set_users({});
+    set_friend_groups({});
     pending_friend_actions_.clear();
     set_friend_requests({}, {}, {});
     contacts_filter_->setFilterFixedString(QString{});
@@ -4072,7 +4232,8 @@ void chat_widget::set_message_status(QString message)
 
 void chat_widget::update_chat_header(QString const& username)
 {
-    chat_title_->setText(username);
+    auto const item = conversation(active_conversation_);
+    chat_title_->setText(item && !item->remark.isEmpty() ? item->remark : username);
     chat_title_->setIcon(avatar_icon(username, 38, active_group_ ? QPixmap{} : avatars_.image(active_peer_)));
     chat_title_->setEnabled(true);
     update_chat_presence();

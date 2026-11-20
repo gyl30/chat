@@ -14,6 +14,8 @@ class user_model final : public QAbstractListModel
     enum role
     {
         id_role = Qt::UserRole + 1,
+        friend_group_role,
+        search_role,
         username_role,
         online_role,
         last_seen_role,

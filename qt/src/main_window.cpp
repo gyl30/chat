@@ -920,6 +920,12 @@ void main_window::connect_conversations_and_contacts()
             });
     connect(chat_page_, &chat_widget::friend_request_respond_requested, client_.get(), &client_bridge::respond_friend_request);
     connect(chat_page_, &chat_widget::friend_request_cancel_requested, client_.get(), &client_bridge::cancel_friend_request);
+    connect(chat_page_, &chat_widget::set_friend_remark_requested, client_.get(), &client_bridge::set_friend_remark);
+    connect(chat_page_, &chat_widget::move_friend_requested, client_.get(), &client_bridge::move_friend);
+    connect(client_.get(), &client_bridge::friend_groups_received, chat_page_, &chat_widget::set_friend_groups);
+    connect(chat_page_, &chat_widget::create_friend_group_requested, client_.get(), &client_bridge::create_friend_group);
+    connect(chat_page_, &chat_widget::rename_friend_group_requested, client_.get(), &client_bridge::rename_friend_group);
+    connect(chat_page_, &chat_widget::delete_friend_group_requested, client_.get(), &client_bridge::delete_friend_group);
     connect(chat_page_, &chat_widget::contact_add_requested, this, [this](qint64 user) { client_->add_contact(user); });
 
     connect(

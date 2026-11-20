@@ -68,7 +68,7 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
         painter->drawRoundedRect(QRectF(card.left() + 1, card.top() + 12, 3, card.height() - 24), 1.5, 1.5);
     }
 
-    auto const username = index.data(conversation_model::username_role).toString();
+    auto const username = index.data(Qt::DisplayRole).toString();
     auto const last_text = index.data(conversation_model::last_text_role).toString();
     auto const last_timestamp = index.data(conversation_model::last_timestamp_role).toLongLong();
     auto const unread = index.data(conversation_model::unread_role).toULongLong();

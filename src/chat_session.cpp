@@ -281,6 +281,11 @@ boost::capy::task<simdjson::error_code> chat_session::dispatch_request(json_rpc_
     {
         co_return co_await handle_conversation_preference(request, response);
     }
+    if (request.method == "set_friend_remark" || request.method == "move_friend" || request.method == "create_friend_group" ||
+        request.method == "rename_friend_group" || request.method == "delete_friend_group")
+    {
+        co_return co_await handle_contact_settings(request, response);
+    }
     if (request.method == kGetContactsMethod)
     {
         co_return co_await handle_get_contacts(request, response);

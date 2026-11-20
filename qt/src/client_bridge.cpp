@@ -167,6 +167,16 @@ client_bridge::client_bridge(QObject* parent)
     client_->set_conversation_handler(
         [this](std::int64_t id, bool removed)
         { post_result(connection_generation_.load(), [this, id, removed] { emit conversation_changed(id, removed); }); });
+    client_->set_contacts_changed_handler(
+        [this]
+        {
+            post_result(connection_generation_.load(),
+                        [this]
+                        {
+                            get_contacts();
+                            get_conversations();
+                        });
+        });
     client_->set_friendship_handler([this](std::int64_t) { post_result(connection_generation_.load(), [this] { emit friendship_changed(); }); });
     client_->set_presence_handler([this](chat::presence value)
                                   { post_result(connection_generation_.load(), [this, value] { emit presence_changed(to_presence_data(value)); }); });
@@ -257,6 +267,7 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
                                                value.group = item.kind == chat::conversation_kind::group;
                                                value.user = item.user;
                                                value.username = from_utf8(item.username);
+                                               value.remark = from_utf8(item.remark);
                                                value.avatar = item.avatar;
                                                value.member_count = item.member_count;
                                                value.last_timestamp = item.last.timestamp;
@@ -587,6 +598,24 @@ std::function<void(std::expected<bool, chat::error>)> client_bridge::group_actio
     };
 }
 
+chat::client::group_action_handler client_bridge::contact_settings_result()
+{
+    return [this, generation = connection_generation_.load()](auto r)
+    {
+        if (!r)
+        {
+            post_result(generation, [this, message = display_error(r.error())] { emit error(message); });
+        }
+    };
+}
+void client_bridge::set_friend_remark(qint64 user, QString remark) { client_->set_friend_remark(user, to_utf8(remark), contact_settings_result()); }
+void client_bridge::move_friend(qint64 user, QString group) { client_->move_friend(user, to_utf8(group), contact_settings_result()); }
+void client_bridge::create_friend_group(QString name) { client_->create_friend_group(to_utf8(name), contact_settings_result()); }
+void client_bridge::rename_friend_group(QString group, QString name)
+{
+    client_->rename_friend_group(to_utf8(group), to_utf8(name), contact_settings_result());
+}
+void client_bridge::delete_friend_group(QString group) { client_->delete_friend_group(to_utf8(group), contact_settings_result()); }
 void client_bridge::get_contacts()
 {
     auto const generation = connection_generation_.load();
@@ -608,11 +637,23 @@ void client_bridge::get_contacts()
                             }
 
                             QList<user_data> contacts;
-                            contacts.reserve(static_cast<qsizetype>(result->size()));
-                            for (auto const& item : *result)
+                            contacts.reserve(static_cast<qsizetype>(result->users.size()));
+                            for (auto const& item : result->users)
                             {
-                                contacts.push_back(to_user_data(item));
+                                contacts.push_back({item.id,
+                                                    from_utf8(item.username),
+                                                    false,
+                                                    0,
+                                                    {item.avatar_revision, item.has_avatar},
+                                                    from_utf8(item.remark),
+                                                    from_utf8(item.group)});
                             }
+                            QStringList groups;
+                            for (auto const& name : result->groups)
+                            {
+                                groups.append(from_utf8(name));
+                            }
+                            emit friend_groups_received(std::move(groups));
                             emit contacts_received(std::move(contacts), {});
                         });
         });

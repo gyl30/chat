@@ -173,29 +173,25 @@ std::expected<chat::friend_requests_result, sqlite_error> read_friend_requests(s
     }
 }
 
-std::expected<std::vector<chat::user>, sqlite_error> read_contacts(sqlite_database& db, std::int64_t user)
+std::expected<std::string, sqlite_error> read_contacts(sqlite_database& db, std::int64_t user)
 {
-    auto statement = db.prepare(R"SQL(
-        SELECT u.id, u.username, u.avatar_revision, EXISTS(SELECT 1 FROM user_avatars WHERE user_id=u.id)
-        FROM contacts c JOIN users u ON u.id=c.contact_id WHERE c.owner_id=?1 ORDER BY u.username, u.id
+    auto q = db.prepare(R"SQL(
+        SELECT json_object('groups',json((SELECT json_group_array(name) FROM
+                    (SELECT name FROM friend_groups WHERE owner_id=?1 ORDER BY name))),
+                'users',json((SELECT json_group_array(json_object('id',id,'username',username,'avatar_revision',rev,
+                    'has_avatar',json(CASE WHEN avatar THEN 'true' ELSE 'false' END),'remark',remark,'group',grp))
+                    FROM (SELECT u.id,u.username,u.avatar_revision rev,a.user_id IS NOT NULL avatar,c.remark,coalesce(c.friend_group,'') grp
+                        FROM contacts c JOIN users u ON u.id=c.contact_id LEFT JOIN user_avatars a ON a.user_id=u.id
+                        WHERE c.owner_id=?1 ORDER BY u.username,u.id))))
     )SQL",
-                                user);
-    if (!statement)
+                        user);
+    if (!q)
     {
-        return std::unexpected(std::move(statement.error()));
+        return std::unexpected(q.error());
     }
-    std::vector<chat::user> result;
-    for (;;)
+    if (auto row = q->step(); !row)
     {
-        auto row = statement->step();
-        if (!row)
-        {
-            return std::unexpected(std::move(row.error()));
-        }
-        if (!*row)
-        {
-            return result;
-        }
-        result.push_back(read_user(*statement));
+        return std::unexpected(row.error());
     }
+    return std::string(q->column_text(0));
 }

@@ -24,6 +24,7 @@
 
 class QAction;
 class QDialog;
+class QComboBox;
 class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
@@ -66,6 +67,7 @@ class chat_widget final : public QWidget
     void set_connection_available(bool available);
     void set_connection_status(QString text, bool retry_enabled);
     void set_conversations(QList<conversation_data> conversations);
+    void set_friend_groups(QStringList const& groups);
     void set_contacts(QList<user_data> contacts);
     void set_friend_requests(QList<user_data> incoming, QList<user_data> outgoing, QString error);
     void set_presences(QList<presence_data> users);
@@ -123,6 +125,11 @@ class chat_widget final : public QWidget
     void edit_message_requested(qint64 conversation, qint64 message, QString text);
     void reaction_requested(qint64 conversation, qint64 message, QString emoji);
     void add_contact_search_requested(QString query, quint64 request);
+    void set_friend_remark_requested(qint64 user, QString remark);
+    void move_friend_requested(qint64 user, QString group);
+    void create_friend_group_requested(QString name);
+    void rename_friend_group_requested(QString group, QString name);
+    void delete_friend_group_requested(QString group);
     void contact_add_requested(qint64 user);
     void friend_request_respond_requested(qint64 user, bool accept);
     void friend_request_cancel_requested(qint64 user);
@@ -319,6 +326,7 @@ class chat_widget final : public QWidget
     QToolButton* send_button_ = nullptr;
     conversation_model* conversations_ = nullptr;
     user_model* contacts_ = nullptr;
+    QComboBox* friend_groups_ = nullptr;
     QSortFilterProxyModel* contacts_filter_ = nullptr;
     user_model* add_users_ = nullptr;
     message_model* messages_ = nullptr;

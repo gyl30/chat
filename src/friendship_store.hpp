@@ -39,6 +39,6 @@ std::expected<std::variant<friendship_change, friendship_rejection>, sqlite_erro
                                                                                                      friendship_action action);
 
 std::expected<chat::friend_requests_result, sqlite_error> read_friend_requests(sqlite_database& db, std::int64_t user);
-std::expected<std::vector<chat::user>, sqlite_error> read_contacts(sqlite_database& db, std::int64_t user);
+std::expected<std::string, sqlite_error> read_contacts(sqlite_database& db, std::int64_t user);
 
 #endif

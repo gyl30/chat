@@ -22,13 +22,26 @@ CREATE TABLE IF NOT EXISTS user_avatars (
     updated_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS friend_groups (
+    owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL CHECK(length(name) BETWEEN 1 AND 32 AND name <> '我的好友'),
+    PRIMARY KEY(owner_id,name)
+);
+
 CREATE TABLE IF NOT EXISTS contacts (
     owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     contact_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     created_at INTEGER NOT NULL,
+    remark TEXT NOT NULL DEFAULT '' CHECK(length(remark)<=32),
+    friend_group TEXT,
+    FOREIGN KEY(owner_id,friend_group) REFERENCES friend_groups(owner_id,name) ON UPDATE CASCADE,
     PRIMARY KEY (owner_id, contact_id),
     CHECK (owner_id <> contact_id)
 );
+
+CREATE TRIGGER IF NOT EXISTS ungroup_friends BEFORE DELETE ON friend_groups BEGIN
+    UPDATE contacts SET friend_group=NULL WHERE owner_id=OLD.owner_id AND friend_group=OLD.name;
+END;
 
 CREATE TABLE IF NOT EXISTS friend_requests (
     requester_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

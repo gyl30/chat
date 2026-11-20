@@ -38,6 +38,8 @@
 
 namespace chat
 {
+BOOST_DESCRIBE_STRUCT(contact_entry, (), (id, username, avatar_revision, has_avatar, remark, group))
+BOOST_DESCRIBE_STRUCT(contact_book, (), (users, groups))
 BOOST_DESCRIBE_STRUCT(message_search_hit, (), (conversation, id, from, timestamp, title, username, snippet))
 BOOST_DESCRIBE_STRUCT(message_search_page, (), (messages, next_before))
 BOOST_DESCRIBE_STRUCT(conversation_file, (), (object_key, filename, media_type, size, uploader_id, username, created_at, category))
@@ -422,6 +424,10 @@ std::expected<conversation, error> parse_conversation(boost::json::value const& 
     conversation item;
     item.id = *id;
     item.username = std::string(name->as_string());
+    if (auto* remark = object.if_contains("remark"); remark && remark->is_string())
+    {
+        item.remark = std::string(remark->as_string());
+    }
     item.unread = *unread;
     item.member_count = *count;
     item.muted = muted->as_bool();
@@ -781,6 +787,19 @@ struct client::impl
             return;
         }
 
+        if (method->as_string() == "contacts_changed")
+        {
+            connection_handler handler;
+            {
+                std::lock_guard lock(handler_mutex_);
+                handler = contacts_changed_handler_;
+            }
+            if (handler && !suppress_callbacks_.load())
+            {
+                handler();
+            }
+            return;
+        }
         if (method->as_string() == "friendship")
         {
             auto const* field = params->as_object().if_contains("user");
@@ -1558,43 +1577,6 @@ struct client::impl
                      });
         co_return;
     }
-    boost::capy::task<> get_users(std::string method, boost::json::object params, users_handler handler)
-    {
-        send_request(std::move(method),
-                     std::move(params),
-                     [handler = std::move(handler)](auto response) mutable
-                     {
-                         if (!response)
-                         {
-                             handler(std::unexpected(std::move(response.error())));
-                             return;
-                         }
-                         auto const* users_value = response->is_object() ? response->as_object().if_contains("users") : nullptr;
-                         if (!users_value || !users_value->is_array())
-                         {
-                             handler(std::unexpected(make_error(error_kind::protocol, "Invalid get_contacts result")));
-                             return;
-                         }
-
-                         std::vector<user> users;
-                         users.reserve(users_value->as_array().size());
-                         for (auto const& value : users_value->as_array())
-                         {
-                             user item;
-                             if (!value.is_object() || !parse_user(value.as_object(), item))
-                             {
-                                 handler(std::unexpected(make_error(error_kind::protocol, "Invalid user")));
-                                 return;
-                             }
-                             users.push_back(std::move(item));
-                         }
-
-                         handler(std::move(users));
-                     });
-
-        co_return;
-    }
-
     boost::capy::task<> get_presence(presences_handler handler)
     {
         send_request("get_presence",
@@ -2873,6 +2855,7 @@ struct client::impl
     avatar_changed_handler avatar_handler_;
     reaction_handler reaction_handler_;
     group_join_request_handler join_request_handler_;
+    connection_handler contacts_changed_handler_;
     friendship_changed_handler friendship_handler_;
     std::atomic_bool suppress_callbacks_ = false;
 };
@@ -3131,9 +3114,40 @@ void client::unpin_group_message(std::int64_t conversation, group_action_handler
         impl_->group_action("unpin_group_message", {{"conversation", conversation}}, std::move(handler)));
 }
 
-void client::get_contacts(users_handler handler)
+void client::set_contacts_changed_handler(connection_handler handler)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_users("get_contacts", {}, std::move(handler)));
+    std::lock_guard lock(impl_->handler_mutex_);
+    impl_->contacts_changed_handler_ = std::move(handler);
+}
+void client::set_friend_remark(std::int64_t user, std::string remark, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->group_action("set_friend_remark", {{"user", user}, {"remark", std::move(remark)}}, std::move(handler)));
+}
+void client::move_friend(std::int64_t user, std::string group, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->group_action("move_friend", {{"user", user}, {"group", std::move(group)}}, std::move(handler)));
+}
+void client::create_friend_group(std::string name, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->group_action("create_friend_group", {{"name", std::move(name)}}, std::move(handler)));
+}
+void client::rename_friend_group(std::string group, std::string name, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->group_action("rename_friend_group", {{"group", std::move(group)}, {"name", std::move(name)}}, std::move(handler)));
+}
+void client::delete_friend_group(std::string group, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->group_action("delete_friend_group", {{"group", std::move(group)}}, std::move(handler)));
+}
+void client::get_contacts(contacts_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->request_page<contact_book>("get_contacts", {}, "Invalid contacts result", std::move(handler)));
 }
 
 void client::get_presence(presences_handler handler)

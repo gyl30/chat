@@ -14,6 +14,7 @@ struct conversation_data
     bool group = false;
     qint64 user = 0;
     QString username;
+    QString remark{};
     qint64 last_timestamp = 0;
     QString last_text;
     quint64 unread = 0;

@@ -24,7 +24,7 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
         SELECT json_object(
             'conversations', json((SELECT json_group_array(json_object(
                 'id',c.id,'kind',c.kind,'user',c.peer,'username',coalesce(c.title,u.username),
-                'avatar_revision',coalesce(u.avatar_revision,0),
+                'remark',coalesce(ct.remark,''),'avatar_revision',coalesce(u.avatar_revision,0),
                 'has_avatar',json(CASE WHEN avatar.user_id IS NULL THEN 'false' ELSE 'true' END),
                 'activity',c.activity,'muted',json(CASE WHEN c.muted THEN 'true' ELSE 'false' END),
                 'pinned',json(CASE WHEN c.pinned THEN 'true' ELSE 'false' END),
@@ -64,7 +64,7 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                 'unread',(SELECT count(*) FROM messages m WHERE m.conversation_id=c.id AND m.deleted=0
                       AND m.id>max(c.last_read_message_id,c.visible_after)
                       AND m.sender_id<>?1)
-            )) FROM visible c LEFT JOIN users u ON u.id=c.peer
+            )) FROM visible c LEFT JOIN users u ON u.id=c.peer LEFT JOIN contacts ct ON ct.owner_id=?1 AND ct.contact_id=c.peer
                 LEFT JOIN user_avatars avatar ON avatar.user_id=u.id)),
             'next',json(CASE WHEN (SELECT count(*) FROM page)>50 THEN
                 (SELECT json_object('pinned',json(CASE WHEN pinned THEN 'true' ELSE 'false' END),

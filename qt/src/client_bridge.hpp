@@ -64,6 +64,11 @@ class client_bridge final : public QObject
     void leave_group(qint64 conversation);
     void set_group_pinned_message(qint64 conversation, std::optional<qint64> message);
     void get_contacts();
+    void set_friend_remark(qint64 user, QString remark);
+    void move_friend(qint64 user, QString group);
+    void create_friend_group(QString name);
+    void rename_friend_group(QString group, QString name);
+    void delete_friend_group(QString group);
     void get_friend_requests();
     void respond_friend_request(qint64 user, bool accept);
     void cancel_friend_request(qint64 user);
@@ -111,6 +116,7 @@ class client_bridge final : public QObject
     void pin_finished(qint64 conversation, bool pinned, QString error_message);
     void friendship_changed();
     void friend_requests_received(QList<user_data> incoming, QList<user_data> outgoing, QString error_message);
+    void friend_groups_received(QStringList groups);
     void contacts_received(QList<user_data> contacts, QString error_message);
     void presences_received(QList<presence_data> users, QString error_message);
     void presence_changed(presence_data user);
@@ -169,6 +175,7 @@ class client_bridge final : public QObject
     void read_marked(qint64 user, qint64 message, QString error_message);
 
    private:
+    std::function<void(std::expected<bool, chat::error>)> contact_settings_result();
     void publish_pending_text(chat::pending_text const& item);
     std::function<void(std::expected<chat::friendship_result, chat::error>)> friend_request_result(qint64 user);
     std::function<void(std::expected<bool, chat::error>)> group_action_result(qint64 conversation, bool leaving = false);

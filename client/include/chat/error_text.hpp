@@ -24,6 +24,7 @@ inline std::string error_text(error const& value)
         {"Conversation unavailable", "会话不可用"},
         {"Message unavailable", "消息不存在或已被删除"},
         {"Communication not allowed", "你们还不是好友，无法发送"},
+        {"Contact or group unavailable", "好友或分组已变更，请检查名称并重试"},
         {"Contact required", "需要先成为好友"},
         {"Already friends", "你们已经是好友"},
         {"Incoming friend request not found", "好友申请已失效"},
