@@ -153,10 +153,14 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
     auto readers = db.prepare(R"SQL(
             SELECT m.user_id,CASE WHEN m.last_read_message_id>own.joined_message_id THEN m.last_read_message_id ELSE 0 END
             FROM conversation_members own JOIN conversation_members m ON m.conversation_id=own.conversation_id
-            WHERE own.conversation_id=?1 AND own.user_id=?2 ORDER BY m.user_id
+            WHERE own.conversation_id=?1 AND own.user_id=?2
+              AND (?3 IS NULL OR (?3>own.joined_message_id AND EXISTS(
+                  SELECT 1 FROM messages WHERE id=?3 AND conversation_id=?1 AND deleted=0)))
+            ORDER BY m.user_id
         )SQL",
                               conversation,
-                              user);
+                              user,
+                              around);
     if (!readers)
     {
         return std::unexpected(std::move(readers.error()));
@@ -226,15 +230,10 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
     }
     if (around)
     {
-        auto index = result.messages.size();
         auto newer = read_page("m.id>=?3 ORDER BY m.id ASC", *around, 21);
         if (!newer)
         {
             return std::unexpected(std::move(newer.error()));
-        }
-        if (index == result.messages.size() || result.messages[index].id != *around || result.messages[index].deleted)
-        {
-            return std::nullopt;
         }
     }
     if (auto populated = populate_interactions(db, result.messages); !populated)
@@ -392,13 +391,15 @@ std::expected<chat::message_search_page, sqlite_error> search_all_messages(sqlit
             result.next_before = result.messages.back().id;
             break;
         }
-        result.messages.push_back({page->column_int64(0),
-                                   page->column_int64(1),
-                                   page->column_int64(2),
-                                   page->column_int64(3),
-                                   std::string(page->column_text(4)),
-                                   std::string(page->column_text(5)),
-                                   std::string(page->column_text(6))});
+        result.messages.push_back({
+            .conversation = page->column_int64(0),
+            .id = page->column_int64(1),
+            .from = page->column_int64(2),
+            .timestamp = page->column_int64(3),
+            .title = std::string(page->column_text(4)),
+            .username = std::string(page->column_text(5)),
+            .snippet = std::string(page->column_text(6)),
+        });
     }
     return result;
 }
