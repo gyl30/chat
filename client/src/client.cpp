@@ -38,6 +38,8 @@
 
 namespace chat
 {
+BOOST_DESCRIBE_STRUCT(message_search_hit, (), (conversation, id, from, timestamp, title, username, snippet))
+BOOST_DESCRIBE_STRUCT(message_search_page, (), (messages, next_before))
 BOOST_DESCRIBE_STRUCT(conversation_file, (), (object_key, filename, media_type, size, uploader_id, username, created_at, category))
 BOOST_DESCRIBE_STRUCT(conversation_file_page, (), (files, has_more))
 
@@ -1512,21 +1514,22 @@ struct client::impl
         return request_bool(std::move(method), std::move(params), "changed", "Invalid group action result", std::move(handler));
     }
 
-    boost::capy::task<> list_files(boost::json::object params, conversation_files_handler handler)
+    template <class Page, class Handler>
+    boost::capy::task<> request_page(std::string method, boost::json::object params, char const* invalid_result, Handler handler)
     {
-        send_request("list_conversation_files",
+        send_request(std::move(method),
                      std::move(params),
-                     [handler = std::move(handler)](auto r)
+                     [invalid_result, handler = std::move(handler)](auto r)
                      {
                          if (!r)
                          {
                              handler(std::unexpected(r.error()));
                              return;
                          }
-                         auto page = boost::json::try_value_to<conversation_file_page>(*r);
+                         auto page = boost::json::try_value_to<Page>(*r);
                          if (!page)
                          {
-                             handler(std::unexpected(make_error(error_kind::protocol, "Invalid group file page")));
+                             handler(std::unexpected(make_error(error_kind::protocol, invalid_result)));
                              return;
                          }
                          handler(std::move(*page));
@@ -1623,7 +1626,8 @@ struct client::impl
                                      std::optional<std::int64_t> before,
                                      messages_handler handler,
                                      std::optional<std::int64_t> after,
-                                     std::optional<std::string> query = {})
+                                     std::optional<std::string> query = {},
+                                     std::optional<std::int64_t> around = {})
     {
         boost::json::object params;
         params.emplace("conversation", conversation);
@@ -1635,6 +1639,10 @@ struct client::impl
         if (after)
         {
             params.emplace("after", *after);
+        }
+        if (around)
+        {
+            params.emplace("around", *around);
         }
         if (query)
         {
@@ -3091,6 +3099,22 @@ void client::get_messages(std::int64_t conversation, std::optional<std::int64_t>
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_messages(conversation, before, std::move(handler), after));
 }
 
+void client::get_messages_around(std::int64_t conversation, std::int64_t around, messages_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_messages(conversation, {}, std::move(handler), {}, {}, around));
+}
+
+void client::search_all_messages(std::string query, std::optional<std::int64_t> before, message_search_handler handler)
+{
+    boost::json::object params{{"query", std::move(query)}};
+    if (before)
+    {
+        params.emplace("before", *before);
+    }
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->request_page<message_search_page>("search_all_messages", std::move(params), "Invalid global message search page", std::move(handler)));
+}
+
 void client::search_messages(std::int64_t conversation, std::string query, std::optional<std::int64_t> before, messages_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_messages(conversation, before, std::move(handler), {}, std::move(query)));
@@ -3202,7 +3226,8 @@ void client::list_conversation_files(std::int64_t conversation,
         params.emplace("cursor_created_at", before);
         params.emplace("cursor_object_key", before_key);
     }
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->list_files(std::move(params), std::move(handler)));
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->request_page<conversation_file_page>("list_conversation_files", std::move(params), "Invalid group file page", std::move(handler)));
 }
 void client::add_conversation_file(std::int64_t conversation, std::string key, group_action_handler handler)
 {

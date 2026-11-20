@@ -204,6 +204,8 @@ QWidget* chat_widget::create_sidebar()
     contacts_action_->setObjectName(QStringLiteral("showContactsAction"));
     contacts_action_->setIcon(svg_icon(u"contacts", themed("text"), QSize(20, 20)));
     chats_action_->setCheckable(true);
+    auto* search_messages = main_menu->addAction(QStringLiteral("全局消息搜索"));
+    connect(search_messages, &QAction::triggered, this, &chat_widget::global_search_requested);
     main_menu->addSeparator();
     auto* add_friend = main_menu->addAction(QStringLiteral("添加联系人"));
     add_friend->setObjectName(QStringLiteral("addFriendAction"));

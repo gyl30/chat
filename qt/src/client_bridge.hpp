@@ -75,6 +75,8 @@ class client_bridge final : public QObject
     void edit_message(qint64 conversation, qint64 message, QString text);
     void set_message_reaction(qint64 conversation, qint64 message, QString emoji);
     void search_users(QString query, quint64 request);
+    quint64 search_all_messages(QString query, qint64 before);
+    quint64 get_search_context(qint64 conversation, qint64 anchor);
     void search_messages(qint64 conversation, QString query, qint64 before = 0);
     // Browsing and searching the history window share one request sequence.
     void get_history(qint64 conversation, QString query, qint64 before);
@@ -151,6 +153,8 @@ class client_bridge final : public QObject
     void attachment_cancelled(qint64 id);
     void attachment_received(qint64 conversation, qint64 message, QString path, QString error_message);
     void message_image_received(qint64 conversation, qint64 message, QByteArray data, QString error_message);
+    void global_search_received(quint64 request, chat::message_search_page page, QString error);
+    void search_context_received(quint64 request, qint64 anchor, QList<message_data> messages, QString error);
     void history_received(qint64 conversation, QList<message_data> messages, bool has_more, QString error_message);
     void message_search_received(qint64 conversation,
                                  QString query,
@@ -190,6 +194,7 @@ class client_bridge final : public QObject
     std::uint64_t friend_requests_generation_ = 0;
     std::uint64_t messages_generation_ = 0;
     std::uint64_t search_generation_ = 0;
+    quint64 global_search_request_ = 0;
     std::uint64_t history_generation_ = 0;
     std::atomic_uint64_t connection_generation_ = 0;
     std::unique_ptr<chat::client> client_;

@@ -45,6 +45,7 @@
 
 #include "avatar.hpp"
 #include "chat_history_dialog.hpp"
+#include "global_search_dialog.hpp"
 #include "chat_widget.hpp"
 #include "attachment_dialog.hpp"
 #include "group_dialog.hpp"
@@ -1112,6 +1113,17 @@ void main_window::connect_group_actions()
     connect(chat_page_, &chat_widget::group_join_requested, this, [this](QString token) { client_->join_group(std::move(token)); });
     connect(chat_page_, &chat_widget::members_requested, this, &main_window::show_group_details);
     connect(chat_page_, &chat_widget::message_search_requested, this, &main_window::show_message_search);
+    connect(chat_page_,
+            &chat_widget::global_search_requested,
+            this,
+            [this]
+            {
+                if (connected_ && !reconnecting_)
+                {
+                    global_search_dialog dialog(*client_, this);
+                    dialog.exec();
+                }
+            });
     connect(chat_page_, &chat_widget::chat_history_requested, this, &main_window::show_chat_history);
     connect(client_.get(),
             &client_bridge::conversation_opened,

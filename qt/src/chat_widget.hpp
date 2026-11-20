@@ -134,6 +134,7 @@ class chat_widget final : public QWidget
     void group_join_requested(QString token);
     void members_requested(qint64 conversation, qint64 self_user, QString title);
     void message_search_requested(qint64 conversation, qint64 self_user, bool group, QString title, QString query);
+    void global_search_requested();
     void chat_history_requested(qint64 conversation, QString title);
     void group_message_pin_requested(qint64 conversation, std::optional<qint64> message);
     void add_file_requested(qint64 conversation, QString key);

@@ -10,6 +10,7 @@ add_executable(chat_qt
     src/attachment_dialog.cpp
     src/attachment_dialog.hpp
     src/avatar.hpp
+    src/global_search_dialog.cpp
     src/chat_history_dialog.cpp
     src/chat_history_dialog.hpp
     src/chat_widget.cpp

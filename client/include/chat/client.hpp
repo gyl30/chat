@@ -66,6 +66,7 @@ class client
     using conversation_handler = std::function<void(std::expected<std::int64_t, error>)>;
     using message_result_handler = std::function<void(std::expected<message, error>)>;
     using attachment_handler = std::function<void(std::expected<std::string, error>)>;
+    using message_search_handler = std::function<void(std::expected<message_search_page, error>)>;
     using messages_handler = std::function<void(std::expected<messages_result, error>)>;
     using users_handler = std::function<void(std::expected<std::vector<user>, error>)>;
     using members_handler = std::function<void(std::expected<std::vector<conversation_member>, error>)>;
@@ -150,6 +151,8 @@ class client
                       std::optional<std::int64_t> before,
                       messages_handler handler,
                       std::optional<std::int64_t> after = {});
+    void search_all_messages(std::string query, std::optional<std::int64_t> before, message_search_handler handler);
+    void get_messages_around(std::int64_t conversation, std::int64_t around, messages_handler handler);
     void search_messages(std::int64_t conversation, std::string query, std::optional<std::int64_t> before, messages_handler handler);
     static std::int64_t new_client_id();
     // The callback reports the local commit. Confirmed messages use the message handler.

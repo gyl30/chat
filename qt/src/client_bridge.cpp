@@ -1099,6 +1099,54 @@ void client_bridge::search_messages(qint64 conversation, QString query, qint64 b
         });
 }
 
+quint64 client_bridge::search_all_messages(QString query, qint64 before)
+{
+    auto request = ++global_search_request_;
+    client_->search_all_messages(to_utf8(query),
+                                 before ? std::optional<std::int64_t>{before} : std::nullopt,
+                                 [this, request, g = connection_generation_.load()](auto result)
+                                 {
+                                     post_result(g,
+                                                 [this, request, result = std::move(result)]() mutable
+                                                 {
+                                                     if (result)
+                                                     {
+                                                         emit global_search_received(request, std::move(*result), {});
+                                                     }
+                                                     else
+                                                     {
+                                                         emit global_search_received(request, {}, display_error(result.error()));
+                                                     }
+                                                 });
+                                 });
+    return request;
+}
+
+quint64 client_bridge::get_search_context(qint64 conversation, qint64 anchor)
+{
+    auto request = ++global_search_request_;
+    client_->get_messages_around(conversation,
+                                 anchor,
+                                 [this, request, anchor, g = connection_generation_.load()](auto result)
+                                 {
+                                     post_result(g,
+                                                 [this, request, anchor, result = std::move(result)]
+                                                 {
+                                                     QList<message_data> messages;
+                                                     if (result)
+                                                     {
+                                                         for (auto const& m : result->messages)
+                                                         {
+                                                             messages.push_back(to_message_data(m));
+                                                         }
+                                                     }
+                                                     emit search_context_received(
+                                                         request, anchor, std::move(messages), result ? QString{} : display_error(result.error()));
+                                                 });
+                                 });
+    return request;
+}
+
 void client_bridge::get_history(qint64 conversation, QString query, qint64 before)
 {
     auto const generation = ++history_generation_;
