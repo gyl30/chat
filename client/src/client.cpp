@@ -13,6 +13,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <stop_token>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -29,6 +30,9 @@
 #include <chat/detail/websocket_limits.hpp>
 
 #include "websocket.hpp"
+#include "attachment_files.hpp"
+#include "blocking_worker.hpp"
+#include <filesystem>
 
 namespace chat
 {
@@ -462,7 +466,11 @@ struct client::impl
         connected,
     };
 
-    impl() : websocket_(io_context_), work_(boost::capy::make_work_guard(io_context_.get_executor())), network_thread_([this] { io_context_.run(); })
+    explicit impl(std::string directory)
+        : transfer_directory_(std::move(directory)),
+          websocket_(io_context_),
+          work_(boost::capy::make_work_guard(io_context_.get_executor())),
+          network_thread_([this] { io_context_.run(); })
     {
     }
 
@@ -922,6 +930,8 @@ struct client::impl
             co_return;
         }
 
+        endpoint_ = url;
+        transfer_stop_ = std::make_shared<std::atomic_bool>(false);
         state_ = connection_state::connecting;
         closing_ = false;
 
@@ -1007,6 +1017,7 @@ struct client::impl
         websocket_.close();
         outgoing_.clear();
         state_ = connection_state::disconnected;
+        stop_file_transfers();
         fail_pending(make_error(error_kind::transport, "Connection closed"));
 
         if (connection_error && !closing_)
@@ -1031,6 +1042,7 @@ struct client::impl
     {
         closing_ = true;
         websocket_.cancel();
+        stop_file_transfers();
         stopped->set_value();
         co_return;
     }
@@ -1040,10 +1052,22 @@ struct client::impl
         boost::json::object params;
         params.emplace("username", std::move(username));
         params.emplace("password", std::move(password));
-
+        if (!account_)
+        {
+            // An unavailable upload directory must not prevent ordinary chat or file downloads.
+            journal_ = {};
+            if (auto db = detail::open_transfer_journal(transfer_directory_, endpoint_))
+            {
+                if (auto secret = detail::installation_secret(*db))
+                {
+                    params.emplace("device_secret", std::move(*secret));
+                    journal_ = std::move(*db);
+                }
+            }
+        }
         send_request("authenticate",
                      std::move(params),
-                     [handler = std::move(handler)](auto response) mutable
+                     [this, handler = std::move(handler)](auto response) mutable
                      {
                          if (!response)
                          {
@@ -1074,6 +1098,10 @@ struct client::impl
                          {
                              handler(std::unexpected(make_error(error_kind::protocol, "Invalid authenticate avatar")));
                              return;
+                         }
+                         if (value.authenticated)
+                         {
+                             account_ = value.user;
                          }
                          handler(value);
                      });
@@ -1665,244 +1693,407 @@ struct client::impl
 
     struct upload_job
     {
-        std::int64_t conversation = 0;
-        std::int64_t upload = 0;
-        std::string filename;
-        std::string data;
-        std::size_t offset = 0;
-        std::optional<std::int64_t> reply_to;
-        std::int64_t client_id = 0;
+        pending_attachment task;
+        detail::inspected_file file;
+        std::stop_source stop;
+        bool putting = false;    // Only the SDK executor starts and releases a part request.
         message_result_handler handler;
+        progress_handler progress;
     };
-
-    // The server holds one upload per connection, so the front job runs and the rest wait.
-    void finish_upload(std::expected<message, error> result)
+    using job_ptr = std::shared_ptr<upload_job>;
+    static error file_queue_error(blocking_worker::unavailable) { return make_error(error_kind::file_transfer, "附件工作线程繁忙，请稍后继续"); }
+    void end_upload(job_ptr const& job, std::expected<message, error> result)
     {
-        // Keep this job in front while its handler runs, so a reentrant send waits.
-        auto job = uploads_.front();
+        auto it = uploads_.find(job->task.client_id);
+        if (it == uploads_.end() || it->second != job)
+        {
+            return;
+        }
+        uploads_.erase(it);
+        if (suppress_callbacks_)
+        {
+            return;
+        }
+        if (result)
+        {
+            if (auto e = journal_.exec("DELETE FROM tasks WHERE user=? AND client=?", account_, job->task.client_id); e)
+            {
+                report_error(make_error(error_kind::file_transfer, "无法清理已发送的本地上传记录"));
+            }
+        }
+        else if (!job->stop.stop_requested() && state_ == connection_state::connected && !closing_)
+        {
+            send_request("pause_attachment", {{"upload", job->task.client_id}}, [](auto) {});
+        }
         job->handler(std::move(result));
-        uploads_.pop_front();
-        if (state_ != connection_state::connected || closing_)
+    }
+    void accept_file_message(job_ptr const& job, boost::json::value const& response)
+    {
+        message m;
+        if (!response.is_object() || !parse_message(response.as_object(), m) || m.client_id != job->task.client_id ||
+            m.conversation != job->task.conversation || (!m.deleted && (!m.attachment || m.attachment->size != job->file.size)))
         {
-            // A request now fails at once; failing each waiting job through it would recurse once per job.
-            auto waiting = std::move(uploads_);
-            uploads_.clear();
-            for (auto& next : waiting)
-            {
-                if (suppress_callbacks_.load())
-                {
-                    return;
-                }
-                next->handler(std::unexpected(make_error(error_kind::transport, "Not connected")));
-            }
+            end_upload(job, std::unexpected(make_error(error_kind::protocol, "Invalid attachment acknowledgement")));
             return;
         }
-        if (!uploads_.empty())
-        {
-            begin_upload(uploads_.front());
-        }
+        end_upload(job, std::move(m));
     }
-
-    void fail_upload(std::shared_ptr<upload_job> const& job, error value)
+    boost::capy::task<> notify_file_progress(job_ptr job, std::int64_t current, std::int64_t total)
     {
-        if (job->upload > 0)
+        if (!job->stop.stop_requested() && !suppress_callbacks_ && uploads_.contains(job->task.client_id))
         {
-            send_request("cancel_attachment", {{"upload", job->upload}}, [](auto) {});
-        }
-        finish_upload(std::unexpected(std::move(value)));
-    }
-
-    bool valid_upload_result(upload_job const& job, message const& value) const
-    {
-        return value.conversation == job.conversation && value.client_id == job.client_id &&
-               (value.deleted || (value.attachment && value.attachment->filename == job.filename &&
-                                  value.attachment->size == static_cast<std::int64_t>(job.data.size())));
-    }
-
-    void upload_next(std::shared_ptr<upload_job> job)
-    {
-        if (job->offset == job->data.size())
-        {
-            boost::json::object params{{"upload", job->upload}};
-            if (job->reply_to)
-            {
-                params.emplace("reply_to", *job->reply_to);
-            }
-            send_request("finish_attachment",
-                         std::move(params),
-                         [this, job](auto response)
-                         {
-                             if (!response)
-                             {
-                                 fail_upload(job, std::move(response.error()));
-                                 return;
-                             }
-                             message value;
-                             if (!response->is_object() || !parse_message(response->as_object(), value) || !valid_upload_result(*job, value))
-                             {
-                                 fail_upload(job, make_error(error_kind::protocol, "Invalid attachment message"));
-                                 return;
-                             }
-                             finish_upload(std::move(value));
-                         });
-            return;
-        }
-        auto const count = std::min(attachment_chunk_size, job->data.size() - job->offset);
-        auto chunk = detail::encode_base64(std::string_view(job->data).substr(job->offset, count));
-        send_request("upload_attachment",
-                     {{"upload", job->upload}, {"offset", job->offset}, {"data", std::move(chunk)}},
-                     [this, job, count](auto response)
-                     {
-                         if (!response)
-                         {
-                             fail_upload(job, std::move(response.error()));
-                             return;
-                         }
-                         auto const* field = response->is_object() ? response->as_object().if_contains("offset") : nullptr;
-                         auto offset = field ? parse_int64(*field) : std::nullopt;
-                         if (!offset || *offset != static_cast<std::int64_t>(job->offset + count))
-                         {
-                             fail_upload(job, make_error(error_kind::protocol, "Invalid attachment upload offset"));
-                             return;
-                         }
-                         job->offset += count;
-                         upload_next(job);
-                     });
-    }
-
-    void begin_upload(std::shared_ptr<upload_job> job)
-    {
-        send_request("begin_attachment",
-                     {{"conversation", job->conversation}, {"filename", job->filename}, {"size", job->data.size()}, {"client_id", job->client_id}},
-                     [this, job](auto response)
-                     {
-                         if (!response)
-                         {
-                             fail_upload(job, std::move(response.error()));
-                             return;
-                         }
-                         auto const* object = response->is_object() ? &response->as_object() : nullptr;
-                         auto const* sent = object ? object->if_contains("message") : nullptr;
-                         if (sent)
-                         {
-                             // Already stored under this client_id: nothing to upload.
-                             message value;
-                             if (!sent->is_object() || !parse_message(sent->as_object(), value) || !valid_upload_result(*job, value))
-                             {
-                                 fail_upload(job, make_error(error_kind::protocol, "Invalid attachment message"));
-                                 return;
-                             }
-                             finish_upload(std::move(value));
-                             return;
-                         }
-                         auto const* field = object ? object->if_contains("upload") : nullptr;
-                         auto upload = field ? parse_int64(*field) : std::nullopt;
-                         if (!upload || *upload <= 0)
-                         {
-                             fail_upload(job, make_error(error_kind::protocol, "Invalid attachment upload id"));
-                             return;
-                         }
-                         job->upload = *upload;
-                         upload_next(job);
-                     });
-    }
-
-    boost::capy::task<> send_attachment(std::int64_t conversation,
-                                        std::string filename,
-                                        std::string data,
-                                        message_result_handler handler,
-                                        std::optional<std::int64_t> reply_to,
-                                        std::int64_t client_id)
-    {
-        if (data.size() > max_attachment_size)
-        {
-            handler(std::unexpected(make_error(error_kind::protocol, "Attachment exceeds 10 MiB")));
-            co_return;
-        }
-        auto job = std::make_shared<upload_job>();
-        job->conversation = conversation;
-        job->filename = std::move(filename);
-        job->data = std::move(data);
-        job->reply_to = reply_to;
-        job->client_id = client_id;
-        job->handler = std::move(handler);
-        uploads_.push_back(job);
-        if (uploads_.size() == 1)
-        {
-            begin_upload(std::move(job));
+            job->progress(current, total);
         }
         co_return;
     }
-
-    struct download_job
+    boost::capy::task<> transfer_part(job_ptr job, std::string url, int number, std::int64_t offset, std::int64_t length)
     {
-        std::int64_t conversation = 0;
-        std::int64_t message = 0;
-        std::optional<std::int64_t> size;
-        std::string data;
-        attachment_handler handler;
-    };
-
-    void download_next(std::shared_ptr<download_job> job)
+        if (job->stop.stop_requested())
+        {
+            co_return;
+        }
+        job->putting = true;
+        progress_handler progress;
+        if (job->progress)
+        {
+            progress = [this, job](auto current, auto total)
+            { boost::capy::run_async(io_context_.get_executor())(notify_file_progress(job, current, total)); };
+        }
+        auto result = co_await file_worker_.run(
+            [&] { return detail::put_part(url, job->task.path, job->file, offset, length, job->stop.get_token(), progress); }, file_queue_error);
+        job->putting = false;
+        if (job->stop.stop_requested() || suppress_callbacks_)
+        {
+            end_upload(job, std::unexpected(make_error(error_kind::file_transfer, "上传已暂停")));
+            co_return;
+        }
+        if (!result)
+        {
+            end_upload(job, std::unexpected(result.error()));
+            co_return;
+        }
+        send_request("confirm_attachment",
+                     {{"upload", job->task.client_id}, {"number", number}, {"etag", *result}},
+                     [this, job](auto r) { on_grant(job, std::move(r)); });
+    }
+    void on_grant(job_ptr const& job, std::expected<boost::json::value, error> response)
+    {
+        if (job->stop.stop_requested() || suppress_callbacks_)
+        {
+            return;
+        }
+        if (!response)
+        {
+            end_upload(job, std::unexpected(response.error()));
+            return;
+        }
+        auto* obj = response->if_object();
+        if (obj)
+        {
+            if (auto* msg = obj->if_contains("message"))
+            {
+                accept_file_message(job, *msg);
+                return;
+            }
+        }
+        auto integer = [&](char const* key)
+        {
+            auto* v = obj ? obj->if_contains(key) : nullptr;
+            return v ? parse_int64(*v).value_or(-1) : -1;
+        };
+        auto n = integer("number"), offset = integer("offset"), length = integer("length"), part_size = integer("part_size"),
+             count = integer("part_count");
+        auto* url = obj ? obj->if_contains("url") : nullptr;
+        if (integer("upload") != job->task.client_id || integer("size") != job->file.size || n < 0 || n > count ||
+            part_size != attachment_part_size || count != std::max<std::int64_t>(1, (job->file.size + part_size - 1) / part_size) ||
+            offset != (n == 0 ? job->file.size : (n - 1) * part_size) || length != (n == 0 ? 0 : std::min(part_size, job->file.size - offset)) ||
+            !url || !url->is_string())
+        {
+            end_upload(job, std::unexpected(make_error(error_kind::protocol, "Invalid multipart layout")));
+            return;
+        }
+        if (journal_.exec("UPDATE tasks SET touched=CAST(strftime('%s','now') AS INTEGER),part_size=?,count=?,number=?,confirmed=?,length=? WHERE "
+                          "user=? AND client=?",
+                          part_size,
+                          count,
+                          n,
+                          offset,
+                          length,
+                          account_,
+                          job->task.client_id))
+        {
+            end_upload(job, std::unexpected(make_error(error_kind::file_transfer, "无法保存分片进度")));
+            return;
+        }
+        if (job->progress)
+        {
+            job->progress(offset, job->file.size);
+        }
+        if (n)
+        {
+            boost::capy::run_async(io_context_.get_executor())(
+                transfer_part(job, std::string(url->as_string()), static_cast<int>(n), offset, length));
+            return;
+        }
+        boost::json::object params{{"upload", job->task.client_id}};
+        if (job->task.reply_to)
+        {
+            params.emplace("reply_to", job->task.reply_to);
+        }
+        send_request("finish_attachment",
+                     std::move(params),
+                     [this, job](auto r)
+                     {
+                         if (job->stop.stop_requested())
+                         {
+                             return;
+                         }
+                         if (!r)
+                         {
+                             end_upload(job, std::unexpected(r.error()));
+                             return;
+                         }
+                         accept_file_message(job, *r);
+                     });
+    }
+    boost::capy::task<> send_file(pending_attachment task, message_result_handler handler, progress_handler progress)
+    {
+        if (!journal_.is_open())
+        {
+            handler(std::unexpected(make_error(error_kind::file_transfer, "本地上传目录不可用，请检查应用数据目录权限")));
+            co_return;
+        }
+        if (!account_ || uploads_.contains(task.client_id))
+        {
+            handler(std::unexpected(make_error(error_kind::file_transfer, "尚未登录或任务正在上传")));
+            co_return;
+        }
+        std::error_code path_error;
+        auto absolute = std::filesystem::absolute(task.path, path_error);
+        if (path_error)
+        {
+            handler(std::unexpected(make_error(error_kind::file_transfer, "无法定位原文件")));
+            co_return;
+        }
+        task.path = absolute.string();
+        auto job = std::make_shared<upload_job>();
+        job->task = std::move(task);
+        job->handler = std::move(handler);
+        job->progress = std::move(progress);
+        auto const& t = job->task;
+        uploads_.emplace(t.client_id, job);
+        auto fail = [&](std::string msg) { end_upload(job, std::unexpected(make_error(error_kind::file_transfer, std::move(msg)))); };
+        auto fp = detail::file_snapshot(t.path);
+        if (!fp)
+        {
+            fail(fp.error().message);
+            co_return;
+        }
+        if (journal_.exec("INSERT OR IGNORE INTO tasks(user,client,conversation,path,size,stamp,reply,checksum) VALUES(?,?,?,?,?,?,?,'')",
+                          account_,
+                          t.client_id,
+                          t.conversation,
+                          t.path,
+                          fp->first,
+                          fp->second,
+                          t.reply_to))
+        {
+            fail("无法保存上传任务");
+            co_return;
+        }
+        std::string checksum;
+        bool resuming = false;
+        {
+            auto q = journal_.prepare(
+                "SELECT path,conversation,size,stamp,checksum,part_size FROM tasks WHERE user=? AND client=?", account_, t.client_id);
+            if (!q)
+            {
+                fail("无法读取上传记录");
+                co_return;
+            }
+            auto row = q->step();
+            if (!row || !*row)
+            {
+                fail("上传记录不可用");
+                co_return;
+            }
+            if (q->column_text(0) != t.path || q->column_int64(1) != t.conversation || q->column_int64(2) != fp->first ||
+                q->column_int64(3) != fp->second)
+            {
+                fail("原文件已变更，无法继续上传");
+                co_return;
+            }
+            checksum = q->column_text(4);
+            resuming = q->column_int64(5) > 0;
+        }
+        auto file = co_await file_worker_.run([&] { return detail::inspect_file(t.path, job->stop.get_token()); }, file_queue_error);
+        if (job->stop.stop_requested() || suppress_callbacks_)
+        {
+            co_return;
+        }
+        if (!file)
+        {
+            end_upload(job, std::unexpected(file.error()));
+            co_return;
+        }
+        if (file->size != fp->first || file->stamp != fp->second || (!checksum.empty() && file->checksum != checksum))
+        {
+            fail("原文件已变更，无法继续上传");
+            co_return;
+        }
+        job->file = std::move(*file);
+        if (journal_.exec("UPDATE tasks SET checksum=?,reply=? WHERE user=? AND client=?", job->file.checksum, t.reply_to, account_, t.client_id))
+        {
+            fail("无法保存文件校验信息");
+            co_return;
+        }
+        if (resuming)
+        {
+            send_request("resume_attachment", {{"upload", t.client_id}}, [this, job](auto r) { on_grant(job, std::move(r)); });
+            co_return;
+        }
+        send_request("begin_attachment",
+                     {{"conversation", t.conversation},
+                      {"client_id", t.client_id},
+                      {"size", job->file.size},
+                      {"filename", t.filename},
+                      {"media_type", job->file.media},
+                      {"checksum", job->file.checksum}},
+                     [this, job](auto r) { on_grant(job, std::move(r)); });
+    }
+    boost::capy::task<> restore_attachments(pending_attachments_handler handler)
+    {
+        std::vector<pending_attachment> records;
+        if (!account_)
+        {
+            handler(std::unexpected(make_error(error_kind::transport, "Not authenticated")));
+            co_return;
+        }
+        if (!journal_.is_open())
+        {
+            handler(std::unexpected(make_error(error_kind::file_transfer, "本地上传目录不可用，请检查应用数据目录权限")));
+            co_return;
+        }
+        auto q = journal_.prepare("SELECT client,conversation,path,size,reply,confirmed FROM tasks WHERE user=? ORDER BY client", account_);
+        if (!q)
+        {
+            handler(std::unexpected(make_error(error_kind::file_transfer, "无法读取上传任务")));
+            co_return;
+        }
+        for (;;)
+        {
+            auto row = q->step();
+            if (!row)
+            {
+                handler(std::unexpected(make_error(error_kind::file_transfer, "无法读取上传任务")));
+                co_return;
+            }
+            if (!*row)
+            {
+                break;
+            }
+            auto path = std::string(q->column_text(2));
+            auto name = std::filesystem::path(path).filename().string();
+            records.push_back({q->column_int64(0),
+                               q->column_int64(1),
+                               q->column_int64(3),
+                               q->column_int64(4),
+                               q->column_int64(5),
+                               std::move(path),
+                               std::move(name)});
+        }
+        handler(std::move(records));
+        co_return;
+    }
+    boost::capy::task<> interrupt_attachment(std::int64_t id, bool cancel, group_action_handler handler)
+    {
+        if (!journal_.is_open())
+        {
+            handler(std::unexpected(make_error(error_kind::file_transfer, "本地上传目录不可用，请检查应用数据目录权限")));
+            co_return;
+        }
+        if (auto it = uploads_.find(id); it != uploads_.end())
+        {
+            auto job = it->second;
+            job->stop.request_stop();
+            if (!job->putting)
+            {
+                end_upload(job, std::unexpected(make_error(error_kind::file_transfer, "上传已暂停")));
+            }
+        }
+        send_request(cancel ? "cancel_attachment" : "pause_attachment",
+                     {{"upload", id}},
+                     [this, id, cancel, handler = std::move(handler)](auto r)
+                     {
+                         if (!r && !(r.error().kind == error_kind::rpc && r.error().code == -32008))
+                         {
+                             handler(std::unexpected(r.error()));
+                             return;
+                         }
+                         if (cancel && journal_.exec("DELETE FROM tasks WHERE user=? AND client=?", account_, id))
+                         {
+                             handler(std::unexpected(make_error(error_kind::file_transfer, "无法清理上传记录")));
+                             return;
+                         }
+                         handler(true);
+                     });
+        co_return;
+    }
+    boost::capy::task<> save_download(std::string url,
+                                      std::string checksum,
+                                      std::int64_t size,
+                                      std::string target,
+                                      attachment_handler handler,
+                                      std::shared_ptr<std::atomic_bool> stop)
+    {
+        auto result = co_await file_worker_.run([&] { return detail::download_file(url, size, checksum, target, *stop); }, file_queue_error);
+        if (!suppress_callbacks_)
+        {
+            handler(std::move(result));
+        }
+    }
+    boost::capy::task<> get_attachment(
+        std::int64_t conversation, std::int64_t message, std::string target, std::int64_t limit, attachment_handler handler)
     {
         send_request(
             "get_attachment",
-            {{"conversation", job->conversation}, {"message", job->message}, {"offset", job->data.size()}},
-            [this, job](auto response)
+            {{"conversation", conversation}, {"message", message}},
+            [this, target = std::move(target), limit, handler = std::move(handler)](auto r) mutable
             {
-                if (!response)
+                if (!r)
                 {
-                    job->handler(std::unexpected(std::move(response.error())));
+                    handler(std::unexpected(r.error()));
                     return;
                 }
-                auto const* fields = response->is_object() ? &response->as_object() : nullptr;
-                auto const* size_field = fields ? fields->if_contains("size") : nullptr;
-                auto const* offset_field = fields ? fields->if_contains("offset") : nullptr;
-                auto const* data_field = fields ? fields->if_contains("data") : nullptr;
-                auto const* more_field = fields ? fields->if_contains("has_more") : nullptr;
-                auto size = size_field ? parse_int64(*size_field) : std::nullopt;
-                auto offset = offset_field ? parse_int64(*offset_field) : std::nullopt;
-                if (!size || *size < 0 || *size > static_cast<std::int64_t>(max_attachment_size) || (job->size && *job->size != *size) || !offset ||
-                    *offset != static_cast<std::int64_t>(job->data.size()) || *offset > *size || !data_field || !data_field->is_string() ||
-                    !more_field || !more_field->is_bool() || data_field->as_string().size() > 4 * ((attachment_chunk_size + 2) / 3))
+                auto* obj = r->if_object();
+                auto* v = obj ? obj->if_contains("size") : nullptr;
+                auto size = v ? parse_int64(*v) : std::nullopt;
+                auto* url = obj ? obj->if_contains("url") : nullptr;
+                auto* hash = obj ? obj->if_contains("checksum") : nullptr;
+                if (!size || *size < 0 || *size > limit || !url || !url->is_string() || !hash || !hash->is_string())
                 {
-                    job->handler(std::unexpected(make_error(error_kind::protocol, "Invalid attachment chunk")));
+                    handler(std::unexpected(make_error(error_kind::file_transfer, "附件过大或下载信息无效")));
                     return;
                 }
-                auto bytes = detail::decode_base64(std::string_view(data_field->as_string()));
-                auto const expected_size = std::min(attachment_chunk_size, static_cast<std::size_t>(*size - *offset));
-                if (!bytes || bytes->size() != expected_size || more_field->as_bool() != (*offset + static_cast<std::int64_t>(expected_size) < *size))
-                {
-                    job->handler(std::unexpected(make_error(error_kind::protocol, "Invalid attachment chunk data")));
-                    return;
-                }
-                if (!job->size)
-                {
-                    job->size = size;
-                    job->data.reserve(*size);
-                }
-                job->data.append(*bytes);
-                if (more_field->as_bool())
-                {
-                    download_next(job);
-                }
-                else
-                {
-                    job->handler(std::move(job->data));
-                }
+                boost::capy::run_async(io_context_.get_executor())(save_download(
+                    std::string(url->as_string()), std::string(hash->as_string()), *size, std::move(target), std::move(handler), transfer_stop_));
             });
-    }
-
-    boost::capy::task<> get_attachment(std::int64_t conversation, std::int64_t message, attachment_handler handler)
-    {
-        auto job = std::make_shared<download_job>();
-        job->conversation = conversation;
-        job->message = message;
-        job->handler = std::move(handler);
-        download_next(job);
         co_return;
     }
-
+    void stop_file_transfers()
+    {
+        *transfer_stop_ = true;
+        account_ = 0;
+        auto const jobs = uploads_;
+        for (auto const& [id, job] : jobs)
+        {
+            job->stop.request_stop();
+            if (!job->putting)
+            {
+                end_upload(job, std::unexpected(make_error(error_kind::transport, "连接已断开，上传已暂停")));
+            }
+        }
+    }
     boost::capy::task<> set_message_reaction(std::int64_t conversation, std::int64_t id, std::string emoji, reaction_result_handler handler)
     {
         send_request("set_message_reaction",
@@ -2151,7 +2342,7 @@ struct client::impl
                          });
             return;
         }
-        auto count = std::min(attachment_chunk_size, job->data.size() - job->offset);
+        auto count = std::min(avatar_chunk_size, job->data.size() - job->offset);
         send_request("upload_avatar_chunk",
                      {{"upload", job->upload},
                       {"offset", job->offset},
@@ -2244,7 +2435,7 @@ struct client::impl
                 if (!fields || !parse_avatar_state(*fields, state) || !user || *user != job->value.user || !size || *size < 0 ||
                     *size > static_cast<std::int64_t>(max_avatar_size) || !offset || *offset < 0 || !data_field || !data_field->is_string() ||
                     !type_field || !type_field->is_string() || !more_field || !more_field->is_bool() ||
-                    data_field->as_string().size() > 4 * ((attachment_chunk_size + 2) / 3))
+                    data_field->as_string().size() > 4 * ((avatar_chunk_size + 2) / 3))
                 {
                     job->handler(std::unexpected(make_error(error_kind::protocol, "Invalid avatar chunk")));
                     return;
@@ -2264,7 +2455,7 @@ struct client::impl
                 if (*size == 0 || *offset != static_cast<std::int64_t>(job->value.data.size()) || *offset > *size ||
                     (job->size && *job->size != *size) || (type != "image/png" && type != "image/jpeg") ||
                     (!job->value.media_type.empty() && job->value.media_type != type) || !bytes ||
-                    bytes->size() != std::min(attachment_chunk_size, static_cast<std::size_t>(*size - *offset)) ||
+                    bytes->size() != std::min(avatar_chunk_size, static_cast<std::size_t>(*size - *offset)) ||
                     more_field->as_bool() != (*offset + static_cast<std::int64_t>(bytes->size()) < *size))
                 {
                     job->handler(std::unexpected(make_error(error_kind::protocol, "Invalid avatar chunk data")));
@@ -2317,6 +2508,11 @@ struct client::impl
         co_return;
     }
 
+    std::string transfer_directory_, endpoint_;
+    sqlite_database journal_;
+    std::int64_t account_ = 0;
+    blocking_worker file_worker_{64, 2};
+    std::shared_ptr<std::atomic_bool> transfer_stop_ = std::make_shared<std::atomic_bool>(false);
     boost::corosio::io_context io_context_{1};
     detail::websocket_client websocket_;
     boost::capy::work_guard<boost::corosio::io_context::executor_type> work_;
@@ -2324,7 +2520,7 @@ struct client::impl
 
     std::int64_t next_request_id_ = 1;
     std::unordered_map<std::int64_t, response_handler> pending_;
-    std::deque<std::shared_ptr<upload_job>> uploads_;
+    std::unordered_map<std::int64_t, job_ptr> uploads_;
     std::deque<std::string> outgoing_;
     connection_state state_ = connection_state::disconnected;
     bool closing_ = false;
@@ -2346,7 +2542,7 @@ struct client::impl
     std::atomic_bool suppress_callbacks_ = false;
 };
 
-client::client() : impl_(std::make_unique<impl>()) {}
+client::client(std::string directory) : impl_(std::make_unique<impl>(std::move(directory))) {}
 
 client::~client()
 {
@@ -2624,19 +2820,28 @@ void client::send_message(std::int64_t conversation,
 }
 
 void client::send_attachment(std::int64_t conversation,
-                             std::string filename,
-                             std::string data,
+                             std::string path,
                              message_result_handler handler,
-                             std::optional<std::int64_t> reply_to,
-                             std::optional<std::int64_t> client_id)
+                             std::optional<std::int64_t> reply,
+                             std::optional<std::int64_t> id,
+                             progress_handler progress)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->send_attachment(
-        conversation, std::move(filename), std::move(data), std::move(handler), reply_to, client_id ? *client_id : new_client_id()));
+    auto name = std::filesystem::path(path).filename().string();
+    pending_attachment t{id.value_or(new_client_id()), conversation, 0, reply.value_or(0), 0, std::move(path), std::move(name)};
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->send_file(std::move(t), std::move(handler), std::move(progress)));
 }
-
-void client::get_attachment(std::int64_t conversation, std::int64_t message, attachment_handler handler)
+void client::interrupt_attachment(std::int64_t id, bool cancel, group_action_handler handler)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_attachment(conversation, message, std::move(handler)));
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->interrupt_attachment(id, cancel, std::move(handler)));
+}
+void client::pending_attachments(pending_attachments_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->restore_attachments(std::move(handler)));
+}
+void client::get_attachment(std::int64_t conversation, std::int64_t message, std::string path, attachment_handler handler, std::int64_t limit)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->get_attachment(conversation, message, std::move(path), limit, std::move(handler)));
 }
 
 void client::delete_message(std::int64_t conversation, std::int64_t message, message_result_handler handler)

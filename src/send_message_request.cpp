@@ -9,7 +9,8 @@
 
 #include "chat_session.hpp"
 #include "message_payload.hpp"
-#include "attachment_io.hpp"
+#include "s3_objects.hpp"
+#include "upload_store.hpp"
 #include "database.hpp"
 #include "message_history.hpp"
 #include "message_store.hpp"
@@ -213,19 +214,22 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         {
             co_return simdjson::SUCCESS;
         }
-        if (!upload_ || upload_->id != *params.upload || upload_->content.size() != static_cast<std::size_t>(upload_->size))
+        auto task = co_await database_.run([&](sqlite_database& db) { return read_upload(db, user, device_, *params.upload); });
+        if (!task)
+        {
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        if (!*task || (**task).state != "active" || (**task).parts.empty() || (**task).parts.back().etag.empty())
         {
             co_return serialize_json_rpc_error(-32008, "Attachment upload incomplete", std::move(request.id), response);
         }
-        auto upload = std::move(*upload_);
-        upload_.reset();
-        params.conversation = upload.conversation;
-        message_to_write const message{user, upload.conversation, upload.client_id, upload.filename, params.reply_to};
-
+        auto const& t = **task;
+        params.conversation = t.conversation;
+        message_to_write const message{user, t.conversation, t.client_id, t.filename, params.reply_to};
         auto preflight = co_await database_.run([&](sqlite_database& db) { return check_attachment_delivery(db, message, request.id); });
         if (!preflight)
         {
-            delivered = std::unexpected(std::move(preflight.error()));
+            delivered = std::unexpected(preflight.error());
         }
         else if (*preflight)
         {
@@ -233,27 +237,12 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         }
         else
         {
-            auto const* media_type = "application/octet-stream";
-            if (upload.content.starts_with(std::string_view("\x89PNG\r\n\x1a\n", 8)))
+            if (!(co_await objects_.complete(t)))
             {
-                media_type = "image/png";
+                co_return serialize_json_rpc_error(-32000, "Multipart completion failed", std::move(request.id), response);
             }
-            else if (upload.content.starts_with(std::string_view("\xff\xd8\xff", 3)))
-            {
-                media_type = "image/jpeg";
-            }
-            auto staged = co_await stage_attachment(database_, objects_, std::move(upload.content), media_type);
-            if (!staged)
-            {
-                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-            }
-            uploaded_attachment const attachment{staged->key, upload.filename, media_type, upload.size, staged->checksum};
+            uploaded_attachment const attachment{t.key, t.filename, t.media_type, t.size, t.checksum};
             delivered = co_await database_.run([&](sqlite_database& db) { return persist_delivery(db, message, request.id, &attachment); });
-            auto const* result = delivered ? std::get_if<delivery>(&*delivered) : nullptr;
-            if (!result || result->notification.empty())
-            {
-                co_await discard_unpublished_attachment(database_, objects_, staged->key);
-            }
         }
     }
     else

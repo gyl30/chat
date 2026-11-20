@@ -198,6 +198,54 @@ QWidget* chat_widget::create_sidebar()
     join_group->setObjectName(QStringLiteral("joinGroupAction"));
     join_group->setIcon(svg_icon(u"groups", themed("text"), QSize(20, 20)));
     main_menu->addSeparator();
+    auto* transfers = main_menu->addMenu(QStringLiteral("附件上传"));
+    connect(transfers,
+            &QMenu::aboutToShow,
+            this,
+            [this, transfers]
+            {
+                transfers->clear();
+                for (auto const& item : outgoing_)
+                {
+                    if (item.path.isEmpty())
+                    {
+                        continue;
+                    }
+                    auto* actions = transfers->addMenu(item.filename + QStringLiteral(" · ") + item.error);
+                    auto id = item.client_id;
+                    auto* toggle = actions->addAction(item.failed ? QStringLiteral("继续上传") : QStringLiteral("暂停上传"));
+                    toggle->setEnabled(connection_available_);
+                    connect(toggle,
+                            &QAction::triggered,
+                            this,
+                            [this, id]
+                            {
+                                auto it = std::ranges::find(outgoing_, id, &outgoing::client_id);
+                                if (it == outgoing_.end())
+                                {
+                                    return;
+                                }
+                                if (it->failed)
+                                {
+                                    it->failed = false;
+                                    it->error = QStringLiteral("正在校验文件…");
+                                    show_outgoing();
+                                    submit(*it);
+                                }
+                                else
+                                {
+                                    emit attachment_interrupt_requested(id, false);
+                                }
+                            });
+                    auto* cancel = actions->addAction(QStringLiteral("取消上传"));
+                    cancel->setEnabled(connection_available_);
+                    connect(cancel, &QAction::triggered, this, [this, id] { emit attachment_interrupt_requested(id, true); });
+                }
+                if (transfers->isEmpty())
+                {
+                    transfers->addAction(QStringLiteral("没有未完成的上传"))->setEnabled(false);
+                }
+            });
     auto* settings = main_menu->addAction(QStringLiteral("设置"));
     settings->setObjectName(QStringLiteral("showSettingsAction"));
     settings->setToolTip(QStringLiteral("设置"));
@@ -1131,13 +1179,7 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
                 }
                 if (file.size() > static_cast<qint64>(chat::max_attachment_size))
                 {
-                    set_message_status(QStringLiteral("文件不能超过 10 MiB。"));
-                    return;
-                }
-                auto data = file.read(chat::max_attachment_size + 1);
-                if (file.error() != QFileDevice::NoError || data.size() > static_cast<qint64>(chat::max_attachment_size))
-                {
-                    set_message_status(QStringLiteral("无法读取文件，或文件超过 10 MiB。"));
+                    set_message_status(QStringLiteral("文件不能超过 %1 GiB。").arg(chat::max_attachment_size / (1024 * 1024 * 1024)));
                     return;
                 }
                 if (!can_send())
@@ -1151,7 +1193,9 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
                 item.client_id = chat::client::new_client_id();
                 item.conversation = active_conversation_;
                 item.filename = QFileInfo(path).fileName();
-                item.data = std::move(data);
+                item.path = path;
+                item.size = file.size();
+                item.error = QStringLiteral("正在校验文件…");
                 item.reply = quote(reply_to_);
                 reply_to_ = 0;
                 reply_bar_->hide();
@@ -1678,6 +1722,15 @@ void chat_widget::set_connection_available(bool available)
         set_presences({});
         typing_users_.clear();
         update_typing_label();
+        for (auto& item : outgoing_)
+        {
+            if (!item.path.isEmpty() && !item.failed)
+            {
+                item.failed = true;
+                item.error = QStringLiteral("连接已断开，上传已暂停");
+            }
+        }
+        show_outgoing();
         if (std::ranges::any_of(outgoing_, [](outgoing const& item) { return !item.failed; }))
         {
             set_message_status(QStringLiteral("连接已断开，未发送的消息会在重新连接后自动发送"));
@@ -2240,7 +2293,7 @@ void chat_widget::finish_send(qint64 conversation, qint64 client_id, message_dat
     }
     // A dropped connection leaves it sending: it is sent again after reconnecting.
     auto found = std::ranges::find(outgoing_, client_id, &outgoing::client_id);
-    if (found == outgoing_.end() || status == send_status::lost)
+    if (found == outgoing_.end() || (status == send_status::lost && found->path.isEmpty()))
     {
         return;
     }
@@ -2251,14 +2304,65 @@ void chat_widget::finish_send(qint64 conversation, qint64 client_id, message_dat
         return;
     }
     show_outgoing();
-    set_message_error(conversation, QStringLiteral("发送失败：%1。右键该消息可重新发送或删除。").arg(error));
+    set_message_error(conversation,
+                      found->path.isEmpty() ? QStringLiteral("发送失败：%1。右键该消息可重新发送或删除。").arg(error)
+                                            : QStringLiteral("%1。可在附件上传菜单继续或取消。").arg(error));
 }
 
+qsizetype chat_widget::unsent_text_count() const
+{
+    return std::ranges::count_if(outgoing_, [](outgoing const& item) { return item.path.isEmpty(); });
+}
+void chat_widget::restore_attachment(qint64 conversation, qint64 id, QString path, qint64 size, qint64 reply, qint64 confirmed)
+{
+    if (std::ranges::find(outgoing_, id, &outgoing::client_id) != outgoing_.end())
+    {
+        return;
+    }
+    outgoing item;
+    item.client_id = id;
+    item.conversation = conversation;
+    item.filename = QFileInfo(path).fileName();
+    item.path = std::move(path);
+    item.size = size;
+    item.reply.id = reply;
+    item.failed = true;
+    item.error = QStringLiteral("已暂停，已确认 %1 / %2 字节").arg(confirmed).arg(size);
+    outgoing_.push_back(std::move(item));
+    if (active_conversation_ == conversation)
+    {
+        show_outgoing();
+    }
+}
+void chat_widget::attachment_progress(qint64 id, qint64 bytes, qint64 total)
+{
+    auto item = std::ranges::find(outgoing_, id, &outgoing::client_id);
+    if (item == outgoing_.end() || item->failed)
+    {
+        return;
+    }
+    auto label = QStringLiteral("正在上传 %1%").arg(total ? 100 * bytes / total : 100);
+    if (item->error != label)
+    {
+        item->error = std::move(label);
+        if (item->conversation == active_conversation_)
+        {
+            show_outgoing();
+        }
+    }
+}
+void chat_widget::attachment_cancelled(qint64 id)
+{
+    if (outgoing_.removeIf([&](outgoing const& item) { return item.client_id == id; }))
+    {
+        show_outgoing();
+    }
+}
 void chat_widget::resend_outgoing()
 {
     for (auto const& item : outgoing_)
     {
-        if (!item.failed)
+        if (!item.failed && item.path.isEmpty())
         {
             submit(item);
         }
@@ -3056,7 +3160,7 @@ void chat_widget::submit(outgoing const& item)
     }
     else
     {
-        emit attachment_send_requested(item.conversation, item.filename, item.data, item.reply.id, item.client_id);
+        emit attachment_send_requested(item.conversation, item.path, item.reply.id, item.client_id);
     }
 }
 
@@ -3079,7 +3183,7 @@ void chat_widget::show_outgoing()
         message.client_id = item.client_id;
         if (!item.filename.isEmpty())
         {
-            message.attachment = attachment_data{item.filename, QStringLiteral("application/octet-stream"), item.data.size()};
+            message.attachment = attachment_data{item.filename, QStringLiteral("application/octet-stream"), item.size};
         }
         pending.push_back({std::move(message), item.failed, item.error});
     }
@@ -3101,7 +3205,20 @@ void chat_widget::settle(message_data const& message)
 
 void chat_widget::drop_outgoing(qint64 conversation)
 {
-    auto const dropped = outgoing_.removeIf([conversation](outgoing const& item) { return item.conversation == conversation; });
+    for (auto& item : outgoing_)
+    {
+        if (item.conversation == conversation && !item.path.isEmpty())
+        {
+            item.failed = true;
+            item.error = QStringLiteral("会话不可用，上传已暂停");
+            if (connection_available_)
+            {
+                emit attachment_interrupt_requested(item.client_id, false);
+            }
+        }
+    }
+    auto const dropped =
+        outgoing_.removeIf([conversation](outgoing const& item) { return item.conversation == conversation && item.path.isEmpty(); });
     if (dropped > 0)
     {
         set_error(QStringLiteral("%1 条未发送的消息已丢弃：会话已不可访问").arg(dropped));
@@ -3144,9 +3261,12 @@ void chat_widget::show_outgoing_menu(QModelIndex const& index, QPoint position)
     QMenu menu(this);
     auto* copy = menu.addAction(QStringLiteral("复制"));
     // Sending again needs the connection; discarding is local and works offline too.
-    auto* retry = failed && can_send() ? menu.addAction(QStringLiteral("重新发送")) : nullptr;
+    bool const attachment = !found->path.isEmpty();
+    auto* pause = attachment && !failed ? menu.addAction(QStringLiteral("暂停上传")) : nullptr;
+    auto* retry = failed && can_send() ? menu.addAction(attachment ? QStringLiteral("继续上传") : QStringLiteral("重新发送")) : nullptr;
     auto* retry_plain = failed && can_send() && has_reply ? menu.addAction(QStringLiteral("不带回复重新发送")) : nullptr;
-    auto* discard = failed ? menu.addAction(QStringLiteral("删除")) : nullptr;
+    auto* discard = attachment ? (connection_available_ ? menu.addAction(QStringLiteral("取消上传")) : nullptr)
+                               : (failed ? menu.addAction(QStringLiteral("删除")) : nullptr);
     auto* selected = menu.exec(messages_view_->viewport()->mapToGlobal(position));
     if (selected == copy)
     {
@@ -3155,7 +3275,16 @@ void chat_widget::show_outgoing_menu(QModelIndex const& index, QPoint position)
     }
     // Act on the send as it is now: it may have been confirmed or dropped while the menu was open.
     auto item = std::ranges::find(outgoing_, client_id, &outgoing::client_id);
-    if (!selected || item == outgoing_.end() || !item->failed)
+    if (!selected || item == outgoing_.end())
+    {
+        return;
+    }
+    if (attachment && (selected == pause || selected == discard))
+    {
+        emit attachment_interrupt_requested(client_id, selected == discard);
+        return;
+    }
+    if (!item->failed)
     {
         return;
     }

@@ -15,6 +15,11 @@ std::expected<database::pointer, sqlite_error> database::open(std::string path)
     {
         return std::unexpected(std::move(error));
     }
+    // The process owns the database lock. Active transfers left by a prior process are resumable.
+    if (auto error = opened->exec("UPDATE attachment_uploads SET state='paused' WHERE state='active'"); error)
+    {
+        return std::unexpected(std::move(error));
+    }
     return pointer(new database(std::move(path), std::move(*opened)));
 }
 

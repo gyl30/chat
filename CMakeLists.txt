@@ -62,8 +62,11 @@ add_subdirectory(third/spdlog EXCLUDE_FROM_ALL)
 
 find_package(OpenSSL REQUIRED)
 find_package(Threads REQUIRED)
+find_package(SQLite3 REQUIRED)
+find_package(miniocpp CONFIG REQUIRED)
 
 add_library(chat_client STATIC
+    client/src/attachment_files.cpp
     client/src/client.cpp
     client/src/server_url.cpp
     client/src/websocket.cpp
@@ -82,10 +85,10 @@ target_link_libraries(chat_client
         OpenSSL::Crypto
         Threads::Threads
         wslay
+        chat_storage_support
+        miniocpp::miniocpp
 )
 
-find_package(SQLite3 REQUIRED)
-find_package(miniocpp CONFIG REQUIRED)
 find_package(PNG REQUIRED)
 find_package(JPEG REQUIRED)
 
@@ -153,10 +156,14 @@ target_link_libraries(chat_server
         wslay
 )
 
+add_library(chat_storage_support STATIC src/sqlite_database.cpp src/blocking_worker.cpp)
+target_include_directories(chat_storage_support PUBLIC src)
+target_link_libraries(chat_storage_support PUBLIC Boost::capy SQLite::SQLite3 Threads::Threads PRIVATE utf8proc spdlog::spdlog_header_only)
+
 add_library(chat_sqlite_storage STATIC
     src/attachment_access.cpp
+    src/upload_store.cpp
     src/attachment_cleanup.cpp
-    src/blocking_worker.cpp
     src/conversation_list.cpp
     src/conversation_store.cpp
     src/database.cpp
@@ -166,16 +173,15 @@ add_library(chat_sqlite_storage STATIC
     src/message_history.cpp
     src/message_store.cpp
     src/schema.cpp
-    src/sqlite_database.cpp
     src/sqlite_mentions.cpp
     src/user_store.cpp
 )
 target_include_directories(chat_sqlite_storage PUBLIC src client/include)
-target_link_libraries(chat_sqlite_storage PUBLIC Boost::capy SQLite::SQLite3 Threads::Threads
+target_link_libraries(chat_sqlite_storage PUBLIC chat_storage_support
     PRIVATE utf8proc OpenSSL::Crypto spdlog::spdlog_header_only)
 
 add_library(chat_attachment_storage STATIC src/attachment_io.cpp src/s3_objects.cpp)
 target_link_libraries(chat_attachment_storage
     PUBLIC chat_sqlite_storage
-    PRIVATE miniocpp::miniocpp OpenSSL::Crypto spdlog::spdlog_header_only
+    PRIVATE miniocpp::miniocpp
 )

@@ -1,4 +1,6 @@
 #include <cstdint>
+#include <openssl/sha.h>
+#include <array>
 #include <string>
 #include <utility>
 #include <string_view>
@@ -21,6 +23,7 @@ struct[[= simdjson::deny_unknown_fields]] authenticate_params
 {
     std::string username;
     std::string password;
+    std::optional<std::string> device_secret;
 };
 
 struct authenticate_result
@@ -36,7 +39,9 @@ bool parse_authenticate_params(json_rpc_params& params, authenticate_params& val
     simdjson::ondemand::parser parser;
     simdjson::ondemand::document document;
     return params.present && !parser.iterate(params.json).get(document) && !document.get(value) && document.at_end() && !value.username.empty() &&
-           !value.password.empty() && value.password.size() <= 72;
+           !value.password.empty() && value.password.size() <= 72 &&
+           (!value.device_secret ||
+            (value.device_secret->size() == 64 && value.device_secret->find_first_not_of("0123456789abcdef") == std::string::npos));
 }
 
 }    // namespace
@@ -93,6 +98,17 @@ boost::capy::task<simdjson::error_code> chat_session::handle_authenticate(json_r
             co_return simdjson::SUCCESS;
         }
 
+        if (params.device_secret)
+        {
+            std::array<unsigned char, SHA256_DIGEST_LENGTH> hash;
+            SHA256(reinterpret_cast<unsigned char const*>(params.device_secret->data()), params.device_secret->size(), hash.data());
+            constexpr std::string_view hex = "0123456789abcdef";
+            for (auto c : hash)
+            {
+                device_.push_back(hex[c >> 4]);
+                device_.push_back(hex[c & 15]);
+            }
+        }
         user_id_ = user_id;
         username_ = params.username;
         authenticated = true;

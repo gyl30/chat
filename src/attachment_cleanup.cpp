@@ -27,7 +27,7 @@ std::expected<std::vector<std::string>, sqlite_error> claim_attachment_cleanup_b
     auto statement = db.prepare(R"SQL(
         UPDATE attachment_cleanup SET reserved_at=0 WHERE object_key IN (
             SELECT object_key FROM attachment_cleanup
-            WHERE reserved_at<=?1 AND object_key>?2 ORDER BY object_key LIMIT 64
+            WHERE reserved_at<=?1 AND object_key>?2 AND NOT EXISTS(SELECT 1 FROM attachment_uploads u WHERE u.object_key=attachment_cleanup.object_key) ORDER BY object_key LIMIT 64
         )
         RETURNING object_key
     )SQL",

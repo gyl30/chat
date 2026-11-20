@@ -12,6 +12,7 @@
 #include "database.hpp"
 #include "conversation_store.hpp"
 #include "user_store.hpp"
+#include "timestamp.hpp"
 
 namespace
 {
@@ -157,6 +158,26 @@ boost::capy::task<void> chat_session::run()
     co_await exchange_messages();
     if (user_id_)
     {
+        if (!device_.empty())
+        {
+            auto paused = co_await database_.run(
+                [this](sqlite_database& db) -> std::expected<void, sqlite_error>
+                {
+                    if (auto err = db.exec("UPDATE attachment_uploads SET state='paused',touched=? WHERE user_id=? AND device=? AND state='active'",
+                                           epoch_milliseconds(),
+                                           *user_id_,
+                                           device_);
+                        err)
+                    {
+                        return std::unexpected(err);
+                    }
+                    return {};
+                });
+            if (!paused)
+            {
+                spdlog::warn("could not pause disconnected uploads (SQLite {})", paused.error().code);
+            }
+        }
         users_.remove(*user_id_, *this);
         co_await publish_presence(false);
     }
@@ -298,7 +319,8 @@ boost::capy::task<simdjson::error_code> chat_session::dispatch_request(json_rpc_
     {
         co_return co_await handle_register(request, response);
     }
-    if (request.method == "begin_attachment" || request.method == "upload_attachment" || request.method == "cancel_attachment" ||
+    if (request.method == "begin_attachment" || request.method == "confirm_attachment" || request.method == "pause_attachment" ||
+        request.method == "resume_attachment" || request.method == "query_attachment" || request.method == "cancel_attachment" ||
         request.method == "get_attachment")
     {
         co_return co_await handle_attachment(request, response);

@@ -5,7 +5,6 @@
 
 #include <openssl/rand.h>
 #include <chat/avatar.hpp>
-#include <chat/attachment.hpp>
 #include <chat/detail/base64.hpp>
 #include <simdjson.h>
 
@@ -189,7 +188,7 @@ simdjson::error_code chat_session::update_avatar_upload(simdjson::ondemand::docu
         };
         avatar_chunk_params params;
         if (document.get(params) || !document.at_end() || params.upload <= 0 || params.offset < 0 || params.data.empty() ||
-            params.data.size() > 4 * ((chat::attachment_chunk_size + 2) / 3))
+            params.data.size() > 4 * ((chat::avatar_chunk_size + 2) / 3))
         {
             return serialize_json_rpc_invalid_params(std::move(request.id), response);
         }
@@ -198,7 +197,7 @@ simdjson::error_code chat_session::update_avatar_upload(simdjson::ondemand::docu
             return serialize_json_rpc_error(-32011, "Avatar upload unavailable", std::move(request.id), response);
         }
         auto bytes = chat::detail::decode_base64(params.data);
-        if (!bytes || bytes->empty() || bytes->size() > chat::attachment_chunk_size ||
+        if (!bytes || bytes->empty() || bytes->size() > chat::avatar_chunk_size ||
             params.offset != static_cast<std::int64_t>(avatar_upload_->content.size()) ||
             avatar_upload_->content.size() + bytes->size() > static_cast<std::size_t>(avatar_upload_->size))
         {

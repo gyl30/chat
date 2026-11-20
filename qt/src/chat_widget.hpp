@@ -83,8 +83,11 @@ class chat_widget final : public QWidget
     void finish_send(qint64 conversation, qint64 client_id, message_data message, QString error, send_status status);
     // After signing in again: the sends the link dropped go out again, in the order they were made.
     void resend_outgoing();
+    void restore_attachment(qint64 conversation, qint64 id, QString path, qint64 size, qint64 reply, qint64 confirmed);
+    void attachment_progress(qint64 id, qint64 bytes, qint64 total);
+    void attachment_cancelled(qint64 id);
     // Sends not confirmed yet, which quitting or signing out would lose.
-    qsizetype unsent_count() const { return outgoing_.size(); }
+    qsizetype unsent_text_count() const;
     void set_message_error(qint64 user, QString message);
 
     qint64 active_conversation() const noexcept;
@@ -127,7 +130,8 @@ class chat_widget final : public QWidget
     void message_search_requested(qint64 conversation, qint64 self_user, bool group, QString title, QString query);
     void chat_history_requested(qint64 conversation, QString title);
     void group_message_pin_requested(qint64 conversation, std::optional<qint64> message);
-    void attachment_send_requested(qint64 conversation, QString filename, QByteArray data, qint64 reply_to, qint64 client_id);
+    void attachment_send_requested(qint64 conversation, QString path, qint64 reply_to, qint64 client_id);
+    void attachment_interrupt_requested(qint64 id, bool cancel);
     void attachment_open_requested(qint64 conversation, qint64 message, QString filename, bool preview);
     void typing_requested(qint64 conversation, bool typing);
     void read_requested(qint64 conversation, qint64 message);
@@ -158,9 +162,10 @@ class chat_widget final : public QWidget
         qint64 client_id = 0;
         qint64 conversation = 0;
         QString text;
-        // An attachment has a file name and its bytes.
+        // The SDK reads the original file one part at a time.
         QString filename;
-        QByteArray data;
+        QString path;
+        qint64 size = 0;
         quoted_message_data reply;
         qint64 created = 0;
         // Refused by the server; otherwise still sending, and sent again after a reconnect.

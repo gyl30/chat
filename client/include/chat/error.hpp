@@ -13,6 +13,7 @@ enum class error_kind
     transport,
     protocol,
     rpc,
+    file_transfer,
 };
 
 struct error

@@ -78,8 +78,10 @@ class client_bridge final : public QObject
     void get_history(qint64 conversation, QString query, qint64 before);
     void add_contact(qint64 user);
     void remove_contact(qint64 user);
-    void send_attachment(qint64 conversation, QString filename, QByteArray data, qint64 reply_to, qint64 client_id);
-    void get_attachment(qint64 conversation, qint64 message);
+    void send_attachment(qint64 conversation, QString path, qint64 reply_to, qint64 client_id);
+    void get_attachment(qint64 conversation, qint64 message, QString target);
+    void restore_attachments();
+    void interrupt_attachment(qint64 id, bool cancel);
     void get_message_image(qint64 conversation, qint64 message);
     void mark_read(qint64 user, qint64 message);
     void get_avatar(qint64 user, qint64 revision);
@@ -131,7 +133,10 @@ class client_bridge final : public QObject
     void users_received(QList<user_data> users, QString error_message, quint64 request);
     void friend_request_finished(qint64 user, QString error_message);
     void contact_removed(QString error_message);
-    void attachment_received(qint64 conversation, qint64 message, QByteArray data, QString error_message);
+    void attachment_progress(qint64 id, qint64 bytes, qint64 total);
+    void attachment_restored(qint64 conversation, qint64 id, QString path, qint64 size, qint64 reply, qint64 confirmed);
+    void attachment_cancelled(qint64 id);
+    void attachment_received(qint64 conversation, qint64 message, QString path, QString error_message);
     void message_image_received(qint64 conversation, qint64 message, QByteArray data, QString error_message);
     void history_received(qint64 conversation, QList<message_data> messages, bool has_more, QString error_message);
     void message_search_received(qint64 conversation,
@@ -171,7 +176,6 @@ class client_bridge final : public QObject
     std::uint64_t messages_generation_ = 0;
     std::uint64_t search_generation_ = 0;
     std::uint64_t history_generation_ = 0;
-    std::uint64_t download_generation_ = 0;
     std::atomic_uint64_t connection_generation_ = 0;
     std::unique_ptr<chat::client> client_;
 };

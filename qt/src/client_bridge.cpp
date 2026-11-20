@@ -10,6 +10,9 @@
 
 #include <QByteArray>
 #include <QMetaType>
+#include <QTemporaryDir>
+#include <QFile>
+#include <QStandardPaths>
 
 #include <chat/client.hpp>
 #include <chat/error_text.hpp>
@@ -96,7 +99,8 @@ presence_data to_presence_data(chat::presence const& value)
 
 }    // namespace
 
-client_bridge::client_bridge(QObject* parent) : QObject(parent), client_(std::make_unique<chat::client>())
+client_bridge::client_bridge(QObject* parent)
+    : QObject(parent), client_(std::make_unique<chat::client>(to_utf8(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation))))
 {
     qRegisterMetaType<chat::avatar_state>();
     qRegisterMetaType<chat::group_join_request_state>();
@@ -673,14 +677,56 @@ void client_bridge::send_message(qint64 conversation, QString text, qint64 reply
                           client_id);
 }
 
-void client_bridge::send_attachment(qint64 conversation, QString filename, QByteArray data, qint64 reply_to, qint64 client_id)
+void client_bridge::send_attachment(qint64 conversation, QString path, qint64 reply_to, qint64 client_id)
 {
     client_->send_attachment(conversation,
-                             to_utf8(filename),
-                             {data.constData(), static_cast<std::size_t>(data.size())},
+                             to_utf8(path),
                              send_result(conversation, client_id),
                              reply_to > 0 ? std::optional<std::int64_t>{reply_to} : std::nullopt,
-                             client_id);
+                             client_id,
+                             [this, client_id, g = connection_generation_.load()](auto bytes, auto total)
+                             { post_result(g, [this, client_id, bytes, total] { emit attachment_progress(client_id, bytes, total); }); });
+}
+void client_bridge::restore_attachments()
+{
+    client_->pending_attachments(
+        [this, g = connection_generation_.load()](auto result)
+        {
+            post_result(g,
+                        [this, result = std::move(result)]
+                        {
+                            if (!result)
+                            {
+                                emit error(display_error(result.error()));
+                                return;
+                            }
+                            for (auto const& t : *result)
+                            {
+                                emit attachment_restored(t.conversation, t.client_id, from_utf8(t.path), t.size, t.reply_to, t.confirmed);
+                            }
+                        });
+        });
+}
+void client_bridge::interrupt_attachment(qint64 id, bool cancel)
+{
+    client_->interrupt_attachment(id,
+                                  cancel,
+                                  [this, id, cancel, g = connection_generation_.load()](auto result)
+                                  {
+                                      post_result(g,
+                                                  [this, id, cancel, result = std::move(result)]
+                                                  {
+                                                      if (!result)
+                                                      {
+                                                          emit error(display_error(result.error()));
+                                                          return;
+                                                      }
+                                                      if (cancel)
+                                                      {
+                                                          emit attachment_cancelled(id);
+                                                      }
+                                                  });
+                                  });
 }
 
 std::function<void(std::expected<chat::message, chat::error>)> client_bridge::send_result(qint64 conversation, qint64 client_id)
@@ -717,27 +763,17 @@ std::function<void(std::expected<chat::message, chat::error>)> client_bridge::se
     };
 }
 
-void client_bridge::get_attachment(qint64 conversation, qint64 message)
+void client_bridge::get_attachment(qint64 conversation, qint64 message, QString target)
 {
-    auto const generation = ++download_generation_;
-    auto const connection = connection_generation_.load();
     client_->get_attachment(conversation,
                             message,
-                            [this, conversation, message, generation, connection](auto result)
+                            to_utf8(target),
+                            [this, conversation, message, target, g = connection_generation_.load()](auto result)
                             {
-                                post_result(connection,
-                                            [this, conversation, message, generation, result = std::move(result)]() mutable
-                                            {
-                                                if (generation != download_generation_)
-                                                {
-                                                    return;
-                                                }
-                                                emit attachment_received(
-                                                    conversation,
-                                                    message,
-                                                    result ? QByteArray(result->data(), static_cast<qsizetype>(result->size())) : QByteArray{},
-                                                    result ? QString{} : display_error(result.error()));
-                                            });
+                                post_result(
+                                    g,
+                                    [this, conversation, message, target, result = std::move(result)]
+                                    { emit attachment_received(conversation, message, target, result ? QString{} : display_error(result.error())); });
                             });
 }
 
@@ -760,21 +796,38 @@ void client_bridge::delete_message(qint64 conversation, qint64 message)
 
 void client_bridge::get_message_image(qint64 conversation, qint64 message)
 {
-    auto const generation = connection_generation_.load();
-    client_->get_attachment(conversation,
-                            message,
-                            [this, conversation, message, generation](auto result) mutable
-                            {
-                                post_result(generation,
-                                            [this, conversation, message, result = std::move(result)]
-                                            {
-                                                emit message_image_received(
-                                                    conversation,
-                                                    message,
-                                                    result ? QByteArray(result->data(), static_cast<qsizetype>(result->size())) : QByteArray{},
-                                                    result ? QString{} : display_error(result.error()));
-                                            });
-                            });
+    auto tmp = std::make_shared<QTemporaryDir>();
+    if (!tmp->isValid())
+    {
+        emit message_image_received(conversation, message, {}, tmp->errorString());
+        return;
+    }
+    auto path = tmp->filePath("preview");
+    client_->get_attachment(
+        conversation,
+        message,
+        to_utf8(path),
+        [this, tmp, path, conversation, message, g = connection_generation_.load()](auto result)
+        {
+            QFile file(path);
+            auto error = result ? QString{} : display_error(result.error());
+            QByteArray bytes;
+            if (result)
+            {
+                if (file.open(QIODevice::ReadOnly))
+                {
+                    bytes = file.read(chat::max_image_preview_size);
+                }
+                if (!file.isOpen() || file.error() != QFileDevice::NoError)
+                {
+                    error = file.errorString();
+                }
+            }
+            post_result(g,
+                        [this, conversation, message, bytes = std::move(bytes), error = std::move(error)]
+                        { emit message_image_received(conversation, message, bytes, error); });
+        },
+        chat::max_image_preview_size);
 }
 
 void client_bridge::edit_message(qint64 conversation, qint64 message, QString text)

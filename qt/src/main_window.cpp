@@ -1217,11 +1217,11 @@ void main_window::connect_messages()
             { client_->send_message(conversation, std::move(text), reply, client_id); });
     connect(chat_page_, &chat_widget::typing_requested, client_.get(), &client_bridge::set_typing);
     connect(client_.get(), &client_bridge::typing_changed, chat_page_, &chat_widget::set_typing, Qt::AutoConnection);
-    connect(chat_page_,
-            &chat_widget::attachment_send_requested,
-            this,
-            [this](qint64 conversation, QString filename, QByteArray data, qint64 reply, qint64 client_id)
-            { client_->send_attachment(conversation, std::move(filename), std::move(data), reply, client_id); });
+    connect(chat_page_, &chat_widget::attachment_send_requested, client_.get(), &client_bridge::send_attachment);
+    connect(chat_page_, &chat_widget::attachment_interrupt_requested, client_.get(), &client_bridge::interrupt_attachment);
+    connect(client_.get(), &client_bridge::attachment_progress, chat_page_, &chat_widget::attachment_progress);
+    connect(client_.get(), &client_bridge::attachment_restored, chat_page_, &chat_widget::restore_attachment);
+    connect(client_.get(), &client_bridge::attachment_cancelled, chat_page_, &chat_widget::attachment_cancelled);
     connect(
         client_.get(),
         &client_bridge::send_finished,
@@ -1244,7 +1244,9 @@ void main_window::connect_messages()
             {
                 attachment_dialog dialog(
                     conversation, message, std::move(filename), preview, this, preview ? chat_page_->images().image(message) : QPixmap{});
-                connect(client_.get(), &client_bridge::attachment_received, &dialog, &attachment_dialog::set_data, Qt::AutoConnection);
+                connect(client_.get(), &client_bridge::attachment_received, &dialog, &attachment_dialog::download_finished, Qt::AutoConnection);
+                connect(&dialog, &attachment_dialog::save_requested, client_.get(), &client_bridge::get_attachment);
+                connect(client_.get(), &client_bridge::message_image_received, &dialog, &attachment_dialog::set_data);
                 connect(client_.get(),
                         &client_bridge::conversation_changed,
                         &dialog,
@@ -1283,9 +1285,9 @@ void main_window::connect_messages()
                 {
                     dialog.set_data(conversation, message, bytes, {});
                 }
-                else
+                else if (preview)
                 {
-                    client_->get_attachment(conversation, message);
+                    client_->get_message_image(conversation, message);
                 }
                 dialog.exec();
             });
@@ -1488,7 +1490,7 @@ void main_window::closeEvent(QCloseEvent* event)
 
 bool main_window::confirm_quit()
 {
-    auto const unsent = chat_page_->unsent_count();
+    auto const unsent = chat_page_->unsent_text_count();
     return unsent == 0 || confirm_action(this,
                                          QStringLiteral("退出 Chat"),
                                          QStringLiteral("还有 %1 条消息未发送，退出后会丢失。仍要退出？").arg(unsent),
@@ -1509,7 +1511,7 @@ void main_window::show_settings()
                 this,
                 [this]
                 {
-                    auto const unsent = chat_page_->unsent_count();
+                    auto const unsent = chat_page_->unsent_text_count();
                     auto const warning = unsent == 0 ? QString{} : QStringLiteral("还有 %1 条消息未发送，会丢失。").arg(unsent);
                     if (confirm_action(settings_,
                                        QStringLiteral("退出登录"),
@@ -2038,6 +2040,7 @@ void main_window::show_registration_error(QString message)
 void main_window::show_authenticated_page(qint64 user)
 {
     chat_page_->set_user(pending_username_, user);
+    client_->restore_attachments();
     chat_page_->set_connection_available(true);
     chat_page_->set_connection_status({}, false);
     chat_page_->set_loading();
@@ -2142,6 +2145,7 @@ void main_window::finish_reconnect()
     auto const user = chat_page_->active_conversation();
     auto const cursor = chat_page_->recovery_cursor();
     chat_page_->resend_outgoing();
+    client_->restore_attachments();
     client_->get_conversations();
     client_->get_contacts();
     client_->get_friend_requests();

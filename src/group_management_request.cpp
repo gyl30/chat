@@ -260,10 +260,6 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
             auto* departed = request.method == "leave_group" ? this : users_.find(change->user);
             if (departed)
             {
-                if (departed->upload_ && departed->upload_->conversation == change->conversation)
-                {
-                    departed->upload_.reset();
-                }
                 departed->enqueue_message(notification + R"(,"removed":true}})");
             }
         }

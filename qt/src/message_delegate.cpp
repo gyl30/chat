@@ -191,10 +191,18 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     switch (index.data(message_model::send_state_role).toInt())
     {
         case message_model::sending:
-            result.time = QStringLiteral("发送中…");
+            result.time = index.data(message_model::send_error_role).toString();
+            if (result.time.isEmpty())
+            {
+                result.time = QStringLiteral("发送中…");
+            }
             break;
         case message_model::failed:
-            result.time = QStringLiteral("发送失败：%1").arg(index.data(message_model::send_error_role).toString());
+            result.time = index.data(message_model::send_error_role).toString();
+            if (index.data(message_model::attachment_name_role).toString().isEmpty())
+            {
+                result.time = QStringLiteral("发送失败：%1").arg(result.time);
+            }
             break;
         default:
             break;

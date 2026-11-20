@@ -122,11 +122,6 @@ boost::capy::task<simdjson::error_code> chat_session::handle_contact_change(json
         {
             if (auto* session = users_.find(recipient))
             {
-                if (change.result.state == chat::friendship_state::none && session->upload_ &&
-                    session->upload_->conversation == change.direct_conversation)
-                {
-                    session->upload_.reset();
-                }
                 session->enqueue_message(R"({"jsonrpc":"2.0","method":"friendship","params":{"user":)" + std::to_string(peer) + "}}");
             }
         };

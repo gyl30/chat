@@ -1,16 +1,50 @@
-#include <algorithm>
-#include <cstdint>
-#include <string>
-#include <utility>
-
-#include <chat/attachment.hpp>
-#include <chat/detail/base64.hpp>
-#include <simdjson.h>
-
 #include "chat_session.hpp"
-#include "database.hpp"
+#include "attachment_access.hpp"
 #include "attachment_io.hpp"
 #include "conversation_store.hpp"
+#include "database.hpp"
+#include "s3_objects.hpp"
+#include "timestamp.hpp"
+#include <chat/attachment.hpp>
+#include <algorithm>
+
+namespace
+{
+struct[[= simdjson::deny_unknown_fields]] begin_params
+{
+    std::int64_t conversation = 0, client_id = 0, size = -1;
+    std::string filename, media_type, checksum;
+};
+struct[[= simdjson::deny_unknown_fields]] task_params
+{
+    std::int64_t upload = 0;
+};
+struct[[= simdjson::deny_unknown_fields]] confirm_params
+{
+    std::int64_t upload = 0;
+    int number = 0;
+    std::string etag;
+};
+struct[[= simdjson::deny_unknown_fields]] get_params
+{
+    std::int64_t conversation = 0, message = 0;
+};
+struct grant
+{
+    std::int64_t upload, size, part_size, part_count, offset, length;
+    int number;
+    std::string url;
+};
+template <class... Args>
+std::expected<bool, sqlite_error> write_one(sqlite_database& db, std::string_view sql, Args const&... args)
+{
+    if (auto e = db.exec(sql, args...); e)
+    {
+        return std::unexpected(e);
+    }
+    return db.changes() == 1;
+}
+}    // namespace
 
 boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc_request& request, std::string& response)
 {
@@ -18,142 +52,260 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
     {
         co_return simdjson::SUCCESS;
     }
+    auto fail = [&](int code, std::string_view msg) { return serialize_json_rpc_error(code, msg, std::move(request.id), response); };
+    auto invalid = [&] { return serialize_json_rpc_invalid_params(std::move(request.id), response); };
     if (!user_id_)
     {
-        co_return serialize_json_rpc_error(-32001, "Authentication required", std::move(request.id), response);
+        co_return fail(-32001, "Authentication required");
     }
     simdjson::ondemand::parser parser;
-    simdjson::ondemand::document document;
-    if (!request.params.present || parser.iterate(request.params.json).get(document))
+    simdjson::ondemand::document doc;
+    if (!request.params.present || parser.iterate(request.params.json).get(doc))
     {
-        co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+        co_return invalid();
     }
-    if (request.method == "begin_attachment")
+    auto const user = *user_id_;
+    if (request.method == "get_attachment")
     {
-        struct[[= simdjson::deny_unknown_fields]] begin_params
+        get_params p;
+        if (doc.get(p) || !doc.at_end() || p.conversation <= 0 || p.message <= 0)
         {
-            std::int64_t conversation = 0;
-            std::string filename;
-            std::int64_t size = -1;
-            std::int64_t client_id = 0;
-        };
-        begin_params params;
-        if (document.get(params) || !document.at_end() || params.conversation <= 0 || params.client_id <= 0 || params.size < 0 ||
-            params.size > static_cast<std::int64_t>(chat::max_attachment_size) || params.filename.empty() || params.filename.size() > 255 ||
-            params.filename.find_first_of("/\\") != std::string::npos ||
-            std::ranges::any_of(params.filename, [](unsigned char value) { return value < 32 || value == 127; }))
-        {
-            co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+            co_return invalid();
         }
-        // An attachment already stored under this client_id is returned instead of uploaded again.
-        auto sent = co_await find_sent_message(params.client_id);
+        auto a = co_await database_.run([&](sqlite_database& db) { return find_attachment_object(db, user, p.conversation, p.message); });
+        if (!a)
+        {
+            co_return fail(-32000, "Server error");
+        }
+        if (!*a)
+        {
+            co_return fail(-32007, "Attachment unavailable");
+        }
+        auto url = co_await objects_.signed_url((**a).key);
+        if (!url)
+        {
+            co_return fail(-32000, "Could not sign download");
+        }
+        struct download
+        {
+            std::string url, checksum;
+            std::int64_t size;
+        };
+        co_return serialize_json_rpc_value(download{*url, (**a).checksum, (**a).size}, std::move(request.id), response);
+    }
+    if (device_.empty())
+    {
+        co_return fail(-32008, "Device authentication required");
+    }
+    upload_lookup task;
+    confirm_params confirmation;
+    bool const begin = request.method == "begin_attachment", confirm = request.method == "confirm_attachment";
+    if (begin)
+    {
+        begin_params p;
+        if (doc.get(p) || !doc.at_end() || p.conversation <= 0 || p.client_id <= 0 || p.size < 0 || p.size > chat::max_attachment_size ||
+            p.filename.empty() || p.filename.size() > 255 || p.filename.find_first_of("/\\") != std::string::npos ||
+            std::ranges::any_of(p.filename, [](unsigned char c) { return c < 32 || c == 127; }) ||
+            (p.media_type != "application/octet-stream" && p.media_type != "image/png" && p.media_type != "image/jpeg") || p.checksum.size() != 64 ||
+            p.checksum.find_first_not_of("0123456789abcdef") != std::string::npos)
+        {
+            co_return invalid();
+        }
+        auto sent = co_await find_sent_message(p.client_id);
         if (!sent)
         {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            co_return fail(-32000, "Server error");
         }
         if (*sent)
         {
-            if ((*sent)->conversation != params.conversation || (!(*sent)->deleted && !(*sent)->attachment))
+            if ((**sent).conversation != p.conversation || (!(**sent).deleted && !(**sent).attachment))
             {
-                co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+                co_return invalid();
             }
-            if (!(*sent)->member)
+            if (!(**sent).member)
             {
-                co_return serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response);
+                co_return fail(-32006, "Conversation unavailable");
             }
-            co_return serialize_json_rpc_success("{\"message\":" + (*sent)->json + "}", std::move(request.id), response);
+            co_return serialize_json_rpc_success("{\"message\":" + (**sent).json + "}", std::move(request.id), response);
         }
-        if (upload_)
-        {
-            co_return serialize_json_rpc_error(-32008, "Attachment upload in progress", std::move(request.id), response);
-        }
-        auto allowed =
-            co_await database_.run([=, user = *user_id_](sqlite_database& db) { return can_send_to_conversation(db, params.conversation, user); });
-        if (!allowed)
-        {
-            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
-        }
-        if (!*allowed)
-        {
-            co_return serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response);
-        }
-        auto const upload = next_upload_id_++;
-        upload_.emplace(upload, params.conversation, params.client_id, std::move(params.filename), params.size, std::string{});
-        co_return serialize_json_rpc_success("{\"upload\":" + std::to_string(upload) + "}", std::move(request.id), response);
+        upload_description input{p.conversation, p.client_id, p.size, p.filename, p.media_type, p.checksum};
+        task = co_await database_.run([&](sqlite_database& db) { return begin_upload(db, user, device_, input); });
     }
-    if (request.method == "get_attachment")
+    else
     {
-        struct[[= simdjson::deny_unknown_fields]] get_params
+        task_params p;
+        if (confirm)
         {
-            std::int64_t conversation = 0;
-            std::int64_t message = 0;
-            std::int64_t offset = 0;
+            if (doc.get(confirmation) || !doc.at_end() || confirmation.number <= 0 || confirmation.etag.empty() || confirmation.etag.size() > 128)
+            {
+                co_return invalid();
+            }
+            p.upload = confirmation.upload;
+        }
+        else if (doc.get(p) || !doc.at_end())
+        {
+            co_return invalid();
+        }
+        if (p.upload <= 0)
+        {
+            co_return invalid();
+        }
+        task = co_await database_.run([&](sqlite_database& db) { return read_upload(db, user, device_, p.upload); });
+        if (task && !*task && request.method == "resume_attachment")
+        {
+            // The publish transaction deletes the task before its acknowledgement reaches the device.
+            auto sent = co_await find_sent_message(p.upload);
+            if (!sent)
+            {
+                co_return fail(-32000, "Server error");
+            }
+            if (*sent && (**sent).member && ((**sent).attachment || (**sent).deleted))
+            {
+                co_return serialize_json_rpc_success("{\"message\":" + (**sent).json + "}", std::move(request.id), response);
+            }
+        }
+    }
+    if (!task)
+    {
+        co_return fail(-32000, "Server error");
+    }
+    if (!*task)
+    {
+        co_return fail(-32008, "Upload unavailable");
+    }
+    auto& t = **task;
+    bool const cancel = request.method == "cancel_attachment", pause = request.method == "pause_attachment",
+               query = request.method == "query_attachment";
+    if (cancel || pause)
+    {
+        auto saved = co_await database_.run(
+            [&](sqlite_database& db)
+            {
+                return write_one(db,
+                                 "UPDATE attachment_uploads SET state=?,touched=? WHERE id=? AND state<>'discarding'",
+                                 cancel ? "discarding" : "paused",
+                                 epoch_milliseconds(),
+                                 t.id);
+            });
+        if (!saved)
+        {
+            co_return fail(-32000, "Server error");
+        }
+        if (!*saved)
+        {
+            co_return fail(-32008, "Upload unavailable");
+        }
+        if (cancel && !(co_await discard_upload(database_, objects_, t.id, t.key, t.multipart)))
+        {
+            co_return fail(-32000, "Abort pending");
+        }
+        co_return serialize_json_rpc_success(cancel ? "{\"cancelled\":true}" : "{\"paused\":true}", std::move(request.id), response);
+    }
+    auto allowed = co_await database_.run([&](sqlite_database& db) { return can_send_to_conversation(db, t.conversation, user); });
+    if (!allowed)
+    {
+        co_return fail(-32000, "Server error");
+    }
+    if (!*allowed)
+    {
+        co_return fail(-32006, "Conversation unavailable");
+    }
+    if (confirm && t.state != "active")
+    {
+        co_return fail(-32008, "Upload paused");
+    }
+    auto part = std::ranges::find(t.parts, std::string{}, &attachment_part::etag);
+    if (query)
+    {
+        struct status
+        {
+            std::string state;
+            std::int64_t confirmed, size;
         };
-        get_params params;
-        if (document.get(params) || !document.at_end() || params.conversation <= 0 || params.message <= 0 || params.offset < 0 ||
-            params.offset > static_cast<std::int64_t>(chat::max_attachment_size))
+        co_return serialize_json_rpc_value(status{t.state, part == t.parts.end() ? t.size : part->offset, t.size}, std::move(request.id), response);
+    }
+    auto touch = co_await database_.run(
+        [&](sqlite_database& db)
         {
-            co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+            return write_one(
+                db, "UPDATE attachment_uploads SET touched=?,state='active' WHERE id=? AND state<>'discarding'", epoch_milliseconds(), t.id);
+        });
+    if (!touch)
+    {
+        co_return fail(-32000, "Server error");
+    }
+    if (!*touch)
+    {
+        co_return fail(-32008, "Upload unavailable");
+    }
+    if (t.multipart.empty())
+    {
+        auto id = co_await objects_.initiate(t);
+        if (!id)
+        {
+            co_return fail(-32000, "Could not initiate multipart upload");
         }
-        auto const offset = static_cast<std::size_t>(params.offset);
-        auto result = co_await download_attachment_chunk(database_, objects_, *user_id_, params.conversation, params.message, offset);
-        if (!result)
+        auto saved = co_await database_.run(
+            [&](sqlite_database& db)
+            { return write_one(db, "UPDATE attachment_uploads SET multipart=? WHERE id=? AND multipart='' AND state='active'", *id, t.id); });
+        if (!saved || !*saved)
         {
-            co_return result.error() == attachment_download_error::unavailable
-                ? serialize_json_rpc_error(-32007, "Attachment unavailable", std::move(request.id), response)
-                : serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            co_return fail(-32000, "Multipart reservation failed");
         }
-        struct chunk
-        {
-            std::size_t offset, size;
-            std::string data;
-            bool has_more;
-        };
-        auto const& bytes = *result;
-        chunk value{offset, bytes.size, chat::detail::encode_base64(bytes.bytes), bytes.size - offset > bytes.bytes.size()};
-        co_return serialize_json_rpc_value(value, std::move(request.id), response);
+        t.multipart = std::move(*id);
     }
-    if (request.method == "cancel_attachment")
+    if (confirm && (confirmation.number > static_cast<int>(t.parts.size()) || (part != t.parts.end() && confirmation.number > part->number)))
     {
-        struct[[= simdjson::deny_unknown_fields]] cancel_params
+        co_return invalid();
+    }
+    if (confirm && (part == t.parts.end() || confirmation.number < part->number) && t.parts[confirmation.number - 1].etag != confirmation.etag)
+    {
+        co_return invalid();
+    }
+    // A lost confirmation can leave an already uploaded part at the first gap.
+    if (part != t.parts.end() && (!confirm || confirmation.number == part->number))
+    {
+        auto stored = co_await objects_.uploaded_part(t, part->number);
+        if (!stored)
         {
-            std::int64_t upload = 0;
-        };
-        cancel_params params;
-        if (document.get(params) || !document.at_end() || params.upload <= 0)
-        {
-            co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+            co_return fail(-32000, "Could not list multipart parts");
         }
-        bool const cancelled = upload_ && upload_->id == params.upload;
-        if (cancelled)
+        bool const matches = *stored && (**stored).first == part->length && !(**stored).second.empty();
+        if (confirm && (!matches || confirmation.etag != (**stored).second))
         {
-            upload_.reset();
+            co_return fail(-32008, "Part size or ETag mismatch");
         }
-        co_return serialize_json_rpc_success(cancelled ? "{\"cancelled\":true}" : "{\"cancelled\":false}", std::move(request.id), response);
+        if (matches)
+        {
+            auto saved = co_await database_.run(
+                [&](sqlite_database& db)
+                {
+                    return write_one(db,
+                                     "UPDATE attachment_parts SET etag=?,confirmed_at=? WHERE upload=? AND number=? AND etag IS NULL",
+                                     (**stored).second,
+                                     epoch_milliseconds(),
+                                     t.id,
+                                     part->number);
+                });
+            if (!saved || !*saved)
+            {
+                co_return fail(-32000, "Could not confirm part");
+            }
+            ++part;
+        }
     }
-    struct[[= simdjson::deny_unknown_fields]] chunk_params
+    grant g{t.client_id, t.size, t.part_size, static_cast<std::int64_t>(t.parts.size()), t.size, 0, 0, {}};
+    if (part != t.parts.end())
     {
-        std::int64_t upload = 0;
-        std::int64_t offset = -1;
-        std::string data;
-    };
-    chunk_params params;
-    if (document.get(params) || !document.at_end() || params.upload <= 0 || params.offset < 0 || params.data.empty() ||
-        params.data.size() > 4 * ((chat::attachment_chunk_size + 2) / 3))
-    {
-        co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+        auto url = co_await objects_.signed_url(t.key, t.multipart, part->number);
+        if (!url)
+        {
+            co_return fail(-32000, "Could not sign part");
+        }
+        g.number = part->number;
+        g.offset = part->offset;
+        g.length = part->length;
+        g.url = std::move(*url);
     }
-    if (!upload_ || upload_->id != params.upload)
-    {
-        co_return serialize_json_rpc_error(-32008, "Attachment upload unavailable", std::move(request.id), response);
-    }
-    auto bytes = chat::detail::decode_base64(params.data);
-    if (!bytes || bytes->empty() || bytes->size() > chat::attachment_chunk_size ||
-        params.offset != static_cast<std::int64_t>(upload_->content.size()) ||
-        upload_->content.size() + bytes->size() > static_cast<std::size_t>(upload_->size))
-    {
-        co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
-    }
-    upload_->content.append(*bytes);
-    co_return serialize_json_rpc_success("{\"offset\":" + std::to_string(upload_->content.size()) + "}", std::move(request.id), response);
+    co_return serialize_json_rpc_value(g, std::move(request.id), response);
 }

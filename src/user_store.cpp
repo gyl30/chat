@@ -3,7 +3,7 @@
 #include <utility>
 
 #include <sqlite3.h>
-#include <chat/attachment.hpp>
+#include <chat/avatar.hpp>
 
 #include "timestamp.hpp"
 
@@ -129,7 +129,7 @@ std::expected<std::optional<avatar_chunk>, sqlite_error> read_avatar_chunk(sqlit
                                                                            std::int64_t revision,
                                                                            std::int64_t offset)
 {
-    auto constexpr chunk_size = static_cast<std::int64_t>(chat::attachment_chunk_size);
+    auto constexpr chunk_size = static_cast<std::int64_t>(chat::avatar_chunk_size);
     auto statement = db.prepare(R"SQL(
         SELECT u.avatar_revision,a.user_id IS NOT NULL,a.size,a.media_type,
             CASE WHEN u.avatar_revision=?2 AND ?3<a.size THEN substr(a.data,?3+1,?4) END

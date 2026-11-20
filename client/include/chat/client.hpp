@@ -28,6 +28,12 @@ struct authentication_result
     avatar_state avatar;
 };
 
+struct pending_attachment
+{
+    std::int64_t client_id, conversation, size, reply_to, confirmed;
+    std::string path, filename;
+};
+
 class client
 {
    public:
@@ -68,7 +74,9 @@ class client
     using reaction_handler = std::function<void(reaction_update)>;
     using reaction_result_handler = std::function<void(std::expected<reaction_update, error>)>;
 
-    client();
+    using progress_handler = std::function<void(std::int64_t, std::int64_t)>;
+    using pending_attachments_handler = std::function<void(std::expected<std::vector<pending_attachment>, error>)>;
+    explicit client(std::string transfer_directory = {});
     ~client();
 
     client(client const&) = delete;
@@ -134,14 +142,16 @@ class client
                       std::optional<std::int64_t> client_id = {});
     void delete_message(std::int64_t conversation, std::int64_t message, message_result_handler handler);
     void set_message_reaction(std::int64_t conversation, std::int64_t message, std::string emoji, reaction_result_handler handler);
-    // Attachments upload one at a time in submission order.
     void send_attachment(std::int64_t conversation,
-                         std::string filename,
-                         std::string data,
+                         std::string path,
                          message_result_handler handler,
                          std::optional<std::int64_t> reply_to = {},
-                         std::optional<std::int64_t> client_id = {});
-    void get_attachment(std::int64_t conversation, std::int64_t message, attachment_handler handler);
+                         std::optional<std::int64_t> client_id = {},
+                         progress_handler progress = {});
+    void pending_attachments(pending_attachments_handler handler);
+    void interrupt_attachment(std::int64_t client_id, bool cancel, group_action_handler handler);
+    void get_attachment(
+        std::int64_t conversation, std::int64_t message, std::string path, attachment_handler handler, std::int64_t limit = max_attachment_size);
     void edit_message(std::int64_t conversation, std::int64_t message, std::string text, message_result_handler handler);
     void search_users(std::string query, users_handler handler);
     void get_friend_requests(friend_requests_handler handler);

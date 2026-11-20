@@ -56,7 +56,7 @@ void message_images::receive(qint64 conversation, qint64 message, QByteArray byt
         reader.setAutoTransform(true);
         auto const format = reader.format();
         auto const size = reader.size();
-        if (value->bytes.size() <= static_cast<qsizetype>(chat::max_attachment_size) && (format == "png" || format == "jpeg" || format == "jpg") &&
+        if (value->bytes.size() <= static_cast<qsizetype>(chat::max_image_preview_size) && (format == "png" || format == "jpeg" || format == "jpg") &&
             size.width() > 0 && size.height() > 0 && qint64(size.width()) * size.height() <= 16 * 1024 * 1024)
         {
             QImageReader::setAllocationLimit(64);

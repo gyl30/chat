@@ -10,7 +10,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QPixmap>
-#include <QSaveFile>
+
 #include <QStandardPaths>
 #include <QVBoxLayout>
 
@@ -28,7 +28,7 @@ attachment_dialog::attachment_dialog(qint64 conversation, qint64 message, QStrin
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
     layout->setSpacing(chat_theme::dialog_spacing);
-    status_ = new QLabel(QStringLiteral("正在下载 %1…").arg(filename_), this);
+    status_ = new QLabel(preview ? QStringLiteral("正在加载预览…") : filename_, this);
     status_->setObjectName(QStringLiteral("attachmentStatus"));
     status_->setTextFormat(Qt::PlainText);
     status_->setWordWrap(true);
@@ -44,7 +44,6 @@ attachment_dialog::attachment_dialog(qint64 conversation, qint64 message, QStrin
     layout->addWidget(image_, 1);
     save_button_ = new QPushButton(QStringLiteral("保存文件"), this);
     save_button_->setObjectName(QStringLiteral("saveAttachmentButton"));
-    save_button_->setEnabled(false);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
     buttons->addButton(save_button_, QDialogButtonBox::ActionRole);
     buttons->button(QDialogButtonBox::Close)->setText(QStringLiteral("关闭"));
@@ -62,16 +61,23 @@ attachment_dialog::attachment_dialog(qint64 conversation, qint64 message, QStrin
                 {
                     return;
                 }
-                QSaveFile file(path);
-                if (!file.open(QIODevice::WriteOnly) || file.write(data_) != data_.size() || !file.commit())
-                {
-                    status_->setText(QStringLiteral("保存失败：%1").arg(file.errorString()));
-                    return;
-                }
-                status_->setText(QStringLiteral("已保存到 %1").arg(path));
+                save_button_->setEnabled(false);
+                status_->setText(QStringLiteral("正在下载…"));
+                saving_to_ = path;
+                emit save_requested(conversation_, message_, path);
             });
 }
 
+void attachment_dialog::download_finished(qint64 conversation, qint64 message, QString path, QString error)
+{
+    if (conversation != conversation_ || message != message_ || saving_to_ != path)
+    {
+        return;
+    }
+    saving_to_.clear();
+    save_button_->setEnabled(true);
+    status_->setText(error.isEmpty() ? QStringLiteral("已保存到 %1").arg(path) : error);
+}
 bool attachment_dialog::eventFilter(QObject* watched, QEvent* event)
 {
     if (watched == image_ && event->type() == QEvent::Resize && !preview_image_.isNull())
@@ -92,14 +98,13 @@ void attachment_dialog::set_data(qint64 conversation, qint64 message, QByteArray
         status_->setText(error_message);
         return;
     }
-    data_ = std::move(data);
-    save_button_->setEnabled(true);
-    status_->setText(QStringLiteral("%1 · %2 KiB").arg(filename_, QString::number(data_.size() / 1024.0, 'f', 1)));
+
+    status_->setText(QStringLiteral("%1 · %2 KiB").arg(filename_, QString::number(data.size() / 1024.0, 'f', 1)));
     if (!preview_)
     {
         return;
     }
-    QBuffer buffer(&data_);
+    QBuffer buffer(&data);
     buffer.open(QIODevice::ReadOnly);
     QImageReader::setAllocationLimit(64);
     QImageReader reader(&buffer);

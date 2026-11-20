@@ -12,9 +12,10 @@ struct attachment_object
 {
     std::string key;
     std::int64_t size;
+    std::string checksum;
 };
 
-// The object key stays on the server. Resolve it anew for every download chunk.
+// Authorize every download before issuing a short-lived signed URL.
 std::expected<std::optional<attachment_object>, sqlite_error> find_attachment_object(sqlite_database& db,
                                                                                      std::int64_t user,
                                                                                      std::int64_t conversation,

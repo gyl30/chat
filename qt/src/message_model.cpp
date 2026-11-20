@@ -134,7 +134,9 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             if (pending)
             {
                 auto const& item = pending_[index.row() - messages_.size()];
-                parts.push_back(item.failed ? QStringLiteral("发送失败：%1").arg(item.error) : QStringLiteral("发送中…"));
+                parts.push_back(item.failed            ? QStringLiteral("发送失败：%1").arg(item.error)
+                                : item.error.isEmpty() ? QStringLiteral("发送中…")
+                                                       : item.error);
             }
             if (!message.deleted)
             {

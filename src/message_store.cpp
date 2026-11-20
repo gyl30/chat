@@ -119,6 +119,14 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
     }
     if (attachment)
     {
+        if (auto error = db.exec("DELETE FROM attachment_uploads WHERE object_key=? AND state='active'", attachment->object_key); error)
+        {
+            return std::unexpected(std::move(error));
+        }
+        if (db.changes() != 1)
+        {
+            return message_write_outcome{message_write_rejection::unavailable};
+        }
         if (auto error = db.exec("DELETE FROM attachment_cleanup WHERE object_key=?1 AND reserved_at>0", attachment->object_key); error)
         {
             return std::unexpected(std::move(error));
