@@ -11,7 +11,11 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import sqlite3
+import subprocess
+import tempfile
+import time
 import sys
 
 
@@ -166,8 +170,8 @@ def archive_month(db, hot, month):
 
 
 def archive_status(db, hot, verify=False):
-    for month, key, state, digest, first, last, count, error in hot.execute(
-            "SELECT month,object_key,state,sha256,first_id,last_id,message_count,error FROM archives ORDER BY month"):
+    for month, key, state, digest, first, last, count, updated, error in hot.execute(
+            "SELECT month,object_key,state,sha256,first_id,last_id,message_count,updated_at,error FROM archives ORDER BY month"):
         if verify and state == "complete" and not digest:
             raise ValueError(f"{month}: missing archive checksum")
         if verify and digest:
@@ -183,25 +187,180 @@ def archive_status(db, hot, verify=False):
                     if current != target:
                         raise ValueError(f"{month}: missing archived body for message {target[0]}")
         print(json.dumps(dict(month=month, state=state, first=first, last=last, messages=count,
-                              file=key+".sqlite3", sha256=digest, error=error), ensure_ascii=False))
+                              file=key+".sqlite3", sha256=digest, updated_at=updated, error=error), ensure_ascii=False))
+
+
+@contextlib.contextmanager
+def new_directory(target):
+    # Reserve the destination only after the completed bundle is durable. An existing
+    # directory, even an empty one, is never taken over by backup or restore.
+    with tempfile.TemporaryDirectory(dir=target.parent, prefix=".chat-stage-") as tmp:
+        stage = Path(tmp) / "bundle"
+        stage.mkdir()
+        yield stage
+        fsync(stage)
+        target.mkdir(mode=0o700)
+        try:
+            stage.rename(target)
+        except OSError:
+            target.rmdir()
+            raise
+        fsync(target.parent)
+
+
+def copy_archives(source, target, snapshot):
+    for key, digest in snapshot.execute("SELECT object_key,sha256 FROM archives WHERE sha256 IS NOT NULL"):
+        dest = archive_path(target, key)
+        dest.parent.mkdir(mode=0o700, exist_ok=True)
+        shutil.copyfile(archive_path(source, key), dest)
+        if file_hash(dest) != digest:
+            raise ValueError("archive copy checksum mismatch: " + key)
+        fsync(dest)
+    if archive_dir(target).exists():
+        fsync(archive_dir(target))
+
+
+def verify_bundle(directory):
+    path = directory / "chat.sqlite3"
+    if file_hash(path) != (directory / "database.sha256").read_text().strip():
+        raise ValueError("backup database SHA-256 mismatch")
+    with contextlib.closing(connect(path, "ro")) as snapshot:
+        integrity(snapshot)
+        archive_status(path, snapshot, verify=True)
+    return path
+
+
+def backup(db, hot, target):
+    with archive_lock(db, shared=True), new_directory(target) as stage:
+        path = stage / "chat.sqlite3"
+        with contextlib.closing(sqlite3.connect(path)) as snapshot:
+            hot.backup(snapshot, pages=256, sleep=0.05)
+            snapshot.execute("PRAGMA journal_mode=DELETE").fetchone()
+            copy_archives(db, path, snapshot)
+        checksum = stage / "database.sha256"
+        checksum.write_text(file_hash(path) + "\n")
+        verify_bundle(stage)
+        fsync(path)
+        fsync(checksum)
+    print("Verified database backup:", target)
+
+
+def restore(directory, target):
+    source = verify_bundle(directory)
+    with new_directory(target) as stage:
+        path = stage / "chat.sqlite3"
+        shutil.copyfile(source, path)
+        if file_hash(path) != (directory / "database.sha256").read_text().strip():
+            raise ValueError("restored database SHA-256 mismatch")
+        with contextlib.closing(connect(path, "ro")) as snapshot:
+            copy_archives(source, path, snapshot)
+            archive_status(path, snapshot, verify=True)
+        fsync(path)
+    print("Restored database:", target / "chat.sqlite3")
+
+
+def object_audit(hot, bucket, checksum):
+    # Observe the external inventory first. Concurrent activity can require a repeat
+    # scan. Only the server cleanup queue can dispose of an object.
+    listing = subprocess.run(["mc", "ls", "--recursive", "--json", bucket], capture_output=True, text=True)
+    if listing.returncode:
+        raise ValueError("Silo bucket listing failed; check mc alias, credentials and connectivity")
+    sizes = {}
+    for line in listing.stdout.splitlines():
+        entry = json.loads(line)
+        if entry.get("status") != "success":
+            raise ValueError("incomplete Silo inventory")
+        if entry.get("type") == "file" and entry["key"].startswith("attachments/"):
+            sizes[entry["key"]] = entry["size"]
+    hot.execute("BEGIN")
+    files = hot.execute("SELECT object_key,size,checksum FROM files").fetchall()
+    queue = dict(hot.execute("SELECT object_key,reserved_at FROM attachment_cleanup"))
+    uploads = hot.execute("SELECT object_key,state,touched FROM attachment_uploads").fetchall()
+    hot.rollback()
+    protected = set(queue) | {key for key, _, _ in uploads}
+    issues = 0
+    for key, size, expected in files:
+        actual = sizes.pop(key, None)
+        if actual is None and queue.get(key) == 0:
+            continue
+        problem = None
+        if actual is None:
+            problem = "missing"
+        elif actual != size:
+            problem = "size mismatch"
+        elif checksum:
+            digest = hashlib.sha256()
+            with subprocess.Popen(["mc", "cat", bucket.rstrip("/") + "/" + key], stdout=subprocess.PIPE) as reader:
+                for block in iter(lambda: reader.stdout.read(1024 * 1024), b""):
+                    digest.update(block)
+                if reader.wait():
+                    raise ValueError("Silo object read failed: " + key)
+            if digest.hexdigest() != expected:
+                problem = "checksum mismatch"
+        if problem:
+            print(problem, key)
+            issues += 1
+    for key in sorted(sizes.keys() - protected):
+        print("orphan candidate", key)
+        issues += 1
+    expired = sum(touched <= int(time.time() * 1000) - 15 * 86400000 for _, _, touched in uploads)
+    print(f"Silo reachable; files={len(files)} uploads={len(uploads)} expired={expired} "
+          f"pending_deletes={sum(t == 0 for t in queue.values())} reservations={sum(t > 0 for t in queue.values())}")
+    if issues:
+        raise ValueError(f"{issues} object discrepancies; repeat against a quiescent bucket before intervention")
 
 
 def main():
     os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--db", required=True, type=Path)
+    parser.add_argument("--db", type=Path, help="live Chat SQLite database")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("archive").add_argument("month", help="completed UTC month, YYYY-MM")
     commands.add_parser("archive-status")
     commands.add_parser("archive-check")
+    commands.add_parser("backup").add_argument("destination", type=Path)
+    commands.add_parser("verify-backup").add_argument("bundle", type=Path)
+    restore_cmd = commands.add_parser("restore")
+    restore_cmd.add_argument("bundle", type=Path)
+    restore_cmd.add_argument("destination", type=Path)
+    commands.add_parser("check")
+    commands.add_parser("wal")
+    commands.add_parser("reclaim")
+    audit = commands.add_parser("objects")
+    audit.add_argument("bucket", help="configured mc alias/bucket")
+    audit.add_argument("--checksum", action="store_true", help="stream each registered object through SHA-256")
     args = parser.parse_args()
+    if args.command == "restore":
+        restore(args.bundle, args.destination)
+        return
+    if args.command == "verify-backup":
+        verify_bundle(args.bundle)
+        print("Verified backup:", args.bundle)
+        return
+    if args.db is None:
+        parser.error("--db is required for this operation")
     db = args.db.resolve()
-    with contextlib.closing(connect(db, "rw" if args.command == "archive" else "ro")) as hot:
+    writable = args.command in ("archive", "wal", "reclaim")
+    with contextlib.closing(connect(db, "rw" if writable else "ro")) as hot:
         hot.execute("PRAGMA foreign_keys=ON")
         if args.command == "archive":
             archive_month(db, hot, args.month)
-        else:
+        elif args.command in ("archive-status", "archive-check"):
             archive_status(db, hot, args.command == "archive-check")
+        elif args.command == "backup":
+            backup(db, hot, args.destination)
+        elif args.command == "objects":
+            object_audit(hot, args.bucket, args.checksum)
+        elif args.command == "check":
+            integrity(hot)
+            archive_status(db, hot, verify=True)
+            print("SQLite integrity and foreign keys OK")
+        else:
+            if args.command == "reclaim":
+                reclaim_pages(hot)
+            busy, frames, done = hot.execute("PRAGMA wal_checkpoint(PASSIVE)").fetchone()
+            free = hot.execute("PRAGMA freelist_count").fetchone()[0]
+            print(f"checkpoint_busy={busy} wal_frames={frames} checkpointed={done} free_pages={free}")
 
 
 if __name__ == "__main__":

@@ -228,6 +228,7 @@ int main(int argc, char* argv[])
         spdlog::error("SQLite startup failed: {}", storage.error().message);
         return EXIT_FAILURE;
     }
+    spdlog::info("SQLite ready; Silo bucket {} configured ({})", settings.bucket, settings.https ? "HTTPS" : "HTTP");
     s3_objects objects(std::move(settings));
     boost::corosio::io_context io_context;
     boost::capy::run_async(io_context.get_executor())(recover_objects(**storage, objects));
@@ -269,5 +270,6 @@ int main(int argc, char* argv[])
     io_context.restart();
     boost::capy::run_async(executor)(recover_objects(**storage, objects));
     io_context.run();
+    spdlog::info("chat server stopped");
     return 0;
 }
