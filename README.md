@@ -84,8 +84,8 @@ request `id` 及 JSON 转义产生的内容；不是消息正文的字符数上�
 修改时间和 SHA-256。下载选择目标位置后，SDK 边接收边写入同目录的临时文件，核对总字节数和 SHA-256 后才替换目标文件。
 图片内存预览上限为 10 MiB，更大的图片可以保存原文件。
 
-服务端首次打开 SQLite v1 数据库时，在一个事务中升级到 v2，复制已有附件元数据并恢复撤回清理触发器。
-已发布文件沿用原来的 S3 key。新增的 `attachment_uploads` 和 `attachment_parts` 保留对象预留、
+服务启动时在一个事务中创建当前 SQLite 表、索引和触发器。开发期间结构变更后请使用新的数据库文件。
+`attachment_uploads` 和 `attachment_parts` 保留对象预留、
 设备绑定及从 1 开始的分片编号、64 位偏移、长度、ETag 和确认时间。
 每片 16 MiB，尾片可更小。4 GiB 对应 256 片，10 GiB 对应 640 片；大小策略集中在 SDK 与服务端共享的
 `client/include/chat/attachment.hpp`。扩大上限无需重建附件表。
@@ -100,7 +100,7 @@ request `id` 及 JSON 转义产生的内容；不是消息正文的字符数上�
 | `finish_attachment` | 所有分片确认后执行 CompleteMultipartUpload，核对对象大小和 SHA-256 元数据，复用消息发布事务、client_id 去重及通知。 |
 | `get_attachment` | 根据 conversation 和 message 校验历史访问权限，返回短期下载 URL、大小和 SHA-256。 |
 
-本版附件 RPC 和共享 SDK 的文件接口需配套升级客户端与服务端。已有附件消息及其元数据继续可读。
+附件 RPC 和共享 SDK 的文件接口需配套使用。
 
 任务在协议中使用发送者的 client_id 作为 upload 标识。每次只签发当前分片的 PUT 地址，有效期 15 分钟；
 返回 number 为 0 时可发布。SDK 直接向 Silo PUT，并提交 S3 返回的 ETag。分片通过 Content-MD5 验证传输，
