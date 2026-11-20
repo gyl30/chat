@@ -54,6 +54,8 @@ class chat_widget final : public QWidget
     void finish_avatar_update(QString error);
     void set_user(QString const& username, qint64 user = 0);
     void open_conversation(conversation_data conversation);
+    void hide_conversation(qint64 conversation);
+    void discard_history(qint64 conversation, qint64 floor);
     void close_conversation(qint64 conversation);
     void locate_message(qint64 conversation, qint64 message);
     void refresh_theme();
@@ -143,6 +145,7 @@ class chat_widget final : public QWidget
     void attachment_open_requested(qint64 conversation, qint64 message, QString filename, bool preview);
     void typing_requested(qint64 conversation, bool typing);
     void read_requested(qint64 conversation, qint64 message);
+    void history_view_requested(qint64 conversation, bool hide);
     void mute_requested(qint64 conversation, bool muted);
     void pin_requested(qint64 conversation, bool pinned);
 

@@ -802,6 +802,28 @@ struct client::impl
             return;
         }
 
+        if (method->as_string() == "conversation_view")
+        {
+            auto const& obj = params->as_object();
+            auto const* v = obj.if_contains("conversation");
+            auto id = v ? parse_int64(*v) : std::nullopt;
+            auto const* action = obj.if_contains("action");
+            if (!id || !action || !action->is_string())
+            {
+                report_error(make_error(error_kind::protocol, "Invalid personal conversation state"));
+                return;
+            }
+            conversation_view_handler handler;
+            {
+                std::lock_guard lock(handler_mutex_);
+                handler = view_handler_;
+            }
+            if (handler && !suppress_callbacks_.load())
+            {
+                handler(*id, std::string(action->as_string()));
+            }
+            return;
+        }
         if (method->as_string() == "conversation")
         {
             auto const* value = params->as_object().if_contains("conversation");
@@ -1675,6 +1697,15 @@ struct client::impl
 
                 messages_result result;
                 result.has_more = more_value->as_bool();
+                auto const* floor = response->as_object().if_contains("visible_after");
+                auto const* hidden = response->as_object().if_contains("hidden");
+                if (!floor || !parse_int64(*floor) || !hidden || !hidden->is_bool())
+                {
+                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid history visibility")));
+                    return;
+                }
+                result.visible_after = *parse_int64(*floor);
+                result.hidden = hidden->as_bool();
                 for (auto const& position : read_value->as_array())
                 {
                     auto const* user_value = position.is_object() ? position.as_object().if_contains("user") : nullptr;
@@ -2835,6 +2866,7 @@ struct client::impl
     message_handler message_handler_;
     message_handler message_updated_handler_;
     read_handler read_handler_;
+    conversation_view_handler view_handler_;
     conversation_changed_handler conversation_handler_;
     presence_handler presence_handler_;
     typing_handler typing_handler_;
@@ -3000,6 +3032,21 @@ void client::remove_group_member(std::int64_t conversation, std::int64_t user, g
         impl_->group_action("remove_group_member", {{"conversation", conversation}, {"user", user}}, std::move(handler)));
 }
 
+void client::set_conversation_view_handler(conversation_view_handler handler)
+{
+    std::lock_guard lock(impl_->handler_mutex_);
+    impl_->view_handler_ = std::move(handler);
+}
+void client::clear_history(std::int64_t conversation, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->group_action("clear_history", {{"conversation", conversation}}, std::move(handler)));
+}
+void client::hide_conversation(std::int64_t conversation, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->group_action("hide_conversation", {{"conversation", conversation}}, std::move(handler)));
+}
 void client::set_conversation_handler(conversation_changed_handler handler)
 {
     std::lock_guard lock(impl_->handler_mutex_);

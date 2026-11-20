@@ -10,10 +10,10 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
     constexpr auto max = std::numeric_limits<std::int64_t>::max();
     auto query = db.prepare(R"SQL(
         WITH page AS (
-            SELECT c.*, own.pinned, own.muted, own.last_read_message_id, own.joined_message_id,
+            SELECT c.*, own.pinned, own.muted, own.last_read_message_id, own.visible_after,
                    CASE WHEN c.direct_user_low=?1 THEN c.direct_user_high ELSE c.direct_user_low END AS peer
             FROM conversation_members own JOIN conversations c ON c.id=own.conversation_id
-            WHERE own.user_id=?1
+            WHERE own.user_id=?1 AND (own.hidden_at IS NULL OR c.activity>own.hidden_at)
               AND (c.kind='group' OR EXISTS(SELECT 1 FROM contacts WHERE owner_id=?1 AND contact_id=
                   CASE WHEN c.direct_user_low=?1 THEN c.direct_user_high ELSE c.direct_user_low END))
               AND (own.pinned,c.activity,c.id)<(?2,?3,?4)
@@ -34,7 +34,7 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                 'pinned_message',json((SELECT json_object('id',pm.id,'from',pm.sender_id,'username',pu.username,
                     'text',substr(pm.body,1,160),'edited_at',pm.edited_at,'deleted',json('false'))
                     FROM messages pm JOIN users pu ON pu.id=pm.sender_id
-                    WHERE pm.id=c.pinned_message_id AND pm.conversation_id=c.id AND pm.deleted=0 AND pm.id>c.joined_message_id)),
+                    WHERE pm.id=c.pinned_message_id AND pm.conversation_id=c.id AND pm.deleted=0 AND pm.id>c.visible_after)),
                 'last',json((SELECT json_object('id',m.id,'conversation',m.conversation_id,'from',m.sender_id,
                     'username',author.username,'timestamp',m.created_at,'text',m.body,'edited_at',m.edited_at,
                     'deleted',json(CASE WHEN m.deleted THEN 'true' ELSE 'false' END),
@@ -55,14 +55,14 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                     'attachment',CASE WHEN ref.message_id IS NULL THEN NULL ELSE json_object(
                         'filename',a.filename,'media_type',a.media_type,'size',a.size,'object_key',a.object_key) END)
                     FROM messages m JOIN users author ON author.id=m.sender_id
-                    LEFT JOIN messages r ON r.id=m.reply_to_id AND r.id>c.joined_message_id
+                    LEFT JOIN messages r ON r.id=m.reply_to_id AND r.id>c.visible_after
                     LEFT JOIN users ra ON ra.id=r.sender_id
                     LEFT JOIN user_avatars sender_avatar ON sender_avatar.user_id=author.id
                     LEFT JOIN message_attachments ref ON ref.message_id=m.id AND m.deleted=0
     LEFT JOIN files a ON a.object_key=ref.object_key
-                    WHERE m.conversation_id=c.id AND m.id>c.joined_message_id ORDER BY m.id DESC LIMIT 1)),
+                    WHERE m.conversation_id=c.id AND m.id>c.visible_after ORDER BY m.id DESC LIMIT 1)),
                 'unread',(SELECT count(*) FROM messages m WHERE m.conversation_id=c.id AND m.deleted=0
-                      AND m.id>max(c.last_read_message_id,c.joined_message_id)
+                      AND m.id>max(c.last_read_message_id,c.visible_after)
                       AND m.sender_id<>?1)
             )) FROM visible c LEFT JOIN users u ON u.id=c.peer
                 LEFT JOIN user_avatars avatar ON avatar.user_id=u.id)),

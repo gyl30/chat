@@ -83,6 +83,16 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
             });
     connect(&client_, &client_bridge::global_search_received, this, &global_search_dialog::set_page);
     connect(&client_, &client_bridge::search_context_received, this, &global_search_dialog::set_context);
+    connect(&client_,
+            &client_bridge::personal_view_changed,
+            this,
+            [this](qint64 id, QString const& action)
+            {
+                if (action == "clear")
+                {
+                    refresh(id, true);
+                }
+            });
     connect(&client_, &client_bridge::disconnected, this, &QDialog::reject);
     connect(&client_,
             &client_bridge::conversation_changed,

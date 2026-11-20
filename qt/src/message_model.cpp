@@ -309,6 +309,25 @@ void message_model::set_pending(QList<pending_message> pending)
     }
 }
 
+void message_model::discard_through(qint64 floor)
+{
+    auto end = std::ranges::upper_bound(messages_, floor, {}, &message_data::id);
+    if (end != messages_.begin())
+    {
+        beginRemoveRows({}, 0, static_cast<int>(end - messages_.begin() - 1));
+        messages_.erase(messages_.begin(), end);
+        endRemoveRows();
+    }
+    for (int i = 0; i < messages_.size(); ++i)
+    {
+        auto& reply = messages_[i].reply;
+        if (reply.id > 0 && reply.id <= floor)
+        {
+            reply = {};
+            emit dataChanged(index(i), index(i), {reply_text_role});
+        }
+    }
+}
 void message_model::merge_messages(QList<message_data> messages)
 {
     for (auto const& message : messages)

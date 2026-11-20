@@ -457,6 +457,37 @@ void main_window::setup_system_tray()
 void main_window::connect_conversation_preferences_and_avatar()
 {
     connect(chat_page_, &chat_widget::read_requested, client_.get(), &client_bridge::mark_read);
+    connect(chat_page_, &chat_widget::history_view_requested, client_.get(), &client_bridge::change_history_view);
+    connect(client_.get(),
+            &client_bridge::history_boundary,
+            this,
+            [this](qint64 id, qint64 floor, bool hidden)
+            {
+                chat_page_->discard_history(id, floor);
+                if (hidden)
+                {
+                    chat_page_->hide_conversation(id);
+                }
+            });
+    connect(client_.get(),
+            &client_bridge::personal_view_changed,
+            this,
+            [this](qint64 id, QString const& action)
+            {
+                if (action == "hide")
+                {
+                    chat_page_->hide_conversation(id);
+                }
+                if (action == "clear")
+                {
+                    pending_notifications_.removeIf([id](auto const& message) { return message.conversation == id; });
+                    if (chat_page_->active_conversation() == id)
+                    {
+                        client_->get_messages(id);
+                    }
+                }
+                client_->get_conversations();
+            });
     connect(chat_page_, &chat_widget::mute_requested, client_.get(), &client_bridge::set_conversation_muted);
     connect(client_.get(),
             &client_bridge::mute_finished,
@@ -1023,6 +1054,17 @@ void main_window::show_group_details(qint64 conversation, qint64 self_user, QStr
 void main_window::show_message_search(qint64 conversation, qint64 self_user, bool group, QString const& title, QString const& query)
 {
     message_search_dialog dialog(conversation, self_user, group, title, query, this, &chat_page_->avatars());
+    connect(client_.get(),
+            &client_bridge::personal_view_changed,
+            &dialog,
+            [&dialog, conversation](qint64 id, QString const& action)
+            {
+                if (id == conversation && action == "clear")
+                {
+                    dialog.reject();
+                }
+            });
+    connect(client_.get(), &client_bridge::disconnected, &dialog, &QDialog::reject);
     connect(&dialog,
             &message_search_dialog::search_requested,
             &dialog,
@@ -1058,6 +1100,17 @@ void main_window::show_message_search(qint64 conversation, qint64 self_user, boo
 void main_window::show_chat_history(qint64 conversation, QString const& title)
 {
     chat_history_dialog dialog(conversation, title, this, &chat_page_->avatars());
+    connect(client_.get(),
+            &client_bridge::personal_view_changed,
+            &dialog,
+            [&dialog, conversation](qint64 id, QString const& action)
+            {
+                if (id == conversation && action == "clear")
+                {
+                    dialog.reject();
+                }
+            });
+    connect(client_.get(), &client_bridge::disconnected, &dialog, &QDialog::reject);
     connect(&dialog,
             &chat_history_dialog::history_requested,
             &dialog,

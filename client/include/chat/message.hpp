@@ -75,6 +75,8 @@ struct messages_result
 {
     std::vector<message> messages;
     std::vector<read_position> read_positions;
+    std::int64_t visible_after = 0;
+    bool hidden = false;
     bool has_more = false;
 };
 

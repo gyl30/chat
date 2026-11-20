@@ -451,6 +451,18 @@ QWidget* chat_widget::create_sidebar()
                                        emit mute_requested(conversation, muted);
                                    }
                                });
+                menu.addAction(QStringLiteral("隐藏会话"), [this, conversation] { emit history_view_requested(conversation, true); });
+                menu.addAction(QStringLiteral("清空聊天记录"),
+                               [this, conversation]
+                               {
+                                   if (confirm_action(this,
+                                                      QStringLiteral("清空聊天记录"),
+                                                      QStringLiteral("清空后，你在所有设备上都无法再查看这些聊天记录。其他成员的记录将保留。"),
+                                                      QStringLiteral("清空")))
+                                   {
+                                       emit history_view_requested(conversation, false);
+                                   }
+                               });
                 menu.exec(conversations_view_->viewport()->mapToGlobal(point));
             });
     connect(conversations_delegate,
@@ -3010,6 +3022,44 @@ void chat_widget::open_conversation(conversation_data conversation)
     }
 }
 
+void chat_widget::hide_conversation(qint64 conversation)
+{
+    if (conversation == active_conversation_)
+    {
+        drafts_.insert(conversation, message_edit_->toPlainText());
+    }
+    leave_conversation(conversation);
+}
+void chat_widget::discard_history(qint64 conversation, qint64 floor)
+{
+    if (floor <= 0)
+    {
+        return;
+    }
+    for (auto& item : outgoing_)
+    {
+        if (item.conversation == conversation && item.reply.id > 0 && item.reply.id <= floor)
+        {
+            item.reply.username.clear();
+            item.reply.text.clear();
+        }
+    }
+    if (conversation != active_conversation_)
+    {
+        return;
+    }
+    if (reply_to_ > 0 && reply_to_ <= floor)
+    {
+        reply_to_ = 0;
+        reply_bar_->hide();
+    }
+    if (pending_locate_ <= floor)
+    {
+        pending_locate_ = 0;
+    }
+    messages_->discard_through(floor);
+    show_outgoing();
+}
 void chat_widget::close_conversation(qint64 conversation)
 {
     drafts_.remove(conversation);

@@ -64,6 +64,7 @@ class message_model final : public QAbstractListModel
     void set_self_user(qint64 user);
     void reset(qint64 conversation, bool group = false);
     void set_pending(QList<pending_message> pending);
+    void discard_through(qint64 floor);
     void merge_messages(QList<message_data> messages);
     bool add_message(message_data message);
     void update_message(message_data const& message);

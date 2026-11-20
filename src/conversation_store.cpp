@@ -315,7 +315,7 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_grou
     {
         auto target = db.prepare(R"SQL(
             SELECT 1 FROM messages m JOIN conversation_members own ON own.conversation_id=m.conversation_id
-            WHERE m.conversation_id=?1 AND m.id=?2 AND m.deleted=0 AND own.user_id=?3 AND m.id>own.joined_message_id
+            WHERE m.conversation_id=?1 AND m.id=?2 AND m.deleted=0 AND own.user_id=?3 AND m.id>own.visible_after
         )SQL",
                                  group,
                                  *message,

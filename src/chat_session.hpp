@@ -74,6 +74,7 @@ class chat_session
 
     boost::capy::task<simdjson::error_code> handle_search_users(json_rpc_request& request, std::string& response);
 
+    void publish_personal_view(std::int64_t conversation, std::string_view action);
     boost::capy::task<void> publish_presence(bool online);
 
     struct sent_message

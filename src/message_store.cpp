@@ -63,7 +63,7 @@ std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_
     {
         auto quote = db.prepare(R"SQL(
             SELECT 1 FROM messages m JOIN conversation_members own ON own.conversation_id=m.conversation_id
-            WHERE m.conversation_id=?1 AND m.id=?2 AND m.deleted=0 AND own.user_id=?3 AND m.id>own.joined_message_id
+            WHERE m.conversation_id=?1 AND m.id=?2 AND m.deleted=0 AND own.user_id=?3 AND m.id>own.visible_after
         )SQL",
                                 message.conversation,
                                 *message.reply_to,
@@ -150,7 +150,7 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
             return std::unexpected(e);
         }
     }
-    if (auto error = db.exec("UPDATE conversations SET activity=max(activity,?1) WHERE id=?2", now, message.conversation); error)
+    if (auto error = db.exec("UPDATE conversations SET activity=max(activity+1,?1) WHERE id=?2", now, message.conversation); error)
     {
         return std::unexpected(std::move(error));
     }

@@ -105,8 +105,8 @@ boost::capy::task<chat_session::notification_result> chat_session::publish_conve
                 }
             }
             auto rows = db.prepare(R"SQL(
-            SELECT user_id, ?4>0 AND ?4<=joined_message_id FROM conversation_members
-            WHERE conversation_id=?1 AND (?2=0 OR user_id<>?2) AND (?3=0 OR ?3>joined_message_id)
+            SELECT user_id, ?4>0 AND ?4<=visible_after FROM conversation_members
+            WHERE conversation_id=?1 AND (?2=0 OR user_id<>?2) AND (?3=0 OR ?3>visible_after)
             ORDER BY user_id
         )SQL",
                                    conversation,
@@ -276,7 +276,8 @@ boost::capy::task<simdjson::error_code> chat_session::dispatch_request(json_rpc_
     {
         co_return co_await handle_message_reaction(request, response);
     }
-    if (request.method == "set_conversation_muted" || request.method == "set_conversation_pinned")
+    if (request.method == "set_conversation_muted" || request.method == "set_conversation_pinned" || request.method == "clear_history" ||
+        request.method == "hide_conversation")
     {
         co_return co_await handle_conversation_preference(request, response);
     }

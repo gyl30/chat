@@ -14,9 +14,9 @@ constexpr std::string_view kMessageColumns = R"SQL(
            r.id,r.sender_id,author.username,substr(r.body,1,160),r.edited_at,r.deleted,
            a.filename,a.media_type,a.size,a.object_key
     FROM messages m JOIN users u ON u.id=m.sender_id
-    JOIN conversation_members own ON own.conversation_id=m.conversation_id AND own.user_id=?1 AND m.id>own.joined_message_id
+    JOIN conversation_members own ON own.conversation_id=m.conversation_id AND own.user_id=?1 AND m.id>own.visible_after
     LEFT JOIN user_avatars avatar ON avatar.user_id=u.id
-    LEFT JOIN messages r ON r.id=m.reply_to_id AND r.id>own.joined_message_id
+    LEFT JOIN messages r ON r.id=m.reply_to_id AND r.id>own.visible_after
     LEFT JOIN users author ON author.id=r.sender_id
     LEFT JOIN message_attachments ref ON ref.message_id=m.id AND m.deleted=0
     LEFT JOIN files a ON a.object_key=ref.object_key
@@ -151,10 +151,11 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
         return std::unexpected(std::move(snapshot.error()));
     }
     auto readers = db.prepare(R"SQL(
-            SELECT m.user_id,CASE WHEN m.last_read_message_id>own.joined_message_id THEN m.last_read_message_id ELSE 0 END
+            SELECT m.user_id,CASE WHEN m.last_read_message_id>own.visible_after THEN m.last_read_message_id ELSE 0 END,own.visible_after,(own.hidden_at>=c.activity)
             FROM conversation_members own JOIN conversation_members m ON m.conversation_id=own.conversation_id
+            JOIN conversations c ON c.id=own.conversation_id
             WHERE own.conversation_id=?1 AND own.user_id=?2
-              AND (?3 IS NULL OR (?3>own.joined_message_id AND EXISTS(
+              AND (?3 IS NULL OR (?3>own.visible_after AND EXISTS(
                   SELECT 1 FROM messages WHERE id=?3 AND conversation_id=?1 AND deleted=0)))
             ORDER BY m.user_id
         )SQL",
@@ -178,6 +179,8 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
         {
             break;
         }
+        result.visible_after = readers->column_int64(2);
+        result.hidden = readers->column_int64(3) != 0;
         auto const reader = readers->column_int64(0);
         result.read_positions.push_back({reader, readers->column_int64(1)});
     }
@@ -289,7 +292,7 @@ std::expected<std::optional<read_position_change>, sqlite_error> update_read_pos
     auto update = db.prepare(R"SQL(
         UPDATE conversation_members SET last_read_message_id=?3
         WHERE conversation_id=?1 AND user_id=?2 AND last_read_message_id<?3
-          AND ?3>joined_message_id AND EXISTS(SELECT 1 FROM messages WHERE conversation_id=?1 AND id=?3)
+          AND ?3>visible_after AND EXISTS(SELECT 1 FROM messages WHERE conversation_id=?1 AND id=?3)
         RETURNING last_read_message_id
     )SQL",
                              conversation,
@@ -320,7 +323,7 @@ std::expected<std::optional<read_position_change>, sqlite_error> update_read_pos
         auto current = db.prepare(R"SQL(
             SELECT last_read_message_id FROM conversation_members
             WHERE conversation_id=?1 AND user_id=?2
-              AND ?3>joined_message_id AND EXISTS(SELECT 1 FROM messages WHERE conversation_id=?1 AND id=?3)
+              AND ?3>visible_after AND EXISTS(SELECT 1 FROM messages WHERE conversation_id=?1 AND id=?3)
         )SQL",
                                   conversation,
                                   user,
@@ -356,7 +359,7 @@ std::expected<chat::message_search_page, sqlite_error> search_all_messages(sqlit
     auto page = db.prepare(R"SQL(
         WITH hits AS MATERIALIZED (
             SELECT m.id FROM conversation_members own CROSS JOIN messages m ON m.conversation_id=own.conversation_id
-            WHERE own.user_id=?1 AND m.id>own.joined_message_id AND m.id<=coalesce(?3-1,9223372036854775807)
+            WHERE own.user_id=?1 AND m.id>own.visible_after AND m.id<=coalesce(?3-1,9223372036854775807)
               AND m.deleted=0 AND instr(chat_lower(m.body),chat_lower(?2))>0
             ORDER BY m.id DESC LIMIT ?4
         )

@@ -11,6 +11,11 @@
 
 namespace
 {
+struct[[= simdjson::deny_unknown_fields]] view_params
+{
+    std::int64_t conversation = 0;
+};
+
 struct[[= simdjson::deny_unknown_fields]] mute_params
 {
     std::int64_t conversation = 0;
@@ -39,6 +44,44 @@ boost::capy::task<simdjson::error_code> chat_session::handle_conversation_prefer
     if (!request.params.present || parser.iterate(request.params.json).get(document))
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+    }
+    if (request.method == "clear_history" || request.method == "hide_conversation")
+    {
+        view_params params;
+        if (document.get(params) || !document.at_end() || params.conversation <= 0)
+        {
+            co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+        }
+        bool const hide = request.method == "hide_conversation";
+        auto changed = co_await database_.run(
+            [=, user = *user_id_](sqlite_database& db) -> std::expected<bool, sqlite_error>
+            {
+                // One SQLite statement reads the committed conversation boundary and updates only this membership.
+                auto sql = hide ? R"SQL(UPDATE conversation_members SET hidden_at=(SELECT activity FROM conversations WHERE id=?1)
+                WHERE conversation_id=?1 AND user_id=?2)SQL"
+                                :
+                                R"SQL(WITH boundary(id) AS (SELECT coalesce(max(id),0) FROM messages WHERE conversation_id=?1)
+                UPDATE conversation_members SET cleared_message_id=max(cleared_message_id,(SELECT id FROM boundary)),
+                    last_read_message_id=max(last_read_message_id,(SELECT id FROM boundary))
+                WHERE conversation_id=?1 AND user_id=?2)SQL";
+                auto stmt = db.prepare(sql, params.conversation, user);
+                if (!stmt)
+                {
+                    return std::unexpected(stmt.error());
+                }
+                if (auto done = stmt->step(); !done)
+                {
+                    return std::unexpected(done.error());
+                }
+                return db.changes() == 1;
+            });
+        if (!changed || !*changed)
+        {
+            co_return changed ? serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response)
+                              : serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        publish_personal_view(params.conversation, hide ? "hide" : "clear");
+        co_return serialize_json_rpc_success(R"({"changed":true})", std::move(request.id), response);
     }
     std::int64_t conversation = 0;
     std::optional<bool> value;
@@ -74,6 +117,17 @@ boost::capy::task<simdjson::error_code> chat_session::handle_conversation_prefer
         co_return updated ? serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response)
                           : serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
+    publish_personal_view(conversation, "preferences");
     co_return serialize_json_rpc_success(
         std::string(pin ? "{\"pinned\":" : "{\"muted\":") + (*value ? "true}" : "false}"), std::move(request.id), response);
+}
+
+void chat_session::publish_personal_view(std::int64_t conversation, std::string_view action)
+{
+    auto json = R"({"jsonrpc":"2.0","method":"conversation_view","params":{"conversation":)" + std::to_string(conversation) + R"(,"action":")" +
+                std::string(action) + "\"}}";
+    for (auto* session : users_.sessions(*user_id_))
+    {
+        session->enqueue_message(json);
+    }
 }

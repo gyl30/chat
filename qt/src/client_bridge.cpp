@@ -158,6 +158,12 @@ client_bridge::client_bridge(QObject* parent)
                         [this, value = std::move(value)]
                         { emit typing_changed(value.conversation, value.user, from_utf8(value.username), value.typing); });
         });
+    client_->set_conversation_view_handler(
+        [this](std::int64_t conversation, std::string action)
+        {
+            post_result(connection_generation_.load(),
+                        [this, conversation, action = from_utf8(action)] { emit personal_view_changed(conversation, action); });
+        });
     client_->set_conversation_handler(
         [this](std::int64_t id, bool removed)
         { post_result(connection_generation_.load(), [this, id, removed] { emit conversation_changed(id, removed); }); });
@@ -281,6 +287,24 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
                                });
 }
 
+void client_bridge::change_history_view(qint64 conversation, bool hide)
+{
+    auto done = [this, generation = connection_generation_.load()](auto result)
+    {
+        if (!result)
+        {
+            post_result(generation, [this, message = display_error(result.error())] { emit error(message); });
+        }
+    };
+    if (hide)
+    {
+        client_->hide_conversation(conversation, std::move(done));
+    }
+    else
+    {
+        client_->clear_history(conversation, std::move(done));
+    }
+}
 void client_bridge::set_conversation_muted(qint64 conversation, bool muted)
 {
     auto const generation = connection_generation_.load();
@@ -657,6 +681,7 @@ void client_bridge::get_messages(qint64 conversation, std::optional<qint64> befo
                     {
                         positions.insert(position.user, position.message);
                     }
+                    emit history_boundary(conversation, result->visible_after, after.has_value() && result->hidden);
                     auto const next = result->messages.empty() ? 0 : result->messages.back().id;
                     emit messages_received(
                         conversation, std::move(messages), std::move(positions), before.has_value(), after.has_value(), result->has_more, {});

@@ -44,6 +44,7 @@ class client_bridge final : public QObject
     void authenticate(QString const& username, QString const& password);
     void register_user(QString const& username, QString const& password);
     void get_conversations();
+    void change_history_view(qint64 conversation, bool hide);
     void set_conversation_muted(qint64 conversation, bool muted);
     void set_conversation_pinned(qint64 conversation, bool pinned);
     void open_direct_conversation(qint64 user, QString username);
@@ -133,6 +134,8 @@ class client_bridge final : public QObject
     void group_join_request_changed(qint64 conversation, qint64 user, chat::group_join_request_state state);
     void group_join_requests_received(qint64 conversation, QList<user_data> users, qint64 next, bool older, QString error_message);
     void group_pin_finished(qint64 conversation, QString error_message);
+    void personal_view_changed(qint64 conversation, QString action);
+    void history_boundary(qint64 conversation, qint64 floor, bool hidden);
     void conversation_changed(qint64 conversation, bool removed);
     // A text or attachment send finished: the stored message, or why it failed. lost means the
     // connection dropped before an answer; unavailable means the server denied conversation access.
