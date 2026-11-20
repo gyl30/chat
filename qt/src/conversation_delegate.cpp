@@ -136,9 +136,9 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
 
     auto badge_width = 0;
     QString badge_text;
-    if (unread > 0)
+    if (unread > 0 || index.data(conversation_model::marked_role).toBool())
     {
-        badge_text = unread > 99 ? QStringLiteral("99+") : QString::number(unread);
+        badge_text = unread == 0 ? QStringLiteral("•") : unread > 99 ? QStringLiteral("99+") : QString::number(unread);
         QFont badge_font = option.font;
         badge_font.setBold(true);
         badge_font.setPixelSize(11);
@@ -153,7 +153,7 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
     preview_rect.adjust(0, -preview_padding, 0, preview_padding);
     paint_emoji_line(*painter, preview_rect, last_text, preview_font, themed("text_muted"));
 
-    if (unread > 0)
+    if (unread > 0 || index.data(conversation_model::marked_role).toBool())
     {
         QFont badge_font = option.font;
         badge_font.setBold(true);

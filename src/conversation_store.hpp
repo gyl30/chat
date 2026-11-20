@@ -29,14 +29,6 @@ std::expected<std::vector<chat::conversation_member>, sqlite_error> read_convers
                                                                                               std::int64_t conversation,
                                                                                               std::int64_t actor);
 
-enum class conversation_preference
-{
-    mute,
-    pin
-};
-std::expected<bool, sqlite_error> set_conversation_preference(
-    sqlite_database& db, std::int64_t conversation, std::int64_t actor, conversation_preference preference, bool enabled);
-
 std::expected<bool, sqlite_error> can_send_to_conversation(sqlite_database& db, std::int64_t conversation, std::int64_t actor);
 
 enum class group_member_action

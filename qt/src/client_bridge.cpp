@@ -274,7 +274,9 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
                                                value.last_timestamp = item.last.timestamp;
                                                value.last_text = item.last.deleted ? QStringLiteral("消息已删除") : from_utf8(item.last.text);
                                                value.unread = item.unread;
-                                               value.muted = item.muted;
+                                               value.notifications = item.notifications;
+                                               value.mute_until = item.mute_until;
+                                               value.marked_unread = item.marked_unread;
                                                value.pinned = item.pinned;
                                                value.pinned_message = to_reply_data(item.pinned_message);
                                                value.announcement = from_utf8(item.announcement);
@@ -317,26 +319,11 @@ void client_bridge::change_history_view(qint64 conversation, bool hide)
         client_->clear_history(conversation, std::move(done));
     }
 }
-void client_bridge::set_conversation_muted(qint64 conversation, bool muted)
+void client_bridge::set_notification_level(qint64 conversation, chat::notification_level level, qint64 until)
 {
-    auto const generation = connection_generation_.load();
-    client_->set_conversation_muted(
-        conversation,
-        muted,
-        [this, conversation, generation](auto result)
-        {
-            post_result(generation,
-                        [this, conversation, result = std::move(result)]
-                        {
-                            if (result)
-                            {
-                                ++conversations_generation_;
-                            }
-                            emit mute_finished(conversation, result ? *result : false, result ? QString{} : display_error(result.error()));
-                        });
-        });
+    client_->set_notification_level(conversation, level, until, settings_result());
 }
-
+void client_bridge::set_unread_mark(qint64 conversation, bool marked) { client_->set_unread_mark(conversation, marked, settings_result()); }
 void client_bridge::set_conversation_pinned(qint64 conversation, bool pinned)
 {
     auto const generation = connection_generation_.load();
@@ -599,7 +586,7 @@ std::function<void(std::expected<bool, chat::error>)> client_bridge::group_actio
     };
 }
 
-chat::client::group_action_handler client_bridge::contact_settings_result()
+chat::client::group_action_handler client_bridge::settings_result()
 {
     return [this, generation = connection_generation_.load()](auto r)
     {
@@ -609,14 +596,14 @@ chat::client::group_action_handler client_bridge::contact_settings_result()
         }
     };
 }
-void client_bridge::set_friend_remark(qint64 user, QString remark) { client_->set_friend_remark(user, to_utf8(remark), contact_settings_result()); }
-void client_bridge::move_friend(qint64 user, QString group) { client_->move_friend(user, to_utf8(group), contact_settings_result()); }
-void client_bridge::create_friend_group(QString name) { client_->create_friend_group(to_utf8(name), contact_settings_result()); }
+void client_bridge::set_friend_remark(qint64 user, QString remark) { client_->set_friend_remark(user, to_utf8(remark), settings_result()); }
+void client_bridge::move_friend(qint64 user, QString group) { client_->move_friend(user, to_utf8(group), settings_result()); }
+void client_bridge::create_friend_group(QString name) { client_->create_friend_group(to_utf8(name), settings_result()); }
 void client_bridge::rename_friend_group(QString group, QString name)
 {
-    client_->rename_friend_group(to_utf8(group), to_utf8(name), contact_settings_result());
+    client_->rename_friend_group(to_utf8(group), to_utf8(name), settings_result());
 }
-void client_bridge::delete_friend_group(QString group) { client_->delete_friend_group(to_utf8(group), contact_settings_result()); }
+void client_bridge::delete_friend_group(QString group) { client_->delete_friend_group(to_utf8(group), settings_result()); }
 void client_bridge::get_contacts()
 {
     auto const generation = connection_generation_.load();

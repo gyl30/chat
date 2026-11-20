@@ -488,21 +488,8 @@ void main_window::connect_conversation_preferences_and_avatar()
                 }
                 client_->get_conversations();
             });
-    connect(chat_page_, &chat_widget::mute_requested, client_.get(), &client_bridge::set_conversation_muted);
-    connect(client_.get(),
-            &client_bridge::mute_finished,
-            this,
-            [this](qint64 conversation, bool muted, QString error)
-            {
-                if (!error.isEmpty())
-                {
-                    chat_page_->set_error(std::move(error));
-                    return;
-                }
-                chat_page_->set_conversation_muted(conversation, muted);
-                client_->get_conversations();
-            });
-
+    connect(chat_page_, &chat_widget::notification_level_requested, client_.get(), &client_bridge::set_notification_level);
+    connect(chat_page_, &chat_widget::unread_mark_requested, client_.get(), &client_bridge::set_unread_mark);
     connect(&chat_page_->avatars(), &avatar_cache::requested, client_.get(), &client_bridge::get_avatar);
     connect(chat_page_, &chat_widget::pin_requested, client_.get(), &client_bridge::set_conversation_pinned);
     connect(client_.get(),
@@ -1932,7 +1919,8 @@ void main_window::notify_message(message_data const& message)
         pending_notifications_.push_back(message);
         return;
     }
-    if (conversation->muted)
+    if (conversation->muted() || (conversation->group && conversation->notifications == chat::notification_level::mentions &&
+                                  std::ranges::none_of(message.mentions, [this](auto const& m) { return m.user == chat_page_->self_user(); })))
     {
         return;
     }

@@ -12,6 +12,13 @@
 namespace chat
 {
 
+enum class notification_level
+{
+    all,
+    mentions,
+    muted
+};
+
 enum class conversation_kind
 {
     direct,
@@ -36,7 +43,9 @@ struct conversation
     message last;
     std::uint64_t unread = 0;
     avatar_state avatar;
-    bool muted = false;
+    notification_level notifications = notification_level::all;
+    std::int64_t mute_until = 0;
+    bool marked_unread = false;
     bool pinned = false;
     std::optional<quoted_message> pinned_message;
     std::string announcement;

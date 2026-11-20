@@ -51,7 +51,9 @@ QVariant conversation_model::data(QModelIndex const& index, int role) const
         case online_role:
             return item->online;
         case muted_role:
-            return item->muted;
+            return item->muted();
+        case marked_role:
+            return item->marked_unread;
         case pinned_role:
             return item->pinned;
         case Qt::DecorationRole:
@@ -110,17 +112,6 @@ void conversation_model::set_online(qint64 user, bool online)
         emit dataChanged(item_index, item_index, {online_role});
         return;
     }
-}
-
-void conversation_model::set_muted(qint64 conversation, bool muted)
-{
-    auto const item_index = index_for_conversation(conversation);
-    if (!item_index.isValid() || conversations_[item_index.row()].muted == muted)
-    {
-        return;
-    }
-    conversations_[item_index.row()].muted = muted;
-    emit dataChanged(item_index, item_index, {muted_role});
 }
 
 void conversation_model::set_pinned(qint64 conversation, bool pinned)

@@ -193,19 +193,6 @@ std::expected<std::vector<chat::conversation_member>, sqlite_error> read_convers
     }
 }
 
-std::expected<bool, sqlite_error> set_conversation_preference(
-    sqlite_database& db, std::int64_t conversation, std::int64_t actor, conversation_preference preference, bool enabled)
-{
-    auto const query = preference == conversation_preference::pin
-                           ? "UPDATE conversation_members SET pinned=?3 WHERE conversation_id=?1 AND user_id=?2"
-                           : "UPDATE conversation_members SET muted=?3 WHERE conversation_id=?1 AND user_id=?2";
-    if (auto error = db.exec(query, conversation, actor, static_cast<int>(enabled)); error)
-    {
-        return std::unexpected(std::move(error));
-    }
-    return db.changes() == 1;
-}
-
 std::expected<bool, sqlite_error> can_send_to_conversation(sqlite_database& db, std::int64_t conversation, std::int64_t actor)
 {
     auto access = db.prepare(R"SQL(

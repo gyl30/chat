@@ -45,7 +45,8 @@ class client_bridge final : public QObject
     void register_user(QString const& username, QString const& password);
     void get_conversations();
     void change_history_view(qint64 conversation, bool hide);
-    void set_conversation_muted(qint64 conversation, bool muted);
+    void set_notification_level(qint64 conversation, chat::notification_level level, qint64 until);
+    void set_unread_mark(qint64 conversation, bool marked);
     void set_conversation_pinned(qint64 conversation, bool pinned);
     void open_direct_conversation(qint64 user, QString username);
     void create_group(QString title, QList<qint64> members);
@@ -113,7 +114,6 @@ class client_bridge final : public QObject
     void authentication_finished(bool authenticated, qint64 user, QString error_message, bool retryable_error, chat::avatar_state avatar);
     void registration_finished(QString error_message);
     void conversations_received(QList<conversation_data> conversations, QString error_message);
-    void mute_finished(qint64 conversation, bool muted, QString error_message);
     void pin_finished(qint64 conversation, bool pinned, QString error_message);
     void friendship_changed();
     void friend_requests_received(QList<user_data> incoming, QList<user_data> outgoing, QString error_message);
@@ -176,7 +176,7 @@ class client_bridge final : public QObject
     void read_marked(qint64 user, qint64 message, QString error_message);
 
    private:
-    std::function<void(std::expected<bool, chat::error>)> contact_settings_result();
+    std::function<void(std::expected<bool, chat::error>)> settings_result();
     void publish_pending_text(chat::pending_text const& item);
     std::function<void(std::expected<chat::friendship_result, chat::error>)> friend_request_result(qint64 user);
     std::function<void(std::expected<bool, chat::error>)> group_action_result(qint64 conversation, bool leaving = false);

@@ -411,7 +411,9 @@ std::expected<conversation, error> parse_conversation(boost::json::value const& 
     auto const* last = object.if_contains("last");
     auto const* unread_value = object.if_contains("unread");
     auto const* count_value = object.if_contains("member_count");
-    auto const* muted = object.if_contains("muted");
+    auto const* level = object.if_contains("notification_level");
+    auto const* until = object.if_contains("mute_until");
+    auto const* marked = object.if_contains("marked_unread");
     auto const* pinned = object.if_contains("pinned");
     auto const* pinned_message = object.if_contains("pinned_message");
     auto const* announcement = object.if_contains("announcement");
@@ -420,7 +422,8 @@ std::expected<conversation, error> parse_conversation(boost::json::value const& 
     auto unread = unread_value ? parse_uint64(*unread_value) : std::nullopt;
     auto count = count_value ? parse_uint64(*count_value) : std::nullopt;
     if (!id || *id <= 0 || !kind || !kind->is_string() || !user_value || !name || !name->is_string() || !last || !unread || !count || *count == 0 ||
-        !muted || !muted->is_bool() || !pinned || !pinned->is_bool() || !pinned_message || !announcement || !announcement->is_string() || !approval ||
+        !level || !level->is_int64() || level->as_int64() < 0 || level->as_int64() > 2 || !until || !until->is_int64() || !marked ||
+        !marked->is_bool() || !pinned || !pinned->is_bool() || !pinned_message || !announcement || !announcement->is_string() || !approval ||
         !approval->is_bool() || (kind->as_string() == "direct" && approval->as_bool()))
     {
         return std::unexpected(make_error(error_kind::protocol, "Invalid conversation"));
@@ -434,7 +437,9 @@ std::expected<conversation, error> parse_conversation(boost::json::value const& 
     }
     item.unread = *unread;
     item.member_count = *count;
-    item.muted = muted->as_bool();
+    item.notifications = static_cast<notification_level>(level->as_int64());
+    item.mute_until = until->as_int64();
+    item.marked_unread = marked->as_bool();
     item.pinned = pinned->as_bool();
     item.announcement = std::string(announcement->as_string());
     item.join_approval = approval->as_bool();
@@ -1280,29 +1285,6 @@ struct client::impl
                              result.next = conversation_cursor{*a, *i, pinned->as_bool()};
                          }
                          handler(std::move(result));
-                     });
-        co_return;
-    }
-
-    boost::capy::task<> set_conversation_preference(std::int64_t conversation, bool value, bool pin, mute_handler handler)
-    {
-        auto const key = pin ? "pinned" : "muted";
-        send_request(pin ? "set_conversation_pinned" : "set_conversation_muted",
-                     {{"conversation", conversation}, {key, value}},
-                     [handler = std::move(handler), key, value](auto response) mutable
-                     {
-                         if (!response)
-                         {
-                             handler(std::unexpected(std::move(response.error())));
-                             return;
-                         }
-                         auto const* result = response->is_object() ? response->as_object().if_contains(key) : nullptr;
-                         if (!result || !result->is_bool() || result->as_bool() != value)
-                         {
-                             handler(std::unexpected(make_error(error_kind::protocol, "Invalid conversation preference result")));
-                             return;
-                         }
-                         handler(result->as_bool());
                      });
         co_return;
     }
@@ -2974,14 +2956,20 @@ void client::get_conversations(std::optional<conversation_cursor> before, conver
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_conversations(before, std::move(handler)));
 }
 
-void client::set_conversation_muted(std::int64_t conversation, bool muted, mute_handler handler)
+void client::set_notification_level(std::int64_t conversation, notification_level level, std::int64_t until, group_action_handler handler)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->set_conversation_preference(conversation, muted, false, std::move(handler)));
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_action(
+        "set_notification_level", {{"conversation", conversation}, {"level", static_cast<int>(level)}, {"until", until}}, std::move(handler)));
 }
-
+void client::set_unread_mark(std::int64_t conversation, bool marked, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->group_action("set_unread_mark", {{"conversation", conversation}, {"marked", marked}}, std::move(handler)));
+}
 void client::set_conversation_pinned(std::int64_t conversation, bool pinned, pin_handler handler)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->set_conversation_preference(conversation, pinned, true, std::move(handler)));
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->request_bool(
+        "set_conversation_pinned", {{"conversation", conversation}, {"pinned", pinned}}, "pinned", "Invalid pin result", std::move(handler)));
 }
 
 void client::open_direct_conversation(std::int64_t user, conversation_handler handler)

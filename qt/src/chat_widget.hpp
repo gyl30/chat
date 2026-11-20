@@ -107,7 +107,6 @@ class chat_widget final : public QWidget
     void mark_visible_messages();
     qint64 self_user() const { return self_user_; }
     std::optional<conversation_data> conversation(qint64 id) const;
-    void set_conversation_muted(qint64 conversation, bool muted);
     void set_conversation_pinned(qint64 conversation, bool pinned);
     void show_user_details(qint64 user, QString const& username, QWidget* profile_parent = nullptr);
     void set_control_enter_send(bool enabled);
@@ -154,7 +153,8 @@ class chat_widget final : public QWidget
     void typing_requested(qint64 conversation, bool typing);
     void read_requested(qint64 conversation, qint64 message);
     void history_view_requested(qint64 conversation, bool hide);
-    void mute_requested(qint64 conversation, bool muted);
+    void notification_level_requested(qint64 conversation, chat::notification_level level, qint64 until);
+    void unread_mark_requested(qint64 conversation, bool marked);
     void pin_requested(qint64 conversation, bool pinned);
 
    protected:
@@ -305,6 +305,7 @@ class chat_widget final : public QWidget
     QPushButton* chat_title_ = nullptr;
     QLabel* chat_presence_ = nullptr;
     QLabel* typing_label_ = nullptr;
+    QTimer* mute_expiry_timer_ = nullptr;
     QTimer* typing_idle_timer_ = nullptr;
     QElapsedTimer last_typing_sent_;
     struct peer_typing

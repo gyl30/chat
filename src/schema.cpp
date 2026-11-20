@@ -93,7 +93,9 @@ CREATE TABLE IF NOT EXISTS conversation_members (
     visible_after INTEGER GENERATED ALWAYS AS (max(joined_message_id,cleared_message_id)) VIRTUAL,
     hidden_at INTEGER,
     is_admin INTEGER NOT NULL DEFAULT 0 CHECK (is_admin IN (0, 1)),
-    muted INTEGER NOT NULL DEFAULT 0 CHECK (muted IN (0, 1)),
+    notification_level INTEGER NOT NULL DEFAULT 0 CHECK(notification_level BETWEEN 0 AND 2),
+    mute_until INTEGER NOT NULL DEFAULT 0 CHECK(mute_until>=0 AND (notification_level=2 OR mute_until=0)),
+    unread_mark_message_id INTEGER CHECK(unread_mark_message_id>=0),
     pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),
     PRIMARY KEY (conversation_id, user_id)
 );

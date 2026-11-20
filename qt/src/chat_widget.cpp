@@ -5,6 +5,8 @@
 
 #include <utility>
 #include <iterator>
+#include <limits>
+#include <algorithm>
 
 #include <QAbstractItemView>
 #include <QAbstractTextDocumentLayout>
@@ -332,6 +334,16 @@ QWidget* chat_widget::create_sidebar()
     conversations_view_->setObjectName(QStringLiteral("conversationList"));
     conversations_view_->setAccessibleName(QStringLiteral("会话列表"));
     conversations_view_->setModel(conversations_);
+    mute_expiry_timer_ = new QTimer(this);
+    mute_expiry_timer_->setSingleShot(true);
+    connect(mute_expiry_timer_,
+            &QTimer::timeout,
+            this,
+            [this]
+            {
+                conversations_view_->viewport()->update();
+                update_main_menu();
+            });
     auto* conversations_delegate = new conversation_delegate(conversations_view_);
     conversations_view_->setItemDelegate(conversations_delegate);
     conversations_view_->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -433,7 +445,7 @@ QWidget* chat_widget::create_sidebar()
                     return;
                 }
                 auto const conversation = item->id;
-                auto const muted = !item->muted;
+
                 auto const pinned = !item->pinned;
                 QMenu menu(this);
                 menu.addAction(pinned ? QStringLiteral("置顶") : QStringLiteral("取消置顶"),
@@ -444,14 +456,33 @@ QWidget* chat_widget::create_sidebar()
                                        emit pin_requested(conversation, pinned);
                                    }
                                });
-                menu.addAction(muted ? QStringLiteral("静音") : QStringLiteral("取消静音"),
-                               [this, conversation, muted]
-                               {
-                                   if (connection_available_ && conversations_->index_for_conversation(conversation).isValid())
-                                   {
-                                       emit mute_requested(conversation, muted);
-                                   }
-                               });
+                auto* levels = menu.addMenu(QStringLiteral("通知"));
+                auto add_level = [&, conversation](QString title, chat::notification_level level, qint64 duration)
+                {
+                    auto* action = levels->addAction(
+                        title,
+                        this,
+                        [this, conversation, level, duration]
+                        { emit notification_level_requested(conversation, level, duration ? QDateTime::currentMSecsSinceEpoch() + duration : 0); });
+                    auto effective = item->notifications == chat::notification_level::muted && !item->muted() ? chat::notification_level::all
+                                                                                                              : item->notifications;
+                    action->setCheckable(true);
+                    action->setChecked(effective == level && (level != chat::notification_level::muted || (!duration && !item->mute_until)));
+                };
+                add_level(QStringLiteral("全部通知"), chat::notification_level::all, 0);
+                add_level(item->group ? QStringLiteral("仅 @我") : QStringLiteral("仅直接发给我"), chat::notification_level::mentions, 0);
+                add_level(QStringLiteral("免打扰 1 小时"), chat::notification_level::muted, 3600000);
+                add_level(QStringLiteral("免打扰 8 小时"), chat::notification_level::muted, 28800000);
+                add_level(QStringLiteral("永久免打扰"), chat::notification_level::muted, 0);
+                if (item->muted() && item->mute_until > 0)
+                {
+                    levels->addAction(QStringLiteral("静音至 %1").arg(QDateTime::fromMSecsSinceEpoch(item->mute_until).toString("MM-dd HH:mm")))
+                        ->setEnabled(false);
+                }
+                auto const mark = !item->marked_unread;
+                menu.addAction(mark ? QStringLiteral("标记未读") : QStringLiteral("清除未读标记"),
+                               this,
+                               [this, conversation, mark] { emit unread_mark_requested(conversation, mark); });
                 menu.addAction(QStringLiteral("隐藏会话"), [this, conversation] { emit history_view_requested(conversation, true); });
                 menu.addAction(QStringLiteral("清空聊天记录"),
                                [this, conversation]
@@ -3086,14 +3117,29 @@ void chat_widget::filter_conversations()
 
 void chat_widget::update_main_menu()
 {
+    auto now = QDateTime::currentMSecsSinceEpoch();
+    qint64 nearest = 0;
     quint64 total = 0;
     for (int row = 0; row < conversations_->rowCount(); ++row)
     {
         auto const index = conversations_->index(row, 0);
+        auto const* item = conversations_->conversation_at(index);
+        if (item->notifications == chat::notification_level::muted && item->mute_until > now && (nearest == 0 || item->mute_until < nearest))
+        {
+            nearest = item->mute_until;
+        }
         if (!index.data(conversation_model::muted_role).toBool())
         {
             total += index.data(conversation_model::unread_role).toULongLong();
         }
+    }
+    if (nearest)
+    {
+        mute_expiry_timer_->start(static_cast<int>(std::min<qint64>(nearest - now, std::numeric_limits<int>::max())));
+    }
+    else
+    {
+        mute_expiry_timer_->stop();
     }
     auto const incoming = incoming_requests_.size();
     chats_action_->setText(total > 0 ? QStringLiteral("聊天 · %1 条未读").arg(total) : QStringLiteral("聊天"));
@@ -3246,6 +3292,11 @@ void chat_widget::open_conversation(conversation_data conversation)
         return;
     }
     auto const existing = conversations_->index_for_conversation(user);
+    auto const* listed = conversations_->conversation_at(existing);
+    if (connection_available_ && (conversation.marked_unread || (listed && listed->marked_unread)))
+    {
+        emit unread_mark_requested(user, false);
+    }
     if (!existing.isValid())
     {
         QList<conversation_data> items;
@@ -3578,8 +3629,6 @@ std::optional<conversation_data> chat_widget::conversation(qint64 id) const
     }
     return std::nullopt;
 }
-
-void chat_widget::set_conversation_muted(qint64 conversation, bool muted) { conversations_->set_muted(conversation, muted); }
 
 void chat_widget::set_conversation_pinned(qint64 conversation, bool pinned) { conversations_->set_pinned(conversation, pinned); }
 

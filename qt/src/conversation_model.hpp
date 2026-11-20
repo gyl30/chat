@@ -20,6 +20,7 @@ class conversation_model final : public QAbstractListModel
         unread_role,
         online_role,
         muted_role,
+        marked_role,
         pinned_role,
     };
 
@@ -31,7 +32,7 @@ class conversation_model final : public QAbstractListModel
     void set_conversations(QList<conversation_data> conversations);
     void remove_conversation(qint64 conversation);
     void set_online(qint64 user, bool online);
-    void set_muted(qint64 conversation, bool muted);
+
     void set_pinned(qint64 conversation, bool pinned);
     conversation_data const* conversation_at(QModelIndex const& index) const;
     QModelIndex index_for_conversation(qint64 conversation) const;

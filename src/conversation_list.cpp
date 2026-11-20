@@ -10,7 +10,7 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
     constexpr auto max = std::numeric_limits<std::int64_t>::max();
     auto query = db.prepare(R"SQL(
         WITH page AS (
-            SELECT c.*, own.pinned, own.muted, own.last_read_message_id, own.visible_after,
+            SELECT c.*, own.pinned, own.notification_level, own.mute_until, own.unread_mark_message_id, own.last_read_message_id, own.visible_after,
                    CASE WHEN c.direct_user_low=?1 THEN c.direct_user_high ELSE c.direct_user_low END AS peer
             FROM conversation_members own JOIN conversations c ON c.id=own.conversation_id
             WHERE own.user_id=?1 AND (own.hidden_at IS NULL OR c.activity>own.hidden_at)
@@ -26,7 +26,8 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                 'id',c.id,'kind',c.kind,'user',c.peer,'username',coalesce(c.title,u.username),
                 'remark',coalesce(ct.remark,''),'avatar_revision',coalesce(u.avatar_revision,0),
                 'has_avatar',json(CASE WHEN avatar.user_id IS NULL THEN 'false' ELSE 'true' END),
-                'activity',c.activity,'muted',json(CASE WHEN c.muted THEN 'true' ELSE 'false' END),
+                'activity',c.activity,'notification_level',c.notification_level,'mute_until',c.mute_until,
+                'marked_unread',json(CASE WHEN c.unread_mark_message_id IS NULL THEN 'false' ELSE 'true' END),
                 'pinned',json(CASE WHEN c.pinned THEN 'true' ELSE 'false' END),
                 'member_count',(SELECT count(*) FROM conversation_members WHERE conversation_id=c.id),
                 'announcement',c.announcement,

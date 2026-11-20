@@ -2,7 +2,8 @@
 #define CHAT_QT_SRC_CONVERSATION_DATA_HPP
 
 #include <QList>
-#include <chat/avatar.hpp>
+#include <chat/conversation.hpp>
+#include <QDateTime>
 #include <QMetaType>
 #include <QString>
 #include <QtGlobal>
@@ -21,7 +22,13 @@ struct conversation_data
     bool online = false;
     quint64 member_count = 0;
     chat::avatar_state avatar;
-    bool muted = false;
+    chat::notification_level notifications = chat::notification_level::all;
+    qint64 mute_until = 0;
+    bool marked_unread = false;
+    bool muted() const
+    {
+        return notifications == chat::notification_level::muted && (!mute_until || mute_until > QDateTime::currentMSecsSinceEpoch());
+    }
     bool pinned = false;
     quoted_message_data pinned_message;
     QString announcement;
