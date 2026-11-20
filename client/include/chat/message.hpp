@@ -45,6 +45,7 @@ struct message
     std::int64_t reaction_revision = 0;
     std::vector<reaction> reactions;
     std::vector<mention> mentions;
+    bool acknowledgement_only = false;
     // Present only on the caller's own messages: the ID it sent them with.
     std::optional<std::int64_t> client_id;
 };

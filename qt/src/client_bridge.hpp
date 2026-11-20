@@ -44,6 +44,7 @@ class client_bridge final : public QObject
     void authenticate(QString const& username, QString const& password);
     void register_user(QString const& username, QString const& password);
     void get_conversations();
+    void clear_history(qint64 conversation, qint64 through);
     void change_history_view(qint64 conversation, bool hide);
     void set_notification_level(qint64 conversation, chat::notification_level level, qint64 until);
     void set_unread_mark(qint64 conversation, bool marked);
@@ -141,7 +142,9 @@ class client_bridge final : public QObject
     void group_join_request_changed(qint64 conversation, qint64 user, chat::group_join_request_state state);
     void group_join_requests_received(qint64 conversation, QList<user_data> users, qint64 next, bool older, QString error_message);
     void group_pin_finished(qint64 conversation, QString error_message);
-    void personal_view_changed(qint64 conversation, QString action);
+    void notifications_changed(qint64 conversation, chat::notification_level level, qint64 until);
+    void personal_view_changed(qint64 conversation, QString action, qint64 through);
+    void clear_boundary_ready(qint64 conversation, qint64 through);
     void history_boundary(qint64 conversation, qint64 floor, bool hidden);
     void conversation_changed(qint64 conversation, bool removed);
     // A text or attachment send finished: the stored message, or why it failed. lost means the

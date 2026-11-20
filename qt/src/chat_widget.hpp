@@ -56,6 +56,7 @@ class chat_widget final : public QWidget
     void set_user(QString const& username, qint64 user = 0);
     void open_conversation(conversation_data conversation);
     void hide_conversation(qint64 conversation);
+    qint64 history_floor(qint64 conversation) const { return history_floors_.value(conversation); }
     void discard_history(qint64 conversation, qint64 floor);
     void close_conversation(qint64 conversation);
     void locate_message(qint64 conversation, qint64 message);
@@ -107,6 +108,7 @@ class chat_widget final : public QWidget
     void mark_visible_messages();
     qint64 self_user() const { return self_user_; }
     std::optional<conversation_data> conversation(qint64 id) const;
+    void set_notifications(qint64 conversation, chat::notification_level level, qint64 until);
     void set_conversation_pinned(qint64 conversation, bool pinned);
     void show_user_details(qint64 user, QString const& username, QWidget* profile_parent = nullptr);
     void set_control_enter_send(bool enabled);
@@ -152,6 +154,7 @@ class chat_widget final : public QWidget
     void attachment_open_requested(qint64 conversation, qint64 message, QString filename, bool preview);
     void typing_requested(qint64 conversation, bool typing);
     void read_requested(qint64 conversation, qint64 message);
+    void history_discarded(qint64 conversation, qint64 through);
     void history_view_requested(qint64 conversation, bool hide);
     void notification_level_requested(qint64 conversation, chat::notification_level level, qint64 until);
     void unread_mark_requested(qint64 conversation, bool marked);
@@ -320,6 +323,8 @@ class chat_widget final : public QWidget
     QListView* messages_view_ = nullptr;
     QWidget* input_bar_ = nullptr;
     QPlainTextEdit* message_edit_ = nullptr;
+    QHash<qint64, qint64> history_floors_;
+    bool visible_message(message_data& message) const;
     QHash<qint64, QString> drafts_;
     QList<outgoing> outgoing_;
     struct text_save

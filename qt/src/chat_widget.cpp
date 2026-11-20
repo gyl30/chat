@@ -484,17 +484,7 @@ QWidget* chat_widget::create_sidebar()
                                this,
                                [this, conversation, mark] { emit unread_mark_requested(conversation, mark); });
                 menu.addAction(QStringLiteral("隐藏会话"), [this, conversation] { emit history_view_requested(conversation, true); });
-                menu.addAction(QStringLiteral("清空聊天记录"),
-                               [this, conversation]
-                               {
-                                   if (confirm_action(this,
-                                                      QStringLiteral("清空聊天记录"),
-                                                      QStringLiteral("清空后，你在所有设备上都无法再查看这些聊天记录。其他成员的记录将保留。"),
-                                                      QStringLiteral("清空")))
-                                   {
-                                       emit history_view_requested(conversation, false);
-                                   }
-                               });
+                menu.addAction(QStringLiteral("清空聊天记录"), [this, conversation] { emit history_view_requested(conversation, false); });
                 menu.exec(conversations_view_->viewport()->mapToGlobal(point));
             });
     connect(conversations_delegate,
@@ -1543,6 +1533,20 @@ void chat_widget::choose_forward_target(QList<qint64> messages)
     layout->addWidget(buttons);
     auto const owner = self_user_;
     auto const source = active_conversation_;
+    connect(this,
+            &chat_widget::history_discarded,
+            &dialog,
+            [&dialog, &messages, source](qint64 id, qint64 through)
+            {
+                if (id == source)
+                {
+                    messages.removeIf([through](qint64 message) { return message <= through; });
+                    if (messages.isEmpty())
+                    {
+                        dialog.reject();
+                    }
+                }
+            });
     if (dialog.exec() == QDialog::Accepted && targets->currentItem() && connection_available_ && owner == self_user_ &&
         source == active_conversation_)
     {
@@ -1627,7 +1631,21 @@ void chat_widget::show_message_menu(QPoint position)
                      ? menu.addAction(QStringLiteral("编辑"))
                      : nullptr;
     auto* remove = index.data(message_model::outgoing_role).toBool() ? menu.addAction(QStringLiteral("删除")) : nullptr;
+    connect(this,
+            &chat_widget::history_discarded,
+            &menu,
+            [&menu, conversation, message_id](qint64 id, qint64 through)
+            {
+                if (id == conversation && message_id <= through)
+                {
+                    menu.close();
+                }
+            });
     auto* selected = menu.exec(messages_view_->viewport()->mapToGlobal(position));
+    if (message_id <= history_floor(conversation))
+    {
+        return;
+    }
     if (copy && selected == copy)
     {
         // The text was captured when the menu opened, so later history changes cannot retarget it.
@@ -1691,6 +1709,16 @@ void chat_widget::show_message_menu(QPoint position)
         dialog.setLabelText(QStringLiteral("消息内容"));
         dialog.setOption(QInputDialog::UsePlainTextEditForTextInput);
         dialog.setInputMode(QInputDialog::TextInput);
+        connect(this,
+                &chat_widget::history_discarded,
+                &dialog,
+                [&dialog, conversation, message_id](qint64 id, qint64 through)
+                {
+                    if (id == conversation && message_id <= through)
+                    {
+                        dialog.reject();
+                    }
+                });
         dialog.setTextValue(message_text);
         dialog.setOkButtonText(QStringLiteral("保存"));
         dialog.setCancelButtonText(QStringLiteral("取消"));
@@ -1878,6 +1906,7 @@ void chat_widget::set_user(QString const& username, qint64 user)
     self_user_ = user;
     self_profile_action_->setIcon(avatar_icon(username, 24));
     self_profile_action_->setEnabled(user > 0);
+    history_floors_.clear();
     drafts_.clear();
     outgoing_.clear();
     saving_text_.reset();
@@ -2642,6 +2671,17 @@ void chat_widget::set_messages(qint64 user, QList<message_data> messages, read_p
     auto* scroll = messages_view_->verticalScrollBar();
     auto const old_maximum = scroll->maximum();
     auto const old_value = scroll->value();
+    for (auto it = messages.begin(); it != messages.end();)
+    {
+        if (visible_message(*it))
+        {
+            ++it;
+        }
+        else
+        {
+            it = messages.erase(it);
+        }
+    }
     messages_->merge_messages(std::move(messages));
     messages_->set_read_positions(std::move(positions));
     messages_loading_ = recovering && has_more;
@@ -2743,7 +2783,7 @@ void chat_widget::reset_read_positions(qint64 conversation)
 void chat_widget::add_message(qint64 user, message_data message)
 {
     settle(message);
-    if (user != active_conversation_)
+    if (!visible_message(message) || user != active_conversation_)
     {
         return;
     }
@@ -2772,6 +2812,10 @@ void chat_widget::add_message(qint64 user, message_data message)
 
 void chat_widget::update_message(message_data message)
 {
+    if (!visible_message(message))
+    {
+        return;
+    }
     messages_->update_message(message);
     if (message.conversation != active_conversation_)
     {
@@ -3405,12 +3449,25 @@ void chat_widget::hide_conversation(qint64 conversation)
     }
     leave_conversation(conversation);
 }
+bool chat_widget::visible_message(message_data& message) const
+{
+    auto floor = history_floor(message.conversation);
+    if (message.reply.id <= floor)
+    {
+        message.reply = {};
+    }
+    return !message.acknowledgement_only && message.id > floor;
+}
 void chat_widget::discard_history(qint64 conversation, qint64 floor)
 {
-    if (floor <= 0)
+    if (floor <= history_floor(conversation))
     {
         return;
     }
+    history_floors_.insert(conversation, floor);
+    emit history_discarded(conversation, floor);
+    conversations_->discard_through(conversation, floor);
+    images_.remove(conversation, 1, floor);
     for (auto& item : outgoing_)
     {
         if (item.conversation == conversation && item.reply.id > 0 && item.reply.id <= floor)
@@ -3433,6 +3490,7 @@ void chat_widget::discard_history(qint64 conversation, qint64 floor)
         pending_locate_ = 0;
     }
     messages_->discard_through(floor);
+    update_pinned_message();
     show_outgoing();
 }
 void chat_widget::close_conversation(qint64 conversation)
@@ -3602,6 +3660,7 @@ void chat_widget::show_read_details(qint64 conversation, qint64 message)
     };
     connect(messages_, &QAbstractItemModel::dataChanged, &dialog, refresh);
     connect(messages_, &QAbstractItemModel::modelReset, &dialog, refresh);
+    connect(messages_, &QAbstractItemModel::rowsRemoved, &dialog, refresh);
     connect(&avatars_, &avatar_cache::changed, &dialog, refresh);
     if (!refresh())
     {
@@ -3642,6 +3701,10 @@ std::optional<conversation_data> chat_widget::conversation(qint64 id) const
     return std::nullopt;
 }
 
+void chat_widget::set_notifications(qint64 conversation, chat::notification_level level, qint64 until)
+{
+    conversations_->set_notifications(conversation, level, until);
+}
 void chat_widget::set_conversation_pinned(qint64 conversation, bool pinned) { conversations_->set_pinned(conversation, pinned); }
 
 void chat_widget::create_group()

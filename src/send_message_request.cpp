@@ -87,26 +87,43 @@ struct delivery
     message_broadcast notification;
 };
 
+struct hidden_receipt
+{
+    std::int64_t id, conversation, from, client_id;
+    bool hidden = true;
+};
+
 using send_outcome = std::variant<delivery, message_write_rejection>;
 
-std::expected<send_outcome, sqlite_error> format_delivery(
-    sqlite_database& db, std::int64_t user, std::int64_t conversation, message_write_outcome const& outcome, json_rpc_id const& request_id)
+std::expected<send_outcome, sqlite_error> format_delivery(sqlite_database& db,
+                                                          message_to_write const& input,
+                                                          message_write_outcome const& outcome,
+                                                          json_rpc_id const& request_id)
 {
     if (auto const* rejected = std::get_if<message_write_rejection>(&outcome))
     {
         return *rejected;
     }
     auto const& sent = std::get<message_write>(outcome);
-    auto message = read_message(db, user, conversation, sent.id);
+    auto message = read_message(db, input.sender, input.conversation, sent.id);
     if (!message)
     {
         return std::unexpected(std::move(message.error()));
     }
+    delivery result;
     if (!*message)
     {
-        return message_write_rejection::unavailable;
+        if (sent.inserted)
+        {
+            return message_write_rejection::unavailable;
+        }
+        hidden_receipt receipt{sent.id, input.conversation, input.sender, input.client_id};
+        if (request_id.present && serialize_json_rpc_value(receipt, request_id, result.acknowledgement))
+        {
+            return std::unexpected(sqlite_error{SQLITE_ERROR, "cannot serialize stored receipt"});
+        }
+        return result;
     }
-    delivery result;
     auto value = make_message_payload(**message, true);
     if (request_id.present && serialize_json_rpc_value(value, request_id, result.acknowledgement))
     {
@@ -151,7 +168,7 @@ std::expected<send_outcome, sqlite_error> persist_delivery(
     {
         return std::unexpected(std::move(saved.error()));
     }
-    auto formatted = format_delivery(db, message.sender, message.conversation, *saved, request_id);
+    auto formatted = format_delivery(db, message, *saved, request_id);
     if (!formatted || std::holds_alternative<message_write_rejection>(*formatted))
     {
         return formatted;
@@ -181,7 +198,7 @@ std::expected<std::optional<send_outcome>, sqlite_error> check_attachment_delive
     {
         return std::nullopt;
     }
-    return format_delivery(db, message.sender, message.conversation, **checked, id);
+    return format_delivery(db, message, **checked, id);
 }
 
 }    // namespace
@@ -225,6 +242,18 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         if (!task)
         {
             co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        if (!*task)
+        {
+            auto sent = co_await find_sent_message(*params.upload);
+            if (!sent)
+            {
+                co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            }
+            if (*sent && (**sent).member && (**sent).attachment)
+            {
+                co_return serialize_json_rpc_success((**sent).json, std::move(request.id), response);
+            }
         }
         if (!*task || (**task).state != "active" || (**task).parts.empty() || (**task).parts.back().etag.empty())
         {
@@ -308,7 +337,8 @@ boost::capy::task<std::expected<std::optional<chat_session::sent_message>, sqlit
             }
             auto query = db.prepare(R"SQL(
             SELECT id,conversation_id,deleted,
-                EXISTS(SELECT 1 FROM message_attachments WHERE message_id=m.id)
+                EXISTS(SELECT 1 FROM message_attachments WHERE message_id=m.id),
+                EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=m.conversation_id AND user_id=?1)
             FROM messages m WHERE sender_id=?1 AND client_id=?2
         )SQL",
                                     user,
@@ -326,7 +356,7 @@ boost::capy::task<std::expected<std::optional<chat_session::sent_message>, sqlit
             {
                 return std::nullopt;
             }
-            sent_message result{query->column_int64(1), query->column_int64(2) != 0, query->column_int64(3) != 0, false, {}};
+            sent_message result{query->column_int64(1), query->column_int64(2) != 0, query->column_int64(3) != 0, query->column_int64(4) != 0, {}};
             auto current = read_message(db, user, result.conversation, query->column_int64(0));
             if (!current)
             {
@@ -334,11 +364,18 @@ boost::capy::task<std::expected<std::optional<chat_session::sent_message>, sqlit
             }
             if (*current)
             {
-                result.member = true;
                 auto value = make_message_payload(**current, true);
                 if (simdjson::builder::to_json_string(value).get(result.json))
                 {
                     return std::unexpected(sqlite_error{SQLITE_ERROR, "cannot serialize stored message"});
+                }
+            }
+            else if (result.member)
+            {
+                hidden_receipt receipt{query->column_int64(0), result.conversation, user, client_id};
+                if (simdjson::builder::to_json_string(receipt).get(result.json))
+                {
+                    return std::unexpected(sqlite_error{SQLITE_ERROR, "cannot serialize stored receipt"});
                 }
             }
             return result;

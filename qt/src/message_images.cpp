@@ -101,9 +101,9 @@ QString message_images::status(qint64 message) const
 
 void message_images::discard_queued() { queued_.clear(); }
 
-void message_images::remove(qint64 conversation, qint64 message)
+void message_images::remove(qint64 conversation, qint64 first, qint64 last)
 {
-    auto const matches = [conversation, message](qint64 conv, qint64 id) { return conv == conversation && (message == 0 || message == id); };
+    auto const matches = [=](qint64 conv, qint64 id) { return conv == conversation && (first == 0 || (id >= first && id <= (last ? last : first))); };
     for (auto id : cache_.keys())
     {
         if (matches(cache_.object(id)->conversation, id))

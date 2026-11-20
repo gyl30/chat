@@ -68,6 +68,7 @@ message_data to_message_data(chat::message const& value)
     message_data message;
     message.forwarded_from = from_utf8(value.forwarded_from);
     message.id = value.id;
+    message.acknowledgement_only = value.acknowledgement_only;
     message.conversation = value.conversation;
     message.from = value.from;
     message.username = from_utf8(value.username);
@@ -160,10 +161,17 @@ client_bridge::client_bridge(QObject* parent)
                         { emit typing_changed(value.conversation, value.user, from_utf8(value.username), value.typing); });
         });
     client_->set_conversation_view_handler(
-        [this](std::int64_t conversation, std::string action)
+        [this](chat::conversation_view_event view)
         {
             post_result(connection_generation_.load(),
-                        [this, conversation, action = from_utf8(action)] { emit personal_view_changed(conversation, action); });
+                        [this, view = std::move(view)]
+                        {
+                            if (view.action == "notifications")
+                            {
+                                emit notifications_changed(view.conversation, static_cast<chat::notification_level>(*view.level), *view.until);
+                            }
+                            emit personal_view_changed(view.conversation, from_utf8(view.action), view.through.value_or(0));
+                        });
         });
     client_->set_conversation_handler(
         [this](std::int64_t id, bool removed)
@@ -271,6 +279,7 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
                                                value.remark = from_utf8(item.remark);
                                                value.avatar = item.avatar;
                                                value.member_count = item.member_count;
+                                               value.last_message_id = item.last.id;
                                                value.last_timestamp = item.last.timestamp;
                                                value.last_text = item.last.deleted ? QStringLiteral("消息已删除") : from_utf8(item.last.text);
                                                value.unread = item.unread;
@@ -316,8 +325,39 @@ void client_bridge::change_history_view(qint64 conversation, bool hide)
     }
     else
     {
-        client_->clear_history(conversation, std::move(done));
+        client_->get_messages(conversation,
+                              {},
+                              [this, conversation, g = connection_generation_.load()](auto r)
+                              {
+                                  if (!r)
+                                  {
+                                      post_result(g, [this, msg = display_error(r.error())] { emit error(msg); });
+                                      return;
+                                  }
+                                  auto through = r->messages.empty() ? r->visible_after : r->messages.back().id;
+                                  post_result(g, [this, conversation, through] { emit clear_boundary_ready(conversation, through); });
+                              });
     }
+}
+void client_bridge::clear_history(qint64 conversation, qint64 through)
+{
+    client_->clear_history(conversation,
+                           through,
+                           [this, conversation, g = connection_generation_.load()](auto r)
+                           {
+                               post_result(g,
+                                           [this, conversation, r = std::move(r)]
+                                           {
+                                               if (r)
+                                               {
+                                                   emit personal_view_changed(conversation, QStringLiteral("clear"), *r);
+                                               }
+                                               else
+                                               {
+                                                   emit error(display_error(r.error()));
+                                               }
+                                           });
+                           });
 }
 void client_bridge::set_notification_level(qint64 conversation, chat::notification_level level, qint64 until)
 {

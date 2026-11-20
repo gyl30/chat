@@ -18,6 +18,10 @@ class blocking_worker;
 class database;
 class s3_objects;
 
+namespace chat
+{
+struct conversation_view_event;
+}
 struct quoted_notification;
 
 class chat_session
@@ -75,7 +79,7 @@ class chat_session
 
     boost::capy::task<simdjson::error_code> handle_search_users(json_rpc_request& request, std::string& response);
 
-    void publish_personal_view(std::int64_t conversation, std::string_view action);
+    void publish_personal_view(chat::conversation_view_event const& view);
     boost::capy::task<void> publish_presence(bool online);
 
     struct sent_message

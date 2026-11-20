@@ -55,16 +55,22 @@ attachment_dialog::attachment_dialog(qint64 conversation, qint64 message, QStrin
             this,
             [this]
             {
-                auto const path = QFileDialog::getSaveFileName(
-                    this, QStringLiteral("保存文件"), QStandardPaths::writableLocation(QStandardPaths::DownloadLocation) + "/" + filename_);
-                if (path.isEmpty())
-                {
-                    return;
-                }
-                save_button_->setEnabled(false);
-                status_->setText(QStringLiteral("正在下载…"));
-                saving_to_ = path;
-                emit save_requested(conversation_, message_, path);
+                auto* chooser = new QFileDialog(this, QStringLiteral("保存文件"), QStandardPaths::writableLocation(QStandardPaths::DownloadLocation));
+                chooser->setAttribute(Qt::WA_DeleteOnClose);
+                chooser->setAcceptMode(QFileDialog::AcceptSave);
+                chooser->selectFile(filename_);
+                connect(chooser,
+                        &QFileDialog::fileSelected,
+                        this,
+                        [this](QString const& path)
+                        {
+                            save_button_->setEnabled(false);
+                            status_->setText(QStringLiteral("正在下载…"));
+                            saving_to_ = path;
+                            emit save_requested(conversation_, message_, path);
+                        });
+                connect(this, &QDialog::finished, chooser, &QDialog::reject);
+                chooser->open();
             });
 }
 

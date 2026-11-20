@@ -38,6 +38,7 @@
 
 namespace chat
 {
+BOOST_DESCRIBE_STRUCT(conversation_view_event, (), (conversation, action, through, level, until))
 BOOST_DESCRIBE_STRUCT(contact_entry, (), (id, username, avatar_revision, has_avatar, remark, group))
 BOOST_DESCRIBE_STRUCT(contact_book, (), (users, groups))
 BOOST_DESCRIBE_STRUCT(message_search_hit, (), (conversation, id, from, timestamp, title, username, snippet))
@@ -372,6 +373,26 @@ bool parse_message(boost::json::object const& object, message& value)
     return parse_avatar_state(object, value.avatar) && parse_quote(object, "reply", value.reply) && parse_edited_at(object, value.edited_at) &&
            parse_deleted(object, value.deleted) && parse_reactions(object, value.reaction_revision, value.reactions) &&
            parse_mentions(object, value.mentions) && (!value.deleted || (value.reactions.empty() && value.mentions.empty()));
+}
+
+bool parse_receipt(boost::json::object const& fields, message& value)
+{
+    auto hidden = fields.if_contains("hidden");
+    if (!hidden || !hidden->is_bool() || !hidden->as_bool())
+    {
+        return parse_message(fields, value);
+    }
+    auto number = [&](char const* key)
+    {
+        auto v = fields.if_contains(key);
+        return v ? parse_int64(*v).value_or(0) : 0;
+    };
+    value.id = number("id");
+    value.conversation = number("conversation");
+    value.from = number("from");
+    value.client_id = number("client_id");
+    value.acknowledgement_only = true;
+    return value.id > 0 && value.from > 0 && value.conversation > 0 && *value.client_id > 0;
 }
 
 bool parse_presence(boost::json::object const& object, presence& value)
@@ -832,11 +853,9 @@ struct client::impl
 
         if (method->as_string() == "conversation_view")
         {
-            auto const& obj = params->as_object();
-            auto const* v = obj.if_contains("conversation");
-            auto id = v ? parse_int64(*v) : std::nullopt;
-            auto const* action = obj.if_contains("action");
-            if (!id || !action || !action->is_string())
+            auto view = boost::json::try_value_to<conversation_view_event>(*params);
+            if (!view || (view->action == "clear" && view->through.value_or(-1) < 0) ||
+                (view->action == "notifications" && (!view->level || *view->level < 0 || *view->level > 2 || !view->until)))
             {
                 report_error(make_error(error_kind::protocol, "Invalid personal conversation state"));
                 return;
@@ -848,7 +867,7 @@ struct client::impl
             }
             if (handler && !suppress_callbacks_.load())
             {
-                handler(*id, std::string(action->as_string()));
+                handler(std::move(*view));
             }
             return;
         }
@@ -1813,7 +1832,7 @@ struct client::impl
             {
                 sending_texts_.erase(item.conversation);
                 message value;
-                if (response && response->is_object() && parse_message(response->as_object(), value) && value.from == user &&
+                if (response && response->is_object() && parse_receipt(response->as_object(), value) && value.from == user &&
                     value.conversation == item.conversation && value.client_id == item.client_id && !value.attachment)
                 {
                     if (!journal_.exec("DELETE FROM text_outbox WHERE user=? AND client=?", user, item.client_id))
@@ -1961,8 +1980,9 @@ struct client::impl
     void accept_file_message(job_ptr const& job, boost::json::value const& response)
     {
         message m;
-        if (!response.is_object() || !parse_message(response.as_object(), m) || m.client_id != job->task.client_id ||
-            m.conversation != job->task.conversation || (!m.deleted && (!m.attachment || m.attachment->size != job->file.size)))
+        if (!response.is_object() || !parse_receipt(response.as_object(), m) || m.from != account_ || m.client_id != job->task.client_id ||
+            m.conversation != job->task.conversation ||
+            (!m.acknowledgement_only && !m.deleted && (!m.attachment || m.attachment->size != job->file.size)))
         {
             end_upload(job, std::unexpected(make_error(error_kind::protocol, "Invalid attachment acknowledgement")));
             return;
@@ -2429,8 +2449,9 @@ struct client::impl
                              return;
                          }
                          message value;
-                         if (!result->is_object() || !parse_message(result->as_object(), value) || value.conversation != conversation ||
-                             (expected_id && value.id != *expected_id))
+                         if (!result->is_object() ||
+                             !(expected_id ? parse_message(result->as_object(), value) : parse_receipt(result->as_object(), value)) ||
+                             value.conversation != conversation || (expected_id && value.id != *expected_id))
                          {
                              handler(std::unexpected(make_error(error_kind::protocol, "Invalid message result")));
                              return;
@@ -2567,6 +2588,29 @@ struct client::impl
                              }
                          }
                          handler(std::move(result));
+                     });
+        co_return;
+    }
+
+    boost::capy::task<> clear_history(std::int64_t conversation, std::int64_t through, mark_read_handler handler)
+    {
+        send_request("clear_history",
+                     {{"conversation", conversation}, {"through", through}},
+                     [through, handler = std::move(handler)](auto r)
+                     {
+                         if (!r)
+                         {
+                             handler(std::unexpected(r.error()));
+                             return;
+                         }
+                         auto field = r->is_object() ? r->as_object().if_contains("through") : nullptr;
+                         auto actual = field ? parse_int64(*field) : std::nullopt;
+                         if (!actual || *actual < through)
+                         {
+                             handler(std::unexpected(make_error(error_kind::protocol, "Invalid history boundary")));
+                             return;
+                         }
+                         handler(*actual);
                      });
         co_return;
     }
@@ -3010,10 +3054,9 @@ void client::set_conversation_view_handler(conversation_view_handler handler)
     std::lock_guard lock(impl_->handler_mutex_);
     impl_->view_handler_ = std::move(handler);
 }
-void client::clear_history(std::int64_t conversation, group_action_handler handler)
+void client::clear_history(std::int64_t conversation, std::int64_t through, mark_read_handler handler)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(
-        impl_->group_action("clear_history", {{"conversation", conversation}}, std::move(handler)));
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->clear_history(conversation, through, std::move(handler)));
 }
 void client::hide_conversation(std::int64_t conversation, group_action_handler handler)
 {

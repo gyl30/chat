@@ -30,9 +30,11 @@ class conversation_model final : public QAbstractListModel
     QVariant data(QModelIndex const& index, int role) const override;
 
     void set_conversations(QList<conversation_data> conversations);
+    void discard_through(qint64 conversation, qint64 floor);
     void remove_conversation(qint64 conversation);
     void set_online(qint64 user, bool online);
 
+    void set_notifications(qint64 conversation, chat::notification_level level, qint64 until);
     void set_pinned(qint64 conversation, bool pinned);
     conversation_data const* conversation_at(QModelIndex const& index) const;
     QModelIndex index_for_conversation(qint64 conversation) const;

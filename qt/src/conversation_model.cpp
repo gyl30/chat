@@ -80,6 +80,27 @@ void conversation_model::set_conversations(QList<conversation_data> conversation
     endResetModel();
 }
 
+void conversation_model::discard_through(qint64 conversation, qint64 floor)
+{
+    auto ix = index_for_conversation(conversation);
+    if (!ix.isValid())
+    {
+        return;
+    }
+    auto& item = conversations_[ix.row()];
+    if (item.pinned_message.id <= floor)
+    {
+        item.pinned_message = {};
+    }
+    if (item.last_message_id > 0 && item.last_message_id <= floor)
+    {
+        item.last_message_id = 0;
+        item.last_timestamp = 0;
+        item.last_text.clear();
+        item.unread = 0;
+        emit dataChanged(ix, ix, {last_text_role, last_timestamp_role, unread_role});
+    }
+}
 void conversation_model::remove_conversation(qint64 conversation)
 {
     auto const item = index_for_conversation(conversation);
@@ -114,6 +135,17 @@ void conversation_model::set_online(qint64 user, bool online)
     }
 }
 
+void conversation_model::set_notifications(qint64 conversation, chat::notification_level level, qint64 until)
+{
+    auto ix = index_for_conversation(conversation);
+    if (ix.isValid())
+    {
+        auto& item = conversations_[ix.row()];
+        item.notifications = level;
+        item.mute_until = until;
+        emit dataChanged(ix, ix, {muted_role});
+    }
+}
 void conversation_model::set_pinned(qint64 conversation, bool pinned)
 {
     auto const item_index = index_for_conversation(conversation);

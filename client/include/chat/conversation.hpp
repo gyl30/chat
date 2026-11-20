@@ -19,6 +19,15 @@ enum class notification_level
     muted
 };
 
+struct conversation_view_event
+{
+    std::int64_t conversation;
+    std::string action;
+    std::optional<std::int64_t> through{};
+    std::optional<std::int64_t> level{};
+    std::optional<std::int64_t> until{};
+};
+
 enum class conversation_kind
 {
     direct,

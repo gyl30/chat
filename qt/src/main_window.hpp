@@ -144,6 +144,7 @@ class main_window final : public QMainWindow
     bool close_to_tray_ = false;
     // The tray's Quit already asked about unsent messages; closing the window then does not ask again.
     bool quit_confirmed_ = false;
+    QHash<qint64, qint64> unconfirmed_clears_;
     QList<message_data> pending_notifications_;
 #if defined(Q_OS_LINUX)
     QSet<uint> desktop_notification_ids_;

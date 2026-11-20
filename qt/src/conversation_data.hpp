@@ -16,6 +16,7 @@ struct conversation_data
     qint64 user = 0;
     QString username;
     QString remark{};
+    qint64 last_message_id = 0;
     qint64 last_timestamp = 0;
     QString last_text;
     quint64 unread = 0;

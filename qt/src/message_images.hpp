@@ -21,7 +21,7 @@ class message_images final : public QObject
     QByteArray bytes(qint64 message) const;
     QString status(qint64 message) const;
     void discard_queued();
-    void remove(qint64 conversation, qint64 message = 0);
+    void remove(qint64 conversation, qint64 first = 0, qint64 last = 0);
     void retry();
     void clear();
    signals:

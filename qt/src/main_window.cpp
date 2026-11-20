@@ -457,7 +457,37 @@ void main_window::setup_system_tray()
 void main_window::connect_conversation_preferences_and_avatar()
 {
     connect(chat_page_, &chat_widget::read_requested, client_.get(), &client_bridge::mark_read);
-    connect(chat_page_, &chat_widget::history_view_requested, client_.get(), &client_bridge::change_history_view);
+    connect(chat_page_,
+            &chat_widget::history_view_requested,
+            this,
+            [this](qint64 id, bool hide)
+            {
+                if (!hide && unconfirmed_clears_.contains(id))
+                {
+                    client_->clear_history(id, unconfirmed_clears_.value(id));
+                }
+                else
+                {
+                    client_->change_history_view(id, hide);
+                }
+            });
+    connect(
+        client_.get(),
+        &client_bridge::clear_boundary_ready,
+        this,
+        [this](qint64 id, qint64 through)
+        {
+            if (confirm_action(
+                    this,
+                    QStringLiteral("清空聊天记录"),
+                    QStringLiteral("清空会同步到你的所有设备。草稿会保留，待发送消息和上传任务会继续，完成后可能出现新消息。其他成员的记录保留。"),
+                    QStringLiteral("清空")) &&
+                connected_)
+            {
+                unconfirmed_clears_.insert(id, through);
+                client_->clear_history(id, through);
+            }
+        });
     connect(client_.get(),
             &client_bridge::history_boundary,
             this,
@@ -469,25 +499,28 @@ void main_window::connect_conversation_preferences_and_avatar()
                     chat_page_->hide_conversation(id);
                 }
             });
-    connect(client_.get(),
-            &client_bridge::personal_view_changed,
-            this,
-            [this](qint64 id, QString const& action)
+    connect(
+        client_.get(),
+        &client_bridge::personal_view_changed,
+        this,
+        [this](qint64 id, QString const& action, qint64 through)
+        {
+            if (action == "hide")
             {
-                if (action == "hide")
+                chat_page_->hide_conversation(id);
+            }
+            if (action == "clear")
+            {
+                if (unconfirmed_clears_.value(id) <= through)
                 {
-                    chat_page_->hide_conversation(id);
+                    unconfirmed_clears_.remove(id);
                 }
-                if (action == "clear")
-                {
-                    pending_notifications_.removeIf([id](auto const& message) { return message.conversation == id; });
-                    if (chat_page_->active_conversation() == id)
-                    {
-                        client_->get_messages(id);
-                    }
-                }
-                client_->get_conversations();
-            });
+                pending_notifications_.removeIf([id, through](auto const& message) { return message.conversation == id && message.id <= through; });
+                chat_page_->discard_history(id, through);
+            }
+            client_->get_conversations();
+        });
+    connect(client_.get(), &client_bridge::notifications_changed, chat_page_, &chat_widget::set_notifications);
     connect(chat_page_, &chat_widget::notification_level_requested, client_.get(), &client_bridge::set_notification_level);
     connect(chat_page_, &chat_widget::unread_mark_requested, client_.get(), &client_bridge::set_unread_mark);
     connect(&chat_page_->avatars(), &avatar_cache::requested, client_.get(), &client_bridge::get_avatar);
@@ -1047,12 +1080,12 @@ void main_window::show_group_details(qint64 conversation, qint64 self_user, QStr
 void main_window::show_message_search(qint64 conversation, qint64 self_user, bool group, QString const& title, QString const& query)
 {
     message_search_dialog dialog(conversation, self_user, group, title, query, this, &chat_page_->avatars());
-    connect(client_.get(),
-            &client_bridge::personal_view_changed,
+    connect(chat_page_,
+            &chat_widget::history_discarded,
             &dialog,
-            [&dialog, conversation](qint64 id, QString const& action)
+            [&dialog, conversation](qint64 id)
             {
-                if (id == conversation && action == "clear")
+                if (id == conversation)
                 {
                     dialog.reject();
                 }
@@ -1093,12 +1126,12 @@ void main_window::show_message_search(qint64 conversation, qint64 self_user, boo
 void main_window::show_chat_history(qint64 conversation, QString const& title)
 {
     chat_history_dialog dialog(conversation, title, this, &chat_page_->avatars());
-    connect(client_.get(),
-            &client_bridge::personal_view_changed,
+    connect(chat_page_,
+            &chat_widget::history_discarded,
             &dialog,
-            [&dialog, conversation](qint64 id, QString const& action)
+            [&dialog, conversation](qint64 id)
             {
-                if (id == conversation && action == "clear")
+                if (id == conversation)
                 {
                     dialog.reject();
                 }
@@ -1325,9 +1358,23 @@ void main_window::connect_messages()
             this,
             [this](qint64 conversation, qint64 message, QString filename, bool preview)
             {
+                if (message <= chat_page_->history_floor(conversation))
+                {
+                    return;
+                }
                 attachment_dialog dialog(
                     conversation, message, std::move(filename), preview, this, preview ? chat_page_->images().image(message) : QPixmap{});
                 connect(client_.get(), &client_bridge::attachment_received, &dialog, &attachment_dialog::download_finished, Qt::AutoConnection);
+                connect(chat_page_,
+                        &chat_widget::history_discarded,
+                        &dialog,
+                        [&dialog, conversation, message](qint64 id, qint64 through)
+                        {
+                            if (id == conversation && message <= through)
+                            {
+                                dialog.reject();
+                            }
+                        });
                 connect(&dialog, &attachment_dialog::save_requested, client_.get(), &client_bridge::get_attachment);
                 connect(client_.get(), &client_bridge::message_image_received, &dialog, &attachment_dialog::set_data);
                 connect(client_.get(),
@@ -1337,20 +1384,10 @@ void main_window::connect_messages()
                         {
                             if (removed && id == conversation)
                             {
-                                for (auto* child : dialog.findChildren<QDialog*>())
-                                {
-                                    child->reject();
-                                }
                                 dialog.reject();
                             }
                         });
-                connect(
-                    client_.get(),
-                    &client_bridge::disconnected,
-                    &dialog,
-                    [&dialog, conversation, message]
-                    { dialog.set_data(conversation, message, {}, QStringLiteral("连接已断开，请关闭后重新下载。")); },
-                    Qt::AutoConnection);
+                connect(client_.get(), &client_bridge::disconnected, &dialog, &QDialog::reject);
                 connect(
                     client_.get(),
                     &client_bridge::message_updated,
@@ -1908,8 +1945,9 @@ void main_window::desktop_notification_closed(uint id, uint reason)
 
 void main_window::notify_message(message_data const& message)
 {
-    if (!desktop_notifications_ || !connected_ || reconnecting_ || pages_->currentWidget() != chat_page_ || message.deleted ||
-        message.from == chat_page_->self_user() || reading_conversation(message.conversation))
+    if (!desktop_notifications_ || !connected_ || reconnecting_ || pages_->currentWidget() != chat_page_ ||
+        message.id <= chat_page_->history_floor(message.conversation) || message.deleted || message.from == chat_page_->self_user() ||
+        reading_conversation(message.conversation))
     {
         return;
     }
@@ -2043,6 +2081,7 @@ void main_window::register_user()
 
 void main_window::logout()
 {
+    unconfirmed_clears_.clear();
     clear_desktop_notifications();
     if (settings_)
     {
@@ -2123,6 +2162,7 @@ void main_window::show_registration_error(QString message)
 
 void main_window::show_authenticated_page(qint64 user)
 {
+    unconfirmed_clears_.clear();
     chat_page_->set_user(pending_username_, user);
     client_->restore_texts();
     client_->restore_attachments();

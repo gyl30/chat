@@ -83,7 +83,7 @@ class client
     using presences_handler = std::function<void(std::expected<std::vector<presence>, error>)>;
     using message_handler = std::function<void(message)>;
     using read_handler = std::function<void(std::int64_t conversation, std::int64_t user, std::int64_t message)>;
-    using conversation_view_handler = std::function<void(std::int64_t, std::string)>;
+    using conversation_view_handler = std::function<void(conversation_view_event)>;
     using conversation_changed_handler = std::function<void(std::int64_t conversation, bool removed)>;
     using presence_handler = std::function<void(presence)>;
     using typing_handler = std::function<void(typing_event)>;
@@ -113,7 +113,7 @@ class client
     void set_presence_handler(presence_handler handler);
     void set_typing_handler(typing_handler handler);
     void set_conversation_view_handler(conversation_view_handler handler);
-    void clear_history(std::int64_t conversation, group_action_handler handler);
+    void clear_history(std::int64_t conversation, std::int64_t through, mark_read_handler handler);
     void hide_conversation(std::int64_t conversation, group_action_handler handler);
     void set_conversation_handler(conversation_changed_handler handler);
     void set_avatar_handler(avatar_changed_handler handler);

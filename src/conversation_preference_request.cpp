@@ -4,6 +4,7 @@
 #include <utility>
 
 #include <simdjson.h>
+#include <chat/conversation.hpp>
 
 #include "chat_session.hpp"
 #include "database.hpp"
@@ -14,6 +15,7 @@ namespace
 struct[[= simdjson::deny_unknown_fields]] view_params
 {
     std::int64_t conversation = 0;
+    std::optional<std::int64_t> through;
 };
 
 struct[[= simdjson::deny_unknown_fields]] notification_params
@@ -58,35 +60,52 @@ boost::capy::task<simdjson::error_code> chat_session::handle_conversation_prefer
             co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
         }
         bool const hide = request.method == "hide_conversation";
-        auto changed = co_await database_.run(
-            [=, user = *user_id_](sqlite_database& db) -> std::expected<bool, sqlite_error>
+        if (hide == params.through.has_value() || params.through.value_or(0) < 0)
+        {
+            co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+        }
+        auto floor = co_await database_.run(
+            [=, user = *user_id_](sqlite_database& db) -> std::expected<std::int64_t, sqlite_error>
             {
-                // One SQLite statement reads the committed conversation boundary and updates only this membership.
-                auto sql = hide ? R"SQL(UPDATE conversation_members SET hidden_at=(SELECT activity FROM conversations WHERE id=?1)
-                WHERE conversation_id=?1 AND user_id=?2)SQL"
-                                :
-                                R"SQL(WITH boundary(id) AS (SELECT coalesce(max(id),0) FROM messages WHERE conversation_id=?1)
-                UPDATE conversation_members SET unread_mark_message_id=NULL,cleared_message_id=max(cleared_message_id,(SELECT id FROM boundary)),
-                    last_read_message_id=max(last_read_message_id,(SELECT id FROM boundary))
-                WHERE conversation_id=?1 AND user_id=?2)SQL";
-                auto stmt = db.prepare(sql, params.conversation, user);
+                auto stmt = hide ? db.prepare(R"SQL(UPDATE conversation_members SET hidden_at=(SELECT activity FROM conversations WHERE id=?1)
+                    WHERE conversation_id=?1 AND user_id=?2 RETURNING cleared_message_id)SQL",
+                                              params.conversation,
+                                              user)
+                                 : db.prepare(R"SQL(UPDATE conversation_members SET cleared_message_id=max(cleared_message_id,?3),
+                        unread_mark_message_id=CASE WHEN unread_mark_message_id>?3 THEN unread_mark_message_id END
+                    WHERE conversation_id=?1 AND user_id=?2 AND (?3=0 OR EXISTS(SELECT 1 FROM messages WHERE id=?3 AND conversation_id=?1))
+                    RETURNING cleared_message_id)SQL",
+                                              params.conversation,
+                                              user,
+                                              *params.through);
                 if (!stmt)
                 {
                     return std::unexpected(stmt.error());
                 }
+                auto row = stmt->step();
+                if (!row)
+                {
+                    return std::unexpected(row.error());
+                }
+                if (!*row)
+                {
+                    return -1;
+                }
+                auto actual = stmt->column_int64(0);
                 if (auto done = stmt->step(); !done)
                 {
                     return std::unexpected(done.error());
                 }
-                return db.changes() == 1;
+                return actual;
             });
-        if (!changed || !*changed)
+        if (!floor || *floor < 0)
         {
-            co_return changed ? serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response)
-                              : serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+            co_return floor ? serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response)
+                            : serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
         }
-        publish_personal_view(params.conversation, hide ? "hide" : "clear");
-        co_return serialize_json_rpc_success(R"({"changed":true})", std::move(request.id), response);
+        publish_personal_view({params.conversation, hide ? "hide" : "clear", hide ? std::nullopt : std::optional(*floor)});
+        co_return serialize_json_rpc_success(
+            hide ? R"({"changed":true})" : R"({"through":)" + std::to_string(*floor) + "}", std::move(request.id), response);
     }
     std::int64_t conversation = 0, value = 0, until = 0;
     std::string_view sql;
@@ -146,15 +165,26 @@ boost::capy::task<simdjson::error_code> chat_session::handle_conversation_prefer
         co_return updated ? serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response)
                           : serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
     }
-    publish_personal_view(conversation, "preferences");
+    if (notify)
+    {
+        publish_personal_view({.conversation = conversation, .action = "notifications", .level = value, .until = until});
+    }
+    else
+    {
+        publish_personal_view({conversation, "preferences"});
+    }
     co_return serialize_json_rpc_success(
         pin ? (value ? R"({"pinned":true})" : R"({"pinned":false})") : R"({"changed":true})", std::move(request.id), response);
 }
 
-void chat_session::publish_personal_view(std::int64_t conversation, std::string_view action)
+void chat_session::publish_personal_view(chat::conversation_view_event const& view)
 {
-    auto json = R"({"jsonrpc":"2.0","method":"conversation_view","params":{"conversation":)" + std::to_string(conversation) + R"(,"action":")" +
-                std::string(action) + "\"}}";
+    std::string payload;
+    if (simdjson::builder::to_json_string(view).get(payload))
+    {
+        return;
+    }
+    auto json = R"({"jsonrpc":"2.0","method":"conversation_view","params":)" + payload + "}";
     for (auto* session : users_.sessions(*user_id_))
     {
         session->enqueue_message(json);
