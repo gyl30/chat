@@ -28,6 +28,8 @@ add_executable(chat_qt
     src/emoji_segments.hpp
     src/emoji_text.cpp
     src/emoji_text.hpp
+    src/group_files_page.cpp
+    src/group_files_page.hpp
     src/group_dialog.cpp
     src/group_dialog.hpp
     src/member_data.hpp

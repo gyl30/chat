@@ -82,7 +82,10 @@ message_data to_message_data(chat::message const& value)
     message.client_id = value.client_id.value_or(0);
     if (value.attachment)
     {
-        message.attachment = attachment_data{from_utf8(value.attachment->filename), from_utf8(value.attachment->media_type), value.attachment->size};
+        message.attachment = attachment_data{from_utf8(value.attachment->filename),
+                                             from_utf8(value.attachment->media_type),
+                                             value.attachment->size,
+                                             from_utf8(value.attachment->object_key)};
     }
     return message;
 }
@@ -757,15 +760,89 @@ void client_bridge::change_pending_text(qint64 client_id, bool discard)
     }
 }
 
-void client_bridge::send_attachment(qint64 conversation, QString path, qint64 reply_to, qint64 client_id)
+void client_bridge::change_file(qint64 conversation, QString key, bool add)
 {
-    client_->send_attachment(conversation,
-                             to_utf8(path),
-                             send_result(conversation, client_id, path),
-                             reply_to > 0 ? std::optional<std::int64_t>{reply_to} : std::nullopt,
-                             client_id,
-                             [this, client_id, g = connection_generation_.load()](auto bytes, auto total)
-                             { post_result(g, [this, client_id, bytes, total] { emit attachment_progress(client_id, bytes, total); }); });
+    auto handler = [this, conversation, g = connection_generation_.load()](auto result)
+    {
+        post_result(g,
+                    [this, conversation, result = std::move(result)]
+                    { emit files_changed(conversation, result ? QString{} : display_error(result.error())); });
+    };
+    if (add)
+    {
+        client_->add_conversation_file(conversation, to_utf8(key), std::move(handler));
+    }
+    else
+    {
+        client_->remove_conversation_file(conversation, to_utf8(key), std::move(handler));
+    }
+}
+void client_bridge::list_files(qint64 conversation, QString search, QString category, qint64 before, QString key)
+{
+    client_->list_conversation_files(conversation,
+                                     to_utf8(search),
+                                     to_utf8(category),
+                                     before,
+                                     to_utf8(key),
+                                     [this, conversation, before, n = ++files_generation_, g = connection_generation_.load()](auto r)
+                                     {
+                                         post_result(g,
+                                                     [this, conversation, before, n, r = std::move(r)]() mutable
+                                                     {
+                                                         if (n == files_generation_)
+                                                         {
+                                                             emit files_received(conversation,
+                                                                                 r ? std::move(*r) : chat::conversation_file_page{},
+                                                                                 before != 0,
+                                                                                 r ? QString{} : display_error(r.error()));
+                                                         }
+                                                     });
+                                     });
+}
+void client_bridge::download_file(qint64 conversation, QString key, QString path, bool open)
+{
+    client_->download_conversation_file(conversation,
+                                        to_utf8(key),
+                                        to_utf8(path),
+                                        [this, conversation, path, open, g = connection_generation_.load()](auto r)
+                                        {
+                                            post_result(
+                                                g,
+                                                [this, conversation, path, open, r = std::move(r)]
+                                                { emit file_downloaded(conversation, path, open, r ? QString{} : display_error(r.error())); });
+                                        });
+}
+void client_bridge::send_attachment(qint64 conversation, QString path, qint64 reply_to, qint64 client_id, bool group_only)
+{
+    auto progress = [this, client_id, g = connection_generation_.load()](auto bytes, auto total)
+    { post_result(g, [this, client_id, bytes, total] { emit attachment_progress(client_id, bytes, total); }); };
+    if (group_only)
+    {
+        client_->upload_conversation_file(
+            conversation,
+            to_utf8(path),
+            client_id,
+            [this, conversation, client_id, g = connection_generation_.load()](auto r)
+            {
+                post_result(g,
+                            [this, conversation, client_id, r = std::move(r)]
+                            {
+                                auto error = r ? QString{} : display_error(r.error());
+                                emit group_file_finished(client_id, error);
+                                emit files_changed(conversation, error);
+                            });
+            },
+            std::move(progress));
+    }
+    else
+    {
+        client_->send_attachment(conversation,
+                                 to_utf8(path),
+                                 send_result(conversation, client_id, path),
+                                 reply_to > 0 ? std::optional<std::int64_t>{reply_to} : std::nullopt,
+                                 client_id,
+                                 std::move(progress));
+    }
 }
 void client_bridge::restore_attachments()
 {
@@ -782,7 +859,8 @@ void client_bridge::restore_attachments()
                             }
                             for (auto const& t : *result)
                             {
-                                emit attachment_restored(t.conversation, t.client_id, from_utf8(t.path), t.size, t.reply_to, t.confirmed);
+                                emit attachment_restored(
+                                    t.conversation, t.client_id, from_utf8(t.path), t.size, t.reply_to, t.confirmed, t.group_file);
                             }
                         });
         });

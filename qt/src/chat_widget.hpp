@@ -86,7 +86,9 @@ class chat_widget final : public QWidget
     void update_pending_text(qint64 conversation, qint64 client_id, QString text, qint64 reply, qint64 created, bool sending, QString rejection);
     void discard_pending_text(qint64 client_id);
     void reconcile_pending_texts(QList<qint64> client_ids);
-    void restore_attachment(qint64 conversation, qint64 id, QString path, qint64 size, qint64 reply, qint64 confirmed);
+    void choose_attachment(qint64 conversation, bool group_only, QWidget* parent);
+    void finish_group_file(qint64 client_id, QString error);
+    void restore_attachment(qint64 conversation, qint64 id, QString path, qint64 size, qint64 reply, qint64 confirmed, bool group_only);
     void attachment_progress(qint64 id, qint64 bytes, qint64 total);
     void attachment_cancelled(qint64 id);
     // Only an unfinished local write still needs a quit warning.
@@ -134,7 +136,8 @@ class chat_widget final : public QWidget
     void message_search_requested(qint64 conversation, qint64 self_user, bool group, QString title, QString query);
     void chat_history_requested(qint64 conversation, QString title);
     void group_message_pin_requested(qint64 conversation, std::optional<qint64> message);
-    void attachment_send_requested(qint64 conversation, QString path, qint64 reply_to, qint64 client_id);
+    void add_file_requested(qint64 conversation, QString key);
+    void attachment_send_requested(qint64 conversation, QString path, qint64 reply_to, qint64 client_id, bool group_only);
     void attachment_interrupt_requested(qint64 id, bool cancel, QString path);
     void attachment_open_requested(qint64 conversation, qint64 message, QString filename, bool preview);
     void typing_requested(qint64 conversation, bool typing);
@@ -172,6 +175,7 @@ class chat_widget final : public QWidget
         qint64 size = 0;
         quoted_message_data reply;
         qint64 created = 0;
+        bool group_only = false;
         bool failed = false;
         QString error;
         bool waiting = false;
@@ -206,7 +210,7 @@ class chat_widget final : public QWidget
     void draft_edited();
     bool handle_file_drop(QEvent* event);
     bool paste_image();
-    void send_files(QStringList const& paths, qint64 clipboard_id = 0);
+    void send_files(qint64 target, QStringList const& paths, qint64 clipboard_id = 0, bool group_only = false);
     void queue_outgoing(outgoing item);
     void submit(outgoing const& item);
     // Shows the open conversation's unconfirmed sends after its messages.

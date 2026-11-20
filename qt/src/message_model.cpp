@@ -183,6 +183,8 @@ QVariant message_model::data(QModelIndex const& index, int role) const
                          QString::number(file.size / 1024.0, 'f', 1));
             }
             return message.text;
+        case attachment_key_role:
+            return message.attachment ? message.attachment->object_key : QString{};
         case attachment_name_role:
             return !message.deleted && message.attachment ? message.attachment->filename : QString{};
         case attachment_type_role:

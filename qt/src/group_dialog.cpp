@@ -1,4 +1,5 @@
 #include "group_dialog.hpp"
+#include "group_files_page.hpp"
 
 #include <utility>
 
@@ -31,7 +32,8 @@
 
 #include <algorithm>
 
-group_dialog::group_dialog(qint64 conversation,
+group_dialog::group_dialog(client_bridge& client,
+                           qint64 conversation,
                            qint64 self_user,
                            QString const& title,
                            QString const& announcement,
@@ -53,6 +55,19 @@ group_dialog::group_dialog(qint64 conversation,
     setup_overview();
     setup_management(join_approval);
     setup_members(outer);
+    files_ = new group_files_page(client, conversation, self_user, tabs_);
+    tabs_->addTab(files_, QStringLiteral("群文件"));
+    connect(files_, &group_files_page::upload_requested, this, &group_dialog::upload_requested);
+    connect(tabs_,
+            &QTabWidget::currentChanged,
+            this,
+            [this]
+            {
+                if (tabs_->currentWidget() == files_)
+                {
+                    files_->refresh();
+                }
+            });
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
     buttons->button(QDialogButtonBox::Close)->setText(QStringLiteral("关闭"));
     buttons->button(QDialogButtonBox::Close)->setIcon({});
@@ -1007,6 +1022,7 @@ void group_dialog::update_actions()
     auto const self = std::find_if(members_.begin(), members_.end(), [this](auto const& member) { return member.id == self_user_; });
     auto const owner = self != members_.end() && self->role == chat::member_role::owner;
     auto const manager = self != members_.end() && self->role != chat::member_role::member;
+    files_->set_access(available_ && self != members_.end(), manager);
     auto const can_manage = available_ && manager;
     auto const enabled = available_ && !pending_;
     if (pending_)

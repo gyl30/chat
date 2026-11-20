@@ -253,7 +253,8 @@ QWidget* chat_widget::create_sidebar()
                     {
                         continue;
                     }
-                    auto* actions = transfers->addMenu(item.filename + QStringLiteral(" · ") + item.error);
+                    auto* actions = transfers->addMenu((item.group_only ? QStringLiteral("群文件 · ") : QString{}) + item.filename +
+                                                       QStringLiteral(" · ") + item.error);
                     auto id = item.client_id;
                     auto* toggle = actions->addAction(item.failed ? QStringLiteral("继续上传") : QStringLiteral("暂停上传"));
                     toggle->setEnabled(connection_available_);
@@ -1219,18 +1220,7 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
                     emit chat_history_requested(active_conversation_, active_username_);
                 }
             });
-    connect(attachment_button_,
-            &QToolButton::clicked,
-            this,
-            [this]
-            {
-                auto const conversation = active_conversation_;
-                auto const paths = QFileDialog::getOpenFileNames(this, QStringLiteral("发送文件或图片"));
-                if (conversation == active_conversation_ && !paths.isEmpty())
-                {
-                    send_files(paths);
-                }
-            });
+    connect(attachment_button_, &QToolButton::clicked, this, [this] { choose_attachment(active_conversation_, false, this); });
     send_button_ = new QToolButton(input_bar);
     send_button_->setObjectName(QStringLiteral("sendButton"));
     send_button_->setIcon(svg_icon(QStringLiteral("send"), themed("on_accent"), QSize(20, 20)));
@@ -1295,6 +1285,20 @@ void chat_widget::show_message_menu(QPoint position)
     }
     auto* readers = index.data(message_model::read_count_role).isValid() ? menu.addAction(QStringLiteral("已读详情")) : nullptr;
     auto const filename = index.data(message_model::attachment_name_role).toString();
+    auto const key = index.data(message_model::attachment_key_role).toString();
+    if (!key.isEmpty() && index.data(message_model::outgoing_role).toBool() && connection_available_)
+    {
+        auto* groups = menu.addMenu(QStringLiteral("加入群文件"));
+        for (int row = 0; row < conversations_->rowCount(); ++row)
+        {
+            auto const* group = conversations_->conversation_at(conversations_->index(row, 0));
+            if (group && group->group)
+            {
+                groups->addAction(group->username, this, [this, key, id = group->id] { emit add_file_requested(id, key); });
+            }
+        }
+        groups->setEnabled(!groups->isEmpty());
+    }
     auto* download = !filename.isEmpty() ? menu.addAction(QStringLiteral("下载文件")) : nullptr;
     auto* preview = index.data(message_model::attachment_type_role).toString().startsWith(QStringLiteral("image/"))
                         ? menu.addAction(QStringLiteral("查看图片"))
@@ -1607,7 +1611,7 @@ bool chat_widget::handle_file_drop(QEvent* event)
     if (event->type() == QEvent::Drop)
     {
         file_drop_hint_->hide();
-        send_files(paths);
+        send_files(active_conversation_, paths);
     }
     else
     {
@@ -1638,7 +1642,7 @@ bool chat_widget::paste_image()
     }
     if (!paths.isEmpty())
     {
-        send_files(paths);
+        send_files(active_conversation_, paths);
         return true;
     }
     if (!(mime->hasImage() || mime->hasFormat(QStringLiteral("image/png")) || mime->hasFormat(QStringLiteral("image/jpeg"))))
@@ -1678,7 +1682,7 @@ bool chat_widget::paste_image()
         set_message_status(path.error());
         return true;
     }
-    send_files({*path}, id);
+    send_files(active_conversation_, {*path}, id);
     return true;
 }
 
@@ -2463,7 +2467,7 @@ void chat_widget::finish_send(qint64 conversation, qint64 client_id, message_dat
     set_message_error(conversation, QStringLiteral("%1。可在附件上传菜单继续或取消。").arg(error));
 }
 
-void chat_widget::restore_attachment(qint64 conversation, qint64 id, QString path, qint64 size, qint64 reply, qint64 confirmed)
+void chat_widget::restore_attachment(qint64 conversation, qint64 id, QString path, qint64 size, qint64 reply, qint64 confirmed, bool group_only)
 {
     if (std::ranges::find(outgoing_, id, &outgoing::client_id) != outgoing_.end())
     {
@@ -2476,6 +2480,7 @@ void chat_widget::restore_attachment(qint64 conversation, qint64 id, QString pat
     item.path = std::move(path);
     item.size = size;
     item.reply.id = reply;
+    item.group_only = group_only;
     item.failed = true;
     item.error = QStringLiteral("已暂停，已确认 %1 / %2 字节").arg(confirmed).arg(size);
     outgoing_.push_back(std::move(item));
@@ -3353,14 +3358,37 @@ void chat_widget::reconcile_pending_texts(QList<qint64> client_ids)
     }
 }
 
-void chat_widget::send_files(QStringList const& paths, qint64 clipboard_id)
+void chat_widget::choose_attachment(qint64 conversation, bool group_only, QWidget* parent)
 {
-    if (!can_send())
+    auto paths = QFileDialog::getOpenFileNames(parent, group_only ? QStringLiteral("只上传到群文件") : QStringLiteral("发送文件或图片"));
+    if (!paths.isEmpty())
+    {
+        send_files(conversation, paths, 0, group_only);
+    }
+}
+void chat_widget::finish_group_file(qint64 id, QString error)
+{
+    if (error.isEmpty())
+    {
+        attachment_cancelled(id);
+        return;
+    }
+    auto item = std::ranges::find(outgoing_, id, &outgoing::client_id);
+    if (item != outgoing_.end())
+    {
+        item->failed = true;
+        item->error = error;
+    }
+}
+void chat_widget::send_files(qint64 target, QStringList const& paths, qint64 clipboard_id, bool group_only)
+{
+    if (!connection_available_ || !conversation(target))
     {
         set_message_status(QStringLiteral("当前会话暂时无法发送文件"));
         return;
     }
-    auto const reply = quote(reply_to_);
+    bool const use_reply = !group_only && target == active_conversation_;
+    auto const reply = use_reply ? quote(reply_to_) : quoted_message_data{};
     QStringList errors;
     for (auto const& path : paths)
     {
@@ -3385,15 +3413,16 @@ void chat_widget::send_files(QStringList const& paths, qint64 clipboard_id)
         }
         outgoing item;
         item.client_id = clipboard_id != 0 ? clipboard_id : chat::client::new_client_id();
-        item.conversation = active_conversation_;
+        item.conversation = target;
         item.filename = file.fileName();
         item.path = file.absoluteFilePath();
         item.size = file.size();
         item.error = QStringLiteral("正在校验文件…");
+        item.group_only = group_only;
         item.reply = reply;
         queue_outgoing(std::move(item));
     }
-    if (errors.size() != paths.size() && reply_to_ != 0)
+    if (use_reply && errors.size() != paths.size() && reply_to_ != 0)
     {
         reply_to_ = 0;
         reply_bar_->hide();
@@ -3406,9 +3435,14 @@ void chat_widget::send_files(QStringList const& paths, qint64 clipboard_id)
 
 void chat_widget::queue_outgoing(outgoing item)
 {
-    stop_typing();
     item.created = QDateTime::currentMSecsSinceEpoch();
     outgoing_.push_back(std::move(item));
+    if (outgoing_.back().group_only || outgoing_.back().conversation != active_conversation_)
+    {
+        submit(outgoing_.back());
+        return;
+    }
+    stop_typing();
     // Like a new message: followed at the bottom, while someone reading history keeps their place.
     auto* scroll = messages_view_->verticalScrollBar();
     auto const at_bottom = scroll->value() == scroll->maximum();
@@ -3421,14 +3455,17 @@ void chat_widget::queue_outgoing(outgoing item)
     submit(outgoing_.back());
 }
 
-void chat_widget::submit(outgoing const& item) { emit attachment_send_requested(item.conversation, item.path, item.reply.id, item.client_id); }
+void chat_widget::submit(outgoing const& item)
+{
+    emit attachment_send_requested(item.conversation, item.path, item.reply.id, item.client_id, item.group_only);
+}
 
 void chat_widget::show_outgoing()
 {
     QList<message_model::pending_message> pending;
     for (auto const& item : outgoing_)
     {
-        if (item.conversation != active_conversation_)
+        if (item.group_only || item.conversation != active_conversation_)
         {
             continue;
         }
@@ -3442,7 +3479,7 @@ void chat_widget::show_outgoing()
         message.client_id = item.client_id;
         if (!item.filename.isEmpty())
         {
-            message.attachment = attachment_data{item.filename, QStringLiteral("application/octet-stream"), item.size};
+            message.attachment = attachment_data{item.filename, QStringLiteral("application/octet-stream"), item.size, {}};
         }
         pending.push_back({
             .message = std::move(message),

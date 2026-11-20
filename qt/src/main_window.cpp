@@ -933,8 +933,12 @@ void main_window::show_group_details(qint64 conversation, qint64 self_user, QStr
     {
         return;
     }
-    group_dialog dialog(conversation, self_user, title, snapshot->announcement, snapshot->join_approval, this, &chat_page_->avatars());
+    group_dialog dialog(*client_, conversation, self_user, title, snapshot->announcement, snapshot->join_approval, this, &chat_page_->avatars());
     dialog.set_conversations({*snapshot}, {});
+    connect(&dialog,
+            &group_dialog::upload_requested,
+            &dialog,
+            [this, conversation, &dialog](bool group_only) { chat_page_->choose_attachment(conversation, group_only, &dialog); });
     connect(
         &dialog, &group_dialog::user_requested, chat_page_, [this](qint64 user, QString const& name) { chat_page_->show_user_details(user, name); });
     connect(client_.get(), &client_bridge::members_received, &dialog, &group_dialog::set_members);
@@ -1222,6 +1226,21 @@ void main_window::connect_messages()
     connect(client_.get(), &client_bridge::pending_texts_restored, chat_page_, &chat_widget::reconcile_pending_texts);
     connect(chat_page_, &chat_widget::typing_requested, client_.get(), &client_bridge::set_typing);
     connect(client_.get(), &client_bridge::typing_changed, chat_page_, &chat_widget::set_typing, Qt::AutoConnection);
+    connect(chat_page_,
+            &chat_widget::add_file_requested,
+            client_.get(),
+            [this](qint64 group, QString key) { client_->change_file(group, std::move(key), true); });
+    connect(client_.get(),
+            &client_bridge::files_changed,
+            chat_page_,
+            [this](qint64, QString error)
+            {
+                if (!error.isEmpty())
+                {
+                    chat_page_->set_error(error);
+                }
+            });
+    connect(client_.get(), &client_bridge::group_file_finished, chat_page_, &chat_widget::finish_group_file);
     connect(chat_page_, &chat_widget::attachment_send_requested, client_.get(), &client_bridge::send_attachment);
     connect(chat_page_, &chat_widget::attachment_interrupt_requested, client_.get(), &client_bridge::interrupt_attachment);
     connect(client_.get(), &client_bridge::attachment_progress, chat_page_, &chat_widget::attachment_progress);

@@ -80,7 +80,10 @@ class client_bridge final : public QObject
     void get_history(qint64 conversation, QString query, qint64 before);
     void add_contact(qint64 user);
     void remove_contact(qint64 user);
-    void send_attachment(qint64 conversation, QString path, qint64 reply_to, qint64 client_id);
+    void send_attachment(qint64 conversation, QString path, qint64 reply_to, qint64 client_id, bool group_only);
+    void change_file(qint64 conversation, QString key, bool add);
+    void list_files(qint64 conversation, QString search, QString category, qint64 before, QString key);
+    void download_file(qint64 conversation, QString key, QString path, bool open);
     void get_attachment(qint64 conversation, qint64 message, QString target);
     void restore_attachments();
     void interrupt_attachment(qint64 id, bool cancel, QString path);
@@ -140,7 +143,11 @@ class client_bridge final : public QObject
     void friend_request_finished(qint64 user, QString error_message);
     void contact_removed(QString error_message);
     void attachment_progress(qint64 id, qint64 bytes, qint64 total);
-    void attachment_restored(qint64 conversation, qint64 id, QString path, qint64 size, qint64 reply, qint64 confirmed);
+    void attachment_restored(qint64 conversation, qint64 id, QString path, qint64 size, qint64 reply, qint64 confirmed, bool group_only);
+    void group_file_finished(qint64 id, QString error);
+    void files_changed(qint64 conversation, QString error);
+    void files_received(qint64 conversation, chat::conversation_file_page page, bool older, QString error);
+    void file_downloaded(qint64 conversation, QString path, bool open, QString error);
     void attachment_cancelled(qint64 id);
     void attachment_received(qint64 conversation, qint64 message, QString path, QString error_message);
     void message_image_received(qint64 conversation, qint64 message, QByteArray data, QString error_message);
@@ -178,6 +185,7 @@ class client_bridge final : public QObject
                                 std::uint64_t generation,
                                 std::uint64_t connection);
     std::uint64_t conversations_generation_ = 0;
+    std::uint64_t files_generation_ = 0;
     std::uint64_t contacts_generation_ = 0;
     std::uint64_t friend_requests_generation_ = 0;
     std::uint64_t messages_generation_ = 0;

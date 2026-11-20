@@ -8,6 +8,8 @@
 #include "user_data.hpp"
 
 class avatar_cache;
+class client_bridge;
+class group_files_page;
 class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
@@ -24,7 +26,8 @@ class group_dialog final : public QDialog
     Q_OBJECT
 
    public:
-    group_dialog(qint64 conversation,
+    group_dialog(client_bridge& client,
+                 qint64 conversation,
                  qint64 self_user,
                  QString const& title,
                  QString const& announcement,
@@ -41,6 +44,7 @@ class group_dialog final : public QDialog
     void refresh_requests();
 
    signals:
+    void upload_requested(bool group_only);
     void user_requested(qint64 user, QString username);
     void admin_requested(qint64 user, bool admin);
     void rename_requested(QString title);
@@ -68,6 +72,7 @@ class group_dialog final : public QDialog
 
     void update_actions();
 
+    group_files_page* files_;
     avatar_cache* avatars_;
     qint64 conversation_;
     qint64 self_user_;

@@ -28,6 +28,7 @@ class message_model final : public QAbstractListModel
         edited_at_role,
         deleted_role,
         attachment_name_role,
+        attachment_key_role,
         attachment_type_role,
         reactions_role,
         own_reaction_role,
