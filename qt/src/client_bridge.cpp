@@ -1,4 +1,5 @@
 #include "client_bridge.hpp"
+#include "clipboard_image.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -760,7 +761,7 @@ void client_bridge::send_attachment(qint64 conversation, QString path, qint64 re
 {
     client_->send_attachment(conversation,
                              to_utf8(path),
-                             send_result(conversation, client_id),
+                             send_result(conversation, client_id, path),
                              reply_to > 0 ? std::optional<std::int64_t>{reply_to} : std::nullopt,
                              client_id,
                              [this, client_id, g = connection_generation_.load()](auto bytes, auto total)
@@ -786,12 +787,16 @@ void client_bridge::restore_attachments()
                         });
         });
 }
-void client_bridge::interrupt_attachment(qint64 id, bool cancel)
+void client_bridge::interrupt_attachment(qint64 id, bool cancel, QString path)
 {
     client_->interrupt_attachment(id,
                                   cancel,
-                                  [this, id, cancel, g = connection_generation_.load()](auto result)
+                                  [this, id, cancel, path = std::move(path), g = connection_generation_.load()](auto result)
                                   {
+                                      if (result && cancel)
+                                      {
+                                          remove_clipboard_image(path, id);
+                                      }
                                       post_result(g,
                                                   [this, id, cancel, result = std::move(result)]
                                                   {
@@ -808,11 +813,15 @@ void client_bridge::interrupt_attachment(qint64 id, bool cancel)
                                   });
 }
 
-std::function<void(std::expected<chat::message, chat::error>)> client_bridge::send_result(qint64 conversation, qint64 client_id)
+std::function<void(std::expected<chat::message, chat::error>)> client_bridge::send_result(qint64 conversation, qint64 client_id, QString path)
 {
-    // A result of an earlier connection is dropped: the message is sent again after reconnecting.
-    return [this, conversation, client_id, generation = connection_generation_.load()](auto result)
+    // Release the acknowledged source even if the GUI has already changed sessions.
+    return [this, conversation, client_id, path = std::move(path), generation = connection_generation_.load()](auto result)
     {
+        if (result)
+        {
+            remove_clipboard_image(path, client_id);
+        }
         post_result(generation,
                     [this, conversation, client_id, result = std::move(result)]
                     {

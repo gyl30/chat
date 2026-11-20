@@ -135,7 +135,7 @@ class chat_widget final : public QWidget
     void chat_history_requested(qint64 conversation, QString title);
     void group_message_pin_requested(qint64 conversation, std::optional<qint64> message);
     void attachment_send_requested(qint64 conversation, QString path, qint64 reply_to, qint64 client_id);
-    void attachment_interrupt_requested(qint64 id, bool cancel);
+    void attachment_interrupt_requested(qint64 id, bool cancel, QString path);
     void attachment_open_requested(qint64 conversation, qint64 message, QString filename, bool preview);
     void typing_requested(qint64 conversation, bool typing);
     void read_requested(qint64 conversation, qint64 message);
@@ -204,6 +204,9 @@ class chat_widget final : public QWidget
     void continue_locate();
     void send_current_message();
     void draft_edited();
+    bool handle_file_drop(QEvent* event);
+    bool paste_image();
+    void send_files(QStringList const& paths, qint64 clipboard_id = 0);
     void queue_outgoing(outgoing item);
     void submit(outgoing const& item);
     // Shows the open conversation's unconfirmed sends after its messages.
@@ -233,6 +236,7 @@ class chat_widget final : public QWidget
     QAction* message_search_action_ = nullptr;
     QPushButton* pinned_message_button_ = nullptr;
     QToolButton* unpin_message_button_ = nullptr;
+    QLabel* file_drop_hint_ = nullptr;
     QToolButton* attachment_button_ = nullptr;
     QDialog* contacts_dialog_ = nullptr;
     QStackedWidget* contacts_pages_ = nullptr;

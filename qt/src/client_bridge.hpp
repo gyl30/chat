@@ -83,7 +83,7 @@ class client_bridge final : public QObject
     void send_attachment(qint64 conversation, QString path, qint64 reply_to, qint64 client_id);
     void get_attachment(qint64 conversation, qint64 message, QString target);
     void restore_attachments();
-    void interrupt_attachment(qint64 id, bool cancel);
+    void interrupt_attachment(qint64 id, bool cancel, QString path);
     void get_message_image(qint64 conversation, qint64 message);
     void mark_read(qint64 user, qint64 message);
     void get_avatar(qint64 user, qint64 revision);
@@ -158,7 +158,7 @@ class client_bridge final : public QObject
     void publish_pending_text(chat::pending_text const& item);
     std::function<void(std::expected<chat::friendship_result, chat::error>)> friend_request_result(qint64 user);
     std::function<void(std::expected<bool, chat::error>)> group_action_result(qint64 conversation, bool leaving = false);
-    std::function<void(std::expected<chat::message, chat::error>)> send_result(qint64 conversation, qint64 client_id);
+    std::function<void(std::expected<chat::message, chat::error>)> send_result(qint64 conversation, qint64 client_id, QString path);
     template <class F>
     void post_result(std::uint64_t generation, F result)
     {

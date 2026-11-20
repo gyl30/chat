@@ -16,6 +16,9 @@
 #include <QColor>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDropEvent>
+#include <QMimeData>
+#include <QUrl>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -56,6 +59,7 @@
 #include <chat/client.hpp>
 #include <chat/reaction.hpp>
 
+#include "clipboard_image.hpp"
 #include "avatar.hpp"
 #include "conversation_delegate.hpp"
 #include "conversation_model.hpp"
@@ -71,6 +75,19 @@
 
 namespace
 {
+
+QString local_file_path(QUrl url)
+{
+    if (!url.isLocalFile())
+    {
+        return {};
+    }
+    if (url.host() == QStringLiteral("localhost"))
+    {
+        url.setHost({});
+    }
+    return url.host().isEmpty() ? url.toLocalFile() : QString{};
+}
 
 class pinned_message_button final : public QPushButton
 {
@@ -259,12 +276,12 @@ QWidget* chat_widget::create_sidebar()
                                 }
                                 else
                                 {
-                                    emit attachment_interrupt_requested(id, false);
+                                    emit attachment_interrupt_requested(id, false, it->path);
                                 }
                             });
                     auto* cancel = actions->addAction(QStringLiteral("取消上传"));
                     cancel->setEnabled(connection_available_);
-                    connect(cancel, &QAction::triggered, this, [this, id] { emit attachment_interrupt_requested(id, true); });
+                    connect(cancel, &QAction::triggered, this, [this, id, path = item.path] { emit attachment_interrupt_requested(id, true, path); });
                 }
                 if (transfers->isEmpty())
                 {
@@ -971,6 +988,7 @@ void chat_widget::setup_chat_header(QVBoxLayout* chat_layout)
 
     message_status_ = new QLabel(QStringLiteral("选择一个会话开始聊天"), chat_panel);
     message_status_->setObjectName(QStringLiteral("subtleText"));
+    message_status_->setTextFormat(Qt::PlainText);
     message_status_->setAlignment(Qt::AlignCenter);
     message_status_->setContentsMargins(0, 6, 0, 6);
     chat_layout->addWidget(message_status_);
@@ -1012,6 +1030,16 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
     messages_view_->setAccessibleName(QStringLiteral("消息记录"));
     connect(messages_, &QAbstractItemModel::modelReset, this, [this] { QTimer::singleShot(0, messages_view_, [this] { load_visible_images(); }); });
     connect(messages_, &QAbstractItemModel::rowsInserted, this, [this] { QTimer::singleShot(0, messages_view_, [this] { load_visible_images(); }); });
+    messages_view_->setAcceptDrops(true);
+    messages_view_->viewport()->setAcceptDrops(true);
+    file_drop_hint_ = new QLabel(QStringLiteral("松开发送文件"), messages_view_->viewport());
+    file_drop_hint_->setObjectName(QStringLiteral("fileDropHint"));
+    file_drop_hint_->setAutoFillBackground(true);
+    file_drop_hint_->setFrameStyle(QFrame::StyledPanel);
+    file_drop_hint_->setMargin(8);
+    file_drop_hint_->move(12, 12);
+    file_drop_hint_->setAttribute(Qt::WA_TransparentForMouseEvents);
+    file_drop_hint_->hide();
     messages_view_->viewport()->installEventFilter(this);
     messages_view_->installEventFilter(this);
     messages_view_->setModel(messages_);
@@ -1108,6 +1136,8 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
 
     auto* input_bar = new QFrame(chat_panel);
     input_bar_ = input_bar;
+    input_bar->setAcceptDrops(true);
+    input_bar->installEventFilter(this);
     input_bar->hide();
     input_bar->setObjectName(QStringLiteral("inputBar"));
     input_bar->setMinimumHeight(chat_theme::compose_height);
@@ -1123,6 +1153,8 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     message_edit_->document()->setDocumentMargin(8);
     message_edit_->setFixedHeight(chat_theme::compose_field_min_height);
     message_edit_->installEventFilter(this);
+    message_edit_->viewport()->setAcceptDrops(true);
+    message_edit_->viewport()->installEventFilter(this);
     message_edit_->setEnabled(false);
     new emoji_highlighter(message_edit_);
     input_layout->addWidget(message_edit_, 1, Qt::AlignVCenter);
@@ -1192,40 +1224,12 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
             this,
             [this]
             {
-                auto const path = QFileDialog::getOpenFileName(this, QStringLiteral("发送文件或图片"));
-                if (path.isEmpty())
+                auto const conversation = active_conversation_;
+                auto const paths = QFileDialog::getOpenFileNames(this, QStringLiteral("发送文件或图片"));
+                if (conversation == active_conversation_ && !paths.isEmpty())
                 {
-                    return;
+                    send_files(paths);
                 }
-                QFile file(path);
-                if (!file.open(QIODevice::ReadOnly))
-                {
-                    set_message_status(file.errorString());
-                    return;
-                }
-                if (file.size() > static_cast<qint64>(chat::max_attachment_size))
-                {
-                    set_message_status(QStringLiteral("文件不能超过 %1 GiB。").arg(chat::max_attachment_size / (1024 * 1024 * 1024)));
-                    return;
-                }
-                if (!can_send())
-                {
-                    set_message_status(connection_available_ ? QStringLiteral("当前会话暂时无法发送文件。")
-                                                             : QStringLiteral("连接已断开，请重新发送文件。"));
-                    return;
-                }
-                // The file takes the reply with it, as a text message does.
-                outgoing item;
-                item.client_id = chat::client::new_client_id();
-                item.conversation = active_conversation_;
-                item.filename = QFileInfo(path).fileName();
-                item.path = path;
-                item.size = file.size();
-                item.error = QStringLiteral("正在校验文件…");
-                item.reply = quote(reply_to_);
-                reply_to_ = 0;
-                reply_bar_->hide();
-                queue_outgoing(std::move(item));
             });
     send_button_ = new QToolButton(input_bar);
     send_button_->setObjectName(QStringLiteral("sendButton"));
@@ -1567,8 +1571,124 @@ void chat_widget::set_user(QString const& username, qint64 user)
     update_compose_state();
 }
 
+bool chat_widget::handle_file_drop(QEvent* event)
+{
+    if (event->type() == QEvent::DragLeave)
+    {
+        file_drop_hint_->hide();
+        return false;
+    }
+    if (event->type() != QEvent::DragEnter && event->type() != QEvent::DragMove && event->type() != QEvent::Drop)
+    {
+        return false;
+    }
+    auto* drop = static_cast<QDropEvent*>(event);
+    if (!drop->mimeData()->hasUrls())
+    {
+        return false;
+    }
+    QStringList paths;
+    for (auto const& url : drop->mimeData()->urls())
+    {
+        auto path = local_file_path(url);
+        if (!path.isEmpty())
+        {
+            paths.push_back(std::move(path));
+        }
+    }
+    if (!can_send() || paths.isEmpty() || !(drop->possibleActions() & Qt::CopyAction))
+    {
+        file_drop_hint_->hide();
+        drop->ignore();
+        return true;
+    }
+    drop->setDropAction(Qt::CopyAction);
+    drop->accept();
+    if (event->type() == QEvent::Drop)
+    {
+        file_drop_hint_->hide();
+        send_files(paths);
+    }
+    else
+    {
+        file_drop_hint_->show();
+    }
+    return true;
+}
+
+bool chat_widget::paste_image()
+{
+    auto const* mime = QGuiApplication::clipboard()->mimeData();
+    if (mime == nullptr)
+    {
+        return false;
+    }
+    // File managers can offer several image URLs alongside a single preview.
+    QStringList paths;
+    for (auto const& url : mime->urls())
+    {
+        auto const path = local_file_path(url);
+        auto const suffix = QFileInfo(path).suffix().toLower();
+        if (suffix != QStringLiteral("png") && suffix != QStringLiteral("jpg") && suffix != QStringLiteral("jpeg"))
+        {
+            paths.clear();
+            break;
+        }
+        paths.push_back(path);
+    }
+    if (!paths.isEmpty())
+    {
+        send_files(paths);
+        return true;
+    }
+    if (!(mime->hasImage() || mime->hasFormat(QStringLiteral("image/png")) || mime->hasFormat(QStringLiteral("image/jpeg"))))
+    {
+        return false;
+    }
+    if (!can_send())
+    {
+        set_message_status(QStringLiteral("当前会话暂时无法发送图片"));
+        return true;
+    }
+    auto const data = mime->imageData();
+    auto image = qvariant_cast<QImage>(data);
+    if (image.isNull())
+    {
+        for (auto const& format : {QStringLiteral("image/png"), QStringLiteral("image/jpeg")})
+        {
+            if (mime->hasFormat(format))
+            {
+                image = QImage::fromData(mime->data(format));
+                if (!image.isNull())
+                {
+                    break;
+                }
+            }
+        }
+    }
+    if (image.isNull())
+    {
+        set_message_status(QStringLiteral("无法读取剪贴板图片"));
+        return true;
+    }
+    auto const id = chat::client::new_client_id();
+    auto path = save_clipboard_image(image, id);
+    if (!path)
+    {
+        set_message_status(path.error());
+        return true;
+    }
+    send_files({*path}, id);
+    return true;
+}
+
 bool chat_widget::eventFilter(QObject* object, QEvent* event)
 {
+    // The scroll areas deliver drag events to their viewport children.
+    if ((object == input_bar_ || object->parent() == messages_view_ || object->parent() == message_edit_) && handle_file_drop(event))
+    {
+        return true;
+    }
     if (object == message_edit_ && (event->type() == QEvent::FocusIn || event->type() == QEvent::FocusOut))
     {
         input_bar_->setProperty("editorFocused", event->type() == QEvent::FocusIn);
@@ -1627,6 +1747,10 @@ bool chat_widget::eventFilter(QObject* object, QEvent* event)
     if (object == message_edit_ && event->type() == QEvent::KeyPress)
     {
         auto* key = static_cast<QKeyEvent*>(event);
+        if (key->matches(QKeySequence::Paste) && paste_image())
+        {
+            return true;
+        }
         if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter)
         {
             if (!message_edit_->textCursor().block().layout()->preeditAreaText().isEmpty())
@@ -3229,6 +3353,57 @@ void chat_widget::reconcile_pending_texts(QList<qint64> client_ids)
     }
 }
 
+void chat_widget::send_files(QStringList const& paths, qint64 clipboard_id)
+{
+    if (!can_send())
+    {
+        set_message_status(QStringLiteral("当前会话暂时无法发送文件"));
+        return;
+    }
+    auto const reply = quote(reply_to_);
+    QStringList errors;
+    for (auto const& path : paths)
+    {
+        QFileInfo const file(path);
+        QString error;
+        if (!file.isFile() || !file.isReadable())
+        {
+            error = QStringLiteral("文件不存在、不是普通文件或无法读取");
+        }
+        else if (file.size() > chat::max_attachment_size)
+        {
+            error = QStringLiteral("文件不能超过 %1 GiB").arg(chat::max_attachment_size / (1024LL * 1024 * 1024));
+        }
+        if (!error.isEmpty())
+        {
+            errors.push_back(QStringLiteral("%1：%2").arg(file.fileName(), error));
+            if (clipboard_id != 0)
+            {
+                remove_clipboard_image(path, clipboard_id);
+            }
+            continue;
+        }
+        outgoing item;
+        item.client_id = clipboard_id != 0 ? clipboard_id : chat::client::new_client_id();
+        item.conversation = active_conversation_;
+        item.filename = file.fileName();
+        item.path = file.absoluteFilePath();
+        item.size = file.size();
+        item.error = QStringLiteral("正在校验文件…");
+        item.reply = reply;
+        queue_outgoing(std::move(item));
+    }
+    if (errors.size() != paths.size() && reply_to_ != 0)
+    {
+        reply_to_ = 0;
+        reply_bar_->hide();
+    }
+    if (!errors.isEmpty())
+    {
+        set_message_status(errors.join(u'\n'));
+    }
+}
+
 void chat_widget::queue_outgoing(outgoing item)
 {
     stop_typing();
@@ -3302,7 +3477,7 @@ void chat_widget::drop_outgoing(qint64 conversation)
             item.error = QStringLiteral("会话不可用，上传已暂停");
             if (connection_available_)
             {
-                emit attachment_interrupt_requested(item.client_id, false);
+                emit attachment_interrupt_requested(item.client_id, false, item.path);
             }
         }
     }
@@ -3364,7 +3539,7 @@ void chat_widget::show_outgoing_menu(QModelIndex const& index, QPoint position)
     }
     if (attachment && (selected == pause || selected == discard))
     {
-        emit attachment_interrupt_requested(client_id, selected == discard);
+        emit attachment_interrupt_requested(client_id, selected == discard, item->path);
         return;
     }
     if (!attachment)

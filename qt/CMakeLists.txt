@@ -16,6 +16,7 @@ add_executable(chat_qt
     src/chat_widget.hpp
     src/create_group_dialog.cpp
     src/create_group_dialog.hpp
+    src/clipboard_image.cpp
     src/client_bridge.cpp
     src/client_bridge.hpp
     src/conversation_data.hpp

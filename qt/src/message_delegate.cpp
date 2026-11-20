@@ -166,6 +166,16 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
 {
     message_layout result;
     result.text = index.data(message_model::text_role).toString();
+    result.outgoing = outgoing_at(index);
+    auto const bubble_max = maximum_bubble_width(option, result.outgoing);
+    auto const inner_max = std::max(80, bubble_max - chat_theme::message_padding_horizontal * 2);
+
+    if (!index.data(message_model::attachment_name_role).toString().isEmpty())
+    {
+        // Keep the size on the next line and the extension visible in a narrow bubble.
+        auto const end = result.text.lastIndexOf(u'\n');
+        result.text.replace(0, end, QFontMetrics(option.font).elidedText(result.text.left(end), Qt::ElideMiddle, inner_max));
+    }
     auto const reply = index.data(message_model::reply_text_role).toString();
     if (!reply.isEmpty())
     {
@@ -182,7 +192,6 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     {
         result.time = QStringLiteral("已读 %1 人 · ").arg(read_count.toInt()) + result.time;
     }
-    result.outgoing = outgoing_at(index);
     if (!result.outgoing && index.data(message_model::mentioned_role).toBool())
     {
         result.time = QStringLiteral("提及你 · ") + result.time;
@@ -214,9 +223,6 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     result.group_start = starts_group(index);
     result.group_end = ends_group(index);
     result.top_margin = result.group_start ? chat_theme::message_margin_top : chat_theme::message_margin_top_attached;
-
-    auto const bubble_max = maximum_bubble_width(option, result.outgoing);
-    auto const inner_max = std::max(80, bubble_max - chat_theme::message_padding_horizontal * 2);
 
     auto const time_metrics = QFontMetrics(time_font(option));
     result.time_width = result.time.isEmpty() ? 0 : time_metrics.horizontalAdvance(result.time);
