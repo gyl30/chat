@@ -1748,7 +1748,18 @@ void chat_widget::connect_chat_controls()
                 filter_conversations();
                 update_main_menu();
             });
-    connect(conversations_, &QAbstractItemModel::dataChanged, this, [this] { update_main_menu(); });
+    connect(conversations_,
+            &QAbstractItemModel::dataChanged,
+            this,
+            [this](QModelIndex const&, QModelIndex const&, QList<int> const& roles)
+            {
+                if (roles.isEmpty() || roles.contains(Qt::DisplayRole) || roles.contains(conversation_model::username_role) ||
+                    roles.contains(conversation_model::last_text_role))
+                {
+                    filter_conversations();
+                }
+                update_main_menu();
+            });
     connect(self_profile_action_, &QAction::triggered, this, [this] { show_user_details(self_user_, self_username_); });
     connect(&avatars_,
             &avatar_cache::changed,
@@ -3104,7 +3115,8 @@ void chat_widget::filter_conversations()
     for (int row = 0; row < conversations_->rowCount(); ++row)
     {
         auto const index = conversations_->index(row, 0);
-        auto const matched = query.isEmpty() || index.data(conversation_model::username_role).toString().contains(query, Qt::CaseInsensitive) ||
+        auto const matched = query.isEmpty() || index.data(Qt::DisplayRole).toString().contains(query, Qt::CaseInsensitive) ||
+                             index.data(conversation_model::username_role).toString().contains(query, Qt::CaseInsensitive) ||
                              index.data(conversation_model::last_text_role).toString().contains(query, Qt::CaseInsensitive);
         conversations_view_->setRowHidden(row, !matched);
         shown += matched;
