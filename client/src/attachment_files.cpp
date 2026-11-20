@@ -112,6 +112,8 @@ file_result<sqlite_database> open_transfer_journal(std::string const& directory,
         size INTEGER NOT NULL,stamp INTEGER NOT NULL,reply INTEGER NOT NULL,checksum TEXT NOT NULL,part_size INTEGER NOT NULL DEFAULT 0,
         count INTEGER NOT NULL DEFAULT 0,number INTEGER NOT NULL DEFAULT 0,confirmed INTEGER NOT NULL DEFAULT 0,length INTEGER NOT NULL DEFAULT 0,
         touched INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER)), PRIMARY KEY(user,client));
+    CREATE TABLE IF NOT EXISTS group_file_tasks(user INTEGER NOT NULL,client INTEGER NOT NULL,PRIMARY KEY(user,client),
+        FOREIGN KEY(user,client) REFERENCES tasks(user,client) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS text_outbox(
         user INTEGER NOT NULL,client INTEGER NOT NULL,conversation INTEGER NOT NULL,body TEXT NOT NULL,
         reply INTEGER,created INTEGER NOT NULL,rejection INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(user,client));)SQL"))

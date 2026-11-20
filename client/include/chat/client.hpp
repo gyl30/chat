@@ -32,6 +32,7 @@ struct pending_attachment
 {
     std::int64_t client_id, conversation, size, reply_to, confirmed;
     std::string path, filename;
+    bool group_file = false;
 };
 
 enum class outbox_state : std::uint8_t
@@ -169,6 +170,18 @@ class client
                          std::optional<std::int64_t> reply_to = {},
                          std::optional<std::int64_t> client_id = {},
                          progress_handler progress = {});
+    using conversation_files_handler = std::function<void(std::expected<conversation_file_page, error>)>;
+    void upload_conversation_file(
+        std::int64_t conversation, std::string path, std::int64_t client_id, group_action_handler handler, progress_handler progress = {});
+    void add_conversation_file(std::int64_t conversation, std::string key, group_action_handler handler);
+    void remove_conversation_file(std::int64_t conversation, std::string key, group_action_handler handler);
+    void list_conversation_files(std::int64_t conversation,
+                                 std::string search,
+                                 std::string category,
+                                 std::int64_t before,
+                                 std::string before_key,
+                                 conversation_files_handler handler);
+    void download_conversation_file(std::int64_t conversation, std::string key, std::string path, attachment_handler handler);
     void pending_attachments(pending_attachments_handler handler);
     void interrupt_attachment(std::int64_t client_id, bool cancel, group_action_handler handler);
     void get_attachment(

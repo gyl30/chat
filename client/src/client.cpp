@@ -24,6 +24,7 @@
 #include <boost/capy/task.hpp>
 #include <boost/corosio/io_context.hpp>
 #include <boost/json.hpp>
+#include <boost/describe/class.hpp>
 
 #include <chat/client.hpp>
 #include <chat/invite.hpp>
@@ -37,6 +38,8 @@
 
 namespace chat
 {
+BOOST_DESCRIBE_STRUCT(conversation_file, (), (object_key, filename, media_type, size, uploader_id, username, created_at, category))
+BOOST_DESCRIBE_STRUCT(conversation_file_page, (), (files, has_more))
 
 namespace
 {
@@ -342,7 +345,12 @@ bool parse_message(boost::json::object const& object, message& value)
         {
             return false;
         }
-        value.attachment = attachment_info{std::string(filename->as_string()), std::string(type), *size};
+        auto* key = fields.if_contains("object_key");
+        if (!key || !key->is_string())
+        {
+            return false;
+        }
+        value.attachment = attachment_info{std::string(filename->as_string()), std::string(type), *size, std::string(key->as_string())};
     }
     auto const* client_id = object.if_contains("client_id");
     if (client_id && !client_id->is_null())
@@ -1504,6 +1512,27 @@ struct client::impl
         return request_bool(std::move(method), std::move(params), "changed", "Invalid group action result", std::move(handler));
     }
 
+    boost::capy::task<> list_files(boost::json::object params, conversation_files_handler handler)
+    {
+        send_request("list_conversation_files",
+                     std::move(params),
+                     [handler = std::move(handler)](auto r)
+                     {
+                         if (!r)
+                         {
+                             handler(std::unexpected(r.error()));
+                             return;
+                         }
+                         auto page = boost::json::try_value_to<conversation_file_page>(*r);
+                         if (!page)
+                         {
+                             handler(std::unexpected(make_error(error_kind::protocol, "Invalid group file page")));
+                             return;
+                         }
+                         handler(std::move(*page));
+                     });
+        co_return;
+    }
     boost::capy::task<> get_users(std::string method, boost::json::object params, users_handler handler)
     {
         send_request(std::move(method),
@@ -1884,18 +1913,20 @@ struct client::impl
         send_next_text();
     }
 
+    using upload_result = std::expected<std::optional<message>, error>;
+    using upload_handler = std::function<void(upload_result)>;
     struct upload_job
     {
         pending_attachment task;
         detail::inspected_file file;
         std::stop_source stop;
         bool putting = false;    // Only the SDK executor starts and releases a part request.
-        message_result_handler handler;
+        upload_handler handler;
         progress_handler progress;
     };
     using job_ptr = std::shared_ptr<upload_job>;
     static error file_queue_error(blocking_worker::unavailable) { return make_error(error_kind::file_transfer, "附件工作线程繁忙，请稍后继续"); }
-    void end_upload(job_ptr const& job, std::expected<message, error> result)
+    void end_upload(job_ptr const& job, upload_result result)
     {
         auto it = uploads_.find(job->task.client_id);
         if (it == uploads_.end() || it->second != job)
@@ -1969,6 +2000,34 @@ struct client::impl
                      {{"upload", job->task.client_id}, {"number", number}, {"etag", *result}},
                      [this, job](auto r) { on_grant(job, std::move(r)); });
     }
+    void attach_group_file(job_ptr const& job, boost::json::value const& response)
+    {
+        auto* obj = response.if_object();
+        auto* key = obj ? obj->if_contains("object_key") : nullptr;
+        if (!key || !key->is_string())
+        {
+            end_upload(job, std::unexpected(make_error(error_kind::protocol, "Invalid completed file")));
+            return;
+        }
+        send_request("add_conversation_file",
+                     {{"conversation_id", job->task.conversation}, {"object_key", *key}},
+                     [this, job](auto r)
+                     {
+                         if (!r)
+                         {
+                             end_upload(job, std::unexpected(r.error()));
+                             return;
+                         }
+                         auto* fields = r->if_object();
+                         auto* changed = fields ? fields->if_contains("changed") : nullptr;
+                         if (!changed || !changed->is_bool())
+                         {
+                             end_upload(job, std::unexpected(make_error(error_kind::protocol, "Invalid group file result")));
+                             return;
+                         }
+                         end_upload(job, std::optional<message>{});
+                     });
+    }
     void on_grant(job_ptr const& job, std::expected<boost::json::value, error> response)
     {
         if (job->stop.stop_requested() || suppress_callbacks_)
@@ -1983,7 +2042,12 @@ struct client::impl
         auto* obj = response->if_object();
         if (obj)
         {
-            if (auto* msg = obj->if_contains("message"))
+            if (job->task.group_file && obj->contains("object_key"))
+            {
+                attach_group_file(job, *response);
+                return;
+            }
+            if (auto* msg = obj->if_contains("message"); !job->task.group_file && msg)
             {
                 accept_file_message(job, *msg);
                 return;
@@ -2033,7 +2097,7 @@ struct client::impl
         {
             params.emplace("reply_to", job->task.reply_to);
         }
-        send_request("finish_attachment",
+        send_request(job->task.group_file ? "complete_file" : "finish_attachment",
                      std::move(params),
                      [this, job](auto r)
                      {
@@ -2046,10 +2110,17 @@ struct client::impl
                              end_upload(job, std::unexpected(r.error()));
                              return;
                          }
-                         accept_file_message(job, *r);
+                         if (job->task.group_file)
+                         {
+                             attach_group_file(job, *r);
+                         }
+                         else
+                         {
+                             accept_file_message(job, *r);
+                         }
                      });
     }
-    boost::capy::task<> send_file(pending_attachment task, message_result_handler handler, progress_handler progress)
+    boost::capy::task<> send_file(pending_attachment task, upload_handler handler, progress_handler progress)
     {
         if (!journal_.is_open())
         {
@@ -2082,23 +2153,44 @@ struct client::impl
             fail(fp.error().message);
             co_return;
         }
-        if (journal_.exec("INSERT OR IGNORE INTO tasks(user,client,conversation,path,size,stamp,reply,checksum) VALUES(?,?,?,?,?,?,?,'')",
-                          account_,
-                          t.client_id,
-                          t.conversation,
-                          t.path,
-                          fp->first,
-                          fp->second,
-                          t.reply_to))
         {
-            fail("无法保存上传任务");
-            co_return;
+            auto tx = sqlite_transaction::begin_immediate(journal_);
+            if (!tx)
+            {
+                fail("无法保存上传任务");
+                co_return;
+            }
+            if (journal_.exec("INSERT OR IGNORE INTO tasks(user,client,conversation,path,size,stamp,reply,checksum) VALUES(?,?,?,?,?,?,?,'')",
+                              account_,
+                              t.client_id,
+                              t.conversation,
+                              t.path,
+                              fp->first,
+                              fp->second,
+                              t.reply_to))
+            {
+                fail("无法保存上传任务");
+                co_return;
+            }
+            if (journal_.changes() && t.group_file && journal_.exec("INSERT INTO group_file_tasks(user,client) VALUES(?,?)", account_, t.client_id))
+            {
+                fail("无法保存群文件任务");
+                co_return;
+            }
+            if (tx->commit())
+            {
+                fail("无法保存上传任务");
+                co_return;
+            }
         }
         std::string checksum;
         bool resuming = false;
         {
             auto q = journal_.prepare(
-                "SELECT path,conversation,size,stamp,checksum,part_size FROM tasks WHERE user=? AND client=?", account_, t.client_id);
+                "SELECT path,conversation,size,stamp,checksum,part_size,EXISTS(SELECT 1 FROM group_file_tasks g WHERE "
+                "(g.user,g.client)=(tasks.user,tasks.client)) FROM tasks WHERE user=? AND client=?",
+                account_,
+                t.client_id);
             if (!q)
             {
                 fail("无法读取上传记录");
@@ -2111,7 +2203,7 @@ struct client::impl
                 co_return;
             }
             if (q->column_text(0) != t.path || q->column_int64(1) != t.conversation || q->column_int64(2) != fp->first ||
-                q->column_int64(3) != fp->second)
+                q->column_int64(3) != fp->second || (q->column_int64(6) != 0) != t.group_file)
             {
                 fail("原文件已变更，无法继续上传");
                 co_return;
@@ -2167,7 +2259,10 @@ struct client::impl
             handler(std::unexpected(make_error(error_kind::file_transfer, "本地上传目录不可用，请检查应用数据目录权限")));
             co_return;
         }
-        auto q = journal_.prepare("SELECT client,conversation,path,size,reply,confirmed FROM tasks WHERE user=? ORDER BY client", account_);
+        auto q = journal_.prepare(
+            "SELECT client,conversation,path,size,reply,confirmed,EXISTS(SELECT 1 FROM group_file_tasks g WHERE "
+            "(g.user,g.client)=(tasks.user,tasks.client)) FROM tasks WHERE user=? ORDER BY client",
+            account_);
         if (!q)
         {
             handler(std::unexpected(make_error(error_kind::file_transfer, "无法读取上传任务")));
@@ -2193,7 +2288,8 @@ struct client::impl
                                q->column_int64(4),
                                q->column_int64(5),
                                std::move(path),
-                               std::move(name)});
+                               std::move(name),
+                               q->column_int64(6) != 0});
         }
         handler(std::move(records));
         co_return;
@@ -2246,11 +2342,11 @@ struct client::impl
         }
     }
     boost::capy::task<> get_attachment(
-        std::int64_t conversation, std::int64_t message, std::string target, std::int64_t limit, attachment_handler handler)
+        std::string method, boost::json::object params, std::string target, std::int64_t limit, attachment_handler handler)
     {
         send_request(
-            "get_attachment",
-            {{"conversation", conversation}, {"message", message}},
+            std::move(method),
+            std::move(params),
             [this, target = std::move(target), limit, handler = std::move(handler)](auto r) mutable
             {
                 if (!r)
@@ -3054,11 +3150,74 @@ void client::send_attachment(std::int64_t conversation,
 {
     auto name = std::filesystem::path(path).filename().string();
     pending_attachment t{id.value_or(new_client_id()), conversation, 0, reply.value_or(0), 0, std::move(path), std::move(name)};
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->send_file(std::move(t), std::move(handler), std::move(progress)));
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->send_file(
+        std::move(t),
+        [handler = std::move(handler)](impl::upload_result r)
+        {
+            if (!r)
+            {
+                handler(std::unexpected(r.error()));
+            }
+            else
+            {
+                handler(std::move(**r));
+            }
+        },
+        std::move(progress)));
 }
 void client::interrupt_attachment(std::int64_t id, bool cancel, group_action_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->interrupt_attachment(id, cancel, std::move(handler)));
+}
+void client::upload_conversation_file(
+    std::int64_t conversation, std::string path, std::int64_t id, group_action_handler handler, progress_handler progress)
+{
+    auto name = std::filesystem::path(path).filename().string();
+    pending_attachment t{id, conversation, 0, 0, 0, std::move(path), std::move(name), true};
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->send_file(
+        std::move(t),
+        [handler = std::move(handler)](impl::upload_result r)
+        {
+            if (!r)
+            {
+                handler(std::unexpected(r.error()));
+            }
+            else
+            {
+                handler(true);
+            }
+        },
+        std::move(progress)));
+}
+void client::list_conversation_files(std::int64_t conversation,
+                                     std::string search,
+                                     std::string category,
+                                     std::int64_t before,
+                                     std::string before_key,
+                                     conversation_files_handler handler)
+{
+    boost::json::object params{{"conversation_id", conversation}, {"search", search}, {"category", category}};
+    if (before)
+    {
+        params.emplace("cursor_created_at", before);
+        params.emplace("cursor_object_key", before_key);
+    }
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->list_files(std::move(params), std::move(handler)));
+}
+void client::add_conversation_file(std::int64_t conversation, std::string key, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->group_action("add_conversation_file", {{"conversation_id", conversation}, {"object_key", key}}, std::move(handler)));
+}
+void client::remove_conversation_file(std::int64_t conversation, std::string key, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->group_action("remove_conversation_file", {{"conversation_id", conversation}, {"object_key", key}}, std::move(handler)));
+}
+void client::download_conversation_file(std::int64_t conversation, std::string key, std::string path, attachment_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_attachment(
+        "get_conversation_file", {{"conversation_id", conversation}, {"object_key", key}}, std::move(path), max_attachment_size, std::move(handler)));
 }
 void client::pending_attachments(pending_attachments_handler handler)
 {
@@ -3067,7 +3226,7 @@ void client::pending_attachments(pending_attachments_handler handler)
 void client::get_attachment(std::int64_t conversation, std::int64_t message, std::string path, attachment_handler handler, std::int64_t limit)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(
-        impl_->get_attachment(conversation, message, std::move(path), limit, std::move(handler)));
+        impl_->get_attachment("get_attachment", {{"conversation", conversation}, {"message", message}}, std::move(path), limit, std::move(handler)));
 }
 
 void client::delete_message(std::int64_t conversation, std::int64_t message, message_result_handler handler)
