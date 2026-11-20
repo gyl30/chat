@@ -3313,7 +3313,6 @@ void chat_widget::open_conversation(conversation_data conversation)
     active_member_count_ = conversation.member_count;
 
     active_username_ = std::move(username);
-    update_chat_header(active_username_);
 
     auto const conversation_index = conversations_->index_for_conversation(user);
     if (conversation_index.isValid())
@@ -3328,6 +3327,7 @@ void chat_widget::open_conversation(conversation_data conversation)
 
     if (active_conversation_ == user)
     {
+        update_chat_header(active_username_);
         update_compose_state();
         if (!messages_loaded_ && !messages_loading_)
         {
@@ -3360,7 +3360,7 @@ void chat_widget::open_conversation(conversation_data conversation)
         }
     }
     active_conversation_ = user;
-    update_chat_presence();
+    update_chat_header(active_username_);
     {
         QSignalBlocker const blocker(message_edit_);
         message_edit_->setPlainText(drafts_.take(user));
