@@ -1,6 +1,9 @@
 #include "global_search_dialog.hpp"
 
 #include <QDateTime>
+#include <limits>
+#include <algorithm>
+#include <utf8proc.h>
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
@@ -14,6 +17,27 @@
 namespace
 {
 QString display_time(qint64 ms) { return QDateTime::fromMSecsSinceEpoch(ms).toString(QStringLiteral("yyyy-MM-dd HH:mm")); }
+QString search_snippet(QString const& body, QString const& query)
+{
+    auto const original = body.toStdU32String();
+    auto const lower = [](auto points)
+    {
+        for (auto& ch : points)
+        {
+            ch = utf8proc_tolower(ch);
+        }
+        return points;
+    };
+    auto const text = lower(original);
+    auto const needle = lower(query.toStdU32String());
+    auto const match = std::ranges::search(text, needle);
+    if (match.empty())
+    {
+        return {};
+    }
+    auto const start = std::max<qsizetype>(0, (match.begin() - text.begin()) - 32);
+    return QString::fromUcs4(original.data() + start, std::min<qsizetype>(160, std::ssize(original) - start));
+}
 }    // namespace
 
 global_search_dialog::global_search_dialog(client_bridge& client, QWidget* parent) : QDialog(parent), client_(client)
@@ -65,20 +89,7 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
                 }
             });
     connect(more_, &QPushButton::clicked, this, [this] { search(next_before_); });
-    connect(back_,
-            &QPushButton::clicked,
-            this,
-            [this]
-            {
-                if (results_stale_)
-                {
-                    search(0);
-                }
-                else
-                {
-                    show_results();
-                }
-            });
+    connect(back_, &QPushButton::clicked, this, &global_search_dialog::show_results);
     connect(results_, &QTreeWidget::itemClicked, this, &global_search_dialog::open_context);
     connect(results_,
             &QTreeWidget::itemActivated,
@@ -95,11 +106,11 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
     connect(&client_,
             &client_bridge::personal_view_changed,
             this,
-            [this](qint64 id, QString const& action)
+            [this](qint64 id, QString const& action, qint64 through)
             {
                 if (action == "clear")
                 {
-                    refresh(id, true);
+                    discard(id, through);
                 }
             });
     connect(&client_, &client_bridge::disconnected, this, &QDialog::reject);
@@ -110,25 +121,17 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
             {
                 if (removed)
                 {
-                    refresh(conv, true);
+                    discard(conv, std::numeric_limits<qint64>::max());
                 }
             });
-    connect(&client_,
-            &client_bridge::message_updated,
-            this,
-            [this](qint64 conv, message_data const&, QString const& error)
-            {
-                if (error.isEmpty())
-                {
-                    refresh(conv, false);
-                }
-            });
+    connect(&client_, &client_bridge::message_updated, this, &global_search_dialog::updated);
 }
 
 void global_search_dialog::show_results()
 {
     request_ = 0;
-    results_stale_ = false;
+    page_edits_.clear();
+    page_floors_.clear();
     setWindowTitle(QStringLiteral("全局消息搜索"));
     context_->clear();
     context_->hide();
@@ -158,6 +161,7 @@ void global_search_dialog::search(qint64 before)
 
 void global_search_dialog::open_context(QTreeWidgetItem* item)
 {
+    results_->setCurrentItem(item);
     auto conv = item->data(0, Qt::UserRole).toLongLong();
     auto anchor = item->data(1, Qt::UserRole).toLongLong();
     setWindowTitle(QStringLiteral("聊天记录 · %1").arg(item->text(1)));
@@ -183,11 +187,13 @@ void global_search_dialog::set_page(quint64 id, chat::message_search_page const&
     {
         for (auto const& hit : page.messages)
         {
-            auto* item = new QTreeWidgetItem(results_,
-                                             {QString::fromStdString(hit.snippet),
-                                              QString::fromStdString(hit.title),
-                                              QString::fromStdString(hit.username),
-                                              display_time(hit.timestamp)});
+            auto snippet = page_edits_.value(hit.id, QString::fromStdString(hit.snippet));
+            if (hit.id <= page_floors_.value(hit.conversation) || snippet.isNull())
+            {
+                continue;
+            }
+            auto* item = new QTreeWidgetItem(
+                results_, {snippet, QString::fromStdString(hit.title), QString::fromStdString(hit.username), display_time(hit.timestamp)});
             item->setData(0, Qt::UserRole, static_cast<qlonglong>(hit.conversation));
             item->setData(1, Qt::UserRole, static_cast<qlonglong>(hit.id));
         }
@@ -197,6 +203,8 @@ void global_search_dialog::set_page(quint64 id, chat::message_search_page const&
             status_->setText(QStringLiteral("没有找到相关消息"));
         }
     }
+    page_edits_.clear();
+    page_floors_.clear();
     more_->setVisible(next_before_ != 0);
 }
 void global_search_dialog::set_context(quint64 id, qint64 anchor, QList<message_data> const& messages, QString const& error)
@@ -205,6 +213,7 @@ void global_search_dialog::set_context(quint64 id, qint64 anchor, QList<message_
     {
         return;
     }
+    request_ = 0;
     if (!error.isEmpty())
     {
         status_->setText(error);
@@ -214,6 +223,7 @@ void global_search_dialog::set_context(quint64 id, qint64 anchor, QList<message_
     for (auto const& m : messages)
     {
         context_->addItem(QStringLiteral("%1  %2\n%3").arg(m.username, display_time(m.timestamp), m.deleted ? QStringLiteral("消息已撤回") : m.text));
+        context_->item(context_->count() - 1)->setData(Qt::UserRole, m.id);
         if (m.id == anchor)
         {
             context_->setCurrentRow(context_->count() - 1);
@@ -221,27 +231,82 @@ void global_search_dialog::set_context(quint64 id, qint64 anchor, QList<message_
     }
     context_->scrollToItem(context_->currentItem(), QAbstractItemView::PositionAtCenter);
 }
-void global_search_dialog::refresh(qint64 conversation, bool lost_access)
+void global_search_dialog::discard(qint64 conversation, qint64 through)
 {
-    if (context_->isHidden())
-    {
-        if (request_ || results_->topLevelItemCount() || !status_->text().isEmpty())
-        {
-            search(0);
-        }
-        return;
-    }
-    results_stale_ = true;
     auto* current = results_->currentItem();
-    if (current && current->data(0, Qt::UserRole).toLongLong() == conversation)
+    if (!context_->isHidden() && current && current->data(0, Qt::UserRole).toLongLong() == conversation)
     {
-        if (lost_access)
+        if (current->data(1, Qt::UserRole).toLongLong() <= through)
         {
-            search(0);
+            show_results();
         }
-        else
+        else if (request_ || (context_->count() && context_->item(0)->data(Qt::UserRole).toLongLong() <= through))
         {
             open_context(current);
         }
+    }
+    if (request_ && context_->isHidden())
+    {
+        page_floors_[conversation] = std::max(through, page_floors_.value(conversation));
+    }
+    for (int i = results_->topLevelItemCount() - 1; i >= 0; --i)
+    {
+        auto* item = results_->topLevelItem(i);
+        if (item->data(0, Qt::UserRole).toLongLong() == conversation && item->data(1, Qt::UserRole).toLongLong() <= through)
+        {
+            delete results_->takeTopLevelItem(i);
+        }
+    }
+    if (!results_->topLevelItemCount() && !request_ && context_->isHidden())
+    {
+        status_->setText(QStringLiteral("没有找到相关消息"));
+    }
+}
+
+void global_search_dialog::updated(qint64 conversation, message_data const& message, QString const& error)
+{
+    if (!error.isEmpty())
+    {
+        return;
+    }
+    auto* current = results_->currentItem();
+    if (!context_->isHidden() && current && current->data(0, Qt::UserRole).toLongLong() == conversation)
+    {
+        auto included = request_ != 0;
+        for (int i = 0; !included && i < context_->count(); ++i)
+        {
+            included = context_->item(i)->data(Qt::UserRole).toLongLong() == message.id;
+        }
+        if (included)
+        {
+            open_context(current);
+        }
+    }
+    auto snippet = [&] { return message.deleted ? QString{} : search_snippet(message.text, query_->text()); };
+    for (int i = 0; i < results_->topLevelItemCount(); ++i)
+    {
+        auto* item = results_->topLevelItem(i);
+        if (item->data(1, Qt::UserRole).toLongLong() != message.id)
+        {
+            continue;
+        }
+        auto text = snippet();
+        if (text.isNull())
+        {
+            if (item == current && !context_->isHidden())
+            {
+                show_results();
+            }
+            delete results_->takeTopLevelItem(i);
+        }
+        else
+        {
+            item->setText(0, text);
+        }
+        return;
+    }
+    if (request_ && context_->isHidden())
+    {
+        page_edits_.insert(message.id, snippet());
     }
 }
