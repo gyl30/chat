@@ -25,9 +25,10 @@ struct attachment_info
 struct conversation_file
 {
     std::string object_key, filename, media_type;
-    std::int64_t size, uploader_id;
+    std::int64_t size = 0;
+    std::int64_t uploader_id = 0;
     std::string username;
-    std::int64_t created_at;
+    std::int64_t created_at = 0;
     std::string category;
 };
 struct conversation_file_page

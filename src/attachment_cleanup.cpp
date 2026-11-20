@@ -19,7 +19,7 @@ std::expected<void, sqlite_error> reserve_attachment_object(sqlite_database& db,
     }
     if (db.changes() != 1)
     {
-        return std::unexpected(sqlite_error{SQLITE_CONSTRAINT, "attachment object already belongs to a message"});
+        return std::unexpected(sqlite_error{SQLITE_CONSTRAINT, "file object already registered"});
     }
     return {};
 }

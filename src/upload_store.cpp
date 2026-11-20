@@ -74,7 +74,9 @@ upload_lookup begin_upload(sqlite_database& db, std::int64_t user, std::string c
     auto now = epoch_milliseconds();
     if (auto e = db.exec(R"SQL(
             INSERT INTO attachment_uploads(user_id,device,client_id,conversation,filename,media_type,size,checksum,part_size,state,created_at,touched)
-            VALUES(?,?,?,?,?,?,?,?,?,'active',?,?) ON CONFLICT(user_id,client_id) DO NOTHING
+            SELECT ?1,?2,?3,?4,?5,?6,?7,?8,?9,'active',?10,?10
+            WHERE NOT EXISTS(SELECT 1 FROM files WHERE uploader_id=?1 AND upload_client_id=?3)
+            ON CONFLICT(user_id,client_id) DO NOTHING
         )SQL",
                          user,
                          device,
@@ -85,7 +87,6 @@ upload_lookup begin_upload(sqlite_database& db, std::int64_t user, std::string c
                          input.size,
                          input.checksum,
                          chat::attachment_part_size,
-                         now,
                          now);
         e)
     {

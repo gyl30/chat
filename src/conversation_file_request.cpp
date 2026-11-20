@@ -89,7 +89,7 @@ std::expected<std::optional<chat::conversation_file_page>, sqlite_error> list_fi
     }
     return page;
 }
-std::expected<bool, sqlite_error> change_file(sqlite_database& db, std::int64_t user, file_params const& p, bool add)
+std::expected<std::optional<bool>, sqlite_error> change_file(sqlite_database& db, std::int64_t user, file_params const& p, bool add)
 {
     auto tx = sqlite_transaction::begin_immediate(db);
     if (!tx)
@@ -103,7 +103,7 @@ std::expected<bool, sqlite_error> change_file(sqlite_database& db, std::int64_t 
     }
     if (!*role)
     {
-        return false;
+        return std::nullopt;
     }
     if (add)
     {
@@ -114,7 +114,7 @@ std::expected<bool, sqlite_error> change_file(sqlite_database& db, std::int64_t 
         }
         if (!*allowed)
         {
-            return false;
+            return std::nullopt;
         }
         auto file = db.prepare(R"SQL(SELECT 1 FROM files WHERE object_key=? AND uploader_id=?
            AND NOT EXISTS(SELECT 1 FROM attachment_cleanup WHERE object_key=files.object_key AND reserved_at=0))SQL",
@@ -125,9 +125,13 @@ std::expected<bool, sqlite_error> change_file(sqlite_database& db, std::int64_t 
             return std::unexpected(file.error());
         }
         auto row = file->step();
-        if (!row || !*row)
+        if (!row)
         {
-            return row;
+            return std::unexpected(row.error());
+        }
+        if (!*row)
+        {
+            return std::nullopt;
         }
         if (auto e = db.exec("INSERT INTO conversation_files(conversation_id,object_key,created_at) VALUES(?,?,?) ON CONFLICT DO NOTHING",
                              p.conversation_id,
@@ -152,14 +156,15 @@ std::expected<bool, sqlite_error> change_file(sqlite_database& db, std::int64_t 
         }
         if (!db.changes())
         {
-            return false;
+            return std::nullopt;
         }
     }
+    bool const changed = db.changes() != 0;
     if (auto e = tx->commit(); e)
     {
         return std::unexpected(e);
     }
-    return true;
+    return changed;
 }
 }    // namespace
 boost::capy::task<simdjson::error_code> chat_session::handle_conversation_file(json_rpc_request& request, std::string& response)
@@ -217,5 +222,5 @@ boost::capy::task<simdjson::error_code> chat_session::handle_conversation_file(j
     {
         co_return fail(-32007, "Attachment unavailable");
     }
-    co_return serialize_json_rpc_success("{\"changed\":true}", std::move(request.id), response);
+    co_return serialize_json_rpc_success(**result ? "{\"changed\":true}" : "{\"changed\":false}", std::move(request.id), response);
 }

@@ -101,8 +101,8 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS messages_conversation_idx ON messages (conversation_id, id DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS messages_sender_client_id ON messages (sender_id, client_id) WHERE client_id IS NOT NULL;
 
--- Reservations are durable before PUT. A message claims its object in the
--- publishing transaction. Removing metadata transfers it back to cleanup.
+-- A positive reservation protects an unpublished upload. Its first reference claims it;
+-- removing its last reference queues the key (reserved_at=0) for deletion.
 CREATE TABLE IF NOT EXISTS attachment_cleanup (
     object_key TEXT PRIMARY KEY NOT NULL,
     reserved_at INTEGER NOT NULL
