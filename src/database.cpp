@@ -5,9 +5,9 @@
 #include "schema.hpp"
 #include "archive_reader.hpp"
 
-std::expected<sqlite_database, sqlite_error> database::open_connection(std::string const& path)
+std::expected<sqlite_database, sqlite_error> database::open_connection(std::string const& path, sqlite_database::open_mode mode)
 {
-    auto db = sqlite_database::open(path, true);
+    auto db = sqlite_database::open(path, mode);
     if (db)
     {
         if (auto error = register_archive_reader(*db); error)
@@ -20,7 +20,7 @@ std::expected<sqlite_database, sqlite_error> database::open_connection(std::stri
 
 std::expected<database::pointer, sqlite_error> database::open(std::string path)
 {
-    auto opened = open_connection(path);
+    auto opened = open_connection(path, sqlite_database::open_mode::incremental_vacuum);
     if (!opened)
     {
         return std::unexpected(std::move(opened.error()));

@@ -84,11 +84,12 @@ void sqlite3_stmt_deleter::operator()(sqlite3_stmt* statement) const noexcept
     }
 }
 
-std::expected<sqlite_database, sqlite_error> sqlite_database::open(std::string const& path, bool incremental_vacuum)
+std::expected<sqlite_database, sqlite_error> sqlite_database::open(std::string const& path, open_mode access)
 {
     sqlite_database result;
     sqlite3* handle = nullptr;
-    int const status = sqlite3_open_v2(path.c_str(), &handle, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr);
+    int const flags = access == open_mode::read_only ? SQLITE_OPEN_READONLY : SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
+    int const status = sqlite3_open_v2(path.c_str(), &handle, flags | SQLITE_OPEN_FULLMUTEX, nullptr);
     result.database_.reset(handle);
     if (status != SQLITE_OK)
     {
@@ -103,7 +104,7 @@ std::expected<sqlite_database, sqlite_error> sqlite_database::open(std::string c
         return std::unexpected(make_error(handle, code));
     }
 
-    if (incremental_vacuum)
+    if (access == open_mode::incremental_vacuum)
     {
         if (auto error = result.exec("PRAGMA auto_vacuum=INCREMENTAL"); error)
         {
@@ -117,6 +118,10 @@ std::expected<sqlite_database, sqlite_error> sqlite_database::open(std::string c
     if (int const code = sqlite3_busy_timeout(handle, 5000); code != SQLITE_OK)
     {
         return std::unexpected(make_error(handle, code));
+    }
+    if (access == open_mode::read_only)
+    {
+        return result;
     }
     {
         auto mode = result.prepare("PRAGMA journal_mode=WAL");

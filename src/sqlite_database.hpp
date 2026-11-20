@@ -48,7 +48,13 @@ class sqlite_database
 
     // Opens the connection, enables foreign keys, WAL, full synchronous
     // durability, and a finite busy timeout.
-    static std::expected<sqlite_database, sqlite_error> open(std::string const& path, bool incremental_vacuum = false);
+    enum class open_mode
+    {
+        read_write,
+        incremental_vacuum,
+        read_only,
+    };
+    static std::expected<sqlite_database, sqlite_error> open(std::string const& path, open_mode mode = open_mode::read_write);
 
     [[nodiscard]] sqlite3* native_handle() const noexcept { return database_.get(); }
     [[nodiscard]] bool is_open() const noexcept { return database_ != nullptr; }
