@@ -1,5 +1,10 @@
 #include "blocking_worker.hpp"
 
+#ifndef _WIN32
+#include <pthread.h>
+#include <signal.h>
+#endif
+
 blocking_worker::blocking_worker(std::size_t capacity, std::size_t parallelism) : capacity_(capacity)
 {
     threads_.reserve(parallelism);
@@ -42,6 +47,14 @@ std::optional<blocking_worker::unavailable> blocking_worker::enqueue(std::move_o
 
 void blocking_worker::execute(std::stop_token stop)
 {
+#ifndef _WIN32
+    // An interrupted TLS write (including close_notify) must return EPIPE to
+    // the transfer job. Leave the embedding application's signal policy alone.
+    sigset_t signals;
+    sigemptyset(&signals);
+    sigaddset(&signals, SIGPIPE);
+    pthread_sigmask(SIG_BLOCK, &signals, nullptr);
+#endif
     for (;;)
     {
         std::move_only_function<void()> job;
