@@ -40,6 +40,22 @@ mc ls --recursive --incomplete private/chat-bucket
 
 第一条比对对象 key、大小、完成文件、上传任务和回收队列。第二条还逐个流式下载核对 SHA-256，会产生完整下载流量。返回非零时按输出检查缺失对象、校验不符或孤儿候选。清单与数据库跨资源读取，在线报告的差异须在停止写入和回收后复核。孤儿候选由管理员核对备份和在途上传；检查命令仅列举差异。
 
+先核对部署的 Silo 版本、每个节点的有效 `api` 配置及环境覆盖。版本 `44e848fedf8c` 使用 `MINIO_API_STALE_UPLOADS_EXPIRY`（源码默认 24h）和 `MINIO_API_STALE_UPLOADS_CLEANUP_INTERVAL`（默认 6h）。该版本按上传创建时间清扫，旧元数据有时间回退。Chat 的 15 天从 `attachment_uploads.touched` 起算。桶级 `PutBucketLifecycle` 不支持 `AbortIncompleteMultipartUpload`。[配置源码](https://github.com/pgsty/silo/blob/44e848fedf8c/internal/config/api/api.go) · [清扫实现](https://github.com/pgsty/silo/blob/44e848fedf8c/cmd/erasure-multipart.go) · [S3 兼容性契约](https://silo.pigsty.io/reference/s3-api-compatibility/#differences-from-s3-apis-for-multipart-uploads)
+
+`mc ls --incomplete` 只作线索。上述版本的空前缀列表来自节点本地缓存，可能漏掉重启前或其他节点的上传；非空前缀按准确对象键处理。桶列表为空仍需核对数据库已知任务。[列表实现](https://github.com/pgsty/silo/blob/44e848fedf8c/cmd/erasure-server-pool.go)
+
+使用支持 `-readonly` 的 sqlite3 和已配置只读权限的 AWS CLI（或等效 S3 工具）。从服务端配置核对完整 endpoint URL 与 bucket，对待查记录使用数据库中的完整 `object_key` 和非空 `multipart` 值：
+
+```sh
+sqlite3 -readonly "$DB" 'SELECT object_key,multipart,state,touched FROM attachment_uploads;'
+aws --endpoint-url "$S3_ENDPOINT" s3api list-parts \
+  --bucket "$S3_BUCKET" --key "$OBJECT_KEY" --upload-id "$UPLOAD_ID"
+aws --endpoint-url "$S3_ENDPOINT" s3api head-object \
+  --bucket "$S3_BUCKET" --key "$OBJECT_KEY"
+```
+
+`ListParts` 查看未完成上传的分片；`HEAD` 检查已完成对象。`NoSuchUpload` 也可能来自正常完成或终止。结合 `files`、`message_attachments`、`conversation_files` 及 `attachment_cleanup` 中同一键的预留或回收状态判断。权限、证书或连接错误须单独排查。不要据空列表修改任务或终止上传。
+
 服务启动、运行期间和退出时会处理回收队列。撤回消息或移除群文件后仍有其他引用的对象继续保留。确认最后引用消失后由服务端删除对象；15 天未继续的上传先终止 multipart，再清理预留。检查未完成分片时，应结合数据库的上传状态、最后活动时间以及 Silo 的响应。Silo 不可达时，先检查 endpoint、证书、私有桶权限和凭据，恢复后观察队列是否下降。
 
 ## 日志
