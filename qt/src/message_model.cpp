@@ -214,6 +214,8 @@ QVariant message_model::data(QModelIndex const& index, int role) const
         case mentioned_role:
             return !message.deleted && group_ &&
                    std::ranges::any_of(message.mentions, [this](auto const& mention) { return mention.user == self_user_; });
+        case forwarded_from_role:
+            return message.deleted ? QString{} : message.forwarded_from;
         case sender_name_role:
             return message.username;
         case deleted_role:

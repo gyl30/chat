@@ -176,6 +176,7 @@ class client
     void pending_texts(pending_texts_handler handler);
     void retry_text(std::int64_t client_id, outbox_operation_handler handler);
     void discard_text(std::int64_t client_id, outbox_operation_handler handler);
+    void forward_message(std::int64_t conversation, std::int64_t source, std::int64_t client_id, message_result_handler handler);
     void delete_message(std::int64_t conversation, std::int64_t message, message_result_handler handler);
     void set_message_reaction(std::int64_t conversation, std::int64_t message, std::string emoji, reaction_result_handler handler);
     void send_attachment(std::int64_t conversation,

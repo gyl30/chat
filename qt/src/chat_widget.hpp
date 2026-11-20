@@ -6,6 +6,7 @@
 #include <QDeadlineTimer>
 #include <QElapsedTimer>
 #include <QList>
+#include <QModelIndex>
 #include <QSet>
 #include <QString>
 #include <QWidget>
@@ -30,7 +31,6 @@ class QLineEdit;
 class QPlainTextEdit;
 class QListView;
 class QListWidget;
-class QModelIndex;
 class QPushButton;
 class QSortFilterProxyModel;
 class QStackedWidget;
@@ -147,6 +147,7 @@ class chat_widget final : public QWidget
     void chat_history_requested(qint64 conversation, QString title);
     void group_message_pin_requested(qint64 conversation, std::optional<qint64> message);
     void add_file_requested(qint64 conversation, QString key);
+    void forward_requested(qint64 target, QList<qint64> messages);
     void attachment_send_requested(qint64 conversation, QString path, qint64 reply_to, qint64 client_id, bool group_only);
     void attachment_interrupt_requested(qint64 id, bool cancel, QString path);
     void attachment_open_requested(qint64 conversation, qint64 message, QString filename, bool preview);
@@ -171,6 +172,10 @@ class chat_widget final : public QWidget
     void setup_chat_header(QVBoxLayout* chat_layout);
     void setup_message_list(QVBoxLayout* chat_layout);
     void setup_composer(QVBoxLayout* chat_layout);
+    void set_message_selection(bool enabled);
+    QModelIndexList selected_messages() const;
+    void choose_forward_target(QList<qint64> messages);
+    void copy_selected_messages();
     void show_message_menu(QPoint position);
     void connect_chat_controls();
 
@@ -308,6 +313,7 @@ class chat_widget final : public QWidget
     QHash<qint64, peer_typing> typing_users_;
     QToolButton* connection_status_ = nullptr;
     QLabel* message_status_ = nullptr;
+    QWidget* selection_bar_ = nullptr;
     QListView* messages_view_ = nullptr;
     QWidget* input_bar_ = nullptr;
     QPlainTextEdit* message_edit_ = nullptr;

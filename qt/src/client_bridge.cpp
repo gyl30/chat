@@ -66,6 +66,7 @@ QList<mention_data> to_mentions(std::vector<chat::mention> const& values)
 message_data to_message_data(chat::message const& value)
 {
     message_data message;
+    message.forwarded_from = from_utf8(value.forwarded_from);
     message.id = value.id;
     message.conversation = value.conversation;
     message.from = value.from;
@@ -738,6 +739,34 @@ void client_bridge::get_messages(qint64 conversation, std::optional<qint64> befo
 void client_bridge::set_typing(qint64 conversation, bool typing)
 {
     client_->set_typing(conversation, typing, [](auto) {});
+}
+
+void client_bridge::forward_messages(qint64 target, QList<qint64> messages)
+{
+    if (messages.isEmpty())
+    {
+        return;
+    }
+    auto const source = messages.takeFirst();
+    client_->forward_message(
+        target,
+        source,
+        chat::client::new_client_id(),
+        [this, target, messages = std::move(messages), generation = connection_generation_.load()](auto result) mutable
+        {
+            post_result(
+                generation,
+                [this, target, messages = std::move(messages), result = std::move(result)]() mutable
+                {
+                    if (!result)
+                    {
+                        emit error(QStringLiteral("转发中断，剩余 %1 条尚未确认。%2").arg(messages.size() + 1).arg(display_error(result.error())));
+                        return;
+                    }
+                    emit message_received(to_message_data(*result));
+                    forward_messages(target, std::move(messages));
+                });
+        });
 }
 
 void client_bridge::send_message(qint64 conversation, QString text, qint64 reply_to, qint64 client_id)

@@ -51,6 +51,7 @@ Q_DECLARE_METATYPE(QList<mention_data>)
 
 struct message_data
 {
+    QString forwarded_from{};
     qint64 id = 0;
     qint64 conversation = 0;
     qint64 from = 0;

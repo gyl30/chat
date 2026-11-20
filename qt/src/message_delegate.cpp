@@ -181,6 +181,11 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     {
         result.text = reply + QStringLiteral("\n\n") + result.text;
     }
+    auto const origin = index.data(message_model::forwarded_from_role).toString();
+    if (!origin.isEmpty())
+    {
+        result.text = QStringLiteral("转发自 %1\n").arg(origin) + result.text;
+    }
     result.sender = index.data(message_model::sender_name_role).toString();
     result.time = time_text(index);
     if (!index.data(message_model::deleted_role).toBool() && index.data(message_model::edited_at_role).toLongLong() > 0)
@@ -593,6 +598,11 @@ bool message_delegate::editorEvent(QEvent* event, QAbstractItemModel* model, QSt
     }
 
     auto const* mouse = static_cast<QMouseEvent*>(event);
+    auto const* view = qobject_cast<QAbstractItemView const*>(option.widget);
+    if (view && view->selectionMode() == QAbstractItemView::ExtendedSelection)
+    {
+        return false;
+    }
     if (mouse->button() != Qt::LeftButton)
     {
         return false;

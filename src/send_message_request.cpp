@@ -27,6 +27,7 @@ struct[[= simdjson::deny_unknown_fields]] send_message_params
     std::optional<std::string> text;
     std::optional<std::int64_t> reply_to;
     std::optional<std::string> object_key;
+    std::optional<std::int64_t> forward;
     std::optional<std::int64_t> upload;
     std::optional<std::int64_t> client_id;
 };
@@ -199,11 +200,12 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
     send_message_params params{};
     bool const attaching = request.method == "finish_attachment";
     auto params_error = parse_send_message_params(request.params, params, attaching);
-    if (params_error ||
-        (attaching ? (!params.upload || *params.upload <= 0 || params.conversation != 0 || params.text.has_value())
-                   : (params.upload || params.conversation <= 0 ||
-                      (params.object_key ? (params.text.has_value() || params.object_key->empty()) : (!params.text || params.text->empty())) ||
-                      (params.text && params.text->contains('\0')) || !params.client_id || *params.client_id <= 0)))
+    if (params_error || (attaching ? (!params.upload || *params.upload <= 0 || params.conversation != 0 || params.text.has_value())
+                                   : (params.upload || params.conversation <= 0 ||
+                                      (params.forward      ? (*params.forward <= 0 || params.text || params.object_key || params.reply_to)
+                                       : params.object_key ? (params.text.has_value() || params.object_key->empty())
+                                                           : (!params.text || params.text->empty())) ||
+                                      (params.text && params.text->contains('\0')) || !params.client_id || *params.client_id <= 0)))
     {
         if (request.id.present)
         {
@@ -256,7 +258,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
             [&](sqlite_database& db) -> std::expected<send_outcome, sqlite_error>
             {
                 return persist_delivery(db,
-                                        {user, params.conversation, *params.client_id, params.text.value_or(""), params.reply_to},
+                                        {user, params.conversation, *params.client_id, params.text.value_or(""), params.reply_to, params.forward},
                                         request.id,
                                         params.object_key.value_or(""));
             });

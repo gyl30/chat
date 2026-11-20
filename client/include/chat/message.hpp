@@ -30,6 +30,7 @@ struct mention
 
 struct message
 {
+    std::string forwarded_from{};
     std::int64_t id = 0;
     std::int64_t conversation = 0;
     std::int64_t from = 0;

@@ -1228,6 +1228,42 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
     messages_view_->verticalScrollBar()->setSingleStep(24);
     chat_layout->addWidget(messages_view_, 1);
 
+    selection_bar_ = new QWidget(chat_panel);
+    auto* selection = new QHBoxLayout(selection_bar_);
+    auto* count = new QLabel(selection_bar_);
+    count->setObjectName(QStringLiteral("selectedMessageCount"));
+    selection->addWidget(count, 1);
+    auto* copy = new QPushButton(QStringLiteral("复制"), selection_bar_);
+    auto* forward = new QPushButton(QStringLiteral("转发"), selection_bar_);
+    auto* cancel = new QPushButton(QStringLiteral("退出多选"), selection_bar_);
+    selection->addWidget(copy);
+    selection->addWidget(forward);
+    selection->addWidget(cancel);
+    auto update_count = [this, count, copy, forward]
+    {
+        auto rows = selected_messages();
+        count->setText(QStringLiteral("已选 %1 条").arg(rows.size()));
+        copy->setEnabled(!rows.isEmpty());
+        forward->setEnabled(!rows.isEmpty() && connection_available_);
+    };
+    connect(messages_view_->selectionModel(), &QItemSelectionModel::selectionChanged, this, update_count);
+    connect(copy, &QPushButton::clicked, this, &chat_widget::copy_selected_messages);
+    connect(forward,
+            &QPushButton::clicked,
+            this,
+            [this]
+            {
+                QList<qint64> ids;
+                for (auto const& ix : selected_messages())
+                {
+                    ids.append(ix.data(message_model::id_role).toLongLong());
+                }
+                choose_forward_target(std::move(ids));
+            });
+    connect(cancel, &QPushButton::clicked, this, [this] { set_message_selection(false); });
+    update_count();
+    selection_bar_->hide();
+    chat_layout->addWidget(selection_bar_);
     reply_bar_ = new QWidget(chat_panel);
     auto* reply_layout = new QHBoxLayout(reply_bar_);
     reply_preview_ = new emoji_label(reply_bar_);
@@ -1407,6 +1443,67 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     chat_layout->addWidget(input_bar);
 }
 
+QModelIndexList chat_widget::selected_messages() const
+{
+    auto rows = messages_view_->selectionModel()->selectedIndexes();
+    rows.removeIf([](QModelIndex const& ix)
+                  { return ix.data(message_model::id_role).toLongLong() <= 0 || ix.data(message_model::deleted_role).toBool(); });
+    std::ranges::sort(rows, {}, &QModelIndex::row);
+    return rows;
+}
+void chat_widget::set_message_selection(bool enabled)
+{
+    messages_view_->clearSelection();
+    messages_view_->setSelectionMode(enabled ? QAbstractItemView::ExtendedSelection : QAbstractItemView::NoSelection);
+    selection_bar_->setVisible(enabled);
+}
+void chat_widget::copy_selected_messages()
+{
+    QStringList lines;
+    for (auto const& ix : selected_messages())
+    {
+        lines.append(ix.data(message_model::text_role).toString());
+    }
+    if (!lines.isEmpty())
+    {
+        QApplication::clipboard()->setText(lines.join(u'\n'));
+    }
+}
+void chat_widget::choose_forward_target(QList<qint64> messages)
+{
+    if (!connection_available_ || messages.isEmpty())
+    {
+        return;
+    }
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("选择转发目标"));
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* targets = new QListWidget(&dialog);
+    layout->addWidget(targets);
+    for (int row = 0; row < conversations_->rowCount(); ++row)
+    {
+        auto ix = conversations_->index(row, 0);
+        auto* item = new QListWidgetItem(ix.data().toString(), targets);
+        item->setData(Qt::UserRole, conversations_->conversation_at(ix)->id);
+    }
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    buttons->button(QDialogButtonBox::Ok)->setText(QStringLiteral("转发"));
+    buttons->button(QDialogButtonBox::Ok)->setEnabled(false);
+    connect(targets, &QListWidget::currentRowChanged, &dialog, [buttons](int row) { buttons->button(QDialogButtonBox::Ok)->setEnabled(row >= 0); });
+    connect(targets, &QListWidget::itemDoubleClicked, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    auto const owner = self_user_;
+    auto const source = active_conversation_;
+    if (dialog.exec() == QDialog::Accepted && targets->currentItem() && connection_available_ && owner == self_user_ &&
+        source == active_conversation_)
+    {
+        emit forward_requested(targets->currentItem()->data(Qt::UserRole).toLongLong(), std::move(messages));
+        set_message_selection(false);
+    }
+}
+
 void chat_widget::show_message_menu(QPoint position)
 {
     auto const index = messages_view_->indexAt(position);
@@ -1423,6 +1520,8 @@ void chat_widget::show_message_menu(QPoint position)
     auto const message_id = index.data(message_model::id_role).toLongLong();
     auto const message_text = index.data(message_model::text_role).toString();
     auto* copy = !message_text.isEmpty() ? menu.addAction(QStringLiteral("复制")) : nullptr;
+    auto* forward = menu.addAction(QStringLiteral("转发"));
+    auto* multi = menu.addAction(QStringLiteral("多选"));
     auto* reply = can_send() ? menu.addAction(QStringLiteral("回复")) : nullptr;
     auto const sender_name = index.data(message_model::sender_name_role).toString();
     auto const current = conversation(active_conversation_);
@@ -1476,8 +1575,10 @@ void chat_widget::show_message_menu(QPoint position)
     auto* preview = index.data(message_model::attachment_type_role).toString().startsWith(QStringLiteral("image/"))
                         ? menu.addAction(QStringLiteral("查看图片"))
                         : nullptr;
-    auto* edit =
-        can_send() && filename.isEmpty() && index.data(message_model::outgoing_role).toBool() ? menu.addAction(QStringLiteral("编辑")) : nullptr;
+    auto* edit = can_send() && filename.isEmpty() && index.data(message_model::forwarded_from_role).toString().isEmpty() &&
+                         index.data(message_model::outgoing_role).toBool()
+                     ? menu.addAction(QStringLiteral("编辑"))
+                     : nullptr;
     auto* remove = index.data(message_model::outgoing_role).toBool() ? menu.addAction(QStringLiteral("删除")) : nullptr;
     auto* selected = menu.exec(messages_view_->viewport()->mapToGlobal(position));
     if (copy && selected == copy)
@@ -1488,6 +1589,19 @@ void chat_widget::show_message_menu(QPoint position)
     }
     if (!connection_available_ || conversation != active_conversation_)
     {
+        return;
+    }
+    if (selected == forward)
+    {
+        choose_forward_target({message_id});
+        return;
+    }
+    if (selected == multi && reaction_index.isValid())
+    {
+        set_message_selection(true);
+        messages_view_->setCurrentIndex(reaction_index);
+        messages_view_->selectionModel()->select(reaction_index, QItemSelectionModel::ClearAndSelect);
+        messages_view_->setFocus();
         return;
     }
     if (group_pin && selected == group_pin)
@@ -1721,6 +1835,7 @@ void chat_widget::set_user(QString const& username, qint64 user)
     conversations_view_->setCurrentIndex({});
     set_list_status(QStringLiteral("暂无会话"));
     messages_->set_self_user(user);
+    set_message_selection(false);
     messages_->reset(0);
     contacts_->set_users({});
     set_friend_groups({});
@@ -1943,6 +2058,20 @@ bool chat_widget::eventFilter(QObject* object, QEvent* event)
                 send_current_message();
                 return true;
             }
+        }
+    }
+    if (object == messages_view_ && event->type() == QEvent::KeyPress && messages_view_->selectionMode() == QAbstractItemView::ExtendedSelection)
+    {
+        auto* key = static_cast<QKeyEvent*>(event);
+        if (key->key() == Qt::Key_Escape)
+        {
+            set_message_selection(false);
+            return true;
+        }
+        if (key->matches(QKeySequence::Copy))
+        {
+            copy_selected_messages();
+            return true;
         }
     }
     if (object == messages_view_ && event->type() == QEvent::KeyPress && static_cast<QKeyEvent*>(event)->matches(QKeySequence::Copy))
@@ -3167,6 +3296,7 @@ void chat_widget::open_conversation(conversation_data conversation)
     message_search_action_->setEnabled(connection_available_);
     history_button_->setEnabled(connection_available_);
     chat_more_button_->setEnabled(true);
+    set_message_selection(false);
     messages_->reset(active_conversation_, active_group_);
     show_outgoing();
     update_pinned_message();
@@ -3256,6 +3386,7 @@ void chat_widget::leave_conversation(qint64 conversation)
     pending_locate_ = 0;
     reply_to_ = 0;
     reply_bar_->hide();
+    set_message_selection(false);
     messages_->reset(0);
     images_.remove(conversation);
     conversations_view_->setCurrentIndex({});

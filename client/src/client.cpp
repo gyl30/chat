@@ -300,6 +300,10 @@ bool parse_mentions(boost::json::object const& object, std::vector<mention>& res
 
 bool parse_message(boost::json::object const& object, message& value)
 {
+    if (auto* origin = object.if_contains("forwarded_from"); origin && origin->is_string())
+    {
+        value.forwarded_from = std::string(origin->as_string());
+    }
     auto const* id_value = object.if_contains("id");
     auto const* from_value = object.if_contains("from");
     auto const* timestamp_value = object.if_contains("timestamp");
@@ -2427,32 +2431,30 @@ struct client::impl
         co_return;
     }
 
-    boost::capy::task<> update_message(
-        std::string method, std::int64_t conversation, std::int64_t id, std::optional<std::string> text, message_result_handler handler)
+    boost::capy::task<> request_message(std::string method,
+                                        boost::json::object params,
+                                        std::int64_t conversation,
+                                        std::optional<std::int64_t> expected_id,
+                                        message_result_handler handler)
     {
-        boost::json::object params{{"conversation", conversation}, {"message", id}};
-        if (text)
-        {
-            params.emplace("text", std::move(*text));
-        }
-        send_request(
-            std::move(method),
-            std::move(params),
-            [conversation, id, handler = std::move(handler)](auto result) mutable
-            {
-                if (!result)
-                {
-                    handler(std::unexpected(std::move(result.error())));
-                    return;
-                }
-                message value;
-                if (!result->is_object() || !parse_message(result->as_object(), value) || value.conversation != conversation || value.id != id)
-                {
-                    handler(std::unexpected(make_error(error_kind::protocol, "Invalid message result")));
-                    return;
-                }
-                handler(std::move(value));
-            });
+        send_request(std::move(method),
+                     std::move(params),
+                     [conversation, expected_id, handler = std::move(handler)](auto result) mutable
+                     {
+                         if (!result)
+                         {
+                             handler(std::unexpected(std::move(result.error())));
+                             return;
+                         }
+                         message value;
+                         if (!result->is_object() || !parse_message(result->as_object(), value) || value.conversation != conversation ||
+                             (expected_id && value.id != *expected_id))
+                         {
+                             handler(std::unexpected(make_error(error_kind::protocol, "Invalid message result")));
+                             return;
+                         }
+                         handler(std::move(value));
+                     });
         co_return;
     }
 
@@ -3315,10 +3317,15 @@ void client::get_attachment(std::int64_t conversation, std::int64_t message, std
         impl_->get_attachment("get_attachment", {{"conversation", conversation}, {"message", message}}, std::move(path), limit, std::move(handler)));
 }
 
+void client::forward_message(std::int64_t conversation, std::int64_t source, std::int64_t client_id, message_result_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->request_message(
+        "send_message", {{"conversation", conversation}, {"forward", source}, {"client_id", client_id}}, conversation, {}, std::move(handler)));
+}
 void client::delete_message(std::int64_t conversation, std::int64_t message, message_result_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(
-        impl_->update_message("delete_message", conversation, message, std::nullopt, std::move(handler)));
+        impl_->request_message("delete_message", {{"conversation", conversation}, {"message", message}}, conversation, message, std::move(handler)));
 }
 
 void client::set_message_reaction(std::int64_t conversation, std::int64_t message, std::string emoji, reaction_result_handler handler)
@@ -3330,7 +3337,11 @@ void client::set_message_reaction(std::int64_t conversation, std::int64_t messag
 void client::edit_message(std::int64_t conversation, std::int64_t message, std::string text, message_result_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(
-        impl_->update_message("edit_message", conversation, message, std::move(text), std::move(handler)));
+        impl_->request_message("edit_message",
+                               {{"conversation", conversation}, {"message", message}, {"text", std::move(text)}},
+                               conversation,
+                               message,
+                               std::move(handler)));
 }
 
 void client::search_users(std::string query, users_handler handler)

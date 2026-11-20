@@ -19,7 +19,7 @@ std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_
         auto query = db.prepare(R"SQL(
             SELECT m.id, m.conversation_id, m.deleted,
                    EXISTS(SELECT 1 FROM message_attachments WHERE message_id=m.id),
-                   EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=m.conversation_id AND user_id=?1)
+                   EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=m.conversation_id AND user_id=?1),coalesce(m.forward_source,0)
             FROM messages m WHERE m.sender_id=?1 AND m.client_id=?2
         )SQL",
                                 message.sender,
@@ -35,7 +35,8 @@ std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_
         }
         if (*row)
         {
-            if (query->column_int64(1) != message.conversation || (query->column_int64(2) == 0 && ((query->column_int64(3) != 0) != attachment)))
+            if (query->column_int64(1) != message.conversation || query->column_int64(5) != message.forward_source.value_or(0) ||
+                (!message.forward_source && query->column_int64(2) == 0 && ((query->column_int64(3) != 0) != attachment)))
             {
                 return message_write_outcome{invalid_client_id};
             }
@@ -98,8 +99,39 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
         return **preflight;
     }
 
-    std::string filename;
-    if (!object_key.empty())
+    std::string body;
+    std::string source_key;
+    std::optional<std::int64_t> original_sender;
+    if (message.forward_source)
+    {
+        // Read the original and establish the new reference in the same write transaction.
+        auto source = db.prepare(R"SQL(
+            SELECT m.body,coalesce(m.original_sender,m.sender_id),ref.object_key FROM messages m
+            JOIN conversation_members own ON own.conversation_id=m.conversation_id AND own.user_id=?2
+            LEFT JOIN message_attachments ref ON ref.message_id=m.id
+            WHERE m.id=?1 AND m.id>own.visible_after AND NOT m.deleted
+        )SQL",
+                                 *message.forward_source,
+                                 message.sender);
+        if (!source)
+        {
+            return std::unexpected(source.error());
+        }
+        auto row = source->step();
+        if (!row)
+        {
+            return std::unexpected(row.error());
+        }
+        if (!*row)
+        {
+            return message_write_outcome{message_write_rejection::unavailable};
+        }
+        body = source->column_text(0);
+        original_sender = source->column_int64(1);
+        source_key = source->column_text(2);
+        object_key = source_key;
+    }
+    else if (!object_key.empty())
     {
         auto q = db.prepare(R"SQL(SELECT filename FROM files WHERE object_key=?1 AND uploader_id=?2
                   AND NOT EXISTS(SELECT 1 FROM attachment_cleanup WHERE object_key=?1 AND reserved_at=0))SQL",
@@ -118,19 +150,21 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
         {
             return message_write_outcome{message_write_rejection::unavailable};
         }
-        filename = q->column_text(0);
+        body = q->column_text(0);
     }
     auto const now = epoch_milliseconds();
     if (auto error = db.exec(R"SQL(
-        INSERT INTO messages(sender_id,conversation_id,client_id,body,reply_to_id,created_at)
-        VALUES(?1,?2,?3,?4,?5,?6)
+        INSERT INTO messages(sender_id,conversation_id,client_id,body,reply_to_id,created_at,forward_source,original_sender)
+        VALUES(?1,?2,?3,?4,?5,?6,?7,?8)
     )SQL",
                              message.sender,
                              message.conversation,
                              message.client_id,
-                             object_key.empty() ? message.text : std::string_view(filename),
+                             message.forward_source || !object_key.empty() ? std::string_view(body) : message.text,
                              message.reply_to,
-                             now);
+                             now,
+                             message.forward_source,
+                             original_sender);
         error)
     {
         return std::unexpected(std::move(error));

@@ -36,7 +36,7 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                     FROM messages pm JOIN users pu ON pu.id=pm.sender_id
                     WHERE pm.id=c.pinned_message_id AND pm.conversation_id=c.id AND pm.deleted=0 AND pm.id>c.visible_after)),
                 'last',json((SELECT json_object('id',m.id,'conversation',m.conversation_id,'from',m.sender_id,
-                    'username',author.username,'timestamp',m.created_at,'text',m.body,'edited_at',m.edited_at,
+                    'username',author.username,'timestamp',m.created_at,'text',m.body,'forwarded_from',coalesce((SELECT username FROM users WHERE id=m.original_sender AND m.deleted=0),''),'edited_at',m.edited_at,
                     'deleted',json(CASE WHEN m.deleted THEN 'true' ELSE 'false' END),
                     'avatar_revision',author.avatar_revision,
                     'has_avatar',json(CASE WHEN sender_avatar.user_id IS NULL THEN 'false' ELSE 'true' END),

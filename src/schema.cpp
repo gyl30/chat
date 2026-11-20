@@ -105,12 +105,16 @@ CREATE TABLE IF NOT EXISTS messages (
     conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
     sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     body TEXT NOT NULL,
+    forward_source INTEGER,
+    original_sender INTEGER REFERENCES users(id),
+
     created_at INTEGER NOT NULL,
     reply_to_id INTEGER REFERENCES messages(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED,
     edited_at INTEGER,
     deleted INTEGER NOT NULL DEFAULT 0 CHECK (deleted IN (0, 1)),
     reaction_revision INTEGER NOT NULL DEFAULT 0 CHECK (reaction_revision >= 0),
     client_id INTEGER CHECK (client_id IS NULL OR client_id > 0),
+    CHECK ((forward_source IS NULL) = (original_sender IS NULL)),
     CHECK ((deleted = 1 AND body = '') OR (deleted = 0 AND length(body) > 0))
 );
 

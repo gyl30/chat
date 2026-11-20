@@ -74,6 +74,7 @@ class client_bridge final : public QObject
     void cancel_friend_request(qint64 user);
     void get_presence();
     void get_messages(qint64 conversation, std::optional<qint64> before = {}, std::optional<qint64> after = {});
+    void forward_messages(qint64 target, QList<qint64> messages);
     void send_message(qint64 conversation, QString text, qint64 reply_to, qint64 client_id);
     void restore_texts();
     void change_pending_text(qint64 client_id, bool discard);

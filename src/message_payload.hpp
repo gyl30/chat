@@ -11,6 +11,7 @@
 
 struct message_payload
 {
+    std::string forwarded_from{};
     std::int64_t id = 0;
     std::int64_t conversation = 0;
     std::int64_t from = 0;
@@ -33,6 +34,7 @@ struct message_payload
 inline message_payload make_message_payload(chat::message const& message, bool include_client_id = false)
 {
     message_payload value;
+    value.forwarded_from = message.forwarded_from;
     value.id = message.id;
     value.conversation = message.conversation;
     value.from = message.from;
