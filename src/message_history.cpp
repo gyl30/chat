@@ -142,7 +142,8 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
                                                                                        std::int64_t conversation,
                                                                                        std::optional<std::int64_t> before,
                                                                                        std::optional<std::int64_t> after,
-                                                                                       std::string_view search)
+                                                                                       std::string_view search,
+                                                                                       std::optional<std::int64_t> around)
 {
     auto snapshot = sqlite_transaction::begin_read(db);
     if (!snapshot)
@@ -181,42 +182,60 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
         return std::nullopt;
     }
 
-    std::string query(kMessageColumns);
-    query += "WHERE m.conversation_id=?2 AND (?5='' OR (m.deleted=0 AND instr(chat_lower(m.body),chat_lower(?5))>0)) AND ";
-    query += after ? "m.id>?3 ORDER BY m.id ASC" : "m.id<?3 ORDER BY m.id DESC";
-    query += " LIMIT ?4";
-    auto page = db.prepare(query,
-                           user,
-                           conversation,
-                           after.value_or(before.value_or(std::numeric_limits<std::int64_t>::max())),
-                           static_cast<std::int64_t>(kPageSize + 1),
-                           search);
-    if (!page)
+    // Both halves of an anchored page share the membership snapshot and the same row decoder.
+    auto read_page = [&](std::string_view range, std::int64_t cursor, std::size_t limit) -> std::expected<bool, sqlite_error>
     {
-        return std::unexpected(std::move(page.error()));
-    }
-
-    for (;;)
+        std::string query(kMessageColumns);
+        query += "WHERE m.conversation_id=?2 AND (?5='' OR (m.deleted=0 AND instr(chat_lower(m.body),chat_lower(?5))>0)) AND ";
+        query += range;
+        query += " LIMIT ?4";
+        auto page = db.prepare(query, user, conversation, cursor, static_cast<std::int64_t>(limit + 1), search);
+        if (!page)
+        {
+            return std::unexpected(std::move(page.error()));
+        }
+        for (std::size_t count = 0;; ++count)
+        {
+            auto row = page->step();
+            if (!row)
+            {
+                return std::unexpected(std::move(row.error()));
+            }
+            if (!*row)
+            {
+                return false;
+            }
+            if (count == limit)
+            {
+                return true;
+            }
+            result.messages.push_back(read_message_row(*page, user, conversation));
+        }
+    };
+    auto more = read_page(after ? "m.id>?3 ORDER BY m.id ASC" : "m.id<?3 ORDER BY m.id DESC",
+                          around.value_or(after.value_or(before.value_or(std::numeric_limits<std::int64_t>::max()))),
+                          around ? 20 : kPageSize);
+    if (!more)
     {
-        auto row = page->step();
-        if (!row)
-        {
-            return std::unexpected(std::move(row.error()));
-        }
-        if (!*row)
-        {
-            break;
-        }
-        if (result.messages.size() == kPageSize)
-        {
-            result.has_more = true;
-            break;
-        }
-        result.messages.push_back(read_message_row(*page, user, conversation));
+        return std::unexpected(std::move(more.error()));
     }
+    result.has_more = *more;
     if (!after)
     {
         std::ranges::reverse(result.messages);
+    }
+    if (around)
+    {
+        auto index = result.messages.size();
+        auto newer = read_page("m.id>=?3 ORDER BY m.id ASC", *around, 21);
+        if (!newer)
+        {
+            return std::unexpected(std::move(newer.error()));
+        }
+        if (index == result.messages.size() || result.messages[index].id != *around || result.messages[index].deleted)
+        {
+            return std::nullopt;
+        }
     }
     if (auto populated = populate_interactions(db, result.messages); !populated)
     {
@@ -327,4 +346,59 @@ std::expected<std::optional<read_position_change>, sqlite_error> update_read_pos
         return std::unexpected(std::move(error));
     }
     return change;
+}
+
+std::expected<chat::message_search_page, sqlite_error> search_all_messages(sqlite_database& db,
+                                                                           std::int64_t user,
+                                                                           std::string_view query,
+                                                                           std::optional<std::int64_t> before)
+{
+    // Limit authorized matches before looking up display names and building snippets.
+    auto page = db.prepare(R"SQL(
+        WITH hits AS MATERIALIZED (
+            SELECT m.id FROM conversation_members own CROSS JOIN messages m ON m.conversation_id=own.conversation_id
+            WHERE own.user_id=?1 AND m.id>own.joined_message_id AND m.id<=coalesce(?3-1,9223372036854775807)
+              AND m.deleted=0 AND instr(chat_lower(m.body),chat_lower(?2))>0
+            ORDER BY m.id DESC LIMIT ?4
+        )
+        SELECT c.id,m.id,m.sender_id,m.created_at,coalesce(c.title,peer.username),u.username,
+               substr(m.body,max(1,instr(chat_lower(m.body),chat_lower(?2))-32),160)
+        FROM hits JOIN messages m ON m.id=hits.id JOIN conversations c ON c.id=m.conversation_id
+        JOIN users u ON u.id=m.sender_id LEFT JOIN users peer ON peer.id=CASE WHEN c.direct_user_low=?1 THEN c.direct_user_high ELSE c.direct_user_low END
+        ORDER BY m.id DESC
+    )SQL",
+                           user,
+                           query,
+                           before,
+                           static_cast<std::int64_t>(kPageSize + 1));
+    if (!page)
+    {
+        return std::unexpected(std::move(page.error()));
+    }
+    chat::message_search_page result;
+    for (;;)
+    {
+        auto row = page->step();
+        if (!row)
+        {
+            return std::unexpected(std::move(row.error()));
+        }
+        if (!*row)
+        {
+            break;
+        }
+        if (result.messages.size() == kPageSize)
+        {
+            result.next_before = result.messages.back().id;
+            break;
+        }
+        result.messages.push_back({page->column_int64(0),
+                                   page->column_int64(1),
+                                   page->column_int64(2),
+                                   page->column_int64(3),
+                                   std::string(page->column_text(4)),
+                                   std::string(page->column_text(5)),
+                                   std::string(page->column_text(6))});
+    }
+    return result;
 }

@@ -54,6 +54,23 @@ struct read_position
     std::int64_t message = 0;
 };
 
+struct message_search_hit
+{
+    std::int64_t conversation;
+    std::int64_t id;
+    std::int64_t from;
+    std::int64_t timestamp;
+    std::string title;
+    std::string username;
+    std::string snippet;
+};
+
+struct message_search_page
+{
+    std::vector<message_search_hit> messages;
+    std::optional<std::int64_t> next_before;
+};
+
 struct messages_result
 {
     std::vector<message> messages;

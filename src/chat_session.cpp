@@ -302,7 +302,7 @@ boost::capy::task<simdjson::error_code> chat_session::dispatch_request(json_rpc_
     {
         co_return co_await handle_get_conversations(request, response);
     }
-    if (request.method == kGetMessagesMethod || request.method == "search_messages")
+    if (request.method == kGetMessagesMethod || request.method == "search_messages" || request.method == "search_all_messages")
     {
         co_return co_await handle_get_messages(request, response);
     }
