@@ -1328,11 +1328,15 @@ void main_window::connect_messages()
         [this](message_data message)
         {
             auto const user = message.conversation;
+            auto const outgoing = message.from == chat_page_->self_user();
             notify_message(message);
             chat_page_->add_message(user, std::move(message));
-            if (!reading_conversation(user))
+            if (outgoing || !reading_conversation(user))
             {
                 client_->get_conversations();
+            }
+            if (!outgoing && !reading_conversation(user))
+            {
                 client_->get_presence();
             }
         },

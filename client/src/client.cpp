@@ -1057,11 +1057,14 @@ struct client::impl
     boost::capy::task<> authenticate(std::string username, std::string password, authenticate_handler handler)
     {
         boost::json::object params;
-        params.emplace("username", std::move(username));
+        params.emplace("username", username);
         params.emplace("password", std::move(password));
         if (!account_)
         {
-            outbox_account_ = 0;
+            if (username != outbox_username_)
+            {
+                outbox_account_ = 0;
+            }
             // An unavailable upload directory must not prevent login or downloads.
             journal_ = {};
             if (auto db = detail::open_transfer_journal(transfer_directory_, endpoint_))
@@ -1075,7 +1078,7 @@ struct client::impl
         }
         send_request("authenticate",
                      std::move(params),
-                     [this, handler = std::move(handler)](auto response) mutable
+                     [this, username = std::move(username), handler = std::move(handler)](auto response) mutable
                      {
                          if (!response)
                          {
@@ -1111,6 +1114,7 @@ struct client::impl
                          {
                              account_ = value.user;
                              outbox_account_ = value.user;
+                             outbox_username_ = std::move(username);
                          }
                          handler(value);
                          if (value.authenticated)
@@ -1784,8 +1788,7 @@ struct client::impl
                     }
                     report_error(outbox_error("服务器已确认消息，但无法清理本地待发送记录"));
                 }
-                else if (!response && response.error().kind == error_kind::rpc &&
-                         (response.error().code == conversation_unavailable || response.error().code == -32602))
+                else if (!response && response.error().kind == error_kind::rpc)
                 {
                     if (!journal_.exec("UPDATE text_outbox SET rejection=? WHERE user=? AND client=?", response.error().code, user, item.client_id))
                     {
@@ -1802,7 +1805,7 @@ struct client::impl
                     report_error(response ? make_error(error_kind::protocol, "Invalid send_message result") : response.error());
                 }
                 // An ambiguous outcome must not overtake an earlier message in this conversation.
-                deferred_text_conversations_.insert(item.conversation);
+                deferred_text_conversations_.emplace(item.conversation, item.client_id);
                 item.state = outbox_state::queued;
                 notify_outbox(std::move(item));
                 send_next_text();
@@ -1811,7 +1814,7 @@ struct client::impl
 
     boost::capy::task<> queue_text(pending_text item, outbox_operation_handler handler)
     {
-        if (account_ == 0 || account_ != outbox_account_)
+        if (outbox_account_ == 0)
         {
             handler(std::unexpected(make_error(error_kind::transport, "Not authenticated")));
             co_return;
@@ -1830,7 +1833,7 @@ struct client::impl
         }
         item.created = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         if (journal_.exec("INSERT INTO text_outbox(user,client,conversation,body,reply,created) VALUES(?,?,?,?,NULLIF(?,0),?)",
-                          account_,
+                          outbox_account_,
                           item.client_id,
                           item.conversation,
                           item.text,
@@ -1872,6 +1875,10 @@ struct client::impl
         {
             handler(std::unexpected(outbox_error("无法更新本地待发送消息")));
             co_return;
+        }
+        if (discard)
+        {
+            std::erase_if(deferred_text_conversations_, [id](auto const& head) { return head.second == id; });
         }
         handler({});
         send_next_text();
@@ -2697,9 +2704,11 @@ struct client::impl
     std::string transfer_directory_, endpoint_;
     sqlite_database journal_;
     std::int64_t account_ = 0;
+    // Keep the authenticated journal owner across transport loss, including a same-user reconnect.
     std::int64_t outbox_account_ = 0;
+    std::string outbox_username_;
     std::unordered_map<std::int64_t, std::int64_t> sending_texts_;
-    std::unordered_set<std::int64_t> deferred_text_conversations_;
+    std::unordered_map<std::int64_t, std::int64_t> deferred_text_conversations_;
     outbox_handler outbox_handler_;
     blocking_worker file_worker_{64, 2};
     std::shared_ptr<std::atomic_bool> transfer_stop_ = std::make_shared<std::atomic_bool>(false);

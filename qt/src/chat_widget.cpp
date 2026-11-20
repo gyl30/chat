@@ -1048,6 +1048,7 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
             this,
             [this]
             {
+                draft_edited();
                 reply_to_ = 0;
                 reply_bar_->hide();
                 message_edit_->setFocus();
@@ -1387,6 +1388,7 @@ void chat_widget::show_message_menu(QPoint position)
     {
         return;
     }
+    draft_edited();
     reply_to_ = message_id;
     reply_preview_->setText(QStringLiteral("回复 %1：%2").arg(sender_name, grapheme_prefix(message_text, 80)));
     reply_bar_->show();
@@ -1452,6 +1454,7 @@ void chat_widget::connect_chat_controls()
             this,
             [this]
             {
+                draft_edited();
                 update_compose_state();
                 if (!can_send())
                 {
@@ -2761,14 +2764,17 @@ bool chat_widget::is_contact(qint64 user) const
     return false;
 }
 
-bool chat_widget::can_send() const { return connection_available_ && conversation(active_conversation_).has_value(); }
+bool chat_widget::can_queue_text() const { return conversation(active_conversation_).has_value(); }
+
+bool chat_widget::can_send() const { return connection_available_ && can_queue_text(); }
 
 void chat_widget::update_compose_state()
 {
     input_bar_->setVisible(active_conversation_ > 0);
-    auto const allowed = can_send();
-    message_edit_->setEnabled(allowed);
-    send_button_->setEnabled(allowed && !saving_text_ && !message_edit_->toPlainText().isEmpty());
+    auto const compose = can_queue_text();
+    auto const allowed = connection_available_ && compose;
+    message_edit_->setEnabled(compose);
+    send_button_->setEnabled(compose && !saving_text_ && !message_edit_->toPlainText().isEmpty());
     attachment_button_->setEnabled(allowed);
     emoji_button_->setEnabled(allowed);
     message_edit_->setPlaceholderText(QStringLiteral("输入消息…"));
@@ -3126,19 +3132,25 @@ void chat_widget::request_older_messages()
 void chat_widget::send_current_message()
 {
     auto text = message_edit_->toPlainText();
-    if (!can_send() || saving_text_ || text.isEmpty())
+    if (!can_queue_text() || saving_text_ || text.isEmpty())
     {
         return;
     }
     auto const id = chat::client::new_client_id();
     saving_text_ = text_save{
         .client_id = id,
-        .conversation = active_conversation_,
-        .reply = reply_to_,
-        .document_revision = message_edit_->document()->revision(),
+        .draft_conversation = active_conversation_,
     };
     update_compose_state();
     emit send_message_requested(active_conversation_, std::move(text), reply_to_, id);
+}
+
+void chat_widget::draft_edited()
+{
+    if (saving_text_ && saving_text_->draft_conversation == active_conversation_)
+    {
+        saving_text_->draft_conversation.reset();
+    }
 }
 
 void chat_widget::finish_text_save(qint64 client_id, QString error)
@@ -3153,14 +3165,17 @@ void chat_widget::finish_text_save(qint64 client_id, QString error)
     {
         set_error(std::move(error));
     }
-    else if (saved.conversation == active_conversation_ && saved.reply == reply_to_ &&
-             saved.document_revision == message_edit_->document()->revision())
+    else if (saved.draft_conversation == active_conversation_)
     {
         stop_typing();
         reply_to_ = 0;
         reply_bar_->hide();
         QSignalBlocker const blocker(message_edit_);
         message_edit_->clear();
+    }
+    else if (saved.draft_conversation)
+    {
+        drafts_.remove(*saved.draft_conversation);
     }
     update_compose_state();
 }

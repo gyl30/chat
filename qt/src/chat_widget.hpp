@@ -89,7 +89,7 @@ class chat_widget final : public QWidget
     void restore_attachment(qint64 conversation, qint64 id, QString path, qint64 size, qint64 reply, qint64 confirmed);
     void attachment_progress(qint64 id, qint64 bytes, qint64 total);
     void attachment_cancelled(qint64 id);
-    // Sends not confirmed yet, which quitting or signing out would lose.
+    // Only an unfinished local write still needs a quit warning.
     bool saving_text() const { return saving_text_.has_value(); }
     void set_message_error(qint64 user, QString message);
 
@@ -196,12 +196,14 @@ class chat_widget final : public QWidget
     void open_chat(qint64 user, QString username);
     bool is_contact(qint64 user) const;
     chat::friendship_state friend_state(qint64 user) const;
+    bool can_queue_text() const;
     bool can_send() const;
     void update_compose_state();
     void create_group();
     void request_older_messages();
     void continue_locate();
     void send_current_message();
+    void draft_edited();
     void queue_outgoing(outgoing item);
     void submit(outgoing const& item);
     // Shows the open conversation's unconfirmed sends after its messages.
@@ -295,9 +297,8 @@ class chat_widget final : public QWidget
     struct text_save
     {
         qint64 client_id;
-        qint64 conversation;
-        qint64 reply;
-        int document_revision;
+        // Cleared if the user edits the submitted draft before its SQLite write finishes.
+        std::optional<qint64> draft_conversation;
     };
     std::optional<text_save> saving_text_;
     QWidget* reply_bar_ = nullptr;
