@@ -61,7 +61,13 @@ std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_
 
     if (message.reply_to)
     {
-        auto quote = db.prepare("SELECT 1 FROM messages WHERE conversation_id=?1 AND id=?2 AND deleted=0", message.conversation, *message.reply_to);
+        auto quote = db.prepare(R"SQL(
+            SELECT 1 FROM messages m JOIN conversation_members own ON own.conversation_id=m.conversation_id
+            WHERE m.conversation_id=?1 AND m.id=?2 AND m.deleted=0 AND own.user_id=?3 AND m.id>own.joined_message_id
+        )SQL",
+                                message.conversation,
+                                *message.reply_to,
+                                message.sender);
         if (!quote)
         {
             return std::unexpected(std::move(quote.error()));

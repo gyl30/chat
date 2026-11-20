@@ -30,13 +30,6 @@ struct[[= simdjson::deny_unknown_fields]] send_message_params
     std::optional<std::int64_t> client_id;
 };
 
-struct message_notification
-{
-    std::string jsonrpc = "2.0";
-    std::string method = "message";
-    message_payload params;
-};
-
 simdjson::error_code parse_send_message_params(json_rpc_params& params, send_message_params& value, bool attaching)
 {
     if (!params.present)
@@ -89,7 +82,7 @@ simdjson::error_code parse_send_message_params(json_rpc_params& params, send_mes
 struct delivery
 {
     std::string acknowledgement;
-    std::string notification;
+    message_broadcast notification;
 };
 
 using send_outcome = std::variant<delivery, message_write_rejection>;
@@ -119,12 +112,11 @@ std::expected<send_outcome, sqlite_error> format_delivery(
     }
     if (sent.inserted)
     {
-        value.client_id.reset();
-        if (simdjson::builder::to_json_string(message_notification{"2.0", "message", std::move(value)}).get(result.notification))
+        if (result.notification.serialize("message", std::move(value)))
         {
             return std::unexpected(sqlite_error{SQLITE_ERROR, "cannot serialize message notification"});
         }
-        if (result.notification.size() > kMaxMessageSize)
+        if (result.notification.json.size() > kMaxMessageSize)
         {
             return std::unexpected(sqlite_error{SQLITE_TOOBIG, "message exceeds the frame limit"});
         }
@@ -275,9 +267,10 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
             : serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
     auto& result = std::get<delivery>(*delivered);
-    if (!result.notification.empty())
+    if (!result.notification.json.empty())
     {
-        co_await publish_conversation(params.conversation, std::move(result.notification));
+        co_await publish_conversation(
+            params.conversation, std::move(result.notification.json), false, result.notification.id, &result.notification.quote);
     }
     response = std::move(result.acknowledgement);
     co_return simdjson::SUCCESS;

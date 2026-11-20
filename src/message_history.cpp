@@ -14,8 +14,9 @@ constexpr std::string_view kMessageColumns = R"SQL(
            r.id,r.sender_id,author.username,substr(r.body,1,160),r.edited_at,r.deleted,
            a.filename,a.media_type,a.size
     FROM messages m JOIN users u ON u.id=m.sender_id
+    JOIN conversation_members own ON own.conversation_id=m.conversation_id AND own.user_id=?1 AND m.id>own.joined_message_id
     LEFT JOIN user_avatars avatar ON avatar.user_id=u.id
-    LEFT JOIN messages r ON r.id=m.reply_to_id
+    LEFT JOIN messages r ON r.id=m.reply_to_id AND r.id>own.joined_message_id
     LEFT JOIN users author ON author.id=r.sender_id
     LEFT JOIN message_attachments a ON a.message_id=m.id AND m.deleted=0
 )SQL";
@@ -146,15 +147,19 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
     {
         return std::unexpected(std::move(snapshot.error()));
     }
-    auto readers =
-        db.prepare("SELECT user_id,last_read_message_id FROM conversation_members WHERE conversation_id=?1 ORDER BY user_id", conversation);
+    auto readers = db.prepare(R"SQL(
+            SELECT m.user_id,CASE WHEN m.last_read_message_id>own.joined_message_id THEN m.last_read_message_id ELSE 0 END
+            FROM conversation_members own JOIN conversation_members m ON m.conversation_id=own.conversation_id
+            WHERE own.conversation_id=?1 AND own.user_id=?2 ORDER BY m.user_id
+        )SQL",
+                              conversation,
+                              user);
     if (!readers)
     {
         return std::unexpected(std::move(readers.error()));
     }
 
     chat::messages_result result;
-    bool member = false;
     for (;;)
     {
         auto row = readers->step();
@@ -167,19 +172,19 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
             break;
         }
         auto const reader = readers->column_int64(0);
-        member = member || reader == user;
         result.read_positions.push_back({reader, readers->column_int64(1)});
     }
-    if (!member)
+    if (result.read_positions.empty())
     {
         return std::nullopt;
     }
 
     std::string query(kMessageColumns);
-    query += "WHERE m.conversation_id=?1 AND (?4='' OR (m.deleted=0 AND instr(chat_lower(m.body),chat_lower(?4))>0)) AND ";
-    query += after ? "m.id>?2 ORDER BY m.id ASC" : "m.id<?2 ORDER BY m.id DESC";
-    query += " LIMIT ?3";
+    query += "WHERE m.conversation_id=?2 AND (?5='' OR (m.deleted=0 AND instr(chat_lower(m.body),chat_lower(?5))>0)) AND ";
+    query += after ? "m.id>?3 ORDER BY m.id ASC" : "m.id<?3 ORDER BY m.id DESC";
+    query += " LIMIT ?4";
     auto page = db.prepare(query,
+                           user,
                            conversation,
                            after.value_or(before.value_or(std::numeric_limits<std::int64_t>::max())),
                            static_cast<std::int64_t>(kPageSize + 1),
@@ -228,11 +233,8 @@ std::expected<std::optional<chat::message>, sqlite_error> read_message(sqlite_da
                                                                        std::int64_t message)
 {
     std::string query(kMessageColumns);
-    query += R"SQL(
-        WHERE m.id=?1 AND m.conversation_id=?2 AND EXISTS(
-            SELECT 1 FROM conversation_members WHERE conversation_id=?2 AND user_id=?3)
-    )SQL";
-    auto statement = db.prepare(query, message, conversation, user);
+    query += "WHERE m.conversation_id=?2 AND m.id=?3";
+    auto statement = db.prepare(query, user, conversation, message);
     if (!statement)
     {
         return std::unexpected(std::move(statement.error()));
@@ -267,7 +269,7 @@ std::expected<std::optional<read_position_change>, sqlite_error> update_read_pos
     auto update = db.prepare(R"SQL(
         UPDATE conversation_members SET last_read_message_id=?3
         WHERE conversation_id=?1 AND user_id=?2 AND last_read_message_id<?3
-          AND EXISTS(SELECT 1 FROM messages WHERE conversation_id=?1 AND id=?3)
+          AND ?3>joined_message_id AND EXISTS(SELECT 1 FROM messages WHERE conversation_id=?1 AND id=?3)
         RETURNING last_read_message_id
     )SQL",
                              conversation,
@@ -298,7 +300,7 @@ std::expected<std::optional<read_position_change>, sqlite_error> update_read_pos
         auto current = db.prepare(R"SQL(
             SELECT last_read_message_id FROM conversation_members
             WHERE conversation_id=?1 AND user_id=?2
-              AND EXISTS(SELECT 1 FROM messages WHERE conversation_id=?1 AND id=?3)
+              AND ?3>joined_message_id AND EXISTS(SELECT 1 FROM messages WHERE conversation_id=?1 AND id=?3)
         )SQL",
                                   conversation,
                                   user,

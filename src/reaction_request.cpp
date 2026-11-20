@@ -99,7 +99,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_message_reaction(js
     auto& result = std::get<reaction_result>(*reaction);
     if (!result.notification.empty())
     {
-        co_await publish_conversation(params.conversation, std::move(result.notification));
+        co_await publish_conversation(params.conversation, std::move(result.notification), false, params.message);
     }
     response = std::move(result.acknowledgement);
     co_return simdjson::SUCCESS;

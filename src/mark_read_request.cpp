@@ -102,7 +102,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_mark_read(json_rpc_
         std::string notification = "{\"jsonrpc\":\"2.0\",\"method\":\"read\",\"params\":{\"conversation\":";
         notification.append(std::to_string(params.conversation));
         notification.append(",\"user\":" + std::to_string(*user_id_) + ",\"message\":" + read_message + "}}");
-        co_await publish_conversation(params.conversation, std::move(notification));
+        co_await publish_conversation(params.conversation, std::move(notification), false, (*position)->message);
     }
 
     if (!request.id.present)

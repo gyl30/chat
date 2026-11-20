@@ -31,7 +31,7 @@ std::expected<std::variant<changed_message, message_change_rejection>, sqlite_er
             edited_at=CASE WHEN ?5 THEN edited_at ELSE max(?6,coalesce(edited_at,0)+1) END,
             reaction_revision=reaction_revision+CASE WHEN ?5 AND deleted=0 THEN 1 ELSE 0 END
         WHERE m.id=?1 AND m.conversation_id=?2 AND m.sender_id=?3
-          AND EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=?2 AND user_id=?3)
+          AND EXISTS(SELECT 1 FROM conversation_members WHERE conversation_id=?2 AND user_id=?3 AND m.id>joined_message_id)
           AND m.deleted=0 AND (?5 OR NOT EXISTS(SELECT 1 FROM message_attachments WHERE message_id=?1))
     )SQL",
                              message,
@@ -103,7 +103,7 @@ std::expected<std::variant<changed_reaction, message_change_rejection>, sqlite_e
     auto original = db.prepare(R"SQL(
         SELECT coalesce((SELECT emoji FROM message_reactions WHERE message_id=?1 AND user_id=?3),'')
         FROM messages m JOIN conversation_members own ON own.conversation_id=m.conversation_id
-        WHERE m.id=?1 AND m.conversation_id=?2 AND own.user_id=?3 AND m.deleted=0
+        WHERE m.id=?1 AND m.conversation_id=?2 AND own.user_id=?3 AND m.id>own.joined_message_id AND m.deleted=0
     )SQL",
                                message,
                                conversation,

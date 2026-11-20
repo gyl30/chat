@@ -18,6 +18,8 @@ class blocking_worker;
 class database;
 class s3_objects;
 
+struct quoted_notification;
+
 class chat_session
 {
    public:
@@ -92,7 +94,9 @@ class chat_session
     };
     boost::capy::task<notification_result> publish_conversation(std::int64_t conversation,
                                                                 std::string notification,
-                                                                bool require_sender_permission = false);
+                                                                bool require_sender_permission = false,
+                                                                std::int64_t message = 0,
+                                                                quoted_notification const* quote = nullptr);
     boost::capy::task<void> publish_join_request(std::int64_t conversation, std::int64_t user, std::string state);
 
     bool enqueue_message(std::string message);

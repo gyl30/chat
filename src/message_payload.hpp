@@ -4,7 +4,10 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <chat/message.hpp>
+#include <simdjson.h>
 
 struct message_payload
 {
@@ -51,5 +54,41 @@ inline message_payload make_message_payload(chat::message const& message, bool i
     }
     return value;
 }
+
+struct quoted_notification
+{
+    std::int64_t id{};
+    std::string without_quote;
+};
+
+struct message_broadcast
+{
+    std::string json;
+    std::int64_t id{};
+    quoted_notification quote;
+
+    simdjson::error_code serialize(std::string_view method, message_payload value)
+    {
+        struct envelope
+        {
+            std::string_view jsonrpc, method;
+            message_payload params;
+        };
+        id = value.id;
+        value.client_id.reset();
+        envelope event{"2.0", method, std::move(value)};
+        if (auto error = simdjson::builder::to_json_string(event).get(json))
+        {
+            return error;
+        }
+        if (event.params.reply)
+        {
+            quote.id = event.params.reply->id;
+            event.params.reply.reset();
+            return simdjson::builder::to_json_string(event).get(quote.without_quote);
+        }
+        return simdjson::SUCCESS;
+    }
+};
 
 #endif

@@ -36,10 +36,10 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
-    constexpr std::string_view prefix = R"({"jsonrpc":"2.0","method":"message_updated","params":)";
     struct update_result
     {
-        std::string acknowledgement, notification;
+        std::string acknowledgement;
+        message_broadcast notification;
         bool cleared_pin;
     };
     using outcome = std::variant<update_result, message_change_rejection>;
@@ -68,18 +68,20 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
             auto const& saved = std::get<changed_message>(*changed);
             update_result result{{}, {}, saved.cleared_pin};
             auto value = make_message_payload(saved.message);
-            std::string payload;
-            if (simdjson::builder::to_json_string(value).get(payload) || serialize_json_rpc_success(payload, request.id, result.acknowledgement))
+            if (serialize_json_rpc_value(value, request.id, result.acknowledgement))
             {
                 return std::unexpected(sqlite_error{SQLITE_ERROR, "cannot serialize updated message"});
             }
             if (saved.changed)
             {
-                if (prefix.size() + payload.size() + 1 > 64 * 1024)
+                if (result.notification.serialize("message_updated", std::move(value)))
+                {
+                    return std::unexpected(sqlite_error{SQLITE_ERROR, "cannot serialize updated message notification"});
+                }
+                if (result.notification.json.size() > 64 * 1024)
                 {
                     return std::unexpected(sqlite_error{SQLITE_TOOBIG, "updated message exceeds the frame limit"});
                 }
-                result.notification = std::string(prefix) + payload + "}";
             }
             if (auto error = tx->commit(); error)
             {
@@ -99,9 +101,10 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
             unavailable ? -32007 : -32006, unavailable ? "Message unavailable" : "Communication not allowed", std::move(request.id), response);
     }
     auto& result = std::get<update_result>(*update);
-    if (!result.notification.empty())
+    if (!result.notification.json.empty())
     {
-        co_await publish_conversation(params.conversation, std::move(result.notification));
+        co_await publish_conversation(
+            params.conversation, std::move(result.notification.json), false, result.notification.id, &result.notification.quote);
     }
     if (result.cleared_pin)
     {

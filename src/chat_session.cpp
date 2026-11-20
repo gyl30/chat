@@ -8,6 +8,7 @@
 #include <system_error>
 
 #include "chat_session.hpp"
+#include "message_payload.hpp"
 #include "invite_attempts.hpp"
 #include "database.hpp"
 #include "conversation_store.hpp"
@@ -78,12 +79,12 @@ boost::capy::task<void> chat_session::publish_presence(bool online)
     }
 }
 
-boost::capy::task<chat_session::notification_result> chat_session::publish_conversation(std::int64_t conversation,
-                                                                                        std::string notification,
-                                                                                        bool require_sender_permission)
+boost::capy::task<chat_session::notification_result> chat_session::publish_conversation(
+    std::int64_t conversation, std::string notification, bool require_sender_permission, std::int64_t message, quoted_notification const* quote)
 {
+    using audience = std::vector<std::pair<std::int64_t, bool>>;
     auto recipients = co_await database_.run(
-        [=, user = *user_id_](sqlite_database& db) -> std::expected<std::optional<std::vector<std::int64_t>>, sqlite_error>
+        [=, user = *user_id_](sqlite_database& db) -> std::expected<std::optional<audience>, sqlite_error>
         {
             auto snapshot = sqlite_transaction::begin_read(db);
             if (!snapshot)
@@ -103,17 +104,19 @@ boost::capy::task<chat_session::notification_result> chat_session::publish_conve
                 }
             }
             auto rows = db.prepare(R"SQL(
-            SELECT m.user_id FROM conversation_members m JOIN conversations c ON c.id=m.conversation_id
-            WHERE c.id=?1 AND m.user_id<>?2
-            ORDER BY m.user_id
+            SELECT user_id, ?4>0 AND ?4<=joined_message_id FROM conversation_members
+            WHERE conversation_id=?1 AND user_id<>?2 AND (?3=0 OR ?3>joined_message_id)
+            ORDER BY user_id
         )SQL",
                                    conversation,
-                                   user);
+                                   user,
+                                   message,
+                                   quote ? quote->id : 0);
             if (!rows)
             {
                 return std::unexpected(std::move(rows.error()));
             }
-            std::vector<std::int64_t> result;
+            audience result;
             for (;;)
             {
                 auto row = rows->step();
@@ -125,7 +128,7 @@ boost::capy::task<chat_session::notification_result> chat_session::publish_conve
                 {
                     break;
                 }
-                result.push_back(rows->column_int64(0));
+                result.emplace_back(rows->column_int64(0), rows->column_int64(1) != 0);
             }
             if (auto error = snapshot->commit(); error)
             {
@@ -143,11 +146,11 @@ boost::capy::task<chat_session::notification_result> chat_session::publish_conve
         co_return notification_result::denied;
     }
     bool realtime = false;
-    for (auto const recipient : **recipients)
+    for (auto const& [recipient, omit_quote] : **recipients)
     {
         if (auto* session = users_.find(recipient))
         {
-            realtime = session->enqueue_message(notification) || realtime;
+            realtime = session->enqueue_message(omit_quote ? quote->without_quote : notification) || realtime;
         }
     }
     co_return realtime ? notification_result::delivered : notification_result::skipped;

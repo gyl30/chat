@@ -34,7 +34,7 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                 'pinned_message',json((SELECT json_object('id',pm.id,'from',pm.sender_id,'username',pu.username,
                     'text',substr(pm.body,1,160),'edited_at',pm.edited_at,'deleted',json('false'))
                     FROM messages pm JOIN users pu ON pu.id=pm.sender_id
-                    WHERE pm.id=c.pinned_message_id AND pm.conversation_id=c.id AND pm.deleted=0)),
+                    WHERE pm.id=c.pinned_message_id AND pm.conversation_id=c.id AND pm.deleted=0 AND pm.id>c.joined_message_id)),
                 'last',json((SELECT json_object('id',m.id,'conversation',m.conversation_id,'from',m.sender_id,
                     'username',author.username,'timestamp',m.created_at,'text',m.body,'edited_at',m.edited_at,
                     'deleted',json(CASE WHEN m.deleted THEN 'true' ELSE 'false' END),
@@ -55,10 +55,11 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                     'attachment',CASE WHEN a.message_id IS NULL THEN NULL ELSE json_object(
                         'filename',a.filename,'media_type',a.media_type,'size',a.size) END)
                     FROM messages m JOIN users author ON author.id=m.sender_id
-                    LEFT JOIN messages r ON r.id=m.reply_to_id LEFT JOIN users ra ON ra.id=r.sender_id
+                    LEFT JOIN messages r ON r.id=m.reply_to_id AND r.id>c.joined_message_id
+                    LEFT JOIN users ra ON ra.id=r.sender_id
                     LEFT JOIN user_avatars sender_avatar ON sender_avatar.user_id=author.id
                     LEFT JOIN message_attachments a ON a.message_id=m.id AND m.deleted=0
-                    WHERE m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1)),
+                    WHERE m.conversation_id=c.id AND m.id>c.joined_message_id ORDER BY m.id DESC LIMIT 1)),
                 'unread',(SELECT count(*) FROM messages m WHERE m.conversation_id=c.id AND m.deleted=0
                       AND m.id>max(c.last_read_message_id,c.joined_message_id)
                       AND m.sender_id<>?1)

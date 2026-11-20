@@ -313,7 +313,13 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_grou
     }
     if (message)
     {
-        auto target = db.prepare("SELECT 1 FROM messages WHERE conversation_id=?1 AND id=?2 AND deleted=0", group, *message);
+        auto target = db.prepare(R"SQL(
+            SELECT 1 FROM messages m JOIN conversation_members own ON own.conversation_id=m.conversation_id
+            WHERE m.conversation_id=?1 AND m.id=?2 AND m.deleted=0 AND own.user_id=?3 AND m.id>own.joined_message_id
+        )SQL",
+                                 group,
+                                 *message,
+                                 actor);
         if (!target)
         {
             return std::unexpected(std::move(target.error()));
