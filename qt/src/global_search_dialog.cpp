@@ -54,7 +54,16 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
                 next_before_ = 0;
                 show_results();
             });
-    connect(query_, &QLineEdit::returnPressed, this, [this] { search(0); });
+    connect(query_,
+            &QLineEdit::returnPressed,
+            this,
+            [this]
+            {
+                if (request_ == 0)
+                {
+                    search(0);
+                }
+            });
     connect(more_, &QPushButton::clicked, this, [this] { search(next_before_); });
     connect(back_,
             &QPushButton::clicked,
@@ -168,6 +177,7 @@ void global_search_dialog::set_page(quint64 id, chat::message_search_page const&
     {
         return;
     }
+    request_ = 0;
     status_->setText(error);
     if (error.isEmpty())
     {
@@ -215,7 +225,7 @@ void global_search_dialog::refresh(qint64 conversation, bool lost_access)
 {
     if (context_->isHidden())
     {
-        if (request_ || results_->topLevelItemCount())
+        if (request_ || results_->topLevelItemCount() || !status_->text().isEmpty())
         {
             search(0);
         }
