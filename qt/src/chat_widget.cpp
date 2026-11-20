@@ -60,6 +60,7 @@
 #include <chat/reaction.hpp>
 
 #include "clipboard_image.hpp"
+#include "screenshot_dialog.hpp"
 #include "avatar.hpp"
 #include "conversation_delegate.hpp"
 #include "conversation_model.hpp"
@@ -1414,6 +1415,21 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
         button->setEnabled(false);
         return button;
     };
+    screenshot_button_ = make_composer_button(QStringLiteral("screenshotButton"), u"screenshot", QStringLiteral("截图"));
+    input_layout->addWidget(screenshot_button_, 0, Qt::AlignBottom);
+    connect(screenshot_button_,
+            &QToolButton::clicked,
+            this,
+            [this]
+            {
+                auto const recipient = active_conversation_;
+                auto const account = self_user_;
+                screenshot_dialog dialog(this);
+                if (dialog.exec() == QDialog::Accepted && active_conversation_ == recipient && self_user_ == account && can_send())
+                {
+                    send_image(dialog.selected_image());
+                }
+            });
     emoji_button_ = make_composer_button(QStringLiteral("emojiButton"), u"emoji", QStringLiteral("表情"));
     history_button_ = make_composer_button(QStringLiteral("chatHistoryButton"), u"history", QStringLiteral("聊天记录"));
     input_layout->addWidget(emoji_button_, 0, Qt::AlignBottom);
@@ -1964,15 +1980,19 @@ bool chat_widget::paste_image()
         set_message_status(QStringLiteral("无法读取剪贴板图片"));
         return true;
     }
+    send_image(image);
+    return true;
+}
+void chat_widget::send_image(QImage const& image)
+{
     auto const id = chat::client::new_client_id();
     auto path = save_clipboard_image(image, id);
     if (!path)
     {
         set_message_status(path.error());
-        return true;
+        return;
     }
     send_files(active_conversation_, {*path}, id);
-    return true;
 }
 
 bool chat_widget::eventFilter(QObject* object, QEvent* event)
@@ -2966,6 +2986,7 @@ void chat_widget::refresh_theme()
     send_button_->setIcon(svg_icon(QStringLiteral("send"), themed("on_accent"), QSize(20, 20)));
     chat_more_button_->setIcon(svg_icon(u"more", themed("text"), QSize(20, 20)));
     attachment_button_->setIcon(svg_icon(u"attach", themed("text"), QSize(22, 22)));
+    screenshot_button_->setIcon(svg_icon(u"screenshot", themed("text"), QSize(22, 22)));
     emoji_button_->setIcon(svg_icon(u"emoji", themed("text"), QSize(22, 22)));
     history_button_->setIcon(svg_icon(u"history", themed("text"), QSize(22, 22)));
     for (auto* action : main_menu_button_->menu()->actions())
@@ -3208,6 +3229,7 @@ void chat_widget::update_compose_state()
     message_edit_->setEnabled(compose);
     send_button_->setEnabled(compose && !saving_text_ && !message_edit_->toPlainText().isEmpty());
     attachment_button_->setEnabled(allowed);
+    screenshot_button_->setEnabled(allowed);
     emoji_button_->setEnabled(allowed);
     message_edit_->setPlaceholderText(QStringLiteral("输入消息…"));
     if (!allowed)

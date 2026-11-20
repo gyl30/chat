@@ -49,6 +49,7 @@ add_executable(chat_qt
     src/message_search_dialog.hpp
     src/presence.hpp
     src/presence_data.hpp
+    src/screenshot_dialog.cpp
     src/settings_dialog.cpp
     src/settings_dialog.hpp
     src/theme.cpp
@@ -85,6 +86,7 @@ qt_add_resources(chat_qt chat_icons
         resources/icons/menu.svg
         resources/icons/more.svg
         resources/icons/plus.svg
+        resources/icons/screenshot.svg
         resources/icons/search.svg
         resources/icons/send.svg
         resources/icons/settings.svg

@@ -225,6 +225,7 @@ class chat_widget final : public QWidget
     void send_current_message();
     void draft_edited();
     bool handle_file_drop(QEvent* event);
+    void send_image(QImage const& image);
     bool paste_image();
     void send_files(qint64 target, QStringList const& paths, qint64 clipboard_id = 0, bool group_only = false);
     void queue_outgoing(outgoing item);
@@ -281,6 +282,7 @@ class chat_widget final : public QWidget
     QLabel* main_menu_badge_ = nullptr;
     QLineEdit* conversation_search_ = nullptr;
     QToolButton* chat_more_button_ = nullptr;
+    QToolButton* screenshot_button_ = nullptr;
     QToolButton* emoji_button_ = nullptr;
     QToolButton* history_button_ = nullptr;
     // The action awaiting its result per user, so the result can be reported in words.
