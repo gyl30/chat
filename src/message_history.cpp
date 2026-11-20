@@ -13,11 +13,11 @@ constexpr std::string_view kMessageColumns = R"SQL(
            m.body,m.created_at,m.edited_at,m.deleted,m.reaction_revision,m.client_id,
            r.id,r.sender_id,author.username,substr(r.body,1,160),r.edited_at,r.deleted,
            a.filename,a.media_type,a.size,a.object_key,origin.username
-    FROM messages m JOIN users u ON u.id=m.sender_id
+    FROM readable_messages m JOIN users u ON u.id=m.sender_id
     JOIN conversation_members own ON own.conversation_id=m.conversation_id AND own.user_id=?1 AND m.id>own.visible_after
     LEFT JOIN users origin ON origin.id=m.original_sender AND m.deleted=0
     LEFT JOIN user_avatars avatar ON avatar.user_id=u.id
-    LEFT JOIN messages r ON r.id=m.reply_to_id AND r.id>own.visible_after
+    LEFT JOIN readable_messages r ON r.id=m.reply_to_id AND r.id>own.visible_after
     LEFT JOIN users author ON author.id=r.sender_id
     LEFT JOIN message_attachments ref ON ref.message_id=m.id AND m.deleted=0
     LEFT JOIN files a ON a.object_key=ref.object_key
@@ -360,14 +360,14 @@ std::expected<chat::message_search_page, sqlite_error> search_all_messages(sqlit
     // Limit authorized matches before looking up display names and building snippets.
     auto page = db.prepare(R"SQL(
         WITH hits AS MATERIALIZED (
-            SELECT m.id FROM conversation_members own CROSS JOIN messages m ON m.conversation_id=own.conversation_id
+            SELECT m.id FROM conversation_members own CROSS JOIN readable_messages m ON m.conversation_id=own.conversation_id
             WHERE own.user_id=?1 AND m.id>own.visible_after AND m.id<=coalesce(?3-1,9223372036854775807)
               AND m.deleted=0 AND instr(chat_lower(m.body),chat_lower(?2))>0
             ORDER BY m.id DESC LIMIT ?4
         )
         SELECT c.id,m.id,m.sender_id,m.created_at,coalesce(c.title,peer.username),u.username,
                substr(m.body,max(1,instr(chat_lower(m.body),chat_lower(?2))-32),160)
-        FROM hits JOIN messages m ON m.id=hits.id JOIN conversations c ON c.id=m.conversation_id
+        FROM hits JOIN readable_messages m ON m.id=hits.id JOIN conversations c ON c.id=m.conversation_id
         JOIN users u ON u.id=m.sender_id LEFT JOIN users peer ON peer.id=CASE WHEN c.direct_user_low=?1 THEN c.direct_user_high ELSE c.direct_user_low END
         ORDER BY m.id DESC
     )SQL",

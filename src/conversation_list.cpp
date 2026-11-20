@@ -34,7 +34,7 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                 'join_approval',json(CASE WHEN c.join_approval THEN 'true' ELSE 'false' END),
                 'pinned_message',json((SELECT json_object('id',pm.id,'from',pm.sender_id,'username',pu.username,
                     'text',substr(pm.body,1,160),'edited_at',pm.edited_at,'deleted',json('false'))
-                    FROM messages pm JOIN users pu ON pu.id=pm.sender_id
+                    FROM readable_messages pm JOIN users pu ON pu.id=pm.sender_id
                     WHERE pm.id=c.pinned_message_id AND pm.conversation_id=c.id AND pm.deleted=0 AND pm.id>c.visible_after)),
                 'last',json((SELECT json_object('id',m.id,'conversation',m.conversation_id,'from',m.sender_id,
                     'username',author.username,'timestamp',m.created_at,'text',m.body,'forwarded_from',coalesce((SELECT username FROM users WHERE id=m.original_sender AND m.deleted=0),''),'edited_at',m.edited_at,
@@ -55,8 +55,8 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                         'deleted',json(CASE WHEN r.deleted THEN 'true' ELSE 'false' END)) END,
                     'attachment',CASE WHEN ref.message_id IS NULL THEN NULL ELSE json_object(
                         'filename',a.filename,'media_type',a.media_type,'size',a.size,'object_key',a.object_key) END)
-                    FROM messages m JOIN users author ON author.id=m.sender_id
-                    LEFT JOIN messages r ON r.id=m.reply_to_id AND r.id>c.visible_after
+                    FROM readable_messages m JOIN users author ON author.id=m.sender_id
+                    LEFT JOIN readable_messages r ON r.id=m.reply_to_id AND r.id>c.visible_after
                     LEFT JOIN users ra ON ra.id=r.sender_id
                     LEFT JOIN user_avatars sender_avatar ON sender_avatar.user_id=author.id
                     LEFT JOIN message_attachments ref ON ref.message_id=m.id AND m.deleted=0

@@ -102,11 +102,24 @@ CREATE TABLE IF NOT EXISTS conversation_members (
 
 CREATE INDEX IF NOT EXISTS conversation_members_user_idx ON conversation_members (user_id, conversation_id);
 
+CREATE TABLE IF NOT EXISTS archives (
+    month TEXT PRIMARY KEY NOT NULL,
+    object_key TEXT NOT NULL UNIQUE DEFAULT (lower(hex(randomblob(16)))),
+    state TEXT NOT NULL CHECK(state IN ('building','complete','failed')),
+    sha256 TEXT,
+    first_id INTEGER,
+    last_id INTEGER,
+    message_count INTEGER,
+    updated_at INTEGER NOT NULL,
+    error TEXT NOT NULL DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
     sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    body TEXT NOT NULL,
+    body TEXT,
+    archive_key TEXT REFERENCES archives(object_key),
     forward_source INTEGER,
     original_sender INTEGER REFERENCES users(id),
 
@@ -117,8 +130,14 @@ CREATE TABLE IF NOT EXISTS messages (
     reaction_revision INTEGER NOT NULL DEFAULT 0 CHECK (reaction_revision >= 0),
     client_id INTEGER CHECK (client_id IS NULL OR client_id > 0),
     CHECK ((forward_source IS NULL) = (original_sender IS NULL)),
-    CHECK ((deleted = 1 AND body = '') OR (deleted = 0 AND length(body) > 0))
+    CHECK ((archive_key IS NOT NULL AND body IS NULL AND deleted=0) OR
+           (archive_key IS NULL AND body IS NOT NULL AND ((deleted=1 AND body='') OR (deleted=0 AND length(body)>0))))
 );
+
+-- Only body-bearing reads consult the immutable archive. All access checks and references stay live.
+CREATE VIEW IF NOT EXISTS readable_messages AS
+    SELECT id,conversation_id,sender_id,coalesce(body,chat_archive_body(archive_key,id)) AS body,
+           created_at,reply_to_id,edited_at,deleted,reaction_revision,client_id,forward_source,original_sender FROM messages;
 
 CREATE INDEX IF NOT EXISTS messages_conversation_idx ON messages (conversation_id, id DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS messages_sender_client_id ON messages (sender_id, client_id) WHERE client_id IS NOT NULL;

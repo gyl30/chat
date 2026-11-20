@@ -106,7 +106,7 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
     {
         // Read the original and establish the new reference in the same write transaction.
         auto source = db.prepare(R"SQL(
-            SELECT m.body,coalesce(m.original_sender,m.sender_id),ref.object_key FROM messages m
+            SELECT m.body,coalesce(m.original_sender,m.sender_id),ref.object_key FROM readable_messages m
             JOIN conversation_members own ON own.conversation_id=m.conversation_id AND own.user_id=?2
             LEFT JOIN message_attachments ref ON ref.message_id=m.id
             WHERE m.id=?1 AND m.id>own.visible_after AND NOT m.deleted

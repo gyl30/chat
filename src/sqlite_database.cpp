@@ -84,7 +84,7 @@ void sqlite3_stmt_deleter::operator()(sqlite3_stmt* statement) const noexcept
     }
 }
 
-std::expected<sqlite_database, sqlite_error> sqlite_database::open(std::string const& path)
+std::expected<sqlite_database, sqlite_error> sqlite_database::open(std::string const& path, bool incremental_vacuum)
 {
     sqlite_database result;
     sqlite3* handle = nullptr;
@@ -103,6 +103,13 @@ std::expected<sqlite_database, sqlite_error> sqlite_database::open(std::string c
         return std::unexpected(make_error(handle, code));
     }
 
+    if (incremental_vacuum)
+    {
+        if (auto error = result.exec("PRAGMA auto_vacuum=INCREMENTAL"); error)
+        {
+            return std::unexpected(std::move(error));
+        }
+    }
     if (auto error = result.exec("PRAGMA foreign_keys=ON"); error)
     {
         return std::unexpected(std::move(error));

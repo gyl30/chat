@@ -3,10 +3,24 @@
 #include <sqlite3.h>
 
 #include "schema.hpp"
+#include "archive_reader.hpp"
+
+std::expected<sqlite_database, sqlite_error> database::open_connection(std::string const& path)
+{
+    auto db = sqlite_database::open(path, true);
+    if (db)
+    {
+        if (auto error = register_archive_reader(*db); error)
+        {
+            return std::unexpected(error);
+        }
+    }
+    return db;
+}
 
 std::expected<database::pointer, sqlite_error> database::open(std::string path)
 {
-    auto opened = sqlite_database::open(path);
+    auto opened = open_connection(path);
     if (!opened)
     {
         return std::unexpected(std::move(opened.error()));

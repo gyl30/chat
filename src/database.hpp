@@ -30,7 +30,7 @@ class database
             {
                 if (!database_.is_open())
                 {
-                    auto reopened = sqlite_database::open(path_);
+                    auto reopened = open_connection(path_);
                     if (!reopened)
                     {
                         return std::unexpected(std::move(reopened.error()));
@@ -44,6 +44,7 @@ class database
 
    private:
     database(std::string path, sqlite_database connection);
+    static std::expected<sqlite_database, sqlite_error> open_connection(std::string const& path);
     static sqlite_error queue_error(blocking_worker::unavailable reason);
 
     std::string path_;

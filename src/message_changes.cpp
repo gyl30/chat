@@ -27,7 +27,7 @@ std::expected<std::variant<changed_message, message_change_rejection>, sqlite_er
     auto const now = epoch_milliseconds();
     auto update = db.prepare(R"SQL(
         UPDATE messages AS m SET
-            body=?4,deleted=?5,
+            body=?4,archive_key=NULL,deleted=?5,
             edited_at=CASE WHEN ?5 THEN edited_at ELSE max(?6,coalesce(edited_at,0)+1) END,
             reaction_revision=reaction_revision+CASE WHEN ?5 AND deleted=0 THEN 1 ELSE 0 END
         WHERE m.id=?1 AND m.conversation_id=?2 AND m.sender_id=?3

@@ -173,6 +173,7 @@ add_library(chat_sqlite_storage STATIC
     src/message_changes.cpp
     src/message_history.cpp
     src/message_store.cpp
+    src/archive_reader.cpp
     src/schema.cpp
     src/sqlite_mentions.cpp
     src/user_store.cpp
