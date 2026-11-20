@@ -902,13 +902,27 @@ void group_dialog::set_conversations(QList<conversation_data> conversations, QSt
         overview_announcement_->update();
     }
     read_announcement_button_->setVisible(!announcement_.isEmpty());
+    pin_id_ = found->pinned_message.id;
     overview_pin_->setText(
-        found->pinned_message.id > 0
+        pin_id_ > cleared_through_
             ? QStringLiteral("置顶消息 · %1：%2")
                   .arg(found->pinned_message.username, found->pinned_message.deleted ? QStringLiteral("消息已删除") : found->pinned_message.text)
             : QStringLiteral("暂无置顶消息"));
     approval_->setChecked(found->join_approval);
     update_actions();
+}
+
+void group_dialog::discard_history(qint64 conversation, qint64 through)
+{
+    if (conversation != conversation_)
+    {
+        return;
+    }
+    cleared_through_ = std::max(cleared_through_, through);
+    if (pin_id_ <= cleared_through_)
+    {
+        overview_pin_->setText(QStringLiteral("暂无置顶消息"));
+    }
 }
 
 void group_dialog::set_error(QString const& error)

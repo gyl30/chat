@@ -38,6 +38,7 @@ class group_dialog final : public QDialog
     void finish_action(qint64 conversation, bool left, QString const& error);
     void set_contacts(QList<user_data> contacts, QString const& error);
     void set_conversations(QList<conversation_data> conversations, QString const& error);
+    void discard_history(qint64 conversation, qint64 through);
     void set_error(QString const& error);
     void set_invite(qint64 conversation, QString const& token, QString const& error);
     void set_requests(qint64 conversation, QList<user_data> users, qint64 next, bool older, QString const& error);
@@ -76,6 +77,8 @@ class group_dialog final : public QDialog
     avatar_cache* avatars_;
     qint64 conversation_;
     qint64 self_user_;
+    qint64 cleared_through_ = 0;
+    qint64 pin_id_ = 0;
     QList<member_data> members_;
     QList<user_data> contacts_;
     QString title_;

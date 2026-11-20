@@ -258,8 +258,11 @@ QWidget* chat_widget::create_sidebar()
                     {
                         continue;
                     }
-                    auto* actions = transfers->addMenu((item.group_only ? QStringLiteral("群文件 · ") : QString{}) + item.filename +
-                                                       QStringLiteral(" · ") + item.error);
+                    auto const name = conversations_->index_for_conversation(item.conversation).data(Qt::DisplayRole).toString();
+                    auto const destination = name.isEmpty() ? QStringLiteral("会话 #%1").arg(item.conversation) : name;
+                    auto* actions =
+                        transfers->addMenu(destination + QStringLiteral(" · ") + (item.group_only ? QStringLiteral("群文件 · ") : QString{}) +
+                                           item.filename + QStringLiteral(" · ") + item.error);
                     auto id = item.client_id;
                     auto* toggle = actions->addAction(item.failed ? QStringLiteral("继续上传") : QStringLiteral("暂停上传"));
                     toggle->setEnabled(connection_available_);

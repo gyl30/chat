@@ -992,7 +992,9 @@ void main_window::show_group_details(qint64 conversation, qint64 self_user, QStr
         return;
     }
     group_dialog dialog(*client_, conversation, self_user, title, snapshot->announcement, snapshot->join_approval, this, &chat_page_->avatars());
+    dialog.discard_history(conversation, chat_page_->history_floor(conversation));
     dialog.set_conversations({*snapshot}, {});
+    connect(chat_page_, &chat_widget::history_discarded, &dialog, &group_dialog::discard_history);
     connect(&dialog,
             &group_dialog::upload_requested,
             &dialog,

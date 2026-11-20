@@ -198,10 +198,7 @@ void global_search_dialog::set_page(quint64 id, chat::message_search_page const&
             item->setData(1, Qt::UserRole, static_cast<qlonglong>(hit.id));
         }
         next_before_ = page.next_before.value_or(0);
-        if (!results_->topLevelItemCount())
-        {
-            status_->setText(QStringLiteral("没有找到相关消息"));
-        }
+        show_empty_result();
     }
     page_edits_.clear();
     page_floors_.clear();
@@ -257,7 +254,13 @@ void global_search_dialog::discard(qint64 conversation, qint64 through)
             delete results_->takeTopLevelItem(i);
         }
     }
-    if (!results_->topLevelItemCount() && !request_ && context_->isHidden())
+    show_empty_result();
+}
+
+void global_search_dialog::show_empty_result()
+{
+    if (!results_->topLevelItemCount() && !request_ && !next_before_ && context_->isHidden() && status_->text().isEmpty() &&
+        !query_->text().isEmpty())
     {
         status_->setText(QStringLiteral("没有找到相关消息"));
     }
@@ -298,6 +301,7 @@ void global_search_dialog::updated(qint64 conversation, message_data const& mess
                 show_results();
             }
             delete results_->takeTopLevelItem(i);
+            show_empty_result();
         }
         else
         {

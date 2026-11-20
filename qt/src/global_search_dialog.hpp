@@ -26,6 +26,7 @@ class global_search_dialog final : public QDialog
     void search(qint64 before);
     void open_context(QTreeWidgetItem* item);
     void show_results();
+    void show_empty_result();
     void set_page(quint64 request, chat::message_search_page const& page, QString const& error);
     void set_context(quint64 request, qint64 anchor, QList<message_data> const& messages, QString const& error);
     void discard(qint64 conversation, qint64 through);
