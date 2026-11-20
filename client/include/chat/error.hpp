@@ -14,6 +14,7 @@ enum class error_kind
     protocol,
     rpc,
     file_transfer,
+    local_storage,
 };
 
 struct error

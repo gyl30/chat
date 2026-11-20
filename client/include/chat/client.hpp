@@ -34,9 +34,27 @@ struct pending_attachment
     std::string path, filename;
 };
 
+enum class outbox_state
+{
+    queued,
+    sending,
+    failed,
+};
+
+struct pending_text
+{
+    std::int64_t client_id, conversation, reply_to, created;
+    std::string text;
+    outbox_state state = outbox_state::queued;
+    int rejection = 0;
+};
+
 class client
 {
    public:
+    using outbox_handler = std::function<void(pending_text)>;
+    using pending_texts_handler = std::function<void(std::expected<std::vector<pending_text>, error>)>;
+    using outbox_operation_handler = std::function<void(std::expected<void, error>)>;
     using connection_handler = std::function<void()>;
     using error_handler = std::function<void(error const&)>;
     using authenticate_handler = std::function<void(std::expected<authentication_result, error>)>;
@@ -132,14 +150,17 @@ class client
                       messages_handler handler,
                       std::optional<std::int64_t> after = {});
     void search_messages(std::int64_t conversation, std::string query, std::optional<std::int64_t> before, messages_handler handler);
-    // A message sent again with the same client_id is stored once; the result is its current state.
-    // Without one, a fresh ID is used.
     static std::int64_t new_client_id();
+    // The callback reports the local commit. Confirmed messages use the message handler.
     void send_message(std::int64_t conversation,
                       std::string text,
-                      message_result_handler handler,
+                      outbox_operation_handler queued,
                       std::optional<std::int64_t> reply_to = {},
                       std::optional<std::int64_t> client_id = {});
+    void set_outbox_handler(outbox_handler handler);
+    void pending_texts(pending_texts_handler handler);
+    void retry_text(std::int64_t client_id, outbox_operation_handler handler);
+    void discard_text(std::int64_t client_id, outbox_operation_handler handler);
     void delete_message(std::int64_t conversation, std::int64_t message, message_result_handler handler);
     void set_message_reaction(std::int64_t conversation, std::int64_t message, std::string emoji, reaction_result_handler handler);
     void send_attachment(std::int64_t conversation,

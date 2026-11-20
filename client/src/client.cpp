@@ -1,4 +1,5 @@
 #include <atomic>
+#include <chrono>
 #include <algorithm>
 #include <cstdint>
 #include <deque>
@@ -930,6 +931,10 @@ struct client::impl
             co_return;
         }
 
+        if (endpoint_ != url)
+        {
+            outbox_account_ = 0;
+        }
         endpoint_ = url;
         transfer_stop_ = std::make_shared<std::atomic_bool>(false);
         state_ = connection_state::connecting;
@@ -1019,6 +1024,7 @@ struct client::impl
         state_ = connection_state::disconnected;
         stop_file_transfers();
         fail_pending(make_error(error_kind::transport, "Connection closed"));
+        deferred_text_conversations_.clear();
 
         if (connection_error && !closing_)
         {
@@ -1030,6 +1036,7 @@ struct client::impl
 
     boost::capy::task<> close()
     {
+        outbox_account_ = 0;
         if (state_ != connection_state::disconnected)
         {
             closing_ = true;
@@ -1102,8 +1109,13 @@ struct client::impl
                          if (value.authenticated)
                          {
                              account_ = value.user;
+                             outbox_account_ = value.user;
                          }
                          handler(value);
+                         if (value.authenticated)
+                         {
+                             send_next_text();
+                         }
                      });
 
         co_return;
@@ -1657,38 +1669,199 @@ struct client::impl
         co_return;
     }
 
-    boost::capy::task<> send_message(
-        std::int64_t conversation, std::string text, message_result_handler handler, std::optional<std::int64_t> reply_to, std::int64_t client_id)
+    static boost::json::object text_params(pending_text const& item)
     {
-        boost::json::object params;
-        params.emplace("conversation", conversation);
-        params.emplace("text", std::move(text));
-        params.emplace("client_id", client_id);
-        if (reply_to)
+        boost::json::object params{{"conversation", item.conversation}, {"text", item.text}, {"client_id", item.client_id}};
+        if (item.reply_to > 0)
         {
-            params.emplace("reply_to", *reply_to);
+            params.emplace("reply_to", item.reply_to);
+        }
+        return params;
+    }
+
+    static error outbox_error(std::string message) { return make_error(error_kind::local_storage, std::move(message)); }
+
+    std::expected<std::vector<pending_text>, error> read_pending_texts()
+    {
+        auto query = journal_.prepare(
+            "SELECT client,conversation,COALESCE(reply,0),created,body,rejection FROM text_outbox WHERE user=? ORDER BY rowid", outbox_account_);
+        if (!query)
+        {
+            return std::unexpected(outbox_error("无法读取本地待发送消息"));
+        }
+        std::vector<pending_text> items;
+        for (;;)
+        {
+            auto row = query->step();
+            if (!row)
+            {
+                return std::unexpected(outbox_error("无法读取本地待发送消息"));
+            }
+            if (!*row)
+            {
+                return items;
+            }
+            auto const id = query->column_int64(0);
+            auto const rejection = static_cast<int>(query->column_int64(5));
+            items.push_back({id,
+                             query->column_int64(1),
+                             query->column_int64(2),
+                             query->column_int64(3),
+                             std::string(query->column_text(4)),
+                             rejection != 0        ? outbox_state::failed
+                             : id == sending_text_ ? outbox_state::sending
+                                                   : outbox_state::queued,
+                             rejection});
+        }
+    }
+
+    void notify_outbox(pending_text item)
+    {
+        outbox_handler handler;
+        {
+            std::lock_guard lock(handler_mutex_);
+            handler = outbox_handler_;
+        }
+        if (handler && !suppress_callbacks_.load())
+        {
+            handler(std::move(item));
+        }
+    }
+
+    void send_next_text()
+    {
+        if (!account_ || account_ != outbox_account_ || !journal_.is_open() || sending_text_ || closing_ || state_ != connection_state::connected ||
+            suppress_callbacks_.load())
+        {
+            return;
+        }
+        auto items = read_pending_texts();
+        if (!items)
+        {
+            report_error(items.error());
+            return;
+        }
+        auto it = std::ranges::find_if(*items,
+                                       [this](pending_text const& item)
+                                       { return item.state == outbox_state::queued && !deferred_text_conversations_.contains(item.conversation); });
+        if (it == items->end())
+        {
+            return;
+        }
+        auto item = std::move(*it);
+        sending_text_ = item.client_id;
+        item.state = outbox_state::sending;
+        notify_outbox(item);
+        auto params = text_params(item);
+        send_request(
+            "send_message",
+            std::move(params),
+            [this, user = account_, item = std::move(item)](auto response) mutable
+            {
+                sending_text_ = 0;
+                message value;
+                if (response && response->is_object() && parse_message(response->as_object(), value) && value.from == user &&
+                    value.conversation == item.conversation && value.client_id == item.client_id && !value.attachment)
+                {
+                    if (!journal_.exec("DELETE FROM text_outbox WHERE user=? AND client=?", user, item.client_id))
+                    {
+                        notify_message(std::move(value), false);
+                        send_next_text();
+                        return;
+                    }
+                    report_error(outbox_error("服务器已确认消息，但无法清理本地待发送记录"));
+                }
+                else if (!response && response.error().kind == error_kind::rpc &&
+                         (response.error().code == conversation_unavailable || response.error().code == -32602))
+                {
+                    if (!journal_.exec("UPDATE text_outbox SET rejection=? WHERE user=? AND client=?", response.error().code, user, item.client_id))
+                    {
+                        item.state = outbox_state::failed;
+                        item.rejection = response.error().code;
+                        notify_outbox(std::move(item));
+                        send_next_text();
+                        return;
+                    }
+                    report_error(outbox_error("无法保存消息的拒绝状态"));
+                }
+                else if (response || response.error().kind != error_kind::transport)
+                {
+                    report_error(response ? make_error(error_kind::protocol, "Invalid send_message result") : response.error());
+                }
+                // An ambiguous outcome must not overtake an earlier message in this conversation.
+                deferred_text_conversations_.insert(item.conversation);
+                item.state = outbox_state::queued;
+                notify_outbox(std::move(item));
+                send_next_text();
+            });
+    }
+
+    boost::capy::task<> queue_text(pending_text item, outbox_operation_handler handler)
+    {
+        if (!account_ || account_ != outbox_account_)
+        {
+            handler(std::unexpected(make_error(error_kind::transport, "Not authenticated")));
+            co_return;
+        }
+        if (item.conversation <= 0 || item.client_id <= 0 || item.reply_to < 0 || item.text.empty() || item.text.find('\0') != std::string::npos)
+        {
+            handler(std::unexpected(make_error(error_kind::rpc, "Invalid params", -32602)));
+            co_return;
+        }
+        boost::json::object const request{
+            {"jsonrpc", "2.0"}, {"method", "send_message"}, {"params", text_params(item)}, {"id", std::numeric_limits<std::int64_t>::max()}};
+        if (boost::json::serialize(request).size() > detail::max_websocket_request_size)
+        {
+            handler(std::unexpected(make_error(error_kind::protocol, "Request exceeds 64 KiB")));
+            co_return;
+        }
+        using namespace std::chrono;
+        item.created = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+        if (journal_.exec("INSERT INTO text_outbox(user,client,conversation,body,reply,created) VALUES(?,?,?,?,NULLIF(?,0),?)",
+                          account_,
+                          item.client_id,
+                          item.conversation,
+                          item.text,
+                          item.reply_to,
+                          item.created))
+        {
+            handler(std::unexpected(outbox_error("无法保存待发送消息，请检查本地存储")));
+            co_return;
         }
 
-        send_request("send_message",
-                     std::move(params),
-                     [handler = std::move(handler), conversation, client_id](auto response) mutable
-                     {
-                         if (!response)
-                         {
-                             handler(std::unexpected(std::move(response.error())));
-                             return;
-                         }
-                         message value;
-                         if (!response->is_object() || !parse_message(response->as_object(), value) || value.conversation != conversation ||
-                             value.client_id != client_id || (!value.deleted && value.attachment))
-                         {
-                             handler(std::unexpected(make_error(error_kind::protocol, "Invalid send_message result")));
-                             return;
-                         }
-                         handler(std::move(value));
-                     });
+        handler({});
+        notify_outbox(std::move(item));
+        send_next_text();
+    }
 
-        co_return;
+    boost::capy::task<> list_texts(pending_texts_handler handler)
+    {
+        if (!outbox_account_)
+        {
+            handler(std::unexpected(make_error(error_kind::transport, "Not authenticated")));
+            co_return;
+        }
+        handler(read_pending_texts());
+    }
+
+    boost::capy::task<> change_text(std::int64_t id, bool discard, outbox_operation_handler handler)
+    {
+        if (!outbox_account_ || id == sending_text_ || (!discard && !account_))
+        {
+            handler(std::unexpected(outbox_error("当前无法操作这条待发送消息")));
+            co_return;
+        }
+        if (journal_.exec(discard ? "DELETE FROM text_outbox WHERE user=? AND client=?"
+                                  : "UPDATE text_outbox SET rejection=0 WHERE user=? AND client=? AND rejection<>0",
+                          outbox_account_,
+                          id) ||
+            !journal_.changes())
+        {
+            handler(std::unexpected(outbox_error("无法更新本地待发送消息")));
+            co_return;
+        }
+        handler({});
+        send_next_text();
     }
 
     struct upload_job
@@ -2511,6 +2684,9 @@ struct client::impl
     std::string transfer_directory_, endpoint_;
     sqlite_database journal_;
     std::int64_t account_ = 0;
+    std::int64_t outbox_account_ = 0, sending_text_ = 0;
+    std::unordered_set<std::int64_t> deferred_text_conversations_;
+    outbox_handler outbox_handler_;
     blocking_worker file_worker_{64, 2};
     std::shared_ptr<std::atomic_bool> transfer_stop_ = std::make_shared<std::atomic_bool>(false);
     boost::corosio::io_context io_context_{1};
@@ -2811,12 +2987,33 @@ std::int64_t client::new_client_id()
 
 void client::send_message(std::int64_t conversation,
                           std::string text,
-                          message_result_handler handler,
+                          outbox_operation_handler queued,
                           std::optional<std::int64_t> reply_to,
                           std::optional<std::int64_t> client_id)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(
-        impl_->send_message(conversation, std::move(text), std::move(handler), reply_to, client_id ? *client_id : new_client_id()));
+    pending_text item{client_id ? *client_id : new_client_id(), conversation, reply_to.value_or(0), 0, std::move(text)};
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->queue_text(std::move(item), std::move(queued)));
+}
+
+void client::set_outbox_handler(outbox_handler handler)
+{
+    std::lock_guard lock(impl_->handler_mutex_);
+    impl_->outbox_handler_ = std::move(handler);
+}
+
+void client::pending_texts(pending_texts_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->list_texts(std::move(handler)));
+}
+
+void client::retry_text(std::int64_t client_id, outbox_operation_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->change_text(client_id, false, std::move(handler)));
+}
+
+void client::discard_text(std::int64_t client_id, outbox_operation_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->change_text(client_id, true, std::move(handler)));
 }
 
 void client::send_attachment(std::int64_t conversation,
