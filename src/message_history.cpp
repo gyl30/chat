@@ -12,13 +12,14 @@ constexpr std::string_view kMessageColumns = R"SQL(
     SELECT m.id,m.sender_id,u.username,u.avatar_revision,avatar.user_id IS NOT NULL,
            m.body,m.created_at,m.edited_at,m.deleted,m.reaction_revision,m.client_id,
            r.id,r.sender_id,author.username,substr(r.body,1,160),r.edited_at,r.deleted,
-           a.filename,a.media_type,a.size
+           a.filename,a.media_type,a.size,a.object_key
     FROM messages m JOIN users u ON u.id=m.sender_id
     JOIN conversation_members own ON own.conversation_id=m.conversation_id AND own.user_id=?1 AND m.id>own.joined_message_id
     LEFT JOIN user_avatars avatar ON avatar.user_id=u.id
     LEFT JOIN messages r ON r.id=m.reply_to_id AND r.id>own.joined_message_id
     LEFT JOIN users author ON author.id=r.sender_id
-    LEFT JOIN message_attachments a ON a.message_id=m.id AND m.deleted=0
+    LEFT JOIN message_attachments ref ON ref.message_id=m.id AND m.deleted=0
+    LEFT JOIN files a ON a.object_key=ref.object_key
 )SQL";
 
 std::optional<std::int64_t> optional_integer(sqlite_statement const& row, int column)
@@ -129,7 +130,8 @@ chat::message read_message_row(sqlite_statement const& row, std::int64_t user, s
     }
     if (!row.column_is_null(17))
     {
-        message.attachment = chat::attachment_info{std::string(row.column_text(17)), std::string(row.column_text(18)), row.column_int64(19)};
+        message.attachment = chat::attachment_info{
+            std::string(row.column_text(17)), std::string(row.column_text(18)), row.column_int64(19), std::string(row.column_text(20))};
     }
     return message;
 }

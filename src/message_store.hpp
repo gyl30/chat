@@ -18,15 +18,6 @@ struct message_to_write
     std::optional<std::int64_t> reply_to;
 };
 
-struct uploaded_attachment
-{
-    std::string_view object_key;
-    std::string_view filename;
-    std::string_view media_type;
-    std::int64_t size;
-    std::string_view checksum;
-};
-
 enum class message_write_rejection
 {
     unavailable,
@@ -52,6 +43,6 @@ std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_
 // response before publishing any data.
 std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_database& db,
                                                                   message_to_write const& message,
-                                                                  uploaded_attachment const* attachment = nullptr);
+                                                                  std::string_view object_key = {});
 
 #endif

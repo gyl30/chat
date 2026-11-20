@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace chat
 {
@@ -18,6 +19,21 @@ struct attachment_info
     std::string filename;
     std::string media_type;
     std::int64_t size = 0;
+    std::string object_key;
+};
+
+struct conversation_file
+{
+    std::string object_key, filename, media_type;
+    std::int64_t size, uploader_id;
+    std::string username;
+    std::int64_t created_at;
+    std::string category;
+};
+struct conversation_file_page
+{
+    std::vector<conversation_file> files;
+    bool has_more = false;
 };
 
 }    // namespace chat

@@ -23,4 +23,10 @@ struct multipart_upload : upload_description
 using upload_lookup = std::expected<std::optional<multipart_upload>, sqlite_error>;
 upload_lookup read_upload(sqlite_database& db, std::int64_t user, std::string const& device, std::int64_t client_id);
 upload_lookup begin_upload(sqlite_database& db, std::int64_t user, std::string const& device, upload_description const& input);
+std::expected<std::string, sqlite_error> completed_upload_key(sqlite_database& db,
+                                                              std::int64_t user,
+                                                              std::string const& device,
+                                                              std::int64_t client_id);
+// Caller holds the publication transaction. Only a still-active, reserved upload may become a file.
+std::expected<bool, sqlite_error> register_uploaded_file(sqlite_database& db, std::int64_t upload);
 #endif

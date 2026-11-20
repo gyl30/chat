@@ -86,11 +86,9 @@ std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_
     return std::nullopt;
 }
 
-std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_database& db,
-                                                                  message_to_write const& message,
-                                                                  uploaded_attachment const* attachment)
+std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_database& db, message_to_write const& message, std::string_view object_key)
 {
-    auto preflight = check_message_write(db, message, attachment != nullptr);
+    auto preflight = check_message_write(db, message, !object_key.empty());
     if (!preflight)
     {
         return std::unexpected(std::move(preflight.error()));
@@ -100,6 +98,28 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
         return **preflight;
     }
 
+    std::string filename;
+    if (!object_key.empty())
+    {
+        auto q = db.prepare(R"SQL(SELECT filename FROM files WHERE object_key=?1 AND uploader_id=?2
+                  AND NOT EXISTS(SELECT 1 FROM attachment_cleanup WHERE object_key=?1 AND reserved_at=0))SQL",
+                            object_key,
+                            message.sender);
+        if (!q)
+        {
+            return std::unexpected(q.error());
+        }
+        auto row = q->step();
+        if (!row)
+        {
+            return std::unexpected(row.error());
+        }
+        if (!*row)
+        {
+            return message_write_outcome{message_write_rejection::unavailable};
+        }
+        filename = q->column_text(0);
+    }
     auto const now = epoch_milliseconds();
     if (auto error = db.exec(R"SQL(
         INSERT INTO messages(sender_id,conversation_id,client_id,body,reply_to_id,created_at)
@@ -108,7 +128,7 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
                              message.sender,
                              message.conversation,
                              message.client_id,
-                             message.text,
+                             object_key.empty() ? message.text : std::string_view(filename),
                              message.reply_to,
                              now);
         error)
@@ -116,45 +136,18 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
         return std::unexpected(std::move(error));
     }
     auto const id = db.last_insert_rowid();
-    if (!attachment && message.text.contains('@'))
+    if (object_key.empty() && message.text.contains('@'))
     {
         if (auto error = replace_message_mentions(db, message.conversation, id, message.text); error)
         {
             return std::unexpected(std::move(error));
         }
     }
-    if (attachment)
+    if (!object_key.empty())
     {
-        if (auto error = db.exec("DELETE FROM attachment_uploads WHERE object_key=? AND state='active'", attachment->object_key); error)
+        if (auto e = db.exec("INSERT INTO message_attachments(message_id,object_key) VALUES(?,?)", id, object_key); e)
         {
-            return std::unexpected(std::move(error));
-        }
-        if (db.changes() != 1)
-        {
-            return message_write_outcome{message_write_rejection::unavailable};
-        }
-        if (auto error = db.exec("DELETE FROM attachment_cleanup WHERE object_key=?1 AND reserved_at>0", attachment->object_key); error)
-        {
-            return std::unexpected(std::move(error));
-        }
-        if (db.changes() != 1)
-        {
-            return std::unexpected(sqlite_error{SQLITE_CONSTRAINT, "attachment object has no reservation"});
-        }
-        if (auto error = db.exec(R"SQL(
-            INSERT INTO message_attachments(message_id,object_key,filename,media_type,size,checksum,created_at)
-            VALUES(?1,?2,?3,?4,?5,?6,?7)
-        )SQL",
-                                 id,
-                                 attachment->object_key,
-                                 attachment->filename,
-                                 attachment->media_type,
-                                 attachment->size,
-                                 attachment->checksum,
-                                 now);
-            error)
-        {
-            return std::unexpected(std::move(error));
+            return std::unexpected(e);
         }
     }
     if (auto error = db.exec("UPDATE conversations SET activity=max(activity,?1) WHERE id=?2", now, message.conversation); error)

@@ -24,8 +24,9 @@ constexpr std::size_t kMaxMessageSize = 64 * 1024;
 struct[[= simdjson::deny_unknown_fields]] send_message_params
 {
     std::int64_t conversation = 0;
-    std::string text;
+    std::optional<std::string> text;
     std::optional<std::int64_t> reply_to;
+    std::optional<std::string> object_key;
     std::optional<std::int64_t> upload;
     std::optional<std::int64_t> client_id;
 };
@@ -124,17 +125,27 @@ std::expected<send_outcome, sqlite_error> format_delivery(
     return result;
 }
 
-std::expected<send_outcome, sqlite_error> persist_delivery(sqlite_database& db,
-                                                           message_to_write const& message,
-                                                           json_rpc_id const& request_id,
-                                                           uploaded_attachment const* attachment = nullptr)
+std::expected<send_outcome, sqlite_error> persist_delivery(
+    sqlite_database& db, message_to_write const& message, json_rpc_id const& request_id, std::string_view key = {}, std::int64_t upload = 0)
 {
     auto transaction = sqlite_transaction::begin_immediate(db);
     if (!transaction)
     {
         return std::unexpected(std::move(transaction.error()));
     }
-    auto saved = insert_message(db, message, attachment);
+    if (upload)
+    {
+        auto registered = register_uploaded_file(db, upload);
+        if (!registered)
+        {
+            return std::unexpected(registered.error());
+        }
+        if (!*registered)
+        {
+            return message_write_rejection::unavailable;
+        }
+    }
+    auto saved = insert_message(db, message, key);
     if (!saved)
     {
         return std::unexpected(std::move(saved.error()));
@@ -188,9 +199,11 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
     send_message_params params{};
     bool const attaching = request.method == "finish_attachment";
     auto params_error = parse_send_message_params(request.params, params, attaching);
-    if (params_error || (attaching ? (!params.upload || *params.upload <= 0 || params.conversation != 0 || !params.text.empty())
-                                   : (params.upload || params.conversation <= 0 || params.text.empty() ||
-                                      params.text.find('\0') != std::string::npos || !params.client_id || *params.client_id <= 0)))
+    if (params_error ||
+        (attaching ? (!params.upload || *params.upload <= 0 || params.conversation != 0 || params.text.has_value())
+                   : (params.upload || params.conversation <= 0 ||
+                      (params.object_key ? (params.text.has_value() || params.object_key->empty()) : (!params.text || params.text->empty())) ||
+                      (params.text && params.text->contains('\0')) || !params.client_id || *params.client_id <= 0)))
     {
         if (request.id.present)
         {
@@ -233,15 +246,20 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
             {
                 co_return serialize_json_rpc_error(-32000, "Multipart completion failed", std::move(request.id), response);
             }
-            uploaded_attachment const attachment{t.key, t.filename, t.media_type, t.size, t.checksum};
-            delivered = co_await database_.run([&](sqlite_database& db) { return persist_delivery(db, message, request.id, &attachment); });
+
+            delivered = co_await database_.run([&](sqlite_database& db) { return persist_delivery(db, message, request.id, t.key, t.id); });
         }
     }
     else
     {
         delivered = co_await database_.run(
-            [&](sqlite_database& db)
-            { return persist_delivery(db, {user, params.conversation, *params.client_id, params.text, params.reply_to}, request.id); });
+            [&](sqlite_database& db) -> std::expected<send_outcome, sqlite_error>
+            {
+                return persist_delivery(db,
+                                        {user, params.conversation, *params.client_id, params.text.value_or(""), params.reply_to},
+                                        request.id,
+                                        params.object_key.value_or(""));
+            });
     }
     if (!delivered)
     {

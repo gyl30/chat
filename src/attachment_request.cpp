@@ -29,6 +29,15 @@ struct[[= simdjson::deny_unknown_fields]] get_params
 {
     std::int64_t conversation = 0, message = 0;
 };
+struct[[= simdjson::deny_unknown_fields]] group_download
+{
+    std::int64_t conversation_id = 0;
+    std::string object_key;
+};
+struct completed_file
+{
+    std::string object_key;
+};
 struct grant
 {
     std::int64_t upload, size, part_size, part_count, offset, length;
@@ -65,14 +74,24 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
         co_return invalid();
     }
     auto const user = *user_id_;
-    if (request.method == "get_attachment")
+    if (request.method == "get_attachment" || request.method == "get_conversation_file")
     {
         get_params p;
-        if (doc.get(p) || !doc.at_end() || p.conversation <= 0 || p.message <= 0)
+        group_download group;
+        if (request.method == "get_conversation_file")
+        {
+            if (doc.get(group) || !doc.at_end() || group.conversation_id <= 0 || group.object_key.empty())
+            {
+                co_return invalid();
+            }
+            p.conversation = group.conversation_id;
+        }
+        else if (doc.get(p) || !doc.at_end() || p.conversation <= 0 || p.message <= 0)
         {
             co_return invalid();
         }
-        auto a = co_await database_.run([&](sqlite_database& db) { return find_attachment_object(db, user, p.conversation, p.message); });
+        auto a = co_await database_.run([&](sqlite_database& db)
+                                        { return find_attachment_object(db, user, p.conversation, p.message, group.object_key); });
         if (!a)
         {
             co_return fail(-32000, "Server error");
@@ -128,6 +147,15 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
             }
             co_return serialize_json_rpc_success("{\"message\":" + (**sent).json + "}", std::move(request.id), response);
         }
+        auto key = co_await database_.run([&](sqlite_database& db) { return completed_upload_key(db, user, device_, p.client_id); });
+        if (!key)
+        {
+            co_return fail(-32000, "Server error");
+        }
+        if (!key->empty())
+        {
+            co_return serialize_json_rpc_value(completed_file{*key}, std::move(request.id), response);
+        }
         upload_description input{p.conversation, p.client_id, p.size, p.filename, p.media_type, p.checksum};
         task = co_await database_.run([&](sqlite_database& db) { return begin_upload(db, user, device_, input); });
     }
@@ -151,17 +179,28 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
             co_return invalid();
         }
         task = co_await database_.run([&](sqlite_database& db) { return read_upload(db, user, device_, p.upload); });
-        if (task && !*task && request.method == "resume_attachment")
+        if (task && !*task && (request.method == "resume_attachment" || request.method == "complete_file"))
         {
-            // The publish transaction deletes the task before its acknowledgement reaches the device.
-            auto sent = co_await find_sent_message(p.upload);
-            if (!sent)
+            if (request.method == "resume_attachment")
+            {
+                auto sent = co_await find_sent_message(p.upload);
+                if (!sent)
+                {
+                    co_return fail(-32000, "Server error");
+                }
+                if (*sent && (**sent).member && ((**sent).attachment || (**sent).deleted))
+                {
+                    co_return serialize_json_rpc_success("{\"message\":" + (**sent).json + "}", std::move(request.id), response);
+                }
+            }
+            auto key = co_await database_.run([&](sqlite_database& db) { return completed_upload_key(db, user, device_, p.upload); });
+            if (!key)
             {
                 co_return fail(-32000, "Server error");
             }
-            if (*sent && (**sent).member && ((**sent).attachment || (**sent).deleted))
+            if (!key->empty())
             {
-                co_return serialize_json_rpc_success("{\"message\":" + (**sent).json + "}", std::move(request.id), response);
+                co_return serialize_json_rpc_value(completed_file{*key}, std::move(request.id), response);
             }
         }
     }
@@ -209,6 +248,50 @@ boost::capy::task<simdjson::error_code> chat_session::handle_attachment(json_rpc
     if (!*allowed)
     {
         co_return fail(-32006, "Conversation unavailable");
+    }
+    if (request.method == "complete_file")
+    {
+        if (t.state != "active" || t.parts.empty() || t.parts.back().etag.empty())
+        {
+            co_return fail(-32008, "Attachment upload incomplete");
+        }
+        if (!(co_await objects_.complete(t)))
+        {
+            co_return fail(-32000, "Multipart completion failed");
+        }
+        auto registered = co_await database_.run(
+            [&](sqlite_database& db) -> std::expected<bool, sqlite_error>
+            {
+                auto tx = sqlite_transaction::begin_immediate(db);
+                if (!tx)
+                {
+                    return std::unexpected(tx.error());
+                }
+                auto allowed_now = can_send_to_conversation(db, t.conversation, user);
+                if (!allowed_now || !*allowed_now)
+                {
+                    return allowed_now;
+                }
+                auto saved = register_uploaded_file(db, t.id);
+                if (!saved || !*saved)
+                {
+                    return saved;
+                }
+                if (auto e = tx->commit(); e)
+                {
+                    return std::unexpected(e);
+                }
+                return true;
+            });
+        if (!registered)
+        {
+            co_return fail(-32000, "Server error");
+        }
+        if (!*registered)
+        {
+            co_return fail(-32008, "Upload unavailable");
+        }
+        co_return serialize_json_rpc_value(completed_file{t.key}, std::move(request.id), response);
     }
     if (confirm && t.state != "active")
     {

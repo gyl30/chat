@@ -109,6 +109,7 @@ add_executable(chat_server
     src/avatar_request.cpp
     src/avatar_image.cpp
     src/attachment_request.cpp
+    src/conversation_file_request.cpp
     src/contact_request.cpp
     src/chat_session.cpp
     src/conversation_request.cpp

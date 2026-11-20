@@ -322,9 +322,13 @@ boost::capy::task<simdjson::error_code> chat_session::dispatch_request(json_rpc_
     {
         co_return co_await handle_register(request, response);
     }
-    if (request.method == "begin_attachment" || request.method == "confirm_attachment" || request.method == "pause_attachment" ||
-        request.method == "resume_attachment" || request.method == "query_attachment" || request.method == "cancel_attachment" ||
-        request.method == "get_attachment")
+    if (request.method == "add_conversation_file" || request.method == "remove_conversation_file" || request.method == "list_conversation_files")
+    {
+        co_return co_await handle_conversation_file(request, response);
+    }
+    if (request.method == "complete_file" || request.method == "get_conversation_file" || request.method == "begin_attachment" ||
+        request.method == "confirm_attachment" || request.method == "pause_attachment" || request.method == "resume_attachment" ||
+        request.method == "query_attachment" || request.method == "cancel_attachment" || request.method == "get_attachment")
     {
         co_return co_await handle_attachment(request, response);
     }

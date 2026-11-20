@@ -128,22 +128,52 @@ CREATE TABLE IF NOT EXISTS group_join_requests (
     created_at INTEGER NOT NULL,
     PRIMARY KEY (conversation_id, user_id)
 );
-CREATE TABLE IF NOT EXISTS message_attachments (
-    message_id INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
-    object_key TEXT NOT NULL UNIQUE,
-    filename TEXT NOT NULL,
+CREATE TABLE IF NOT EXISTS files (
+    object_key TEXT PRIMARY KEY NOT NULL,
+    uploader_id INTEGER NOT NULL REFERENCES users(id),
+    device TEXT NOT NULL,
+    upload_client_id INTEGER NOT NULL,
+    filename TEXT NOT NULL CHECK (length(CAST(filename AS BLOB)) BETWEEN 1 AND 255),
     media_type TEXT NOT NULL CHECK (media_type IN ('application/octet-stream', 'image/png', 'image/jpeg')),
     size INTEGER NOT NULL CHECK (size >= 0),
     checksum TEXT NOT NULL CHECK (length(checksum) = 64),
     created_at INTEGER NOT NULL,
-    CHECK (length(CAST(filename AS BLOB)) BETWEEN 1 AND 255)
+    UNIQUE(uploader_id, upload_client_id)
 );
+CREATE TABLE IF NOT EXISTS message_attachments (
+    message_id INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+    object_key TEXT NOT NULL REFERENCES files(object_key)
+);
+CREATE INDEX IF NOT EXISTS attachments_file ON message_attachments(object_key);
+CREATE TABLE IF NOT EXISTS conversation_files (
+    conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    object_key TEXT NOT NULL REFERENCES files(object_key),
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY(conversation_id, object_key)
+);
+CREATE INDEX IF NOT EXISTS group_files_object ON conversation_files(object_key);
+CREATE INDEX IF NOT EXISTS group_files_page ON conversation_files(conversation_id,created_at DESC,object_key DESC);
 
-CREATE TRIGGER IF NOT EXISTS queue_deleted_attachment AFTER DELETE ON message_attachments
+CREATE TRIGGER IF NOT EXISTS release_message_attachments AFTER DELETE ON message_attachments
+WHEN NOT EXISTS(SELECT 1 FROM message_attachments WHERE object_key=OLD.object_key)
+ AND NOT EXISTS(SELECT 1 FROM conversation_files WHERE object_key=OLD.object_key)
 BEGIN
     INSERT INTO attachment_cleanup(object_key,reserved_at) VALUES(OLD.object_key,0);
 END;
-
+CREATE TRIGGER IF NOT EXISTS claim_message_attachments AFTER INSERT ON message_attachments
+BEGIN
+    DELETE FROM attachment_cleanup WHERE object_key=NEW.object_key AND reserved_at>0;
+END;
+CREATE TRIGGER IF NOT EXISTS release_conversation_files AFTER DELETE ON conversation_files
+WHEN NOT EXISTS(SELECT 1 FROM message_attachments WHERE object_key=OLD.object_key)
+ AND NOT EXISTS(SELECT 1 FROM conversation_files WHERE object_key=OLD.object_key)
+BEGIN
+    INSERT INTO attachment_cleanup(object_key,reserved_at) VALUES(OLD.object_key,0);
+END;
+CREATE TRIGGER IF NOT EXISTS claim_conversation_files AFTER INSERT ON conversation_files
+BEGIN
+    DELETE FROM attachment_cleanup WHERE object_key=NEW.object_key AND reserved_at>0;
+END;
 CREATE TRIGGER IF NOT EXISTS discard_deleted_message_attachment AFTER UPDATE OF deleted ON messages
 WHEN NEW.deleted=1 AND OLD.deleted=0
 BEGIN

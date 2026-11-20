@@ -52,13 +52,14 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                     'reply',CASE WHEN r.id IS NULL THEN NULL ELSE json_object(
                         'id',r.id,'from',r.sender_id,'username',ra.username,'text',substr(r.body,1,160),'edited_at',r.edited_at,
                         'deleted',json(CASE WHEN r.deleted THEN 'true' ELSE 'false' END)) END,
-                    'attachment',CASE WHEN a.message_id IS NULL THEN NULL ELSE json_object(
-                        'filename',a.filename,'media_type',a.media_type,'size',a.size) END)
+                    'attachment',CASE WHEN ref.message_id IS NULL THEN NULL ELSE json_object(
+                        'filename',a.filename,'media_type',a.media_type,'size',a.size,'object_key',a.object_key) END)
                     FROM messages m JOIN users author ON author.id=m.sender_id
                     LEFT JOIN messages r ON r.id=m.reply_to_id AND r.id>c.joined_message_id
                     LEFT JOIN users ra ON ra.id=r.sender_id
                     LEFT JOIN user_avatars sender_avatar ON sender_avatar.user_id=author.id
-                    LEFT JOIN message_attachments a ON a.message_id=m.id AND m.deleted=0
+                    LEFT JOIN message_attachments ref ON ref.message_id=m.id AND m.deleted=0
+    LEFT JOIN files a ON a.object_key=ref.object_key
                     WHERE m.conversation_id=c.id AND m.id>c.joined_message_id ORDER BY m.id DESC LIMIT 1)),
                 'unread',(SELECT count(*) FROM messages m WHERE m.conversation_id=c.id AND m.deleted=0
                       AND m.id>max(c.last_read_message_id,c.joined_message_id)
