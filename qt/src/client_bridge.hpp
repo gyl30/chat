@@ -28,7 +28,8 @@
 namespace chat
 {
 class client;
-}
+struct pending_text;
+}    // namespace chat
 
 class client_bridge final : public QObject
 {
@@ -67,8 +68,9 @@ class client_bridge final : public QObject
     void cancel_friend_request(qint64 user);
     void get_presence();
     void get_messages(qint64 conversation, std::optional<qint64> before = {}, std::optional<qint64> after = {});
-    // The result arrives as send_finished; the same client_id sent again is stored once.
     void send_message(qint64 conversation, QString text, qint64 reply_to, qint64 client_id);
+    void restore_texts();
+    void change_pending_text(qint64 client_id, bool discard);
     void delete_message(qint64 conversation, qint64 message);
     void edit_message(qint64 conversation, qint64 message, QString text);
     void set_message_reaction(qint64 conversation, qint64 message, QString emoji);
@@ -129,6 +131,10 @@ class client_bridge final : public QObject
     void conversation_changed(qint64 conversation, bool removed);
     // A text or attachment send finished: the stored message, or why it failed. lost means the
     // connection dropped before an answer; unavailable means the server denied conversation access.
+    void text_saved(qint64 client_id, QString error);
+    void pending_text_changed(qint64 conversation, qint64 client_id, QString text, qint64 reply, qint64 created, bool sending, QString rejection);
+    void pending_text_discarded(qint64 client_id);
+    void pending_texts_restored(QList<qint64> client_ids);
     void send_finished(qint64 conversation, qint64 client_id, message_data message, QString error_message, send_status status);
     void users_received(QList<user_data> users, QString error_message, quint64 request);
     void friend_request_finished(qint64 user, QString error_message);
@@ -149,6 +155,7 @@ class client_bridge final : public QObject
     void read_marked(qint64 user, qint64 message, QString error_message);
 
    private:
+    void publish_pending_text(chat::pending_text const& item);
     std::function<void(std::expected<chat::friendship_result, chat::error>)> friend_request_result(qint64 user);
     std::function<void(std::expected<bool, chat::error>)> group_action_result(qint64 conversation, bool leaving = false);
     std::function<void(std::expected<chat::message, chat::error>)> send_result(qint64 conversation, qint64 client_id);

@@ -82,12 +82,15 @@ class chat_widget final : public QWidget
     // The text or attachment result distinguishes sent, lost, refused, and unavailable.
     void finish_send(qint64 conversation, qint64 client_id, message_data message, QString error, send_status status);
     // After signing in again: the sends the link dropped go out again, in the order they were made.
-    void resend_outgoing();
+    void finish_text_save(qint64 client_id, QString error);
+    void update_pending_text(qint64 conversation, qint64 client_id, QString text, qint64 reply, qint64 created, bool sending, QString rejection);
+    void discard_pending_text(qint64 client_id);
+    void reconcile_pending_texts(QList<qint64> client_ids);
     void restore_attachment(qint64 conversation, qint64 id, QString path, qint64 size, qint64 reply, qint64 confirmed);
     void attachment_progress(qint64 id, qint64 bytes, qint64 total);
     void attachment_cancelled(qint64 id);
     // Sends not confirmed yet, which quitting or signing out would lose.
-    qsizetype unsent_text_count() const;
+    bool saving_text() const { return saving_text_.has_value(); }
     void set_message_error(qint64 user, QString message);
 
     qint64 active_conversation() const noexcept;
@@ -111,6 +114,7 @@ class chat_widget final : public QWidget
     void conversation_selected(qint64 user, bool group);
     void older_messages_requested(qint64 user, qint64 before);
     void send_message_requested(qint64 conversation, QString text, qint64 reply_to, qint64 client_id);
+    void pending_text_action_requested(qint64 client_id, bool discard);
     void delete_message_requested(qint64 conversation, qint64 message);
     void edit_message_requested(qint64 conversation, qint64 message, QString text);
     void reaction_requested(qint64 conversation, qint64 message, QString emoji);
@@ -168,9 +172,9 @@ class chat_widget final : public QWidget
         qint64 size = 0;
         quoted_message_data reply;
         qint64 created = 0;
-        // Refused by the server; otherwise still sending, and sent again after a reconnect.
         bool failed = false;
         QString error;
+        bool waiting = false;
     };
     void show_conversations_section();
     void show_contacts_dialog();
@@ -288,6 +292,14 @@ class chat_widget final : public QWidget
     QPlainTextEdit* message_edit_ = nullptr;
     QHash<qint64, QString> drafts_;
     QList<outgoing> outgoing_;
+    struct text_save
+    {
+        qint64 client_id;
+        qint64 conversation;
+        qint64 reply;
+        int document_revision;
+    };
+    std::optional<text_save> saving_text_;
     QWidget* reply_bar_ = nullptr;
     QLabel* reply_preview_ = nullptr;
     qint64 reply_to_ = 0;

@@ -1061,7 +1061,8 @@ struct client::impl
         params.emplace("password", std::move(password));
         if (!account_)
         {
-            // An unavailable upload directory must not prevent ordinary chat or file downloads.
+            outbox_account_ = 0;
+            // An unavailable upload directory must not prevent login or downloads.
             journal_ = {};
             if (auto db = detail::open_transfer_journal(transfer_directory_, endpoint_))
             {
@@ -1702,16 +1703,24 @@ struct client::impl
                 return items;
             }
             auto const id = query->column_int64(0);
+            auto const conversation = query->column_int64(1);
+            auto const active = sending_texts_.find(conversation);
+            bool const sending = active != sending_texts_.end() && active->second == id;
             auto const rejection = static_cast<int>(query->column_int64(5));
-            items.push_back({id,
-                             query->column_int64(1),
-                             query->column_int64(2),
-                             query->column_int64(3),
-                             std::string(query->column_text(4)),
-                             rejection != 0        ? outbox_state::failed
-                             : id == sending_text_ ? outbox_state::sending
-                                                   : outbox_state::queued,
-                             rejection});
+            auto state = sending ? outbox_state::sending : outbox_state::queued;
+            if (rejection != 0)
+            {
+                state = outbox_state::failed;
+            }
+            items.push_back({
+                .client_id = id,
+                .conversation = conversation,
+                .reply_to = query->column_int64(2),
+                .created = query->column_int64(3),
+                .text = std::string(query->column_text(4)),
+                .state = state,
+                .rejection = rejection,
+            });
         }
     }
 
@@ -1719,7 +1728,7 @@ struct client::impl
     {
         outbox_handler handler;
         {
-            std::lock_guard lock(handler_mutex_);
+            std::scoped_lock const lock(handler_mutex_);
             handler = outbox_handler_;
         }
         if (handler && !suppress_callbacks_.load())
@@ -1730,7 +1739,7 @@ struct client::impl
 
     void send_next_text()
     {
-        if (!account_ || account_ != outbox_account_ || !journal_.is_open() || sending_text_ || closing_ || state_ != connection_state::connected ||
+        if (account_ == 0 || account_ != outbox_account_ || !journal_.is_open() || closing_ || state_ != connection_state::connected ||
             suppress_callbacks_.load())
         {
             return;
@@ -1741,15 +1750,19 @@ struct client::impl
             report_error(items.error());
             return;
         }
-        auto it = std::ranges::find_if(*items,
-                                       [this](pending_text const& item)
-                                       { return item.state == outbox_state::queued && !deferred_text_conversations_.contains(item.conversation); });
-        if (it == items->end())
+        for (auto& item : *items)
         {
-            return;
+            if (item.state != outbox_state::queued || deferred_text_conversations_.contains(item.conversation) ||
+                !sending_texts_.try_emplace(item.conversation, item.client_id).second)
+            {
+                continue;
+            }
+            send_pending_text(std::move(item));
         }
-        auto item = std::move(*it);
-        sending_text_ = item.client_id;
+    }
+
+    void send_pending_text(pending_text item)
+    {
         item.state = outbox_state::sending;
         notify_outbox(item);
         auto params = text_params(item);
@@ -1758,7 +1771,7 @@ struct client::impl
             std::move(params),
             [this, user = account_, item = std::move(item)](auto response) mutable
             {
-                sending_text_ = 0;
+                sending_texts_.erase(item.conversation);
                 message value;
                 if (response && response->is_object() && parse_message(response->as_object(), value) && value.from == user &&
                     value.conversation == item.conversation && value.client_id == item.client_id && !value.attachment)
@@ -1798,12 +1811,12 @@ struct client::impl
 
     boost::capy::task<> queue_text(pending_text item, outbox_operation_handler handler)
     {
-        if (!account_ || account_ != outbox_account_)
+        if (account_ == 0 || account_ != outbox_account_)
         {
             handler(std::unexpected(make_error(error_kind::transport, "Not authenticated")));
             co_return;
         }
-        if (item.conversation <= 0 || item.client_id <= 0 || item.reply_to < 0 || item.text.empty() || item.text.find('\0') != std::string::npos)
+        if (item.conversation <= 0 || item.client_id <= 0 || item.reply_to < 0 || item.text.empty() || item.text.contains('\0'))
         {
             handler(std::unexpected(make_error(error_kind::rpc, "Invalid params", -32602)));
             co_return;
@@ -1815,8 +1828,7 @@ struct client::impl
             handler(std::unexpected(make_error(error_kind::protocol, "Request exceeds 64 KiB")));
             co_return;
         }
-        using namespace std::chrono;
-        item.created = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+        item.created = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         if (journal_.exec("INSERT INTO text_outbox(user,client,conversation,body,reply,created) VALUES(?,?,?,?,NULLIF(?,0),?)",
                           account_,
                           item.client_id,
@@ -1836,7 +1848,7 @@ struct client::impl
 
     boost::capy::task<> list_texts(pending_texts_handler handler)
     {
-        if (!outbox_account_)
+        if (outbox_account_ == 0)
         {
             handler(std::unexpected(make_error(error_kind::transport, "Not authenticated")));
             co_return;
@@ -1846,7 +1858,8 @@ struct client::impl
 
     boost::capy::task<> change_text(std::int64_t id, bool discard, outbox_operation_handler handler)
     {
-        if (!outbox_account_ || id == sending_text_ || (!discard && !account_))
+        if (outbox_account_ == 0 || (!discard && account_ == 0) ||
+            std::ranges::any_of(sending_texts_, [id](auto const& active) { return active.second == id; }))
         {
             handler(std::unexpected(outbox_error("当前无法操作这条待发送消息")));
             co_return;
@@ -1855,7 +1868,7 @@ struct client::impl
                                   : "UPDATE text_outbox SET rejection=0 WHERE user=? AND client=? AND rejection<>0",
                           outbox_account_,
                           id) ||
-            !journal_.changes())
+            journal_.changes() == 0)
         {
             handler(std::unexpected(outbox_error("无法更新本地待发送消息")));
             co_return;
@@ -2684,7 +2697,8 @@ struct client::impl
     std::string transfer_directory_, endpoint_;
     sqlite_database journal_;
     std::int64_t account_ = 0;
-    std::int64_t outbox_account_ = 0, sending_text_ = 0;
+    std::int64_t outbox_account_ = 0;
+    std::unordered_map<std::int64_t, std::int64_t> sending_texts_;
     std::unordered_set<std::int64_t> deferred_text_conversations_;
     outbox_handler outbox_handler_;
     blocking_worker file_worker_{64, 2};
@@ -2991,13 +3005,19 @@ void client::send_message(std::int64_t conversation,
                           std::optional<std::int64_t> reply_to,
                           std::optional<std::int64_t> client_id)
 {
-    pending_text item{client_id ? *client_id : new_client_id(), conversation, reply_to.value_or(0), 0, std::move(text)};
+    pending_text item{
+        .client_id = client_id ? *client_id : new_client_id(),
+        .conversation = conversation,
+        .reply_to = reply_to.value_or(0),
+        .created = 0,
+        .text = std::move(text),
+    };
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->queue_text(std::move(item), std::move(queued)));
 }
 
 void client::set_outbox_handler(outbox_handler handler)
 {
-    std::lock_guard lock(impl_->handler_mutex_);
+    std::scoped_lock const lock(impl_->handler_mutex_);
     impl_->outbox_handler_ = std::move(handler);
 }
 

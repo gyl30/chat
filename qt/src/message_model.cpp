@@ -89,7 +89,11 @@ QVariant message_model::data(QModelIndex const& index, int role) const
         switch (role)
         {
             case send_state_role:
-                return item.failed ? failed : sending;
+                if (item.failed)
+                {
+                    return failed;
+                }
+                return item.waiting ? waiting : sending;
             case send_error_role:
                 return item.error;
             case read_role:
@@ -264,6 +268,13 @@ void message_model::reset(qint64 conversation, bool group)
 
 void message_model::set_pending(QList<pending_message> pending)
 {
+    pending.removeIf(
+        [this](pending_message const& item)
+        {
+            return std::ranges::any_of(messages_,
+                                       [&item](message_data const& stored)
+                                       { return stored.client_id == item.message.client_id && stored.from == item.message.from; });
+        });
     // Sends retain their relative order. Keep surviving client IDs in place so an unrelated
     // confirmation or failure cannot change the keyboard-focused message.
     for (int row = pending_.size() - 1; row >= 0; --row)

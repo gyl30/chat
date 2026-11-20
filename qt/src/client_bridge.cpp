@@ -126,6 +126,8 @@ client_bridge::client_bridge(QObject* parent)
             emit disconnected();
         });
     client_->set_error_handler([this](chat::error const& value) { emit error(display_error(value)); });
+    client_->set_outbox_handler([this](chat::pending_text item)
+                                { post_result(connection_generation_.load(), [this, item = std::move(item)] { publish_pending_text(item); }); });
     client_->set_message_handler(
         [this](chat::message message)
         { post_result(connection_generation_.load(), [this, message = std::move(message)] { emit message_received(to_message_data(message)); }); });
@@ -670,11 +672,88 @@ void client_bridge::set_typing(qint64 conversation, bool typing)
 
 void client_bridge::send_message(qint64 conversation, QString text, qint64 reply_to, qint64 client_id)
 {
-    client_->send_message(conversation,
-                          to_utf8(text),
-                          send_result(conversation, client_id),
-                          reply_to > 0 ? std::optional<std::int64_t>(reply_to) : std::nullopt,
-                          client_id);
+    client_->send_message(
+        conversation,
+        to_utf8(text),
+        [this, client_id](auto result)
+        {
+            auto error = result ? QString{} : display_error(result.error());
+            QMetaObject::invokeMethod(this, [this, client_id, error = std::move(error)] { emit text_saved(client_id, error); }, Qt::QueuedConnection);
+        },
+        reply_to > 0 ? std::optional<std::int64_t>(reply_to) : std::nullopt,
+        client_id);
+}
+
+void client_bridge::publish_pending_text(chat::pending_text const& item)
+{
+    QString rejection;
+    if (item.state == chat::outbox_state::failed)
+    {
+        rejection = item.rejection == chat::conversation_unavailable ? QStringLiteral("会话不可用") : QStringLiteral("服务器拒绝了消息");
+    }
+    emit pending_text_changed(item.conversation,
+                              item.client_id,
+                              from_utf8(item.text),
+                              item.reply_to,
+                              item.created,
+                              item.state == chat::outbox_state::sending,
+                              std::move(rejection));
+}
+
+void client_bridge::restore_texts()
+{
+    client_->pending_texts(
+        [this, generation = connection_generation_.load()](auto result)
+        {
+            post_result(generation,
+                        [this, result = std::move(result)]
+                        {
+                            if (!result)
+                            {
+                                emit error(display_error(result.error()));
+                                return;
+                            }
+                            QList<qint64> ids;
+                            ids.reserve(static_cast<qsizetype>(result->size()));
+                            for (auto const& item : *result)
+                            {
+                                ids.push_back(item.client_id);
+                                publish_pending_text(item);
+                            }
+                            emit pending_texts_restored(std::move(ids));
+                        });
+        });
+}
+
+void client_bridge::change_pending_text(qint64 client_id, bool discard)
+{
+    auto handler = [this, client_id, discard, generation = connection_generation_.load()](auto result)
+    {
+        post_result(generation,
+                    [this, client_id, discard, result = std::move(result)]
+                    {
+                        if (!result)
+                        {
+                            emit error(display_error(result.error()));
+                        }
+                        else if (discard)
+                        {
+                            emit pending_text_discarded(client_id);
+                        }
+                        else
+                        {
+                            restore_texts();
+                        }
+                    });
+    };
+    if (discard)
+    {
+        client_->discard_text(client_id, std::move(handler));
+    }
+    else
+    {
+        client_->retry_text(client_id, std::move(handler));
+    }
 }
 
 void client_bridge::send_attachment(qint64 conversation, QString path, qint64 reply_to, qint64 client_id)

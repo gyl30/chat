@@ -190,6 +190,9 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     result.read = result.outgoing && read_at(index);
     switch (index.data(message_model::send_state_role).toInt())
     {
+        case message_model::waiting:
+            result.time = QStringLiteral("等待发送");
+            break;
         case message_model::sending:
             result.time = index.data(message_model::send_error_role).toString();
             if (result.time.isEmpty())

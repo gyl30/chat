@@ -43,6 +43,7 @@ class message_model final : public QAbstractListModel
     {
         sent,
         sending,
+        waiting,
         failed,
     };
     // A message sent from here that the server has not confirmed: listed after the stored messages.
@@ -51,6 +52,7 @@ class message_model final : public QAbstractListModel
         message_data message;
         bool failed = false;
         QString error;
+        bool waiting = false;
     };
 
     explicit message_model(QObject* parent = nullptr, avatar_cache* avatars = nullptr, message_images* images = nullptr);

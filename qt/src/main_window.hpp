@@ -43,7 +43,7 @@ class main_window final : public QMainWindow
    protected:
     void changeEvent(QEvent* event) override;
     void closeEvent(QCloseEvent* event) override;
-    // Unsent messages are lost on quitting: asks first when there are any.
+    // Confirm exit only while a local save is still in progress.
     bool confirm_quit();
     bool eventFilter(QObject* object, QEvent* event) override;
 #if defined(Q_OS_LINUX)

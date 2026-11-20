@@ -34,7 +34,7 @@ struct pending_attachment
     std::string path, filename;
 };
 
-enum class outbox_state
+enum class outbox_state : std::uint8_t
 {
     queued,
     sending,

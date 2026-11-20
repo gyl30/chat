@@ -1215,6 +1215,11 @@ void main_window::connect_messages()
             this,
             [this](qint64 conversation, QString text, qint64 reply, qint64 client_id)
             { client_->send_message(conversation, std::move(text), reply, client_id); });
+    connect(client_.get(), &client_bridge::text_saved, chat_page_, &chat_widget::finish_text_save);
+    connect(client_.get(), &client_bridge::pending_text_changed, chat_page_, &chat_widget::update_pending_text);
+    connect(chat_page_, &chat_widget::pending_text_action_requested, client_.get(), &client_bridge::change_pending_text);
+    connect(client_.get(), &client_bridge::pending_text_discarded, chat_page_, &chat_widget::discard_pending_text);
+    connect(client_.get(), &client_bridge::pending_texts_restored, chat_page_, &chat_widget::reconcile_pending_texts);
     connect(chat_page_, &chat_widget::typing_requested, client_.get(), &client_bridge::set_typing);
     connect(client_.get(), &client_bridge::typing_changed, chat_page_, &chat_widget::set_typing, Qt::AutoConnection);
     connect(chat_page_, &chat_widget::attachment_send_requested, client_.get(), &client_bridge::send_attachment);
@@ -1490,11 +1495,8 @@ void main_window::closeEvent(QCloseEvent* event)
 
 bool main_window::confirm_quit()
 {
-    auto const unsent = chat_page_->unsent_text_count();
-    return unsent == 0 || confirm_action(this,
-                                         QStringLiteral("退出 Chat"),
-                                         QStringLiteral("还有 %1 条消息未发送，退出后会丢失。仍要退出？").arg(unsent),
-                                         QStringLiteral("退出"));
+    return !chat_page_->saving_text() ||
+           confirm_action(this, QStringLiteral("退出 Chat"), QStringLiteral("正在保存一条消息，仍要退出？"), QStringLiteral("退出"));
 }
 
 void main_window::show_settings()
@@ -1511,8 +1513,7 @@ void main_window::show_settings()
                 this,
                 [this]
                 {
-                    auto const unsent = chat_page_->unsent_text_count();
-                    auto const warning = unsent == 0 ? QString{} : QStringLiteral("还有 %1 条消息未发送，会丢失。").arg(unsent);
+                    auto const warning = chat_page_->saving_text() ? QStringLiteral("正在保存一条消息。") : QString{};
                     if (confirm_action(settings_,
                                        QStringLiteral("退出登录"),
                                        warning + QStringLiteral("退出当前账号？应用会返回登录页。"),
@@ -2040,6 +2041,7 @@ void main_window::show_registration_error(QString message)
 void main_window::show_authenticated_page(qint64 user)
 {
     chat_page_->set_user(pending_username_, user);
+    client_->restore_texts();
     client_->restore_attachments();
     chat_page_->set_connection_available(true);
     chat_page_->set_connection_status({}, false);
@@ -2144,7 +2146,7 @@ void main_window::finish_reconnect()
     // messages others sent while the link was down.
     auto const user = chat_page_->active_conversation();
     auto const cursor = chat_page_->recovery_cursor();
-    chat_page_->resend_outgoing();
+    client_->restore_texts();
     client_->restore_attachments();
     client_->get_conversations();
     client_->get_contacts();
