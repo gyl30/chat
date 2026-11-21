@@ -3,6 +3,7 @@
 import asyncio
 import base64
 from contextlib import AsyncExitStack
+import os
 from pathlib import Path
 import shutil
 import sqlite3
@@ -109,7 +110,7 @@ async def run(root):
         backdate_fixture_upload(volume, handle)
     control = root / "creation-age-control"
     shutil.copytree(volume, control)
-    with store.node(control, expiry="24h", cleanup_interval="1s") as (api, _):
+    with store.node(control, cleanup_interval="1s") as (api, _):
         await until(
             lambda: all(part_sizes(api, handle) is None for handle in handles.values()),
             "24h creation-age sweep removed the old fixture uploads",
@@ -132,8 +133,18 @@ async def run(root):
         )
 
     with node() as (api, env):
-        # Same aged fixture and sweep interval as the 24h control, but expiry is off.
-        await asyncio.sleep(5)
+        # Same aged fixture and sweep interval as the default 24h control, but expiry is off.
+        old_tmp = volume / ".minio.sys/tmp" / "chat-acceptance-aged-tmp"
+        fresh_tmp = old_tmp.with_name("chat-acceptance-fresh-tmp")
+        for path in (old_tmp, fresh_tmp):
+            path.mkdir()
+            (path / "fixture").write_bytes(b"tmp")
+        aged = time.time() - 48 * 3600
+        os.utime(old_tmp, (aged, aged))
+        await until(
+            lambda: not old_tmp.exists(), "off must preserve stale temp cleanup"
+        )
+        assert (fresh_tmp / "fixture").read_bytes() == b"tmp"
         assert all(
             part_sizes(api, handle) == [(1, lengths[ident])]
             for ident, handle in handles.items()
@@ -184,7 +195,7 @@ async def run(root):
                     )
                 )["url"]
     print(
-        "PASS creation-age control, protected restart/resume, 15-day Chat activity cleanup and shared object"
+        "PASS creation-age control, ordinary temp sweep with off, protected restart/resume, 15-day Chat activity cleanup and shared object"
     )
 
 
