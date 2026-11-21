@@ -4,6 +4,8 @@
 
 假设数据库路径在 `DB` 中，下列命令均从仓库根目录执行。
 
+若服务器部署私有 SQLite，以下所有运维 Python 命令均应经[同一固定前缀的运行时包装器](sqlite-runtime.md)启动。
+
 ## 备份与恢复
 
 ```sh
@@ -57,6 +59,30 @@ aws --endpoint-url "$S3_ENDPOINT" s3api head-object \
 `ListParts` 查看未完成上传的分片；`HEAD` 检查已完成对象。`NoSuchUpload` 也可能来自正常完成或终止。结合 `files`、`message_attachments`、`conversation_files` 及 `attachment_cleanup` 中同一键的预留或回收状态判断。权限、证书或连接错误须单独排查。不要据空列表修改任务或终止上传。
 
 服务启动、运行期间和退出时会处理回收队列。撤回消息或移除群文件后仍有其他引用的对象继续保留。确认最后引用消失后由服务端删除对象；15 天未继续的上传先终止 multipart，再清理预留。检查未完成分片时，应结合数据库的上传状态、最后活动时间以及 Silo 的响应。Silo 不可达时，先检查 endpoint、证书、私有桶权限和凭据，恢复后观察队列是否下降。
+
+## 候选：由 Chat 管理未完成上传的保留
+
+上游 `44e848fedf8cec3d8c0da4b1aa8422390a2b7a8b` 不提供兼容开关；`0` 回落到 24h，负数不是关闭，延长固定创建寿命无法覆盖任意最后活动时间。隔离候选采用该版本的独立最小补丁；仅补丁版识别 `MINIO_API_STALE_UPLOADS_EXPIRY=off`，仅跳过持久 multipart 目录的按创建时间清扫。其它临时文件清理、对象生命周期、缓存淘汰和显式 Abort/Complete 均不关闭；临时文件和缓存继续使用 24h 默认值。原镜像不设置 `off`。候选未写入业务容器。
+
+只在 Chat 独占的 Silo 实例考虑启用，因为设置作用于节点、不是桶。Chat 继续以数据库 `touched` 为准，启动、周期和退出清理把到期任务转为 `discarding`、终止 multipart 并回收未发布对象；失败留待重试。已发布对象仍由独立的最后引用回收队列管理。未成功登记到 Chat 的孤儿（例如 Silo Initiate 成功后进程立刻崩溃）不在这条队列内。切换后需要监测容量和任务积压；孤儿只在停止写入、用完整快照与数据库复核并确定没有业务引用后处理，不能用空桶列表代替复核。
+
+候选二进制和精确基线的补丁独立保存，不将 Silo 源码纳入本仓库。构建以 Go 1.27.4 在该 SHA 上应用补丁再运行：
+
+```sh
+git apply --check /path/to/silo-chat-multipart-off.patch
+git apply /path/to/silo-chat-multipart-off.patch
+CGO_ENABLED=0 go build -trimpath -tags kqueue --ldflags "$(go run buildscripts/gen-ldflags.go)" -o /path/to/candidate/silo .
+```
+
+回归命令（临时卷、单节点、回环端口，不能指向线上实例）：
+
+```sh
+SILO_BIN=/path/to/candidate/silo CHAT_TEST_SERVER=/path/to/candidate/chat_server     ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" python3 ops/acceptance/silo_retention.py
+```
+
+测试停写后将临时实例的 Silo 上传创建标识回拨 17 天，副本用 24h 创建阈值和 1s 扫描周期，确证两个分片不可再列；另一份使用 `off`，等待多轮扫描仍保有相同分片。再把 Chat 活动时间分别设为 14/16 天前，确认只有后者被 Chat 终止，原设备用保留的同一 ID 从第二片续传，其他设备不能接管，仍被群文件引用的完整对象不变。这不是实际等待 15 天。
+
+切换前须确认生产实例专用、有已验证的配对数据库/月档/Silo 卷备份，并暂停写入和上传；记录当前镜像摘要、挂载、启动参数、环境和确切在途任务。将静态候选在原容器镜像的 `/usr/bin/silo` 路径只读挂载，保持原卷、端口和其他参数，只新增 `MINIO_API_STALE_UPLOADS_EXPIRY=off`。不并行启动两个实例挂载同一卷。检查候选启动日志、配置与已知 MPU 的精确 `ListParts`，确认 Chat 回收与完整对象检查可用后再开放写入。回滚时先停写，恢复原运行定义、原镜像和清扫参数；原阈值会再次允许删除仍可由 Chat 续传的旧分片，必须先保护配对卷快照并处理在途任务，不允许无提示直接恢复 24h 策略。回滚二进制不等于回滚数据；已被清扫的分片不能由该设置找回。
 
 ## 日志
 

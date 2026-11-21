@@ -47,7 +47,7 @@ class Store:
         self.bucket = "chat-acceptance"
 
     @contextmanager
-    def node(self, volume):
+    def node(self, volume, *, expiry=None, cleanup_interval=None):
         endpoint = f"127.0.0.1:{port()}"
         env = dict(
             os.environ,
@@ -56,6 +56,16 @@ class Store:
             SILO_ROOT_PASSWORD=self.secret,
             MINIO_ROOT_PASSWORD=self.secret,
         )
+        # Only the explicit test knobs may override the isolated node's defaults.
+        for name, value in (
+            ("MINIO_API_STALE_UPLOADS_EXPIRY", expiry),
+            ("MINIO_API_STALE_UPLOADS_CLEANUP_INTERVAL", cleanup_interval),
+            ("MINIO_CONFIG_ENV_FILE", None),
+        ):
+            if value is None:
+                env.pop(name, None)
+            else:
+                env[name] = value
         url = "http://" + endpoint
         command = [
             os.getenv("SILO_BIN", "silo"),
