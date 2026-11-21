@@ -17,7 +17,7 @@ cmake --build build -j12
 ```
 
 默认只构建生产程序及其依赖，不构建或运行任何第一方测试目标。
-离线依赖配置参见 [共享 Unicode 依赖](cmake/README.md)。
+离线依赖配置参见 [共享 Unicode 依赖](cmake/README.md)。Linux Release 构建、隔离验收和搜索测量见[可复跑的验收入口](ops/acceptance/README.md)。
 
 ## 本地运行
 
