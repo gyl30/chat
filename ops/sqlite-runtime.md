@@ -30,10 +30,4 @@ CHAT_TEST_SQLITE_LIB="$SQLITE_PREFIX/lib/libsqlite3.so.0" \
 
 ## 切换与回滚
 
-实际部署前确认服务名、数据库、定时运维入口和备份窗口。停止 Chat 写入及定时归档/备份/checkpoint，保存原服务可执行文件、启动定义、运维入口和可验证热库/月档备份。切换到该前缀构建的服务端，所有 `chat_admin.py` 入口（包括归档、WAL、备份和恢复）改为：
-
-```sh
-/path/to/chat/ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" /usr/bin/python3 /path/to/chat/ops/chat_admin.py ...
-```
-
-启动后核对服务进程的 `/proc/PID/maps` 及相同包装器下 Python 的 source ID；在重开写入前用隔离探针和已授权的生产只读检查确认健康。若切换失败，停止新服务和运维任务，恢复旧二进制和旧启动/运维入口，不替换全局库、不直接删除 WAL/SHM。对退回未修复库的临时窗口避免并发手动 checkpoint；只有确需恢复时才使用成对备份，不能覆盖切换后已接受的新写入。
+按[发布切换与回滚手册](release-cutover.md)操作。服务端和全部运维 Python 入口必须一起核对实际加载路径；只回滚 Chat／SQLite 时不要附带重新启用 Silo 的 24h 清扫。系统 SQLite 不变。
