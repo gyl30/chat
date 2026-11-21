@@ -196,6 +196,9 @@ QJsonObject dispatch(main_window& window, QJsonObject const& cmd)
                 if (cmd.contains("query"))
                 {
                     q->setText(cmd["query"].toString());
+                }
+                if ((cmd.contains("query") && !cmd["type_only"].toBool()) || cmd["submit"].toBool())
+                {
                     QMetaObject::invokeMethod(q, "returnPressed");
                 }
                 if (cmd["more"].toBool() || cmd["back"].toBool())

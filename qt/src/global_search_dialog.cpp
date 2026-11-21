@@ -246,7 +246,8 @@ void global_search_dialog::discard(qint64 conversation, qint64 through)
     {
         page_floors_[conversation] = std::max(through, page_floors_.value(conversation));
     }
-    for (int i = results_->topLevelItemCount() - 1; i >= 0; --i)
+    auto const count = results_->topLevelItemCount();
+    for (int i = count - 1; i >= 0; --i)
     {
         auto* item = results_->topLevelItem(i);
         if (item->data(0, Qt::UserRole).toLongLong() == conversation && item->data(1, Qt::UserRole).toLongLong() <= through)
@@ -254,7 +255,10 @@ void global_search_dialog::discard(qint64 conversation, qint64 through)
             delete results_->takeTopLevelItem(i);
         }
     }
-    show_empty_result();
+    if (results_->topLevelItemCount() != count)
+    {
+        show_empty_result();
+    }
 }
 
 void global_search_dialog::show_empty_result()

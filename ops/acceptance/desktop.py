@@ -122,12 +122,27 @@ async def search_cases(ui, gate, a, b, g):
 
     await ui.call("searchui", open=True)
     await ui.wait("searchui", lambda r: r.get("open"))
+
+    unrelated = (await b.ok("create_group", title="跨设备清空", members=[1]))["conversation"]
+    marker = (await b.ok("send_message", conversation=unrelated, text="测试清空", client_id=999))["id"]
+    await ui.call("searchui", query="必定没有匹配", type_only=True)
+    start = len(gate.messages)
+    await a.ok("clear_history", conversation=unrelated, through=marker)
+    await until(lambda: any(m["method"] == "get_conversations" for m in gate.messages[start:]), "clear event")
+    state = await ui.call("searchui")
+    assert not state["status"] and not state["ids"], state
+    assert not any(m["method"] == "search_all_messages" for m in gate.messages[start:])
+    await ui.call("searchui", submit=True)
+    await ui.wait("searchui", lambda r: r["status"] == "没有找到相关消息" and not r["ids"])
     await show("事务回归")
     await rows(50)
     await ui.call("searchui", more=True)
     await rows(100)
+    await ui.call("searchui", row=50)
+    position = (await ui.call("searchui"))["scroll"]
+    assert position > 0
     await b.ok("delete_message", conversation=g, message=ids[2])
-    await rows(99)
+    assert (await rows(99))["scroll"] == position
     await ui.call("searchui", more=True)
     await rows(101)
     assert [
@@ -402,6 +417,9 @@ async def main(root, binary):
                     try:
                         if sys.argv[2:] == ["pin"]:
                             await pin_cases(ui, gate, a, b, g)
+                            return
+                        if sys.argv[2:] == ["search"]:
+                            await search_cases(ui, gate, a, b, other)
                             return
                         await notifications(ui, gate, a, b, g, root)
                         await search_cases(ui, gate, a, b, other)
