@@ -54,3 +54,17 @@ python3 ops/acceptance/search_bench.py "$work/timed/server" --case nohit --sampl
 提高创建时长阈值可以缓解过早清扫。有总上传寿命上限的部署，阈值至少应覆盖从创建到最后允许活动的最长时间，再加 15 天；允许持续恢复时，单一有限阈值无法覆盖所有任务。要满足完整约定，应先核实对象服务支持由 Chat 管理这些未完成上传的过期，或支持按活动计龄，再单独安排部署变更。此版本的桶生命周期接口不支持 AbortIncompleteMultipartUpload。[Silo multipart 兼容性说明](https://silo.pigsty.io/reference/s3-api-compatibility/#differences-from-s3-apis-for-multipart-uploads)
 
 本机服务端和运维 Python 3.10 的 `_sqlite3` 都链接到 Ubuntu `libsqlite3-0:amd64 3.37.2-2ubuntu0.8` 的 `libsqlite3.so.0.8.6`，dpkg 文件校验一致。核对该精确版本源包中应用的全部 17 个 Debian 补丁，未含 WAL-reset 修复；Debian 补丁包 SHA-256 为 `6cf7d3db197bd5e76c81876e3a4536c75a322cdbb1c8d6cffc507de5adceb969`，与发布的 dsc 一致。上游修复覆盖 3.51.3，并有较早分支回补。问题要求特定的写入与 checkpoint 并发；新增连接只读且不执行 checkpoint。本轮未观察到 Chat 数据库损坏。其他主机请分别核对服务进程加载的库和运维解释器的库、包修订及源补丁，再决定升级。[Ubuntu 源包清单](https://security.ubuntu.com/ubuntu/pool/main/s/sqlite3/sqlite3_3.37.2-2ubuntu0.8.dsc) · [SQLite WAL-reset 说明](https://sqlite.org/wal.html#the_wal_reset_bug)
+
+### 同一 WebSocket 复测与原始样本
+
+先按本节构建计时程序，确认 Release 二进制对应的 Git SHA（不是测试脚本的版本），然后使用相同环境分别执行：
+
+```sh
+for mode in same cross; do
+    python3 ops/acceptance/search_bench.py "$work/timed/server" \
+        --mode "$mode" --layout hot --case nohit --case idle \
+        --sha "$(git rev-parse HEAD)" --raw "$work/search-$mode.json"
+done
+```
+
+测试客户端使用独立 RPC ID；同一连接只有一个收帧协程。实际提交间隔和搜索响应前已提交的次数写入结果，无需根据计划的 2 ms 间隔猜测是否重叠。历史 CSV 和新的独立测量不可合并。[2026-11-21 本机 Release 记录](results/README.md)。
