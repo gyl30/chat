@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 #include "attachment.hpp"
 #include "avatar.hpp"
@@ -11,6 +12,42 @@
 
 namespace chat
 {
+
+enum class message_category
+{
+    all,
+    images,
+    files,
+    links,
+};
+
+inline constexpr std::string_view category_name(message_category kind)
+{
+    switch (kind)
+    {
+        case message_category::images:
+            return "images";
+        case message_category::files:
+            return "files";
+        case message_category::links:
+            return "links";
+        case message_category::all:
+            return "all";
+    }
+    return "all";
+}
+
+inline constexpr std::optional<message_category> parse_message_category(std::string_view name)
+{
+    for (auto kind : {message_category::all, message_category::images, message_category::files, message_category::links})
+    {
+        if (category_name(kind) == name)
+        {
+            return kind;
+        }
+    }
+    return std::nullopt;
+}
 
 struct quoted_message
 {
@@ -54,6 +91,22 @@ struct read_position
 {
     std::int64_t user = 0;
     std::int64_t message = 0;
+};
+
+struct message_search_filter
+{
+    std::string query;
+    std::optional<std::int64_t> conversation;
+    message_category category = message_category::all;
+    std::optional<std::int64_t> sender;
+    std::optional<std::int64_t> start;
+    std::optional<std::int64_t> end;
+};
+
+struct message_search_scope
+{
+    std::int64_t id;
+    std::string name;
 };
 
 struct message_search_hit

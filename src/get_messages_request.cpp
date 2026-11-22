@@ -22,12 +22,18 @@ struct[[= simdjson::deny_unknown_fields]] get_messages_params
     std::optional<std::int64_t> after;
     std::optional<std::int64_t> around;
     std::optional<std::string> query;
+    std::optional<std::string> category;
 };
 
 struct[[= simdjson::deny_unknown_fields]] search_all_params
 {
-    std::string query;
+    std::optional<std::string> query;
     std::optional<std::int64_t> before;
+    std::optional<std::int64_t> conversation;
+    std::optional<std::string> category;
+    std::optional<std::int64_t> sender;
+    std::optional<std::int64_t> start;
+    std::optional<std::int64_t> end;
 };
 
 bool valid_search(std::string_view query) { return !query.empty() && query.size() <= 1024 && !query.contains('\0'); }
@@ -74,6 +80,19 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
         co_return simdjson::SUCCESS;
     }
 
+    if (request.method == "message_search_scopes")
+    {
+        if (!request.id.present)
+        {
+            co_return simdjson::SUCCESS;
+        }
+        auto scopes = co_await database_.search([user = *user_id_](sqlite_database& db) { return read_message_search_scopes(db, user); });
+        if (!scopes)
+        {
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        co_return serialize_json_rpc_value(*scopes, std::move(request.id), response);
+    }
     if (request.method == "search_all_messages")
     {
         if (!request.id.present)
@@ -81,12 +100,18 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
             co_return simdjson::SUCCESS;
         }
         search_all_params params{};
-        if (parse_params(request.params, params) || !valid_search(params.query) || (params.before && *params.before <= 0))
+        auto const parse_error = parse_params(request.params, params);
+        auto const category = params.category ? chat::parse_message_category(*params.category) : chat::message_category::all;
+        if (parse_error || !category || (params.query && !valid_search(*params.query)) || (params.before && *params.before <= 0) ||
+            (params.conversation && *params.conversation <= 0) || (params.sender && *params.sender <= 0) ||
+            (params.start && params.end && *params.start >= *params.end) ||
+            (!params.query && !params.conversation && *category == chat::message_category::all && !params.sender && !params.start && !params.end))
         {
             co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
         }
-        auto result = co_await database_.search([&, user = *user_id_](sqlite_database& db)
-                                                { return search_all_messages(db, user, params.query, params.before); });
+        chat::message_search_filter filter{params.query.value_or(""), params.conversation, *category, params.sender, params.start, params.end};
+        auto result =
+            co_await database_.search([&, user = *user_id_](sqlite_database& db) { return search_all_messages(db, user, filter, params.before); });
         if (!result)
         {
             co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
@@ -95,10 +120,12 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
     }
     get_messages_params params{};
     bool const searching = request.method == "search_messages";
-    if (parse_params(request.params, params) || params.conversation <= 0 || (params.before && *params.before <= 0) ||
+    auto const parse_error = parse_params(request.params, params);
+    auto const category = params.category ? chat::parse_message_category(*params.category) : std::nullopt;
+    if (parse_error || (params.category && !category) || params.conversation <= 0 || (params.before && *params.before <= 0) ||
         (params.after && (*params.after < 0 || params.before)) ||
-        (params.around && (*params.around <= 0 || params.before || params.after || searching)) ||
-        (searching && (!params.query || !valid_search(*params.query) || params.after)) || (!searching && params.query))
+        (params.around && (*params.around <= 0 || params.before || params.after || searching || category)) || (category && params.after) ||
+        (params.query && (!valid_search(*params.query) || (!searching && !category))) || (searching && (!params.query || params.after || category)))
     {
         if (request.id.present)
         {
@@ -107,12 +134,12 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
         co_return simdjson::SUCCESS;
     }
 
-    auto history = co_await database_.run(
-        [&, user = *user_id_](sqlite_database& db)
-        {
-            return read_message_history(
-                db, user, params.conversation, params.before, params.after, params.query ? std::string_view(*params.query) : "", params.around);
-        });
+    auto read = [&, user = *user_id_](sqlite_database& db)
+    {
+        return read_message_history(
+            db, user, params.conversation, params.before, params.after, params.query ? std::string_view(*params.query) : "", params.around, category);
+    };
+    auto history = category || searching || params.around ? co_await database_.search(read) : co_await database_.run(read);
     if (!request.id.present)
     {
         co_return simdjson::SUCCESS;

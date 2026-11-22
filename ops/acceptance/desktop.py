@@ -35,6 +35,7 @@ class Gate:
         self.hold = set()
         self.messages = []
         self.held = []
+        self.transform = None
 
     async def handle(self, downstream):
         async with connect(self.upstream) as server:
@@ -52,10 +53,12 @@ class Gate:
                 async for packet in server:
                     result = json.loads(packet)
                     method = methods.pop(result.get("id"), result.get("method"))
+                    if self.transform:
+                        self.transform(method, result)
                     if method in self.hold:
                         self.held.append((method, result))
                     else:
-                        await downstream.send(packet)
+                        await downstream.send(json.dumps(result) if self.transform else packet)
 
             tasks = [asyncio.create_task(fn()) for fn in (send, receive)]
             try:
@@ -80,7 +83,7 @@ class Gate:
 
 
 class Desktop:
-    async def start(self, binary, root, url):
+    async def start(self, binary, root, url, user="a", user_id=1):
         env = dict(
             os.environ,
             QT_QPA_PLATFORM="offscreen",
@@ -88,8 +91,8 @@ class Desktop:
             XDG_CONFIG_HOME=str(root / "config"),
         )
         self.proc = await asyncio.create_subprocess_exec(binary, url, env=env, stdin=-1, stdout=-1)
-        await self.call("login", user="a")
-        await self.wait("state", lambda r: r["user"] == 1)
+        await self.call("login", user=user)
+        await self.wait("state", lambda r: r["user"] == user_id)
 
     async def call(self, op, **params):
         self.proc.stdin.write((json.dumps(dict(op=op, **params)) + "\n").encode())

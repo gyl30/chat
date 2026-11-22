@@ -796,7 +796,7 @@ void client_bridge::forward_messages(qint64 target, QList<qint64> messages)
         });
 }
 
-void client_bridge::send_message(qint64 conversation, QString text, qint64 reply_to, qint64 client_id)
+void client_bridge::send_message(qint64 conversation, QString text, qint64 reply_to, qint64 client_id, qint64 revision)
 {
     client_->send_message(
         conversation,
@@ -807,7 +807,69 @@ void client_bridge::send_message(qint64 conversation, QString text, qint64 reply
             QMetaObject::invokeMethod(this, [this, client_id, error = std::move(error)] { emit text_saved(client_id, error); }, Qt::QueuedConnection);
         },
         reply_to > 0 ? std::optional<std::int64_t>(reply_to) : std::nullopt,
-        client_id);
+        client_id,
+        revision);
+}
+
+void client_bridge::save_draft(qint64 user, qint64 conversation, qint64 revision, qint64 reply, QString text)
+{
+    client_->save_draft(user,
+                        {conversation, revision, reply, to_utf8(text)},
+                        [this, g = connection_generation_.load()](auto result)
+                        {
+                            if (!result)
+                            {
+                                post_result(g, [this, error = display_error(result.error())] { emit this->error(error); });
+                            }
+                        });
+}
+
+void client_bridge::restore_drafts(qint64 user)
+{
+    client_->load_drafts(user,
+                         [this, user, g = connection_generation_.load()](auto result)
+                         {
+                             post_result(g,
+                                         [this, user, result = std::move(result)]() mutable
+                                         {
+                                             if (!result)
+                                             {
+                                                 emit error(display_error(result.error()));
+                                                 return;
+                                             }
+                                             emit drafts_restored(user, std::move(*result));
+                                         });
+                         });
+}
+
+void client_bridge::validate_draft_reply(qint64 conversation, qint64 anchor, qint64 revision)
+{
+    client_->get_messages_around(conversation,
+                                 anchor,
+                                 [this, conversation, anchor, revision, g = connection_generation_.load()](auto result)
+                                 {
+                                     post_result(g,
+                                                 [this, conversation, anchor, revision, result = std::move(result)]
+                                                 {
+                                                     if (!result && result.error().code != chat::conversation_unavailable)
+                                                     {
+                                                         return;
+                                                     }
+                                                     if (result)
+                                                     {
+                                                         for (auto const& message : result->messages)
+                                                         {
+                                                             if (message.id == anchor && !message.deleted)
+                                                             {
+                                                                 emit draft_reply_validated(
+                                                                     conversation, anchor, revision, to_message_data(message), false);
+                                                                 return;
+                                                             }
+                                                         }
+                                                     }
+                                                     emit draft_reply_validated(conversation, anchor, revision, {}, true);
+                                                 });
+                                 });
 }
 
 void client_bridge::publish_pending_text(chat::pending_text const& item)
@@ -921,18 +983,9 @@ void client_bridge::list_files(qint64 conversation, QString search, QString cate
                                                      });
                                      });
 }
-void client_bridge::download_file(qint64 conversation, QString key, QString path, bool open)
+void client_bridge::download_file(qint64 conversation, QString key, QString filename, QString path, bool open)
 {
-    client_->download_conversation_file(conversation,
-                                        to_utf8(key),
-                                        to_utf8(path),
-                                        [this, conversation, path, open, g = connection_generation_.load()](auto r)
-                                        {
-                                            post_result(
-                                                g,
-                                                [this, conversation, path, open, r = std::move(r)]
-                                                { emit file_downloaded(conversation, path, open, r ? QString{} : display_error(r.error())); });
-                                        });
+    emit download_requested(conversation, 0, std::move(key), std::move(filename), std::move(path), open);
 }
 void client_bridge::send_attachment(qint64 conversation, QString path, qint64 reply_to, qint64 client_id, bool group_only)
 {
@@ -1051,18 +1104,41 @@ std::function<void(std::expected<chat::message, chat::error>)> client_bridge::se
     };
 }
 
-void client_bridge::get_attachment(qint64 conversation, qint64 message, QString target)
+void client_bridge::get_attachment(qint64 conversation, qint64 message, QString filename, QString target)
 {
-    client_->get_attachment(conversation,
-                            message,
-                            to_utf8(target),
-                            [this, conversation, message, target, g = connection_generation_.load()](auto result)
-                            {
-                                post_result(
-                                    g,
-                                    [this, conversation, message, target, result = std::move(result)]
-                                    { emit attachment_received(conversation, message, target, result ? QString{} : display_error(result.error())); });
-                            });
+    emit download_requested(conversation, message, {}, std::move(filename), std::move(target), false);
+}
+
+void client_bridge::start_download(qint64 id,
+                                   quint64 attempt,
+                                   qint64 conversation,
+                                   qint64 message,
+                                   QString key,
+                                   QString path,
+                                   std::shared_ptr<chat::download_control> control,
+                                   bool replace)
+{
+    // The task list survives reconnects; a completion from the failed connection still retires this attempt.
+    auto progress = [this, id, attempt](qint64 bytes, qint64 total)
+    {
+        QMetaObject::invokeMethod(
+            this, [this, id, attempt, bytes, total] { emit download_progress(id, attempt, bytes, total); }, Qt::QueuedConnection);
+    };
+    auto done = [this, id, attempt](auto result)
+    {
+        auto error = result ? QString{} : display_error(result.error());
+        QMetaObject::invokeMethod(
+            this, [this, id, attempt, error = std::move(error)] { emit download_finished(id, attempt, error); }, Qt::QueuedConnection);
+    };
+    chat::download_options options{std::move(control), std::move(progress), replace};
+    if (message)
+    {
+        client_->get_attachment(conversation, message, to_utf8(path), std::move(done), chat::max_attachment_size, std::move(options));
+    }
+    else
+    {
+        client_->download_conversation_file(conversation, to_utf8(key), to_utf8(path), std::move(done), std::move(options));
+    }
 }
 
 void client_bridge::delete_message(qint64 conversation, qint64 message)
@@ -1221,10 +1297,10 @@ void client_bridge::search_messages(qint64 conversation, QString query, qint64 b
         });
 }
 
-quint64 client_bridge::search_all_messages(QString query, qint64 before)
+quint64 client_bridge::search_all_messages(chat::message_search_filter const& filter, qint64 before)
 {
     auto request = ++global_search_request_;
-    client_->search_all_messages(to_utf8(query),
+    client_->search_all_messages(filter,
                                  before ? std::optional<std::int64_t>{before} : std::nullopt,
                                  [this, request, g = connection_generation_.load()](auto result)
                                  {
@@ -1241,6 +1317,30 @@ quint64 client_bridge::search_all_messages(QString query, qint64 before)
                                                      }
                                                  });
                                  });
+    return request;
+}
+
+quint64 client_bridge::get_message_search_scopes()
+{
+    auto const request = ++global_search_request_;
+    client_->get_message_search_scopes(
+        [this, request, g = connection_generation_.load()](auto result)
+        {
+            post_result(g,
+                        [this, request, result = std::move(result)]() mutable
+                        {
+                            emit message_search_scopes_received(request,
+                                                                result ? std::move(*result) : std::vector<chat::message_search_scope>{},
+                                                                result ? QString{} : display_error(result.error()));
+                        });
+        });
+    return request;
+}
+
+quint64 client_bridge::find_search_senders(QString query)
+{
+    auto const request = ++global_search_request_;
+    search_users(std::move(query), request);
     return request;
 }
 
@@ -1269,7 +1369,7 @@ quint64 client_bridge::get_search_context(qint64 conversation, qint64 anchor)
     return request;
 }
 
-void client_bridge::get_history(qint64 conversation, QString query, qint64 before)
+void client_bridge::get_history(qint64 conversation, chat::message_category category, QString query, qint64 before)
 {
     auto const generation = ++history_generation_;
     auto const connection = connection_generation_.load();
@@ -1296,14 +1396,7 @@ void client_bridge::get_history(qint64 conversation, QString query, qint64 befor
                         emit history_received(conversation, std::move(messages), result->has_more, {});
                     });
     };
-    if (query.isEmpty())
-    {
-        client_->get_messages(conversation, cursor, std::move(receive));
-    }
-    else
-    {
-        client_->search_messages(conversation, to_utf8(query), cursor, std::move(receive));
-    }
+    client_->get_categorized_history(conversation, category, to_utf8(query), cursor, std::move(receive));
 }
 
 std::function<void(std::expected<chat::friendship_result, chat::error>)> client_bridge::friend_request_result(qint64 user)

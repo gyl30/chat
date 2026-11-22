@@ -8,6 +8,7 @@ add_executable(chat_qt
     src/main.cpp
     src/avatar.cpp
     src/attachment_dialog.cpp
+    src/download_dialog.cpp
     src/attachment_dialog.hpp
     src/avatar.hpp
     src/global_search_dialog.cpp

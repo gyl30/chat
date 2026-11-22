@@ -46,6 +46,7 @@
 #include "avatar.hpp"
 #include "chat_history_dialog.hpp"
 #include "global_search_dialog.hpp"
+#include "download_dialog.hpp"
 #include "chat_widget.hpp"
 #include "attachment_dialog.hpp"
 #include "group_dialog.hpp"
@@ -717,6 +718,7 @@ void main_window::connect_authentication()
             server_edit_->setEnabled(true);
             if (pages_->currentWidget() == chat_page_)
             {
+                downloads_->clear_tasks();
                 chat_page_->set_user({});
                 pages_->setCurrentWidget(login_page_);
                 password_edit_->clear();
@@ -1142,11 +1144,11 @@ void main_window::show_chat_history(qint64 conversation, QString const& title)
     connect(&dialog,
             &chat_history_dialog::history_requested,
             &dialog,
-            [this, conversation, &dialog](QString query, qint64 before)
+            [this, conversation, &dialog](chat::message_category category, QString query, qint64 before)
             {
                 if (connected_ && !reconnecting_)
                 {
-                    client_->get_history(conversation, std::move(query), before);
+                    client_->get_history(conversation, category, std::move(query), before);
                 }
                 else
                 {
@@ -1201,11 +1203,23 @@ void main_window::connect_group_actions()
             {
                 if (connected_ && !reconnecting_)
                 {
-                    global_search_dialog dialog(*client_, this);
+                    global_search_dialog dialog(*client_, this, chat_page_->self_user(), session_username_);
                     dialog.exec();
                 }
             });
     connect(chat_page_, &chat_widget::chat_history_requested, this, &main_window::show_chat_history);
+    connect(chat_page_,
+            &chat_widget::message_context_requested,
+            this,
+            [this](qint64 conversation, qint64 anchor)
+            {
+                if (connected_ && !reconnecting_)
+                {
+                    global_search_dialog dialog(*client_, this);
+                    dialog.locate(conversation, anchor);
+                    dialog.exec();
+                }
+            });
     connect(client_.get(),
             &client_bridge::conversation_opened,
             this,
@@ -1305,13 +1319,27 @@ void main_window::connect_messages()
                 }
             });
 
+    downloads_ = new download_dialog(*client_, *chat_page_, this);
+    connect(chat_page_,
+            &chat_widget::download_tasks_requested,
+            this,
+            [this]
+            {
+                downloads_->show();
+                downloads_->raise();
+                downloads_->activateWindow();
+            });
     connect(chat_page_, &chat_widget::older_messages_requested, this, [this](qint64 user, qint64 before) { client_->get_messages(user, before); });
 
     connect(chat_page_,
             &chat_widget::send_message_requested,
             this,
-            [this](qint64 conversation, QString text, qint64 reply, qint64 client_id)
-            { client_->send_message(conversation, std::move(text), reply, client_id); });
+            [this](qint64 conversation, QString text, qint64 reply, qint64 client_id, qint64 revision)
+            { client_->send_message(conversation, std::move(text), reply, client_id, revision); });
+    connect(chat_page_, &chat_widget::draft_save_requested, client_.get(), &client_bridge::save_draft);
+    connect(chat_page_, &chat_widget::draft_reply_requested, client_.get(), &client_bridge::validate_draft_reply);
+    connect(client_.get(), &client_bridge::draft_reply_validated, chat_page_, &chat_widget::validate_draft_reply);
+    connect(client_.get(), &client_bridge::drafts_restored, chat_page_, &chat_widget::restore_drafts);
     connect(client_.get(), &client_bridge::text_saved, chat_page_, &chat_widget::finish_text_save);
     connect(client_.get(), &client_bridge::pending_text_changed, chat_page_, &chat_widget::update_pending_text);
     connect(chat_page_, &chat_widget::pending_text_action_requested, client_.get(), &client_bridge::change_pending_text);
@@ -1364,8 +1392,7 @@ void main_window::connect_messages()
                 {
                     return;
                 }
-                attachment_dialog dialog(
-                    conversation, message, std::move(filename), preview, this, preview ? chat_page_->images().image(message) : QPixmap{});
+                attachment_dialog dialog(conversation, message, filename, preview, this, preview ? chat_page_->images().image(message) : QPixmap{});
                 connect(client_.get(), &client_bridge::attachment_received, &dialog, &attachment_dialog::download_finished, Qt::AutoConnection);
                 connect(chat_page_,
                         &chat_widget::history_discarded,
@@ -1377,7 +1404,11 @@ void main_window::connect_messages()
                                 dialog.reject();
                             }
                         });
-                connect(&dialog, &attachment_dialog::save_requested, client_.get(), &client_bridge::get_attachment);
+                connect(&dialog,
+                        &attachment_dialog::save_requested,
+                        client_.get(),
+                        [this, filename = std::move(filename)](qint64 conv, qint64 message_id, QString path)
+                        { client_->get_attachment(conv, message_id, filename, std::move(path)); });
                 connect(client_.get(), &client_bridge::message_image_received, &dialog, &attachment_dialog::set_data);
                 connect(client_.get(),
                         &client_bridge::conversation_changed,
@@ -1788,6 +1819,8 @@ main_window::~main_window()
 #if defined(Q_OS_LINUX)
     qApp->removeNativeEventFilter(this);
 #endif
+    chat_page_->flush_draft();
+    downloads_->clear_tasks();
     clear_desktop_notifications();
     client_.reset();
 }
@@ -2101,6 +2134,7 @@ void main_window::logout()
     session_password_.clear();
     password_edit_->clear();
     chat_page_->set_connection_available(false);
+    downloads_->clear_tasks();
     chat_page_->set_user({});
     pages_->setCurrentWidget(login_page_);
 
@@ -2166,6 +2200,7 @@ void main_window::show_authenticated_page(qint64 user)
 {
     unconfirmed_clears_.clear();
     chat_page_->set_user(pending_username_, user);
+    client_->restore_drafts(user);
     client_->restore_texts();
     client_->restore_attachments();
     chat_page_->set_connection_available(true);
@@ -2298,6 +2333,7 @@ void main_window::stop_reconnect()
 
 void main_window::return_to_login(QString message)
 {
+    chat_page_->flush_draft();
     clear_desktop_notifications();
     if (settings_)
     {
@@ -2315,6 +2351,7 @@ void main_window::return_to_login(QString message)
     session_username_.clear();
     session_password_.clear();
     chat_page_->set_connection_available(false);
+    downloads_->clear_tasks();
     chat_page_->set_user({});
     pages_->setCurrentWidget(login_page_);
     username_edit_->setText(username);

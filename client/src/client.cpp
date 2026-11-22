@@ -41,6 +41,7 @@ namespace chat
 BOOST_DESCRIBE_STRUCT(conversation_view_event, (), (conversation, action, through, level, until))
 BOOST_DESCRIBE_STRUCT(contact_entry, (), (id, username, avatar_revision, has_avatar, remark, group))
 BOOST_DESCRIBE_STRUCT(contact_book, (), (users, groups))
+BOOST_DESCRIBE_STRUCT(message_search_scope, (), (id, name))
 BOOST_DESCRIBE_STRUCT(message_search_hit, (), (conversation, id, from, timestamp, title, username, snippet))
 BOOST_DESCRIBE_STRUCT(message_search_page, (), (messages, next_before))
 BOOST_DESCRIBE_STRUCT(conversation_file, (), (object_key, filename, media_type, size, uploader_id, username, created_at, category))
@@ -1636,7 +1637,8 @@ struct client::impl
                                      messages_handler handler,
                                      std::optional<std::int64_t> after,
                                      std::optional<std::string> query = {},
-                                     std::optional<std::int64_t> around = {})
+                                     std::optional<std::int64_t> around = {},
+                                     std::optional<message_category> category = {})
     {
         boost::json::object params;
         params.emplace("conversation", conversation);
@@ -1657,8 +1659,12 @@ struct client::impl
         {
             params.emplace("query", std::move(*query));
         }
+        if (category)
+        {
+            params.emplace("category", category_name(*category));
+        }
         send_request(
-            query ? "search_messages" : "get_messages",
+            query && !category ? "search_messages" : "get_messages",
             std::move(params),
             [conversation, handler = std::move(handler)](auto response) mutable
             {
@@ -1867,7 +1873,61 @@ struct client::impl
             });
     }
 
-    boost::capy::task<> queue_text(pending_text item, outbox_operation_handler handler)
+    boost::capy::task<> save_draft(std::int64_t user, compose_draft value, outbox_operation_handler done)
+    {
+        if (user <= 0 || user != outbox_account_ || value.conversation <= 0 || value.revision <= 0 || value.reply < 0)
+        {
+            done(std::unexpected(outbox_error("无法保存草稿")));
+            co_return;
+        }
+        auto const error = value.text.empty() && !value.reply
+                               ? journal_.exec("DELETE FROM compose_drafts WHERE user=? AND conversation=?", user, value.conversation)
+                               : journal_.exec(R"SQL(
+                INSERT INTO compose_drafts(user,conversation,revision,reply,body,updated)
+                VALUES(?,?,?,?,?,unixepoch())
+                ON CONFLICT(user,conversation) DO UPDATE SET revision=excluded.revision,reply=excluded.reply,
+                  body=excluded.body,updated=excluded.updated
+              )SQL",
+                                               user,
+                                               value.conversation,
+                                               value.revision,
+                                               value.reply,
+                                               std::string_view(value.text));
+        done(error ? std::unexpected(outbox_error("无法保存草稿，请检查本地存储")) : std::expected<void, chat::error>{});
+    }
+
+    boost::capy::task<> load_drafts(std::int64_t user, drafts_handler done)
+    {
+        if (user <= 0 || user != outbox_account_)
+        {
+            done(std::unexpected(outbox_error("无法读取草稿")));
+            co_return;
+        }
+        auto query = journal_.prepare("SELECT conversation,revision,reply,body FROM compose_drafts WHERE user=?", user);
+        if (!query)
+        {
+            done(std::unexpected(outbox_error("无法读取草稿")));
+            co_return;
+        }
+        std::vector<compose_draft> drafts;
+        for (;;)
+        {
+            auto row = query->step();
+            if (!row)
+            {
+                done(std::unexpected(outbox_error("无法读取草稿")));
+                co_return;
+            }
+            if (!*row)
+            {
+                done(std::move(drafts));
+                co_return;
+            }
+            drafts.push_back({query->column_int64(0), query->column_int64(1), query->column_int64(2), std::string(query->column_text(3))});
+        }
+    }
+
+    boost::capy::task<> queue_text(pending_text item, std::int64_t draft_revision, outbox_operation_handler handler)
     {
         if (outbox_account_ == 0)
         {
@@ -1887,13 +1947,19 @@ struct client::impl
             co_return;
         }
         item.created = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-        if (journal_.exec("INSERT INTO text_outbox(user,client,conversation,body,reply,created) VALUES(?,?,?,?,NULLIF(?,0),?)",
+        auto transaction = sqlite_transaction::begin_immediate(journal_);
+        if (!transaction ||
+            journal_.exec("INSERT INTO text_outbox(user,client,conversation,body,reply,created) VALUES(?,?,?,?,NULLIF(?,0),?)",
                           outbox_account_,
                           item.client_id,
                           item.conversation,
                           item.text,
                           item.reply_to,
-                          item.created))
+                          item.created) ||
+            (draft_revision &&
+             journal_.exec(
+                 "DELETE FROM compose_drafts WHERE user=? AND conversation=? AND revision=?", outbox_account_, item.conversation, draft_revision)) ||
+            transaction->commit())
         {
             handler(std::unexpected(outbox_error("无法保存待发送消息，请检查本地存储")));
             co_return;
@@ -2360,40 +2426,51 @@ struct client::impl
                                       std::int64_t size,
                                       std::string target,
                                       attachment_handler handler,
-                                      std::shared_ptr<std::atomic_bool> stop)
+                                      std::shared_ptr<std::atomic_bool> stop,
+                                      download_options options)
     {
-        auto result = co_await file_worker_.run([&] { return detail::download_file(url, size, checksum, target, *stop); }, file_queue_error);
+        auto result = co_await file_worker_.run([&] { return detail::download_file(url, size, checksum, target, *stop, options); }, file_queue_error);
         if (!suppress_callbacks_)
         {
             handler(std::move(result));
         }
     }
     boost::capy::task<> get_attachment(
-        std::string method, boost::json::object params, std::string target, std::int64_t limit, attachment_handler handler)
+        std::string method, boost::json::object params, std::string target, std::int64_t limit, attachment_handler handler, download_options options)
     {
-        send_request(
-            std::move(method),
-            std::move(params),
-            [this, target = std::move(target), limit, handler = std::move(handler)](auto r) mutable
-            {
-                if (!r)
-                {
-                    handler(std::unexpected(r.error()));
-                    return;
-                }
-                auto* obj = r->if_object();
-                auto* v = obj ? obj->if_contains("size") : nullptr;
-                auto size = v ? parse_int64(*v) : std::nullopt;
-                auto* url = obj ? obj->if_contains("url") : nullptr;
-                auto* hash = obj ? obj->if_contains("checksum") : nullptr;
-                if (!size || *size < 0 || *size > limit || !url || !url->is_string() || !hash || !hash->is_string())
-                {
-                    handler(std::unexpected(make_error(error_kind::file_transfer, "附件过大或下载信息无效")));
-                    return;
-                }
-                boost::capy::run_async(io_context_.get_executor())(save_download(
-                    std::string(url->as_string()), std::string(hash->as_string()), *size, std::move(target), std::move(handler), transfer_stop_));
-            });
+        send_request(std::move(method),
+                     std::move(params),
+                     [this, target = std::move(target), limit, handler = std::move(handler), options = std::move(options), stop = transfer_stop_](
+                         auto r) mutable
+                     {
+                         if (*stop || (options.control && options.control->cancelled()))
+                         {
+                             handler(std::unexpected(make_error(error_kind::file_transfer, "下载已取消或连接已断开")));
+                             return;
+                         }
+                         if (!r)
+                         {
+                             handler(std::unexpected(r.error()));
+                             return;
+                         }
+                         auto* obj = r->if_object();
+                         auto* v = obj ? obj->if_contains("size") : nullptr;
+                         auto size = v ? parse_int64(*v) : std::nullopt;
+                         auto* url = obj ? obj->if_contains("url") : nullptr;
+                         auto* hash = obj ? obj->if_contains("checksum") : nullptr;
+                         if (!size || *size < 0 || *size > limit || !url || !url->is_string() || !hash || !hash->is_string())
+                         {
+                             handler(std::unexpected(make_error(error_kind::file_transfer, "附件过大或下载信息无效")));
+                             return;
+                         }
+                         boost::capy::run_async(io_context_.get_executor())(save_download(std::string(url->as_string()),
+                                                                                          std::string(hash->as_string()),
+                                                                                          *size,
+                                                                                          std::move(target),
+                                                                                          std::move(handler),
+                                                                                          std::move(stop),
+                                                                                          std::move(options)));
+                     });
         co_return;
     }
     void stop_file_transfers()
@@ -3193,20 +3270,57 @@ void client::get_messages(std::int64_t conversation, std::optional<std::int64_t>
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_messages(conversation, before, std::move(handler), after));
 }
 
+void client::get_categorized_history(
+    std::int64_t conversation, message_category category, std::string query, std::optional<std::int64_t> before, messages_handler handler)
+{
+    std::optional<std::string> keyword;
+    if (!query.empty())
+    {
+        keyword.emplace(std::move(query));
+    }
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->get_messages(conversation, before, std::move(handler), {}, std::move(keyword), {}, category));
+}
+
 void client::get_messages_around(std::int64_t conversation, std::int64_t around, messages_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_messages(conversation, {}, std::move(handler), {}, {}, around));
 }
 
-void client::search_all_messages(std::string query, std::optional<std::int64_t> before, message_search_handler handler)
+void client::search_all_messages(message_search_filter const& filter, std::optional<std::int64_t> before, message_search_handler handler)
 {
-    boost::json::object params{{"query", std::move(query)}};
+    boost::json::object params;
+    if (!filter.query.empty())
+    {
+        params.emplace("query", filter.query);
+    }
+    if (filter.category != message_category::all)
+    {
+        params.emplace("category", category_name(filter.category));
+    }
+    auto add = [&params](char const* key, std::optional<std::int64_t> value)
+    {
+        if (value)
+        {
+            params.emplace(key, *value);
+        }
+    };
+    add("conversation", filter.conversation);
+    add("sender", filter.sender);
+    add("start", filter.start);
+    add("end", filter.end);
     if (before)
     {
         params.emplace("before", *before);
     }
     boost::capy::run_async(impl_->io_context_.get_executor())(
         impl_->request_page<message_search_page>("search_all_messages", std::move(params), "Invalid global message search page", std::move(handler)));
+}
+
+void client::get_message_search_scopes(message_search_scopes_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->request_page<std::vector<message_search_scope>>("message_search_scopes", {}, "Invalid search scopes", std::move(handler)));
 }
 
 void client::search_messages(std::int64_t conversation, std::string query, std::optional<std::int64_t> before, messages_handler handler)
@@ -3226,7 +3340,8 @@ void client::send_message(std::int64_t conversation,
                           std::string text,
                           outbox_operation_handler queued,
                           std::optional<std::int64_t> reply_to,
-                          std::optional<std::int64_t> client_id)
+                          std::optional<std::int64_t> client_id,
+                          std::int64_t draft_revision)
 {
     pending_text item{
         .client_id = client_id ? *client_id : new_client_id(),
@@ -3235,7 +3350,17 @@ void client::send_message(std::int64_t conversation,
         .created = 0,
         .text = std::move(text),
     };
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->queue_text(std::move(item), std::move(queued)));
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->queue_text(std::move(item), draft_revision, std::move(queued)));
+}
+
+void client::save_draft(std::int64_t user, compose_draft draft, outbox_operation_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->save_draft(user, std::move(draft), std::move(handler)));
+}
+
+void client::load_drafts(std::int64_t user, drafts_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->load_drafts(user, std::move(handler)));
 }
 
 void client::set_outbox_handler(outbox_handler handler)
@@ -3333,19 +3458,25 @@ void client::remove_conversation_file(std::int64_t conversation, std::string key
     boost::capy::run_async(impl_->io_context_.get_executor())(
         impl_->group_action("remove_conversation_file", {{"conversation_id", conversation}, {"object_key", key}}, std::move(handler)));
 }
-void client::download_conversation_file(std::int64_t conversation, std::string key, std::string path, attachment_handler handler)
+void client::download_conversation_file(
+    std::int64_t conversation, std::string key, std::string path, attachment_handler handler, download_options options)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_attachment(
-        "get_conversation_file", {{"conversation_id", conversation}, {"object_key", key}}, std::move(path), max_attachment_size, std::move(handler)));
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_attachment("get_conversation_file",
+                                                                                    {{"conversation_id", conversation}, {"object_key", key}},
+                                                                                    std::move(path),
+                                                                                    max_attachment_size,
+                                                                                    std::move(handler),
+                                                                                    std::move(options)));
 }
 void client::pending_attachments(pending_attachments_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->restore_attachments(std::move(handler)));
 }
-void client::get_attachment(std::int64_t conversation, std::int64_t message, std::string path, attachment_handler handler, std::int64_t limit)
+void client::get_attachment(
+    std::int64_t conversation, std::int64_t message, std::string path, attachment_handler handler, std::int64_t limit, download_options options)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(
-        impl_->get_attachment("get_attachment", {{"conversation", conversation}, {"message", message}}, std::move(path), limit, std::move(handler)));
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_attachment(
+        "get_attachment", {{"conversation", conversation}, {"message", message}}, std::move(path), limit, std::move(handler), std::move(options)));
 }
 
 void client::forward_message(std::int64_t conversation, std::int64_t source, std::int64_t client_id, message_result_handler handler)

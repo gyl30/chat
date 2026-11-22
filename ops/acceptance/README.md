@@ -15,6 +15,11 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-re
 | `desktop.py` | 真实 RPC 代理延迟或丢弃指定回包，验证 Qt 草稿、Outbox、通知、三页搜索游标与迟到上下文；验证图片和保存子窗口、群资料置顶、多目标上传菜单和真实 SDK 附件下载 |
 | `recovery.py` | 停止隔离 Chat 与 Silo，分别备份数据库、月档及整个对象卷；启动独立恢复实例，用原 Qt 安装的任务日志从第 2 片继续，再检查消息权限与对象引用 |
 | `wal.py` | 验证静态服务端与私有 Python 的 SQLite 身份、WAL 并发 checkpoint 和搜索分页 |
+| `history.py` | 真实 Qt 覆盖 3,100 条较新消息后的分类和 around；`--baseline` 可用旧服务端、旧版 Qt 测试驱动复现自动补页上限 |
+| `search_filters.py` | 组合条件、无关键词、隐藏私聊、权限、50/51 页边界及字面空格 |
+| `drafts.py` | 真 Qt 重启、会话/账号/端点隔离、旧引用失效及原子转交待发送 |
+| `downloads.py` | 两个会话及群文件的同名任务、取消、真实流截断、重新鉴权和撤回拒绝 |
+| `history_filter_perf.py` | 对照两个 Release 服务端的稀疏历史、全局搜索及其他连接的发送确认；输出原始端到端样本 |
 | `search_bench.py` | 在独立磁盘 WAL 库测量真实搜索与发送 RPC，输出每组延迟、CPU、内存、归档读取次数和被动 checkpoint |
 
 默认项目构建不运行上述验收。查询 GitHub 时，仓库有 0 个注册的自托管 runner 和 0 个已有 workflow；本次 GCC 16、Boost 1.92 和 miniocpp 环境的执行证据来自本机。

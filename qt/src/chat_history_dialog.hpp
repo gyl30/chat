@@ -4,6 +4,8 @@
 #include <QDialog>
 #include <QList>
 
+#include <chat/message.hpp>
+
 #include "message_data.hpp"
 
 class avatar_cache;
@@ -21,23 +23,16 @@ class chat_history_dialog final : public QDialog
     Q_OBJECT
 
    public:
-    enum class category
-    {
-        all,
-        images,
-        files,
-        links,
-    };
+    using category = chat::message_category;
 
     chat_history_dialog(qint64 conversation, QString const& title, QWidget* parent, avatar_cache* avatars = nullptr);
     void set_history(qint64 conversation, QList<message_data> messages, bool has_more, QString const& error);
-    static bool matches(message_data const& message, category kind);
     // Requests the newest page; call once the request signals are connected.
     void start();
     void interrupt_loading();
 
    signals:
-    void history_requested(QString query, qint64 before);
+    void history_requested(chat::message_category category, QString query, qint64 before);
     void message_activated(qint64 message);
 
    private:
@@ -46,7 +41,6 @@ class chat_history_dialog final : public QDialog
     void rebuild();
     void add_messages(QList<message_data> messages, bool has_more);
     void show_menu(QPoint position);
-    void fill_sparse_category();
 
     qint64 conversation_;
     avatar_cache* avatars_;
@@ -60,7 +54,6 @@ class chat_history_dialog final : public QDialog
     QList<message_data> messages_;
     bool has_more_ = true;
     bool loading_ = false;
-    int filling_pages_ = 0;
 };
 
 #endif

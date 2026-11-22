@@ -14,6 +14,7 @@
 #include <QByteArray>
 #include <optional>
 #include <chat/friendship.hpp>
+#include <chat/client.hpp>
 
 #include "conversation_data.hpp"
 #include "avatar.hpp"
@@ -88,6 +89,9 @@ class chat_widget final : public QWidget
     void finish_send(qint64 conversation, qint64 client_id, message_data message, QString error, send_status status);
     // After signing in again: the sends the link dropped go out again, in the order they were made.
     void finish_text_save(qint64 client_id, QString error);
+    void flush_draft();
+    void restore_drafts(qint64 user, std::vector<chat::compose_draft> const& drafts);
+    void validate_draft_reply(qint64 conversation, qint64 anchor, qint64 revision, message_data const& message, bool unavailable);
     void update_pending_text(qint64 conversation, qint64 client_id, QString text, qint64 reply, qint64 created, bool sending, QString rejection);
     void discard_pending_text(qint64 client_id);
     void reconcile_pending_texts(QList<qint64> client_ids);
@@ -120,7 +124,9 @@ class chat_widget final : public QWidget
     void avatar_update_finished(QString error);
     void conversation_selected(qint64 user, bool group);
     void older_messages_requested(qint64 user, qint64 before);
-    void send_message_requested(qint64 conversation, QString text, qint64 reply_to, qint64 client_id);
+    void send_message_requested(qint64 conversation, QString text, qint64 reply_to, qint64 client_id, qint64 revision);
+    void draft_save_requested(qint64 user, qint64 conversation, qint64 revision, qint64 reply, QString text);
+    void draft_reply_requested(qint64 conversation, qint64 anchor, qint64 revision);
     void pending_text_action_requested(qint64 client_id, bool discard);
     void delete_message_requested(qint64 conversation, qint64 message);
     void edit_message_requested(qint64 conversation, qint64 message, QString text);
@@ -138,6 +144,7 @@ class chat_widget final : public QWidget
     void contact_remove_requested(qint64 user);
     void contact_add_finished(qint64 user, QString error);
     void settings_requested();
+    void download_tasks_requested();
     void reconnect_requested();
     void direct_conversation_requested(qint64 user, QString username);
     void group_create_requested(QString title, QList<qint64> members);
@@ -145,6 +152,7 @@ class chat_widget final : public QWidget
     void members_requested(qint64 conversation, qint64 self_user, QString title);
     void message_search_requested(qint64 conversation, qint64 self_user, bool group, QString title, QString query);
     void global_search_requested();
+    void message_context_requested(qint64 conversation, qint64 anchor);
     void chat_history_requested(qint64 conversation, QString title);
     void group_message_pin_requested(qint64 conversation, std::optional<qint64> message);
     void add_file_requested(qint64 conversation, QString key);
@@ -224,9 +232,12 @@ class chat_widget final : public QWidget
     void update_compose_state();
     void create_group();
     void request_older_messages();
-    void continue_locate();
     void send_current_message();
     void draft_edited();
+    void save_active_draft();
+    void apply_draft();
+    void load_draft_reply();
+    void discard_draft_reply(qint64 conversation, qint64 through, bool exact = false);
     bool handle_file_drop(QEvent* event);
     void send_image(QImage const& image);
     bool paste_image();
@@ -325,18 +336,26 @@ class chat_widget final : public QWidget
     QPlainTextEdit* message_edit_ = nullptr;
     QHash<qint64, qint64> history_floors_;
     bool visible_message(message_data& message) const;
-    QHash<qint64, QString> drafts_;
+    struct draft
+    {
+        QString text;
+        qint64 reply = 0;
+        qint64 revision = 0;
+    };
+    QHash<qint64, draft> drafts_;
+    QTimer* draft_timer_ = nullptr;
     QList<outgoing> outgoing_;
     struct text_save
     {
         qint64 client_id;
-        // Cleared if the user edits the submitted draft before its SQLite write finishes.
-        std::optional<qint64> draft_conversation;
+        qint64 draft_conversation;
+        qint64 revision;
     };
     std::optional<text_save> saving_text_;
     QWidget* reply_bar_ = nullptr;
     QLabel* reply_preview_ = nullptr;
     qint64 reply_to_ = 0;
+    qint64 draft_reply_request_ = 0;
     QToolButton* send_button_ = nullptr;
     conversation_model* conversations_ = nullptr;
     user_model* contacts_ = nullptr;
@@ -355,8 +374,6 @@ class chat_widget final : public QWidget
     bool messages_loaded_ = false;
     bool messages_loading_ = false;
     bool history_exhausted_ = false;
-    qint64 pending_locate_ = 0;
-    int locate_pages_ = 0;
     bool control_enter_send_ = false;
     bool connection_available_ = true;
 };

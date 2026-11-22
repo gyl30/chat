@@ -34,9 +34,6 @@ constexpr int time_role = Qt::UserRole + 2;
 constexpr int content_role = Qt::UserRole + 3;
 constexpr int from_role = Qt::UserRole + 4;
 constexpr int row_height = 70;
-// Enough records to fill the window before a filtered view stops loading older pages by itself.
-constexpr int filled_rows = 15;
-constexpr int max_filling_pages = 20;
 
 QString time_text(qint64 timestamp)
 {
@@ -133,27 +130,6 @@ class history_delegate final : public QStyledItemDelegate
 
 }    // namespace
 
-bool chat_history_dialog::matches(message_data const& message, category kind)
-{
-    if (message.deleted)
-    {
-        return false;
-    }
-    auto const image = message.attachment && message.attachment->media_type.startsWith(QStringLiteral("image/"));
-    switch (kind)
-    {
-        case category::all:
-            return true;
-        case category::images:
-            return image;
-        case category::files:
-            return message.attachment.has_value() && !image;
-        case category::links:
-            return message.text.contains(QStringLiteral("http://")) || message.text.contains(QStringLiteral("https://"));
-    }
-    return false;
-}
-
 chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& title, QWidget* parent, avatar_cache* avatars)
     : QDialog(parent), conversation_(conversation), avatars_(avatars)
 {
@@ -220,15 +196,7 @@ chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& tit
                     restart_search({});
                 }
             });
-    connect(tabs_,
-            &QTabBar::currentChanged,
-            this,
-            [this]
-            {
-                filling_pages_ = 0;
-                rebuild();
-                fill_sparse_category();
-            });
+    connect(tabs_, &QTabBar::currentChanged, this, [this] { restart_search(query_); });
     connect(more_, &QPushButton::clicked, this, [this] { request_more(); });
     connect(list_->verticalScrollBar(),
             &QScrollBar::valueChanged,
@@ -270,7 +238,6 @@ void chat_history_dialog::restart_search(QString query)
     messages_.clear();
     has_more_ = true;
     loading_ = false;
-    filling_pages_ = 0;
     request_more();
 }
 
@@ -284,7 +251,7 @@ void chat_history_dialog::request_more()
     auto const before = messages_.isEmpty() ? 0 : messages_.back().id;
     more_->setText(QStringLiteral("加载更早的记录"));
     rebuild();
-    emit history_requested(query_, before);
+    emit history_requested(static_cast<category>(tabs_->currentIndex()), query_, before);
 }
 
 void chat_history_dialog::set_history(qint64 conversation, QList<message_data> messages, bool has_more, QString const& error)
@@ -298,6 +265,8 @@ void chat_history_dialog::set_history(qint64 conversation, QList<message_data> m
     {
         status_->setText(error);
         status_->show();
+        more_->setText(QStringLiteral("重新加载"));
+        more_->show();
         return;
     }
     add_messages(std::move(messages), has_more);
@@ -316,17 +285,6 @@ void chat_history_dialog::add_messages(QList<message_data> messages, bool has_mo
     }
     has_more_ = has_more && !messages.isEmpty();
     rebuild();
-    fill_sparse_category();
-}
-
-void chat_history_dialog::fill_sparse_category()
-{
-    // A narrow category may match little in the newest pages; keep reading back, within a bound.
-    if (list_->count() < filled_rows && has_more_ && !loading_ && filling_pages_ < max_filling_pages)
-    {
-        ++filling_pages_;
-        request_more();
-    }
 }
 
 void chat_history_dialog::rebuild()
@@ -337,10 +295,6 @@ void chat_history_dialog::rebuild()
     list_->clear();
     for (auto const& message : messages_)
     {
-        if (!matches(message, kind))
-        {
-            continue;
-        }
         auto* item = new QListWidgetItem(list_);
         item->setData(id_role, message.id);
         item->setData(sender_role, message.username);
@@ -373,7 +327,7 @@ void chat_history_dialog::rebuild()
         status_->clear();
     }
     status_->setVisible(!status_->text().isEmpty());
-    more_->setVisible(has_more_ && !loading_ && list_->count() > 0);
+    more_->setVisible(has_more_ && !loading_);
 }
 
 void chat_history_dialog::show_menu(QPoint position)

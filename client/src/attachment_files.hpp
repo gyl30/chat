@@ -25,7 +25,11 @@ file_result<std::string> put_part(std::string const& url,
                                   std::int64_t length,
                                   std::stop_token stop,
                                   client::progress_handler const& progress);
-file_result<std::string> download_file(
-    std::string const& url, std::int64_t size, std::string const& checksum, std::string const& target, std::atomic_bool const& stop);
+file_result<std::string> download_file(std::string const& url,
+                                       std::int64_t size,
+                                       std::string const& checksum,
+                                       std::string const& target,
+                                       std::atomic_bool const& stop,
+                                       download_options const& options);
 }    // namespace chat::detail
 #endif

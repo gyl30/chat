@@ -1,6 +1,10 @@
 #include "global_search_dialog.hpp"
 
 #include <QDateTime>
+#include <QCheckBox>
+#include <QComboBox>
+#include <QDateEdit>
+#include <QGridLayout>
 #include <limits>
 #include <algorithm>
 #include <utf8proc.h>
@@ -19,6 +23,11 @@ namespace
 QString display_time(qint64 ms) { return QDateTime::fromMSecsSinceEpoch(ms).toString(QStringLiteral("yyyy-MM-dd HH:mm")); }
 QString search_snippet(QString const& body, QString const& query)
 {
+    if (query.isEmpty())
+    {
+        auto const points = body.toStdU32String();
+        return QString::fromUcs4(points.data(), std::min<std::size_t>(160, points.size()));
+    }
     auto const original = body.toStdU32String();
     auto const lower = [](auto points)
     {
@@ -40,15 +49,82 @@ QString search_snippet(QString const& body, QString const& query)
 }
 }    // namespace
 
-global_search_dialog::global_search_dialog(client_bridge& client, QWidget* parent) : QDialog(parent), client_(client)
+global_search_dialog::global_search_dialog(client_bridge& client, QWidget* parent, qint64 self, QString const& self_name)
+    : QDialog(parent), client_(client)
 {
     setWindowTitle(QStringLiteral("全局消息搜索"));
     resize(760, 540);
     auto* layout = new QVBoxLayout(this);
     query_ = new QLineEdit(this);
     query_->setPlaceholderText(QStringLiteral("输入关键词，按回车搜索全部聊天记录"));
+    query_->setObjectName(QStringLiteral("globalSearchQuery"));
     query_->setClearButtonEnabled(true);
     layout->addWidget(query_);
+    filters_ = new QWidget(this);
+    auto* fields = new QGridLayout(filters_);
+    fields->setContentsMargins(0, 0, 0, 0);
+    conversation_ = new QComboBox(filters_);
+    conversation_->setObjectName(QStringLiteral("searchConversation"));
+    conversation_->addItem(QStringLiteral("全部会话"));
+    conversation_->setEnabled(false);
+    category_ = new QComboBox(filters_);
+    category_->setObjectName(QStringLiteral("searchCategory"));
+    category_->addItems({QStringLiteral("全部类别"), QStringLiteral("图片"), QStringLiteral("文件"), QStringLiteral("链接")});
+    sender_ = new QComboBox(filters_);
+    sender_->setObjectName(QStringLiteral("searchSender"));
+    sender_->addItem(QStringLiteral("全部发送者"));
+    if (self > 0)
+    {
+        sender_->addItem(QStringLiteral("%1（我）").arg(self_name), self);
+    }
+    auto* sender_name = new QLineEdit(filters_);
+    sender_name->setPlaceholderText(QStringLiteral("查找发送者用户名"));
+    auto* find_sender = new QPushButton(QStringLiteral("查找用户"), filters_);
+    auto* submit = new QPushButton(QStringLiteral("搜索"), filters_);
+    find_sender->setAutoDefault(false);
+    submit->setAutoDefault(false);
+    start_enabled_ = new QCheckBox(QStringLiteral("起始日"), filters_);
+    end_enabled_ = new QCheckBox(QStringLiteral("结束日"), filters_);
+    start_date_ = new QDateEdit(QDate::currentDate(), filters_);
+    end_date_ = new QDateEdit(QDate::currentDate(), filters_);
+    for (auto* date : {start_date_, end_date_})
+    {
+        date->setCalendarPopup(true);
+        date->setDisplayFormat(QStringLiteral("yyyy-MM-dd"));
+        date->setEnabled(false);
+        date->setToolTip(QStringLiteral("按系统本地时区，包含选定日期"));
+        connect(date, &QDateEdit::dateChanged, this, &global_search_dialog::filter_changed);
+    }
+    connect(start_enabled_, &QCheckBox::toggled, start_date_, &QDateEdit::setEnabled);
+    connect(end_enabled_, &QCheckBox::toggled, end_date_, &QDateEdit::setEnabled);
+    connect(start_enabled_, &QCheckBox::toggled, this, &global_search_dialog::filter_changed);
+    connect(end_enabled_, &QCheckBox::toggled, this, &global_search_dialog::filter_changed);
+    fields->addWidget(conversation_, 0, 0);
+    fields->addWidget(category_, 0, 1);
+    fields->addWidget(sender_, 0, 2);
+    fields->addWidget(sender_name, 0, 3);
+    fields->addWidget(find_sender, 0, 4);
+    fields->addWidget(start_enabled_, 1, 0);
+    fields->addWidget(start_date_, 1, 1);
+    fields->addWidget(end_enabled_, 1, 2);
+    fields->addWidget(end_date_, 1, 3);
+    fields->addWidget(submit, 1, 4);
+    layout->addWidget(filters_);
+    for (auto* box : {conversation_, category_, sender_})
+    {
+        connect(box, &QComboBox::currentIndexChanged, this, &global_search_dialog::filter_changed);
+    }
+    auto lookup_sender = [this, sender_name]
+    {
+        auto const name = sender_name->text().trimmed();
+        if (!name.isEmpty())
+        {
+            sender_request_ = client_.find_search_senders(name);
+        }
+    };
+    connect(find_sender, &QPushButton::clicked, this, lookup_sender);
+    connect(sender_name, &QLineEdit::returnPressed, this, lookup_sender);
+    connect(submit, &QPushButton::clicked, this, [this] { search(0); });
     back_ = new QPushButton(QStringLiteral("返回搜索结果"), this);
     back_->setAutoDefault(false);
     layout->addWidget(back_, 0, Qt::AlignLeft);
@@ -69,23 +145,56 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
     more_->setAutoDefault(false);
     layout->addWidget(more_, 0, Qt::AlignHCenter);
     show_results();
-    connect(query_,
-            &QLineEdit::textChanged,
+    connect(query_, &QLineEdit::textChanged, this, &global_search_dialog::filter_changed);
+    connect(query_, &QLineEdit::returnPressed, this, [this] { search(0); });
+    connect(&client_,
+            &client_bridge::message_search_scopes_received,
             this,
-            [this]
+            [this](quint64 request, std::vector<chat::message_search_scope> scopes, QString const& error)
             {
-                results_->clear();
-                next_before_ = 0;
-                show_results();
-            });
-    connect(query_,
-            &QLineEdit::returnPressed,
-            this,
-            [this]
-            {
-                if (request_ == 0)
+                if (request != scope_request_)
                 {
-                    search(0);
+                    return;
+                }
+                for (auto const& scope : scopes)
+                {
+                    conversation_->addItem(QString::fromStdString(scope.name) + QStringLiteral(" (#%1)").arg(scope.id),
+                                           static_cast<qint64>(scope.id));
+                }
+                conversation_->setEnabled(error.isEmpty());
+                if (!error.isEmpty() && !submitted_)
+                {
+                    status_->setText(error);
+                }
+            });
+    connect(&client_,
+            &client_bridge::users_received,
+            this,
+            [this](QList<user_data> const& users, QString const& error, quint64 request)
+            {
+                if (request != sender_request_)
+                {
+                    return;
+                }
+                if (!error.isEmpty() || users.isEmpty())
+                {
+                    status_->setText(error.isEmpty() ? QStringLiteral("没有匹配的发送者") : error);
+                    return;
+                }
+                for (auto const& user : users)
+                {
+                    if (sender_->findData(user.id) < 0)
+                    {
+                        sender_->addItem(user.username + QStringLiteral(" (#%1)").arg(user.id), user.id);
+                    }
+                }
+                if (users.size() == 1)
+                {
+                    sender_->setCurrentIndex(sender_->findData(users.front().id));
+                }
+                else
+                {
+                    sender_->showPopup();
                 }
             });
     connect(more_, &QPushButton::clicked, this, [this] { search(next_before_); });
@@ -125,11 +234,16 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
                 }
             });
     connect(&client_, &client_bridge::message_updated, this, &global_search_dialog::updated);
+    if (self > 0)
+    {
+        scope_request_ = client_.get_message_search_scopes();
+    }
 }
 
 void global_search_dialog::show_results()
 {
     request_ = 0;
+    context_conversation_ = context_anchor_ = 0;
     page_edits_.clear();
     page_floors_.clear();
     setWindowTitle(QStringLiteral("全局消息搜索"));
@@ -137,42 +251,88 @@ void global_search_dialog::show_results()
     context_->hide();
     back_->hide();
     query_->show();
+    filters_->show();
     results_->show();
     more_->setVisible(next_before_ != 0);
     status_->clear();
 }
 
+void global_search_dialog::filter_changed()
+{
+    results_->clear();
+    next_before_ = 0;
+    submitted_ = false;
+    show_results();
+}
+
 void global_search_dialog::search(qint64 before)
 {
-    show_results();
     if (!before)
     {
-        results_->clear();
-        next_before_ = 0;
+        filter_changed();
+        auto id = [](QComboBox const* box) -> std::optional<std::int64_t>
+        {
+            auto const value = box->currentData().toLongLong();
+            return value ? std::optional<std::int64_t>{value} : std::nullopt;
+        };
+        submitted_filter_ = {
+            query_->text().toStdString(), id(conversation_), static_cast<chat::message_category>(category_->currentIndex()), id(sender_), {}, {}};
+        if (start_enabled_->isChecked())
+        {
+            submitted_filter_.start = start_date_->date().startOfDay().toMSecsSinceEpoch();
+        }
+        if (end_enabled_->isChecked())
+        {
+            submitted_filter_.end = end_date_->date().addDays(1).startOfDay().toMSecsSinceEpoch();
+        }
+        auto const& filter = submitted_filter_;
+        if (filter.start && filter.end && *filter.start >= *filter.end)
+        {
+            status_->setText(QStringLiteral("结束日不能早于起始日"));
+            return;
+        }
+        if (filter.query.empty() && !filter.conversation && filter.category == chat::message_category::all && !filter.sender && !filter.start &&
+            !filter.end)
+        {
+            return;
+        }
+        submitted_ = true;
     }
-    if (query_->text().isEmpty())
+    else
     {
-        return;
+        show_results();
     }
     status_->setText(QStringLiteral("正在搜索…"));
     more_->hide();
-    request_ = client_.search_all_messages(query_->text(), before);
+    request_ = client_.search_all_messages(submitted_filter_, before);
 }
 
 void global_search_dialog::open_context(QTreeWidgetItem* item)
 {
     results_->setCurrentItem(item);
-    auto conv = item->data(0, Qt::UserRole).toLongLong();
-    auto anchor = item->data(1, Qt::UserRole).toLongLong();
-    setWindowTitle(QStringLiteral("聊天记录 · %1").arg(item->text(1)));
+    show_context(item->data(0, Qt::UserRole).toLongLong(), item->data(1, Qt::UserRole).toLongLong(), item->text(1));
+}
+
+void global_search_dialog::locate(qint64 conversation, qint64 anchor)
+{
+    standalone_ = true;
+    show_context(conversation, anchor, {});
+}
+
+void global_search_dialog::show_context(qint64 conversation, qint64 anchor, QString const& title)
+{
+    context_conversation_ = conversation;
+    context_anchor_ = anchor;
+    setWindowTitle(title.isEmpty() ? QStringLiteral("消息上下文") : QStringLiteral("聊天记录 · %1").arg(title));
     query_->hide();
+    filters_->hide();
     results_->hide();
     more_->hide();
     context_->clear();
     context_->show();
-    back_->show();
+    back_->setVisible(!standalone_);
     status_->setText(QStringLiteral("正在定位消息…"));
-    request_ = client_.get_search_context(conv, anchor);
+    request_ = client_.get_search_context(conversation, anchor);
 }
 
 void global_search_dialog::set_page(quint64 id, chat::message_search_page const& page, QString const& error)
@@ -230,16 +390,15 @@ void global_search_dialog::set_context(quint64 id, qint64 anchor, QList<message_
 }
 void global_search_dialog::discard(qint64 conversation, qint64 through)
 {
-    auto* current = results_->currentItem();
-    if (!context_->isHidden() && current && current->data(0, Qt::UserRole).toLongLong() == conversation)
+    if (!context_->isHidden() && context_conversation_ == conversation)
     {
-        if (current->data(1, Qt::UserRole).toLongLong() <= through)
+        if (context_anchor_ <= through)
         {
-            show_results();
+            context_unavailable();
         }
         else if (request_ || (context_->count() && context_->item(0)->data(Qt::UserRole).toLongLong() <= through))
         {
-            open_context(current);
+            show_context(conversation, context_anchor_, standalone_ ? QString{} : results_->currentItem()->text(1));
         }
     }
     if (request_ && context_->isHidden())
@@ -261,10 +420,22 @@ void global_search_dialog::discard(qint64 conversation, qint64 through)
     }
 }
 
+void global_search_dialog::context_unavailable()
+{
+    if (!standalone_)
+    {
+        show_results();
+        return;
+    }
+    request_ = 0;
+    context_conversation_ = context_anchor_ = 0;
+    context_->clear();
+    status_->setText(QStringLiteral("消息不可用"));
+}
+
 void global_search_dialog::show_empty_result()
 {
-    if (!results_->topLevelItemCount() && !request_ && !next_before_ && context_->isHidden() && status_->text().isEmpty() &&
-        !query_->text().isEmpty())
+    if (!results_->topLevelItemCount() && !request_ && !next_before_ && context_->isHidden() && status_->text().isEmpty() && submitted_)
     {
         status_->setText(QStringLiteral("没有找到相关消息"));
     }
@@ -277,19 +448,43 @@ void global_search_dialog::updated(qint64 conversation, message_data const& mess
         return;
     }
     auto* current = results_->currentItem();
-    if (!context_->isHidden() && current && current->data(0, Qt::UserRole).toLongLong() == conversation)
+    if (!context_->isHidden() && context_conversation_ == conversation)
     {
         auto included = request_ != 0;
         for (int i = 0; !included && i < context_->count(); ++i)
         {
             included = context_->item(i)->data(Qt::UserRole).toLongLong() == message.id;
         }
-        if (included)
+        if (message.id == context_anchor_ && message.deleted)
         {
-            open_context(current);
+            context_unavailable();
+        }
+        else if (included)
+        {
+            show_context(conversation, context_anchor_, standalone_ ? QString{} : current->text(1));
         }
     }
-    auto snippet = [&] { return message.deleted ? QString{} : search_snippet(message.text, query_->text()); };
+    if (!submitted_)
+    {
+        return;
+    }
+    auto snippet = [&]() -> QString
+    {
+        auto const& filter = submitted_filter_;
+        if (message.deleted || (filter.conversation && *filter.conversation != conversation) || (filter.sender && *filter.sender != message.from) ||
+            (filter.start && message.timestamp < *filter.start) || (filter.end && message.timestamp >= *filter.end))
+        {
+            return {};
+        }
+        using enum chat::message_category;
+        auto const image = message.attachment && message.attachment->media_type.startsWith(QStringLiteral("image/"));
+        if ((filter.category == images && !image) || (filter.category == files && (!message.attachment || image)) ||
+            (filter.category == links && !message.text.contains(QStringLiteral("http://")) && !message.text.contains(QStringLiteral("https://"))))
+        {
+            return {};
+        }
+        return search_snippet(message.text, QString::fromStdString(filter.query));
+    };
     for (int i = 0; i < results_->topLevelItemCount(); ++i)
     {
         auto* item = results_->topLevelItem(i);

@@ -8,6 +8,23 @@
 namespace
 {
 constexpr std::size_t kPageSize = 50;
+std::string_view category_predicate(chat::message_category kind)
+{
+    using enum chat::message_category;
+    switch (kind)
+    {
+        case images:
+            return " AND instr(a.media_type,'image/')=1";
+        case files:
+            return " AND a.object_key IS NOT NULL AND instr(a.media_type,'image/')<>1";
+        case links:
+            return " AND (instr(m.body,'http://')>0 OR instr(m.body,'https://')>0)";
+        case all:
+            return "";
+    }
+    return "";
+}
+
 constexpr std::string_view kMessageColumns = R"SQL(
     SELECT m.id,m.sender_id,u.username,u.avatar_revision,avatar.user_id IS NOT NULL,
            m.body,m.created_at,m.edited_at,m.deleted,m.reaction_revision,m.client_id,
@@ -145,7 +162,8 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
                                                                                        std::optional<std::int64_t> before,
                                                                                        std::optional<std::int64_t> after,
                                                                                        std::string_view search,
-                                                                                       std::optional<std::int64_t> around)
+                                                                                       std::optional<std::int64_t> around,
+                                                                                       std::optional<chat::message_category> category)
 {
     auto snapshot = sqlite_transaction::begin_read(db);
     if (!snapshot)
@@ -195,7 +213,13 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
     auto read_page = [&](std::string_view range, std::int64_t cursor, std::size_t limit) -> std::expected<bool, sqlite_error>
     {
         std::string query(kMessageColumns);
-        query += "WHERE m.conversation_id=?2 AND (?5='' OR (m.deleted=0 AND instr(chat_lower(m.body),chat_lower(?5))>0)) AND ";
+        query += "WHERE m.conversation_id=?2 AND (?5='' OR (m.deleted=0 AND instr(chat_lower(m.body),chat_lower(?5))>0))";
+        if (category)
+        {
+            query += " AND m.deleted=0";
+            query += category_predicate(*category);
+        }
+        query += " AND ";
         query += range;
         query += " LIMIT ?4";
         auto page = db.prepare(query, user, conversation, cursor, static_cast<std::int64_t>(limit + 1), search);
@@ -352,17 +376,67 @@ std::expected<std::optional<read_position_change>, sqlite_error> update_read_pos
     return change;
 }
 
+std::expected<std::vector<chat::message_search_scope>, sqlite_error> read_message_search_scopes(sqlite_database& db, std::int64_t user)
+{
+    auto query = db.prepare(R"SQL(
+        SELECT c.id,coalesce(c.title,peer.username)
+        FROM conversation_members own JOIN conversations c ON c.id=own.conversation_id
+        LEFT JOIN users peer ON peer.id=CASE WHEN c.direct_user_low=?1 THEN c.direct_user_high ELSE c.direct_user_low END
+        WHERE own.user_id=?1 ORDER BY c.activity DESC,c.id DESC
+    )SQL",
+                            user);
+    if (!query)
+    {
+        return std::unexpected(query.error());
+    }
+    std::vector<chat::message_search_scope> scopes;
+    for (;;)
+    {
+        auto row = query->step();
+        if (!row)
+        {
+            return std::unexpected(row.error());
+        }
+        if (!*row)
+        {
+            return scopes;
+        }
+        scopes.push_back({query->column_int64(0), std::string(query->column_text(1))});
+    }
+}
+
 std::expected<chat::message_search_page, sqlite_error> search_all_messages(sqlite_database& db,
                                                                            std::int64_t user,
-                                                                           std::string_view query,
+                                                                           chat::message_search_filter const& filter,
                                                                            std::optional<std::int64_t> before)
 {
-    // Limit authorized matches before looking up display names and building snippets.
-    auto page = db.prepare(R"SQL(
+    // Filter live authorized candidates before the keyset LIMIT and snippet lookup.
+    std::string sql = R"SQL(
         WITH hits AS MATERIALIZED (
             SELECT m.id FROM conversation_members own CROSS JOIN readable_messages m ON m.conversation_id=own.conversation_id
+    )SQL";
+    using enum chat::message_category;
+    if (filter.category == images || filter.category == files)
+    {
+        sql += " LEFT JOIN message_attachments ref ON ref.message_id=m.id LEFT JOIN files a ON a.object_key=ref.object_key";
+    }
+    sql += R"SQL(
             WHERE own.user_id=?1 AND m.id>own.visible_after AND m.id<=coalesce(?3-1,9223372036854775807)
-              AND m.deleted=0 AND instr(chat_lower(m.body),chat_lower(?2))>0
+              AND m.deleted=0
+              AND (?6 IS NULL OR m.sender_id=?6)
+              AND (?7 IS NULL OR m.created_at>=?7)
+              AND (?8 IS NULL OR m.created_at<?8)
+    )SQL";
+    if (filter.conversation)
+    {
+        sql += " AND own.conversation_id=?5";
+    }
+    if (!filter.query.empty())
+    {
+        sql += " AND instr(chat_lower(m.body),chat_lower(?2))>0";
+    }
+    sql += category_predicate(filter.category);
+    sql += R"SQL(
             ORDER BY m.id DESC LIMIT ?4
         )
         SELECT c.id,m.id,m.sender_id,m.created_at,coalesce(c.title,peer.username),u.username,
@@ -370,11 +444,9 @@ std::expected<chat::message_search_page, sqlite_error> search_all_messages(sqlit
         FROM hits JOIN readable_messages m ON m.id=hits.id JOIN conversations c ON c.id=m.conversation_id
         JOIN users u ON u.id=m.sender_id LEFT JOIN users peer ON peer.id=CASE WHEN c.direct_user_low=?1 THEN c.direct_user_high ELSE c.direct_user_low END
         ORDER BY m.id DESC
-    )SQL",
-                           user,
-                           query,
-                           before,
-                           static_cast<std::int64_t>(kPageSize + 1));
+    )SQL";
+    auto page = db.prepare(
+        sql, user, filter.query, before, static_cast<std::int64_t>(kPageSize + 1), filter.conversation, filter.sender, filter.start, filter.end);
     if (!page)
     {
         return std::unexpected(std::move(page.error()));

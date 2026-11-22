@@ -5,6 +5,7 @@
 #include <QLabel>
 #include <QAbstractButton>
 #include <QFileDialog>
+#include <QComboBox>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -14,6 +15,8 @@
 #include <QPlainTextEdit>
 #include <QSocketNotifier>
 #include <QTimer>
+#include <QTabBar>
+#include <QTabWidget>
 #include <QTreeWidget>
 #include <QMessageBox>
 #include <QPushButton>
@@ -171,6 +174,124 @@ QJsonObject dispatch(main_window& window, QJsonObject const& cmd)
             }
         }
     }
+    else if (op == "group_download")
+    {
+        auto* dialog = window.findChild<QDialog*>("groupDialog");
+        if (dialog)
+        {
+            if (cmd["close"].toBool())
+            {
+                dialog->reject();
+            }
+            else
+            {
+                auto* list = dialog->findChild<QTreeWidget*>("groupFileList");
+                auto* tabs = dialog->findChild<QTabWidget*>();
+                if (tabs && list && tabs->indexOf(list->parentWidget()) >= 0)
+                {
+                    tabs->setCurrentWidget(list->parentWidget());
+                }
+                out["count"] = list ? list->topLevelItemCount() : 0;
+                if (list && list->topLevelItemCount() && cmd.contains("destination"))
+                {
+                    list->setCurrentItem(list->topLevelItem(0));
+                    auto const path = cmd["destination"].toString();
+                    QTimer::singleShot(40,
+                                       dialog,
+                                       [path]
+                                       {
+                                           if (auto* chooser = qobject_cast<QFileDialog*>(QApplication::activeModalWidget()))
+                                           {
+                                               chooser->findChild<QLineEdit*>("fileNameEdit")->setText(path);
+                                               QMetaObject::invokeMethod(chooser, "accept");
+                                           }
+                                       });
+                    for (auto* button : dialog->findChildren<QPushButton*>())
+                    {
+                        if (button->text() == "下载")
+                        {
+                            button->click();
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    else if (op == "downloads")
+    {
+        if (cmd["open"].toBool())
+        {
+            for (auto* action : window.findChildren<QAction*>())
+            {
+                if (action->text() == "下载任务")
+                {
+                    action->trigger();
+                }
+            }
+        }
+        if (auto* dialog = window.findChild<QDialog*>("downloadTasksDialog"))
+        {
+            auto* list = dialog->findChild<QTreeWidget*>("downloadTaskList");
+            if (cmd.contains("row"))
+            {
+                list->setCurrentItem(list->topLevelItem(cmd["row"].toInt()));
+            }
+            if (cmd.contains("action"))
+            {
+                for (auto* button : dialog->findChildren<QPushButton*>())
+                {
+                    if (button->text() == cmd["action"].toString() && button->isEnabled())
+                    {
+                        button->click();
+                        out["triggered"] = true;
+                    }
+                }
+            }
+            QJsonArray rows;
+            for (int i = 0; i < list->topLevelItemCount(); ++i)
+            {
+                auto* row = list->topLevelItem(i);
+                rows.append(QJsonObject{{"id", row->data(0, Qt::UserRole).toString()},
+                                        {"filename", row->text(0)},
+                                        {"source", row->text(1)},
+                                        {"path", row->text(2)},
+                                        {"progress", row->text(3)},
+                                        {"status", row->text(4)}});
+            }
+            out["rows"] = rows;
+        }
+    }
+    else if (op == "history")
+    {
+        auto* dialog = window.findChild<QDialog*>("chatHistoryDialog");
+        if (!dialog && cmd["open"].toBool())
+        {
+            auto const conversation = cmd["conv"].toInteger();
+            QTimer::singleShot(0, chat, [chat, conversation] { emit chat->chat_history_requested(conversation, "QA"); });
+        }
+        if (dialog)
+        {
+            auto* tabs = dialog->findChild<QTabBar*>("historyTabs");
+            auto* list = dialog->findChild<QListWidget*>("historyList");
+            auto* more = dialog->findChild<QPushButton*>("historyMoreButton");
+            if (cmd.contains("tab"))
+            {
+                tabs->setCurrentIndex(cmd["tab"].toInt());
+            }
+            if (cmd["more"].toBool())
+            {
+                more->click();
+            }
+            out["status"] = dialog->findChild<QLabel*>("historyStatus")->text();
+            out["count"] = list->count();
+            out["more"] = more->isVisible();
+            if (cmd["activate"].toBool() && list->count())
+            {
+                emit list->itemActivated(list->item(0));
+            }
+        }
+    }
     else if (op == "searchui")
     {
         if (cmd["open"].toBool())
@@ -187,7 +308,7 @@ QJsonObject dispatch(main_window& window, QJsonObject const& cmd)
         if (d)
         {
             auto* l = d->findChild<QTreeWidget*>();
-            auto* q = d->findChild<QLineEdit*>();
+            auto* q = d->findChild<QLineEdit*>("globalSearchQuery");
             auto* ctx = d->findChild<QListWidget*>();
             if (l && q && ctx)
             {
@@ -198,6 +319,20 @@ QJsonObject dispatch(main_window& window, QJsonObject const& cmd)
                     if (b->text() == "加载更多")
                     {
                         out["more"] = b->isVisible();
+                    }
+                }
+                if (cmd.contains("category"))
+                {
+                    d->findChild<QComboBox*>("searchCategory")->setCurrentIndex(cmd["category"].toInt());
+                }
+                if (cmd.contains("conversation"))
+                {
+                    auto* scopes = d->findChild<QComboBox*>("searchConversation");
+                    auto const index = scopes->findData(cmd["conversation"].toInteger());
+                    if (index >= 0)
+                    {
+                        scopes->setCurrentIndex(index);
+                        out["scope"] = true;
                     }
                 }
                 if (cmd.contains("query"))
@@ -266,6 +401,10 @@ QJsonObject dispatch(main_window& window, QJsonObject const& cmd)
             }
         }
         out["names"] = names;
+    }
+    else if (op == "quit")
+    {
+        QTimer::singleShot(0, qApp, &QApplication::quit);
     }
     else if (op == "draft")
     {

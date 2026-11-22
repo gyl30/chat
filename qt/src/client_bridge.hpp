@@ -8,6 +8,7 @@
 #include <expected>
 #include <functional>
 #include <utility>
+#include <chat/client.hpp>
 #include <chat/conversation.hpp>
 #include <chat/error.hpp>
 #include <chat/friendship.hpp>
@@ -77,25 +78,38 @@ class client_bridge final : public QObject
     void get_presence();
     void get_messages(qint64 conversation, std::optional<qint64> before = {}, std::optional<qint64> after = {});
     void forward_messages(qint64 target, QList<qint64> messages);
-    void send_message(qint64 conversation, QString text, qint64 reply_to, qint64 client_id);
+    void send_message(qint64 conversation, QString text, qint64 reply_to, qint64 client_id, qint64 revision);
+    void save_draft(qint64 user, qint64 conversation, qint64 revision, qint64 reply, QString text);
+    void restore_drafts(qint64 user);
+    void validate_draft_reply(qint64 conversation, qint64 anchor, qint64 revision);
     void restore_texts();
     void change_pending_text(qint64 client_id, bool discard);
     void delete_message(qint64 conversation, qint64 message);
     void edit_message(qint64 conversation, qint64 message, QString text);
     void set_message_reaction(qint64 conversation, qint64 message, QString emoji);
     void search_users(QString query, quint64 request);
-    quint64 search_all_messages(QString query, qint64 before);
+    quint64 search_all_messages(chat::message_search_filter const& filter, qint64 before);
+    quint64 get_message_search_scopes();
+    quint64 find_search_senders(QString query);
     quint64 get_search_context(qint64 conversation, qint64 anchor);
     void search_messages(qint64 conversation, QString query, qint64 before = 0);
     // Browsing and searching the history window share one request sequence.
-    void get_history(qint64 conversation, QString query, qint64 before);
+    void get_history(qint64 conversation, chat::message_category category, QString query, qint64 before);
     void add_contact(qint64 user);
     void remove_contact(qint64 user);
     void send_attachment(qint64 conversation, QString path, qint64 reply_to, qint64 client_id, bool group_only);
     void change_file(qint64 conversation, QString key, bool add);
     void list_files(qint64 conversation, QString search, QString category, qint64 before, QString key);
-    void download_file(qint64 conversation, QString key, QString path, bool open);
-    void get_attachment(qint64 conversation, qint64 message, QString target);
+    void download_file(qint64 conversation, QString key, QString filename, QString path, bool open);
+    void get_attachment(qint64 conversation, qint64 message, QString filename, QString target);
+    void start_download(qint64 id,
+                        quint64 attempt,
+                        qint64 conversation,
+                        qint64 message,
+                        QString key,
+                        QString path,
+                        std::shared_ptr<chat::download_control> control,
+                        bool replace);
     void restore_attachments();
     void interrupt_attachment(qint64 id, bool cancel, QString path);
     void get_message_image(qint64 conversation, qint64 message);
@@ -149,6 +163,8 @@ class client_bridge final : public QObject
     void conversation_changed(qint64 conversation, bool removed);
     // A text or attachment send finished: the stored message, or why it failed. lost means the
     // connection dropped before an answer; unavailable means the server denied conversation access.
+    void drafts_restored(qint64 user, std::vector<chat::compose_draft> drafts);
+    void draft_reply_validated(qint64 conversation, qint64 anchor, qint64 revision, message_data message, bool unavailable);
     void text_saved(qint64 client_id, QString error);
     void pending_text_changed(qint64 conversation, qint64 client_id, QString text, qint64 reply, qint64 created, bool sending, QString rejection);
     void pending_text_discarded(qint64 client_id);
@@ -162,10 +178,14 @@ class client_bridge final : public QObject
     void group_file_finished(qint64 id, QString error);
     void files_changed(qint64 conversation, QString error);
     void files_received(qint64 conversation, chat::conversation_file_page page, bool older, QString error);
+    void download_requested(qint64 conversation, qint64 message, QString key, QString filename, QString path, bool open);
+    void download_progress(qint64 id, quint64 attempt, qint64 bytes, qint64 total);
+    void download_finished(qint64 id, quint64 attempt, QString error);
     void file_downloaded(qint64 conversation, QString path, bool open, QString error);
     void attachment_cancelled(qint64 id);
     void attachment_received(qint64 conversation, qint64 message, QString path, QString error_message);
     void message_image_received(qint64 conversation, qint64 message, QByteArray data, QString error_message);
+    void message_search_scopes_received(quint64 request, std::vector<chat::message_search_scope> scopes, QString error);
     void global_search_received(quint64 request, chat::message_search_page page, QString error);
     void search_context_received(quint64 request, qint64 anchor, QList<message_data> messages, QString error);
     void history_received(qint64 conversation, QList<message_data> messages, bool has_more, QString error_message);

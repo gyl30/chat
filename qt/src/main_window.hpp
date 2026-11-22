@@ -28,6 +28,7 @@ class QSystemTrayIcon;
 class chat_widget;
 class title_bar;
 class client_bridge;
+class download_dialog;
 
 class main_window final : public QMainWindow
 #if defined(Q_OS_LINUX)
@@ -165,6 +166,7 @@ class main_window final : public QMainWindow
     QString session_password_;
 
     std::unique_ptr<client_bridge> client_;
+    download_dialog* downloads_ = nullptr;
 };
 
 #endif

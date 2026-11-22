@@ -297,6 +297,8 @@ QWidget* chat_widget::create_sidebar()
                     transfers->addAction(QStringLiteral("没有未完成的上传"))->setEnabled(false);
                 }
             });
+    auto* downloads = main_menu->addAction(QStringLiteral("下载任务"));
+    connect(downloads, &QAction::triggered, this, &chat_widget::download_tasks_requested);
     auto* settings = main_menu->addAction(QStringLiteral("设置"));
     settings->setObjectName(QStringLiteral("showSettingsAction"));
     settings->setToolTip(QStringLiteral("设置"));
@@ -1311,9 +1313,9 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
             this,
             [this]
             {
-                draft_edited();
                 reply_to_ = 0;
                 reply_bar_->hide();
+                draft_edited();
                 message_edit_->setFocus();
             });
     connect(messages_view_, &QListView::customContextMenuRequested, this, &chat_widget::show_message_menu);
@@ -1761,8 +1763,8 @@ void chat_widget::show_message_menu(QPoint position)
     {
         return;
     }
-    draft_edited();
     reply_to_ = message_id;
+    draft_edited();
     reply_preview_->setText(QStringLiteral("回复 %1：%2").arg(sender_name, grapheme_prefix(message_text, 80)));
     reply_bar_->show();
     message_edit_->setFocus();
@@ -1820,6 +1822,10 @@ void chat_widget::connect_chat_controls()
     connect(chats_action_, &QAction::triggered, this, [this] { show_conversations_section(); });
     connect(contacts_action_, &QAction::triggered, this, [this] { show_contacts_dialog(); });
     connect(send_button_, &QToolButton::clicked, this, [this] { send_current_message(); });
+    draft_timer_ = new QTimer(this);
+    draft_timer_->setSingleShot(true);
+    draft_timer_->setInterval(300);
+    connect(draft_timer_, &QTimer::timeout, this, &chat_widget::save_active_draft);
     typing_idle_timer_ = new QTimer(this);
     typing_idle_timer_->setSingleShot(true);
     typing_idle_timer_->setInterval(3000);
@@ -1894,6 +1900,7 @@ void chat_widget::connect_chat_controls()
 
 void chat_widget::set_user(QString const& username, qint64 user)
 {
+    flush_draft();
     contacts_feedback_->clear();
     contacts_feedback_->hide();
     contacts_dialog_->reject();
@@ -1910,6 +1917,7 @@ void chat_widget::set_user(QString const& username, qint64 user)
     self_profile_action_->setIcon(avatar_icon(username, 24));
     self_profile_action_->setEnabled(user > 0);
     history_floors_.clear();
+    draft_timer_->stop();
     drafts_.clear();
     outgoing_.clear();
     saving_text_.reset();
@@ -2303,6 +2311,7 @@ void chat_widget::set_connection_available(bool available)
     images_.retry();
     if (available)
     {
+        load_draft_reply();
         QTimer::singleShot(0, messages_view_, [this] { load_visible_images(); });
     }
     if (!available && active_group_)
@@ -2416,13 +2425,7 @@ void chat_widget::set_contacts(QList<user_data> contacts)
     contacts_->set_users(std::move(contacts));
     if (active_conversation_ > 0 && !active_group_ && !is_contact(active_peer_))
     {
-        auto const conversation = active_conversation_;
-        auto draft = message_edit_->toPlainText();
-        leave_conversation(conversation);
-        if (!draft.isEmpty())
-        {
-            drafts_.insert(conversation, std::move(draft));
-        }
+        leave_conversation(active_conversation_);
     }
     contacts_status_->setText(contacts_->rowCount() == 0 ? QStringLiteral("暂无联系人，可从主菜单“添加联系人”发起好友申请") : QString{});
     if (selected > 0)
@@ -2703,68 +2706,34 @@ void chat_widget::set_messages(qint64 user, QList<message_data> messages, read_p
                            {
                                messages_view_->scrollToBottom();
                                mark_visible_messages();
-                               continue_locate();
                            });
         return;
     }
 
     set_message_status({});
-    QTimer::singleShot(0,
-                       messages_view_,
-                       [this, scroll, old_maximum, old_value]
-                       {
-                           scroll->setValue(old_value + scroll->maximum() - old_maximum);
-                           continue_locate();
-                       });
+    QTimer::singleShot(0, messages_view_, [this, scroll, old_maximum, old_value] { scroll->setValue(old_value + scroll->maximum() - old_maximum); });
 }
 
 void chat_widget::locate_message(qint64 conversation, qint64 message)
 {
-    if (conversation != active_conversation_ || message <= 0)
+    if (message <= 0)
     {
         return;
     }
-    pending_locate_ = message;
-    locate_pages_ = 0;
-    continue_locate();
-}
-
-void chat_widget::continue_locate()
-{
-    if (pending_locate_ <= 0)
+    if (conversation == active_conversation_ && message > history_floor(conversation))
     {
-        return;
-    }
-    for (int row = 0; row < messages_->rowCount(); ++row)
-    {
-        auto const index = messages_->index(row, 0);
-        if (index.data(message_model::id_role).toLongLong() != pending_locate_)
+        for (int row = 0; row < messages_->rowCount(); ++row)
         {
-            continue;
+            auto const index = messages_->index(row, 0);
+            if (index.data(message_model::id_role).toLongLong() == message && !index.data(message_model::deleted_role).toBool())
+            {
+                messages_view_->setCurrentIndex(index);
+                messages_view_->scrollTo(index, QAbstractItemView::PositionAtCenter);
+                return;
+            }
         }
-        pending_locate_ = 0;
-        messages_view_->setCurrentIndex(index);
-        messages_view_->scrollTo(index, QAbstractItemView::PositionAtCenter);
-        set_message_status({});
-        return;
     }
-    // A page in flight resumes locating when it is merged.
-    if (!messages_loaded_ || messages_loading_)
-    {
-        return;
-    }
-    // Older pages keep history contiguous; a gap would break later paging.
-    constexpr int max_locate_pages = 50;
-    auto const first = messages_->first_message_id();
-    if (history_exhausted_ || first <= 0 || pending_locate_ > first || locate_pages_ >= max_locate_pages)
-    {
-        pending_locate_ = 0;
-        set_message_status(QStringLiteral("没有找到这条消息，它可能已被删除。"));
-        return;
-    }
-    ++locate_pages_;
-    set_message_status(QStringLiteral("正在定位消息…"));
-    request_older_messages();
+    emit message_context_requested(conversation, message);
 }
 
 void chat_widget::set_read_message(qint64 conversation, qint64 user, qint64 message)
@@ -2815,6 +2784,10 @@ void chat_widget::add_message(qint64 user, message_data message)
 
 void chat_widget::update_message(message_data message)
 {
+    if (message.deleted)
+    {
+        discard_draft_reply(message.conversation, message.id, true);
+    }
     if (!visible_message(message))
     {
         return;
@@ -2930,7 +2903,6 @@ void chat_widget::set_message_error(qint64 user, QString message)
     if (user == active_conversation_)
     {
         messages_loading_ = false;
-        pending_locate_ = 0;
         set_message_status(std::move(message));
     }
 }
@@ -3332,7 +3304,7 @@ void chat_widget::update_compose_state()
     auto const compose = can_queue_text();
     auto const allowed = connection_available_ && compose;
     message_edit_->setEnabled(compose);
-    send_button_->setEnabled(compose && !saving_text_ && !message_edit_->toPlainText().isEmpty());
+    send_button_->setEnabled(compose && !saving_text_ && !message_edit_->toPlainText().isEmpty() && (!reply_to_ || !reply_bar_->isHidden()));
     attachment_button_->setEnabled(allowed);
     screenshot_button_->setEnabled(allowed);
     emoji_button_->setEnabled(allowed);
@@ -3400,42 +3372,25 @@ void chat_widget::open_conversation(conversation_data conversation)
         return;
     }
 
+    flush_draft();
     stop_typing();
     typing_users_.clear();
     update_typing_label();
-    reply_to_ = 0;
-    reply_bar_->hide();
     images_.discard_queued();
-    if (active_conversation_ > 0)
-    {
-        auto text = message_edit_->toPlainText();
-        if (text.isEmpty())
-        {
-            drafts_.remove(active_conversation_);
-        }
-        else
-        {
-            drafts_.insert(active_conversation_, std::move(text));
-        }
-    }
     active_conversation_ = user;
     update_chat_header(active_username_);
-    {
-        QSignalBlocker const blocker(message_edit_);
-        message_edit_->setPlainText(drafts_.take(user));
-        message_edit_->moveCursor(QTextCursor::End);
-    }
+    apply_draft();
     message_search_action_->setEnabled(connection_available_);
     history_button_->setEnabled(connection_available_);
     chat_more_button_->setEnabled(true);
     set_message_selection(false);
     messages_->reset(active_conversation_, active_group_);
+    load_draft_reply();
     show_outgoing();
     update_pinned_message();
     messages_loaded_ = false;
     messages_loading_ = true;
     history_exhausted_ = false;
-    pending_locate_ = 0;
     show_loading_status();
     update_compose_state();
     if (connection_available_)
@@ -3444,14 +3399,7 @@ void chat_widget::open_conversation(conversation_data conversation)
     }
 }
 
-void chat_widget::hide_conversation(qint64 conversation)
-{
-    if (conversation == active_conversation_)
-    {
-        drafts_.insert(conversation, message_edit_->toPlainText());
-    }
-    leave_conversation(conversation);
-}
+void chat_widget::hide_conversation(qint64 conversation) { leave_conversation(conversation); }
 bool chat_widget::visible_message(message_data& message) const
 {
     auto floor = history_floor(message.conversation);
@@ -3479,18 +3427,10 @@ void chat_widget::discard_history(qint64 conversation, qint64 floor)
             item.reply.text.clear();
         }
     }
+    discard_draft_reply(conversation, floor);
     if (conversation != active_conversation_)
     {
         return;
-    }
-    if (reply_to_ > 0 && reply_to_ <= floor)
-    {
-        reply_to_ = 0;
-        reply_bar_->hide();
-    }
-    if (pending_locate_ <= floor)
-    {
-        pending_locate_ = 0;
     }
     messages_->discard_through(floor);
     update_pinned_message();
@@ -3498,7 +3438,7 @@ void chat_widget::discard_history(qint64 conversation, qint64 floor)
 }
 void chat_widget::close_conversation(qint64 conversation)
 {
-    drafts_.remove(conversation);
+    discard_draft_reply(conversation, std::numeric_limits<qint64>::max());
     drop_outgoing(conversation);
     leave_conversation(conversation);
 }
@@ -3517,6 +3457,7 @@ void chat_widget::leave_conversation(qint64 conversation)
         images_.remove(conversation);
         return;
     }
+    flush_draft();
     stop_typing();
     typing_users_.clear();
     update_typing_label();
@@ -3529,7 +3470,6 @@ void chat_widget::leave_conversation(qint64 conversation)
     messages_loaded_ = false;
     messages_loading_ = false;
     history_exhausted_ = false;
-    pending_locate_ = 0;
     reply_to_ = 0;
     reply_bar_->hide();
     set_message_selection(false);
@@ -3753,25 +3693,126 @@ void chat_widget::request_older_messages()
 void chat_widget::send_current_message()
 {
     auto text = message_edit_->toPlainText();
-    if (!can_queue_text() || saving_text_ || text.isEmpty())
+    if (!can_queue_text() || saving_text_ || text.isEmpty() || (reply_to_ && reply_bar_->isHidden()))
     {
         return;
     }
+    flush_draft();
     auto const id = chat::client::new_client_id();
-    saving_text_ = text_save{
-        .client_id = id,
-        .draft_conversation = active_conversation_,
-    };
+    auto const revision = drafts_.value(active_conversation_).revision;
+    saving_text_ = text_save{id, active_conversation_, revision};
     update_compose_state();
-    emit send_message_requested(active_conversation_, std::move(text), reply_to_, id);
+    emit send_message_requested(active_conversation_, std::move(text), reply_to_, id, revision);
 }
 
 void chat_widget::draft_edited()
 {
-    if (saving_text_ && saving_text_->draft_conversation == active_conversation_)
+    if (active_conversation_ > 0 && self_user_ > 0)
     {
-        saving_text_->draft_conversation.reset();
+        drafts_.insert(active_conversation_, {message_edit_->toPlainText(), reply_to_, chat::client::new_client_id()});
+        draft_timer_->start();
     }
+}
+
+void chat_widget::flush_draft()
+{
+    if (!draft_timer_->isActive())
+    {
+        return;
+    }
+    draft_timer_->stop();
+    save_active_draft();
+}
+
+void chat_widget::save_active_draft()
+{
+    auto const value = drafts_.value(active_conversation_);
+    if (value.revision && active_conversation_ > 0 && self_user_ > 0)
+    {
+        emit draft_save_requested(self_user_, active_conversation_, value.revision, value.reply, value.text);
+    }
+}
+
+void chat_widget::apply_draft()
+{
+    auto const value = drafts_.value(active_conversation_);
+    reply_to_ = value.reply;
+    reply_bar_->hide();
+    QSignalBlocker const blocker(message_edit_);
+    message_edit_->setPlainText(value.text);
+    message_edit_->moveCursor(QTextCursor::End);
+}
+
+void chat_widget::restore_drafts(qint64 user, std::vector<chat::compose_draft> const& values)
+{
+    if (user != self_user_)
+    {
+        return;
+    }
+    for (auto const& value : values)
+    {
+        if (!drafts_.contains(value.conversation))
+        {
+            drafts_.insert(value.conversation, {QString::fromStdString(value.text), value.reply, value.revision});
+            if (value.conversation == active_conversation_)
+            {
+                apply_draft();
+                load_draft_reply();
+                update_compose_state();
+            }
+        }
+    }
+}
+
+void chat_widget::load_draft_reply()
+{
+    if (!reply_to_ || active_conversation_ <= 0 || !reply_bar_->isHidden())
+    {
+        return;
+    }
+    if (reply_to_ <= history_floor(active_conversation_))
+    {
+        discard_draft_reply(active_conversation_, reply_to_);
+    }
+    else if (connection_available_)
+    {
+        emit draft_reply_requested(active_conversation_, reply_to_, ++draft_reply_request_);
+    }
+}
+
+void chat_widget::validate_draft_reply(qint64 conversation, qint64 anchor, qint64 revision, message_data const& message, bool unavailable)
+{
+    if (conversation != active_conversation_ || reply_to_ != anchor || draft_reply_request_ != revision)
+    {
+        return;
+    }
+    if (unavailable || anchor <= history_floor(conversation))
+    {
+        discard_draft_reply(conversation, anchor, true);
+        return;
+    }
+    reply_preview_->setText(QStringLiteral("回复 %1：%2").arg(message.username, grapheme_prefix(message.text, 80)));
+    reply_bar_->show();
+    update_compose_state();
+}
+
+void chat_widget::discard_draft_reply(qint64 conversation, qint64 through, bool exact)
+{
+    auto value = drafts_.find(conversation);
+    if (value == drafts_.end() || !value->reply || (exact ? value->reply != through : value->reply > through))
+    {
+        return;
+    }
+    value->reply = 0;
+    value->revision = chat::client::new_client_id();
+    if (conversation == active_conversation_)
+    {
+        reply_to_ = 0;
+        reply_bar_->hide();
+        draft_timer_->stop();
+        update_compose_state();
+    }
+    emit draft_save_requested(self_user_, conversation, value->revision, 0, value->text);
 }
 
 void chat_widget::finish_text_save(qint64 client_id, QString error)
@@ -3786,17 +3827,14 @@ void chat_widget::finish_text_save(qint64 client_id, QString error)
     {
         set_error(std::move(error));
     }
-    else if (saved.draft_conversation == active_conversation_)
+    else if (drafts_.value(saved.draft_conversation).revision == saved.revision)
     {
-        stop_typing();
-        reply_to_ = 0;
-        reply_bar_->hide();
-        QSignalBlocker const blocker(message_edit_);
-        message_edit_->clear();
-    }
-    else if (saved.draft_conversation)
-    {
-        drafts_.remove(*saved.draft_conversation);
+        drafts_.remove(saved.draft_conversation);
+        if (saved.draft_conversation == active_conversation_)
+        {
+            stop_typing();
+            apply_draft();
+        }
     }
     update_compose_state();
 }
@@ -3918,6 +3956,7 @@ void chat_widget::send_files(qint64 target, QStringList const& paths, qint64 cli
     {
         reply_to_ = 0;
         reply_bar_->hide();
+        draft_edited();
     }
     if (!errors.isEmpty())
     {

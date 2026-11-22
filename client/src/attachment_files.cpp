@@ -12,6 +12,14 @@
 #include <memory>
 #include <openssl/rand.h>
 
+#if defined(__linux__)
+#include <cerrno>
+#include <fcntl.h>
+#include <linux/fs.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif
+
 namespace chat::detail
 {
 namespace fs = std::filesystem;
@@ -116,7 +124,10 @@ file_result<sqlite_database> open_transfer_journal(std::string const& directory,
         FOREIGN KEY(user,client) REFERENCES tasks(user,client) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS text_outbox(
         user INTEGER NOT NULL,client INTEGER NOT NULL,conversation INTEGER NOT NULL,body TEXT NOT NULL,
-        reply INTEGER,created INTEGER NOT NULL,rejection INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(user,client));)SQL"))
+        reply INTEGER,created INTEGER NOT NULL,rejection INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(user,client));
+    CREATE TABLE IF NOT EXISTS compose_drafts(
+        user INTEGER NOT NULL,conversation INTEGER NOT NULL,revision INTEGER NOT NULL,reply INTEGER NOT NULL,
+        body TEXT NOT NULL,updated INTEGER NOT NULL,PRIMARY KEY(user,conversation));)SQL"))
     {
         return failed("无法初始化上传记录");
     }
@@ -280,9 +291,43 @@ file_result<std::string> put_part(std::string const& url,
     }
     return etag;
 }
-file_result<std::string> download_file(
-    std::string const& url, std::int64_t size, std::string const& checksum, std::string const& target, std::atomic_bool const& stop)
+namespace
 {
+void publish_new_file(fs::path const& temporary, fs::path const& target, std::error_code& error)
+{
+#if defined(__linux__) && defined(SYS_renameat2)
+    if (syscall(SYS_renameat2, AT_FDCWD, temporary.c_str(), AT_FDCWD, target.c_str(), RENAME_NOREPLACE) == 0)
+    {
+        return;
+    }
+    auto const code = errno;
+    if (code != ENOSYS && code != EINVAL && code != EOPNOTSUPP)
+    {
+        error = {code, std::generic_category()};
+        return;
+    }
+#endif
+    fs::create_hard_link(temporary, target, error);
+    if (!error)
+    {
+        std::error_code cleanup;
+        fs::remove(temporary, cleanup);
+    }
+}
+}    // namespace
+
+file_result<std::string> download_file(std::string const& url,
+                                       std::int64_t size,
+                                       std::string const& checksum,
+                                       std::string const& target,
+                                       std::atomic_bool const& stop,
+                                       download_options const& options)
+{
+    auto stopped = [&] { return stop || (options.control && options.control->cancelled()); };
+    if (stopped())
+    {
+        return failed("下载已取消或连接已断开");
+    }
     // Create exclusively in the destination directory so the final rename is atomic.
     std::array<unsigned char, 16> random;
     if (RAND_bytes(random.data(), random.size()) != 1)
@@ -299,31 +344,56 @@ file_result<std::string> download_file(
     digest d;
     std::int64_t count = 0;
     bool valid = d.init();
+    auto last_progress = std::chrono::steady_clock::now();
+    if (options.progress)
+    {
+        options.progress(0, size);
+    }
     minio::http::Request req(minio::http::Method::kGet, minio::http::Url::Parse(url));
     req.connect_timeout_secs = 5;
     req.datafunc = [&](minio::http::DataFunctionArgs const& chunk)
     {
         auto const& bytes = chunk.datachunk;
-        valid = valid && !stop && bytes.size() <= static_cast<std::uint64_t>(size - count) && d.add(bytes) &&
+        valid = valid && !stopped() && bytes.size() <= static_cast<std::uint64_t>(size - count) && d.add(bytes) &&
                 static_cast<bool>(out.write(bytes.data(), static_cast<std::streamsize>(bytes.size())));
         if (valid)
         {
             count += static_cast<std::int64_t>(bytes.size());
+            auto const now = std::chrono::steady_clock::now();
+            if (options.progress && now - last_progress >= std::chrono::milliseconds(100))
+            {
+                last_progress = now;
+                options.progress(count, size);
+            }
         }
         return valid;
     };
     auto res = req.Execute();
     out.close();
     std::error_code ec;
-    if (res && !stop && valid && out && count == size && d.finish() == checksum)
+    if (res && !stopped() && valid && out && count == size && d.finish() == checksum && (!options.control || options.control->begin_finalize()))
     {
-        fs::rename(tmp, fs::path(target), ec);
+        if (options.replace_existing)
+        {
+            fs::rename(tmp, fs::path(target), ec);
+        }
+        else
+        {
+            // Publish without overwriting a file created after the save dialog.
+            publish_new_file(tmp, fs::path(target), ec);
+        }
         if (!ec)
         {
+            if (options.progress)
+            {
+                options.progress(size, size);
+            }
             return target;
         }
+        fs::remove(tmp, ec);
+        return failed("无法写入下载目标（可能已存在文件）");
     }
     fs::remove(tmp, ec);
-    return failed("下载未完成或 SHA-256 校验失败");
+    return failed(stopped() ? "下载已取消或连接已断开" : "下载未完成或 SHA-256 校验失败");
 }
 }    // namespace chat::detail

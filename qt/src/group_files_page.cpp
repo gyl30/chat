@@ -244,5 +244,5 @@ void group_files_page::download(bool open)
         return;
     }
     status_->setText(QStringLiteral("正在下载…"));
-    client_.download_file(conversation_, key, path, open);
+    client_.download_file(conversation_, key, item->text(0), path, open);
 }

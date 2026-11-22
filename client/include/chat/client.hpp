@@ -42,6 +42,14 @@ enum class outbox_state : std::uint8_t
     failed,
 };
 
+struct compose_draft
+{
+    std::int64_t conversation;
+    std::int64_t revision;
+    std::int64_t reply;
+    std::string text;
+};
+
 struct pending_text
 {
     std::int64_t client_id, conversation, reply_to, created;
@@ -162,7 +170,11 @@ class client
                       std::optional<std::int64_t> before,
                       messages_handler handler,
                       std::optional<std::int64_t> after = {});
-    void search_all_messages(std::string query, std::optional<std::int64_t> before, message_search_handler handler);
+    void search_all_messages(message_search_filter const& filter, std::optional<std::int64_t> before, message_search_handler handler);
+    using message_search_scopes_handler = std::function<void(std::expected<std::vector<message_search_scope>, error>)>;
+    void get_message_search_scopes(message_search_scopes_handler handler);
+    void get_categorized_history(
+        std::int64_t conversation, message_category category, std::string query, std::optional<std::int64_t> before, messages_handler handler);
     void get_messages_around(std::int64_t conversation, std::int64_t around, messages_handler handler);
     void search_messages(std::int64_t conversation, std::string query, std::optional<std::int64_t> before, messages_handler handler);
     static std::int64_t new_client_id();
@@ -171,7 +183,11 @@ class client
                       std::string text,
                       outbox_operation_handler queued,
                       std::optional<std::int64_t> reply_to = {},
-                      std::optional<std::int64_t> client_id = {});
+                      std::optional<std::int64_t> client_id = {},
+                      std::int64_t draft_revision = 0);
+    using drafts_handler = std::function<void(std::expected<std::vector<compose_draft>, error>)>;
+    void save_draft(std::int64_t user, compose_draft draft, outbox_operation_handler handler);
+    void load_drafts(std::int64_t user, drafts_handler handler);
     void set_outbox_handler(outbox_handler handler);
     void pending_texts(pending_texts_handler handler);
     void retry_text(std::int64_t client_id, outbox_operation_handler handler);
@@ -196,11 +212,16 @@ class client
                                  std::int64_t before,
                                  std::string before_key,
                                  conversation_files_handler handler);
-    void download_conversation_file(std::int64_t conversation, std::string key, std::string path, attachment_handler handler);
+    void download_conversation_file(
+        std::int64_t conversation, std::string key, std::string path, attachment_handler handler, download_options options = {});
     void pending_attachments(pending_attachments_handler handler);
     void interrupt_attachment(std::int64_t client_id, bool cancel, group_action_handler handler);
-    void get_attachment(
-        std::int64_t conversation, std::int64_t message, std::string path, attachment_handler handler, std::int64_t limit = max_attachment_size);
+    void get_attachment(std::int64_t conversation,
+                        std::int64_t message,
+                        std::string path,
+                        attachment_handler handler,
+                        std::int64_t limit = max_attachment_size,
+                        download_options options = {});
     void edit_message(std::int64_t conversation, std::int64_t message, std::string text, message_result_handler handler);
     void search_users(std::string query, users_handler handler);
     void get_friend_requests(friend_requests_handler handler);

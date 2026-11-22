@@ -15,5 +15,9 @@ work=$(mktemp -d)
 trap 'rm -rf -- "$work"' EXIT
 python3 ops/acceptance/build_probe.py "$build" "$work/probe"
 python3 ops/acceptance/clear.py
+python3 ops/acceptance/search_filters.py
+python3 ops/acceptance/history.py "$work/probe"
+python3 ops/acceptance/drafts.py "$work/probe"
+python3 ops/acceptance/downloads.py "$work/probe"
 dbus-run-session -- python3 ops/acceptance/recovery.py "$work/probe"
 python3 ops/acceptance/desktop.py "$work/probe"
