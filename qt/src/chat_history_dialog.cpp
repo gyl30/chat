@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <utility>
+#include <utf8proc.h>
 
 #include <QAction>
 #include <QClipboard>
@@ -16,6 +17,7 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QScrollBar>
+#include <QSignalBlocker>
 #include <QStyledItemDelegate>
 #include <QTabBar>
 #include <QVBoxLayout>
@@ -73,6 +75,20 @@ QString content_text(message_data const& message)
     }
     return message.text.simplified();
 }
+
+void set_row(QListWidgetItem& item, message_data const& message)
+{
+    item.setData(id_role, message.id);
+    item.setData(sender_role, message.username);
+    item.setData(from_role, message.from);
+    item.setData(time_role, time_text(message.timestamp));
+    item.setData(content_role, content_text(message));
+    item.setData(Qt::AccessibleTextRole,
+                 message.username + QStringLiteral("，") + time_text(message.timestamp) + QStringLiteral("：") + content_text(message));
+    item.setToolTip(content_text(message));
+}
+
+bool supersedes(message_data const& change, message_data const& old) { return !old.deleted && (change.deleted || change.edited_at > old.edited_at); }
 
 // One record per row, as in WeChat's history: avatar, sender and time, then the content.
 class history_delegate final : public QStyledItemDelegate
@@ -214,7 +230,7 @@ chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& tit
     {
         connect(avatars_, &avatar_cache::changed, list_->viewport(), [this] { list_->viewport()->update(); });
     }
-    rebuild();
+    update_status();
 }
 
 void chat_history_dialog::start() { request_more(); }
@@ -226,6 +242,7 @@ void chat_history_dialog::interrupt_loading()
         return;
     }
     loading_ = false;
+    page_updates_.clear();
     status_->setText(QStringLiteral("连接已断开，恢复后可重新加载。"));
     status_->show();
     more_->setText(QStringLiteral("重新加载"));
@@ -236,8 +253,10 @@ void chat_history_dialog::restart_search(QString query)
 {
     query_ = std::move(query);
     messages_.clear();
+    before_ = 0;
     has_more_ = true;
     loading_ = false;
+    list_->clear();
     request_more();
 }
 
@@ -248,10 +267,10 @@ void chat_history_dialog::request_more()
         return;
     }
     loading_ = true;
-    auto const before = messages_.isEmpty() ? 0 : messages_.back().id;
+    page_updates_.clear();
     more_->setText(QStringLiteral("加载更早的记录"));
-    rebuild();
-    emit history_requested(static_cast<category>(tabs_->currentIndex()), query_, before);
+    update_status();
+    emit history_requested(static_cast<category>(tabs_->currentIndex()), query_, before_);
 }
 
 void chat_history_dialog::set_history(qint64 conversation, QList<message_data> messages, bool has_more, QString const& error)
@@ -263,6 +282,7 @@ void chat_history_dialog::set_history(qint64 conversation, QList<message_data> m
     loading_ = false;
     if (!error.isEmpty())
     {
+        page_updates_.clear();
         status_->setText(error);
         status_->show();
         more_->setText(QStringLiteral("重新加载"));
@@ -276,40 +296,109 @@ void chat_history_dialog::add_messages(QList<message_data> messages, bool has_mo
 {
     // Pages arrive oldest-first; the window lists the newest first.
     std::ranges::sort(messages, [](auto const& a, auto const& b) { return a.id > b.id; });
-    for (auto& message : messages)
+    auto const boundary = before_;
+    if (!messages.isEmpty())
     {
-        if (messages_.isEmpty() || message.id < messages_.back().id)
-        {
-            messages_.push_back(std::move(message));
-        }
+        before_ = messages.back().id;
     }
     has_more_ = has_more && !messages.isEmpty();
-    rebuild();
+    for (auto& message : messages)
+    {
+        if (boundary && message.id >= boundary)
+        {
+            continue;
+        }
+        auto const edited = page_updates_.constFind(message.id);
+        if (edited != page_updates_.cend() && (edited->deleted || supersedes(*edited, message)))
+        {
+            if (!matches(*edited))
+            {
+                continue;
+            }
+            message = *edited;
+        }
+        set_row(*new QListWidgetItem(list_), message);
+        messages_.push_back(std::move(message));
+    }
+    page_updates_.clear();
+    update_status();
 }
 
-void chat_history_dialog::rebuild()
+bool chat_history_dialog::matches(message_data const& message) const
 {
-    auto const kind = static_cast<category>(tabs_->currentIndex());
-    auto const selected = list_->currentItem() ? list_->currentItem()->data(id_role).toLongLong() : 0;
-    auto const scroll = list_->verticalScrollBar()->value();
-    list_->clear();
-    for (auto const& message : messages_)
+    if (message.deleted)
     {
-        auto* item = new QListWidgetItem(list_);
-        item->setData(id_role, message.id);
-        item->setData(sender_role, message.username);
-        item->setData(from_role, message.from);
-        item->setData(time_role, time_text(message.timestamp));
-        item->setData(content_role, content_text(message));
-        item->setData(Qt::AccessibleTextRole,
-                      message.username + QStringLiteral("，") + time_text(message.timestamp) + QStringLiteral("：") + content_text(message));
-        item->setToolTip(content_text(message));
-        if (message.id == selected)
+        return false;
+    }
+    auto const kind = static_cast<category>(tabs_->currentIndex());
+    auto const image = message.attachment && message.attachment->media_type.startsWith(QStringLiteral("image/"));
+    if ((kind == category::images && !image) || (kind == category::files && (!message.attachment || image)) ||
+        (kind == category::links && !message.text.contains(QStringLiteral("http://")) && !message.text.contains(QStringLiteral("https://"))))
+    {
+        return false;
+    }
+    if (query_.isEmpty())
+    {
+        return true;
+    }
+    // Same code-point lowercasing as SQLite's chat_lower, without Qt case folding.
+    auto const lower = [](QString const& input)
+    {
+        auto points = input.toStdU32String();
+        for (auto& point : points)
         {
-            list_->setCurrentItem(item);
+            point = utf8proc_tolower(point);
+        }
+        return points;
+    };
+    return lower(message.text).contains(lower(query_));
+}
+
+void chat_history_dialog::update_message(qint64 conversation, message_data message, QString const& error)
+{
+    if (conversation != conversation_ || !error.isEmpty() || message.acknowledgement_only)
+    {
+        return;
+    }
+    auto found = std::ranges::find(messages_, message.id, &message_data::id);
+    if (found == messages_.end())
+    {
+        if (loading_ && (!before_ || message.id < before_))
+        {
+            auto const old = page_updates_.constFind(message.id);
+            if (old == page_updates_.cend() || supersedes(message, *old))
+            {
+                auto const id = message.id;
+                page_updates_.insert(id, std::move(message));
+            }
+        }
+        return;
+    }
+    if (!supersedes(message, *found))
+    {
+        return;
+    }
+    auto const row = static_cast<int>(found - messages_.begin());
+    if (matches(message))
+    {
+        *found = std::move(message);
+        set_row(*list_->item(row), *found);
+    }
+    else
+    {
+        messages_.erase(found);
+        QSignalBlocker const blocker(list_->verticalScrollBar());
+        delete list_->takeItem(row);
+        if (messages_.isEmpty())
+        {
+            update_status();
         }
     }
-    list_->verticalScrollBar()->setValue(scroll);
+}
+
+void chat_history_dialog::update_status()
+{
+    auto const kind = static_cast<category>(tabs_->currentIndex());
     if (loading_ && list_->count() == 0)
     {
         status_->setText(QStringLiteral("正在加载…"));
@@ -344,12 +433,18 @@ void chat_history_dialog::show_menu(QPoint position)
     auto* locate = menu.addAction(QStringLiteral("定位到聊天位置"));
     auto* copy = found != messages_.end() && !found->text.isEmpty() ? menu.addAction(QStringLiteral("复制")) : nullptr;
     auto* chosen = menu.exec(list_->viewport()->mapToGlobal(position));
+    // Live edits can change the cache while the nested menu loop is running.
+    auto const current = std::ranges::find(messages_, id, &message_data::id);
+    if (current == messages_.end())
+    {
+        return;
+    }
     if (chosen == locate)
     {
         emit message_activated(id);
     }
     else if (copy && chosen == copy)
     {
-        QGuiApplication::clipboard()->setText(found->text);
+        QGuiApplication::clipboard()->setText(current->text);
     }
 }

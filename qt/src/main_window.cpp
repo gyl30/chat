@@ -1157,6 +1157,7 @@ void main_window::show_chat_history(qint64 conversation, QString const& title)
             });
     connect(client_.get(), &client_bridge::disconnected, &dialog, &chat_history_dialog::interrupt_loading);
     connect(client_.get(), &client_bridge::history_received, &dialog, &chat_history_dialog::set_history);
+    connect(client_.get(), &client_bridge::message_updated, &dialog, &chat_history_dialog::update_message);
     connect(client_.get(),
             &client_bridge::conversation_changed,
             &dialog,

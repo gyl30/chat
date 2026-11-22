@@ -3,6 +3,7 @@
 
 #include <QDialog>
 #include <QList>
+#include <QHash>
 
 #include <chat/message.hpp>
 
@@ -29,6 +30,7 @@ class chat_history_dialog final : public QDialog
     void set_history(qint64 conversation, QList<message_data> messages, bool has_more, QString const& error);
     // Requests the newest page; call once the request signals are connected.
     void start();
+    void update_message(qint64 conversation, message_data message, QString const& error);
     void interrupt_loading();
 
    signals:
@@ -38,7 +40,8 @@ class chat_history_dialog final : public QDialog
    private:
     void restart_search(QString query);
     void request_more();
-    void rebuild();
+    void update_status();
+    bool matches(message_data const& message) const;
     void add_messages(QList<message_data> messages, bool has_more);
     void show_menu(QPoint position);
 
@@ -50,7 +53,10 @@ class chat_history_dialog final : public QDialog
     QLabel* status_ = nullptr;
     QPushButton* more_ = nullptr;
     QString query_;
-    // Newest first; requests are paged with the oldest loaded message as the cursor.
+    // Keep the server boundary even if the matching row disappears locally.
+    qint64 before_ = 0;
+    QHash<qint64, message_data> page_updates_;
+    // Newest first, with a corresponding row at each index.
     QList<message_data> messages_;
     bool has_more_ = true;
     bool loading_ = false;
