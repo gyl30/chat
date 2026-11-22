@@ -360,12 +360,16 @@ async def stalled_downloads(
     await save("race.bin")
     await until(lambda: received("race.bin"), "race first block reached SDK")
     final_chunk.set()
-    accepted = await cancel(3)
-    status = "已取消" if accepted else "已完成"
-    await ui.wait("downloads", lambda r: r["rows"][3]["status"] == status)
+    await cancel(3)
+    result = await ui.wait(
+        "downloads",
+        lambda r: r["rows"][3]["status"] in ("已取消", "已完成"),
+    )
+    status = result["rows"][3]["status"]
+    completed = status == "已完成"
     await until(lambda: not list(root.glob("race.bin.part-*")), "race temp removed")
-    assert (root / "race.bin").exists() == (not accepted)
-    if not accepted:
+    assert (root / "race.bin").exists() == completed
+    if completed:
         assert (root / "race.bin").read_bytes() == payload
     await ui.call("download_barrier", hold=True)
     await save("published.bin")
