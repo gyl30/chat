@@ -16,3 +16,6 @@
 [submodule "third/spdlog"]
 	path = third/spdlog
 	url = https://github.com/gabime/spdlog.git
+[submodule "third/miniocpp"]
+	path = third/miniocpp
+	url = https://github.com/minio/minio-cpp.git

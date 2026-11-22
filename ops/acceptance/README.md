@@ -1,9 +1,10 @@
 # Linux 隔离验收
 
-在专用测试环境运行。使用项目要求的 GCC 16、C++26 Reflection、CMake、Qt 和 SDK 依赖，另需 Ninja、Python 3.10+、websockets 15、boto3、dbus-python、PyGObject、dbus-run-session、Silo 与 mc。把依赖的安装前缀加入 CMake 搜索路径。若 Silo 不在 PATH 中，用 SILO_BIN 指定可执行文件。
+在专用测试环境运行。使用项目要求的 GCC 16、C++26 Reflection、CMake、Qt 和[系统开发包](../../README.md#构建)，另需 Ninja、Python 3.10+、websockets 15、boto3、dbus-python、PyGObject、dbus-run-session、Silo 与 mc。把 Boost、Qt 等必要前缀加入 CMake 搜索路径，不使用 SQLite 或 miniocpp 安装前缀。若 Silo 不在 PATH 中，用 SILO_BIN 指定可执行文件。
 
 ```sh
-ops/acceptance/linux.sh /tmp/chat-release
+ops/build-sqlite-runtime.sh "$SQLITE_PREFIX"
+ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-release
 ```
 
 脚本构建三个生产目标，在临时目录链接 Qt 驱动。驱动操作实际主窗口、菜单和模型，使用生产 SDK、资源和主题。验收创建临时账号、SQLite、Silo 卷、私有会话总线及 Qt 应用目录；测试客户端连接本机随机端口。失败返回非零。请使用普通的 Python 运行模式，以执行断言。
@@ -11,8 +12,9 @@ ops/acceptance/linux.sh /tmp/chat-release
 | 入口 | 观察的结果 |
 |---|---|
 | `clear.py` | 重试相同 H 后，后续未读消息与手工标记保留，实际已读位置保持，已提交任务得到无正文确认 |
-| `desktop.py` | 真实 RPC 代理延迟或丢弃指定回包，验证 Qt 草稿、Outbox、通知、三页搜索游标与迟到上下文；验证图片和保存子窗口、群资料置顶、多目标上传菜单 |
+| `desktop.py` | 真实 RPC 代理延迟或丢弃指定回包，验证 Qt 草稿、Outbox、通知、三页搜索游标与迟到上下文；验证图片和保存子窗口、群资料置顶、多目标上传菜单和真实 SDK 附件下载 |
 | `recovery.py` | 停止隔离 Chat 与 Silo，分别备份数据库、月档及整个对象卷；启动独立恢复实例，用原 Qt 安装的任务日志从第 2 片继续，再检查消息权限与对象引用 |
+| `wal.py` | 验证静态服务端与私有 Python 的 SQLite 身份、WAL 并发 checkpoint 和搜索分页 |
 | `search_bench.py` | 在独立磁盘 WAL 库测量真实搜索与发送 RPC，输出每组延迟、CPU、内存、归档读取次数和被动 checkpoint |
 
 默认项目构建不运行上述验收。查询 GitHub 时，仓库有 0 个注册的自托管 runner 和 0 个已有 workflow；本次 GCC 16、Boost 1.92 和 miniocpp 环境的执行证据来自本机。
@@ -24,9 +26,10 @@ ops/acceptance/linux.sh /tmp/chat-release
 ```sh
 work=$(mktemp -d)
 python3 ops/acceptance/measure_server.py /tmp/chat-release "$work/timed/server"
-python3 ops/acceptance/search_bench.py "$work/timed/server"
+export CHAT_TEST_SQLITE_LIB="$SQLITE_PREFIX/lib/libsqlite3.so.0"
+ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" python3 ops/acceptance/search_bench.py "$work/timed/server"
 # 单独复测月库打开时间
-python3 ops/acceptance/search_bench.py "$work/timed/server" --case nohit --samples 30
+ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" python3 ops/acceptance/search_bench.py "$work/timed/server" --case nohit --samples 30
 ```
 
 本次基线为 `6a463be`，独立读连接版本为 `bc271fd`。主机为 i7-13700KF、24 逻辑 CPU、31 GiB 内存、Ubuntu 22.04.5，使用 GCC 16.2 和本地 NVMe。固定生成 120 个群、120,000 条消息；密集用户可见全部，稀疏用户只有一个群及其入群水位之后的 983 条。热门词为“发布”，稀有词每 3,001 条出现一次，深页游标为 12,000。单月将最早 6,000 条归档；双月再归档 6,000 条。
@@ -53,7 +56,7 @@ python3 ops/acceptance/search_bench.py "$work/timed/server" --case nohit --sampl
 
 提高创建时长阈值可以缓解过早清扫。有总上传寿命上限的部署，阈值至少应覆盖从创建到最后允许活动的最长时间，再加 15 天；允许持续恢复时，单一有限阈值无法覆盖所有任务。要满足完整约定，应先核实对象服务支持由 Chat 管理这些未完成上传的过期，或支持按活动计龄，再单独安排部署变更。此版本的桶生命周期接口不支持 AbortIncompleteMultipartUpload。[Silo multipart 兼容性说明](https://silo.pigsty.io/reference/s3-api-compatibility/#differences-from-s3-apis-for-multipart-uploads)
 
-本机服务端和运维 Python 3.10 的 `_sqlite3` 都链接到 Ubuntu `libsqlite3-0:amd64 3.37.2-2ubuntu0.8` 的 `libsqlite3.so.0.8.6`，dpkg 文件校验一致。核对该精确版本源包中应用的全部 17 个 Debian 补丁，未含 WAL-reset 修复；Debian 补丁包 SHA-256 为 `6cf7d3db197bd5e76c81876e3a4536c75a322cdbb1c8d6cffc507de5adceb969`，与发布的 dsc 一致。上游修复覆盖 3.51.3，并有较早分支回补。问题要求特定的写入与 checkpoint 并发；新增连接只读且不执行 checkpoint。本轮未观察到 Chat 数据库损坏。其他主机请分别核对服务进程加载的库和运维解释器的库、包修订及源补丁，再决定升级。[Ubuntu 源包清单](https://security.ubuntu.com/ubuntu/pool/main/s/sqlite3/sqlite3_3.37.2-2ubuntu0.8.dsc) · [SQLite WAL-reset 说明](https://sqlite.org/wal.html#the_wal_reset_bug)
+以下为仓库内静态接入之前的历史记录。彼时本机服务端和运维 Python 3.10 的 `_sqlite3` 都链接到 Ubuntu `libsqlite3-0:amd64 3.37.2-2ubuntu0.8` 的 `libsqlite3.so.0.8.6`，dpkg 文件校验一致。核对该精确版本源包中应用的全部 17 个 Debian 补丁，未含 WAL-reset 修复；Debian 补丁包 SHA-256 为 `6cf7d3db197bd5e76c81876e3a4536c75a322cdbb1c8d6cffc507de5adceb969`，与发布的 dsc 一致。上游修复覆盖 3.51.3，并有较早分支回补。问题要求特定的写入与 checkpoint 并发；新增连接只读且不执行 checkpoint。本轮未观察到 Chat 数据库损坏。其他主机请分别核对服务进程加载的库和运维解释器的库、包修订及源补丁，再决定升级。[Ubuntu 源包清单](https://security.ubuntu.com/ubuntu/pool/main/s/sqlite3/sqlite3_3.37.2-2ubuntu0.8.dsc) · [SQLite WAL-reset 说明](https://sqlite.org/wal.html#the_wal_reset_bug)
 
 ### 同一 WebSocket 复测与原始样本
 

@@ -355,9 +355,21 @@ async def transfers(ui, gate, a, b, g, d, root, db, binary, entry, server):
         await until(lambda: not tasks(), "finish group file")
         files = (await a.ok("list_conversation_files", conversation_id=g))["files"]
         assert any(f["filename"] == path.name for f in files)
+        with sqlite3.connect(db) as conn:
+            (message,) = conn.execute(
+                "SELECT m.id FROM messages m JOIN message_attachments a ON a.message_id=m.id "
+                "WHERE m.conversation_id=? AND m.client_id=?", (d, ids[d])
+            ).fetchone()
+        target = root / "downloaded.bin"
+        await ui.call("preview", conv=d, id=message, filename=path.name, inline=False)
+        await ui.wait("dialogstate", lambda r: r["shown"])
+        await ui.call("dialogstate", save=True, destination=str(target))
+        await until(target.exists, "SDK downloaded the attachment")
+        assert target.read_bytes() == path.read_bytes()
+        await ui.call("dialogstate", close=True)
         assert path.exists()
         print(
-            "PASS same-name independent transfers, group file, hidden destination, restart, pause/resume/cancel",
+            "PASS same-name independent transfers, group file, hidden destination, restart, pause/resume/cancel and SDK download",
             flush=True,
         )
 

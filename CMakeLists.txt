@@ -62,8 +62,23 @@ add_subdirectory(third/spdlog EXCLUDE_FROM_ALL)
 
 find_package(OpenSSL REQUIRED)
 find_package(Threads REQUIRED)
-find_package(SQLite3 REQUIRED)
-find_package(miniocpp CONFIG REQUIRED)
+add_subdirectory(third/sqlite EXCLUDE_FROM_ALL)
+
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third/miniocpp/CMakeLists.txt")
+    message(FATAL_ERROR "Missing miniocpp submodule: run git submodule update --init --recursive")
+endif()
+block()
+    # miniocpp's CMake policy floor predates the normal-variable overrides below.
+    set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+    set(CMAKE_POLICY_DEFAULT_CMP0126 NEW)
+    set(BUILD_SHARED_LIBS OFF)
+    set(MINIO_CPP_TEST OFF)
+    set(MINIO_CPP_MAKE_DOC OFF)
+    set(MINIO_CPP_ENABLE_RDMA OFF)
+    set(MINIO_CPP_STD 17)
+    set(CMAKE_CXX_STANDARD 17)
+    add_subdirectory(third/miniocpp EXCLUDE_FROM_ALL)
+endblock()
 
 add_library(chat_client STATIC
     client/src/attachment_files.cpp

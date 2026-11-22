@@ -2,7 +2,6 @@
 
 import argparse
 import asyncio
-import ctypes
 import json
 import math
 import os
@@ -15,6 +14,7 @@ import time
 import uuid
 
 from fixture import fixture
+from sqlite_runtime import python_sqlite, server_sqlite
 
 
 def seed(db, rows):
@@ -43,7 +43,9 @@ def seed(db, rows):
                     (
                         1736942400000
                         if i < rows // 20
-                        else 1739404800000 if i < rows // 10 else 1767225600000
+                        else 1739404800000
+                        if i < rows // 10
+                        else 1767225600000
                     ),
                 )
                 for i in range(rows)
@@ -55,18 +57,6 @@ def seed(db, rows):
 def quantiles(values):
     vals = sorted(values)
     return [round(vals[math.ceil(len(vals) * p) - 1], 3) for p in (0.95, 0.99)]
-
-
-def sqlite_runtime(pid):
-    paths = {
-        line.split(maxsplit=5)[5]
-        for line in Path(f"/proc/{pid}/maps").read_text().splitlines()
-        if "/libsqlite3.so." in line and len(line.split(maxsplit=5)) == 6
-    }
-    (path,) = paths
-    lib = ctypes.CDLL(path)
-    lib.sqlite3_libversion.restype = ctypes.c_char_p
-    return dict(version=lib.sqlite3_libversion().decode(), path=path)
 
 
 async def pipeline(reader, writer, search, send):
@@ -135,6 +125,7 @@ async def pipeline(reader, writer, search, send):
 
 
 async def run(args):
+    python = python_sqlite()
     with tempfile.TemporaryFile("w+") as log:
         async with fixture(args.binary, log) as (db, login, a, b, direct, pid):
             seed(db, args.rows)
@@ -148,8 +139,8 @@ async def run(args):
                 pid=pid,
                 sha=args.sha,
                 build_type="Release",
-                sqlite_runtime=sqlite_runtime(pid),
-                ops_python_sqlite=sqlite3.sqlite_version,
+                sqlite_runtime=server_sqlite(pid),
+                ops_python_sqlite=python,
                 mode=args.mode,
                 rows=args.rows,
                 group_count=120,

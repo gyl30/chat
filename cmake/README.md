@@ -28,3 +28,12 @@ distributions. Normal builds need neither Ragel nor scanner regeneration.
 `FETCHCONTENT_SOURCE_DIR_CHAT_EMOJI_SEGMENTER` permits offline configuration
 while preserving the source hash checks. The Unicode/emoji data inputs are
 not loaded into the server's runtime process.
+
+
+## MinIO C++ SDK
+
+`third/miniocpp` 以子模块固定官方 v1.0.1（`5d39de018b81ac45fa0645cfc61b275d869ceea1`）。Chat 构建其 C++17 头文件接口和静态库，不启用测试／示例、文档、RDMA 或 C++20 模块；Chat 自身仍用 C++26 Reflection。TL expected 已在 SDK 中。
+
+OpenSSL、zlib、nlohmann_json、pugixml 由系统开发包提供。SDK 先查合适的 cpp-httplib（0.51+）和 INIReader 包；没有时，按上游逻辑克隆到构建目录下的 `third/miniocpp/_deps/`，使用 cpp-httplib v0.53.1（`b8fe69e4e892ec394ca8de27ab2fe219008690b6`）和 inih r58（`5cc5e2c24642513aaa5b19126aad42d0e4e0923e`）。
+
+cpp-httplib 走源码回退时，上游每次重新配置都会 `git fetch --tags origin`，**即使该目录已经存在**。inih 回退在本地源码存在时只 checkout，不重新下载。系统同时有合适的 cpp-httplib 和 INIReader 包时，这两条 Git 回退均不走；`FETCHCONTENT_FULLY_DISCONNECTED` 不会禁止上游自己执行的 Git。已有的 utf8proc/emoji-segmenter 首次下载由 FetchContent 完成，在原构建目录重用；离线可提供校验匹配的源码，使用 `FETCHCONTENT_SOURCE_DIR_UTF8PROC` 或 `FETCHCONTENT_SOURCE_DIR_CHAT_EMOJI_SEGMENTER`。

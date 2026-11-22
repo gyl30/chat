@@ -142,7 +142,9 @@ QJsonObject dispatch(main_window& window, QJsonObject const& cmd)
     else if (op == "preview")
     {
         auto id = cmd["id"].toInteger(), c = cmd["conv"].toInteger();
-        QTimer::singleShot(0, chat, [=] { emit chat->attachment_open_requested(c, id, "inspect.png", true); });
+        auto const filename = cmd["filename"].toString("inspect.png");
+        auto const inline_preview = cmd["inline"].toBool(true);
+        QTimer::singleShot(0, chat, [=] { emit chat->attachment_open_requested(c, id, filename, inline_preview); });
     }
     else if (op == "dialogstate")
     {
@@ -158,6 +160,11 @@ QJsonObject dispatch(main_window& window, QJsonObject const& cmd)
             }
             auto* f = d->findChild<QFileDialog*>();
             out["chooser"] = f && f->isVisible();
+            if (auto path = cmd["destination"].toString(); f && !path.isEmpty())
+            {
+                f->findChild<QLineEdit*>("fileNameEdit")->setText(path);
+                QMetaObject::invokeMethod(f, "accept");
+            }
             if (cmd["close"].toBool())
             {
                 d->reject();

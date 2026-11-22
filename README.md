@@ -5,24 +5,37 @@ C++ 聊天服务器、共享客户端 SDK 和 Qt Widgets 桌面客户端。
 
 ## 构建
 
-需要 CMake 3.30+、支持 C++26 `-freflection` 的 GCC 16、Boost 1.92.0、
-SQLite3、MinIO C++ SDK 1.0.1（`miniocpp` CMake 包）、OpenSSL、libpng、libjpeg。
-Qt 客户端需要 Qt 6.5+ Widgets/Svg（Linux 还需要 DBus）。
+需要 Git、CMake 3.30+、Ninja 1.11+、支持 C++26 `-freflection` 的 GCC 16 和 **Boost 1.92.0**。
+以 Debian/Ubuntu 系为例，配置上述工具链和 Boost 后，系统开发包为：
 
 ```sh
-git submodule update --init --recursive
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
-    -DCHAT_BUILD_QT_CLIENT=ON
-cmake --build build -j12
+sudo apt install pkg-config libssl-dev zlib1g-dev libpng-dev libjpeg-dev \
+    nlohmann-json3-dev libpugixml-dev
 ```
 
-默认只构建生产程序及其依赖，不构建或运行任何第一方测试目标。
-离线依赖配置参见 [共享 Unicode 依赖](cmake/README.md)。Linux Release 构建、隔离验收和搜索测量见[可复跑的验收入口](ops/acceptance/README.md)。
+Qt 客户端另需 Qt 6.5+ Widgets/Svg（通常为 `qt6-base-dev qt6-svg-dev`，发行版版本不足时安装满足版本的 Qt SDK），Linux 另需 `libdbus-1-dev` 及 Qt 本身要求的图形开发依赖。可选依赖包括 Brotli/Zstd 和 liburing 2.5+；它们不阻止缺省构建。
+
+```sh
+git clone --recurse-submodules https://github.com/gyl30/chat.git
+cd chat
+# 已有检出则运行：git submodule update --init --recursive
+export CC=gcc-16 CXX=g++-16
+cmake -S . -B build-server -G Ninja -DCMAKE_BUILD_TYPE=Release \
+    -DBoost_DIR=/usr/local/lib/cmake/Boost-1.92.0
+cmake --build build-server --target chat_server chat_client
+
+cmake -S . -B build-qt -G Ninja -DCMAKE_BUILD_TYPE=Release \
+    -DBoost_DIR=/usr/local/lib/cmake/Boost-1.92.0 \
+    -DCHAT_BUILD_QT_CLIENT=ON -DCMAKE_PREFIX_PATH=/path/to/qt
+cmake --build build-qt --target chat_server chat_client chat_qt
+```
+
+按实际安装路径调整 Boost、Qt；在默认搜索路径中时可省略对应参数。不需要安装 SQLite 开发库或 miniocpp SDK，也不需要指定它们的 CMake 路径。[SQLite 3.51.3](third/sqlite/README.md) 静态链接，miniocpp v1.0.1 由子模块构建。C++ 构建不需要 Python。首次配置的下载、重复配置的联网行为见[依赖说明](cmake/README.md#minio-c-sdk)。管理 SQLite 的 Python 需[单独使用同源私有库](ops/sqlite-runtime.md)。隔离验收和搜索测量见[验收入口](ops/acceptance/README.md)。
 
 ## 本地运行
 
 直接使用构建目录中的 `chat_server` 和 `qt/chat_qt`。Qt 主题文件由 CMake
-复制至 `build/qt/themes/`，无需安装或打包。Silo/S3 服务需独立启动。
+复制至对应构建目录的 `qt/themes/`，无需安装或打包。Silo/S3 服务需独立启动。
 
 ## SQLite 与 Silo 启动
 
@@ -163,7 +176,7 @@ SQLite 的 `files` 保存文件元数据，每个对象对应一个私有 S3 key
 
 ## 月度消息归档
 
-在服务端主机执行 `python3 ops/chat_admin.py --db /srv/chat/chat.sqlite3 archive 2025-01`，归档一个已结束的 UTC 月份。
+在服务端主机经 SQLite 包装器执行 `ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" python3 ops/chat_admin.py --db /srv/chat/chat.sqlite3 archive 2025-01`，归档一个已结束的 UTC 月份。
 每个月档位于数据库旁的 `chat.sqlite3.archives/`，由同一服务账号读写。工具先复制消息快照，校验行内容、SQLite 完整性及 SHA-256，再分批将热库中仍与快照一致的正文切换到月档。收发消息可以继续。重复执行同一月份会校验已有文件，失败任务可用同一命令继续。
 `archive-status` 列出各月状态、ID 范围、校验值和最近错误，`archive-check` 重新检查归档。请将数据库和月档目录一起备份。
 

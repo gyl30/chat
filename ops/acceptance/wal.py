@@ -1,29 +1,17 @@
-"""Verify the private SQLite runtime with real writes, checkpointing and paged search."""
+"""Verify native and Python SQLite during real writes, checkpointing and paged search."""
 
 import asyncio
-import os
-from pathlib import Path
 import sqlite3
 import threading
 
 from fixture import fixture
+from sqlite_runtime import python_sqlite, server_sqlite
 
 
 async def run():
-    expected = Path(os.environ["CHAT_TEST_SQLITE_LIB"]).resolve()
-    source = "737ae4a34738ffa0c3ff7f9bb18df914dd1cad163f28fd6b6e114a344fe6d618"
-
-    def assert_loaded(pid):
-        assert any(
-            line.endswith(" " + str(expected))
-            for line in Path(f"/proc/{pid}/maps").read_text().splitlines()
-        )
-
-    assert_loaded("self")
-    with sqlite3.connect(":memory:") as conn:
-        assert conn.execute("select sqlite_source_id()").fetchone()[0].endswith(source)
+    python = python_sqlite()
     async with fixture() as (db, login, a, b, direct, pid):
-        assert_loaded(pid)
+        server = server_sqlite(pid)
         stop = threading.Event()
         started = threading.Event()
 
@@ -47,7 +35,7 @@ async def run():
             "conversation"
         ]
         await b.ok(
-            "send_message", conversation=group, text="独立连接关键词", client_id=1
+            "send_message", conversation=group, text="独立连接关键词 MiXeD", client_id=1
         )
         work = asyncio.create_task(asyncio.to_thread(checkpoint))
         try:
@@ -55,7 +43,7 @@ async def run():
             ids = []
             for n in range(56):
                 payload = dict(
-                    conversation=direct, text="独立连接关键词", client_id=n + 1
+                    conversation=direct, text="独立连接关键词 MiXeD", client_id=n + 1
                 )
                 row = await a.ok("send_message", **payload)
                 assert (await a.ok("send_message", **payload))["id"] == row["id"]
@@ -63,10 +51,10 @@ async def run():
             assert await a.ok("clear_history", conversation=direct, through=ids[0]) == {
                 "through": ids[0]
             }
-            first = await a.ok("search_all_messages", query="独立连接关键词")
+            first = await a.ok("search_all_messages", query="独立连接关键词 mixed")
             second = await a.ok(
                 "search_all_messages",
-                query="独立连接关键词",
+                query="独立连接关键词 mixed",
                 before=first["next_before"],
             )
             assert [r["id"] for r in first["messages"]] == ids[::-1][:50]
@@ -76,10 +64,12 @@ async def run():
             count = await work
         assert count > 1
         with sqlite3.connect(db) as conn:
+            assert conn.execute("pragma journal_mode").fetchone() == ("wal",)
             assert conn.execute("pragma integrity_check").fetchall() == [("ok",)]
             assert not conn.execute("pragma foreign_key_check").fetchall()
         print(
-            f"PASS SQLite {sqlite3.sqlite_version} {expected}, {count} checkpoints during RPC workload"
+            f"PASS SQLite {server['version']} ({server['source_id']}), "
+            f"Python {python['path']}, {count} checkpoints during RPC workload"
         )
 
 

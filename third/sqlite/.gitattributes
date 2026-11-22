@@ -1,0 +1,3 @@
+# Preserve the official amalgamation bytes and its upstream whitespace.
+sqlite3.c -text -whitespace
+sqlite3.h -text -whitespace

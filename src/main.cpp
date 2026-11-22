@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstdio>
 #include <utility>
 #include <charconv>
 #include <string_view>
@@ -14,6 +15,7 @@
 #include <sys/file.h>
 #include <unistd.h>
 
+#include <sqlite3.h>
 #include <spdlog/spdlog.h>
 #include <boost/capy/task.hpp>
 #include <boost/http/field.hpp>
@@ -142,6 +144,11 @@ boost::capy::task<int> wait_for_shutdown(boost::corosio::signal_set& signals, ch
 
 int main(int argc, char* argv[])
 {
+    if (argc == 2 && std::string_view(argv[1]) == "--sqlite-version")
+    {
+        std::printf("%s\n%s\n", sqlite3_libversion(), sqlite3_sourceid());
+        return EXIT_SUCCESS;
+    }
     if (argc < 4)
     {
         spdlog::error("usage: {} <port> <max-workers> <sqlite-file> [--tls-cert fullchain.pem --tls-key key.pem]", argv[0]);

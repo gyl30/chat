@@ -4,14 +4,18 @@
 
 假设数据库路径在 `DB` 中，下列命令均从仓库根目录执行。
 
-若服务器部署私有 SQLite，以下所有运维 Python 命令均应经[同一固定前缀的运行时包装器](sqlite-runtime.md)启动。
+服务端静态链接 SQLite；以下所有运维 Python 命令均应经[同源私有库的运行时包装器](sqlite-runtime.md)启动。先把 `SQLITE_PREFIX` 设为该私有库的安装前缀：
+
+```sh
+chat_admin() { ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" /usr/bin/python3 ops/chat_admin.py "$@"; }
+```
 
 ## 备份与恢复
 
 ```sh
-python3 ops/chat_admin.py --db "$DB" backup /backup/chat-2026-11-20
-python3 ops/chat_admin.py verify-backup /backup/chat-2026-11-20
-python3 ops/chat_admin.py restore /backup/chat-2026-11-20 /srv/chat-restored
+chat_admin --db "$DB" backup /backup/chat-2026-11-20
+chat_admin verify-backup /backup/chat-2026-11-20
+chat_admin restore /backup/chat-2026-11-20 /srv/chat-restored
 ```
 
 在线备份读取 SQLite 的一致性快照，同时复制该快照登记的不可变月档。写入仍可继续，归档发布与备份互斥。输出含 `chat.sqlite3`、热库 SHA-256 和所需月档。验收覆盖数据库完整性、外键、月档校验和、范围、条数及热库引用。请把完成的备份复制到独立存储，并在隔离目录定期演练恢复。备份与恢复都要求使用全新的目的目录。
@@ -21,11 +25,11 @@ Silo 对象和未完成的分片由对象存储另外备份。需要可恢复到
 ## 归档与数据库检查
 
 ```sh
-python3 ops/chat_admin.py --db "$DB" archive 2025-01
-python3 ops/chat_admin.py --db "$DB" archive-status
-python3 ops/chat_admin.py --db "$DB" check
-python3 ops/chat_admin.py --db "$DB" wal
-python3 ops/chat_admin.py --db "$DB" reclaim
+chat_admin --db "$DB" archive 2025-01
+chat_admin --db "$DB" archive-status
+chat_admin --db "$DB" check
+chat_admin --db "$DB" wal
+chat_admin --db "$DB" reclaim
 ```
 
 按 UTC 自然月执行归档。状态中含最近执行时间、完成或失败状态及错误。检查空间、权限、校验值后，重跑相同月份继续工作。归档文件丢失或损坏时从已验证的备份恢复对应文件；已移出的正文需要原月档。热库保留当前状态和原始 ID。读取月档失败会返回读取错误。
@@ -35,8 +39,8 @@ python3 ops/chat_admin.py --db "$DB" reclaim
 ## Silo 核验与回收
 
 ```sh
-python3 ops/chat_admin.py --db "$DB" objects private/chat-bucket
-python3 ops/chat_admin.py --db "$DB" objects private/chat-bucket --checksum
+chat_admin --db "$DB" objects private/chat-bucket
+chat_admin --db "$DB" objects private/chat-bucket --checksum
 mc ls --recursive --incomplete private/chat-bucket
 ```
 

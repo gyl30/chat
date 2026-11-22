@@ -8,7 +8,7 @@
 - `docker inspect` 记录镜像 ID/摘要、入口、参数、挂载、网络、端口、restart、环境与覆盖。结合桶和账号策略、代理及直连流量、其他客户端和负责人确认 Silo 只服务 Chat。单桶、单节点、容器名或无当前连接均不能单独证明独占。不能确认就不设 `off`。
 - 明确非业务访问的管理路径、隔离恢复目标、足够的备份空间和窗口截止时间。源卷访问及备份工具应能读取、保留 UID/GID、权限、ACL、xattr 和完整隐藏目录；若生产数据仍在 `/tmp`，须先确认主机不会清理它并预先保护或另行批准迁往持久卷，本窗口不顺便迁移。
 - 收集 Chat 旧可执行文件及哈希、原启动定义和环境文件、原运维入口及启用状态。导出 Docker inspect、旧镜像（`docker image save`）和启动配置到只允许管理员访问的位置；inspect 可能含密钥，不上传、不写日志。保留旧容器，不在切换时删除。
-- 用候选 `SHA256SUMS` 校验。为生产预置管理员可写、服务账号不可写且父目录也不可由服务账号替换的固定前缀。按 [SQLite 构建说明](sqlite-runtime.md)使用候选 SQLite 3.51.3 重链 Release 服务端；旧产物 ELF 指向候选原绝对路径，移动 SQLite 后不得直接复用该 ELF。保留新产物哈希和 `readelf -d`、`ldd` 结果。验证实际运行路径及 [WAL／恢复验收入口](acceptance/README.md)后才进入窗口；预置及验证不涉及系统 SQLite。Silo 候选放独立只读挂载路径。
+- 用候选 `SHA256SUMS` 校验。新版 Release 服务端静态链接仓库内 SQLite；按 [SQLite 说明](sqlite-runtime.md)为 Python 单独构建同源私有库，前缀及其父目录不可由服务账号替换。保留新产物哈希和版本输出；旧候选曾链接一个绝对路径，不能把它和新静态产物混用。通过 [WAL／恢复验收](acceptance/README.md)后才进入窗口；不涉及系统 SQLite。Silo 候选放独立只读挂载路径。
 - 逐个准备 `archive`、`wal`、`reclaim`、`backup`、`verify-backup`、`restore` 和定期核验实际入口，确认新旧版本的启停／修改可逆。若有 systemd timer，记录原启用状态、先停 timer 并等所触发的 service 完成；若有 cron，备份对应 crontab/配置、只暂停 Chat 条目再等已有进程退出。也暂停外部计划任务和人工运维。不得停系统全部 cron。
 
 ## 1. 停写并形成配对备份
@@ -37,8 +37,8 @@ rsync 的 `--delete` 仅用于与 `-n` 同时出现的差异检查。这里备�
 ## 2. 分组件替换并验收
 
 1. Silo：用原镜像 ID、入口、命令、环境、卷、端口和网络起候选，仅增加候选 Silo 在 `/usr/bin/silo` 的只读挂载，以及 `MINIO_API_STALE_UPLOADS_EXPIRY=off`。旧容器保持停止并改名留作回退。检查单一卷写入者、精确镜像与运行二进制哈希、日志、就绪、有效环境，以及切换前后同批已知 MPU 的 ListParts 和完成对象 HEAD。`off` 来自环境，不能只靠 `mc admin config get` 的持久配置值。
-2. Chat：保留原运行账号、数据库、SQLite/月档目录、对象 endpoint、桶与秘密来源，只换经验证的可执行文件。用原方式启动、保持用户入口关闭；确认 `/health`、启动与回收日志、运行进程 `/proc/PID/maps` 确实映射已核验的私有 SQLite。隔离环境完成读写验证；现场只做已批准的只读健康检查，不造业务消息或假上传。启动本身会执行正常恢复和过期回收，只有配对备份通过后才允许。
-3. 运维：把已确认的各个调用改为 `with-sqlite-runtime.sh "$SQLITE_PREFIX" /usr/bin/python3 …/chat_admin.py …`。用实际运维账号及环境验证包装器下的 `sqlite_source_id()` 和 `/proc/self/maps`，与服务端路径及校验值一致。复核备份可读；不以运行 `wal` 等修改命令充当只读检查。
+2. Chat：保留原运行账号、数据库、SQLite/月档目录、对象 endpoint、桶与秘密来源，只换经验证的可执行文件。用原方式启动、保持用户入口关闭；确认 `/health`、启动与回收日志、运行进程对应的可执行文件 `/proc/PID/exe --sqlite-version` 输出已核验的版本与 source ID。隔离环境完成读写验证；现场只做已批准的只读健康检查，不造业务消息或假上传。启动本身会执行正常恢复和过期回收，只有配对备份通过后才允许。
+3. 运维：把已确认的各个调用改为 `with-sqlite-runtime.sh "$SQLITE_PREFIX" /usr/bin/python3 …/chat_admin.py …`。用实际运维账号及环境验证包装器下的 `sqlite_source_id()` 和 `/proc/self/maps`，库路径指向已核验的私有前缀，source ID 与服务端相同。复核备份可读；不以运行 `wal` 等修改命令充当只读检查。
 4. 任一哈希或加载路径不符、可能接错库/卷、确认不全、备份不可恢复、仍有效的原上传分片缺失或健康失败：保持入口和计划任务关闭，按下文回退。都通过后才恢复对象路由与 Chat 入口、按原启用状态恢复运维，观察失败、保留任务和容量。不要在开写后使用旧快照覆盖新写入。
 
 ## 回滚 A：只退 Chat／SQLite

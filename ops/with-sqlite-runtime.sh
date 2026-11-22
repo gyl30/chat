@@ -5,7 +5,7 @@ if [[ $# -lt 2 ]]; then
     echo "usage: $0 SQLITE_INSTALL_PREFIX COMMAND [ARGS...]" >&2
     exit 2
 fi
-prefix=$(realpath "$1")
+prefix=$(realpath -- "$1")
 shift
 : "${prefix:?}"
 if [[ ! -f "$prefix/lib/libsqlite3.so.0" ]]; then
