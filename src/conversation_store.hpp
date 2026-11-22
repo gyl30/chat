@@ -29,7 +29,13 @@ std::expected<std::vector<chat::conversation_member>, sqlite_error> read_convers
                                                                                               std::int64_t conversation,
                                                                                               std::int64_t actor);
 
-std::expected<bool, sqlite_error> can_send_to_conversation(sqlite_database& db, std::int64_t conversation, std::int64_t actor);
+enum class send_access
+{
+    unavailable,
+    allowed,
+    muted
+};
+std::expected<send_access, sqlite_error> can_send_to_conversation(sqlite_database& db, std::int64_t conversation, std::int64_t actor);
 
 enum class group_member_action
 {
@@ -48,6 +54,12 @@ enum class group_member_rejection
     admin_limit,
     contact_required
 };
+
+std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_group_speech(
+    sqlite_database& db, std::int64_t group, std::int64_t actor, std::int64_t user, std::int64_t until, bool mute_all);
+std::expected<std::variant<std::vector<std::int64_t>, group_member_rejection>, sqlite_error> dissolve_group(sqlite_database& db,
+                                                                                                            std::int64_t group,
+                                                                                                            std::int64_t actor);
 
 std::expected<std::variant<bool, group_member_rejection>, sqlite_error> invite_group_members(sqlite_database& db,
                                                                                              std::int64_t group,

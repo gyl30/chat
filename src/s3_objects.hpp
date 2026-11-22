@@ -1,5 +1,7 @@
 #ifndef CHAT_SRC_S3_OBJECTS_HPP
 #define CHAT_SRC_S3_OBJECTS_HPP
+#include <unordered_map>
+
 #include "blocking_worker.hpp"
 #include "upload_store.hpp"
 
@@ -24,11 +26,14 @@ class s3_objects
     boost::capy::task<object_result<std::string>> signed_url(std::string key, std::string multipart = {}, int part = 0);
     boost::capy::task<object_result<std::optional<std::pair<std::int64_t, std::string>>>> uploaded_part(multipart_upload const& task, int number);
     boost::capy::task<object_result<void>> complete(multipart_upload const& task);
+    bool writing(std::string const& key) const { return active_writes_.contains(key); }
     boost::capy::task<object_result<void>> abort(std::string key, std::string multipart);
     boost::capy::task<object_result<void>> remove(std::string key);
 
    private:
     s3_settings settings_;
+    // Accessed on the service executor, never by a blocking worker.
+    std::unordered_map<std::string, std::size_t> active_writes_;
     blocking_worker worker_{8, 2};
 };
 #endif

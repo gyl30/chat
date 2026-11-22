@@ -143,6 +143,10 @@ class client
     void get_members(std::int64_t conversation, members_handler handler);
     void set_group_admin(std::int64_t conversation, std::int64_t user, bool admin, group_action_handler handler);
     void transfer_group_owner(std::int64_t conversation, std::int64_t user, group_action_handler handler);
+    void set_group_mute(std::int64_t conversation, bool muted, group_action_handler handler);
+    // seconds: -1 permanent, 0 clear, positive duration measured by the server.
+    void set_group_member_mute(std::int64_t conversation, std::int64_t user, std::int64_t seconds, group_action_handler handler);
+    void dissolve_group(std::int64_t conversation, group_action_handler handler);
     void remove_group_member(std::int64_t conversation, std::int64_t user, group_action_handler handler);
     void rename_group(std::int64_t conversation, std::string title, group_action_handler handler);
     void set_group_announcement(std::int64_t conversation, std::string text, group_action_handler handler);

@@ -83,8 +83,8 @@ group_files_page::group_files_page(client_bridge& client, qint64 conversation, q
     }
     layout->addLayout(actions);
     auto* uploads = new QHBoxLayout;
-    auto* upload = new QPushButton(QStringLiteral("只上传到群文件"), this);
-    auto* send = new QPushButton(QStringLiteral("发送到聊天"), this);
+    auto* upload = upload_only_ = new QPushButton(QStringLiteral("只上传到群文件"), this);
+    auto* send = upload_send_ = new QPushButton(QStringLiteral("发送到聊天"), this);
     uploads->addWidget(upload);
     uploads->addWidget(send);
     layout->addLayout(uploads);
@@ -186,11 +186,13 @@ group_files_page::group_files_page(client_bridge& client, qint64 conversation, q
     update_selection();
     more_->setEnabled(false);
 }
-void group_files_page::set_access(bool member, bool manager)
+void group_files_page::set_access(bool member, bool manager, bool can_publish)
 {
     bool const gained = member && !isEnabled();
     setEnabled(member);
     manager_ = manager;
+    upload_only_->setEnabled(can_publish);
+    upload_send_->setEnabled(can_publish);
     if (!member)
     {
         list_->clear();

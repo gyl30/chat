@@ -11,7 +11,7 @@
 
 boost::capy::task<bool> discard_upload(database& db, s3_objects& objects, std::int64_t id, std::string const& key, std::string const& multipart)
 {
-    if (!(co_await objects.abort(key, multipart)))
+    if (objects.writing(key) || !(co_await objects.abort(key, multipart)))
     {
         co_return false;
     }
@@ -43,10 +43,11 @@ boost::capy::task<std::int64_t> recover_attachment_objects(database& db, s3_obje
             [&](sqlite_database& sql) -> std::expected<std::vector<stale_upload>, sqlite_error>
             {
                 auto q = sql.prepare(R"SQL(UPDATE attachment_uploads SET state='discarding' WHERE id IN
-                (SELECT id FROM attachment_uploads WHERE id>?1 AND (state='discarding' OR touched<=?2) ORDER BY id LIMIT 64)
+                (SELECT id FROM attachment_uploads WHERE id>?1 AND ((state='discarding' AND touched<=?3) OR touched<=?2) ORDER BY id LIMIT 64)
                 RETURNING id,object_key,multipart)SQL",
                                      cursor,
-                                     epoch_milliseconds() - chat::upload_retention_seconds * 1000);
+                                     epoch_milliseconds() - chat::upload_retention_seconds * 1000,
+                                     cutoff);
                 if (!q)
                 {
                     return std::unexpected(q.error());
@@ -82,6 +83,21 @@ boost::capy::task<std::int64_t> recover_attachment_objects(database& db, s3_obje
                 removal_failed = true;
             }
         }
+    }
+    auto removed_shells = co_await db.run(
+        [](sqlite_database& sql) -> std::expected<void, sqlite_error>
+        {
+            if (auto e = sql.exec(R"SQL(DELETE FROM conversations WHERE id IN (SELECT conversation_id FROM dissolved_groups)
+            AND NOT EXISTS(SELECT 1 FROM attachment_uploads WHERE conversation=conversations.id))SQL");
+                e)
+            {
+                return std::unexpected(e);
+            }
+            return {};
+        });
+    if (!removed_shells)
+    {
+        co_return -1;
     }
     std::string after;
 

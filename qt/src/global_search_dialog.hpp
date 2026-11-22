@@ -3,6 +3,7 @@
 
 #include <QDialog>
 #include <QHash>
+#include <QSet>
 
 #include <chat/message.hpp>
 
@@ -39,6 +40,7 @@ class global_search_dialog final : public QDialog
     void set_page(quint64 request, chat::message_search_page const& page, QString const& error);
     void set_context(quint64 request, qint64 anchor, QList<message_data> const& messages, QString const& error);
     void discard(qint64 conversation, qint64 through);
+    void remove_scope(qint64 conversation);
     void updated(qint64 conversation, message_data const& message, QString const& error);
 
     client_bridge& client_;
@@ -55,6 +57,7 @@ class global_search_dialog final : public QDialog
     quint64 scope_request_ = 0;
     quint64 sender_request_ = 0;
     bool submitted_ = false;
+    QSet<qint64> removed_scopes_;
     QTreeWidget* results_;
     QListWidget* context_;
     QPushButton* more_;

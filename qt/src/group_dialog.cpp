@@ -29,8 +29,10 @@
 #include <QKeyEvent>
 #include <QScrollBar>
 #include <QTimer>
+#include <QInputDialog>
 
 #include <algorithm>
+#include <limits>
 
 group_dialog::group_dialog(client_bridge& client,
                            qint64 conversation,
@@ -76,6 +78,9 @@ group_dialog::group_dialog(client_bridge& client,
     connect_member_actions();
     connect_approval_actions();
     connect_group_settings();
+    speech_expiry_ = new QTimer(this);
+    speech_expiry_->setSingleShot(true);
+    connect(speech_expiry_, &QTimer::timeout, this, &group_dialog::update_actions);
     update_actions();
 }
 
@@ -277,6 +282,13 @@ void group_dialog::setup_management(bool join_approval)
     }
     invite_layout->addLayout(invite_row);
     layout->addWidget(invite_controls_);
+    all_mute_ = new QCheckBox(QStringLiteral("全员禁言（仅限制普通成员）"), management);
+    all_mute_->setObjectName(QStringLiteral("groupMuteAll"));
+    layout->addWidget(all_mute_);
+    dissolve_button_ = new QPushButton(QStringLiteral("解散群"), management);
+    dissolve_button_->setObjectName(QStringLiteral("groupDissolveButton"));
+    dissolve_button_->setAutoDefault(false);
+    layout->addWidget(dissolve_button_, 0, Qt::AlignLeft);
     layout->addStretch();
 }
 
@@ -364,6 +376,9 @@ void group_dialog::setup_members(QVBoxLayout* outer)
     invite_button_->setObjectName(QStringLiteral("groupInviteButton"));
     invite_button_->setAutoDefault(false);
     remove_button_->hide();
+    member_mute_button_ = new QPushButton(QStringLiteral("成员禁言"), this);
+    member_mute_button_->setObjectName(QStringLiteral("groupMemberMuteButton"));
+    member_mute_button_->hide();
     members_layout->addWidget(invite_button_);
 }
 
@@ -431,7 +446,7 @@ void group_dialog::connect_member_actions()
                                        emit user_requested(found->id, found->username);
                                    }
                                });
-                for (auto* button : {admin_button_, transfer_button_, remove_button_})
+                for (auto* button : {admin_button_, transfer_button_, remove_button_, member_mute_button_})
                 {
                     if (button->isEnabled())
                     {
@@ -598,6 +613,59 @@ void group_dialog::connect_member_actions()
                     pending_ = true;
                     update_actions();
                     emit invite_requested(std::move(ids));
+                }
+            });
+    connect(member_mute_button_,
+            &QPushButton::clicked,
+            this,
+            [this]
+            {
+                auto const row = list_->currentRow();
+                if (row < 0 || row >= members_.size())
+                {
+                    return;
+                }
+                auto const target = members_[row];
+                QStringList const choices{QStringLiteral("解除禁言"),
+                                          QStringLiteral("10 分钟"),
+                                          QStringLiteral("1 小时"),
+                                          QStringLiteral("24 小时"),
+                                          QStringLiteral("永久禁言")};
+                constexpr qint64 seconds[] = {0, 600, 3600, 86400, -1};
+                bool accepted = false;
+                auto const selection = QInputDialog::getItem(this, QStringLiteral("成员禁言"), target.username, choices, 1, false, &accepted);
+                auto const choice = choices.indexOf(selection);
+                if (accepted && choice >= 0 && available_)
+                {
+                    pending_ = true;
+                    update_actions();
+                    emit member_mute_requested(target.id, seconds[choice]);
+                }
+            });
+    connect(all_mute_,
+            &QCheckBox::clicked,
+            this,
+            [this](bool muted)
+            {
+                all_mute_->setChecked(group_muted_);
+                pending_ = true;
+                update_actions();
+                emit group_mute_requested(muted);
+            });
+    connect(dissolve_button_,
+            &QPushButton::clicked,
+            this,
+            [this]
+            {
+                if (confirm_action(this,
+                                   QStringLiteral("解散群"),
+                                   QStringLiteral("解散后所有成员将无法通过 Chat 访问这个群的历史和群文件，且不能再加入。确定解散？"),
+                                   QStringLiteral("解散群")) &&
+                    available_)
+                {
+                    pending_ = true;
+                    update_actions();
+                    emit dissolve_requested();
                 }
             });
     connect(leave_button_,
@@ -804,7 +872,19 @@ void group_dialog::set_members(qint64 conversation, QList<member_data> members, 
         {
             avatars_->observe(member.id, member.avatar);
         }
-        auto const description = role + (member.id == self_user_ ? QStringLiteral(" · 你") : QString{});
+        auto description = role + (member.id == self_user_ ? QStringLiteral(" · 你") : QString{});
+        if (member.role == chat::member_role::member)
+        {
+            if (member.speech_until == -1)
+            {
+                description += QStringLiteral(" · 永久禁言");
+            }
+            else if (member.speech_until > QDateTime::currentMSecsSinceEpoch() + server_clock_delta_)
+            {
+                description += QStringLiteral(" · 禁言至 %1")
+                                   .arg(QDateTime::fromMSecsSinceEpoch(member.speech_until).toString(QStringLiteral("MM-dd HH:mm:ss")));
+            }
+        }
         auto* item = new QListWidgetItem(member.username, list_);
         item->setData(Qt::UserRole, member.id);
         item->setData(Qt::StatusTipRole, description);
@@ -909,6 +989,10 @@ void group_dialog::set_conversations(QList<conversation_data> conversations, QSt
                   .arg(found->pinned_message.username, found->pinned_message.deleted ? QStringLiteral("消息已删除") : found->pinned_message.text)
             : QStringLiteral("暂无置顶消息"));
     approval_->setChecked(found->join_approval);
+    group_muted_ = found->group_muted;
+    own_speech_until_ = found->speech_until;
+    server_clock_delta_ = found->server_clock_delta;
+    all_mute_->setChecked(group_muted_);
     update_actions();
 }
 
@@ -1036,9 +1120,19 @@ void group_dialog::update_actions()
     auto const self = std::find_if(members_.begin(), members_.end(), [this](auto const& member) { return member.id == self_user_; });
     auto const owner = self != members_.end() && self->role == chat::member_role::owner;
     auto const manager = self != members_.end() && self->role != chat::member_role::member;
-    files_->set_access(available_ && self != members_.end(), manager);
+    auto const delay = own_speech_until_ - (QDateTime::currentMSecsSinceEpoch() + server_clock_delta_);
+    auto const blocked = !manager && (group_muted_ || own_speech_until_ == -1 || delay > 0);
+    speech_expiry_->stop();
+    if (!manager && !group_muted_ && own_speech_until_ > 0 && delay > 0)
+    {
+        speech_expiry_->start(static_cast<int>(std::min<qint64>(delay, std::numeric_limits<int>::max())));
+    }
+    files_->set_access(available_ && self != members_.end(), manager, !blocked);
     auto const can_manage = available_ && manager;
     auto const enabled = available_ && !pending_;
+    all_mute_->setEnabled(enabled && manager);
+    dissolve_button_->setVisible(owner);
+    dissolve_button_->setEnabled(enabled && owner);
     if (pending_)
     {
         status_->setText(QStringLiteral("正在处理…"));
@@ -1118,6 +1212,7 @@ void group_dialog::update_actions()
     admin_button_->setEnabled(available_ && !pending_ && owner && selected && members_[row].role != chat::member_role::owner &&
                               (admin || admins < 3));
     transfer_button_->setEnabled(enabled && owner && selected && admin);
+    member_mute_button_->setEnabled(enabled && manager && selected && members_[row].role == chat::member_role::member);
     remove_button_->setEnabled(enabled && manager && selected && members_[row].id != self_user_ && members_[row].role != chat::member_role::owner &&
                                (owner || !admin));
 }

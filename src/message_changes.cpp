@@ -19,9 +19,9 @@ std::expected<std::variant<changed_message, message_change_rejection>, sqlite_er
         {
             return std::unexpected(std::move(allowed.error()));
         }
-        if (!*allowed)
+        if (*allowed != send_access::allowed)
         {
-            return cannot_send;
+            return *allowed == send_access::muted ? muted : cannot_send;
         }
     }
     auto const now = epoch_milliseconds();
@@ -128,9 +128,9 @@ std::expected<std::variant<changed_reaction, message_change_rejection>, sqlite_e
     {
         return std::unexpected(std::move(allowed.error()));
     }
-    if (!*allowed)
+    if (*allowed == send_access::unavailable || (*allowed == send_access::muted && !emoji.empty()))
     {
-        return cannot_send;
+        return *allowed == send_access::muted ? muted : cannot_send;
     }
     if (changed)
     {

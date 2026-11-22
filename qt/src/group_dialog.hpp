@@ -17,6 +17,7 @@ class QListWidget;
 class QPushButton;
 class QCheckBox;
 class QTabWidget;
+class QTimer;
 class QScrollArea;
 
 class QVBoxLayout;
@@ -58,6 +59,9 @@ class group_dialog final : public QDialog
     void leave_requested();
     void transfer_requested(qint64 user);
     void remove_requested(qint64 user);
+    void member_mute_requested(qint64 user, qint64 seconds);
+    void group_mute_requested(bool muted);
+    void dissolve_requested();
 
    protected:
     bool eventFilter(QObject* object, QEvent* event) override;
@@ -86,6 +90,10 @@ class group_dialog final : public QDialog
     bool contacts_ready_ = false;
     bool pending_ = false;
     bool available_ = false;
+    bool group_muted_ = false;
+    qint64 own_speech_until_ = 0;
+    QTimer* speech_expiry_;
+    qint64 server_clock_delta_ = 0;
     QListWidget* list_;
     QPushButton* admin_button_;
     QPushButton* rename_button_;
@@ -93,6 +101,9 @@ class group_dialog final : public QDialog
     QPushButton* leave_button_;
     QPushButton* transfer_button_;
     QPushButton* remove_button_;
+    QPushButton* member_mute_button_;
+    QPushButton* dissolve_button_;
+    QCheckBox* all_mute_;
     QLineEdit* title_edit_;
     QPlainTextEdit* announcement_edit_;
     QPushButton* announcement_button_;

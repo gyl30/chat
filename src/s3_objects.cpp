@@ -67,11 +67,33 @@ struct bucket_client
         return std::string{};
     }
 };
+// Cleanup must not release a reservation while an already-started request can
+// still create a multipart or a completed object at its exact key.
+struct active_object_write
+{
+    std::unordered_map<std::string, std::size_t>& active;
+    std::string const& key;
+
+    active_object_write(std::unordered_map<std::string, std::size_t>& writes, std::string const& object_key) : active(writes), key(object_key)
+    {
+        ++active[key];
+    }
+
+    ~active_object_write()
+    {
+        auto entry = active.find(key);
+        if (--entry->second == 0)
+        {
+            active.erase(entry);
+        }
+    }
+};
 }    // namespace
 s3_objects::s3_objects(s3_settings settings) : settings_(std::move(settings)) {}
 boost::capy::task<object_result<std::string>> s3_objects::initiate(multipart_upload const& task)
 {
-    return worker_.run(
+    active_object_write const pending{active_writes_, task.key};
+    co_return co_await worker_.run(
         [this, &task]() -> object_result<std::string>
         {
             bucket_client b(settings_);
@@ -152,7 +174,8 @@ boost::capy::task<object_result<std::optional<std::pair<std::int64_t, std::strin
 }
 boost::capy::task<object_result<void>> s3_objects::complete(multipart_upload const& task)
 {
-    return worker_.run(
+    active_object_write const pending{active_writes_, task.key};
+    co_return co_await worker_.run(
         [this, &task]() -> object_result<void>
         {
             bucket_client b(settings_);

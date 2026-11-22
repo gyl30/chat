@@ -9,6 +9,7 @@
 enum class message_change_rejection
 {
     unavailable,
+    muted,
     cannot_send
 };
 

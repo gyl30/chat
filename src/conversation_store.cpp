@@ -153,12 +153,13 @@ std::expected<std::vector<chat::conversation_member>, sqlite_error> read_convers
                                                                                               std::int64_t actor)
 {
     auto members = db.prepare(R"SQL(
-        SELECT u.id,u.username,u.id=c.owner_id,m.is_admin,u.avatar_revision,a.user_id IS NOT NULL
+        SELECT u.id,u.username,u.id=c.owner_id,m.is_admin,u.avatar_revision,a.user_id IS NOT NULL,coalesce(p.until,0)
         FROM conversation_members own
         JOIN conversations c ON c.id=own.conversation_id
         JOIN conversation_members m ON m.conversation_id=c.id
         JOIN users u ON u.id=m.user_id
         LEFT JOIN user_avatars a ON a.user_id=u.id
+        LEFT JOIN group_member_mutes p ON p.conversation_id=c.id AND p.user_id=u.id
         WHERE own.conversation_id=?1 AND own.user_id=?2 ORDER BY u.id
     )SQL",
                               conversation,
@@ -188,27 +189,39 @@ std::expected<std::vector<chat::conversation_member>, sqlite_error> read_convers
         {
             role = chat::member_role::admin;
         }
-        result.push_back(
-            {members->column_int64(0), std::string(members->column_text(1)), role, {members->column_int64(4), members->column_int64(5) != 0}});
+        result.push_back({members->column_int64(0),
+                          std::string(members->column_text(1)),
+                          role,
+                          {members->column_int64(4), members->column_int64(5) != 0},
+                          members->column_int64(6)});
     }
 }
 
-std::expected<bool, sqlite_error> can_send_to_conversation(sqlite_database& db, std::int64_t conversation, std::int64_t actor)
+std::expected<send_access, sqlite_error> can_send_to_conversation(sqlite_database& db, std::int64_t conversation, std::int64_t actor)
 {
     auto access = db.prepare(R"SQL(
-        SELECT 1 FROM conversations c
-        JOIN conversation_members own ON c.id=own.conversation_id AND own.user_id=?1
+        SELECT coalesce(c.kind='group' AND own.is_admin=0 AND own.user_id<>c.owner_id
+                        AND (g.conversation_id IS NOT NULL OR p.until=-1 OR p.until>?3),0)
+        FROM conversations c JOIN conversation_members own ON c.id=own.conversation_id AND own.user_id=?1
+        LEFT JOIN group_mutes g ON g.conversation_id=c.id
+        LEFT JOIN group_member_mutes p ON p.conversation_id=c.id AND p.user_id=?1
         WHERE c.id=?2 AND (c.kind='group' OR EXISTS(
             SELECT 1 FROM contacts WHERE owner_id=?1
                 AND contact_id=CASE WHEN c.direct_user_low=?1 THEN c.direct_user_high ELSE c.direct_user_low END))
     )SQL",
                              actor,
-                             conversation);
+                             conversation,
+                             epoch_milliseconds());
     if (!access)
     {
         return std::unexpected(std::move(access.error()));
     }
-    return access->step();
+    auto row = access->step();
+    if (!row)
+    {
+        return std::unexpected(row.error());
+    }
+    return !*row ? send_access::unavailable : access->column_int64(0) ? send_access::muted : send_access::allowed;
 }
 
 std::expected<std::optional<chat::member_role>, sqlite_error> read_group_role(sqlite_database& db, std::int64_t group, std::int64_t actor)
@@ -545,4 +558,147 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> change_g
         return std::unexpected(std::move(error));
     }
     return true;
+}
+
+std::expected<std::variant<bool, group_member_rejection>, sqlite_error> set_group_speech(
+    sqlite_database& db, std::int64_t group, std::int64_t actor, std::int64_t user, std::int64_t until, bool mute_all)
+{
+    auto tx = sqlite_transaction::begin_immediate(db);
+    if (!tx)
+    {
+        return std::unexpected(tx.error());
+    }
+    auto role = read_group_role(db, group, actor);
+    if (!role)
+    {
+        return std::unexpected(role.error());
+    }
+    if (!*role || **role == chat::member_role::member)
+    {
+        return *role ? group_member_rejection::permission_denied : group_member_rejection::unavailable;
+    }
+    sqlite_error error;
+    if (user)
+    {
+        auto target = read_group_role(db, group, user);
+        if (!target)
+        {
+            return std::unexpected(target.error());
+        }
+        if (!*target || **target != chat::member_role::member)
+        {
+            return *target ? group_member_rejection::permission_denied : group_member_rejection::member_not_found;
+        }
+        error = until ? db.exec(R"SQL(INSERT INTO group_member_mutes(conversation_id,user_id,until) VALUES(?1,?2,?3)
+                             ON CONFLICT(conversation_id,user_id) DO UPDATE SET until=excluded.until WHERE until<>excluded.until)SQL",
+                                group,
+                                user,
+                                until)
+                      : db.exec("DELETE FROM group_member_mutes WHERE conversation_id=? AND user_id=?", group, user);
+    }
+    else
+    {
+        error = mute_all ? db.exec("INSERT INTO group_mutes(conversation_id) VALUES(?) ON CONFLICT DO NOTHING", group)
+                         : db.exec("DELETE FROM group_mutes WHERE conversation_id=?", group);
+    }
+    if (error)
+    {
+        return std::unexpected(error);
+    }
+    bool const changed = db.changes() != 0;
+    if (auto e = tx->commit(); e)
+    {
+        return std::unexpected(e);
+    }
+    return changed;
+}
+
+std::expected<std::variant<std::vector<std::int64_t>, group_member_rejection>, sqlite_error> dissolve_group(sqlite_database& db,
+                                                                                                            std::int64_t group,
+                                                                                                            std::int64_t actor)
+{
+    auto tx = sqlite_transaction::begin_immediate(db);
+    if (!tx)
+    {
+        return std::unexpected(tx.error());
+    }
+    auto role = read_group_role(db, group, actor);
+    if (!role)
+    {
+        return std::unexpected(role.error());
+    }
+    if (!*role)
+    {
+        auto prior = db.prepare("SELECT 1 FROM dissolved_groups WHERE conversation_id=? AND owner_id=?", group, actor);
+        if (!prior)
+        {
+            return std::unexpected(prior.error());
+        }
+        auto row = prior->step();
+        if (!row)
+        {
+            return std::unexpected(row.error());
+        }
+        if (*row)
+        {
+            return std::vector<std::int64_t>{};
+        }
+        return group_member_rejection::unavailable;
+    }
+    if (**role != chat::member_role::owner)
+    {
+        return group_member_rejection::permission_denied;
+    }
+    std::vector<std::int64_t> recipients;
+    {
+        auto members = db.prepare("SELECT user_id FROM conversation_members WHERE conversation_id=?", group);
+        if (!members)
+        {
+            return std::unexpected(members.error());
+        }
+        for (;;)
+        {
+            auto row = members->step();
+            if (!row)
+            {
+                return std::unexpected(row.error());
+            }
+            if (!*row)
+            {
+                break;
+            }
+            recipients.push_back(members->column_int64(0));
+        }
+    }
+    // Keep upload keys and multipart IDs until Abort succeeds. The now-empty shell
+    // only exists for their foreign key. Existing attachment triggers release references.
+    if (auto e = db.exec("INSERT INTO dissolved_groups(conversation_id,owner_id) VALUES(?,?)", group, actor); e)
+    {
+        return std::unexpected(e);
+    }
+    if (auto e = db.exec(
+            "UPDATE attachment_uploads SET state='discarding',touched=? WHERE conversation=? AND state<>'discarding'", epoch_milliseconds(), group);
+        e)
+    {
+        return std::unexpected(e);
+    }
+    for (auto const* sql : {"UPDATE conversations SET owner_id=NULL,invite_token=NULL,pinned_message_id=NULL WHERE id=?",
+                            "DELETE FROM conversation_members WHERE conversation_id=?",
+                            "DELETE FROM group_join_requests WHERE conversation_id=?",
+                            "DELETE FROM group_member_mutes WHERE conversation_id=?",
+                            "DELETE FROM group_mutes WHERE conversation_id=?",
+                            "DELETE FROM conversation_files WHERE conversation_id=?",
+                            "DELETE FROM messages WHERE conversation_id=?",
+                            "DELETE FROM conversations WHERE id=?1 AND NOT EXISTS(SELECT 1 FROM attachment_uploads WHERE conversation=?1)"})
+    {
+        if (auto e = db.exec(sql, group); e)
+        {
+            return std::unexpected(e);
+        }
+    }
+    if (auto e = tx->commit(); e)
+    {
+        return std::unexpected(e);
+    }
+    return recipients;
 }

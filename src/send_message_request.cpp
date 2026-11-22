@@ -8,6 +8,7 @@
 #include <spdlog/spdlog.h>
 
 #include "chat_session.hpp"
+#include <chat/error.hpp>
 #include "message_payload.hpp"
 #include "s3_objects.hpp"
 #include "upload_store.hpp"
@@ -310,6 +311,10 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         if (!request.id.present)
         {
             co_return simdjson::SUCCESS;
+        }
+        if (*rejected == message_write_rejection::muted)
+        {
+            co_return serialize_json_rpc_error(chat::group_speech_muted, "Group speech is muted", std::move(request.id), response);
         }
         co_return *rejected == message_write_rejection::unavailable
             ? serialize_json_rpc_error(-32006, "Conversation unavailable", std::move(request.id), response)

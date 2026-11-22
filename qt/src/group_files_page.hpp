@@ -15,7 +15,7 @@ class group_files_page final : public QWidget
     Q_OBJECT
    public:
     group_files_page(client_bridge& client, qint64 conversation, qint64 user, QWidget* parent);
-    void set_access(bool member, bool manager);
+    void set_access(bool member, bool manager, bool can_publish);
     void refresh();
    signals:
     void upload_requested(bool group_only);
@@ -34,6 +34,8 @@ class group_files_page final : public QWidget
     QTreeWidget* list_;
     QLabel* status_;
     QPushButton* more_;
+    QPushButton* upload_only_;
+    QPushButton* upload_send_;
     QPushButton* save_;
     QPushButton* open_;
     QPushButton* remove_;

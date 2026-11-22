@@ -23,6 +23,7 @@ inline std::string error_text(error const& value)
         {"User unavailable", "用户不存在"},
         {"Conversation unavailable", "会话不可用"},
         {"Message unavailable", "消息不存在或已被删除"},
+        {"Group speech is muted", "群聊禁言，解除后可手动重试"},
         {"Communication not allowed", "你们还不是好友，无法发送"},
         {"Contact or group unavailable", "好友或分组已变更，请检查名称并重试"},
         {"Contact required", "需要先成为好友"},

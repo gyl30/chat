@@ -22,6 +22,7 @@ struct message_to_write
 enum class message_write_rejection
 {
     unavailable,
+    muted,
     invalid_client_id,
     invalid_reply
 };

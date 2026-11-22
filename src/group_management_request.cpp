@@ -11,6 +11,7 @@
 #include "chat_session.hpp"
 #include "database.hpp"
 #include "conversation_store.hpp"
+#include "timestamp.hpp"
 
 namespace
 {
@@ -20,6 +21,7 @@ struct group_change
     std::int64_t user = 0;
     std::int64_t pinned_message = 0;
     bool admin = false;
+    std::int64_t mute_until = 0;
     std::string text;
     std::vector<std::int64_t> members;
 };
@@ -33,7 +35,38 @@ std::optional<group_change> parse_group_change(json_rpc_request& request, std::i
         return std::nullopt;
     }
     group_change change;
-    if (request.method == "set_group_admin")
+    if (request.method == "set_group_mute")
+    {
+        struct[[= simdjson::deny_unknown_fields]] mute_params
+        {
+            std::int64_t conversation = 0;
+            std::optional<bool> muted;
+        };
+        mute_params params;
+        if (document.get(params) || !params.muted)
+        {
+            return std::nullopt;
+        }
+        change.conversation = params.conversation;
+        change.admin = *params.muted;
+    }
+    else if (request.method == "set_group_member_mute")
+    {
+        struct[[= simdjson::deny_unknown_fields]] mute_params
+        {
+            std::int64_t conversation = 0, user = 0;
+            std::optional<std::int64_t> seconds;
+        };
+        mute_params params;
+        if (document.get(params) || params.user <= 0 || !params.seconds || *params.seconds < -1 || *params.seconds > 365 * 24 * 60 * 60)
+        {
+            return std::nullopt;
+        }
+        change.conversation = params.conversation;
+        change.user = params.user;
+        change.mute_until = *params.seconds > 0 ? epoch_milliseconds() + *params.seconds * 1000 : *params.seconds;
+    }
+    else if (request.method == "set_group_admin")
     {
         struct[[= simdjson::deny_unknown_fields]] set_admin_params
         {
@@ -160,6 +193,10 @@ std::expected<std::variant<bool, group_member_rejection>, sqlite_error> apply_gr
                                                                                            std::string_view method,
                                                                                            group_change const& change)
 {
+    if (method == "set_group_mute" || method == "set_group_member_mute")
+    {
+        return set_group_speech(db, change.conversation, actor, change.user, change.mute_until, change.admin);
+    }
     if (method == "rename_group" || method == "set_group_announcement")
     {
         return set_group_text(
@@ -240,6 +277,29 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
     if (!change)
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+    }
+    if (request.method == "dissolve_group")
+    {
+        auto result = co_await database_.run([&, actor = *user_id_](sqlite_database& db) { return dissolve_group(db, change->conversation, actor); });
+        if (!result)
+        {
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        if (auto const* rejected = std::get_if<group_member_rejection>(&*result))
+        {
+            co_return serialize_group_rejection(*rejected, request, response);
+        }
+        auto const& former = std::get<std::vector<std::int64_t>>(*result);
+        auto const event = R"({"jsonrpc":"2.0","method":"conversation","params":{"conversation":)" + std::to_string(change->conversation) +
+                           R"(,"removed":true,"dissolved":true}})";
+        for (auto user : former)
+        {
+            for (auto* session : users_.sessions(user))
+            {
+                session->enqueue_message(event);
+            }
+        }
+        co_return serialize_json_rpc_success(former.empty() ? "{\"changed\":false}" : "{\"changed\":true}", std::move(request.id), response);
     }
     auto changed =
         co_await database_.run([&, actor = *user_id_](sqlite_database& db) { return apply_group_change(db, actor, request.method, *change); });

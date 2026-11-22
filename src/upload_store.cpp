@@ -67,7 +67,7 @@ upload_lookup begin_upload(sqlite_database& db, std::int64_t user, std::string c
     {
         return std::unexpected(allowed.error());
     }
-    if (!*allowed)
+    if (*allowed != send_access::allowed)
     {
         return std::nullopt;
     }

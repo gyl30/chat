@@ -13,6 +13,7 @@ struct member_data
     QString username;
     chat::member_role role = chat::member_role::member;
     chat::avatar_state avatar;
+    qint64 speech_until = 0;
 };
 
 Q_DECLARE_METATYPE(member_data)

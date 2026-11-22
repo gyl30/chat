@@ -16,6 +16,7 @@
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
+#include <QSignalBlocker>
 #include "client_bridge.hpp"
 
 namespace
@@ -158,8 +159,11 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
                 }
                 for (auto const& scope : scopes)
                 {
-                    conversation_->addItem(QString::fromStdString(scope.name) + QStringLiteral(" (#%1)").arg(scope.id),
-                                           static_cast<qint64>(scope.id));
+                    if (!removed_scopes_.contains(scope.id))
+                    {
+                        conversation_->addItem(QString::fromStdString(scope.name) + QStringLiteral(" (#%1)").arg(scope.id),
+                                               static_cast<qint64>(scope.id));
+                    }
                 }
                 conversation_->setEnabled(error.isEmpty());
                 if (!error.isEmpty() && !submitted_)
@@ -230,7 +234,7 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
             {
                 if (removed)
                 {
-                    discard(conv, std::numeric_limits<qint64>::max());
+                    remove_scope(conv);
                 }
             });
     connect(&client_, &client_bridge::message_updated, this, &global_search_dialog::updated);
@@ -348,7 +352,7 @@ void global_search_dialog::set_page(quint64 id, chat::message_search_page const&
         for (auto const& hit : page.messages)
         {
             auto snippet = page_edits_.value(hit.id, QString::fromStdString(hit.snippet));
-            if (hit.id <= page_floors_.value(hit.conversation) || snippet.isNull())
+            if (removed_scopes_.contains(hit.conversation) || hit.id <= page_floors_.value(hit.conversation) || snippet.isNull())
             {
                 continue;
             }
@@ -388,6 +392,24 @@ void global_search_dialog::set_context(quint64 id, qint64 anchor, QList<message_
     }
     context_->scrollToItem(context_->currentItem(), QAbstractItemView::PositionAtCenter);
 }
+void global_search_dialog::remove_scope(qint64 conversation)
+{
+    removed_scopes_.insert(conversation);
+    if (auto index = conversation_->findData(conversation); index >= 0)
+    {
+        QSignalBlocker const blocker(conversation_);
+        conversation_->removeItem(index);
+    }
+    discard(conversation, std::numeric_limits<qint64>::max());
+    if (submitted_ && submitted_filter_.conversation == conversation && context_->isHidden())
+    {
+        request_ = 0;
+        next_before_ = 0;
+        more_->hide();
+        status_->setText(QStringLiteral("原会话不可用"));
+    }
+}
+
 void global_search_dialog::discard(qint64 conversation, qint64 through)
 {
     if (!context_->isHidden() && context_conversation_ == conversation)

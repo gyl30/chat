@@ -175,7 +175,17 @@ client_bridge::client_bridge(QObject* parent)
         });
     client_->set_conversation_handler(
         [this](std::int64_t id, bool removed)
-        { post_result(connection_generation_.load(), [this, id, removed] { emit conversation_changed(id, removed); }); });
+        {
+            post_result(connection_generation_.load(),
+                        [this, id, removed]
+                        {
+                            if (removed)
+                            {
+                                ++conversations_generation_;
+                            }
+                            emit conversation_changed(id, removed);
+                        });
+        });
     client_->set_contacts_changed_handler(
         [this]
         {
@@ -290,6 +300,10 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
                                                value.pinned_message = to_reply_data(item.pinned_message);
                                                value.announcement = from_utf8(item.announcement);
                                                value.join_approval = item.join_approval;
+                                               value.speech_role = item.speech_role;
+                                               value.group_muted = item.group_muted;
+                                               value.speech_until = item.speech_until;
+                                               value.server_clock_delta = item.server_time - QDateTime::currentMSecsSinceEpoch();
                                                if (std::ranges::find(conversations, value.id, &conversation_data::id) == conversations.end())
                                                {
                                                    conversations.push_back(std::move(value));
@@ -571,7 +585,8 @@ void client_bridge::get_members(qint64 conversation)
                                              QList<member_data> values;
                                              for (auto const& user : *result)
                                              {
-                                                 values.push_back(member_data{user.id, from_utf8(user.username), user.role, user.avatar});
+                                                 values.push_back(
+                                                     member_data{user.id, from_utf8(user.username), user.role, user.avatar, user.speech_until});
                                              }
                                              emit members_received(conversation, std::move(values), {});
                                          });
@@ -598,6 +613,15 @@ void client_bridge::transfer_group_owner(qint64 conversation, qint64 user)
     client_->transfer_group_owner(conversation, user, group_action_result(conversation));
 }
 
+void client_bridge::set_group_mute(qint64 conversation, bool muted)
+{
+    client_->set_group_mute(conversation, muted, group_action_result(conversation));
+}
+void client_bridge::set_group_member_mute(qint64 conversation, qint64 user, qint64 seconds)
+{
+    client_->set_group_member_mute(conversation, user, seconds, group_action_result(conversation));
+}
+void client_bridge::dissolve_group(qint64 conversation) { client_->dissolve_group(conversation, group_action_result(conversation, true)); }
 void client_bridge::remove_group_member(qint64 conversation, qint64 user)
 {
     client_->remove_group_member(conversation, user, group_action_result(conversation));
@@ -837,7 +861,36 @@ void client_bridge::restore_drafts(qint64 user)
                                                  emit error(display_error(result.error()));
                                                  return;
                                              }
+                                             QList<qint64> referenced;
+                                             for (auto const& value : *result)
+                                             {
+                                                 if (value.reply)
+                                                 {
+                                                     referenced.push_back(value.conversation);
+                                                 }
+                                             }
                                              emit drafts_restored(user, std::move(*result));
+                                             if (referenced.isEmpty())
+                                             {
+                                                 return;
+                                             }
+                                             client_->get_message_search_scopes(
+                                                 [this, referenced = std::move(referenced), generation = connection_generation_.load()](
+                                                     auto scopes) mutable
+                                                 {
+                                                     if (scopes)
+                                                     {
+                                                         referenced.removeIf(
+                                                             [&](auto id)
+                                                             {
+                                                                 return std::ranges::find(*scopes, id, &chat::message_search_scope::id) !=
+                                                                        scopes->end();
+                                                             });
+                                                         post_result(generation,
+                                                                     [this, referenced = std::move(referenced)]
+                                                                     { emit draft_conversations_unavailable(referenced); });
+                                                     }
+                                                 });
                                          });
                          });
 }
@@ -877,7 +930,9 @@ void client_bridge::publish_pending_text(chat::pending_text const& item)
     QString rejection;
     if (item.state == chat::outbox_state::failed)
     {
-        rejection = item.rejection == chat::conversation_unavailable ? QStringLiteral("会话不可用") : QStringLiteral("服务器拒绝了消息");
+        rejection = item.rejection == chat::conversation_unavailable ? QStringLiteral("会话不可用")
+                    : item.rejection == chat::group_speech_muted     ? QStringLiteral("群聊禁言，解除后可手动重试")
+                                                                     : QStringLiteral("服务器拒绝了消息");
     }
     emit pending_text_changed(item.conversation,
                               item.client_id,

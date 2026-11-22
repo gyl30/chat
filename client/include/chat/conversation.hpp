@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "message.hpp"
+#include "member.hpp"
 #include "user.hpp"
 
 namespace chat
@@ -59,6 +60,10 @@ struct conversation
     std::optional<quoted_message> pinned_message;
     std::string announcement;
     bool join_approval = false;
+    member_role speech_role = member_role::member;
+    bool group_muted = false;
+    std::int64_t speech_until = 0;
+    std::int64_t server_time = 0;
 };
 
 struct conversations_result

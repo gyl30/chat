@@ -1075,6 +1075,12 @@ void main_window::show_group_details(qint64 conversation, qint64 self_user, QStr
             this,
             [this, conversation](QList<qint64> members) { client_->invite_group_members(conversation, std::move(members)); });
     connect(&dialog, &group_dialog::leave_requested, this, [this, conversation] { client_->leave_group(conversation); });
+    connect(&dialog, &group_dialog::group_mute_requested, this, [this, conversation](bool muted) { client_->set_group_mute(conversation, muted); });
+    connect(&dialog,
+            &group_dialog::member_mute_requested,
+            this,
+            [this, conversation](qint64 user, qint64 seconds) { client_->set_group_member_mute(conversation, user, seconds); });
+    connect(&dialog, &group_dialog::dissolve_requested, this, [this, conversation] { client_->dissolve_group(conversation); });
     client_->get_contacts();
     client_->get_friend_requests();
     client_->get_members(conversation);
@@ -1340,6 +1346,7 @@ void main_window::connect_messages()
     connect(chat_page_, &chat_widget::draft_save_requested, client_.get(), &client_bridge::save_draft);
     connect(chat_page_, &chat_widget::draft_reply_requested, client_.get(), &client_bridge::validate_draft_reply);
     connect(client_.get(), &client_bridge::draft_reply_validated, chat_page_, &chat_widget::validate_draft_reply);
+    connect(client_.get(), &client_bridge::draft_conversations_unavailable, chat_page_, &chat_widget::invalidate_draft_replies);
     connect(client_.get(), &client_bridge::drafts_restored, chat_page_, &chat_widget::restore_drafts);
     connect(client_.get(), &client_bridge::text_saved, chat_page_, &chat_widget::finish_text_save);
     connect(client_.get(), &client_bridge::pending_text_changed, chat_page_, &chat_widget::update_pending_text);
@@ -2307,6 +2314,7 @@ void main_window::finish_reconnect()
     // messages others sent while the link was down.
     auto const user = chat_page_->active_conversation();
     auto const cursor = chat_page_->recovery_cursor();
+    client_->restore_drafts(chat_page_->self_user());
     client_->restore_texts();
     client_->restore_attachments();
     client_->get_conversations();

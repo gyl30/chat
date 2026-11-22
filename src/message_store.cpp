@@ -54,9 +54,9 @@ std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_
         {
             return std::unexpected(std::move(access.error()));
         }
-        if (!*access)
+        if (*access != send_access::allowed)
         {
-            return message_write_outcome{unavailable};
+            return message_write_outcome{*access == send_access::muted ? muted : unavailable};
         }
     }
 

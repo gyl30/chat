@@ -6,6 +6,7 @@
 namespace chat
 {
 
+inline constexpr int group_speech_muted = -32015;
 inline constexpr int conversation_unavailable = -32006;
 
 enum class error_kind

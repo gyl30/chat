@@ -9,6 +9,7 @@
 #include <sqlite3.h>
 
 #include "chat_session.hpp"
+#include <chat/error.hpp>
 #include "database.hpp"
 #include "message_changes.hpp"
 
@@ -92,6 +93,10 @@ boost::capy::task<simdjson::error_code> chat_session::handle_message_reaction(js
     }
     if (auto const* rejected = std::get_if<message_change_rejection>(&*reaction))
     {
+        if (*rejected == message_change_rejection::muted)
+        {
+            co_return serialize_json_rpc_error(chat::group_speech_muted, "Group speech is muted", std::move(request.id), response);
+        }
         bool const unavailable = *rejected == message_change_rejection::unavailable;
         co_return serialize_json_rpc_error(
             unavailable ? -32007 : -32006, unavailable ? "Message unavailable" : "Communication not allowed", std::move(request.id), response);

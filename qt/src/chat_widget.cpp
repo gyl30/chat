@@ -220,13 +220,35 @@ QWidget* chat_widget::create_sidebar()
     join_group->setObjectName(QStringLiteral("joinGroupAction"));
     join_group->setIcon(svg_icon(u"groups", themed("text"), QSize(20, 20)));
     main_menu->addSeparator();
-    auto* unavailable_texts = main_menu->addMenu(QStringLiteral("不可访问会话的待发送消息"));
+    auto* unavailable_texts = main_menu->addMenu(QStringLiteral("不可访问会话的本地内容"));
+    unavailable_texts->setObjectName(QStringLiteral("unavailableLocalMessages"));
     connect(main_menu,
             &QMenu::aboutToShow,
             this,
             [this, unavailable_texts]
             {
                 unavailable_texts->clear();
+                for (auto it = drafts_.cbegin(); it != drafts_.cend(); ++it)
+                {
+                    if (it->text.isEmpty() || conversation(it.key()))
+                    {
+                        continue;
+                    }
+                    auto* actions = unavailable_texts->addMenu(QStringLiteral("草稿 · ") + grapheme_prefix(it->text, 40));
+                    auto const id = it.key();
+                    connect(actions->addAction(QStringLiteral("复制")),
+                            &QAction::triggered,
+                            this,
+                            [this, id] { QGuiApplication::clipboard()->setText(drafts_.value(id).text); });
+                    connect(actions->addAction(QStringLiteral("删除本地草稿")),
+                            &QAction::triggered,
+                            this,
+                            [this, id]
+                            {
+                                drafts_.remove(id);
+                                emit draft_save_requested(self_user_, id, chat::client::new_client_id(), 0, {});
+                            });
+                }
                 for (auto const& item : outgoing_)
                 {
                     if (!item.path.isEmpty() || (!item.failed && !item.waiting) || conversation(item.conversation))
@@ -235,11 +257,17 @@ QWidget* chat_widget::create_sidebar()
                     }
                     auto* actions = unavailable_texts->addMenu(grapheme_prefix(item.text, 40));
                     auto const id = item.client_id;
-                    if (item.failed && connection_available_)
-                    {
-                        auto* retry = actions->addAction(QStringLiteral("重新发送"));
-                        connect(retry, &QAction::triggered, this, [this, id] { emit pending_text_action_requested(id, false); });
-                    }
+                    connect(actions->addAction(QStringLiteral("复制")),
+                            &QAction::triggered,
+                            this,
+                            [this, id]
+                            {
+                                auto const found = std::ranges::find(outgoing_, id, &outgoing::client_id);
+                                if (found != outgoing_.end())
+                                {
+                                    QGuiApplication::clipboard()->setText(found->text);
+                                }
+                            });
                     auto* discard = actions->addAction(QStringLiteral("删除本地待发送记录"));
                     connect(discard, &QAction::triggered, this, [this, id] { emit pending_text_action_requested(id, true); });
                 }
@@ -265,7 +293,8 @@ QWidget* chat_widget::create_sidebar()
                                            item.filename + QStringLiteral(" · ") + item.error);
                     auto id = item.client_id;
                     auto* toggle = actions->addAction(item.failed ? QStringLiteral("继续上传") : QStringLiteral("暂停上传"));
-                    toggle->setEnabled(connection_available_);
+                    auto const target = conversation(item.conversation);
+                    toggle->setEnabled(connection_available_ && (!item.failed || (target && !target->speech_blocked())));
                     connect(toggle,
                             &QAction::triggered,
                             this,
@@ -1351,11 +1380,10 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
             this,
             [this](QModelIndex const& index, QString emoji)
             {
-                if (can_send() && !index.data(message_model::deleted_role).toBool())
+                auto const removing = emoji == index.data(message_model::own_reaction_role).toString();
+                if (connection_available_ && (removing || can_send()) && !index.data(message_model::deleted_role).toBool())
                 {
-                    emit reaction_requested(active_conversation_,
-                                            index.data(message_model::id_role).toLongLong(),
-                                            emoji == index.data(message_model::own_reaction_role).toString() ? QString{} : emoji);
+                    emit reaction_requested(active_conversation_, index.data(message_model::id_role).toLongLong(), removing ? QString{} : emoji);
                 }
             });
 }
@@ -1370,6 +1398,13 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
     // The composer is drawn as a rounded card, which already separates it from the history.
     input_separator->hide();
 
+    speech_notice_ = new QLabel(chat_panel);
+    speech_notice_->setObjectName(QStringLiteral("groupSpeechNotice"));
+    speech_notice_->hide();
+    chat_layout->addWidget(speech_notice_);
+    speech_expiry_ = new QTimer(this);
+    speech_expiry_->setSingleShot(true);
+    connect(speech_expiry_, &QTimer::timeout, this, &chat_widget::update_compose_state);
     auto* input_bar = new QFrame(chat_panel);
     input_bar_ = input_bar;
     input_bar->setAcceptDrops(true);
@@ -1523,9 +1558,13 @@ void chat_widget::choose_forward_target(QList<qint64> messages)
     layout->addWidget(targets);
     for (int row = 0; row < conversations_->rowCount(); ++row)
     {
-        auto ix = conversations_->index(row, 0);
-        auto* item = new QListWidgetItem(ix.data().toString(), targets);
-        item->setData(Qt::UserRole, conversations_->conversation_at(ix)->id);
+        auto const ix = conversations_->index(row, 0);
+        auto const* room = conversations_->conversation_at(ix);
+        if (!room->speech_blocked())
+        {
+            auto* item = new QListWidgetItem(ix.data().toString(), targets);
+            item->setData(Qt::UserRole, room->id);
+        }
     }
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
     buttons->button(QDialogButtonBox::Ok)->setText(QStringLiteral("转发"));
@@ -1554,8 +1593,12 @@ void chat_widget::choose_forward_target(QList<qint64> messages)
     if (dialog.exec() == QDialog::Accepted && targets->currentItem() && connection_available_ && owner == self_user_ &&
         source == active_conversation_)
     {
-        emit forward_requested(targets->currentItem()->data(Qt::UserRole).toLongLong(), std::move(messages));
-        set_message_selection(false);
+        auto const target = targets->currentItem()->data(Qt::UserRole).toLongLong();
+        if (auto room = conversation(target); room && !room->speech_blocked())
+        {
+            emit forward_requested(target, std::move(messages));
+            set_message_selection(false);
+        }
     }
 }
 
@@ -1584,6 +1627,18 @@ void chat_widget::show_message_menu(QPoint position)
     auto* picker = can_send() ? menu.addMenu(QStringLiteral("表情回应")) : nullptr;
     auto const own_reaction = index.data(message_model::own_reaction_role).toString();
     auto const reaction_index = QPersistentModelIndex(index);
+    if (!picker && !own_reaction.isEmpty())
+    {
+        auto const group = active_conversation_;
+        menu.addAction(QStringLiteral("取消表态"),
+                       [this, group, reaction_index]
+                       {
+                           if (connection_available_ && active_conversation_ == group && reaction_index.isValid())
+                           {
+                               emit reaction_requested(group, reaction_index.data(message_model::id_role).toLongLong(), {});
+                           }
+                       });
+    }
     auto const conversation = active_conversation_;
     for (auto emoji : chat::reaction_choices)
     {
@@ -1618,7 +1673,7 @@ void chat_widget::show_message_menu(QPoint position)
         for (int row = 0; row < conversations_->rowCount(); ++row)
         {
             auto const* group = conversations_->conversation_at(conversations_->index(row, 0));
-            if (group && group->group)
+            if (group && group->group && !group->speech_blocked())
             {
                 groups->addAction(group->username, this, [this, key, id = group->id] { emit add_file_requested(id, key); });
             }
@@ -2372,6 +2427,24 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
         if (auto current = conversation(previous_user))
         {
             conversations.push_back(std::move(*current));
+        }
+    }
+    if (connection_available_)
+    {
+        bool paused = false;
+        for (auto& pending : outgoing_)
+        {
+            auto const target = std::ranges::find(conversations, pending.conversation, &conversation_data::id);
+            if (!pending.path.isEmpty() && !pending.failed && target != conversations.end() && target->speech_blocked())
+            {
+                paused = pending.failed = true;
+                pending.error = QStringLiteral("群聊禁言，上传已暂停");
+                emit attachment_interrupt_requested(pending.client_id, false, pending.path);
+            }
+        }
+        if (paused)
+        {
+            show_outgoing();
         }
     }
     conversations_->set_conversations(std::move(conversations));
@@ -3285,17 +3358,37 @@ bool chat_widget::is_contact(qint64 user) const
     return false;
 }
 
-bool chat_widget::can_queue_text() const { return conversation(active_conversation_).has_value(); }
+bool chat_widget::can_queue_text() const
+{
+    auto const item = conversation(active_conversation_);
+    return item && !item->speech_blocked();
+}
 
 bool chat_widget::can_send() const { return connection_available_ && can_queue_text(); }
 
 void chat_widget::update_compose_state()
 {
     input_bar_->setVisible(active_conversation_ > 0);
-    auto const compose = can_queue_text();
-    auto const allowed = connection_available_ && compose;
-    message_edit_->setEnabled(compose);
-    send_button_->setEnabled(compose && !saving_text_ && !message_edit_->toPlainText().isEmpty() && (!reply_to_ || !reply_bar_->isHidden()));
+    auto const item = conversation(active_conversation_);
+    auto const blocked = item && item->speech_blocked();
+    auto const allowed = connection_available_ && item && !blocked;
+    message_edit_->setEnabled(item.has_value());
+    speech_expiry_->stop();
+    if (blocked)
+    {
+        speech_notice_->setText(item->group_muted ? QStringLiteral("群聊已开启全员禁言")
+                                : item->speech_until < 0
+                                    ? QStringLiteral("你已被永久禁言")
+                                    : QStringLiteral("你已被禁言至 %1")
+                                          .arg(QDateTime::fromMSecsSinceEpoch(item->speech_until).toString(QStringLiteral("MM-dd HH:mm:ss"))));
+        if (!item->group_muted && item->speech_until > 0)
+        {
+            auto const delay = std::clamp<qint64>(item->speech_until - item->server_now(), 1, std::numeric_limits<int>::max());
+            speech_expiry_->start(static_cast<int>(delay));
+        }
+    }
+    speech_notice_->setVisible(blocked);
+    send_button_->setEnabled(item && !blocked && !saving_text_ && !message_edit_->toPlainText().isEmpty() && (!reply_to_ || !reply_bar_->isHidden()));
     attachment_button_->setEnabled(allowed);
     screenshot_button_->setEnabled(allowed);
     emoji_button_->setEnabled(allowed);
@@ -3427,6 +3520,14 @@ void chat_widget::discard_history(qint64 conversation, qint64 floor)
     update_pinned_message();
     show_outgoing();
 }
+void chat_widget::invalidate_draft_replies(QList<qint64> const& conversations)
+{
+    for (auto const id : conversations)
+    {
+        discard_draft_reply(id, std::numeric_limits<qint64>::max());
+    }
+}
+
 void chat_widget::close_conversation(qint64 conversation)
 {
     discard_draft_reply(conversation, std::numeric_limits<qint64>::max());
@@ -3876,6 +3977,10 @@ void chat_widget::update_pending_text(
         outgoing_.push_back(std::move(entry));
         item = std::prev(outgoing_.end());
     }
+    if (!reply)
+    {
+        item->reply = {};
+    }
     item->failed = !rejection.isEmpty();
     item->waiting = !sending && !item->failed;
     item->error = std::move(rejection);
@@ -3932,9 +4037,11 @@ void chat_widget::finish_group_file(qint64 id, QString error)
 }
 void chat_widget::send_files(qint64 target, QStringList const& paths, qint64 clipboard_id, bool group_only)
 {
-    if (!connection_available_ || !conversation(target))
+    auto const room = conversation(target);
+    if (!connection_available_ || !room || room->speech_blocked())
     {
-        set_message_status(QStringLiteral("当前会话暂时无法发送文件"));
+        set_message_status(room && room->speech_blocked() ? QStringLiteral("群聊禁言，暂时无法发布文件")
+                                                          : QStringLiteral("当前会话暂时无法发送文件"));
         return;
     }
     bool const use_reply = !group_only && target == active_conversation_;

@@ -60,6 +60,7 @@ class chat_widget final : public QWidget
     qint64 history_floor(qint64 conversation) const { return history_floors_.value(conversation); }
     void discard_history(qint64 conversation, qint64 floor);
     void close_conversation(qint64 conversation);
+    void invalidate_draft_replies(QList<qint64> const& conversations);
     void locate_message(qint64 conversation, qint64 message);
     void refresh_theme();
     void set_members(qint64 conversation, QList<member_data> members, QString const& error);
@@ -335,6 +336,8 @@ class chat_widget final : public QWidget
     QWidget* selection_bar_ = nullptr;
     QListView* messages_view_ = nullptr;
     QWidget* input_bar_ = nullptr;
+    QLabel* speech_notice_ = nullptr;
+    QTimer* speech_expiry_ = nullptr;
     QPlainTextEdit* message_edit_ = nullptr;
     QHash<qint64, qint64> history_floors_;
     bool visible_message(message_data& message) const;

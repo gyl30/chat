@@ -465,6 +465,19 @@ std::expected<conversation, error> parse_conversation(boost::json::value const& 
     item.pinned = pinned->as_bool();
     item.announcement = std::string(announcement->as_string());
     item.join_approval = approval->as_bool();
+    auto const* speech_role = object.if_contains("speech_role");
+    auto const* group_muted = object.if_contains("group_muted");
+    auto const* speech_until = object.if_contains("speech_until");
+    auto const* server_time = object.if_contains("server_time");
+    if (!speech_role || !speech_role->is_int64() || speech_role->as_int64() < 0 || speech_role->as_int64() > 2 || !group_muted ||
+        !group_muted->is_bool() || !speech_until || !speech_until->is_int64() || !server_time || !server_time->is_int64())
+    {
+        return std::unexpected(make_error(error_kind::protocol, "Invalid group speech state"));
+    }
+    item.speech_role = static_cast<member_role>(speech_role->as_int64());
+    item.group_muted = group_muted->as_bool();
+    item.speech_until = speech_until->as_int64();
+    item.server_time = server_time->as_int64();
     if (item.announcement.size() > 4096 || item.announcement.find('\0') != std::string::npos ||
         (kind->as_string() == "direct" && !item.announcement.empty()))
     {
@@ -882,6 +895,28 @@ struct client::impl
                 report_error(make_error(error_kind::protocol, "Invalid conversation notification"));
                 return;
             }
+            auto const unavailable = removed && removed->as_bool();
+            if (unavailable && outbox_account_ && journal_.is_open())
+            {
+                if (auto e = journal_.exec("UPDATE text_outbox SET rejection=?,reply=NULL WHERE user=? AND conversation=?",
+                                           conversation_unavailable,
+                                           outbox_account_,
+                                           *id);
+                    e)
+                {
+                    report_error(outbox_error("无法更新不可用会话的待发送消息"));
+                }
+                if (auto items = read_pending_texts())
+                {
+                    for (auto& item : *items)
+                    {
+                        if (item.conversation == *id)
+                        {
+                            notify_outbox(std::move(item));
+                        }
+                    }
+                }
+            }
             conversation_changed_handler handler;
             {
                 std::lock_guard lock(handler_mutex_);
@@ -889,7 +924,7 @@ struct client::impl
             }
             if (handler && !suppress_callbacks_.load())
             {
-                handler(*id, removed && removed->as_bool());
+                handler(*id, unavailable);
             }
             return;
         }
@@ -1382,7 +1417,9 @@ struct client::impl
                          {
                              user person;
                              auto const* role = value.is_object() ? value.as_object().if_contains("role") : nullptr;
-                             if (!role || !role->is_string() || !parse_user(value.as_object(), person) ||
+                             auto const* speech_until = value.is_object() ? value.as_object().if_contains("speech_until") : nullptr;
+                             if (!speech_until || !speech_until->is_int64() || !role || !role->is_string() ||
+                                 !parse_user(value.as_object(), person) ||
                                  (role->as_string() != "owner" && role->as_string() != "admin" && role->as_string() != "member"))
                              {
                                  handler(std::unexpected(make_error(error_kind::protocol, "Invalid member")));
@@ -1393,7 +1430,8 @@ struct client::impl
                                                 role->as_string() == "owner"   ? member_role::owner
                                                 : role->as_string() == "admin" ? member_role::admin
                                                                                : member_role::member,
-                                                person.avatar});
+                                                person.avatar,
+                                                speech_until->as_int64()});
                          }
                          handler(std::move(members));
                      });
@@ -1851,11 +1889,30 @@ struct client::impl
                 }
                 else if (!response && response.error().kind == error_kind::rpc)
                 {
-                    if (!journal_.exec("UPDATE text_outbox SET rejection=? WHERE user=? AND client=?", response.error().code, user, item.client_id))
+                    auto const code = response.error().code;
+                    if (!journal_.exec(R"SQL(UPDATE text_outbox SET rejection=?1,
+                                           reply=CASE WHEN ?1=?5 THEN NULL ELSE reply END
+                                           WHERE user=?2 AND conversation=?3
+                                           AND (client=?4 OR (?1 IN (?5,?6) AND rejection=0)))SQL",
+                                       code,
+                                       user,
+                                       item.conversation,
+                                       item.client_id,
+                                       conversation_unavailable,
+                                       group_speech_muted))
                     {
-                        item.state = outbox_state::failed;
-                        item.rejection = response.error().code;
-                        notify_outbox(std::move(item));
+                        // The head already got a definitive rejection. Only now can the
+                        // never-dispatched rows behind it stop without losing a receipt.
+                        if (auto rows = read_pending_texts())
+                        {
+                            for (auto& row : *rows)
+                            {
+                                if (row.conversation == item.conversation && row.rejection == code)
+                                {
+                                    notify_outbox(std::move(row));
+                                }
+                            }
+                        }
                         send_next_text();
                         return;
                     }
@@ -1974,10 +2031,51 @@ struct client::impl
     {
         if (outbox_account_ == 0)
         {
-            handler(std::unexpected(make_error(error_kind::transport, "Not authenticated")));
+            handler(std::unexpected(outbox_error("无法读取本地待发送消息")));
             co_return;
         }
-        handler(read_pending_texts());
+        auto items = read_pending_texts();
+        // Queued rows are reconciled normally by client_id. A previously muted
+        // row will not be retried, so check its membership once on restoration.
+        if (!items || !account_ || std::ranges::none_of(*items, [](auto const& item) { return item.rejection == group_speech_muted; }))
+        {
+            handler(std::move(items));
+            co_return;
+        }
+        co_await request_page<std::vector<message_search_scope>>(
+            "message_search_scopes",
+            {},
+            "Invalid search scopes",
+            message_search_scopes_handler{
+                [this, user = outbox_account_, items = std::move(*items), handler = std::move(handler)](auto scopes) mutable
+                {
+                    if (scopes && user == outbox_account_)
+                    {
+                        for (auto const& item : items)
+                        {
+                            if (item.rejection == group_speech_muted &&
+                                std::ranges::find(*scopes, item.conversation, &message_search_scope::id) == scopes->end())
+                            {
+                                if (auto e =
+                                        journal_.exec("UPDATE text_outbox SET rejection=?1,reply=NULL WHERE user=?2 AND client=?3 AND rejection=?4",
+                                                      conversation_unavailable,
+                                                      user,
+                                                      item.client_id,
+                                                      group_speech_muted);
+                                    e)
+                                {
+                                    handler(std::unexpected(outbox_error("无法更新不可用会话的待发送消息")));
+                                    return;
+                                }
+                            }
+                        }
+                        handler(read_pending_texts());
+                    }
+                    else
+                    {
+                        handler(std::move(items));
+                    }
+                }});
     }
 
     boost::capy::task<> change_text(std::int64_t id, bool discard, outbox_operation_handler handler)
@@ -3124,6 +3222,21 @@ void client::transfer_group_owner(std::int64_t conversation, std::int64_t user, 
         impl_->group_action("transfer_group_owner", {{"conversation", conversation}, {"user", user}}, std::move(handler)));
 }
 
+void client::set_group_mute(std::int64_t conversation, bool muted, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->group_action("set_group_mute", {{"conversation", conversation}, {"muted", muted}}, std::move(handler)));
+}
+void client::set_group_member_mute(std::int64_t conversation, std::int64_t user, std::int64_t seconds, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->group_action("set_group_member_mute", {{"conversation", conversation}, {"user", user}, {"seconds", seconds}}, std::move(handler)));
+}
+void client::dissolve_group(std::int64_t conversation, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->group_action("dissolve_group", {{"conversation", conversation}}, std::move(handler)));
+}
 void client::remove_group_member(std::int64_t conversation, std::int64_t user, group_action_handler handler)
 {
     boost::capy::run_async(impl_->io_context_.get_executor())(

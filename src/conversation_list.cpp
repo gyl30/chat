@@ -10,7 +10,7 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
     constexpr auto max = std::numeric_limits<std::int64_t>::max();
     auto query = db.prepare(R"SQL(
         WITH page AS (
-            SELECT c.*, own.pinned, own.notification_level, own.mute_until, own.unread_mark_message_id, own.last_read_message_id, own.visible_after,
+            SELECT c.*, own.is_admin, own.pinned, own.notification_level, own.mute_until, own.unread_mark_message_id, own.last_read_message_id, own.visible_after,
                    CASE WHEN c.direct_user_low=?1 THEN c.direct_user_high ELSE c.direct_user_low END AS peer
             FROM conversation_members own JOIN conversations c ON c.id=own.conversation_id
             WHERE own.user_id=?1 AND (own.hidden_at IS NULL OR c.activity>own.hidden_at)
@@ -30,7 +30,11 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                 'marked_unread',json(CASE WHEN c.unread_mark_message_id IS NULL THEN 'false' ELSE 'true' END),
                 'pinned',json(CASE WHEN c.pinned THEN 'true' ELSE 'false' END),
                 'member_count',(SELECT count(*) FROM conversation_members WHERE conversation_id=c.id),
-                'announcement',c.announcement,
+                 'announcement',c.announcement,
+                'speech_role',CASE WHEN c.owner_id=?1 THEN 2 WHEN c.is_admin THEN 1 ELSE 0 END,
+                'group_muted',json(CASE WHEN g.conversation_id IS NOT NULL THEN 'true' ELSE 'false' END),
+                'speech_until',coalesce(p.until,0),
+                'server_time',CAST(unixepoch('subsec')*1000 AS INTEGER),
                 'join_approval',json(CASE WHEN c.join_approval THEN 'true' ELSE 'false' END),
                 'pinned_message',json((SELECT json_object('id',pm.id,'from',pm.sender_id,'username',pu.username,
                     'text',substr(pm.body,1,160),'edited_at',pm.edited_at,'deleted',json('false'))
@@ -66,7 +70,9 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                       AND m.id>max(c.last_read_message_id,c.visible_after)
                       AND m.sender_id<>?1)
             )) FROM visible c LEFT JOIN users u ON u.id=c.peer LEFT JOIN contacts ct ON ct.owner_id=?1 AND ct.contact_id=c.peer
-                LEFT JOIN user_avatars avatar ON avatar.user_id=u.id)),
+                LEFT JOIN user_avatars avatar ON avatar.user_id=u.id
+                LEFT JOIN group_mutes g ON g.conversation_id=c.id
+                LEFT JOIN group_member_mutes p ON p.conversation_id=c.id AND p.user_id=?1)),
             'next',json(CASE WHEN (SELECT count(*) FROM page)>50 THEN
                 (SELECT json_object('pinned',json(CASE WHEN pinned THEN 'true' ELSE 'false' END),
                                     'activity',activity,'id',id)

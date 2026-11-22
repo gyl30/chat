@@ -102,6 +102,20 @@ CREATE TABLE IF NOT EXISTS conversation_members (
 
 CREATE INDEX IF NOT EXISTS conversation_members_user_idx ON conversation_members (user_id, conversation_id);
 
+-- Speech restrictions are not membership or notification preferences.
+CREATE TABLE IF NOT EXISTS group_member_mutes (
+    conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    until INTEGER NOT NULL CHECK(until=-1 OR until>0),
+    PRIMARY KEY(conversation_id,user_id)
+);
+CREATE TABLE IF NOT EXISTS group_mutes (
+    conversation_id INTEGER PRIMARY KEY REFERENCES conversations(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS dissolved_groups (
+    conversation_id INTEGER PRIMARY KEY,
+    owner_id INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS archives (
     month TEXT PRIMARY KEY NOT NULL,
     object_key TEXT NOT NULL UNIQUE DEFAULT (lower(hex(randomblob(16)))),

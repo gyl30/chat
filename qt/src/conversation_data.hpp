@@ -34,6 +34,15 @@ struct conversation_data
     quoted_message_data pinned_message;
     QString announcement;
     bool join_approval = false;
+    chat::member_role speech_role = chat::member_role::member;
+    bool group_muted = false;
+    qint64 speech_until = 0;
+    qint64 server_clock_delta = 0;
+    qint64 server_now() const { return QDateTime::currentMSecsSinceEpoch() + server_clock_delta; }
+    bool speech_blocked() const
+    {
+        return group && speech_role == chat::member_role::member && (group_muted || speech_until == -1 || speech_until > server_now());
+    }
 };
 
 Q_DECLARE_METATYPE(conversation_data)

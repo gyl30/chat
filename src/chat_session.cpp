@@ -99,7 +99,7 @@ boost::capy::task<chat_session::notification_result> chat_session::publish_conve
                 {
                     return std::unexpected(std::move(allowed.error()));
                 }
-                if (!*allowed)
+                if (*allowed != send_access::allowed)
                 {
                     return std::nullopt;
                 }
@@ -307,7 +307,8 @@ boost::capy::task<simdjson::error_code> chat_session::dispatch_request(json_rpc_
     {
         co_return co_await handle_group_join_request(request, response);
     }
-    if (request.method == "set_group_admin" || request.method == "rename_group" || request.method == "invite_group_members" ||
+    if (request.method == "set_group_member_mute" || request.method == "set_group_mute" || request.method == "dissolve_group" ||
+        request.method == "set_group_admin" || request.method == "rename_group" || request.method == "invite_group_members" ||
         request.method == "leave_group" || request.method == "transfer_group_owner" || request.method == "remove_group_member" ||
         request.method == "pin_group_message" || request.method == "unpin_group_message" || request.method == "set_group_announcement")
     {

@@ -60,6 +60,9 @@ class client_bridge final : public QObject
     void get_members(qint64 conversation);
     void set_group_admin(qint64 conversation, qint64 user, bool admin);
     void transfer_group_owner(qint64 conversation, qint64 user);
+    void set_group_mute(qint64 conversation, bool muted);
+    void set_group_member_mute(qint64 conversation, qint64 user, qint64 seconds);
+    void dissolve_group(qint64 conversation);
     void remove_group_member(qint64 conversation, qint64 user);
     void rename_group(qint64 conversation, QString title);
     void set_group_announcement(qint64 conversation, QString text);
@@ -163,6 +166,7 @@ class client_bridge final : public QObject
     void conversation_changed(qint64 conversation, bool removed);
     // A text or attachment send finished: the stored message, or why it failed. lost means the
     // connection dropped before an answer; unavailable means the server denied conversation access.
+    void draft_conversations_unavailable(QList<qint64> conversations);
     void drafts_restored(qint64 user, std::vector<chat::compose_draft> drafts);
     void draft_reply_validated(qint64 conversation, qint64 anchor, qint64 revision, message_data message, bool unavailable);
     void text_saved(qint64 client_id, QString error);
