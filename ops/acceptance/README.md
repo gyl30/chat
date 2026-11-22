@@ -17,8 +17,10 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-re
 | `wal.py` | 验证静态服务端与私有 Python 的 SQLite 身份、WAL 并发 checkpoint 和搜索分页 |
 | `history.py` | 真实 Qt 覆盖 3,100 条较新消息后的分类和 around；`--baseline` 可用旧服务端、旧版 Qt 测试驱动复现自动补页上限 |
 | `search_filters.py` | 组合条件、无关键词、隐藏私聊、权限、50/51 页边界及字面空格 |
-| `drafts.py` | 真 Qt 重启、会话/账号/端点隔离、旧引用失效及原子转交待发送 |
-| `downloads.py` | 两个会话及群文件的同名任务、取消、真实流截断、重新鉴权和撤回拒绝 |
+| `live_history.py` | 双设备实时编辑与撤回、显示/剪贴板、筛选移除、乱序回包和保留服务端游标 |
+| `drafts.py` | 真 Qt 重启与会话/账号/端点隔离；探针扣住本地入队完成回调直至输入新版本，另用隔离数据库故障确认保留文字和回复 |
+| `deep_reply.py` | 最近一页之外的草稿引用、重启恢复、实际发送、编辑与迟到校验、撤回/清空/失权 |
+| `downloads.py` | 两个会话及群文件的同名任务、取消、真实流截断、重新鉴权和撤回拒绝；`--stalls` 保持两个 TCP 流不再发送，检查客户端 EOF、临时文件、共享工作器、落盘/取消竞争及断线清理 |
 | `history_filter_perf.py` | 对照两个 Release 服务端的稀疏历史、全局搜索及其他连接的发送确认；输出原始端到端样本 |
 | `search_bench.py` | 在独立磁盘 WAL 库测量真实搜索与发送 RPC，输出每组延迟、CPU、内存、归档读取次数和被动 checkpoint |
 

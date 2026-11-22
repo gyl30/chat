@@ -70,8 +70,14 @@ async def run(root, probe):
                 )
                 await select(group)
                 await ui.wait("state", lambda r: r["draft"] == "第二个草稿")
+                # Hold the actual SDK completion before it reaches chat_widget.
+                # The independent ACK hold below only keeps the durable row inspectable.
+                await ui.call("text_save_barrier", hold=True)
                 gate.hold.add("send_message")
                 await ui.call("send", text="提交前草稿")
+                done = await ui.wait("text_save_barrier", lambda r: r["pending"])
+                assert done["error"] == ""
+                assert not (await ui.call("state"))["sendEnabled"]
                 await gate.caught("send_message")
                 assert not saved(group)
                 with sqlite3.connect(journal) as conn:
@@ -80,20 +86,64 @@ async def run(root, probe):
                         (group,),
                     ).fetchone() == ("提交前草稿",)
                 await ui.call("draft", text="新的草稿")
+                assert (await ui.call("state"))["draft"] == "新的草稿"
+                assert (await ui.call("text_save_barrier"))["pending"]
+                await ui.call("text_save_barrier", release=True)
+                state = await ui.call("state")
+                assert state["draft"] == "新的草稿" and state["sendEnabled"]
                 await until(
                     lambda: saved(group) == ("新的草稿", 0),
-                    "new draft stored while acknowledgement held",
+                    "new draft stored after releasing local completion",
                 )
-                await ui.stop()
+                await ui.call("quit")
+                assert await asyncio.wait_for(ui.proc.wait(), 8) == 0
                 gate.hold.clear()
                 gate.held.clear()
                 await ui.start(probe, root, entry)
                 await select(group)
                 await ui.wait("state", lambda r: r["draft"] == "新的草稿")
+                page = await a.ok("get_messages", conversation=group)
+                assert sum(m["text"] == "提交前草稿" for m in page["messages"]) == 1
+                failed_anchor = (
+                    await b.ok(
+                        "send_message",
+                        conversation=group,
+                        client_id=812,
+                        text="失败时保留的回复目标",
+                    )
+                )["id"]
+                await ui.wait(
+                    "state", lambda r: any(m["id"] == failed_anchor for m in r["rows"])
+                )
+                assert (await ui.call("reply_to", id=failed_anchor))["reply"]
+                with sqlite3.connect(journal) as conn:
+                    conn.execute("""CREATE TRIGGER reject_test_outbox BEFORE INSERT ON text_outbox
+                                 WHEN new.body='本地入队失败' BEGIN SELECT RAISE(ABORT, 'QA'); END""")
+                await ui.call("text_save_barrier", hold=True)
+                await ui.call("send", text="本地入队失败")
+                done = await ui.wait("text_save_barrier", lambda r: r["pending"])
+                assert "无法保存待发送消息" in done["error"]
+                await ui.call("text_save_barrier", release=True)
+                state = await ui.call("state")
+                assert (
+                    state["draft"] == "本地入队失败"
+                    and state["reply"]
+                    and state["sendEnabled"]
+                )
+                assert "失败时保留的回复目标" in state["preview"]
+                assert saved(group) == ("本地入队失败", failed_anchor)
+                with sqlite3.connect(journal) as conn:
+                    assert (
+                        conn.execute(
+                            "SELECT 1 FROM text_outbox WHERE body='本地入队失败'"
+                        ).fetchone()
+                        is None
+                    )
+                    conn.execute("DROP TRIGGER reject_test_outbox")
                 await ui.call("draft", text="退出时保存")
                 await ui.call("quit")
                 assert await asyncio.wait_for(ui.proc.wait(), 8) == 0
-                assert saved(group) == ("退出时保存", 0)
+                assert saved(group) == ("退出时保存", failed_anchor)
                 await ui.start(probe, root, entry)
                 await select(group)
                 await ui.wait("state", lambda r: r["draft"] == "退出时保存")
@@ -108,7 +158,7 @@ async def run(root, probe):
                     await select(direct)
                     assert (await ui.call("state"))["draft"] == ""
                 print(
-                    "PASS Qt draft switching/restart, account/endpoint isolation, reply reauthorization and recall, atomic Outbox handoff and newer draft",
+                    "PASS Qt draft switching/restart, account/endpoint isolation, reply reauthorization and recall, local completion barrier, newer draft and forced local transaction failure",
                     flush=True,
                 )
             finally:

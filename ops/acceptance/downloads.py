@@ -6,6 +6,7 @@ from contextlib import AsyncExitStack
 from pathlib import Path
 import sys
 import tempfile
+import time
 
 from websockets.asyncio.server import serve
 
@@ -13,11 +14,13 @@ from desktop import Desktop, Gate, until
 from isolated import Store, begin, chat, login, put
 
 
-async def run(root, probe):
+async def run(root, probe, stalls=False, baseline=False):
     store = Store()
     payload = b"download verification" * (64 * 1024)
     requests = []
     send_chunks = asyncio.Event()
+    disconnected = set()
+    final_chunk = asyncio.Event()
 
     async def stream(reader, writer):
         request = (await reader.readline()).decode().split()
@@ -30,8 +33,15 @@ async def run(root, probe):
         )
         writer.write(payload[:65536])
         await writer.drain()
-        if not path.endswith("/fail"):
-            await send_chunks.wait()
+        if path.endswith("/stall"):
+            # Do not send any more bytes or close first. EOF proves the SDK interrupted its socket.
+            if not await reader.read(1):
+                disconnected.add(path)
+        elif not path.endswith("/fail"):
+            if path.endswith("/race"):
+                await final_chunk.wait()
+            elif not path.endswith("/ready"):
+                await send_chunks.wait()
             try:
                 writer.write(payload[65536:])
                 await writer.drain()
@@ -96,6 +106,15 @@ async def run(root, probe):
                             if method == "get_attachment" and actual[method] in (2, 4)
                             else "ok"
                         )
+                        if stalls:
+                            number = actual[method]
+                            suffix = (
+                                "stall"
+                                if number in (1, 2, 6, 7, 8)
+                                else "race"
+                                if number == 4
+                                else "ready"
+                            )
                         result["result"]["url"] = (
                             f"{endpoint}/{method}/{actual[method]}/{suffix}"
                         )
@@ -106,6 +125,21 @@ async def run(root, probe):
                         entry = f"ws://127.0.0.1:{proxy.sockets[0].getsockname()[1]}/ws"
                         await ui.start(probe, root, entry)
                         try:
+                            if stalls:
+                                await stalled_downloads(
+                                    root,
+                                    ui,
+                                    gate,
+                                    a,
+                                    direct,
+                                    originals[0],
+                                    requests,
+                                    disconnected,
+                                    final_chunk,
+                                    payload,
+                                    baseline,
+                                )
+                                return
                             for f, conv, path in zip(
                                 originals, [direct, group], ["a.bin", "b.bin"]
                             ):
@@ -223,9 +257,177 @@ async def run(root, probe):
                             )
                         finally:
                             send_chunks.set()
+                            final_chunk.set()
                             await ui.stop()
+
+
+async def stalled_downloads(
+    root,
+    ui,
+    gate,
+    account,
+    conv,
+    original,
+    requests,
+    disconnected,
+    final_chunk,
+    payload,
+    baseline,
+):
+    await ui.wait("select", lambda r: r["ok"], conv=conv)
+
+    async def save(name):
+        await ui.call(
+            "preview", conv=conv, id=original["id"], filename="同名.bin", inline=False
+        )
+        await ui.wait("dialogstate", lambda r: r["shown"])
+        await ui.call("dialogstate", save=True, destination=str(root / name))
+        await ui.call("dialogstate", close=True)
+
+    def received(name):
+        return any(p.stat().st_size > 0 for p in root.glob(f"{name}.part-*"))
+
+    def ended(number):
+        return f"/get_attachment/{number}/stall" in disconnected
+
+    async def cancel(row):
+        return (await ui.call("downloads", row=row, action="取消")).get(
+            "triggered", False
+        )
+
+    await save("stall-a.bin")
+    await save("stall-b.bin")
+    await until(
+        lambda: received("stall-a.bin") and received("stall-b.bin"),
+        "both worker downloads have received first block",
+    )
+    await save("next.bin")
+    path = root / "待发送文件.bin"
+    path.write_bytes(b"download workers must release the shared upload slot")
+    await ui.call("upload", conv=conv, path=str(path))
+    await ui.call("downloads", open=True)
+    assert len(requests) == 2 and not (root / "next.bin").exists()
+    mark = time.monotonic()
+    assert await cancel(0)
+    if baseline:
+        try:
+            await asyncio.wait_for(
+                until(lambda: ended(1), "old cancelled socket unexpectedly closed"), 2
+            )
+        except asyncio.TimeoutError:
+            assert received("stall-a.bin") and len(requests) == 2
+            print(
+                "RED: Qt marked both-worker stall cancelled but after 2s the socket and partial file remained",
+                flush=True,
+            )
+            return
+        raise AssertionError("baseline unexpectedly released its stalled TCP stream")
+
+    await asyncio.wait_for(
+        until(
+            lambda: ended(1) and not list(root.glob("stall-a.bin.part-*")),
+            "first socket EOF and temp cleaned",
+        ),
+        3,
+    )
+    first_ms = (time.monotonic() - mark) * 1000
+    await ui.wait("downloads", lambda r: r["rows"][2]["status"] == "已完成")
+    assert (root / "next.bin").read_bytes() == payload
+    assert not ended(2) and received("stall-b.bin")
+
+    async def uploaded():
+        page = await account.ok("get_messages", conversation=conv)
+        return any(
+            m.get("attachment", {}).get("filename") == path.name
+            for m in page["messages"]
+        )
+
+    await until(
+        uploaded, "actual upload published while the other download stays stalled"
+    )
+    mark = time.monotonic()
+    assert await cancel(1)
+    await asyncio.wait_for(
+        until(
+            lambda: ended(2) and not list(root.glob("stall-b.bin.part-*")),
+            "second socket EOF and temp cleaned",
+        ),
+        3,
+    )
+    second_ms = (time.monotonic() - mark) * 1000
+    assert not any((root / name).exists() for name in ("stall-a.bin", "stall-b.bin"))
+
+    await save("race.bin")
+    await until(lambda: received("race.bin"), "race first block reached SDK")
+    final_chunk.set()
+    accepted = await cancel(3)
+    status = "已取消" if accepted else "已完成"
+    await ui.wait("downloads", lambda r: r["rows"][3]["status"] == status)
+    await until(lambda: not list(root.glob("race.bin.part-*")), "race temp removed")
+    assert (root / "race.bin").exists() == (not accepted)
+    if not accepted:
+        assert (root / "race.bin").read_bytes() == payload
+    await ui.call("download_barrier", hold=True)
+    await save("published.bin")
+    await ui.wait("download_barrier", lambda r: r["pending"])
+    assert (root / "published.bin").read_bytes() == payload
+    # File is already published while the UI still thinks the task is running.
+    await cancel(4)  # A click is possible, but the phase guard must refuse it.
+    assert (await ui.call("downloads"))["rows"][4]["status"] != "已取消"
+    await ui.call("download_barrier", release=True)
+    await ui.wait("downloads", lambda r: r["rows"][4]["status"] == "已完成")
+
+    async def cleaned(number, name):
+        await asyncio.wait_for(
+            until(
+                lambda: ended(number) and not list(root.glob(f"{name}.part-*")),
+                f"{name}: socket EOF and temp cleaned",
+            ),
+            3,
+        )
+        assert not (root / name).exists()
+
+    await save("disconnect.bin")
+    await until(
+        lambda: received("disconnect.bin"), "disconnect case received first block"
+    )
+    await gate.down.close()
+    await cleaned(6, "disconnect.bin")
+    await ui.wait("select", lambda r: r["ok"], conv=conv)
+    await until(
+        lambda: sum(p["method"] == "authenticate" for p in gate.messages) >= 2,
+        "actual reconnect",
+    )
+    await ui.wait("state", lambda r: r["enabled"])
+
+    await save("logout.bin")
+    await until(lambda: received("logout.bin"), "logout case received first block")
+    await ui.call("logout")
+    await cleaned(7, "logout.bin")
+    await ui.call("login", user="a")
+    await ui.wait("state", lambda r: r["user"] == 1)
+    await ui.wait("select", lambda r: r["ok"], conv=conv)
+
+    await save("quit.bin")
+    await until(lambda: received("quit.bin"), "exit case received first block")
+    await ui.call("quit")
+    assert await asyncio.wait_for(ui.proc.wait(), 3) == 0
+    await cleaned(8, "quit.bin")
+
+    print(
+        f"PASS two Qt/SDK stalled sockets interrupted and temp cleaned in {first_ms:.1f}/{second_ms:.1f} ms; "
+        f"upload and unaffected download advanced; race={status}; late cancel refused; disconnect/logout/quit cleaned",
+        flush=True,
+    )
 
 
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory(prefix="chat-downloads-") as path:
-        asyncio.run(run(Path(path), sys.argv[1]))
+        asyncio.run(
+            run(
+                Path(path),
+                sys.argv[1],
+                "--stalls" in sys.argv,
+                "--baseline" in sys.argv,
+            )
+        )

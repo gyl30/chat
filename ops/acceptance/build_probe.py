@@ -9,15 +9,24 @@ import sys
 build, target = (Path(x).resolve() for x in sys.argv[1:])
 target.parent.mkdir(parents=True, exist_ok=True)
 unit = next(
-    u for u in json.loads((build / "compile_commands.json").read_text()) if u["file"].endswith("/qt/src/main.cpp")
+    u
+    for u in json.loads((build / "compile_commands.json").read_text())
+    if u["file"].endswith("/qt/src/main.cpp")
 )
 args = shlex.split(unit["command"])
 obj = target.with_suffix(".o")
 args[args.index("-o") + 1] = str(obj)
 args[args.index(unit["file"])] = str(Path(__file__).with_name("qt_probe.cpp").resolve())
-subprocess.run(args + ["-I" + str(Path(unit["file"]).parent)], cwd=unit["directory"], check=True)
+# The test-only bridge interception never changes the production Qt binary.
+subprocess.run(
+    args + ["-fno-access-control", "-I" + str(Path(unit["file"]).parent)],
+    cwd=unit["directory"],
+    check=True,
+)
 if (build / "build.ninja").exists():
-    line = subprocess.check_output(["ninja", "-t", "commands", "chat_qt"], cwd=build, text=True).splitlines()[-1]
+    line = subprocess.check_output(
+        ["ninja", "-t", "commands", "chat_qt"], cwd=build, text=True
+    ).splitlines()[-1]
     args = shlex.split(line.split("&&")[1])
     cwd = build
 else:

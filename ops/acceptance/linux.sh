@@ -17,7 +17,10 @@ python3 ops/acceptance/build_probe.py "$build" "$work/probe"
 python3 ops/acceptance/clear.py
 python3 ops/acceptance/search_filters.py
 python3 ops/acceptance/history.py "$work/probe"
+python3 ops/acceptance/live_history.py "$work/probe"
 python3 ops/acceptance/drafts.py "$work/probe"
+python3 ops/acceptance/deep_reply.py "$work/probe"
 python3 ops/acceptance/downloads.py "$work/probe"
+python3 ops/acceptance/downloads.py "$work/probe" --stalls
 dbus-run-session -- python3 ops/acceptance/recovery.py "$work/probe"
 python3 ops/acceptance/desktop.py "$work/probe"

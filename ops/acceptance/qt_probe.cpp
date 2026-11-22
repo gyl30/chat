@@ -2,6 +2,8 @@
 #include <QListWidget>
 #include <QScrollBar>
 #include <QApplication>
+#include <QClipboard>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QAbstractButton>
 #include <QFileDialog>
@@ -22,13 +24,81 @@
 #include <QPushButton>
 #include "main_window.hpp"
 #include "chat_widget.hpp"
+#include "client_bridge.hpp"
+#include "download_dialog.hpp"
+#include <optional>
+#include <tuple>
+#include <utility>
 #include "conversation_model.hpp"
 #include "message_model.hpp"
 #include "theme_manager.hpp"
 
 namespace
 {
-QJsonObject dispatch(main_window& window, QJsonObject const& cmd)
+void choose_menu_action(QWidget* view, QPoint point, QString const& label)
+{
+    QTimer::singleShot(0,
+                       view,
+                       [label]
+                       {
+                           auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+                           if (!menu)
+                           {
+                               return;
+                           }
+                           for (auto* action : menu->actions())
+                           {
+                               if (action->text() == label)
+                               {
+                                   menu->setActiveAction(action);
+                                   QKeyEvent key(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+                                   QApplication::sendEvent(menu, &key);
+                                   return;
+                               }
+                           }
+                           menu->close();
+                       });
+    emit view->customContextMenuRequested(point);
+}
+
+template <class... Args>
+struct completion_barrier
+{
+    bool held = false;
+    std::optional<std::tuple<Args...>> completion;
+
+    template <class Deliver>
+    void receive(Deliver deliver, Args... args)
+    {
+        if (held)
+        {
+            Q_ASSERT(!completion);
+            completion.emplace(std::move(args)...);
+        }
+        else
+        {
+            deliver(std::move(args)...);
+        }
+    }
+
+    template <class Deliver>
+    void release(Deliver deliver)
+    {
+        held = false;
+        if (auto done = std::exchange(completion, std::nullopt))
+        {
+            std::apply(deliver, std::move(*done));
+        }
+    }
+};
+
+struct probe_controls
+{
+    completion_barrier<qint64, QString> text_save;
+    completion_barrier<qint64, quint64, QString> download;
+};
+
+QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject const& cmd)
 {
     auto* edit = window.findChild<QPlainTextEdit*>("messageEdit");
     auto* conv = window.findChild<QListView*>("conversationList");
@@ -57,7 +127,10 @@ QJsonObject dispatch(main_window& window, QJsonObject const& cmd)
     }
     else if (op == "send")
     {
-        edit->setPlainText(cmd["text"].toString());
+        if (cmd.contains("text"))
+        {
+            edit->setPlainText(cmd["text"].toString());
+        }
         out["enabled"] = button("sendButton")->isEnabled();
         button("sendButton")->click();
     }
@@ -283,6 +356,43 @@ QJsonObject dispatch(main_window& window, QJsonObject const& cmd)
             {
                 more->click();
             }
+            if (cmd.contains("query"))
+            {
+                auto* query = dialog->findChild<QLineEdit*>("historySearchEdit");
+                query->setText(cmd["query"].toString());
+                emit query->returnPressed();
+            }
+            if (cmd.contains("select"))
+            {
+                list->setCurrentRow(cmd["select"].toInt());
+            }
+            if (cmd.contains("scroll"))
+            {
+                list->verticalScrollBar()->setValue(cmd["scroll"].toInt());
+            }
+            if (cmd.contains("copy"))
+            {
+                if (auto* item = list->item(cmd["copy"].toInt()))
+                {
+                    list->scrollToItem(item);
+                    QApplication::clipboard()->clear();
+                    choose_menu_action(list, list->visualItemRect(item).center(), QStringLiteral("复制"));
+                    out["copied"] = QApplication::clipboard()->text();
+                }
+            }
+            QJsonArray rows;
+            for (int i = 0; i < list->count(); ++i)
+            {
+                auto* item = list->item(i);
+                rows.append(QJsonObject{{"id", item->data(Qt::UserRole).toLongLong()}, {"text", item->data(Qt::UserRole + 3).toString()}});
+            }
+            out["rows"] = rows;
+            out["selected"] = list->currentItem() ? list->currentItem()->data(Qt::UserRole).toLongLong() : 0;
+            out["scroll"] = list->verticalScrollBar()->value();
+            if (cmd["close"].toBool())
+            {
+                dialog->reject();
+            }
             out["status"] = dialog->findChild<QLabel*>("historyStatus")->text();
             out["count"] = list->count();
             out["more"] = more->isVisible();
@@ -402,9 +512,57 @@ QJsonObject dispatch(main_window& window, QJsonObject const& cmd)
         }
         out["names"] = names;
     }
+    else if (op == "download_barrier")
+    {
+        auto& barrier = controls.download;
+        if (cmd["hold"].toBool())
+        {
+            barrier.held = true;
+        }
+        if (cmd["release"].toBool())
+        {
+            barrier.release([&window](qint64 id, quint64 attempt, QString const& error) { window.downloads_->finish(id, attempt, error); });
+        }
+        out["pending"] = barrier.completion.has_value();
+    }
+    else if (op == "text_save_barrier")
+    {
+        auto& barrier = controls.text_save;
+        if (cmd["hold"].toBool())
+        {
+            barrier.held = true;
+        }
+        if (cmd["release"].toBool())
+        {
+            barrier.release([chat](qint64 id, QString error) { chat->finish_text_save(id, std::move(error)); });
+        }
+        out["pending"] = barrier.completion.has_value();
+        if (barrier.completion)
+        {
+            out["error"] = std::get<1>(*barrier.completion);
+        }
+    }
+    else if (op == "logout")
+    {
+        window.logout();
+    }
     else if (op == "quit")
     {
         QTimer::singleShot(0, qApp, &QApplication::quit);
+    }
+    else if (op == "reply_to")
+    {
+        for (int i = 0; i < model->rowCount(); ++i)
+        {
+            auto const idx = model->index(i, 0);
+            if (idx.data(message_model::id_role).toLongLong() == cmd["id"].toInteger())
+            {
+                view->scrollTo(idx);
+                choose_menu_action(view, view->visualRect(idx).center(), QStringLiteral("回复"));
+                break;
+            }
+        }
+        out["reply"] = button("cancelReplyButton")->isVisible();
     }
     else if (op == "draft")
     {
@@ -415,8 +573,10 @@ QJsonObject dispatch(main_window& window, QJsonObject const& cmd)
         out["user"] = chat->self_user();
         out["conv"] = chat->active_conversation();
         out["enabled"] = edit->isEnabled();
+        out["sendEnabled"] = button("sendButton")->isEnabled();
         out["draft"] = edit->toPlainText();
         out["reply"] = button("cancelReplyButton")->isVisible();
+        out["preview"] = window.findChild<QLabel*>("replyPreview")->text();
         QJsonArray rows;
         for (int i = 0; i < model->rowCount(); ++i)
         {
@@ -446,6 +606,27 @@ int main(int argc, char** argv)
     }
     main_window window(QString::fromUtf8(argv[1]));
     window.show();
+    auto* chat = window.findChild<chat_widget*>();
+    auto* bridge = window.client_.get();
+    probe_controls controls;
+    auto* downloads = window.downloads_;
+    QObject::disconnect(bridge, &client_bridge::text_saved, chat, &chat_widget::finish_text_save);
+    QObject::connect(
+        bridge,
+        &client_bridge::text_saved,
+        chat,
+        [&](qint64 id, QString const& error)
+        { controls.text_save.receive([chat](qint64 task, QString result) { chat->finish_text_save(task, std::move(result)); }, id, error); });
+    QObject::disconnect(bridge, &client_bridge::download_finished, downloads, &download_dialog::finish);
+    QObject::connect(
+        bridge,
+        &client_bridge::download_finished,
+        downloads,
+        [&](qint64 id, quint64 attempt, QString const& error)
+        {
+            controls.download.receive(
+                [downloads](qint64 task, quint64 run, QString const& result) { downloads->finish(task, run, result); }, id, attempt, error);
+        });
     QSocketNotifier input(0, QSocketNotifier::Read);
     QObject::connect(&input,
                      &QSocketNotifier::activated,
@@ -459,7 +640,7 @@ int main(int argc, char** argv)
                              return;
                          }
                          auto cmd = QJsonDocument::fromJson(QByteArray::fromStdString(line)).object();
-                         auto out = dispatch(window, cmd);
+                         auto out = dispatch(window, controls, cmd);
                          std::cout << QJsonDocument(out).toJson(QJsonDocument::Compact).constData() << std::endl;
                      });
     return app.exec();
