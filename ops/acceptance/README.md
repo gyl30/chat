@@ -12,6 +12,7 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-re
 | 入口 | 观察的结果 |
 |---|---|
 | `clear.py` | 重试相同 H 后，后续未读消息与手工标记保留，实际已读位置保持，已提交任务得到无正文确认 |
+| `group_moderation.py [Qt 驱动]` | 禁言角色、水位、时钟、幂等确认，真实 Silo 完成与 Chat 发布之间的竞态；解散的原成员通知、归档隔离、重启回收和共享对象；传入驱动时验证 Qt 多端、待发送、草稿、原设备续传和迟到回包 |
 | `desktop.py` | 真实 RPC 代理延迟或丢弃指定回包，验证 Qt 草稿、Outbox、通知、三页搜索游标与迟到上下文；验证图片和保存子窗口、群资料置顶、多目标上传菜单和真实 SDK 附件下载 |
 | `recovery.py` | 停止隔离 Chat 与 Silo，分别备份数据库、月档及整个对象卷；启动独立恢复实例，用原 Qt 安装的任务日志从第 2 片继续，再检查消息权限与对象引用 |
 | `wal.py` | 验证静态服务端与私有 Python 的 SQLite 身份、WAL 并发 checkpoint 和搜索分页 |

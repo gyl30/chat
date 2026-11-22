@@ -14,6 +14,7 @@ export CHAT_TEST_SERVER="$build/chat_server"
 work=$(mktemp -d)
 trap 'rm -rf -- "$work"' EXIT
 python3 ops/acceptance/build_probe.py "$build" "$work/probe"
+python3 ops/acceptance/group_moderation.py "$work/probe"
 python3 ops/acceptance/clear.py
 python3 ops/acceptance/search_filters.py
 python3 ops/acceptance/history.py "$work/probe"

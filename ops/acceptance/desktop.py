@@ -35,6 +35,8 @@ class Gate:
         self.hold = set()
         self.messages = []
         self.held = []
+        self.hold_requests = set()
+        self.held_requests = []
         self.transform = None
 
     async def handle(self, downstream):
@@ -47,7 +49,10 @@ class Gate:
                     request = json.loads(packet)
                     methods[request["id"]] = request["method"]
                     self.messages.append(request)
-                    await server.send(packet)
+                    if request["method"] in self.hold_requests:
+                        self.held_requests.append((server, request))
+                    else:
+                        await server.send(packet)
 
             async def receive():
                 async for packet in server:
@@ -77,6 +82,13 @@ class Gate:
                     reply.pop("result", None)
                     reply["error"] = {"code": -32000, "message": "QA search failure"}
                 await self.down.send(json.dumps(reply))
+
+    async def release_requests(self, method):
+        self.hold_requests.discard(method)
+        for server, request in self.held_requests.copy():
+            if request["method"] == method:
+                self.held_requests.remove((server, request))
+                await server.send(json.dumps(request))
 
     async def caught(self, method):
         await until(lambda: any(k == method for k, _ in self.held), method)

@@ -3,7 +3,9 @@
 #include <QScrollBar>
 #include <QApplication>
 #include <QClipboard>
+#include <QCheckBox>
 #include <QKeyEvent>
+#include <QInputDialog>
 #include <QLabel>
 #include <QAbstractButton>
 #include <QFileDialog>
@@ -138,6 +140,100 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     {
         auto id = cmd["id"].toInteger();
         QTimer::singleShot(0, chat, [chat, id] { emit chat->members_requested(id, chat->self_user(), "QA"); });
+    }
+    else if (op == "moderate")
+    {
+        auto* dialog = window.findChild<QDialog*>("groupDialog");
+        out["open"] = dialog != nullptr;
+        if (dialog)
+        {
+            auto* mute = dialog->findChild<QCheckBox*>("groupMuteAll");
+            auto* dissolve = dialog->findChild<QPushButton*>("groupDissolveButton");
+            out["manager"] = mute->isEnabled();
+            out["muted"] = mute->isChecked();
+            out["owner"] = dissolve->isEnabled();
+            if (cmd["toggle"].toBool())
+            {
+                mute->click();
+            }
+            if (cmd.contains("member"))
+            {
+                auto* list = dialog->findChild<QListWidget*>("groupMembersList");
+                for (int row = 0; row < list->count(); ++row)
+                {
+                    if (list->item(row)->data(Qt::UserRole).toLongLong() == cmd["member"].toInteger())
+                    {
+                        list->setCurrentRow(row);
+                        auto* control = dialog->findChild<QPushButton*>("groupMemberMuteButton");
+                        out["member_enabled"] = control->isEnabled();
+                        if (control->isEnabled() && cmd.contains("duration"))
+                        {
+                            QTimer::singleShot(0,
+                                               control,
+                                               [choice = cmd["duration"].toInt()]
+                                               {
+                                                   if (auto* input = qobject_cast<QInputDialog*>(QApplication::activeModalWidget()))
+                                                   {
+                                                       input->findChild<QComboBox*>()->setCurrentIndex(choice);
+                                                       input->accept();
+                                                   }
+                                               });
+                            control->click();
+                        }
+                        break;
+                    }
+                }
+            }
+            if (cmd["dissolve"].toBool() && dissolve->isEnabled())
+            {
+                QTimer::singleShot(0,
+                                   dissolve,
+                                   [dissolve]
+                                   {
+                                       QTimer::singleShot(0,
+                                                          dissolve,
+                                                          []
+                                                          {
+                                                              if (auto* confirmation = qobject_cast<QMessageBox*>(QApplication::activeModalWidget()))
+                                                              {
+                                                                  confirmation->button(QMessageBox::Yes)->click();
+                                                              }
+                                                          });
+                                       dissolve->click();
+                                   });
+            }
+            if (cmd["close"].toBool())
+            {
+                dialog->reject();
+            }
+        }
+    }
+    else if (op == "outbox_retry")
+    {
+        emit chat->pending_text_action_requested(cmd["id"].toInteger(), false);
+    }
+    else if (op == "recover_local")
+    {
+        auto* menu = window.findChild<QMenu*>("unavailableLocalMessages");
+        auto* parent_menu = qobject_cast<QMenu*>(menu->parentWidget());
+        QMetaObject::invokeMethod(parent_menu, "aboutToShow");
+        QJsonArray rows;
+        for (auto* action : menu->actions())
+        {
+            rows.append(action->text());
+            if (cmd["row"].toString() == action->text() && action->menu())
+            {
+                for (auto* child : action->menu()->actions())
+                {
+                    if (child->text() == cmd["action"].toString())
+                    {
+                        child->trigger();
+                    }
+                }
+            }
+        }
+        out["rows"] = rows;
+        out["clipboard"] = QApplication::clipboard()->text();
     }
     else if (op == "pin")
     {
@@ -574,6 +670,8 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         out["conv"] = chat->active_conversation();
         out["enabled"] = edit->isEnabled();
         out["sendEnabled"] = button("sendButton")->isEnabled();
+        auto const* notice = window.findChild<QLabel*>("groupSpeechNotice");
+        out["speech"] = notice->isVisible() ? notice->text() : QString{};
         out["draft"] = edit->toPlainText();
         out["reply"] = button("cancelReplyButton")->isVisible();
         out["preview"] = window.findChild<QLabel*>("replyPreview")->text();
