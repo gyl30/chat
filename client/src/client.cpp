@@ -1016,7 +1016,7 @@ struct client::impl
             outbox_account_ = 0;
         }
         endpoint_ = url;
-        transfer_stop_ = std::make_shared<std::atomic_bool>(false);
+        transfer_stop_ = std::stop_source{};
         state_ = connection_state::connecting;
         closing_ = false;
 
@@ -2426,10 +2426,10 @@ struct client::impl
                                       std::int64_t size,
                                       std::string target,
                                       attachment_handler handler,
-                                      std::shared_ptr<std::atomic_bool> stop,
+                                      std::stop_token stop,
                                       download_options options)
     {
-        auto result = co_await file_worker_.run([&] { return detail::download_file(url, size, checksum, target, *stop, options); }, file_queue_error);
+        auto result = co_await file_worker_.run([&] { return detail::download_file(url, size, checksum, target, stop, options); }, file_queue_error);
         if (!suppress_callbacks_)
         {
             handler(std::move(result));
@@ -2440,10 +2440,14 @@ struct client::impl
     {
         send_request(std::move(method),
                      std::move(params),
-                     [this, target = std::move(target), limit, handler = std::move(handler), options = std::move(options), stop = transfer_stop_](
-                         auto r) mutable
+                     [this,
+                      target = std::move(target),
+                      limit,
+                      handler = std::move(handler),
+                      options = std::move(options),
+                      stop = transfer_stop_.get_token()](auto r) mutable
                      {
-                         if (*stop || (options.control && options.control->cancelled()))
+                         if (stop.stop_requested() || (options.control && options.control->cancelled()))
                          {
                              handler(std::unexpected(make_error(error_kind::file_transfer, "下载已取消或连接已断开")));
                              return;
@@ -2475,7 +2479,7 @@ struct client::impl
     }
     void stop_file_transfers()
     {
-        *transfer_stop_ = true;
+        transfer_stop_.request_stop();
         account_ = 0;
         auto const jobs = uploads_;
         for (auto const& [id, job] : jobs)
@@ -2933,7 +2937,7 @@ struct client::impl
     std::unordered_map<std::int64_t, std::int64_t> deferred_text_conversations_;
     outbox_handler outbox_handler_;
     blocking_worker file_worker_{64, 2};
-    std::shared_ptr<std::atomic_bool> transfer_stop_ = std::make_shared<std::atomic_bool>(false);
+    std::stop_source transfer_stop_;
     boost::corosio::io_context io_context_{1};
     detail::websocket_client websocket_;
     boost::capy::work_guard<boost::corosio::io_context::executor_type> work_;

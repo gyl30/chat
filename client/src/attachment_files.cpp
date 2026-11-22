@@ -320,10 +320,10 @@ file_result<std::string> download_file(std::string const& url,
                                        std::int64_t size,
                                        std::string const& checksum,
                                        std::string const& target,
-                                       std::atomic_bool const& stop,
+                                       std::stop_token stop,
                                        download_options const& options)
 {
-    auto stopped = [&] { return stop || (options.control && options.control->cancelled()); };
+    auto stopped = [&] { return stop.stop_requested() || (options.control && options.control->cancelled()); };
     if (stopped())
     {
         return failed("下载已取消或连接已断开");
@@ -349,26 +349,47 @@ file_result<std::string> download_file(std::string const& url,
     {
         options.progress(0, size);
     }
-    minio::http::Request req(minio::http::Method::kGet, minio::http::Url::Parse(url));
-    req.connect_timeout_secs = 5;
-    req.datafunc = [&](minio::http::DataFunctionArgs const& chunk)
+    auto const address = minio::http::Url::Parse(url);
+    httplib::Client http((address.https ? "https://" : "http://") + address.HostHeaderValue());
+    http.set_path_encode(false);
+    http.set_connection_timeout(5, 0);
+    http.set_read_timeout(60, 0);
+    http.set_write_timeout(60, 0);
+    auto path = "/" + address.path;
+    if (!address.query_string.empty())
     {
-        auto const& bytes = chunk.datachunk;
-        valid = valid && !stopped() && bytes.size() <= static_cast<std::uint64_t>(size - count) && d.add(bytes) &&
-                static_cast<bool>(out.write(bytes.data(), static_cast<std::streamsize>(bytes.size())));
-        if (valid)
+        path += "?" + address.query_string;
+    }
+    auto interrupt = [&] { http.stop(); };
+    auto const task_stop = options.control ? options.control->token() : std::stop_token{};
+    auto res = [&]() -> httplib::Result
+    {
+        std::stop_callback session_interrupt(stop, interrupt);
+        std::stop_callback task_interrupt(task_stop, interrupt);
+        if (stopped())
         {
-            count += static_cast<std::int64_t>(bytes.size());
-            auto const now = std::chrono::steady_clock::now();
-            if (options.progress && now - last_progress >= std::chrono::milliseconds(100))
-            {
-                last_progress = now;
-                options.progress(count, size);
-            }
+            return {nullptr, httplib::Error::Canceled};
         }
-        return valid;
-    };
-    auto res = req.Execute();
+        return http.Get(
+            path,
+            [&](httplib::Response const& response) { return !stopped() && response.status >= 200 && response.status < 300; },
+            [&](char const* data, std::size_t length)
+            {
+                valid = valid && !stopped() && length <= static_cast<std::uint64_t>(size - count) && d.add({data, length}) &&
+                        static_cast<bool>(out.write(data, static_cast<std::streamsize>(length)));
+                if (valid)
+                {
+                    count += static_cast<std::int64_t>(length);
+                    auto const now = std::chrono::steady_clock::now();
+                    if (options.progress && now - last_progress >= std::chrono::milliseconds(100))
+                    {
+                        options.progress(count, size);
+                        last_progress = now;
+                    }
+                }
+                return valid;
+            });
+    }();
     out.close();
     std::error_code ec;
     if (res && !stopped() && valid && out && count == size && d.finish() == checksum && (!options.control || options.control->begin_finalize()))

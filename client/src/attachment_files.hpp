@@ -2,7 +2,6 @@
 #define CHAT_CLIENT_ATTACHMENT_FILES_HPP
 #include <chat/client.hpp>
 #include "sqlite_database.hpp"
-#include <atomic>
 #include <stop_token>
 
 namespace chat::detail
@@ -29,7 +28,7 @@ file_result<std::string> download_file(std::string const& url,
                                        std::int64_t size,
                                        std::string const& checksum,
                                        std::string const& target,
-                                       std::atomic_bool const& stop,
+                                       std::stop_token stop,
                                        download_options const& options);
 }    // namespace chat::detail
 #endif

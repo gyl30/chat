@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <cstddef>
+#include <stop_token>
 #include <functional>
 #include <memory>
 #include <cstdint>
@@ -23,9 +24,15 @@ class download_control
     bool cancel() noexcept
     {
         auto expected = phase::running;
-        return phase_.compare_exchange_strong(expected, phase::cancelled);
+        if (!phase_.compare_exchange_strong(expected, phase::cancelled))
+        {
+            return false;
+        }
+        stop_.request_stop();
+        return true;
     }
     bool cancelled() const noexcept { return phase_.load() == phase::cancelled; }
+    std::stop_token token() const noexcept { return stop_.get_token(); }
     bool begin_finalize() noexcept
     {
         auto expected = phase::running;
@@ -40,6 +47,7 @@ class download_control
         finalizing
     };
     std::atomic<phase> phase_{phase::running};
+    std::stop_source stop_;
 };
 
 struct download_options
