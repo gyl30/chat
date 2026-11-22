@@ -237,6 +237,8 @@ class chat_widget final : public QWidget
     void save_active_draft();
     void apply_draft();
     void load_draft_reply();
+    void reset_reply(qint64 reply = 0);
+    void show_reply(quoted_message_data reply);
     void discard_draft_reply(qint64 conversation, qint64 through, bool exact = false);
     bool handle_file_drop(QEvent* event);
     void send_image(QImage const& image);
@@ -355,6 +357,7 @@ class chat_widget final : public QWidget
     QWidget* reply_bar_ = nullptr;
     QLabel* reply_preview_ = nullptr;
     qint64 reply_to_ = 0;
+    quoted_message_data reply_snapshot_;
     qint64 draft_reply_request_ = 0;
     QToolButton* send_button_ = nullptr;
     conversation_model* conversations_ = nullptr;

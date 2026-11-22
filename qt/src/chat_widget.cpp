@@ -1313,8 +1313,7 @@ void chat_widget::setup_message_list(QVBoxLayout* chat_layout)
             this,
             [this]
             {
-                reply_to_ = 0;
-                reply_bar_->hide();
+                reset_reply();
                 draft_edited();
                 message_edit_->setFocus();
             });
@@ -1579,7 +1578,6 @@ void chat_widget::show_message_menu(QPoint position)
     auto* forward = menu.addAction(QStringLiteral("转发"));
     auto* multi = menu.addAction(QStringLiteral("多选"));
     auto* reply = can_send() ? menu.addAction(QStringLiteral("回复")) : nullptr;
-    auto const sender_name = index.data(message_model::sender_name_role).toString();
     auto const current = conversation(active_conversation_);
     auto const unpin = current && current->pinned_message.id == message_id;
     auto* group_pin = messages_->can_manage_group() ? menu.addAction(unpin ? QStringLiteral("取消置顶消息") : QStringLiteral("置顶消息")) : nullptr;
@@ -1763,10 +1761,14 @@ void chat_widget::show_message_menu(QPoint position)
     {
         return;
     }
-    reply_to_ = message_id;
+    auto const target = quote(message_id);
+    if (target.deleted)
+    {
+        return;
+    }
+    reset_reply(message_id);
     draft_edited();
-    reply_preview_->setText(QStringLiteral("回复 %1：%2").arg(sender_name, grapheme_prefix(message_text, 80)));
-    reply_bar_->show();
+    show_reply(target);
     message_edit_->setFocus();
 }
 
@@ -1923,8 +1925,7 @@ void chat_widget::set_user(QString const& username, qint64 user)
     saving_text_.reset();
     active_peer_ = 0;
     active_group_ = false;
-    reply_to_ = 0;
-    reply_bar_->hide();
+    reset_reply();
     active_conversation_ = 0;
     update_pinned_message();
     active_username_.clear();
@@ -2799,17 +2800,7 @@ void chat_widget::update_message(message_data message)
     }
     if (reply_to_ == message.id)
     {
-        // The model kept whichever version is newer, so the preview follows it, not this copy.
-        auto const current = quote(message.id);
-        if (current.deleted)
-        {
-            reply_to_ = 0;
-            reply_bar_->hide();
-        }
-        else
-        {
-            reply_preview_->setText(QStringLiteral("回复 %1：%2").arg(current.username, grapheme_prefix(current.text, 80)));
-        }
+        show_reply({message.id, message.username, grapheme_prefix(message.text, 160), message.edited_at, message.deleted});
     }
 }
 
@@ -3470,8 +3461,7 @@ void chat_widget::leave_conversation(qint64 conversation)
     messages_loaded_ = false;
     messages_loading_ = false;
     history_exhausted_ = false;
-    reply_to_ = 0;
-    reply_bar_->hide();
+    reset_reply();
     set_message_selection(false);
     messages_->reset(0);
     images_.remove(conversation);
@@ -3736,8 +3726,7 @@ void chat_widget::save_active_draft()
 void chat_widget::apply_draft()
 {
     auto const value = drafts_.value(active_conversation_);
-    reply_to_ = value.reply;
-    reply_bar_->hide();
+    reset_reply(value.reply);
     QSignalBlocker const blocker(message_edit_);
     message_edit_->setPlainText(value.text);
     message_edit_->moveCursor(QTextCursor::End);
@@ -3791,7 +3780,39 @@ void chat_widget::validate_draft_reply(qint64 conversation, qint64 anchor, qint6
         discard_draft_reply(conversation, anchor, true);
         return;
     }
-    reply_preview_->setText(QStringLiteral("回复 %1：%2").arg(message.username, grapheme_prefix(message.text, 80)));
+    show_reply({message.id, message.username, grapheme_prefix(message.text, 160), message.edited_at, message.deleted});
+}
+
+void chat_widget::reset_reply(qint64 reply)
+{
+    ++draft_reply_request_;
+    reply_to_ = reply;
+    reply_snapshot_ = {};
+    reply_bar_->hide();
+}
+
+void chat_widget::show_reply(quoted_message_data reply)
+{
+    if (!reply.id || reply.id != reply_to_ || reply.deleted)
+    {
+        return;
+    }
+    auto const existing = quote(reply.id);
+    if (existing.deleted)
+    {
+        discard_draft_reply(active_conversation_, reply.id, true);
+        return;
+    }
+    if (existing.edited_at > reply.edited_at)
+    {
+        reply = existing;
+    }
+    if (reply_snapshot_.id == reply.id && reply_snapshot_.edited_at >= reply.edited_at)
+    {
+        return;
+    }
+    reply_snapshot_ = std::move(reply);
+    reply_preview_->setText(QStringLiteral("回复 %1：%2").arg(reply_snapshot_.username, grapheme_prefix(reply_snapshot_.text, 80)));
     reply_bar_->show();
     update_compose_state();
 }
@@ -3807,8 +3828,7 @@ void chat_widget::discard_draft_reply(qint64 conversation, qint64 through, bool 
     value->revision = chat::client::new_client_id();
     if (conversation == active_conversation_)
     {
-        reply_to_ = 0;
-        reply_bar_->hide();
+        reset_reply();
         draft_timer_->stop();
         update_compose_state();
     }
@@ -3954,8 +3974,7 @@ void chat_widget::send_files(qint64 target, QStringList const& paths, qint64 cli
     }
     if (use_reply && errors.size() != paths.size() && reply_to_ != 0)
     {
-        reply_to_ = 0;
-        reply_bar_->hide();
+        reset_reply();
         draft_edited();
     }
     if (!errors.isEmpty())
@@ -4064,13 +4083,19 @@ quoted_message_data chat_widget::quote(qint64 message) const
         {
             continue;
         }
+        auto const revision = index.data(message_model::edited_at_role).toLongLong();
+        auto const deleted = index.data(message_model::deleted_role).toBool();
+        if (!deleted && reply_snapshot_.id == message && reply_snapshot_.edited_at >= revision)
+        {
+            return reply_snapshot_;
+        }
         return {message,
                 index.data(message_model::sender_name_role).toString(),
                 grapheme_prefix(index.data(message_model::text_role).toString(), 160),
-                index.data(message_model::edited_at_role).toLongLong(),
-                index.data(message_model::deleted_role).toBool()};
+                revision,
+                deleted};
     }
-    return {message, {}, {}, 0, false};
+    return reply_snapshot_.id == message ? reply_snapshot_ : quoted_message_data{message, {}, {}, 0, false};
 }
 
 void chat_widget::show_outgoing_menu(QModelIndex const& index, QPoint position)
