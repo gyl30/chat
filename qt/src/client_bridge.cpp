@@ -148,6 +148,12 @@ client_bridge::client_bridge(QObject* parent)
             post_result(connection_generation_.load(),
                         [this, value = std::move(value)] { emit message_updated(value.conversation, to_message_data(value), {}); });
         });
+    client_->set_bookmark_changed_handler(
+        [this](qint64 message)
+        {
+            auto const generation = connection_generation_.load();
+            post_result(generation, [this, message] { emit bookmark_changed(message); });
+        });
     client_->set_reaction_handler(
         [this](chat::reaction_update value)
         {
@@ -1413,6 +1419,50 @@ void client_bridge::search_messages(qint64 conversation, QString query, qint64 b
                                 conversation, std::move(query), before, std::move(messages), std::move(positions), result->has_more, {});
                         });
         });
+}
+
+quint64 client_bridge::get_message_bookmark(qint64 message)
+{
+    auto const request = ++bookmark_request_;
+    client_->get_message_bookmark(
+        message,
+        [this, request, generation = connection_generation_.load()](auto result)
+        {
+            post_result(generation,
+                        [this, request, result = std::move(result)]
+                        { emit bookmark_state_received(request, result && result->bookmarked, result ? QString{} : display_error(result.error())); });
+        });
+    return request;
+}
+
+void client_bridge::set_message_bookmark(qint64 message, bool bookmarked)
+{
+    client_->set_message_bookmark(message,
+                                  bookmarked,
+                                  [this, message, bookmarked, generation = connection_generation_.load()](auto result)
+                                  {
+                                      post_result(generation,
+                                                  [this, message, bookmarked, result = std::move(result)]
+                                                  { emit bookmark_saved(message, bookmarked, result ? QString{} : display_error(result.error())); });
+                                  });
+}
+
+quint64 client_bridge::list_message_bookmarks(QString const& query, qint64 before)
+{
+    auto const request = ++bookmark_request_;
+    client_->list_message_bookmarks(to_utf8(query),
+                                    before ? std::optional<std::int64_t>(before) : std::nullopt,
+                                    [this, request, generation = connection_generation_.load()](auto result)
+                                    {
+                                        post_result(generation,
+                                                    [this, request, result = std::move(result)]() mutable
+                                                    {
+                                                        emit bookmarks_received(request,
+                                                                                result ? std::move(*result) : chat::bookmark_page{},
+                                                                                result ? QString{} : display_error(result.error()));
+                                                    });
+                                    });
+    return request;
 }
 
 quint64 client_bridge::search_all_messages(chat::message_search_filter const& filter, qint64 before)

@@ -229,6 +229,8 @@ QWidget* chat_widget::create_sidebar()
     chats_action_->setCheckable(true);
     auto* search_messages = main_menu->addAction(QStringLiteral("全局消息搜索"));
     connect(search_messages, &QAction::triggered, this, [this] { emit global_search_requested(); });
+    auto* bookmarks = main_menu->addAction(QStringLiteral("消息收藏"));
+    connect(bookmarks, &QAction::triggered, this, &chat_widget::bookmarks_requested);
     auto* mentions = main_menu->addAction(QStringLiteral("提及我"));
     mentions->setObjectName(QStringLiteral("mentionsMeAction"));
     connect(mentions, &QAction::triggered, this, [this] { emit global_search_requested(true); });
@@ -1674,6 +1676,9 @@ void chat_widget::show_message_menu(QPoint position)
     auto const message_text = index.data(message_model::text_role).toString();
     auto* copy = !message_text.isEmpty() ? menu.addAction(QStringLiteral("复制")) : nullptr;
     auto* forward = menu.addAction(QStringLiteral("转发"));
+    auto* bookmark = menu.addAction(QStringLiteral("正在查询收藏状态…"));
+    bookmark->setEnabled(false);
+    emit bookmark_menu_requested(message_id, bookmark);
     auto* multi = menu.addAction(QStringLiteral("多选"));
     auto* reply = can_send() ? menu.addAction(QStringLiteral("回复")) : nullptr;
     auto const current = conversation(active_conversation_);
@@ -1767,6 +1772,11 @@ void chat_widget::show_message_menu(QPoint position)
     }
     if (!connection_available_ || conversation != active_conversation_)
     {
+        return;
+    }
+    if (selected == bookmark && reaction_index.isValid() && !reaction_index.data(message_model::deleted_role).toBool())
+    {
+        emit bookmark_requested(message_id, !bookmark->data().toBool());
         return;
     }
     if (selected == forward)

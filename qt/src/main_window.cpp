@@ -46,6 +46,7 @@
 #include "avatar.hpp"
 #include "chat_history_dialog.hpp"
 #include "global_search_dialog.hpp"
+#include "bookmarks_dialog.hpp"
 #include "download_dialog.hpp"
 #include "chat_widget.hpp"
 #include "attachment_dialog.hpp"
@@ -1226,6 +1227,58 @@ void main_window::connect_group_actions()
                     global_search_dialog dialog(*client_, this, chat_page_->self_user(), session_username_, mentions_me);
                     dialog.exec();
                 }
+            });
+    connect(chat_page_,
+            &chat_widget::bookmarks_requested,
+            this,
+            [this]
+            {
+                if (connected_ && !reconnecting_)
+                {
+                    bookmarks_dialog dialog(*client_, this);
+                    dialog.exec();
+                }
+            });
+    connect(chat_page_,
+            &chat_widget::bookmark_menu_requested,
+            this,
+            [this](qint64 message, QAction* action)
+            {
+                auto request = std::make_shared<quint64>(client_->get_message_bookmark(message));
+                connect(client_.get(),
+                        &client_bridge::bookmark_state_received,
+                        action,
+                        [action, request](quint64 received, bool bookmarked, QString const& error)
+                        {
+                            if (*request != received)
+                            {
+                                return;
+                            }
+                            action->setData(bookmarked);
+                            action->setEnabled(error.isEmpty());
+                            action->setText(!error.isEmpty() ? QStringLiteral("无法查询收藏状态")
+                                            : bookmarked     ? QStringLiteral("取消收藏")
+                                                             : QStringLiteral("收藏"));
+                        });
+                connect(client_.get(),
+                        &client_bridge::bookmark_changed,
+                        action,
+                        [this, action, message, request](qint64 changed)
+                        {
+                            if (changed == message)
+                            {
+                                action->setEnabled(false);
+                                *request = client_->get_message_bookmark(message);
+                            }
+                        });
+            });
+    connect(chat_page_, &chat_widget::bookmark_requested, client_.get(), &client_bridge::set_message_bookmark);
+    connect(client_.get(),
+            &client_bridge::bookmark_saved,
+            this,
+            [this](qint64, bool bookmarked, QString const& error)
+            {
+                chat_page_->set_error(!error.isEmpty() ? error : bookmarked ? QStringLiteral("已收藏") : QStringLiteral("已取消收藏"));
             });
     connect(chat_page_, &chat_widget::chat_history_requested, this, &main_window::show_chat_history);
     connect(chat_page_,

@@ -165,6 +165,9 @@ class chat_widget final : public QWidget
     void group_join_requested(QString token);
     void members_requested(qint64 conversation, qint64 self_user, QString title);
     void message_search_requested(qint64 conversation, qint64 self_user, bool group, QString title, QString query);
+    void bookmarks_requested();
+    void bookmark_menu_requested(qint64 message, QAction* action);
+    void bookmark_requested(qint64 message, bool bookmarked);
     void global_search_requested(bool mentions_me = false);
     void message_context_requested(qint64 conversation, qint64 anchor);
     void chat_history_requested(qint64 conversation, QString title);

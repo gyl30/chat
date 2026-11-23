@@ -50,6 +50,9 @@ BOOST_DESCRIBE_STRUCT(contact_book, (), (users, groups))
 BOOST_DESCRIBE_STRUCT(message_search_scope, (), (id, name))
 BOOST_DESCRIBE_STRUCT(message_search_hit, (), (conversation, id, from, timestamp, title, username, snippet))
 BOOST_DESCRIBE_STRUCT(message_search_page, (), (messages, next_before))
+BOOST_DESCRIBE_STRUCT(bookmark_state, (), (message, bookmarked))
+BOOST_DESCRIBE_STRUCT(bookmarked_message, (), (id, message, created_at, source, attachment_type))
+BOOST_DESCRIBE_STRUCT(bookmark_page, (), (bookmarks, next_before))
 BOOST_DESCRIBE_STRUCT(conversation_file, (), (object_key, filename, media_type, size, uploader_id, username, created_at, category))
 BOOST_DESCRIBE_STRUCT(conversation_file_page, (), (files, has_more))
 
@@ -776,6 +779,26 @@ struct client::impl
                 return;
             }
             notify_message(std::move(notification), method->as_string() == "message_updated");
+            return;
+        }
+
+        if (method->as_string() == "message_bookmark_changed")
+        {
+            auto const* value = params->as_object().if_contains("message");
+            if (!value || !value->is_int64() || value->as_int64() <= 0)
+            {
+                report_error(make_error(error_kind::protocol, "Invalid bookmark notification"));
+                return;
+            }
+            bookmark_changed_handler handler;
+            {
+                std::lock_guard lock(handler_mutex_);
+                handler = bookmark_changed_handler_;
+            }
+            if (handler && !suppress_callbacks_.load())
+            {
+                handler(value->as_int64());
+            }
             return;
         }
 
@@ -3207,6 +3230,7 @@ struct client::impl
     typing_handler typing_handler_;
     avatar_changed_handler avatar_handler_;
     reaction_handler reaction_handler_;
+    bookmark_changed_handler bookmark_changed_handler_;
     group_join_request_handler join_request_handler_;
     connection_handler contacts_changed_handler_;
     friendship_changed_handler friendship_handler_;
@@ -3286,6 +3310,12 @@ void client::set_message_updated_handler(message_handler handler)
 {
     std::lock_guard lock(impl_->handler_mutex_);
     impl_->message_updated_handler_ = std::move(handler);
+}
+
+void client::set_bookmark_changed_handler(bookmark_changed_handler handler)
+{
+    std::lock_guard lock(impl_->handler_mutex_);
+    impl_->bookmark_changed_handler_ = std::move(handler);
 }
 
 void client::set_reaction_handler(reaction_handler handler)
@@ -3629,6 +3659,33 @@ void client::search_all_messages(message_search_filter const& filter, std::optio
     }
     boost::capy::run_async(impl_->io_context_.get_executor())(
         impl_->request_page<message_search_page>("search_all_messages", std::move(params), "Invalid global message search page", std::move(handler)));
+}
+
+void client::set_message_bookmark(std::int64_t message, bool bookmarked, bookmark_state_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->request_page<bookmark_state>(
+        "set_message_bookmark", {{"message", message}, {"bookmarked", bookmarked}}, "Invalid bookmark state", std::move(handler)));
+}
+
+void client::get_message_bookmark(std::int64_t message, bookmark_state_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->request_page<bookmark_state>("get_message_bookmark", {{"message", message}}, "Invalid bookmark state", std::move(handler)));
+}
+
+void client::list_message_bookmarks(std::string query, std::optional<std::int64_t> before, bookmark_page_handler handler)
+{
+    boost::json::object params;
+    if (!query.empty())
+    {
+        params.emplace("query", std::move(query));
+    }
+    if (before)
+    {
+        params.emplace("before", *before);
+    }
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->request_page<bookmark_page>("list_message_bookmarks", std::move(params), "Invalid bookmark page", std::move(handler)));
 }
 
 void client::get_message_search_scopes(message_search_scopes_handler handler)

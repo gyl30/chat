@@ -96,6 +96,9 @@ class client_bridge final : public QObject
     void edit_message(qint64 conversation, qint64 message, QString text);
     void set_message_reaction(qint64 conversation, qint64 message, QString emoji);
     void search_users(QString query, quint64 request);
+    quint64 get_message_bookmark(qint64 message);
+    void set_message_bookmark(qint64 message, bool bookmarked);
+    quint64 list_message_bookmarks(QString const& query, qint64 before);
     quint64 search_all_messages(chat::message_search_filter const& filter, qint64 before);
     quint64 get_message_search_scopes();
     quint64 find_search_senders(QString query);
@@ -202,6 +205,10 @@ class client_bridge final : public QObject
     void attachment_received(qint64 conversation, qint64 message, QString path, QString error_message);
     void message_image_received(qint64 conversation, qint64 message, QByteArray data, QString error_message);
     void message_search_scopes_received(quint64 request, std::vector<chat::message_search_scope> scopes, QString error);
+    void bookmark_changed(qint64 message);
+    void bookmark_state_received(quint64 request, bool bookmarked, QString error);
+    void bookmark_saved(qint64 message, bool bookmarked, QString error);
+    void bookmarks_received(quint64 request, chat::bookmark_page page, QString error);
     void global_search_received(quint64 request, chat::message_search_page page, QString error);
     void search_context_received(quint64 request, qint64 anchor, QList<message_data> messages, QString error, bool unavailable);
     void history_received(qint64 conversation, QList<message_data> messages, bool has_more, QString error_message);
@@ -247,6 +254,7 @@ class client_bridge final : public QObject
     std::uint64_t friend_requests_generation_ = 0;
     std::uint64_t messages_generation_ = 0;
     std::uint64_t search_generation_ = 0;
+    quint64 bookmark_request_ = 0;
     quint64 global_search_request_ = 0;
     std::uint64_t history_generation_ = 0;
     std::atomic_uint64_t connection_generation_ = 0;

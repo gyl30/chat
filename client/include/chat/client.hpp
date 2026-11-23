@@ -76,6 +76,9 @@ class client
     using message_result_handler = std::function<void(std::expected<message, error>)>;
     using attachment_handler = std::function<void(std::expected<std::string, error>)>;
     using message_search_handler = std::function<void(std::expected<message_search_page, error>)>;
+    using bookmark_state_handler = std::function<void(std::expected<bookmark_state, error>)>;
+    using bookmark_page_handler = std::function<void(std::expected<bookmark_page, error>)>;
+    using bookmark_changed_handler = std::function<void(std::int64_t message)>;
     using messages_handler = std::function<void(std::expected<messages_result, error>)>;
     using users_handler = std::function<void(std::expected<std::vector<user>, error>)>;
     using members_handler = std::function<void(std::expected<std::vector<conversation_member>, error>)>;
@@ -129,6 +132,7 @@ class client
     void hide_conversation(std::int64_t conversation, group_action_handler handler);
     void set_conversation_handler(conversation_changed_handler handler);
     void set_avatar_handler(avatar_changed_handler handler);
+    void set_bookmark_changed_handler(bookmark_changed_handler handler);
     void set_reaction_handler(reaction_handler handler);
     void set_group_join_request_handler(group_join_request_handler handler);
     void set_friendship_handler(friendship_changed_handler handler);
@@ -187,6 +191,9 @@ class client
                       std::optional<std::int64_t> after = {},
                       bool capture_unread = false);
     void search_all_messages(message_search_filter const& filter, std::optional<std::int64_t> before, message_search_handler handler);
+    void set_message_bookmark(std::int64_t message, bool bookmarked, bookmark_state_handler handler);
+    void get_message_bookmark(std::int64_t message, bookmark_state_handler handler);
+    void list_message_bookmarks(std::string query, std::optional<std::int64_t> before, bookmark_page_handler handler);
     using message_search_scopes_handler = std::function<void(std::expected<std::vector<message_search_scope>, error>)>;
     void get_message_search_scopes(message_search_scopes_handler handler);
     void get_categorized_history(

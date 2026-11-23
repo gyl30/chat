@@ -344,11 +344,11 @@ void global_search_dialog::open_context(QTreeWidgetItem* item)
     show_context(item->data(0, Qt::UserRole).toLongLong(), item->data(1, Qt::UserRole).toLongLong(), item->text(1));
 }
 
-void global_search_dialog::locate(qint64 conversation, qint64 anchor, std::function<void()> unavailable)
+void global_search_dialog::locate(qint64 conversation, qint64 anchor, std::function<void()> unavailable, QString const& title)
 {
     standalone_ = true;
     anchor_unavailable_ = std::move(unavailable);
-    show_context(conversation, anchor, {});
+    show_context(conversation, anchor, title);
 }
 
 void global_search_dialog::show_context(qint64 conversation, qint64 anchor, QString const& title)
