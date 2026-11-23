@@ -1,6 +1,8 @@
 """Reading navigation over real Chat RPC, SDK and an isolated Qt desktop."""
 
+import argparse
 import asyncio
+import json
 from contextlib import AsyncExitStack, ExitStack
 from pathlib import Path
 import sqlite3
@@ -14,7 +16,7 @@ from desktop import Desktop, Gate, until
 from isolated import Store, chat, login
 
 
-async def run(root, probe):
+async def run(root, probe, *, native=False, theme="system", ctrl_enter=False):
     db = root / "chat.sqlite3"
     store = Store()
     with ExitStack() as isolated:
@@ -27,9 +29,15 @@ async def run(root, probe):
             b = await login(stack, url, "b", "b", True)
             await b.ok("send_friend_request", user=1)
             await a.ok("respond_friend_request", user=2, accept=True)
-            group = (await b.ok("create_group", title="导航", members=[1]))[
-                "conversation"
-            ]
+            group = (
+                await b.ok(
+                    "create_group",
+                    title="原生阅读导航测试：这是一条足够长的会话名称，用于验证窄窗口里的标题和阅读按钮"
+                    if native
+                    else "导航",
+                    members=[1],
+                )
+            )["conversation"]
             other = (await b.ok("create_group", title="只有手工未读", members=[1]))[
                 "conversation"
             ]
@@ -128,8 +136,20 @@ async def run(root, probe):
             proxy = await stack.enter_async_context(serve(gate.handle, "127.0.0.1", 0))
             entry = f"ws://127.0.0.1:{proxy.sockets[0].getsockname()[1]}/ws"
             ui = Desktop()
-            await ui.start(probe, root, entry)
+            if native and (theme != "system" or ctrl_enter):
+                config = root / "config" / "chat" / "chat_qt.conf"
+                config.parent.mkdir(parents=True, exist_ok=True)
+                config.write_text(
+                    f"[appearance]\nmode={theme}\n"
+                    + ("[chat]\nsend_key=ctrl_enter\n" if ctrl_enter else "")
+                )
+            await ui.start(probe, root, entry, native=native)
             try:
+                if native:
+                    await native_session(
+                        root, db, group, anchor, editable, ui, gate, send, b
+                    )
+                    return
 
                 async def select(conv):
                     await ui.wait("select", lambda r: r["ok"], conv=conv)
@@ -388,6 +408,95 @@ async def run(root, probe):
                 await ui.stop()
 
 
+async def native_session(root, db, group, anchor, last, ui, gate, send, peer):
+    """Let real desktop input drive reading; stdin only observes or drives the peer/server."""
+    print(
+        json.dumps(
+            dict(
+                ready=True,
+                group=group,
+                first_unread=anchor,
+                last=last,
+                root=str(root),
+                desktop=await ui.call("desktop_environment", conversation=group),
+            )
+        ),
+        flush=True,
+    )
+    while line := await asyncio.to_thread(sys.stdin.readline):
+        cmd = json.loads(line)
+        action = cmd.pop("op")
+        if action == "quit":
+            return
+        if action == "peer":
+            result = {"id": await send(peer, cmd["text"])}
+        elif action == "network":
+            if cmd.get("hold"):
+                gate.hold.add("get_messages")
+            if cmd.get("disconnect"):
+                await gate.down.close()
+            if cmd.get("release"):
+                await gate.release("get_messages")
+            result = {"held": len(gate.held)}
+        elif action == "observe":
+            with sqlite3.connect(db) as conn:
+                (read,) = conn.execute(
+                    "SELECT last_read_message_id FROM conversation_members WHERE user_id=1 AND conversation_id=?",
+                    (group,),
+                ).fetchone()
+            result = dict(
+                reading=await ui.call("reading"),
+                state=await ui.call("state"),
+                desktop=await ui.call("desktop_environment", conversation=group),
+                context=await ui.call("searchui"),
+                read=read,
+                held=len(gate.held),
+                requests=[
+                    message["params"]
+                    for message in gate.messages
+                    if message["method"] == "mark_read"
+                ],
+                sent=[
+                    entry["params"]
+                    for entry in gate.messages
+                    if entry["method"] == "send_message"
+                ],
+                history=sum(
+                    message["method"] == "get_messages" for message in gate.messages
+                ),
+            )
+        else:
+            result = {"error": "expected peer, network, observe or quit"}
+        print(json.dumps(result), flush=True)
+
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("probe")
+    parser.add_argument(
+        "--native",
+        action="store_true",
+        help="use the logged-in desktop, drive input externally",
+    )
+    parser.add_argument(
+        "--theme",
+        choices=("system", "light", "dark"),
+        default="system",
+        help="isolated native probe theme",
+    )
+    parser.add_argument(
+        "--ctrl-enter",
+        action="store_true",
+        help="use Ctrl+Enter sending in the isolated native profile",
+    )
+    args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="chat-reading-navigation-") as tmp:
-        asyncio.run(run(Path(tmp), sys.argv[1]))
+        asyncio.run(
+            run(
+                Path(tmp),
+                args.probe,
+                native=args.native,
+                theme=args.theme,
+                ctrl_enter=args.ctrl_enter,
+            )
+        )

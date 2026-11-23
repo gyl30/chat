@@ -29,6 +29,25 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-re
 
 默认项目构建不运行上述验收。查询 GitHub 时，仓库有 0 个注册的自托管 runner 和 0 个已有 workflow；本次 GCC 16、Boost 1.92 和 miniocpp 环境的执行证据来自本机。
 
+## 阅读导航的原生桌面验收
+
+默认仍为离屏自动化。原生验收须从已登录的图形会话运行，沿用同一 Release、私有 SQLite 和隔离 Silo：
+
+```sh
+work=$(mktemp -d)
+python3 ops/acceptance/build_probe.py "$BUILD" "$work/probe"
+export CHAT_TEST_SERVER="$BUILD/chat_server"
+ops/with-sqlite-runtime.sh "$SQLITE_PREFIX"   python3 ops/acceptance/reading_navigation.py "$work/probe" --native
+# 单独启动一个隔离的深色、进程级缩放及 Ctrl+Enter 场景
+QT_SCALE_FACTOR=1.5 ops/with-sqlite-runtime.sh "$SQLITE_PREFIX"   python3 ops/acceptance/reading_navigation.py "$work/probe" --native --theme dark --ctrl-enter
+```
+
+出现 `ready` 后，用桌面鼠标和键盘打开长名称测试群、切换前后台／最小化、打开并关闭菜单与只读上下文，再使用滚轮、滚动条、PageUp/PageDown、Tab/Shift+Tab 与空格。调至最小窗口，检查两按钮同时出现时的布局。输入框内 Enter 按隔离配置发送或换行。不要从探针激活窗口或直接设滚动条。
+
+标准输入每行一个 JSON：`{"op":"observe"}` 仅观察 Qt 平台、DPR、窗口与控件几何、焦点、滚动、网络请求和数据库水位；`{"op":"peer","text":"测试消息"}` 由独立测试账号发消息；`{"op":"network","hold":true,"disconnect":true}` 断开实际连接并暂扣历史回包，`{"op":"network","release":true}` 放行；`{"op":"quit"}` 停止。操作窗口的同时可由另一终端或脚本读写该进程的标准输入与输出。只读上下文的未读断言在关闭前执行；关闭后如主窗口已经处于连续最新区间底部，则应正常标读。
+
+2026-11-23 原生回归：Ubuntu 22.04 的登录会话为 GNOME/Xorg，Qt 6.5.3 `xcb`，2560×1440 显示输出；在默认 DPR 1 和独立深色进程 DPR 1.5 下检查默认 1180×760 与最小 980×640 逻辑尺寸。使用 X11 XTEST 向实际桌面发送输入，另用独立 X11 窗口验证切换。基线复现了关闭主菜单不恢复标读、PageDown 未可靠移动及导航按钮和长标题难以辨识；修复后对应回归通过。系统显示设置未改。
+
 ## 重复搜索测量
 
 先用上面的命令构建，或单独构建同配置的 Release `chat_server`。计时工具按该版本的编译数据库重编三个临时翻译单元，链接独立服务端。生产程序没有计时开关。比较历史版本时，每个版本使用自己的源码、构建目录和计时程序。

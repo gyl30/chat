@@ -1,6 +1,9 @@
 #include <iostream>
 #include <QListWidget>
 #include <QScrollBar>
+#include <QScreen>
+#include <QStyleHints>
+#include <QStyleOptionSlider>
 #include <QApplication>
 #include <QClipboard>
 #include <QCheckBox>
@@ -810,6 +813,72 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     {
         edit->setPlainText(cmd["text"].toString());
     }
+    else if (op == "desktop_environment")
+    {
+        auto geometry = [](QWidget const* widget) -> QJsonArray
+        {
+            if (!widget || !widget->isVisible())
+            {
+                return {};
+            }
+            auto const point = widget->mapToGlobal(QPoint{});
+            return {point.x(), point.y(), widget->width(), widget->height()};
+        };
+        out["platform"] = QGuiApplication::platformName();
+        out["dpr"] = window.devicePixelRatioF();
+        out["window"] = geometry(&window);
+        out["windowId"] = static_cast<qint64>(window.winId());
+        out["minimum"] = QJsonArray{window.minimumWidth(), window.minimumHeight()};
+        out["minimized"] = window.isMinimized();
+        if (auto* modal = QApplication::activeModalWidget())
+        {
+            out["modalId"] = static_cast<qint64>(modal->winId());
+        }
+        if (auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget()))
+        {
+            QJsonObject actions;
+            for (auto* action : menu->actions())
+            {
+                auto const rect = menu->actionGeometry(action);
+                auto const point = menu->mapToGlobal(rect.topLeft());
+                actions[action->text()] = QJsonArray{point.x(), point.y(), rect.width(), rect.height()};
+            }
+            out["actions"] = actions;
+        }
+        out["focus"] = QApplication::focusWidget() ? QApplication::focusWidget()->objectName() : QString{};
+        out["colorScheme"] = static_cast<int>(QGuiApplication::styleHints()->colorScheme());
+        out["themeCanvas"] = theme_manager::instance().color(QStringLiteral("canvas")).name();
+        for (auto const* name :
+             {"entryUnreadButton", "returnToLatestButton", "chatHeaderButton", "mainMenuButton", "windowMinimizeButton", "windowResizeGrip"})
+        {
+            out[name] = geometry(window.findChild<QWidget*>(name));
+        }
+        out["viewport"] = geometry(view->viewport());
+        auto const* scrollbar = view->verticalScrollBar();
+        out["scrollbar"] = geometry(scrollbar);
+        if (scrollbar->isVisible())
+        {
+            QStyleOptionSlider option;
+            scrollbar->initStyleOption(&option);
+            auto const rect = scrollbar->style()->subControlRect(QStyle::CC_ScrollBar, &option, QStyle::SC_ScrollBarSlider, scrollbar);
+            auto const point = scrollbar->mapToGlobal(rect.topLeft());
+            out["thumb"] = QJsonArray{point.x(), point.y(), rect.width(), rect.height()};
+        }
+        out["editor"] = geometry(edit);
+        if (auto const index = view->indexAt(view->viewport()->rect().center()); index.isValid())
+        {
+            auto const rect = view->visualRect(index).intersected(view->viewport()->rect());
+            auto const point = view->viewport()->mapToGlobal(rect.topLeft());
+            out["message"] = QJsonArray{point.x(), point.y(), rect.width(), rect.height()};
+            out["messageId"] = index.data(message_model::id_role).toLongLong();
+        }
+        if (auto index = static_cast<conversation_model*>(conv->model())->index_for_conversation(cmd["conversation"].toInteger()); index.isValid())
+        {
+            auto const rect = conv->visualRect(index);
+            auto const point = conv->viewport()->mapToGlobal(rect.topLeft());
+            out["conversation"] = QJsonArray{point.x(), point.y(), rect.width(), rect.height()};
+        }
+    }
     else if (op == "reading")
     {
         auto* unread = button("entryUnreadButton");
@@ -878,7 +947,10 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
 
 int main(int argc, char** argv)
 {
-    QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
+    if (!qEnvironmentVariableIsSet("CHAT_TEST_NATIVE_DESKTOP"))
+    {
+        QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
+    }
     QApplication app(argc, argv);
     if (argc != 2)
     {

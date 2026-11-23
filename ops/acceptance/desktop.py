@@ -95,13 +95,18 @@ class Gate:
 
 
 class Desktop:
-    async def start(self, binary, root, url, user="a", user_id=1, password="pass"):
+    async def start(self, binary, root, url, user="a", user_id=1, password="pass", *, native=False):
         env = dict(
             os.environ,
-            QT_QPA_PLATFORM="offscreen",
             XDG_DATA_HOME=str(root / "data"),
             XDG_CONFIG_HOME=str(root / "config"),
         )
+        if native:
+            env.pop("QT_QPA_PLATFORM", None)
+            env["CHAT_TEST_NATIVE_DESKTOP"] = "1"
+        else:
+            env["QT_QPA_PLATFORM"] = "offscreen"
+            env.pop("CHAT_TEST_NATIVE_DESKTOP", None)
         self.proc = await asyncio.create_subprocess_exec(binary, url, env=env, stdin=-1, stdout=-1)
         await self.call("login", user=user, password=password)
         await self.wait("state", lambda r: r["user"] == user_id)
