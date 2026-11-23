@@ -399,7 +399,7 @@ async def stalled_downloads(
     await cleaned(6, "disconnect.bin")
     await ui.wait("select", lambda r: r["ok"], conv=conv)
     await until(
-        lambda: sum(p["method"] == "authenticate" for p in gate.messages) >= 2,
+        lambda: any(p["method"] == "resume_session" for p in gate.messages),
         "actual reconnect",
     )
     await ui.wait("state", lambda r: r["enabled"])

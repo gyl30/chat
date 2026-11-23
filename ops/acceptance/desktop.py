@@ -95,7 +95,7 @@ class Gate:
 
 
 class Desktop:
-    async def start(self, binary, root, url, user="a", user_id=1):
+    async def start(self, binary, root, url, user="a", user_id=1, password="pass"):
         env = dict(
             os.environ,
             QT_QPA_PLATFORM="offscreen",
@@ -103,7 +103,7 @@ class Desktop:
             XDG_CONFIG_HOME=str(root / "config"),
         )
         self.proc = await asyncio.create_subprocess_exec(binary, url, env=env, stdin=-1, stdout=-1)
-        await self.call("login", user=user)
+        await self.call("login", user=user, password=password)
         await self.wait("state", lambda r: r["user"] == user_id)
 
     async def call(self, op, **params):

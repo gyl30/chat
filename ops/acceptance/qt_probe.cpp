@@ -34,6 +34,8 @@
 #include "conversation_model.hpp"
 #include "message_model.hpp"
 #include "theme_manager.hpp"
+#include "theme.hpp"
+#include "settings_dialog.hpp"
 
 namespace
 {
@@ -113,8 +115,79 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     if (op == "login")
     {
         window.findChild<QLineEdit*>("loginUsernameEdit")->setText(cmd["user"].toString());
-        window.findChild<QLineEdit*>("loginPasswordEdit")->setText("pass");
+        window.findChild<QLineEdit*>("loginPasswordEdit")->setText(cmd["password"].toString(QStringLiteral("pass")));
         button("loginButton")->click();
+    }
+    else if (op == "devices")
+    {
+        if (cmd["open"].toBool())
+        {
+            window.show_settings();
+            auto* open = button("settingsDevicesButton");
+            QTimer::singleShot(0, open, &QAbstractButton::click);
+        }
+        auto* dialog = window.findChild<QDialog*>("loginSessionsDialog");
+        if (dialog && dialog->isVisible())
+        {
+            auto* list = dialog->findChild<QTreeWidget*>("loginSessionsList");
+            QJsonArray rows;
+            for (int i = 0; i < list->topLevelItemCount(); ++i)
+            {
+                auto* row = list->topLevelItem(i);
+                auto const id = row->data(0, Qt::UserRole).toLongLong();
+                rows << QJsonObject{{"id", id},
+                                    {"name", row->text(0)},
+                                    {"type", row->text(1)},
+                                    {"created", row->text(2)},
+                                    {"seen", row->text(3)},
+                                    {"current", row->data(0, Qt::UserRole + 1).toBool()}};
+                if (cmd["select"].toInteger() == id)
+                {
+                    list->setCurrentItem(row);
+                }
+            }
+            out["rows"] = rows;
+            out["status"] = dialog->findChild<QLabel*>("loginSessionsStatus")->text();
+            out["revoke_enabled"] = button("revokeLoginSession")->isEnabled();
+            out["other_enabled"] = button("revokeOtherLoginSessions")->isEnabled();
+            if (cmd["revoke"].toBool())
+            {
+                auto* revoke = button("revokeLoginSession");
+                QTimer::singleShot(0, revoke, &QAbstractButton::click);
+            }
+            if (cmd["others"].toBool())
+            {
+                auto* revoke = button("revokeOtherLoginSessions");
+                QTimer::singleShot(0, revoke, &QAbstractButton::click);
+            }
+            if (cmd.contains("new"))
+            {
+                dialog->findChild<QLineEdit*>("currentLoginPassword")->setText(cmd["password"].toString());
+                dialog->findChild<QLineEdit*>("newLoginPassword")->setText(cmd["new"].toString());
+                dialog->findChild<QLineEdit*>("repeatLoginPassword")->setText(cmd["new"].toString());
+                button("changeLoginPassword")->click();
+            }
+            if (cmd["close"].toBool())
+            {
+                dialog->reject();
+                window.settings_->reject();
+            }
+        }
+    }
+    else if (op == "login_state")
+    {
+        out["user"] = chat->self_user();
+        out["status"] = window.status_label_->text();
+        out["reconnecting"] = window.reconnecting_;
+        out["password_empty"] = window.password_edit_->text().isEmpty();
+    }
+    else if (op == "draft_debounce")
+    {
+        if (cmd["hold"].toBool())
+        {
+            chat->draft_timer_->setInterval(60000);
+        }
+        out["pending"] = chat->draft_timer_->isActive();
     }
     else if (op == "select")
     {
@@ -307,7 +380,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     {
         auto* box = window.findChild<QMessageBox*>("confirmationDialog");
         out["open"] = box && box->isVisible();
-        if (box && box->isVisible())
+        if (box && box->isVisible() && cmd["accept"].toBool(true))
         {
             box->button(QMessageBox::Yes)->click();
         }

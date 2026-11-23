@@ -650,10 +650,10 @@ async def qt_scenarios(root, probe, url, owner, member, db):
                     if p["method"] == "send_message" and p["params"]["client_id"] == cid
                 ]
             )
-            auth = sum(p["method"] == "authenticate" for p in gate.messages)
+            auth = sum(p["method"] == "resume_session" for p in gate.messages)
             await gate.down.close()
             await until(
-                lambda: sum(p["method"] == "authenticate" for p in gate.messages)
+                lambda: sum(p["method"] == "resume_session" for p in gate.messages)
                 > auth,
                 "second real reconnect",
             )
