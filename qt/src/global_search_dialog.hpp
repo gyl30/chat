@@ -3,7 +3,6 @@
 
 #include <QDialog>
 #include <QHash>
-#include <QSet>
 
 #include <chat/message.hpp>
 
@@ -57,7 +56,6 @@ class global_search_dialog final : public QDialog
     quint64 scope_request_ = 0;
     quint64 sender_request_ = 0;
     bool submitted_ = false;
-    QSet<qint64> removed_scopes_;
     QTreeWidget* results_;
     QListWidget* context_;
     QPushButton* more_;

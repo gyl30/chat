@@ -157,19 +157,27 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
                 {
                     return;
                 }
+                if (!error.isEmpty())
+                {
+                    if (!submitted_)
+                    {
+                        status_->setText(error);
+                    }
+                    return;
+                }
+                auto const selected = conversation_->currentData();
+                QSignalBlocker const blocker(conversation_);
+                while (conversation_->count() > 1)
+                {
+                    conversation_->removeItem(conversation_->count() - 1);
+                }
                 for (auto const& scope : scopes)
                 {
-                    if (!removed_scopes_.contains(scope.id))
-                    {
-                        conversation_->addItem(QString::fromStdString(scope.name) + QStringLiteral(" (#%1)").arg(scope.id),
-                                               static_cast<qint64>(scope.id));
-                    }
+                    conversation_->addItem(QString::fromStdString(scope.name) + QStringLiteral(" (#%1)").arg(scope.id),
+                                           static_cast<qint64>(scope.id));
                 }
-                conversation_->setEnabled(error.isEmpty());
-                if (!error.isEmpty() && !submitted_)
-                {
-                    status_->setText(error);
-                }
+                conversation_->setCurrentIndex(std::max(0, conversation_->findData(selected)));
+                conversation_->setEnabled(true);
             });
     connect(&client_,
             &client_bridge::users_received,
@@ -230,11 +238,15 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
     connect(&client_,
             &client_bridge::conversation_changed,
             this,
-            [this](qint64 conv, bool removed)
+            [this, self](qint64 conv, bool removed)
             {
                 if (removed)
                 {
                     remove_scope(conv);
+                }
+                if (self > 0)
+                {
+                    scope_request_ = client_.get_message_search_scopes();
                 }
             });
     connect(&client_, &client_bridge::message_updated, this, &global_search_dialog::updated);
@@ -352,7 +364,7 @@ void global_search_dialog::set_page(quint64 id, chat::message_search_page const&
         for (auto const& hit : page.messages)
         {
             auto snippet = page_edits_.value(hit.id, QString::fromStdString(hit.snippet));
-            if (removed_scopes_.contains(hit.conversation) || hit.id <= page_floors_.value(hit.conversation) || snippet.isNull())
+            if (hit.id <= page_floors_.value(hit.conversation) || snippet.isNull())
             {
                 continue;
             }
@@ -394,12 +406,17 @@ void global_search_dialog::set_context(quint64 id, qint64 anchor, QList<message_
 }
 void global_search_dialog::remove_scope(qint64 conversation)
 {
-    removed_scopes_.insert(conversation);
     if (auto index = conversation_->findData(conversation); index >= 0)
     {
         QSignalBlocker const blocker(conversation_);
+        auto const selected = index == conversation_->currentIndex();
         conversation_->removeItem(index);
+        if (selected)
+        {
+            conversation_->setCurrentIndex(0);
+        }
     }
+    // A rejoin can restore the dropdown, not the results of a request already in flight.
     discard(conversation, std::numeric_limits<qint64>::max());
     if (submitted_ && submitted_filter_.conversation == conversation && context_->isHidden())
     {
