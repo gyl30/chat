@@ -21,6 +21,7 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-re
 | `reading_navigation.py` | 真实 RPC 与 Qt：同快照未读锚点、跨月只读定位、滚动和重连补页、提及组合/分页、编辑及失权、迟到回包 |
 | `bookmarks.py [--probe 路径] [--previous-server 旧版服务端]` | 个人收藏、隐私和失效、分页顺序、附件引用、Qt 多端与保留草稿定位；可选验证旧库升级 |
 | `search_filters.py` | 组合条件、无关键词、隐藏私聊、权限、50/51 页边界及字面空格 |
+| `message_selection.py <probe>` | Qt xcb 隔离虚拟桌面：Ctrl/Shift 多选、撤回、历史补页、待发/失败行、断线、剪贴板顺序与草稿、会话切换、清空及批量转发 |
 | `live_history.py` | 双设备实时编辑与撤回、显示/剪贴板、筛选移除、乱序回包和保留服务端游标 |
 | `drafts.py` | 真 Qt 重启与会话/账号/端点隔离；探针扣住本地入队完成回调直至输入新版本，另用隔离数据库故障确认保留文字和回复 |
 | `deep_reply.py` | 最近一页之外的草稿引用、重启恢复、实际发送、编辑与迟到校验、撤回/清空/失权 |
@@ -124,3 +125,14 @@ env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS \
     ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" python3 ops/acceptance/bookmarks.py --probe "$work/probe"
 rmdir "$runtime"
 ```
+
+
+## 消息多选验收
+
+设置 `CHAT_TEST_SERVER` 和 `SILO_BIN`，用现有 `build_probe.py` 链接探针后运行：
+
+```sh
+ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" python3 ops/acceptance/message_selection.py "$work/probe"
+```
+
+脚本自行启动 Xvfb、无桌面服务自动激活的私有 D-Bus 和临时客户端配置。不要改为复用登录显示或剪贴板。

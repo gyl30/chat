@@ -10,6 +10,8 @@
 #include <QClipboard>
 #include <QCheckBox>
 #include <QKeyEvent>
+#include <QMouseEvent>
+#include <QDialogButtonBox>
 #include <QInputDialog>
 #include <QLabel>
 #include <QAbstractButton>
@@ -638,6 +640,149 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             {
                 emit list->itemActivated(list->item(0));
             }
+        }
+    }
+    else if (op == "multi")
+    {
+        auto* bar = chat->selection_bar_;
+        auto action_button = [bar](QString const& label) -> QPushButton*
+        {
+            for (auto* action : bar->findChildren<QPushButton*>())
+            {
+                if (action->text() == label)
+                {
+                    return action;
+                }
+            }
+            return nullptr;
+        };
+        auto* copy = action_button(QStringLiteral("复制"));
+        auto* forward = action_button(QStringLiteral("转发"));
+        if (cmd.contains("seed"))
+        {
+            QApplication::clipboard()->setText(cmd["seed"].toString());
+        }
+        if (cmd.contains("cursor"))
+        {
+            auto cursor = edit->textCursor();
+            cursor.setPosition(cmd["cursor"].toInt());
+            edit->setTextCursor(cursor);
+        }
+        if (cmd["older"].toBool())
+        {
+            view->scrollToTop();
+        }
+        auto find = [model](QJsonValue const& target)
+        {
+            if (target.toString() == "pending")
+            {
+                return model->index(model->rowCount() - 1, 0);
+            }
+            for (int i = 0; i < model->rowCount(); ++i)
+            {
+                auto const ix = model->index(i, 0);
+                if (ix.data(message_model::id_role).toLongLong() == target.toInteger())
+                {
+                    return ix;
+                }
+            }
+            return QModelIndex{};
+        };
+        if (cmd.contains("start"))
+        {
+            auto const ix = find(cmd["start"]);
+            view->scrollTo(ix);
+            choose_menu_action(view, view->visualRect(ix).center(), QStringLiteral("多选"));
+        }
+        if (cmd.contains("click"))
+        {
+            auto const ix = find(cmd["click"]);
+            if (ix.isValid())
+            {
+                view->scrollTo(ix);
+                QPointF pos(view->visualRect(ix).center());
+                auto const mod = cmd["modifier"].toString() == "shift"  ? Qt::ShiftModifier
+                                 : cmd["modifier"].toString() == "ctrl" ? Qt::ControlModifier
+                                                                        : Qt::NoModifier;
+                QMouseEvent press(QEvent::MouseButtonPress, pos, view->viewport()->mapToGlobal(pos.toPoint()), Qt::LeftButton, Qt::LeftButton, mod);
+                QApplication::sendEvent(view->viewport(), &press);
+                QMouseEvent release(QEvent::MouseButtonRelease, pos, view->viewport()->mapToGlobal(pos.toPoint()), Qt::LeftButton, Qt::NoButton, mod);
+                QApplication::sendEvent(view->viewport(), &release);
+            }
+        }
+        if (cmd["button"].toBool())
+        {
+            QApplication::setActiveWindow(&window);
+            copy->setFocus();
+            copy->click();
+            out["buttonFocused"] = copy->hasFocus();
+        }
+        if (cmd.contains("key"))
+        {
+            auto const escape = cmd["key"].toString() == "esc";
+            auto* recipient = cmd["focused"].toBool() ? QApplication::focusWidget() : view;
+            if (recipient)
+            {
+                QKeyEvent key(QEvent::KeyPress, escape ? Qt::Key_Escape : Qt::Key_C, escape ? Qt::NoModifier : Qt::ControlModifier);
+                QApplication::sendEvent(recipient, &key);
+            }
+        }
+        if (cmd.contains("forward"))
+        {
+            auto const target = cmd["forward"].toInteger();
+            QTimer::singleShot(0,
+                               view,
+                               [target]
+                               {
+                                   auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+                                   if (!dialog)
+                                   {
+                                       return;
+                                   }
+                                   auto* list = dialog->findChild<QListWidget*>();
+                                   auto* buttons = dialog->findChild<QDialogButtonBox*>();
+                                   for (int i = 0; list && buttons && i < list->count(); ++i)
+                                   {
+                                       if (list->item(i)->data(Qt::UserRole).toLongLong() == target)
+                                       {
+                                           list->setCurrentRow(i);
+                                           buttons->button(QDialogButtonBox::Ok)->click();
+                                           return;
+                                       }
+                                   }
+                                   dialog->reject();
+                               });
+            forward->click();
+        }
+
+        QJsonArray selected, valid;
+        for (auto const& index : view->selectionModel()->selectedIndexes())
+        {
+            selected.append(index.data(message_model::id_role).toLongLong());
+        }
+        for (auto const& index : chat->selected_messages())
+        {
+            valid.append(index.data(message_model::id_role).toLongLong());
+        }
+        out["selected"] = selected;
+        out["valid"] = valid;
+        out["count"] = bar->findChild<QLabel*>("selectedMessageCount")->text();
+        out["connected"] = chat->connection_available_;
+        out["mode"] = view->selectionMode() == QAbstractItemView::ExtendedSelection;
+        out["copy"] = copy->isEnabled();
+        out["forward"] = forward->isEnabled();
+        out["clipboard"] = QApplication::clipboard()->text();
+        out["cursor"] = edit->textCursor().position();
+        out["draft"] = edit->toPlainText();
+        out["reply"] = chat->reply_to_;
+        out["first"] = chat->messages_->first_message_id();
+        out["pending"] = model->index(model->rowCount() - 1, 0).data(message_model::send_state_role).toInt();
+        if (cmd.contains("inspect"))
+        {
+            auto const index = find(cmd["inspect"]);
+            out["selectable"] = index.flags().testFlag(Qt::ItemIsSelectable);
+            out["marked"] = view->selectionModel()->isSelected(index);
+            out["deleted"] = index.data(message_model::deleted_role).toBool();
         }
     }
     else if (op == "bookmark_menu")

@@ -201,6 +201,7 @@ class chat_widget final : public QWidget
     void setup_message_list(QVBoxLayout* chat_layout);
     void setup_composer(QVBoxLayout* chat_layout);
     void set_message_selection(bool enabled);
+    void update_message_selection();
     QModelIndexList selected_messages() const;
     void choose_forward_target(QList<qint64> messages);
     void copy_selected_messages();
@@ -354,6 +355,9 @@ class chat_widget final : public QWidget
     QToolButton* connection_status_ = nullptr;
     QLabel* message_status_ = nullptr;
     QWidget* selection_bar_ = nullptr;
+    QLabel* selection_count_ = nullptr;
+    QPushButton* selection_copy_ = nullptr;
+    QPushButton* selection_forward_ = nullptr;
     QListView* messages_view_ = nullptr;
     QWidget* input_bar_ = nullptr;
     QLabel* speech_notice_ = nullptr;

@@ -61,6 +61,7 @@ class message_model final : public QAbstractListModel
 
     int rowCount(QModelIndex const& parent = {}) const override;
     QVariant data(QModelIndex const& index, int role) const override;
+    Qt::ItemFlags flags(QModelIndex const& index) const override;
 
     void set_self_user(qint64 user);
     void reset(qint64 conversation, bool group = false);

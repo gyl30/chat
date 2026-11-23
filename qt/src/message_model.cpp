@@ -74,6 +74,16 @@ bool message_model::can_manage_group() const
 
 int message_model::rowCount(QModelIndex const& parent) const { return parent.isValid() ? 0 : messages_.size() + pending_.size(); }
 
+Qt::ItemFlags message_model::flags(QModelIndex const& index) const
+{
+    auto flags = QAbstractListModel::flags(index);
+    if (index.isValid() && (index.row() >= messages_.size() || messages_[index.row()].deleted))
+    {
+        flags &= ~Qt::ItemIsSelectable;
+    }
+    return flags;
+}
+
 QVariant message_model::data(QModelIndex const& index, int role) const
 {
     if (!index.isValid() || index.row() < 0 || index.row() >= rowCount())
