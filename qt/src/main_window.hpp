@@ -163,7 +163,6 @@ class main_window final : public QMainWindow
     QString pending_password_;
     QString session_server_;
     QString session_username_;
-    QString session_password_;
 
     std::unique_ptr<client_bridge> client_;
     download_dialog* downloads_ = nullptr;

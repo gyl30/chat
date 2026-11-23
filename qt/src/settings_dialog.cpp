@@ -132,6 +132,11 @@ settings_dialog::settings_dialog(QWidget* parent) : QDialog(parent)
     identity_text->addWidget(account_name_);
     identity->addLayout(identity_text, 1);
     home->addWidget(account_);
+    auto* devices = new QPushButton(QStringLiteral("账号安全与登录设备"), home->parentWidget());
+    devices->setObjectName(QStringLiteral("settingsDevicesButton"));
+    devices->setAutoDefault(false);
+    home->addWidget(devices);
+    connect(devices, &QPushButton::clicked, this, &settings_dialog::devices_requested);
     static std::array<QString, 4> const section_names = {QStringLiteral("settingsNotificationsButton"),
                                                          QStringLiteral("settingsAppearanceChatButton"),
                                                          QStringLiteral("settingsDesktopWindowButton"),

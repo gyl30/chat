@@ -17,6 +17,9 @@ inline std::string error_text(error const& value)
     static std::unordered_map<std::string_view, std::string_view> const messages{
         {"Server error", "服务器出错，请稍后重试"},
         {"Authentication required", "登录状态已失效，请重新登录"},
+        {"Login session no longer valid", "登录状态已失效，请重新登录"},
+        {"No saved login session", "没有可恢复的登录，请输入密码"},
+        {"Current password is incorrect", "当前密码不正确"},
         {"Already authenticated", "当前连接已登录"},
         {"Username already exists", "用户名已被占用"},
         {"User not found", "用户不存在"},

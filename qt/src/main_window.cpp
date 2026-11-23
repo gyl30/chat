@@ -56,6 +56,7 @@
 #include "title_bar.hpp"
 #include "icons.hpp"
 #include "settings_dialog.hpp"
+#include "login_sessions_dialog.hpp"
 
 namespace
 {
@@ -223,7 +224,7 @@ void main_window::setup_login_page(QString server_url)
     password_edit_ = new QLineEdit(login_card);
     password_edit_->setObjectName(QStringLiteral("loginPasswordEdit"));
     password_edit_->setAccessibleName(QStringLiteral("密码"));
-    password_edit_->setPlaceholderText(QStringLiteral("密码"));
+    password_edit_->setPlaceholderText(QStringLiteral("密码（留空可恢复已保存的登录）"));
     password_edit_->setEchoMode(QLineEdit::Password);
     password_edit_->setAlignment(Qt::AlignCenter);
     recent_accounts_action_ =
@@ -663,7 +664,7 @@ void main_window::connect_authentication()
                 {
                     chat_page_->set_connection_status(QStringLiteral("正在恢复会话…"), false);
                 }
-                client_->authenticate(session_username_, session_password_);
+                client_->authenticate(session_username_, {});
             }
             else if (session_username_.isEmpty() && pages_->currentWidget() == login_page_)
             {
@@ -683,12 +684,6 @@ void main_window::connect_authentication()
             connected_ = false;
             if (logout_pending_)
             {
-                logout_pending_ = false;
-                pending_action_ = pending_action::none;
-                status_label_->clear();
-                set_login_busy(false);
-                server_edit_->setEnabled(true);
-                username_edit_->setFocus();
                 return;
             }
             if (action == pending_action::registration && registration_dialog_->isVisible())
@@ -756,6 +751,25 @@ void main_window::connect_authentication()
         },
         Qt::AutoConnection);
 
+    connect(client_.get(),
+            &client_bridge::login_revoked,
+            this,
+            [this]
+            {
+                if (!logout_pending_)
+                {
+                    return_to_login(QStringLiteral("登录已在其他设备退出或失效，请重新登录"));
+                }
+            });
+    connect(client_.get(),
+            &client_bridge::logout_finished,
+            this,
+            [this](QString const& error)
+            {
+                logout_pending_ = false;
+                return_to_login(error.isEmpty() ? QString{} : QStringLiteral("已退出本机，但服务器未确认注销：%1").arg(error));
+            });
+
     connect(
         client_.get(),
         &client_bridge::authentication_finished,
@@ -771,7 +785,7 @@ void main_window::connect_authentication()
                     {
                         if (connected_)
                         {
-                            client_->close();
+                            client_->close(true);
                         }
                         else
                         {
@@ -807,7 +821,6 @@ void main_window::connect_authentication()
             session_server_ = server_edit_->text().trimmed();
             session_username_ = pending_username_;
             remember_login(session_username_, session_server_);
-            session_password_ = pending_password_;
             pending_password_.clear();
             status_label_->clear();
             show_authenticated_page(user);
@@ -1669,6 +1682,17 @@ void main_window::show_settings()
                 this,
                 [this] { chat_page_->show_user_details(chat_page_->self_user(), session_username_, settings_); });
         connect(settings_,
+                &settings_dialog::devices_requested,
+                this,
+                [this]
+                {
+                    if (connected_ && !reconnecting_)
+                    {
+                        login_sessions_dialog dialog(*client_, settings_);
+                        dialog.exec();
+                    }
+                });
+        connect(settings_,
                 &settings_dialog::logout_requested,
                 this,
                 [this]
@@ -2033,9 +2057,9 @@ void main_window::start_login()
         show_login_error(QStringLiteral("请在服务器设置中填写连接地址"));
         return;
     }
-    if (username.isEmpty() || password.isEmpty())
+    if (username.isEmpty())
     {
-        show_login_error(QStringLiteral("请输入用户名和密码"));
+        show_login_error(QStringLiteral("请输入用户名"));
         return;
     }
 
@@ -2114,6 +2138,8 @@ void main_window::authenticate()
 {
     status_label_->setText(QStringLiteral("正在登录…"));
     client_->authenticate(pending_username_, pending_password_);
+    pending_password_.clear();
+    password_edit_->clear();
 }
 
 void main_window::register_user()
@@ -2124,48 +2150,15 @@ void main_window::register_user()
 
 void main_window::logout()
 {
-    unconfirmed_clears_.clear();
-    clear_desktop_notifications();
-    if (settings_)
+    if (logout_pending_)
     {
-        settings_->reject();
-    }
-    pending_notifications_.clear();
-    tray_->hide();
-    auto const should_close = connected_ || reconnecting_ || pending_action_ == pending_action::reconnect;
-    stop_reconnect();
-    pending_action_ = pending_action::none;
-    pending_username_.clear();
-    pending_password_.clear();
-    session_server_.clear();
-    session_username_.clear();
-    session_password_.clear();
-    password_edit_->clear();
-    chat_page_->set_connection_available(false);
-    downloads_->clear_tasks();
-    chat_page_->set_user({});
-    pages_->setCurrentWidget(login_page_);
-
-    if (!should_close)
-    {
-        status_label_->clear();
-        set_login_busy(false);
-        server_edit_->setEnabled(true);
-        username_edit_->setFocus();
         return;
     }
-
-    logout_pending_ = connected_;
-    status_label_->setText(QStringLiteral("正在退出…"));
-    set_login_busy(true);
-    client_->close();
-    if (!connected_)
-    {
-        status_label_->clear();
-        set_login_busy(false);
-        server_edit_->setEnabled(true);
-        username_edit_->setFocus();
-    }
+    chat_page_->flush_draft();
+    stop_reconnect();
+    logout_pending_ = true;
+    chat_page_->set_connection_available(false);
+    client_->logout_session();
 }
 
 void main_window::set_login_busy(bool busy)
@@ -2343,6 +2336,7 @@ void main_window::stop_reconnect()
 void main_window::return_to_login(QString message)
 {
     chat_page_->flush_draft();
+    unconfirmed_clears_.clear();
     clear_desktop_notifications();
     if (settings_)
     {
@@ -2351,14 +2345,12 @@ void main_window::return_to_login(QString message)
     pending_notifications_.clear();
     tray_->hide();
     auto const username = session_username_;
-    auto const should_close = connected_;
     stop_reconnect();
     pending_action_ = pending_action::none;
     pending_username_.clear();
     pending_password_.clear();
     session_server_.clear();
     session_username_.clear();
-    session_password_.clear();
     chat_page_->set_connection_available(false);
     downloads_->clear_tasks();
     chat_page_->set_user({});
@@ -2369,8 +2361,5 @@ void main_window::return_to_login(QString message)
     set_login_busy(false);
     server_edit_->setEnabled(true);
 
-    if (should_close)
-    {
-        client_->close();
-    }
+    client_->close();
 }

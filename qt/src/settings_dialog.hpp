@@ -21,6 +21,7 @@ class settings_dialog final : public QDialog
 
    signals:
     void account_requested();
+    void devices_requested();
     void logout_requested();
     void desktop_notifications_changed(bool enabled);
     void message_preview_changed(bool enabled);

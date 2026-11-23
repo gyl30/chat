@@ -41,8 +41,13 @@ class client_bridge final : public QObject
     ~client_bridge() override;
 
     void connect_to_server(QString const& url);
-    void close();
+    void close(bool keep_local_account = false);
     void authenticate(QString const& username, QString const& password);
+    quint64 get_login_sessions();
+    void revoke_login_session(qint64 id);
+    void revoke_other_login_sessions();
+    void logout_session();
+    void change_password(QString const& current, QString const& replacement);
     void register_user(QString const& username, QString const& password);
     void get_conversations();
     void clear_history(qint64 conversation, qint64 through);
@@ -131,6 +136,11 @@ class client_bridge final : public QObject
     void error(QString message);
     void authentication_finished(bool authenticated, qint64 user, QString error_message, bool retryable_error, chat::avatar_state avatar);
     void registration_finished(QString error_message);
+    void login_revoked();
+    void login_sessions_changed();
+    void login_sessions_received(quint64 request, std::vector<chat::login_session> sessions, QString error_message);
+    void login_management_finished(QString message, bool success);
+    void logout_finished(QString error_message);
     void conversations_received(QList<conversation_data> conversations, QString error_message);
     void pin_finished(qint64 conversation, bool pinned, QString error_message);
     void friendship_changed();
@@ -209,6 +219,9 @@ class client_bridge final : public QObject
     std::function<void(std::expected<chat::friendship_result, chat::error>)> friend_request_result(qint64 user);
     std::function<void(std::expected<bool, chat::error>)> group_action_result(qint64 conversation, bool leaving = false);
     std::function<void(std::expected<chat::message, chat::error>)> send_result(qint64 conversation, qint64 client_id, QString path);
+    chat::client::group_action_handler login_management_result(QString success);
+    quint64 login_sessions_request_ = 0;
+
     template <class F>
     void post_result(std::uint64_t generation, F result)
     {

@@ -12,6 +12,7 @@
 #include "conversation.hpp"
 #include "error.hpp"
 #include "message.hpp"
+#include "login_session.hpp"
 #include "member.hpp"
 #include "presence.hpp"
 #include "typing.hpp"
@@ -67,6 +68,7 @@ class client
     using connection_handler = std::function<void()>;
     using error_handler = std::function<void(error const&)>;
     using authenticate_handler = std::function<void(std::expected<authentication_result, error>)>;
+    using login_sessions_handler = std::function<void(std::expected<std::vector<login_session>, error>)>;
     using register_handler = std::function<void(std::expected<std::int64_t, error>)>;
     using conversations_handler = std::function<void(std::expected<conversations_result, error>)>;
     using pin_handler = std::function<void(std::expected<bool, error>)>;
@@ -114,6 +116,8 @@ class client
 
     void set_connected_handler(connection_handler handler);
     void set_disconnected_handler(connection_handler handler);
+    void set_login_revoked_handler(connection_handler handler);
+    void set_login_sessions_changed_handler(connection_handler handler);
     void set_error_handler(error_handler handler);
     void set_message_handler(message_handler handler);
     void set_message_updated_handler(message_handler handler);
@@ -130,9 +134,16 @@ class client
     void set_friendship_handler(friendship_changed_handler handler);
 
     void connect(std::string url);
-    void close();
+    void close(bool keep_local_account = false);
 
-    void authenticate(std::string username, std::string password, authenticate_handler handler);
+    void authenticate(
+        std::string username, std::string password, authenticate_handler handler, std::string device_name = {}, std::string client_type = {});
+    void resume_session(std::string username, authenticate_handler handler);
+    void get_login_sessions(login_sessions_handler handler);
+    void revoke_login_session(std::int64_t session, group_action_handler handler);
+    void revoke_other_login_sessions(group_action_handler handler);
+    void logout_session(group_action_handler handler);
+    void change_password(std::string current, std::string replacement, group_action_handler handler);
     void register_user(std::string username, std::string password, register_handler handler);
     void get_conversations(std::optional<conversation_cursor> before, conversations_handler handler);
     void set_notification_level(std::int64_t conversation, notification_level level, std::int64_t until, group_action_handler handler);

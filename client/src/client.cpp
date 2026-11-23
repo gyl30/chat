@@ -38,6 +38,12 @@
 
 namespace chat
 {
+struct login_session_list
+{
+    std::vector<login_session> sessions;
+};
+BOOST_DESCRIBE_STRUCT(login_session, (), (id, device_name, client_type, created_at, last_seen, current))
+BOOST_DESCRIBE_STRUCT(login_session_list, (), (sessions))
 BOOST_DESCRIBE_STRUCT(conversation_view_event, (), (conversation, action, through, level, until))
 BOOST_DESCRIBE_STRUCT(contact_entry, (), (id, username, avatar_revision, has_avatar, remark, group))
 BOOST_DESCRIBE_STRUCT(contact_book, (), (users, groups))
@@ -738,6 +744,29 @@ struct client::impl
             return;
         }
 
+        if (method->as_string() == "login_session_revoked" || method->as_string() == "login_sessions_changed")
+        {
+            auto const revoked = method->as_string() == "login_session_revoked";
+            if (revoked)
+            {
+                forget_login();
+                closing_ = true;
+                outgoing_.clear();
+                websocket_.cancel();
+                stop_file_transfers();
+            }
+            connection_handler handler;
+            {
+                std::lock_guard lock(handler_mutex_);
+                handler = revoked ? login_revoked_handler_ : login_sessions_changed_handler_;
+            }
+            if (handler && !suppress_callbacks_.load())
+            {
+                handler();
+            }
+            return;
+        }
+
         if (method->as_string() == "message" || method->as_string() == "message_updated")
         {
             message notification;
@@ -1049,6 +1078,8 @@ struct client::impl
         if (endpoint_ != url)
         {
             outbox_account_ = 0;
+            login_username_.clear();
+            login_token_.clear();
         }
         endpoint_ = url;
         transfer_stop_ = std::stop_source{};
@@ -1149,9 +1180,12 @@ struct client::impl
         notify_disconnected();
     }
 
-    boost::capy::task<> close()
+    boost::capy::task<> close(bool keep_local_account)
     {
-        outbox_account_ = 0;
+        if (!keep_local_account)
+        {
+            outbox_account_ = 0;
+        }
         if (state_ != connection_state::disconnected)
         {
             closing_ = true;
@@ -1169,18 +1203,30 @@ struct client::impl
         co_return;
     }
 
-    boost::capy::task<> authenticate(std::string username, std::string password, authenticate_handler handler)
+    void forget_login()
+    {
+        if (journal_.is_open() && !login_token_.empty())
+        {
+            if (auto error = journal_.exec("DELETE FROM login_credentials WHERE username=? AND token=?", login_username_, login_token_); error)
+            {
+                report_error(outbox_error("无法清理本地登录凭证"));
+            }
+        }
+        login_username_.clear();
+        login_token_.clear();
+    }
+
+    boost::capy::task<> authenticate(
+        std::string username, std::optional<std::string> password, std::string device_name, std::string client_type, authenticate_handler handler)
     {
         boost::json::object params;
-        params.emplace("username", username);
-        params.emplace("password", std::move(password));
         if (!account_)
         {
             if (username != outbox_username_)
             {
                 outbox_account_ = 0;
             }
-            // An unavailable upload directory must not prevent login or downloads.
+            // An unavailable upload directory must not prevent a password login.
             journal_ = {};
             if (auto db = detail::open_transfer_journal(transfer_directory_, endpoint_))
             {
@@ -1191,42 +1237,96 @@ struct client::impl
                 }
             }
         }
-        send_request("authenticate",
+        auto const resuming = !password;
+        if (resuming)
+        {
+            if ((login_username_ != username || login_token_.empty()) && journal_.is_open())
+            {
+                auto saved = journal_.prepare("SELECT token FROM login_credentials WHERE username=?", username);
+                if (saved)
+                {
+                    if (auto row = saved->step(); row && *row)
+                    {
+                        login_token_ = saved->column_text(0);
+                        login_username_ = username;
+                    }
+                }
+            }
+            if (login_username_ != username || login_token_.empty())
+            {
+                handler(std::unexpected(make_error(error_kind::rpc, "No saved login session", login_session_invalid)));
+                co_return;
+            }
+            params.emplace("token", login_token_);
+        }
+        else
+        {
+            params.emplace("username", username);
+            params.emplace("password", std::move(*password));
+            if (!device_name.empty())
+            {
+                params.emplace("device_name", std::move(device_name));
+            }
+            if (!client_type.empty())
+            {
+                params.emplace("client_type", std::move(client_type));
+            }
+        }
+        send_request(resuming ? "resume_session" : "authenticate",
                      std::move(params),
-                     [this, username = std::move(username), handler = std::move(handler)](auto response) mutable
+                     [this, resuming, username = std::move(username), handler = std::move(handler)](auto response) mutable
                      {
                          if (!response)
                          {
+                             if (resuming && response.error().kind == error_kind::rpc && response.error().code == login_session_invalid)
+                             {
+                                 forget_login();
+                             }
                              handler(std::unexpected(std::move(response.error())));
                              return;
                          }
-                         if (!response->is_object())
+                         auto const* object = response->if_object();
+                         auto const* authenticated = object ? object->if_contains("authenticated") : nullptr;
+                         auto const* user_value = object ? object->if_contains("user") : nullptr;
+                         auto user = user_value ? parse_int64(*user_value) : std::nullopt;
+                         if (!authenticated || !authenticated->is_bool() || !user)
                          {
                              handler(std::unexpected(make_error(error_kind::protocol, "Invalid authenticate result")));
                              return;
                          }
 
-                         auto const* authenticated = response->as_object().if_contains("authenticated");
-                         if (!authenticated || !authenticated->is_bool())
-                         {
-                             handler(std::unexpected(make_error(error_kind::protocol, "Invalid authenticate result")));
-                             return;
-                         }
-                         auto const* user_value = response->as_object().if_contains("user");
-                         auto user = user_value ? parse_int64(*user_value) : std::nullopt;
-                         if (!user || *user < 0 || (authenticated->as_bool() && *user == 0))
-                         {
-                             handler(std::unexpected(make_error(error_kind::protocol, "Invalid authenticate identity")));
-                             return;
-                         }
                          authentication_result value{authenticated->as_bool(), *user, {}};
-                         if (!parse_avatar_state(response->as_object(), value.avatar))
+                         if (!parse_avatar_state(*object, value.avatar))
                          {
                              handler(std::unexpected(make_error(error_kind::protocol, "Invalid authenticate avatar")));
                              return;
                          }
                          if (value.authenticated)
                          {
+                             auto const* token = object->if_contains("token");
+                             if (!resuming)
+                             {
+                                 if (!token || !token->is_string() || token->as_string().size() != 64)
+                                 {
+                                     handler(std::unexpected(make_error(error_kind::protocol, "Missing login token")));
+                                     return;
+                                 }
+                                 login_token_ = token->as_string();
+                                 login_username_ = username;
+                                 if (journal_.is_open())
+                                 {
+                                     if (auto error = journal_.exec(R"SQL(
+                                         INSERT INTO login_credentials(username,token) VALUES(?,?)
+                                         ON CONFLICT(username) DO UPDATE SET token=excluded.token
+                                     )SQL",
+                                                                    login_username_,
+                                                                    login_token_);
+                                         error)
+                                     {
+                                         report_error(outbox_error("无法保存登录凭证，仅在本次运行中保留"));
+                                     }
+                                 }
+                             }
                              account_ = value.user;
                              outbox_account_ = value.user;
                              outbox_username_ = std::move(username);
@@ -1237,7 +1337,42 @@ struct client::impl
                              send_next_text();
                          }
                      });
+        co_return;
+    }
 
+    boost::capy::task<> list_login_sessions(login_sessions_handler handler)
+    {
+        co_await request_page<login_session_list>("list_login_sessions",
+                                                  {},
+                                                  "Invalid login session list",
+                                                  [handler = std::move(handler)](std::expected<login_session_list, error> result)
+                                                  {
+                                                      if (!result)
+                                                      {
+                                                          handler(std::unexpected(std::move(result.error())));
+                                                          return;
+                                                      }
+                                                      handler(std::move(result->sessions));
+                                                  });
+    }
+
+    boost::capy::task<> logout_session(group_action_handler handler)
+    {
+        // Clear only the credential. The UI flushes the draft before retiring the journal owner.
+        send_request("logout_session",
+                     {},
+                     [this, handler = std::move(handler)](auto reply) mutable
+                     {
+                         forget_login();
+                         if (!reply)
+                         {
+                             handler(std::unexpected(std::move(reply.error())));
+                         }
+                         else
+                         {
+                             handler(true);
+                         }
+                     });
         co_return;
     }
 
@@ -3027,6 +3162,7 @@ struct client::impl
 
     std::string transfer_directory_, endpoint_;
     sqlite_database journal_;
+    std::string login_username_, login_token_;
     std::int64_t account_ = 0;
     // Keep the authenticated journal owner across transport loss, including a same-user reconnect.
     std::int64_t outbox_account_ = 0;
@@ -3051,6 +3187,7 @@ struct client::impl
     std::mutex handler_mutex_;
     connection_handler connected_handler_;
     connection_handler disconnected_handler_;
+    connection_handler login_revoked_handler_, login_sessions_changed_handler_;
     error_handler error_handler_;
     message_handler message_handler_;
     message_handler message_updated_handler_;
@@ -3112,6 +3249,18 @@ void client::set_disconnected_handler(connection_handler handler)
     impl_->disconnected_handler_ = std::move(handler);
 }
 
+void client::set_login_revoked_handler(connection_handler handler)
+{
+    std::lock_guard lock(impl_->handler_mutex_);
+    impl_->login_revoked_handler_ = std::move(handler);
+}
+
+void client::set_login_sessions_changed_handler(connection_handler handler)
+{
+    std::lock_guard lock(impl_->handler_mutex_);
+    impl_->login_sessions_changed_handler_ = std::move(handler);
+}
+
 void client::set_error_handler(error_handler handler)
 {
     std::lock_guard lock(impl_->handler_mutex_);
@@ -3162,11 +3311,44 @@ void client::set_typing_handler(typing_handler handler)
 
 void client::connect(std::string url) { boost::capy::run_async(impl_->io_context_.get_executor())(impl_->open(std::move(url))); }
 
-void client::close() { boost::capy::run_async(impl_->io_context_.get_executor())(impl_->close()); }
+void client::close(bool keep_local_account) { boost::capy::run_async(impl_->io_context_.get_executor())(impl_->close(keep_local_account)); }
 
-void client::authenticate(std::string username, std::string password, authenticate_handler handler)
+void client::authenticate(std::string username, std::string password, authenticate_handler handler, std::string device_name, std::string client_type)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->authenticate(std::move(username), std::move(password), std::move(handler)));
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->authenticate(std::move(username), std::move(password), std::move(device_name), std::move(client_type), std::move(handler)));
+}
+
+void client::resume_session(std::string username, authenticate_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->authenticate(std::move(username), {}, {}, {}, std::move(handler)));
+}
+
+void client::get_login_sessions(login_sessions_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->list_login_sessions(std::move(handler)));
+}
+
+void client::revoke_login_session(std::int64_t session, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->group_action("revoke_login_session", {{"session", session}}, std::move(handler)));
+}
+
+void client::revoke_other_login_sessions(group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_action("revoke_other_login_sessions", {}, std::move(handler)));
+}
+
+void client::logout_session(group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->logout_session(std::move(handler)));
+}
+
+void client::change_password(std::string current, std::string replacement, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->group_action(
+        "change_password", {{"current_password", std::move(current)}, {"new_password", std::move(replacement)}}, std::move(handler)));
 }
 
 void client::register_user(std::string username, std::string password, register_handler handler)

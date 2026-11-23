@@ -1,4 +1,6 @@
 #include "client_bridge.hpp"
+
+#include <QSysInfo>
 #include "clipboard_image.hpp"
 
 #include <algorithm>
@@ -131,6 +133,9 @@ client_bridge::client_bridge(QObject* parent)
             ++connection_generation_;
             emit disconnected();
         });
+    // Revocation and socket closure are emitted in order from the SDK thread.
+    client_->set_login_revoked_handler([this] { emit login_revoked(); });
+    client_->set_login_sessions_changed_handler([this] { post_result(connection_generation_.load(), [this] { emit login_sessions_changed(); }); });
     client_->set_error_handler([this](chat::error const& value) { emit error(display_error(value)); });
     client_->set_outbox_handler([this](chat::pending_text item)
                                 { post_result(connection_generation_.load(), [this, item = std::move(item)] { publish_pending_text(item); }); });
@@ -215,32 +220,80 @@ void client_bridge::connect_to_server(QString const& url)
     client_->connect(to_utf8(url));
 }
 
-void client_bridge::close()
+void client_bridge::close(bool keep_local_account)
 {
     ++connection_generation_;
-    client_->close();
+    client_->close(keep_local_account);
 }
 
 void client_bridge::authenticate(QString const& username, QString const& password)
 {
     auto const generation = connection_generation_.load();
+    auto done = [this, generation](auto result)
+    {
+        post_result(generation,
+                    [this, result = std::move(result)]
+                    {
+                        if (!result)
+                        {
+                            emit authentication_finished(
+                                false, 0, display_error(result.error()), result.error().kind == chat::error_kind::transport, {});
+                            return;
+                        }
+                        emit authentication_finished(result->authenticated, result->user, {}, false, result->avatar);
+                    });
+    };
+    if (password.isEmpty())
+    {
+        client_->resume_session(to_utf8(username), std::move(done));
+        return;
+    }
     client_->authenticate(to_utf8(username),
                           to_utf8(password),
-                          [this, generation](auto result)
-                          {
-                              post_result(
-                                  generation,
-                                  [this, result = std::move(result)]
-                                  {
-                                      if (!result)
-                                      {
-                                          emit authentication_finished(
-                                              false, 0, display_error(result.error()), result.error().kind == chat::error_kind::transport, {});
-                                          return;
-                                      }
-                                      emit authentication_finished(result->authenticated, result->user, {}, false, result->avatar);
-                                  });
-                          });
+                          std::move(done),
+                          to_utf8(QSysInfo::prettyProductName().left(32)),
+                          to_utf8(QSysInfo::kernelType().left(10) + QStringLiteral(" desktop")));
+}
+
+quint64 client_bridge::get_login_sessions()
+{
+    auto const request = ++login_sessions_request_;
+    client_->get_login_sessions(
+        [this, request, generation = connection_generation_.load()](auto result)
+        {
+            post_result(generation,
+                        [this, request, result = std::move(result)]() mutable
+                        {
+                            emit login_sessions_received(request,
+                                                         result ? std::move(*result) : std::vector<chat::login_session>{},
+                                                         result ? QString{} : display_error(result.error()));
+                        });
+        });
+    return request;
+}
+
+chat::client::group_action_handler client_bridge::login_management_result(QString success)
+{
+    return [this, success = std::move(success), generation = connection_generation_.load()](auto result)
+    {
+        post_result(generation,
+                    [this, success, result = std::move(result)]
+                    { emit login_management_finished(result ? success : display_error(result.error()), result.has_value()); });
+    };
+}
+
+void client_bridge::revoke_login_session(qint64 id) { client_->revoke_login_session(id, login_management_result(QStringLiteral("该会话已退出"))); }
+
+void client_bridge::revoke_other_login_sessions() { client_->revoke_other_login_sessions(login_management_result(QStringLiteral("其他会话已退出"))); }
+
+void client_bridge::change_password(QString const& current, QString const& replacement)
+{
+    client_->change_password(to_utf8(current), to_utf8(replacement), login_management_result(QStringLiteral("密码已修改，其他会话已退出")));
+}
+
+void client_bridge::logout_session()
+{
+    client_->logout_session([this](auto result) { emit logout_finished(result ? QString{} : display_error(result.error())); });
 }
 
 void client_bridge::register_user(QString const& username, QString const& password)

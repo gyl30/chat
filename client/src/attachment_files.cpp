@@ -110,12 +110,21 @@ file_result<sqlite_database> open_transfer_journal(std::string const& directory,
     {
         return failed("无法创建私有上传目录");
     }
-    auto db = sqlite_database::open((base / "tasks.sqlite3").string());
+    auto const journal = base / "tasks.sqlite3";
+    auto db = sqlite_database::open(journal.string());
     if (!db)
     {
         return failed("无法打开上传记录");
     }
-    if (db->exec(R"SQL(CREATE TABLE IF NOT EXISTS installation(id INTEGER PRIMARY KEY CHECK(id=1),secret TEXT NOT NULL);
+#ifndef _WIN32
+    fs::permissions(journal, fs::perms::owner_read | fs::perms::owner_write, fs::perm_options::replace, ec);
+    if (ec)
+    {
+        return failed("无法保护本地任务凭证");
+    }
+#endif
+    if (db->exec(R"SQL(CREATE TABLE IF NOT EXISTS login_credentials(username TEXT PRIMARY KEY,token TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS installation(id INTEGER PRIMARY KEY CHECK(id=1),secret TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS tasks(user INTEGER NOT NULL,client INTEGER NOT NULL,conversation INTEGER NOT NULL,path TEXT NOT NULL,
         size INTEGER NOT NULL,stamp INTEGER NOT NULL,reply INTEGER NOT NULL,checksum TEXT NOT NULL,part_size INTEGER NOT NULL DEFAULT 0,
         count INTEGER NOT NULL DEFAULT 0,number INTEGER NOT NULL DEFAULT 0,confirmed INTEGER NOT NULL DEFAULT 0,length INTEGER NOT NULL DEFAULT 0,

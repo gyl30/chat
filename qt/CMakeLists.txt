@@ -53,6 +53,8 @@ add_executable(chat_qt
     src/screenshot_dialog.cpp
     src/settings_dialog.cpp
     src/settings_dialog.hpp
+    src/login_sessions_dialog.cpp
+    src/login_sessions_dialog.hpp
     src/theme.cpp
     src/theme.hpp
     src/theme_manager.cpp
