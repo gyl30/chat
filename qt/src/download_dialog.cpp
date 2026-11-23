@@ -54,7 +54,7 @@ download_dialog::download_dialog(client_bridge& client, chat_widget& chat, QWidg
 void download_dialog::enqueue(qint64 conversation, qint64 message, QString key, QString filename, QString path, bool open)
 {
     path = QDir::cleanPath(QFileInfo(path).absoluteFilePath());
-    if (std::ranges::any_of(tasks_, [&](task const& item) { return item.status == state::running && item.path == path; }))
+    if (path_busy(path))
     {
         auto error = QStringLiteral("已有下载正在使用此保存位置");
         if (message)
@@ -100,6 +100,17 @@ void download_dialog::finish(qint64 id, quint64 attempt, QString const& error)
     it->status = error.isEmpty() ? state::completed : state::failed;
     it->row->setText(4, error.isEmpty() ? QStringLiteral("已完成") : QStringLiteral("失败：%1").arg(error));
     it->row->setToolTip(4, error);
+    if (error.isEmpty())
+    {
+        for (auto& item : tasks_)
+        {
+            if (&item != &it.value() && item.status == state::completed && item.path == it->path)
+            {
+                item.status = state::replaced;
+                item.row->setText(4, QStringLiteral("已被其他下载覆盖"));
+            }
+        }
+    }
     if (it->message)
     {
         emit client_.attachment_received(it->conversation, it->message, it->path, error);
@@ -129,6 +140,11 @@ qint64 download_dialog::selected() const
     return row ? row->data(0, Qt::UserRole).toLongLong() : 0;
 }
 
+bool download_dialog::path_busy(QString const& path) const
+{
+    return std::ranges::any_of(tasks_, [&](task const& item) { return item.status == state::running && item.path == path; });
+}
+
 void download_dialog::cancel()
 {
     auto it = tasks_.find(selected());
@@ -154,8 +170,7 @@ void download_dialog::retry()
 {
     auto const id = selected();
     auto it = tasks_.find(id);
-    if (it == tasks_.end() || it->status != state::failed ||
-        std::ranges::any_of(tasks_, [&](task const& item) { return item.status == state::running && item.path == it->path; }))
+    if (it == tasks_.end() || it->status != state::failed || path_busy(it->path))
     {
         return;
     }
@@ -166,8 +181,7 @@ void download_dialog::retry()
         return;
     }
     it = tasks_.find(id);
-    if (it != tasks_.end() && it->status == state::failed &&
-        !std::ranges::any_of(tasks_, [&](task const& item) { return item.status == state::running && item.path == path; }))
+    if (it != tasks_.end() && it->status == state::failed && !path_busy(path))
     {
         it->replace = replace;
         start(id, it.value());
@@ -177,7 +191,7 @@ void download_dialog::retry()
 void download_dialog::open(bool directory)
 {
     auto const it = tasks_.constFind(selected());
-    if (it != tasks_.end() && it->status == state::completed)
+    if (it != tasks_.end() && (directory ? folder_->isEnabled() : open_->isEnabled()))
     {
         QDesktopServices::openUrl(QUrl::fromLocalFile(directory ? QFileInfo(it->path).absolutePath() : it->path));
     }
@@ -188,9 +202,9 @@ void download_dialog::update_actions()
     auto const it = tasks_.constFind(selected());
     auto const valid = it != tasks_.end();
     cancel_->setEnabled(valid && it->status == state::running);
-    retry_->setEnabled(valid && it->status == state::failed);
-    open_->setEnabled(valid && it->status == state::completed);
-    folder_->setEnabled(open_->isEnabled());
+    retry_->setEnabled(valid && it->status == state::failed && !path_busy(it->path));
+    open_->setEnabled(valid && it->status == state::completed && !path_busy(it->path));
+    folder_->setEnabled(valid && (it->status == state::completed || it->status == state::replaced));
 }
 
 void download_dialog::clear_tasks()

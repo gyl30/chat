@@ -443,6 +443,18 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             if (auto path = cmd["destination"].toString(); f && !path.isEmpty())
             {
                 f->findChild<QLineEdit*>("fileNameEdit")->setText(path);
+                if (cmd["overwrite"].toBool())
+                {
+                    QTimer::singleShot(0,
+                                       f,
+                                       []
+                                       {
+                                           if (auto* box = qobject_cast<QMessageBox*>(QApplication::activeModalWidget()))
+                                           {
+                                               box->button(QMessageBox::Yes)->click();
+                                           }
+                                       });
+                }
                 QMetaObject::invokeMethod(f, "accept");
             }
             if (cmd["close"].toBool())
@@ -513,6 +525,16 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             if (cmd.contains("row"))
             {
                 list->setCurrentItem(list->topLevelItem(cmd["row"].toInt()));
+            }
+            if (cmd.contains("enabled"))
+            {
+                for (auto* button : dialog->findChildren<QPushButton*>())
+                {
+                    if (button->text() == cmd["enabled"].toString())
+                    {
+                        out["enabled"] = button->isEnabled();
+                    }
+                }
             }
             if (cmd.contains("action"))
             {

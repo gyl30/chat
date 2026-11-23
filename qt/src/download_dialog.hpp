@@ -22,6 +22,7 @@ class download_dialog final : public QDialog
     {
         running,
         completed,
+        replaced,
         failed,
         cancelled
     };
@@ -47,6 +48,7 @@ class download_dialog final : public QDialog
     void open(bool directory);
     void update_actions();
     qint64 selected() const;
+    bool path_busy(QString const& path) const;
 
     client_bridge& client_;
     chat_widget& chat_;

@@ -101,9 +101,18 @@ async def run(root, probe, stalls=False, baseline=False):
                         ):
                             return
                         actual[method] += 1
+                        if (
+                            not stalls
+                            and method == "get_attachment"
+                            and actual[method] == 7
+                        ):
+                            return  # Overwrite from the real Silo URL.
                         suffix = (
                             "fail"
-                            if method == "get_attachment" and actual[method] in (2, 4)
+                            if method == "get_attachment"
+                            and actual[method] in (2, 4, 5)
+                            else "stall"
+                            if method == "get_attachment" and actual[method] == 6
                             else "ok"
                         )
                         if stalls:
@@ -251,8 +260,105 @@ async def run(root, probe, stalls=False, baseline=False):
                                 conversation_id=group,
                                 object_key=originals[1]["attachment"]["object_key"],
                             )
+                            replacement = b"x" * len(
+                                payload
+                            )  # Different bytes, same stream length.
+                            grant = await begin(
+                                b, group, 43, replacement, "replacement.bin"
+                            )
+                            await b.ok(
+                                "confirm_attachment",
+                                upload=43,
+                                number=1,
+                                etag=put(grant["url"], replacement),
+                            )
+                            new = await b.ok("finish_attachment", upload=43)
+
+                            async def replace():
+                                await ui.call(
+                                    "preview",
+                                    conv=group,
+                                    id=new["id"],
+                                    filename="replacement.bin",
+                                    inline=False,
+                                )
+                                await ui.wait("dialogstate", lambda r: r["shown"])
+                                await ui.call(
+                                    "dialogstate",
+                                    save=True,
+                                    overwrite=True,
+                                    destination=str(root / "b.bin"),
+                                )
+                                await ui.call("dialogstate", close=True)
+
+                            async def assert_original():
+                                assert (root / "b.bin").read_bytes() == payload
+                                state = await ui.call(
+                                    "downloads", row=1, enabled="打开文件"
+                                )
+                                assert (
+                                    state["enabled"]
+                                    and state["rows"][1]["status"] == "已完成"
+                                )
+
+                            await replace()
+                            await ui.wait(
+                                "downloads",
+                                lambda r: len(r["rows"]) == 5
+                                and r["rows"][4]["status"].startswith("失败"),
+                            )
+                            await assert_original()
+                            await replace()
+                            await until(
+                                lambda: "/get_attachment/6/stall" in requests
+                                and any(
+                                    p.stat().st_size for p in root.glob("b.bin.part-*")
+                                ),
+                                "replacement received its first block",
+                            )
+                            assert not (
+                                await ui.call("downloads", row=1, enabled="打开文件")
+                            )["enabled"]
+                            assert (await ui.call("downloads", row=5, action="取消"))[
+                                "triggered"
+                            ]
+                            await until(
+                                lambda: "/get_attachment/6/stall" in disconnected
+                                and not list(root.glob("b.bin.part-*")),
+                                "replacement cancellation closed the stream and cleaned its temporary file",
+                            )
+                            await assert_original()
+                            await ui.call("download_barrier", hold=True)
+                            await replace()
+                            await ui.wait("download_barrier", lambda r: r["pending"])
+                            assert (root / "b.bin").read_bytes() == replacement
+                            assert not (
+                                await ui.call("downloads", row=1, enabled="打开文件")
+                            )["enabled"]
+                            await ui.call("download_barrier", release=True)
+                            await ui.wait(
+                                "downloads",
+                                lambda r: len(r["rows"]) == 7
+                                and r["rows"][6]["status"] == "已完成",
+                            )
+                            replaced = await ui.call(
+                                "downloads", row=1, enabled="打开文件"
+                            )
+                            assert not replaced["enabled"]
+                            assert replaced["rows"][1]["status"] == "已被其他下载覆盖"
+                            assert (
+                                await ui.call(
+                                    "downloads", row=1, enabled="打开所在目录"
+                                )
+                            )["enabled"]
+                            assert (
+                                await ui.call("downloads", row=6, enabled="打开文件")
+                            )["enabled"]
+                            assert (
+                                await ui.call("downloads", row=2, enabled="打开文件")
+                            )["enabled"]
                             print(
-                                "PASS three isolated SDK downloads, same-name IDs, targeted cancellation, failed stream, fresh authorized retry and denied revoked reference",
+                                "PASS isolated SDK downloads, failed/cancelled overwrite preserves original, successful overwrite transfers ownership",
                                 flush=True,
                             )
                         finally:
