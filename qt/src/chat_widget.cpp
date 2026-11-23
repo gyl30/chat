@@ -220,7 +220,7 @@ QWidget* chat_widget::create_sidebar()
     join_group->setObjectName(QStringLiteral("joinGroupAction"));
     join_group->setIcon(svg_icon(u"groups", themed("text"), QSize(20, 20)));
     main_menu->addSeparator();
-    auto* unavailable_texts = main_menu->addMenu(QStringLiteral("不可访问会话的本地内容"));
+    auto* unavailable_texts = main_menu->addMenu(QStringLiteral("未显示会话的本地内容"));
     unavailable_texts->setObjectName(QStringLiteral("unavailableLocalMessages"));
     connect(main_menu,
             &QMenu::aboutToShow,
@@ -257,6 +257,17 @@ QWidget* chat_widget::create_sidebar()
                     }
                     auto* actions = unavailable_texts->addMenu(grapheme_prefix(item.text, 40));
                     auto const id = item.client_id;
+                    actions->addAction(QStringLiteral("会话 #%1").arg(item.conversation))->setEnabled(false);
+                    if (!item.error.isEmpty())
+                    {
+                        actions->addAction(item.error)->setEnabled(false);
+                    }
+                    if (item.failed && !item.unavailable)
+                    {
+                        auto* retry = actions->addAction(QStringLiteral("重新发送"));
+                        retry->setEnabled(connection_available_);
+                        connect(retry, &QAction::triggered, this, [this, id] { emit pending_text_action_requested(id, false); });
+                    }
                     connect(actions->addAction(QStringLiteral("复制")),
                             &QAction::triggered,
                             this,
@@ -288,13 +299,16 @@ QWidget* chat_widget::create_sidebar()
                     }
                     auto const name = conversations_->index_for_conversation(item.conversation).data(Qt::DisplayRole).toString();
                     auto const destination = name.isEmpty() ? QStringLiteral("会话 #%1").arg(item.conversation) : name;
+                    auto const target = conversation(item.conversation);
+                    auto const muted = target && target->speech_blocked();
+                    auto const state = muted && !item.unavailable ? QStringLiteral("群聊禁言，上传已暂停") : item.error;
                     auto* actions =
                         transfers->addMenu(destination + QStringLiteral(" · ") + (item.group_only ? QStringLiteral("群文件 · ") : QString{}) +
-                                           item.filename + QStringLiteral(" · ") + item.error);
+                                           item.filename + QStringLiteral(" · ") + state);
                     auto id = item.client_id;
                     auto* toggle = actions->addAction(item.failed ? QStringLiteral("继续上传") : QStringLiteral("暂停上传"));
-                    auto const target = conversation(item.conversation);
-                    toggle->setEnabled(connection_available_ && (!item.failed || (target && !target->speech_blocked())));
+                    // A hidden conversation has no sidebar row. The resume RPC still checks membership and speech.
+                    toggle->setEnabled(connection_available_ && (!item.failed || (!item.unavailable && !muted)));
                     connect(toggle,
                             &QAction::triggered,
                             this,
@@ -2434,8 +2448,21 @@ void chat_widget::set_conversations(QList<conversation_data> conversations)
         bool paused = false;
         for (auto& pending : outgoing_)
         {
+            if (pending.path.isEmpty())
+            {
+                continue;
+            }
             auto const target = std::ranges::find(conversations, pending.conversation, &conversation_data::id);
-            if (!pending.path.isEmpty() && !pending.failed && target != conversations.end() && target->speech_blocked())
+            if (target == conversations.end())
+            {
+                continue;
+            }
+            if (pending.unavailable)
+            {
+                pending.unavailable = false;
+                pending.error = QStringLiteral("上传已暂停");
+            }
+            if (!pending.failed && target->speech_blocked())
             {
                 paused = pending.failed = true;
                 pending.error = QStringLiteral("群聊禁言，上传已暂停");
@@ -2907,7 +2934,10 @@ void chat_widget::finish_send(qint64 conversation, qint64 client_id, message_dat
         return;
     }
     found->failed = true;
-    found->error = error;
+    if (!found->unavailable)
+    {
+        found->error = error;
+    }
     if (conversation != active_conversation_)
     {
         return;
@@ -3961,7 +3991,7 @@ void chat_widget::finish_text_save(qint64 client_id, QString error)
 }
 
 void chat_widget::update_pending_text(
-    qint64 conversation, qint64 client_id, QString text, qint64 reply, qint64 created, bool sending, QString rejection)
+    qint64 conversation, qint64 client_id, QString text, qint64 reply, qint64 created, bool sending, QString rejection, bool unavailable)
 {
     auto item = std::ranges::find(outgoing_, client_id, &outgoing::client_id);
     bool const added = item == outgoing_.end();
@@ -3982,6 +4012,7 @@ void chat_widget::update_pending_text(
         item->reply = {};
     }
     item->failed = !rejection.isEmpty();
+    item->unavailable = unavailable;
     item->waiting = !sending && !item->failed;
     item->error = std::move(rejection);
     if (conversation == active_conversation_)
@@ -4021,7 +4052,7 @@ void chat_widget::choose_attachment(qint64 conversation, bool group_only, QWidge
         send_files(conversation, paths, 0, group_only);
     }
 }
-void chat_widget::finish_group_file(qint64 id, QString error)
+void chat_widget::finish_group_file(qint64 id, QString error, bool unavailable)
 {
     if (error.isEmpty())
     {
@@ -4032,7 +4063,11 @@ void chat_widget::finish_group_file(qint64 id, QString error)
     if (item != outgoing_.end())
     {
         item->failed = true;
-        item->error = error;
+        if (!item->unavailable)
+        {
+            item->unavailable = unavailable;
+            item->error = error;
+        }
     }
 }
 void chat_widget::send_files(qint64 target, QStringList const& paths, qint64 clipboard_id, bool group_only)
@@ -4168,6 +4203,7 @@ void chat_widget::drop_outgoing(qint64 conversation)
         if (item.conversation == conversation && !item.path.isEmpty())
         {
             item.failed = true;
+            item.unavailable = true;
             item.error = QStringLiteral("会话不可用，上传已暂停");
             if (connection_available_)
             {

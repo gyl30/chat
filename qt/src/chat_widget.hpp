@@ -93,11 +93,12 @@ class chat_widget final : public QWidget
     void flush_draft();
     void restore_drafts(qint64 user, std::vector<chat::compose_draft> const& drafts);
     void validate_draft_reply(qint64 conversation, qint64 anchor, qint64 revision, message_data const& message, bool unavailable);
-    void update_pending_text(qint64 conversation, qint64 client_id, QString text, qint64 reply, qint64 created, bool sending, QString rejection);
+    void update_pending_text(
+        qint64 conversation, qint64 client_id, QString text, qint64 reply, qint64 created, bool sending, QString rejection, bool unavailable);
     void discard_pending_text(qint64 client_id);
     void reconcile_pending_texts(QList<qint64> client_ids);
     void choose_attachment(qint64 conversation, bool group_only, QWidget* parent);
-    void finish_group_file(qint64 client_id, QString error);
+    void finish_group_file(qint64 client_id, QString error, bool unavailable);
     void restore_attachment(qint64 conversation, qint64 id, QString path, qint64 size, qint64 reply, qint64 confirmed, bool group_only);
     void attachment_progress(qint64 id, qint64 bytes, qint64 total);
     void attachment_cancelled(qint64 id);
@@ -207,6 +208,7 @@ class chat_widget final : public QWidget
         bool failed = false;
         QString error;
         bool waiting = false;
+        bool unavailable = false;
     };
     void show_conversations_section();
     void show_contacts_dialog();

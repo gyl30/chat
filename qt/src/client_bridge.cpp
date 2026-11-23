@@ -940,7 +940,8 @@ void client_bridge::publish_pending_text(chat::pending_text const& item)
                               item.reply_to,
                               item.created,
                               item.state == chat::outbox_state::sending,
-                              std::move(rejection));
+                              std::move(rejection),
+                              item.rejection == chat::conversation_unavailable);
 }
 
 void client_bridge::restore_texts()
@@ -1058,7 +1059,9 @@ void client_bridge::send_attachment(qint64 conversation, QString path, qint64 re
                             [this, conversation, client_id, r = std::move(r)]
                             {
                                 auto error = r ? QString{} : display_error(r.error());
-                                emit group_file_finished(client_id, error);
+                                auto const unavailable =
+                                    !r && r.error().kind == chat::error_kind::rpc && r.error().code == chat::conversation_unavailable;
+                                emit group_file_finished(client_id, error, unavailable);
                                 emit files_changed(conversation, error);
                             });
             },

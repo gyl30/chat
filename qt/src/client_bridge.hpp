@@ -170,7 +170,8 @@ class client_bridge final : public QObject
     void drafts_restored(qint64 user, std::vector<chat::compose_draft> drafts);
     void draft_reply_validated(qint64 conversation, qint64 anchor, qint64 revision, message_data message, bool unavailable);
     void text_saved(qint64 client_id, QString error);
-    void pending_text_changed(qint64 conversation, qint64 client_id, QString text, qint64 reply, qint64 created, bool sending, QString rejection);
+    void pending_text_changed(
+        qint64 conversation, qint64 client_id, QString text, qint64 reply, qint64 created, bool sending, QString rejection, bool unavailable);
     void pending_text_discarded(qint64 client_id);
     void pending_texts_restored(QList<qint64> client_ids);
     void send_finished(qint64 conversation, qint64 client_id, message_data message, QString error_message, send_status status);
@@ -179,7 +180,7 @@ class client_bridge final : public QObject
     void contact_removed(QString error_message);
     void attachment_progress(qint64 id, qint64 bytes, qint64 total);
     void attachment_restored(qint64 conversation, qint64 id, QString path, qint64 size, qint64 reply, qint64 confirmed, bool group_only);
-    void group_file_finished(qint64 id, QString error);
+    void group_file_finished(qint64 id, QString error, bool unavailable);
     void files_changed(qint64 conversation, QString error);
     void files_received(qint64 conversation, chat::conversation_file_page page, bool older, QString error);
     void download_requested(qint64 conversation, qint64 message, QString key, QString filename, QString path, bool open);
