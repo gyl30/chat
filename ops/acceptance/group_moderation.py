@@ -527,7 +527,9 @@ async def qt_search_rejoin(root, probe, url, owner, member):
 
 
 async def qt_scenarios(root, probe, url, owner, member, db):
-    conv = (await owner.ok("create_group", title="Qt 群", members=[3]))["conversation"]
+    conv = (await owner.ok("create_group", title="Qt 群", members=[2, 3]))[
+        "conversation"
+    ]
     direct = (await member.ok("open_direct_conversation", user=1))["conversation"]
     anchor = (await send(owner, conv, 950, "可保留回复"))["id"]
     gate, management, search_gate = Gate(url), Gate(url), Gate(url)
@@ -582,11 +584,68 @@ async def qt_scenarios(root, probe, url, owner, member, db):
                 "member_enabled"
             ]
             await notice("")
-            await muted(owner, conv, 3, 2)
+            await ui.call("group", id=conv)
+            await ui.wait("moderate", lambda r: r.get("publish"), members=True)
+            await muted(owner, conv, 2, -1)
+
+            def has_label(state, user, label):
+                return all(
+                    any(
+                        row["id"] == user
+                        and all(
+                            label in row[role]
+                            for role in ("status", "accessible", "tooltip")
+                        )
+                        for row in state.get(view, [])
+                    )
+                    for view in ("list", "preview")
+                )
+
+            await admin.wait(
+                "moderate", lambda r: has_label(r, 2, "永久禁言"), members=True
+            )
+            await muted(owner, conv, 3, 3)
             await notice("禁言至")
+            await ui.wait("moderate", lambda r: r.get("publish") is False, members=True)
+            await admin.call("moderate", member=3)
+            before = await admin.wait(
+                "moderate",
+                lambda r: r["scroll"] > 0 and has_label(r, 3, "禁言至"),
+                members=True,
+                showList=True,
+            )
+            rpc_count = len(management.messages)
             await ui.call("draft", text="限时到期后继续发")
             assert not (await ui.call("state"))["sendEnabled"]
             await ui.wait("state", lambda r: r["sendEnabled"] and not r["speech"])
+            await ui.wait("moderate", lambda r: r.get("publish"), members=True)
+            after = await admin.wait(
+                "moderate",
+                lambda r: all(
+                    any(
+                        row["id"] == 3
+                        and all(
+                            "禁言" not in row[role]
+                            for role in ("status", "accessible", "tooltip")
+                        )
+                        for row in r.get(view, [])
+                    )
+                    for view in ("list", "preview")
+                ),
+                members=True,
+            )
+            assert has_label(after, 2, "永久禁言")
+            assert after["selected"] == before["selected"] == 3
+            assert after["scroll"] == before["scroll"]
+            assert [row["id"] for row in after["list"]] == [
+                row["id"] for row in before["list"]
+            ]
+            assert not management.messages[rpc_count:]
+            print(
+                "PASS Qt natural mute expiry updates member list, preview, accessibility and own publishing without an RPC",
+                flush=True,
+            )
+            await ui.call("moderate", close=True)
             await admin.call("moderate", close=True)
 
             (journal,) = (local / "data").rglob("tasks.sqlite3")

@@ -229,6 +229,40 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             {
                 mute->click();
             }
+            if (cmd["members"].toBool())
+            {
+                auto* list = dialog->findChild<QListWidget*>("groupMembersList");
+                if (cmd["showList"].toBool())
+                {
+                    dialog->findChild<QTabWidget*>("groupTabs")->setCurrentWidget(list->parentWidget());
+                    list->setFixedHeight(list->sizeHintForRow(0) + 2 * list->frameWidth());
+                    list->scrollToBottom();
+                }
+                auto describe = [](QListWidget* entries)
+                {
+                    QJsonArray rows;
+                    for (int row = 0; row < entries->count(); ++row)
+                    {
+                        auto const* item = entries->item(row);
+                        rows.append(QJsonObject{{"id", item->data(Qt::UserRole).toLongLong()},
+                                                {"status", item->statusTip()},
+                                                {"accessible", item->data(Qt::AccessibleTextRole).toString()},
+                                                {"tooltip", item->toolTip()}});
+                    }
+                    return rows;
+                };
+                out["list"] = describe(list);
+                out["preview"] = describe(dialog->findChild<QListWidget*>("groupMemberPreview"));
+                out["selected"] = list->currentItem() ? list->currentItem()->data(Qt::UserRole).toLongLong() : 0;
+                out["scroll"] = list->verticalScrollBar()->value();
+                for (auto* control : dialog->findChildren<QPushButton*>())
+                {
+                    if (control->text() == "只上传到群文件")
+                    {
+                        out["publish"] = control->isEnabled();
+                    }
+                }
+            }
             if (cmd.contains("member"))
             {
                 auto* list = dialog->findChild<QListWidget*>("groupMembersList");

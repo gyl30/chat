@@ -80,7 +80,15 @@ group_dialog::group_dialog(client_bridge& client,
     connect_group_settings();
     speech_expiry_ = new QTimer(this);
     speech_expiry_->setSingleShot(true);
-    connect(speech_expiry_, &QTimer::timeout, this, &group_dialog::update_actions);
+    speech_expiry_->setTimerType(Qt::PreciseTimer);
+    connect(speech_expiry_,
+            &QTimer::timeout,
+            this,
+            [this]
+            {
+                refresh_speech();
+                update_actions();
+            });
     update_actions();
 }
 
@@ -865,32 +873,13 @@ void group_dialog::set_members(qint64 conversation, QList<member_data> members, 
     overview_count_->setText(QStringLiteral("%1 位成员").arg(members_.size()));
     for (auto const& member : members_)
     {
-        auto const role = member.role == chat::member_role::owner   ? QStringLiteral("群主")
-                          : member.role == chat::member_role::admin ? QStringLiteral("管理员")
-                                                                    : QStringLiteral("成员");
         if (avatars_)
         {
             avatars_->observe(member.id, member.avatar);
         }
-        auto description = role + (member.id == self_user_ ? QStringLiteral(" · 你") : QString{});
-        if (member.role == chat::member_role::member)
-        {
-            if (member.speech_until == -1)
-            {
-                description += QStringLiteral(" · 永久禁言");
-            }
-            else if (member.speech_until > QDateTime::currentMSecsSinceEpoch() + server_clock_delta_)
-            {
-                description += QStringLiteral(" · 禁言至 %1")
-                                   .arg(QDateTime::fromMSecsSinceEpoch(member.speech_until).toString(QStringLiteral("MM-dd HH:mm:ss")));
-            }
-        }
         auto* item = new QListWidgetItem(member.username, list_);
         item->setData(Qt::UserRole, member.id);
-        item->setData(Qt::StatusTipRole, description);
-        item->setData(Qt::AccessibleTextRole, member.username + QStringLiteral(" · ") + description);
         item->setData(Qt::DecorationRole, avatars_ ? avatars_->image(member.id) : QPixmap{});
-        item->setToolTip(member.username + QStringLiteral(" · ") + description);
         if (preview_->count() < 3)
         {
             auto* preview = new QListWidgetItem(*item);
@@ -904,6 +893,7 @@ void group_dialog::set_members(qint64 conversation, QList<member_data> members, 
     preview_->setFixedHeight(preview_->count() * chat_theme::dialog_row_height);
     available_ = true;
     status_->clear();
+    refresh_speech();
     update_actions();
     auto const self = std::find_if(members_.begin(), members_.end(), [this](auto const& member) { return member.id == self_user_; });
     if (self != members_.end() && self->role != chat::member_role::member)
@@ -992,6 +982,7 @@ void group_dialog::set_conversations(QList<conversation_data> conversations, QSt
     group_muted_ = found->group_muted;
     own_speech_until_ = found->speech_until;
     server_clock_delta_ = found->server_clock_delta;
+    refresh_speech();
     all_mute_->setChecked(group_muted_);
     update_actions();
 }
@@ -1115,6 +1106,60 @@ void group_dialog::refresh_requests()
     emit requests_requested(0);
 }
 
+void group_dialog::refresh_speech()
+{
+    auto const now = QDateTime::currentMSecsSinceEpoch() + server_clock_delta_;
+    auto next = std::numeric_limits<qint64>::max();
+    if (own_speech_until_ > now)
+    {
+        next = own_speech_until_;
+    }
+    auto describe = [](QListWidgetItem* item, QString const& description)
+    {
+        if (item->statusTip() != description)
+        {
+            auto const text = item->text() + QStringLiteral(" · ") + description;
+            item->setStatusTip(description);
+            item->setData(Qt::AccessibleTextRole, text);
+            item->setToolTip(text);
+        }
+    };
+    for (int row = 0; row < list_->count(); ++row)
+    {
+        auto const& member = members_[row];
+        auto const role = member.role == chat::member_role::owner   ? QStringLiteral("群主")
+                          : member.role == chat::member_role::admin ? QStringLiteral("管理员")
+                                                                    : QStringLiteral("成员");
+        auto description = role + (member.id == self_user_ ? QStringLiteral(" · 你") : QString{});
+        if (member.role == chat::member_role::member)
+        {
+            if (member.speech_until == -1)
+            {
+                description += QStringLiteral(" · 永久禁言");
+            }
+            else if (member.speech_until > now)
+            {
+                next = std::min(next, member.speech_until);
+                description += QStringLiteral(" · 禁言至 %1")
+                                   .arg(QDateTime::fromMSecsSinceEpoch(member.speech_until).toString(QStringLiteral("MM-dd HH:mm:ss")));
+            }
+        }
+        describe(list_->item(row), description);
+        if (auto* item = preview_->item(row))
+        {
+            describe(item, description);
+        }
+    }
+    if (next == std::numeric_limits<qint64>::max())
+    {
+        speech_expiry_->stop();
+    }
+    else
+    {
+        speech_expiry_->start(static_cast<int>(std::min<qint64>(next - now, std::numeric_limits<int>::max())));
+    }
+}
+
 void group_dialog::update_actions()
 {
     auto const self = std::find_if(members_.begin(), members_.end(), [this](auto const& member) { return member.id == self_user_; });
@@ -1122,11 +1167,6 @@ void group_dialog::update_actions()
     auto const manager = self != members_.end() && self->role != chat::member_role::member;
     auto const delay = own_speech_until_ - (QDateTime::currentMSecsSinceEpoch() + server_clock_delta_);
     auto const blocked = !manager && (group_muted_ || own_speech_until_ == -1 || delay > 0);
-    speech_expiry_->stop();
-    if (!manager && !group_muted_ && own_speech_until_ > 0 && delay > 0)
-    {
-        speech_expiry_->start(static_cast<int>(std::min<qint64>(delay, std::numeric_limits<int>::max())));
-    }
     files_->set_access(available_ && self != members_.end(), manager, !blocked);
     auto const can_manage = available_ && manager;
     auto const enabled = available_ && !pending_;

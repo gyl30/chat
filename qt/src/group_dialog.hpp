@@ -75,6 +75,7 @@ class group_dialog final : public QDialog
     void connect_approval_actions();
     void connect_group_settings();
 
+    void refresh_speech();
     void update_actions();
 
     group_files_page* files_;
