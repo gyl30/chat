@@ -201,13 +201,6 @@ theme_manager& theme_manager::instance()
     return *manager;
 }
 
-QList<chat_theme_info> const& theme_manager::themes()
-{
-    static QList<chat_theme_info> const values{{chat_theme_id::daylight, QStringLiteral("daylight"), QStringLiteral("Daylight")},
-                                               {chat_theme_id::midnight, QStringLiteral("midnight"), QStringLiteral("Midnight")}};
-    return values;
-}
-
 theme_manager::theme_manager() : QObject(QCoreApplication::instance())
 {
     if (auto* application = qobject_cast<QApplication*>(QCoreApplication::instance()))
@@ -232,11 +225,6 @@ theme_manager::theme_manager() : QObject(QCoreApplication::instance())
         appearance_ = chat_appearance::light;
     }
     reload();
-}
-
-void theme_manager::set_theme(chat_theme_id theme)
-{
-    set_appearance(theme == chat_theme_id::midnight ? chat_appearance::dark : chat_appearance::light);
 }
 
 void theme_manager::set_appearance(chat_appearance appearance)
@@ -316,7 +304,6 @@ bool theme_manager::apply(chat_appearance appearance)
     avatars_ = std::move(data.avatars);
     sheet_ = std::move(data.sheet);
     appearance_ = appearance;
-    theme_ = night ? chat_theme_id::midnight : chat_theme_id::daylight;
     if (auto* application = qobject_cast<QApplication*>(QCoreApplication::instance()))
     {
         QPalette palette(original_palette_);

@@ -10,22 +10,11 @@
 #include <QTemporaryDir>
 #include <memory>
 
-enum class chat_theme_id
-{
-    daylight,
-    midnight
-};
 enum class chat_appearance
 {
     system,
     light,
     dark
-};
-struct chat_theme_info
-{
-    chat_theme_id id;
-    QString key;
-    QString name;
 };
 
 // QSS and custom painters use the same semantic colors from external theme files.
@@ -34,11 +23,7 @@ class theme_manager final : public QObject
     Q_OBJECT
    public:
     static theme_manager& instance();
-    static QList<chat_theme_info> const& themes();
-    chat_theme_id theme() const noexcept { return theme_; }
     chat_appearance appearance() const noexcept { return appearance_; }
-    bool dark() const noexcept { return theme_ == chat_theme_id::midnight; }
-    void set_theme(chat_theme_id theme);
     void set_appearance(chat_appearance appearance);
     void load_settings();
     bool reload();
@@ -59,7 +44,6 @@ class theme_manager final : public QObject
     theme_manager();
     bool apply(chat_appearance appearance);
     void save_settings() const;
-    chat_theme_id theme_ = chat_theme_id::daylight;
     chat_appearance appearance_ = chat_appearance::system;
     bool system_dark_ = false;
     QHash<QString, QColor> colors_;
