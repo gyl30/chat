@@ -24,6 +24,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFocusEvent>
 #include <QListWidget>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -2207,6 +2208,15 @@ bool chat_widget::eventFilter(QObject* object, QEvent* event)
         input_bar_->style()->unpolish(input_bar_);
         input_bar_->style()->polish(input_bar_);
         input_bar_->update();
+        if (event->type() == QEvent::FocusOut && static_cast<QFocusEvent*>(event)->reason() == Qt::PopupFocusReason)
+        {
+            // Hook the editor's own standard menu, not Chat menus that already have a close handler.
+            auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+            if (menu && (menu->parentWidget() == message_edit_ || menu->parentWidget() == message_edit_->viewport()))
+            {
+                resume_reading_after_menu(*menu);
+            }
+        }
     }
     if ((object == contacts_requests_button_ || object == contacts_back_button_ || object == incoming_accept_button_ ||
          object == incoming_reject_button_ || object == outgoing_cancel_button_) &&
