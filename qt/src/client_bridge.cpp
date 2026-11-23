@@ -790,7 +790,7 @@ void client_bridge::get_presence()
         });
 }
 
-void client_bridge::get_messages(qint64 conversation, std::optional<qint64> before, std::optional<qint64> after)
+void client_bridge::get_messages(qint64 conversation, std::optional<qint64> before, std::optional<qint64> after, bool capture_unread)
 {
     auto const generation = ++messages_generation_;
     auto const connection = connection_generation_.load();
@@ -814,7 +814,7 @@ void client_bridge::get_messages(qint64 conversation, std::optional<qint64> befo
                             emit conversation_changed(conversation, true);
                             return;
                         }
-                        emit messages_received(conversation, {}, {}, before.has_value(), after.has_value(), false, display_error(result.error()));
+                        emit messages_received(conversation, {}, {}, before.has_value(), after.has_value(), false, {}, display_error(result.error()));
                         return;
                     }
                     QList<message_data> messages;
@@ -829,15 +829,22 @@ void client_bridge::get_messages(qint64 conversation, std::optional<qint64> befo
                     }
                     emit history_boundary(conversation, result->visible_after, after.has_value() && result->hidden);
                     auto const next = result->messages.empty() ? 0 : result->messages.back().id;
-                    emit messages_received(
-                        conversation, std::move(messages), std::move(positions), before.has_value(), after.has_value(), result->has_more, {});
+                    emit messages_received(conversation,
+                                           std::move(messages),
+                                           std::move(positions),
+                                           before.has_value(),
+                                           after.has_value(),
+                                           result->has_more,
+                                           result->first_unread,
+                                           {});
                     if (after && result->has_more && next > *after && generation == messages_generation_ && connection == connection_generation_)
                     {
                         get_messages(conversation, {}, next);
                     }
                 });
         },
-        after);
+        after,
+        capture_unread);
 }
 
 void client_bridge::set_typing(qint64 conversation, bool typing)
@@ -1473,8 +1480,11 @@ quint64 client_bridge::get_search_context(qint64 conversation, qint64 anchor)
                                                              messages.push_back(to_message_data(m));
                                                          }
                                                      }
-                                                     emit search_context_received(
-                                                         request, anchor, std::move(messages), result ? QString{} : display_error(result.error()));
+                                                     emit search_context_received(request,
+                                                                                  anchor,
+                                                                                  std::move(messages),
+                                                                                  result ? QString{} : display_error(result.error()),
+                                                                                  !result && result.error().code == chat::conversation_unavailable);
                                                  });
                                  });
     return request;

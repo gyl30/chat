@@ -79,7 +79,13 @@ class chat_widget final : public QWidget
     void set_add_contact_search_results(QList<user_data> users, quint64 request);
     void set_add_contact_search_error(QString message, quint64 request);
     void finish_add_contact(qint64 user, QString error);
-    void set_messages(qint64 conversation, QList<message_data> messages, read_positions positions, bool older, bool recovering, bool has_more);
+    void set_messages(qint64 conversation,
+                      QList<message_data> messages,
+                      read_positions positions,
+                      bool older,
+                      bool recovering,
+                      bool has_more,
+                      std::optional<qint64> first_unread);
     void set_read_message(qint64 conversation, qint64 user, qint64 message);
     void reset_read_positions(qint64 conversation);
     void set_typing(qint64 conversation, qint64 user, QString username, bool typing);
@@ -105,12 +111,16 @@ class chat_widget final : public QWidget
     // Only an unfinished local write still needs a quit warning.
     bool saving_text() const { return saving_text_.has_value(); }
     void set_message_error(qint64 user, QString message);
+    void set_history_error(qint64 conversation, QString message);
 
     qint64 active_conversation() const noexcept;
     qint64 latest_message_id() const;
     std::optional<qint64> recovery_cursor() const;
     bool messages_ready() const;
     bool viewing_latest() const;
+    bool capture_unread() const { return unread_pending_; }
+    void invalidate_unread_start(qint64 conversation, qint64 anchor);
+    void begin_history_refresh();
     void mark_visible_messages();
     qint64 self_user() const { return self_user_; }
     std::optional<conversation_data> conversation(qint64 id) const;
@@ -126,6 +136,7 @@ class chat_widget final : public QWidget
     void avatar_update_finished(QString error);
     void conversation_selected(qint64 user, bool group);
     void older_messages_requested(qint64 user, qint64 before);
+    void latest_messages_requested(qint64 conversation);
     void send_message_requested(qint64 conversation, QString text, qint64 reply_to, qint64 client_id, qint64 revision);
     void draft_save_requested(qint64 user, qint64 conversation, qint64 revision, qint64 reply, QString text);
     void draft_reply_requested(qint64 conversation, qint64 anchor, qint64 revision);
@@ -153,7 +164,7 @@ class chat_widget final : public QWidget
     void group_join_requested(QString token);
     void members_requested(qint64 conversation, qint64 self_user, QString title);
     void message_search_requested(qint64 conversation, qint64 self_user, bool group, QString title, QString query);
-    void global_search_requested();
+    void global_search_requested(bool mentions_me = false);
     void message_context_requested(qint64 conversation, qint64 anchor);
     void chat_history_requested(qint64 conversation, QString title);
     void group_message_pin_requested(qint64 conversation, std::optional<qint64> message);
@@ -235,6 +246,8 @@ class chat_widget final : public QWidget
     void update_compose_state();
     void create_group();
     void request_older_messages();
+    void update_reading_navigation();
+    void return_to_latest();
     void send_current_message();
     void draft_edited();
     void save_active_draft();
@@ -379,6 +392,14 @@ class chat_widget final : public QWidget
     bool active_group_ = false;
     quint64 active_member_count_ = 0;
     QString active_username_;
+    QPushButton* unread_start_button_ = nullptr;
+    QPushButton* latest_button_ = nullptr;
+    quint64 conversation_visit_ = 0;
+    qint64 unread_start_ = 0;
+    QSet<qint64> withdrawn_before_unread_;
+    bool unread_pending_ = false;
+    bool timeline_current_ = false;
+    bool jump_to_latest_ = false;
     bool messages_loaded_ = false;
     bool messages_loading_ = false;
     bool history_exhausted_ = false;

@@ -1219,11 +1219,11 @@ void main_window::connect_group_actions()
     connect(chat_page_,
             &chat_widget::global_search_requested,
             this,
-            [this]
+            [this](bool mentions_me)
             {
                 if (connected_ && !reconnecting_)
                 {
-                    global_search_dialog dialog(*client_, this, chat_page_->self_user(), session_username_);
+                    global_search_dialog dialog(*client_, this, chat_page_->self_user(), session_username_, mentions_me);
                     dialog.exec();
                 }
             });
@@ -1236,7 +1236,7 @@ void main_window::connect_group_actions()
                 if (connected_ && !reconnecting_)
                 {
                     global_search_dialog dialog(*client_, this);
-                    dialog.locate(conversation, anchor);
+                    dialog.locate(conversation, anchor, [this, conversation, anchor] { chat_page_->invalidate_unread_start(conversation, anchor); });
                     dialog.exec();
                 }
             });
@@ -1318,7 +1318,8 @@ void main_window::connect_group_actions()
             if (conversation == chat_page_->active_conversation())
             {
                 chat_page_->reset_read_positions(conversation);
-                client_->get_messages(conversation, {}, chat_page_->recovery_cursor());
+                chat_page_->begin_history_refresh();
+                client_->get_messages(conversation, {}, chat_page_->recovery_cursor(), chat_page_->capture_unread());
             }
         },
         Qt::AutoConnection);
@@ -1332,12 +1333,17 @@ void main_window::connect_messages()
             this,
             [this](qint64 user, bool group)
             {
-                client_->get_messages(user);
+                client_->get_messages(user, {}, {}, chat_page_->capture_unread());
                 if (group)
                 {
                     client_->get_members(user);
                 }
             });
+
+    connect(chat_page_,
+            &chat_widget::latest_messages_requested,
+            this,
+            [this](qint64 conversation) { client_->get_messages(conversation, {}, chat_page_->recovery_cursor(), chat_page_->capture_unread()); });
 
     downloads_ = new download_dialog(*client_, *chat_page_, this);
     connect(chat_page_,
@@ -1478,15 +1484,16 @@ void main_window::connect_messages()
                bool older,
                bool recovering,
                bool has_more,
+               std::optional<qint64> first_unread,
                QString const& error_message)
         {
             if (!error_message.isEmpty())
             {
-                chat_page_->set_message_error(user, error_message);
+                chat_page_->set_history_error(user, error_message);
                 return;
             }
 
-            chat_page_->set_messages(user, std::move(messages), std::move(positions), older, recovering, has_more);
+            chat_page_->set_messages(user, std::move(messages), std::move(positions), older, recovering, has_more, first_unread);
         },
         Qt::AutoConnection);
 
@@ -1529,7 +1536,11 @@ void main_window::connect_messages()
             }
             if (!chat_page_->set_reactions(conversation, message, revision, std::move(reactions)) && message > chat_page_->latest_message_id())
             {
-                client_->get_messages(conversation, {}, chat_page_->recovery_cursor());
+                if (conversation == chat_page_->active_conversation())
+                {
+                    chat_page_->begin_history_refresh();
+                    client_->get_messages(conversation, {}, chat_page_->recovery_cursor(), chat_page_->capture_unread());
+                }
             }
         },
         Qt::AutoConnection);
@@ -2315,7 +2326,7 @@ void main_window::finish_reconnect()
     client_->get_friend_requests();
     if (user > 0)
     {
-        client_->get_messages(user, {}, cursor);
+        client_->get_messages(user, {}, cursor, chat_page_->capture_unread());
         client_->get_members(user);
     }
 }

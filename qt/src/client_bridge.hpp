@@ -84,7 +84,7 @@ class client_bridge final : public QObject
     void respond_friend_request(qint64 user, bool accept);
     void cancel_friend_request(qint64 user);
     void get_presence();
-    void get_messages(qint64 conversation, std::optional<qint64> before = {}, std::optional<qint64> after = {});
+    void get_messages(qint64 conversation, std::optional<qint64> before = {}, std::optional<qint64> after = {}, bool capture_unread = false);
     void forward_messages(qint64 target, QList<qint64> messages);
     void send_message(qint64 conversation, QString text, qint64 reply_to, qint64 client_id, qint64 revision);
     void save_draft(qint64 user, qint64 conversation, qint64 revision, qint64 reply, QString text);
@@ -155,6 +155,7 @@ class client_bridge final : public QObject
                            bool older,
                            bool recovering,
                            bool has_more,
+                           std::optional<qint64> first_unread,
                            QString error_message);
     void message_received(message_data message);
     void message_updated(qint64 conversation, message_data message, QString error_message);
@@ -202,7 +203,7 @@ class client_bridge final : public QObject
     void message_image_received(qint64 conversation, qint64 message, QByteArray data, QString error_message);
     void message_search_scopes_received(quint64 request, std::vector<chat::message_search_scope> scopes, QString error);
     void global_search_received(quint64 request, chat::message_search_page page, QString error);
-    void search_context_received(quint64 request, qint64 anchor, QList<message_data> messages, QString error);
+    void search_context_received(quint64 request, qint64 anchor, QList<message_data> messages, QString error, bool unavailable);
     void history_received(qint64 conversation, QList<message_data> messages, bool has_more, QString error_message);
     void message_search_received(qint64 conversation,
                                  QString query,

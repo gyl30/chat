@@ -50,8 +50,8 @@ QString search_snippet(QString const& body, QString const& query)
 }
 }    // namespace
 
-global_search_dialog::global_search_dialog(client_bridge& client, QWidget* parent, qint64 self, QString const& self_name)
-    : QDialog(parent), client_(client)
+global_search_dialog::global_search_dialog(client_bridge& client, QWidget* parent, qint64 self, QString const& self_name, bool mentions_me)
+    : QDialog(parent), client_(client), self_(self)
 {
     setWindowTitle(QStringLiteral("全局消息搜索"));
     resize(760, 540);
@@ -86,6 +86,10 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
     submit->setAutoDefault(false);
     start_enabled_ = new QCheckBox(QStringLiteral("起始日"), filters_);
     end_enabled_ = new QCheckBox(QStringLiteral("结束日"), filters_);
+    mentions_me_ = new QCheckBox(QStringLiteral("提及我"), filters_);
+    mentions_me_->setObjectName(QStringLiteral("searchMentionsMe"));
+    mentions_me_->setChecked(mentions_me);
+    connect(mentions_me_, &QCheckBox::toggled, this, &global_search_dialog::filter_changed);
     start_date_ = new QDateEdit(QDate::currentDate(), filters_);
     end_date_ = new QDateEdit(QDate::currentDate(), filters_);
     for (auto* date : {start_date_, end_date_})
@@ -109,7 +113,8 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
     fields->addWidget(start_date_, 1, 1);
     fields->addWidget(end_enabled_, 1, 2);
     fields->addWidget(end_date_, 1, 3);
-    fields->addWidget(submit, 1, 4);
+    fields->addWidget(mentions_me_, 2, 0, 1, 2);
+    fields->addWidget(submit, 2, 4);
     layout->addWidget(filters_);
     for (auto* box : {conversation_, category_, sender_})
     {
@@ -254,6 +259,10 @@ global_search_dialog::global_search_dialog(client_bridge& client, QWidget* paren
     {
         scope_request_ = client_.get_message_search_scopes();
     }
+    if (mentions_me)
+    {
+        search(0);
+    }
 }
 
 void global_search_dialog::show_results()
@@ -278,6 +287,7 @@ void global_search_dialog::filter_changed()
     results_->clear();
     next_before_ = 0;
     submitted_ = false;
+    mention_checks_.clear();
     show_results();
 }
 
@@ -291,8 +301,13 @@ void global_search_dialog::search(qint64 before)
             auto const value = box->currentData().toLongLong();
             return value ? std::optional<std::int64_t>{value} : std::nullopt;
         };
-        submitted_filter_ = {
-            query_->text().toStdString(), id(conversation_), static_cast<chat::message_category>(category_->currentIndex()), id(sender_), {}, {}};
+        submitted_filter_ = {query_->text().toStdString(),
+                             id(conversation_),
+                             static_cast<chat::message_category>(category_->currentIndex()),
+                             id(sender_),
+                             {},
+                             {},
+                             mentions_me_->isChecked()};
         if (start_enabled_->isChecked())
         {
             submitted_filter_.start = start_date_->date().startOfDay().toMSecsSinceEpoch();
@@ -308,7 +323,7 @@ void global_search_dialog::search(qint64 before)
             return;
         }
         if (filter.query.empty() && !filter.conversation && filter.category == chat::message_category::all && !filter.sender && !filter.start &&
-            !filter.end)
+            !filter.end && !filter.mentions_me)
         {
             return;
         }
@@ -329,9 +344,10 @@ void global_search_dialog::open_context(QTreeWidgetItem* item)
     show_context(item->data(0, Qt::UserRole).toLongLong(), item->data(1, Qt::UserRole).toLongLong(), item->text(1));
 }
 
-void global_search_dialog::locate(qint64 conversation, qint64 anchor)
+void global_search_dialog::locate(qint64 conversation, qint64 anchor, std::function<void()> unavailable)
 {
     standalone_ = true;
+    anchor_unavailable_ = std::move(unavailable);
     show_context(conversation, anchor, {});
 }
 
@@ -351,8 +367,49 @@ void global_search_dialog::show_context(qint64 conversation, qint64 anchor, QStr
     request_ = client_.get_search_context(conversation, anchor);
 }
 
+void global_search_dialog::insert_hit(chat::message_search_hit const& hit, QString snippet)
+{
+    int row = 0;
+    int end = results_->topLevelItemCount();
+    while (row < end)
+    {
+        auto const middle = row + (end - row) / 2;
+        auto const id = results_->topLevelItem(middle)->data(1, Qt::UserRole).toLongLong();
+        if (id == hit.id)
+        {
+            return;
+        }
+        if (id > hit.id)
+        {
+            row = middle + 1;
+        }
+        else
+        {
+            end = middle;
+        }
+    }
+    auto* item = new QTreeWidgetItem({snippet, QString::fromStdString(hit.title), QString::fromStdString(hit.username), display_time(hit.timestamp)});
+    item->setData(0, Qt::UserRole, static_cast<qlonglong>(hit.conversation));
+    item->setData(1, Qt::UserRole, static_cast<qlonglong>(hit.id));
+    results_->insertTopLevelItem(row, item);
+}
+
 void global_search_dialog::set_page(quint64 id, chat::message_search_page const& page, QString const& error)
 {
+    if (auto check = mention_checks_.find(id); check != mention_checks_.end())
+    {
+        auto const target = check->second;
+        mention_checks_.erase(check);
+        if (error.isEmpty() && !page.messages.empty() && page.messages.front().id == target)
+        {
+            insert_hit(page.messages.front(), QString::fromStdString(page.messages.front().snippet));
+            if (status_->text() == QStringLiteral("没有找到相关消息"))
+            {
+                status_->clear();
+            }
+        }
+        return;
+    }
     if (id != request_)
     {
         return;
@@ -368,10 +425,7 @@ void global_search_dialog::set_page(quint64 id, chat::message_search_page const&
             {
                 continue;
             }
-            auto* item = new QTreeWidgetItem(
-                results_, {snippet, QString::fromStdString(hit.title), QString::fromStdString(hit.username), display_time(hit.timestamp)});
-            item->setData(0, Qt::UserRole, static_cast<qlonglong>(hit.conversation));
-            item->setData(1, Qt::UserRole, static_cast<qlonglong>(hit.id));
+            insert_hit(hit, std::move(snippet));
         }
         next_before_ = page.next_before.value_or(0);
         show_empty_result();
@@ -380,13 +434,18 @@ void global_search_dialog::set_page(quint64 id, chat::message_search_page const&
     page_floors_.clear();
     more_->setVisible(next_before_ != 0);
 }
-void global_search_dialog::set_context(quint64 id, qint64 anchor, QList<message_data> const& messages, QString const& error)
+void global_search_dialog::set_context(quint64 id, qint64 anchor, QList<message_data> const& messages, QString const& error, bool unavailable)
 {
     if (id != request_)
     {
         return;
     }
     request_ = 0;
+    if (unavailable && standalone_)
+    {
+        context_unavailable();
+        return;
+    }
     if (!error.isEmpty())
     {
         status_->setText(error);
@@ -429,6 +488,7 @@ void global_search_dialog::remove_scope(qint64 conversation)
 
 void global_search_dialog::discard(qint64 conversation, qint64 through)
 {
+    mention_checks_.removeIf([=](decltype(mention_checks_)::iterator entry) { return entry->first == conversation && entry->second <= through; });
     if (!context_->isHidden() && context_conversation_ == conversation)
     {
         if (context_anchor_ <= through)
@@ -470,6 +530,11 @@ void global_search_dialog::context_unavailable()
     context_conversation_ = context_anchor_ = 0;
     context_->clear();
     status_->setText(QStringLiteral("消息不可用"));
+    if (anchor_unavailable_)
+    {
+        auto unavailable = std::move(anchor_unavailable_);
+        unavailable();
+    }
 }
 
 void global_search_dialog::show_empty_result()
@@ -507,11 +572,16 @@ void global_search_dialog::updated(qint64 conversation, message_data const& mess
     {
         return;
     }
+    mention_checks_.removeIf([&](decltype(mention_checks_)::iterator entry) { return entry->second == message.id; });
     auto snippet = [&]() -> QString
     {
         auto const& filter = submitted_filter_;
         if (message.deleted || (filter.conversation && *filter.conversation != conversation) || (filter.sender && *filter.sender != message.from) ||
             (filter.start && message.timestamp < *filter.start) || (filter.end && message.timestamp >= *filter.end))
+        {
+            return {};
+        }
+        if (filter.mentions_me && std::ranges::find(message.mentions, self_, &mention_data::user) == message.mentions.end())
         {
             return {};
         }
@@ -547,8 +617,15 @@ void global_search_dialog::updated(qint64 conversation, message_data const& mess
         }
         return;
     }
+    auto text = snippet();
     if (request_ && context_->isHidden())
     {
-        page_edits_.insert(message.id, snippet());
+        page_edits_.insert(message.id, text);
+    }
+    if (submitted_filter_.mentions_me && !text.isNull() && message.id < std::numeric_limits<qint64>::max())
+    {
+        auto filter = submitted_filter_;
+        filter.conversation = conversation;
+        mention_checks_.insert(client_.search_all_messages(filter, message.id + 1), {conversation, message.id});
     }
 }
