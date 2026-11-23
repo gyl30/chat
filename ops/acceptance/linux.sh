@@ -18,6 +18,7 @@ python3 ops/acceptance/login_sessions.py "$work/probe"
 python3 ops/acceptance/group_moderation.py "$work/probe"
 python3 ops/acceptance/clear.py
 python3 ops/acceptance/search_filters.py
+python3 ops/acceptance/reading_navigation.py "$work/probe"
 python3 ops/acceptance/history.py "$work/probe"
 python3 ops/acceptance/live_history.py "$work/probe"
 python3 ops/acceptance/drafts.py "$work/probe"

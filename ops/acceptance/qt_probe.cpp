@@ -630,11 +630,11 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     }
     else if (op == "searchui")
     {
-        if (cmd["open"].toBool())
+        if (cmd["open"].toBool() || cmd["shortcut"].toBool())
         {
             for (auto* a : window.findChildren<QAction*>())
             {
-                if (a->text() == "全局消息搜索")
+                if (cmd["shortcut"].toBool() ? a->objectName() == "mentionsMeAction" : a->text() == "全局消息搜索")
                 {
                     QTimer::singleShot(0, a, &QAction::trigger);
                 }
@@ -648,6 +648,12 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             auto* ctx = d->findChild<QListWidget*>();
             if (l && q && ctx)
             {
+                auto* mentions = d->findChild<QCheckBox*>("searchMentionsMe");
+                if (cmd.contains("mentions"))
+                {
+                    mentions->setChecked(cmd["mentions"].toBool());
+                }
+                out["mentions"] = mentions->isChecked();
                 out["open"] = true;
                 out["status"] = d->findChild<QLabel*>()->text();
                 for (auto* b : d->findChildren<QPushButton*>())
@@ -723,6 +729,8 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 out["row"] = l->indexOfTopLevelItem(l->currentItem());
                 out["ctx"] = ctx->isVisible();
                 out["count"] = ctx->count();
+                out["anchor"] = ctx->currentItem() ? ctx->currentItem()->data(Qt::UserRole).toLongLong() : 0;
+                out["selected"] = l->currentItem() ? l->currentItem()->data(1, Qt::UserRole).toLongLong() : 0;
                 if (cmd["close"].toBool())
                 {
                     d->reject();
@@ -801,6 +809,49 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
     else if (op == "draft")
     {
         edit->setPlainText(cmd["text"].toString());
+    }
+    else if (op == "reading")
+    {
+        auto* unread = button("entryUnreadButton");
+        auto* latest = button("returnToLatestButton");
+        auto* list = window.findChild<QListView*>("messageList");
+        if (cmd["activate"].toBool())
+        {
+            window.activateWindow();
+        }
+        if (cmd["up"].toBool())
+        {
+            auto* scroll = list->verticalScrollBar();
+            scroll->setValue(scroll->maximum() / 2);
+        }
+        if (cmd["older"].toBool())
+        {
+            list->verticalScrollBar()->setValue(0);
+        }
+        if (cmd["bottom"].toBool())
+        {
+            list->scrollToBottom();
+        }
+        if (cmd["latest"].toBool() && latest->isVisible())
+        {
+            latest->click();
+        }
+        if (cmd["unread"].toBool() && unread->isVisible())
+        {
+            QTimer::singleShot(0, unread, &QPushButton::click);
+        }
+        out["unread"] = unread->isVisible();
+        out["latest"] = latest->isVisible();
+        out["ready"] = chat->messages_ready();
+        out["viewingLatest"] = chat->viewing_latest();
+        out["active"] = window.isActiveWindow();
+        out["popup"] = QApplication::activePopupWidget() != nullptr;
+        out["scroll"] = list->verticalScrollBar()->value();
+        out["maximum"] = list->verticalScrollBar()->maximum();
+        out["last"] = chat->latest_message_id();
+        out["first"] = chat->messages_->first_message_id();
+        out["read"] = chat->messages_->read_position(chat->self_user());
+        out["status"] = chat->message_status_->text();
     }
     else if (op == "state")
     {
