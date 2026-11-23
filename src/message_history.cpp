@@ -5,6 +5,8 @@
 #include <span>
 #include <utility>
 
+#include "timestamp.hpp"
+
 namespace
 {
 constexpr std::size_t kPageSize = 50;
@@ -514,4 +516,141 @@ std::expected<chat::message_search_page, sqlite_error> search_all_messages(sqlit
         });
     }
     return result;
+}
+
+std::expected<std::optional<bool>, sqlite_error> set_message_bookmark(sqlite_database& db, std::int64_t user, std::int64_t message, bool bookmarked)
+{
+    if (!bookmarked)
+    {
+        auto removed = db.prepare("DELETE FROM message_bookmarks WHERE user_id=?1 AND message_id=?2 RETURNING id", user, message);
+        if (!removed)
+        {
+            return std::unexpected(std::move(removed.error()));
+        }
+        auto row = removed->step();
+        if (!row)
+        {
+            return std::unexpected(std::move(row.error()));
+        }
+        if (*row)
+        {
+            auto done = removed->step();
+            if (!done)
+            {
+                return std::unexpected(std::move(done.error()));
+            }
+        }
+        return *row;
+    }
+
+    // A single statement checks current access and inserts. No attachment references are created.
+    auto added = db.prepare(R"SQL(
+        INSERT INTO message_bookmarks(user_id,message_id,created_at)
+        SELECT ?1,m.id,?3 FROM messages m
+        JOIN conversation_members own ON own.conversation_id=m.conversation_id AND own.user_id=?1 AND m.id>own.visible_after
+        WHERE m.id=?2 AND m.deleted=0
+        ON CONFLICT(user_id,message_id) DO NOTHING RETURNING id
+    )SQL",
+                            user,
+                            message,
+                            epoch_milliseconds());
+    if (!added)
+    {
+        return std::unexpected(std::move(added.error()));
+    }
+    auto row = added->step();
+    if (!row)
+    {
+        return std::unexpected(std::move(row.error()));
+    }
+    if (*row)
+    {
+        return added->step().transform([](bool) { return std::optional(true); });
+    }
+
+    auto visible = db.prepare(R"SQL(
+        SELECT 1 FROM messages m JOIN conversation_members own ON own.conversation_id=m.conversation_id
+        WHERE own.user_id=?1 AND m.id=?2 AND m.id>own.visible_after AND m.deleted=0
+    )SQL",
+                              user,
+                              message);
+    if (!visible)
+    {
+        return std::unexpected(std::move(visible.error()));
+    }
+    return visible->step().transform([](bool allowed) -> std::optional<bool> { return allowed ? std::optional(false) : std::nullopt; });
+}
+
+std::expected<bool, sqlite_error> has_message_bookmark(sqlite_database& db, std::int64_t user, std::int64_t message)
+{
+    auto statement = db.prepare("SELECT 1 FROM message_bookmarks WHERE user_id=?1 AND message_id=?2", user, message);
+    return statement ? statement->step() : std::unexpected(std::move(statement.error()));
+}
+
+std::expected<chat::bookmark_page, sqlite_error> read_message_bookmarks(sqlite_database& db,
+                                                                        std::int64_t user,
+                                                                        std::string_view query,
+                                                                        std::optional<std::int64_t> before)
+{
+    // The hot table supplies visibility before readable_messages can fetch an archived body.
+    // Unavailable rows may be removed from the list, but expose no source metadata.
+    auto page = db.prepare(R"SQL(
+        SELECT b.id,b.message_id,b.created_at,c.id,m.sender_id,m.created_at,coalesce(c.title,peer.username),u.username,
+               CASE WHEN m.id IS NOT NULL THEN substr(m.body,max(1,instr(chat_lower(m.body),chat_lower(?2))-32),160) END,
+               a.media_type
+        FROM message_bookmarks b
+        LEFT JOIN messages hot ON hot.id=b.message_id AND hot.deleted=0
+        LEFT JOIN conversation_members own ON own.conversation_id=hot.conversation_id AND own.user_id=?1 AND hot.id>own.visible_after
+        LEFT JOIN readable_messages m ON m.id=hot.id AND own.user_id IS NOT NULL
+        LEFT JOIN conversations c ON c.id=m.conversation_id
+        LEFT JOIN users u ON u.id=m.sender_id
+        LEFT JOIN users peer ON peer.id=CASE WHEN c.direct_user_low=?1 THEN c.direct_user_high ELSE c.direct_user_low END
+        LEFT JOIN message_attachments ref ON ref.message_id=m.id
+        LEFT JOIN files a ON a.object_key=ref.object_key
+        WHERE b.user_id=?1 AND b.id<=coalesce(?3-1,9223372036854775807)
+          AND (?2='' OR (m.id IS NOT NULL AND instr(chat_lower(m.body),chat_lower(?2))>0))
+        ORDER BY b.id DESC LIMIT ?4
+    )SQL",
+                           user,
+                           query,
+                           before,
+                           static_cast<std::int64_t>(kPageSize + 1));
+    if (!page)
+    {
+        return std::unexpected(std::move(page.error()));
+    }
+    chat::bookmark_page result;
+    for (;;)
+    {
+        auto row = page->step();
+        if (!row)
+        {
+            return std::unexpected(std::move(row.error()));
+        }
+        if (!*row)
+        {
+            return result;
+        }
+        if (result.bookmarks.size() == kPageSize)
+        {
+            result.next_before = result.bookmarks.back().id;
+            return result;
+        }
+        chat::bookmarked_message item{.id = page->column_int64(0),
+                                      .message = page->column_int64(1),
+                                      .created_at = page->column_int64(2),
+                                      .source = {},
+                                      .attachment_type = std::string(page->column_text(9))};
+        if (!page->column_is_null(3))
+        {
+            item.source = chat::message_search_hit{page->column_int64(3),
+                                                   item.message,
+                                                   page->column_int64(4),
+                                                   page->column_int64(5),
+                                                   std::string(page->column_text(6)),
+                                                   std::string(page->column_text(7)),
+                                                   std::string(page->column_text(8))};
+        }
+        result.bookmarks.push_back(std::move(item));
+    }
 }

@@ -38,6 +38,18 @@ struct[[= simdjson::deny_unknown_fields]] search_all_params
     std::optional<bool> mentions_me;
 };
 
+struct[[= simdjson::deny_unknown_fields]] bookmark_params
+{
+    std::int64_t message = 0;
+    std::optional<bool> bookmarked;
+};
+
+struct[[= simdjson::deny_unknown_fields]] bookmark_list_params
+{
+    std::optional<std::string> query;
+    std::optional<std::int64_t> before;
+};
+
 bool valid_search(std::string_view query) { return !query.empty() && query.size() <= 1024 && !query.contains('\0'); }
 
 simdjson::error_code parse_params(json_rpc_params& params, auto& value)
@@ -178,4 +190,92 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
         value.messages.push_back(make_message_payload(message, true));
     }
     co_return serialize_json_rpc_value(value, std::move(request.id), response);
+}
+
+boost::capy::task<simdjson::error_code> chat_session::handle_message_bookmarks(json_rpc_request& request, std::string& response)
+{
+    if (!request.id.present)
+    {
+        co_return simdjson::SUCCESS;
+    }
+    if (!user_id_)
+    {
+        co_return serialize_json_rpc_error(-32001, "Authentication required", std::move(request.id), response);
+    }
+    if (request.method == "list_message_bookmarks")
+    {
+        bookmark_list_params params;
+        if (parse_params(request.params, params) || (params.query && !valid_search(*params.query)) || (params.before && *params.before <= 0))
+        {
+            co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+        }
+        auto page = co_await database_.search(
+            [&, user = *user_id_, login = login_id_](sqlite_database& db) -> std::expected<chat::bookmark_page, sqlite_error>
+            {
+                auto snapshot = sqlite_transaction::begin_read(db);
+                if (!snapshot)
+                {
+                    return std::unexpected(std::move(snapshot.error()));
+                }
+                auto active = login_active(db, login, epoch_milliseconds());
+                if (!active)
+                {
+                    return std::unexpected(std::move(active.error()));
+                }
+                if (!*active)
+                {
+                    return std::unexpected(sqlite_error{SQLITE_AUTH, "Login session no longer valid"});
+                }
+                return read_message_bookmarks(db, user, params.query ? std::string_view(*params.query) : "", params.before);
+            });
+        if (!page)
+        {
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        co_return serialize_json_rpc_value(*page, std::move(request.id), response);
+    }
+
+    bookmark_params params;
+    bool const setting = request.method == "set_message_bookmark";
+    if (parse_params(request.params, params) || params.message <= 0 || params.bookmarked.has_value() != setting)
+    {
+        co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
+    }
+    if (!setting)
+    {
+        auto exists = co_await run_db([&, user = *user_id_](sqlite_database& db) { return has_message_bookmark(db, user, params.message); });
+        if (!exists)
+        {
+            co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+        }
+        co_return serialize_json_rpc_value(chat::bookmark_state{params.message, *exists}, std::move(request.id), response);
+    }
+
+    auto changed =
+        co_await run_db([&, user = *user_id_](sqlite_database& db) { return set_message_bookmark(db, user, params.message, *params.bookmarked); });
+    if (!changed)
+    {
+        co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
+    }
+    if (!*changed)
+    {
+        co_return serialize_json_rpc_error(-32007, "Message unavailable", std::move(request.id), response);
+    }
+    if (**changed)
+    {
+        struct notification
+        {
+            std::int64_t message;
+        };
+        std::string payload;
+        if (!simdjson::builder::to_json_string(notification{params.message}).get(payload))
+        {
+            auto json = R"({"jsonrpc":"2.0","method":"message_bookmark_changed","params":)" + payload + "}";
+            for (auto* session : users_.sessions(*user_id_))
+            {
+                session->enqueue_message(json);
+            }
+        }
+    }
+    co_return serialize_json_rpc_value(chat::bookmark_state{params.message, *params.bookmarked}, std::move(request.id), response);
 }

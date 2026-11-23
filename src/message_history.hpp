@@ -33,6 +33,14 @@ std::expected<std::optional<chat::message>, sqlite_error> read_message(sqlite_da
                                                                        std::int64_t conversation,
                                                                        std::int64_t message);
 
+// Only setting a bookmark requires access to the original message.
+std::expected<std::optional<bool>, sqlite_error> set_message_bookmark(sqlite_database& db, std::int64_t user, std::int64_t message, bool bookmarked);
+std::expected<bool, sqlite_error> has_message_bookmark(sqlite_database& db, std::int64_t user, std::int64_t message);
+std::expected<chat::bookmark_page, sqlite_error> read_message_bookmarks(sqlite_database& db,
+                                                                        std::int64_t user,
+                                                                        std::string_view query,
+                                                                        std::optional<std::int64_t> before);
+
 struct read_position_change
 {
     std::int64_t message;

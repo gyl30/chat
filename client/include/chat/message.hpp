@@ -127,6 +127,27 @@ struct message_search_page
     std::optional<std::int64_t> next_before;
 };
 
+struct bookmark_state
+{
+    std::int64_t message = 0;
+    bool bookmarked = false;
+};
+
+struct bookmarked_message
+{
+    std::int64_t id = 0;
+    std::int64_t message = 0;
+    std::int64_t created_at = 0;
+    std::optional<message_search_hit> source;
+    std::string attachment_type;
+};
+
+struct bookmark_page
+{
+    std::vector<bookmarked_message> bookmarks;
+    std::optional<std::int64_t> next_before;
+};
+
 struct messages_result
 {
     std::vector<message> messages;

@@ -169,6 +169,16 @@ CREATE VIEW IF NOT EXISTS readable_messages AS
 CREATE INDEX IF NOT EXISTS messages_conversation_idx ON messages (conversation_id, id DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS messages_sender_client_id ON messages (sender_id, client_id) WHERE client_id IS NOT NULL;
 
+CREATE TABLE IF NOT EXISTS message_bookmarks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    created_at INTEGER NOT NULL,
+    UNIQUE(user_id,message_id)
+);
+CREATE INDEX IF NOT EXISTS message_bookmarks_page ON message_bookmarks(user_id,id DESC);
+CREATE INDEX IF NOT EXISTS message_bookmarks_message ON message_bookmarks(message_id);
+
 -- A positive reservation protects an unpublished upload. Its first reference claims it;
 -- removing its last reference queues the key (reserved_at=0) for deletion.
 CREATE TABLE IF NOT EXISTS attachment_cleanup (

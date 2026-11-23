@@ -92,6 +92,7 @@ class chat_session
     boost::capy::task<simdjson::error_code> handle_group_invite(json_rpc_request& request, std::string& response);
     boost::capy::task<simdjson::error_code> handle_group_join_request(json_rpc_request& request, std::string& response);
 
+    boost::capy::task<simdjson::error_code> handle_message_bookmarks(json_rpc_request& request, std::string& response);
     boost::capy::task<simdjson::error_code> handle_get_messages(json_rpc_request& request, std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_get_presence(json_rpc_request& request, std::string& response);
