@@ -640,6 +640,123 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             }
         }
     }
+    else if (op == "bookmark_menu")
+    {
+        for (int i = 0; i < model->rowCount(); ++i)
+        {
+            auto const index = model->index(i, 0);
+            if (index.data(message_model::id_role).toLongLong() != cmd["message"].toInteger())
+            {
+                continue;
+            }
+            auto const label = cmd["action"].toString();
+            view->scrollTo(index);
+            QTimer watch;
+            watch.setInterval(10);
+            QObject::connect(&watch,
+                             &QTimer::timeout,
+                             view,
+                             [&out, label]
+                             {
+                                 if (auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget()))
+                                 {
+                                     for (auto* action : menu->actions())
+                                     {
+                                         if (action->text() == label && action->isEnabled())
+                                         {
+                                             out["action"] = label;
+                                             menu->setActiveAction(action);
+                                             QKeyEvent key(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+                                             QApplication::sendEvent(menu, &key);
+                                             return;
+                                         }
+                                     }
+                                 }
+                             });
+            QTimer deadline;
+            deadline.setSingleShot(true);
+            QObject::connect(&deadline,
+                             &QTimer::timeout,
+                             view,
+                             []
+                             {
+                                 if (auto* menu = QApplication::activePopupWidget())
+                                 {
+                                     menu->close();
+                                 }
+                             });
+            deadline.start(3000);
+            watch.start();
+            emit view->customContextMenuRequested(view->visualRect(index).center());
+            break;
+        }
+    }
+    else if (op == "bookmarks")
+    {
+        if (cmd["open"].toBool())
+        {
+            for (auto* action : window.findChildren<QAction*>())
+            {
+                if (action->text() == "消息收藏")
+                {
+                    QTimer::singleShot(0, action, &QAction::trigger);
+                }
+            }
+        }
+        auto* dialog = window.findChild<QDialog*>("bookmarksDialog");
+        if (dialog && dialog->isVisible())
+        {
+            auto* list = dialog->findChild<QTreeWidget*>("bookmarkResults");
+            if (cmd.contains("query"))
+            {
+                dialog->findChild<QLineEdit*>("bookmarkQuery")->setText(cmd["query"].toString());
+            }
+            if (cmd.contains("select"))
+            {
+                for (int i = 0; i < list->topLevelItemCount(); ++i)
+                {
+                    auto* item = list->topLevelItem(i);
+                    if (item->data(0, Qt::UserRole).toLongLong() == cmd["select"].toInteger())
+                    {
+                        list->setCurrentItem(item);
+                        break;
+                    }
+                }
+            }
+            auto* more = button("moreBookmarks");
+            auto* locate = button("locateBookmark");
+            auto* remove = button("removeBookmark");
+            if (cmd["more"].toBool())
+            {
+                more->click();
+            }
+            if (cmd["locate"].toBool())
+            {
+                QTimer::singleShot(0, locate, &QAbstractButton::click);
+            }
+            if (cmd["remove"].toBool())
+            {
+                remove->click();
+            }
+            QJsonArray rows;
+            for (int i = 0; i < list->topLevelItemCount(); ++i)
+            {
+                auto* item = list->topLevelItem(i);
+                rows.append(QJsonObject{{"id", item->data(0, Qt::UserRole).toLongLong()},
+                                        {"conversation", item->data(0, Qt::UserRole + 1).toLongLong()},
+                                        {"summary", item->text(4)}});
+            }
+            out["open"] = true;
+            out["rows"] = rows;
+            out["more"] = more->isVisible();
+            out["locate"] = locate->isEnabled();
+            out["status"] = dialog->findChild<QLabel*>("bookmarkStatus")->text();
+            if (cmd["close"].toBool())
+            {
+                dialog->reject();
+            }
+        }
+    }
     else if (op == "searchui")
     {
         if (cmd["open"].toBool() || cmd["shortcut"].toBool())
@@ -984,6 +1101,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         out["sendEnabled"] = button("sendButton")->isEnabled();
         auto const* notice = window.findChild<QLabel*>("groupSpeechNotice");
         out["speech"] = notice->isVisible() ? notice->text() : QString{};
+        out["notice"] = window.findChild<QLabel*>("sidebarNotice")->text();
         out["draft"] = edit->toPlainText();
         out["reply"] = button("cancelReplyButton")->isVisible();
         out["preview"] = window.findChild<QLabel*>("replyPreview")->text();

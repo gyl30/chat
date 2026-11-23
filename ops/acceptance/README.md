@@ -19,6 +19,7 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-re
 | `wal.py` | 验证静态服务端与私有 Python 的 SQLite 身份、WAL 并发 checkpoint 和搜索分页 |
 | `history.py` | 真实 Qt 覆盖 3,100 条较新消息后的分类和 around；`--baseline` 可用旧服务端、旧版 Qt 测试驱动复现自动补页上限 |
 | `reading_navigation.py` | 真实 RPC 与 Qt：同快照未读锚点、跨月只读定位、滚动和重连补页、提及组合/分页、编辑及失权、迟到回包 |
+| `bookmarks.py [--probe 路径] [--previous-server 旧版服务端]` | 个人收藏、隐私和失效、分页顺序、附件引用、Qt 多端与保留草稿定位；可选验证旧库升级 |
 | `search_filters.py` | 组合条件、无关键词、隐藏私聊、权限、50/51 页边界及字面空格 |
 | `live_history.py` | 双设备实时编辑与撤回、显示/剪贴板、筛选移除、乱序回包和保留服务端游标 |
 | `drafts.py` | 真 Qt 重启与会话/账号/端点隔离；探针扣住本地入队完成回调直至输入新版本，另用隔离数据库故障确认保留文字和回复 |
@@ -108,3 +109,18 @@ done
 ```
 
 测试客户端使用独立 RPC ID；同一连接只有一个收帧协程。实际提交间隔和搜索响应前已提交的次数写入结果，无需根据计划的 2 ms 间隔猜测是否重叠。历史 CSV 和新的独立测量不可合并。[2026-11-21 本机 Release 记录](results/README.md)。
+
+## 消息收藏验收
+
+先构建 Release 服务端和 Qt 探针（`build_probe.py`），设置 `CHAT_TEST_SERVER` 和 `SILO_BIN`。
+下面命令使用独立虚拟桌面与私有会话总线，不使用已登录桌面。省掉 `--probe` 可只跑服务端；
+可另传 `--previous-server /path/to/old/chat_server` 验证旧库原地升级、原消息收藏和重启持久化。
+
+```sh
+runtime=$(mktemp -d)
+env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS \
+    XDG_RUNTIME_DIR="$runtime" XDG_SESSION_TYPE=x11 QT_QPA_PLATFORMTHEME=generic \
+    xvfb-run -a -s '-screen 0 1280x900x24' dbus-run-session -- \
+    ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" python3 ops/acceptance/bookmarks.py --probe "$work/probe"
+rmdir "$runtime"
+```
