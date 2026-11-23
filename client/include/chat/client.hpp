@@ -184,7 +184,8 @@ class client
     void get_messages(std::int64_t conversation,
                       std::optional<std::int64_t> before,
                       messages_handler handler,
-                      std::optional<std::int64_t> after = {});
+                      std::optional<std::int64_t> after = {},
+                      bool capture_unread = false);
     void search_all_messages(message_search_filter const& filter, std::optional<std::int64_t> before, message_search_handler handler);
     using message_search_scopes_handler = std::function<void(std::expected<std::vector<message_search_scope>, error>)>;
     void get_message_search_scopes(message_search_scopes_handler handler);

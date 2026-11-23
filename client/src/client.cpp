@@ -1811,7 +1811,8 @@ struct client::impl
                                      std::optional<std::int64_t> after,
                                      std::optional<std::string> query = {},
                                      std::optional<std::int64_t> around = {},
-                                     std::optional<message_category> category = {})
+                                     std::optional<message_category> category = {},
+                                     bool capture_unread = false)
     {
         boost::json::object params;
         params.emplace("conversation", conversation);
@@ -1835,6 +1836,10 @@ struct client::impl
         if (category)
         {
             params.emplace("category", category_name(*category));
+        }
+        if (capture_unread)
+        {
+            params.emplace("capture_unread", true);
         }
         send_request(
             query && !category ? "search_messages" : "get_messages",
@@ -1872,6 +1877,10 @@ struct client::impl
                 }
                 result.visible_after = *parse_int64(*floor);
                 result.hidden = hidden->as_bool();
+                if (auto const* first = response->as_object().if_contains("first_unread"))
+                {
+                    result.first_unread = parse_int64(*first);
+                }
                 for (auto const& position : read_value->as_array())
                 {
                     auto const* user_value = position.is_object() ? position.as_object().if_contains("user") : nullptr;
@@ -3564,9 +3573,11 @@ void client::get_presence(presences_handler handler)
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_presence(std::move(handler)));
 }
 
-void client::get_messages(std::int64_t conversation, std::optional<std::int64_t> before, messages_handler handler, std::optional<std::int64_t> after)
+void client::get_messages(
+    std::int64_t conversation, std::optional<std::int64_t> before, messages_handler handler, std::optional<std::int64_t> after, bool capture_unread)
 {
-    boost::capy::run_async(impl_->io_context_.get_executor())(impl_->get_messages(conversation, before, std::move(handler), after));
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->get_messages(conversation, before, std::move(handler), after, {}, {}, {}, capture_unread));
 }
 
 void client::get_categorized_history(
@@ -3608,6 +3619,10 @@ void client::search_all_messages(message_search_filter const& filter, std::optio
     add("sender", filter.sender);
     add("start", filter.start);
     add("end", filter.end);
+    if (filter.mentions_me)
+    {
+        params.emplace("mentions_me", true);
+    }
     if (before)
     {
         params.emplace("before", *before);

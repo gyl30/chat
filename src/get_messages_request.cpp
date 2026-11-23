@@ -23,6 +23,7 @@ struct[[= simdjson::deny_unknown_fields]] get_messages_params
     std::optional<std::int64_t> around;
     std::optional<std::string> query;
     std::optional<std::string> category;
+    std::optional<bool> capture_unread;
 };
 
 struct[[= simdjson::deny_unknown_fields]] search_all_params
@@ -34,6 +35,7 @@ struct[[= simdjson::deny_unknown_fields]] search_all_params
     std::optional<std::int64_t> sender;
     std::optional<std::int64_t> start;
     std::optional<std::int64_t> end;
+    std::optional<bool> mentions_me;
 };
 
 bool valid_search(std::string_view query) { return !query.empty() && query.size() <= 1024 && !query.contains('\0'); }
@@ -105,11 +107,13 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
         if (parse_error || !category || (params.query && !valid_search(*params.query)) || (params.before && *params.before <= 0) ||
             (params.conversation && *params.conversation <= 0) || (params.sender && *params.sender <= 0) ||
             (params.start && params.end && *params.start >= *params.end) ||
-            (!params.query && !params.conversation && *category == chat::message_category::all && !params.sender && !params.start && !params.end))
+            (!params.query && !params.conversation && *category == chat::message_category::all && !params.sender && !params.start && !params.end &&
+             !params.mentions_me.value_or(false)))
         {
             co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
         }
-        chat::message_search_filter filter{params.query.value_or(""), params.conversation, *category, params.sender, params.start, params.end};
+        chat::message_search_filter filter{
+            params.query.value_or(""), params.conversation, *category, params.sender, params.start, params.end, params.mentions_me.value_or(false)};
         auto result =
             co_await database_.search([&, user = *user_id_](sqlite_database& db) { return search_all_messages(db, user, filter, params.before); });
         if (!result)
@@ -125,6 +129,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
     if (parse_error || (params.category && !category) || params.conversation <= 0 || (params.before && *params.before <= 0) ||
         (params.after && (*params.after < 0 || params.before)) ||
         (params.around && (*params.around <= 0 || params.before || params.after || searching || category)) || (category && params.after) ||
+        (params.capture_unread.value_or(false) && (searching || params.before || params.after || params.around || category)) ||
         (params.query && (!valid_search(*params.query) || (!searching && !category))) || (searching && (!params.query || params.after || category)))
     {
         if (request.id.present)
@@ -136,8 +141,15 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
 
     auto read = [&, user = *user_id_](sqlite_database& db)
     {
-        return read_message_history(
-            db, user, params.conversation, params.before, params.after, params.query ? std::string_view(*params.query) : "", params.around, category);
+        return read_message_history(db,
+                                    user,
+                                    params.conversation,
+                                    params.before,
+                                    params.after,
+                                    params.query ? std::string_view(*params.query) : "",
+                                    params.around,
+                                    category,
+                                    params.capture_unread.value_or(false));
     };
     auto history = category || searching || params.around ? co_await database_.search(read) : co_await run_db(read);
     if (!request.id.present)
@@ -156,8 +168,10 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
         bool has_more;
         std::int64_t visible_after;
         bool hidden;
+        std::optional<std::int64_t> first_unread;
     };
-    result value{{}, std::move((*history)->read_positions), (*history)->has_more, (*history)->visible_after, (*history)->hidden};
+    result value{
+        {}, std::move((*history)->read_positions), (*history)->has_more, (*history)->visible_after, (*history)->hidden, (*history)->first_unread};
     value.messages.reserve((*history)->messages.size());
     for (auto const& message : (*history)->messages)
     {

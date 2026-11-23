@@ -101,6 +101,7 @@ struct message_search_filter
     std::optional<std::int64_t> sender;
     std::optional<std::int64_t> start;
     std::optional<std::int64_t> end;
+    bool mentions_me = false;
 };
 
 struct message_search_scope
@@ -133,6 +134,7 @@ struct messages_result
     std::int64_t visible_after = 0;
     bool hidden = false;
     bool has_more = false;
+    std::optional<std::int64_t> first_unread;
 };
 
 }    // namespace chat

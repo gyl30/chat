@@ -163,7 +163,8 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
                                                                                        std::optional<std::int64_t> after,
                                                                                        std::string_view search,
                                                                                        std::optional<std::int64_t> around,
-                                                                                       std::optional<chat::message_category> category)
+                                                                                       std::optional<chat::message_category> category,
+                                                                                       bool capture_unread)
 {
     auto snapshot = sqlite_transaction::begin_read(db);
     if (!snapshot)
@@ -207,6 +208,31 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
     if (result.read_positions.empty())
     {
         return std::nullopt;
+    }
+
+    if (capture_unread)
+    {
+        auto const own = std::ranges::find(result.read_positions, user, &chat::read_position::user);
+        auto unread = db.prepare(R"SQL(
+            SELECT id FROM messages WHERE conversation_id=?1 AND id>?2 AND deleted=0 AND sender_id<>?3
+            ORDER BY id LIMIT 1
+        )SQL",
+                                 conversation,
+                                 std::max(own->message, result.visible_after),
+                                 user);
+        if (!unread)
+        {
+            return std::unexpected(std::move(unread.error()));
+        }
+        auto row = unread->step();
+        if (!row)
+        {
+            return std::unexpected(std::move(row.error()));
+        }
+        if (*row)
+        {
+            result.first_unread = unread->column_int64(0);
+        }
     }
 
     // Both halves of an anchored page share the membership snapshot and the same row decoder.
@@ -411,10 +437,16 @@ std::expected<chat::message_search_page, sqlite_error> search_all_messages(sqlit
                                                                            std::optional<std::int64_t> before)
 {
     // Filter live authorized candidates before the keyset LIMIT and snippet lookup.
-    std::string sql = R"SQL(
-        WITH hits AS MATERIALIZED (
-            SELECT m.id FROM conversation_members own CROSS JOIN readable_messages m ON m.conversation_id=own.conversation_id
-    )SQL";
+    std::string sql = "WITH hits AS MATERIALIZED (SELECT m.id FROM ";
+    if (filter.mentions_me)
+    {
+        sql += R"SQL(message_mentions mention CROSS JOIN readable_messages m ON m.id=mention.message_id
+            CROSS JOIN conversation_members own ON own.conversation_id=m.conversation_id)SQL";
+    }
+    else
+    {
+        sql += "conversation_members own CROSS JOIN readable_messages m ON m.conversation_id=own.conversation_id";
+    }
     using enum chat::message_category;
     if (filter.category == images || filter.category == files)
     {
@@ -427,6 +459,10 @@ std::expected<chat::message_search_page, sqlite_error> search_all_messages(sqlit
               AND (?7 IS NULL OR m.created_at>=?7)
               AND (?8 IS NULL OR m.created_at<?8)
     )SQL";
+    if (filter.mentions_me)
+    {
+        sql += " AND mention.user_id=?1 AND mention.message_id<=coalesce(?3-1,9223372036854775807)";
+    }
     if (filter.conversation)
     {
         sql += " AND own.conversation_id=?5";
@@ -436,9 +472,8 @@ std::expected<chat::message_search_page, sqlite_error> search_all_messages(sqlit
         sql += " AND instr(chat_lower(m.body),chat_lower(?2))>0";
     }
     sql += category_predicate(filter.category);
+    sql += filter.mentions_me ? " ORDER BY mention.message_id DESC LIMIT ?4)" : " ORDER BY m.id DESC LIMIT ?4)";
     sql += R"SQL(
-            ORDER BY m.id DESC LIMIT ?4
-        )
         SELECT c.id,m.id,m.sender_id,m.created_at,coalesce(c.title,peer.username),u.username,
                substr(m.body,max(1,instr(chat_lower(m.body),chat_lower(?2))-32),160)
         FROM hits JOIN readable_messages m ON m.id=hits.id JOIN conversations c ON c.id=m.conversation_id

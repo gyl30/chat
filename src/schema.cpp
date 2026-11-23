@@ -190,6 +190,8 @@ CREATE TABLE IF NOT EXISTS message_mentions (
     PRIMARY KEY (message_id, user_id)
 );
 
+CREATE INDEX IF NOT EXISTS message_mentions_user_message ON message_mentions(user_id,message_id);
+
 CREATE TABLE IF NOT EXISTS group_join_requests (
     conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

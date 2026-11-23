@@ -17,7 +17,8 @@ std::expected<std::optional<chat::messages_result>, sqlite_error> read_message_h
                                                                                        std::optional<std::int64_t> after,
                                                                                        std::string_view search = "",
                                                                                        std::optional<std::int64_t> around = {},
-                                                                                       std::optional<chat::message_category> category = {});
+                                                                                       std::optional<chat::message_category> category = {},
+                                                                                       bool capture_unread = false);
 
 std::expected<chat::message_search_page, sqlite_error> search_all_messages(sqlite_database& db,
                                                                            std::int64_t user,
