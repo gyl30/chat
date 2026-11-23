@@ -425,6 +425,107 @@ async def dissolve(a, b, c, b2, conv, direct, db, api, bucket, token):
     return pending_key, multipart, key, forward["id"], other_group
 
 
+async def qt_search_rejoin(root, probe, url, owner, member):
+    def matches(reply):
+        return [row["id"] for row in reply["messages"]]
+
+    group = (await owner.ok("create_group", title="重新加入", members=[3]))[
+        "conversation"
+    ]
+    other = (await owner.ok("create_group", title="仍然失权", members=[3]))[
+        "conversation"
+    ]
+    visible = (await owner.ok("create_group", title="已显示命中", members=[3]))[
+        "conversation"
+    ]
+    token = (await owner.ok("create_group_invite", conversation=group))["token"]
+    old = (await send(owner, group, 985, "重入筛选 移除前"))["id"]
+    old_other = (await send(owner, other, 986, "重入筛选 其他群"))["id"]
+    displayed = (await send(owner, visible, 988, "重入筛选 已显示"))["id"]
+    gate = Gate(url)
+    async with serve(gate.handle, "127.0.0.1", 0) as proxy:
+        address = f"ws://127.0.0.1:{proxy.sockets[0].getsockname()[1]}/ws"
+        ui = Desktop()
+        await ui.start(probe, root / "rejoining", address, user="c", user_id=3)
+        try:
+            await ui.call("searchui", open=True)
+            await ui.wait(
+                "searchui", lambda r: {group, other} <= set(r.get("scopes", []))
+            )
+            await ui.call("searchui", query="重入筛选")
+            await ui.wait(
+                "searchui", lambda r: set(r["ids"]) == {old, old_other, displayed}
+            )
+            await owner.ok("remove_group_member", conversation=visible, user=3)
+            await ui.wait(
+                "searchui",
+                lambda r: set(r["ids"]) == {old, old_other}
+                and visible not in r["scopes"],
+            )
+            gate.hold.add("search_all_messages")
+            await ui.call("searchui", submit=True)
+            await gate.caught("search_all_messages")
+            held = next(r for k, r in gate.held if k == "search_all_messages")
+            assert set(matches(held["result"])) == {old, old_other}
+            await owner.ok("remove_group_member", conversation=group, user=3)
+            await owner.ok("remove_group_member", conversation=other, user=3)
+            await ui.wait(
+                "searchui",
+                lambda r: group not in r["scopes"] and other not in r["scopes"],
+            )
+            await member.ok("join_group", token=token)
+            new = (await send(owner, group, 987, "重入筛选 新消息"))["id"]
+            assert matches(
+                await member.ok("search_all_messages", query="重入筛选")
+            ) == [new]
+            await ui.wait("searchui", lambda r: r["scopes"].count(group) == 1)
+            # Release the response while its request ID is still current. No newer search can mask the guard.
+            await gate.release("search_all_messages")
+            await ui.wait("searchui", lambda r: r["status"] != "正在搜索…")
+            assert not (await ui.call("searchui"))["ids"]
+            await ui.call("searchui", submit=True)
+            await ui.wait(
+                "searchui", lambda r: r["ids"] == [new] and other not in r["scopes"]
+            )
+            await ui.call("searchui", conversation=group, submit=True)
+            assert (await ui.wait("searchui", lambda r: r["ids"] == [new]))[
+                "selected_scope"
+            ] == group
+            spare = (await owner.ok("create_group", title="独立范围", members=[3]))[
+                "conversation"
+            ]
+            state = await ui.wait("searchui", lambda r: spare in r["scopes"])
+            assert (
+                state["selected_scope"] == group and state["scopes"].count(group) == 1
+            )
+
+            # Also exercise the inverse order: a newer successful query retired the old request ID.
+            await ui.call("searchui", conversation=0)
+            gate.hold.add("search_all_messages")
+            await ui.call("searchui", submit=True)
+            await gate.caught("search_all_messages")
+            assert matches(gate.held[-1][1]["result"]) == [new]
+            await owner.ok("remove_group_member", conversation=group, user=3)
+            await ui.wait("searchui", lambda r: group not in r["scopes"])
+            await member.ok("join_group", token=token)
+            newest = (await send(owner, group, 989, "重入筛选 再加入"))["id"]
+            await ui.wait("searchui", lambda r: r["scopes"].count(group) == 1)
+            gate.hold.discard("search_all_messages")
+            await ui.call("searchui", submit=True)
+            await ui.wait("searchui", lambda r: r["ids"] == [newest])
+            await gate.release("search_all_messages")
+            # Use a subsequent real notification/Qt update as the barrier after delivery of the old reply.
+            await owner.ok("remove_group_member", conversation=spare, user=3)
+            state = await ui.wait("searchui", lambda r: spare not in r["scopes"])
+            assert state["ids"] == [newest] and other not in state["scopes"]
+            print(
+                "PASS Qt prunes displayed lost hits, restores only the rejoined scope, and rejects old replies before and after a newer search",
+                flush=True,
+            )
+        finally:
+            await ui.stop()
+
+
 async def qt_scenarios(root, probe, url, owner, member, db):
     conv = (await owner.ok("create_group", title="Qt 群", members=[3]))["conversation"]
     direct = (await member.ok("open_direct_conversation", user=1))["conversation"]
@@ -576,14 +677,37 @@ async def qt_scenarios(root, probe, url, owner, member, db):
                 )
                 == requests
             )
-            await choose()
+            await member.ok("hide_conversation", conversation=conv)
+            row = "未提交的排队正文"
+            await ui.wait("recover_local", lambda r: row in r["rows"])
+            gate.hold.add("send_message")
+            fault = await ui.call("recover_local", row=row, action="重新发送")
+            assert fault.get("triggered"), (
+                "hidden muted task has a manual retry (server decides)"
+            )
+            await gate.caught("send_message")
+            denial = next(r for k, r in gate.held if k == "send_message")
+            assert denial["error"]["code"] == MUTED
+            retry = next(p for p in gate.messages if p["id"] == denial["id"])
+            assert retry["params"]["client_id"] == cid
+            await gate.release("send_message")
+            await until(
+                lambda: rows() == [(row, cid, MUTED, anchor)],
+                "real denial preserves body, client_id and reply",
+            )
             await muted(owner, conv, 3, 0)
-            await notice("")
-            await ui.call("outbox_retry", id=cid)
-            await until(lambda: not rows(), "manual retry delivered retained body")
+            assert not read(db, "SELECT id FROM messages WHERE client_id=?", cid)
+            assert (await ui.call("recover_local", row=row, action="重新发送")).get(
+                "triggered"
+            )
+            await until(
+                lambda: not rows(), "manual retry in hidden group delivered body"
+            )
             assert read(
                 db, "SELECT body,reply_to_id FROM messages WHERE client_id=?", cid
-            ) == [("未提交的排队正文", anchor)]
+            ) == [(row, anchor)]
+            await choose()
+            await notice("")
 
             path = root / "interrupted.bin"
             path.write_bytes(b"Qt upload while muted")
@@ -620,12 +744,37 @@ async def qt_scenarios(root, probe, url, owner, member, db):
                 ),
                 "other conversation upload continues while moderated group is paused",
             )
-            await muted(owner, conv, 3, 0)
-            await notice("")
-            labels = await ui.wait(
-                "transfers", lambda r: any(path.name in x for x in r["labels"])
+            await member.ok("hide_conversation", conversation=conv)
+
+            async def transfer_label(filename, prefix=""):
+                result = await ui.wait(
+                    "transfers",
+                    lambda r: any(
+                        filename in x and x.startswith(prefix) for x in r["labels"]
+                    ),
+                )
+                return next(
+                    x
+                    for x in result["labels"]
+                    if filename in x and x.startswith(prefix)
+                )
+
+            label = await transfer_label(path.name, f"会话 #{conv}")
+            gate.hold.add("resume_attachment")
+            assert (await ui.call("transfers", label=label, action="继续上传"))[
+                "triggered"
+            ]
+            await gate.caught("resume_attachment")
+            denial = next(r for k, r in gate.held if k == "resume_attachment")
+            retry = next(p for p in gate.messages if p["id"] == denial["id"])
+            assert (
+                denial["error"]["code"] == MUTED and retry["params"]["upload"] == task
             )
-            label = next(x for x in labels["labels"] if path.name in x)
+            assert not read(db, "SELECT id FROM messages WHERE client_id=?", task)
+            await gate.release("resume_attachment")
+            label = await transfer_label(path.name + " · 群聊禁言", f"会话 #{conv}")
+
+            await muted(owner, conv, 3, 0)
             assert (await ui.call("transfers", label=label, action="继续上传"))[
                 "triggered"
             ]
@@ -633,7 +782,68 @@ async def qt_scenarios(root, probe, url, owner, member, db):
                 lambda: bool(
                     read(db, "SELECT id FROM messages WHERE client_id=?", task)
                 ),
-                "original Qt device resumes and publishes",
+                "original Qt device resumes hidden upload and publishes",
+            )
+            await choose()
+            await notice("")
+
+            for mode in ("leave_group", "remove_group_member", "dissolve_group"):
+                destination = (await owner.ok("create_group", title=mode, members=[3]))[
+                    "conversation"
+                ]
+                await choose(destination)
+                lost = root / f"{mode}.bin"
+                lost.write_bytes(b"paused before membership loss")
+                gate.hold.add("confirm_attachment")
+                await ui.call(
+                    "upload",
+                    conv=destination,
+                    path=str(lost),
+                    group=mode == "remove_group_member",
+                )
+                await gate.caught("confirm_attachment")
+                [(pending,)] = read(
+                    db,
+                    "SELECT client_id FROM attachment_uploads WHERE conversation=?",
+                    destination,
+                )
+                label = await transfer_label(lost.name)
+                assert (await ui.call("transfers", label=label, action="暂停上传"))[
+                    "triggered"
+                ]
+                await until(
+                    lambda: read(
+                        db,
+                        "SELECT state FROM attachment_uploads WHERE client_id=?",
+                        pending,
+                    )
+                    == [("paused",)],
+                    "task paused before membership loss",
+                )
+                await gate.release("confirm_attachment")
+                if mode == "leave_group":
+                    await member.ok(mode, conversation=destination)
+                elif mode == "remove_group_member":
+                    await owner.ok(mode, conversation=destination, user=3)
+                else:
+                    await owner.ok(mode, conversation=destination)
+                label = await transfer_label(lost.name + " · 会话不可用")
+                assert not (
+                    await ui.call("transfers", label=label, action="继续上传")
+                ).get("triggered")
+                assert not read(
+                    db, "SELECT id FROM messages WHERE client_id=?", pending
+                )
+                assert not read(
+                    db,
+                    "SELECT object_key FROM conversation_files WHERE conversation_id=?",
+                    destination,
+                )
+            await choose()
+            await ui.wait("state", lambda r: any(m["id"] == anchor for m in r["rows"]))
+            print(
+                "PASS Qt hidden muted attempts denied by server; original IDs resumed after unmute; retired memberships cannot resume from menu",
+                flush=True,
             )
 
             assert (await ui.call("reply_to", id=anchor))["reply"]
@@ -662,9 +872,8 @@ async def qt_scenarios(root, probe, url, owner, member, db):
                 "searchui", lambda r: r.get("status") == "原会话不可用"
             )
             await search_gate.release("search_all_messages")
-            assert not (await searching.call("searchui", conversation=conv)).get(
-                "scope"
-            )
+            state = await searching.call("searchui", conversation=conv)
+            assert not state.get("scope") and state["selected_scope"] == 0
             assert not (await searching.call("searchui"))["ids"]
             assert not (await ui.call("select", conv=conv))["ok"]
             key = "草稿 · 解散后可复制的正文"
@@ -746,6 +955,11 @@ async def qt_scenarios(root, probe, url, owner, member, db):
                 "recover_local", row="离线解散待发送", action="复制"
             )
             assert copy["clipboard"] == "离线解散待发送"
+            assert not (
+                await searching.call(
+                    "recover_local", row="离线解散待发送", action="重新发送"
+                )
+            ).get("triggered")
             await searching.call(
                 "recover_local", row="离线解散待发送", action="删除本地待发送记录"
             )
@@ -792,8 +1006,11 @@ async def run(root, probe):
                 pending_key, multipart, key, forward, other_group = await dissolve(
                     a, b, c, b2, conv, direct, db, api, store.bucket, token
                 )
+                if probe and "--rejoin-only" in sys.argv:
+                    return await qt_search_rejoin(root, probe, url, a, c)
                 if probe:
                     await qt_scenarios(root, probe, url, a, c, db)
+                    await qt_search_rejoin(root, probe, url, a, c)
         assert read(db, "SELECT state FROM attachment_uploads WHERE client_id=813") == [
             ("discarding",)
         ]

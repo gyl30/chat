@@ -324,7 +324,7 @@ async def transfers(ui, gate, a, b, g, d, root, db, binary, entry, server):
         await ui.wait("select", lambda r: r["ok"], conv=second)
         await ui.wait("select", lambda r: r["ok"], conv=d)
         path = root / "同名.bin"
-        path.write_bytes(b"menu destination verification")
+        path.write_bytes(b"x" * (16 * 1024 * 1024) + b"menu destination verification")
         gate.hold.add("confirm_attachment")
         for target in (d, second, g):
             await ui.call("upload", conv=target, path=str(path), group=target == g)
@@ -336,6 +336,14 @@ async def transfers(ui, gate, a, b, g, d, root, db, binary, entry, server):
         await until(lambda: len(tasks()) == 3, "three distinct uploads")
         ids = tasks()
         assert len(set(ids.values())) == 3
+
+        def first_parts():
+            with sqlite3.connect(db) as conn:
+                return set(conn.execute(
+                    "SELECT u.client_id,p.number FROM attachment_uploads u JOIN attachment_parts p ON p.upload=u.id WHERE p.etag<>''"
+                ))
+
+        await until(lambda: first_parts() == {(cid, 1) for cid in ids.values()}, "each transfer has exactly one confirmed part")
 
         async def label(prefix):
             state = await ui.wait("transfers", lambda r: any(x.startswith(prefix + " · ") for x in r["labels"]))
@@ -357,17 +365,26 @@ async def transfers(ui, gate, a, b, g, d, root, db, binary, entry, server):
             await until(lambda: paused() == expected, "only selected task paused")
         assert paused() == set(ids)
         await a.ok("hide_conversation", conversation=second)
+        await a.ok("hide_conversation", conversation=g)
         await label(f"会话 #{second}")
-        await ui.stop()
+        await ui.call("quit")
+        assert await asyncio.wait_for(ui.proc.wait(), 8) == 0
         gate.hold.clear()
         gate.held.clear()
         await ui.start(binary, root, entry)
-        await action(f"会话 #{second}", "取消上传")
-        await until(lambda: set(tasks()) == {d, g}, "cancel only hidden task")
+        await action(f"会话 #{second}", "继续上传")
+        await until(lambda: tasks() == {d: ids[d], g: ids[g]}, "resume only hidden direct")
+        await action(f"会话 #{g} · 群文件", "继续上传")
+        await until(lambda: tasks() == {d: ids[d]}, "resume only hidden group file")
         await action("备注乙", "继续上传")
-        await until(lambda: set(tasks()) == {g}, "resume only direct")
-        await action("资料 · 群文件", "继续上传")
-        await until(lambda: not tasks(), "finish group file")
+        await until(lambda: not tasks(), "finish visible direct")
+        resumed = [rpc["params"]["upload"] for rpc in gate.messages if rpc["method"] == "resume_attachment"]
+        assert resumed == [ids[second], ids[g], ids[d]]
+        with sqlite3.connect(db) as conn:
+            assert conn.execute(
+                "SELECT conversation_id,count(*) FROM messages WHERE sender_id=1 AND client_id=? GROUP BY conversation_id",
+                (ids[second],),
+            ).fetchall() == [(second, 1)]
         files = (await a.ok("list_conversation_files", conversation_id=g))["files"]
         assert any(f["filename"] == path.name for f in files)
         with sqlite3.connect(db) as conn:
@@ -384,7 +401,7 @@ async def transfers(ui, gate, a, b, g, d, root, db, binary, entry, server):
         await ui.call("dialogstate", close=True)
         assert path.exists()
         print(
-            "PASS same-name independent transfers, group file, hidden destination, restart, pause/resume/cancel and SDK download",
+            "PASS same-name independent transfers, group file, hidden direct and group destinations, restart and original-ID resume and SDK download",
             flush=True,
         )
 
@@ -442,6 +459,9 @@ async def main(root, binary):
                     ui = Desktop()
                     await ui.start(binary, root, entry)
                     try:
+                        if sys.argv[2:] == ["transfers"]:
+                            await transfers(ui, gate, a, b, g, d, root, db, binary, entry, url)
+                            return
                         if sys.argv[2:] == ["pin"]:
                             await pin_cases(ui, gate, a, b, g)
                             return

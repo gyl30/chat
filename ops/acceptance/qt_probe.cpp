@@ -225,9 +225,10 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             {
                 for (auto* child : action->menu()->actions())
                 {
-                    if (child->text() == cmd["action"].toString())
+                    if (child->text() == cmd["action"].toString() && child->isEnabled())
                     {
                         child->trigger();
+                        out["triggered"] = true;
                     }
                 }
             }
@@ -531,16 +532,24 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 {
                     d->findChild<QComboBox*>("searchCategory")->setCurrentIndex(cmd["category"].toInt());
                 }
+                auto* scopes = d->findChild<QComboBox*>("searchConversation");
                 if (cmd.contains("conversation"))
                 {
-                    auto* scopes = d->findChild<QComboBox*>("searchConversation");
-                    auto const index = scopes->findData(cmd["conversation"].toInteger());
+                    auto const id = cmd["conversation"].toInteger();
+                    auto const index = id ? scopes->findData(id) : 0;
                     if (index >= 0)
                     {
                         scopes->setCurrentIndex(index);
                         out["scope"] = true;
                     }
                 }
+                QJsonArray scope_ids;
+                for (int i = 0; i < scopes->count(); ++i)
+                {
+                    scope_ids << scopes->itemData(i).toLongLong();
+                }
+                out["scopes"] = scope_ids;
+                out["selected_scope"] = scopes->currentData().toLongLong();
                 if (cmd.contains("query"))
                 {
                     q->setText(cmd["query"].toString());
