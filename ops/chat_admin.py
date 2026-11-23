@@ -196,7 +196,7 @@ def new_directory(target):
     # directory, even an empty one, is never taken over by backup or restore.
     with tempfile.TemporaryDirectory(dir=target.parent, prefix=".chat-stage-") as tmp:
         stage = Path(tmp) / "bundle"
-        stage.mkdir()
+        stage.mkdir(mode=0o700)
         yield stage
         fsync(stage)
         target.mkdir(mode=0o700)

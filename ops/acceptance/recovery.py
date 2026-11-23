@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import os
 from pathlib import Path
 import shutil
+import stat
 import sqlite3
 import subprocess
 import sys
@@ -106,10 +107,12 @@ async def drill(root, gate, entry, probe):
                 assert parts(s3) == [(1, length)]
     point = datetime.now(timezone.utc).isoformat()
     admin("--db", db, "backup", root / "bundle")
+    assert stat.S_IMODE((root / "bundle").stat().st_mode) == 0o700
     shutil.copytree(root / "source-silo", root / "silo-backup")
     start = time.monotonic()
     admin("verify-backup", root / "bundle")
     admin("restore", root / "bundle", root / "restored")
+    assert stat.S_IMODE((root / "restored").stat().st_mode) == 0o700
     db = root / "restored/chat.sqlite3"
     admin("--db", db, "check")
     admin("--db", db, "archive-check")
