@@ -238,13 +238,23 @@ void group_files_page::download(bool open)
         return;
     }
     auto const key = item->data(0, key_role).toString();
+    auto const filename = item->text(0);
     auto const path = QFileDialog::getSaveFileName(this,
                                                    open ? QStringLiteral("保存并打开") : QStringLiteral("下载群文件"),
-                                                   QStandardPaths::writableLocation(QStandardPaths::DownloadLocation) + "/" + item->text(0));
+                                                   QStandardPaths::writableLocation(QStandardPaths::DownloadLocation) + "/" + filename);
     if (path.isEmpty())
     {
         return;
     }
-    status_->setText(QStringLiteral("正在下载…"));
-    client_.download_file(conversation_, key, item->text(0), path, open);
+    // The save dialog runs a nested event loop; a refresh can replace every row.
+    for (int row = 0; isEnabled() && row < list_->topLevelItemCount(); ++row)
+    {
+        if (list_->topLevelItem(row)->data(0, key_role).toString() == key)
+        {
+            status_->setText(QStringLiteral("正在下载…"));
+            client_.download_file(conversation_, key, filename, path, open);
+            return;
+        }
+    }
+    status_->setText(QStringLiteral("群文件列表已变化，请刷新后重新选择文件"));
 }
