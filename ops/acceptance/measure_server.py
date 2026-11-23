@@ -47,7 +47,7 @@ for name in ("get_messages_request", "send_message_request", "archive_reader"):
             source = source.replace(token, f"++timing::{counter};\n    " + token)
     else:
         tag = "search" if name == "get_messages_request" else "send"
-        start = "auto result =" if tag == "search" else "delivered = co_await database_.run(\n"
+        start = "auto result =" if tag == "search" else "delivered = co_await run_db(\n"
         pos = source.index(start, source.index('request.method == "search_all_messages"') if tag == "search" else 0)
         source = source[:pos] + "auto queued = timing::clock::now();\n        " + source[pos:]
         pat = (

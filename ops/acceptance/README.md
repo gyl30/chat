@@ -32,6 +32,8 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-re
 
 先用上面的命令构建，或单独构建同配置的 Release `chat_server`。计时工具按该版本的编译数据库重编三个临时翻译单元，链接独立服务端。生产程序没有计时开关。比较历史版本时，每个版本使用自己的源码、构建目录和计时程序。
 
+当前发送探针在 `run_db()` 的业务回调内，计时从调用前开始。`run_db()` 先在数据库工作器上执行 `login_active()`，再进入被计时的 `persist_delivery()`。因此当前 `send_queue` 包含工作器排队及登录校验，不能和旧版的纯队列等待直接比较；`send_db` 仍为 `persist_delivery()` 的执行耗时。下方历史样本仍按原口径解读。
+
 ```sh
 work=$(mktemp -d)
 python3 ops/acceptance/measure_server.py /tmp/chat-release "$work/timed/server"
