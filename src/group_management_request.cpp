@@ -37,12 +37,12 @@ std::optional<group_change> parse_group_change(json_rpc_request& request, std::i
     group_change change;
     if (request.method == "set_group_mute")
     {
-        struct[[= simdjson::deny_unknown_fields]] mute_params
+        struct[[= simdjson::deny_unknown_fields]] group_mute_params
         {
             std::int64_t conversation = 0;
             std::optional<bool> muted;
         };
-        mute_params params;
+        group_mute_params params;
         if (document.get(params) || !params.muted)
         {
             return std::nullopt;
@@ -52,12 +52,12 @@ std::optional<group_change> parse_group_change(json_rpc_request& request, std::i
     }
     else if (request.method == "set_group_member_mute")
     {
-        struct[[= simdjson::deny_unknown_fields]] mute_params
+        struct[[= simdjson::deny_unknown_fields]] member_mute_params
         {
             std::int64_t conversation = 0, user = 0;
             std::optional<std::int64_t> seconds;
         };
-        mute_params params;
+        member_mute_params params;
         if (document.get(params) || params.user <= 0 || !params.seconds || *params.seconds < -1 || *params.seconds > 365 * 24 * 60 * 60)
         {
             return std::nullopt;
