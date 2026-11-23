@@ -1685,8 +1685,7 @@ void chat_widget::show_message_menu(QPoint position)
     QMenu menu(this);
     resume_reading_after_menu(menu);
     auto const message_id = index.data(message_model::id_role).toLongLong();
-    auto const message_text = index.data(message_model::text_role).toString();
-    auto* copy = !message_text.isEmpty() ? menu.addAction(QStringLiteral("复制")) : nullptr;
+    auto* copy = !index.data(message_model::text_role).toString().isEmpty() ? menu.addAction(QStringLiteral("复制")) : nullptr;
     auto* forward = menu.addAction(QStringLiteral("转发"));
     auto* bookmark = menu.addAction(QStringLiteral("正在查询收藏状态…"));
     bookmark->setEnabled(false);
@@ -1698,16 +1697,16 @@ void chat_widget::show_message_menu(QPoint position)
     auto* group_pin = messages_->can_manage_group() ? menu.addAction(unpin ? QStringLiteral("取消置顶消息") : QStringLiteral("置顶消息")) : nullptr;
     auto* picker = can_send() ? menu.addMenu(QStringLiteral("表情回应")) : nullptr;
     auto const own_reaction = index.data(message_model::own_reaction_role).toString();
-    auto const reaction_index = QPersistentModelIndex(index);
+    auto const target_index = QPersistentModelIndex(index);
     if (!picker && !own_reaction.isEmpty())
     {
         auto const group = active_conversation_;
         menu.addAction(QStringLiteral("取消表态"),
-                       [this, group, reaction_index]
+                       [this, group, target_index]
                        {
-                           if (connection_available_ && active_conversation_ == group && reaction_index.isValid())
+                           if (connection_available_ && active_conversation_ == group && target_index.isValid())
                            {
-                               emit reaction_requested(group, reaction_index.data(message_model::id_role).toLongLong(), {});
+                               emit reaction_requested(group, target_index.data(message_model::id_role).toLongLong(), {});
                            }
                        });
     }
@@ -1725,14 +1724,14 @@ void chat_widget::show_message_menu(QPoint position)
         connect(action,
                 &QAction::triggered,
                 &menu,
-                [this, reaction_index, text, conversation]
+                [this, target_index, text, conversation]
                 {
-                    if (can_send() && conversation == active_conversation_ && reaction_index.isValid() &&
-                        !reaction_index.data(message_model::deleted_role).toBool())
+                    if (can_send() && conversation == active_conversation_ && target_index.isValid() &&
+                        !target_index.data(message_model::deleted_role).toBool())
                     {
                         emit reaction_requested(conversation,
-                                                reaction_index.data(message_model::id_role).toLongLong(),
-                                                text == reaction_index.data(message_model::own_reaction_role).toString() ? QString{} : text);
+                                                target_index.data(message_model::id_role).toLongLong(),
+                                                text == target_index.data(message_model::own_reaction_role).toString() ? QString{} : text);
                     }
                 });
     }
@@ -1772,21 +1771,25 @@ void chat_widget::show_message_menu(QPoint position)
                 }
             });
     auto* selected = menu.exec(messages_view_->viewport()->mapToGlobal(position));
-    if (message_id <= history_floor(conversation))
+    if (conversation != active_conversation_ || message_id <= history_floor(conversation) || !target_index.isValid() ||
+        target_index.data(message_model::deleted_role).toBool())
     {
         return;
     }
     if (copy && selected == copy)
     {
-        // The text was captured when the menu opened, so later history changes cannot retarget it.
-        QGuiApplication::clipboard()->setText(message_text);
+        auto const text = target_index.data(message_model::text_role).toString();
+        if (!text.isEmpty())
+        {
+            QGuiApplication::clipboard()->setText(text);
+        }
         return;
     }
-    if (!connection_available_ || conversation != active_conversation_)
+    if (!connection_available_)
     {
         return;
     }
-    if (selected == bookmark && reaction_index.isValid() && !reaction_index.data(message_model::deleted_role).toBool())
+    if (selected == bookmark)
     {
         emit bookmark_requested(message_id, !bookmark->data().toBool());
         return;
@@ -1796,11 +1799,11 @@ void chat_widget::show_message_menu(QPoint position)
         choose_forward_target({message_id});
         return;
     }
-    if (selected == multi && reaction_index.isValid())
+    if (selected == multi)
     {
         set_message_selection(true);
-        messages_view_->setCurrentIndex(reaction_index);
-        messages_view_->selectionModel()->select(reaction_index, QItemSelectionModel::ClearAndSelect);
+        messages_view_->setCurrentIndex(target_index);
+        messages_view_->selectionModel()->select(target_index, QItemSelectionModel::ClearAndSelect);
         messages_view_->setFocus();
         return;
     }
@@ -1854,7 +1857,7 @@ void chat_widget::show_message_menu(QPoint position)
                         dialog.reject();
                     }
                 });
-        dialog.setTextValue(message_text);
+        dialog.setTextValue(target_index.data(message_model::text_role).toString());
         dialog.setOkButtonText(QStringLiteral("保存"));
         dialog.setCancelButtonText(QStringLiteral("取消"));
         dialog.layout()->setContentsMargins(

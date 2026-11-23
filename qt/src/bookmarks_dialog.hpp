@@ -2,6 +2,7 @@
 #define CHAT_QT_SRC_BOOKMARKS_DIALOG_HPP
 
 #include <QDialog>
+#include <QSet>
 
 #include <chat/message.hpp>
 
@@ -33,6 +34,7 @@ class bookmarks_dialog final : public QDialog
     QLabel* status_;
     QLabel* feedback_;
     QTimer* refresh_;
+    QSet<quint64> bookmark_checks_;
     quint64 request_ = 0;
     qint64 before_ = 0;
     qint64 removing_ = 0;

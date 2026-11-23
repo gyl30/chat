@@ -153,10 +153,22 @@ bookmarks_dialog::bookmarks_dialog(client_bridge& client, QWidget* parent)
                             return;
                         }
                     }
+                    // An unloaded bookmark can enter a filtered page after an edit. Check ownership
+                    // without clearing results for edits to messages the user never bookmarked.
                     if (request_ || !query_->text().isEmpty())
                     {
-                        refresh();
+                        bookmark_checks_.insert(client_.get_message_bookmark(message.id));
                     }
+                }
+            });
+    connect(&client_,
+            &client_bridge::bookmark_state_received,
+            this,
+            [this](quint64 request, bool bookmarked, QString const& error)
+            {
+                if (bookmark_checks_.remove(request) && error.isEmpty() && bookmarked)
+                {
+                    refresh();
                 }
             });
     connect(&client_,
@@ -176,6 +188,7 @@ bookmarks_dialog::bookmarks_dialog(client_bridge& client, QWidget* parent)
 
 void bookmarks_dialog::refresh()
 {
+    bookmark_checks_.clear();
     request_ = 0;
     before_ = 0;
     results_->clear();
