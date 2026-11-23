@@ -33,6 +33,7 @@ class QPlainTextEdit;
 class QListView;
 class QListWidget;
 class QPushButton;
+class QMenu;
 class QSortFilterProxyModel;
 class QStackedWidget;
 class QToolButton;
@@ -247,6 +248,7 @@ class chat_widget final : public QWidget
     void create_group();
     void request_older_messages();
     void update_reading_navigation();
+    void resume_reading_after_menu(QMenu& menu);
     void return_to_latest();
     void send_current_message();
     void draft_edited();
