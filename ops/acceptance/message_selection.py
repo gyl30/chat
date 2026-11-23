@@ -247,6 +247,38 @@ async def cases(ui, gate, peer, db, group, target, seeded, mixed, image, file, t
     assert not (await multi())["mode"] and not (await multi())["valid"]
     assert (await ui.call("select", conv=group))["ok"]
     await ui.wait("state", lambda s: mixed in [row["id"] for row in s["rows"]])
+    menu_message = (
+        await peer.ok(
+            "send_message", conversation=group, text="菜单原正文", client_id=9901
+        )
+    )["id"]
+    await ui.wait("state", lambda r: any(x["id"] == menu_message for x in r["rows"]))
+    await ui.call("message_menu", open=menu_message)
+    await ui.wait("message_menu", lambda r: r.get("open"))
+    await peer.ok(
+        "edit_message", conversation=group, message=menu_message, text="打开菜单后编辑"
+    )
+    await ui.wait(
+        "state", lambda r: any(x["text"] == "打开菜单后编辑" for x in r["rows"])
+    )
+    await ui.call("message_menu", copy=True)
+    copied = await ui.wait("message_menu", lambda r: not r.get("open"))
+    assert copied["clipboard"] == "打开菜单后编辑", f"menu copied stale body: {copied}"
+    await multi(seed="保留剪贴板")
+    await ui.call("message_menu", open=menu_message)
+    await ui.wait("message_menu", lambda r: r.get("open"))
+    await peer.ok("delete_message", conversation=group, message=menu_message)
+    await ui.wait("multi", lambda r: r.get("deleted"), inspect=menu_message)
+    await ui.call("message_menu", copy=True)
+    copied = await ui.wait("message_menu", lambda r: not r.get("open"))
+    assert (
+        copied["clipboard"] == "保留剪贴板"
+    )  # Withdrawal must leave the clipboard unchanged.
+    print(
+        "PASS a still-open message menu copies current text and never copies a withdrawn row",
+        flush=True,
+    )
+
     await select(mixed)
     await peer.ok("remove_group_member", conversation=group, user=1)
     await ui.wait("state", lambda s: s["conv"] != group)

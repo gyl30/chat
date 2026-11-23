@@ -40,6 +40,7 @@
 #include <utility>
 #include "conversation_model.hpp"
 #include "message_model.hpp"
+#include "user_model.hpp"
 #include "theme_manager.hpp"
 #include "theme.hpp"
 #include "settings_dialog.hpp"
@@ -218,6 +219,67 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         }
         out["enabled"] = button("sendButton")->isEnabled();
         button("sendButton")->click();
+    }
+    else if (op == "contacts")
+    {
+        if (cmd["open"].toBool())
+        {
+            chat->show_contacts_dialog();
+        }
+        auto* dialog = chat->contacts_dialog_;
+        if (cmd.contains("filter"))
+        {
+            chat->contact_search_->setText(cmd["filter"].toString());
+        }
+        if (cmd.contains("group"))
+        {
+            auto* groups = chat->friend_groups_;
+            groups->setCurrentIndex(groups->findText(cmd["group"].toString()));
+        }
+        if (cmd["requests"].toBool())
+        {
+            chat->contacts_requests_button_->click();
+        }
+        if (cmd["accept"].toBool())
+        {
+            button("friendRequestAcceptButton")->click();
+        }
+        if (cmd["reject"].toBool())
+        {
+            button("friendRequestRejectButton")->click();
+        }
+        if (cmd["profile"].toBool())
+        {
+            auto const index = chat->contacts_view_->model()->index(0, 0);
+            if (index.isValid())
+            {
+                auto const id = index.data(user_model::id_role).toLongLong();
+                auto const name = index.data(user_model::username_role).toString();
+                QTimer::singleShot(0, chat, [chat, id, name] { chat->show_user_details(id, name); });
+            }
+        }
+        if (auto* profile = chat->findChild<QDialog*>("profileDialog"))
+        {
+            out["profile"] = profile->findChild<QLabel*>("profileDialogName")->text();
+            out["friend"] = profile->findChild<QPushButton*>("removeContactButton")->isVisible();
+            if (cmd["closeProfile"].toBool())
+            {
+                profile->reject();
+            }
+        }
+        QJsonArray contacts;
+        auto const* contacts_model = chat->contacts_view_->model();
+        for (int row = 0; row < contacts_model->rowCount(); ++row)
+        {
+            contacts.append(contacts_model->index(row, 0).data(Qt::DisplayRole).toString());
+        }
+        out["names"] = contacts;
+        out["group"] = chat->friend_groups_->currentText();
+        out["requests"] = chat->incoming_friends_->count();
+        if (cmd["close"].toBool())
+        {
+            dialog->reject();
+        }
     }
     else if (op == "group")
     {
@@ -495,6 +557,32 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                     tabs->setCurrentWidget(list->parentWidget());
                 }
                 out["count"] = list ? list->topLevelItemCount() : 0;
+                if (cmd["choose"].toBool() && list && list->topLevelItemCount())
+                {
+                    list->setCurrentItem(list->topLevelItem(0));
+                    for (auto* button : dialog->findChildren<QPushButton*>())
+                    {
+                        if (button->text() == "下载")
+                        {
+                            QTimer::singleShot(0, button, &QPushButton::click);
+                            break;
+                        }
+                    }
+                }
+                if (cmd.contains("remove_key"))
+                {
+                    window.client_->change_file(cmd["group"].toInteger(), cmd["remove_key"].toString(), false);
+                }
+                if (auto* chooser = qobject_cast<QFileDialog*>(QApplication::activeModalWidget()))
+                {
+                    out["choosing"] = true;
+                    if (cmd.contains("accept_path"))
+                    {
+                        chooser->findChild<QLineEdit*>("fileNameEdit")->setText(cmd["accept_path"].toString());
+                        QTimer::singleShot(0, chooser, [chooser] { QMetaObject::invokeMethod(chooser, "accept"); });
+                    }
+                }
+
                 if (list && list->topLevelItemCount() && cmd.contains("destination"))
                 {
                     list->setCurrentItem(list->topLevelItem(0));
@@ -785,6 +873,42 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             out["deleted"] = index.data(message_model::deleted_role).toBool();
         }
     }
+    else if (op == "message_menu")
+    {
+        if (cmd.contains("open"))
+        {
+            QModelIndex index;
+            for (int row = 0; row < model->rowCount(); ++row)
+            {
+                auto const candidate = model->index(row, 0);
+                if (candidate.data(message_model::id_role).toLongLong() == cmd["open"].toInteger())
+                {
+                    index = candidate;
+                    break;
+                }
+            }
+            view->scrollTo(index);
+            QTimer::singleShot(0, view, [view, pos = view->visualRect(index).center()] { emit view->customContextMenuRequested(pos); });
+        }
+        if (auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget()))
+        {
+            out["open"] = true;
+            if (cmd["copy"].toBool())
+            {
+                for (auto* action : menu->actions())
+                {
+                    if (action->text() == QStringLiteral("复制"))
+                    {
+                        menu->setActiveAction(action);
+                        QKeyEvent key(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+                        QApplication::sendEvent(menu, &key);
+                        break;
+                    }
+                }
+            }
+        }
+        out["clipboard"] = QApplication::clipboard()->text();
+    }
     else if (op == "bookmark_menu")
     {
         for (int i = 0; i < model->rowCount(); ++i)
@@ -895,6 +1019,7 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             out["rows"] = rows;
             out["more"] = more->isVisible();
             out["locate"] = locate->isEnabled();
+            out["selected"] = list->currentItem() ? list->currentItem()->data(0, Qt::UserRole).toLongLong() : 0;
             out["status"] = dialog->findChild<QLabel*>("bookmarkStatus")->text();
             if (cmd["close"].toBool())
             {

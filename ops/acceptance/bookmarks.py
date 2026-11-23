@@ -369,6 +369,51 @@ async def qt_cases(
                 "bookmarks", lambda r: len(r.get("rows", [])) == 54 and not r["more"]
             )
 
+            await ui.call("bookmarks", query="Paginate")
+            await ui.wait(
+                "bookmarks", lambda r: len(r.get("rows", [])) == 50 and r["more"]
+            )
+            await ui.call("bookmarks", more=True)
+            before = await ui.wait("bookmarks", lambda r: len(r.get("rows", [])) == 51)
+            selected = before["rows"][-1]["id"]
+            await ui.call("bookmarks", select=selected)
+            await b.ok(
+                "edit_message", conversation=direct, message=recent, text="未收藏的编辑"
+            )
+            await ui.wait(
+                "state", lambda r: any(x["text"] == "未收藏的编辑" for x in r["rows"])
+            )
+            observed = await ui.call("bookmarks")
+            assert (
+                observed["rows"] == before["rows"] and observed["selected"] == selected
+            ), (
+                f"unbookmarked edit lost filtered page or selection: {len(observed['rows'])}, {observed['selected']}"
+            )
+            await b.ok(
+                "edit_message",
+                conversation=group,
+                message=target,
+                text="Paginate edited into results",
+            )
+            # This bookmark was not in either loaded page, but should now match the query.
+            matched = await ui.wait(
+                "bookmarks",
+                lambda r: r.get("more")
+                or any(x["id"] == target for x in r.get("rows", [])),
+            )
+            if matched["more"]:
+                await ui.call("bookmarks", more=True)
+            await ui.wait(
+                "bookmarks", lambda r: any(x["id"] == target for x in r.get("rows", []))
+            )
+            await b.ok(
+                "edit_message", conversation=group, message=target, text="SOLE 远处锚点"
+            )
+            print(
+                "PASS Qt unrelated edit preserves filtered pages and selection; an edited bookmark can newly match",
+                flush=True,
+            )
+
             gate.hold.add("list_message_bookmarks")
             await ui.call("bookmarks", query="Paginate")
             await gate.caught("list_message_bookmarks")

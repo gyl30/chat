@@ -361,6 +361,44 @@ async def run(root, probe, stalls=False, baseline=False):
                                 "PASS isolated SDK downloads, failed/cancelled overwrite preserves original, successful overwrite transfers ownership",
                                 flush=True,
                             )
+
+                            await b.ok(
+                                "set_group_admin",
+                                conversation=group,
+                                user=1,
+                                admin=True,
+                            )
+                            await ui.call("group", id=group)
+                            await ui.wait(
+                                "group_download", lambda r: r.get("count") == 1
+                            )
+                            await ui.call("group_download", choose=True)
+                            await ui.wait("group_download", lambda r: r.get("choosing"))
+                            key = originals[1]["attachment"]["object_key"]
+                            await ui.call("group_download", group=group, remove_key=key)
+                            await ui.wait(
+                                "group_download",
+                                lambda r: r.get("choosing") and r["count"] == 0,
+                            )
+                            start = len(gate.messages)
+                            await ui.call(
+                                "group_download", accept_path=str(root / "removed.bin")
+                            )
+                            await ui.wait(
+                                "group_download", lambda r: not r.get("choosing")
+                            )
+                            await ui.call("group_download", close=True)
+                            tasks = await ui.call("downloads")
+                            assert len(tasks["rows"]) == 7, tasks
+                            assert not any(
+                                m["method"] == "get_conversation_file"
+                                for m in gate.messages[start:]
+                            )
+                            assert not (root / "removed.bin").exists()
+                            print(
+                                "PASS the selected group file disappeared while the save dialog was open; no stale task",
+                                flush=True,
+                            )
                         finally:
                             send_chunks.set()
                             final_chunk.set()

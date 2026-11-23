@@ -31,6 +31,15 @@ ops/with-sqlite-runtime.sh "$SQLITE_PREFIX" ops/acceptance/linux.sh /tmp/chat-re
 
 默认项目构建不运行上述验收。查询 GitHub 时，仓库有 0 个注册的自托管 runner 和 0 个已有 workflow；本次 GCC 16、Boost 1.92 和 miniocpp 环境的执行证据来自本机。
 
+## 消息菜单、联系人与群文件定向回归
+
+在独立虚拟桌面或离屏环境复用同一 Release 探针及本节的隔离服务端、SQLite、Silo：
+
+- `message_selection.py <probe>`：在真实 xcb 菜单打开期间由另一设备编辑或撤回，检查复制的是当前正文，已撤回项不覆盖剪贴板。
+- `bookmarks.py --probe <probe>`：在已加载两页并选中末行时，未收藏消息的编辑不重置列表；未加载的收藏编辑后仍可新命中。
+- `desktop.py <probe> contacts`：好友申请、拒绝、接受、移除、备注与账户名搜索、资料和分组在第二设备变化时同步。单独使用新账号夹具，不与默认文件任务场景共享。
+- `downloads.py <probe>`：保存窗口打开后，用原有群文件操作移除所选对象并等待列表刷新，确认保存不再产生无效任务或下载授权请求。另用 `--stalls` 验证 TCP 取消和共享工作器。
+
 ## 阅读导航的原生桌面验收
 
 默认仍为离屏自动化。原生验收须从已登录的图形会话运行，沿用同一 Release、私有 SQLite 和隔离 Silo：

@@ -469,6 +469,45 @@ async def notifications(ui, gate, a, b, group, root):
     print("PASS Qt notification events with reversed, delayed list snapshots", flush=True)
 
 
+async def contacts_cases(ui, stack, url, a):
+    await ui.call("contacts", open=True)
+    await ui.wait("contacts", lambda r: r["names"] == ["b"])
+    await a.ok("create_friend_group", name="同事")
+    await a.ok("move_friend", user=2, group="同事")
+    await a.ok("set_friend_remark", user=2, remark="小北")
+    await ui.wait("contacts", lambda r: r["names"] == ["小北"])
+    assert (await ui.call("contacts", group="同事", filter="小北"))["names"] == ["小北"]
+    assert (await ui.call("contacts", filter="b"))["names"] == ["小北"]
+    assert not (await ui.call("contacts", filter="无匹配"))["names"]
+    await a.ok("rename_friend_group", group="同事", name="工作")
+    await ui.wait("contacts", lambda r: r["group"] == "全部好友")
+    assert (await ui.call("contacts", group="工作", filter=""))["names"] == ["小北"]
+    await ui.call("contacts", profile=True)
+    await ui.wait("contacts", lambda r: r.get("profile") == "b" and r["friend"])
+    await ui.call("contacts", closeProfile=True)
+    await a.ok("delete_friend_group", group="工作")
+    await ui.wait("contacts", lambda r: r["group"] == "全部好友")
+    assert (await ui.call("contacts", group="我的好友"))["names"] == ["小北"]
+
+    c = await login(stack, url, "c", "c", True)
+    await c.ok("send_friend_request", user=1)
+    await ui.wait("contacts", lambda r: r["requests"] == 1)
+    await ui.call("contacts", requests=True, reject=True)
+    await ui.wait("contacts", lambda r: r["requests"] == 0)
+    assert (await ui.call("contacts"))["names"] == ["小北"]
+    await a.ok("send_friend_request", user=3)
+    await c.ok("respond_friend_request", user=1, accept=True)
+    await ui.wait("contacts", lambda r: "c" in r["names"])
+    await c.ok("remove_contact", user=1)
+    await ui.wait("contacts", lambda r: r["names"] == ["小北"])
+    await ui.call("contacts", close=True)
+    await a.ok("set_friend_remark", user=2, remark="")
+    print(
+        "PASS real contact sync: request and refusal, acceptance/removal, alias search, profile, move/rename/delete group",
+        flush=True,
+    )
+
+
 async def main(root, binary):
     store = Store()
     db = root / "app.sqlite"
@@ -492,6 +531,9 @@ async def main(root, binary):
                     ui = Desktop()
                     await ui.start(binary, root, entry)
                     try:
+                        if sys.argv[2:] == ["contacts"]:
+                            await contacts_cases(ui, stack, url, a)
+                            return
                         if sys.argv[2:] == ["transfers"]:
                             await transfers(ui, gate, a, b, g, d, root, db, binary, entry, url)
                             return
