@@ -280,7 +280,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
     }
     if (request.method == "dissolve_group")
     {
-        auto result = co_await database_.run([&, actor = *user_id_](sqlite_database& db) { return dissolve_group(db, change->conversation, actor); });
+        auto result = co_await run_db([&, actor = *user_id_](sqlite_database& db) { return dissolve_group(db, change->conversation, actor); });
         if (!result)
         {
             co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
@@ -301,8 +301,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_management(js
         }
         co_return serialize_json_rpc_success(former.empty() ? "{\"changed\":false}" : "{\"changed\":true}", std::move(request.id), response);
     }
-    auto changed =
-        co_await database_.run([&, actor = *user_id_](sqlite_database& db) { return apply_group_change(db, actor, request.method, *change); });
+    auto changed = co_await run_db([&, actor = *user_id_](sqlite_database& db) { return apply_group_change(db, actor, request.method, *change); });
     if (!changed)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);

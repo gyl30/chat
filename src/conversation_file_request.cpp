@@ -205,7 +205,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_conversation_file(j
         {
             co_return invalid();
         }
-        auto page = co_await database_.run([&](sqlite_database& db) { return list_files(db, user, p); });
+        auto page = co_await run_db([&](sqlite_database& db) { return list_files(db, user, p); });
         if (!page)
         {
             co_return fail(-32000, "Server error");
@@ -221,7 +221,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_conversation_file(j
     {
         co_return invalid();
     }
-    auto result = co_await database_.run([&](sqlite_database& db) { return change_file(db, user, p, request.method == "add_conversation_file"); });
+    auto result = co_await run_db([&](sqlite_database& db) { return change_file(db, user, p, request.method == "add_conversation_file"); });
     if (!result)
     {
         co_return fail(-32000, "Server error");

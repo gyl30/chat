@@ -94,7 +94,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_conversations(j
     {
         cursor = chat::conversation_cursor{params.before->activity, params.before->id, *params.before->pinned};
     }
-    auto result = co_await database_.run([=, user = *user_id_](sqlite_database& db) { return read_conversation_list(db, user, cursor); });
+    auto result = co_await run_db([=, user = *user_id_](sqlite_database& db) { return read_conversation_list(db, user, cursor); });
     if (!result)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);

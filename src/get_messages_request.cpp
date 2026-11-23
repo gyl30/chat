@@ -139,7 +139,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_messages(json_r
         return read_message_history(
             db, user, params.conversation, params.before, params.after, params.query ? std::string_view(*params.query) : "", params.around, category);
     };
-    auto history = category || searching || params.around ? co_await database_.search(read) : co_await database_.run(read);
+    auto history = category || searching || params.around ? co_await database_.search(read) : co_await run_db(read);
     if (!request.id.present)
     {
         co_return simdjson::SUCCESS;

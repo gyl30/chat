@@ -239,7 +239,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         {
             co_return simdjson::SUCCESS;
         }
-        auto task = co_await database_.run([&](sqlite_database& db) { return read_upload(db, user, device_, *params.upload); });
+        auto task = co_await run_db([&](sqlite_database& db) { return read_upload(db, user, device_, *params.upload); });
         if (!task)
         {
             co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
@@ -263,7 +263,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         auto const& t = **task;
         params.conversation = t.conversation;
         message_to_write const message{user, t.conversation, t.client_id, t.filename, params.reply_to};
-        auto preflight = co_await database_.run([&](sqlite_database& db) { return check_attachment_delivery(db, message, request.id); });
+        auto preflight = co_await run_db([&](sqlite_database& db) { return check_attachment_delivery(db, message, request.id); });
         if (!preflight)
         {
             delivered = std::unexpected(preflight.error());
@@ -279,12 +279,12 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
                 co_return serialize_json_rpc_error(-32000, "Multipart completion failed", std::move(request.id), response);
             }
 
-            delivered = co_await database_.run([&](sqlite_database& db) { return persist_delivery(db, message, request.id, t.key, t.id); });
+            delivered = co_await run_db([&](sqlite_database& db) { return persist_delivery(db, message, request.id, t.key, t.id); });
         }
     }
     else
     {
-        delivered = co_await database_.run(
+        delivered = co_await run_db(
             [&](sqlite_database& db) -> std::expected<send_outcome, sqlite_error>
             {
                 return persist_delivery(db,
@@ -332,7 +332,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
 
 boost::capy::task<std::expected<std::optional<chat_session::sent_message>, sqlite_error>> chat_session::find_sent_message(std::int64_t client_id)
 {
-    co_return co_await database_.run(
+    co_return co_await run_db(
         [=, user = *user_id_](sqlite_database& db) -> std::expected<std::optional<sent_message>, sqlite_error>
         {
             auto snapshot = sqlite_transaction::begin_read(db);

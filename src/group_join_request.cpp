@@ -84,7 +84,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_join_request(
     };
     if (!configuring && !responding)
     {
-        auto requests = co_await database_.run([=](sqlite_database& db) { return read_group_join_requests(db, conversation, actor, before); });
+        auto requests = co_await run_db([=](sqlite_database& db) { return read_group_join_requests(db, conversation, actor, before); });
         if (!requests)
         {
             co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
@@ -115,7 +115,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_join_request(
         }
         co_return serialize_json_rpc_value(payload, std::move(request.id), response);
     }
-    auto updated = co_await database_.run(
+    auto updated = co_await run_db(
         [=](sqlite_database& db)
         {
             return configuring ? set_group_join_approval(db, conversation, actor, *choice)
@@ -147,7 +147,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_join_request(
 
 boost::capy::task<void> chat_session::publish_join_request(std::int64_t conversation, std::int64_t user, std::string state)
 {
-    auto recipients = co_await database_.run(
+    auto recipients = co_await run_db(
         [&](sqlite_database& db) -> std::expected<std::vector<std::int64_t>, sqlite_error>
         {
             auto query = db.prepare(R"SQL(

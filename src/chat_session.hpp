@@ -6,9 +6,15 @@
 #include <expected>
 #include <optional>
 #include <string>
+#include <type_traits>
+#include <utility>
 
 #include <boost/capy/task.hpp>
+#include <sqlite3.h>
+#include "database.hpp"
 #include "json_rpc.hpp"
+#include "login_session_store.hpp"
+#include "timestamp.hpp"
 #include "online_users.hpp"
 #include "sqlite_database.hpp"
 #include "websocket.hpp"
@@ -43,6 +49,29 @@ class chat_session
                                                              json_rpc_request& request,
                                                              std::string& response);
     boost::capy::task<simdjson::error_code> dispatch_request(json_rpc_request& request, std::string& response);
+    void invalidate_login();
+    void publish_login_changes(std::span<std::int64_t const> revoked);
+    boost::capy::task<simdjson::error_code> handle_login_management(json_rpc_request& request, std::string& response);
+
+    template <class F>
+    auto run_db(F job)
+    {
+        // Check and run in the same serialized database job, including continuation after S3 work.
+        return database_.run(
+            [id = login_id_, job = std::move(job)](sqlite_database& db) mutable -> std::invoke_result_t<F&, sqlite_database&>
+            {
+                auto active = login_active(db, id, epoch_milliseconds());
+                if (!active)
+                {
+                    return std::unexpected(active.error());
+                }
+                if (!*active)
+                {
+                    return std::unexpected(sqlite_error{SQLITE_AUTH, "Login session no longer valid"});
+                }
+                return job(db);
+            });
+    }
     boost::capy::task<simdjson::error_code> handle_authenticate(json_rpc_request& request, std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_contact_change(json_rpc_request& request, std::string& response);
@@ -115,6 +144,11 @@ class chat_session
     database& database_;
     s3_objects& objects_;
     std::optional<std::int64_t> user_id_;
+    std::int64_t login_id_ = 0;
+    std::int64_t login_expires_ = 0;
+    std::int64_t next_login_touch_ = 0;
+    bool revoked_ = false;
+    bool exchanging_request_ = false;
     std::string username_;
     std::deque<std::string> outgoing_messages_;
     std::string device_;

@@ -31,7 +31,7 @@ bool parse_register_params(json_rpc_params& params, register_params& value)
     simdjson::ondemand::parser parser;
     simdjson::ondemand::document document;
     return params.present && !parser.iterate(params.json).get(document) && !document.get(value) && document.at_end() &&
-           chat::valid_username(value.username) && !value.password.empty() && value.password.size() <= 72;
+           chat::valid_username(value.username) && valid_password(value.password);
 }
 
 }    // namespace

@@ -50,8 +50,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_create_conversation
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
-    auto id = co_await database_.run([&, user = *user_id_](sqlite_database& db)
-                                     { return group ? create_group(db, user, params.title, params.members) : open_direct(db, user, params.user); });
+    auto id = co_await run_db([&, user = *user_id_](sqlite_database& db)
+                              { return group ? create_group(db, user, params.title, params.members) : open_direct(db, user, params.user); });
     if (!id)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
@@ -90,8 +90,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_members(json_rp
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
-    auto members =
-        co_await database_.run([=, user = *user_id_](sqlite_database& db) { return read_conversation_members(db, params.conversation, user); });
+    auto members = co_await run_db([=, user = *user_id_](sqlite_database& db) { return read_conversation_members(db, params.conversation, user); });
     if (!members)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);

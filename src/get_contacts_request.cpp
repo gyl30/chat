@@ -29,7 +29,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_contacts(json_r
         co_return simdjson::SUCCESS;
     }
 
-    auto users = co_await database_.run([&, user = *user_id_](sqlite_database& db) { return read_contacts(db, user); });
+    auto users = co_await run_db([&, user = *user_id_](sqlite_database& db) { return read_contacts(db, user); });
     if (!users)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
@@ -114,7 +114,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_contact_settings(js
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
-    auto result = co_await database_.run(
+    auto result = co_await run_db(
         [&, owner = *user_id_](sqlite_database& db) -> std::expected<bool, sqlite_error>
         {
             sqlite_error error;

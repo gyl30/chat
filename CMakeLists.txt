@@ -132,6 +132,7 @@ add_executable(chat_server
     src/group_invite_request.cpp
     src/group_join_request.cpp
     src/authenticate_request.cpp
+    src/login_session_store.cpp
     src/update_message_request.cpp
     src/reaction_request.cpp
     src/conversation_preference_request.cpp

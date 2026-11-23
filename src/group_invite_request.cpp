@@ -70,7 +70,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_invite(json_r
     { return R"({"jsonrpc":"2.0","method":"conversation","params":{"conversation":)" + std::to_string(id) + "}}"; };
     if (joining)
     {
-        auto joined = co_await database_.run([&](sqlite_database& db) { return join_with_invite(db, user, token); });
+        auto joined = co_await run_db([&](sqlite_database& db) { return join_with_invite(db, user, token); });
         if (!joined)
         {
             co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
@@ -108,7 +108,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_group_invite(json_r
                                            response);
     }
     auto const action = creating ? invite_action::create : revoking ? invite_action::revoke : invite_action::inspect;
-    auto changed = co_await database_.run([=](sqlite_database& db) { return change_group_invite(db, conversation, user, action); });
+    auto changed = co_await run_db([=](sqlite_database& db) { return change_group_invite(db, conversation, user, action); });
     if (!changed)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);

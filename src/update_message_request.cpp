@@ -44,7 +44,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_update_message(json
         bool cleared_pin;
     };
     using outcome = std::variant<update_result, message_change_rejection>;
-    auto update = co_await database_.run(
+    auto update = co_await run_db(
         [&, user = *user_id_](sqlite_database& db) -> std::expected<outcome, sqlite_error>
         {
             auto tx = sqlite_transaction::begin_immediate(db);

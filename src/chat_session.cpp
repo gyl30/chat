@@ -44,6 +44,14 @@ chat_session::chat_session(websocket_connection& connection,
 
 bool chat_session::enqueue_message(std::string message)
 {
+    if (login_id_ && !revoked_ && epoch_milliseconds() >= login_expires_)
+    {
+        invalidate_login();
+    }
+    if (revoked_)
+    {
+        return false;
+    }
     if (outgoing_messages_.size() >= kMaxQueuedMessages)
     {
         connection_.close();
@@ -53,6 +61,34 @@ bool chat_session::enqueue_message(std::string message)
     outgoing_messages_.push_back(std::move(message));
     connection_.interrupt_receive();
     return true;
+}
+
+void chat_session::invalidate_login()
+{
+    revoked_ = true;
+    outgoing_messages_.clear();
+    connection_.interrupt_receive();
+}
+
+void chat_session::publish_login_changes(std::span<std::int64_t const> revoked)
+{
+    for (auto* connection : users_.sessions(*user_id_))
+    {
+        if (std::ranges::find(revoked, connection->login_id_) != revoked.end())
+        {
+            connection->invalidate_login();
+            // An in-flight operation can be blocked on object storage. Do not make
+            // socket teardown wait for it. The database gate protects its continuation.
+            if (connection != this && connection->exchanging_request_)
+            {
+                connection->connection_.close();
+            }
+        }
+        else if (connection != this)
+        {
+            connection->enqueue_message(R"({"jsonrpc":"2.0","method":"login_sessions_changed","params":{}})");
+        }
+    }
 }
 
 boost::capy::task<void> chat_session::publish_presence(bool online)
@@ -85,7 +121,7 @@ boost::capy::task<chat_session::notification_result> chat_session::publish_conve
 {
     using audience = std::vector<std::pair<std::int64_t, bool>>;
     auto recipients = co_await database_.run(
-        [=, user = *user_id_](sqlite_database& db) -> std::expected<std::optional<audience>, sqlite_error>
+        [=, user = *user_id_, login = login_id_](sqlite_database& db) -> std::expected<std::optional<audience>, sqlite_error>
         {
             auto snapshot = sqlite_transaction::begin_read(db);
             if (!snapshot)
@@ -94,6 +130,15 @@ boost::capy::task<chat_session::notification_result> chat_session::publish_conve
             }
             if (require_sender_permission)
             {
+                auto active = login_active(db, login, epoch_milliseconds());
+                if (!active)
+                {
+                    return std::unexpected(active.error());
+                }
+                if (!*active)
+                {
+                    return std::nullopt;
+                }
                 auto allowed = can_send_to_conversation(db, conversation, user);
                 if (!allowed)
                 {
@@ -142,7 +187,7 @@ boost::capy::task<chat_session::notification_result> chat_session::publish_conve
         spdlog::warn("conversation notification lookup failed (SQLite {})", recipients.error().code);
         co_return notification_result::failed;
     }
-    if (!*recipients)
+    if (!*recipients || (require_sender_permission && revoked_))
     {
         co_return notification_result::denied;
     }
@@ -200,7 +245,13 @@ boost::capy::task<void> chat_session::exchange_messages()
     std::string response;
     for (;;)
     {
-        while (!outgoing_messages_.empty())
+        if (revoked_)
+        {
+            co_await connection_.send_text(R"({"jsonrpc":"2.0","method":"login_session_revoked","params":{}})");
+            connection_.close();
+            co_return;
+        }
+        while (!outgoing_messages_.empty() && !revoked_)
         {
             auto message = std::move(outgoing_messages_.front());
             outgoing_messages_.pop_front();
@@ -212,6 +263,10 @@ boost::capy::task<void> chat_session::exchange_messages()
             }
         }
 
+        if (revoked_)
+        {
+            continue;
+        }
         auto receive_result = co_await connection_.receive();
         auto& [ec, message] = receive_result;
         if (ec == std::errc::interrupted)
@@ -232,9 +287,16 @@ boost::capy::task<void> chat_session::exchange_messages()
 
         if (response.empty())
         {
+            exchanging_request_ = true;
             rpc_error = co_await dispatch_request(request, response);
+            exchanging_request_ = false;
         }
 
+        if (revoked_ && request.method != "logout_session")
+        {
+            response.clear();
+            continue;
+        }
         if (rpc_error)
         {
             break;
@@ -254,12 +316,36 @@ boost::capy::task<void> chat_session::exchange_messages()
 
 boost::capy::task<simdjson::error_code> chat_session::dispatch_request(json_rpc_request& request, std::string& response)
 {
+    if (login_id_)
+    {
+        auto const now = epoch_milliseconds();
+        if (revoked_ || now >= login_expires_)
+        {
+            invalidate_login();
+            co_return simdjson::SUCCESS;
+        }
+        if (now >= next_login_touch_)
+        {
+            auto activity = co_await run_db([id = login_id_, now](sqlite_database& db) { return touch_login(db, id, now); });
+            if (!activity || revoked_)
+            {
+                invalidate_login();
+                co_return simdjson::SUCCESS;
+            }
+            next_login_touch_ = now + kLoginActivityIntervalMs;
+        }
+    }
+    if (request.method == "list_login_sessions" || request.method == "revoke_login_session" || request.method == "revoke_other_login_sessions" ||
+        request.method == "logout_session" || request.method == "change_password")
+    {
+        co_return co_await handle_login_management(request, response);
+    }
     if (request.method == "send_friend_request" || request.method == "respond_friend_request" || request.method == "cancel_friend_request" ||
         request.method == "get_friend_requests" || request.method == "remove_contact")
     {
         co_return co_await handle_contact_change(request, response);
     }
-    if (request.method == kAuthenticateMethod)
+    if (request.method == kAuthenticateMethod || request.method == "resume_session")
     {
         co_return co_await handle_authenticate(request, response);
     }

@@ -64,7 +64,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_conversation_prefer
         {
             co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
         }
-        auto floor = co_await database_.run(
+        auto floor = co_await run_db(
             [=, user = *user_id_](sqlite_database& db) -> std::expected<std::int64_t, sqlite_error>
             {
                 auto stmt = hide ? db.prepare(R"SQL(UPDATE conversation_members SET hidden_at=(SELECT activity FROM conversations WHERE id=?1)
@@ -150,7 +150,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_conversation_prefer
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
-    auto updated = co_await database_.run(
+    auto updated = co_await run_db(
         [=, user = *user_id_](sqlite_database& db) -> std::expected<bool, sqlite_error>
         {
             auto err = notify ? db.exec(sql, conversation, user, value, until) : db.exec(sql, conversation, user, value);

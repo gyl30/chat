@@ -44,7 +44,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_contact_change(json
     }
     if (request.method == "get_friend_requests")
     {
-        auto requests = co_await database_.run([user = *user_id_](sqlite_database& db) { return read_friend_requests(db, user); });
+        auto requests = co_await run_db([user = *user_id_](sqlite_database& db) { return read_friend_requests(db, user); });
         if (!requests)
         {
             co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
@@ -93,7 +93,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_contact_change(json
     {
         action = friendship_action::cancel;
     }
-    auto result = co_await database_.run([=, user = *user_id_](sqlite_database& db) { return change_friendship(db, user, params.user, action); });
+    auto result = co_await run_db([=, user = *user_id_](sqlite_database& db) { return change_friendship(db, user, params.user, action); });
     if (!result)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);

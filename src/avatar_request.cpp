@@ -74,8 +74,8 @@ boost::capy::task<simdjson::error_code> chat_session::handle_avatar(json_rpc_req
             co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
         }
     }
-    auto changed = co_await database_.run([&, user = *user_id_](sqlite_database& db)
-                                          { return clearing ? clear_avatar(db, user) : save_avatar(db, user, media_type, content); });
+    auto changed = co_await run_db([&, user = *user_id_](sqlite_database& db)
+                                   { return clearing ? clear_avatar(db, user) : save_avatar(db, user, media_type, content); });
     if (!changed)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);
@@ -90,7 +90,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_avatar(json_rpc_req
         {
             session->enqueue_message(notification);
         }
-        auto recipients = co_await database_.run([user = *user_id_](sqlite_database& db) { return read_avatar_recipients(db, user); });
+        auto recipients = co_await run_db([user = *user_id_](sqlite_database& db) { return read_avatar_recipients(db, user); });
         if (recipients)
         {
             for (auto const peer : *recipients)
@@ -121,7 +121,7 @@ boost::capy::task<simdjson::error_code> chat_session::get_avatar_chunk(simdjson:
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
-    auto image = co_await database_.run([&](sqlite_database& db) { return read_avatar_chunk(db, params.user, params.revision, params.offset); });
+    auto image = co_await run_db([&](sqlite_database& db) { return read_avatar_chunk(db, params.user, params.revision, params.offset); });
     if (!image)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);

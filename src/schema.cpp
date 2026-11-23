@@ -14,6 +14,19 @@ CREATE TABLE IF NOT EXISTS users (
     avatar_revision INTEGER NOT NULL DEFAULT 0 CHECK (avatar_revision >= 0)
 );
 
+CREATE TABLE IF NOT EXISTS login_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE CHECK(length(token_hash)=64),
+    installation TEXT NOT NULL,
+    device_name TEXT NOT NULL,
+    client_type TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    last_seen INTEGER NOT NULL,
+    revoked_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS login_sessions_active_user ON login_sessions(user_id,created_at) WHERE revoked_at IS NULL;
+
 CREATE TABLE IF NOT EXISTS user_avatars (
     user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     media_type TEXT NOT NULL CHECK (media_type IN ('image/png', 'image/jpeg')),

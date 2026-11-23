@@ -23,7 +23,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_presence(json_r
         co_return simdjson::SUCCESS;
     }
 
-    auto presence = co_await database_.run([user = *user_id_](sqlite_database& db) { return read_contact_presence(db, user); });
+    auto presence = co_await run_db([user = *user_id_](sqlite_database& db) { return read_contact_presence(db, user); });
     if (!presence)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);

@@ -47,7 +47,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_message_reaction(js
         std::string acknowledgement, notification;
     };
     using outcome = std::variant<reaction_result, message_change_rejection>;
-    auto reaction = co_await database_.run(
+    auto reaction = co_await run_db(
         [&, user = *user_id_](sqlite_database& db) -> std::expected<outcome, sqlite_error>
         {
             auto tx = sqlite_transaction::begin_immediate(db);
