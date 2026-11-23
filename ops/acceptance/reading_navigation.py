@@ -3,12 +3,14 @@
 import argparse
 import asyncio
 import json
+import hashlib
 from contextlib import AsyncExitStack, ExitStack
 from pathlib import Path
 import sqlite3
 import subprocess
 import sys
 import tempfile
+import urllib.request
 
 from websockets.asyncio.server import serve
 
@@ -16,7 +18,9 @@ from desktop import Desktop, Gate, until
 from isolated import Store, chat, login
 
 
-async def run(root, probe, *, native=False, theme="system", ctrl_enter=False):
+async def run(
+    root, probe, *, native=False, theme="system", ctrl_enter=False, platform=None
+):
     db = root / "chat.sqlite3"
     store = Store()
     with ExitStack() as isolated:
@@ -143,11 +147,11 @@ async def run(root, probe, *, native=False, theme="system", ctrl_enter=False):
                     f"[appearance]\nmode={theme}\n"
                     + ("[chat]\nsend_key=ctrl_enter\n" if ctrl_enter else "")
                 )
-            await ui.start(probe, root, entry, native=native)
+            await ui.start(probe, root, entry, native=native, platform=platform)
             try:
                 if native:
                     await native_session(
-                        root, db, group, anchor, editable, ui, gate, send, b
+                        root, db, group, other, anchor, editable, ui, gate, send, b
                     )
                     return
 
@@ -408,13 +412,14 @@ async def run(root, probe, *, native=False, theme="system", ctrl_enter=False):
                 await ui.stop()
 
 
-async def native_session(root, db, group, anchor, last, ui, gate, send, peer):
+async def native_session(root, db, group, other, anchor, last, ui, gate, send, peer):
     """Let real desktop input drive reading; stdin only observes or drives the peer/server."""
     print(
         json.dumps(
             dict(
                 ready=True,
                 group=group,
+                other=other,
                 first_unread=anchor,
                 last=last,
                 root=str(root),
@@ -438,6 +443,29 @@ async def native_session(root, db, group, anchor, last, ui, gate, send, peer):
             if cmd.get("release"):
                 await gate.release("get_messages")
             result = {"held": len(gate.held)}
+        elif action == "capture":
+            with sqlite3.connect(db) as conn:
+                (tasks,) = conn.execute(
+                    "SELECT count(*) FROM attachment_uploads WHERE conversation=?",
+                    (group,),
+                ).fetchone()
+                row = conn.execute(
+                    """SELECT m.id FROM messages m JOIN message_attachments a ON a.message_id=m.id
+                       WHERE m.conversation_id=? AND m.sender_id=1 ORDER BY m.id DESC LIMIT 1""",
+                    (group,),
+                ).fetchone()
+            if row:
+                (mid,) = row
+                grant = await peer.ok("get_attachment", conversation=group, message=mid)
+                with urllib.request.urlopen(grant["url"], timeout=10) as response:
+                    data = response.read()
+                saved = root / f"received-{mid}.bin"
+                saved.write_bytes(data)
+                result = dict(
+                    id=mid, file=str(saved), sha256=hashlib.sha256(data).hexdigest()
+                )
+            else:
+                result = dict(tasks=tasks)
         elif action == "observe":
             with sqlite3.connect(db) as conn:
                 (read,) = conn.execute(
@@ -447,7 +475,9 @@ async def native_session(root, db, group, anchor, last, ui, gate, send, peer):
             result = dict(
                 reading=await ui.call("reading"),
                 state=await ui.call("state"),
-                desktop=await ui.call("desktop_environment", conversation=group),
+                desktop=await ui.call(
+                    "desktop_environment", conversation=cmd.get("conversation", group)
+                ),
                 context=await ui.call("searchui"),
                 read=read,
                 held=len(gate.held),
@@ -489,7 +519,14 @@ if __name__ == "__main__":
         action="store_true",
         help="use Ctrl+Enter sending in the isolated native profile",
     )
+    parser.add_argument(
+        "--platform",
+        choices=("xcb", "wayland"),
+        help="require an explicit native Qt platform",
+    )
     args = parser.parse_args()
+    if args.platform and not args.native:
+        parser.error("--platform requires --native")
     with tempfile.TemporaryDirectory(prefix="chat-reading-navigation-") as tmp:
         asyncio.run(
             run(
@@ -498,5 +535,6 @@ if __name__ == "__main__":
                 native=args.native,
                 theme=args.theme,
                 ctrl_enter=args.ctrl_enter,
+                platform=args.platform,
             )
         )

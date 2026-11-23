@@ -50,6 +50,10 @@ QT_SCALE_FACTOR=1.5 ops/with-sqlite-runtime.sh "$SQLITE_PREFIX"   python3 ops/ac
 
 输入框标准右键菜单单独检查：在连续最新区间底部输入测试草稿并保留回复目标，右键打开编辑菜单，用 `peer` 发消息。菜单打开期间不得发出 `mark_read`；只按 Esc，不点击或滚动，观察主窗口仍活跃时发出一次标读且数据库水位推进。停在旧位置或菜单期间切到另一个应用时不标读。检查草稿、回复及菜单的撤销／重做不受影响，并与主菜单原有行为对照。GNOME/Xorg 实测基线中 Esc 恢复了编辑器的 `PopupFocusReason` 焦点，但没有新窗口激活事件，水位停留在 109；修复后只对编辑器自己的标准菜单接入现有关闭回调，水位推进到 110，主菜单也没有重复提交。
 
+双机验收要指定实际 Qt 平台，例如 `reading_navigation.py <probe> --native --platform xcb` 或 `--platform wayland`。后者只接受 Qt 原生 Wayland 插件，不把 Wayland 会话中的 XWayland 当通过。SSH 远端应使用已登录用户的环境（`XDG_RUNTIME_DIR`、Wayland socket、会话总线）；登录界面与离屏结果不算原生测试。观察输出提供 Qt 版本/DPR、预编辑和对话框几何。用真实桌面输入操作候选和文件对话框；`capture` 指令可让隔离接收端下载自己刚发出的测试附件，返回 ID、文件路径和 SHA-256，无附件时报告剩余的上传任务。截图取合成测试区域，不保存用户桌面的全图。
+
+`network_stall.py <probe> [--native --platform xcb|wayland]` 单独验证静默传输停顿，默认离屏，仍需按上文准备 Release、私有 SQLite 和 Silo。测试用只绑定回环的原始 TCP 转发，不解析 WebSocket，也不替两端回复 Ping 或 Pong；对已停顿连接不转发 EOF。按生产默认 30 秒探测加 10 秒宽限等待，分别验证下行停顿和双向停顿、原 ID 重试、离线 Outbox、归档外历史补齐、原安装的上传续传、遗漏撤销通知后的凭证拒绝，以及恢复后只剩预期连接和定时器。
+
 ## 重复搜索测量
 
 先用上面的命令构建，或单独构建同配置的 Release `chat_server`。计时工具按该版本的编译数据库重编三个临时翻译单元，链接独立服务端。生产程序没有计时开关。比较历史版本时，每个版本使用自己的源码、构建目录和计时程序。

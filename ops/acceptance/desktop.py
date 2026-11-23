@@ -95,26 +95,54 @@ class Gate:
 
 
 class Desktop:
-    async def start(self, binary, root, url, user="a", user_id=1, password="pass", *, native=False):
+    async def start(
+        self,
+        binary,
+        root,
+        url,
+        user="a",
+        user_id=1,
+        password="pass",
+        *,
+        native=False,
+        platform=None,
+    ):
         env = dict(
             os.environ,
             XDG_DATA_HOME=str(root / "data"),
             XDG_CONFIG_HOME=str(root / "config"),
         )
         if native:
-            env.pop("QT_QPA_PLATFORM", None)
+            if platform:
+                env["QT_QPA_PLATFORM"] = platform
+            else:
+                env.pop("QT_QPA_PLATFORM", None)
             env["CHAT_TEST_NATIVE_DESKTOP"] = "1"
         else:
             env["QT_QPA_PLATFORM"] = "offscreen"
             env.pop("CHAT_TEST_NATIVE_DESKTOP", None)
-        self.proc = await asyncio.create_subprocess_exec(binary, url, env=env, stdin=-1, stdout=-1)
+        self.proc = await asyncio.create_subprocess_exec(
+            binary, url, env=env, stdin=-1, stdout=-1
+        )
+        if platform:
+            actual = (await self.call("desktop_environment"))["platform"]
+            if actual != platform and not (
+                platform == "wayland" and actual.startswith("wayland-")
+            ):
+                await self.stop()
+                raise RuntimeError(
+                    f"Qt platform mismatch: expected {platform}, got {actual}"
+                )
         await self.call("login", user=user, password=password)
         await self.wait("state", lambda r: r["user"] == user_id)
 
     async def call(self, op, **params):
         self.proc.stdin.write((json.dumps(dict(op=op, **params)) + "\n").encode())
         await self.proc.stdin.drain()
-        return json.loads(await asyncio.wait_for(self.proc.stdout.readline(), 8))
+        response = await asyncio.wait_for(self.proc.stdout.readline(), 8)
+        if not response:
+            raise RuntimeError(f"Qt probe exited before replying to {op}")
+        return json.loads(response)
 
     async def wait(self, op, check, **params):
         async def test():

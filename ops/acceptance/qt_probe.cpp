@@ -4,6 +4,8 @@
 #include <QScreen>
 #include <QStyleHints>
 #include <QStyleOptionSlider>
+#include <QTextBlock>
+#include <QTextLayout>
 #include <QApplication>
 #include <QClipboard>
 #include <QCheckBox>
@@ -182,6 +184,9 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         out["user"] = chat->self_user();
         out["status"] = window.status_label_->text();
         out["reconnecting"] = window.reconnecting_;
+        out["reconnectTimers"] = window.reconnect_timer_->isActive() || window.reconnect_countdown_timer_->isActive();
+        auto* connection = window.findChild<QAbstractButton*>("connectionStatusButton");
+        out["connectionText"] = connection->isVisible() ? connection->text() : QString{};
         out["password_empty"] = window.password_edit_->text().isEmpty();
     }
     else if (op == "draft_debounce")
@@ -359,6 +364,10 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
                 dialog->reject();
             }
         }
+    }
+    else if (op == "queue_file")
+    {
+        chat->send_files(cmd["conv"].toInteger(), {cmd["path"].toString()});
     }
     else if (op == "upload")
     {
@@ -826,6 +835,9 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         };
         out["platform"] = QGuiApplication::platformName();
         out["dpr"] = window.devicePixelRatioF();
+        out["qt"] = QString::fromLatin1(qVersion());
+        out["im"] = qEnvironmentVariable("QT_IM_MODULE");
+        out["preedit"] = edit->textCursor().block().layout()->preeditAreaText();
         out["window"] = geometry(&window);
         out["windowId"] = static_cast<qint64>(window.winId());
         out["minimum"] = QJsonArray{window.minimumWidth(), window.minimumHeight()};
@@ -833,6 +845,23 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         if (auto* modal = QApplication::activeModalWidget())
         {
             out["modalId"] = static_cast<qint64>(modal->winId());
+            out["modalType"] = modal->objectName();
+            out["modalTitle"] = modal->windowTitle();
+            out["saveAttachment"] = geometry(modal->findChild<QWidget*>("saveAttachmentButton"));
+            out["editMessage"] = geometry(modal->findChild<QWidget*>("editMessageText"));
+            out["saveEdit"] = geometry(modal->findChild<QWidget*>("editMessageButton"));
+            out["screenshotPreview"] = geometry(modal->findChild<QWidget*>("screenshotPreview"));
+            if (auto* preview = modal->findChild<QLabel*>("screenshotPreview"); preview && !preview->pixmap().isNull())
+            {
+                out["previewSize"] = QJsonArray{preview->pixmap().width(), preview->pixmap().height()};
+            }
+            for (auto* button : modal->findChildren<QPushButton*>())
+            {
+                if (button->text() == "发送截图")
+                {
+                    out["confirmCapture"] = geometry(button);
+                }
+            }
         }
         if (auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget()))
         {
@@ -845,11 +874,22 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             }
             out["actions"] = actions;
         }
+        if (auto* popup = QApplication::activePopupWidget(); popup && popup->objectName() == "emojiPicker")
+        {
+            out["emojiFirst"] = geometry(popup->findChild<QWidget*>("emojiChoice"));
+        }
         out["focus"] = QApplication::focusWidget() ? QApplication::focusWidget()->objectName() : QString{};
         out["colorScheme"] = static_cast<int>(QGuiApplication::styleHints()->colorScheme());
         out["themeCanvas"] = theme_manager::instance().color(QStringLiteral("canvas")).name();
-        for (auto const* name :
-             {"entryUnreadButton", "returnToLatestButton", "chatHeaderButton", "mainMenuButton", "windowMinimizeButton", "windowResizeGrip"})
+        for (auto const* name : {"entryUnreadButton",
+                                 "returnToLatestButton",
+                                 "chatHeaderButton",
+                                 "mainMenuButton",
+                                 "windowMinimizeButton",
+                                 "windowResizeGrip",
+                                 "screenshotButton",
+                                 "sendAttachmentButton",
+                                 "emojiButton"})
         {
             out[name] = geometry(window.findChild<QWidget*>(name));
         }
@@ -871,6 +911,20 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
             auto const point = view->viewport()->mapToGlobal(rect.topLeft());
             out["message"] = QJsonArray{point.x(), point.y(), rect.width(), rect.height()};
             out["messageId"] = index.data(message_model::id_role).toLongLong();
+        }
+        for (int i = model->rowCount() - 1; i >= 0; --i)
+        {
+            auto const index = model->index(i, 0);
+            if (index.data(message_model::id_role).toLongLong() > 0)
+            {
+                auto const rect = view->visualRect(index).intersected(view->viewport()->rect());
+                if (!rect.isEmpty())
+                {
+                    auto const point = view->viewport()->mapToGlobal(rect.topLeft());
+                    out["tailMessage"] = QJsonArray{point.x(), point.y(), rect.width(), rect.height()};
+                }
+                break;
+            }
         }
         if (auto index = static_cast<conversation_model*>(conv->model())->index_for_conversation(cmd["conversation"].toInteger()); index.isValid())
         {
