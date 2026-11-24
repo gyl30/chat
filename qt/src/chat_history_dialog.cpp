@@ -155,13 +155,13 @@ chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& tit
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding, chat_theme::dialog_padding);
     layout->setSpacing(chat_theme::dialog_spacing);
-    search_ = new QLineEdit(this);
-    search_->setObjectName(QStringLiteral("historySearchEdit"));
-    search_->setPlaceholderText(QStringLiteral("搜索"));
-    search_->setAccessibleName(QStringLiteral("搜索聊天记录"));
-    search_->setClearButtonEnabled(true);
-    auto* search_icon = search_->addAction(svg_icon(u"search", themed("text_muted"), QSize(16, 16)), QLineEdit::LeadingPosition);
-    layout->addWidget(search_);
+    auto* search = new QLineEdit(this);
+    search->setObjectName(QStringLiteral("historySearchEdit"));
+    search->setPlaceholderText(QStringLiteral("搜索"));
+    search->setAccessibleName(QStringLiteral("搜索聊天记录"));
+    search->setClearButtonEnabled(true);
+    auto* search_icon = search->addAction(svg_icon(u"search", themed("text_muted"), QSize(16, 16)), QLineEdit::LeadingPosition);
+    layout->addWidget(search);
     tabs_ = new QTabBar(this);
     tabs_->setObjectName(QStringLiteral("historyTabs"));
     tabs_->setDrawBase(false);
@@ -200,8 +200,8 @@ chat_history_dialog::chat_history_dialog(qint64 conversation, QString const& tit
     more_->hide();
     layout->addWidget(more_, 0, Qt::AlignHCenter);
 
-    connect(search_, &QLineEdit::returnPressed, this, [this] { restart_search(search_->text().trimmed()); });
-    connect(search_,
+    connect(search, &QLineEdit::returnPressed, this, [this, search] { restart_search(search->text().trimmed()); });
+    connect(search,
             &QLineEdit::textChanged,
             this,
             [this](QString const& text)

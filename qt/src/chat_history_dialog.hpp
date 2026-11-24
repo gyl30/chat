@@ -11,7 +11,6 @@
 
 class avatar_cache;
 class QLabel;
-class QLineEdit;
 class QListWidget;
 class QListWidgetItem;
 class QPushButton;
@@ -47,7 +46,6 @@ class chat_history_dialog final : public QDialog
 
     qint64 conversation_;
     avatar_cache* avatars_;
-    QLineEdit* search_ = nullptr;
     QTabBar* tabs_ = nullptr;
     QListWidget* list_ = nullptr;
     QLabel* status_ = nullptr;

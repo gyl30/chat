@@ -59,6 +59,16 @@ QList<mention_data> to_mentions(std::vector<chat::mention> const& values)
     return result;
 }
 
+read_positions to_read_positions(std::vector<chat::read_position> const& values)
+{
+    read_positions positions;
+    for (auto const& value : values)
+    {
+        positions.insert(value.user, value.message);
+    }
+    return positions;
+}
+
 user_data to_user_data(chat::user const& user)
 {
     return {user.id, from_utf8(user.username), false, 0, user.avatar, {}, {}, from_utf8(user.nickname)};
@@ -114,6 +124,16 @@ message_data client_bridge::to_message_data(chat::message const& value)
                                              from_utf8(value.attachment->object_key)};
     }
     return message;
+}
+
+QList<message_data> client_bridge::to_messages(std::vector<chat::message> const& values)
+{
+    QList<message_data> messages;
+    for (auto const& value : values)
+    {
+        messages.push_back(to_message_data(value));
+    }
+    return messages;
 }
 
 client_bridge::client_bridge(QObject* parent)
@@ -916,16 +936,8 @@ void client_bridge::get_messages(qint64 conversation, std::optional<qint64> befo
                         emit messages_received(conversation, {}, {}, before.has_value(), after.has_value(), false, {}, display_error(result.error()));
                         return;
                     }
-                    QList<message_data> messages;
-                    for (auto const& value : result->messages)
-                    {
-                        messages.push_back(to_message_data(value));
-                    }
-                    read_positions positions;
-                    for (auto const& position : result->read_positions)
-                    {
-                        positions.insert(position.user, position.message);
-                    }
+                    auto messages = to_messages(result->messages);
+                    auto positions = to_read_positions(result->read_positions);
                     emit history_boundary(conversation, result->visible_after, after.has_value() && result->hidden);
                     auto const next = result->messages.empty() ? 0 : result->messages.back().id;
                     emit messages_received(conversation,
@@ -1498,16 +1510,8 @@ void client_bridge::search_messages(qint64 conversation, QString query, qint64 b
                                 emit message_search_received(conversation, std::move(query), before, {}, {}, false, display_error(result.error()));
                                 return;
                             }
-                            QList<message_data> messages;
-                            for (auto const& value : result->messages)
-                            {
-                                messages.push_back(to_message_data(value));
-                            }
-                            read_positions positions;
-                            for (auto const& value : result->read_positions)
-                            {
-                                positions.insert(value.user, value.message);
-                            }
+                            auto messages = to_messages(result->messages);
+                            auto positions = to_read_positions(result->read_positions);
                             emit message_search_received(
                                 conversation, std::move(query), before, std::move(messages), std::move(positions), result->has_more, {});
                         });
@@ -1615,17 +1619,9 @@ quint64 client_bridge::get_search_context(qint64 conversation, qint64 anchor)
                                      post_result(g,
                                                  [this, request, anchor, result = std::move(result)]
                                                  {
-                                                     QList<message_data> messages;
-                                                     if (result)
-                                                     {
-                                                         for (auto const& m : result->messages)
-                                                         {
-                                                             messages.push_back(to_message_data(m));
-                                                         }
-                                                     }
                                                      emit search_context_received(request,
                                                                                   anchor,
-                                                                                  std::move(messages),
+                                                                                  result ? to_messages(result->messages) : QList<message_data>{},
                                                                                   result ? QString{} : display_error(result.error()),
                                                                                   !result && result.error().code == chat::conversation_unavailable);
                                                  });
@@ -1652,12 +1648,7 @@ void client_bridge::get_history(qint64 conversation, chat::message_category cate
                             emit history_received(conversation, {}, false, display_error(result.error()));
                             return;
                         }
-                        QList<message_data> messages;
-                        for (auto const& value : result->messages)
-                        {
-                            messages.push_back(to_message_data(value));
-                        }
-                        emit history_received(conversation, std::move(messages), result->has_more, {});
+                        emit history_received(conversation, to_messages(result->messages), result->has_more, {});
                     });
     };
     client_->get_categorized_history(conversation, category, to_utf8(query), cursor, std::move(receive));

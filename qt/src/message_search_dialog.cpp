@@ -66,12 +66,12 @@ message_search_dialog::message_search_dialog(
     input_->setAccessibleName(QStringLiteral("消息搜索关键词"));
     input_->setPlaceholderText(QStringLiteral("输入当前会话的关键词"));
     input_->setMaxLength(256);
-    search_button_ = new QPushButton(QStringLiteral("搜索"), this);
-    search_button_->setObjectName(QStringLiteral("searchMessagesButton"));
-    search_button_->setAutoDefault(false);
-    search_button_->setDefault(true);
+    auto* search_button = new QPushButton(QStringLiteral("搜索"), this);
+    search_button->setObjectName(QStringLiteral("searchMessagesButton"));
+    search_button->setAutoDefault(false);
+    search_button->setDefault(true);
     search_row->addWidget(input_, 1);
-    search_row->addWidget(search_button_);
+    search_row->addWidget(search_button);
     layout->addLayout(search_row);
     auto* help = new QLabel(QStringLiteral("不区分大小写。双击或按 Enter 跳转到聊天中的位置；消息被编辑后可重新搜索。"), this);
     help->setObjectName(QStringLiteral("messageSearchHelp"));
@@ -108,7 +108,7 @@ message_search_dialog::message_search_dialog(
     buttons->button(QDialogButtonBox::Close)->setIcon({});
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    connect(search_button_, &QPushButton::clicked, this, [this] { request_search(false); });
+    connect(search_button, &QPushButton::clicked, this, [this] { request_search(false); });
     auto const activate = [this](QModelIndex const& index)
     {
         auto const id = index.data(message_model::id_role).toLongLong();

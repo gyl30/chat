@@ -203,6 +203,7 @@ class chat_widget final : public QWidget
 
    private:
     QWidget* create_sidebar();
+    void show_conversation_menu(QPoint point);
     void setup_contacts_dialog();
     void setup_add_contact_dialog();
     void setup_friend_requests();

@@ -258,6 +258,7 @@ class client_bridge final : public QObject
             },
             Qt::QueuedConnection);
     }
+    QList<message_data> to_messages(std::vector<chat::message> const& values);
     message_data to_message_data(chat::message const& value);
     quoted_message_data to_reply_data(std::optional<chat::quoted_message> const& reply);
     void get_conversations_page(std::optional<chat::conversation_cursor> before,

@@ -64,7 +64,6 @@ class message_search_dialog final : public QDialog
     qint64 next_before_ = 0;
     QHash<qint64, pending_reaction> pending_reactions_;
     QLineEdit* input_;
-    QPushButton* search_button_;
     QPushButton* more_button_;
     QLabel* status_;
     QLabel* count_;
