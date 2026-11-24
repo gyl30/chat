@@ -173,7 +173,16 @@ void message_search_dialog::request_search(bool older)
     status_->setText(QStringLiteral("正在搜索…"));
     status_->show();
     refresh_count();
+    messages_->begin_page();
     emit search_requested(query_, before_);
+}
+
+void message_search_dialog::update_poll(chat::poll_update const& update)
+{
+    if (conversation_ == update.conversation)
+    {
+        messages_->set_poll(update.message, update.summary);
+    }
 }
 
 void message_search_dialog::set_reactions(qint64 conversation, qint64 message, qint64 revision, QList<reaction_data> reactions, QString const& error)
@@ -219,6 +228,7 @@ void message_search_dialog::set_results(qint64 conversation,
     }
     if (!error_message.isEmpty())
     {
+        messages_->end_page();
         status_->setText(error_message);
         status_->show();
         more_button_->setEnabled(next_before_ > 0 && input_->text().trimmed() == query_);

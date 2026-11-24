@@ -97,6 +97,7 @@ class client_bridge final : public QObject
     void get_presence();
     void get_messages(qint64 conversation, std::optional<qint64> before = {}, std::optional<qint64> after = {}, bool capture_unread = false);
     void create_poll(qint64 room, QString question, QStringList options);
+    void refresh_live_poll(qint64 room, qint64 message);
     void get_poll(qint64 room, qint64 message);
     void vote_poll(qint64 room, qint64 message, qint64 choice);
     void close_poll(qint64 room, qint64 message);

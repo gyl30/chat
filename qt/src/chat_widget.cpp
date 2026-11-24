@@ -2804,7 +2804,7 @@ void chat_widget::set_connection_available(bool available)
             action->setEnabled(available);
         }
     }
-    messages_loading_ = available && active_conversation_ > 0;
+    set_messages_loading(available && active_conversation_ > 0);
     if (!available)
     {
         timeline_current_ = false;
@@ -3250,7 +3250,7 @@ void chat_widget::set_messages(qint64 user,
     }
     messages_->merge_messages(std::move(messages));
     messages_->set_read_positions(std::move(positions));
-    messages_loading_ = recovering && has_more;
+    set_messages_loading(recovering && has_more);
     if (!older)
     {
         timeline_current_ = !messages_loading_;
@@ -3359,8 +3359,13 @@ void chat_widget::add_message(qint64 user, message_data message)
     auto* scroll = messages_view_->verticalScrollBar();
     auto const position = scroll->value();
     auto const at_bottom = timeline_current_ && position == scroll->maximum();
+    auto const poll = message.poll ? message.id : 0;
     if (messages_->add_message(std::move(message)))
     {
+        if (poll)
+        {
+            emit live_poll_added(user, poll);
+        }
         set_message_status({});
         if (at_bottom)
         {
@@ -3392,6 +3397,11 @@ void chat_widget::update_message(message_data message)
     if (!visible_message(message))
     {
         return;
+    }
+    // A withdrawal can precede delivery of the original message in the live timeline.
+    if (message.deleted && message.conversation == active_conversation_ && timeline_current_ && message.id >= messages_->first_message_id())
+    {
+        messages_->add_message(message);
     }
     messages_->update_message(message);
     if (message.conversation != active_conversation_)
@@ -3504,7 +3514,7 @@ void chat_widget::set_history_error(qint64 conversation, QString message)
 {
     if (conversation == active_conversation_)
     {
-        messages_loading_ = false;
+        set_messages_loading(false);
         jump_to_latest_ = false;
         update_reading_navigation();
         set_message_status(std::move(message));
@@ -4065,7 +4075,7 @@ void chat_widget::open_conversation(conversation_data conversation)
         update_compose_state();
         if (!messages_loaded_ && !messages_loading_)
         {
-            messages_loading_ = true;
+            set_messages_loading(true);
             show_loading_status();
             if (connection_available_)
             {
@@ -4098,7 +4108,7 @@ void chat_widget::open_conversation(conversation_data conversation)
     show_outgoing();
     update_pinned_message();
     messages_loaded_ = false;
-    messages_loading_ = true;
+    set_messages_loading(true);
     history_exhausted_ = false;
     show_loading_status();
     update_compose_state();
@@ -4199,7 +4209,7 @@ void chat_widget::leave_conversation(qint64 conversation)
     active_member_count_ = 0;
     active_username_.clear();
     messages_loaded_ = false;
-    messages_loading_ = false;
+    set_messages_loading(false);
     history_exhausted_ = false;
     reset_reply();
     set_message_selection(false);
@@ -4358,10 +4368,23 @@ bool chat_widget::viewing_latest() const
            scroll->value() == scroll->maximum();
 }
 
+void chat_widget::set_messages_loading(bool loading)
+{
+    messages_loading_ = loading;
+    if (loading)
+    {
+        messages_->begin_page();
+    }
+    else
+    {
+        messages_->end_page();
+    }
+}
+
 void chat_widget::begin_history_refresh()
 {
     timeline_current_ = false;
-    messages_loading_ = true;
+    set_messages_loading(true);
     update_reading_navigation();
 }
 
@@ -4468,7 +4491,7 @@ void chat_widget::request_older_messages()
         return;
     }
 
-    messages_loading_ = true;
+    set_messages_loading(true);
     emit older_messages_requested(active_conversation_, before);
 }
 

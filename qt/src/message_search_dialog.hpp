@@ -32,6 +32,7 @@ class message_search_dialog final : public QDialog
                      read_positions positions,
                      bool has_more,
                      QString const& error_message);
+    void update_poll(chat::poll_update const& update);
     void set_reactions(qint64 conversation, qint64 message, qint64 revision, QList<reaction_data> reactions, QString const& error);
     void update_message(qint64 conversation, message_data message, QString const& error);
 

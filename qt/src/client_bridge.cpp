@@ -1013,6 +1013,35 @@ chat::client::poll_handler client_bridge::poll_result(qint64 room, qint64 messag
                     });
     };
 }
+void client_bridge::refresh_live_poll(qint64 room, qint64 message)
+{
+    // A vote or withdrawal can reach this connection before the creation frame.
+    // The forward cursor includes a visible tombstone; around and get_poll exclude it.
+    client_->get_messages(
+        room,
+        {},
+        [this, room, message, g = connection_generation_.load()](auto result)
+        {
+            if (!result || result->messages.empty() || result->messages.front().id != message)
+            {
+                return;
+            }
+            post_result(g,
+                        [this, room, m = std::move(result->messages.front())]
+                        {
+                            if (m.deleted)
+                            {
+                                emit message_updated(room, to_message_data(m), {});
+                            }
+                            else if (m.poll)
+                            {
+                                emit poll_changed({room, m.id, *m.poll});
+                            }
+                        });
+        },
+        message - 1);
+}
+
 void client_bridge::get_poll(qint64 room, qint64 message) { client_->get_poll(room, message, poll_result(room, message, false)); }
 void client_bridge::vote_poll(qint64 room, qint64 message, qint64 choice)
 {

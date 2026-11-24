@@ -71,6 +71,9 @@ class message_model final : public QAbstractListModel
     void reset(qint64 conversation, bool group = false);
     void set_pending(QList<pending_message> pending);
     void discard_through(qint64 floor);
+    // Changes to unloaded rows belong only to the page currently being read.
+    void begin_page() { page_changes_.emplace(); }
+    void end_page() { page_changes_.reset(); }
     void merge_messages(QList<message_data> messages);
     bool add_message(message_data message);
     void update_message(message_data const& message);
@@ -89,6 +92,8 @@ class message_model final : public QAbstractListModel
     qint64 last_message_id() const;
 
    private:
+    std::optional<QHash<qint64, message_data>> page_changes_;
+    void reconcile_page_row(message_data& message) const;
     avatar_cache* avatars_;
     message_images* images_;
     QList<message_data> messages_;

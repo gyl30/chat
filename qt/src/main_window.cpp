@@ -1145,6 +1145,7 @@ void main_window::show_message_search(qint64 conversation, qint64 self_user, boo
             &dialog,
             [this, conversation](QString query, qint64 before) { client_->search_messages(conversation, std::move(query), before); });
     connect(client_.get(), &client_bridge::message_search_received, &dialog, &message_search_dialog::set_results, Qt::AutoConnection);
+    connect(client_.get(), &client_bridge::poll_changed, &dialog, &message_search_dialog::update_poll);
     connect(client_.get(), &client_bridge::reaction_changed, &dialog, &message_search_dialog::set_reactions, Qt::AutoConnection);
     connect(client_.get(), &client_bridge::message_updated, &dialog, &message_search_dialog::update_message, Qt::AutoConnection);
     connect(client_.get(),
@@ -1465,6 +1466,7 @@ void main_window::connect_messages()
             });
     connect(client_.get(), &client_bridge::group_file_finished, chat_page_, &chat_widget::finish_group_file);
     connect(chat_page_, &chat_widget::create_poll_requested, client_.get(), &client_bridge::create_poll);
+    connect(chat_page_, &chat_widget::live_poll_added, client_.get(), &client_bridge::refresh_live_poll);
     connect(client_.get(), &client_bridge::poll_changed, this, [this](chat::poll_update update) { chat_page_->update_poll(update); });
     connect(chat_page_, &chat_widget::bundle_requested, client_.get(), &client_bridge::forward_bundle);
     connect(chat_page_,

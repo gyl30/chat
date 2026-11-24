@@ -188,6 +188,7 @@ class chat_widget final : public QWidget
     void chat_history_requested(qint64 conversation, QString title);
     void group_message_pin_requested(qint64 conversation, std::optional<qint64> message);
     void add_file_requested(qint64 conversation, QString key);
+    void live_poll_added(qint64 room, qint64 message);
     void create_poll_requested(qint64 room, QString question, QStringList options);
     void content_requested(qint64 conversation, qint64 message, QString kind);
     void bundle_requested(qint64 target, QList<qint64> messages);
@@ -272,6 +273,7 @@ class chat_widget final : public QWidget
     void set_list_status(QString text);
     void update_main_menu();
     void show_loading_status();
+    void set_messages_loading(bool loading);
     void show_emoji_picker();
     void select_add_user(QModelIndex const& index);
     void select_conversation(QModelIndex const& index);

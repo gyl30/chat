@@ -301,6 +301,7 @@ QVariant message_model::data(QModelIndex const& index, int role) const
 void message_model::reset(qint64 conversation, bool group)
 {
     beginResetModel();
+    end_page();
     conversation_ = conversation;
     group_ = group;
     read_positions_.clear();
@@ -353,6 +354,10 @@ void message_model::set_pending(QList<pending_message> pending)
 
 void message_model::discard_through(qint64 floor)
 {
+    if (page_changes_)
+    {
+        page_changes_->removeIf([floor](auto it) { return it.key() <= floor; });
+    }
     auto end = std::ranges::upper_bound(messages_, floor, {}, &message_data::id);
     if (end != messages_.begin())
     {
@@ -370,8 +375,35 @@ void message_model::discard_through(qint64 floor)
         }
     }
 }
+
+void message_model::reconcile_page_row(message_data& message) const
+{
+    if (!page_changes_)
+    {
+        return;
+    }
+    auto it = page_changes_->constFind(message.id);
+    if (it == page_changes_->cend())
+    {
+        return;
+    }
+    if (it->deleted)
+    {
+        message = *it;
+    }
+    else if (it->poll)
+    {
+        merge_poll(message, *it->poll);
+    }
+}
+
 void message_model::merge_messages(QList<message_data> messages)
 {
+    for (auto& message : messages)
+    {
+        reconcile_page_row(message);
+    }
+    end_page();
     for (auto const& message : messages)
     {
         update_message(message);
@@ -426,6 +458,7 @@ bool message_model::add_message(message_data message)
     {
         avatars_->observe(message.from, message.avatar);
     }
+    reconcile_page_row(message);
     auto found = std::find_if(messages_.cbegin(), messages_.cend(), [id = message.id](message_data const& value) { return value.id == id; });
     if (found != messages_.cend())
     {
@@ -451,6 +484,10 @@ void message_model::update_message(message_data const& message)
     if (message.conversation != conversation_)
     {
         return;
+    }
+    if (page_changes_ && message.deleted)
+    {
+        page_changes_->insert(message.id, message);
     }
     if (avatars_)
     {
@@ -511,7 +548,15 @@ void message_model::update_message(message_data const& message)
 void message_model::set_poll(qint64 message, chat::poll_summary const& summary)
 {
     auto it = std::ranges::lower_bound(messages_, message, {}, &message_data::id);
-    if (it != messages_.end() && it->id == message && merge_poll(*it, summary))
+    if (it == messages_.end() || it->id != message)
+    {
+        if (page_changes_)
+        {
+            merge_poll((*page_changes_)[message], summary);
+        }
+        return;
+    }
+    if (merge_poll(*it, summary))
     {
         auto row = index(static_cast<int>(it - messages_.begin()), 0);
         emit dataChanged(row, row, {poll_role, Qt::AccessibleTextRole});
