@@ -223,9 +223,11 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             return outgoing;
         case mentions_role:
             return QVariant::fromValue(message.deleted ? QList<mention_data>{} : message.mentions);
+        case mention_all_role:
+            return !message.deleted && message.mention_all;
         case mentioned_role:
             return !message.deleted && group_ &&
-                   std::ranges::any_of(message.mentions, [this](auto const& mention) { return mention.user == self_user_; });
+                   (message.mention_all || std::ranges::any_of(message.mentions, [this](auto const& mention) { return mention.user == self_user_; }));
         case forwarded_from_role:
             return message.deleted ? QString{} : message.forwarded_from;
         case sender_name_role:

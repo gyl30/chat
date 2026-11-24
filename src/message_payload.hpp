@@ -24,6 +24,7 @@ struct message_payload
     std::optional<std::int64_t> edited_at;
     bool deleted = false;
     bool markdown = false;
+    bool mention_all = false;
     std::optional<chat::attachment_info> attachment;
     std::int64_t avatar_revision = 0;
     bool has_avatar = false;
@@ -47,6 +48,7 @@ inline message_payload make_message_payload(chat::message const& message, bool i
     value.timestamp = message.timestamp;
     value.text = message.text;
     value.markdown = message.markdown;
+    value.mention_all = message.mention_all;
     value.reply = message.reply;
     value.edited_at = message.edited_at;
     value.deleted = message.deleted;

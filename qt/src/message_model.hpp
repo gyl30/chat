@@ -36,6 +36,7 @@ class message_model final : public QAbstractListModel
         own_reaction_role,
         mentions_role,
         mentioned_role,
+        mention_all_role,
         image_role,
         image_status_role,
         client_id_role,

@@ -350,6 +350,7 @@ class chat_widget final : public QWidget
     QToolButton* chat_more_button_ = nullptr;
     QToolButton* screenshot_button_ = nullptr;
     QToolButton* mention_button_ = nullptr;
+    QToolButton* mention_all_button_ = nullptr;
     QToolButton* markdown_button_ = nullptr;
     QToolButton* emoji_button_ = nullptr;
     QToolButton* history_button_ = nullptr;

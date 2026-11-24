@@ -69,6 +69,7 @@ struct message_data
     QList<reaction_data> reactions;
     QList<mention_data> mentions;
     bool markdown = false;
+    bool mention_all = false;
     bool acknowledgement_only = false;
     // Only on one's own messages: the ID they were sent with.
     qint64 client_id = 0;

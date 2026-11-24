@@ -150,6 +150,10 @@ void conversation_delegate::paint(QPainter* painter, QStyleOptionViewItem const&
         QFont badge_font = option.font;
         badge_font.setBold(true);
         badge_font.setPixelSize(11);
+        if (index.data(conversation_model::unread_mention_role).toBool())
+        {
+            badge_text.prepend(u'@');
+        }
         badge_width = std::max(chat_theme::dialog_unread_height, QFontMetrics(badge_font).horizontalAdvance(badge_text) + 10);
     }
 

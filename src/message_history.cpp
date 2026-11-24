@@ -31,7 +31,7 @@ constexpr std::string_view kMessageColumns = R"SQL(
     SELECT m.id,m.sender_id,u.username,u.avatar_revision,avatar.user_id IS NOT NULL,
            m.body,m.created_at,m.edited_at,m.deleted,m.reaction_revision,m.client_id,
            r.id,r.sender_id,author.username,substr(r.body,1,160),r.edited_at,r.deleted,
-           a.filename,a.media_type,a.size,a.object_key,coalesce(nullif(origin.nickname,''),origin.username),u.nickname,author.nickname,origin.id,m.markdown
+           a.filename,a.media_type,a.size,a.object_key,coalesce(nullif(origin.nickname,''),origin.username),u.nickname,author.nickname,origin.id,m.markdown,m.mention_all
     FROM readable_messages m JOIN users u ON u.id=m.sender_id
     JOIN conversation_members own ON own.conversation_id=m.conversation_id AND own.user_id=?1 AND m.id>own.visible_after
     LEFT JOIN users origin ON origin.id=m.original_sender AND m.deleted=0
@@ -138,6 +138,7 @@ chat::message read_message_row(sqlite_statement const& row, std::int64_t user, s
     message.timestamp = row.column_int64(6);
     message.edited_at = optional_integer(row, 7);
     message.deleted = row.column_int64(8) != 0;
+    message.mention_all = !message.deleted && row.column_int64(26) != 0;
     message.reaction_revision = row.column_int64(9);
     if (user == message.from)
     {
@@ -446,7 +447,8 @@ std::expected<chat::message_search_page, sqlite_error> search_all_messages(sqlit
     std::string sql = "WITH hits AS MATERIALIZED (SELECT m.id FROM ";
     if (filter.mentions_me)
     {
-        sql += R"SQL(message_mentions mention CROSS JOIN readable_messages m ON m.id=mention.message_id
+        sql += R"SQL((SELECT message_id FROM message_mentions WHERE user_id=?1 AND message_id<coalesce(?3,9223372036854775807)
+            UNION SELECT id FROM messages WHERE mention_all AND deleted=0 AND sender_id<>?1 AND id<coalesce(?3,9223372036854775807)) mention CROSS JOIN readable_messages m ON m.id=mention.message_id
             CROSS JOIN conversation_members own ON own.conversation_id=m.conversation_id)SQL";
     }
     else
@@ -465,10 +467,6 @@ std::expected<chat::message_search_page, sqlite_error> search_all_messages(sqlit
               AND (?7 IS NULL OR m.created_at>=?7)
               AND (?8 IS NULL OR m.created_at<?8)
     )SQL";
-    if (filter.mentions_me)
-    {
-        sql += " AND mention.user_id=?1 AND mention.message_id<=coalesce(?3-1,9223372036854775807)";
-    }
     if (filter.conversation)
     {
         sql += " AND own.conversation_id=?5";

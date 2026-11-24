@@ -2108,7 +2108,7 @@ void main_window::notify_message(message_data const& message)
         pending_notifications_.push_back(message);
         return;
     }
-    if (conversation->muted() || (conversation->group && conversation->notifications == chat::notification_level::mentions &&
+    if (conversation->muted() || (conversation->group && conversation->notifications == chat::notification_level::mentions && !message.mention_all &&
                                   std::ranges::none_of(message.mentions, [this](auto const& m) { return m.user == chat_page_->self_user(); })))
     {
         return;

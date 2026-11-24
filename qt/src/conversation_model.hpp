@@ -19,6 +19,7 @@ class conversation_model final : public QAbstractListModel
         last_text_role,
         last_timestamp_role,
         unread_role,
+        unread_mention_role,
         online_role,
         muted_role,
         marked_role,

@@ -60,6 +60,18 @@ std::expected<std::optional<message_write_outcome>, sqlite_error> check_message_
         }
     }
 
+    if (message.mention_all)
+    {
+        auto role = read_group_role(db, message.conversation, message.sender);
+        if (!role)
+        {
+            return std::unexpected(role.error());
+        }
+        if (!*role || **role == chat::member_role::member)
+        {
+            return message_write_outcome{unavailable};
+        }
+    }
     if (message.reply_to)
     {
         auto quote = db.prepare(R"SQL(
@@ -156,8 +168,8 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
     }
     auto const now = epoch_milliseconds();
     if (auto error = db.exec(R"SQL(
-        INSERT INTO messages(sender_id,conversation_id,client_id,body,reply_to_id,created_at,forward_source,original_sender,markdown)
-        VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)
+        INSERT INTO messages(sender_id,conversation_id,client_id,body,reply_to_id,created_at,forward_source,original_sender,markdown,mention_all)
+        VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)
     )SQL",
                              message.sender,
                              message.conversation,
@@ -167,7 +179,8 @@ std::expected<message_write_outcome, sqlite_error> insert_message(sqlite_databas
                              now,
                              message.forward_source,
                              original_sender,
-                             int(markdown));
+                             int(markdown),
+                             int(message.mention_all));
         error)
     {
         return std::unexpected(std::move(error));

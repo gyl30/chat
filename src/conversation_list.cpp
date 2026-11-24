@@ -41,7 +41,7 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                     FROM readable_messages pm JOIN users pu ON pu.id=pm.sender_id
                     WHERE pm.id=c.pinned_message_id AND pm.conversation_id=c.id AND pm.deleted=0 AND pm.id>c.visible_after)),
                 'last',json((SELECT json_object('id',m.id,'conversation',m.conversation_id,'from',m.sender_id,
-                    'username',author.username,'nickname',author.nickname,'timestamp',m.created_at,'text',m.body,'markdown',json(CASE WHEN m.markdown THEN 'true' ELSE 'false' END),'forwarded_user',CASE WHEN m.deleted=0 THEN coalesce(m.original_sender,0) ELSE 0 END,'forwarded_from',coalesce((SELECT coalesce(nullif(nickname,''),username) FROM users WHERE id=m.original_sender AND m.deleted=0),''),'edited_at',m.edited_at,
+                    'username',author.username,'nickname',author.nickname,'timestamp',m.created_at,'text',m.body,'mention_all',json(CASE WHEN m.mention_all AND NOT m.deleted THEN 'true' ELSE 'false' END),'markdown',json(CASE WHEN m.markdown THEN 'true' ELSE 'false' END),'forwarded_user',CASE WHEN m.deleted=0 THEN coalesce(m.original_sender,0) ELSE 0 END,'forwarded_from',coalesce((SELECT coalesce(nullif(nickname,''),username) FROM users WHERE id=m.original_sender AND m.deleted=0),''),'edited_at',m.edited_at,
                     'deleted',json(CASE WHEN m.deleted THEN 'true' ELSE 'false' END),
                     'avatar_revision',author.avatar_revision,
                     'has_avatar',json(CASE WHEN sender_avatar.user_id IS NULL THEN 'false' ELSE 'true' END),
@@ -66,6 +66,10 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                     LEFT JOIN message_attachments ref ON ref.message_id=m.id AND m.deleted=0
     LEFT JOIN files a ON a.object_key=ref.object_key
                     WHERE m.conversation_id=c.id AND m.id>c.visible_after ORDER BY m.id DESC LIMIT 1)),
+                'unread_mention',json(CASE WHEN EXISTS(SELECT 1 FROM messages m WHERE m.conversation_id=c.id AND m.deleted=0
+                    AND m.id>max(c.last_read_message_id,c.visible_after) AND m.sender_id<>?1
+                    AND (m.mention_all OR EXISTS(SELECT 1 FROM message_mentions mm WHERE mm.message_id=m.id AND mm.user_id=?1)))
+                    THEN 'true' ELSE 'false' END),
                 'unread',(SELECT count(*) FROM messages m WHERE m.conversation_id=c.id AND m.deleted=0
                       AND m.id>max(c.last_read_message_id,c.visible_after)
                       AND m.sender_id<>?1)

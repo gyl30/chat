@@ -181,6 +181,7 @@ CREATE TABLE IF NOT EXISTS messages (
     sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     body TEXT,
     markdown INTEGER NOT NULL DEFAULT 0 CHECK(markdown IN (0,1)),
+    mention_all INTEGER NOT NULL DEFAULT 0 CHECK(mention_all IN (0,1)),
     archive_key TEXT REFERENCES archives(object_key),
     forward_source INTEGER,
     original_sender INTEGER REFERENCES users(id),
@@ -199,9 +200,10 @@ CREATE TABLE IF NOT EXISTS messages (
 -- Only body-bearing reads consult the immutable archive. All access checks and references stay live.
 CREATE VIEW IF NOT EXISTS readable_messages AS
     SELECT id,conversation_id,sender_id,coalesce(body,chat_archive_body(archive_key,id)) AS body,
-           created_at,reply_to_id,edited_at,deleted,reaction_revision,client_id,forward_source,original_sender,markdown FROM messages;
+           created_at,reply_to_id,edited_at,deleted,reaction_revision,client_id,forward_source,original_sender,markdown,mention_all FROM messages;
 
 CREATE INDEX IF NOT EXISTS messages_conversation_idx ON messages (conversation_id, id DESC);
+CREATE INDEX IF NOT EXISTS messages_mention_all ON messages(id) WHERE mention_all AND deleted=0;
 CREATE UNIQUE INDEX IF NOT EXISTS messages_sender_client_id ON messages (sender_id, client_id) WHERE client_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS message_bookmarks (

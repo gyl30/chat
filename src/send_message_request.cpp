@@ -30,6 +30,7 @@ struct[[= simdjson::deny_unknown_fields]] send_message_params
     std::optional<std::string> object_key;
     std::optional<std::int64_t> forward;
     [[= simdjson::default_value]] bool markdown = false;
+    [[= simdjson::default_value]] bool mention_all = false;
     std::optional<std::int64_t> upload;
     std::optional<std::int64_t> client_id;
 };
@@ -59,11 +60,11 @@ bool read_send_params(json_rpc_params& params, send_message_params& value, bool 
     }
     if (value.forward)
     {
-        return *value.forward > 0 && !value.text && !value.object_key && !value.reply_to && !value.markdown;
+        return *value.forward > 0 && !value.text && !value.object_key && !value.reply_to && !value.markdown && !value.mention_all;
     }
     if (value.object_key)
     {
-        return !value.text && !value.object_key->empty() && !value.markdown;
+        return !value.text && !value.object_key->empty() && !value.markdown && !value.mention_all;
     }
     return value.text && !value.text->empty() && !value.text->contains('\0');
 }
@@ -267,11 +268,17 @@ boost::capy::task<simdjson::error_code> chat_session::handle_send_message(json_r
         delivered = co_await run_db(
             [&](sqlite_database& db) -> std::expected<send_outcome, sqlite_error>
             {
-                return persist_delivery(
-                    db,
-                    {user, params.conversation, *params.client_id, params.text.value_or(""), params.reply_to, params.forward, params.markdown},
-                    request.id,
-                    params.object_key.value_or(""));
+                return persist_delivery(db,
+                                        {user,
+                                         params.conversation,
+                                         *params.client_id,
+                                         params.text.value_or(""),
+                                         params.reply_to,
+                                         params.forward,
+                                         params.markdown,
+                                         params.mention_all},
+                                        request.id,
+                                        params.object_key.value_or(""));
             });
     }
     if (!delivered)

@@ -282,6 +282,10 @@ bool parse_message(dom::object object, message& value)
     {
         return false;
     }
+    if (auto flag = find_field(object, "mention_all"); flag && flag->get(value.mention_all))
+    {
+        return false;
+    }
     value.nickname = string_field(object, "nickname");
     if (auto sender = find_field(object, "forwarded_user"); sender && sender->is_int64())
     {
@@ -502,6 +506,10 @@ std::expected<conversation, error> parse_conversation(dom::element const& value)
         item.remark = std::string(remark->get_string().value_unsafe());
     }
     item.unread = *unread;
+    if (auto flag = find_field(object, "unread_mention"); flag && flag->get(item.unread_mention))
+    {
+        return std::unexpected(make_error(error_kind::protocol, "Invalid conversation"));
+    }
     item.member_count = *count;
     item.notifications = static_cast<notification_level>(level->get_int64().value_unsafe());
     item.mute_until = until->get_int64().value_unsafe();
@@ -1745,6 +1753,10 @@ struct client::impl
     static request_params text_params(pending_text const& item)
     {
         request_params params = make_params("conversation", item.conversation, "text", item.text, "client_id", item.client_id);
+        if (item.options.mention_all)
+        {
+            params.add("mention_all", true);
+        }
         if (item.options.markdown)
         {
             params.add("markdown", true);
@@ -1761,7 +1773,7 @@ struct client::impl
     std::expected<std::vector<pending_text>, error> read_pending_texts()
     {
         auto query = journal_.prepare(
-            "SELECT client,conversation,COALESCE(reply,0),created,body,rejection,markdown FROM text_outbox WHERE user=? ORDER BY rowid",
+            "SELECT client,conversation,COALESCE(reply,0),created,body,rejection,markdown,mention_all FROM text_outbox WHERE user=? ORDER BY rowid",
             outbox_account_);
         if (!query)
         {
@@ -1797,7 +1809,7 @@ struct client::impl
                 .text = std::string(query->column_text(4)),
                 .state = state,
                 .rejection = rejection,
-                .options = {query->column_int64(6) != 0},
+                .options = {query->column_int64(6) != 0, query->column_int64(7) != 0},
             });
         }
     }
@@ -1898,20 +1910,21 @@ struct client::impl
             done(std::unexpected(outbox_error("无法保存草稿")));
             co_return;
         }
-        auto const error = value.text.empty() && !value.reply && !value.options.markdown
+        auto const error = value.text.empty() && !value.reply && !value.options.markdown && !value.options.mention_all
                                ? journal_.exec("DELETE FROM compose_drafts WHERE user=? AND conversation=?", user, value.conversation)
                                : journal_.exec(R"SQL(
-                INSERT INTO compose_drafts(user,conversation,revision,reply,body,updated,markdown)
-                VALUES(?,?,?,?,?,unixepoch(),?)
+                INSERT INTO compose_drafts(user,conversation,revision,reply,body,updated,markdown,mention_all)
+                VALUES(?,?,?,?,?,unixepoch(),?,?)
                 ON CONFLICT(user,conversation) DO UPDATE SET revision=excluded.revision,reply=excluded.reply,
-                  body=excluded.body,updated=excluded.updated,markdown=excluded.markdown
+                  body=excluded.body,updated=excluded.updated,markdown=excluded.markdown,mention_all=excluded.mention_all
               )SQL",
                                                user,
                                                value.conversation,
                                                value.revision,
                                                value.reply,
                                                std::string_view(value.text),
-                                               int(value.options.markdown));
+                                               int(value.options.markdown),
+                                               int(value.options.mention_all));
         done(error ? std::unexpected(outbox_error("无法保存草稿，请检查本地存储")) : std::expected<void, chat::error>{});
     }
 
@@ -1922,7 +1935,7 @@ struct client::impl
             done(std::unexpected(outbox_error("无法读取草稿")));
             co_return;
         }
-        auto query = journal_.prepare("SELECT conversation,revision,reply,body,markdown FROM compose_drafts WHERE user=?", user);
+        auto query = journal_.prepare("SELECT conversation,revision,reply,body,markdown,mention_all FROM compose_drafts WHERE user=?", user);
         if (!query)
         {
             done(std::unexpected(outbox_error("无法读取草稿")));
@@ -1946,7 +1959,7 @@ struct client::impl
                               query->column_int64(1),
                               query->column_int64(2),
                               std::string(query->column_text(3)),
-                              {query->column_int64(4) != 0}});
+                              {query->column_int64(4) != 0, query->column_int64(5) != 0}});
         }
     }
 
@@ -1971,14 +1984,16 @@ struct client::impl
         item.created = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         auto transaction = sqlite_transaction::begin_immediate(journal_);
         if (!transaction ||
-            journal_.exec("INSERT INTO text_outbox(user,client,conversation,body,reply,created,markdown) VALUES(?,?,?,?,NULLIF(?,0),?,?)",
-                          outbox_account_,
-                          item.client_id,
-                          item.conversation,
-                          item.text,
-                          item.reply_to,
-                          item.created,
-                          int(item.options.markdown)) ||
+            journal_.exec(
+                "INSERT INTO text_outbox(user,client,conversation,body,reply,created,markdown,mention_all) VALUES(?,?,?,?,NULLIF(?,0),?,?,?)",
+                outbox_account_,
+                item.client_id,
+                item.conversation,
+                item.text,
+                item.reply_to,
+                item.created,
+                int(item.options.markdown),
+                int(item.options.mention_all)) ||
             (draft_revision &&
              journal_.exec(
                  "DELETE FROM compose_drafts WHERE user=? AND conversation=? AND revision=?", outbox_account_, item.conversation, draft_revision)) ||

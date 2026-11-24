@@ -244,7 +244,11 @@ message_layout calculate_layout(QStyleOptionViewItem const& option, QModelIndex 
     {
         result.time = QStringLiteral("已读 %1 人 · ").arg(read_count.toInt()) + result.time;
     }
-    if (!result.outgoing && index.data(message_model::mentioned_role).toBool())
+    if (index.data(message_model::mention_all_role).toBool())
+    {
+        result.time = QStringLiteral("@所有人 · ") + result.time;
+    }
+    else if (!result.outgoing && index.data(message_model::mentioned_role).toBool())
     {
         result.time = QStringLiteral("提及你 · ") + result.time;
     }

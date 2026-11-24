@@ -1699,6 +1699,20 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
             [this, candidates]
             {
                 candidates->clear();
+                if (messages_->can_manage_group())
+                {
+                    auto* all = candidates->addAction(QStringLiteral("@所有人"));
+                    connect(all,
+                            &QAction::triggered,
+                            this,
+                            [this, room = active_conversation_]
+                            {
+                                if (room == active_conversation_ && can_send() && messages_->can_manage_group())
+                                {
+                                    mention_all_button_->setChecked(true);
+                                }
+                            });
+                }
                 for (auto const& member : messages_->members())
                 {
                     if (member.id == self_user_)
@@ -1727,6 +1741,15 @@ void chat_widget::setup_composer(QVBoxLayout* chat_layout)
                             });
                 }
             });
+    mention_all_button_ = new QToolButton(input_bar);
+    mention_all_button_->setCheckable(true);
+    mention_all_button_->setText(QStringLiteral("@所有人 ×"));
+    mention_all_button_->setToolTip(QStringLiteral("移除全员提及"));
+    mention_all_button_->setObjectName(QStringLiteral("mentionAllTag"));
+    input_layout->addWidget(mention_all_button_, 0, Qt::AlignBottom);
+    mention_all_button_->hide();
+    connect(mention_all_button_, &QToolButton::toggled, mention_all_button_, &QWidget::setVisible);
+    connect(mention_all_button_, &QToolButton::toggled, this, &chat_widget::draft_edited);
     markdown_button_ = new QToolButton(input_bar);
     markdown_button_->setObjectName(QStringLiteral("markdownButton"));
     markdown_button_->setText(QStringLiteral("MD"));
@@ -4402,7 +4425,10 @@ void chat_widget::draft_edited()
     if (active_conversation_ > 0 && self_user_ > 0)
     {
         drafts_.insert(active_conversation_,
-                       {message_edit_->toPlainText(), reply_to_, chat::client::new_client_id(), {markdown_button_->isChecked()}});
+                       {message_edit_->toPlainText(),
+                        reply_to_,
+                        chat::client::new_client_id(),
+                        {markdown_button_->isChecked(), mention_all_button_->isChecked()}});
         draft_timer_->start();
     }
 }
@@ -4431,6 +4457,9 @@ void chat_widget::apply_draft()
     auto const value = drafts_.value(active_conversation_);
     QSignalBlocker format_blocker(markdown_button_);
     markdown_button_->setChecked(value.options.markdown);
+    QSignalBlocker all_blocker(mention_all_button_);
+    mention_all_button_->setChecked(value.options.mention_all);
+    mention_all_button_->setVisible(value.options.mention_all);
     reset_reply(value.reply);
     QSignalBlocker const blocker(message_edit_);
     message_edit_->setPlainText(value.text);
@@ -4750,6 +4779,7 @@ void chat_widget::show_outgoing()
         message.timestamp = item.created;
         message.text = item.text;
         message.markdown = item.options.markdown;
+        message.mention_all = item.options.mention_all;
         message.reply = item.path.isEmpty() && item.reply.id > 0 ? quote(item.reply.id) : item.reply;
         message.client_id = item.client_id;
         if (!item.filename.isEmpty())

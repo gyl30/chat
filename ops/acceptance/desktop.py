@@ -451,21 +451,18 @@ async def notifications(ui, gate, a, b, group, root):
         await a.ok("set_notification_level", conversation=group, level=n, until=0)
         await until(lambda: len(gate.held) > count, "preference processed")
 
-    async def send(text, i):
-        await b.ok("send_message", conversation=group, text=text, client_id=i)
-
-    await level(2)
-    await send("静音通知探针", 501)
-    await level(1)
-    await send("普通通知探针", 502)
-    await send("@a 通知探针", 503)
-    await until(lambda: "@a 通知探针" in lines(), "mention notification")
-    await level(0)
+    expected = []
+    for lvl in (2, 1, 0):
+        await level(lvl)
+        for kind in ("普通", "@a", "全员"):
+            text = f"{kind} 通知探针 {lvl}"
+            await b.ok("send_message", conversation=group, text=text, client_id=501+lvl*3+("普通","@a","全员").index(kind), mention_all=kind=="全员")
+            if lvl==0 or (lvl==1 and kind!="普通"):
+                expected.append(text)
     gate.held.reverse()
     await gate.release("get_conversations")
-    await send("全量通知探针", 504)
-    await until(lambda: "全量通知探针" in lines(), "unmuted notification")
-    assert [x for x in lines() if "通知探针" in x] == ["@a 通知探针", "全量通知探针"]
+    await until(lambda: expected[-1] in lines(), "notification matrix")
+    assert [x for x in lines() if "通知探针" in x] == expected
     print("PASS Qt notification events with reversed, delayed list snapshots", flush=True)
 
 

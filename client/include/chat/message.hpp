@@ -69,6 +69,7 @@ struct mention
 struct text_options
 {
     bool markdown = false;
+    bool mention_all = false;
 };
 
 struct message
@@ -91,6 +92,7 @@ struct message
     std::vector<reaction> reactions;
     std::vector<mention> mentions;
     bool markdown = false;
+    bool mention_all = false;
     bool acknowledgement_only = false;
     // Present only on the caller's own messages: the ID it sent them with.
     std::optional<std::int64_t> client_id;

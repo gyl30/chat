@@ -113,6 +113,7 @@ message_data client_bridge::to_message_data(chat::message const& value)
     message.timestamp = value.timestamp;
     message.text = from_utf8(value.text);
     message.markdown = value.markdown;
+    message.mention_all = value.mention_all;
     message.edited_at = value.edited_at.value_or(0);
     message.deleted = value.deleted;
     message.reply = to_reply_data(value.reply);
@@ -400,6 +401,7 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
                                                value.notifications = item.notifications;
                                                value.mute_until = item.mute_until;
                                                value.marked_unread = item.marked_unread;
+                                               value.unread_mention = item.unread_mention;
                                                value.pinned = item.pinned;
                                                value.pinned_message = to_reply_data(item.pinned_message);
                                                value.announcement = from_utf8(item.announcement);

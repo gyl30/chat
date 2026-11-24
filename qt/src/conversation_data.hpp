@@ -32,6 +32,7 @@ struct conversation_data
     chat::notification_level notifications = chat::notification_level::all;
     qint64 mute_until = 0;
     bool marked_unread = false;
+    bool unread_mention = false;
     bool muted() const
     {
         return notifications == chat::notification_level::muted && (!mute_until || mute_until > QDateTime::currentMSecsSinceEpoch());

@@ -581,7 +581,8 @@ void global_search_dialog::updated(qint64 conversation, message_data const& mess
         {
             return {};
         }
-        if (filter.mentions_me && std::ranges::find(message.mentions, self_, &mention_data::user) == message.mentions.end())
+        if (filter.mentions_me && !(message.mention_all && message.from != self_) &&
+            std::ranges::find(message.mentions, self_, &mention_data::user) == message.mentions.end())
         {
             return {};
         }

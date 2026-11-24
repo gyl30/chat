@@ -90,6 +90,8 @@ QVariant conversation_model::data(QModelIndex const& index, int role) const
             return item->last_text;
         case last_timestamp_role:
             return item->last_timestamp;
+        case unread_mention_role:
+            return item->unread_mention;
         case unread_role:
             return QVariant::fromValue(item->unread);
         case online_role:
@@ -184,7 +186,8 @@ void conversation_model::discard_through(qint64 conversation, qint64 floor)
         item.last_timestamp = 0;
         item.last_text.clear();
         item.unread = 0;
-        emit dataChanged(ix, ix, {last_text_role, last_timestamp_role, unread_role});
+        item.unread_mention = false;
+        emit dataChanged(ix, ix, {last_text_role, last_timestamp_role, unread_role, unread_mention_role});
     }
 }
 void conversation_model::remove_conversation(qint64 conversation)
