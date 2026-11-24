@@ -11,6 +11,7 @@
 
 struct message_payload
 {
+    std::string nickname{};
     std::string forwarded_from{};
     std::int64_t id = 0;
     std::int64_t conversation = 0;
@@ -39,6 +40,7 @@ inline message_payload make_message_payload(chat::message const& message, bool i
     value.conversation = message.conversation;
     value.from = message.from;
     value.username = message.username;
+    value.nickname = message.nickname;
     value.timestamp = message.timestamp;
     value.text = message.text;
     value.reply = message.reply;

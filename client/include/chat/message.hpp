@@ -57,6 +57,7 @@ struct quoted_message
     std::string text;
     std::optional<std::int64_t> edited_at;
     bool deleted = false;
+    std::string nickname{};
 };
 
 struct mention
@@ -67,6 +68,7 @@ struct mention
 
 struct message
 {
+    std::string nickname{};
     std::string forwarded_from{};
     std::int64_t id = 0;
     std::int64_t conversation = 0;

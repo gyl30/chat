@@ -89,6 +89,9 @@ class client_bridge final : public QObject
     void get_friend_requests();
     void respond_friend_request(qint64 user, bool accept);
     void cancel_friend_request(qint64 user);
+    std::function<QString(qint64)> friend_remark = [](qint64) { return QString{}; };
+    void get_user_profile(qint64 user);
+    void set_user_profile(QString nickname, QString signature);
     void get_presence();
     void get_messages(qint64 conversation, std::optional<qint64> before = {}, std::optional<qint64> after = {}, bool capture_unread = false);
     void forward_messages(qint64 target, QList<qint64> messages);
@@ -156,6 +159,8 @@ class client_bridge final : public QObject
     void friendship_changed();
     void friend_requests_received(QList<user_data> incoming, QList<user_data> outgoing, QString error_message);
     void friend_groups_received(QStringList groups);
+    void profile_changed(qint64 user);
+    void profile_received(qint64 user, QString username, QString nickname, QString signature);
     void contacts_received(QList<user_data> contacts, QString error_message);
     void presences_received(QList<presence_data> users, QString error_message);
     void presence_changed(presence_data user);
@@ -251,6 +256,8 @@ class client_bridge final : public QObject
             },
             Qt::QueuedConnection);
     }
+    message_data to_message_data(chat::message const& value);
+    quoted_message_data to_reply_data(std::optional<chat::quoted_message> const& reply);
     void get_conversations_page(std::optional<chat::conversation_cursor> before,
                                 QList<conversation_data> conversations,
                                 std::uint64_t generation,

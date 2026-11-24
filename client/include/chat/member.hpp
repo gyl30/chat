@@ -22,6 +22,8 @@ struct conversation_member
     member_role role = member_role::member;
     avatar_state avatar;
     std::int64_t speech_until = 0;
+    std::string nickname{};
+    std::string remark{};
 };
 
 }    // namespace chat

@@ -1034,7 +1034,7 @@ void chat_widget::setup_add_contact_dialog()
     add_contacts_layout->addLayout(make_contact_header(add_contact_dialog_, QStringLiteral("添加联系人")));
     add_user_search_ = new QLineEdit(add_contact_dialog_);
     add_user_search_->setObjectName(QStringLiteral("userSearchEdit"));
-    add_user_search_->setPlaceholderText(QStringLiteral("输入完整用户名或开头部分"));
+    add_user_search_->setPlaceholderText(QStringLiteral("搜索用户名或昵称"));
     add_user_search_->setAccessibleName(QStringLiteral("搜索用户"));
     add_user_search_->setClearButtonEnabled(false);
     auto* add_search_layout = new QHBoxLayout;
@@ -2914,7 +2914,7 @@ void chat_widget::set_friend_requests(QList<user_data> incoming, QList<user_data
         for (auto const& user : users)
         {
             avatars_.observe(user.id, user.avatar);
-            auto* item = new QListWidgetItem(user.username, list);
+            auto* item = new QListWidgetItem(user.display_name(), list);
             item->setData(Qt::UserRole, user.id);
             item->setData(Qt::UserRole + 1, user.username);
             item->setData(Qt::StatusTipRole, hint);
@@ -3723,6 +3723,19 @@ void chat_widget::open_chat(qint64 user, QString username)
     }
 }
 
+QString chat_widget::friend_remark(qint64 user) const
+{
+    for (int i = 0; i < contacts_->rowCount(); ++i)
+    {
+        auto const* person = contacts_->user_at(contacts_->index(i, 0));
+        if (person->id == user)
+        {
+            return person->remark;
+        }
+    }
+    return {};
+}
+
 bool chat_widget::is_contact(qint64 user) const
 {
     for (int row = 0; row < contacts_->rowCount(); ++row)
@@ -4072,7 +4085,7 @@ void chat_widget::show_read_details(qint64 conversation, qint64 message)
         list->clear();
         for (auto const& member : members)
         {
-            auto* item = new QListWidgetItem(member.username, list);
+            auto* item = new QListWidgetItem(member.display_name(), list);
             item->setData(Qt::UserRole, member.id);
             item->setData(Qt::StatusTipRole, QStringLiteral("已读"));
             item->setData(Qt::DecorationRole, avatars_.image(member.id));
@@ -4895,6 +4908,71 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
     info_layout->setContentsMargins(24, 16, 24, 24);
     info_layout->setSpacing(12);
 
+    auto* account = new QLabel(header);
+    account->setTextFormat(Qt::PlainText);
+    account->setAlignment(Qt::AlignCenter);
+    header_layout->insertWidget(header_layout->indexOf(name) + 1, account);
+    auto* signature = new QLabel(info);
+    signature->setTextFormat(Qt::PlainText);
+    signature->setWordWrap(true);
+    info_layout->addWidget(signature);
+    auto* edit_profile = new QPushButton(QStringLiteral("编辑昵称与签名"), info);
+    edit_profile->setObjectName(QStringLiteral("editUserProfile"));
+    edit_profile->setVisible(user == self_user_);
+    edit_profile->setEnabled(false);
+    info_layout->addWidget(edit_profile);
+    connect(this,
+            &chat_widget::profile_received,
+            &dialog,
+            [this, user, account, name, signature, edit_profile](qint64 id, QString login, QString nick, QString text)
+            {
+                if (id != user)
+                {
+                    return;
+                }
+                account->setText(login);
+                name->setText(user_display_name(login, nick, friend_remark(id)));
+                signature->setText(text);
+                edit_profile->setProperty("nickname", nick);
+                edit_profile->setEnabled(connection_available_);
+            });
+    connect(this,
+            &chat_widget::profile_changed,
+            &dialog,
+            [this, user](qint64 id)
+            {
+                if (user == id)
+                {
+                    emit profile_requested(user);
+                }
+            });
+    connect(copy_username_button, &QToolButton::clicked, &dialog, [account] { QGuiApplication::clipboard()->setText(account->text()); });
+    connect(edit_profile,
+            &QPushButton::clicked,
+            &dialog,
+            [this, &dialog, edit_profile, signature]
+            {
+                QDialog editor(&dialog);
+                editor.setWindowTitle(QStringLiteral("编辑个人资料"));
+                QVBoxLayout layout(&editor);
+                QLineEdit nick(edit_profile->property("nickname").toString(), &editor);
+                QLineEdit text(signature->text(), &editor);
+                nick.setObjectName(QStringLiteral("profileNickname"));
+                text.setObjectName(QStringLiteral("profileSignature"));
+                layout.addWidget(new QLabel(QStringLiteral("昵称（最多 32 个字符）"), &editor));
+                layout.addWidget(&nick);
+                layout.addWidget(new QLabel(QStringLiteral("个性签名（最多 128 个字符）"), &editor));
+                layout.addWidget(&text);
+                QDialogButtonBox buttons(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &editor);
+                layout.addWidget(&buttons);
+                connect(&buttons, &QDialogButtonBox::accepted, &editor, &QDialog::accept);
+                connect(&buttons, &QDialogButtonBox::rejected, &editor, &QDialog::reject);
+                if (editor.exec() == QDialog::Accepted)
+                {
+                    emit profile_edit_requested(nick.text(), text.text());
+                }
+            });
+    emit profile_requested(user);
     setup_profile_friendship(dialog, info_layout, relationship, message_button, user, username);
     if (user == self_user_)
     {
@@ -4903,7 +4981,7 @@ void chat_widget::show_user_details(qint64 user, QString const& username, QWidge
     layout->addWidget(info);
 
     connect(close_button, &QToolButton::clicked, &dialog, &QDialog::reject);
-    connect(copy_username_button, &QToolButton::clicked, &dialog, [username] { QGuiApplication::clipboard()->setText(username); });
+
     dialog.exec();
 }
 
@@ -5136,7 +5214,7 @@ void chat_widget::set_message_status(QString message)
 void chat_widget::update_chat_header(QString const& username)
 {
     auto const item = conversation(active_conversation_);
-    chat_title_->setText(item && !item->remark.isEmpty() ? item->remark : username);
+    chat_title_->setText(item ? item->display_name() : username);
     chat_title_->setToolTip(chat_title_->text());
     chat_title_->setIcon(avatar_icon(username, 38, active_group_ ? QPixmap{} : avatars_.image(active_peer_)));
     chat_title_->setEnabled(true);

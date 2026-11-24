@@ -77,6 +77,7 @@ class chat_session
     boost::capy::task<simdjson::error_code> handle_contact_change(json_rpc_request& request, std::string& response);
     boost::capy::task<simdjson::error_code> handle_conversation_file(json_rpc_request& request, std::string& response);
     boost::capy::task<simdjson::error_code> handle_attachment(json_rpc_request& request, std::string& response);
+    boost::capy::task<simdjson::error_code> handle_user_profile(json_rpc_request& request, std::string& response);
     boost::capy::task<simdjson::error_code> handle_avatar(json_rpc_request& request, std::string& response);
 
     boost::capy::task<simdjson::error_code> handle_get_conversations(json_rpc_request& request, std::string& response);

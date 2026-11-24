@@ -50,6 +50,7 @@ struct conversation
     std::int64_t user = 0;
     std::string username;
     std::string remark;
+    std::string nickname;
     std::uint64_t member_count = 0;
     message last;
     std::uint64_t unread = 0;

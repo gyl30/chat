@@ -71,7 +71,7 @@ std::expected<std::optional<std::int64_t>, sqlite_error> register_account(sqlite
 std::expected<std::optional<account_credentials>, sqlite_error> find_account(sqlite_database& db, std::string_view username)
 {
     auto statement = db.prepare(R"SQL(
-        SELECT u.id,u.username,u.password_hash,u.avatar_revision,a.user_id IS NOT NULL
+        SELECT u.id,u.username,u.password_hash,u.avatar_revision,a.user_id IS NOT NULL,u.nickname
         FROM users u LEFT JOIN user_avatars a ON a.user_id=u.id WHERE u.username=?1
     )SQL",
                                 username);
@@ -88,18 +88,20 @@ std::expected<std::optional<account_credentials>, sqlite_error> find_account(sql
     {
         return std::nullopt;
     }
-    return account_credentials{
-        {statement->column_int64(0), std::string(statement->column_text(1)), {statement->column_int64(3), statement->column_int64(4) != 0}},
-        std::string(statement->column_text(2))};
+    return account_credentials{{statement->column_int64(0),
+                                std::string(statement->column_text(1)),
+                                {statement->column_int64(3), statement->column_int64(4) != 0},
+                                std::string(statement->column_text(5))},
+                               std::string(statement->column_text(2))};
 }
 
 std::expected<std::vector<chat::user>, sqlite_error> search_accounts(sqlite_database& db, std::int64_t user, std::string_view prefix)
 {
     auto statement = db.prepare(R"SQL(
-        SELECT u.id,u.username,u.avatar_revision,a.user_id IS NOT NULL
+        SELECT u.id,u.username,u.avatar_revision,a.user_id IS NOT NULL,u.nickname
         FROM users u LEFT JOIN user_avatars a ON a.user_id=u.id WHERE u.id<>?1
-          AND instr(chat_lower(u.username),chat_lower(?2))=1
-        ORDER BY u.username,u.id LIMIT 20
+          AND (instr(chat_lower(u.username),chat_lower(?2))=1 OR instr(chat_lower(u.nickname),chat_lower(?2))>0)
+        ORDER BY (u.username=?2) DESC,u.username,u.id LIMIT 20
     )SQL",
                                 user,
                                 prefix);
@@ -119,8 +121,10 @@ std::expected<std::vector<chat::user>, sqlite_error> search_accounts(sqlite_data
         {
             return matches;
         }
-        matches.push_back(
-            {statement->column_int64(0), std::string(statement->column_text(1)), {statement->column_int64(2), statement->column_int64(3) != 0}});
+        matches.push_back({statement->column_int64(0),
+                           std::string(statement->column_text(1)),
+                           {statement->column_int64(2), statement->column_int64(3) != 0},
+                           std::string(statement->column_text(4))});
     }
 }
 

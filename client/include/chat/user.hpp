@@ -13,6 +13,15 @@ struct user
     std::int64_t id = 0;
     std::string username;
     avatar_state avatar;
+    std::string nickname{};
+};
+
+struct user_profile
+{
+    std::int64_t id;
+    std::string username;
+    std::string nickname;
+    std::string signature;
 };
 
 }    // namespace chat

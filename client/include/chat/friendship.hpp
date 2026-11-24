@@ -15,6 +15,7 @@ struct contact_entry
     bool has_avatar;
     std::string remark;
     std::string group;
+    std::string nickname;
 };
 
 struct contact_book

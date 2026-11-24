@@ -107,6 +107,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_members(json_rp
         bool has_avatar;
         std::string_view role;
         std::int64_t speech_until;
+        std::string nickname, remark;
     };
     struct result
     {
@@ -117,7 +118,14 @@ boost::capy::task<simdjson::error_code> chat_session::handle_get_members(json_rp
     for (auto& member : *members)
     {
         auto role = member.role == chat::member_role::owner ? "owner" : member.role == chat::member_role::admin ? "admin" : "member";
-        value.members.push_back({member.id, std::move(member.username), member.avatar.revision, member.avatar.present, role, member.speech_until});
+        value.members.push_back({member.id,
+                                 std::move(member.username),
+                                 member.avatar.revision,
+                                 member.avatar.present,
+                                 role,
+                                 member.speech_until,
+                                 std::move(member.nickname),
+                                 std::move(member.remark)});
     }
     co_return serialize_json_rpc_value(value, std::move(request.id), response);
 }

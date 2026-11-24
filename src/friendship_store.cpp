@@ -8,9 +8,12 @@ namespace
 {
 using chat::friendship_state;
 
-chat::user read_user(sqlite_statement const& row)
+chat::user read_user(sqlite_statement const& row, int nickname_column)
 {
-    return {row.column_int64(0), std::string(row.column_text(1)), {row.column_int64(2), row.column_int64(3) != 0}};
+    return {row.column_int64(0),
+            std::string(row.column_text(1)),
+            {row.column_int64(2), row.column_int64(3) != 0},
+            std::string(row.column_text(nickname_column))};
 }
 }    // namespace
 
@@ -33,7 +36,7 @@ std::expected<std::variant<friendship_change, friendship_rejection>, sqlite_erro
                    (SELECT requester_id FROM friend_requests WHERE (requester_id=?1 AND recipient_id=?2)
                                                             OR (requester_id=?2 AND recipient_id=?1)),
                    (SELECT id FROM conversations WHERE kind='direct' AND direct_user_low=min(?1,?2)
-                                                                    AND direct_user_high=max(?1,?2))
+                                                                    AND direct_user_high=max(?1,?2)),u.nickname
             FROM users u WHERE u.id=?2 AND EXISTS(SELECT 1 FROM users WHERE id=?1)
         )SQL",
                                    caller,
@@ -51,7 +54,7 @@ std::expected<std::variant<friendship_change, friendship_rejection>, sqlite_erro
         {
             return friendship_rejection::user_not_found;
         }
-        change.result.user = read_user(*snapshot);
+        change.result.user = read_user(*snapshot, 7);
         change.direct_conversation = snapshot->column_int64(6);
         auto const requester = snapshot->column_int64(5);
         change.previous = friendship_state::none;
@@ -147,7 +150,7 @@ std::expected<chat::friend_requests_result, sqlite_error> read_friend_requests(s
 {
     auto statement = db.prepare(R"SQL(
         SELECT u.id, u.username, u.avatar_revision, EXISTS(SELECT 1 FROM user_avatars WHERE user_id=u.id),
-               f.created_at, f.requester_id=?1
+               f.created_at, f.requester_id=?1,u.nickname
         FROM friend_requests f JOIN users u ON u.id=CASE WHEN f.requester_id=?1 THEN f.recipient_id ELSE f.requester_id END
         WHERE f.requester_id=?1 OR f.recipient_id=?1 ORDER BY f.created_at DESC, u.id DESC
     )SQL",
@@ -169,7 +172,7 @@ std::expected<chat::friend_requests_result, sqlite_error> read_friend_requests(s
             return result;
         }
         auto& requests = statement->column_int64(5) ? result.outgoing : result.incoming;
-        requests.push_back({read_user(*statement), statement->column_int64(4)});
+        requests.push_back({read_user(*statement, 6), statement->column_int64(4)});
     }
 }
 
@@ -178,9 +181,9 @@ std::expected<std::string, sqlite_error> read_contacts(sqlite_database& db, std:
     auto q = db.prepare(R"SQL(
         SELECT json_object('groups',json((SELECT json_group_array(name) FROM
                     (SELECT name FROM friend_groups WHERE owner_id=?1 ORDER BY name))),
-                'users',json((SELECT json_group_array(json_object('id',id,'username',username,'avatar_revision',rev,
+                'users',json((SELECT json_group_array(json_object('id',id,'username',username,'nickname',nickname,'avatar_revision',rev,
                     'has_avatar',json(CASE WHEN avatar THEN 'true' ELSE 'false' END),'remark',remark,'group',grp))
-                    FROM (SELECT u.id,u.username,u.avatar_revision rev,a.user_id IS NOT NULL avatar,c.remark,coalesce(c.friend_group,'') grp
+                    FROM (SELECT u.id,u.username,u.nickname,u.avatar_revision rev,a.user_id IS NOT NULL avatar,c.remark,coalesce(c.friend_group,'') grp
                         FROM contacts c JOIN users u ON u.id=c.contact_id LEFT JOIN user_avatars a ON a.user_id=u.id
                         WHERE c.owner_id=?1 ORDER BY u.username,u.id))))
     )SQL",

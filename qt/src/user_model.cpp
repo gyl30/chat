@@ -37,11 +37,13 @@ QVariant user_model::data(QModelIndex const& index, int role) const
     switch (role)
     {
         case Qt::DisplayRole:
-            return item->remark.isEmpty() ? item->username : item->remark;
+            return item->display_name();
+        case Qt::ToolTipRole:
+            return item->username;
         case friend_group_role:
             return item->group;
         case search_role:
-            return item->username + QChar::Null + item->remark;
+            return item->username + QChar::Null + item->nickname + QChar::Null + item->remark;
         case username_role:
             return item->username;
         case id_role:

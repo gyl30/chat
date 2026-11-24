@@ -31,7 +31,7 @@ constexpr std::string_view kMessageColumns = R"SQL(
     SELECT m.id,m.sender_id,u.username,u.avatar_revision,avatar.user_id IS NOT NULL,
            m.body,m.created_at,m.edited_at,m.deleted,m.reaction_revision,m.client_id,
            r.id,r.sender_id,author.username,substr(r.body,1,160),r.edited_at,r.deleted,
-           a.filename,a.media_type,a.size,a.object_key,origin.username
+           a.filename,a.media_type,a.size,a.object_key,coalesce(nullif(origin.nickname,''),origin.username),u.nickname,author.nickname
     FROM readable_messages m JOIN users u ON u.id=m.sender_id
     JOIN conversation_members own ON own.conversation_id=m.conversation_id AND own.user_id=?1 AND m.id>own.visible_after
     LEFT JOIN users origin ON origin.id=m.original_sender AND m.deleted=0
@@ -129,6 +129,7 @@ chat::message read_message_row(sqlite_statement const& row, std::int64_t user, s
     message.conversation = conversation;
     message.from = row.column_int64(1);
     message.username = row.column_text(2);
+    message.nickname = row.column_text(22);
     message.avatar = {row.column_int64(3), row.column_int64(4) != 0};
     message.text = row.column_text(5);
     message.forwarded_from = row.column_text(21);
@@ -147,7 +148,8 @@ chat::message read_message_row(sqlite_statement const& row, std::int64_t user, s
                                              std::string(row.column_text(13)),
                                              std::string(row.column_text(14)),
                                              optional_integer(row, 15),
-                                             row.column_int64(16) != 0};
+                                             row.column_int64(16) != 0,
+                                             std::string(row.column_text(23))};
     }
     if (!row.column_is_null(17))
     {
@@ -407,7 +409,7 @@ std::expected<std::optional<read_position_change>, sqlite_error> update_read_pos
 std::expected<std::vector<chat::message_search_scope>, sqlite_error> read_message_search_scopes(sqlite_database& db, std::int64_t user)
 {
     auto query = db.prepare(R"SQL(
-        SELECT c.id,coalesce(c.title,peer.username)
+        SELECT c.id,coalesce(c.title,nullif((SELECT remark FROM contacts WHERE owner_id=?1 AND contact_id=peer.id),''),nullif(peer.nickname,''),peer.username)
         FROM conversation_members own JOIN conversations c ON c.id=own.conversation_id
         LEFT JOIN users peer ON peer.id=CASE WHEN c.direct_user_low=?1 THEN c.direct_user_high ELSE c.direct_user_low END
         WHERE own.user_id=?1 ORDER BY c.activity DESC,c.id DESC
@@ -476,7 +478,7 @@ std::expected<chat::message_search_page, sqlite_error> search_all_messages(sqlit
     sql += category_predicate(filter.category);
     sql += filter.mentions_me ? " ORDER BY mention.message_id DESC LIMIT ?4)" : " ORDER BY m.id DESC LIMIT ?4)";
     sql += R"SQL(
-        SELECT c.id,m.id,m.sender_id,m.created_at,coalesce(c.title,peer.username),u.username,
+        SELECT c.id,m.id,m.sender_id,m.created_at,coalesce(c.title,nullif((SELECT remark FROM contacts WHERE owner_id=?1 AND contact_id=peer.id),''),nullif(peer.nickname,''),peer.username),coalesce(nullif((SELECT remark FROM contacts WHERE owner_id=?1 AND contact_id=u.id),''),nullif(u.nickname,''),u.username),
                substr(m.body,max(1,instr(chat_lower(m.body),chat_lower(?2))-32),160)
         FROM hits JOIN readable_messages m ON m.id=hits.id JOIN conversations c ON c.id=m.conversation_id
         JOIN users u ON u.id=m.sender_id LEFT JOIN users peer ON peer.id=CASE WHEN c.direct_user_low=?1 THEN c.direct_user_high ELSE c.direct_user_low END
@@ -595,7 +597,7 @@ std::expected<chat::bookmark_page, sqlite_error> read_message_bookmarks(sqlite_d
     // The hot table supplies visibility before readable_messages can fetch an archived body.
     // Unavailable rows may be removed from the list, but expose no source metadata.
     auto page = db.prepare(R"SQL(
-        SELECT b.id,b.message_id,b.created_at,c.id,m.sender_id,m.created_at,coalesce(c.title,peer.username),u.username,
+        SELECT b.id,b.message_id,b.created_at,c.id,m.sender_id,m.created_at,coalesce(c.title,nullif((SELECT remark FROM contacts WHERE owner_id=?1 AND contact_id=peer.id),''),nullif(peer.nickname,''),peer.username),coalesce(nullif((SELECT remark FROM contacts WHERE owner_id=?1 AND contact_id=u.id),''),nullif(u.nickname,''),u.username),
                CASE WHEN m.id IS NOT NULL THEN substr(m.body,max(1,instr(chat_lower(m.body),chat_lower(?2))-32),160) END,
                a.media_type
         FROM message_bookmarks b

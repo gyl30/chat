@@ -8,6 +8,7 @@
 #include <QString>
 #include <QtGlobal>
 #include "message_data.hpp"
+#include "user_data.hpp"
 
 using conversation_folder_list = QList<QPair<qint64, QString>>;
 
@@ -19,6 +20,8 @@ struct conversation_data
     qint64 user = 0;
     QString username;
     QString remark{};
+    QString nickname{};
+    QString display_name() const { return user_display_name(username, nickname, remark); }
     qint64 last_message_id = 0;
     qint64 last_timestamp = 0;
     QString last_text;

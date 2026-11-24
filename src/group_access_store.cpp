@@ -280,7 +280,7 @@ std::expected<std::variant<chat::group_join_requests_result, group_member_reject
         return **denied;
     }
     auto page = db.prepare(R"SQL(
-        SELECT u.id,u.username,u.avatar_revision,a.user_id IS NOT NULL,r.created_at
+        SELECT u.id,u.username,u.avatar_revision,a.user_id IS NOT NULL,r.created_at,u.nickname
         FROM group_join_requests r JOIN users u ON u.id=r.user_id
         LEFT JOIN user_avatars a ON a.user_id=u.id
         WHERE r.conversation_id=?1 AND r.user_id<?2 ORDER BY r.user_id DESC LIMIT 51
@@ -308,8 +308,11 @@ std::expected<std::variant<chat::group_join_requests_result, group_member_reject
             result.next = result.requests.back().applicant.id;
             break;
         }
-        result.requests.push_back(
-            {{page->column_int64(0), std::string(page->column_text(1)), {page->column_int64(2), page->column_int64(3) != 0}}, page->column_int64(4)});
+        result.requests.push_back({{page->column_int64(0),
+                                    std::string(page->column_text(1)),
+                                    {page->column_int64(2), page->column_int64(3) != 0},
+                                    std::string(page->column_text(5))},
+                                   page->column_int64(4)});
     }
     if (auto error = tx->commit(); error)
     {

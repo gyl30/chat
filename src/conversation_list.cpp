@@ -24,7 +24,7 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                 (SELECT id,name FROM conversation_folders WHERE owner_id=?1 AND (SELECT count(*) FROM page)<=50 ORDER BY position,id))),
             'conversations', json((SELECT json_group_array(json_object(
                 'id',c.id,'folder',coalesce(c.folder_id,0),'kind',c.kind,'user',c.peer,'username',coalesce(c.title,u.username),
-                'remark',coalesce(ct.remark,''),'avatar_revision',coalesce(u.avatar_revision,0),
+                'nickname',coalesce(u.nickname,''),'remark',coalesce(ct.remark,''),'avatar_revision',coalesce(u.avatar_revision,0),
                 'has_avatar',json(CASE WHEN avatar.user_id IS NULL THEN 'false' ELSE 'true' END),
                 'activity',c.activity,'notification_level',c.notification_level,'mute_until',c.mute_until,
                 'marked_unread',json(CASE WHEN c.unread_mark_message_id IS NULL THEN 'false' ELSE 'true' END),
@@ -36,12 +36,12 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                 'speech_until',coalesce(p.until,0),
                 'server_time',CAST(unixepoch('subsec')*1000 AS INTEGER),
                 'join_approval',json(CASE WHEN c.join_approval THEN 'true' ELSE 'false' END),
-                'pinned_message',json((SELECT json_object('id',pm.id,'from',pm.sender_id,'username',pu.username,
+                'pinned_message',json((SELECT json_object('id',pm.id,'from',pm.sender_id,'username',pu.username,'nickname',pu.nickname,
                     'text',substr(pm.body,1,160),'edited_at',pm.edited_at,'deleted',json('false'))
                     FROM readable_messages pm JOIN users pu ON pu.id=pm.sender_id
                     WHERE pm.id=c.pinned_message_id AND pm.conversation_id=c.id AND pm.deleted=0 AND pm.id>c.visible_after)),
                 'last',json((SELECT json_object('id',m.id,'conversation',m.conversation_id,'from',m.sender_id,
-                    'username',author.username,'timestamp',m.created_at,'text',m.body,'forwarded_from',coalesce((SELECT username FROM users WHERE id=m.original_sender AND m.deleted=0),''),'edited_at',m.edited_at,
+                    'username',author.username,'nickname',author.nickname,'timestamp',m.created_at,'text',m.body,'forwarded_from',coalesce((SELECT coalesce(nullif(nickname,''),username) FROM users WHERE id=m.original_sender AND m.deleted=0),''),'edited_at',m.edited_at,
                     'deleted',json(CASE WHEN m.deleted THEN 'true' ELSE 'false' END),
                     'avatar_revision',author.avatar_revision,
                     'has_avatar',json(CASE WHEN sender_avatar.user_id IS NULL THEN 'false' ELSE 'true' END),
@@ -55,7 +55,7 @@ std::expected<std::string, sqlite_error> read_conversation_list(sqlite_database&
                         FROM (SELECT u.id,u.username FROM message_mentions mm JOIN users u ON u.id=mm.user_id
                               WHERE mm.message_id=m.id ORDER BY u.id) mentioned)),
                     'reply',CASE WHEN r.id IS NULL THEN NULL ELSE json_object(
-                        'id',r.id,'from',r.sender_id,'username',ra.username,'text',substr(r.body,1,160),'edited_at',r.edited_at,
+                        'id',r.id,'from',r.sender_id,'username',ra.username,'nickname',ra.nickname,'text',substr(r.body,1,160),'edited_at',r.edited_at,
                         'deleted',json(CASE WHEN r.deleted THEN 'true' ELSE 'false' END)) END,
                     'attachment',CASE WHEN ref.message_id IS NULL THEN NULL ELSE json_object(
                         'filename',a.filename,'media_type',a.media_type,'size',a.size,'object_key',a.object_key) END)

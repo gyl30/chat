@@ -9,6 +9,8 @@ constexpr std::string_view kSchema = R"SQL(
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE,
+    nickname TEXT NOT NULL DEFAULT '' CHECK(length(nickname)<=32),
+    signature TEXT NOT NULL DEFAULT '' CHECK(length(signature)<=128),
     password_hash TEXT NOT NULL CHECK (length(password_hash) = 60),
     last_seen_at INTEGER NOT NULL,
     avatar_revision INTEGER NOT NULL DEFAULT 0 CHECK (avatar_revision >= 0)

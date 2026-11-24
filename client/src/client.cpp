@@ -46,7 +46,8 @@ BOOST_DESCRIBE_STRUCT(login_session, (), (id, device_name, client_type, created_
 BOOST_DESCRIBE_STRUCT(login_session_list, (), (sessions))
 BOOST_DESCRIBE_STRUCT(conversation_folder, (), (id, name))
 BOOST_DESCRIBE_STRUCT(conversation_view_event, (), (conversation, action, through, level, until))
-BOOST_DESCRIBE_STRUCT(contact_entry, (), (id, username, avatar_revision, has_avatar, remark, group))
+BOOST_DESCRIBE_STRUCT(user_profile, (), (id, username, nickname, signature))
+BOOST_DESCRIBE_STRUCT(contact_entry, (), (id, username, avatar_revision, has_avatar, remark, group, nickname))
 BOOST_DESCRIBE_STRUCT(contact_book, (), (users, groups))
 BOOST_DESCRIBE_STRUCT(message_search_scope, (), (id, name))
 BOOST_DESCRIBE_STRUCT(message_search_hit, (), (conversation, id, from, timestamp, title, username, snippet))
@@ -123,6 +124,12 @@ bool parse_avatar_state(boost::json::object const& object, avatar_state& value)
     return true;
 }
 
+std::string string_field(boost::json::object const& object, std::string_view key)
+{
+    auto* value = object.if_contains(key);
+    return value && value->is_string() ? std::string(value->as_string()) : std::string{};
+}
+
 bool parse_user(boost::json::object const& object, user& value)
 {
     auto const* id_value = object.if_contains("id");
@@ -140,6 +147,7 @@ bool parse_user(boost::json::object const& object, user& value)
 
     value.id = *id;
     value.username = std::string(username_value->as_string());
+    value.nickname = string_field(object, "nickname");
     return parse_avatar_state(object, value.avatar);
 }
 
@@ -222,6 +230,7 @@ bool parse_quote(boost::json::object const& object, std::string_view key, std::o
         return false;
     }
     reply = quoted_message{*parsed_id, *parsed_from, std::string(username->as_string()), std::string(text->as_string()), {}};
+    reply->nickname = string_field(fields, "nickname");
     return parse_edited_at(fields, reply->edited_at) && parse_deleted(fields, reply->deleted);
 }
 
@@ -312,6 +321,7 @@ bool parse_mentions(boost::json::object const& object, std::vector<mention>& res
 
 bool parse_message(boost::json::object const& object, message& value)
 {
+    value.nickname = string_field(object, "nickname");
     if (auto* origin = object.if_contains("forwarded_from"); origin && origin->is_string())
     {
         value.forwarded_from = std::string(origin->as_string());
@@ -467,6 +477,7 @@ std::expected<conversation, error> parse_conversation(boost::json::value const& 
         item.folder = folder->as_int64();
     }
     item.username = std::string(name->as_string());
+    item.nickname = string_field(object, "nickname");
     if (auto* remark = object.if_contains("remark"); remark && remark->is_string())
     {
         item.remark = std::string(remark->as_string());
@@ -901,7 +912,7 @@ struct client::impl
             }
             return;
         }
-        if (method->as_string() == "friendship")
+        if (method->as_string() == "friendship" || method->as_string() == "profile_changed")
         {
             auto const* field = params->as_object().if_contains("user");
             auto user = field ? parse_int64(*field) : std::nullopt;
@@ -913,7 +924,7 @@ struct client::impl
             friendship_changed_handler handler;
             {
                 std::lock_guard lock(handler_mutex_);
-                handler = friendship_handler_;
+                handler = method->as_string() == "friendship" ? friendship_handler_ : profile_handler_;
             }
             if (handler && !suppress_callbacks_.load())
             {
@@ -1607,7 +1618,9 @@ struct client::impl
                                                 : role->as_string() == "admin" ? member_role::admin
                                                                                : member_role::member,
                                                 person.avatar,
-                                                speech_until->as_int64()});
+                                                speech_until->as_int64(),
+                                                std::move(person.nickname),
+                                                string_field(value.as_object(), "remark")});
                          }
                          handler(std::move(members));
                      });
@@ -3251,6 +3264,7 @@ struct client::impl
     bookmark_changed_handler bookmark_changed_handler_;
     group_join_request_handler join_request_handler_;
     connection_handler contacts_changed_handler_;
+    friendship_changed_handler profile_handler_;
     friendship_changed_handler friendship_handler_;
     std::atomic_bool suppress_callbacks_ = false;
 };
@@ -3944,6 +3958,21 @@ void client::search_users(std::string query, users_handler handler)
     boost::capy::run_async(impl_->io_context_.get_executor())(impl_->search_users(std::move(query), std::move(handler)));
 }
 
+void client::get_user_profile(std::int64_t user, profile_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->request_page<user_profile>("get_user_profile", {{"user", user}}, "Invalid user profile", std::move(handler)));
+}
+void client::set_user_profile(std::string nickname, std::string signature, group_action_handler handler)
+{
+    boost::capy::run_async(impl_->io_context_.get_executor())(
+        impl_->group_action("set_user_profile", {{"nickname", std::move(nickname)}, {"signature", std::move(signature)}}, std::move(handler)));
+}
+void client::set_profile_changed_handler(friendship_changed_handler handler)
+{
+    std::lock_guard lock(impl_->handler_mutex_);
+    impl_->profile_handler_ = std::move(handler);
+}
 void client::set_friendship_handler(friendship_changed_handler handler)
 {
     std::lock_guard lock(impl_->handler_mutex_);

@@ -34,12 +34,6 @@ QString from_utf8(std::string const& value) { return QString::fromUtf8(value.dat
 // Server and protocol errors are English identifiers; users see them in Chinese.
 QString display_error(chat::error const& value) { return from_utf8(chat::error_text(value)); }
 
-quoted_message_data to_reply_data(std::optional<chat::quoted_message> const& reply)
-{
-    return reply ? quoted_message_data{reply->id, from_utf8(reply->username), from_utf8(reply->text), reply->edited_at.value_or(0), reply->deleted}
-                 : quoted_message_data{};
-}
-
 QList<reaction_data> to_reactions(std::vector<chat::reaction> const& values)
 {
     QList<reaction_data> result;
@@ -65,7 +59,33 @@ QList<mention_data> to_mentions(std::vector<chat::mention> const& values)
     return result;
 }
 
-message_data to_message_data(chat::message const& value)
+user_data to_user_data(chat::user const& user)
+{
+    return {user.id, from_utf8(user.username), false, 0, user.avatar, {}, {}, from_utf8(user.nickname)};
+}
+
+presence_data to_presence_data(chat::presence const& value)
+{
+    presence_data presence;
+    presence.user = value.user;
+    presence.online = value.online;
+    presence.last_seen = value.last_seen;
+    return presence;
+}
+
+}    // namespace
+
+quoted_message_data client_bridge::to_reply_data(std::optional<chat::quoted_message> const& reply)
+{
+    return reply ? quoted_message_data{reply->id,
+                                       user_display_name(from_utf8(reply->username), from_utf8(reply->nickname), friend_remark(reply->from)),
+                                       from_utf8(reply->text),
+                                       reply->edited_at.value_or(0),
+                                       reply->deleted}
+                 : quoted_message_data{};
+}
+
+message_data client_bridge::to_message_data(chat::message const& value)
 {
     message_data message;
     message.forwarded_from = from_utf8(value.forwarded_from);
@@ -73,7 +93,7 @@ message_data to_message_data(chat::message const& value)
     message.acknowledgement_only = value.acknowledgement_only;
     message.conversation = value.conversation;
     message.from = value.from;
-    message.username = from_utf8(value.username);
+    message.username = user_display_name(from_utf8(value.username), from_utf8(value.nickname), friend_remark(value.from));
     message.avatar = value.avatar;
     message.reaction_revision = value.reaction_revision;
     message.reactions = to_reactions(value.reactions);
@@ -93,19 +113,6 @@ message_data to_message_data(chat::message const& value)
     }
     return message;
 }
-
-user_data to_user_data(chat::user const& user) { return {user.id, from_utf8(user.username), false, 0, user.avatar}; }
-
-presence_data to_presence_data(chat::presence const& value)
-{
-    presence_data presence;
-    presence.user = value.user;
-    presence.online = value.online;
-    presence.last_seen = value.last_seen;
-    return presence;
-}
-
-}    // namespace
 
 client_bridge::client_bridge(QObject* parent)
     : QObject(parent), client_(std::make_unique<chat::client>(to_utf8(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation))))
@@ -205,6 +212,18 @@ client_bridge::client_bridge(QObject* parent)
                         {
                             get_contacts();
                             get_conversations();
+                        });
+        });
+    client_->set_profile_changed_handler(
+        [this](std::int64_t id)
+        {
+            post_result(connection_generation_.load(),
+                        [this, id]
+                        {
+                            get_contacts();
+                            get_conversations();
+                            get_friend_requests();
+                            emit profile_changed(id);
                         });
         });
     client_->set_friendship_handler([this](std::int64_t) { post_result(connection_generation_.load(), [this] { emit friendship_changed(); }); });
@@ -343,6 +362,7 @@ void client_bridge::get_conversations_page(std::optional<chat::conversation_curs
                                                conversation_data value;
                                                value.id = item.id;
                                                value.folder = item.folder;
+                                               value.nickname = from_utf8(item.nickname);
                                                value.group = item.kind == chat::conversation_kind::group;
                                                value.user = item.user;
                                                value.username = from_utf8(item.username);
@@ -667,8 +687,13 @@ void client_bridge::get_members(qint64 conversation)
                                              QList<member_data> values;
                                              for (auto const& user : *result)
                                              {
-                                                 values.push_back(
-                                                     member_data{user.id, from_utf8(user.username), user.role, user.avatar, user.speech_until});
+                                                 values.push_back(member_data{user.id,
+                                                                              from_utf8(user.username),
+                                                                              user.role,
+                                                                              user.avatar,
+                                                                              user.speech_until,
+                                                                              from_utf8(user.nickname),
+                                                                              from_utf8(user.remark)});
                                              }
                                              emit members_received(conversation, std::move(values), {});
                                          });
@@ -780,7 +805,8 @@ void client_bridge::get_contacts()
                                                     0,
                                                     {item.avatar_revision, item.has_avatar},
                                                     from_utf8(item.remark),
-                                                    from_utf8(item.group)});
+                                                    from_utf8(item.group),
+                                                    from_utf8(item.nickname)});
                             }
                             QStringList groups;
                             for (auto const& name : result->groups)
@@ -791,6 +817,29 @@ void client_bridge::get_contacts()
                             emit contacts_received(std::move(contacts), {});
                         });
         });
+}
+
+void client_bridge::get_user_profile(qint64 user)
+{
+    client_->get_user_profile(user,
+                              [this, user, g = connection_generation_.load()](auto result)
+                              {
+                                  post_result(g,
+                                              [this, user, result = std::move(result)]
+                                              {
+                                                  if (!result)
+                                                  {
+                                                      emit error(display_error(result.error()));
+                                                      return;
+                                                  }
+                                                  emit profile_received(
+                                                      user, from_utf8(result->username), from_utf8(result->nickname), from_utf8(result->signature));
+                                              });
+                              });
+}
+void client_bridge::set_user_profile(QString nickname, QString signature)
+{
+    client_->set_user_profile(to_utf8(nickname), to_utf8(signature), settings_result());
 }
 
 void client_bridge::get_presence()

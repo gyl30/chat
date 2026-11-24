@@ -135,6 +135,10 @@ class client
     void set_bookmark_changed_handler(bookmark_changed_handler handler);
     void set_reaction_handler(reaction_handler handler);
     void set_group_join_request_handler(group_join_request_handler handler);
+    using profile_handler = std::function<void(std::expected<user_profile, error>)>;
+    void get_user_profile(std::int64_t user, profile_handler handler);
+    void set_user_profile(std::string nickname, std::string signature, group_action_handler handler);
+    void set_profile_changed_handler(friendship_changed_handler handler);
     void set_friendship_handler(friendship_changed_handler handler);
 
     void connect(std::string url);

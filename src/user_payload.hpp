@@ -9,9 +9,10 @@ struct user_payload
     std::string username;
     std::int64_t avatar_revision;
     bool has_avatar;
+    std::string nickname;
 
     explicit user_payload(chat::user const& user)
-        : id(user.id), username(user.username), avatar_revision(user.avatar.revision), has_avatar(user.avatar.present)
+        : id(user.id), username(user.username), avatar_revision(user.avatar.revision), has_avatar(user.avatar.present), nickname(user.nickname)
     {
     }
 };

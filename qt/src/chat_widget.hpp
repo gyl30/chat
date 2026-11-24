@@ -72,6 +72,7 @@ class chat_widget final : public QWidget
     void set_connection_status(QString text, bool retry_enabled);
     void set_folders(conversation_folder_list folders);
     void set_conversations(QList<conversation_data> conversations);
+    QString friend_remark(qint64 user) const;
     void set_friend_groups(QStringList const& groups);
     void set_contacts(QList<user_data> contacts);
     void set_friend_requests(QList<user_data> incoming, QList<user_data> outgoing, QString error);
@@ -155,6 +156,10 @@ class chat_widget final : public QWidget
     void contact_add_requested(qint64 user);
     void friend_request_respond_requested(qint64 user, bool accept);
     void friend_request_cancel_requested(qint64 user);
+    void profile_changed(qint64 user);
+    void profile_requested(qint64 user);
+    void profile_received(qint64 user, QString username, QString nickname, QString signature);
+    void profile_edit_requested(QString nickname, QString signature);
     void friendship_updated();
     void contact_remove_requested(qint64 user);
     void contact_add_finished(qint64 user, QString error);

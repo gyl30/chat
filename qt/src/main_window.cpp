@@ -366,6 +366,11 @@ void main_window::setup_registration_dialog()
 void main_window::setup_chat_page()
 {
     chat_page_ = new chat_widget(pages_);
+    client_->friend_remark = [this](qint64 id) { return chat_page_->friend_remark(id); };
+    connect(chat_page_, &chat_widget::profile_requested, client_.get(), &client_bridge::get_user_profile);
+    connect(chat_page_, &chat_widget::profile_edit_requested, client_.get(), &client_bridge::set_user_profile);
+    connect(client_.get(), &client_bridge::profile_received, chat_page_, &chat_widget::profile_received);
+    connect(client_.get(), &client_bridge::profile_changed, chat_page_, &chat_widget::profile_changed);
     chat_page_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
     if (!QCoreApplication::organizationName().isEmpty() && !QCoreApplication::applicationName().isEmpty())
     {
@@ -1024,6 +1029,7 @@ void main_window::show_group_details(qint64 conversation, qint64 self_user, QStr
             [this, conversation, &dialog](bool group_only) { chat_page_->choose_attachment(conversation, group_only, &dialog); });
     connect(
         &dialog, &group_dialog::user_requested, chat_page_, [this](qint64 user, QString const& name) { chat_page_->show_user_details(user, name); });
+    connect(client_.get(), &client_bridge::profile_changed, &dialog, [this, conversation] { client_->get_members(conversation); });
     connect(client_.get(), &client_bridge::members_received, &dialog, &group_dialog::set_members);
     connect(client_.get(), &client_bridge::group_action_finished, &dialog, &group_dialog::finish_action);
     connect(client_.get(), &client_bridge::group_invite_received, &dialog, &group_dialog::set_invite);

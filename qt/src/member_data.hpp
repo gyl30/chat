@@ -6,6 +6,7 @@
 #include <QMetaType>
 #include <QString>
 #include <chat/member.hpp>
+#include "user_data.hpp"
 
 struct member_data
 {
@@ -14,6 +15,8 @@ struct member_data
     chat::member_role role = chat::member_role::member;
     chat::avatar_state avatar;
     qint64 speech_until = 0;
+    QString nickname{}, remark{};
+    QString display_name() const { return user_display_name(username, nickname, remark); }
 };
 
 Q_DECLARE_METATYPE(member_data)

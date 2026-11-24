@@ -153,11 +153,12 @@ std::expected<std::vector<chat::conversation_member>, sqlite_error> read_convers
                                                                                               std::int64_t actor)
 {
     auto members = db.prepare(R"SQL(
-        SELECT u.id,u.username,u.id=c.owner_id,m.is_admin,u.avatar_revision,a.user_id IS NOT NULL,coalesce(p.until,0)
+        SELECT u.id,u.username,u.id=c.owner_id,m.is_admin,u.avatar_revision,a.user_id IS NOT NULL,coalesce(p.until,0),u.nickname,coalesce(ct.remark,'')
         FROM conversation_members own
         JOIN conversations c ON c.id=own.conversation_id
         JOIN conversation_members m ON m.conversation_id=c.id
         JOIN users u ON u.id=m.user_id
+        LEFT JOIN contacts ct ON ct.owner_id=?2 AND ct.contact_id=u.id
         LEFT JOIN user_avatars a ON a.user_id=u.id
         LEFT JOIN group_member_mutes p ON p.conversation_id=c.id AND p.user_id=u.id
         WHERE own.conversation_id=?1 AND own.user_id=?2 ORDER BY u.id
@@ -193,7 +194,9 @@ std::expected<std::vector<chat::conversation_member>, sqlite_error> read_convers
                           std::string(members->column_text(1)),
                           role,
                           {members->column_int64(4), members->column_int64(5) != 0},
-                          members->column_int64(6)});
+                          members->column_int64(6),
+                          std::string(members->column_text(7)),
+                          std::string(members->column_text(8))});
     }
 }
 

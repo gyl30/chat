@@ -79,7 +79,7 @@ QVariant conversation_model::data(QModelIndex const& index, int role) const
     switch (role)
     {
         case Qt::DisplayRole:
-            return item->remark.isEmpty() ? item->username : item->remark;
+            return item->display_name();
         case username_role:
             return item->username;
         case folder_role:

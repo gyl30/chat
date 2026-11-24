@@ -121,6 +121,7 @@ endif()
 
 add_executable(chat_server
     src/main.cpp
+    src/user_profile_request.cpp
     src/avatar_request.cpp
     src/avatar_image.cpp
     src/attachment_request.cpp
