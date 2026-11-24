@@ -1,0 +1,2 @@
+# Preserve vendor archive bytes; lint only Chat-owned source.
+third/curl/** -text -whitespace
