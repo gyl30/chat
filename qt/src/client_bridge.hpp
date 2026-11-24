@@ -98,11 +98,11 @@ class client_bridge final : public QObject
     void get_messages(qint64 conversation, std::optional<qint64> before = {}, std::optional<qint64> after = {}, bool capture_unread = false);
     void create_poll(qint64 room, QString question, QStringList options);
     void refresh_live_poll(qint64 room, qint64 message);
-    void get_poll(qint64 room, qint64 message);
-    void vote_poll(qint64 room, qint64 message, qint64 choice);
-    void close_poll(qint64 room, qint64 message);
-    void get_poll_voters(qint64 room, qint64 message, qint64 choice, qint64 after);
-    void get_bundle(qint64 conversation, qint64 message, qint64 after);
+    quint64 get_poll(qint64 room, qint64 message);
+    quint64 vote_poll(qint64 room, qint64 message, qint64 choice);
+    quint64 close_poll(qint64 room, qint64 message);
+    quint64 get_poll_voters(qint64 room, qint64 message, qint64 choice, qint64 after);
+    quint64 get_bundle(qint64 conversation, qint64 message, qint64 after);
     void forward_bundle(qint64 target, QList<qint64> messages);
     void forward_messages(qint64 target, QList<qint64> messages);
     void send_message(qint64 conversation, QString text, qint64 reply_to, qint64 client_id, qint64 revision, chat::text_options options);
@@ -143,7 +143,7 @@ class client_bridge final : public QObject
                         qint64 item = 0);
     void restore_attachments();
     void interrupt_attachment(qint64 id, bool cancel, QString path);
-    void get_message_image(qint64 conversation, qint64 message, qint64 item = 0);
+    quint64 get_message_image(qint64 conversation, qint64 message, qint64 item = 0);
     void mark_read(qint64 user, qint64 message);
     void get_avatar(qint64 user, qint64 revision);
     void set_avatar(QByteArray data);
@@ -228,10 +228,10 @@ class client_bridge final : public QObject
     void files_changed(qint64 conversation, QString error);
     void files_received(qint64 conversation, chat::conversation_file_page page, bool older, QString error);
     void poll_changed(chat::poll_update update);
-    void poll_received(qint64 room, qint64 message, chat::poll_state state, QString error);
-    void voters_received(qint64 message, qint64 choice, qint64 after, chat::poll_voters page, QString error);
-    void bundle_received(qint64 conversation, qint64 message, chat::forwarded_page page, QString error);
-    void bundle_image_received(qint64 message, qint64 item, QByteArray bytes, QString error);
+    void poll_received(quint64 request, qint64 room, qint64 message, chat::poll_state state, QString error);
+    void voters_received(quint64 request, qint64 message, qint64 choice, qint64 after, chat::poll_voters page, QString error);
+    void bundle_received(quint64 request, qint64 conversation, qint64 message, chat::forwarded_page page, QString error);
+    void bundle_image_received(quint64 request, qint64 message, qint64 item, QByteArray bytes, QString error);
     void download_requested(qint64 conversation, qint64 message, QString key, QString filename, QString path, bool open, qint64 item = 0);
     void download_progress(qint64 id, quint64 attempt, qint64 bytes, qint64 total);
     void download_finished(qint64 id, quint64 attempt, QString error);
@@ -257,7 +257,7 @@ class client_bridge final : public QObject
     void read_marked(qint64 user, qint64 message, QString error_message);
 
    private:
-    chat::client::poll_handler poll_result(qint64 room, qint64 message, bool write);
+    chat::client::poll_handler poll_result(quint64 request, qint64 room, qint64 message, bool write);
     std::function<void(std::expected<bool, chat::error>)> settings_result();
     void publish_pending_text(chat::pending_text const& item);
     std::function<void(std::expected<chat::friendship_result, chat::error>)> friend_request_result(qint64 user);
@@ -287,6 +287,7 @@ class client_bridge final : public QObject
                                 QList<conversation_data> conversations,
                                 std::uint64_t generation,
                                 std::uint64_t connection);
+    quint64 content_request_ = 0;
     std::uint64_t conversations_generation_ = 0;
     std::uint64_t files_generation_ = 0;
     std::uint64_t contacts_generation_ = 0;

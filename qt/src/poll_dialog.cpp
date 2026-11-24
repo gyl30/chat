@@ -86,34 +86,60 @@ void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 mes
     layout->addWidget(people);
     layout->addWidget(more);
     qint64 cursor = 0;
+    quint64 query = 0, operation = 0, voters_query = 0;
+    auto reload = [&]
+    {
+        voters_query = 0;
+        more->setEnabled(false);
+        query = client.get_poll(room, message);
+    };
     chat::poll_state state;
     auto controls = [&]
     {
-        submit->setEnabled(!state.summary.closed && options->currentRow() >= 0 && options->currentRow() + 1 != state.selection);
-        cancel->setEnabled(!state.summary.closed && state.selection != 0);
+        submit->setEnabled(!operation && !state.summary.closed && options->currentRow() >= 0 && options->currentRow() + 1 != state.selection);
+        cancel->setEnabled(!operation && !state.summary.closed && state.selection != 0);
+        close->setEnabled(!operation);
         close->setVisible(state.can_close && !state.summary.closed);
     };
     auto load_people = [&]
     {
+        voters_query = 0;
         cursor = 0;
         more->hide();
         people->clear();
         controls();
         if (options->currentRow() >= 0)
         {
-            client.get_poll_voters(room, message, options->currentRow() + 1, 0);
+            voters_query = client.get_poll_voters(room, message, options->currentRow() + 1, 0);
         }
     };
     QObject::connect(options, &QListWidget::currentRowChanged, &dialog, load_people);
     QObject::connect(&client,
                      &client_bridge::poll_received,
                      &dialog,
-                     [&](qint64 r, qint64 id, chat::poll_state value, QString err)
+                     [&](quint64 request, qint64 r, qint64 id, chat::poll_state value, QString err)
                      {
                          if (r != room || id != message)
                          {
                              return;
                          }
+                         if (request == operation)
+                         {
+                             operation = 0;
+                             controls();
+                             if (!err.isEmpty())
+                             {
+                                 status->setText(err);
+                             }
+                             // Successful mutations also publish poll_changed. That refresh reads
+                             // the current selection and permissions, even after a dialog was reopened.
+                             return;
+                         }
+                         if (request != query)
+                         {
+                             return;
+                         }
+                         query = 0;
                          if (!err.isEmpty())
                          {
                              status->setText(err);
@@ -157,16 +183,16 @@ void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 mes
                      {
                          if (update.message == message && update.summary.revision > state.summary.revision)
                          {
-                             client.get_poll(room, message);
+                             reload();
                          }
                      });
     QObject::connect(
         &client,
         &client_bridge::voters_received,
         &dialog,
-        [&](qint64 id, qint64 choice, qint64 after, chat::poll_voters page, QString err)
+        [&](quint64 request, qint64 id, qint64 choice, qint64 after, chat::poll_voters page, QString err)
         {
-            if (id != message || choice != options->currentRow() + 1 || after != cursor)
+            if (request != voters_query || id != message || choice != options->currentRow() + 1 || after != cursor)
             {
                 return;
             }
@@ -194,11 +220,32 @@ void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 mes
                      [&]
                      {
                          more->setEnabled(false);
-                         client.get_poll_voters(room, message, options->currentRow() + 1, cursor);
+                         voters_query = client.get_poll_voters(room, message, options->currentRow() + 1, cursor);
                      });
-    QObject::connect(submit, &QPushButton::clicked, &dialog, [&] { client.vote_poll(room, message, options->currentRow() + 1); });
-    QObject::connect(cancel, &QPushButton::clicked, &dialog, [&] { client.vote_poll(room, message, 0); });
-    QObject::connect(close, &QPushButton::clicked, &dialog, [&] { client.close_poll(room, message); });
+    QObject::connect(submit,
+                     &QPushButton::clicked,
+                     &dialog,
+                     [&]
+                     {
+                         operation = client.vote_poll(room, message, options->currentRow() + 1);
+                         controls();
+                     });
+    QObject::connect(cancel,
+                     &QPushButton::clicked,
+                     &dialog,
+                     [&]
+                     {
+                         operation = client.vote_poll(room, message, 0);
+                         controls();
+                     });
+    QObject::connect(close,
+                     &QPushButton::clicked,
+                     &dialog,
+                     [&]
+                     {
+                         operation = client.close_poll(room, message);
+                         controls();
+                     });
     QObject::connect(&chat,
                      &chat_widget::history_discarded,
                      &dialog,
@@ -222,7 +269,7 @@ void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 mes
                              }
                              else
                              {
-                                 client.get_poll(room, message);
+                                 reload();
                              }
                          }
                      });
@@ -239,6 +286,6 @@ void show_poll(client_bridge& client, chat_widget& chat, qint64 room, qint64 mes
     QObject::connect(&client, &client_bridge::disconnected, &dialog, &QDialog::reject);
     controls();
     more->hide();
-    client.get_poll(room, message);
+    reload();
     dialog.exec();
 }

@@ -43,6 +43,7 @@ void show_bundle(client_bridge& client, chat_widget& chat, qint64 room, qint64 m
     layout->addWidget(more);
     std::vector<chat::forwarded_item> items;
     qint64 cursor = 0;
+    quint64 query = 0;
     QObject::connect(entries,
                      &QListWidget::currentRowChanged,
                      &dialog,
@@ -81,19 +82,20 @@ void show_bundle(client_bridge& client, chat_widget& chat, qint64 room, qint64 m
                                           &preview,
                                           [&](qint64, qint64, QString path) { client.get_attachment(room, message, name, path, item.position); });
                          QObject::connect(&client, &client_bridge::attachment_received, &preview, &attachment_dialog::download_finished);
+                         quint64 image_query = 0;
                          QObject::connect(&client,
                                           &client_bridge::bundle_image_received,
                                           &preview,
-                                          [&](qint64 id, qint64 position, QByteArray bytes, QString error)
+                                          [&](quint64 request, qint64 id, qint64 position, QByteArray bytes, QString error)
                                           {
-                                              if (id == message && position == item.position)
+                                              if (request == image_query && id == message && position == item.position)
                                               {
                                                   preview.set_data(room, message, std::move(bytes), error);
                                               }
                                           });
                          if (image)
                          {
-                             client.get_message_image(room, message, item.position);
+                             image_query = client.get_message_image(room, message, item.position);
                          }
                          preview.exec();
                      });
@@ -103,17 +105,18 @@ void show_bundle(client_bridge& client, chat_widget& chat, qint64 room, qint64 m
                      [&]
                      {
                          more->setEnabled(false);
-                         client.get_bundle(room, message, cursor);
+                         query = client.get_bundle(room, message, cursor);
                      });
     QObject::connect(&client,
                      &client_bridge::bundle_received,
                      &dialog,
-                     [&](qint64 conversation, qint64 id, chat::forwarded_page page, QString error)
+                     [&](quint64 request, qint64 conversation, qint64 id, chat::forwarded_page page, QString error)
                      {
-                         if (conversation != room || id != message)
+                         if (request != query || conversation != room || id != message)
                          {
                              return;
                          }
+                         query = 0;
                          if (!error.isEmpty())
                          {
                              entries->clear();
@@ -170,6 +173,6 @@ void show_bundle(client_bridge& client, chat_widget& chat, qint64 room, qint64 m
                          }
                      });
     QObject::connect(&client, &client_bridge::disconnected, &dialog, &QDialog::reject);
-    client.get_bundle(room, message, 0);
+    query = client.get_bundle(room, message, 0);
     dialog.exec();
 }
