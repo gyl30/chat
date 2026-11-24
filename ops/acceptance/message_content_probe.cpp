@@ -19,9 +19,55 @@
 #include <cassert>
 #include <iostream>
 
+static void check_display_roles()
+{
+    message_model model;
+    model.reset(1);
+    message_data m;
+    m.conversation = 1;
+    auto check = [&](QString text)
+    {
+        ++m.id;
+        m.text = text;
+        assert(model.add_message(m));
+        auto index = model.index(model.rowCount() - 1);
+        auto body = index.data(message_model::text_role);
+        assert(body.isValid() && index.data(Qt::DisplayRole) == body);
+        assert(index.data(message_model::poll_role).isValid() == (m.poll.has_value() && !m.deleted));
+        return body.toString();
+    };
+    assert(check("普通文本") == "普通文本");
+    m.markdown = true;
+    assert(check("**源文**") == "**源文**");
+    m.markdown = false;
+    m.attachment = attachment_data{"photo.png", "image/png", 1024, "image"};
+    assert(check("photo.png") == "图片：photo.png\n1.0 KiB");
+    m.attachment = attachment_data{"file.bin", "application/octet-stream", 2048, "file"};
+    assert(check("file.bin") == "文件：file.bin\n2.0 KiB");
+    m.attachment.reset();
+    m.content = "bundle";
+    assert(check("聊天记录") == "聊天记录");
+    m.content = "poll";
+    m.poll = chat::poll_summary{1, false, {{1, 0, "选项"}}};
+    assert(check("问题") == "问题");
+    m.deleted = true;
+    assert(check("问题") == "消息已删除");
+    m = {};
+    m.client_id = 42;
+    m.text = "本地正文";
+    for (bool failed : {false, true})
+    {
+        model.set_pending({{m, failed, {}, !failed}});
+        auto index = model.index(model.rowCount() - 1);
+        assert(index.data(Qt::DisplayRole).toString() == m.text && index.data(message_model::text_role).toString() == m.text);
+        assert(!index.data(message_model::poll_role).isValid());
+    }
+}
+
 int main(int argc, char** argv)
 {
     QApplication app(argc, argv);
+    check_display_roles();
     QCoreApplication::setOrganizationName("acceptance");
     QCoreApplication::setApplicationName("message-content");
     theme_manager::instance().load_settings();

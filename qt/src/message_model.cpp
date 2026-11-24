@@ -188,7 +188,6 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             }
             return parts.join(QStringLiteral("；"));
         }
-        case Qt::DisplayRole:
         case poll_role:
         {
             if (!message.poll || message.deleted)
@@ -207,6 +206,7 @@ QVariant message_model::data(QModelIndex const& index, int role) const
             return message.deleted ? QString{} : message.content;
         case markdown_role:
             return message.markdown && !message.deleted;
+        case Qt::DisplayRole:
         case text_role:
             if (message.deleted)
             {
