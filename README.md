@@ -29,7 +29,7 @@ cmake -S . -B build-qt -G Ninja -DCMAKE_BUILD_TYPE=Release \
 cmake --build build-qt --target chat_server chat_client chat_qt
 ```
 
-按实际安装路径调整 Boost、Qt；在默认搜索路径中时可省略对应参数。不需要安装 SQLite、libcurl 或 S3 SDK 的开发包。[SQLite 3.51.3](third/sqlite/README.md)、libcurl 8.23.0 和 Yxml 都从仓库内静态构建。首次配置的下载见[依赖说明](cmake/README.md#附件传输和-s3)。C++ 构建不需要 Python。管理 SQLite 的 Python 需[单独使用同源私有库](ops/sqlite-runtime.md)。隔离验收和搜索测量见[验收入口](ops/acceptance/README.md)。
+按实际安装路径调整 Boost、Qt；在默认搜索路径中时可省略对应参数。不需要安装 SQLite、libcurl 或 S3 SDK 的开发包。[SQLite 3.51.3](third/sqlite/README.md)、libcurl 8.23.0 和 Yxml 都从仓库内静态构建。子模块及系统工具链齐备后可离线配置，见[依赖说明](cmake/README.md)。C++ 构建不需要 Python。管理 SQLite 的 Python 需[单独使用同源私有库](ops/sqlite-runtime.md)。隔离验收和搜索测量见[验收入口](ops/acceptance/README.md)。
 
 ## 本地运行
 

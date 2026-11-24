@@ -1,41 +1,24 @@
 # Shared Unicode dependencies (Qt and SQLite)
 
-The server's SQLite Unicode functions and the Qt desktop client use the pinned
-utf8proc 2.12.0 / Unicode 18 source. CMake verifies the upstream archive,
-its checked-in source hashes and the pinned Unicode data hashes; the source is
-built only once. The server does not depend on Qt.
+The server's SQLite Unicode functions and Qt desktop client use vendored
+[utf8proc 2.12.0 / Unicode 18](../third/utf8proc/README.chat.md). CMake builds one static library.
+The service does not depend on Qt.
 
-When `CHAT_BUILD_QT_CLIENT=ON`, Qt additionally reads the pinned Unicode 18
-`cmake/unicode/emoji-data-18.0.0.txt` and derives its emoji property header
-in the build directory. The data's complete Unicode License V3 is retained
-in `cmake/unicode/UNICODE-LICENSE.txt`. The utf8proc license is retained in
-`cmake/utf8proc-LICENSE.md`. These notices must accompany any distribution
-containing the statically linked code or generated property tables.
+When `CHAT_BUILD_QT_CLIENT=ON`, CMake derives Qt's emoji property header from the same pinned
+`cmake/unicode/emoji-data-18.0.0.txt`. Qt includes the unmodified generated scanner from
+[Google emoji-segmenter 0.4.0](../third/emoji-segmenter/README.chat.md).
+Neither dependency downloads at configure time. Ragel, Python and runtime data files are not needed.
+Preserve the vendored licenses and `cmake/unicode/UNICODE-LICENSE.txt` when distributing.
 
-Qt 6.5+ Svg and Widgets are required for the desktop client (on Linux, DBus
-is required as well). CMake uses the installed Qt package; supply
-`CMAKE_PREFIX_PATH` or `Qt6_DIR` if Qt is not in a default location.
-
-Qt also uses the official Google emoji-segmenter 0.4.0 at commit
-`72bdc08c02be6cccdfc8cb1055fea4822a6494c1`:
-
-- Archive SHA256: `6561ffc3fe83df9f9bf07da1d02522c9b0c6878aeaf56282116b92288367e51c`.
-- Unmodified generated scanner SHA256: `e41071624cf91187ae26396b3d2b9adda648c5afb4519ff562e7aeb9415c157d`.
-- Upstream Apache-2.0 LICENSE SHA256: `cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30`.
-
-The archive's complete LICENSE and scanner copyright notice must accompany
-distributions. Normal builds need neither Ragel nor scanner regeneration.
-`FETCHCONTENT_SOURCE_DIR_CHAT_EMOJI_SEGMENTER` permits offline configuration
-while preserving the source hash checks. The Unicode/emoji data inputs are
-not loaded into the server's runtime process.
-
+Qt 6.5+ Svg and Widgets are required for the desktop client (on Linux, DBus is required as well).
+Supply `CMAKE_PREFIX_PATH` or `Qt6_DIR` if Qt is not in a default location.
 
 ## 附件传输和 S3
 
 [libcurl 8.23.0](../third/curl/README.chat.md) 和 [Yxml](../third/yxml/README.chat.md)
 直接由仓库内源码静态构建，无系统 libcurl 回退、预编译前缀或配置阶段下载。libcurl 仅保留
 HTTP/1.1 和 HTTPS，使用 OpenSSL、线程 DNS、IPv4/IPv6 与 AWS SigV4；Yxml 只链接服务端。
-Qt 或 libpng 所需的 zlib 仍由系统提供。独立的 utf8proc 和 emoji-segmenter 下载规则不变，已取到的源码可在原构建目录重用。
+Qt 或 libpng 所需的 zlib 仍由系统提供。
 
 服务端使用现有 S3 工作器执行带 SigV4 请求头的 S3 请求；分片 PUT 和下载 GET 的查询签名
 由服务端 OpenSSL 单独生成。SDK 传输这些 URL 时不重新编码。HTTPS 不关闭证书或主机名校验。

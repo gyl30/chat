@@ -2,7 +2,7 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Svg Widgets)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_package(Qt6 6.5 REQUIRED COMPONENTS DBus)
 endif()
-include("${PROJECT_SOURCE_DIR}/cmake/chat_emoji_scanner.cmake")
+add_subdirectory("${PROJECT_SOURCE_DIR}/third/emoji-segmenter" "${PROJECT_BINARY_DIR}/third/emoji-segmenter" EXCLUDE_FROM_ALL)
 
 add_executable(chat_qt
     src/main.cpp

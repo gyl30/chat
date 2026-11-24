@@ -1,33 +1,12 @@
 include_guard(GLOBAL)
-include(FetchContent)
 
 block()
+    set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
     set(BUILD_SHARED_LIBS OFF)
-    set(UTF8PROC_INSTALL OFF CACHE BOOL "" FORCE)
-    set(UTF8PROC_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
-    FetchContent_Declare(utf8proc
-        URL https://codeload.github.com/JuliaStrings/utf8proc/tar.gz/79cdd5ab40c79afa559f689ffc13b76812dee1ac
-        URL_HASH SHA256=e8fadfcd531d65525cbef157b866c5408e2e3f0d7c0f3aefb0bce01a7a08e35d
-        DOWNLOAD_EXTRACT_TIMESTAMP FALSE
-        EXCLUDE_FROM_ALL
-    )
-    FetchContent_MakeAvailable(utf8proc)
+    set(UTF8PROC_INSTALL OFF)
+    set(UTF8PROC_ENABLE_TESTING OFF)
+    add_subdirectory(third/utf8proc EXCLUDE_FROM_ALL)
 endblock()
-
-# The standard offline override bypasses archive verification, not source pins.
-FetchContent_GetProperties(utf8proc SOURCE_DIR utf8proc_pinned_source)
-set(utf8proc_pinned_files utf8proc.h utf8proc.c utf8proc_data.c)
-set(utf8proc_pinned_hashes
-    08da85e820efaa3613500946c26b2dc427a07f76001ed7c16bc90f298b814c35
-    f38438eb986ba7eedad0f2e820a70fae1aaf05197364ba0381a5e84775099ef8
-    b4911d4162d216afa612317a9b981851e15d672f4d93b25f3a1eb986f8c0aedb
-)
-foreach(source expected_hash IN ZIP_LISTS utf8proc_pinned_files utf8proc_pinned_hashes)
-    file(SHA256 "${utf8proc_pinned_source}/${source}" actual_hash)
-    if(NOT actual_hash STREQUAL expected_hash)
-        message(FATAL_ERROR "Pinned utf8proc 2.12.0 / Unicode18 source changed: ${source}")
-    endif()
-endforeach()
 
 if(NOT CHAT_BUILD_QT_CLIENT)
     return()
