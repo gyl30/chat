@@ -17,72 +17,12 @@
 #include <boost/capy/io_result.hpp>
 
 #include "websocket.hpp"
+#include "websocket_handshake.hpp"
 
 namespace
 {
 
-constexpr std::string_view kWebSocketGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 using chat::detail::websocket_heartbeat;
-
-std::string_view as_string_view(boost::core::string_view value) { return {value.data(), value.size()}; }
-
-std::string_view trim(std::string_view value)
-{
-    while (!value.empty() && (value.front() == ' ' || value.front() == '\t'))
-    {
-        value.remove_prefix(1);
-    }
-    while (!value.empty() && (value.back() == ' ' || value.back() == '\t'))
-    {
-        value.remove_suffix(1);
-    }
-    return value;
-}
-
-char ascii_lower(char ch)
-{
-    if (ch >= 'A' && ch <= 'Z')
-    {
-        return static_cast<char>(ch - 'A' + 'a');
-    }
-    return ch;
-}
-
-bool ascii_iequals(std::string_view lhs, std::string_view rhs)
-{
-    if (lhs.size() != rhs.size())
-    {
-        return false;
-    }
-
-    for (std::size_t i = 0; i < lhs.size(); ++i)
-    {
-        if (ascii_lower(lhs[i]) != ascii_lower(rhs[i]))
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool contains_token(std::string_view value, std::string_view token)
-{
-    while (!value.empty())
-    {
-        auto const comma = value.find(',');
-        auto const current = trim(value.substr(0, comma));
-        if (ascii_iequals(current, token))
-        {
-            return true;
-        }
-        if (comma == std::string_view::npos)
-        {
-            break;
-        }
-        value.remove_prefix(comma + 1);
-    }
-    return false;
-}
 
 bool valid_websocket_key(std::string_view key)
 {
@@ -106,39 +46,6 @@ bool valid_websocket_key(std::string_view key)
     return decoded_size == 16;
 }
 
-bool make_websocket_accept(std::string_view key, std::string& accept)
-{
-    struct evp_md_ctx_deleter
-    {
-        void operator()(EVP_MD_CTX* context) const noexcept { EVP_MD_CTX_free(context); }
-    };
-
-    std::unique_ptr<EVP_MD_CTX, evp_md_ctx_deleter> digest_context(EVP_MD_CTX_new());
-    if (!digest_context)
-    {
-        return false;
-    }
-
-    std::array<unsigned char, EVP_MAX_MD_SIZE> digest{};
-    unsigned int digest_size = 0;
-    if (EVP_DigestInit_ex(digest_context.get(), EVP_sha1(), nullptr) != 1 || EVP_DigestUpdate(digest_context.get(), key.data(), key.size()) != 1 ||
-        EVP_DigestUpdate(digest_context.get(), kWebSocketGuid.data(), kWebSocketGuid.size()) != 1 ||
-        EVP_DigestFinal_ex(digest_context.get(), digest.data(), &digest_size) != 1)
-    {
-        return false;
-    }
-
-    std::array<unsigned char, 64> encoded{};
-    auto const encoded_size = EVP_EncodeBlock(encoded.data(), digest.data(), static_cast<int>(digest_size));
-    if (encoded_size <= 0)
-    {
-        return false;
-    }
-
-    accept.assign(reinterpret_cast<char const*>(encoded.data()), static_cast<std::size_t>(encoded_size));
-    return true;
-}
-
 std::error_code websocket_protocol_error() { return std::make_error_code(std::errc::protocol_error); }
 
 }    // namespace
@@ -151,13 +58,13 @@ bool websocket_upgrade_accept(boost::http::request_base const& request, std::str
         return false;
     }
 
-    auto const connection = as_string_view(request.value_or(boost::http::field::connection, ""));
-    auto const upgrade = as_string_view(request.value_or(boost::http::field::upgrade, ""));
-    auto const version = trim(as_string_view(request.value_or(boost::http::field::sec_websocket_version, "")));
-    auto const key = trim(as_string_view(request.value_or(boost::http::field::sec_websocket_key, "")));
+    auto const connection = std::string_view(request.value_or(boost::http::field::connection, ""));
+    auto const upgrade = std::string_view(request.value_or(boost::http::field::upgrade, ""));
+    auto const version = chat::detail::trim_http_whitespace(std::string_view(request.value_or(boost::http::field::sec_websocket_version, "")));
+    auto const key = chat::detail::trim_http_whitespace(std::string_view(request.value_or(boost::http::field::sec_websocket_key, "")));
 
-    return contains_token(connection, "upgrade") && contains_token(upgrade, "websocket") && version == "13" && valid_websocket_key(key) &&
-           make_websocket_accept(key, accept);
+    return chat::detail::has_websocket_upgrade(connection, upgrade) && version == "13" && valid_websocket_key(key) &&
+           chat::detail::make_websocket_accept(key, accept);
 }
 
 void websocket_connection::context_deleter::operator()(wslay_event_context* context) const noexcept { wslay_event_context_free(context); }

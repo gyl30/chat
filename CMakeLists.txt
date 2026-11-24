@@ -79,6 +79,7 @@ include(cmake/chat_curl.cmake)
 add_subdirectory(third/yxml EXCLUDE_FROM_ALL)
 
 set(common_sources
+    src/websocket_handshake.cpp
     src/sqlite_database.cpp
     src/blocking_worker.cpp
 )
