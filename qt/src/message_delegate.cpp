@@ -688,7 +688,8 @@ QString message_delegate::code_at(QStyleOptionViewItem const& option, QModelInde
         return {};
     }
     auto layout = calculate_layout(option, index);
-    return layout.markdown->code_at(point - layout.text_origin(option.rect) - QPoint(0, layout.prefix_height));
+    return layout.markdown->code_at(point - layout.text_origin(option.rect) - QPoint(0, layout.prefix_height),
+                                    index.data(message_model::text_role).toString());
 }
 
 bool message_delegate::helpEvent(QHelpEvent* event, QAbstractItemView* view, QStyleOptionViewItem const& option, QModelIndex const& index)

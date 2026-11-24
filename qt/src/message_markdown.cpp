@@ -92,7 +92,7 @@ message_markdown::message_markdown(QString const& source, QFont const& font, int
     setTextWidth(qBound(1., idealWidth(), qreal(width)));
 }
 
-QString message_markdown::code_at(QPointF point) const
+QString message_markdown::code_at(QPointF point, QString const& source) const
 {
     int pos = documentLayout()->hitTest(point, Qt::ExactHit);
     if (pos < 0)
@@ -105,14 +105,77 @@ QString message_markdown::code_at(QPointF point) const
     {
         return {};
     }
-    while (code(block.previous()))
+    // Qt gives adjacent fences identical block formats, even when they were separate in the source.
+    // Match its rendered lines back to the enclosing fence only when the user asks to copy code.
+    static QRegularExpression const fence(QStringLiteral(R"(^[ \t>]*(?:(?:[-+*]|\d+[.)])\s+)?(\x60{3,}|~{3,})(.*)$)"));
+    auto lines = QStringView(source).split(u'\n');
+    auto rendered = begin();
+    for (qsizetype i = 0; i < lines.size(); ++i)
+    {
+        while (rendered.isValid() && !code(rendered))
+        {
+            rendered = rendered.next();
+        }
+        if (!rendered.isValid())
+        {
+            break;
+        }
+        auto open = fence.matchView(lines[i]);
+        if (!open.hasMatch())
+        {
+            continue;
+        }
+        auto marker = open.capturedView(1);
+        if (!marker.startsWith(rendered.blockFormat().stringProperty(QTextFormat::BlockCodeFence)))
+        {
+            continue;
+        }
+        auto next = rendered;
+        QStringList contents;
+        bool hit = false;
+        qsizetype j = i + 1;
+        for (; j < lines.size(); ++j)
+        {
+            auto line = lines[j];
+            if (line.endsWith(u'\r'))
+            {
+                line.chop(1);
+            }
+            auto end = fence.matchView(line);
+            if (end.hasMatch() && end.capturedView(1).startsWith(marker) && end.capturedView(2).trimmed().isEmpty())
+            {
+                break;
+            }
+            if (!code(next) || !line.endsWith(next.text()))
+            {
+                break;
+            }
+            hit |= next == block;
+            contents << next.text();
+            next = next.next();
+        }
+        if (contents.isEmpty())
+        {
+            continue;
+        }
+        if (hit)
+        {
+            return contents.join(u'\n');
+        }
+        rendered = next;
+        i = j - 1;
+    }
+    // Indented code and container layouts without a literal source fence.
+    auto format = block.blockFormat();
+    auto same = [&](QTextBlock const& b) { return code(b) && b.blockFormat() == format; };
+    while (same(block.previous()))
     {
         block = block.previous();
     }
-    QStringList lines;
-    for (; code(block); block = block.next())
+    QStringList contents;
+    for (; same(block); block = block.next())
     {
-        lines << block.text();
+        contents << block.text();
     }
-    return lines.join(u'\n');
+    return contents.join(u'\n');
 }

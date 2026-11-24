@@ -137,7 +137,7 @@ boost::capy::task<simdjson::error_code> chat_session::handle_bundle(json_rpc_req
     {
         co_return serialize_json_rpc_invalid_params(std::move(request.id), response);
     }
-    auto page = co_await run_db([&](sqlite_database& db) { return read_bundle(db, *user_id_, p); });
+    auto page = co_await run_db([&, user = *user_id_](sqlite_database& db) { return read_bundle(db, user, p); });
     if (!page)
     {
         co_return serialize_json_rpc_error(-32000, "Server error", std::move(request.id), response);

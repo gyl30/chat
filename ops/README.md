@@ -62,7 +62,7 @@ aws --endpoint-url "$S3_ENDPOINT" s3api head-object \
   --bucket "$S3_BUCKET" --key "$OBJECT_KEY"
 ```
 
-`ListParts` 查看未完成上传的分片；`HEAD` 检查已完成对象。`NoSuchUpload` 也可能来自正常完成或终止。结合 `files`、`message_attachments`、`conversation_files` 及 `attachment_cleanup` 中同一键的预留或回收状态判断。权限、证书或连接错误须单独排查。不要据空列表修改任务或终止上传。
+`ListParts` 查看未完成上传的分片；`HEAD` 检查已完成对象。`NoSuchUpload` 也可能来自正常完成或终止。结合 `files`、`message_attachments`、`conversation_files`、`bundle_items.object_key` 及 `attachment_cleanup` 中同一键的预留或回收状态判断。权限、证书或连接错误须单独排查。不要据空列表修改任务或终止上传。
 
 服务启动、运行期间和退出时会处理回收队列。撤回消息或移除群文件后仍有其他引用的对象继续保留。确认最后引用消失后由服务端删除对象；15 天未继续的上传先终止 multipart，再清理预留。检查未完成分片时，应结合数据库的上传状态、最后活动时间以及 Silo 的响应。Silo 不可达时，先检查 endpoint、证书、私有桶权限和凭据，恢复后观察队列是否下降。
 

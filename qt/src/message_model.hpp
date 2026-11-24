@@ -74,6 +74,7 @@ class message_model final : public QAbstractListModel
     void merge_messages(QList<message_data> messages);
     bool add_message(message_data message);
     void update_message(message_data const& message);
+    void set_poll(qint64 message, chat::poll_summary const& summary);
     bool set_reactions(qint64 message, qint64 revision, QList<reaction_data> reactions);
     void set_read_message(qint64 user, qint64 message);
     qint64 read_position(qint64 user) const { return read_positions_.value(user); }

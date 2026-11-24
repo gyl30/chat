@@ -15,7 +15,7 @@ QUrl http_message_url(QString const& target)
 
 QList<QTextLayout::FormatRange> message_links(QString const& body)
 {
-    static QRegularExpression const pattern(QStringLiteral(R"re((?<![a-zA-Z0-9_+./:-])https?://[^\s<>"“”‘’《》，。！？；、（）【】]+)re"),
+    static QRegularExpression const pattern(QStringLiteral(R"re((?<![a-zA-Z0-9_+./:-])https?://[^\s<>"“”‘’《》，。！？；：…、（）【】]+)re"),
                                             QRegularExpression::CaseInsensitiveOption);
     QList<QTextLayout::FormatRange> ranges;
     auto matches = pattern.globalMatch(body);

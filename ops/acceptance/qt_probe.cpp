@@ -1060,7 +1060,20 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         }
         if (auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget()); dialog && dialog->windowTitle() == QStringLiteral("聊天记录"))
         {
-            out["count"] = dialog->findChild<QListWidget*>()->count();
+            auto* list = dialog->findChild<QListWidget*>();
+            out["count"] = list->count();
+            if (cmd.contains("attachment_row"))
+            {
+                list->setCurrentRow(cmd["attachment_row"].toInt());
+                for (auto* button : dialog->findChildren<QPushButton*>())
+                {
+                    if (button->isVisible() && button->text() == QStringLiteral("查看附件"))
+                    {
+                        QTimer::singleShot(0, button, &QPushButton::click);
+                        break;
+                    }
+                }
+            }
             out["body"] = dialog->findChild<QTextBrowser*>()->toPlainText();
             if (cmd["close"].toBool())
             {
@@ -1526,6 +1539,27 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         }
         out["reply"] = button("cancelReplyButton")->isVisible();
     }
+    else if (op == "mention_tag")
+    {
+        auto* tag = chat->mention_all_button_;
+        if (cmd["remove"].toBool() && tag->isChecked())
+        {
+            tag->click();
+        }
+        if (cmd["add"].toBool())
+        {
+            auto* menu = chat->mention_button_->menu();
+            emit menu->aboutToShow();
+            for (auto* action : menu->actions())
+            {
+                if (action->text() == QStringLiteral("@所有人"))
+                {
+                    action->trigger();
+                }
+            }
+        }
+        out["checked"] = tag->isChecked();
+    }
     else if (op == "draft")
     {
         if (cmd.contains("markdown"))
@@ -1706,6 +1740,10 @@ QJsonObject dispatch(main_window& window, probe_controls& controls, QJsonObject 
         {
             auto idx = model->index(i, 0);
             QJsonObject row{{"text", idx.data(message_model::text_role).toString()}, {"id", idx.data(message_model::id_role).toLongLong()}};
+            if (cmd["polls"].toBool())
+            {
+                row["poll"] = idx.data(message_model::poll_role).toString();
+            }
             if (cmd["authors"].toBool())
             {
                 row["author"] = idx.data(message_model::sender_name_role).toString();

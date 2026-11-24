@@ -3345,11 +3345,7 @@ void chat_widget::update_poll(chat::poll_update const& update)
     {
         return;
     }
-    message_data m;
-    m.conversation = update.conversation;
-    m.id = update.message;
-    m.poll = update.summary;
-    messages_->update_message(m);
+    messages_->set_poll(update.message, update.summary);
 }
 
 void chat_widget::add_message(qint64 user, message_data message)

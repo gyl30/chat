@@ -13,6 +13,16 @@
 namespace
 {
 
+bool merge_poll(message_data& message, chat::poll_summary const& summary)
+{
+    if (message.deleted || (message.poll && message.poll->revision >= summary.revision))
+    {
+        return false;
+    }
+    message.poll = summary;
+    return true;
+}
+
 void merge_reply(quoted_message_data& reply, QList<message_data> const& messages)
 {
     if (reply.id <= 0 || reply.deleted)
@@ -469,9 +479,8 @@ void message_model::update_message(message_data const& message)
                 }
                 changed = true;
             }
-            if (!current.deleted && message.poll && (!current.poll || message.poll->revision > current.poll->revision))
+            if (message.poll && merge_poll(current, *message.poll))
             {
-                current.poll = message.poll;
                 changed = true;
             }
             if (!current.deleted && message.reaction_revision > current.reaction_revision)
@@ -496,6 +505,16 @@ void message_model::update_message(message_data const& message)
         {
             emit dataChanged(index(row, 0), index(row, 0));
         }
+    }
+}
+
+void message_model::set_poll(qint64 message, chat::poll_summary const& summary)
+{
+    auto it = std::ranges::lower_bound(messages_, message, {}, &message_data::id);
+    if (it != messages_.end() && it->id == message && merge_poll(*it, summary))
+    {
+        auto row = index(static_cast<int>(it - messages_.begin()), 0);
+        emit dataChanged(row, row, {poll_role, Qt::AccessibleTextRole});
     }
 }
 

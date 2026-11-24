@@ -61,6 +61,9 @@ int main(int argc, char** argv)
         assert(ranges.size() == 2 && ranges.front().format.foreground().color() == themed("link"));
         assert(message_links("xhttps://bad http:// https:///missing file:///x").empty());
         assert(message_links("https://example.test/a(b)).").front().format.anchorHref() == "https://example.test/a(b)");
+        auto punctuated = message_links(QStringLiteral("https://例子.测试/路径：补充说明；https://example.test/end…"));
+        assert(punctuated.size() == 2 && QUrl(punctuated.front().format.anchorHref()).path() == QStringLiteral("/路径") &&
+               QUrl(punctuated.back().format.anchorHref()).path() == QStringLiteral("/end"));
         QStyleOptionViewItem option;
         option.initFrom(view);
         option.widget = view;
@@ -108,13 +111,10 @@ int main(int argc, char** argv)
         chat.show_message_menu(target);
         assert(QApplication::clipboard()->text() == long_url);
     }
-    message_markdown doc(
-        QStringLiteral(
-            "# 题目\n\n**粗体** *斜体* ~~删除~~ 😀\n\n[网页](https://example.test) [本地](file:///tmp/test)\n\n![远程](https://example.test/img.png) "
-            "![本地图片](file:///tmp/image.png)\n\n<b>HTML</b>\n\n```cpp\nreturn 7;\n// 中文\n```"),
-        view->font(),
-        240,
-        {});
+    auto const md = QStringLiteral(
+        "# 题目\n\n**粗体** *斜体* ~~删除~~ 😀\n\n[网页](https://example.test) [本地](file:///tmp/test)\n\n![远程](https://example.test/img.png) "
+        "![本地图片](file:///tmp/image.png)\n\n<b>HTML</b>\n\n```cpp\nreturn 7;\n// 中文\n```");
+    message_markdown doc(md, view->font(), 240, {});
     assert(doc.toPlainText().contains("粗体") && doc.toPlainText().contains("<b>HTML</b>"));
     bool bold = false, code = false, link = false;
     for (auto block = doc.begin(); block.isValid(); block = block.next())
@@ -122,7 +122,7 @@ int main(int argc, char** argv)
         if (block.text() == "return 7;")
         {
             auto rect = doc.documentLayout()->blockBoundingRect(block);
-            assert(doc.code_at(rect.topLeft() + QPointF(3, 5)) == QStringLiteral("return 7;\n// 中文"));
+            assert(doc.code_at(rect.topLeft() + QPointF(3, 5), md) == QStringLiteral("return 7;\n// 中文"));
             code = true;
         }
         for (auto it = block.begin(); !it.atEnd(); ++it)
@@ -141,6 +141,16 @@ int main(int argc, char** argv)
         }
     }
     assert(bold && code && link);
+    auto const fences = QStringLiteral("```cpp\nline 1\nline 2\n```\n\n```cpp\nnext block\n```");
+    message_markdown adjacent(fences, view->font(), 240, {});
+    for (auto b = adjacent.begin(); b.isValid(); b = b.next())
+    {
+        if (b.text() == "line 2" || b.text() == "next block")
+        {
+            auto point = adjacent.documentLayout()->blockBoundingRect(b).topLeft() + QPointF(3, 5);
+            assert(adjacent.code_at(point, fences) == (b.text() == "line 2" ? QStringLiteral("line 1\nline 2") : QStringLiteral("next block")));
+        }
+    }
     QDesktopServices::unsetUrlHandler("http");
     QDesktopServices::unsetUrlHandler("https");
     std::cout
